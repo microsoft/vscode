@@ -13,7 +13,6 @@ import { EventEmitter } from 'events';
 import iconv = require('iconv-lite');
 import { assign, uniqBy, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp } from './util';
 
-const readdir = denodeify<string[]>(fs.readdir);
 const readfile = denodeify<string>(fs.readFile);
 
 export interface IGit {
@@ -66,7 +65,7 @@ function findSpecificGit(path: string): Promise<IGit> {
 		const buffers: Buffer[] = [];
 		const child = cp.spawn(path, ['--version']);
 		child.stdout.on('data', (b: Buffer) => buffers.push(b));
-		child.on('error', e);
+		child.on('error', cpErrorHandler(e));
 		child.on('exit', code => code ? e(new Error('Not found')) : c({ path, version: parseVersion(Buffer.concat(buffers).toString('utf8').trim()) }));
 	});
 }
@@ -118,40 +117,26 @@ function findSystemGitWin32(base: string): Promise<IGit> {
 	return findSpecificGit(path.join(base, 'Git', 'cmd', 'git.exe'));
 }
 
-function findGitHubGitWin32(): Promise<IGit> {
-	const github = path.join(process.env['LOCALAPPDATA'], 'GitHub');
-
-	return readdir(github).then(children => {
-		const git = children.filter(child => /^PortableGit/.test(child))[0];
-
-		if (!git) {
-			return Promise.reject<IGit>('Not found');
-		}
-
-		return findSpecificGit(path.join(github, git, 'cmd', 'git.exe'));
-	});
-}
-
 function findGitWin32(): Promise<IGit> {
-	return findSystemGitWin32(process.env['ProgramW6432'])
-		.then(void 0, () => findSystemGitWin32(process.env['ProgramFiles(x86)']))
-		.then(void 0, () => findSystemGitWin32(process.env['ProgramFiles']))
-		.then(void 0, () => findSpecificGit('git'))
-		.then(void 0, () => findGitHubGitWin32());
+	return findSystemGitWin32(process.env['ProgramW6432'] as string)
+		.then(void 0, () => findSystemGitWin32(process.env['ProgramFiles(x86)'] as string))
+		.then(void 0, () => findSystemGitWin32(process.env['ProgramFiles'] as string))
+		.then(void 0, () => findSpecificGit('git'));
 }
 
 export function findGit(hint: string | undefined): Promise<IGit> {
 	var first = hint ? findSpecificGit(hint) : Promise.reject<IGit>(null);
 
-	return first.then(void 0, () => {
-		switch (process.platform) {
-			case 'darwin': return findGitDarwin();
-			case 'win32': return findGitWin32();
-			default: return findSpecificGit('git');
-		}
-	});
+	return first
+		.then(void 0, () => {
+			switch (process.platform) {
+				case 'darwin': return findGitDarwin();
+				case 'win32': return findGitWin32();
+				default: return findSpecificGit('git');
+			}
+		})
+		.then(null, () => Promise.reject(new Error('Git installation not found.')));
 }
-
 
 export interface IExecutionResult {
 	exitCode: number;
@@ -159,7 +144,27 @@ export interface IExecutionResult {
 	stderr: string;
 }
 
-async function exec(child: cp.ChildProcess, options: any = {}): Promise<IExecutionResult> {
+function cpErrorHandler(cb: (reason?: any) => void): (reason?: any) => void {
+	return err => {
+		if (/ENOENT/.test(err.message)) {
+			err = new GitError({
+				error: err,
+				message: 'Failed to execute git (ENOENT)',
+				gitErrorCode: GitErrorCodes.NotAGitRepository
+			});
+		}
+
+		cb(err);
+	};
+}
+
+export interface SpawnOptions extends cp.SpawnOptions {
+	input?: string;
+	encoding?: string;
+	log?: boolean;
+}
+
+async function exec(child: cp.ChildProcess, options: SpawnOptions = {}): Promise<IExecutionResult> {
 	if (!child.stdout || !child.stderr) {
 		throw new GitError({
 			message: 'Failed to get stdout or stderr from git process.'
@@ -168,12 +173,12 @@ async function exec(child: cp.ChildProcess, options: any = {}): Promise<IExecuti
 
 	const disposables: IDisposable[] = [];
 
-	const once = (ee: NodeJS.EventEmitter, name: string, fn: Function) => {
+	const once = (ee: NodeJS.EventEmitter, name: string, fn: (...args: any[]) => void) => {
 		ee.once(name, fn);
 		disposables.push(toDisposable(() => ee.removeListener(name, fn)));
 	};
 
-	const on = (ee: NodeJS.EventEmitter, name: string, fn: Function) => {
+	const on = (ee: NodeJS.EventEmitter, name: string, fn: (...args: any[]) => void) => {
 		ee.on(name, fn);
 		disposables.push(toDisposable(() => ee.removeListener(name, fn)));
 	};
@@ -183,17 +188,17 @@ async function exec(child: cp.ChildProcess, options: any = {}): Promise<IExecuti
 
 	const [exitCode, stdout, stderr] = await Promise.all<any>([
 		new Promise<number>((c, e) => {
-			once(child, 'error', e);
+			once(child, 'error', cpErrorHandler(e));
 			once(child, 'exit', c);
 		}),
 		new Promise<string>(c => {
 			const buffers: Buffer[] = [];
-			on(child.stdout, 'data', b => buffers.push(b));
+			on(child.stdout, 'data', (b: Buffer) => buffers.push(b));
 			once(child.stdout, 'close', () => c(iconv.decode(Buffer.concat(buffers), encoding)));
 		}),
 		new Promise<string>(c => {
 			const buffers: Buffer[] = [];
-			on(child.stderr, 'data', b => buffers.push(b));
+			on(child.stderr, 'data', (b: Buffer) => buffers.push(b));
 			once(child.stderr, 'close', () => c(Buffer.concat(buffers).toString('utf8')));
 		})
 	]);
@@ -246,7 +251,7 @@ export class GitError {
 			gitCommand: this.gitCommand,
 			stdout: this.stdout,
 			stderr: this.stderr
-		}, [], 2);
+		}, null, 2);
 
 		if (this.error) {
 			result += (<any>this.error).stack;
@@ -345,22 +350,22 @@ export class Git {
 		return folderPath;
 	}
 
-	async getRepositoryRoot(path: string): Promise<string> {
-		const result = await this.exec(path, ['rev-parse', '--show-toplevel']);
-		return result.stdout.trim();
+	async getRepositoryRoot(repositoryPath: string): Promise<string> {
+		const result = await this.exec(repositoryPath, ['rev-parse', '--show-toplevel']);
+		return path.normalize(result.stdout.trim());
 	}
 
-	async exec(cwd: string, args: string[], options: any = {}): Promise<IExecutionResult> {
+	async exec(cwd: string, args: string[], options: SpawnOptions = {}): Promise<IExecutionResult> {
 		options = assign({ cwd }, options || {});
 		return await this._exec(args, options);
 	}
 
-	stream(cwd: string, args: string[], options: any = {}): cp.ChildProcess {
+	stream(cwd: string, args: string[], options: SpawnOptions = {}): cp.ChildProcess {
 		options = assign({ cwd }, options || {});
 		return this.spawn(args, options);
 	}
 
-	private async _exec(args: string[], options: any = {}): Promise<IExecutionResult> {
+	private async _exec(args: string[], options: SpawnOptions = {}): Promise<IExecutionResult> {
 		const child = this.spawn(args, options);
 
 		if (options.input) {
@@ -387,7 +392,7 @@ export class Git {
 		return result;
 	}
 
-	spawn(args: string[], options: any = {}): cp.ChildProcess {
+	spawn(args: string[], options: SpawnOptions = {}): cp.ChildProcess {
 		if (!this.gitPath) {
 			throw new Error('git could not be found in the system.');
 		}
@@ -505,19 +510,19 @@ export class Repository {
 	}
 
 	// TODO@Joao: rename to exec
-	async run(args: string[], options: any = {}): Promise<IExecutionResult> {
+	async run(args: string[], options: SpawnOptions = {}): Promise<IExecutionResult> {
 		return await this.git.exec(this.repositoryRoot, args, options);
 	}
 
-	stream(args: string[], options: any = {}): cp.ChildProcess {
+	stream(args: string[], options: SpawnOptions = {}): cp.ChildProcess {
 		return this.git.stream(this.repositoryRoot, args, options);
 	}
 
-	spawn(args: string[], options: any = {}): cp.ChildProcess {
+	spawn(args: string[], options: SpawnOptions = {}): cp.ChildProcess {
 		return this.git.spawn(args, options);
 	}
 
-	async config(scope: string, key: string, value: any, options: any): Promise<string> {
+	async config(scope: string, key: string, value: any, options: SpawnOptions): Promise<string> {
 		const args = ['config'];
 
 		if (scope) {
@@ -883,9 +888,10 @@ export class Repository {
 	getStatus(limit = 5000): Promise<{ status: IFileStatus[]; didHitLimit: boolean; }> {
 		return new Promise<{ status: IFileStatus[]; didHitLimit: boolean; }>((c, e) => {
 			const parser = new GitStatusParser();
-			const child = this.stream(['status', '-z', '-u']);
+			const env = { GIT_OPTIONAL_LOCKS: '0' };
+			const child = this.stream(['status', '-z', '-u'], { env });
 
-			const onExit = exitCode => {
+			const onExit = (exitCode: number) => {
 				if (exitCode !== 0) {
 					const stderr = stderrData.join('');
 					return e(new GitError({
@@ -919,7 +925,7 @@ export class Repository {
 			child.stderr.setEncoding('utf8');
 			child.stderr.on('data', raw => stderrData.push(raw as string));
 
-			child.on('error', e);
+			child.on('error', cpErrorHandler(e));
 			child.on('exit', onExit);
 		});
 	}
@@ -947,7 +953,7 @@ export class Repository {
 	async getRefs(): Promise<Ref[]> {
 		const result = await this.run(['for-each-ref', '--format', '%(refname) %(objectname)']);
 
-		const fn = (line): Ref | null => {
+		const fn = (line: string): Ref | null => {
 			let match: RegExpExecArray | null;
 
 			if (match = /^refs\/heads\/([^ ]+) ([0-9a-f]{40})$/.exec(line)) {
@@ -972,7 +978,7 @@ export class Repository {
 		const regex = /^stash@{(\d+)}:(.+)$/;
 		const rawStashes = result.stdout.trim().split('\n')
 			.filter(b => !!b)
-			.map(line => regex.exec(line))
+			.map(line => regex.exec(line) as RegExpExecArray)
 			.filter(g => !!g)
 			.map(([, index, description]: RegExpExecArray) => ({ index: parseInt(index), description }));
 
@@ -984,7 +990,7 @@ export class Repository {
 		const regex = /^([^\s]+)\s+([^\s]+)\s/;
 		const rawRemotes = result.stdout.trim().split('\n')
 			.filter(b => !!b)
-			.map(line => regex.exec(line))
+			.map(line => regex.exec(line) as RegExpExecArray)
 			.filter(g => !!g)
 			.map((groups: RegExpExecArray) => ({ name: groups[1], url: groups[2] }));
 

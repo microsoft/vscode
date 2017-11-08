@@ -14,6 +14,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
+import { Position } from 'vs/editor/common/core/position';
 import { editorAction, ServicesAccessor, IActionOptions, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { CopyLinesCommand } from './copyLinesCommand';
 import { DeleteLinesCommand } from './deleteLinesCommand';
@@ -48,6 +49,7 @@ abstract class AbstractCopyLinesAction extends EditorAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class CopyLinesUpAction extends AbstractCopyLinesAction {
 	constructor() {
 		super(false, {
@@ -65,6 +67,7 @@ class CopyLinesUpAction extends AbstractCopyLinesAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class CopyLinesDownAction extends AbstractCopyLinesAction {
 	constructor() {
 		super(true, {
@@ -109,6 +112,7 @@ abstract class AbstractMoveLinesAction extends EditorAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class MoveLinesUpAction extends AbstractMoveLinesAction {
 	constructor() {
 		super(false, {
@@ -126,6 +130,7 @@ class MoveLinesUpAction extends AbstractMoveLinesAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class MoveLinesDownAction extends AbstractMoveLinesAction {
 	constructor() {
 		super(true, {
@@ -165,6 +170,7 @@ abstract class AbstractSortLinesAction extends EditorAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class SortLinesAscendingAction extends AbstractSortLinesAction {
 	constructor() {
 		super(false, {
@@ -177,6 +183,7 @@ class SortLinesAscendingAction extends AbstractSortLinesAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class SortLinesDescendingAction extends AbstractSortLinesAction {
 	constructor() {
 		super(true, {
@@ -206,9 +213,17 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor, args: any): void {
 
-		var command = new TrimTrailingWhitespaceCommand(editor.getSelection());
+		let cursors: Position[] = [];
+		if (args.reason === 'auto-save') {
+			// See https://github.com/editorconfig/editorconfig-vscode/issues/47
+			// It is very convenient for the editor config extension to invoke this action.
+			// So, if we get a reason:'auto-save' passed in, let's preserve cursor positions.
+			cursors = editor.getSelections().map(s => new Position(s.positionLineNumber, s.positionColumn));
+		}
+
+		var command = new TrimTrailingWhitespaceCommand(editor.getSelection(), cursors);
 
 		editor.pushUndoStop();
 		editor.executeCommands(this.id, [command]);
@@ -267,6 +282,7 @@ abstract class AbstractRemoveLinesAction extends EditorAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class DeleteLinesAction extends AbstractRemoveLinesAction {
 
 	constructor() {
@@ -320,6 +336,7 @@ export class IndentLinesAction extends EditorAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class OutdentLinesAction extends EditorAction {
 	constructor() {
 		super({
@@ -407,7 +424,9 @@ export abstract class AbstractDeleteAllToBoundaryAction extends EditorAction {
 			return EditOperation.replace(range, '');
 		});
 
+		editor.pushUndoStop();
 		editor.executeEdits(this.id, edits, endCursorState);
+		editor.pushUndoStop();
 	}
 
 	/**
@@ -673,8 +692,9 @@ export class JoinLinesAction extends EditorAction {
 		}
 
 		endCursorState.unshift(endPrimaryCursor);
+		editor.pushUndoStop();
 		editor.executeEdits(this.id, edits, endCursorState);
-
+		editor.pushUndoStop();
 	}
 }
 

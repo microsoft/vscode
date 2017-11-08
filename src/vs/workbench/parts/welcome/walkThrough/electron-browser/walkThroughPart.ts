@@ -19,8 +19,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WalkThroughInput } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughInput';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { marked } from 'vs/base/common/marked/marked';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IFileService } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -34,7 +32,6 @@ import { once } from 'vs/base/common/event';
 import { isObject } from 'vs/base/common/types';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -99,15 +96,12 @@ export class WalkThroughPart extends BaseEditor {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService protected themeService: IThemeService,
 		@IOpenerService private openerService: IOpenerService,
-		@IFileService private fileService: IFileService,
 		@IModelService protected modelService: IModelService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IStorageService private storageService: IStorageService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IModeService private modeService: IModeService,
-		@IMessageService private messageService: IMessageService,
-		@IPartService private partService: IPartService
+		@IMessageService private messageService: IMessageService
 	) {
 		super(WalkThroughPart.ID, telemetryService, themeService);
 		this.editorFocus = WALK_THROUGH_FOCUS.bindTo(this.contextKeyService);
@@ -178,6 +172,13 @@ export class WalkThroughPart extends BaseEditor {
 					let baseElement = window.document.getElementsByTagName('base')[0] || window.location;
 					if (baseElement && node.href.indexOf(baseElement.href) >= 0 && node.hash) {
 						let scrollTarget = this.content.querySelector(node.hash);
+						/* __GDPR__
+							"revealInDocument" : {
+								"hash" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+								"broken": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+								"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+							}
+						*/
 						this.telemetryService.publicLog('revealInDocument', {
 							hash: node.hash,
 							broken: !scrollTarget,
@@ -209,6 +210,12 @@ export class WalkThroughPart extends BaseEditor {
 
 	private open(uri: URI) {
 		if (uri.scheme === 'http' || uri.scheme === 'https') {
+			/* __GDPR__
+				"openExternal" : {
+					"uri" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
 			this.telemetryService.publicLog('openExternal', {
 				uri: uri.toString(true),
 				from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined
@@ -272,7 +279,7 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	private getArrowScrollHeight() {
-		let fontSize = this.configurationService.lookup<number>('editor.fontSize').value;
+		let fontSize = this.configurationService.getValue<number>('editor.fontSize');
 		if (typeof fontSize !== 'number' || fontSize < 1) {
 			fontSize = 12;
 		}
@@ -341,6 +348,12 @@ export class WalkThroughPart extends BaseEditor {
 					const div = innerContent.querySelector(`#${id.replace(/\./g, '\\.')}`) as HTMLElement;
 
 					const options = this.getEditorOptions(snippet.textEditorModel.getModeId());
+					/* __GDPR__FRAGMENT__
+						"EditorTelemetryData" : {
+							"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							"snippet": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					*/
 					const telemetryData = {
 						target: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
 						snippet: i
@@ -382,13 +395,20 @@ export class WalkThroughPart extends BaseEditor {
 						}
 					}));
 
-					this.contentDisposables.push(this.configurationService.onDidUpdateConfiguration(() => {
+					this.contentDisposables.push(this.configurationService.onDidChangeConfiguration(() => {
 						if (snippet.textEditorModel) {
 							editor.updateOptions(this.getEditorOptions(snippet.textEditorModel.getModeId()));
 						}
 					}));
 
 					this.contentDisposables.push(once(editor.onMouseDown)(() => {
+						/* __GDPR__
+							"walkThroughSnippetInteraction" : {
+								"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+								"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+								"snippet": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+							}
+						*/
 						this.telemetryService.publicLog('walkThroughSnippetInteraction', {
 							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
 							type: 'mouseDown',
@@ -396,6 +416,13 @@ export class WalkThroughPart extends BaseEditor {
 						});
 					}));
 					this.contentDisposables.push(once(editor.onKeyDown)(() => {
+						/* __GDPR__
+							"walkThroughSnippetInteraction" : {
+								"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+								"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+								"snippet": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+							}
+						*/
 						this.telemetryService.publicLog('walkThroughSnippetInteraction', {
 							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
 							type: 'keyDown',
@@ -403,6 +430,13 @@ export class WalkThroughPart extends BaseEditor {
 						});
 					}));
 					this.contentDisposables.push(once(editor.onDidChangeModelContent)(() => {
+						/* __GDPR__
+							"walkThroughSnippetInteraction" : {
+								"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+								"type": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+								"snippet": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+							}
+						*/
 						this.telemetryService.publicLog('walkThroughSnippetInteraction', {
 							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined,
 							type: 'changeModelContent',
@@ -412,7 +446,11 @@ export class WalkThroughPart extends BaseEditor {
 				});
 				this.updateSizeClasses();
 				this.multiCursorModifier();
-				this.contentDisposables.push(this.configurationService.onDidUpdateConfiguration(() => this.multiCursorModifier()));
+				this.contentDisposables.push(this.configurationService.onDidChangeConfiguration(e => {
+					if (e.affectsConfiguration('editor.multiCursorModifier')) {
+						this.multiCursorModifier();
+					}
+				}));
 				if (input.onReady) {
 					input.onReady(innerContent);
 				}
@@ -470,8 +508,8 @@ export class WalkThroughPart extends BaseEditor {
 
 	private multiCursorModifier() {
 		const labels = UILabelProvider.modifierLabels[OS];
-		const setting = this.configurationService.lookup<string>('editor.multiCursorModifier');
-		const modifier = labels[setting.value === 'ctrlCmd' ? (OS === OperatingSystem.Macintosh ? 'metaKey' : 'ctrlKey') : 'altKey'];
+		const value = this.configurationService.getValue<string>('editor.multiCursorModifier');
+		const modifier = labels[value === 'ctrlCmd' ? (OS === OperatingSystem.Macintosh ? 'metaKey' : 'ctrlKey') : 'altKey'];
 		const keys = this.content.querySelectorAll('.multi-cursor-modifier');
 		Array.prototype.forEach.call(keys, (key: Element) => {
 			while (key.firstChild) {

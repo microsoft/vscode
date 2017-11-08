@@ -8,7 +8,7 @@ import * as os from 'os';
 import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
-import { ITerminalService, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
 import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
@@ -21,6 +21,9 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { ActionBarContributor } from 'vs/workbench/browser/actions';
 import { TerminalEntry } from 'vs/workbench/parts/terminal/browser/terminalQuickOpen';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { PICK_WORKSPACE_FOLDER_COMMAND } from 'vs/workbench/browser/actions/workspaceActions';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
 
@@ -200,19 +203,39 @@ export class CreateNewTerminalAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
+		@ITerminalService private terminalService: ITerminalService,
+		@ICommandService private commandService: ICommandService,
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
 	) {
 		super(id, label);
 		this.class = 'terminal-action new';
 	}
 
 	public run(event?: any): TPromise<any> {
-		const instance = this.terminalService.createInstance(undefined, true);
-		if (!instance) {
-			return TPromise.as(void 0);
+		const folders = this.workspaceContextService.getWorkspace().folders;
+
+		let instancePromise: TPromise<ITerminalInstance>;
+		if (folders.length <= 1) {
+			// Allow terminal service to handle the path when there is only a
+			// single root
+			instancePromise = TPromise.as(this.terminalService.createInstance(undefined, true));
+		} else {
+			instancePromise = this.commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND).then(workspace => {
+				if (!workspace) {
+					// Don't create the instance if the workspace picker was canceled
+					return null;
+				}
+				return this.terminalService.createInstance({ cwd: workspace.uri.fsPath }, true);
+			});
 		}
-		this.terminalService.setActiveInstance(instance);
-		return this.terminalService.showPanel(true);
+
+		return instancePromise.then(instance => {
+			if (!instance) {
+				return TPromise.as(void 0);
+			}
+			this.terminalService.setActiveInstance(instance);
+			return this.terminalService.showPanel(true);
+		});
 	}
 }
 
@@ -253,34 +276,6 @@ export class FocusNextTerminalAction extends Action {
 	public run(event?: any): TPromise<any> {
 		this.terminalService.setActiveInstanceToNext();
 		return this.terminalService.showPanel(true);
-	}
-}
-
-export class FocusTerminalAtIndexAction extends Action {
-	private static ID_PREFIX = 'workbench.action.terminal.focusAtIndex';
-
-	constructor(
-		id: string, label: string,
-		@ITerminalService private terminalService: ITerminalService
-	) {
-		super(id, label);
-	}
-
-	public run(event?: any): TPromise<any> {
-		this.terminalService.setActiveInstanceByIndex(this.getTerminalNumber() - 1);
-		return this.terminalService.showPanel(true);
-	}
-
-	public static getId(n: number): string {
-		return FocusTerminalAtIndexAction.ID_PREFIX + n;
-	}
-
-	public static getLabel(n: number): string {
-		return nls.localize('workbench.action.terminal.focusAtIndex', 'Focus Terminal {0}', n);
-	}
-
-	private getTerminalNumber(): number {
-		return parseInt(this.id.substr(FocusTerminalAtIndexAction.ID_PREFIX.length));
 	}
 }
 
@@ -734,8 +729,6 @@ export class ShowPreviousFindTermTerminalFindWidgetAction extends Action {
 export class QuickOpenActionTermContributor extends ActionBarContributor {
 
 	constructor(
-		@ITerminalService private terminalService: ITerminalService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super();
@@ -758,7 +751,7 @@ export class QuickOpenActionTermContributor extends ActionBarContributor {
 export class QuickOpenTermAction extends Action {
 
 	public static ID = 'workbench.action.quickOpenTerm';
-	public static LABEL = nls.localize('quickOpenTerm', "Terminal: Switch Active Terminal");
+	public static LABEL = nls.localize('quickOpenTerm', "Switch Active Terminal");
 
 	constructor(
 		id: string,
@@ -779,8 +772,7 @@ export class RenameTerminalQuickOpenAction extends RenameTerminalAction {
 		id: string, label: string,
 		private terminal: TerminalEntry,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@ITerminalService terminalService: ITerminalService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@ITerminalService terminalService: ITerminalService
 	) {
 		super(id, label, quickOpenService, terminalService);
 		this.class = 'quick-open-terminal-configure';

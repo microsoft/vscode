@@ -10,10 +10,11 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
-import { ILineEdit, ModelLine, LineMarker, MarkersTracker } from 'vs/editor/common/model/modelLine';
 import { withMockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
-
-const NO_TAB_SIZE = 0;
+import { Model } from 'vs/editor/common/model/model';
+import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
+import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
+import { Cursor } from 'vs/editor/common/controller/cursor';
 
 function testCommand(lines: string[], selections: Selection[], edits: IIdentifiedSingleEditOperation[], expectedLines: string[], expectedSelections: Selection[]): void {
 	withMockCodeEditor(lines, {}, (editor, cursor) => {
@@ -29,15 +30,6 @@ function testCommand(lines: string[], selections: Selection[], edits: IIdentifie
 		assert.deepEqual(actualSelections.map(s => s.toString()), expectedSelections.map(s => s.toString()));
 
 	});
-}
-
-function testLineEditMarker(text: string, column: number, stickToPreviousCharacter: boolean, edit: ILineEdit, expectedColumn: number): void {
-	var line = new ModelLine(text, NO_TAB_SIZE);
-	line.addMarker(new LineMarker('1', 0, new Position(0, column), stickToPreviousCharacter));
-
-	line.applyEdits(new MarkersTracker(), [edit], NO_TAB_SIZE);
-
-	assert.equal(line.getMarkers()[0].position.column, expectedColumn);
 }
 
 suite('Editor Side Editing - collapsed selection', () => {
@@ -84,14 +76,6 @@ suite('Editor Side Editing - collapsed selection', () => {
 			],
 			[new Selection(1, 1, 1, 10)]
 		);
-	});
-
-	test('ModelLine.applyEdits uses `isReplace`', () => {
-		testLineEditMarker('something', 1, true, { startColumn: 1, endColumn: 1, text: 'asd', forceMoveMarkers: false }, 1);
-		testLineEditMarker('something', 1, true, { startColumn: 1, endColumn: 1, text: 'asd', forceMoveMarkers: true }, 4);
-
-		testLineEditMarker('something', 1, false, { startColumn: 1, endColumn: 1, text: 'asd', forceMoveMarkers: false }, 4);
-		testLineEditMarker('something', 1, false, { startColumn: 1, endColumn: 1, text: 'asd', forceMoveMarkers: true }, 4);
 	});
 
 	test('insert at selection', () => {
@@ -204,5 +188,699 @@ suite('Editor Side Editing - collapsed selection', () => {
 			[new Selection(1, 1, 1, 1), new Selection(1, 3, 1, 3)]
 		);
 	});
+});
 
+suite('SideEditing', () => {
+
+	const LINES = [
+		'My First Line',
+		'My Second Line',
+		'Third Line'
+	];
+
+	function _runTest(selection: Selection, editRange: Range, editText: string, editForceMoveMarkers: boolean, expected: Selection, msg: string): void {
+		const model = Model.createFromString(LINES.join('\n'));
+		const config = new TestConfiguration(null);
+		const viewModel = new ViewModel(0, config, model, null);
+		const cursor = new Cursor(config, model, viewModel);
+
+		cursor.setSelections('tests', [selection]);
+		model.applyEdits([{ range: editRange, text: editText, forceMoveMarkers: editForceMoveMarkers, identifier: null }]);
+		const actual = cursor.getSelection();
+		assert.deepEqual(actual.toString(), expected.toString(), msg);
+
+		cursor.dispose();
+		viewModel.dispose();
+		config.dispose();
+		model.dispose();
+	}
+
+	function runTest(selection: Range, editRange: Range, editText: string, expected: Selection[][]): void {
+		const sel1 = new Selection(selection.startLineNumber, selection.startColumn, selection.endLineNumber, selection.endColumn);
+		_runTest(sel1, editRange, editText, false, expected[0][0], '0-0-regular-no-force');
+		_runTest(sel1, editRange, editText, true, expected[1][0], '1-0-regular-force');
+
+		// RTL selection
+		const sel2 = new Selection(selection.endLineNumber, selection.endColumn, selection.startLineNumber, selection.startColumn);
+		_runTest(sel2, editRange, editText, false, expected[0][1], '0-1-inverse-no-force');
+		_runTest(sel2, editRange, editText, true, expected[1][1], '1-1-inverse-force');
+	}
+
+	suite('insert', () => {
+		suite('collapsed sel', () => {
+			test('before', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 3, 1, 3), 'xx',
+					[
+						[new Selection(1, 6, 1, 6), new Selection(1, 6, 1, 6)],
+						[new Selection(1, 6, 1, 6), new Selection(1, 6, 1, 6)],
+					]
+				);
+			});
+			test('equal', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 4, 1, 4), 'xx',
+					[
+						[new Selection(1, 4, 1, 6), new Selection(1, 4, 1, 6)],
+						[new Selection(1, 6, 1, 6), new Selection(1, 6, 1, 6)],
+					]
+				);
+			});
+			test('after', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 5, 1, 5), 'xx',
+					[
+						[new Selection(1, 4, 1, 4), new Selection(1, 4, 1, 4)],
+						[new Selection(1, 4, 1, 4), new Selection(1, 4, 1, 4)],
+					]
+				);
+			});
+		});
+		suite('non-collapsed dec', () => {
+			test('before', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 3, 1, 3), 'xx',
+					[
+						[new Selection(1, 6, 1, 11), new Selection(1, 11, 1, 6)],
+						[new Selection(1, 6, 1, 11), new Selection(1, 11, 1, 6)],
+					]
+				);
+			});
+			test('start', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 4, 1, 4), 'xx',
+					[
+						[new Selection(1, 4, 1, 11), new Selection(1, 11, 1, 4)],
+						[new Selection(1, 6, 1, 11), new Selection(1, 11, 1, 6)],
+					]
+				);
+			});
+			test('inside', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 5, 1, 5), 'xx',
+					[
+						[new Selection(1, 4, 1, 11), new Selection(1, 11, 1, 4)],
+						[new Selection(1, 4, 1, 11), new Selection(1, 11, 1, 4)],
+					]
+				);
+			});
+			test('end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 9, 1, 9), 'xx',
+					[
+						[new Selection(1, 4, 1, 11), new Selection(1, 11, 1, 4)],
+						[new Selection(1, 4, 1, 11), new Selection(1, 11, 1, 4)],
+					]
+				);
+			});
+			test('after', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 10, 1, 10), 'xx',
+					[
+						[new Selection(1, 4, 1, 9), new Selection(1, 9, 1, 4)],
+						[new Selection(1, 4, 1, 9), new Selection(1, 9, 1, 4)],
+					]
+				);
+			});
+		});
+	});
+
+	suite('delete', () => {
+		suite('collapsed dec', () => {
+			test('edit.end < range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 1, 1, 3), '',
+					[
+						[new Selection(1, 2, 1, 2), new Selection(1, 2, 1, 2)],
+						[new Selection(1, 2, 1, 2), new Selection(1, 2, 1, 2)],
+					]
+				);
+			});
+			test('edit.end <= range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 2, 1, 4), '',
+					[
+						[new Selection(1, 2, 1, 2), new Selection(1, 2, 1, 2)],
+						[new Selection(1, 2, 1, 2), new Selection(1, 2, 1, 2)],
+					]
+				);
+			});
+			test('edit.start < range.start && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 3, 1, 5), '',
+					[
+						[new Selection(1, 3, 1, 3), new Selection(1, 3, 1, 3)],
+						[new Selection(1, 3, 1, 3), new Selection(1, 3, 1, 3)],
+					]
+				);
+			});
+			test('edit.start >= range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 4, 1, 6), '',
+					[
+						[new Selection(1, 4, 1, 4), new Selection(1, 4, 1, 4)],
+						[new Selection(1, 4, 1, 4), new Selection(1, 4, 1, 4)],
+					]
+				);
+			});
+			test('edit.start > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 5, 1, 7), '',
+					[
+						[new Selection(1, 4, 1, 4), new Selection(1, 4, 1, 4)],
+						[new Selection(1, 4, 1, 4), new Selection(1, 4, 1, 4)],
+					]
+				);
+			});
+		});
+		suite('non-collapsed dec', () => {
+			test('edit.end < range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 1, 1, 3), '',
+					[
+						[new Selection(1, 2, 1, 7), new Selection(1, 7, 1, 2)],
+						[new Selection(1, 2, 1, 7), new Selection(1, 7, 1, 2)],
+					]
+				);
+			});
+			test('edit.end <= range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 2, 1, 4), '',
+					[
+						[new Selection(1, 2, 1, 7), new Selection(1, 7, 1, 2)],
+						[new Selection(1, 2, 1, 7), new Selection(1, 7, 1, 2)],
+					]
+				);
+			});
+			test('edit.start < range.start && edit.end < range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 3, 1, 5), '',
+					[
+						[new Selection(1, 3, 1, 7), new Selection(1, 7, 1, 3)],
+						[new Selection(1, 3, 1, 7), new Selection(1, 7, 1, 3)],
+					]
+				);
+			});
+
+			test('edit.start < range.start && edit.end == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 3, 1, 9), '',
+					[
+						[new Selection(1, 3, 1, 3), new Selection(1, 3, 1, 3)],
+						[new Selection(1, 3, 1, 3), new Selection(1, 3, 1, 3)],
+					]
+				);
+			});
+
+			test('edit.start < range.start && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 3, 1, 10), '',
+					[
+						[new Selection(1, 3, 1, 3), new Selection(1, 3, 1, 3)],
+						[new Selection(1, 3, 1, 3), new Selection(1, 3, 1, 3)],
+					]
+				);
+			});
+
+			test('edit.start == range.start && edit.end < range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 4, 1, 6), '',
+					[
+						[new Selection(1, 4, 1, 7), new Selection(1, 7, 1, 4)],
+						[new Selection(1, 4, 1, 7), new Selection(1, 7, 1, 4)],
+					]
+				);
+			});
+
+			test('edit.start == range.start && edit.end == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 4, 1, 9), '',
+					[
+						[new Selection(1, 4, 1, 4), new Selection(1, 4, 1, 4)],
+						[new Selection(1, 4, 1, 4), new Selection(1, 4, 1, 4)],
+					]
+				);
+			});
+
+			test('edit.start == range.start && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 4, 1, 10), '',
+					[
+						[new Selection(1, 4, 1, 4), new Selection(1, 4, 1, 4)],
+						[new Selection(1, 4, 1, 4), new Selection(1, 4, 1, 4)],
+					]
+				);
+			});
+
+			test('edit.start > range.start && edit.start < range.end && edit.end < range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 5, 1, 7), '',
+					[
+						[new Selection(1, 4, 1, 7), new Selection(1, 7, 1, 4)],
+						[new Selection(1, 4, 1, 7), new Selection(1, 7, 1, 4)],
+					]
+				);
+			});
+
+			test('edit.start > range.start && edit.start < range.end && edit.end == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 5, 1, 9), '',
+					[
+						[new Selection(1, 4, 1, 5), new Selection(1, 5, 1, 4)],
+						[new Selection(1, 4, 1, 5), new Selection(1, 5, 1, 4)],
+					]
+				);
+			});
+
+			test('edit.start > range.start && edit.start < range.end && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 5, 1, 10), '',
+					[
+						[new Selection(1, 4, 1, 5), new Selection(1, 5, 1, 4)],
+						[new Selection(1, 4, 1, 5), new Selection(1, 5, 1, 4)],
+					]
+				);
+			});
+
+			test('edit.start == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 9, 1, 11), '',
+					[
+						[new Selection(1, 4, 1, 9), new Selection(1, 9, 1, 4)],
+						[new Selection(1, 4, 1, 9), new Selection(1, 9, 1, 4)],
+					]
+				);
+			});
+
+			test('edit.start > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 10, 1, 11), '',
+					[
+						[new Selection(1, 4, 1, 9), new Selection(1, 9, 1, 4)],
+						[new Selection(1, 4, 1, 9), new Selection(1, 9, 1, 4)],
+					]
+				);
+			});
+		});
+	});
+
+	suite('replace short', () => {
+		suite('collapsed dec', () => {
+			test('edit.end < range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 1, 1, 3), 'c',
+					[
+						[new Selection(1, 3, 1, 3), new Selection(1, 3, 1, 3)],
+						[new Selection(1, 3, 1, 3), new Selection(1, 3, 1, 3)],
+					]
+				);
+			});
+			test('edit.end <= range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 2, 1, 4), 'c',
+					[
+						[new Selection(1, 3, 1, 3), new Selection(1, 3, 1, 3)],
+						[new Selection(1, 3, 1, 3), new Selection(1, 3, 1, 3)],
+					]
+				);
+			});
+			test('edit.start < range.start && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 3, 1, 5), 'c',
+					[
+						[new Selection(1, 4, 1, 4), new Selection(1, 4, 1, 4)],
+						[new Selection(1, 4, 1, 4), new Selection(1, 4, 1, 4)],
+					]
+				);
+			});
+			test('edit.start >= range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 4, 1, 6), 'c',
+					[
+						[new Selection(1, 4, 1, 4), new Selection(1, 4, 1, 4)],
+						[new Selection(1, 5, 1, 5), new Selection(1, 5, 1, 5)],
+					]
+				);
+			});
+			test('edit.start > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 5, 1, 7), 'c',
+					[
+						[new Selection(1, 4, 1, 4), new Selection(1, 4, 1, 4)],
+						[new Selection(1, 4, 1, 4), new Selection(1, 4, 1, 4)],
+					]
+				);
+			});
+		});
+		suite('non-collapsed dec', () => {
+			test('edit.end < range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 1, 1, 3), 'c',
+					[
+						[new Selection(1, 3, 1, 8), new Selection(1, 8, 1, 3)],
+						[new Selection(1, 3, 1, 8), new Selection(1, 8, 1, 3)],
+					]
+				);
+			});
+			test('edit.end <= range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 2, 1, 4), 'c',
+					[
+						[new Selection(1, 3, 1, 8), new Selection(1, 8, 1, 3)],
+						[new Selection(1, 3, 1, 8), new Selection(1, 8, 1, 3)],
+					]
+				);
+			});
+			test('edit.start < range.start && edit.end < range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 3, 1, 5), 'c',
+					[
+						[new Selection(1, 4, 1, 8), new Selection(1, 8, 1, 4)],
+						[new Selection(1, 4, 1, 8), new Selection(1, 8, 1, 4)],
+					]
+				);
+			});
+			test('edit.start < range.start && edit.end == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 3, 1, 9), 'c',
+					[
+						[new Selection(1, 4, 1, 4), new Selection(1, 4, 1, 4)],
+						[new Selection(1, 4, 1, 4), new Selection(1, 4, 1, 4)],
+					]
+				);
+			});
+			test('edit.start < range.start && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 3, 1, 10), 'c',
+					[
+						[new Selection(1, 4, 1, 4), new Selection(1, 4, 1, 4)],
+						[new Selection(1, 4, 1, 4), new Selection(1, 4, 1, 4)],
+					]
+				);
+			});
+			test('edit.start == range.start && edit.end < range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 4, 1, 6), 'c',
+					[
+						[new Selection(1, 4, 1, 8), new Selection(1, 8, 1, 4)],
+						[new Selection(1, 5, 1, 8), new Selection(1, 8, 1, 5)],
+					]
+				);
+			});
+			test('edit.start == range.start && edit.end == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 4, 1, 9), 'c',
+					[
+						[new Selection(1, 4, 1, 5), new Selection(1, 5, 1, 4)],
+						[new Selection(1, 5, 1, 5), new Selection(1, 5, 1, 5)],
+					]
+				);
+			});
+			test('edit.start == range.start && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 4, 1, 10), 'c',
+					[
+						[new Selection(1, 4, 1, 5), new Selection(1, 5, 1, 4)],
+						[new Selection(1, 5, 1, 5), new Selection(1, 5, 1, 5)],
+					]
+				);
+			});
+			test('edit.start > range.start && edit.start < range.end && edit.end < range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 5, 1, 7), 'c',
+					[
+						[new Selection(1, 4, 1, 8), new Selection(1, 8, 1, 4)],
+						[new Selection(1, 4, 1, 8), new Selection(1, 8, 1, 4)],
+					]
+				);
+			});
+			test('edit.start > range.start && edit.start < range.end && edit.end == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 5, 1, 9), 'c',
+					[
+						[new Selection(1, 4, 1, 6), new Selection(1, 6, 1, 4)],
+						[new Selection(1, 4, 1, 6), new Selection(1, 6, 1, 4)],
+					]
+				);
+			});
+			test('edit.start > range.start && edit.start < range.end && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 5, 1, 10), 'c',
+					[
+						[new Selection(1, 4, 1, 6), new Selection(1, 6, 1, 4)],
+						[new Selection(1, 4, 1, 6), new Selection(1, 6, 1, 4)],
+					]
+				);
+			});
+			test('edit.start == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 9, 1, 11), 'c',
+					[
+						[new Selection(1, 4, 1, 9), new Selection(1, 9, 1, 4)],
+						[new Selection(1, 4, 1, 10), new Selection(1, 10, 1, 4)],
+					]
+				);
+			});
+			test('edit.start > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 10, 1, 11), 'c',
+					[
+						[new Selection(1, 4, 1, 9), new Selection(1, 9, 1, 4)],
+						[new Selection(1, 4, 1, 9), new Selection(1, 9, 1, 4)],
+					]
+				);
+			});
+		});
+	});
+
+	suite('replace long', () => {
+		suite('collapsed dec', () => {
+			test('edit.end < range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 1, 1, 3), 'cccc',
+					[
+						[new Selection(1, 6, 1, 6), new Selection(1, 6, 1, 6)],
+						[new Selection(1, 6, 1, 6), new Selection(1, 6, 1, 6)],
+					]
+				);
+			});
+			test('edit.end <= range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 2, 1, 4), 'cccc',
+					[
+						[new Selection(1, 4, 1, 6), new Selection(1, 4, 1, 6)],
+						[new Selection(1, 6, 1, 6), new Selection(1, 6, 1, 6)],
+					]
+				);
+			});
+			test('edit.start < range.start && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 3, 1, 5), 'cccc',
+					[
+						[new Selection(1, 4, 1, 4), new Selection(1, 4, 1, 4)],
+						[new Selection(1, 7, 1, 7), new Selection(1, 7, 1, 7)],
+					]
+				);
+			});
+			test('edit.start >= range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 4, 1, 6), 'cccc',
+					[
+						[new Selection(1, 4, 1, 4), new Selection(1, 4, 1, 4)],
+						[new Selection(1, 8, 1, 8), new Selection(1, 8, 1, 8)],
+					]
+				);
+			});
+			test('edit.start > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 4),
+					new Range(1, 5, 1, 7), 'cccc',
+					[
+						[new Selection(1, 4, 1, 4), new Selection(1, 4, 1, 4)],
+						[new Selection(1, 4, 1, 4), new Selection(1, 4, 1, 4)],
+					]
+				);
+			});
+		});
+		suite('non-collapsed dec', () => {
+			test('edit.end < range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 1, 1, 3), 'cccc',
+					[
+						[new Selection(1, 6, 1, 11), new Selection(1, 11, 1, 6)],
+						[new Selection(1, 6, 1, 11), new Selection(1, 11, 1, 6)],
+					]
+				);
+			});
+			test('edit.end <= range.start', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 2, 1, 4), 'cccc',
+					[
+						[new Selection(1, 4, 1, 11), new Selection(1, 11, 1, 4)],
+						[new Selection(1, 6, 1, 11), new Selection(1, 11, 1, 6)],
+					]
+				);
+			});
+			test('edit.start < range.start && edit.end < range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 3, 1, 5), 'cccc',
+					[
+						[new Selection(1, 4, 1, 11), new Selection(1, 11, 1, 4)],
+						[new Selection(1, 7, 1, 11), new Selection(1, 11, 1, 7)],
+					]
+				);
+			});
+			test('edit.start < range.start && edit.end == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 3, 1, 9), 'cccc',
+					[
+						[new Selection(1, 4, 1, 7), new Selection(1, 7, 1, 4)],
+						[new Selection(1, 7, 1, 7), new Selection(1, 7, 1, 7)],
+					]
+				);
+			});
+			test('edit.start < range.start && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 3, 1, 10), 'cccc',
+					[
+						[new Selection(1, 4, 1, 7), new Selection(1, 7, 1, 4)],
+						[new Selection(1, 7, 1, 7), new Selection(1, 7, 1, 7)],
+					]
+				);
+			});
+			test('edit.start == range.start && edit.end < range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 4, 1, 6), 'cccc',
+					[
+						[new Selection(1, 4, 1, 11), new Selection(1, 11, 1, 4)],
+						[new Selection(1, 8, 1, 11), new Selection(1, 11, 1, 8)],
+					]
+				);
+			});
+			test('edit.start == range.start && edit.end == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 4, 1, 9), 'cccc',
+					[
+						[new Selection(1, 4, 1, 8), new Selection(1, 8, 1, 4)],
+						[new Selection(1, 8, 1, 8), new Selection(1, 8, 1, 8)],
+					]
+				);
+			});
+			test('edit.start == range.start && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 4, 1, 10), 'cccc',
+					[
+						[new Selection(1, 4, 1, 8), new Selection(1, 8, 1, 4)],
+						[new Selection(1, 8, 1, 8), new Selection(1, 8, 1, 8)],
+					]
+				);
+			});
+			test('edit.start > range.start && edit.start < range.end && edit.end < range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 5, 1, 7), 'cccc',
+					[
+						[new Selection(1, 4, 1, 11), new Selection(1, 11, 1, 4)],
+						[new Selection(1, 4, 1, 11), new Selection(1, 11, 1, 4)],
+					]
+				);
+			});
+			test('edit.start > range.start && edit.start < range.end && edit.end == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 5, 1, 9), 'cccc',
+					[
+						[new Selection(1, 4, 1, 9), new Selection(1, 9, 1, 4)],
+						[new Selection(1, 4, 1, 9), new Selection(1, 9, 1, 4)],
+					]
+				);
+			});
+			test('edit.start > range.start && edit.start < range.end && edit.end > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 5, 1, 10), 'cccc',
+					[
+						[new Selection(1, 4, 1, 9), new Selection(1, 9, 1, 4)],
+						[new Selection(1, 4, 1, 9), new Selection(1, 9, 1, 4)],
+					]
+				);
+			});
+			test('edit.start == range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 9, 1, 11), 'cccc',
+					[
+						[new Selection(1, 4, 1, 9), new Selection(1, 9, 1, 4)],
+						[new Selection(1, 4, 1, 13), new Selection(1, 13, 1, 4)],
+					]
+				);
+			});
+			test('edit.start > range.end', () => {
+				runTest(
+					new Range(1, 4, 1, 9),
+					new Range(1, 10, 1, 11), 'cccc',
+					[
+						[new Selection(1, 4, 1, 9), new Selection(1, 9, 1, 4)],
+						[new Selection(1, 4, 1, 9), new Selection(1, 9, 1, 4)],
+					]
+				);
+			});
+		});
+	});
 });

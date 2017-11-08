@@ -5,10 +5,13 @@
 
 'use strict';
 
-import { ILocalExtension, IGalleryExtension, IExtensionManifest, EXTENSION_IDENTIFIER_REGEX, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ILocalExtension, IGalleryExtension, EXTENSION_IDENTIFIER_REGEX, IExtensionEnablementService, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
-export function areSameExtensions(a: { id: string }, b: { id: string }): boolean {
+export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifier): boolean {
+	if (a.uuid && b.uuid) {
+		return a.uuid === b.uuid;
+	}
 	if (a.id === b.id) {
 		return true;
 	}
@@ -17,14 +20,6 @@ export function areSameExtensions(a: { id: string }, b: { id: string }): boolean
 
 export function getGalleryExtensionId(publisher: string, name: string): string {
 	return `${publisher}.${name.toLocaleLowerCase()}`;
-}
-
-export function getLocalExtensionIdFromGallery(extension: IGalleryExtension, version: string): string {
-	return getLocalExtensionId(extension.id, version);
-}
-
-export function getLocalExtensionIdFromManifest(manifest: IExtensionManifest): string {
-	return getLocalExtensionId(getGalleryExtensionId(manifest.publisher, manifest.name), manifest.version);
 }
 
 export function getGalleryExtensionIdFromLocal(local: ILocalExtension): string {
@@ -46,10 +41,6 @@ export function adoptToGalleryExtensionId(id: string): string {
 	return id.replace(EXTENSION_IDENTIFIER_REGEX, (match, publisher: string, name: string) => getGalleryExtensionId(publisher, name));
 }
 
-function getLocalExtensionId(id: string, version: string): string {
-	return `${id}-${version}`;
-}
-
 export function getLocalExtensionTelemetryData(extension: ILocalExtension): any {
 	return {
 		id: getGalleryExtensionIdFromLocal(extension),
@@ -62,11 +53,26 @@ export function getLocalExtensionTelemetryData(extension: ILocalExtension): any 
 	};
 }
 
+
+/* __GDPR__FRAGMENT__
+	"GalleryExtensionTelemetryData" : {
+		"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"name": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"galleryId": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"publisherId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+		"publisherName": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
+		"publisherDisplayName": { "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
+		"dependencies": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"${include}": [
+			"${GalleryExtensionTelemetryData2}"
+		]
+	}
+*/
 export function getGalleryExtensionTelemetryData(extension: IGalleryExtension): any {
 	return {
-		id: extension.id,
+		id: extension.identifier.id,
 		name: extension.name,
-		galleryId: extension.uuid,
+		galleryId: extension.identifier.uuid,
 		publisherId: extension.publisherId,
 		publisherName: extension.publisher,
 		publisherDisplayName: extension.publisherDisplayName,
@@ -87,9 +93,9 @@ export function getGloballyDisabledExtensions(extensionEnablementService: IExten
 	const globallyDisabled = extensionEnablementService.getGloballyDisabledExtensions();
 	if (!storageService.getBoolean(BetterMergeCheckKey, StorageScope.GLOBAL, false)) {
 		storageService.store(BetterMergeCheckKey, true);
-		if (globallyDisabled.indexOf(BetterMergeId) === -1 && installedExtensions.some(d => d.id === BetterMergeId)) {
-			globallyDisabled.push(BetterMergeId);
-			extensionEnablementService.setEnablement(BetterMergeId, false);
+		if (globallyDisabled.every(disabled => disabled.id !== BetterMergeId) && installedExtensions.some(d => d.id === BetterMergeId)) {
+			globallyDisabled.push({ id: BetterMergeId });
+			extensionEnablementService.setEnablement({ id: BetterMergeId }, false);
 			storageService.store(BetterMergeDisabledNowKey, true);
 		}
 	}

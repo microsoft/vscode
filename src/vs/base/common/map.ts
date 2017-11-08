@@ -220,110 +220,335 @@ export class BoundedMap<T> {
 	}
 }
 
-// --- trie'ish datastructure
+export interface IKeyIterator {
+	reset(key: string): this;
+	next(): this;
+	join(parts: string[]): string;
 
-class Node<E> {
-	element?: E;
-	readonly children = new Map<string, Node<E>>();
+	hasNext(): boolean;
+	cmp(a: string): number;
+	value(): string;
 }
 
-/**
- * A trie map that allows for fast look up when keys are substrings
- * to the actual search keys (dir/subdir-problem).
- */
-export class TrieMap<E> {
+export class StringIterator implements IKeyIterator {
 
-	static PathSplitter = (s: string) => s.split(/[\\/]/).filter(s => !!s);
+	private _value: string = '';
+	private _pos: number = 0;
 
-	private readonly _splitter: (s: string) => string[];
-	private _root = new Node<E>();
-
-	constructor(splitter: (s: string) => string[] = TrieMap.PathSplitter) {
-		this._splitter = s => splitter(s).filter(s => Boolean(s));
+	reset(key: string): this {
+		this._value = key;
+		this._pos = 0;
+		return this;
 	}
 
-	insert(path: string, element: E): void {
-		const parts = this._splitter(path);
-		let i = 0;
+	next(): this {
+		this._pos += 1;
+		return this;
+	}
 
-		// find insertion node
-		let node = this._root;
-		for (; i < parts.length; i++) {
-			let child = node.children.get(parts[i]);
-			if (child) {
-				node = child;
-				continue;
+	join(parts: string[]): string {
+		return parts.join('');
+	}
+
+	hasNext(): boolean {
+		return this._pos < this._value.length - 1;
+	}
+
+	cmp(a: string): number {
+		let aCode = a.charCodeAt(0);
+		let thisCode = this._value.charCodeAt(this._pos);
+		return aCode - thisCode;
+	}
+
+	value(): string {
+		return this._value[this._pos];
+	}
+}
+
+export class PathIterator implements IKeyIterator {
+
+	private static _fwd = '/'.charCodeAt(0);
+	private static _bwd = '\\'.charCodeAt(0);
+
+	private _value: string;
+	private _from: number;
+	private _to: number;
+
+	reset(key: string): this {
+		this._value = key.replace(/\\$|\/$/, '');
+		this._from = 0;
+		this._to = 0;
+		return this.next();
+	}
+
+	hasNext(): boolean {
+		return this._to < this._value.length;
+	}
+
+	join(parts: string[]): string {
+		return parts.join('/');
+	}
+
+	next(): this {
+		// this._data = key.split(/[\\/]/).filter(s => !!s);
+		this._from = this._to;
+		let justSeps = true;
+		for (; this._to < this._value.length; this._to++) {
+			const ch = this._value.charCodeAt(this._to);
+			if (ch === PathIterator._fwd || ch === PathIterator._bwd) {
+				if (justSeps) {
+					this._from++;
+				} else {
+					break;
+				}
+			} else {
+				justSeps = false;
 			}
-			break;
+		}
+		return this;
+	}
+
+	cmp(a: string): number {
+
+		let aPos = 0;
+		let aLen = a.length;
+		let thisPos = this._from;
+
+		while (aPos < aLen && thisPos < this._to) {
+			let cmp = a.charCodeAt(aPos) - this._value.charCodeAt(thisPos);
+			if (cmp !== 0) {
+				return cmp;
+			}
+			aPos += 1;
+			thisPos += 1;
 		}
 
-		// create new nodes
-		let newNode: Node<E>;
-		for (; i < parts.length; i++) {
-			newNode = new Node<E>();
-			node.children.set(parts[i], newNode);
-			node = newNode;
+		if (aLen === this._to - this._from) {
+			return 0;
+		} else if (aPos < aLen) {
+			return -1;
+		} else {
+			return 1;
+		}
+	}
+
+	value(): string {
+		return this._value.substring(this._from, this._to);
+	}
+}
+
+class TernarySearchTreeNode<E> {
+	str: string;
+	element: E;
+	left: TernarySearchTreeNode<E>;
+	mid: TernarySearchTreeNode<E>;
+	right: TernarySearchTreeNode<E>;
+
+	isEmpty(): boolean {
+		return !this.left && !this.mid && !this.right && !this.element;
+	}
+}
+
+export class TernarySearchTree<E> {
+
+	static forPaths<E>(): TernarySearchTree<E> {
+		return new TernarySearchTree<E>(new PathIterator());
+	}
+
+	static forStrings<E>(): TernarySearchTree<E> {
+		return new TernarySearchTree<E>(new StringIterator());
+	}
+
+	private _iter: IKeyIterator;
+	private _root: TernarySearchTreeNode<E>;
+
+	constructor(segments: IKeyIterator) {
+		this._iter = segments;
+	}
+
+	clear(): void {
+		this._root = undefined;
+	}
+
+	set(key: string, element: E): void {
+		let iter = this._iter.reset(key);
+		let node: TernarySearchTreeNode<E>;
+
+		if (!this._root) {
+			this._root = new TernarySearchTreeNode<E>();
+			this._root.str = iter.value();
 		}
 
+		node = this._root;
+		while (true) {
+			let val = iter.cmp(node.str);
+			if (val > 0) {
+				// left
+				if (!node.left) {
+					node.left = new TernarySearchTreeNode<E>();
+					node.left.str = iter.value();
+				}
+				node = node.left;
+
+			} else if (val < 0) {
+				// right
+				if (!node.right) {
+					node.right = new TernarySearchTreeNode<E>();
+					node.right.str = iter.value();
+				}
+				node = node.right;
+
+			} else if (iter.hasNext()) {
+				// mid
+				iter.next();
+				if (!node.mid) {
+					node.mid = new TernarySearchTreeNode<E>();
+					node.mid.str = iter.value();
+				}
+				node = node.mid;
+			} else {
+				break;
+			}
+		}
 		node.element = element;
 	}
 
-	lookUp(path: string): E {
-		const parts = this._splitter(path);
-
-		let { children } = this._root;
-		let node: Node<E>;
-		for (const part of parts) {
-			node = children.get(part);
-			if (!node) {
-				return undefined;
-			}
-			children = node.children;
-		}
-
-		return node.element;
-	}
-
-	findSubstr(path: string): E {
-		const parts = this._splitter(path);
-
-		let lastNode: Node<E>;
-		let { children } = this._root;
-		for (const part of parts) {
-			const node = children.get(part);
-			if (!node) {
+	get(key: string): E {
+		let iter = this._iter.reset(key);
+		let node = this._root;
+		while (node) {
+			let val = iter.cmp(node.str);
+			if (val > 0) {
+				// left
+				node = node.left;
+			} else if (val < 0) {
+				// right
+				node = node.right;
+			} else if (iter.hasNext()) {
+				// mid
+				iter.next();
+				node = node.mid;
+			} else {
 				break;
 			}
-			if (node.element) {
-				lastNode = node;
-			}
-			children = node.children;
 		}
+		return node ? node.element : undefined;
+	}
 
-		// return the last matching node
-		// that had an element
-		if (lastNode) {
-			return lastNode.element;
+	delete(key: string): void {
+
+		let iter = this._iter.reset(key);
+		let stack: [-1 | 0 | 1, TernarySearchTreeNode<E>][] = [];
+		let node = this._root;
+
+		// find and unset node
+		while (node) {
+			let val = iter.cmp(node.str);
+			if (val > 0) {
+				// left
+				stack.push([1, node]);
+				node = node.left;
+			} else if (val < 0) {
+				// right
+				stack.push([-1, node]);
+				node = node.right;
+			} else if (iter.hasNext()) {
+				// mid
+				iter.next();
+				stack.push([0, node]);
+				node = node.mid;
+			} else {
+				// remove element
+				node.element = undefined;
+
+				// clean up empty nodes
+				while (stack.length > 0 && node.isEmpty()) {
+					let [dir, parent] = stack.pop();
+					switch (dir) {
+						case 1: parent.left = undefined; break;
+						case 0: parent.mid = undefined; break;
+						case -1: parent.right = undefined; break;
+					}
+					node = parent;
+				}
+				break;
+			}
+		}
+	}
+
+	findSubstr(key: string): E {
+		let iter = this._iter.reset(key);
+		let node = this._root;
+		let candidate: E;
+		while (node) {
+			let val = iter.cmp(node.str);
+			if (val > 0) {
+				// left
+				node = node.left;
+			} else if (val < 0) {
+				// right
+				node = node.right;
+			} else if (iter.hasNext()) {
+				// mid
+				iter.next();
+				candidate = node.element || candidate;
+				node = node.mid;
+			} else {
+				break;
+			}
+		}
+		return node && node.element || candidate;
+	}
+
+	findSuperstr(key: string): TernarySearchTree<E> {
+		let iter = this._iter.reset(key);
+		let node = this._root;
+		while (node) {
+			let val = iter.cmp(node.str);
+			if (val > 0) {
+				// left
+				node = node.left;
+			} else if (val < 0) {
+				// right
+				node = node.right;
+			} else if (iter.hasNext()) {
+				// mid
+				iter.next();
+				node = node.mid;
+			} else {
+				// collect
+				if (!node.mid) {
+					return undefined;
+				}
+				let ret = new TernarySearchTree<E>(this._iter);
+				ret._root = node.mid;
+				return ret;
+			}
 		}
 		return undefined;
 	}
 
-	findSuperstr(path: string): TrieMap<E> {
-		const parts = this._splitter(path);
+	forEach(callback: (value: E, index: string) => any) {
+		this._forEach(this._root, [], callback);
+	}
 
-		let { children } = this._root;
-		let node: Node<E>;
-		for (const part of parts) {
-			node = children.get(part);
-			if (!node) {
-				return undefined;
+	private _forEach(node: TernarySearchTreeNode<E>, parts: string[], callback: (value: E, index: string) => any) {
+		if (node) {
+			// left
+			this._forEach(node.left, parts, callback);
+
+			// node
+			parts.push(node.str);
+			if (node.element) {
+				callback(node.element, this._iter.join(parts));
 			}
-			children = node.children;
-		}
+			// mid
+			this._forEach(node.mid, parts, callback);
+			parts.pop();
 
-		const result = new TrieMap<E>(this._splitter);
-		result._root = node;
-		return result;
+			// right
+			this._forEach(node.right, parts, callback);
+		}
 	}
 }
 

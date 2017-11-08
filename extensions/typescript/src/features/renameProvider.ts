@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RenameProvider, WorkspaceEdit, TextDocument, Position, Range, CancellationToken } from 'vscode';
+import { RenameProvider, WorkspaceEdit, TextDocument, Position, CancellationToken } from 'vscode';
 
 import * as Proto from '../protocol';
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
+import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
 
 export default class TypeScriptRenameProvider implements RenameProvider {
 	public constructor(
-		private client: ITypescriptServiceClient) { }
+		private client: ITypeScriptServiceClient) { }
 
 	public async provideRenameEdits(
 		document: TextDocument,
@@ -24,9 +25,7 @@ export default class TypeScriptRenameProvider implements RenameProvider {
 		}
 
 		const args: Proto.RenameRequestArgs = {
-			file: filepath,
-			line: position.line + 1,
-			offset: position.character + 1,
+			...vsPositionToTsFileLocation(filepath, position),
 			findInStrings: false,
 			findInComments: false
 		};
@@ -49,9 +48,7 @@ export default class TypeScriptRenameProvider implements RenameProvider {
 					continue;
 				}
 				for (const textSpan of spanGroup.locs) {
-					result.replace(resource,
-						new Range(textSpan.start.line - 1, textSpan.start.offset - 1, textSpan.end.line - 1, textSpan.end.offset - 1),
-						newName);
+					result.replace(resource, tsTextSpanToVsRange(textSpan), newName);
 				}
 			}
 			return result;

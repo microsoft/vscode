@@ -14,14 +14,13 @@ const SHELL_EXECUTABLES = ['cmd.exe', 'powershell.exe', 'bash.exe'];
 let windowsProcessTree;
 
 export class WindowsShellHelper {
-	private _childProcessIdStack: number[];
 	private _onCheckShell: Emitter<TPromise<string>>;
 	private _isDisposed: boolean;
 	private _currentRequest: TPromise<string>;
+	private _newLineFeed: boolean;
 
 	public constructor(
 		private _rootProcessId: number,
-		private _rootShellExecutable: string,
 		private _terminalInstance: ITerminalInstance,
 		private _xterm: XTermTerminal
 	) {
@@ -33,7 +32,6 @@ export class WindowsShellHelper {
 			windowsProcessTree = require.__$__nodeRequire('windows-process-tree');
 		}
 
-		this._childProcessIdStack = [this._rootProcessId];
 		this._isDisposed = false;
 		this._onCheckShell = new Emitter<TPromise<string>>();
 		// The debounce is necessary to prevent multiple processes from spawning when
@@ -44,7 +42,19 @@ export class WindowsShellHelper {
 			}, 50);
 		});
 
-		this._xterm.on('lineFeed', () => this._onCheckShell.fire());
+		// We want to fire a new check for the shell on a lineFeed, but only
+		// when parsing has finished which is indicated by the cursormove event.
+		// If this is done on every lineFeed, parsing ends up taking
+		// significantly longer due to resetting timers. Note that this is
+		// private API.
+		this._xterm.on('lineFeed', () => this._newLineFeed = true);
+		this._xterm.on('cursormove', () => {
+			if (this._newLineFeed) {
+				this._onCheckShell.fire();
+			}
+		});
+
+		// Fire a new check for the shell when any key is pressed.
 		this._xterm.on('keypress', () => this._onCheckShell.fire());
 	}
 

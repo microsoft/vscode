@@ -8,7 +8,7 @@ import { SpectronApplication } from '../../spectron/application';
 export enum ProblemSeverity {
 	WARNING = 0,
 	ERROR = 1
-};
+}
 
 export class Problems {
 
@@ -20,14 +20,14 @@ export class Problems {
 
 	public async showProblemsView(): Promise<any> {
 		if (!await this.isVisible()) {
-			await this.spectron.command('workbench.actions.view.problems');
-			await this.spectron.client.waitForElement(Problems.PROBLEMS_VIEW_SELECTOR);
+			await this.spectron.runCommand('workbench.actions.view.problems');
+			await this.waitForProblemsView();
 		}
 	}
 
 	public async hideProblemsView(): Promise<any> {
 		if (await this.isVisible()) {
-			await this.spectron.command('workbench.actions.view.problems');
+			await this.spectron.runCommand('workbench.actions.view.problems');
 			await this.spectron.client.waitForElement(Problems.PROBLEMS_VIEW_SELECTOR, el => !el);
 		}
 	}
@@ -37,13 +37,17 @@ export class Problems {
 		return !!element;
 	}
 
+	public async waitForProblemsView(): Promise<void> {
+		await this.spectron.client.waitForElement(Problems.PROBLEMS_VIEW_SELECTOR);
+	}
+
 	public static getSelectorInProblemsView(problemType: ProblemSeverity): string {
 		let selector = problemType === ProblemSeverity.WARNING ? 'warning' : 'error';
 		return `div[aria-label="Problems grouped by files"] .icon.${selector}`;
 	}
 
 	public static getSelectorInEditor(problemType: ProblemSeverity): string {
-		let selector = problemType === ProblemSeverity.WARNING ? 'greensquiggly' : 'redsquiggly';
+		let selector = problemType === ProblemSeverity.WARNING ? 'warningsquiggly' : 'errorsquiggly';
 		return `.view-overlays .cdr.${selector}`;
 	}
 }

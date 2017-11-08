@@ -38,29 +38,25 @@ export class ColorPickerHeader extends Disposable {
 			this.backgroundColor = theme.getColor(editorHoverBackground) || Color.white;
 		}));
 
-		this._register(dom.addDisposableListener(this.pickedColorNode, dom.EventType.CLICK, () => this.model.selectNextColorFormat()));
+		this._register(dom.addDisposableListener(this.pickedColorNode, dom.EventType.CLICK, () => this.model.selectNextColorPresentation()));
 		this._register(dom.addDisposableListener(colorBox, dom.EventType.CLICK, () => {
 			this.model.color = this.model.originalColor;
 			this.model.flushColor();
 		}));
 		this._register(model.onDidChangeColor(this.onDidChangeColor, this));
-		this._register(model.onDidChangeFormatter(this.onDidChangeFormatter, this));
-		this.onDidChangeColor(this.model.color);
+		this._register(model.onDidChangePresentation(this.onDidChangePresentation, this));
+		this.pickedColorNode.style.backgroundColor = Color.Format.CSS.format(model.color);
+		dom.toggleClass(this.pickedColorNode, 'light', model.color.rgba.a < 0.5 ? this.backgroundColor.isLighter() : model.color.isLighter());
 	}
 
 	private onDidChangeColor(color: Color): void {
 		this.pickedColorNode.style.backgroundColor = Color.Format.CSS.format(color);
 		dom.toggleClass(this.pickedColorNode, 'light', color.rgba.a < 0.5 ? this.backgroundColor.isLighter() : color.isLighter());
-		this.onDidChangeFormatter();
+		this.onDidChangePresentation();
 	}
 
-	private onDidChangeFormatter(): void {
-		this.pickedColorNode.textContent = this.model.formatter.format({
-			red: this.model.color.rgba.r / 255,
-			green: this.model.color.rgba.g / 255,
-			blue: this.model.color.rgba.b / 255,
-			alpha: this.model.color.rgba.a
-		});
+	private onDidChangePresentation(): void {
+		this.pickedColorNode.textContent = this.model.presentation.label;
 	}
 }
 
@@ -70,7 +66,7 @@ export class ColorPickerBody extends Disposable {
 	private saturationBox: SaturationBox;
 	private hueStrip: Strip;
 	private opacityStrip: Strip;
-
+	// @ts-ignore unused property
 	constructor(private container: HTMLElement, private model: ColorPickerModel, private pixelRatio: number) {
 		super();
 

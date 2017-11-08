@@ -39,5 +39,22 @@ step "Build minified" \
 step "Run unit tests" \
 	./scripts/test.sh --build --reporter dot
 
+# function smoketest {
+# 	id -u testuser &>/dev/null || (useradd -m testuser; chpasswd <<< testuser:testpassword)
+# 	sudo -i -u testuser -- sh -c 'git config --global user.name "VS Code Agent" &&  git config --global user.email "monacotools@microsoft.com"'
+
+#  	ARTIFACTS="$AGENT_BUILDDIRECTORY/smoketest-artifacts"
+# 	rm -rf $ARTIFACTS
+# 	mkdir -p $ARTIFACTS
+# 	chown -R testuser $ARTIFACTS
+
+# 	ps -o pid= -u testuser | xargs sudo kill -9
+# 	DISPLAY=:10 sudo -i -u testuser -- sh -c "cd $BUILD_SOURCESDIRECTORY/test/smoke && ./node_modules/.bin/mocha --build $AGENT_BUILDDIRECTORY/VSCode-linux-$ARCH --log $ARTIFACTS"
+# 	# DISPLAY=:10 sudo -i -u testuser -- sh -c "cd /vso/work/1/s/test/smoke && ./node_modules/.bin/mocha --build /vso/work/1/VSCode-linux-ia32"
+# }
+
+# step "Run smoke test" \
+# 	smoketest
+
 step "Publish release" \
 	./build/tfs/linux/release.sh

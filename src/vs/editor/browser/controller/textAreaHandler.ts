@@ -7,6 +7,7 @@
 import 'vs/css!./textAreaHandler';
 import * as platform from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
+import * as strings from 'vs/base/common/strings';
 import { TextAreaInput, ITextAreaInputHost, IPasteData, ICompositionData } from 'vs/editor/browser/controller/textAreaInput';
 import { ISimpleModel, ITypeData, TextAreaState, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/textAreaState';
 import { Range } from 'vs/editor/common/core/range';
@@ -53,8 +54,6 @@ export class TextAreaHandler extends ViewPart {
 
 	private readonly _viewController: ViewController;
 	private readonly _viewHelper: ITextAreaHandlerHelper;
-
-	private _pixelRatio: number;
 	private _accessibilitySupport: platform.AccessibilitySupport;
 	private _contentLeft: number;
 	private _contentWidth: number;
@@ -85,7 +84,6 @@ export class TextAreaHandler extends ViewPart {
 
 		const conf = this._context.configuration.editor;
 
-		this._pixelRatio = conf.pixelRatio;
 		this._accessibilitySupport = conf.accessibilitySupport;
 		this._contentLeft = conf.layoutInfo.contentLeft;
 		this._contentWidth = conf.layoutInfo.contentWidth;
@@ -164,10 +162,24 @@ export class TextAreaHandler extends ViewPart {
 
 				if (this._accessibilitySupport === platform.AccessibilitySupport.Disabled) {
 					// We know for a fact that a screen reader is not attached
+					// On OSX, we write the character before the cursor to allow for "long-press" composition
+					if (platform.isMacintosh) {
+						const selection = this._selections[0];
+						if (selection.isEmpty()) {
+							const position = selection.getStartPosition();
+							if (position.column > 1) {
+								const lineContent = this._context.model.getLineContent(position.lineNumber);
+								const charBefore = lineContent.charAt(position.column - 2);
+								if (!strings.isHighSurrogate(charBefore.charCodeAt(0))) {
+									return new TextAreaState(charBefore, 1, 1, position, position);
+								}
+							}
+						}
+					}
 					return TextAreaState.EMPTY;
 				}
 
-				return PagedScreenReaderStrategy.fromEditorSelection(currentState, simpleModel, this._selections[0]);
+				return PagedScreenReaderStrategy.fromEditorSelection(currentState, simpleModel, this._selections[0], this._accessibilitySupport === platform.AccessibilitySupport.Unknown);
 			},
 
 			deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {
@@ -290,9 +302,6 @@ export class TextAreaHandler extends ViewPart {
 		}
 		if (e.lineHeight) {
 			this._lineHeight = conf.lineHeight;
-		}
-		if (e.pixelRatio) {
-			this._pixelRatio = conf.pixelRatio;
 		}
 		if (e.accessibilitySupport) {
 			this._accessibilitySupport = conf.accessibilitySupport;

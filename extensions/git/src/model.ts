@@ -17,8 +17,16 @@ import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 class RepositoryPick implements QuickPickItem {
-	@memoize get label(): string { return path.basename(this.repository.root); }
-	@memoize get description(): string { return path.dirname(this.repository.root); }
+	@memoize get label(): string {
+		return path.basename(this.repository.root);
+	}
+
+	@memoize get description(): string {
+		return [this.repository.headLabel, this.repository.syncLabel]
+			.filter(l => !!l)
+			.join(' ');
+	}
+
 	constructor(public readonly repository: Repository) { }
 }
 
@@ -27,8 +35,17 @@ export interface ModelChangeEvent {
 	uri: Uri;
 }
 
+export interface OriginalResourceChangeEvent {
+	repository: Repository;
+	uri: Uri;
+}
+
 interface OpenRepository extends Disposable {
 	repository: Repository;
+}
+
+function isParent(parent: string, child: string): boolean {
+	return child.startsWith(parent);
 }
 
 export class Model {
@@ -41,6 +58,9 @@ export class Model {
 
 	private _onDidChangeRepository = new EventEmitter<ModelChangeEvent>();
 	readonly onDidChangeRepository: Event<ModelChangeEvent> = this._onDidChangeRepository.event;
+
+	private _onDidChangeOriginalResource = new EventEmitter<OriginalResourceChangeEvent>();
+	readonly onDidChangeOriginalResource: Event<OriginalResourceChangeEvent> = this._onDidChangeOriginalResource.event;
 
 	private openRepositories: OpenRepository[] = [];
 	get repositories(): Repository[] { return this.openRepositories.map(r => r.repository); }
@@ -147,7 +167,9 @@ export class Model {
 		const activeRepositories = new Set<Repository>(activeRepositoriesList);
 		const openRepositoriesToDispose = removed
 			.map(folder => this.getOpenRepository(folder.uri))
-			.filter(r => !!r && !activeRepositories.has(r.repository)) as OpenRepository[];
+			.filter(r => !!r)
+			.filter(r => !activeRepositories.has(r!.repository))
+			.filter(r => !(workspace.workspaceFolders || []).some(f => isParent(f.uri.fsPath, r!.repository.root))) as OpenRepository[];
 
 		possibleRepositoryFolders.forEach(p => this.tryOpenRepository(p.uri.fsPath));
 		openRepositoriesToDispose.forEach(r => r.dispose());
@@ -203,10 +225,14 @@ export class Model {
 		const onDidDisappearRepository = filterEvent(repository.onDidChangeState, state => state === RepositoryState.Disposed);
 		const disappearListener = onDidDisappearRepository(() => dispose());
 		const changeListener = repository.onDidChangeRepository(uri => this._onDidChangeRepository.fire({ repository, uri }));
+		const originalResourceChangeListener = repository.onDidChangeOriginalResource(uri => this._onDidChangeOriginalResource.fire({ repository, uri }));
+
 		const dispose = () => {
 			disappearListener.dispose();
 			changeListener.dispose();
+			originalResourceChangeListener.dispose();
 			repository.dispose();
+
 			this.openRepositories = this.openRepositories.filter(e => e !== openRepository);
 			this._onDidCloseRepository.fire(repository);
 		};
@@ -214,6 +240,16 @@ export class Model {
 		const openRepository = { repository, dispose };
 		this.openRepositories.push(openRepository);
 		this._onDidOpenRepository.fire(repository);
+	}
+
+	close(repository: Repository): void {
+		const openRepository = this.getOpenRepository(repository);
+
+		if (!openRepository) {
+			return;
+		}
+
+		openRepository.dispose();
 	}
 
 	async pickRepository(): Promise<Repository | undefined> {

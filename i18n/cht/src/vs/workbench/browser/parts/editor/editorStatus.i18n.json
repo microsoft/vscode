@@ -11,7 +11,7 @@
 	"endOfLineLineFeed": "LF",
 	"endOfLineCarriageReturnLineFeed": "CRLF",
 	"tabFocusModeEnabled": "用 Tab 鍵移動焦點",
-	"screenReaderDetected": "偵測到螢幕助讀程式",
+	"screenReaderDetected": "已將螢幕助讀程式最佳化",
 	"screenReaderDetectedExtra": "若您不打算使用螢幕助讀程式，請將設定 `editor.accessibilitySupport` 變更為 \"off\"。",
 	"disableTabMode": "停用協助工具模式",
 	"gotoLine": "移至行",
@@ -47,5 +47,11 @@
 	"reopenWithEncoding": "以編碼重新開啟",
 	"guessedEncoding": "已從內容猜測",
 	"pickEncodingForReopen": "選取檔案的編碼以重新開啟檔案",
-	"pickEncodingForSave": "選取用來儲存的檔案編碼"
+	"pickEncodingForSave": "選取用來儲存的檔案編碼",
+	"screenReaderDetectedExplanation.title": "已將螢幕助讀程式最佳化",
+	"screenReaderDetectedExplanation.question": "您正使用螢幕助讀程式來操作 VS Code 嗎?",
+	"screenReaderDetectedExplanation.answerYes": "是",
+	"screenReaderDetectedExplanation.answerNo": "否",
+	"screenReaderDetectedExplanation.body1": "已將 VS Code 最佳化，現在可搭配螢幕助讀程式使用。",
+	"screenReaderDetectedExplanation.body2": "某些編輯器功能會具有不同的行為: 例如文字換行、折疊、自動括上括號等。"
 }

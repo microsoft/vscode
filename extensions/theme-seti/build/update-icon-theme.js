@@ -117,17 +117,21 @@ function copyFile(fileName, dest) {
 	});
 }
 
-function invertColor(color) {
+function darkenColor(color) {
 	var res = '#';
 	for (var i = 1; i < 7; i+=2) {
-		var newVal = 255 - parseInt('0x' + color.substr(i, 2), 16);
-		res += newVal.toString(16);
+		var newVal = Math.round(parseInt('0x' + color.substr(i, 2), 16) * 0.9);
+		var hex = newVal.toString(16);
+		if (hex.length == 1) {
+			res += '0';
+		}
+		res += hex;
 	}
 	return res;
 }
 
 function getLanguageMappings() {
-	let langMappings = {}
+	let langMappings = {};
 	var allExtensions = fs.readdirSync('..');
 	for (var i= 0; i < allExtensions.length; i++) {
 		let dirPath = path.join('..', allExtensions[i], 'package.json');
@@ -193,7 +197,7 @@ exports.update = function () {
 				if (colorValue) {
 					entry.fontColor = colorValue;
 
-					var entryInverse = { fontCharacter: entry.fontCharacter, fontColor: invertColor(colorValue) };
+					var entryInverse = { fontCharacter: entry.fontCharacter, fontColor: darkenColor(colorValue) };
 					iconDefinitions[def + '_light'] = entryInverse;
 				}
 			}
@@ -213,10 +217,10 @@ exports.update = function () {
 
 		var res = {
 			information_for_contributors: [
-				'This file has been generated from data in https://github.com/jesseweed/seti-ui:',
-				'- icon definitions: styles/_fonts/seti.less',
-				'- icon colors: styles/ui-variables.less',
-				'- file associations: styles/icons/mapping.less',
+				'This file has been generated from data in https://github.com/jesseweed/seti-ui',
+				'- icon definitions: https://github.com/jesseweed/seti-ui/blob/master/styles/_fonts/seti.less',
+				'- icon colors: https://github.com/jesseweed/seti-ui/blob/master/styles/ui-variables.less',
+				'- file associations: https://github.com/jesseweed/seti-ui/blob/master/styles/components/icons/mapping.less',
 				'If you want to provide a fix or improvement, please create a pull request against the jesseweed/seti-ui repository.',
 				'Once accepted there, we are happy to receive an update request.',
 			],

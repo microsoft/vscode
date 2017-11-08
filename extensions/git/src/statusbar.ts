@@ -6,7 +6,7 @@
 'use strict';
 
 import { Disposable, Command, EventEmitter, Event } from 'vscode';
-import { RefType, Branch } from './git';
+import { Branch } from './git';
 import { Repository, Operation } from './repository';
 import { anyEvent, dispose } from './util';
 import * as nls from 'vscode-nls';
@@ -24,20 +24,7 @@ class CheckoutStatusBar {
 	}
 
 	get command(): Command | undefined {
-		const HEAD = this.repository.HEAD;
-
-		if (!HEAD) {
-			return undefined;
-		}
-
-		const tag = this.repository.refs.filter(iref => iref.type === RefType.Tag && iref.commit === HEAD.commit)[0];
-		const tagName = tag && tag.name;
-		const head = HEAD.name || tagName || (HEAD.commit || '').substr(0, 8);
-		const title = '$(git-branch) '
-			+ head
-			+ (this.repository.workingTreeGroup.resourceStates.length > 0 ? '*' : '')
-			+ (this.repository.indexGroup.resourceStates.length > 0 ? '+' : '')
-			+ (this.repository.mergeGroup.resourceStates.length > 0 ? '!' : '');
+		const title = `$(git-branch) ${this.repository.headLabel}`;
 
 		return {
 			command: 'git.checkout',
@@ -112,7 +99,7 @@ class SyncStatusBar {
 		if (HEAD && HEAD.name && HEAD.commit) {
 			if (HEAD.upstream) {
 				if (HEAD.ahead || HEAD.behind) {
-					text += `${HEAD.behind}↓ ${HEAD.ahead}↑`;
+					text += this.repository.syncLabel;
 				}
 				command = 'git.sync';
 				tooltip = localize('sync changes', "Synchronize Changes");

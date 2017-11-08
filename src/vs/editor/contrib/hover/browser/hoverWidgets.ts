@@ -130,10 +130,8 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 	}
 
 	private updateFont(): void {
-		const codeTags: HTMLElement[] = Array.prototype.slice.call(this._domNode.getElementsByTagName('code'));
 		const codeClasses: HTMLElement[] = Array.prototype.slice.call(this._domNode.getElementsByClassName('code'));
-
-		[...codeTags, ...codeClasses].forEach(node => this._editor.applyFontInfo(node));
+		codeClasses.forEach(node => this._editor.applyFontInfo(node));
 	}
 
 	protected updateContents(node: Node): void {

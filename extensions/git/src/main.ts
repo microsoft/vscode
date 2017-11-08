@@ -12,6 +12,7 @@ import { findGit, Git, IGit } from './git';
 import { Model } from './model';
 import { CommandCenter } from './commands';
 import { GitContentProvider } from './contentProvider';
+import { GitDecorations } from './decorationProvider';
 import { Askpass } from './askpass';
 import { toDisposable } from './util';
 import TelemetryReporter from 'vscode-extension-telemetry';
@@ -47,13 +48,14 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 
 	outputChannel.appendLine(localize('using git', "Using git {0} from {1}", info.version, info.path));
 
-	const onOutput = str => outputChannel.append(str);
+	const onOutput = (str: string) => outputChannel.append(str);
 	git.onOutput.addListener('log', onOutput);
 	disposables.push(toDisposable(() => git.onOutput.removeListener('log', onOutput)));
 
 	disposables.push(
 		new CommandCenter(git, model, outputChannel, telemetryReporter),
 		new GitContentProvider(model),
+		new GitDecorations(model)
 	);
 
 	await checkGitVersion(info);

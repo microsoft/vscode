@@ -6,7 +6,10 @@
 {
 	"links.navigate.mac": "按住 Cmd 並按一下按鍵以追蹤連結",
 	"links.navigate": "按住 Ctrl 並按一下滑鼠按鈕可連入連結",
+	"links.command.mac": "按住 Cmd 並按一下滑鼠以執行命令",
+	"links.command": "按住 Ctrl 並按一下滑鼠以執行命令",
 	"links.navigate.al": "按住Alt並點擊以追蹤連結",
+	"links.command.al": "按住 Alt 並按一下滑鼠以執行命令",
 	"invalid.url": "抱歉，因為此連結的語式不正確，所以無法加以開啟: {0}",
 	"missing.url": "抱歉，因為此連結遺失目標，所以無法加以開啟。",
 	"label": "開啟連結"

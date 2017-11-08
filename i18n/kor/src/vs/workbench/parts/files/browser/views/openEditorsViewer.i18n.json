@@ -9,6 +9,7 @@
 	"saveAll": "모두 저장",
 	"closeAllUnmodified": "수정되지 않은 항목 닫기",
 	"closeAll": "모두 닫기",
+	"compareWithSaved": "저장된 항목과 비교",
 	"close": "닫기",
 	"closeOthers": "기타 항목 닫기"
 }

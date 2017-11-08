@@ -56,7 +56,7 @@ const ZERO_BYTE_DETECTION_BUFFER_MAX_LEN = 512; // number of bytes to look at to
 const NO_GUESS_BUFFER_MAX_LEN = 512; 		// when not auto guessing the encoding, small number of bytes are enough
 const AUTO_GUESS_BUFFER_MAX_LEN = 512 * 8; // with auto guessing we want a lot more content to be read for guessing
 
-function maxBufferLen(arg1?: DetectMimesOption | boolean): number {
+export function maxBufferLen(arg1?: DetectMimesOption | boolean): number {
 	let autoGuessEncoding: boolean;
 	if (typeof arg1 === 'boolean') {
 		autoGuessEncoding = arg1;

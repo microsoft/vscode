@@ -411,8 +411,8 @@ export class IPCServer implements IChannelServer, IRoutingChannelClient, IDispos
 	}
 
 	dispose(): void {
-		this.channels = null;
-		this.channelClients = null;
+		this.channels = Object.create(null);
+		this.channelClients = Object.create(null);
 		this.onClientAdded.dispose();
 	}
 }

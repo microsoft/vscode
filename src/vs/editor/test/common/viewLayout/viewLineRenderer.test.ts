@@ -1052,6 +1052,36 @@ suite('viewLineRenderer.renderLine 2', () => {
 		assert.deepEqual(actual.html, expected);
 	});
 
+	test('issue #32436: Non-monospace font + visible whitespace + After decorator causes line to "jump"', () => {
+
+		let lineContent = '\tbla';
+
+		let actual = renderViewLine(new RenderLineInput(
+			false,
+			lineContent,
+			false,
+			0,
+			[createPart(4, 3)],
+			[new LineDecoration(2, 3, 'before', true)],
+			4,
+			10,
+			-1,
+			'all',
+			false,
+			true
+		));
+
+		let expected = [
+			'<span>',
+			'<span class="vs-whitespace" style="width:40px">\u2192\u00a0\u00a0\u00a0</span>',
+			'<span class="mtk3 before">b</span>',
+			'<span class="mtk3">la</span>',
+			'</span>'
+		].join('');
+
+		assert.deepEqual(actual.html, expected);
+	});
+
 	test('issue #30133: Empty lines don\'t render inline decorations', () => {
 
 		let lineContent = '';
@@ -1074,6 +1104,33 @@ suite('viewLineRenderer.renderLine 2', () => {
 		let expected = [
 			'<span>',
 			'<span class="before">\u00a0</span>',
+			'</span>'
+		].join('');
+
+		assert.deepEqual(actual.html, expected);
+	});
+
+	test('issue #37208: Collapsing bullet point containing emoji in Markdown document results in [??] character', () => {
+
+		let actual = renderViewLine(new RenderLineInput(
+			true,
+			'  1. 🙏',
+			false,
+			0,
+			[createPart(7, 3)],
+			[new LineDecoration(7, 8, 'inline-folded', true)],
+			2,
+			10,
+			10000,
+			'none',
+			false,
+			false
+		));
+
+		let expected = [
+			'<span>',
+			'<span class="mtk3">\u00a0\u00a01.\u00a0</span>',
+			'<span class="mtk3 inline-folded">🙏</span>',
 			'</span>'
 		].join('');
 

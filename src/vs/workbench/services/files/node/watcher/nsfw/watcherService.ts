@@ -81,30 +81,33 @@ export class FileWatcher {
 		});
 
 		// Start watching
-		this.updateRoots();
-		this.toDispose.push(this.contextService.onDidChangeWorkspaceRoots(() => this.updateRoots()));
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(() => this.updateRoots()));
+		this.updateFolders();
+		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders(() => this.updateFolders()));
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('files.watcherExclude')) {
+				this.updateFolders();
+			}
+		}));
 
 		return () => this.dispose();
 	}
 
-	private updateRoots() {
+	private updateFolders() {
 		if (this.isDisposed) {
 			return;
 		}
 
-		const roots = this.contextService.getWorkspace().roots;
-		this.service.setRoots(roots.map(root => {
+		this.service.setRoots(this.contextService.getWorkspace().folders.map(folder => {
 			// Fetch the root's watcherExclude setting and return it
-			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(undefined, {
-				resource: root
+			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>({
+				resource: folder.uri
 			});
 			let ignored: string[] = [];
 			if (configuration.files && configuration.files.watcherExclude) {
 				ignored = Object.keys(configuration.files.watcherExclude).filter(k => !!configuration.files.watcherExclude[k]);
 			}
 			return {
-				basePath: root.fsPath,
+				basePath: folder.uri.fsPath,
 				ignored
 			};
 		}));

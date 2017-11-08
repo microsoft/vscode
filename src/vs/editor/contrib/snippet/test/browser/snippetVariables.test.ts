@@ -135,4 +135,77 @@ suite('Snippet Variables Resolver', function () {
 		);
 		assertVariableResolve(resolver, 'TM_FILENAME_BASE', 'foo');
 	});
+
+
+	function assertVariableResolve2(input: string, expected: string, varValue?: string) {
+		const snippet = new SnippetParser().parse(input)
+			.resolveVariables({ resolve(variable) { return varValue || variable.name; } });
+
+		const actual = snippet.toString();
+		assert.equal(actual, expected);
+	}
+
+	test('Variable Snippet Transform', function () {
+
+		const snippet = new SnippetParser().parse('name=${TM_FILENAME/(.*)\\..+$/$1/}', true);
+		snippet.resolveVariables(resolver);
+		assert.equal(snippet.toString(), 'name=text');
+
+		assertVariableResolve2('${ThisIsAVar/([A-Z]).*(Var)/$2/}', 'Var');
+		assertVariableResolve2('${ThisIsAVar/([A-Z]).*(Var)/$2-${1:/downcase}/}', 'Var-t');
+		assertVariableResolve2('${Foo/(.*)/${1:+Bar}/img}', 'Bar');
+
+		//https://github.com/Microsoft/vscode/issues/33162
+		assertVariableResolve2('export default class ${TM_FILENAME/(\\w+)\\.js/$1/g}', 'export default class FooFile', 'FooFile.js');
+
+		assertVariableResolve2('${foobarfoobar/(foo)/${1:+FAR}/g}', 'FARbarFARbar'); // global
+		assertVariableResolve2('${foobarfoobar/(foo)/${1:+FAR}/}', 'FARbarfoobar'); // first match
+		assertVariableResolve2('${foobarfoobar/(bazz)/${1:+FAR}/g}', 'foobarfoobar'); // no match
+
+		assertVariableResolve2('${foobarfoobar/(foo)/${2:+FAR}/g}', 'barbar'); // bad group reference
+	});
+
+	test('Snippet transforms do not handle regex with alternatives or optional matches, #36089', function () {
+
+		assertVariableResolve2(
+			'${TM_FILENAME/^(.)|(?:-(.))|(\\.js)/${1:/upcase}${2:/upcase}/g}',
+			'MyClass',
+			'my-class.js'
+		);
+
+		// no hyphens
+		assertVariableResolve2(
+			'${TM_FILENAME/^(.)|(?:-(.))|(\\.js)/${1:/upcase}${2:/upcase}/g}',
+			'Myclass',
+			'myclass.js'
+		);
+
+		// none matching suffix
+		assertVariableResolve2(
+			'${TM_FILENAME/^(.)|(?:-(.))|(\\.js)/${1:/upcase}${2:/upcase}/g}',
+			'Myclass.foo',
+			'myclass.foo'
+		);
+
+		// more than one hyphen
+		assertVariableResolve2(
+			'${TM_FILENAME/^(.)|(?:-(.))|(\\.js)/${1:/upcase}${2:/upcase}/g}',
+			'ThisIsAFile',
+			'this-is-a-file.js'
+		);
+
+		// KEBAB CASE
+		assertVariableResolve2(
+			'${TM_FILENAME_BASE/([A-Z][a-z]+)([A-Z][a-z]+$)?/${1:/downcase}-${2:/downcase}/g}',
+			'capital-case',
+			'CapitalCase'
+		);
+
+		assertVariableResolve2(
+			'${TM_FILENAME_BASE/([A-Z][a-z]+)([A-Z][a-z]+$)?/${1:/downcase}-${2:/downcase}/g}',
+			'capital-case-more',
+			'CapitalCaseMore'
+		);
+	});
+
 });

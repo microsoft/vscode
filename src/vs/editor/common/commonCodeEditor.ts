@@ -23,13 +23,14 @@ import { hash } from 'vs/base/common/hash';
 import { EditorModeContext } from 'vs/editor/common/modes/editorModeContext';
 import {
 	IModelContentChangedEvent, IModelDecorationsChangedEvent,
-	IModelLanguageChangedEvent, IModelOptionsChangedEvent, TextModelEventType
+	IModelLanguageChangedEvent, IModelOptionsChangedEvent, TextModelEventType, IModelLanguageConfigurationChangedEvent
 } from 'vs/editor/common/model/textModelEvents';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
 let EDITOR_ID = 0;
 
@@ -43,6 +44,9 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 
 	private readonly _onDidChangeModelLanguage: Emitter<IModelLanguageChangedEvent> = this._register(new Emitter<IModelLanguageChangedEvent>());
 	public readonly onDidChangeModelLanguage: Event<IModelLanguageChangedEvent> = this._onDidChangeModelLanguage.event;
+
+	private readonly _onDidChangeModelLanguageConfiguration: Emitter<IModelLanguageConfigurationChangedEvent> = this._register(new Emitter<IModelLanguageConfigurationChangedEvent>());
+	public readonly onDidChangeModelLanguageConfiguration: Event<IModelLanguageConfigurationChangedEvent> = this._onDidChangeModelLanguageConfiguration.event;
 
 	private readonly _onDidChangeModelOptions: Emitter<IModelOptionsChangedEvent> = this._register(new Emitter<IModelOptionsChangedEvent>());
 	public readonly onDidChangeModelOptions: Event<IModelOptionsChangedEvent> = this._onDidChangeModelOptions.event;
@@ -170,7 +174,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 
 		// editor actions don't need to be disposed
 		this._actions = {};
-
+		this._removeDecorationTypes();
 		this._postDetachModelCleanup(this._detachModel());
 
 		this._onDidDispose.fire();
@@ -232,8 +236,22 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 			newModelUrl: model ? model.uri : null
 		};
 
+		this._removeDecorationTypes();
 		this._onDidChangeModel.fire(e);
 		this._postDetachModelCleanup(detachedModel);
+	}
+
+	private _removeDecorationTypes(): void {
+		this._decorationTypeKeysToIds = {};
+		if (this._decorationTypeSubtypes) {
+			for (let decorationType in this._decorationTypeSubtypes) {
+				let subTypes = this._decorationTypeSubtypes[decorationType];
+				for (let subType in subTypes) {
+					this._removeDecorationType(decorationType + '-' + subType);
+				}
+			}
+			this._decorationTypeSubtypes = {};
+		}
 	}
 
 	public getCenteredRangeInViewport(): Range {
@@ -450,7 +468,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 	public revealRange(range: IRange, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth, revealVerticalInCenter: boolean = false, revealHorizontal: boolean = true): void {
 		this._revealRange(
 			range,
-			false ? VerticalRevealType.Center : VerticalRevealType.Simple,
+			revealVerticalInCenter ? VerticalRevealType.Center : VerticalRevealType.Simple,
 			revealHorizontal,
 			scrollType
 		);
@@ -839,6 +857,26 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 		this._decorationTypeKeysToIds[decorationTypeKey] = this.deltaDecorations(oldDecorationsIds, newModelDecorations);
 	}
 
+	public setDecorationsFast(decorationTypeKey: string, ranges: IRange[]): void {
+
+		// remove decoration sub types that are no longer used, deregister decoration type if necessary
+		let oldDecorationsSubTypes = this._decorationTypeSubtypes[decorationTypeKey] || {};
+		for (let subType in oldDecorationsSubTypes) {
+			this._removeDecorationType(decorationTypeKey + '-' + subType);
+		}
+		this._decorationTypeSubtypes[decorationTypeKey] = {};
+
+		const opts = ModelDecorationOptions.createDynamic(this._resolveDecorationOptions(decorationTypeKey, false));
+		let newModelDecorations: editorCommon.IModelDeltaDecoration[] = new Array<editorCommon.IModelDeltaDecoration>(ranges.length);
+		for (let i = 0, len = ranges.length; i < len; i++) {
+			newModelDecorations[i] = { range: ranges[i], options: opts };
+		}
+
+		// update all decorations
+		let oldDecorationsIds = this._decorationTypeKeysToIds[decorationTypeKey] || [];
+		this._decorationTypeKeysToIds[decorationTypeKey] = this.deltaDecorations(oldDecorationsIds, newModelDecorations);
+	}
+
 	public removeDecorations(decorationTypeKey: string): void {
 		// remove decorations for type and sub type
 		let oldDecorationsIds = this._decorationTypeKeysToIds[decorationTypeKey];
@@ -885,6 +923,10 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 						case TextModelEventType.ModelLanguageChanged:
 							this.domElement.setAttribute('data-mode-id', this.model.getLanguageIdentifier().language);
 							this._onDidChangeModelLanguage.fire(e);
+							break;
+
+						case TextModelEventType.ModelLanguageConfigurationChanged:
+							this._onDidChangeModelLanguageConfiguration.fire(e);
 							break;
 
 						case TextModelEventType.ModelContentChanged:
@@ -948,16 +990,6 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 
 	protected _postDetachModelCleanup(detachedModel: editorCommon.IModel): void {
 		if (detachedModel) {
-			this._decorationTypeKeysToIds = {};
-			if (this._decorationTypeSubtypes) {
-				for (let decorationType in this._decorationTypeSubtypes) {
-					let subTypes = this._decorationTypeSubtypes[decorationType];
-					for (let subType in subTypes) {
-						this._removeDecorationType(decorationType + '-' + subType);
-					}
-				}
-				this._decorationTypeSubtypes = {};
-			}
 			detachedModel.removeAllDecorationsWithOwnerId(this.id);
 		}
 	}
@@ -993,6 +1025,9 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 	protected abstract _removeDecorationType(key: string): void;
 	protected abstract _resolveDecorationOptions(typeKey: string, writable: boolean): editorCommon.IModelDecorationOptions;
 
+	/* __GDPR__FRAGMENT__
+		"EditorTelemetryData" : {}
+	*/
 	public getTelemetryData(): { [key: string]: any; } {
 		return null;
 	}
@@ -1001,7 +1036,7 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 class EditorContextKeysManager extends Disposable {
 
 	private _editor: CommonCodeEditor;
-
+	// @ts-ignore unused property
 	private _editorId: IContextKey<string>;
 	private _editorFocus: IContextKey<boolean>;
 	private _editorTextFocus: IContextKey<boolean>;

@@ -11,7 +11,7 @@ import { stopProfiling } from 'vs/base/node/profiler';
 import nls = require('vs/nls');
 import URI from 'vs/base/common/uri';
 import { IStorageService } from 'vs/platform/storage/node/storage';
-import { shell, screen, BrowserWindow, systemPreferences, app } from 'electron';
+import { shell, screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -19,13 +19,14 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
-import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState, IRunActionInWindowRequest } from 'vs/platform/windows/common/windows';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { KeyboardLayoutMonitor } from 'vs/code/electron-main/keyboard';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
+import { ICommandAction } from 'vs/platform/actions/common/actions';
+import { mark, getEntries } from 'vs/base/common/performance';
 
 export interface IWindowState {
 	width?: number;
@@ -65,6 +66,10 @@ interface IWorkbenchEditorConfiguration {
 	};
 }
 
+interface ITouchBarSegment extends Electron.SegmentedControlSegment {
+	id: string;
+}
+
 export class CodeWindow implements ICodeWindow {
 
 	public static themeStorageKey = 'theme';
@@ -93,6 +98,8 @@ export class CodeWindow implements ICodeWindow {
 	private currentConfig: IWindowConfiguration;
 	private pendingLoadConfig: IWindowConfiguration;
 
+	private touchBarGroups: Electron.TouchBarSegmentedControl[];
+
 	constructor(
 		config: IWindowCreationOptions,
 		@ILogService private logService: ILogService,
@@ -102,6 +109,7 @@ export class CodeWindow implements ICodeWindow {
 		@IWorkspacesMainService private workspaceService: IWorkspacesMainService,
 		@IBackupMainService private backupService: IBackupMainService
 	) {
+		this.touchBarGroups = [];
 		this._lastFocusTime = -1;
 		this._readyState = ReadyState.NONE;
 		this.whenReadyCallbacks = [];
@@ -112,6 +120,9 @@ export class CodeWindow implements ICodeWindow {
 
 		// respect configured menu bar visibility
 		this.onConfigurationUpdated();
+
+		// macOS: touch bar support
+		this.createTouchBar();
 
 		// Eventing
 		this.registerListeners();
@@ -130,7 +141,7 @@ export class CodeWindow implements ICodeWindow {
 			backgroundColor = '#171717'; // https://github.com/electron/electron/issues/5150
 		}
 
-		const options: Electron.BrowserWindowOptions = {
+		const options: Electron.BrowserWindowConstructorOptions = {
 			width: this.windowState.width,
 			height: this.windowState.height,
 			x: this.windowState.x,
@@ -178,6 +189,23 @@ export class CodeWindow implements ICodeWindow {
 		// Create the browser window.
 		this._win = new BrowserWindow(options);
 		this._id = this._win.id;
+
+		// TODO@Ben Bug in Electron (https://github.com/electron/electron/issues/10862). On multi-monitor setups,
+		// it can happen that the position we set to the window is not the correct one on the display.
+		// To workaround, we ask the window for its position and set it again if not matching.
+		// This only applies if the window is not fullscreen or maximized and multiple monitors are used.
+		if (isWindows && !isFullscreenOrMaximized) {
+			try {
+				if (screen.getAllDisplays().length > 1) {
+					const [x, y] = this._win.getPosition();
+					if (x !== this.windowState.x || y !== this.windowState.y) {
+						this._win.setPosition(this.windowState.x, this.windowState.y, false);
+					}
+				}
+			} catch (err) {
+				this.logService.log(`Unexpected error fixing window position on windows with multiple windows: ${err}\n${err.stack}`);
+			}
+		}
 
 		if (useCustomTitleStyle) {
 			this._win.setSheetOffset(22); // offset dialogs by the height of the custom title bar if we have any
@@ -279,10 +307,6 @@ export class CodeWindow implements ICodeWindow {
 		return this.currentConfig ? this.currentConfig.folderPath : void 0;
 	}
 
-	public get openedFilePath(): string {
-		return this.currentConfig && this.currentConfig.filesToOpen && this.currentConfig.filesToOpen[0] && this.currentConfig.filesToOpen[0].filePath;
-	}
-
 	public setReady(): void {
 		this._readyState = ReadyState.READY;
 
@@ -320,7 +344,7 @@ export class CodeWindow implements ICodeWindow {
 		});
 
 		// Prevent loading of svgs
-		this._win.webContents.session.webRequest.onBeforeRequest((details, callback) => {
+		this._win.webContents.session.webRequest.onBeforeRequest(null, (details, callback) => {
 			if (details.url.indexOf('.svg') > 0) {
 				const uri = URI.parse(details.url);
 				if (uri && !uri.scheme.match(/file/i) && (uri.path as any).endsWith('.svg')) {
@@ -331,7 +355,7 @@ export class CodeWindow implements ICodeWindow {
 			return callback({});
 		});
 
-		this._win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+		this._win.webContents.session.webRequest.onHeadersReceived(null, (details, callback) => {
 			const contentType: string[] = (details.responseHeaders['content-type'] || details.responseHeaders['Content-Type']) as any;
 			if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
 				return callback({ cancel: true });
@@ -388,7 +412,7 @@ export class CodeWindow implements ICodeWindow {
 		});
 
 		// Window Failed to load
-		this._win.webContents.on('did-fail-load', (event: Event, errorCode: string, errorDescription: string) => {
+		this._win.webContents.on('did-fail-load', (event: Electron.Event, errorCode: number, errorDescription: string, validatedURL: string, isMainFrame: boolean) => {
 			this.logService.warn('[electron event]: fail to load, ', errorDescription);
 		});
 
@@ -403,7 +427,7 @@ export class CodeWindow implements ICodeWindow {
 		}
 
 		// Handle configuration changes
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated()));
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated()));
 
 		// Handle Workspace events
 		this.toDispose.push(this.workspaceService.onUntitledWorkspaceDeleted(e => this.onUntitledWorkspaceDeleted(e)));
@@ -434,18 +458,18 @@ export class CodeWindow implements ICodeWindow {
 				this._win.removeAllListeners('swipe');
 			}
 		}
-	};
+	}
 
 	private registerNavigationListenerOn(command: 'swipe' | 'app-command', back: 'left' | 'browser-backward', forward: 'right' | 'browser-forward', acrossEditors: boolean) {
-		this._win.on(command, (e: Electron.Event, cmd: string) => {
+		this._win.on(command as 'swipe' /* | 'app-command' */, (e: Electron.Event, cmd: string) => {
 			if (this.readyState !== ReadyState.READY) {
 				return; // window must be ready
 			}
 
 			if (cmd === back) {
-				this.send('vscode:runAction', acrossEditors ? 'workbench.action.openPreviousRecentlyUsedEditor' : 'workbench.action.navigateBack');
+				this.send('vscode:runAction', { id: acrossEditors ? 'workbench.action.openPreviousRecentlyUsedEditor' : 'workbench.action.navigateBack', from: 'mouse' } as IRunActionInWindowRequest);
 			} else if (cmd === forward) {
-				this.send('vscode:runAction', acrossEditors ? 'workbench.action.openNextRecentlyUsedEditor' : 'workbench.action.navigateForward');
+				this.send('vscode:runAction', { id: acrossEditors ? 'workbench.action.openNextRecentlyUsedEditor' : 'workbench.action.navigateForward', from: 'mouse' } as IRunActionInWindowRequest);
 			}
 		});
 	}
@@ -484,6 +508,7 @@ export class CodeWindow implements ICodeWindow {
 		}
 
 		// Load URL
+		mark('main:loadWindow');
 		this._win.loadURL(this.getUrl(config));
 
 		// Make window visible if it did not open in N seconds because this indicates an error
@@ -516,6 +541,7 @@ export class CodeWindow implements ICodeWindow {
 		delete configuration.filesToOpen;
 		delete configuration.filesToCreate;
 		delete configuration.filesToDiff;
+		delete configuration.filesToWait;
 
 		// Some configuration things get inherited if the window is being reloaded and we are
 		// in extension development mode. These options are all development related.
@@ -549,14 +575,12 @@ export class CodeWindow implements ICodeWindow {
 		windowConfiguration.highContrast = isWindows && systemPreferences.isInvertedColorScheme() && (!windowConfig || windowConfig.autoDetectHighContrast);
 		windowConfiguration.accessibilitySupport = app.isAccessibilitySupportEnabled();
 
-		// Set Keyboard Config
-		windowConfiguration.isISOKeyboard = KeyboardLayoutMonitor.INSTANCE.isISOKeyboard();
-
 		// Theme
 		windowConfiguration.baseTheme = this.getBaseTheme();
 		windowConfiguration.backgroundColor = this.getBackgroundColor();
 
 		// Perf Counters
+		windowConfiguration.perfEntries = getEntries();
 		windowConfiguration.perfStartTime = global.perfStartTime;
 		windowConfiguration.perfAppReady = global.perfAppReady;
 		windowConfiguration.perfWindowLoadTime = Date.now();
@@ -599,6 +623,9 @@ export class CodeWindow implements ICodeWindow {
 	}
 
 	public serializeWindowState(): IWindowState {
+		if (!this._win) {
+			return defaultWindowState();
+		}
 
 		// fullscreen gets special treatment
 		if (this._win.isFullScreen()) {
@@ -730,7 +757,13 @@ export class CodeWindow implements ICodeWindow {
 		// Multi Monitor (non-fullscreen): be less strict because metrics can be crazy
 		const bounds = { x: state.x, y: state.y, width: state.width, height: state.height };
 		const display = screen.getDisplayMatching(bounds);
-		if (display && display.bounds.x + display.bounds.width > bounds.x && display.bounds.y + display.bounds.height > bounds.y) {
+		if (
+			display &&												// we have a display matching the desired bounds
+			bounds.x < display.bounds.x + display.bounds.width &&	// prevent window from falling out of the screen to the right
+			bounds.y < display.bounds.y + display.bounds.height &&	// prevent window from falling out of the screen to the bottom
+			bounds.x + bounds.width > display.bounds.x &&			// prevent window from falling out of the screen to the left
+			bounds.y + bounds.height > display.bounds.y				// prevent window from falling out of the scree nto the top
+		) {
 			if (state.mode === WindowMode.Maximized) {
 				const defaults = defaultWindowState(WindowMode.Maximized); // when maximized, make sure we have good values when the user restores the window
 				defaults.x = state.x; // carefull to keep x/y position so that the window ends up on the correct monitor
@@ -800,7 +833,7 @@ export class CodeWindow implements ICodeWindow {
 
 				if (notify) {
 					this.send('vscode:showInfoMessage', nls.localize('hiddenMenuBar', "You can still access the menu bar by pressing the **Alt** key."));
-				};
+				}
 				break;
 
 			case ('hidden'):
@@ -814,7 +847,7 @@ export class CodeWindow implements ICodeWindow {
 					this._win.setAutoHideMenuBar(false);
 				});
 				break;
-		};
+		}
 	}
 
 	public onWindowTitleDoubleClick(): void {
@@ -858,6 +891,78 @@ export class CodeWindow implements ICodeWindow {
 
 	public send(channel: string, ...args: any[]): void {
 		this._win.webContents.send(channel, ...args);
+	}
+
+	public updateTouchBar(groups: ICommandAction[][]): void {
+		if (!isMacintosh) {
+			return; // only supported on macOS
+		}
+
+		// Update segments for all groups. Setting the segments property
+		// of the group directly prevents ugly flickering from happening
+		this.touchBarGroups.forEach((touchBarGroup, index) => {
+			const commands = groups[index];
+			touchBarGroup.segments = this.createTouchBarGroupSegments(commands);
+		});
+	}
+
+	private createTouchBar(): void {
+		if (!isMacintosh) {
+			return; // only supported on macOS
+		}
+
+		// To avoid flickering, we try to reuse the touch bar group
+		// as much as possible by creating a large number of groups
+		// for reusing later.
+		for (let i = 0; i < 10; i++) {
+			const groupTouchBar = this.createTouchBarGroup();
+			this.touchBarGroups.push(groupTouchBar);
+		}
+
+		// Ugly workaround for native crash on macOS 10.12.1. We are not
+		// leveraging the API for changing the ESC touch bar item.
+		// See https://github.com/electron/electron/issues/10442
+		(<any>this._win)._setEscapeTouchBarItem = () => { };
+
+		this._win.setTouchBar(new TouchBar({ items: this.touchBarGroups }));
+	}
+
+	private createTouchBarGroup(items: ICommandAction[] = []): Electron.TouchBarSegmentedControl {
+
+		// Group Segments
+		const segments = this.createTouchBarGroupSegments(items);
+
+		// Group Control
+		const control = new TouchBar.TouchBarSegmentedControl({
+			segments,
+			mode: 'buttons',
+			segmentStyle: 'automatic',
+			change: (selectedIndex) => {
+				this.sendWhenReady('vscode:runAction', { id: (control.segments[selectedIndex] as ITouchBarSegment).id, from: 'touchbar' });
+			}
+		});
+
+		return control;
+	}
+
+	private createTouchBarGroupSegments(items: ICommandAction[] = []): ITouchBarSegment[] {
+		const segments: ITouchBarSegment[] = items.map(item => {
+			let icon: Electron.NativeImage;
+			if (item.iconPath) {
+				icon = nativeImage.createFromPath(item.iconPath);
+				if (icon.isEmpty()) {
+					icon = void 0;
+				}
+			}
+
+			return {
+				id: item.id,
+				label: !icon ? item.title as string : void 0,
+				icon
+			};
+		});
+
+		return segments;
 	}
 
 	public dispose(): void {

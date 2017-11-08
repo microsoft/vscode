@@ -709,7 +709,7 @@ export class Minimap extends ViewPart {
 		const imageData = this._getBuffer();
 
 		// Render untouched lines by using last rendered data.
-		let needed = Minimap._renderUntouchedLines(
+		let [_dirtyY1, _dirtyY2, needed] = Minimap._renderUntouchedLines(
 			imageData,
 			startLineNumber,
 			endLineNumber,
@@ -744,9 +744,13 @@ export class Minimap extends ViewPart {
 			dy += minimapLineHeight;
 		}
 
+		const dirtyY1 = (_dirtyY1 === -1 ? 0 : _dirtyY1);
+		const dirtyY2 = (_dirtyY2 === -1 ? imageData.height : _dirtyY2);
+		const dirtyHeight = dirtyY2 - dirtyY1;
+
 		// Finally, paint to the canvas
 		const ctx = this._canvas.domNode.getContext('2d');
-		ctx.putImageData(imageData, 0, 0);
+		ctx.putImageData(imageData, 0, 0, 0, dirtyY1, imageData.width, dirtyHeight);
 
 		// Save rendered data for reuse on next frame if possible
 		return new RenderData(
@@ -762,14 +766,14 @@ export class Minimap extends ViewPart {
 		endLineNumber: number,
 		minimapLineHeight: number,
 		lastRenderData: RenderData,
-	): boolean[] {
+	): [number, number, boolean[]] {
 
 		let needed: boolean[] = [];
 		if (!lastRenderData) {
 			for (let i = 0, len = endLineNumber - startLineNumber + 1; i < len; i++) {
 				needed[i] = true;
 			}
-			return needed;
+			return [-1, -1, needed];
 		}
 
 		const _lastData = lastRenderData._get();
@@ -779,6 +783,10 @@ export class Minimap extends ViewPart {
 		const lastLinesLength = lastLines.length;
 		const WIDTH = target.width;
 		const targetData = target.data;
+
+		const maxDestPixel = (endLineNumber - startLineNumber + 1) * minimapLineHeight * WIDTH * 4;
+		let dirtyPixel1 = -1; // the pixel offset up to which all the data is equal to the prev frame
+		let dirtyPixel2 = -1; // the pixel offset after which all the data is equal to the prev frame
 
 		let copySourceStart = -1;
 		let copySourceEnd = -1;
@@ -810,6 +818,12 @@ export class Minimap extends ViewPart {
 				if (copySourceStart !== -1) {
 					// flush existing copy request
 					targetData.set(lastTargetData.subarray(copySourceStart, copySourceEnd), copyDestStart);
+					if (dirtyPixel1 === -1 && copySourceStart === 0 && copySourceStart === copyDestStart) {
+						dirtyPixel1 = copySourceEnd;
+					}
+					if (dirtyPixel2 === -1 && copySourceEnd === maxDestPixel && copySourceStart === copyDestStart) {
+						dirtyPixel2 = copySourceStart;
+					}
 				}
 				copySourceStart = sourceStart;
 				copySourceEnd = sourceEnd;
@@ -824,9 +838,18 @@ export class Minimap extends ViewPart {
 		if (copySourceStart !== -1) {
 			// flush existing copy request
 			targetData.set(lastTargetData.subarray(copySourceStart, copySourceEnd), copyDestStart);
+			if (dirtyPixel1 === -1 && copySourceStart === 0 && copySourceStart === copyDestStart) {
+				dirtyPixel1 = copySourceEnd;
+			}
+			if (dirtyPixel2 === -1 && copySourceEnd === maxDestPixel && copySourceStart === copyDestStart) {
+				dirtyPixel2 = copySourceStart;
+			}
 		}
 
-		return needed;
+		const dirtyY1 = (dirtyPixel1 === -1 ? -1 : dirtyPixel1 / (WIDTH * 4));
+		const dirtyY2 = (dirtyPixel2 === -1 ? -1 : dirtyPixel2 / (WIDTH * 4));
+
+		return [dirtyY1, dirtyY2, needed];
 	}
 
 	private static _renderLine(

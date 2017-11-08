@@ -12,7 +12,7 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModel, IEditorContribution, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
-import { ISuggestResult, ISuggestSupport, ISuggestion, SuggestRegistry } from 'vs/editor/common/modes';
+import { ISuggestResult, ISuggestSupport, ISuggestion, SuggestRegistry, SuggestContext, SuggestTriggerKind } from 'vs/editor/common/modes';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
@@ -42,7 +42,7 @@ export function setSnippetSuggestSupport(support: ISuggestSupport): ISuggestSupp
 	return old;
 }
 
-export function provideSuggestionItems(model: IModel, position: Position, snippetConfig: SnippetConfig = 'bottom', onlyFrom?: ISuggestSupport[]): TPromise<ISuggestionItem[]> {
+export function provideSuggestionItems(model: IModel, position: Position, snippetConfig: SnippetConfig = 'bottom', onlyFrom?: ISuggestSupport[], context?: SuggestContext): TPromise<ISuggestionItem[]> {
 
 	const allSuggestions: ISuggestionItem[] = [];
 	const acceptSuggestion = createSuggesionFilter(snippetConfig);
@@ -56,6 +56,8 @@ export function provideSuggestionItems(model: IModel, position: Position, snippe
 	if (snippetConfig !== 'none' && _snippetSuggestSupport) {
 		supports.unshift([_snippetSuggestSupport]);
 	}
+
+	const suggestConext = context || { triggerKind: SuggestTriggerKind.Invoke };
 
 	// add suggestions from contributed providers - providers are ordered in groups of
 	// equal score and once a group produces a result the process stops
@@ -73,7 +75,7 @@ export function provideSuggestionItems(model: IModel, position: Position, snippe
 					return undefined;
 				}
 
-				return asWinJsPromise(token => support.provideCompletionItems(model, position, token)).then(container => {
+				return asWinJsPromise(token => support.provideCompletionItems(model, position, suggestConext, token)).then(container => {
 
 					const len = allSuggestions.length;
 

@@ -14,6 +14,8 @@ import { isLinux } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import Event from 'vs/base/common/event';
 import { tildify, getPathLabel } from 'vs/base/common/labels';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import URI from 'vs/base/common/uri';
 
 export const IWorkspacesMainService = createDecorator<IWorkspacesMainService>('workspacesMainService');
 export const IWorkspacesService = createDecorator<IWorkspacesService>('workspacesService');
@@ -32,19 +34,52 @@ export interface IWorkspaceIdentifier {
 	configPath: string;
 }
 
-export interface IStoredWorkspaceFolder {
+export function isStoredWorkspaceFolder(thing: any): thing is IStoredWorkspaceFolder {
+	return isRawFileWorkspaceFolder(thing) || isRawUriWorkspaceFolder(thing);
+}
+
+export function isRawFileWorkspaceFolder(thing: any): thing is IRawFileWorkspaceFolder {
+	return thing
+		&& typeof thing === 'object'
+		&& typeof thing.path === 'string'
+		&& (!thing.name || typeof thing.name === 'string');
+}
+
+export function isRawUriWorkspaceFolder(thing: any): thing is IRawUriWorkspaceFolder {
+	return thing
+		&& typeof thing === 'object'
+		&& typeof thing.uri === 'string'
+		&& (!thing.name || typeof thing.name === 'string');
+}
+
+export interface IRawFileWorkspaceFolder {
 	path: string;
+	name?: string;
+}
+
+export interface IRawUriWorkspaceFolder {
+	uri: string;
+	name?: string;
+}
+
+export type IStoredWorkspaceFolder = IRawFileWorkspaceFolder | IRawUriWorkspaceFolder;
+
+export interface IResolvedWorkspace extends IWorkspaceIdentifier {
+	folders: IWorkspaceFolder[];
 }
 
 export interface IStoredWorkspace {
 	folders: IStoredWorkspaceFolder[];
 }
 
-export interface IResolvedWorkspace extends IWorkspaceIdentifier, IStoredWorkspace { }
-
 export interface IWorkspaceSavedEvent {
 	workspace: IWorkspaceIdentifier;
 	oldConfigPath: string;
+}
+
+export interface IWorkspaceFolderCreationData {
+	uri: URI;
+	name?: string;
 }
 
 export interface IWorkspacesMainService extends IWorkspacesService {
@@ -54,7 +89,8 @@ export interface IWorkspacesMainService extends IWorkspacesService {
 	onUntitledWorkspaceDeleted: Event<IWorkspaceIdentifier>;
 
 	saveWorkspace(workspace: IWorkspaceIdentifier, target: string): TPromise<IWorkspaceIdentifier>;
-	createWorkspaceSync(folders?: string[]): IWorkspaceIdentifier;
+
+	createWorkspaceSync(folders?: IWorkspaceFolderCreationData[]): IWorkspaceIdentifier;
 
 	resolveWorkspace(path: string): TPromise<IResolvedWorkspace>;
 	resolveWorkspaceSync(path: string): IResolvedWorkspace;
@@ -71,7 +107,7 @@ export interface IWorkspacesMainService extends IWorkspacesService {
 export interface IWorkspacesService {
 	_serviceBrand: any;
 
-	createWorkspace(folders?: string[]): TPromise<IWorkspaceIdentifier>;
+	createWorkspace(folders?: IWorkspaceFolderCreationData[]): TPromise<IWorkspaceIdentifier>;
 }
 
 export function getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier), environmentService: IEnvironmentService, options?: { verbose: boolean }): string {

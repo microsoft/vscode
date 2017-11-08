@@ -12,6 +12,8 @@
 	"previousSearchTerm": "Mostrar Termo de Pesquisa Anterior",
 	"focusNextInputBox": "Focalizar a Próxima Caixa de Entrada",
 	"focusPreviousInputBox": "Focalizar a Caixa de Entrada Anterior",
+	"showSearchViewlet": "Mostrar Busca",
+	"findInFiles": "Localizar nos Arquivos",
 	"replaceInFiles": "Substituir nos Arquivos",
 	"findInWorkspace": "Procurar no Espaço de Trabalho...",
 	"findInFolder": "Procurar na pasta...",
@@ -19,7 +21,7 @@
 	"ClearSearchResultsAction.label": "Limpar os Resultados da Pesquisa",
 	"FocusNextSearchResult.label": "Focalizar o Próximo Resultado da Pesquisa",
 	"FocusPreviousSearchResult.label": "Focalizar o Resultado da Pesquisa Anterior",
-	"RemoveAction.label": "Remover",
+	"RemoveAction.label": "Ignorar",
 	"file.replaceAll.label": "Substituir Tudo",
 	"match.replace.label": "Substituir"
 }

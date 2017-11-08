@@ -15,6 +15,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { Composite, CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
+import { IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 
 export abstract class Viewlet extends Composite implements IViewlet {
 
@@ -145,19 +146,14 @@ export abstract class ViewerViewlet extends Viewlet {
 export class ViewletDescriptor extends CompositeDescriptor<Viewlet> {
 
 	constructor(
-		moduleId: string,
-		ctorName: string,
+		ctor: IConstructorSignature0<Viewlet>,
 		id: string,
 		name: string,
 		cssClass?: string,
 		order?: number,
 		private _extensionId?: string
 	) {
-		super(moduleId, ctorName, id, name, cssClass, order);
-
-		if (_extensionId) {
-			this.appendStaticArguments([id]); // Pass viewletId to external viewlet, which doesn't know its id until runtime.
-		}
+		super(ctor, id, name, cssClass, order, id);
 	}
 
 	public get extensionId(): string {

@@ -4,15 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import URI from 'vs/base/common/uri';
-import { Workspace } from 'vs/platform/workspace/common/workspace';
+import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
+import { isWindows } from 'vs/base/common/platform';
 
-const wsUri = URI.file('C:\\testWorkspace');
+const wsUri = URI.file(isWindows ? 'C:\\testWorkspace' : '/testWorkspace');
 export const TestWorkspace = testWorkspace(wsUri);
 
 export function testWorkspace(resource: URI): Workspace {
 	return new Workspace(
 		resource.toString(),
 		resource.fsPath,
-		[resource]
+		toWorkspaceFolders([{ path: resource.fsPath }])
 	);
 }

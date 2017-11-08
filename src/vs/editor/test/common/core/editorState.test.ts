@@ -91,13 +91,13 @@ suite('Editor Core - Editor State', () => {
 	function createEditor({ model, position, selection, scroll }: IStubEditorState = {}): ICommonCodeEditor {
 		let mappedModel = model ? { uri: model.uri ? model.uri : URI.parse('http://dummy.org'), getVersionId: () => model.version } : null;
 
-		return <any>{
+		return {
 			getModel: (): IModel => <any>mappedModel,
 			getPosition: (): Position => position,
 			getSelection: (): Selection => selection,
 			getScrollLeft: (): number => scroll && scroll.left,
 			getScrollTop: (): number => scroll && scroll.top
-		};
+		} as ICommonCodeEditor;
 	}
 
 });

@@ -123,7 +123,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 			switch (kind) {
 				case 'open':
 					if (event.source === 'editor'
-						&& this._configurationService.lookup('editor.stablePeek').value) {
+						&& this._configurationService.getValue('editor.stablePeek')) {
 
 						// when stable peek is configured we don't close
 						// the peek window on selecting the editor
@@ -161,6 +161,12 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 			const startTime = Date.now();
 			this._disposables.push({
 				dispose: () => {
+					/* __GDPR__
+						"zoneWidgetShown" : {
+							"mode" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+							"elapsedTime": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					*/
 					this._telemetryService.publicLog('zoneWidgetShown', {
 						mode: 'reference search',
 						elapsedTime: Date.now() - startTime
@@ -191,6 +197,12 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		const onDone = stopwatch(fromPromise(promise));
 		const mode = this._editor.getModel().getLanguageIdentifier().language;
 
+		/* __GDPR__
+			"findReferences" : {
+				"durarion" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"mode": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		onDone(duration => this._telemetryService.publicLog('findReferences', {
 			duration,
 			mode

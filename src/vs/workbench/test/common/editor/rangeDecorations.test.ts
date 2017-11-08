@@ -28,8 +28,11 @@ import { CoreNavigationCommands } from 'vs/editor/common/controller/coreCommands
 suite('Editor - Range decorations', () => {
 
 	let instantiationService: TestInstantiationService;
+	// @ts-ignore unused injected service
 	let editorService: WorkbenchEditorService.IWorkbenchEditorService;
+	// @ts-ignore unused injected service
 	let modelService: IModelService;
+	// @ts-ignore unused injected service
 	let modeService: IModeService;
 	let codeEditor: editorCommon.ICommonCodeEditor;
 	let model: Model;

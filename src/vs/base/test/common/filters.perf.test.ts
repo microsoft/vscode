@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-// import * as assert from 'assert';
 import * as filters from 'vs/base/common/filters';
 import { data } from './filters.perf.data';
 

@@ -22,7 +22,7 @@ import { ReferencesController } from 'vs/editor/contrib/referenceSearch/browser/
 import { ReferencesModel } from 'vs/editor/contrib/referenceSearch/browser/referencesModel';
 import { PeekContext } from 'vs/editor/contrib/referenceSearch/browser/peekViewWidget';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { MessageController } from './messageController';
+import { MessageController } from 'vs/editor/contrib/message/messageController';
 import * as corePosition from 'vs/editor/common/core/position';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -150,7 +150,8 @@ export class DefinitionAction extends EditorAction {
 			resource: uri,
 			options: {
 				selection: Range.collapseToStart(range),
-				revealIfVisible: !sideBySide
+				revealIfVisible: !sideBySide,
+				revealInCenterIfOutsideViewport: true
 			}
 		}, sideBySide).then(editor => {
 			return editor && <editorCommon.ICommonCodeEditor>editor.getControl();

@@ -28,7 +28,7 @@ export class QuickFixOracle {
 	) {
 		this._disposables.push(
 			debounceEvent(this._markerService.onMarkerChanged, (last, cur) => last ? last.concat(cur) : cur, delay / 2)(e => this._onMarkerChanges(e)),
-			debounceEvent(this._editor.onDidChangeCursorPosition, last => last, delay)(e => this._onCursorChange())
+			debounceEvent(this._editor.onDidChangeCursorPosition, (last, cur) => cur, delay)(e => this._onCursorChange())
 		);
 	}
 
@@ -38,7 +38,7 @@ export class QuickFixOracle {
 
 	trigger(type: 'manual' | 'auto'): void {
 		let rangeOrSelection = this._getRangeOfMarker() || this._getRangeOfSelectionUnlessWhitespaceEnclosed();
-		if (type === 'manual') {
+		if (!rangeOrSelection && type === 'manual') {
 			rangeOrSelection = this._editor.getSelection();
 		}
 		this._createEventAndSignalChange(type, rangeOrSelection);

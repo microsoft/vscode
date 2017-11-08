@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/fadeevab/make.tmbundle/commit/3c1e978bb465ffbf53a36639a69bae99ed047f08",
+	"version": "https://github.com/fadeevab/make.tmbundle/commit/43e1a67476dea3ddefbb4f0ee7901834b31b8bee",
 	"fileTypes": [
 		"Makefile",
 		"makefile",
@@ -102,7 +102,7 @@
 					]
 				},
 				{
-					"begin": "^(?:(override)\\s*)?(define)\\s*([^\\s]+)\\s*(=|\\?=|:=|\\+=)?(?=\\s)",
+					"begin": "^\\s*(?:(override)\\s*)?(define)\\s*([^\\s]+)\\s*(=|\\?=|:=|\\+=)?(?=\\s)",
 					"captures": {
 						"1": {
 							"name": "keyword.control.override.makefile"
@@ -117,7 +117,7 @@
 							"name": "punctuation.separator.key-value.makefile"
 						}
 					},
-					"end": "^(endef)\\b",
+					"end": "^\\s*(endef)\\b",
 					"name": "meta.scope.conditional.makefile",
 					"patterns": [
 						{
@@ -194,7 +194,7 @@
 					]
 				},
 				{
-					"begin": "^(ifdef|ifndef)\\s*([^\\s]+)(?=\\s)",
+					"begin": "^\\s*(ifdef|ifndef)\\s*([^\\s]+)(?=\\s)",
 					"captures": {
 						"1": {
 							"name": "keyword.control.$1.makefile"
@@ -206,7 +206,7 @@
 							"name": "punctuation.separator.key-value.makefile"
 						}
 					},
-					"end": "^(endif)\\b",
+					"end": "^\\s*(endif)\\b",
 					"name": "meta.scope.conditional.makefile",
 					"patterns": [
 						{
@@ -224,13 +224,13 @@
 					]
 				},
 				{
-					"begin": "^(ifeq|ifneq)(?=\\s)",
+					"begin": "^\\s*(ifeq|ifneq)(?=\\s)",
 					"captures": {
 						"1": {
 							"name": "keyword.control.$1.makefile"
 						}
 					},
-					"end": "^(endif)\\b",
+					"end": "^\\s*(endif)\\b",
 					"name": "meta.scope.conditional.makefile",
 					"patterns": [
 						{
@@ -247,7 +247,7 @@
 							]
 						},
 						{
-							"begin": "^else(?=\\s)",
+							"begin": "^\\s*else(?=\\s)",
 							"beginCaptures": {
 								"0": {
 									"name": "keyword.control.else.makefile"
@@ -290,6 +290,18 @@
 							"include": "source.shell"
 						}
 					]
+				}
+			]
+		},
+		"braces-interpolation": {
+			"begin": "\\(",
+			"end": "\\)",
+			"patterns": [
+				{
+					"include": "#variables"
+				},
+				{
+					"include": "#braces-interpolation"
 				}
 			]
 		},
@@ -408,22 +420,17 @@
 		"variables": {
 			"patterns": [
 				{
-					"captures": {
-						"1": {
-							"name": "punctuation.definition.variable.makefile"
-						}
-					},
-					"match": "(\\$?\\$)[@%<?^+*]",
+					"match": "\\$[^\\(\\)]",
 					"name": "variable.language.makefile"
 				},
 				{
-					"begin": "\\$?\\$\\(",
+					"begin": "(\\$|(?<=\\$))\\(",
 					"captures": {
 						"0": {
 							"name": "punctuation.definition.variable.makefile"
 						}
 					},
-					"end": "\\)",
+					"end": "\\)|((?<!\\\\)\\n)",
 					"name": "string.interpolated.makefile",
 					"patterns": [
 						{
@@ -440,15 +447,22 @@
 									"name": "support.function.$1.makefile"
 								}
 							},
-							"end": "(?=\\))",
+							"end": "(?=\\)|((?<!\\\\)\\n))",
 							"name": "meta.scope.function-call.makefile",
 							"patterns": [
 								{
 									"include": "#variables"
 								},
 								{
+									"include": "#braces-interpolation"
+								},
+								{
 									"match": "%|\\*",
 									"name": "constant.other.placeholder.makefile"
+								},
+								{
+									"match": "\\\\\\n",
+									"name": "constant.character.escape.continuation.makefile"
 								}
 							]
 						},
@@ -470,11 +484,15 @@
 						},
 						{
 							"begin": "(?<=\\()(?!\\))",
-							"end": "(?=\\))",
+							"end": "(?=\\)|((?<!\\\\)\\n))",
 							"name": "variable.other.makefile",
 							"patterns": [
 								{
 									"include": "#variables"
+								},
+								{
+									"match": "\\\\\\n",
+									"name": "constant.character.escape.continuation.makefile"
 								}
 							]
 						}

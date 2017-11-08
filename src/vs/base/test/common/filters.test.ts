@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyScore, nextTypoPermutation, fuzzyScoreGraceful } from 'vs/base/common/filters';
+import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyScore, nextTypoPermutation, fuzzyScoreGraceful, IMatch } from 'vs/base/common/filters';
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number; }[]) {
 	let r = filter(word, wordToMatchAgainst);
@@ -15,15 +15,16 @@ function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, hig
 	}
 }
 
-function filterNotOk(filter, word, suggestion) {
+function filterNotOk(filter: IFilter, word: string, suggestion: string) {
 	assert(!filter(word, suggestion));
 }
 
 suite('Filters', () => {
 	test('or', function () {
-		let filter, counters;
-		let newFilter = function (i, r) {
-			return function () { counters[i]++; return r; };
+		let filter: IFilter;
+		let counters: number[];
+		let newFilter = function (i: number, r: boolean): IFilter {
+			return function (): IMatch[] { counters[i]++; return r as any; };
 		};
 
 		counters = [0, 0];
@@ -161,6 +162,18 @@ suite('Filters', () => {
 			{ start: 9, end: 10 },
 			{ start: 18, end: 19 }
 		]);
+		filterOk(matchesSubString, 'abc', 'abcabc', [
+			{ start: 0, end: 3 },
+		]);
+		filterOk(matchesSubString, 'abc', 'aaabbbccc', [
+			{ start: 0, end: 1 },
+			{ start: 3, end: 4 },
+			{ start: 6, end: 7 },
+		]);
+	});
+
+	test('matchesSubString performance (#35346)', function () {
+		filterNotOk(matchesSubString, 'aaaaaaaaaaaaaaaaaaaax', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
 	});
 
 	test('WordFilter', function () {

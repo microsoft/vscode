@@ -64,6 +64,7 @@ abstract class ExecCommandAction extends EditorAction {
 }
 
 @conditionalEditorAction(supportsCut)
+// @ts-ignore @editorAction uses the class
 class ExecCommandCutAction extends ExecCommandAction {
 
 	constructor() {
@@ -102,6 +103,7 @@ class ExecCommandCutAction extends ExecCommandAction {
 }
 
 @conditionalEditorAction(supportsCopy)
+// @ts-ignore @editorAction uses the class
 class ExecCommandCopyAction extends ExecCommandAction {
 
 	constructor() {
@@ -141,6 +143,7 @@ class ExecCommandCopyAction extends ExecCommandAction {
 }
 
 @conditionalEditorAction(supportsPaste)
+// @ts-ignore @editorAction uses the class
 class ExecCommandPasteAction extends ExecCommandAction {
 
 	constructor() {
@@ -170,6 +173,7 @@ class ExecCommandPasteAction extends ExecCommandAction {
 }
 
 @conditionalEditorAction(supportsCopyWithSyntaxHighlighting)
+// @ts-ignore @editorAction uses the class
 class ExecCommandCopyWithSyntaxHighlightingAction extends ExecCommandAction {
 
 	constructor() {

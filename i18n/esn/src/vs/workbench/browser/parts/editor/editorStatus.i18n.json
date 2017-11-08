@@ -11,7 +11,7 @@
 	"endOfLineLineFeed": "LF",
 	"endOfLineCarriageReturnLineFeed": "CRLF",
 	"tabFocusModeEnabled": "Tabulación Mueve el Foco",
-	"screenReaderDetected": "Lector de Pantalla Detectado",
+	"screenReaderDetected": "Lector de pantalla optimizado",
 	"screenReaderDetectedExtra": "Si no va a usar un lector de pantalla, cambie el valor de configuración \"editor.accessibilitySupport\" a \"desactivado\".",
 	"disableTabMode": "Deshabilitar modo de accesibilidad",
 	"gotoLine": "Ir a la línea",
@@ -47,5 +47,11 @@
 	"reopenWithEncoding": "Volver a abrir con Encoding",
 	"guessedEncoding": "Adivinado por el contenido",
 	"pickEncodingForReopen": "Seleccionar codificación de archivo para reabrir archivo",
-	"pickEncodingForSave": "Seleccionar codificación de archivo para guardar"
+	"pickEncodingForSave": "Seleccionar codificación de archivo para guardar",
+	"screenReaderDetectedExplanation.title": "Lector de pantalla optimizado",
+	"screenReaderDetectedExplanation.question": "¿Está usando un lector de pantalla con VS Code?",
+	"screenReaderDetectedExplanation.answerYes": "Sí",
+	"screenReaderDetectedExplanation.answerNo": "No",
+	"screenReaderDetectedExplanation.body1": "VS Code se ha optimizado para ser utilizado con un lector de pantalla",
+	"screenReaderDetectedExplanation.body2": "Algunas características del editor tendrán comportamientos diferentes: por ejemplo, los ajustes de línea, plegamiento, cierre automático de llaves, etc."
 }

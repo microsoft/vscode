@@ -122,7 +122,8 @@ suite('ConfigurationService - Node', () => {
 			assert.equal(config.foo, 'bar');
 
 			// force a reload to get latest
-			service.reloadConfiguration<{ foo: string }>().then(config => {
+			service.reloadConfiguration().then(() => {
+				config = service.getConfiguration<{ foo: string }>();
 				assert.ok(config);
 				assert.equal(config.foo, 'changed');
 
@@ -202,12 +203,12 @@ suite('ConfigurationService - Node', () => {
 		testFile((testFile, cleanUp) => {
 			const service = new ConfigurationService(new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, testFile));
 
-			let res = service.lookup('something.missing');
+			let res = service.inspect('something.missing');
 			assert.strictEqual(res.value, void 0);
 			assert.strictEqual(res.default, void 0);
 			assert.strictEqual(res.user, void 0);
 
-			res = service.lookup('lookup.service.testSetting');
+			res = service.inspect('lookup.service.testSetting');
 			assert.strictEqual(res.default, 'isSet');
 			assert.strictEqual(res.value, 'isSet');
 			assert.strictEqual(res.user, void 0);
@@ -215,7 +216,7 @@ suite('ConfigurationService - Node', () => {
 			fs.writeFileSync(testFile, '{ "lookup.service.testSetting": "bar" }');
 
 			return service.reloadConfiguration().then(() => {
-				res = service.lookup('lookup.service.testSetting');
+				res = service.inspect('lookup.service.testSetting');
 				assert.strictEqual(res.default, 'isSet');
 				assert.strictEqual(res.user, 'bar');
 				assert.strictEqual(res.value, 'bar');
@@ -242,7 +243,7 @@ suite('ConfigurationService - Node', () => {
 		testFile((testFile, cleanUp) => {
 			const service = new ConfigurationService(new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, testFile));
 
-			let res = service.lookup('lookup.service.testNullSetting');
+			let res = service.inspect('lookup.service.testNullSetting');
 			assert.strictEqual(res.default, null);
 			assert.strictEqual(res.value, null);
 			assert.strictEqual(res.user, void 0);
@@ -250,7 +251,7 @@ suite('ConfigurationService - Node', () => {
 			fs.writeFileSync(testFile, '{ "lookup.service.testNullSetting": null }');
 
 			return service.reloadConfiguration().then(() => {
-				res = service.lookup('lookup.service.testNullSetting');
+				res = service.inspect('lookup.service.testNullSetting');
 				assert.strictEqual(res.default, null);
 				assert.strictEqual(res.value, null);
 				assert.strictEqual(res.user, null);

@@ -11,7 +11,7 @@
 	"endOfLineLineFeed": "LF",
 	"endOfLineCarriageReturnLineFeed": "CRLF",
 	"tabFocusModeEnabled": "TAB per spostare lo stato attivo",
-	"screenReaderDetected": "Rilevata utilità per la lettura dello schermo",
+	"screenReaderDetected": "Ottimizzato per l'utilità per la lettura dello schermo",
 	"screenReaderDetectedExtra": "Se non si utilizza un'utilità per la lettura dello schermo, si prega di impostare 'editor.accessibilitySupport' a \"off\".",
 	"disableTabMode": "Disabilita modalità accessibilità",
 	"gotoLine": "Vai alla riga",
@@ -47,5 +47,11 @@
 	"reopenWithEncoding": "Riapri con codifica",
 	"guessedEncoding": "Ipotizzata dal contenuto",
 	"pickEncodingForReopen": "Seleziona codifica per la riapertura del file",
-	"pickEncodingForSave": "Seleziona codifica per il salvataggio del file"
+	"pickEncodingForSave": "Seleziona codifica per il salvataggio del file",
+	"screenReaderDetectedExplanation.title": "Ottimizzato per l'utilità per la lettura dello schermo",
+	"screenReaderDetectedExplanation.question": "Si usa un'utilità per la lettura per lo schermo per VS Code?",
+	"screenReaderDetectedExplanation.answerYes": "Sì",
+	"screenReaderDetectedExplanation.answerNo": "No",
+	"screenReaderDetectedExplanation.body1": "VS Code è ora ottimizzato per l'utilizzo con un'utilità per la lettura dello schermo.",
+	"screenReaderDetectedExplanation.body2": "Il comportamento di alcune funzionalità dell'editor sarà diverso, ad esempio a capo automatico, riduzione del codice, chiusura automatica delle parentesi e così via."
 }

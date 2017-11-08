@@ -73,6 +73,32 @@ suite('Editor Contrib - Line Operations', () => {
 					assert.equal(model.getLineContent(5), 'horlworld', '005');
 				});
 		});
+
+		test('issue #36234: should push undo stop', () => {
+			withMockCodeEditor(
+				[
+					'one',
+					'two',
+					'three'
+				], {}, (editor, cursor) => {
+					let model = editor.getModel();
+					let deleteAllLeftAction = new DeleteAllLeftAction();
+
+					editor.setSelection(new Selection(1, 1, 1, 1));
+
+					editor.trigger('keyboard', Handler.Type, { text: 'Typing some text here on line ' });
+					assert.equal(model.getLineContent(1), 'Typing some text here on line one');
+					assert.deepEqual(editor.getSelection(), new Selection(1, 31, 1, 31));
+
+					deleteAllLeftAction.run(null, editor);
+					assert.equal(model.getLineContent(1), 'one');
+					assert.deepEqual(editor.getSelection(), new Selection(1, 1, 1, 1));
+
+					editor.trigger('keyboard', Handler.Undo, {});
+					assert.equal(model.getLineContent(1), 'Typing some text here on line one');
+					assert.deepEqual(editor.getSelection(), new Selection(1, 31, 1, 31));
+				});
+		});
 	});
 
 	suite('JoinLinesAction', () => {
@@ -162,6 +188,31 @@ suite('Editor Contrib - Line Operations', () => {
 
 					/** primary cursor */
 					assert.deepEqual(editor.getSelection().toString(), new Selection(3, 4, 3, 8).toString(), '003');
+				});
+		});
+
+		test('should push undo stop', function () {
+			withMockCodeEditor(
+				[
+					'hello',
+					'world'
+				], {}, (editor, cursor) => {
+					let model = editor.getModel();
+					let joinLinesAction = new JoinLinesAction();
+
+					editor.setSelection(new Selection(1, 6, 1, 6));
+
+					editor.trigger('keyboard', Handler.Type, { text: ' my dear' });
+					assert.equal(model.getLineContent(1), 'hello my dear');
+					assert.deepEqual(editor.getSelection(), new Selection(1, 14, 1, 14));
+
+					joinLinesAction.run(null, editor);
+					assert.equal(model.getLineContent(1), 'hello my dear world');
+					assert.deepEqual(editor.getSelection(), new Selection(1, 14, 1, 14));
+
+					editor.trigger('keyboard', Handler.Undo, {});
+					assert.equal(model.getLineContent(1), 'hello my dear');
+					assert.deepEqual(editor.getSelection(), new Selection(1, 14, 1, 14));
 				});
 		});
 	});

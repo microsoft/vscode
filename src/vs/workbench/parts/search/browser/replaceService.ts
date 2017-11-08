@@ -99,15 +99,17 @@ export class ReplaceService implements IReplaceService {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IFileService private fileService: IFileService,
 		@IEditorService private editorService: IWorkbenchEditorService,
+		// @ts-ignore unused injected service
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITextModelService private textModelResolverService: ITextModelService,
+		// @ts-ignore unused injected service
 		@ISearchWorkbenchService private searchWorkbenchService: ISearchWorkbenchService
 	) {
 	}
 
-	public replace(match: Match): TPromise<any>
-	public replace(files: FileMatch[], progress?: IProgressRunner): TPromise<any>
-	public replace(match: FileMatchOrMatch, progress?: IProgressRunner, resource?: URI): TPromise<any>
+	public replace(match: Match): TPromise<any>;
+	public replace(files: FileMatch[], progress?: IProgressRunner): TPromise<any>;
+	public replace(match: FileMatchOrMatch, progress?: IProgressRunner, resource?: URI): TPromise<any>;
 	public replace(arg: any, progress: IProgressRunner = null, resource: URI = null): TPromise<any> {
 
 		let bulkEdit: BulkEdit = createBulkEdit(this.textModelResolverService, null, this.fileService);
@@ -137,6 +139,9 @@ export class ReplaceService implements IReplaceService {
 	}
 
 	public openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
+		/* __GDPR__
+			"replace.open.previewEditor" : {}
+		*/
 		this.telemetryService.publicLog('replace.open.previewEditor');
 		const fileMatch = element instanceof Match ? element.parent() : element;
 

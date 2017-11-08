@@ -13,6 +13,7 @@ import { IFileStat, isParent } from 'vs/platform/files/common/files';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export enum StatType {
 	FILE,
@@ -23,10 +24,16 @@ export enum StatType {
 export class Model {
 
 	private _roots: FileStat[];
+	private _listener: IDisposable;
 
 	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
-		const setRoots = () => this._roots = this.contextService.getWorkspace().roots.map(uri => new FileStat(uri, undefined));
-		this.contextService.onDidChangeWorkspaceRoots(() => setRoots());
+		const setRoots = () => this._roots = this.contextService.getWorkspace().folders.map(folder => {
+			const root = new FileStat(folder.uri, undefined);
+			root.name = folder.name;
+
+			return root;
+		});
+		this._listener = this.contextService.onDidChangeWorkspaceFolders(() => setRoots());
 		setRoots();
 	}
 
@@ -49,15 +56,19 @@ export class Model {
 	 * Will return null in case the FileStat does not exist.
 	 */
 	public findClosest(resource: URI): FileStat {
-		const rootUri = this.contextService.getRoot(resource);
-		if (rootUri) {
-			const root = this.roots.filter(r => r.resource.toString() === rootUri.toString()).pop();
+		const folder = this.contextService.getWorkspaceFolder(resource);
+		if (folder) {
+			const root = this.roots.filter(r => r.resource.toString() === folder.uri.toString()).pop();
 			if (root) {
 				return root.find(resource);
 			}
 		}
 
 		return null;
+	}
+
+	public dispose(): void {
+		this._listener = dispose(this._listener);
 	}
 }
 
@@ -66,12 +77,11 @@ export class FileStat implements IFileStat {
 	public name: string;
 	public mtime: number;
 	public etag: string;
-	public isDirectory: boolean;
+	private _isDirectory: boolean;
 	public hasChildren: boolean;
 	public children: FileStat[];
 	public parent: FileStat;
 
-	public exists: boolean;
 	public isDirectoryResolved: boolean;
 
 	constructor(resource: URI, public root: FileStat, isDirectory?: boolean, hasChildren?: boolean, name: string = paths.basename(resource.fsPath), mtime?: number, etag?: string) {
@@ -82,16 +92,31 @@ export class FileStat implements IFileStat {
 		this.etag = etag;
 		this.mtime = mtime;
 
-		// Prepare child stat array
-		if (this.isDirectory) {
-			this.children = [];
-		}
 		if (!this.root) {
 			this.root = this;
 		}
 
 		this.isDirectoryResolved = false;
-		this.exists = true;
+	}
+
+	public get isDirectory(): boolean {
+		return this._isDirectory;
+	}
+
+	public set isDirectory(value: boolean) {
+		if (value !== this._isDirectory) {
+			this._isDirectory = value;
+			if (this._isDirectory) {
+				this.children = [];
+			} else {
+				this.children = undefined;
+			}
+		}
+
+	}
+
+	public get nonexistentRoot(): boolean {
+		return this.isRoot && !this.isDirectoryResolved && this.isDirectory;
 	}
 
 	public getId(): string {
@@ -262,7 +287,8 @@ export class FileStat implements IFileStat {
 	}
 
 	private updateResource(recursive: boolean): void {
-		this.resource = URI.file(paths.join(this.parent.resource.fsPath, this.name));
+		this.resource = this.parent.resource.with({ path: paths.join(this.parent.resource.path, this.name) });
+		// this.resource = URI.file(paths.join(this.parent.resource.fsPath, this.name));
 
 		if (recursive) {
 			if (this.isDirectory && this.hasChildren && this.children) {
@@ -421,6 +447,6 @@ export class OpenEditor {
 	}
 
 	public getResource(): URI {
-		return toResource(this.editor, { supportSideBySide: true, filter: ['file', 'untitled'] });
+		return toResource(this.editor, { supportSideBySide: true });
 	}
 }

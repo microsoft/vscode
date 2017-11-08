@@ -95,17 +95,12 @@ export function detectEncodingByBOM(file: string): TPromise<string> {
 }
 
 const MINIMUM_THRESHOLD = 0.2;
-
 const IGNORE_ENCODINGS = ['ascii', 'utf-8', 'utf-16', 'utf-32'];
-const MAPPED_ENCODINGS: { [name: string]: string } = {
-	'ibm866': 'cp866'
-};
 
 /**
  * Guesses the encoding from buffer.
  */
 export async function guessEncodingByBuffer(buffer: NodeBuffer): TPromise<string> {
-
 	const jschardet = await import('jschardet');
 
 	jschardet.Constants.MINIMUM_THRESHOLD = MINIMUM_THRESHOLD;
@@ -126,9 +121,14 @@ export async function guessEncodingByBuffer(buffer: NodeBuffer): TPromise<string
 	return toIconvLiteEncoding(guessed.encoding);
 }
 
+const JSCHARDET_TO_ICONV_ENCODINGS: { [name: string]: string } = {
+	'ibm866': 'cp866',
+	'big5': 'cp950'
+};
+
 function toIconvLiteEncoding(encodingName: string): string {
 	const normalizedEncodingName = encodingName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-	const mapped = MAPPED_ENCODINGS[normalizedEncodingName];
+	const mapped = JSCHARDET_TO_ICONV_ENCODINGS[normalizedEncodingName];
 
 	return mapped || normalizedEncodingName;
 }

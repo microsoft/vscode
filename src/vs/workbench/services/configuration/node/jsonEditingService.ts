@@ -42,7 +42,8 @@ export class JSONEditingService implements IJSONEditingService {
 
 	private doWriteConfiguration(resource: URI, value: IJSONValue, save: boolean): TPromise<void> {
 		return this.resolveAndValidate(resource, save)
-			.then(reference => this.writeToBuffer(reference.object.textEditorModel, value));
+			.then(reference => this.writeToBuffer(reference.object.textEditorModel, value)
+				.then(() => reference.dispose()));
 	}
 
 	private writeToBuffer(model: editorCommon.IModel, value: IJSONValue): TPromise<any> {
@@ -125,10 +126,10 @@ export class JSONEditingService implements IJSONEditingService {
 			// User issues
 			case JSONEditingErrorCode.ERROR_INVALID_FILE: {
 				return nls.localize('errorInvalidFile', "Unable to write into the file. Please open the file to correct errors/warnings in the file and try again.");
-			};
+			}
 			case JSONEditingErrorCode.ERROR_FILE_DIRTY: {
 				return nls.localize('errorFileDirty', "Unable to write into the file because the file is dirty. Please save the file and try again.");
-			};
+			}
 		}
 	}
 }

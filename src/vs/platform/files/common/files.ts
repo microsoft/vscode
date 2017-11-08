@@ -13,6 +13,9 @@ import { isLinux } from 'vs/base/common/platform';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 import { beginsWithIgnoreCase } from 'vs/base/common/strings';
+import { IProgress } from 'vs/platform/progress/common/progress';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { isEqualOrParent, isEqual } from 'vs/base/common/resources';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
@@ -29,6 +32,16 @@ export interface IFileService {
 	 * An event that is fired upon successful completion of a certain file operation.
 	 */
 	onAfterOperation: Event<FileOperationEvent>;
+
+	/**
+	 * Registeres a file system provider for a certain scheme.
+	 */
+	registerProvider?(scheme: string, provider: IFileSystemProvider): IDisposable;
+
+	/**
+	 * Checks if this file service can handle the given resource.
+	 */
+	canHandleResource?(resource: URI): boolean;
 
 	/**
 	 * Resolve the properties of a file identified by the resource.
@@ -93,7 +106,7 @@ export interface IFileService {
 	 *
 	 * The optional parameter content can be used as value to fill into the new file.
 	 */
-	createFile(resource: URI, content?: string): TPromise<IFileStat>;
+	createFile(resource: URI, content?: string, options?: ICreateFileOptions): TPromise<IFileStat>;
 
 	/**
 	 * Creates a new folder with the given path. The returned promise
@@ -149,6 +162,37 @@ export interface IFileService {
 	 */
 	dispose(): void;
 }
+
+
+export enum FileType {
+	File = 0,
+	Dir = 1,
+	Symlink = 2
+}
+export interface IStat {
+	id: number | string;
+	mtime: number;
+	size: number;
+	type: FileType;
+}
+
+export interface IFileSystemProvider {
+
+	onDidChange?: Event<IFileChange[]>;
+
+	// more...
+	//
+	utimes(resource: URI, mtime: number, atime: number): TPromise<IStat>;
+	stat(resource: URI): TPromise<IStat>;
+	read(resource: URI, offset: number, count: number, progress: IProgress<Uint8Array>): TPromise<number>;
+	write(resource: URI, content: Uint8Array): TPromise<void>;
+	move(from: URI, to: URI): TPromise<IStat>;
+	mkdir(resource: URI): TPromise<IStat>;
+	readdir(resource: URI): TPromise<[URI, IStat][]>;
+	rmdir(resource: URI): TPromise<void>;
+	unlink(resource: URI): TPromise<void>;
+}
+
 
 export enum FileOperation {
 	CREATE,
@@ -231,10 +275,10 @@ export class FileChangesEvent extends events.Event {
 
 			// For deleted also return true when deleted folder is parent of target path
 			if (type === FileChangeType.DELETED) {
-				return paths.isEqualOrParent(resource.fsPath, change.resource.fsPath, !isLinux /* ignorecase */);
+				return isEqualOrParent(resource, change.resource, !isLinux /* ignorecase */);
 			}
 
-			return paths.isEqual(resource.fsPath, change.resource.fsPath, !isLinux /* ignorecase */);
+			return isEqual(resource, change.resource, !isLinux /* ignorecase */);
 		});
 	}
 
@@ -491,6 +535,15 @@ export interface IResolveFileOptions {
 	resolveSingleChildDescendants?: boolean;
 }
 
+export interface ICreateFileOptions {
+
+	/**
+	 * Overwrite the file to create if it already exists on disk. Otherwise
+	 * an error will be thrown (FILE_MODIFIED_SINCE).
+	 */
+	overwrite?: boolean;
+}
+
 export interface IImportResult {
 	stat: IFileStat;
 	isNew: boolean;
@@ -534,6 +587,9 @@ export const HotExitConfiguration = {
 };
 
 export const CONTENT_CHANGE_EVENT_BUFFER_DELAY = 1000;
+
+export const FILES_ASSOCIATIONS_CONFIG = 'files.associations';
+export const FILES_EXCLUDE_CONFIG = 'files.exclude';
 
 export interface IFilesConfiguration {
 	files: {
@@ -780,6 +836,16 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 		labelLong: 'Simplified Chinese (GB 2312)',
 		labelShort: 'GB 2312',
 		order: 45
+	},
+	cp865: {
+		labelLong: 'Nordic DOS (CP 865)',
+		labelShort: 'CP 865',
+		order: 46
+	},
+	cp850: {
+		labelLong: 'Western European DOS (CP 850)',
+		labelShort: 'CP 850',
+		order: 47
 	}
 };
 

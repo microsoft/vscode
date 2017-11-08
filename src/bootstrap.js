@@ -14,10 +14,11 @@ process.noAsar = true;
 if (!!process.send && process.env.PIPE_LOGGING === 'true') {
 	var MAX_LENGTH = 100000;
 
-	// Prevent circular stringify
-	function safeStringify(args) {
+	// Prevent circular stringify and convert arguments to real array
+	function safeToArray(args) {
 		var seen = [];
 		var res;
+		var argsArray = [];
 
 		// Massage some arguments with special treatment
 		if (args.length) {
@@ -40,11 +41,20 @@ if (!!process.send && process.env.PIPE_LOGGING === 'true') {
 						args[i] = errorObj.toString();
 					}
 				}
+
+				argsArray.push(args[i]);
 			}
 		}
 
+		// Add the stack trace as payload if we are told so. We remove the message and the 2 top frames
+		// to start the stacktrace where the console message was being written
+		if (process.env.VSCODE_LOG_STACK === 'true') {
+			const stack = new Error().stack;
+			argsArray.push({ __$stack: stack.split('\n').slice(3).join('\n') });
+		}
+
 		try {
-			res = JSON.stringify(args, function (key, value) {
+			res = JSON.stringify(argsArray, function (key, value) {
 
 				// Objects get special treatment to prevent circles
 				if (value && Object.prototype.toString.call(value) === '[object Object]') {
@@ -78,16 +88,16 @@ if (!!process.send && process.env.PIPE_LOGGING === 'true') {
 
 	// Pass console logging to the outside so that we have it in the main side if told so
 	if (process.env.VERBOSE_LOGGING === 'true') {
-		console.log = function () { safeSend({ type: '__$console', severity: 'log', arguments: safeStringify(arguments) }); };
-		console.info = function () { safeSend({ type: '__$console', severity: 'log', arguments: safeStringify(arguments) }); };
-		console.warn = function () { safeSend({ type: '__$console', severity: 'warn', arguments: safeStringify(arguments) }); };
+		console.log = function () { safeSend({ type: '__$console', severity: 'log', arguments: safeToArray(arguments) }); };
+		console.info = function () { safeSend({ type: '__$console', severity: 'log', arguments: safeToArray(arguments) }); };
+		console.warn = function () { safeSend({ type: '__$console', severity: 'warn', arguments: safeToArray(arguments) }); };
 	} else {
 		console.log = function () { /* ignore */ };
 		console.warn = function () { /* ignore */ };
 		console.info = function () { /* ignore */ };
 	}
 
-	console.error = function () { safeSend({ type: '__$console', severity: 'error', arguments: safeStringify(arguments) }); };
+	console.error = function () { safeSend({ type: '__$console', severity: 'error', arguments: safeToArray(arguments) }); };
 }
 
 if (!process.env['VSCODE_ALLOW_IO']) {

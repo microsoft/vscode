@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/debugViewlet';
+import * as nls from 'vs/nls';
 import { Builder } from 'vs/base/browser/builder';
+import { Action, IAction } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IAction } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { PersistentViewsViewlet } from 'vs/workbench/parts/views/browser/views';
-import { IDebugService, VIEWLET_ID, State } from 'vs/workbench/parts/debug/common/debug';
+import { PersistentViewsViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { IDebugService, VIEWLET_ID, State, VARIABLES_VIEW_ID, WATCH_VIEW_ID, CALLSTACK_VIEW_ID, BREAKPOINTS_VIEW_ID } from 'vs/workbench/parts/debug/common/debug';
 import { StartAction, ToggleReplAction, ConfigureAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { StartDebugActionItem } from 'vs/workbench/parts/debug/browser/debugActionItems';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -20,13 +21,13 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ViewLocation } from 'vs/workbench/parts/views/browser/viewsRegistry';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { ViewLocation } from 'vs/workbench/browser/parts/views/viewsRegistry';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
 export class DebugViewlet extends PersistentViewsViewlet {
 
-	private actions: IAction[];
 	private startDebugActionItem: StartDebugActionItem;
 	private progressRunner: IProgressRunner;
 
@@ -47,18 +48,18 @@ export class DebugViewlet extends PersistentViewsViewlet {
 		this.progressRunner = null;
 
 		this._register(this.debugService.onDidChangeState(state => this.onDebugServiceStateChange(state)));
+		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateTitleArea()));
 	}
 
-	public create(parent: Builder): TPromise<void> {
-		return super.create(parent).then(() => DOM.addClass(this.viewletContainer, 'debug-viewlet'));
+	async create(parent: Builder): TPromise<void> {
+		await super.create(parent);
+
+		const el = parent.getHTMLElement();
+		DOM.addClass(el, 'debug-viewlet');
 	}
 
 	public focus(): void {
 		super.focus();
-
-		if (!this.contextService.hasWorkspace()) {
-			this.views[0].focusBody();
-		}
 
 		if (this.startDebugActionItem) {
 			this.startDebugActionItem.focus();
@@ -66,16 +67,11 @@ export class DebugViewlet extends PersistentViewsViewlet {
 	}
 
 	public getActions(): IAction[] {
-		if (!this.actions) {
-			this.actions = [];
-			this.actions.push(this.instantiationService.createInstance(StartAction, StartAction.ID, StartAction.LABEL));
-			if (this.contextService.hasWorkspace()) {
-				this.actions.push(this.instantiationService.createInstance(ConfigureAction, ConfigureAction.ID, ConfigureAction.LABEL));
-			}
-			this.actions.push(this._register(this.instantiationService.createInstance(ToggleReplAction, ToggleReplAction.ID, ToggleReplAction.LABEL)));
-		}
-
-		return this.actions;
+		const actions = [];
+		actions.push(this.instantiationService.createInstance(StartAction, StartAction.ID, StartAction.LABEL));
+		actions.push(this.instantiationService.createInstance(ConfigureAction, ConfigureAction.ID, ConfigureAction.LABEL));
+		actions.push(this._register(this.instantiationService.createInstance(ToggleReplAction, ToggleReplAction.ID, ToggleReplAction.LABEL)));
+		return actions;
 	}
 
 	public getSecondaryActions(): IAction[] {
@@ -83,12 +79,19 @@ export class DebugViewlet extends PersistentViewsViewlet {
 	}
 
 	public getActionItem(action: IAction): IActionItem {
-		if (action.id === StartAction.ID && this.contextService.hasWorkspace()) {
+		if (action.id === StartAction.ID && !!this.debugService.getConfigurationManager().selectedLaunch) {
 			this.startDebugActionItem = this.instantiationService.createInstance(StartDebugActionItem, null, action);
 			return this.startDebugActionItem;
 		}
 
 		return null;
+	}
+
+	public focusView(id: string): void {
+		const view = this.getView(id);
+		if (view) {
+			view.focus();
+		}
 	}
 
 	private onDebugServiceStateChange(state: State): void {
@@ -101,5 +104,77 @@ export class DebugViewlet extends PersistentViewsViewlet {
 		} else {
 			this.progressRunner = null;
 		}
+	}
+}
+
+export class FocusVariablesViewAction extends Action {
+
+	static ID = 'workbench.debug.action.focusVariablesView';
+	static LABEL = nls.localize('debugFocusVariablesView', 'Focus Variables');
+
+	constructor(id: string, label: string,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return this.viewletService.openViewlet(VIEWLET_ID).then((viewlet: DebugViewlet) => {
+			viewlet.focusView(VARIABLES_VIEW_ID);
+		});
+	}
+}
+
+export class FocusWatchViewAction extends Action {
+
+	static ID = 'workbench.debug.action.focusWatchView';
+	static LABEL = nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugFocusWatchView' }, 'Focus Watch');
+
+	constructor(id: string, label: string,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return this.viewletService.openViewlet(VIEWLET_ID).then((viewlet: DebugViewlet) => {
+			viewlet.focusView(WATCH_VIEW_ID);
+		});
+	}
+}
+
+export class FocusCallStackViewAction extends Action {
+
+	static ID = 'workbench.debug.action.focusCallStackView';
+	static LABEL = nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugFocusCallStackView' }, 'Focus CallStack');
+
+	constructor(id: string, label: string,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return this.viewletService.openViewlet(VIEWLET_ID).then((viewlet: DebugViewlet) => {
+			viewlet.focusView(CALLSTACK_VIEW_ID);
+		});
+	}
+}
+
+export class FocusBreakpointsViewAction extends Action {
+
+	static ID = 'workbench.debug.action.focusBreakpointsView';
+	static LABEL = nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugFocusBreakpointsView' }, 'Focus Breakpoints');
+
+	constructor(id: string, label: string,
+		@IViewletService private viewletService: IViewletService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return this.viewletService.openViewlet(VIEWLET_ID).then((viewlet: DebugViewlet) => {
+			viewlet.focusView(BREAKPOINTS_VIEW_ID);
+		});
 	}
 }

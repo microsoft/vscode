@@ -6,5 +6,5 @@
 {
 	"terminalLinkHandler.followLinkAlt": "Alt + 单击以访问链接",
 	"terminalLinkHandler.followLinkCmd": "Cmd + 单击以跟踪链接",
-	"terminalLinkHandler.followLinkCtrl": "Ctrl + 单击以跟踪链接"
+	"terminalLinkHandler.followLinkCtrl": "按住 Ctrl 并单击可访问链接"
 }

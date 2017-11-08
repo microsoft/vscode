@@ -7,6 +7,7 @@
 export class Uint8Matrix {
 
 	private _data: Uint8Array;
+	// @ts-ignore unused property
 	private _rows: number;
 	private _cols: number;
 

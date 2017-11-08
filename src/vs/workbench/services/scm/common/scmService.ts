@@ -24,6 +24,20 @@ class SCMInput implements ISCMInput {
 
 	private _onDidChange = new Emitter<string>();
 	get onDidChange(): Event<string> { return this._onDidChange.event; }
+
+	private _placeholder = '';
+
+	get placeholder(): string {
+		return this._placeholder;
+	}
+
+	set placeholder(placeholder: string) {
+		this._placeholder = placeholder;
+		this._onDidChangePlaceholder.fire(placeholder);
+	}
+
+	private _onDidChangePlaceholder = new Emitter<string>();
+	get onDidChangePlaceholder(): Event<string> { return this._onDidChangePlaceholder.event; }
 }
 
 class SCMRepository implements ISCMRepository {
@@ -61,9 +75,6 @@ export class SCMService implements ISCMService {
 
 	private _onDidRemoveProvider = new Emitter<ISCMRepository>();
 	get onDidRemoveRepository(): Event<ISCMRepository> { return this._onDidRemoveProvider.event; }
-
-	private _onDidChangeProvider = new Emitter<ISCMRepository>();
-	get onDidChangeRepository(): Event<ISCMRepository> { return this._onDidChangeProvider.event; }
 
 	constructor() { }
 

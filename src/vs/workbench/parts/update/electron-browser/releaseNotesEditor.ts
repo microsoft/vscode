@@ -24,6 +24,9 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMode } from 'vs/editor/common/modes';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { addGAParameters } from 'vs/platform/telemetry/node/telemetryNodeUtils';
 
 function renderBody(body: string): string {
 	return `<!DOCTYPE html>
@@ -47,6 +50,7 @@ export class ReleaseNotesEditor extends WebviewEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IThemeService protected themeService: IThemeService,
 		@IOpenerService private openerService: IOpenerService,
 		@IModeService private modeService: IModeService,
@@ -102,7 +106,11 @@ export class ReleaseNotesEditor extends WebviewEditor {
 		this.onThemeChange(this.themeService.getTheme());
 		this._webview.contents = [body];
 
-		this._webview.onDidClickLink(link => this.openerService.open(link), null, this.contentDisposables);
+		this._webview.onDidClickLink(link => {
+			addGAParameters(this.telemetryService, this.environmentService, link, 'ReleaseNotes')
+				.then(updated => this.openerService.open(updated))
+				.then(null, onUnexpectedError);
+		}, null, this.contentDisposables);
 		this._webview.onDidScroll(event => {
 			this.scrollYPercentage = event.scrollYPercentage;
 		}, null, this.contentDisposables);

@@ -8,13 +8,14 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import * as paths from 'vs/base/common/paths';
+import * as resources from 'vs/base/common/resources';
 import * as errors from 'vs/base/common/errors';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as dom from 'vs/base/browser/dom';
 import { IMouseEvent, DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { getPathLabel } from 'vs/base/common/labels';
-import { IAction, IActionRunner } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITree, IAccessibilityProvider, ContextMenuEvent, IDataSource, IRenderer, DRAG_OVER_REJECT, IDragAndDropData, IDragOverReaction, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { InputBox, IInputValidationOptions } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -22,7 +23,7 @@ import { DefaultController, DefaultDragAndDrop, ClickBehavior } from 'vs/base/pa
 import { Constants } from 'vs/editor/common/core/uint';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
@@ -48,10 +49,11 @@ export interface IRenderValueOptions {
 	showChanged?: boolean;
 	maxValueLength?: number;
 	showHover?: boolean;
+	colorize?: boolean;
 }
 
 function replaceWhitespace(value: string): string {
-	const map = { '\n': '\\n', '\r': '\\r', '\t': '\\t' };
+	const map: { [x: string]: string } = { '\n': '\\n', '\r': '\\r', '\t': '\\t' };
 	return value.replace(/[\n\r\t]/g, char => map[char]);
 }
 
@@ -66,12 +68,18 @@ export function renderExpressionValue(expressionOrValue: debug.IExpression | str
 		if (value !== Expression.DEFAULT_VALUE) {
 			dom.addClass(container, 'error');
 		}
-	} else if (!isNaN(+value)) {
-		dom.addClass(container, 'number');
-	} else if (booleanRegex.test(value)) {
-		dom.addClass(container, 'boolean');
-	} else if (stringRegex.test(value)) {
-		dom.addClass(container, 'string');
+	}
+
+	if (options.colorize && typeof expressionOrValue !== 'string') {
+		if (expressionOrValue.type === 'number' || expressionOrValue.type === 'boolean' || expressionOrValue.type === 'string') {
+			dom.addClass(container, expressionOrValue.type);
+		} else if (!isNaN(+value)) {
+			dom.addClass(container, 'number');
+		} else if (booleanRegex.test(value)) {
+			dom.addClass(container, 'boolean');
+		} else if (stringRegex.test(value)) {
+			dom.addClass(container, 'string');
+		}
 	}
 
 	if (options.showChanged && (<any>expressionOrValue).valueChanged && value !== Expression.DEFAULT_VALUE) {
@@ -104,7 +112,8 @@ export function renderVariable(tree: ITree, variable: Variable, data: IVariableT
 			showChanged,
 			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
 			preserveWhitespace: false,
-			showHover: true
+			showHover: true,
+			colorize: true
 		});
 	} else {
 		data.value.textContent = '';
@@ -134,7 +143,7 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 	inputBox.select();
 
 	let disposed = false;
-	const toDispose: [lifecycle.IDisposable] = [inputBox, styler];
+	const toDispose: lifecycle.IDisposable[] = [inputBox, styler];
 
 	const wrapUp = once((renamed: boolean) => {
 		if (!disposed) {
@@ -188,7 +197,7 @@ function getSourceName(source: Source, contextService: IWorkspaceContextService,
 		return source.name;
 	}
 
-	return paths.basename(source.uri.fsPath);
+	return resources.basenameOrAuthority(source.uri);
 }
 
 export class BaseDebugController extends DefaultController {
@@ -209,7 +218,7 @@ export class BaseDebugController extends DefaultController {
 		this.contributedContextMenu = menuService.createMenu(menuId, contextKeyService);
 	}
 
-	public onContextMenu(tree: ITree, element: debug.IEnablement, event: ContextMenuEvent): boolean {
+	public onContextMenu(tree: ITree, element: debug.IEnablement, event: ContextMenuEvent, focusElement = true): boolean {
 		if (event.target && event.target.tagName && event.target.tagName.toLowerCase() === 'input') {
 			return false;
 		}
@@ -217,10 +226,12 @@ export class BaseDebugController extends DefaultController {
 		event.preventDefault();
 		event.stopPropagation();
 
-		tree.setFocus(element);
+		if (focusElement) {
+			tree.setFocus(element);
+		}
 
 		if (this.actionProvider.hasSecondaryActions(tree, element)) {
-			const anchor = { x: event.posx + 1, y: event.posy };
+			const anchor = { x: event.posx, y: event.posy };
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => anchor,
 				getActions: () => this.actionProvider.getSecondaryActions(tree, element).then(actions => {
@@ -271,6 +282,9 @@ export class CallStackController extends BaseDebugController {
 
 			return element.source.uri.toString();
 		}
+		if (element instanceof Thread) {
+			return element.threadId;
+		}
 	}
 
 	// user clicked / pressed on 'Load More Stack Frames', get those stack frames and refresh the tree.
@@ -296,7 +310,7 @@ export class CallStackController extends BaseDebugController {
 
 export class CallStackActionProvider implements IActionProvider {
 
-	constructor( @IInstantiationService private instantiationService: IInstantiationService, @debug.IDebugService private debugService: debug.IDebugService) {
+	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
 		// noop
 	}
 
@@ -502,7 +516,8 @@ export class CallStackRenderer implements IRenderer {
 		data.label = dom.append(data.stackFrame, $('span.label.expression'));
 		data.file = dom.append(data.stackFrame, $('.file'));
 		data.fileName = dom.append(data.file, $('span.file-name'));
-		data.lineNumber = dom.append(data.file, $('span.line-number'));
+		const wrapper = dom.append(data.file, $('span.line-number-wrapper'));
+		data.lineNumber = dom.append(wrapper, $('span.line-number'));
 
 		return data;
 	}
@@ -523,7 +538,7 @@ export class CallStackRenderer implements IRenderer {
 
 	private renderProcess(process: debug.IProcess, data: IProcessTemplateData): void {
 		data.process.title = nls.localize({ key: 'process', comment: ['Process is a noun'] }, "Process");
-		data.name.textContent = process.getName(this.contextService.hasMultiFolderWorkspace());
+		data.name.textContent = process.getName(this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE);
 		const stoppedThread = process.getAllThreads().filter(t => t.stopped).pop();
 
 		data.stateLabel.textContent = stoppedThread ? nls.localize('paused', "Paused")
@@ -870,17 +885,13 @@ export class WatchExpressionsRenderer implements IRenderer {
 	private static WATCH_EXPRESSION_TEMPLATE_ID = 'watchExpression';
 	private static VARIABLE_TEMPLATE_ID = 'variables';
 	private toDispose: lifecycle.IDisposable[];
-	private actionProvider: WatchExpressionsActionProvider;
 
 	constructor(
-		actionProvider: IActionProvider,
-		private actionRunner: IActionRunner,
 		@debug.IDebugService private debugService: debug.IDebugService,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IThemeService private themeService: IThemeService
 	) {
 		this.toDispose = [];
-		this.actionProvider = <WatchExpressionsActionProvider>actionProvider;
 	}
 
 	public getHeight(tree: ITree, element: any): number {
@@ -941,7 +952,8 @@ export class WatchExpressionsRenderer implements IRenderer {
 				showChanged: true,
 				maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
 				preserveWhitespace: false,
-				showHover: true
+				showHover: true,
+				colorize: true
 			});
 			data.name.title = watchExpression.type ? watchExpression.type : watchExpression.value;
 		}
@@ -1049,11 +1061,12 @@ export class BreakpointsActionProvider implements IActionProvider {
 	}
 
 	public getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
-		const actions: IAction[] = [];
-
-		if (element instanceof Breakpoint || element instanceof FunctionBreakpoint) {
-			actions.push(this.instantiationService.createInstance(RemoveBreakpointAction, RemoveBreakpointAction.ID, RemoveBreakpointAction.LABEL));
+		if (element instanceof ExceptionBreakpoint) {
+			return TPromise.as([]);
 		}
+
+		const actions: IAction[] = [];
+		actions.push(this.instantiationService.createInstance(RemoveBreakpointAction, RemoveBreakpointAction.ID, RemoveBreakpointAction.LABEL));
 		if (this.debugService.getModel().getBreakpoints().length + this.debugService.getModel().getFunctionBreakpoints().length > 1) {
 			actions.push(this.instantiationService.createInstance(RemoveAllBreakpointsAction, RemoveAllBreakpointsAction.ID, RemoveAllBreakpointsAction.LABEL));
 			actions.push(new Separator());
@@ -1115,8 +1128,6 @@ export class BreakpointsRenderer implements IRenderer {
 	private static BREAKPOINT_TEMPLATE_ID = 'breakpoint';
 
 	constructor(
-		private actionProvider: BreakpointsActionProvider,
-		private actionRunner: IActionRunner,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@debug.IDebugService private debugService: debug.IDebugService,
 		@IContextViewService private contextViewService: IContextViewService,
@@ -1223,10 +1234,10 @@ export class BreakpointsRenderer implements IRenderer {
 		if (breakpoint.column) {
 			data.lineNumber.textContent += `:${breakpoint.column}`;
 		}
-		data.filePath.textContent = getPathLabel(paths.dirname(breakpoint.uri.fsPath), this.contextService, this.environmentService);
+		data.filePath.textContent = getPathLabel(resources.dirname(breakpoint.uri), this.contextService, this.environmentService);
 		data.checkbox.checked = breakpoint.enabled;
 
-		const debugActive = this.debugService.state === debug.State.Running || this.debugService.state === debug.State.Stopped || this.debugService.state === debug.State.Initializing;
+		const debugActive = this.debugService.state === debug.State.Running || this.debugService.state === debug.State.Stopped;
 		if (debugActive && !breakpoint.verified) {
 			tree.addTraits('disabled', [breakpoint]);
 			if (breakpoint.message) {
@@ -1250,7 +1261,7 @@ export class BreakpointsAccessibilityProvider implements IAccessibilityProvider 
 
 	public getAriaLabel(tree: ITree, element: any): string {
 		if (element instanceof Breakpoint) {
-			return nls.localize('breakpointAriaLabel', "Breakpoint line {0} {1}, breakpoints, debug", (<Breakpoint>element).lineNumber, getPathLabel(paths.basename((<Breakpoint>element).uri.fsPath), this.contextService), this.contextService);
+			return nls.localize('breakpointAriaLabel', "Breakpoint line {0} {1}, breakpoints, debug", (<Breakpoint>element).lineNumber, getPathLabel(resources.basenameOrAuthority((<Breakpoint>element).uri), this.contextService), this.contextService);
 		}
 		if (element instanceof FunctionBreakpoint) {
 			return nls.localize('functionBreakpointAriaLabel', "Function breakpoint {0}, breakpoints, debug", (<FunctionBreakpoint>element).name);
@@ -1280,6 +1291,10 @@ export class BreakpointsController extends BaseDebugController {
 	}
 
 	public openBreakpointSource(breakpoint: Breakpoint, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
+		if (breakpoint.uri.scheme === debug.DEBUG_SCHEME && this.debugService.state === debug.State.Inactive) {
+			return;
+		}
+
 		const sideBySide = (event && (event.ctrlKey || event.metaKey));
 		const selection = breakpoint.endLineNumber ? {
 			startLineNumber: breakpoint.lineNumber,

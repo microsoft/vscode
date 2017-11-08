@@ -37,6 +37,7 @@ export class PatternInputWidget extends Widget {
 	private ariaLabel: string;
 
 	private domNode: HTMLElement;
+	// @ts-ignore unused property
 	private inputNode: HTMLInputElement;
 	protected inputBox: InputBox;
 
@@ -167,8 +168,7 @@ export class PatternInputWidget extends Widget {
 			placeholder: this.placeholder || '',
 			ariaLabel: this.ariaLabel || '',
 			validationOptions: {
-				validation: null,
-				showMessage: true
+				validation: null
 			}
 		});
 		this._register(attachInputBoxStyler(this.inputBox, this.themeService));
@@ -241,6 +241,9 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 			title: nls.localize('useIgnoreFilesDescription', "Use Ignore Files"),
 			isChecked: false,
 			onChange: (viaKeyboard) => {
+				/* __GDPR__
+					"search.useIgnoreFiles.toggled" : {}
+				*/
 				this.telemetryService.publicLog('search.useIgnoreFiles.toggled');
 				this.onOptionChange(null);
 				if (!viaKeyboard) {
@@ -255,6 +258,9 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 			title: nls.localize('useExcludeSettingsDescription', "Use Exclude Settings"),
 			isChecked: false,
 			onChange: (viaKeyboard) => {
+				/* __GDPR__
+					"search.useExcludeSettings.toggled" : {}
+				*/
 				this.telemetryService.publicLog('search.useExcludeSettings.toggled');
 				this.onOptionChange(null);
 				if (!viaKeyboard) {

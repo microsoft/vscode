@@ -14,6 +14,7 @@ import { OS } from 'vs/base/common/platform';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 class MockKeybindingContextKey<T> implements IContextKey<T> {
+	// @ts-ignore unused property
 	private _key: string;
 	private _defaultValue: T;
 	private _value: T;

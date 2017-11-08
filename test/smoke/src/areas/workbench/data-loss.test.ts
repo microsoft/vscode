@@ -3,34 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { SpectronApplication, USER_DIR, LATEST_PATH, WORKSPACE_PATH } from '../../spectron/application';
-import * as path from 'path';
+import { SpectronApplication } from '../../spectron/application';
 
 describe('Dataloss', () => {
-	let app: SpectronApplication;
-	before(() => {
-		app = new SpectronApplication(LATEST_PATH, '', 0, [WORKSPACE_PATH], [`--user-data-dir=${path.join(USER_DIR, new Date().getTime().toString(), 'dataloss')}`]);
-		return app.start();
+	before(function () {
+		this.app.suiteName = 'Dataloss';
 	});
-	after(() => app.stop());
 
 	it(`verifies that 'hot exit' works for dirty files`, async function () {
-		const textToType = 'Hello, Code', textToTypeInUntitled = 'Hello, Unitled Code', fileName = 'readme.md', untitled = 'Untitled-1';
+		const app = this.app as SpectronApplication;
 		await app.workbench.newUntitledFile();
-		await app.client.type(textToTypeInUntitled);
-		await app.workbench.explorer.openFile(fileName);
-		await app.client.type(textToType);
+
+		const untitled = 'Untitled-1';
+		const textToTypeInUntitled = 'Hello, Unitled Code';
+		await app.workbench.editor.waitForTypeInEditor(untitled, textToTypeInUntitled);
+		await app.screenCapturer.capture('Untitled file before reload');
+
+		const readmeMd = 'readme.md';
+		const textToType = 'Hello, Code';
+		await app.workbench.explorer.openFile(readmeMd);
+		await app.workbench.editor.waitForTypeInEditor(readmeMd, textToType);
+		await app.screenCapturer.capture(`${readmeMd} before reload`);
 
 		await app.reload();
+		await app.screenCapturer.capture('After reload');
 
-		assert.ok(await app.workbench.waitForActiveOpen(fileName, true), `${fileName} tab is not present or is not active after reopening.`);
-		let actual = await app.workbench.editor.getEditorFirstLineText();
-		assert.ok(actual.startsWith(textToType), `${actual} did not start with ${textToType}`);
+		await app.workbench.waitForActiveTab(readmeMd, true);
+		await app.screenCapturer.capture(`${readmeMd} after reload`);
+		await app.workbench.editor.waitForEditorContents(readmeMd, c => c.indexOf(textToType) > -1);
 
-		assert.ok(await app.workbench.waitForOpen(untitled, true), `${untitled} tab is not present after reopening.`);
-		await app.workbench.selectTab('Untitled-1', true);
-		actual = await app.workbench.editor.getEditorFirstLineText();
-		assert.ok(actual.startsWith(textToTypeInUntitled), `${actual} did not start with ${textToTypeInUntitled}`);
+		await app.workbench.waitForTab(untitled, true);
+		await app.workbench.selectTab(untitled, true);
+		await app.screenCapturer.capture('Untitled file after reload');
+		await app.workbench.editor.waitForEditorContents(untitled, c => c.indexOf(textToTypeInUntitled) > -1);
 	});
 });

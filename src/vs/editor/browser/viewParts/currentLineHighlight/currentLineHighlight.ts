@@ -16,6 +16,7 @@ import { editorLineHighlight, editorLineHighlightBorder } from 'vs/editor/common
 export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 	private _context: ViewContext;
 	private _lineHeight: number;
+	// @ts-ignore unused property
 	private _readOnly: boolean;
 	private _renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
 	private _selectionIsEmpty: boolean;
@@ -110,8 +111,12 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 	public render(startLineNumber: number, lineNumber: number): string {
 		if (lineNumber === this._primaryCursorLineNumber) {
 			if (this._shouldShowCurrentLine()) {
+				const paintedInMargin = this._willRenderMarginCurrentLine();
+				const className = 'current-line' + (paintedInMargin ? ' current-line-both' : '');
 				return (
-					'<div class="current-line" style="width:'
+					'<div class="'
+					+ className
+					+ '" style="width:'
 					+ String(Math.max(this._scrollWidth, this._contentWidth))
 					+ 'px; height:'
 					+ String(this._lineHeight)
@@ -125,9 +130,18 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 	}
 
 	private _shouldShowCurrentLine(): boolean {
-		return (this._renderLineHighlight === 'line' || this._renderLineHighlight === 'all') &&
-			this._selectionIsEmpty &&
-			this._primaryCursorIsInEditableRange;
+		return (
+			(this._renderLineHighlight === 'line' || this._renderLineHighlight === 'all')
+			&& this._selectionIsEmpty
+			&& this._primaryCursorIsInEditableRange
+		);
+	}
+
+	private _willRenderMarginCurrentLine(): boolean {
+		return (
+			(this._renderLineHighlight === 'gutter' || this._renderLineHighlight === 'all')
+			&& this._primaryCursorIsInEditableRange
+		);
 	}
 }
 

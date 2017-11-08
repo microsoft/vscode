@@ -8,16 +8,16 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Delayer } from 'vs/base/common/async';
 import { clone, assign } from 'vs/base/common/objects';
-import { Emitter } from 'vs/base/common/event';
-import { fromEventEmitter } from 'vs/base/node/event';
+import { Emitter, fromNodeEventEmitter } from 'vs/base/common/event';
 import { createQueuedSender } from 'vs/base/node/processes';
 import { ChannelServer as IPCServer, ChannelClient as IPCClient, IChannelClient, IChannel } from 'vs/base/parts/ipc/common/ipc';
+import { isRemoteConsoleLog, log } from 'vs/base/node/console';
 
 export class Server extends IPCServer {
 	constructor() {
 		super({
 			send: r => { try { process.send(r); } catch (e) { /* not much to do */ } },
-			onMessage: fromEventEmitter(process, 'message', msg => msg)
+			onMessage: fromNodeEventEmitter(process, 'message', msg => msg)
 		});
 
 		process.once('disconnect', () => this.dispose());
@@ -148,27 +148,18 @@ export class Client implements IChannelClient, IDisposable {
 			this.child = fork(this.modulePath, args, forkOpts);
 
 			const onMessageEmitter = new Emitter<any>();
-			const onRawMessage = fromEventEmitter(this.child, 'message', msg => msg);
+			const onRawMessage = fromNodeEventEmitter(this.child, 'message', msg => msg);
 
 			onRawMessage(msg => {
-				// Handle console logs specially
-				if (msg && msg.type === '__$console') {
-					let args = ['%c[IPC Library: ' + this.options.serverName + ']', 'color: darkgreen'];
-					try {
-						const parsed = JSON.parse(msg.arguments);
-						args = args.concat(Object.getOwnPropertyNames(parsed).map(o => parsed[o]));
-					} catch (error) {
-						args.push(msg.arguments);
-					}
 
-					console[msg.severity].apply(console, args);
+				// Handle remote console logs specially
+				if (isRemoteConsoleLog(msg)) {
+					log(msg, `IPC Library: ${this.options.serverName}`);
 					return null;
 				}
 
 				// Anything else goes to the outside
-				else {
-					onMessageEmitter.fire(msg);
-				}
+				onMessageEmitter.fire(msg);
 			});
 
 			const sender = this.options.useQueue ? createQueuedSender(this.child) : this.child;

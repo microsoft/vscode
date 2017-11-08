@@ -16,11 +16,10 @@ import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { toResource } from 'vs/workbench/common/editor';
 import { Panel } from 'vs/workbench/browser/panel';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import Constants from 'vs/workbench/parts/markers/common/constants';
-import { IProblemsConfiguration, MarkersModel, Marker, Resource, FilterOptions } from 'vs/workbench/parts/markers/common/markersModel';
+import { MarkersModel, Marker, Resource, FilterOptions } from 'vs/workbench/parts/markers/common/markersModel';
 import { Controller } from 'vs/workbench/parts/markers/browser/markersTreeController';
 import Tree = require('vs/base/parts/tree/browser/tree');
 import TreeImpl = require('vs/base/parts/tree/browser/treeImpl');
@@ -47,8 +46,7 @@ export class MarkersPanel extends Panel {
 	private delayedRefresh: Delayer<void>;
 
 	private lastSelectedRelativeTop: number = 0;
-	private currentActiveFile: URI = null;
-	private hasToAutoReveal: boolean;
+	private currentActiveResource: URI = null;
 
 	private tree: Tree.ITree;
 	private autoExpanded: Set<string>;
@@ -63,7 +61,7 @@ export class MarkersPanel extends Panel {
 	private messageBox: HTMLElement;
 
 	private markerFocusContextKey: IContextKey<boolean>;
-	private currentFileGotAddedToMarkersData: boolean = false;
+	private currentResourceGotAddedToMarkersData: boolean = false;
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -71,6 +69,7 @@ export class MarkersPanel extends Panel {
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
+		// @ts-ignore unused injected service
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IListService private listService: IListService,
@@ -90,9 +89,6 @@ export class MarkersPanel extends Panel {
 		this.toUnbind.push(this.rangeHighlightDecorations);
 
 		dom.addClass(parent.getHTMLElement(), 'markers-panel');
-
-		const conf = this.configurationService.getConfiguration<IProblemsConfiguration>();
-		this.onConfigurationsUpdated(conf);
 
 		let container = dom.append(parent.getHTMLElement(), dom.$('.markers-panel-container'));
 
@@ -148,6 +144,11 @@ export class MarkersPanel extends Panel {
 	public openFileAtElement(element: any, preserveFocus: boolean, sideByside: boolean, pinned: boolean): boolean {
 		if (element instanceof Marker) {
 			const marker: Marker = element;
+			/* __GDPR__
+				"problems.marker.opened" : {
+					"source" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
 			this.telemetryService.publicLog('problems.marker.opened', { source: marker.marker.source });
 			this.editorService.openEditor({
 				resource: marker.resource,
@@ -249,43 +250,39 @@ export class MarkersPanel extends Panel {
 	}
 
 	private createListeners(): void {
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationsUpdated(this.configurationService.getConfiguration<IProblemsConfiguration>())));
 		this.toUnbind.push(this.markerService.onMarkerChanged(this.onMarkerChanged, this));
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(this.onEditorsChanged, this));
 		this.toUnbind.push(this.tree.addListener('selection', () => this.onSelected()));
 	}
 
 	private onMarkerChanged(changedResources: URI[]) {
-		this.currentFileGotAddedToMarkersData = this.currentFileGotAddedToMarkersData || this.isCurrentFileGotAddedToMarkersData(changedResources);
+		this.currentResourceGotAddedToMarkersData = this.currentResourceGotAddedToMarkersData || this.isCurrentResourceGotAddedToMarkersData(changedResources);
 		this.updateResources(changedResources);
 		this.delayedRefresh.trigger(() => {
 			this.refreshPanel();
 			this.updateRangeHighlights();
-			if (this.currentFileGotAddedToMarkersData) {
+			if (this.currentResourceGotAddedToMarkersData) {
 				this.autoReveal();
-				this.currentFileGotAddedToMarkersData = false;
+				this.currentResourceGotAddedToMarkersData = false;
 			}
 		});
 	}
 
-	private isCurrentFileGotAddedToMarkersData(changedResources: URI[]) {
-		if (!this.currentActiveFile) {
+	private isCurrentResourceGotAddedToMarkersData(changedResources: URI[]) {
+		if (!this.currentActiveResource) {
 			return false;
 		}
-		const resourceForCurrentActiveFile = this.getResourceForCurrentActiveFile();
-		if (resourceForCurrentActiveFile) {
+		const resourceForCurrentActiveResource = this.getResourceForCurrentActiveResource();
+		if (resourceForCurrentActiveResource) {
 			return false;
 		}
-		return changedResources.some(r => r.toString() === this.currentActiveFile.toString());
+		return changedResources.some(r => r.toString() === this.currentActiveResource.toString());
 	}
 
 	private onEditorsChanged(): void {
-		this.currentActiveFile = toResource(this.editorService.getActiveEditorInput(), { filter: 'file' });
+		const activeInput = this.editorService.getActiveEditorInput();
+		this.currentActiveResource = activeInput ? activeInput.getResource() : void 0;
 		this.autoReveal();
-	}
-
-	private onConfigurationsUpdated(conf: IProblemsConfiguration): void {
-		this.hasToAutoReveal = conf && conf.problems && conf.problems.autoReveal;
 	}
 
 	private onSelected(): void {
@@ -333,14 +330,14 @@ export class MarkersPanel extends Panel {
 	}
 
 	private autoReveal(focus: boolean = false): void {
-		let conf = this.configurationService.getConfiguration<IProblemsConfiguration>();
-		if (conf && conf.problems && conf.problems.autoReveal) {
+		let autoReveal = this.configurationService.getValue<boolean>('problems.autoReveal');
+		if (typeof autoReveal === 'boolean' && autoReveal) {
 			this.revealMarkersForCurrentActiveEditor(focus);
 		}
 	}
 
 	private revealMarkersForCurrentActiveEditor(focus: boolean = false): void {
-		let currentActiveResource = this.getResourceForCurrentActiveFile();
+		let currentActiveResource = this.getResourceForCurrentActiveResource();
 		if (currentActiveResource) {
 			if (this.tree.isExpanded(currentActiveResource) && this.hasSelectedMarkerFor(currentActiveResource)) {
 				this.tree.reveal(this.tree.getSelection()[0], this.lastSelectedRelativeTop);
@@ -360,10 +357,10 @@ export class MarkersPanel extends Panel {
 		}
 	}
 
-	private getResourceForCurrentActiveFile(): Resource {
-		if (this.currentActiveFile) {
+	private getResourceForCurrentActiveResource(): Resource {
+		if (this.currentActiveResource) {
 			let resources = this.markersModel.filteredResources.filter((resource): boolean => {
-				return this.currentActiveFile.toString() === resource.uri.toString();
+				return this.currentActiveResource.toString() === resource.uri.toString();
 			});
 			return resources.length > 0 ? resources[0] : null;
 		}

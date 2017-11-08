@@ -180,7 +180,7 @@ export class Repl extends Panel implements IPrivateReplService {
 
 		modes.SuggestRegistry.register({ scheme: debug.DEBUG_SCHEME }, {
 			triggerCharacters: ['.'],
-			provideCompletionItems: (model: IReadOnlyModel, position: Position, token: CancellationToken): Thenable<modes.ISuggestResult> => {
+			provideCompletionItems: (model: IReadOnlyModel, position: Position, _context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> => {
 				const word = this.replInput.getModel().getWordAtPosition(position);
 				const overwriteBefore = word ? word.word.length : 0;
 				const text = this.replInput.getModel().getLineContent(position.lineNumber);
@@ -313,6 +313,7 @@ export class Repl extends Panel implements IPrivateReplService {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class ReplHistoryPreviousAction extends EditorAction {
 
 	constructor() {
@@ -338,6 +339,7 @@ class ReplHistoryPreviousAction extends EditorAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class ReplHistoryNextAction extends EditorAction {
 
 	constructor() {
@@ -363,6 +365,7 @@ class ReplHistoryNextAction extends EditorAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class AcceptReplInputAction extends EditorAction {
 
 	constructor() {

@@ -53,27 +53,6 @@ export class Delayer<T> {
 		return this.completionPromise;
 	}
 
-	public forceDelivery(): Promise<T | null> | null {
-		if (!this.completionPromise) {
-			return null;
-		}
-		this.cancelTimeout();
-		let result = this.completionPromise;
-		if (this.onSuccess) {
-			this.onSuccess(undefined);
-		}
-		return result;
-	}
-
-	public isTriggered(): boolean {
-		return this.timeout !== null;
-	}
-
-	public cancel(): void {
-		this.cancelTimeout();
-		this.completionPromise = null;
-	}
-
 	private cancelTimeout(): void {
 		if (this.timeout !== null) {
 			clearTimeout(this.timeout);

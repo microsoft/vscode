@@ -27,6 +27,7 @@ import { DefinitionAction, DefinitionActionConfig } from './goToDeclarationComma
 import { ClickLinkGesture, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from 'vs/editor/contrib/goToDeclaration/browser/clickLinkGesture';
 
 @editorContribution
+// @ts-ignore @editorAction uses the class
 class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.contrib.gotodefinitionwithmouse';

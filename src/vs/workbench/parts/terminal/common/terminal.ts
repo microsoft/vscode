@@ -63,7 +63,7 @@ export interface ITerminalConfiguration {
 	cursorBlinking: boolean;
 	cursorStyle: string;
 	fontFamily: string;
-	fontLigatures: boolean;
+	// fontLigatures: boolean;
 	fontSize: number;
 	lineHeight: number;
 	setLocaleVariables: boolean;
@@ -91,10 +91,10 @@ export interface ITerminalConfigHelper {
 
 export interface ITerminalFont {
 	fontFamily: string;
-	fontSize: string;
+	fontSize: number;
 	lineHeight: number;
-	charWidth: number;
-	charHeight: number;
+	charWidth?: number;
+	charHeight?: number;
 }
 
 export interface IShellLaunchConfig {
@@ -232,7 +232,7 @@ export interface ITerminalInstance {
 	 * added to the DOM.
 	 * @return The ID of the new matcher, this can be used to deregister.
 	 */
-	registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number, validationCallback?: (uri: string, element: HTMLElement, callback: (isValid: boolean) => void) => void): number;
+	registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number, validationCallback?: (uri: string, callback: (isValid: boolean) => void) => void): number;
 
 	/**
 	 * Deregisters a link matcher if it has been registered.
@@ -354,8 +354,22 @@ export interface ITerminalInstance {
 	 *
 	 * @param listener The listener function which takes the processes' data stream (including
 	 * ANSI escape sequences).
+	 *
+	 * @deprecated onLineData will replace this.
 	 */
 	onData(listener: (data: string) => void): IDisposable;
+
+	/**
+	 * Attach a listener to listen for new lines added to this terminal instance.
+	 *
+	 * @param listener The listener function which takes new line strings added to the terminal,
+	 * excluding ANSI escape sequences. The line event will fire when an LF character is added to
+	 * the terminal (ie. the line is not wrapped). Note that this means that the line data will
+	 * not fire for the last line, until either the line is ended with a LF character of the process
+	 * is exited. The lineData string will contain the fully wrapped line, not containing any LF/CR
+	 * characters.
+	 */
+	onLineData(listener: (lineData: string) => void): IDisposable;
 
 	/**
 	 * Attach a listener that fires when the terminal's pty process exits.

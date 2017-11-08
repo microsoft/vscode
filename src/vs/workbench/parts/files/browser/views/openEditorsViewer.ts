@@ -24,13 +24,14 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorGroup, IEditorStacksModel } from 'vs/workbench/common/editor';
 import { OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
 import { ContributableActionProvider } from 'vs/workbench/browser/actions';
-import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
+import { explorerItemToFileResource, IFilesConfiguration } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorStacksModel, EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
 import { SaveFileAction, RevertFileAction, SaveFileAsAction, OpenToSideAction, SelectResourceForCompareAction, CompareResourcesAction, SaveAllInGroupAction, CompareWithSavedAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { CloseOtherEditorsInGroupAction, CloseEditorAction, CloseEditorsInGroupAction, CloseUnmodifiedEditorsInGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const $ = dom.$;
 
@@ -86,7 +87,8 @@ export class Renderer implements IRenderer {
 	constructor(
 		private actionProvider: ActionProvider,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		// noop
 	}
@@ -149,7 +151,11 @@ export class Renderer implements IRenderer {
 
 	private renderOpenEditor(tree: ITree, editor: OpenEditor, templateData: IOpenEditorTemplateData): void {
 		editor.isDirty() ? dom.addClass(templateData.container, 'dirty') : dom.removeClass(templateData.container, 'dirty');
-		templateData.root.setEditor(editor.editorInput, { italic: editor.isPreview(), extraClasses: ['open-editor'] });
+		templateData.root.setEditor(editor.editorInput, {
+			italic: editor.isPreview(),
+			extraClasses: ['open-editor'],
+			fileDecorations: this.configurationService.getConfiguration<IFilesConfiguration>().explorer.decorations
+		});
 		templateData.actionBar.context = { group: editor.editorGroup, editor: editor.editorInput };
 	}
 
@@ -256,7 +262,7 @@ export class Controller extends DefaultController {
 		const group = element instanceof EditorGroup ? element : (<OpenEditor>element).editorGroup;
 		const editor = element instanceof OpenEditor ? (<OpenEditor>element).editorInput : undefined;
 
-		let anchor = { x: event.posx + 1, y: event.posy };
+		let anchor = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 			getActions: () => this.actionProvider.getSecondaryActions(tree, element),
@@ -273,6 +279,12 @@ export class Controller extends DefaultController {
 
 	public openEditor(element: OpenEditor, options: { preserveFocus: boolean; pinned: boolean; sideBySide: boolean; }): void {
 		if (element) {
+			/* __GDPR__
+				"workbenchActionExecuted" : {
+					"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
 			this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'openEditors' });
 			let position = this.model.positionOfGroup(element.editorGroup);
 			if (options.sideBySide && position !== Position.THREE) {

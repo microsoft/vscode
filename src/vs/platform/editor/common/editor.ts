@@ -194,7 +194,15 @@ export enum Verbosity {
 
 export interface IEditorInput extends IDisposable {
 
+	/**
+	 * Triggered when this input is disposed.
+	 */
 	onDispose: Event<void>;
+
+	/**
+	 * Returns the associated resource of this input.
+	 */
+	getResource(): URI;
 
 	/**
 	 * Returns the display name of this input.
@@ -204,7 +212,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Returns the display description of this input.
 	 */
-	getDescription(verbose?: boolean): string;
+	getDescription(verbosity?: Verbosity): string;
 
 	/**
 	 * Returns the display title of this input.
@@ -275,17 +283,19 @@ export interface IEditorOptions {
 	inactive?: boolean;
 }
 
+export interface ITextEditorSelection {
+	startLineNumber: number;
+	startColumn: number;
+	endLineNumber?: number;
+	endColumn?: number;
+}
+
 export interface ITextEditorOptions extends IEditorOptions {
 
 	/**
 	 * Text editor selection.
 	 */
-	selection?: {
-		startLineNumber: number;
-		startColumn: number;
-		endLineNumber?: number;
-		endColumn?: number;
-	};
+	selection?: ITextEditorSelection;
 
 	/**
 	 * Text editor view state.

@@ -15,11 +15,11 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
-import { IndentRange } from 'vs/editor/common/model/indentRanges';
+import { IndentRanges } from 'vs/editor/common/model/indentRanges';
 import { ITextSource } from 'vs/editor/common/model/textSource';
 import {
 	ModelRawContentChangedEvent, IModelContentChangedEvent, IModelDecorationsChangedEvent,
-	IModelLanguageChangedEvent, IModelOptionsChangedEvent
+	IModelLanguageChangedEvent, IModelOptionsChangedEvent, IModelLanguageConfigurationChangedEvent
 } from 'vs/editor/common/model/textModelEvents';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
@@ -157,10 +157,6 @@ export interface IModelDecoration {
 	 * Options associated with this decoration.
 	 */
 	readonly options: IModelDecorationOptions;
-	/**
-	 * A flag describing if this is a problem decoration (e.g. warning/error).
-	 */
-	readonly isForValidation: boolean;
 }
 
 /**
@@ -585,20 +581,6 @@ export interface ITextModel {
 	 */
 	getLineContent(lineNumber: number): string;
 
-	/**
-	 * @internal
-	 */
-	getIndentLevel(lineNumber: number): number;
-
-	/**
-	 * @internal
-	 */
-	getIndentRanges(): IndentRange[];
-
-	/**
-	 * @internal
-	 */
-	getLineIndentGuide(lineNumber: number): number;
 
 	/**
 	 * Get the text for all lines.
@@ -912,32 +894,16 @@ export interface ITokenizedModel extends ITextModel {
 	 * @internal
 	 */
 	matchBracket(position: IPosition): [Range, Range];
-}
 
-/**
- * A model that can track markers.
- */
-export interface ITextModelWithMarkers extends ITextModel {
 	/**
 	 * @internal
 	 */
-	_addMarker(internalDecorationId: number, lineNumber: number, column: number, stickToPreviousCharacter: boolean): string;
+	getIndentRanges(): IndentRanges;
+
 	/**
 	 * @internal
 	 */
-	_changeMarker(id: string, newLineNumber: number, newColumn: number): void;
-	/**
-	 * @internal
-	 */
-	_changeMarkerStickiness(id: string, newStickToPreviousCharacter: boolean): void;
-	/**
-	 * @internal
-	 */
-	_getMarker(id: string): Position;
-	/**
-	 * @internal
-	 */
-	_removeMarker(id: string): void;
+	getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[];
 }
 
 /**
@@ -1033,12 +999,29 @@ export interface ITextModelWithDecorations {
 	 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
 	 */
 	getAllDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
+
+	/**
+	 * Gets all the decorations that should be rendered in the overview ruler as an array.
+	 * @param ownerId If set, it will ignore decorations belonging to other owners.
+	 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
+	 */
+	getOverviewRulerDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
+
+	/**
+	 * @internal
+	 */
+	_getTrackedRange(id: string): Range;
+
+	/**
+	 * @internal
+	 */
+	_setTrackedRange(id: string, newRange: Range, newStickiness: TrackedRangeStickiness): string;
 }
 
 /**
  * An editable text model.
  */
-export interface IEditableTextModel extends ITextModelWithMarkers {
+export interface IEditableTextModel extends ITextModel {
 
 	/**
 	 * Normalize a string containing whitespace according to indentation rules (converts to spaces or to tabs).
@@ -1121,7 +1104,7 @@ export interface IEditableTextModel extends ITextModelWithMarkers {
 /**
  * A model.
  */
-export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithDecorations {
+export interface IModel extends IReadOnlyModel, IEditableTextModel, ITokenizedModel, ITextModelWithDecorations {
 	/**
 	 * @deprecated Please use `onDidChangeContent` instead.
 	 * An event emitted when the contents of the model have changed.
@@ -1149,6 +1132,11 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWi
 	 * @event
 	 */
 	onDidChangeLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
+	/**
+	 * An event emitted when the language configuration associated with the model has changed.
+	 * @event
+	 */
+	onDidChangeLanguageConfiguration(listener: (e: IModelLanguageConfigurationChangedEvent) => void): IDisposable;
 	/**
 	 * An event emitted right before disposing the model.
 	 * @event
@@ -1749,6 +1737,11 @@ export interface ICommonCodeEditor extends IEditor {
 	 */
 	onDidChangeModelLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
 	/**
+	 * An event emitted when the language configuration of the current model has changed.
+	 * @event
+	 */
+	onDidChangeModelLanguageConfiguration(listener: (e: IModelLanguageConfigurationChangedEvent) => void): IDisposable;
+	/**
 	 * An event emitted when the options of the current model has changed.
 	 * @event
 	 */
@@ -1965,6 +1958,11 @@ export interface ICommonCodeEditor extends IEditor {
 	 * @internal
 	 */
 	setDecorations(decorationTypeKey: string, ranges: IDecorationOptions[]): void;
+
+	/**
+	 * @internal
+	 */
+	setDecorationsFast(decorationTypeKey: string, ranges: IRange[]): void;
 
 	/**
 	 * @internal

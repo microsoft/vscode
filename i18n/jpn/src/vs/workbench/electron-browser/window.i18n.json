@@ -9,7 +9,5 @@
 	"cut": "切り取り",
 	"copy": "コピー",
 	"paste": "貼り付け",
-	"selectAll": "すべて選択",
-	"confirmOpen": "{0} ワークスペースを開きますか?",
-	"confirmOpenButton": "開く(&&O)"
+	"selectAll": "すべて選択"
 }

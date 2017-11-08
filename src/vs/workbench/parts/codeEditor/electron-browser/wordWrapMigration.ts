@@ -55,6 +55,7 @@ class WordWrapMigrationStorage {
 }
 
 @editorContribution
+// @ts-ignore @editorAction uses the class
 class WordWrapMigrationController extends Disposable implements IEditorContribution {
 
 	private static ID = 'editor.contrib.wordWrapMigrationController';
@@ -83,7 +84,7 @@ class WordWrapMigrationController extends Disposable implements IEditorContribut
 		}
 		WordWrapMigrationController._checked = true;
 
-		let result = this.configurationService.lookup('editor.wrappingColumn');
+		let result = this.configurationService.inspect('editor.wrappingColumn');
 		if (typeof result.value === 'undefined') {
 			// Setting is not used
 			return;

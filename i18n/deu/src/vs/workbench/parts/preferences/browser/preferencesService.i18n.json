@@ -7,5 +7,6 @@
 	"openFolderFirst": "Zuerst einen Ordner öffnen, um Arbeitsbereicheinstellungen zu erstellen",
 	"emptyKeybindingsHeader": "Platzieren Sie Ihre Tastenzuordnungen in dieser Datei, um die Standardwerte zu überschreiben.",
 	"defaultKeybindings": "Standardtastenzuordnungen",
+	"folderSettingsName": "{0} (Ordnereinstellungen)",
 	"fail.createSettings": "{0} ({1}) kann nicht erstellt werden."
 }

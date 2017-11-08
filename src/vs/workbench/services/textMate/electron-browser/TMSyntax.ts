@@ -105,6 +105,8 @@ export class TextMateService implements ITextMateService {
 	private _themeService: IWorkbenchThemeService;
 	private _scopeRegistry: TMScopeRegistry;
 	private _injections: { [scopeName: string]: string[]; };
+	private _injectedEmbeddedLanguages: { [scopeName: string]: IEmbeddedLanguagesMap[]; };
+
 	private _languageToScope: Map<string, string>;
 	private _styleElement: HTMLStyleElement;
 
@@ -123,6 +125,7 @@ export class TextMateService implements ITextMateService {
 		this._scopeRegistry = new TMScopeRegistry();
 		this.onDidEncounterLanguage = this._scopeRegistry.onDidEncounterLanguage;
 		this._injections = {};
+		this._injectedEmbeddedLanguages = {};
 		this._languageToScope = new Map<string, string>();
 
 		this._grammarRegistry = new Registry({
@@ -237,6 +240,16 @@ export class TextMateService implements ITextMateService {
 				}
 				injections.push(syntax.scopeName);
 			}
+
+			if (syntax.embeddedLanguages) {
+				for (let injectScope of syntax.injectTo) {
+					let injectedEmbeddedLanguages = this._injectedEmbeddedLanguages[injectScope];
+					if (!injectedEmbeddedLanguages) {
+						this._injectedEmbeddedLanguages[injectScope] = injectedEmbeddedLanguages = [];
+					}
+					injectedEmbeddedLanguages.push(syntax.embeddedLanguages);
+				}
+			}
 		}
 
 		let modeId = syntax.language;
@@ -271,6 +284,15 @@ export class TextMateService implements ITextMateService {
 			return TPromise.wrapError<ICreateGrammarResult>(new Error(nls.localize('no-tm-grammar', "No TM Grammar registered for this language.")));
 		}
 		let embeddedLanguages = this._resolveEmbeddedLanguages(languageRegistration.embeddedLanguages);
+		let injectedEmbeddedLanguages = this._injectedEmbeddedLanguages[scopeName];
+		if (injectedEmbeddedLanguages) {
+			for (const injected of injectedEmbeddedLanguages.map(this._resolveEmbeddedLanguages.bind(this))) {
+				for (const scope of Object.keys(injected)) {
+					embeddedLanguages[scope] = injected[scope];
+				}
+			}
+		}
+
 		let languageId = this._modeService.getLanguageIdentifier(modeId).id;
 		let containsEmbeddedLanguages = (Object.keys(embeddedLanguages).length > 0);
 		return new TPromise<ICreateGrammarResult>((c, e, p) => {

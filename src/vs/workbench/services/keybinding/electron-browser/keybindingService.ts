@@ -8,7 +8,6 @@ import * as nls from 'vs/nls';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ResolvedKeybinding, Keybinding } from 'vs/base/common/keyCodes';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
-import { toDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
@@ -41,7 +40,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 export class KeyboardMapperFactory {
 	public static INSTANCE = new KeyboardMapperFactory();
 
-	private _isISOKeyboard: boolean;
 	private _layoutInfo: nativeKeymap.IKeyboardLayoutInfo;
 	private _rawMapping: nativeKeymap.IKeyboardMapping;
 	private _keyboardMapper: IKeyboardMapper;
@@ -51,25 +49,21 @@ export class KeyboardMapperFactory {
 	public onDidChangeKeyboardMapper: Event<void> = this._onDidChangeKeyboardMapper.event;
 
 	private constructor() {
-		this._isISOKeyboard = false;
 		this._layoutInfo = null;
 		this._rawMapping = null;
 		this._keyboardMapper = null;
 		this._initialized = false;
 	}
 
-	public _onKeyboardLayoutChanged(isISOKeyboard: boolean): void {
-		isISOKeyboard = !!isISOKeyboard;
+	public _onKeyboardLayoutChanged(): void {
 		if (this._initialized) {
-			this._setKeyboardData(isISOKeyboard, nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
-		} else {
-			this._isISOKeyboard = isISOKeyboard;
+			this._setKeyboardData(nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
 		}
 	}
 
 	public getKeyboardMapper(dispatchConfig: DispatchConfig): IKeyboardMapper {
 		if (!this._initialized) {
-			this._setKeyboardData(this._isISOKeyboard, nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
+			this._setKeyboardData(nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
 		}
 		if (dispatchConfig === DispatchConfig.KeyCode) {
 			// Forcefully set to use keyCode
@@ -80,7 +74,7 @@ export class KeyboardMapperFactory {
 
 	public getCurrentKeyboardLayout(): nativeKeymap.IKeyboardLayoutInfo {
 		if (!this._initialized) {
-			this._setKeyboardData(this._isISOKeyboard, nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
+			this._setKeyboardData(nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
 		}
 		return this._layoutInfo;
 	}
@@ -106,27 +100,26 @@ export class KeyboardMapperFactory {
 
 	public getRawKeyboardMapping(): nativeKeymap.IKeyboardMapping {
 		if (!this._initialized) {
-			this._setKeyboardData(this._isISOKeyboard, nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
+			this._setKeyboardData(nativeKeymap.getCurrentKeyboardLayout(), nativeKeymap.getKeyMap());
 		}
 		return this._rawMapping;
 	}
 
-	private _setKeyboardData(isISOKeyboard: boolean, layoutInfo: nativeKeymap.IKeyboardLayoutInfo, rawMapping: nativeKeymap.IKeyboardMapping): void {
+	private _setKeyboardData(layoutInfo: nativeKeymap.IKeyboardLayoutInfo, rawMapping: nativeKeymap.IKeyboardMapping): void {
 		this._layoutInfo = layoutInfo;
 
-		if (this._initialized && this._isISOKeyboard === isISOKeyboard && KeyboardMapperFactory._equals(this._rawMapping, rawMapping)) {
+		if (this._initialized && KeyboardMapperFactory._equals(this._rawMapping, rawMapping)) {
 			// nothing to do...
 			return;
 		}
 
 		this._initialized = true;
-		this._isISOKeyboard = isISOKeyboard;
 		this._rawMapping = rawMapping;
-		this._keyboardMapper = KeyboardMapperFactory._createKeyboardMapper(this._isISOKeyboard, this._layoutInfo, this._rawMapping);
+		this._keyboardMapper = KeyboardMapperFactory._createKeyboardMapper(this._layoutInfo, this._rawMapping);
 		this._onDidChangeKeyboardMapper.fire();
 	}
 
-	private static _createKeyboardMapper(isISOKeyboard: boolean, layoutInfo: nativeKeymap.IKeyboardLayoutInfo, rawMapping: nativeKeymap.IKeyboardMapping): IKeyboardMapper {
+	private static _createKeyboardMapper(layoutInfo: nativeKeymap.IKeyboardLayoutInfo, rawMapping: nativeKeymap.IKeyboardMapping): IKeyboardMapper {
 		const isUSStandard = KeyboardMapperFactory._isUSStandard(layoutInfo);
 		if (OS === OperatingSystem.Windows) {
 			return new WindowsKeyboardMapper(isUSStandard, <IWindowsKeyboardMapping>rawMapping);
@@ -145,7 +138,7 @@ export class KeyboardMapperFactory {
 			}
 		}
 
-		return new MacLinuxKeyboardMapper(isISOKeyboard, isUSStandard, <IMacLinuxKeyboardMapping>rawMapping, OS);
+		return new MacLinuxKeyboardMapper(isUSStandard, <IMacLinuxKeyboardMapping>rawMapping, OS);
 	}
 
 	private static _equals(a: nativeKeymap.IKeyboardMapping, b: nativeKeymap.IKeyboardMapping): boolean {
@@ -266,16 +259,16 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		windowElement: Window,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService,
-		@ITelemetryService private telemetryService: ITelemetryService,
+		@ITelemetryService telemetryService: ITelemetryService,
 		@IMessageService messageService: IMessageService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IStatusbarService statusBarService: IStatusbarService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(contextKeyService, commandService, messageService, statusBarService);
+		super(contextKeyService, commandService, telemetryService, messageService, statusBarService);
 
 		let dispatchConfig = getDispatchConfig(configurationService);
-		configurationService.onDidUpdateConfiguration((e) => {
+		configurationService.onDidChangeConfiguration((e) => {
 			let newDispatchConfig = getDispatchConfig(configurationService);
 			if (dispatchConfig === newDispatchConfig) {
 				return;
@@ -296,7 +289,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		this._firstTimeComputingResolver = true;
 
 		this.userKeybindings = new ConfigWatcher(environmentService.appKeybindingsPath, { defaultConfig: [], onError: error => onUnexpectedError(error) });
-		this.toDispose.push(toDisposable(() => this.userKeybindings.dispose()));
+		this.toDispose.push(this.userKeybindings);
 
 		keybindingsExtPoint.setHandler((extensions) => {
 			let commandAdded = false;
@@ -325,6 +318,11 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		keybindingsTelemetry(telemetryService, this);
 		let data = KeyboardMapperFactory.INSTANCE.getCurrentKeyboardLayout();
+		/* __GDPR__
+			"keyboardLayout" : {
+				"currentKeyboardLayout": { "${inline}": [ "${IKeyboardLayoutInfo}" ] }
+			}
+		*/
 		telemetryService.publicLog('keyboardLayout', {
 			currentKeyboardLayout: data
 		});
@@ -412,7 +410,12 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		if (!isFirstTime) {
 			let cnt = extraUserKeybindings.length;
 
-			this.telemetryService.publicLog('customKeybindingsChanged', {
+			/* __GDPR__
+				"customKeybindingsChanged" : {
+					"keyCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
+			this._telemetryService.publicLog('customKeybindingsChanged', {
 				keyCount: cnt
 			});
 		}

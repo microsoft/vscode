@@ -4,28 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { SpectronApplication, LATEST_PATH, CODE_WORKSPACE_PATH } from '../../spectron/application';
-import { QuickOpen } from '../quickopen/quickopen';
-import { Window } from '../window';
+import { SpectronApplication } from '../../spectron/application';
 
-describe('Multi Root', () => {
-	let app: SpectronApplication;
-	before(() => {
-		app = new SpectronApplication(LATEST_PATH, '', 0, [CODE_WORKSPACE_PATH]);
-		return app.start();
+describe('Multiroot', () => {
+
+	before(async function () {
+		this.app.suiteName = 'Multiroot';
+
+		const app = this.app as SpectronApplication;
+
+		await app.restart([app.workspaceFilePath]);
+
+		// for some reason Code opens 2 windows at this point
+		// so let's select the last one
+		await app.client.windowByIndex(2);
 	});
-	after(() => app.stop());
 
 	it('shows results from all folders', async function () {
-		let quickOpen = new QuickOpen(app);
-		await quickOpen.openQuickOpen();
-		await app.type('*.*');
-		const elements = await quickOpen.getQuickOpenElements();
-		assert.equal(elements.length, 6);
+		const app = this.app as SpectronApplication;
+		await app.workbench.quickopen.openQuickOpen('*.*');
+
+		await app.workbench.quickopen.waitForQuickOpenElements(names => names.length >= 6);
+		await app.workbench.quickopen.closeQuickOpen();
 	});
 
 	it('shows workspace name in title', async function () {
-		const title = await new Window(app).getTitle();
+		const app = this.app as SpectronApplication;
+		const title = await app.client.getTitle();
+		await app.screenCapturer.capture('window title');
 		assert.ok(title.indexOf('smoketest (Workspace)') >= 0);
 	});
 });

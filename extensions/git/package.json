@@ -37,6 +37,11 @@
         }
       },
       {
+        "command": "git.close",
+        "title": "%command.close%",
+        "category": "Git"
+      },
+      {
         "command": "git.refresh",
         "title": "%command.refresh%",
         "category": "Git",
@@ -95,6 +100,24 @@
         "command": "git.revertSelectedRanges",
         "title": "%command.revertSelectedRanges%",
         "category": "Git"
+      },
+      {
+        "command": "git.stageChange",
+        "title": "%command.stageChange%",
+        "category": "Git",
+        "icon": {
+          "light": "resources/icons/light/stage.svg",
+          "dark": "resources/icons/dark/stage.svg"
+        }
+      },
+      {
+        "command": "git.revertChange",
+        "title": "%command.revertChange%",
+        "category": "Git",
+        "icon": {
+          "light": "resources/icons/light/clean.svg",
+          "dark": "resources/icons/dark/clean.svg"
+        }
       },
       {
         "command": "git.unstage",
@@ -242,6 +265,11 @@
         "category": "Git"
       },
       {
+        "command": "git.syncRebase",
+        "title": "%command.syncRebase%",
+        "category": "Git"
+      },
+      {
         "command": "git.publish",
         "title": "%command.publish%",
         "category": "Git"
@@ -311,8 +339,16 @@
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.stageChange",
+          "when": "false"
+        },
+        {
           "command": "git.revertSelectedRanges",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.revertChange",
+          "when": "false"
         },
         {
           "command": "git.unstage",
@@ -419,6 +455,10 @@
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.syncRebase",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
           "command": "git.publish",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
@@ -463,6 +503,11 @@
           "command": "git.sync",
           "group": "1_sync",
           "when": "config.git.enabled && scmProvider == git"
+        },
+        {
+          "command": "git.syncRebase",
+          "group": "1_sync",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
           "command": "git.pull",
@@ -530,6 +575,11 @@
           "when": "config.git.enabled && scmProvider == git"
         },
         {
+          "command": "git.stageAll",
+          "group": "4_stage",
+          "when": "config.git.enabled && scmProvider == git"
+        },
+        {
           "command": "git.unstageAll",
           "group": "4_stage",
           "when": "config.git.enabled && scmProvider == git"
@@ -557,6 +607,13 @@
         {
           "command": "git.showOutput",
           "group": "7_repository",
+          "when": "config.git.enabled && scmProvider == git"
+        }
+      ],
+      "scm/sourceControl": [
+        {
+          "command": "git.close",
+          "group": "navigation",
           "when": "config.git.enabled && scmProvider == git"
         }
       ],
@@ -688,7 +745,7 @@
         {
           "command": "git.openChange",
           "group": "navigation",
-          "when": "config.git.enabled && gitOpenRepositoryCount != 0 && !isInDiffEditor && resourceScheme != extension"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0 && !isInDiffEditor && resourceScheme == file"
         },
         {
           "command": "git.stageSelectedRanges",
@@ -704,6 +761,16 @@
           "command": "git.revertSelectedRanges",
           "group": "2_git@3",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme != merge-conflict.conflict-diff"
+        }
+      ],
+      "scm/change/title": [
+        {
+          "command": "git.stageChange",
+          "when": "config.git.enabled && originalResourceScheme == git"
+        },
+        {
+          "command": "git.revertChange",
+          "when": "config.git.enabled && originalResourceScheme == git"
         }
       ]
     },
@@ -784,18 +851,72 @@
           "type": "boolean",
           "description": "%config.enableCommitSigning%",
           "default": false
+        },
+        "git.decorations.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.decorations.enabled%"
         }
       }
-    }
+    },
+    "colors": [
+      {
+        "id": "gitDecoration.modifiedResourceForeground",
+        "description": "%colors.modified%",
+        "defaults": {
+          "light": "#a76e12",
+          "dark": "#E2C08D",
+          "highContrast": "#E2C08D"
+        }
+      },
+      {
+        "id": "gitDecoration.deletedResourceForeground",
+        "description": "%colors.deleted%",
+        "defaults": {
+          "light": "#ad0707",
+          "dark": "#c74e39",
+          "highContrast": "#c74e39"
+        }
+      },
+      {
+        "id": "gitDecoration.untrackedResourceForeground",
+        "description": "%colors.untracked%",
+        "defaults": {
+          "light": "#019001",
+          "dark": "#73C991",
+          "highContrast": "#73C991"
+        }
+      },
+      {
+        "id": "gitDecoration.ignoredResourceForeground",
+        "description": "%colors.ignored%",
+        "defaults": {
+          "light": "#8E8E90",
+          "dark": "#A7A8A9",
+          "highContrast": "#A7A8A9"
+        }
+      },
+      {
+        "id": "gitDecoration.conflictingResourceForeground",
+        "description": "%colors.conflict%",
+        "defaults": {
+          "light": "#6c6cc4",
+          "dark": "#6c6cc4",
+          "highContrast": "#6c6cc4"
+        }
+      }
+    ]
   },
   "dependencies": {
-    "iconv-lite": "0.4.15",
+    "byline": "^5.0.0",
+    "iconv-lite": "0.4.19",
     "vscode-extension-telemetry": "0.0.8",
     "vscode-nls": "2.0.2"
   },
   "devDependencies": {
-    "@types/mocha": "^2.2.41",
-    "@types/node": "^7.0.4",
+    "@types/mocha": "2.2.43",
+    "@types/node": "7.0.43",
+    "@types/byline": "4.2.31",
     "mocha": "^3.2.0"
   }
 }

@@ -6,7 +6,7 @@
 import nls = require('vs/nls');
 import DOM = require('vs/base/browser/dom');
 import errors = require('vs/base/common/errors');
-import paths = require('vs/base/common/paths');
+import resources = require('vs/base/common/resources');
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
@@ -18,12 +18,10 @@ import { SearchViewlet } from 'vs/workbench/parts/search/browser/searchViewlet';
 import { Match, FileMatch, FileMatchOrMatch, FolderMatch, RenderableMatch } from 'vs/workbench/parts/search/common/searchModel';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
-import { CollapseAllAction as TreeCollapseAction } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ResolvedKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { toResource } from 'vs/workbench/common/editor';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
@@ -49,44 +47,23 @@ function doAppendKeyBindingLabel(label: string, keyBinding: ResolvedKeybinding):
 	return keyBinding ? label + ' (' + keyBinding.getLabel() + ')' : label;
 }
 
-export class ToggleCaseSensitiveAction extends Action {
+export const toggleCaseSensitiveCommand = (accessor: ServicesAccessor) => {
+	const viewletService = accessor.get<IViewletService>(IViewletService);
+	let searchViewlet = <SearchViewlet>viewletService.getActiveViewlet();
+	searchViewlet.toggleCaseSensitive();
+};
 
-	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
-		super(id, label);
-	}
+export const toggleWholeWordCommand = (accessor: ServicesAccessor) => {
+	const viewletService = accessor.get<IViewletService>(IViewletService);
+	let searchViewlet = <SearchViewlet>viewletService.getActiveViewlet();
+	searchViewlet.toggleWholeWords();
+};
 
-	public run(): TPromise<any> {
-		let searchViewlet = <SearchViewlet>this.viewletService.getActiveViewlet();
-		searchViewlet.toggleCaseSensitive();
-		return TPromise.as(null);
-	}
-}
-
-export class ToggleWholeWordAction extends Action {
-
-	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		let searchViewlet = <SearchViewlet>this.viewletService.getActiveViewlet();
-		searchViewlet.toggleWholeWords();
-		return TPromise.as(null);
-	}
-}
-
-export class ToggleRegexAction extends Action {
-
-	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		let searchViewlet = <SearchViewlet>this.viewletService.getActiveViewlet();
-		searchViewlet.toggleRegex();
-		return TPromise.as(null);
-	}
-}
+export const toggleRegexCommand = (accessor: ServicesAccessor) => {
+	const viewletService = accessor.get<IViewletService>(IViewletService);
+	let searchViewlet = <SearchViewlet>viewletService.getActiveViewlet();
+	searchViewlet.toggleRegex();
+};
 
 export class ShowNextSearchIncludeAction extends Action {
 
@@ -246,6 +223,8 @@ export class FocusPreviousInputAction extends Action {
 
 export class OpenSearchViewletAction extends ToggleViewletAction {
 
+	public static LABEL = nls.localize('showSearchViewlet', "Show Search");
+
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
 		super(id, label, Constants.VIEWLET_ID, viewletService, editorService);
 	}
@@ -268,26 +247,26 @@ export class OpenSearchViewletAction extends ToggleViewletAction {
 
 }
 
-export class FocusActiveEditorAction extends Action {
-
-	constructor(id: string, label: string, @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
-		super(id, label);
+export const FocusActiveEditorCommand = (accessor: ServicesAccessor) => {
+	const editorService = accessor.get(IWorkbenchEditorService);
+	const editor = editorService.getActiveEditor();
+	if (editor) {
+		editor.focus();
 	}
+	return TPromise.as(true);
+};
 
-	public run(): TPromise<any> {
-		let editor = this.editorService.getActiveEditor();
-		if (editor) {
-			editor.focus();
-		}
-		return TPromise.as(true);
-	}
-
+export interface IFindOrReplaceActionOpts {
+	selectWidgetText: boolean;
+	focusReplace: boolean;
+	expandSearchReplaceWidget: boolean;
+	takeEditorText?: boolean;
 }
 
 export abstract class FindOrReplaceInFilesAction extends Action {
 
 	constructor(id: string, label: string, private viewletService: IViewletService,
-		private expandSearchReplaceWidget: boolean, private selectWidgetText: boolean, private focusReplace: boolean) {
+		private options: IFindOrReplaceActionOpts) {
 		super(id, label);
 	}
 
@@ -295,19 +274,46 @@ export abstract class FindOrReplaceInFilesAction extends Action {
 		const viewlet = this.viewletService.getActiveViewlet();
 		const searchViewletWasOpen = viewlet && viewlet.getId() === Constants.VIEWLET_ID;
 		return this.viewletService.openViewlet(Constants.VIEWLET_ID, true).then((viewlet) => {
-			if (!searchViewletWasOpen || this.expandSearchReplaceWidget) {
-				const searchAndReplaceWidget = (<SearchViewlet>viewlet).searchAndReplaceWidget;
-				searchAndReplaceWidget.toggleReplace(this.expandSearchReplaceWidget);
-				searchAndReplaceWidget.focus(this.selectWidgetText, this.focusReplace);
+			if (this.options.takeEditorText) {
+				(<SearchViewlet>viewlet).takeEditorText();
 			}
+
+			if (!searchViewletWasOpen || this.options.expandSearchReplaceWidget) {
+				const searchAndReplaceWidget = (<SearchViewlet>viewlet).searchAndReplaceWidget;
+				searchAndReplaceWidget.toggleReplace(this.options.expandSearchReplaceWidget);
+				searchAndReplaceWidget.focus(this.options.selectWidgetText, this.options.focusReplace);
+			}
+
+			return viewlet;
 		});
 	}
 }
 
 export class FindInFilesAction extends FindOrReplaceInFilesAction {
 
+	public static LABEL = nls.localize('findInFiles', "Find in Files");
+
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService) {
-		super(id, label, viewletService, /*expandSearchReplaceWidget=*/false, /*selectWidgetText=*/true, /*focusReplace=*/false);
+		super(id, label, viewletService, {
+			expandSearchReplaceWidget: false,
+			selectWidgetText: true,
+			focusReplace: false
+		});
+	}
+}
+
+export class FindInFilesWithSelectedTextAction extends FindOrReplaceInFilesAction {
+
+	public static ID = 'workbench.action.findInFilesWithSelectedText';
+	public static LABEL = nls.localize('findInFilesWithSelectedText', "Find in Files With Selected Text");
+
+	constructor(id: string, label: string, @IViewletService viewletService: IViewletService) {
+		super(id, label, viewletService, {
+			expandSearchReplaceWidget: false,
+			selectWidgetText: true,
+			focusReplace: false,
+			takeEditorText: true
+		});
 	}
 }
 
@@ -317,7 +323,26 @@ export class ReplaceInFilesAction extends FindOrReplaceInFilesAction {
 	public static LABEL = nls.localize('replaceInFiles', "Replace in Files");
 
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService) {
-		super(id, label, viewletService, /*expandSearchReplaceWidget=*/true, /*selectWidgetText=*/false, /*focusReplace=*/true);
+		super(id, label, viewletService, {
+			expandSearchReplaceWidget: true,
+			selectWidgetText: false,
+			focusReplace: true
+		});
+	}
+}
+
+export class ReplaceInFilesWithSelectedTextAction extends FindOrReplaceInFilesAction {
+
+	public static ID = 'workbench.action.replaceInFilesWithSelectedText';
+	public static LABEL = nls.localize('replaceInFilesWithSelectedText', "Replace in Files With Selected Text");
+
+	constructor(id: string, label: string, @IViewletService viewletService: IViewletService) {
+		super(id, label, viewletService, {
+			expandSearchReplaceWidget: true,
+			selectWidgetText: false,
+			focusReplace: true,
+			takeEditorText: true
+		});
 	}
 }
 
@@ -344,8 +369,8 @@ export class FindInWorkspaceAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.viewletService.openViewlet(Constants.VIEWLET_ID, true).then((viewlet: SearchViewlet) => {
-			viewlet.searchInFolder(null);
+		return this.viewletService.openViewlet(Constants.VIEWLET_ID, true).then(viewlet => {
+			(viewlet as SearchViewlet).searchInFolder(null);
 		});
 	}
 }
@@ -376,14 +401,14 @@ export const findInFolderCommand = (accessor: ServicesAccessor, resource?: URI) 
 		if (focused) {
 			const file = explorerItemToFileResource(focused);
 			if (file) {
-				resource = file.isDirectory ? file.resource : URI.file(paths.dirname(file.resource.fsPath));
+				resource = file.isDirectory ? file.resource : resources.dirname(file.resource);
 			}
 		}
 	}
 
-	viewletService.openViewlet(Constants.VIEWLET_ID, true).then((viewlet: SearchViewlet) => {
+	viewletService.openViewlet(Constants.VIEWLET_ID, true).then(viewlet => {
 		if (resource) {
-			viewlet.searchInFolder(resource);
+			(viewlet as SearchViewlet).searchInFolder(resource);
 		}
 	}).done(null, errors.onUnexpectedError);
 };
@@ -405,11 +430,27 @@ export class RefreshAction extends Action {
 	}
 }
 
-export class CollapseAllAction extends TreeCollapseAction {
+export class CollapseDeepestExpandedLevelAction extends Action {
+	private viewer: ITree;
 
-	constructor(viewlet: SearchViewlet) {
-		super(viewlet.getControl(), false);
+	constructor(viewlet: SearchViewlet, enabled: boolean = false) {
+		super('vs.tree.collapse', nls.localize('collapse', "Collapse"), 'monaco-tree-action collapse-all', enabled);
+		this.viewer = viewlet.getControl();
 		this.class = 'search-action collapse';
+	}
+
+	public run(context?: any): TPromise<any> {
+		if (this.viewer.getHighlight()) {
+			return TPromise.as(null); // Global action disabled if user is in edit mode from another action
+		}
+
+		this.viewer.collapseDeepestExpandedLevel();
+		this.viewer.clearSelection();
+		this.viewer.clearFocus();
+		this.viewer.DOMFocus();
+		this.viewer.focusFirst();
+
+		return TPromise.as(null);
 	}
 }
 
@@ -439,8 +480,8 @@ export class FocusNextSearchResultAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		return this.viewletService.openViewlet(Constants.VIEWLET_ID).then((searchViewlet: SearchViewlet) => {
-			searchViewlet.selectNextMatch();
+		return this.viewletService.openViewlet(Constants.VIEWLET_ID).then(searchViewlet => {
+			(searchViewlet as SearchViewlet).selectNextMatch();
 		});
 	}
 }
@@ -454,8 +495,8 @@ export class FocusPreviousSearchResultAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		return this.viewletService.openViewlet(Constants.VIEWLET_ID).then((searchViewlet: SearchViewlet) => {
-			searchViewlet.selectPreviousMatch();
+		return this.viewletService.openViewlet(Constants.VIEWLET_ID).then(searchViewlet => {
+			(searchViewlet as SearchViewlet).selectPreviousMatch();
 		});
 	}
 }
@@ -477,10 +518,10 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 		let navigator: INavigator<any> = this.getNavigatorAt(element, viewer);
 		if (element instanceof FolderMatch) {
 			// If file match is removed then next element is the next file match
-			while (!!navigator.next() && !(navigator.current() instanceof FolderMatch)) { };
+			while (!!navigator.next() && !(navigator.current() instanceof FolderMatch)) { }
 		} else if (element instanceof FileMatch) {
 			// If file match is removed then next element is the next file match
-			while (!!navigator.next() && !(navigator.current() instanceof FileMatch)) { };
+			while (!!navigator.next() && !(navigator.current() instanceof FileMatch)) { }
 		} else {
 			navigator.next();
 		}
@@ -508,7 +549,7 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 export class RemoveAction extends AbstractSearchAndReplaceAction {
 
 	constructor(private viewer: ITree, private element: RenderableMatch) {
-		super('remove', nls.localize('RemoveAction.label', "Remove"), 'action-remove');
+		super('remove', nls.localize('RemoveAction.label', "Dismiss"), 'action-remove');
 	}
 
 	public run(): TPromise<any> {
@@ -542,6 +583,7 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 
 	constructor(private viewer: ITree, private fileMatch: FileMatch, private viewlet: SearchViewlet,
+		// @ts-ignore unused injected service
 		@IReplaceService private replaceService: IReplaceService,
 		@IKeybindingService keyBindingService: IKeybindingService,
 		@ITelemetryService private telemetryService: ITelemetryService) {
@@ -549,6 +591,9 @@ export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 	}
 
 	public run(): TPromise<any> {
+		/* __GDPR__
+			"replaceAll.action.selected" : {}
+		*/
 		this.telemetryService.publicLog('replaceAll.action.selected');
 		let nextFocusElement = this.getElementToFocusAfterRemoved(this.viewer, this.fileMatch);
 		return this.fileMatch.parent().replace(this.fileMatch).then(() => {
@@ -573,6 +618,9 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 
 	public run(): TPromise<any> {
 		this.enabled = false;
+		/* __GDPR__
+			"replace.action.selected" : {}
+		*/
 		this.telemetryService.publicLog('replace.action.selected');
 
 		return this.element.parent().replace(this.element).then(() => {
@@ -633,9 +681,10 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	}
 
 	private hasToOpenFile(): boolean {
-		const file = toResource(this.editorService.getActiveEditorInput(), { filter: 'file' });
+		const activeInput = this.editorService.getActiveEditorInput();
+		const file = activeInput ? activeInput.getResource() : void 0;
 		if (file) {
-			return paths.isEqual(file.fsPath, this.element.parent().resource().fsPath);
+			return file.toString() === this.element.parent().resource().toString();
 		}
 		return false;
 	}

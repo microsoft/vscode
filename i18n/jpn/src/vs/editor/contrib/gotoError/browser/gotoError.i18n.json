@@ -9,5 +9,6 @@
 	"markerAction.previous.label": "前のエラーまたは警告へ移動",
 	"editorMarkerNavigationError": "エディターのマーカー ナビゲーション ウィジェットのエラーの色。",
 	"editorMarkerNavigationWarning": "エディターのマーカー ナビゲーション ウィジェットの警告の色。",
+	"editorMarkerNavigationInfo": "エディターのマーカー ナビゲーション ウィジェットの情報の色。",
 	"editorMarkerNavigationBackground": "エディターのマーカー ナビゲーション ウィジェットの背景。"
 }

@@ -23,13 +23,19 @@ export interface HtmlPreviewEditorViewState {
 }
 
 /**  A context key that is set when a webview editor has focus. */
-export const KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS = new RawContextKey<boolean>('webviewEditorFocus', undefined);
+export const KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS = new RawContextKey<boolean>('webviewEditorFocus', false);
 /**  A context key that is set when a webview editor does not have focus. */
 export const KEYBINDING_CONTEXT_WEBVIEWEDITOR_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS.toNegated();
 /**  A context key that is set when the find widget find input in webview editor webview is focused. */
 export const KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED = new RawContextKey<boolean>('webviewEditorFindWidgetInputFocused', false);
 /**  A context key that is set when the find widget find input in webview editor webview is not focused. */
 export const KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_NOT_FOCUSED: ContextKeyExpr = KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED.toNegated();
+
+/**  A context key that is set when the find widget in a webview is visible. */
+export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('webviewFindWidgetVisible', false);
+/**  A context key that is set when the find widget in a webview  is not visible. */
+export const KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_NOT_VISIBLE: ContextKeyExpr = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.toNegated();
+
 
 /**
  * This class is only intended to be subclassed and not instantiated.
@@ -40,6 +46,7 @@ export abstract class WebviewEditor extends BaseWebviewEditor {
 	protected _webview: WebView;
 	protected content: HTMLElement;
 	protected contextKey: IContextKey<boolean>;
+	private findWidgetVisible: IContextKey<boolean>;
 	protected findInputFocusContextKey: IContextKey<boolean>;
 
 	constructor(
@@ -53,16 +60,19 @@ export abstract class WebviewEditor extends BaseWebviewEditor {
 		if (contextKeyService) {
 			this.contextKey = KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS.bindTo(contextKeyService);
 			this.findInputFocusContextKey = KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED.bindTo(contextKeyService);
+			this.findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(contextKeyService);
 		}
 	}
 
 	public showFind() {
 		if (this._webview) {
 			this._webview.showFind();
+			this.findWidgetVisible.set(true);
 		}
 	}
 
 	public hideFind() {
+		this.findWidgetVisible.reset();
 		if (this._webview) {
 			this._webview.hideFind();
 		}
@@ -137,7 +147,9 @@ class HideWebViewEditorFindCommand extends Command {
 }
 const hideCommand = new HideWebViewEditorFindCommand({
 	id: 'editor.action.webvieweditor.hideFind',
-	precondition: KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS,
+	precondition: ContextKeyExpr.and(
+		KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS,
+		KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE),
 	kbOpts: {
 		primary: KeyCode.Escape
 	}

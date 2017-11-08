@@ -118,6 +118,7 @@ suite('ExtHostLanguageFeatures', function () {
 	suiteTeardown(() => {
 		setUnexpectedErrorHandler(originalErrorHandler);
 		model.dispose();
+		mainThread.dispose();
 	});
 
 	teardown(function () {
@@ -732,6 +733,24 @@ suite('ExtHostLanguageFeatures', function () {
 
 	// --- rename
 
+	test('Rename, evil provider 0/2', function () {
+
+		disposables.push(extHost.registerRenameProvider(defaultSelector, <vscode.RenameProvider>{
+			provideRenameEdits(): any {
+				throw new class Foo { };
+			}
+		}));
+
+		return threadService.sync().then(() => {
+
+			return rename(model, new EditorPosition(1, 1), 'newName').then(value => {
+				throw Error();
+			}, err => {
+				// expected
+			});
+		});
+	});
+
 	test('Rename, evil provider 1/2', function () {
 
 		disposables.push(extHost.registerRenameProvider(defaultSelector, <vscode.RenameProvider>{
@@ -743,9 +762,7 @@ suite('ExtHostLanguageFeatures', function () {
 		return threadService.sync().then(() => {
 
 			return rename(model, new EditorPosition(1, 1), 'newName').then(value => {
-				throw new Error('');
-			}, err => {
-				// expected
+				assert.equal(value.rejectReason, 'evil');
 			});
 		});
 	});
@@ -811,7 +828,11 @@ suite('ExtHostLanguageFeatures', function () {
 
 		disposables.push(extHost.registerSignatureHelpProvider(defaultSelector, <vscode.SignatureHelpProvider>{
 			provideSignatureHelp(): vscode.SignatureHelp {
-				return new types.SignatureHelp();
+				return {
+					signatures: [],
+					activeParameter: 0,
+					activeSignature: 0
+				};
 			}
 		}, []));
 

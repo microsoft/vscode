@@ -18,7 +18,7 @@
     "vscode-nls": "^2.0.2"
   },
   "devDependencies": {
-    "@types/node": "^7.0.12"
+    "@types/node": "7.0.43"
   },
   "main": "./out/main",
   "activationEvents": [
@@ -37,19 +37,33 @@
             "on"
           ],
           "default": "on",
+          "scope": "resource",
           "description": "%config.npm.autoDetect%"
         },
         "npm.runSilent": {
-					"type": "boolean",
-					"default": false,
-					"description": "%config.npm.runSilent%"
+          "type": "boolean",
+          "default": false,
+          "scope": "resource",
+          "description": "%config.npm.runSilent%"
+        },
+        "npm.packageManager": {
+          "scope": "resource",
+          "type": "string",
+          "enum": [
+            "npm",
+            "yarn"
+          ],
+          "default": "npm",
+          "description": "%config.npm.packageManager%"
         }
       }
     },
     "taskDefinitions": [
       {
         "type": "npm",
-        "required": ["script"],
+        "required": [
+          "script"
+        ],
         "properties": {
           "script": {
             "type": "string",

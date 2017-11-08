@@ -5,8 +5,8 @@
 
 'use strict';
 
-import { Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit } from 'vscode';
-import { Repository as BaseRepository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash } from './git';
+import { Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData } from 'vscode';
+import { Repository as BaseRepository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash, RefType, GitError } from './git';
 import { anyEvent, filterEvent, eventToPromise, dispose, find } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { toGitUri } from './uri';
@@ -82,7 +82,7 @@ export class Resource implements SourceControlResourceState {
 	get original(): Uri { return this._resourceUri; }
 	get renameResourceUri(): Uri | undefined { return this._renameResourceUri; }
 
-	private static Icons = {
+	private static Icons: any = {
 		light: {
 			Modified: getIconUri('status-modified', 'light'),
 			Added: getIconUri('status-added', 'light'),
@@ -171,13 +171,104 @@ export class Resource implements SourceControlResourceState {
 	}
 
 	get decorations(): SourceControlResourceDecorations {
-		const light = { iconPath: this.getIconPath('light') };
-		const dark = { iconPath: this.getIconPath('dark') };
+		// TODO@joh, still requires restart/redraw in the SCM viewlet
+		const decorations = workspace.getConfiguration().get<boolean>('git.decorations.enabled');
+		const light = !decorations ? { iconPath: this.getIconPath('light') } : undefined;
+		const dark = !decorations ? { iconPath: this.getIconPath('dark') } : undefined;
 		const tooltip = this.tooltip;
 		const strikeThrough = this.strikeThrough;
 		const faded = this.faded;
+		const letter = this.letter;
+		const color = this.color;
 
-		return { strikeThrough, faded, tooltip, light, dark };
+		return { strikeThrough, faded, tooltip, light, dark, letter, color, source: 'git.resource' /*todo@joh*/ };
+	}
+
+	get letter(): string | undefined {
+		switch (this.type) {
+			case Status.INDEX_MODIFIED:
+			case Status.MODIFIED:
+				return 'M';
+			case Status.INDEX_ADDED:
+				return 'A';
+			case Status.INDEX_DELETED:
+			case Status.DELETED:
+				return 'D';
+			case Status.INDEX_RENAMED:
+				return 'R';
+			case Status.UNTRACKED:
+				return 'U';
+			case Status.IGNORED:
+				return 'I';
+			case Status.INDEX_COPIED:
+			case Status.BOTH_DELETED:
+			case Status.ADDED_BY_US:
+			case Status.DELETED_BY_THEM:
+			case Status.ADDED_BY_THEM:
+			case Status.DELETED_BY_US:
+			case Status.BOTH_ADDED:
+			case Status.BOTH_MODIFIED:
+				return 'C';
+			default:
+				return undefined;
+		}
+	}
+
+	get color(): ThemeColor | undefined {
+		switch (this.type) {
+			case Status.INDEX_MODIFIED:
+			case Status.MODIFIED:
+				return new ThemeColor('gitDecoration.modifiedResourceForeground');
+			case Status.INDEX_DELETED:
+			case Status.DELETED:
+				return new ThemeColor('gitDecoration.deletedResourceForeground');
+			case Status.INDEX_ADDED: // todo@joh - special color?
+			case Status.INDEX_RENAMED: // todo@joh - special color?
+			case Status.UNTRACKED:
+				return new ThemeColor('gitDecoration.untrackedResourceForeground');
+			case Status.IGNORED:
+				return new ThemeColor('gitDecoration.ignoredResourceForeground');
+			case Status.INDEX_COPIED:
+			case Status.BOTH_DELETED:
+			case Status.ADDED_BY_US:
+			case Status.DELETED_BY_THEM:
+			case Status.ADDED_BY_THEM:
+			case Status.DELETED_BY_US:
+			case Status.BOTH_ADDED:
+			case Status.BOTH_MODIFIED:
+				return new ThemeColor('gitDecoration.conflictingResourceForeground');
+			default:
+				return undefined;
+		}
+	}
+
+	get priority(): number {
+		switch (this.type) {
+			case Status.INDEX_MODIFIED:
+			case Status.MODIFIED:
+				return 2;
+			case Status.IGNORED:
+				return 3;
+			case Status.INDEX_COPIED:
+			case Status.BOTH_DELETED:
+			case Status.ADDED_BY_US:
+			case Status.DELETED_BY_THEM:
+			case Status.ADDED_BY_THEM:
+			case Status.DELETED_BY_US:
+			case Status.BOTH_ADDED:
+			case Status.BOTH_MODIFIED:
+				return 4;
+			default:
+				return 1;
+		}
+	}
+
+	get resourceDecoration(): DecorationData | undefined {
+		const title = this.tooltip;
+		const abbreviation = this.letter;
+		const color = this.color;
+		const priority = this.priority;
+		return { bubble: true, source: 'git.resource', title, abbreviation, color, priority };
 	}
 
 	constructor(
@@ -189,54 +280,34 @@ export class Resource implements SourceControlResourceState {
 }
 
 export enum Operation {
-	Status = 1 << 0,
-	Add = 1 << 1,
-	RevertFiles = 1 << 2,
-	Commit = 1 << 3,
-	Clean = 1 << 4,
-	Branch = 1 << 5,
-	Checkout = 1 << 6,
-	Reset = 1 << 7,
-	Fetch = 1 << 8,
-	Pull = 1 << 9,
-	Push = 1 << 10,
-	Sync = 1 << 11,
-	Show = 1 << 12,
-	Stage = 1 << 13,
-	GetCommitTemplate = 1 << 14,
-	DeleteBranch = 1 << 15,
-	Merge = 1 << 16,
-	Ignore = 1 << 17,
-	Tag = 1 << 18,
-	Stash = 1 << 19
+	Status = 'Status',
+	Add = 'Add',
+	RevertFiles = 'RevertFiles',
+	Commit = 'Commit',
+	Clean = 'Clean',
+	Branch = 'Branch',
+	Checkout = 'Checkout',
+	Reset = 'Reset',
+	Fetch = 'Fetch',
+	Pull = 'Pull',
+	Push = 'Push',
+	Sync = 'Sync',
+	Show = 'Show',
+	Stage = 'Stage',
+	GetCommitTemplate = 'GetCommitTemplate',
+	DeleteBranch = 'DeleteBranch',
+	Merge = 'Merge',
+	Ignore = 'Ignore',
+	Tag = 'Tag',
+	Stash = 'Stash',
+	CheckIgnore = 'CheckIgnore'
 }
-
-// function getOperationName(operation: Operation): string {
-// 	switch (operation) {
-// 		case Operation.Status: return 'Status';
-// 		case Operation.Add: return 'Add';
-// 		case Operation.RevertFiles: return 'RevertFiles';
-// 		case Operation.Commit: return 'Commit';
-// 		case Operation.Clean: return 'Clean';
-// 		case Operation.Branch: return 'Branch';
-// 		case Operation.Checkout: return 'Checkout';
-// 		case Operation.Reset: return 'Reset';
-// 		case Operation.Fetch: return 'Fetch';
-// 		case Operation.Pull: return 'Pull';
-// 		case Operation.Push: return 'Push';
-// 		case Operation.Sync: return 'Sync';
-// 		case Operation.Init: return 'Init';
-// 		case Operation.Show: return 'Show';
-// 		case Operation.Stage: return 'Stage';
-// 		case Operation.GetCommitTemplate: return 'GetCommitTemplate';
-// 		default: return 'unknown';
-// 	}
-// }
 
 function isReadOnly(operation: Operation): boolean {
 	switch (operation) {
 		case Operation.Show:
 		case Operation.GetCommitTemplate:
+		case Operation.CheckIgnore:
 			return true;
 		default:
 			return false;
@@ -246,6 +317,7 @@ function isReadOnly(operation: Operation): boolean {
 function shouldShowProgress(operation: Operation): boolean {
 	switch (operation) {
 		case Operation.Fetch:
+		case Operation.CheckIgnore:
 			return false;
 		default:
 			return true;
@@ -259,24 +331,36 @@ export interface Operations {
 
 class OperationsImpl implements Operations {
 
-	constructor(private readonly operations: number = 0) {
-		// noop
+	private operations = new Map<Operation, number>();
+
+	start(operation: Operation): void {
+		this.operations.set(operation, (this.operations.get(operation) || 0) + 1);
 	}
 
-	start(operation: Operation): OperationsImpl {
-		return new OperationsImpl(this.operations | operation);
-	}
+	end(operation: Operation): void {
+		const count = (this.operations.get(operation) || 0) - 1;
 
-	end(operation: Operation): OperationsImpl {
-		return new OperationsImpl(this.operations & ~operation);
+		if (count <= 0) {
+			this.operations.delete(operation);
+		} else {
+			this.operations.set(operation, count);
+		}
 	}
 
 	isRunning(operation: Operation): boolean {
-		return (this.operations & operation) !== 0;
+		return this.operations.has(operation);
 	}
 
 	isIdle(): boolean {
-		return this.operations === 0;
+		const operations = this.operations.keys();
+
+		for (const operation of operations) {
+			if (!isReadOnly(operation)) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 }
 
@@ -301,6 +385,9 @@ export class Repository implements Disposable {
 
 	private _onDidChangeStatus = new EventEmitter<void>();
 	readonly onDidChangeStatus: Event<void> = this._onDidChangeStatus.event;
+
+	private _onDidChangeOriginalResource = new EventEmitter<Uri>();
+	readonly onDidChangeOriginalResource: Event<Uri> = this._onDidChangeOriginalResource.event;
 
 	private _onRunOperation = new EventEmitter<Operation>();
 	readonly onRunOperation: Event<Operation> = this._onRunOperation.event;
@@ -382,9 +469,8 @@ export class Repository implements Disposable {
 		const onRelevantGitChange = filterEvent(onRelevantRepositoryChange, uri => /\/\.git\//.test(uri.path));
 		onRelevantGitChange(this._onDidChangeRepository.fire, this._onDidChangeRepository, this.disposables);
 
-		const label = `${path.basename(repository.root)} (Git)`;
-
-		this._sourceControl = scm.createSourceControl('git', label);
+		this._sourceControl = scm.createSourceControl('git', 'Git', Uri.file(repository.root));
+		this._sourceControl.inputBox.placeholder = localize('commitMessage', "Message (press {0} to commit)");
 		this._sourceControl.acceptInputCommand = { command: 'git.commitWithInput', title: localize('commit', "Commit"), arguments: [this._sourceControl] };
 		this._sourceControl.quickDiffProvider = this;
 		this.disposables.push(this._sourceControl);
@@ -449,6 +535,7 @@ export class Repository implements Disposable {
 	async stage(resource: Uri, contents: string): Promise<void> {
 		const relativePath = path.relative(this.repository.root, resource.fsPath).replace(/\\/g, '/');
 		await this.run(Operation.Stage, () => this.repository.stage(relativePath, contents));
+		this._onDidChangeOriginalResource.fire(resource);
 	}
 
 	async revert(resources: Uri[]): Promise<void> {
@@ -534,11 +621,7 @@ export class Repository implements Disposable {
 
 	@throttle
 	async fetch(): Promise<void> {
-		try {
-			await this.run(Operation.Fetch, () => this.repository.fetch());
-		} catch (err) {
-			// noop
-		}
+		await this.run(Operation.Fetch, () => this.repository.fetch());
 	}
 
 	@throttle
@@ -568,10 +651,9 @@ export class Repository implements Disposable {
 		await this.run(Operation.Push, () => this.repository.push(remote, undefined, false, true));
 	}
 
-	@throttle
-	async sync(): Promise<void> {
+	private async _sync(rebase: boolean): Promise<void> {
 		await this.run(Operation.Sync, async () => {
-			await this.repository.pull();
+			await this.repository.pull(rebase);
 
 			const shouldPush = this.HEAD && typeof this.HEAD.ahead === 'number' ? this.HEAD.ahead > 0 : true;
 
@@ -581,10 +663,20 @@ export class Repository implements Disposable {
 		});
 	}
 
+	@throttle
+	sync(): Promise<void> {
+		return this._sync(false);
+	}
+
+	@throttle
+	async syncRebase(): Promise<void> {
+		return this._sync(true);
+	}
+
 	async show(ref: string, filePath: string): Promise<string> {
 		return await this.run(Operation.Show, async () => {
 			const relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
-			const configFiles = workspace.getConfiguration('files');
+			const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
 			const encoding = configFiles.get<string>('encoding');
 
 			return await this.repository.buffer(`${ref}:${relativePath}`, encoding);
@@ -629,13 +721,56 @@ export class Repository implements Disposable {
 		});
 	}
 
+	checkIgnore(filePaths: string[]): Promise<Set<string>> {
+		return this.run(Operation.CheckIgnore, () => {
+			return new Promise<Set<string>>((resolve, reject) => {
+
+				filePaths = filePaths.filter(filePath => !path.relative(this.root, filePath).startsWith('..'));
+
+				if (filePaths.length === 0) {
+					// nothing left
+					return Promise.resolve(new Set<string>());
+				}
+
+				const child = this.repository.stream(['check-ignore', ...filePaths]);
+
+				const onExit = (exitCode: number) => {
+					if (exitCode === 1) {
+						// nothing ignored
+						resolve(new Set<string>());
+					} else if (exitCode === 0) {
+						// each line is something ignored
+						resolve(new Set<string>(data.split('\n')));
+					} else {
+						reject(new GitError({ stdout: data, stderr, exitCode }));
+					}
+				};
+
+				let data = '';
+				const onStdoutData = (raw: string) => {
+					data += raw;
+				};
+
+				child.stdout.setEncoding('utf8');
+				child.stdout.on('data', onStdoutData);
+
+				let stderr: string = '';
+				child.stderr.setEncoding('utf8');
+				child.stderr.on('data', raw => stderr += raw);
+
+				child.on('error', reject);
+				child.on('exit', onExit);
+			});
+		});
+	}
+
 	private async run<T>(operation: Operation, runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
 		if (this.state !== RepositoryState.Idle) {
 			throw new Error('Repository not initialized');
 		}
 
 		const run = async () => {
-			this._operations = this._operations.start(operation);
+			this._operations.start(operation);
 			this._onRunOperation.fire(operation);
 
 			try {
@@ -653,7 +788,7 @@ export class Repository implements Disposable {
 
 				throw err;
 			} finally {
-				this._operations = this._operations.end(operation);
+				this._operations.end(operation);
 				this._onDidRunOperation.fire(operation);
 			}
 		};
@@ -818,7 +953,7 @@ export class Repository implements Disposable {
 		await timeout(5000);
 	}
 
-	private async whenIdleAndFocused(): Promise<void> {
+	async whenIdleAndFocused(): Promise<void> {
 		while (true) {
 			if (!this.operations.isIdle()) {
 				await eventToPromise(this.onDidRunOperation);
@@ -833,6 +968,36 @@ export class Repository implements Disposable {
 
 			return;
 		}
+	}
+
+	get headLabel(): string {
+		const HEAD = this.HEAD;
+
+		if (!HEAD) {
+			return '';
+		}
+
+		const tag = this.refs.filter(iref => iref.type === RefType.Tag && iref.commit === HEAD.commit)[0];
+		const tagName = tag && tag.name;
+		const head = HEAD.name || tagName || (HEAD.commit || '').substr(0, 8);
+
+		return head
+			+ (this.workingTreeGroup.resourceStates.length > 0 ? '*' : '')
+			+ (this.indexGroup.resourceStates.length > 0 ? '+' : '')
+			+ (this.mergeGroup.resourceStates.length > 0 ? '!' : '');
+	}
+
+	get syncLabel(): string {
+		if (!this.HEAD
+			|| !this.HEAD.name
+			|| !this.HEAD.commit
+			|| !this.HEAD.upstream
+			|| !(this.HEAD.ahead || this.HEAD.behind)
+		) {
+			return '';
+		}
+
+		return `${this.HEAD.behind}↓ ${this.HEAD.ahead}↑`;
 	}
 
 	dispose(): void {

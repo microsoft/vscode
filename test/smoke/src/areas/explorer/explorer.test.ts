@@ -3,33 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from '../../spectron/application';
+import { SpectronApplication } from '../../spectron/application';
 
 describe('Explorer', () => {
-	let app: SpectronApplication;
-	before(() => {
-		app = new SpectronApplication(LATEST_PATH, '', 0, [WORKSPACE_PATH]);
-		return app.start();
+	before(function () {
+		this.app.suiteName = 'Explorer';
 	});
-	after(() => app.stop());
 
 	it('quick open search produces correct result', async function () {
-		await app.workbench.quickopen.openQuickOpen();
-		await app.client.type('.js');
-		const elements = await app.workbench.quickopen.getQuickOpenElements();
-		await app.client.keys(['Escape', 'NULL']);
+		const app = this.app as SpectronApplication;
+		const expectedNames = [
+			'.eslintrc.json',
+			'tasks.json',
+			'app.js',
+			'index.js',
+			'users.js',
+			'package.json',
+			'jsconfig.json'
+		];
 
-		assert.equal(elements.length, 7, 'There are 7 elements in quick open');
+		await app.workbench.quickopen.openQuickOpen('.js');
+		await app.workbench.quickopen.waitForQuickOpenElements(names => expectedNames.every(n => names.some(m => n === m)));
+		await app.client.keys(['Escape', 'NULL']);
 	});
 
 	it('quick open respects fuzzy matching', async function () {
-		await app.workbench.quickopen.openQuickOpen();
-		await app.client.type('a.s');
+		const app = this.app as SpectronApplication;
+		const expectedNames = [
+			'tasks.json',
+			'app.js',
+			'package.json'
+		];
 
-		const elements = await app.workbench.quickopen.getQuickOpenElements();
+		await app.workbench.quickopen.openQuickOpen('a.s');
+		await app.workbench.quickopen.waitForQuickOpenElements(names => expectedNames.every(n => names.some(m => n === m)));
 		await app.client.keys(['Escape', 'NULL']);
-
-		assert.equal(elements.length, 3, 'There are 3 elements in quick open');
 	});
 });

@@ -9,5 +9,6 @@
 	"markerAction.previous.label": "Перейти к предыдущей ошибке или предупреждению",
 	"editorMarkerNavigationError": "Цвет ошибки в мини-приложении навигации по меткам редактора.",
 	"editorMarkerNavigationWarning": "Цвет предупреждения в мини-приложении навигации по меткам редактора.",
+	"editorMarkerNavigationInfo": "Цвет информационного сообщения в мини-приложении навигации по меткам редактора.",
 	"editorMarkerNavigationBackground": "Фон мини-приложения навигации по меткам редактора."
 }

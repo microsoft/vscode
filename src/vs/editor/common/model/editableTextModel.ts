@@ -7,12 +7,11 @@
 import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditStack } from 'vs/editor/common/model/editStack';
-import { ILineEdit, LineMarker, MarkersTracker, IModelLine } from 'vs/editor/common/model/modelLine';
+import { ILineEdit, IModelLine } from 'vs/editor/common/model/modelLine';
 import { TextModelWithDecorations, ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import * as strings from 'vs/base/common/strings';
 import * as arrays from 'vs/base/common/arrays';
 import { Selection } from 'vs/editor/common/core/selection';
-import { Position } from 'vs/editor/common/core/position';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { ITextSource, IRawTextSource, RawTextSource } from 'vs/editor/common/model/textSource';
@@ -23,6 +22,7 @@ export interface IValidatedEditOperation {
 	sortIndex: number;
 	identifier: editorCommon.ISingleEditOperationIdentifier;
 	range: Range;
+	rangeOffset: number;
 	rangeLength: number;
 	lines: string[];
 	forceMoveMarkers: boolean;
@@ -249,6 +249,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 			sortIndex: 0,
 			identifier: operations[0].identifier,
 			range: entireEditRange,
+			rangeOffset: this.getOffsetAt(entireEditRange.getStartPosition()),
 			rangeLength: this.getValueLengthInRange(entireEditRange),
 			lines: result.join('').split('\n'),
 			forceMoveMarkers: forceMoveMarkers,
@@ -275,15 +276,15 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 	public applyEdits(rawOperations: editorCommon.IIdentifiedSingleEditOperation[]): editorCommon.IIdentifiedSingleEditOperation[] {
 		try {
 			this._eventEmitter.beginDeferredEmit();
-			let markersTracker = this._acquireMarkersTracker();
-			return this._applyEdits(markersTracker, rawOperations);
+			this._acquireDecorationsTracker();
+			return this._applyEdits(rawOperations);
 		} finally {
-			this._releaseMarkersTracker();
+			this._releaseDecorationsTracker();
 			this._eventEmitter.endDeferredEmit();
 		}
 	}
 
-	private _applyEdits(markersTracker: MarkersTracker, rawOperations: editorCommon.IIdentifiedSingleEditOperation[]): editorCommon.IIdentifiedSingleEditOperation[] {
+	private _applyEdits(rawOperations: editorCommon.IIdentifiedSingleEditOperation[]): editorCommon.IIdentifiedSingleEditOperation[] {
 		if (rawOperations.length === 0) {
 			return [];
 		}
@@ -310,6 +311,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				sortIndex: i,
 				identifier: op.identifier,
 				range: validatedRange,
+				rangeOffset: this.getOffsetAt(validatedRange.getStartPosition()),
 				rangeLength: this.getValueLengthInRange(validatedRange),
 				lines: op.text ? op.text.split(/\r\n|\r|\n/) : null,
 				forceMoveMarkers: op.forceMoveMarkers,
@@ -378,7 +380,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 		this._mightContainRTL = mightContainRTL;
 		this._mightContainNonBasicASCII = mightContainNonBasicASCII;
-		this._doApplyEdits(markersTracker, operations);
+		this._doApplyEdits(operations);
 
 		this._trimAutoWhitespaceLines = null;
 		if (this._options.trimAutoWhitespace && newTrimAutoWhitespaceCandidates.length > 0) {
@@ -465,9 +467,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		return result;
 	}
 
-	private _doApplyEdits(markersTracker: MarkersTracker, operations: IValidatedEditOperation[]): void {
-
-		const tabSize = this._options.tabSize;
+	private _doApplyEdits(operations: IValidatedEditOperation[]): void {
 
 		// Sort operations descending
 		operations.sort(EditableTextModel._sortOpsDescending);
@@ -503,11 +503,8 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				}
 
 				this._invalidateLine(currentLineNumber - 1);
-				this._lines[currentLineNumber - 1].applyEdits(markersTracker, lineEditsQueue.slice(currentLineNumberStart, i), tabSize);
-				if (this._lineStarts) {
-					// update prefix sum
-					this._lineStarts.changeValue(currentLineNumber - 1, this._lines[currentLineNumber - 1].text.length + this._EOL.length);
-				}
+				this._lines[currentLineNumber - 1].applyEdits(lineEditsQueue.slice(currentLineNumberStart, i));
+				this._lineStarts.changeValue(currentLineNumber - 1, this._lines[currentLineNumber - 1].text.length + this._EOL.length);
 				rawContentChanges.push(
 					new textModelEvents.ModelRawLineChanged(currentLineNumber, this._lines[currentLineNumber - 1].text)
 				);
@@ -517,21 +514,14 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 			}
 
 			this._invalidateLine(currentLineNumber - 1);
-			this._lines[currentLineNumber - 1].applyEdits(markersTracker, lineEditsQueue.slice(currentLineNumberStart, lineEditsQueue.length), tabSize);
-			if (this._lineStarts) {
-				// update prefix sum
-				this._lineStarts.changeValue(currentLineNumber - 1, this._lines[currentLineNumber - 1].text.length + this._EOL.length);
-			}
+			this._lines[currentLineNumber - 1].applyEdits(lineEditsQueue.slice(currentLineNumberStart, lineEditsQueue.length));
+			this._lineStarts.changeValue(currentLineNumber - 1, this._lines[currentLineNumber - 1].text.length + this._EOL.length);
 			rawContentChanges.push(
 				new textModelEvents.ModelRawLineChanged(currentLineNumber, this._lines[currentLineNumber - 1].text)
 			);
 
 			lineEditsQueue = [];
 		};
-
-		let minTouchedLineNumber = operations[operations.length - 1].range.startLineNumber;
-		let maxTouchedLineNumber = operations[0].range.endLineNumber + 1;
-		let totalLinesCountDelta = 0;
 
 		for (let i = 0, len = operations.length; i < len; i++) {
 			const op = operations[i];
@@ -556,8 +546,6 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 			const insertingLinesCnt = (op.lines ? op.lines.length - 1 : 0);
 			const editingLinesCnt = Math.min(deletingLinesCnt, insertingLinesCnt);
 
-			totalLinesCountDelta += (insertingLinesCnt - deletingLinesCnt);
-
 			// Iterating descending to overlap with previous op
 			// in case there are common lines being edited in both
 			for (let j = editingLinesCnt; j >= 0; j--) {
@@ -567,8 +555,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 					lineNumber: editLineNumber,
 					startColumn: (editLineNumber === startLineNumber ? startColumn : 1),
 					endColumn: (editLineNumber === endLineNumber ? endColumn : this.getLineMaxColumn(editLineNumber)),
-					text: (op.lines ? op.lines[j] : ''),
-					forceMoveMarkers: op.forceMoveMarkers
+					text: (op.lines ? op.lines[j] : '')
 				});
 			}
 
@@ -579,43 +566,19 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				flushLineEdits();
 
 				const spliceStartLineNumber = startLineNumber + editingLinesCnt;
-				const spliceStartColumn = this.getLineMaxColumn(spliceStartLineNumber);
 
-				const endLineRemains = this._lines[endLineNumber - 1].split(markersTracker, endColumn, false, tabSize);
+				const endLineRemains = this._lines[endLineNumber - 1].split(endColumn);
 				this._invalidateLine(spliceStartLineNumber - 1);
 
 				const spliceCnt = endLineNumber - spliceStartLineNumber;
 
-				// Collect all these markers
-				let markersOnDeletedLines: LineMarker[] = [];
-				for (let j = 0; j < spliceCnt; j++) {
-					const deleteLineIndex = spliceStartLineNumber + j;
-					const deleteLineMarkers = this._lines[deleteLineIndex].getMarkers();
-					if (deleteLineMarkers) {
-						markersOnDeletedLines = markersOnDeletedLines.concat(deleteLineMarkers);
-					}
-				}
-
 				this._lines.splice(spliceStartLineNumber, spliceCnt);
-				if (this._lineStarts) {
-					// update prefix sum
-					this._lineStarts.removeValues(spliceStartLineNumber, spliceCnt);
-				}
+				this._lineStarts.removeValues(spliceStartLineNumber, spliceCnt);
 
 				// Reconstruct first line
-				this._lines[spliceStartLineNumber - 1].append(markersTracker, spliceStartLineNumber, endLineRemains, tabSize);
-				if (this._lineStarts) {
-					// update prefix sum
-					this._lineStarts.changeValue(spliceStartLineNumber - 1, this._lines[spliceStartLineNumber - 1].text.length + this._EOL.length);
-				}
+				this._lines[spliceStartLineNumber - 1].append(endLineRemains);
+				this._lineStarts.changeValue(spliceStartLineNumber - 1, this._lines[spliceStartLineNumber - 1].text.length + this._EOL.length);
 
-				// Update deleted markers
-				const deletedMarkersPosition = new Position(spliceStartLineNumber, spliceStartColumn);
-				for (let j = 0, lenJ = markersOnDeletedLines.length; j < lenJ; j++) {
-					markersOnDeletedLines[j].updatePosition(markersTracker, deletedMarkersPosition);
-				}
-
-				this._lines[spliceStartLineNumber - 1].addMarkers(markersOnDeletedLines);
 				rawContentChanges.push(
 					new textModelEvents.ModelRawLineChanged(spliceStartLineNumber, this._lines[spliceStartLineNumber - 1].text)
 				);
@@ -638,11 +601,8 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				}
 
 				// Split last line
-				let leftoverLine = this._lines[spliceLineNumber - 1].split(markersTracker, spliceColumn, op.forceMoveMarkers, tabSize);
-				if (this._lineStarts) {
-					// update prefix sum
-					this._lineStarts.changeValue(spliceLineNumber - 1, this._lines[spliceLineNumber - 1].text.length + this._EOL.length);
-				}
+				let leftoverLine = this._lines[spliceLineNumber - 1].split(spliceColumn);
+				this._lineStarts.changeValue(spliceLineNumber - 1, this._lines[spliceLineNumber - 1].text.length + this._EOL.length);
 				rawContentChanges.push(
 					new textModelEvents.ModelRawLineChanged(spliceLineNumber, this._lines[spliceLineNumber - 1].text)
 				);
@@ -653,49 +613,36 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 				let newLinesContent: string[] = [];
 				let newLinesLengths = new Uint32Array(insertingLinesCnt - editingLinesCnt);
 				for (let j = editingLinesCnt + 1; j <= insertingLinesCnt; j++) {
-					newLines.push(this._createModelLine(op.lines[j], tabSize));
+					newLines.push(this._createModelLine(op.lines[j]));
 					newLinesContent.push(op.lines[j]);
 					newLinesLengths[j - editingLinesCnt - 1] = op.lines[j].length + this._EOL.length;
 				}
 				this._lines = arrays.arrayInsert(this._lines, startLineNumber + editingLinesCnt, newLines);
 				newLinesContent[newLinesContent.length - 1] += leftoverLine.text;
-				if (this._lineStarts) {
-					// update prefix sum
-					this._lineStarts.insertValues(startLineNumber + editingLinesCnt, newLinesLengths);
-				}
+				this._lineStarts.insertValues(startLineNumber + editingLinesCnt, newLinesLengths);
 
 				// Last line
-				this._lines[startLineNumber + insertingLinesCnt - 1].append(markersTracker, startLineNumber + insertingLinesCnt, leftoverLine, tabSize);
-				if (this._lineStarts) {
-					// update prefix sum
-					this._lineStarts.changeValue(startLineNumber + insertingLinesCnt - 1, this._lines[startLineNumber + insertingLinesCnt - 1].text.length + this._EOL.length);
-				}
+				this._lines[startLineNumber + insertingLinesCnt - 1].append(leftoverLine);
+				this._lineStarts.changeValue(startLineNumber + insertingLinesCnt - 1, this._lines[startLineNumber + insertingLinesCnt - 1].text.length + this._EOL.length);
 				rawContentChanges.push(
 					new textModelEvents.ModelRawLinesInserted(spliceLineNumber + 1, startLineNumber + insertingLinesCnt, newLinesContent.join('\n'))
 				);
 			}
 
+			const text = (op.lines ? op.lines.join(this.getEOL()) : '');
 			contentChanges.push({
 				range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
 				rangeLength: op.rangeLength,
-				text: op.lines ? op.lines.join(this.getEOL()) : ''
+				text: text
 			});
+
+			this._adjustDecorationsForEdit(op.rangeOffset, op.rangeLength, text.length, op.forceMoveMarkers);
 
 			// console.log('AFTER:');
 			// console.log('<<<\n' + this._lines.map(l => l.text).join('\n') + '\n>>>');
 		}
 
 		flushLineEdits();
-
-		maxTouchedLineNumber = Math.max(1, Math.min(this.getLineCount(), maxTouchedLineNumber + totalLinesCountDelta));
-		if (totalLinesCountDelta !== 0) {
-			// must update line numbers all the way to the bottom
-			maxTouchedLineNumber = this.getLineCount();
-		}
-
-		for (let lineNumber = minTouchedLineNumber; lineNumber <= maxTouchedLineNumber; lineNumber++) {
-			this._lines[lineNumber - 1].updateLineNumber(markersTracker, lineNumber);
-		}
 
 		if (rawContentChanges.length !== 0 || contentChanges.length !== 0) {
 			this._increaseVersionId();
@@ -718,33 +665,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 			this._eventEmitter.emit(textModelEvents.TextModelEventType.ModelContentChanged, e);
 		}
 
-		// this._assertLineNumbersOK();
 		this._resetIndentRanges();
-	}
-
-	public _assertLineNumbersOK(): void {
-		let foundMarkersCnt = 0;
-		for (let i = 0, len = this._lines.length; i < len; i++) {
-			let line = this._lines[i];
-			let lineNumber = i + 1;
-
-			let markers = line.getMarkers();
-			if (markers !== null) {
-				for (let j = 0, lenJ = markers.length; j < lenJ; j++) {
-					foundMarkersCnt++;
-					let markerId = markers[j].id;
-					let marker = this._markerIdToMarker[markerId];
-					if (marker.position.lineNumber !== lineNumber) {
-						throw new Error('Misplaced marker with id ' + markerId);
-					}
-				}
-			}
-		}
-
-		let totalMarkersCnt = Object.keys(this._markerIdToMarker).length;
-		if (totalMarkersCnt !== foundMarkersCnt) {
-			throw new Error('There are misplaced markers!');
-		}
 	}
 
 	private _undo(): Selection[] {
@@ -764,10 +685,10 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 	public undo(): Selection[] {
 		try {
 			this._eventEmitter.beginDeferredEmit();
-			this._acquireMarkersTracker();
+			this._acquireDecorationsTracker();
 			return this._undo();
 		} finally {
-			this._releaseMarkersTracker();
+			this._releaseDecorationsTracker();
 			this._eventEmitter.endDeferredEmit();
 		}
 	}
@@ -789,10 +710,10 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 	public redo(): Selection[] {
 		try {
 			this._eventEmitter.beginDeferredEmit();
-			this._acquireMarkersTracker();
+			this._acquireDecorationsTracker();
 			return this._redo();
 		} finally {
-			this._releaseMarkersTracker();
+			this._releaseDecorationsTracker();
 			this._eventEmitter.endDeferredEmit();
 		}
 	}

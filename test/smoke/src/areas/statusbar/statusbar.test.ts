@@ -5,82 +5,93 @@
 
 import * as assert from 'assert';
 
-import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from '../../spectron/application';
+import { SpectronApplication, Quality } from '../../spectron/application';
 import { StatusBarElement } from './statusbar';
 
-
 describe('Statusbar', () => {
-	let app: SpectronApplication;
-	before(() => {
-		app = new SpectronApplication(LATEST_PATH, '', 0, [WORKSPACE_PATH]);
-		return app.start();
+	before(function () {
+		this.app.suiteName = 'Statusbar';
 	});
-	after(() => app.stop());
 
 	it('verifies presence of all default status bar elements', async function () {
-		assert.ok(app.workbench.statusbar.isVisible(StatusBarElement.BRANCH_STATUS), 'Branch indicator is not visible.');
-		assert.ok(app.workbench.statusbar.isVisible(StatusBarElement.FEEDBACK_ICON), 'Feedback icon is not visible.');
-		assert.ok(app.workbench.statusbar.isVisible(StatusBarElement.SYNC_STATUS), 'Sync indicator is not visible.');
-		assert.ok(app.workbench.statusbar.isVisible(StatusBarElement.PROBLEMS_STATUS), 'Problems indicator is not visible.');
+		const app = this.app as SpectronApplication;
+
+		await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.BRANCH_STATUS);
+		if (app.quality !== Quality.Dev) {
+			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.FEEDBACK_ICON);
+		}
+		await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.SYNC_STATUS);
+		await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.PROBLEMS_STATUS);
 
 		await app.workbench.quickopen.openFile('app.js');
-		assert.ok(app.workbench.statusbar.isVisible(StatusBarElement.ENCODING_STATUS), 'Encoding indicator is not visible.');
-		assert.ok(app.workbench.statusbar.isVisible(StatusBarElement.EOL_STATUS), 'EOL indicator is not visible.');
-		assert.ok(app.workbench.statusbar.isVisible(StatusBarElement.INDENTATION_STATUS), 'Indentation indicator is not visible.');
-		assert.ok(app.workbench.statusbar.isVisible(StatusBarElement.LANGUAGE_STATUS), 'Language indicator is not visible.');
-		assert.ok(app.workbench.statusbar.isVisible(StatusBarElement.SELECTION_STATUS), 'Selection indicator is not visible.');
+		await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.ENCODING_STATUS);
+		await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.EOL_STATUS);
+		await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.INDENTATION_STATUS);
+		await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.LANGUAGE_STATUS);
+		await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.SELECTION_STATUS);
 	});
 
 	it(`verifies that 'quick open' opens when clicking on status bar elements`, async function () {
+		const app = this.app as SpectronApplication;
+
 		await app.workbench.statusbar.clickOn(StatusBarElement.BRANCH_STATUS);
-		assert.ok(await app.workbench.quickopen.isQuickOpenVisible(), 'Quick open is not opened for branch indicator.');
+		await app.workbench.quickopen.waitForQuickOpenOpened();
 		await app.workbench.quickopen.closeQuickOpen();
 
 		await app.workbench.quickopen.openFile('app.js');
 		await app.workbench.statusbar.clickOn(StatusBarElement.INDENTATION_STATUS);
-		assert.ok(await app.workbench.quickopen.isQuickOpenVisible(), 'Quick open is not opened for indentation indicator.');
+		await app.workbench.quickopen.waitForQuickOpenOpened();
 		await app.workbench.quickopen.closeQuickOpen();
 		await app.workbench.statusbar.clickOn(StatusBarElement.ENCODING_STATUS);
-		assert.ok(await app.workbench.quickopen.isQuickOpenVisible(), 'Quick open is not opened for encoding indicator.');
+		await app.workbench.quickopen.waitForQuickOpenOpened();
 		await app.workbench.quickopen.closeQuickOpen();
 		await app.workbench.statusbar.clickOn(StatusBarElement.EOL_STATUS);
-		assert.ok(await app.workbench.quickopen.isQuickOpenVisible(), 'Quick open is not opened for EOL indicator.');
+		await app.workbench.quickopen.waitForQuickOpenOpened();
 		await app.workbench.quickopen.closeQuickOpen();
 		await app.workbench.statusbar.clickOn(StatusBarElement.LANGUAGE_STATUS);
-		assert.ok(await app.workbench.quickopen.isQuickOpenVisible(), 'Quick open is not opened for language indicator.');
+		await app.workbench.quickopen.waitForQuickOpenOpened();
 		await app.workbench.quickopen.closeQuickOpen();
 	});
 
 	it(`verifies that 'Problems View' appears when clicking on 'Problems' status element`, async function () {
+		const app = this.app as SpectronApplication;
+
 		await app.workbench.statusbar.clickOn(StatusBarElement.PROBLEMS_STATUS);
-		assert.ok(await app.workbench.problems.isVisible());
+		await app.workbench.problems.waitForProblemsView();
 	});
 
 	it(`verifies that 'Tweet us feedback' pop-up appears when clicking on 'Feedback' icon`, async function () {
-		if (app.inDevMode) {
-			return;
+		const app = this.app as SpectronApplication;
+
+		if (app.quality === Quality.Dev) {
+			return this.skip();
 		}
+
 		await app.workbench.statusbar.clickOn(StatusBarElement.FEEDBACK_ICON);
 		assert.ok(!!await app.client.waitForElement('.feedback-form'));
 	});
 
 	it(`checks if 'Go to Line' works if called from the status bar`, async function () {
+		const app = this.app as SpectronApplication;
+
 		await app.workbench.quickopen.openFile('app.js');
 		await app.workbench.statusbar.clickOn(StatusBarElement.SELECTION_STATUS);
 
-		assert.ok(await app.workbench.quickopen.isQuickOpenVisible(), 'Quick open is not opened line number selection.');
+		await app.workbench.quickopen.waitForQuickOpenOpened();
 
-		await app.workbench.quickopen.submit('15');
+		await app.workbench.quickopen.submit(':15');
 		await app.workbench.editor.waitForHighlightingLine(15);
 	});
 
 	it(`verifies if changing EOL is reflected in the status bar`, async function () {
+		const app = this.app as SpectronApplication;
+
 		await app.workbench.quickopen.openFile('app.js');
 		await app.workbench.statusbar.clickOn(StatusBarElement.EOL_STATUS);
 
-		assert.ok(await app.workbench.quickopen.isQuickOpenVisible(), 'Quick open is not opened line number selection.');
+		await app.workbench.quickopen.waitForQuickOpenOpened();
+		await app.workbench.quickopen.selectQuickOpenElement(1);
 
-		app.workbench.quickopen.selectQuickOpenElement(1);
 		await app.workbench.statusbar.waitForEOL('CRLF');
 	});
 });

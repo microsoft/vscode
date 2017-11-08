@@ -8,7 +8,7 @@
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { CursorState, ICursors, RevealTarget, IColumnSelectData, CursorContext } from 'vs/editor/common/controller/cursorCommon';
+import { CursorState, ICursors, RevealTarget, IColumnSelectData, CursorContext, EditOperationType } from 'vs/editor/common/controller/cursorCommon';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { CursorMoveCommands, CursorMove as CursorMove_ } from 'vs/editor/common/controller/cursorMoveCommands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -114,7 +114,7 @@ export namespace EditorScroll_ {
 		value?: number;
 		revealCursor?: boolean;
 		select?: boolean;
-	};
+	}
 
 	export function parse(args: RawArguments): ParsedArguments {
 		let direction: Direction;
@@ -224,7 +224,7 @@ export namespace RevealLine_ {
 	export interface RawArguments {
 		lineNumber?: number;
 		at?: string;
-	};
+	}
 
 	/**
 	 * Values for reveal line 'at' argument
@@ -1273,7 +1273,8 @@ export namespace CoreNavigationCommands {
 			const lastAddedCursorIndex = cursors.getLastAddedCursorIndex();
 
 			let newStates = cursors.getAll().slice(0);
-			newStates[lastAddedCursorIndex] = CursorMoveCommands.word(context, newStates[lastAddedCursorIndex], true, args.position);
+			let lastAddedState = newStates[lastAddedCursorIndex];
+			newStates[lastAddedCursorIndex] = CursorMoveCommands.word(context, lastAddedState, lastAddedState.modelState.hasSelection(), args.position);
 
 			context.model.pushStackElement();
 			cursors.setStates(
@@ -1613,11 +1614,13 @@ export namespace CoreEditingCommands {
 		}
 
 		public runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void {
-			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteLeft(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections());
+			const cursors = editor._getCursors();
+			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteLeft(cursors.getPrevEditOperationType(), editor._getCursorConfiguration(), editor.getModel(), editor.getSelections());
 			if (shouldPushStackElementBefore) {
 				editor.pushUndoStop();
 			}
 			editor.executeCommands(this.id, commands);
+			cursors.setPrevEditOperationType(EditOperationType.DeletingLeft);
 		}
 	});
 
@@ -1636,16 +1639,18 @@ export namespace CoreEditingCommands {
 		}
 
 		public runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void {
-			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteRight(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections());
+			const cursors = editor._getCursors();
+			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteRight(cursors.getPrevEditOperationType(), editor._getCursorConfiguration(), editor.getModel(), editor.getSelections());
 			if (shouldPushStackElementBefore) {
 				editor.pushUndoStop();
 			}
 			editor.executeCommands(this.id, commands);
+			cursors.setPrevEditOperationType(EditOperationType.DeletingRight);
 		}
 	});
 
 }
-
+// @ts-ignore unused namespace
 namespace Config {
 
 	function findFocusedEditor(accessor: ServicesAccessor): editorCommon.ICommonCodeEditor {

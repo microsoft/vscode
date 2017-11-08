@@ -102,6 +102,13 @@ export interface ITree extends Events.IEventEmitter {
 	collapseAll(elements?: any[], recursive?: boolean): WinJS.Promise;
 
 	/**
+	 * Collapses several elements.
+	 * Collapses all elements at the greatest tree depth that has expanded elements.
+	 * The returned promise returns a boolean for whether the elements were collapsed or not.
+	 */
+	collapseDeepestExpandedLevel(): WinJS.Promise;
+
+	/**
 	 * Toggles an element's expansion state.
 	 */
 	toggleExpansion(element: any, recursive?: boolean): WinJS.Promise;

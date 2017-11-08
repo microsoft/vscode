@@ -118,17 +118,18 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 
 		this.builder.on(EventType.Tap, e => this.onClick(e));
 
-		this.builder.on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+		this.builder.on(DOM.EventType.MOUSE_DOWN, (e) => {
 			if (!enableDragging) {
-				DOM.EventHelper.stop(e); // do not run when dragging is on because that would disable it
+				DOM.EventHelper.stop(e, true); // do not run when dragging is on because that would disable it
 			}
 
-			if (this._action.enabled && e.button === 0) {
+			const mouseEvent = e as MouseEvent;
+			if (this._action.enabled && mouseEvent.button === 0) {
 				this.builder.addClass('active');
 			}
 		});
 
-		this.builder.on(DOM.EventType.CLICK, (e: MouseEvent) => {
+		this.builder.on(DOM.EventType.CLICK, (e) => {
 			DOM.EventHelper.stop(e, true);
 			// See https://developer.mozilla.org/en-US/Add-ons/WebExtensions/Interact_with_the_clipboard
 			// > Writing to the clipboard
@@ -145,7 +146,7 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 			}
 		});
 
-		this.builder.on([DOM.EventType.MOUSE_UP, DOM.EventType.MOUSE_OUT], (e: MouseEvent) => {
+		this.builder.on([DOM.EventType.MOUSE_UP, DOM.EventType.MOUSE_OUT], (e) => {
 			DOM.EventHelper.stop(e);
 			this.builder.removeClass('active');
 		});
@@ -350,8 +351,10 @@ export class ActionItem extends BaseActionItem {
 }
 
 export enum ActionsOrientation {
-	HORIZONTAL = 1,
-	VERTICAL = 2
+	HORIZONTAL,
+	HORIZONTAL_REVERSE,
+	VERTICAL,
+	VERTICAL_REVERSE,
 }
 
 export interface IActionItemProvider {
@@ -420,18 +423,38 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 			DOM.addClass(this.domNode, 'animated');
 		}
 
-		let isVertical = this.options.orientation === ActionsOrientation.VERTICAL;
-		if (isVertical) {
-			this.domNode.className += ' vertical';
+		let previousKey: KeyCode;
+		let nextKey: KeyCode;
+
+		switch (this.options.orientation) {
+			case ActionsOrientation.HORIZONTAL:
+				previousKey = KeyCode.LeftArrow;
+				nextKey = KeyCode.RightArrow;
+				break;
+			case ActionsOrientation.HORIZONTAL_REVERSE:
+				previousKey = KeyCode.RightArrow;
+				nextKey = KeyCode.LeftArrow;
+				this.domNode.className += ' reverse';
+				break;
+			case ActionsOrientation.VERTICAL:
+				previousKey = KeyCode.UpArrow;
+				nextKey = KeyCode.DownArrow;
+				this.domNode.className += ' vertical';
+				break;
+			case ActionsOrientation.VERTICAL_REVERSE:
+				previousKey = KeyCode.DownArrow;
+				nextKey = KeyCode.UpArrow;
+				this.domNode.className += ' vertical reverse';
+				break;
 		}
 
-		$(this.domNode).on(DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			let event = new StandardKeyboardEvent(e);
+		$(this.domNode).on(DOM.EventType.KEY_DOWN, (e) => {
+			let event = new StandardKeyboardEvent(e as KeyboardEvent);
 			let eventHandled = true;
 
-			if (event.equals(isVertical ? KeyCode.UpArrow : KeyCode.LeftArrow)) {
+			if (event.equals(previousKey)) {
 				this.focusPrevious();
-			} else if (event.equals(isVertical ? KeyCode.DownArrow : KeyCode.RightArrow)) {
+			} else if (event.equals(nextKey)) {
 				this.focusNext();
 			} else if (event.equals(KeyCode.Escape)) {
 				this.cancel();
@@ -447,8 +470,8 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 			}
 		});
 
-		$(this.domNode).on(DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
-			let event = new StandardKeyboardEvent(e);
+		$(this.domNode).on(DOM.EventType.KEY_UP, (e) => {
+			let event = new StandardKeyboardEvent(e as KeyboardEvent);
 
 			// Run action on Enter/Space
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
@@ -571,6 +594,22 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 
 			this.items.push(item);
 		});
+	}
+
+	public getWidth(index: number): number {
+		if (index >= 0 && index < this.actionsList.children.length) {
+			return this.actionsList.children.item(index).clientWidth;
+		}
+
+		return 0;
+	}
+
+	public getHeight(index: number): number {
+		if (index >= 0 && index < this.actionsList.children.length) {
+			return this.actionsList.children.item(index).clientHeight;
+		}
+
+		return 0;
 	}
 
 	public pull(index: number): void {

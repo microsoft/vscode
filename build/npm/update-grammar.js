@@ -22,7 +22,7 @@ function getOptions(urlString) {
 		headers: {
 			'User-Agent': 'NodeJS'
 		}
-	}
+	};
 }
 
 function download(url, redirectCount) {
@@ -100,7 +100,9 @@ exports.update = function (repoId, repoPath, dest, modifyGrammar) {
 				result.version = 'https://github.com/' + repoId + '/commit/' + info.commitSha;
 			}
 			for (let key in grammar) {
-				result[key] = grammar[key];
+				if (!result.hasOwnProperty(key)) {
+					result[key] = grammar[key];
+				}
 			}
 
 			try {
@@ -116,7 +118,7 @@ exports.update = function (repoId, repoPath, dest, modifyGrammar) {
 		});
 
 	}, console.error);
-}
+};
 
 if (path.basename(process.argv[1]) === 'update-grammar.js') {
 	for (var i = 3; i < process.argv.length; i += 2) {

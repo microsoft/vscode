@@ -213,7 +213,6 @@
 	box-sizing: border-box;
 	height: 100%;
 	width: 100%;
-	white-space: pre-wrap;
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .header > .type {
@@ -229,12 +228,26 @@
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs {
 	margin: 0;
 	padding: 4px 5px;
+	white-space: pre-wrap;
+}
+
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs.markdown-docs {
+	white-space: initial;
+}
+
+.monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > .docs .code {
+	white-space: pre-wrap;
+	word-wrap: break-word;
 }
 
 .monaco-editor .suggest-widget .details > .monaco-scrollable-element > .body > p:empty {
 	display: none;
 }
 
+.monaco-editor .suggest-widget .details code {
+	border-radius: 3px;
+	padding: 0 0.4em;
+}
 
 /* High Contrast and Dark Theming */
 

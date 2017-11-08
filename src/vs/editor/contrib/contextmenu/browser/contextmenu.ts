@@ -218,6 +218,7 @@ export class ContextMenuController implements IEditorContribution {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class ShowContextMenu extends EditorAction {
 
 	constructor() {

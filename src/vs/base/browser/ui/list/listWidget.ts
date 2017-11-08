@@ -14,7 +14,7 @@ import * as platform from 'vs/base/common/platform';
 import { EventType as TouchEventType } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import Event, { Emitter, EventBufferer, chain, mapEvent, fromCallback, any } from 'vs/base/common/event';
+import Event, { Emitter, EventBufferer, chain, mapEvent, fromCallback, anyEvent } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IDelegate, IRenderer, IListEvent, IListMouseEvent, IListContextMenuEvent } from './list';
 import { ListView, IListViewOptions } from './listView';
@@ -52,7 +52,7 @@ interface IRenderedElement {
 	index: number;
 }
 
-class TraitRenderer<T, D> implements IRenderer<T, ITraitTemplateData>
+class TraitRenderer<T> implements IRenderer<T, ITraitTemplateData>
 {
 	private rendered: IRenderedElement[] = [];
 
@@ -107,8 +107,8 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 	get trait(): string { return this._trait; }
 
 	@memoize
-	get renderer(): TraitRenderer<T, any> {
-		return new TraitRenderer<T, any>(this);
+	get renderer(): TraitRenderer<T> {
+		return new TraitRenderer<T>(this);
 	}
 
 	constructor(private _trait: string) {
@@ -247,6 +247,8 @@ class KeyboardController<T> implements IDisposable {
 		onKeyDown.filter(e => e.keyCode === KeyCode.DownArrow).on(this.onDownArrow, this, this.disposables);
 		onKeyDown.filter(e => e.keyCode === KeyCode.PageUp).on(this.onPageUpArrow, this, this.disposables);
 		onKeyDown.filter(e => e.keyCode === KeyCode.PageDown).on(this.onPageDownArrow, this, this.disposables);
+		onKeyDown.filter(e => (platform.isMacintosh ? e.metaKey : e.ctrlKey) && e.keyCode === KeyCode.KEY_A).on(this.onCtrlA, this, this.disposables);
+		onKeyDown.filter(e => e.keyCode === KeyCode.Escape).on(this.onEscape, this, this.disposables);
 	}
 
 	private onEnter(e: StandardKeyboardEvent): void {
@@ -288,6 +290,20 @@ class KeyboardController<T> implements IDisposable {
 		this.view.domNode.focus();
 	}
 
+	private onCtrlA(e: StandardKeyboardEvent): void {
+		e.preventDefault();
+		e.stopPropagation();
+		this.list.setSelection(range(this.list.length));
+		this.view.domNode.focus();
+	}
+
+	private onEscape(e: StandardKeyboardEvent): void {
+		e.preventDefault();
+		e.stopPropagation();
+		this.list.setSelection([]);
+		this.view.domNode.focus();
+	}
+
 	dispose() {
 		this.disposables = dispose(this.disposables);
 	}
@@ -307,6 +323,7 @@ function isSelectionChangeEvent(event: IListMouseEvent<any>): boolean {
 
 export interface IMouseControllerOptions {
 	selectOnMouseDown?: boolean;
+	focusOnMouseDown?: boolean;
 }
 
 class MouseController<T> implements IDisposable {
@@ -331,7 +348,7 @@ class MouseController<T> implements IDisposable {
 			.map(({ element, index, clientX, clientY }) => ({ element, index, anchor: { x: clientX + 1, y: clientY } }))
 			.event;
 
-		return any<IListContextMenuEvent<T>>(fromKeyboard, fromMouse);
+		return anyEvent<IListContextMenuEvent<T>>(fromKeyboard, fromMouse);
 	}
 
 	constructor(
@@ -348,9 +365,12 @@ class MouseController<T> implements IDisposable {
 	}
 
 	private onMouseDown(e: IListMouseEvent<T>): void {
-		e.preventDefault();
-		e.stopPropagation();
-		this.view.domNode.focus();
+		if (this.options.focusOnMouseDown === false) {
+			e.preventDefault();
+			e.stopPropagation();
+		} else {
+			this.view.domNode.focus();
+		}
 
 		let reference = this.list.getFocus()[0];
 		reference = reference === undefined ? this.list.getSelection()[0] : reference;
@@ -373,9 +393,6 @@ class MouseController<T> implements IDisposable {
 	}
 
 	private onPointer(e: IListMouseEvent<T>): void {
-		e.preventDefault();
-		e.stopPropagation();
-
 		if (isSelectionChangeEvent(e)) {
 			return;
 		}
@@ -388,9 +405,6 @@ class MouseController<T> implements IDisposable {
 	}
 
 	private onDoubleClick(e: IListMouseEvent<T>): void {
-		e.preventDefault();
-		e.stopPropagation();
-
 		if (isSelectionChangeEvent(e)) {
 			return;
 		}
@@ -406,7 +420,7 @@ class MouseController<T> implements IDisposable {
 		if (isSelectionRangeChangeEvent(e) && reference !== undefined) {
 			const min = Math.min(reference, focus);
 			const max = Math.max(reference, focus);
-			const rangeSelection = range(max + 1, min);
+			const rangeSelection = range(min, max + 1);
 			const selection = this.list.getSelection();
 			const contiguousRange = getContiguousRangeContaining(disjunction(selection, [reference]), reference);
 
@@ -696,6 +710,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	set scrollTop(scrollTop: number) {
 		this.view.setScrollTop(scrollTop);
+	}
+
+	domFocus(): void {
+		this.view.domNode.focus();
 	}
 
 	layout(height?: number): void {

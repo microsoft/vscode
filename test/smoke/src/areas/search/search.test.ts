@@ -3,58 +3,54 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { SpectronApplication, LATEST_PATH, WORKSPACE_PATH } from '../../spectron/application';
+import { SpectronApplication } from '../../spectron/application';
 
 describe('Search', () => {
-	let app: SpectronApplication;
-	before(() => {
-		app = new SpectronApplication(LATEST_PATH, '', 0, [WORKSPACE_PATH]);
-		return app.start();
+	before(function () {
+		this.app.suiteName = 'Search';
 	});
-	after(() => app.stop());
 
 	it('searches for body & checks for correct result number', async function () {
+		const app = this.app as SpectronApplication;
 		await app.workbench.search.openSearchViewlet();
 		await app.workbench.search.searchFor('body');
-		const result = await app.workbench.search.getResultText();
-		assert.equal(result, '7 results in 4 files');
+
+		await app.workbench.search.waitForResultText('7 results in 4 files');
 	});
 
 	it('searches only for *.js files & checks for correct result number', async function () {
-		await app.workbench.search.openSearchViewlet();
+		const app = this.app as SpectronApplication;
 		await app.workbench.search.searchFor('body');
 		await app.workbench.search.showQueryDetails();
-		await app.workbench.search.setFilesToIncludeTextAndSearch('*.js');
-
+		await app.workbench.search.setFilesToIncludeText('*.js');
 		await app.workbench.search.submitSearch();
 
-		const results = await app.workbench.search.getResultText();
-		await app.workbench.search.setFilesToIncludeTextAndSearch('');
+		await app.workbench.search.waitForResultText('4 results in 1 file');
+		await app.workbench.search.setFilesToIncludeText('');
 		await app.workbench.search.hideQueryDetails();
-
-		assert.equal(results, '4 results in 1 file');
 	});
 
 	it('dismisses result & checks for correct result number', async function () {
-		await app.workbench.search.openSearchViewlet();
+		const app = this.app as SpectronApplication;
 		await app.workbench.search.searchFor('body');
-
 		await app.workbench.search.removeFileMatch(1);
-
-		const result = await app.workbench.search.getResultText();
-		assert.equal(result, '3 results in 3 files', 'Result number after dismissal does not match to expected.');
+		await app.workbench.search.waitForResultText('3 results in 3 files');
 	});
 
 	it('replaces first search result with a replace term', async function () {
-		await app.workbench.search.openSearchViewlet();
-		await app.workbench.search.searchFor('body');
+		const app = this.app as SpectronApplication;
 
+		await app.workbench.search.searchFor('body');
+		await app.workbench.search.expandReplace();
 		await app.workbench.search.setReplaceText('ydob');
 		await app.workbench.search.replaceFileMatch(1);
 		await app.workbench.saveOpenedFile();
 
-		const result = await app.workbench.search.getResultText();
-		assert.equal(result, '3 results in 3 files', 'Result number after replacemenet does not match to expected.');
+		await app.workbench.search.waitForResultText('3 results in 3 files');
+
+		await app.workbench.search.searchFor('ydob');
+		await app.workbench.search.setReplaceText('body');
+		await app.workbench.search.replaceFileMatch(1);
+		await app.workbench.saveOpenedFile();
 	});
 });

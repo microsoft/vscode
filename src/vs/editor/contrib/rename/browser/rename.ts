@@ -6,7 +6,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { isPromiseCanceledError, onUnexpectedExternalError, illegalArgument } from 'vs/base/common/errors';
+import { isPromiseCanceledError, illegalArgument } from 'vs/base/common/errors';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -18,7 +18,7 @@ import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEdit
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ICommonCodeEditor, IEditorContribution, IReadOnlyModel } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { BulkEdit, createBulkEdit } from 'vs/editor/common/services/bulkEdit';
+import { createBulkEdit } from 'vs/editor/common/services/bulkEdit';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import RenameInputField from './renameInputField';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -29,6 +29,8 @@ import { WorkspaceEdit, RenameProviderRegistry } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Range } from 'vs/editor/common/core/range';
+import { MessageController } from 'vs/editor/contrib/message/messageController';
+import { EditorState, CodeEditorStateFlag } from 'vs/editor/common/core/editorState';
 
 
 export function rename(model: IReadOnlyModel, position: Position, newName: string): TPromise<WorkspaceEdit> {
@@ -52,9 +54,6 @@ export function rename(model: IReadOnlyModel, position: Position, newName: strin
 						rejects.push(result.rejectReason);
 					}
 					return undefined;
-				}, err => {
-					onUnexpectedExternalError(err);
-					return TPromise.wrapError<WorkspaceEdit>(new Error('provider failed'));
 				});
 			}
 			return undefined;
@@ -148,7 +147,21 @@ class RenameController implements IEditorContribution {
 			this._renameInputVisible.reset();
 			this.editor.focus();
 
-			const renameOperation = this._prepareRename(newName).then(edit => {
+			// start recording of file changes so that we can figure out if a file that
+			// is to be renamed conflicts with another (concurrent) modification
+			const edit = createBulkEdit(this._textModelResolverService, <ICodeEditor>this.editor, this._fileService);
+			const state = new EditorState(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection | CodeEditorStateFlag.Scroll);
+
+			const renameOperation = rename(this.editor.getModel(), this.editor.getPosition(), newName).then(result => {
+				if (result.rejectReason) {
+					if (state.validate(this.editor)) {
+						MessageController.get(this.editor).showMessage(result.rejectReason, this.editor.getPosition());
+					} else {
+						this._messageService.show(Severity.Info, result.rejectReason);
+					}
+					return undefined;
+				}
+				edit.add(result.edits);
 
 				return edit.finish().then(selection => {
 					if (selection) {
@@ -159,13 +172,8 @@ class RenameController implements IEditorContribution {
 				});
 
 			}, err => {
-				if (typeof err === 'string') {
-					this._messageService.show(Severity.Info, err);
-					return undefined;
-				} else {
-					this._messageService.show(Severity.Error, nls.localize('rename.failed', "Sorry, rename failed to execute."));
-					return TPromise.wrapError(err);
-				}
+				this._messageService.show(Severity.Error, nls.localize('rename.failed', "Sorry, rename failed to execute."));
+				return TPromise.wrapError(err);
 			});
 
 			this._progressService.showWhile(renameOperation, 250);
@@ -188,21 +196,6 @@ class RenameController implements IEditorContribution {
 
 	public cancelRenameInput(): void {
 		this._renameInputField.cancelInput();
-	}
-
-	private _prepareRename(newName: string): TPromise<BulkEdit> {
-
-		// start recording of file changes so that we can figure out if a file that
-		// is to be renamed conflicts with another (concurrent) modification
-		let edit = createBulkEdit(this._textModelResolverService, <ICodeEditor>this.editor, this._fileService);
-
-		return rename(this.editor.getModel(), this.editor.getPosition(), newName).then(result => {
-			if (result.rejectReason) {
-				return TPromise.wrapError<BulkEdit>(new Error(result.rejectReason));
-			}
-			edit.add(result.edits);
-			return edit;
-		});
 	}
 }
 

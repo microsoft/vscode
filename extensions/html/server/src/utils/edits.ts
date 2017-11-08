@@ -15,6 +15,7 @@ export function applyEdits(document: TextDocument, edits: TextEdit[]): string {
 		}
 		return startDiff;
 	});
+	// @ts-ignore unused local
 	let lastOffset = text.length;
 	sortedEdits.forEach(e => {
 		let startOffset = document.offsetAt(e.range.start);

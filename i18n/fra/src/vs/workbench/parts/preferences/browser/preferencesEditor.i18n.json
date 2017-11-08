@@ -13,5 +13,6 @@
 	"settingsFound": "{0} paramètres correspondants",
 	"fileEditorWithInputAriaLabel": "{0}. Éditeur de fichier texte.",
 	"fileEditorAriaLabel": "Éditeur de fichier texte.",
+	"defaultEditorReadonly": "Modifier dans l’éditeur du côté droit pour substituer les valeurs par défaut.",
 	"preferencesAriaLabel": "Préférences par défaut. Éditeur de texte en lecture seule."
 }

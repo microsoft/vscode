@@ -6,5 +6,8 @@
 {
 	"editorGutterModifiedBackground": "修改中的行於編輯器邊框的背景色彩",
 	"editorGutterAddedBackground": "新增後的行於編輯器邊框的背景色彩",
-	"editorGutterDeletedBackground": "刪除後的行於編輯器邊框的背景色彩"
+	"editorGutterDeletedBackground": "刪除後的行於編輯器邊框的背景色彩",
+	"overviewRulerModifiedForeground": "已修改內容的概觀尺規色彩。",
+	"overviewRulerAddedForeground": "已新增內容的的概觀尺規色彩。",
+	"overviewRulerDeletedForeground": "已刪除內容的的概觀尺規色彩。"
 }

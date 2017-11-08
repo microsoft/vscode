@@ -9,11 +9,11 @@ import { IAction, IActionRunner, ActionRunner } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Component } from 'vs/workbench/common/component';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IComposite } from 'vs/workbench/common/composite';
 import { IEditorControl } from 'vs/platform/editor/common/editor';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IConstructorSignature0, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 /**
  * Composites are layed out in the sidebar and panel part of the workbench. At a time only one composite
@@ -108,6 +108,11 @@ export abstract class Composite extends Component implements IComposite {
 			// Only submit telemetry data when not running from an integration test
 			if (this._telemetryService && this._telemetryService.publicLog) {
 				const eventName: string = 'compositeOpen';
+				/* __GDPR__
+					"compositeOpen" : {
+						"composite" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
 				this._telemetryService.publicLog(eventName, { composite: this.getId() });
 			}
 		}
@@ -121,6 +126,12 @@ export abstract class Composite extends Component implements IComposite {
 			if (this._telemetryService && this._telemetryService.publicLog) {
 				const eventName: string = 'compositeShown';
 				this._telemetryData.composite = this.getId();
+				/* __GDPR__
+					"compositeShown" : {
+						"timeSpent" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+						"composite": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
 				this._telemetryService.publicLog(eventName, this._telemetryData);
 			}
 		}
@@ -218,19 +229,26 @@ export abstract class Composite extends Component implements IComposite {
 /**
  * A composite descriptor is a leightweight descriptor of a composite in the workbench.
  */
-export abstract class CompositeDescriptor<T extends Composite> extends AsyncDescriptor<T> {
+export abstract class CompositeDescriptor<T extends Composite> {
 	public id: string;
 	public name: string;
 	public cssClass: string;
 	public order: number;
+	public keybindingId;
 
-	constructor(moduleId: string, ctorName: string, id: string, name: string, cssClass?: string, order?: number) {
-		super(moduleId, ctorName);
+	private ctor: IConstructorSignature0<T>;
 
+	constructor(ctor: IConstructorSignature0<T>, id: string, name: string, cssClass?: string, order?: number, keybindingId?: string, ) {
+		this.ctor = ctor;
 		this.id = id;
 		this.name = name;
 		this.cssClass = cssClass;
 		this.order = order;
+		this.keybindingId = keybindingId;
+	}
+
+	public instantiate(instantiationService: IInstantiationService): T {
+		return instantiationService.createInstance(this.ctor);
 	}
 }
 

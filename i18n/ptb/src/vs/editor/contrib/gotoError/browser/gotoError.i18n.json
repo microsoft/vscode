@@ -9,5 +9,6 @@
 	"markerAction.previous.label": "Ir para o Erro ou Aviso Anterior",
 	"editorMarkerNavigationError": "Ferramenta de marcação de edição apresentando error na cor ",
 	"editorMarkerNavigationWarning": "Ferramenta de marcação de edição apresentando adventência na cor",
+	"editorMarkerNavigationInfo": "Cor de informação da ferramenta de navegação do marcador do editor.",
 	"editorMarkerNavigationBackground": "Cor de fundo da ferramenta de marcação de navegação do editor."
 }

@@ -254,7 +254,8 @@ export class DebugHoverWidget implements IContentWidget {
 			this.valueContainer.hidden = false;
 			renderExpressionValue(expression, this.valueContainer, {
 				showChanged: false,
-				preserveWhitespace: true
+				preserveWhitespace: true,
+				colorize: true
 			});
 			this.valueContainer.title = '';
 			this.editor.layoutContentWidget(this);

@@ -19,12 +19,36 @@
 }
 
 .scm-viewlet:not(.empty) .empty-message,
-.scm-viewlet.empty .monaco-split-view{
+.scm-viewlet.empty .monaco-panel-view {
 	display: none;
 }
 
 .scm-viewlet .scm-status {
 	height: 100%;
+}
+
+.scm-viewlet .monaco-list-row > .scm-provider {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+}
+
+.scm-viewlet .monaco-list-row > .scm-provider > input {
+	flex-shrink: 0;
+}
+
+.scm-viewlet .scm-provider > .count {
+	margin: 0 0.5em;
+}
+
+.scm-viewlet .scm-provider > .count.hidden {
+	display: none;
+}
+
+.scm-viewlet .scm-provider > .name > .type {
+	opacity: 0.7;
+	margin-left: 0.5em;
+	font-size: 0.9em;
 }
 
 .scm-viewlet .monaco-list-row {
@@ -60,15 +84,12 @@
 	overflow: hidden;
 }
 
-.scm-viewlet .monaco-list-row > .resource > .name > .monaco-icon-label {
-	width: 100%;
-	height: 100%;
-	overflow: hidden;
-	text-overflow: ellipsis;
+.scm-viewlet .monaco-list-row > .resource > .name.strike-through > .monaco-icon-label > .monaco-icon-label-description-container > .label-name {
+	text-decoration: line-through;
 }
 
-.scm-viewlet .monaco-list-row > .resource > .name.strike-through > .monaco-icon-label > .label-name {
-	text-decoration: line-through;
+.scm-viewlet .monaco-list-row > .resource > .name > .monaco-icon-label::after {
+	padding: 0 4px;
 }
 
 .scm-viewlet .monaco-list-row > .resource > .decoration-icon {
@@ -78,23 +99,26 @@
 	background-position: 50% 50%;
 }
 
+.scm-viewlet .monaco-list .monaco-list-row > .resource > .name > .monaco-icon-label > .actions {
+	flex-grow: 100;
+}
 
 .scm-viewlet .monaco-list .monaco-list-row > .resource-group > .actions,
-.scm-viewlet .monaco-list .monaco-list-row > .resource > .actions {
+.scm-viewlet .monaco-list .monaco-list-row > .resource > .name > .monaco-icon-label > .actions {
 	display: none;
 }
 
 .scm-viewlet .monaco-list .monaco-list-row:hover > .resource-group > .actions,
-.scm-viewlet .monaco-list .monaco-list-row:hover > .resource > .actions,
+.scm-viewlet .monaco-list .monaco-list-row:hover > .resource > .name > .monaco-icon-label > .actions,
 .scm-viewlet .monaco-list .monaco-list-row.selected > .resource-group > .actions,
 .scm-viewlet .monaco-list .monaco-list-row.focused > .resource-group > .actions,
-.scm-viewlet .monaco-list .monaco-list-row.selected > .resource > .actions,
-.scm-viewlet .monaco-list .monaco-list-row.focused > .resource > .actions,
+.scm-viewlet .monaco-list .monaco-list-row.selected > .resource > .name > .monaco-icon-label > .actions,
+.scm-viewlet .monaco-list .monaco-list-row.focused > .resource > .name > .monaco-icon-label > .actions,
 .scm-viewlet .monaco-list:not(.selection-multiple) .monaco-list-row > .resource:hover > .actions {
 	display: block;
 }
 
-.scm-viewlet .monaco-list-row > .resource > .actions .action-label,
+.scm-viewlet .monaco-list-row > .resource > .name > .monaco-icon-label > .actions .action-label,
 .scm-viewlet .monaco-list-row > .resource-group > .actions .action-label {
 	width: 16px;
 	height: 100%;
@@ -125,4 +149,8 @@
 
 .scm-viewlet .scm-editor.scroll > .monaco-inputbox > .wrapper > textarea.input {
 	overflow-y: scroll;
+}
+
+.scm-viewlet .spacer {
+	flex: 1;
 }

@@ -221,7 +221,7 @@ export function createRegExp(searchString: string, isRegex: boolean, options: Re
 export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
 	// Exit early if it's one of these special cases which are meant to match
 	// against an empty string
-	if (regexp.source === '^' || regexp.source === '^$' || regexp.source === '$') {
+	if (regexp.source === '^' || regexp.source === '^$' || regexp.source === '$' || regexp.source === '^\\s*$') {
 		return false;
 	}
 
@@ -231,6 +231,10 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
 	return (match && <any>regexp.lastIndex === 0);
 }
 
+export function regExpContainsBackreference(regexpValue: string): boolean {
+	return !!regexpValue.match(/([^\\]|^)(\\\\)*\\\d+/);
+}
+
 /**
  * The normalize() method returns the Unicode Normalization Form of a given string. The form will be
  * the Normalization Form Canonical Composition.
@@ -238,9 +242,19 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/normalize}
  */
 export const canNormalize = typeof ((<any>'').normalize) === 'function';
-const nonAsciiCharactersPattern = /[^\u0000-\u0080]/;
-const normalizedCache = new BoundedMap<string>(10000); // bounded to 10000 elements
+
+const nfcCache = new BoundedMap<string>(10000); // bounded to 10000 elements
 export function normalizeNFC(str: string): string {
+	return normalize(str, 'NFC', nfcCache);
+}
+
+const nfdCache = new BoundedMap<string>(10000); // bounded to 10000 elements
+export function normalizeNFD(str: string): string {
+	return normalize(str, 'NFD', nfdCache);
+}
+
+const nonAsciiCharactersPattern = /[^\u0000-\u0080]/;
+function normalize(str: string, form: string, normalizedCache: BoundedMap<string>): string {
 	if (!canNormalize || !str) {
 		return str;
 	}
@@ -252,7 +266,7 @@ export function normalizeNFC(str: string): string {
 
 	let res: string;
 	if (nonAsciiCharactersPattern.test(str)) {
-		res = (<any>str).normalize('NFC');
+		res = (<any>str).normalize(form);
 	} else {
 		res = str;
 	}
@@ -705,6 +719,10 @@ export function startsWithUTF8BOM(str: string): boolean {
 	return (str && str.length > 0 && str.charCodeAt(0) === CharCode.UTF8_BOM);
 }
 
+export function stripUTF8BOM(str: string): string {
+	return startsWithUTF8BOM(str) ? str.substr(1) : str;
+}
+
 /**
  * Appends two strings. If the appended result is longer than maxLength,
  * trims the start of the result and replaces it with '...'.
@@ -734,4 +752,36 @@ export function repeat(s: string, count: number): string {
 		result += s;
 	}
 	return result;
+}
+
+/**
+ * Checks if the characters of the provided query string are included in the
+ * target string. The characters do not have to be contiguous within the string.
+ */
+export function fuzzyContains(target: string, query: string): boolean {
+	if (!target || !query) {
+		return false; // return early if target or query are undefined
+	}
+
+	if (target.length < query.length) {
+		return false; // impossible for query to be contained in target
+	}
+
+	const queryLen = query.length;
+	const targetLower = target.toLowerCase();
+
+	let index = 0;
+	let lastIndexOf = -1;
+	while (index < queryLen) {
+		let indexOf = targetLower.indexOf(query[index], lastIndexOf + 1);
+		if (indexOf < 0) {
+			return false;
+		}
+
+		lastIndexOf = indexOf;
+
+		index++;
+	}
+
+	return true;
 }

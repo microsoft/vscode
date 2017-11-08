@@ -38,7 +38,6 @@ import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/r
 import { registerColor, activeContrastBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant, ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachListStyler, attachBadgeStyler } from 'vs/platform/theme/common/styler';
-import { IModelDecorationsChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
@@ -81,7 +80,7 @@ class DecorationsManager implements IDisposable {
 	}
 
 	private _addDecorations(reference: FileReferences): void {
-		this._callOnModelChange.push(this._editor.getModel().onDidChangeDecorations((event) => this._onDecorationChanged(event)));
+		this._callOnModelChange.push(this._editor.getModel().onDidChangeDecorations((event) => this._onDecorationChanged()));
 
 		this._editor.changeDecorations(accessor => {
 
@@ -107,21 +106,20 @@ class DecorationsManager implements IDisposable {
 		});
 	}
 
-	private _onDecorationChanged(event: IModelDecorationsChangedEvent): void {
-		const changedDecorations = event.changedDecorations,
-			toRemove: string[] = [];
+	private _onDecorationChanged(): void {
+		const toRemove: string[] = [];
 
-		for (let i = 0, len = changedDecorations.length; i < len; i++) {
-			let reference = this._decorations.get(changedDecorations[i]);
-			if (!reference) {
-				continue;
+		this._decorations.forEach((reference, decorationId) => {
+			const newRange = this._editor.getModel().getDecorationRange(decorationId);
+
+			if (!newRange) {
+				return;
 			}
 
-			const newRange = this._editor.getModel().getDecorationRange(changedDecorations[i]);
 			let ignore = false;
 
 			if (Range.equalsRange(newRange, reference.range)) {
-				continue;
+				return;
 
 			} else if (Range.spansMultipleLines(newRange)) {
 				ignore = true;
@@ -137,11 +135,11 @@ class DecorationsManager implements IDisposable {
 
 			if (ignore) {
 				this._decorationIgnoreSet.add(reference.id);
-				toRemove.push(changedDecorations[i]);
+				toRemove.push(decorationId);
 			} else {
 				reference.range = newRange;
 			}
-		}
+		});
 
 		this._editor.changeDecorations((accessor) => {
 			for (let i = 0, len = toRemove.length; i < len; i++) {
@@ -357,11 +355,15 @@ class FileReferencesTemplate {
 		const parent = document.createElement('div');
 		dom.addClass(parent, 'reference-file');
 		container.appendChild(parent);
-
 		this.file = new FileLabel(parent, URI.parse('no:file'), this._contextService, this._environmentService);
-		this.badge = new CountBadge(parent);
+
+		this.badge = new CountBadge($('.count').appendTo(parent).getHTMLElement());
 		const styler = attachBadgeStyler(this.badge, themeService);
-		this.dispose = () => styler.dispose();
+
+		this.dispose = () => {
+			this.file.dispose();
+			styler.dispose();
+		};
 	}
 
 	set(element: FileReferences) {

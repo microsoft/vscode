@@ -500,7 +500,7 @@ suite('TextAreaState', () => {
 
 		function testPagedScreenReaderStrategy(lines: string[], selection: Selection, expected: TextAreaState): void {
 			const model = Model.createFromString(lines.join('\n'));
-			const actual = PagedScreenReaderStrategy.fromEditorSelection(TextAreaState.EMPTY, model, selection);
+			const actual = PagedScreenReaderStrategy.fromEditorSelection(TextAreaState.EMPTY, model, selection, true);
 			assert.ok(actual.equals(expected));
 			model.dispose();
 		}
@@ -588,6 +588,7 @@ suite('TextAreaState', () => {
 	});
 });
 
+// @ts-ignore unused class
 class SimpleModel implements ISimpleModel {
 
 	private _lines: string[];

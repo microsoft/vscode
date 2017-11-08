@@ -17,10 +17,10 @@ import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
 import URI from 'vs/base/common/uri';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IActivityBarService, NumberBadge } from 'vs/workbench/services/activity/common/activityBarService';
+import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ReleaseNotesInput } from 'vs/workbench/parts/update/electron-browser/releaseNotesInput';
-import { IGlobalActivity } from 'vs/workbench/browser/activity';
+import { IGlobalActivity } from 'vs/workbench/common/activity';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { asText } from 'vs/base/node/request';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -32,6 +32,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IUpdateService, State as UpdateState } from 'vs/platform/update/common/update';
 import * as semver from 'semver';
 import { OS, isLinux, isWindows } from 'vs/base/common/platform';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 class ApplyUpdateAction extends Action {
 	constructor( @IUpdateService private updateService: IUpdateService) {
@@ -127,7 +128,6 @@ export abstract class AbstractShowReleaseNotesAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		private returnValue: boolean,
 		private version: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService
@@ -155,12 +155,11 @@ export abstract class AbstractShowReleaseNotesAction extends Action {
 export class ShowReleaseNotesAction extends AbstractShowReleaseNotesAction {
 
 	constructor(
-		returnValue: boolean,
 		version: string,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super('update.showReleaseNotes', nls.localize('releaseNotes', "Release Notes"), returnValue, version, editorService, instantiationService);
+		super('update.showReleaseNotes', nls.localize('releaseNotes', "Release Notes"), version, editorService, instantiationService);
 	}
 }
 
@@ -175,13 +174,13 @@ export class ShowCurrentReleaseNotesAction extends AbstractShowReleaseNotesActio
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(id, label, true, pkg.version, editorService, instantiationService);
+		super(id, label, pkg.version, editorService, instantiationService);
 	}
 }
 
 export class DownloadAction extends Action {
 
-	constructor(private url: string, @IUpdateService private updateService: IUpdateService) {
+	constructor( @IUpdateService private updateService: IUpdateService) {
 		super('update.download', nls.localize('downloadNow', "Download Now"), null, true);
 	}
 
@@ -267,8 +266,13 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMessageService messageService: IMessageService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEnvironmentService environmentService: IEnvironmentService
 	) {
+		if (environmentService.disableUpdates) {
+			return;
+		}
+
 		const neverShowAgain = new NeverShowAgain(Win3264BitContribution.KEY, storageService);
 
 		if (!neverShowAgain.shouldShow()) {
@@ -295,7 +299,7 @@ class CommandAction extends Action {
 	constructor(
 		commandId: string,
 		label: string,
-		@ICommandService private commandService: ICommandService
+		@ICommandService commandService: ICommandService
 	) {
 		super(`command-action:${commandId}`, label, undefined, true, () => commandService.executeCommand(commandId));
 	}
@@ -323,7 +327,7 @@ export class UpdateContribution implements IGlobalActivity {
 		@IMessageService private messageService: IMessageService,
 		@IUpdateService private updateService: IUpdateService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IActivityBarService private activityBarService: IActivityBarService
+		@IActivityService private activityService: IActivityService
 	) {
 		const onUpdateAvailable = isLinux
 			? mapEvent(updateService.onUpdateAvailable, e => e.version)
@@ -363,7 +367,7 @@ export class UpdateContribution implements IGlobalActivity {
 
 		if (isUpdateAvailable) {
 			const badge = new NumberBadge(1, () => nls.localize('updateIsReady', "New {0} update available.", product.nameShort));
-			this.badgeDisposable = this.activityBarService.showGlobalActivity(this.id, badge);
+			this.badgeDisposable = this.activityService.showActivity(this.id, badge);
 		}
 	}
 
@@ -388,10 +392,10 @@ export class UpdateContribution implements IGlobalActivity {
 	}
 
 	private showUpdateNotification(version: string): void {
-		const releaseNotesAction = this.instantiationService.createInstance(ShowReleaseNotesAction, false, version);
+		const releaseNotesAction = this.instantiationService.createInstance(ShowReleaseNotesAction, version);
 
 		if (isLinux) {
-			const downloadAction = this.instantiationService.createInstance(DownloadAction, version);
+			const downloadAction = this.instantiationService.createInstance(DownloadAction);
 
 			this.messageService.show(severity.Info, {
 				message: nls.localize('thereIsUpdateAvailable', "There is an available update."),

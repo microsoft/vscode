@@ -12,7 +12,7 @@ export const enum IndentConsts {
 	DECREASE_MASK = 0b00000010,
 	INDENT_NEXTLINE_MASK = 0b00000100,
 	UNINDENT_MASK = 0b00001000,
-};
+}
 
 export class IndentRulesSupport {
 

@@ -14,12 +14,12 @@ import { IItemCollapseEvent } from 'vs/base/parts/tree/browser/treeModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup } from 'vs/workbench/common/editor';
 import { SaveAllAction } from 'vs/workbench/parts/files/browser/fileActions';
-import { CollapsibleView, IViewletViewOptions, IViewOptions } from 'vs/workbench/parts/views/browser/views';
-import { IFilesConfiguration, VIEWLET_ID, OpenEditorsFocusedContext, ExplorerFocusedContext } from 'vs/workbench/parts/files/common/files';
+import { ViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { VIEWLET_ID, OpenEditorsFocusedContext, ExplorerFocusedContext } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
@@ -33,19 +33,15 @@ import { EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
 import { attachListStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { ViewSizing } from 'vs/base/browser/ui/splitview/splitview';
 
 const $ = dom.$;
 
-export class OpenEditorsView extends CollapsibleView {
+export class OpenEditorsView extends ViewsViewletPanel {
 
 	private static DEFAULT_VISIBLE_OPEN_EDITORS = 9;
 	private static DEFAULT_DYNAMIC_HEIGHT = true;
 	static ID = 'workbench.explorer.openEditorsView';
 	static NAME = nls.localize({ key: 'openEditors', comment: ['Open is an adjective'] }, "Open Editors");
-
-	private visibleOpenEditors: number;
-	private dynamicHeight: boolean;
 
 	private model: IEditorStacksModel;
 	private dirtyCountElement: HTMLElement;
@@ -58,7 +54,6 @@ export class OpenEditorsView extends CollapsibleView {
 	private explorerFocusedContext: IContextKey<boolean>;
 
 	constructor(
-		initialSize: number,
 		options: IViewletViewOptions,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -72,11 +67,9 @@ export class OpenEditorsView extends CollapsibleView {
 		@IViewletService private viewletService: IViewletService,
 		@IThemeService private themeService: IThemeService
 	) {
-		super(initialSize, {
+		super({
 			...(options as IViewOptions),
 			ariaHeaderLabel: nls.localize({ key: 'openEditosrSection', comment: ['Open is an adjective'] }, "Open Editors Section"),
-			sizing: ViewSizing.Fixed,
-			initialBodySize: OpenEditorsView.computeExpandedBodySize(editorGroupService.getStacksModel())
 		}, keybindingService, contextMenuService);
 
 		this.model = editorGroupService.getStacksModel();
@@ -88,14 +81,14 @@ export class OpenEditorsView extends CollapsibleView {
 		this.structuralTreeRefreshScheduler = new RunOnceScheduler(() => this.structuralTreeUpdate(), this.structuralRefreshDelay);
 	}
 
-	public renderHeader(container: HTMLElement): void {
-		const titleDiv = dom.append(container, $('.title'));
-		const titleSpan = dom.append(titleDiv, $('span'));
-		titleSpan.textContent = this.name;
+	protected renderHeaderTitle(container: HTMLElement): void {
+		const title = dom.append(container, $('.title'));
+		dom.append(title, $('span', null, this.name));
 
-		this.dirtyCountElement = dom.append(titleDiv, $('.monaco-count-badge'));
+		const count = dom.append(container, $('.count'));
+		this.dirtyCountElement = dom.append(count, $('.monaco-count-badge'));
 
-		this.toDispose.push((attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, contrastBorder }, colors => {
+		this.disposables.push((attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, contrastBorder }, colors => {
 			const background = colors.badgeBackground ? colors.badgeBackground.toString() : null;
 			const foreground = colors.badgeForeground ? colors.badgeForeground.toString() : null;
 			const border = colors.contrastBorder ? colors.contrastBorder.toString() : null;
@@ -109,8 +102,6 @@ export class OpenEditorsView extends CollapsibleView {
 		})));
 
 		this.updateDirtyIndicator();
-
-		super.renderHeader(container);
 	}
 
 	public getActions(): IAction[] {
@@ -148,20 +139,20 @@ export class OpenEditorsView extends CollapsibleView {
 			});
 
 		// Theme styler
-		this.toDispose.push(attachListStyler(this.tree, this.themeService));
+		this.disposables.push(attachListStyler(this.tree, this.themeService));
 
 		// Register to list service
-		this.toDispose.push(this.listService.register(this.tree, [this.explorerFocusedContext, this.openEditorsFocusedContext]));
+		this.disposables.push(this.listService.register(this.tree, [this.explorerFocusedContext, this.openEditorsFocusedContext]));
 
 		// Open when selecting via keyboard
-		this.toDispose.push(this.tree.addListener('selection', event => {
+		this.disposables.push(this.tree.addListener('selection', event => {
 			if (event && event.payload && event.payload.origin === 'keyboard') {
 				controller.openEditor(this.tree.getFocus(), { pinned: false, sideBySide: false, preserveFocus: false });
 			}
 		}));
 
 		// Prevent collapsing of editor groups
-		this.toDispose.push(this.tree.addListener('item:collapsed', (event: IItemCollapseEvent) => {
+		this.disposables.push(this.tree.addListener('item:collapsed', (event: IItemCollapseEvent) => {
 			if (event.item && event.item.getElement() instanceof EditorGroup) {
 				setTimeout(() => this.tree.expand(event.item.getElement())); // unwind from callback
 			}
@@ -174,8 +165,7 @@ export class OpenEditorsView extends CollapsibleView {
 	public create(): TPromise<void> {
 
 		// Load Config
-		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
-		this.onConfigurationUpdated(configuration);
+		this.updateSize();
 
 		// listeners
 		this.registerListeners();
@@ -186,20 +176,20 @@ export class OpenEditorsView extends CollapsibleView {
 	private registerListeners(): void {
 
 		// update on model changes
-		this.toDispose.push(this.model.onModelChanged(e => this.onEditorStacksModelChanged(e)));
+		this.disposables.push(this.model.onModelChanged(e => this.onEditorStacksModelChanged(e)));
 
 		// Also handle configuration updates
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>())));
+		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(e)));
 
 		// Handle dirty counter
-		this.toDispose.push(this.untitledEditorService.onDidChangeDirty(e => this.updateDirtyIndicator()));
-		this.toDispose.push(this.textFileService.models.onModelsDirty(e => this.updateDirtyIndicator()));
-		this.toDispose.push(this.textFileService.models.onModelsSaved(e => this.updateDirtyIndicator()));
-		this.toDispose.push(this.textFileService.models.onModelsSaveError(e => this.updateDirtyIndicator()));
-		this.toDispose.push(this.textFileService.models.onModelsReverted(e => this.updateDirtyIndicator()));
+		this.disposables.push(this.untitledEditorService.onDidChangeDirty(e => this.updateDirtyIndicator()));
+		this.disposables.push(this.textFileService.models.onModelsDirty(e => this.updateDirtyIndicator()));
+		this.disposables.push(this.textFileService.models.onModelsSaved(e => this.updateDirtyIndicator()));
+		this.disposables.push(this.textFileService.models.onModelsSaveError(e => this.updateDirtyIndicator()));
+		this.disposables.push(this.textFileService.models.onModelsReverted(e => this.updateDirtyIndicator()));
 
 		// We are not updating the tree while the viewlet is not visible. Thus refresh when viewlet becomes visible #6702
-		this.toDispose.push(this.viewletService.onDidViewletOpen(viewlet => {
+		this.disposables.push(this.viewletService.onDidViewletOpen(viewlet => {
 			if (viewlet.getId() === VIEWLET_ID) {
 				this.fullRefreshNeeded = true;
 				this.structuralTreeUpdate();
@@ -231,7 +221,7 @@ export class OpenEditorsView extends CollapsibleView {
 
 	private structuralTreeUpdate(): void {
 		// View size
-		this.setBodySize(this.getExpandedBodySize(this.model));
+		this.minimumBodySize = this.maximumBodySize = this.getExpandedBodySize(this.model);
 		// Show groups only if there is more than 1 group
 		const treeInput = this.model.groups.length === 1 ? this.model.groups[0] : this.model;
 		// TODO@Isidor temporary workaround due to a partial tree refresh issue
@@ -265,27 +255,24 @@ export class OpenEditorsView extends CollapsibleView {
 		}
 	}
 
-	private onConfigurationUpdated(configuration: IFilesConfiguration): void {
+	private onConfigurationChange(event: IConfigurationChangeEvent): void {
 		if (this.isDisposed) {
 			return; // guard against possible race condition when config change causes recreate of views
 		}
 
-		let visibleOpenEditors = configuration && configuration.explorer && configuration.explorer.openEditors && configuration.explorer.openEditors.visible;
-		if (typeof visibleOpenEditors === 'number') {
-			this.visibleOpenEditors = visibleOpenEditors;
-		} else {
-			this.visibleOpenEditors = OpenEditorsView.DEFAULT_VISIBLE_OPEN_EDITORS;
+		if (event.affectsConfiguration('explorer.openEditors')) {
+			this.updateSize();
 		}
 
-		let dynamicHeight = configuration && configuration.explorer && configuration.explorer.openEditors && configuration.explorer.openEditors.dynamicHeight;
-		if (typeof dynamicHeight === 'boolean') {
-			this.dynamicHeight = dynamicHeight;
-		} else {
-			this.dynamicHeight = OpenEditorsView.DEFAULT_DYNAMIC_HEIGHT;
+		// Trigger a 'repaint' when decoration settings change
+		if (event.affectsConfiguration('explorer.decorations')) {
+			this.tree.refresh();
 		}
+	}
 
+	private updateSize(): void {
 		// Adjust expanded body size
-		this.setBodySize(this.getExpandedBodySize(this.model));
+		this.minimumBodySize = this.maximumBodySize = this.getExpandedBodySize(this.model);
 	}
 
 	private updateDirtyIndicator(): void {
@@ -300,7 +287,16 @@ export class OpenEditorsView extends CollapsibleView {
 	}
 
 	private getExpandedBodySize(model: IEditorStacksModel): number {
-		return OpenEditorsView.computeExpandedBodySize(model, this.visibleOpenEditors, this.dynamicHeight);
+		let visibleOpenEditors = this.configurationService.getValue<number>('explorer.openEditors.visible');
+		if (typeof visibleOpenEditors !== 'number') {
+			visibleOpenEditors = OpenEditorsView.DEFAULT_VISIBLE_OPEN_EDITORS;
+		}
+
+		let dynamicHeight = this.configurationService.getValue<boolean>('explorer.openEditors.dynamicHeight');
+		if (typeof dynamicHeight !== 'boolean') {
+			dynamicHeight = OpenEditorsView.DEFAULT_DYNAMIC_HEIGHT;
+		}
+		return OpenEditorsView.computeExpandedBodySize(model, visibleOpenEditors, dynamicHeight);
 	}
 
 	private static computeExpandedBodySize(model: IEditorStacksModel, visibleOpenEditors = OpenEditorsView.DEFAULT_VISIBLE_OPEN_EDITORS, dynamicHeight = OpenEditorsView.DEFAULT_DYNAMIC_HEIGHT): number {

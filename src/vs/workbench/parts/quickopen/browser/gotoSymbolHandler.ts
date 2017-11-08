@@ -369,6 +369,9 @@ interface IEditorLineDecoration {
 }
 
 export class GotoSymbolHandler extends QuickOpenHandler {
+
+	public static readonly ID = 'workbench.picker.filesymbols';
+
 	private outlineToModelCache: { [modelId: string]: OutlineModel; };
 	private rangeHighlightDecorationId: IEditorLineDecoration;
 	private lastKnownEditorViewState: IEditorViewState;

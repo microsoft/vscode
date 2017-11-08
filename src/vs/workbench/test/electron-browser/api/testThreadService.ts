@@ -76,8 +76,8 @@ export abstract class AbstractTestThreadService {
 }
 
 export class TestThreadService extends AbstractTestThreadService implements IThreadService {
-	constructor() {
-		super(false);
+	constructor(isMainProcess: boolean = false) {
+		super(isMainProcess);
 	}
 
 	private _callCountValue: number = 0;

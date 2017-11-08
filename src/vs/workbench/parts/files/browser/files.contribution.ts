@@ -11,11 +11,10 @@ import nls = require('vs/nls');
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory, EditorInput, IFileEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInputFactory, EditorInput, IFileEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
 import { AutoSaveConfiguration, HotExitConfiguration, SUPPORTED_ENCODINGS } from 'vs/platform/files/common/files';
-import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { FILE_EDITOR_INPUT_ID, VIEWLET_ID, SortOrderConfiguration } from 'vs/workbench/parts/files/common/files';
 import { FileEditorTracker } from 'vs/workbench/parts/files/common/editors/fileEditorTracker';
 import { SaveErrorHandler } from 'vs/workbench/parts/files/browser/saveErrorHandler';
@@ -29,8 +28,9 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
-import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { DirtyFilesTracker } from 'vs/workbench/parts/files/common/dirtyFilesTracker';
+import { ExplorerViewlet } from 'vs/workbench/parts/files/browser/explorerViewlet';
+import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ToggleViewletAction {
@@ -49,8 +49,7 @@ export class OpenExplorerViewletAction extends ToggleViewletAction {
 
 // Register Viewlet
 Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new ViewletDescriptor(
-	'vs/workbench/parts/files/browser/explorerViewlet',
-	'ExplorerViewlet',
+	ExplorerViewlet,
 	VIEWLET_ID,
 	nls.localize('explore', "Explorer"),
 	'explore',
@@ -74,10 +73,9 @@ registry.registerWorkbenchAction(
 // Register file editors
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
-		TextFileEditor.ID, // explicit dependency because we don't want these editors lazy loaded
-		nls.localize('textFileEditor', "Text File Editor"),
-		'vs/workbench/parts/files/browser/editors/textFileEditor',
-		'TextFileEditor'
+		TextFileEditor,
+		TextFileEditor.ID,
+		nls.localize('textFileEditor', "Text File Editor")
 	),
 	[
 		new SyncDescriptor<EditorInput>(FileEditorInput)
@@ -86,10 +84,9 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	new EditorDescriptor(
-		BinaryFileEditor.ID, // explicit dependency because we don't want these editors lazy loaded
-		nls.localize('binaryFileEditor', "Binary File Editor"),
-		'vs/workbench/parts/files/browser/editors/binaryFileEditor',
-		'BinaryFileEditor'
+		BinaryFileEditor,
+		BinaryFileEditor.ID,
+		nls.localize('binaryFileEditor', "Binary File Editor")
 	),
 	[
 		new SyncDescriptor<EditorInput>(FileEditorInput)
@@ -97,7 +94,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 );
 
 // Register default file input factory
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerFileInputFactory({
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerFileInputFactory({
 	createFileInput: (resource, encoding, instantiationService): IFileEditorInput => {
 		return instantiationService.createInstance(FileEditorInput, resource, encoding);
 	}
@@ -112,23 +109,16 @@ interface ISerializedFileInput {
 // Register Editor Input Factory
 class FileEditorInputFactory implements IEditorInputFactory {
 
-	constructor(
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
-	) {
-	}
+	constructor() { }
 
 	public serialize(editorInput: EditorInput): string {
 		const fileEditorInput = <FileEditorInput>editorInput;
 		const resource = fileEditorInput.getResource();
 		const fileInput: ISerializedFileInput = {
 			resource: resource.toString(), // Keep for backwards compatibility
-			resourceJSON: resource.toJSON()
+			resourceJSON: resource.toJSON(),
+			encoding: fileEditorInput.getEncoding()
 		};
-
-		const encoding = fileEditorInput.getPreferredEncoding();
-		if (encoding && encoding !== this.configurationService.lookup('files.encoding', { resource }).value) {
-			fileInput.encoding = encoding;
-		}
 
 		return JSON.stringify(fileInput);
 	}
@@ -144,7 +134,7 @@ class FileEditorInputFactory implements IEditorInputFactory {
 	}
 }
 
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditorInputFactory(FILE_EDITOR_INPUT_ID, FileEditorInputFactory);
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(FILE_EDITOR_INPUT_ID, FileEditorInputFactory);
 
 // Register File Editor Tracker
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
@@ -172,7 +162,7 @@ configurationRegistry.registerConfiguration({
 	'properties': {
 		'files.exclude': {
 			'type': 'object',
-			'description': nls.localize('exclude', "Configure glob patterns for excluding files and folders."),
+			'description': nls.localize('exclude', "Configure glob patterns for excluding files and folders. For example, the files explorer decides which files and folders to show or hide based on this setting."),
 			'default': { '**/.git': true, '**/.svn': true, '**/.hg': true, '**/CVS': true, '**/.DS_Store': true },
 			'scope': ConfigurationScope.RESOURCE,
 			'additionalProperties': {
@@ -201,15 +191,18 @@ configurationRegistry.registerConfiguration({
 		},
 		'files.encoding': {
 			'type': 'string',
+			'overridable': true,
 			'enum': Object.keys(SUPPORTED_ENCODINGS),
 			'default': 'utf8',
-			'description': nls.localize('encoding', "The default character set encoding to use when reading and writing files."),
-			'scope': ConfigurationScope.RESOURCE
+			'description': nls.localize('encoding', "The default character set encoding to use when reading and writing files. This setting can be configured per language too."),
+			'scope': ConfigurationScope.RESOURCE,
+			'enumDescriptions': Object.keys(SUPPORTED_ENCODINGS).map(key => SUPPORTED_ENCODINGS[key].labelLong)
 		},
 		'files.autoGuessEncoding': {
 			'type': 'boolean',
+			'overridable': true,
 			'default': false,
-			'description': nls.localize('autoGuessEncoding', "When enabled, will attempt to guess the character set encoding when opening files"),
+			'description': nls.localize('autoGuessEncoding', "When enabled, will attempt to guess the character set encoding when opening files. This setting can be configured per language too."),
 			'scope': ConfigurationScope.RESOURCE
 		},
 		'files.eol': {
@@ -233,6 +226,13 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': false,
 			'description': nls.localize('insertFinalNewline', "When enabled, insert a final new line at the end of the file when saving it."),
+			'overridable': true,
+			'scope': ConfigurationScope.RESOURCE
+		},
+		'files.trimFinalNewlines': {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('trimFinalNewlines', "When enabled, will trim all new lines after the final new line at the end of the file when saving it."),
 			'overridable': true,
 			'scope': ConfigurationScope.RESOURCE
 		},
@@ -292,7 +292,8 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': false,
 			'description': nls.localize('formatOnSave', "Format a file on save. A formatter must be available, the file must not be auto-saved, and editor must not be shutting down."),
-			'overridable': true
+			'overridable': true,
+			'scope': ConfigurationScope.RESOURCE
 		}
 	}
 });
@@ -323,6 +324,16 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('enableDragAndDrop', "Controls if the explorer should allow to move files and folders via drag and drop."),
 			'default': true
 		},
+		'explorer.confirmDragAndDrop': {
+			'type': 'boolean',
+			'description': nls.localize('confirmDragAndDrop', "Controls if the explorer should ask for confirmation to move files and folders via drag and drop."),
+			'default': true
+		},
+		'explorer.confirmDelete': {
+			'type': 'boolean',
+			'description': nls.localize('confirmDelete', "Controls if the explorer should ask for confirmation when deleting a file via the trash."),
+			'default': true
+		},
 		'explorer.sortOrder': {
 			'type': 'string',
 			'enum': [SortOrderConfiguration.DEFAULT, SortOrderConfiguration.MIXED, SortOrderConfiguration.FILES_FIRST, SortOrderConfiguration.TYPE, SortOrderConfiguration.MODIFIED],
@@ -335,6 +346,16 @@ configurationRegistry.registerConfiguration({
 				nls.localize('sortOrder.modified', 'Files and folders are sorted by last modified date, in descending order. Folders are displayed before files.')
 			],
 			'description': nls.localize({ key: 'sortOrder', comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'] }, "Controls sorting order of files and folders in the explorer. In addition to the default sorting, you can set the order to 'mixed' (files and folders sorted combined), 'type' (by file type), 'modified' (by last modified date) or 'filesFirst' (sort files before folders).")
-		}
+		},
+		'explorer.decorations.colors': {
+			type: 'boolean',
+			description: nls.localize('explorer.decorations.colors', "Controls if file decorations should use colors."),
+			default: true
+		},
+		'explorer.decorations.badges': {
+			type: 'boolean',
+			description: nls.localize('explorer.decorations.badges', "Controls if file decorations should use badges."),
+			default: true
+		},
 	}
 });

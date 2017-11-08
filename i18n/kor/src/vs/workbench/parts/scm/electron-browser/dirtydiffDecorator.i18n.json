@@ -6,5 +6,8 @@
 {
 	"editorGutterModifiedBackground": "수정된 줄의 편집기 여백 배경색입니다.",
 	"editorGutterAddedBackground": "추가된 줄의 편집기 여백 배경색입니다.",
-	"editorGutterDeletedBackground": "삭제된 줄의 편집기 여백 배경색입니다."
+	"editorGutterDeletedBackground": "삭제된 줄의 편집기 여백 배경색입니다.",
+	"overviewRulerModifiedForeground": "수정된 콘텐츠의 개요 눈금자 마커 색입니다.",
+	"overviewRulerAddedForeground": "추가된 콘텐츠의 개요 눈금자 마커 색입니다.",
+	"overviewRulerDeletedForeground": "삭제된 콘텐츠의 개요 눈금자 마커 색입니다."
 }

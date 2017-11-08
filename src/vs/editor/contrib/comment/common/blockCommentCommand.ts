@@ -26,12 +26,12 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		if (offset < 0) {
 			return false;
 		}
-		var needleLength = needle.length;
-		var haystackLength = haystack.length;
+		const needleLength = needle.length;
+		const haystackLength = haystack.length;
 		if (offset + needleLength > haystackLength) {
 			return false;
 		}
-		for (var i = 0; i < needleLength; i++) {
+		for (let i = 0; i < needleLength; i++) {
 			if (haystack.charCodeAt(offset + i) !== needle.charCodeAt(i)) {
 				return false;
 			}
@@ -40,51 +40,75 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 	}
 
 	private _createOperationsForBlockComment(selection: Range, config: ICommentsConfiguration, model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
-		var startLineNumber = selection.startLineNumber;
-		var startColumn = selection.startColumn;
-		var endLineNumber = selection.endLineNumber;
-		var endColumn = selection.endColumn;
+		const startLineNumber = selection.startLineNumber;
+		const startColumn = selection.startColumn;
+		const endLineNumber = selection.endLineNumber;
+		const endColumn = selection.endColumn;
 
-		var startToken = config.blockCommentStartToken;
-		var endToken = config.blockCommentEndToken;
+		const startLineText = model.getLineContent(startLineNumber);
+		const endLineText = model.getLineContent(endLineNumber);
 
-		var startTokenIndex = model.getLineContent(startLineNumber).lastIndexOf(startToken, startColumn - 1 + startToken.length);
-		var endTokenIndex = model.getLineContent(endLineNumber).indexOf(endToken, endColumn - 1 - endToken.length);
+		let startToken = config.blockCommentStartToken;
+		let endToken = config.blockCommentEndToken;
 
-		var ops: editorCommon.IIdentifiedSingleEditOperation[];
+		let startTokenIndex = startLineText.lastIndexOf(startToken, startColumn - 1 + startToken.length);
+		let endTokenIndex = endLineText.indexOf(endToken, endColumn - 1 - endToken.length);
 
 		if (startTokenIndex !== -1 && endTokenIndex !== -1) {
-			var endTokenBeforeCursorIndex = model.getLineContent(startLineNumber).lastIndexOf(endToken, startColumn - 1 + endToken.length);
-			if (endTokenBeforeCursorIndex > startTokenIndex + startToken.length - 1) {
-				ops = BlockCommentCommand._createAddBlockCommentOperations(selection, startToken, endToken);
-				this._usedEndToken = ops.length === 1 ? endToken : null;
-			} else {
-				// We have to adjust to possible inner white space
-				// For Space after startToken, add Space to startToken - range math will work out
-				if (model.getLineContent(startLineNumber).charCodeAt(startTokenIndex + startToken.length) === CharCode.Space) {
-					startToken += ' ';
+
+			if (startLineNumber === endLineNumber) {
+				const lineBetweenTokens = startLineText.substring(startTokenIndex + startToken.length, endTokenIndex);
+
+				if (lineBetweenTokens.indexOf(endToken) >= 0) {
+					// force to add a block comment
+					startTokenIndex = -1;
+					endTokenIndex = -1;
 				}
-				// For Space before endToken, add Space before endToken and shift index one left
-				if (model.getLineContent(endLineNumber).charCodeAt(endTokenIndex - 1) === CharCode.Space) {
+			} else {
+				const startLineAfterStartToken = startLineText.substring(startTokenIndex + startToken.length);
+				const endLineBeforeEndToken = endLineText.substring(0, endTokenIndex);
+
+				if (startLineAfterStartToken.indexOf(endToken) >= 0 || endLineBeforeEndToken.indexOf(endToken) >= 0) {
+					// force to add a block comment
+					startTokenIndex = -1;
+					endTokenIndex = -1;
+				}
+			}
+		}
+
+		let ops: editorCommon.IIdentifiedSingleEditOperation[];
+
+		if (startTokenIndex !== -1 && endTokenIndex !== -1) {
+			// Consider spaces as part of the comment tokens
+			if (startTokenIndex + startToken.length < startLineText.length) {
+				if (startLineText.charCodeAt(startTokenIndex + startToken.length) === CharCode.Space) {
+					// Pretend the start token contains a trailing space
+					startToken = startToken + ' ';
+				}
+			}
+
+			if (endTokenIndex > 0) {
+				if (endLineText.charCodeAt(endTokenIndex - 1) === CharCode.Space) {
+					// Pretend the end token contains a leading space
 					endToken = ' ' + endToken;
 					endTokenIndex -= 1;
 				}
-				ops = BlockCommentCommand._createRemoveBlockCommentOperations(
-					new Range(startLineNumber, startTokenIndex + 1 + startToken.length, endLineNumber, endTokenIndex + 1), startToken, endToken
-				);
 			}
+			ops = BlockCommentCommand._createRemoveBlockCommentOperations(
+				new Range(startLineNumber, startTokenIndex + startToken.length + 1, endLineNumber, endTokenIndex + 1), startToken, endToken
+			);
 		} else {
 			ops = BlockCommentCommand._createAddBlockCommentOperations(selection, startToken, endToken);
 			this._usedEndToken = ops.length === 1 ? endToken : null;
 		}
 
-		for (var i = 0; i < ops.length; i++) {
+		for (let i = 0; i < ops.length; i++) {
 			builder.addTrackedEditOperation(ops[i].range, ops[i].text);
 		}
 	}
 
 	public static _createRemoveBlockCommentOperations(r: Range, startToken: string, endToken: string): editorCommon.IIdentifiedSingleEditOperation[] {
-		var res: editorCommon.IIdentifiedSingleEditOperation[] = [];
+		let res: editorCommon.IIdentifiedSingleEditOperation[] = [];
 
 		if (!Range.isEmpty(r)) {
 			// Remove block comment start
@@ -110,7 +134,7 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 	}
 
 	public static _createAddBlockCommentOperations(r: Range, startToken: string, endToken: string): editorCommon.IIdentifiedSingleEditOperation[] {
-		var res: editorCommon.IIdentifiedSingleEditOperation[] = [];
+		let res: editorCommon.IIdentifiedSingleEditOperation[] = [];
 
 		if (!Range.isEmpty(r)) {
 			// Insert block comment start
@@ -130,29 +154,27 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 	}
 
 	public getEditOperations(model: editorCommon.ITokenizedModel, builder: editorCommon.IEditOperationBuilder): void {
-		var startLineNumber = this._selection.startLineNumber;
-		var startColumn = this._selection.startColumn;
-		var endLineNumber = this._selection.endLineNumber;
-		var endColumn = this._selection.endColumn;
+		const startLineNumber = this._selection.startLineNumber;
+		const startColumn = this._selection.startColumn;
 
 		model.tokenizeIfCheap(startLineNumber);
-		let languageId = model.getLanguageIdAtPosition(startLineNumber, startColumn);
-		let config = LanguageConfigurationRegistry.getComments(languageId);
+		const languageId = model.getLanguageIdAtPosition(startLineNumber, startColumn);
+		const config = LanguageConfigurationRegistry.getComments(languageId);
 		if (!config || !config.blockCommentStartToken || !config.blockCommentEndToken) {
 			// Mode does not support block comments
 			return;
 		}
 
 		this._createOperationsForBlockComment(
-			new Range(startLineNumber, startColumn, endLineNumber, endColumn), config, model, builder
+			this._selection, config, model, builder
 		);
 	}
 
 	public computeCursorState(model: editorCommon.ITokenizedModel, helper: editorCommon.ICursorStateComputerData): Selection {
-		var inverseEditOperations = helper.getInverseEditOperations();
+		const inverseEditOperations = helper.getInverseEditOperations();
 		if (inverseEditOperations.length === 2) {
-			var startTokenEditOperation = inverseEditOperations[0];
-			var endTokenEditOperation = inverseEditOperations[1];
+			const startTokenEditOperation = inverseEditOperations[0];
+			const endTokenEditOperation = inverseEditOperations[1];
 
 			return new Selection(
 				startTokenEditOperation.range.endLineNumber,
@@ -161,8 +183,8 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 				endTokenEditOperation.range.startColumn
 			);
 		} else {
-			var srcRange = inverseEditOperations[0].range;
-			var deltaColumn = this._usedEndToken ? -this._usedEndToken.length - 1 : 0; // minus 1 space before endToken
+			const srcRange = inverseEditOperations[0].range;
+			const deltaColumn = this._usedEndToken ? -this._usedEndToken.length - 1 : 0; // minus 1 space before endToken
 			return new Selection(
 				srcRange.endLineNumber,
 				srcRange.endColumn + deltaColumn,

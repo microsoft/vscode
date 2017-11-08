@@ -44,7 +44,7 @@ suite('Debug - Adapter', () => {
 
 	setup(() => {
 		adapter = new Adapter(rawAdapter, { extensionFolderPath, id: 'adapter', name: 'myAdapter', version: '1.0.0', publisher: 'vscode', isBuiltin: false, engines: null },
-			null, new TestConfigurationService(), null);
+			new TestConfigurationService(), null);
 	});
 
 	teardown(() => {
@@ -126,7 +126,7 @@ suite('Debug - Adapter', () => {
 			'	]',
 			'}'].join('\n');
 
-		return adapter.getInitialConfigurationContent(null).then(content => {
+		return adapter.getInitialConfigurationContent().then(content => {
 			assert.equal(content, expected);
 		}, err => assert.fail());
 	});

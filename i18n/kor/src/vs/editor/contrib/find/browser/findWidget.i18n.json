@@ -15,7 +15,7 @@
 	"label.replaceButton": "바꾸기",
 	"label.replaceAllButton": "모두 바꾸기",
 	"label.toggleReplaceButton": "바꾸기 모드 설정/해제",
-	"title.matchesCountLimit": "처음 999개의 결과가 강조 표시되지만 모든 찾기 작업은 전체 텍스트에 대해 수행됩니다.",
+	"title.matchesCountLimit": "처음 {0}개의 결과가 강조 표시되지만 모든 찾기 작업은 전체 텍스트에 대해 수행됩니다.",
 	"label.matchesLocation": "{0}/{1}",
 	"label.noResults": "결과 없음"
 }

@@ -1453,9 +1453,9 @@ suite('Editor Controller - Regression tests', () => {
 
 			cursorCommand(cursor, H.Undo);
 			assert.equal(model.getValue(), [
-				'some lines',
-				'and more lines',
-				'just some text',
+				'    some lines',
+				'    and more lines',
+				'    just some text',
 			].join('\n'), '002');
 
 			cursorCommand(cursor, H.Undo);
@@ -1464,6 +1464,13 @@ suite('Editor Controller - Regression tests', () => {
 				'and more lines',
 				'just some text',
 			].join('\n'), '003');
+
+			cursorCommand(cursor, H.Undo);
+			assert.equal(model.getValue(), [
+				'some lines',
+				'and more lines',
+				'just some text',
+			].join('\n'), '004');
 		});
 
 		model.dispose();
@@ -1622,6 +1629,24 @@ suite('Editor Controller - Regression tests', () => {
 		});
 	});
 
+	test('issue #33788: Wrong cursor position when double click to select a word', () => {
+		let model = Model.createFromString(
+			[
+				'Just some text'
+			].join('\n')
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+			CoreNavigationCommands.WordSelect.runCoreEditorCommand(cursor, { position: new Position(1, 8) });
+			assert.deepEqual(cursor.getSelection(), new Selection(1, 6, 1, 10));
+
+			CoreNavigationCommands.WordSelectDrag.runCoreEditorCommand(cursor, { position: new Position(1, 8) });
+			assert.deepEqual(cursor.getSelection(), new Selection(1, 6, 1, 10));
+		});
+
+		model.dispose();
+	});
+
 	test('issue #9675: Undo/Redo adds a stop in between CHN Characters', () => {
 		usingCursor({
 			text: [
@@ -1651,7 +1676,8 @@ suite('Editor Controller - Regression tests', () => {
 		});
 	});
 
-	test('issue #23913: Greater than 1000+ multi cursor typing replacement text appears inverted, lines begin to drop off selection', () => {
+	test('issue #23913: Greater than 1000+ multi cursor typing replacement text appears inverted, lines begin to drop off selection', function () {
+		this.timeout(10000);
 		const LINE_CNT = 2000;
 
 		let text = [];
@@ -1713,6 +1739,49 @@ suite('Editor Controller - Regression tests', () => {
 			].join('\n'));
 
 			assertCursor(cursor, new Selection(1, 1, 1, 1));
+		});
+	});
+
+	test('issue #36740: wordwrap creates an extra step / character at the wrapping point', () => {
+		// a single model line => 4 view lines
+		withMockCodeEditor([
+			[
+				'Lorem ipsum ',
+				'dolor sit amet ',
+				'consectetur ',
+				'adipiscing elit',
+			].join('')
+		], { wordWrap: 'wordWrapColumn', wordWrapColumn: 16 }, (editor, cursor) => {
+			cursor.setSelections('test', [new Selection(1, 7, 1, 7)]);
+
+			moveRight(cursor);
+			assertCursor(cursor, new Selection(1, 8, 1, 8));
+
+			moveRight(cursor);
+			assertCursor(cursor, new Selection(1, 9, 1, 9));
+
+			moveRight(cursor);
+			assertCursor(cursor, new Selection(1, 10, 1, 10));
+
+			moveRight(cursor);
+			assertCursor(cursor, new Selection(1, 11, 1, 11));
+
+			moveRight(cursor);
+			assertCursor(cursor, new Selection(1, 12, 1, 12));
+
+			moveRight(cursor);
+			assertCursor(cursor, new Selection(1, 13, 1, 13));
+
+			// moving to view line 2
+			moveRight(cursor);
+			assertCursor(cursor, new Selection(1, 14, 1, 14));
+
+			moveLeft(cursor);
+			assertCursor(cursor, new Selection(1, 13, 1, 13));
+
+			// moving back to view line 1
+			moveLeft(cursor);
+			assertCursor(cursor, new Selection(1, 12, 1, 12));
 		});
 	});
 });
@@ -3105,6 +3174,93 @@ suite('Editor Controller - Indentation Rules', () => {
 			assert.equal(model.getLineContent(3), '}');
 		});
 	});
+
+	test('issue #36090: JS: editor.autoIndent seems to be broken', () => {
+		class JSMode extends MockMode {
+			private static _id = new LanguageIdentifier('indentRulesMode', 4);
+			constructor() {
+				super(JSMode._id);
+				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+					brackets: [
+						['{', '}'],
+						['[', ']'],
+						['(', ')']
+					],
+					indentationRules: {
+						// ^(.*\*/)?\s*\}.*$
+						decreaseIndentPattern: /^((?!.*?\/\*).*\*\/)?\s*[\}\]\)].*$/,
+						// ^.*\{[^}"']*$
+						increaseIndentPattern: /^((?!\/\/).)*(\{[^}"'`]*|\([^)"'`]*|\[[^\]"'`]*)$/
+					},
+					onEnterRules: [
+						{
+							// e.g. /** | */
+							beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
+							afterText: /^\s*\*\/$/,
+							action: { indentAction: IndentAction.IndentOutdent, appendText: ' * ' }
+						}, {
+							// e.g. /** ...|
+							beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
+							action: { indentAction: IndentAction.None, appendText: ' * ' }
+						}, {
+							// e.g.  * ...|
+							beforeText: /^(\t|(\ \ ))*\ \*(\ ([^\*]|\*(?!\/))*)?$/,
+							action: { indentAction: IndentAction.None, appendText: '* ' }
+						}, {
+							// e.g.  */|
+							beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
+							action: { indentAction: IndentAction.None, removeText: 1 }
+						},
+						{
+							// e.g.  *-----*/|
+							beforeText: /^(\t|(\ \ ))*\ \*[^/]*\*\/\s*$/,
+							action: { indentAction: IndentAction.None, removeText: 1 }
+						}
+					]
+				}));
+			}
+		}
+
+		let mode = new JSMode();
+		let model = Model.createFromString(
+			[
+				'class ItemCtrl {',
+				'    getPropertiesByItemId(id) {',
+				'        return this.fetchItem(id)',
+				'            .then(item => {',
+				'                return this.getPropertiesOfItem(item);',
+				'            });',
+				'    }',
+				'}',
+			].join('\n'),
+			undefined,
+			mode.getLanguageIdentifier()
+		);
+
+		withMockCodeEditor(null, { model: model, autoIndent: false }, (editor, cursor) => {
+			moveTo(cursor, 7, 6, false);
+			assertCursor(cursor, new Selection(7, 6, 7, 6));
+
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assert.equal(model.getValue(),
+				[
+					'class ItemCtrl {',
+					'    getPropertiesByItemId(id) {',
+					'        return this.fetchItem(id)',
+					'            .then(item => {',
+					'                return this.getPropertiesOfItem(item);',
+					'            });',
+					'    }',
+					'    ',
+					'}',
+				].join('\n')
+			);
+			assertCursor(cursor, new Selection(8, 5, 8, 5));
+		});
+
+		model.dispose();
+		mode.dispose();
+	});
 });
 
 interface ICursorOpts {
@@ -3699,4 +3855,260 @@ suite('autoClosingPairs', () => {
 		model.dispose();
 		mode.dispose();
 	});
+
+	test('issue #7100: Mouse word selection is strange when non-word character is at the end of line', () => {
+		let model = Model.createFromString(
+			[
+				'before.a',
+				'before',
+				'hello:',
+				'there:',
+				'this is strange:',
+				'here',
+				'it',
+				'is',
+			].join('\n')
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+			CoreNavigationCommands.WordSelect.runEditorCommand(null, editor, {
+				position: new Position(3, 7)
+			});
+			assertCursor(cursor, new Selection(3, 7, 3, 7));
+
+			CoreNavigationCommands.WordSelectDrag.runEditorCommand(null, editor, {
+				position: new Position(4, 7)
+			});
+			assertCursor(cursor, new Selection(3, 7, 4, 7));
+		});
+	});
+});
+
+suite('Undo stops', () => {
+
+	test('there is an undo stop between typing and deleting left', () => {
+		let model = Model.createFromString(
+			[
+				'A  line',
+				'Another line',
+			].join('\n')
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+			cursor.setSelections('test', [new Selection(1, 3, 1, 3)]);
+			cursorCommand(cursor, H.Type, { text: 'first' }, 'keyboard');
+			assert.equal(model.getLineContent(1), 'A first line');
+			assertCursor(cursor, new Selection(1, 8, 1, 8));
+
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.equal(model.getLineContent(1), 'A fir line');
+			assertCursor(cursor, new Selection(1, 6, 1, 6));
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(1), 'A first line');
+			assertCursor(cursor, new Selection(1, 8, 1, 8));
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(1), 'A  line');
+			assertCursor(cursor, new Selection(1, 3, 1, 3));
+		});
+	});
+
+	test('there is an undo stop between typing and deleting right', () => {
+		let model = Model.createFromString(
+			[
+				'A  line',
+				'Another line',
+			].join('\n')
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+			cursor.setSelections('test', [new Selection(1, 3, 1, 3)]);
+			cursorCommand(cursor, H.Type, { text: 'first' }, 'keyboard');
+			assert.equal(model.getLineContent(1), 'A first line');
+			assertCursor(cursor, new Selection(1, 8, 1, 8));
+
+			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
+			assert.equal(model.getLineContent(1), 'A firstine');
+			assertCursor(cursor, new Selection(1, 8, 1, 8));
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(1), 'A first line');
+			assertCursor(cursor, new Selection(1, 8, 1, 8));
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(1), 'A  line');
+			assertCursor(cursor, new Selection(1, 3, 1, 3));
+		});
+	});
+
+	test('there is an undo stop between deleting left and typing', () => {
+		let model = Model.createFromString(
+			[
+				'A  line',
+				'Another line',
+			].join('\n')
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+			cursor.setSelections('test', [new Selection(2, 8, 2, 8)]);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.equal(model.getLineContent(2), ' line');
+			assertCursor(cursor, new Selection(2, 1, 2, 1));
+
+			cursorCommand(cursor, H.Type, { text: 'Second' }, 'keyboard');
+			assert.equal(model.getLineContent(2), 'Second line');
+			assertCursor(cursor, new Selection(2, 7, 2, 7));
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(2), ' line');
+			assertCursor(cursor, new Selection(2, 1, 2, 1));
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(2), 'Another line');
+			assertCursor(cursor, new Selection(2, 8, 2, 8));
+		});
+	});
+
+	test('there is an undo stop between deleting left and deleting right', () => {
+		let model = Model.createFromString(
+			[
+				'A  line',
+				'Another line',
+			].join('\n')
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+			cursor.setSelections('test', [new Selection(2, 8, 2, 8)]);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.equal(model.getLineContent(2), ' line');
+			assertCursor(cursor, new Selection(2, 1, 2, 1));
+
+			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
+			assert.equal(model.getLineContent(2), '');
+			assertCursor(cursor, new Selection(2, 1, 2, 1));
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(2), ' line');
+			assertCursor(cursor, new Selection(2, 1, 2, 1));
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(2), 'Another line');
+			assertCursor(cursor, new Selection(2, 8, 2, 8));
+		});
+	});
+
+	test('there is an undo stop between deleting right and typing', () => {
+		let model = Model.createFromString(
+			[
+				'A  line',
+				'Another line',
+			].join('\n')
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+			cursor.setSelections('test', [new Selection(2, 9, 2, 9)]);
+			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
+			assert.equal(model.getLineContent(2), 'Another ');
+			assertCursor(cursor, new Selection(2, 9, 2, 9));
+
+			cursorCommand(cursor, H.Type, { text: 'text' }, 'keyboard');
+			assert.equal(model.getLineContent(2), 'Another text');
+			assertCursor(cursor, new Selection(2, 13, 2, 13));
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(2), 'Another ');
+			assertCursor(cursor, new Selection(2, 9, 2, 9));
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(2), 'Another line');
+			assertCursor(cursor, new Selection(2, 9, 2, 9));
+		});
+	});
+
+	test('there is an undo stop between deleting right and deleting left', () => {
+		let model = Model.createFromString(
+			[
+				'A  line',
+				'Another line',
+			].join('\n')
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+			cursor.setSelections('test', [new Selection(2, 9, 2, 9)]);
+			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
+			assert.equal(model.getLineContent(2), 'Another ');
+			assertCursor(cursor, new Selection(2, 9, 2, 9));
+
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			assert.equal(model.getLineContent(2), 'An');
+			assertCursor(cursor, new Selection(2, 3, 2, 3));
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(2), 'Another ');
+			assertCursor(cursor, new Selection(2, 9, 2, 9));
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(2), 'Another line');
+			assertCursor(cursor, new Selection(2, 9, 2, 9));
+		});
+	});
+
+	test('inserts undo stop when typing space', () => {
+		let model = Model.createFromString(
+			[
+				'A  line',
+				'Another line',
+			].join('\n')
+		);
+
+		withMockCodeEditor(null, { model: model }, (editor, cursor) => {
+			cursor.setSelections('test', [new Selection(1, 3, 1, 3)]);
+			cursorCommand(cursor, H.Type, { text: 'first and interesting' }, 'keyboard');
+			assert.equal(model.getLineContent(1), 'A first and interesting line');
+			assertCursor(cursor, new Selection(1, 24, 1, 24));
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(1), 'A first and line');
+			assertCursor(cursor, new Selection(1, 12, 1, 12));
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(1), 'A first line');
+			assertCursor(cursor, new Selection(1, 8, 1, 8));
+
+			cursorCommand(cursor, H.Undo, {});
+			assert.equal(model.getLineContent(1), 'A  line');
+			assertCursor(cursor, new Selection(1, 3, 1, 3));
+		});
+	});
+
 });

@@ -36,5 +36,10 @@
 	"schema.indentationRules.unIndentedLinePattern": "Ha egy sor illeszkedik erre a mintára, akkor az indentálása nem változik, és nem lesz kiértékelve más szabályok alapján.",
 	"schema.indentationRules.unIndentedLinePattern.pattern": "Az unIndentedLinePatternhöz tartozó reguláris kifejezés.",
 	"schema.indentationRules.unIndentedLinePattern.flags": "Az unIndentedLinePatternhöz tartozó reguláris kifejezés beállításai.",
-	"schema.indentationRules.unIndentedLinePattern.errorMessage": "Illeszkednie kell a következő mintára: `/^([gimuy]+)$/`."
+	"schema.indentationRules.unIndentedLinePattern.errorMessage": "Illeszkednie kell a következő mintára: `/^([gimuy]+)$/`.",
+	"schema.folding": "A nyelv kódrészek bezárásával kapcsolatos beállításai.",
+	"schema.folding.offSide": "Egy nyelv követi az „off-side”-szabályt, ha a blokkokat az adott nyelvben az indentációjuk fejezi ki. Ha be van állítva, akkor az üres sorok a rákövetkező blokkhoz tartoznak.",
+	"schema.folding.markers": "Nyelvspecifikus, becsukható kódrészleteket határoló kifejezések. Például: '#region' és '#endregion'. A kezdő és záró reguláris kifejezések az összes soron tesztelve vannak, így hatékonyan kell őket megtervezni.",
+	"schema.folding.markers.start": "A kezdő határjelzőt leíró reguláris kifejezés. A reguláris kifejezésnek '^' karakterrel kell kezdődnie.",
+	"schema.folding.markers.end": "A záró határjelzőt leíró reguláris kifejezés. A reguláris kifejezésnek '^' karakterrel kell kezdődnie."
 }

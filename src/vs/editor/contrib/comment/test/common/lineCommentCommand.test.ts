@@ -41,7 +41,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 				'!@# some text',
 				'\tsome more text'
 			],
-			new Selection(1, 9, 1, 9)
+			new Selection(1, 5, 1, 5)
 		);
 	});
 
@@ -335,7 +335,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 				'!@# first!@#',
 				'\tsecond line'
 			],
-			new Selection(1, 9, 1, 9)
+			new Selection(1, 5, 1, 5)
 		);
 	});
 
@@ -371,7 +371,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 				'fourth line',
 				'fifth'
 			],
-			new Selection(1, 9, 2, 5)
+			new Selection(1, 5, 2, 1)
 		);
 	});
 
@@ -392,7 +392,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 				'fourth line',
 				'fifth'
 			],
-			new Selection(1, 9, 2, 12)
+			new Selection(1, 5, 2, 8)
 		);
 	});
 
@@ -413,7 +413,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 				'!@# fourth line',
 				'fifth'
 			],
-			new Selection(3, 9, 4, 12)
+			new Selection(3, 5, 4, 8)
 		);
 	});
 
@@ -434,7 +434,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 				'fourth line',
 				'fifth'
 			],
-			new Selection(1, 9, 1, 9)
+			new Selection(1, 5, 1, 5)
 		);
 
 		testLineCommentCommand(
@@ -474,7 +474,7 @@ suite('Editor Contrib - Line Comment Command', () => {
 				'fourth line',
 				'fifth'
 			],
-			new Selection(1, 9, 2, 12)
+			new Selection(1, 5, 2, 8)
 		);
 
 		testLineCommentCommand(
@@ -494,6 +494,71 @@ suite('Editor Contrib - Line Comment Command', () => {
 				'fifth'
 			],
 			new Selection(1, 1, 2, 3)
+		);
+	});
+
+	test('issue #5964: Ctrl+/ to create comment when cursor is at the beginning of the line puts the cursor in a strange position', () => {
+		testLineCommentCommand(
+			[
+				'first',
+				'\tsecond line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(1, 1, 1, 1),
+			[
+				'!@# first',
+				'\tsecond line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(1, 5, 1, 5)
+		);
+	});
+
+	test('issue #35673: Comment hotkeys throws the cursor before the comment', () => {
+		testLineCommentCommand(
+			[
+				'first',
+				'',
+				'\tsecond line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(2, 1, 2, 1),
+			[
+				'first',
+				'!@# ',
+				'\tsecond line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(2, 5, 2, 5)
+		);
+
+		testLineCommentCommand(
+			[
+				'first',
+				'\t',
+				'\tsecond line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(2, 2, 2, 2),
+			[
+				'first',
+				'\t!@# ',
+				'\tsecond line',
+				'third line',
+				'fourth line',
+				'fifth'
+			],
+			new Selection(2, 6, 2, 6)
 		);
 	});
 
@@ -937,4 +1002,20 @@ suite('Editor Contrib - Line Comment in mixed modes', () => {
 		);
 	});
 
+	test('issue #36173: Commenting code in JSX tag body', () => {
+		testLineCommentCommand(
+			[
+				'<div>',
+				'  {123}',
+				'</div>',
+			],
+			new Selection(2, 4, 2, 4),
+			[
+				'<div>',
+				'  {/* {123} */}',
+				'</div>',
+			],
+			new Selection(2, 8, 2, 8),
+		);
+	});
 });

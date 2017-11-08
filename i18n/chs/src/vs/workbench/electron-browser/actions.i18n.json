@@ -42,5 +42,10 @@
 	"navigateUp": "导航到上方视图",
 	"navigateDown": "导航到下方视图",
 	"increaseViewSize": "增加当前视图大小",
-	"decreaseViewSize": "减小当前视图大小"
+	"decreaseViewSize": "减小当前视图大小",
+	"showPreviousTab": "显示上一个窗口选项卡",
+	"showNextWindowTab": "显示下一个窗口选项卡",
+	"moveWindowTabToNewWindow": "将窗口选项卡移动到新窗口",
+	"mergeAllWindowTabs": "合并所有窗口",
+	"toggleWindowTabsBar": "切换窗口选项卡栏"
 }

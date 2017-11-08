@@ -6,11 +6,12 @@
 'use strict';
 
 import { localize } from 'vs/nls';
+import { basename } from 'vs/base/common/paths';
 import { IDisposable, dispose, empty as EmptyDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { filterEvent } from 'vs/base/common/event';
+import { filterEvent, anyEvent as anyEvent } from 'vs/base/common/event';
 import { VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
 import { ISCMService, ISCMRepository } from 'vs/workbench/services/scm/common/scm';
-import { IActivityBarService, NumberBadge } from 'vs/workbench/services/activity/common/activityBarService';
+import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
@@ -24,14 +25,16 @@ export class StatusUpdater implements IWorkbenchContribution {
 
 	constructor(
 		@ISCMService private scmService: ISCMService,
-		@IActivityBarService private activityBarService: IActivityBarService
+		@IActivityService private activityService: IActivityService
 	) {
 		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 		this.render();
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
-		const changeDisposable = repository.provider.onDidChange(() => this.render());
+		const provider = repository.provider;
+		const onDidChange = anyEvent(provider.onDidChange, provider.onDidChangeResources);
+		const changeDisposable = onDidChange(() => this.render());
 
 		const onDidRemove = filterEvent(this.scmService.onDidRemoveRepository, e => e === repository);
 		const removeDisposable = onDidRemove(() => {
@@ -55,13 +58,13 @@ export class StatusUpdater implements IWorkbenchContribution {
 			if (typeof repository.provider.count === 'number') {
 				return r + repository.provider.count;
 			} else {
-				return r + repository.provider.resources.reduce<number>((r, g) => r + g.resources.length, 0);
+				return r + repository.provider.resources.reduce<number>((r, g) => r + g.resourceCollection.resources.length, 0);
 			}
 		}, 0);
 
 		if (count > 0) {
 			const badge = new NumberBadge(count, num => localize('scmPendingChangesBadge', '{0} pending changes', num));
-			this.badgeDisposable = this.activityBarService.showActivity(VIEWLET_ID, badge, 'scm-viewlet-label');
+			this.badgeDisposable = this.activityService.showActivity(VIEWLET_ID, badge, 'scm-viewlet-label');
 		} else {
 			this.badgeDisposable = EmptyDisposable;
 		}
@@ -137,9 +140,13 @@ export class StatusBarController implements IWorkbenchContribution {
 		this.statusBarDisposable.dispose();
 
 		const commands = repository.provider.statusBarCommands || [];
+		const label = repository.provider.rootUri
+			? `${basename(repository.provider.rootUri.fsPath)} (${repository.provider.label})`
+			: repository.provider.label;
+
 		const disposables = commands.map(c => this.statusbarService.addEntry({
 			text: c.title,
-			tooltip: `${repository.provider.label} - ${c.tooltip}`,
+			tooltip: `${label} - ${c.tooltip}`,
 			command: c.id,
 			arguments: c.arguments
 		}, MainThreadStatusBarAlignment.LEFT, 10000));

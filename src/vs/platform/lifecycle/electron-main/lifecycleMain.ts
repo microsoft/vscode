@@ -7,7 +7,6 @@
 
 import { ipcMain as ipc, app } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/node/storage';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -94,7 +93,6 @@ export class LifecycleService implements ILifecycleService {
 	onBeforeWindowUnload: Event<IWindowUnloadEvent> = this._onBeforeWindowUnload.event;
 
 	constructor(
-		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILogService private logService: ILogService,
 		@IStorageService private storageService: IStorageService
 	) {
@@ -141,8 +139,7 @@ export class LifecycleService implements ILifecycleService {
 
 			// Windows/Linux: we quit when all windows have closed
 			// Mac: we only quit when quit was requested
-			// --wait: we quit when all windows are closed
-			if (this.quitRequested || process.platform !== 'darwin' || this.environmentService.wait) {
+			if (this.quitRequested || process.platform !== 'darwin') {
 				app.quit();
 			}
 		});

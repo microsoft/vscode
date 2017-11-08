@@ -6,7 +6,7 @@
 {
 	"error.cannotparsejson": "JSON 테마 파일을 구문 분석하는 중 문제 발생: {0}",
 	"error.invalidformat.colors": "색 테마 파일 {0}을(를) 구문 분석하는 중 문제가 발생했습니다. 'colors' 속성이 'object' 형식이 아닙니다.",
-	"error.invalidformat.tokenColors": "색 테마 파일 {0}을(를) 구문 분석하는 중 문제가 발생했습니다. 'tokenColors' 속성이 'object' 형식이 아닙니다. 'tokenColors' 속성은 색을 지정하는 배열 또는 텍스트 짝 테마 파일의 경로여야 합니다.",
+	"error.invalidformat.tokenColors": "색 테마 파일 {0}을(를) 구문 분석하는 중 문제가 발생했습니다. 'tokenColors' 속성이 색을 지정하는 배열 또는 TextMate 테마 파일의 경로여야 합니다.",
 	"error.plist.invalidformat": "tmTheme 파일 {0}을(를) 구문 분석하는 중 문제가 발생했습니다. 'settings'가 배열이 아닙니다.",
 	"error.cannotparse": "tmTheme 파일 {0}을(를) 구문 분석하는 중 문제가 발생했습니다.",
 	"error.cannotload": "tmTheme 파일 {0}을(를) 로드하는 중 문제가 발생했습니다. {1}"

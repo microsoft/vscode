@@ -49,6 +49,7 @@ export class KeybindingsEditorInput extends EditorInput {
 	public static ID: string = 'workbench.input.keybindings';
 	public readonly keybindingsModel: KeybindingsEditorModel;
 
+	// @ts-ignore unused injected service
 	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
 		super();
 		this.keybindingsModel = instantiationService.createInstance(KeybindingsEditorModel, OS);
@@ -106,6 +107,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		@IKeybindingEditingService private keybindingEditingService: IKeybindingEditingService,
 		@IListService private listService: IListService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
+		// @ts-ignore unused injected service
 		@IChoiceService private choiceService: IChoiceService,
 		@IMessageService private messageService: IMessageService,
 		@IClipboardService private clipboardService: IClipboardService,
@@ -249,6 +251,10 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 	search(filter: string): void {
 		this.searchWidget.focus();
+	}
+
+	clearSearchResults(): void {
+		this.searchWidget.clear();
 	}
 
 	showConflicts(keybindingEntry: IKeybindingItemEntry): TPromise<any> {
@@ -517,6 +523,12 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 				emptyFilters: this.getLatestEmptyFiltersForTelemetry()
 			};
 			this.latestEmptyFilters = [];
+			/* __GDPR__
+				"keybindings.filter" : {
+					"filter": { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+					"emptyFilters" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
 			this.telemetryService.publicLog('keybindings.filter', data);
 		}
 	}
@@ -531,6 +543,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	}
 
 	private reportKeybindingAction(action: string, command: string, keybinding: ResolvedKeybinding | string): void {
+		// __GDPR__TODO__ Need to move off dynamic event names and properties as they cannot be registered statically
 		this.telemetryService.publicLog(action, { command, keybinding: keybinding ? (typeof keybinding === 'string' ? keybinding : keybinding.getUserSettingsLabel()) : '' });
 	}
 
@@ -712,16 +725,21 @@ class CommandColumn extends Column {
 		const commandDefaultLabelMatched = !!keybindingItemEntry.commandDefaultLabelMatches;
 		DOM.toggleClass(this.commandColumn, 'vertical-align-column', commandIdMatched || commandDefaultLabelMatched);
 		this.commandColumn.setAttribute('aria-label', this.getAriaLabel(keybindingItemEntry));
+		let commandLabel: HighlightedLabel;
 		if (keybindingItem.commandLabel) {
-			const commandLabel = new HighlightedLabel(this.commandColumn);
+			commandLabel = new HighlightedLabel(this.commandColumn);
 			commandLabel.set(keybindingItem.commandLabel, keybindingItemEntry.commandLabelMatches);
-			commandLabel.element.title = keybindingItem.command;
 		}
 		if (keybindingItemEntry.commandDefaultLabelMatches) {
-			new HighlightedLabel(DOM.append(this.commandColumn, $('.command-default-label'))).set(keybindingItem.commandDefaultLabel, keybindingItemEntry.commandDefaultLabelMatches);
+			commandLabel = new HighlightedLabel(DOM.append(this.commandColumn, $('.command-default-label')));
+			commandLabel.set(keybindingItem.commandDefaultLabel, keybindingItemEntry.commandDefaultLabelMatches);
 		}
 		if (keybindingItemEntry.commandIdMatches || !keybindingItem.commandLabel) {
-			new HighlightedLabel(DOM.append(this.commandColumn, $('.code'))).set(keybindingItem.command, keybindingItemEntry.commandIdMatches);
+			commandLabel = new HighlightedLabel(DOM.append(this.commandColumn, $('.code')));
+			commandLabel.set(keybindingItem.command, keybindingItemEntry.commandIdMatches);
+		}
+		if (commandLabel) {
+			commandLabel.element.title = keybindingItem.command;
 		}
 	}
 

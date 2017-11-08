@@ -109,6 +109,7 @@ function _matchesSubString(word: string, wordToMatchAgainst: string, i: number, 
 			if (result = _matchesSubString(word, wordToMatchAgainst, i + 1, j + 1)) {
 				return join({ start: j, end: j + 1 }, result);
 			}
+			return null;
 		}
 
 		return _matchesSubString(word, wordToMatchAgainst, i, j + 1);
@@ -121,7 +122,7 @@ function isLower(code: number): boolean {
 	return CharCode.a <= code && code <= CharCode.z;
 }
 
-function isUpper(code: number): boolean {
+export function isUpper(code: number): boolean {
 	return CharCode.A <= code && code <= CharCode.Z;
 }
 
@@ -242,7 +243,13 @@ function isCamelCasePattern(word: string): boolean {
 }
 
 export function matchesCamelCase(word: string, camelCaseWord: string): IMatch[] {
-	if (!camelCaseWord || camelCaseWord.length === 0) {
+	if (!camelCaseWord) {
+		return null;
+	}
+
+	camelCaseWord = camelCaseWord.trim();
+
+	if (camelCaseWord.length === 0) {
 		return null;
 	}
 

@@ -13,12 +13,14 @@
 	"vscode.extension.contributes.menuItem.group": "此命令所属的组",
 	"vscode.extension.contributes.menus": "向编辑器提供菜单项",
 	"menus.commandPalette": "命令面板",
+	"menus.touchBar": "Multi-Touch Bar (仅 macOS)",
 	"menus.editorTitle": "编辑器标题菜单",
 	"menus.editorContext": "编辑器上下文菜单",
 	"menus.explorerContext": "文件资源管理器上下文菜单",
 	"menus.editorTabContext": "编辑器选项卡上下文菜单",
 	"menus.debugCallstackContext": "调试调用堆栈上下文菜单",
 	"menus.scmTitle": "源代码管理标题菜单",
+	"menus.scmSourceControl": "源代码管理菜单",
 	"menus.resourceGroupContext": "源代码管理资源组上下文菜单",
 	"menus.resourceStateContext": "源代码管理资源状态上下文菜单",
 	"view.viewTitle": "提供的视图的标题菜单",
@@ -39,5 +41,5 @@
 	"missing.command": "菜单项引用未在“命令”部分进行定义的命令“{0}”。",
 	"missing.altCommand": "菜单项引用未在“命令”部分进行定义的 alt 命令“{0}”。",
 	"dupe.command": "菜单项引用与默认和 alt 命令相同的命令",
-	"nosupport.altCommand": "抱歉，目前仅有“editor/title”菜单的“navigation”组支持 alt 命令"
+	"nosupport.altCommand": "抱歉，目前仅有 \"editor/title\" 菜单的 \"navigation\" 组支持替代命令"
 }

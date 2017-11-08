@@ -26,11 +26,11 @@ import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
 import { IRawTextSource, TextSource, RawTextSource, ITextSource } from 'vs/editor/common/model/textSource';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
-import { ClassName } from 'vs/editor/common/model/textModelWithDecorations';
+import { ClassName } from 'vs/editor/common/model/intervalTree';
 import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { themeColorFromId, ThemeColor } from 'vs/platform/theme/common/themeService';
-import { overviewRulerWarning, overviewRulerError } from 'vs/editor/common/view/editorColorRegistry';
+import { overviewRulerWarning, overviewRulerError, overviewRulerInfo } from 'vs/editor/common/view/editorColorRegistry';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -125,10 +125,14 @@ class ModelMarkerHandler {
 				// do something
 				break;
 			case Severity.Warning:
-			case Severity.Info:
 				className = ClassName.EditorWarningDecoration;
 				color = themeColorFromId(overviewRulerWarning);
 				darkColor = themeColorFromId(overviewRulerWarning);
+				break;
+			case Severity.Info:
+				className = ClassName.EditorInfoDecoration;
+				color = themeColorFromId(overviewRulerInfo);
+				darkColor = themeColorFromId(overviewRulerInfo);
 				break;
 			case Severity.Error:
 			default:
@@ -220,7 +224,7 @@ export class ModelServiceImpl implements IModelService {
 			this._markerServiceSubscription = this._markerService.onMarkerChanged(this._handleMarkerChange, this);
 		}
 
-		this._configurationServiceSubscription = this._configurationService.onDidUpdateConfiguration(e => this._updateModelOptions());
+		this._configurationServiceSubscription = this._configurationService.onDidChangeConfiguration(e => this._updateModelOptions());
 		this._updateModelOptions();
 	}
 
@@ -268,7 +272,7 @@ export class ModelServiceImpl implements IModelService {
 	public getCreationOptions(language: string, resource: URI): editorCommon.ITextModelCreationOptions {
 		let creationOptions = this._modelCreationOptionsByLanguageAndResource[language + resource];
 		if (!creationOptions) {
-			creationOptions = ModelServiceImpl._readModelOptions(this._configurationService.getConfiguration(null, { overrideIdentifier: language, resource }));
+			creationOptions = ModelServiceImpl._readModelOptions(this._configurationService.getConfiguration({ overrideIdentifier: language, resource }));
 			this._modelCreationOptionsByLanguageAndResource[language + resource] = creationOptions;
 		}
 		return creationOptions;

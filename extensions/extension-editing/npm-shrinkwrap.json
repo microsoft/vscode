@@ -5,7 +5,8 @@
     "@types/node": {
       "version": "6.0.78",
       "from": "@types/node@>=6.0.46 <7.0.0",
-      "resolved": "https://registry.npmjs.org/@types/node/-/node-6.0.78.tgz"
+      "resolved": "https://registry.npmjs.org/@types/node/-/node-6.0.78.tgz",
+      "dev": true
     },
     "argparse": {
       "version": "1.0.9",

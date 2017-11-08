@@ -17,6 +17,10 @@
 			"language": "fsharp",
 			"scopeName": "source.fsharp",
 			"path": "./syntaxes/fsharp.json"
+		}],
+		"snippets": [{
+			"language": "fsharp",
+			"path": "./snippets/fsharp.json"
 		}]
 	}
 }

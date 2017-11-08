@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { app, ipcMain as ipc, BrowserWindow } from 'electron';
+import { app, ipcMain as ipc, BrowserWindow, dialog } from 'electron';
 import * as platform from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
 import { IWindowsService, OpenContext } from 'vs/platform/windows/common/windows';
@@ -59,7 +59,7 @@ import { touch } from 'vs/base/node/pfs';
 
 export class CodeApplication {
 
-	private static APP_ICON_REFRESH_KEY = 'macOSAppIconRefresh';
+	private static APP_ICON_REFRESH_KEY = 'macOSAppIconRefresh3';
 
 	private toDispose: IDisposable[];
 	private windowsMainService: IWindowsMainService;
@@ -76,7 +76,7 @@ export class CodeApplication {
 		@ILogService private logService: ILogService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IConfigurationService private configurationService: ConfigurationService<any>,
+		@IConfigurationService configurationService: ConfigurationService,
 		@IStorageService private storageService: IStorageService,
 		@IHistoryMainService private historyService: IHistoryMainService
 	) {
@@ -228,9 +228,9 @@ export class CodeApplication {
 		});
 
 		// Keyboard layout changes
-		KeyboardLayoutMonitor.INSTANCE.onDidChangeKeyboardLayout(isISOKeyboard => {
+		KeyboardLayoutMonitor.INSTANCE.onDidChangeKeyboardLayout(() => {
 			if (this.windowsMainService) {
-				this.windowsMainService.sendToAll('vscode:keyboardLayoutChanged', isISOKeyboard);
+				this.windowsMainService.sendToAll('vscode:keyboardLayoutChanged', false);
 			}
 		});
 	}
@@ -291,10 +291,11 @@ export class CodeApplication {
 		services.set(ICredentialsService, new SyncDescriptor(CredentialsService));
 
 		// Telemtry
-		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !!product.enableTelemetry) {
+		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
 			const channel = getDelayedChannel<ITelemetryAppenderChannel>(this.sharedProcessClient.then(c => c.getChannel('telemetryAppender')));
 			const appender = new TelemetryAppenderClient(channel);
-			const commonProperties = resolveCommonProperties(product.commit, pkg.version)
+			const commonProperties = resolveCommonProperties(product.commit, pkg.version, this.environmentService.installSource)
+				// __GDPR__COMMON__ "common.machineId" : { "classification": "EndUserPseudonymizedInformation", "purpose": "FeatureInsight" }
 				.then(result => Object.defineProperty(result, 'common.machineId', {
 					get: () => this.storageService.getItem(machineIdStorageKey),
 					enumerable: true
@@ -370,15 +371,40 @@ export class CodeApplication {
 	private afterWindowOpen(accessor: ServicesAccessor): void {
 		const appInstantiationService = accessor.get(IInstantiationService);
 
-		// Setup Windows mutex
 		let windowsMutex: Mutex = null;
 		if (platform.isWindows) {
+
+			// Setup Windows mutex
 			try {
 				const Mutex = (require.__$__nodeRequire('windows-mutex') as any).Mutex;
 				windowsMutex = new Mutex(product.win32MutexName);
 				this.toDispose.push({ dispose: () => windowsMutex.release() });
 			} catch (e) {
-				// noop
+				if (!this.environmentService.isBuilt) {
+					dialog.showMessageBox({
+						title: product.nameLong,
+						type: 'warning',
+						message: 'Failed to load windows-mutex!',
+						detail: e.toString(),
+						noLink: true
+					});
+				}
+			}
+
+			// Ensure Windows foreground love module
+			try {
+				// tslint:disable-next-line:no-unused-expression
+				<any>require.__$__nodeRequire('windows-foreground-love');
+			} catch (e) {
+				if (!this.environmentService.isBuilt) {
+					dialog.showMessageBox({
+						title: product.nameLong,
+						type: 'warning',
+						message: 'Failed to load windows-foreground-love!',
+						detail: e.toString(),
+						noLink: true
+					});
+				}
 			}
 		}
 

@@ -110,7 +110,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		},
 		doResolve(document: TextDocument, item: CompletionItem): CompletionItem {
 			updateCurrentTextDocument(document);
-			let details = jsLanguageService.getCompletionEntryDetails(FILE_NAME, item.data.offset, item.label);
+			let details = jsLanguageService.getCompletionEntryDetails(FILE_NAME, item.data.offset, item.label, undefined, undefined);
 			if (details) {
 				item.detail = ts.displayPartsToString(details.displayParts);
 				item.documentation = ts.displayPartsToString(details.documentation);
@@ -164,7 +164,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 					ret.signatures.push(signature);
 				});
 				return ret;
-			};
+			}
 			return null;
 		},
 		findDocumentHighlight(document: TextDocument, position: Position): DocumentHighlight[] {
@@ -177,7 +177,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 						kind: <DocumentHighlightKind>(entry.isWriteAccess ? DocumentHighlightKind.Write : DocumentHighlightKind.Text)
 					};
 				});
-			};
+			}
 			return null;
 		},
 		findDocumentSymbols(document: TextDocument): SymbolInformation[] {
@@ -286,7 +286,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			jsDocuments.dispose();
 		}
 	};
-};
+}
 
 function convertRange(document: TextDocument, span: { start: number, length: number }): Range {
 	let startPosition = document.positionAt(span.start);

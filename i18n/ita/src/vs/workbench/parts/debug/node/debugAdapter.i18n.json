@@ -6,6 +6,9 @@
 {
 	"debugAdapterBinNotFound": "Il file eseguibile '{0}' dell'adattatore di debug non esiste.",
 	"debugAdapterCannotDetermineExecutable": "Non è possibile determinare il file eseguibile per l'adattatore di debug '{0}'.",
+	"launch.config.comment1": "Usare IntelliSense per informazioni sui possibili attributi.",
+	"launch.config.comment2": "Al passaggio del mouse vengono visualizzate le descrizioni degli attributi esistenti.",
+	"launch.config.comment3": "Per ulteriori informazioni, visitare: {0}",
 	"debugType": "Tipo di configurazione.",
 	"debugTypeNotRecognised": "Il tipo di debug non è riconosciuto. Assicurarsi di avere un'estensione appropriata per il debug installata e che sia abilitata.",
 	"node2NotSupported": "\"node2\" non è più supportato. In alternativa, usare \"node\" e impostare l'attributo \"protocol\" su \"inspector\".",

@@ -23,6 +23,7 @@ export interface IToolBarOptions {
 	actionItemProvider?: IActionItemProvider;
 	ariaLabel?: string;
 	getKeyBinding?: (action: IAction) => ResolvedKeybinding;
+	actionRunner?: IActionRunner;
 }
 
 /**
@@ -49,6 +50,7 @@ export class ToolBar {
 		this.actionBar = new ActionBar($(element), {
 			orientation: options.orientation,
 			ariaLabel: options.ariaLabel,
+			actionRunner: options.actionRunner,
 			actionItemProvider: (action: Action) => {
 
 				// Return special action item for the toggle menu action

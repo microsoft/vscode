@@ -11,7 +11,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Model } from 'vs/editor/common/model/model';
 import { ICommonCodeEditor, Handler } from 'vs/editor/common/editorCommon';
-import { ISuggestSupport, ISuggestResult, SuggestRegistry } from 'vs/editor/common/modes';
+import { ISuggestSupport, ISuggestResult, SuggestRegistry, SuggestTriggerKind } from 'vs/editor/common/modes';
 import { SuggestModel, LineContext } from 'vs/editor/contrib/suggest/browser/suggestModel';
 import { MockCodeEditor, MockScopeLocation } from 'vs/editor/test/common/mocks/mockCodeEditor';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -20,6 +20,8 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { Range } from 'vs/editor/common/core/range';
 
 function createMockEditor(model: Model): MockCodeEditor {
 	const contextKeyService = new MockContextKeyService();
@@ -149,25 +151,25 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 				// cancel on trigger
 				assertEvent(model.onDidCancel, function () {
-					model.trigger(false);
+					model.trigger({ auto: false });
 				}, function (event) {
 					assert.equal(event.retrigger, false);
 				}),
 
 				assertEvent(model.onDidCancel, function () {
-					model.trigger(false, true);
+					model.trigger({ auto: false }, true);
 				}, function (event) {
 					assert.equal(event.retrigger, true);
 				}),
 
 				assertEvent(model.onDidTrigger, function () {
-					model.trigger(true);
+					model.trigger({ auto: true });
 				}, function (event) {
 					assert.equal(event.auto, true);
 				}),
 
 				assertEvent(model.onDidTrigger, function () {
-					model.trigger(false);
+					model.trigger({ auto: false });
 				}, function (event) {
 					assert.equal(event.auto, false);
 				})
@@ -183,12 +185,12 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		return withOracle(model => {
 			return TPromise.join([
 				assertEvent(model.onDidCancel, function () {
-					model.trigger(true);
+					model.trigger({ auto: true });
 				}, function (event) {
 					assert.equal(event.retrigger, false);
 				}),
 				assertEvent(model.onDidSuggest, function () {
-					model.trigger(false);
+					model.trigger({ auto: false });
 				}, function (event) {
 					assert.equal(event.auto, false);
 					assert.equal(event.isFrozen, false);
@@ -239,7 +241,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 			return assertEvent(model.onDidSuggest, () => {
 				// make sure completionModel starts here!
-				model.trigger(true);
+				model.trigger({ auto: true });
 			}, event => {
 
 				return assertEvent(model.onDidSuggest, () => {
@@ -338,7 +340,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			editor.setPosition({ lineNumber: 1, column: 3 });
 
 			return assertEvent(model.onDidSuggest, () => {
-				model.trigger(false);
+				model.trigger({ auto: false });
 			}, event => {
 				assert.equal(event.auto, false);
 				assert.equal(event.isFrozen, false);
@@ -363,7 +365,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			editor.setPosition({ lineNumber: 1, column: 3 });
 
 			return assertEvent(model.onDidSuggest, () => {
-				model.trigger(false);
+				model.trigger({ auto: false });
 			}, event => {
 				assert.equal(event.auto, false);
 				assert.equal(event.isFrozen, false);
@@ -400,7 +402,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			editor.setPosition({ lineNumber: 1, column: 4 });
 
 			return assertEvent(model.onDidSuggest, () => {
-				model.trigger(false);
+				model.trigger({ auto: false });
 			}, event => {
 				assert.equal(event.auto, false);
 				assert.equal(event.completionModel.incomplete, true);
@@ -437,7 +439,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 			editor.setPosition({ lineNumber: 1, column: 4 });
 
 			return assertEvent(model.onDidSuggest, () => {
-				model.trigger(false);
+				model.trigger({ auto: false });
 			}, event => {
 				assert.equal(event.auto, false);
 				assert.equal(event.completionModel.incomplete, true);
@@ -452,6 +454,84 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					assert.equal(event.auto, false);
 					assert.equal(event.completionModel.incomplete, true);
 					assert.equal(event.completionModel.items.length, 1);
+
+				});
+			});
+		});
+	});
+
+	test('Trigger character is provided in suggest context', function () {
+		let triggerCharacter = '';
+		disposables.push(SuggestRegistry.register({ scheme: 'test' }, {
+			triggerCharacters: ['.'],
+			provideCompletionItems(doc, pos, context) {
+				assert.equal(context.triggerKind, SuggestTriggerKind.TriggerCharacter);
+				triggerCharacter = context.triggerCharacter;
+				return <ISuggestResult>{
+					currentWord: '',
+					incomplete: false,
+					suggestions: [
+						{
+							label: 'foo.bar',
+							type: 'property',
+							insertText: 'foo.bar',
+							overwriteBefore: pos.column - 1
+						}
+					]
+				};
+			}
+		}));
+
+		model.setValue('');
+
+		return withOracle((model, editor) => {
+
+			return assertEvent(model.onDidSuggest, () => {
+				editor.setPosition({ lineNumber: 1, column: 1 });
+				editor.trigger('keyboard', Handler.Type, { text: 'foo.' });
+			}, event => {
+				assert.equal(triggerCharacter, '.');
+			});
+		});
+	});
+
+	test('Mac press and hold accent character insertion does not update suggestions, #35269', function () {
+		disposables.push(SuggestRegistry.register({ scheme: 'test' }, {
+			provideCompletionItems(doc, pos) {
+				return <ISuggestResult>{
+					incomplete: true,
+					suggestions: [{
+						label: 'abc',
+						type: 'property',
+						insertText: 'abc',
+						overwriteBefore: pos.column - 1
+					}, {
+						label: 'äbc',
+						type: 'property',
+						insertText: 'äbc',
+						overwriteBefore: pos.column - 1
+					}]
+				};
+			}
+		}));
+
+		model.setValue('');
+		return withOracle((model, editor) => {
+
+			return assertEvent(model.onDidSuggest, () => {
+				editor.setPosition({ lineNumber: 1, column: 1 });
+				editor.trigger('keyboard', Handler.Type, { text: 'a' });
+			}, event => {
+				assert.equal(event.completionModel.items.length, 1);
+				assert.equal(event.completionModel.items[0].suggestion.label, 'abc');
+
+				return assertEvent(model.onDidSuggest, () => {
+					editor.executeEdits('test', [EditOperation.replace(new Range(1, 1, 1, 2), 'ä')]);
+
+				}, event => {
+					// suggest model changed to äbc
+					assert.equal(event.completionModel.items.length, 1);
+					assert.equal(event.completionModel.items[0].suggestion.label, 'äbc');
 
 				});
 			});

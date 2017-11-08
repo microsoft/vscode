@@ -8,6 +8,7 @@
 import { Event } from 'vscode';
 import { dirname } from 'path';
 import * as fs from 'fs';
+import * as byline from 'byline';
 
 export function log(...args: any[]): void {
 	console.log.apply(console, ['git:', ...args]);
@@ -85,7 +86,7 @@ export function once(fn: (...args: any[]) => any): (...args: any[]) => any {
 
 export function assign<T>(destination: T, ...sources: any[]): T {
 	for (const source of sources) {
-		Object.keys(source).forEach(key => destination[key] = source[key]);
+		Object.keys(source).forEach(key => (destination as any)[key] = source[key]);
 	}
 
 	return destination;
@@ -114,12 +115,12 @@ export function groupBy<T>(arr: T[], fn: (el: T) => string): { [key: string]: T[
 	}, Object.create(null));
 }
 
-export function denodeify<R>(fn: Function): (...args) => Promise<R> {
-	return (...args) => new Promise<R>((c, e) => fn(...args, (err, r) => err ? e(err) : c(r)));
+export function denodeify<R>(fn: Function): (...args: any[]) => Promise<R> {
+	return (...args) => new Promise<R>((c, e) => fn(...args, (err: any, r: any) => err ? e(err) : c(r)));
 }
 
-export function nfcall<R>(fn: Function, ...args): Promise<R> {
-	return new Promise<R>((c, e) => fn(...args, (err, r) => err ? e(err) : c(r)));
+export function nfcall<R>(fn: Function, ...args: any[]): Promise<R> {
+	return new Promise<R>((c, e) => fn(...args, (err: any, r: any) => err ? e(err) : c(r)));
 }
 
 export async function mkdirp(path: string, mode?: number): Promise<boolean> {
@@ -188,4 +189,20 @@ export function find<T>(array: T[], fn: (t: T) => boolean): T | undefined {
 	});
 
 	return result;
+}
+
+export async function grep(filename: string, pattern: RegExp): Promise<boolean> {
+	return new Promise<boolean>((c, e) => {
+		const fileStream = fs.createReadStream(filename, { encoding: 'utf8' });
+		const stream = byline(fileStream);
+		stream.on('data', (line: string) => {
+			if (pattern.test(line)) {
+				fileStream.close();
+				c(true);
+			}
+		});
+
+		stream.on('error', e);
+		stream.on('end', () => c(false));
+	});
 }

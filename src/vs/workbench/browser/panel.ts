@@ -11,6 +11,7 @@ import { Composite, CompositeDescriptor, CompositeRegistry } from 'vs/workbench/
 import { Action } from 'vs/base/common/actions';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 
 export abstract class Panel extends Composite implements IPanel { }
 
@@ -19,12 +20,8 @@ export abstract class Panel extends Composite implements IPanel { }
  */
 export class PanelDescriptor extends CompositeDescriptor<Panel> {
 
-	constructor(moduleId: string, ctorName: string, id: string, name: string, cssClass?: string, order?: number, private _commandId?: string) {
-		super(moduleId, ctorName, id, name, cssClass, order);
-	}
-
-	public get commandId(): string {
-		return this._commandId;
+	constructor(ctor: IConstructorSignature0<Panel>, id: string, name: string, cssClass?: string, order?: number, _commandId?: string) {
+		super(ctor, id, name, cssClass, order, _commandId);
 	}
 }
 

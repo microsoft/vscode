@@ -18,11 +18,10 @@ import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
 import errors = require('vs/base/common/errors');
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IExtensionManagementService, LocalExtensionType, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IExtensionManagementService, LocalExtensionType, ILocalExtension, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import paths = require('vs/base/common/paths');
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
@@ -46,6 +45,7 @@ import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifi
 import { FileKind } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { getEntries } from 'vs/base/common/performance';
 
 // --- actions
 
@@ -104,7 +104,7 @@ export class CloseWorkspaceAction extends Action {
 	}
 
 	run(): TPromise<void> {
-		if (!this.contextService.hasWorkspace()) {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.messageService.show(Severity.Info, nls.localize('noWorkspaceOpened', "There is currently no workspace opened in this instance to close."));
 
 			return TPromise.as(null);
@@ -156,15 +156,13 @@ export class ToggleMenuBarAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IMessageService private messageService: IMessageService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<void> {
-		let currentVisibilityValue = this.configurationService.lookup<MenuBarVisibility>(ToggleMenuBarAction.menuBarVisibilityKey).value;
+		let currentVisibilityValue = this.configurationService.getValue<MenuBarVisibility>(ToggleMenuBarAction.menuBarVisibilityKey);
 		if (typeof currentVisibilityValue !== 'string') {
 			currentVisibilityValue = 'default';
 		}
@@ -176,7 +174,7 @@ export class ToggleMenuBarAction extends Action {
 			newVisibilityValue = 'default';
 		}
 
-		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ToggleMenuBarAction.menuBarVisibilityKey, value: newVisibilityValue });
+		this.configurationService.updateValue(ToggleMenuBarAction.menuBarVisibilityKey, newVisibilityValue, ConfigurationTarget.USER);
 
 		return TPromise.as(null);
 	}
@@ -202,18 +200,12 @@ export abstract class BaseZoomAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
-		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService
+		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
 	) {
 		super(id, label);
 	}
 
 	protected setConfiguredZoomLevel(level: number): void {
-		let target = ConfigurationTarget.USER;
-		if (typeof this.configurationService.lookup(BaseZoomAction.SETTING_KEY).workspace === 'number') {
-			target = ConfigurationTarget.WORKSPACE;
-		}
-
 		level = Math.round(level); // when reaching smallest zoom, prevent fractional zoom levels
 
 		const applyZoom = () => {
@@ -225,7 +217,7 @@ export abstract class BaseZoomAction extends Action {
 			browser.setZoomLevel(webFrame.getZoomLevel(), /*isTrusted*/false);
 		};
 
-		this.configurationEditingService.writeConfiguration(target, { key: BaseZoomAction.SETTING_KEY, value: level }, { donotNotifyError: true }).done(() => applyZoom(), error => applyZoom());
+		this.configurationService.updateValue(BaseZoomAction.SETTING_KEY, level).done(() => applyZoom());
 	}
 }
 
@@ -237,10 +229,9 @@ export class ZoomInAction extends BaseZoomAction {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService,
-		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService
+		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService
 	) {
-		super(id, label, configurationService, configurationEditingService);
+		super(id, label, configurationService);
 	}
 
 	public run(): TPromise<boolean> {
@@ -258,10 +249,9 @@ export class ZoomOutAction extends BaseZoomAction {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService,
-		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService
+		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService
 	) {
-		super(id, label, configurationService, configurationEditingService);
+		super(id, label, configurationService);
 	}
 
 	public run(): TPromise<boolean> {
@@ -279,10 +269,9 @@ export class ZoomResetAction extends BaseZoomAction {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService,
-		@IConfigurationEditingService configurationEditingService: IConfigurationEditingService
+		@IWorkspaceConfigurationService configurationService: IWorkspaceConfigurationService
 	) {
-		super(id, label, configurationService, configurationEditingService);
+		super(id, label, configurationService);
 	}
 
 	public run(): TPromise<boolean> {
@@ -351,11 +340,9 @@ export class ShowStartupPerformance extends Action {
 			console.log(`Empty Workspace: ${metrics.emptyWorkbench}`);
 
 			let nodeModuleLoadTime: number;
-			let nodeModuleLoadDetails: any[];
 			if (this.environmentService.performance) {
 				const nodeModuleTimes = this.analyzeNodeModulesLoadTimes();
 				nodeModuleLoadTime = nodeModuleTimes.duration;
-				nodeModuleLoadDetails = nodeModuleTimes.table;
 			}
 
 			(<any>console).table(this.getStartupMetricsTable(nodeModuleLoadTime));
@@ -373,6 +360,16 @@ export class ShowStartupPerformance extends Action {
 
 			(<any>console).group('Extension Activation Stats');
 			(<any>console).table(this.extensionService.getExtensionsActivationTimes());
+			(<any>console).groupEnd();
+
+			(<any>console).group('Raw Startup Timers (CSV)');
+			let value = `Name\tStart\tDuration\n`;
+			const entries = getEntries('measure');
+			let offset = entries[0].startTime;
+			for (const entry of entries) {
+				value += `${entry.name}\t${entry.startTime - offset}\t${entry.duration}\n`;
+			}
+			console.log(value);
 			(<any>console).groupEnd();
 		}, 1000);
 
@@ -759,23 +756,12 @@ export abstract class BaseOpenRecentAction extends Action {
 		const workspacePicks: IFilePickOpenEntry[] = recentWorkspaces.map((workspace, index) => toPick(workspace, index === 0 ? { label: nls.localize('workspaces', "workspaces") } : void 0, isSingleFolderWorkspaceIdentifier(workspace) ? FileKind.FOLDER : FileKind.ROOT_FOLDER, this.environmentService, !this.isQuickNavigate() ? this.removeAction : void 0));
 		const filePicks: IFilePickOpenEntry[] = recentFiles.map((p, index) => toPick(p, index === 0 ? { label: nls.localize('files', "files"), border: true } : void 0, FileKind.FILE, this.environmentService, !this.isQuickNavigate() ? this.removeAction : void 0));
 
-		let isCurrentWorkspaceInList: boolean;
-		if (!this.contextService.hasWorkspace()) {
-			isCurrentWorkspaceInList = false; // we never show empty workspaces
-		} else if (this.contextService.hasFolderWorkspace()) {
-			isCurrentWorkspaceInList = true; // we always show folder workspaces
-		} else {
-			const firstWorkspace = recentWorkspaces[0];
-			if (firstWorkspace && !isSingleFolderWorkspaceIdentifier(firstWorkspace)) {
-				isCurrentWorkspaceInList = firstWorkspace.id === this.contextService.getWorkspace().id;
-			} else {
-				isCurrentWorkspaceInList = false; // this is an untitled workspace thereby
-			}
-		}
+		// focus second entry if the first recent workspace is the current workspace
+		let autoFocusSecondEntry: boolean = recentWorkspaces[0] && this.contextService.isCurrentWorkspace(recentWorkspaces[0]);
 
 		this.quickOpenService.pick([...workspacePicks, ...filePicks], {
 			contextKey: inRecentFilesPickerContextKey,
-			autoFocus: { autoFocusFirstEntry: !isCurrentWorkspaceInList, autoFocusSecondEntry: isCurrentWorkspaceInList },
+			autoFocus: { autoFocusFirstEntry: !autoFocusSecondEntry, autoFocusSecondEntry: autoFocusSecondEntry },
 			placeHolder: isMacintosh ? nls.localize('openRecentPlaceHolderMac', "Select to open (hold Cmd-key to open in new window)") : nls.localize('openRecentPlaceHolder', "Select to open (hold Ctrl-key to open in new window)"),
 			matchOnDescription: true,
 			quickNavigateConfiguration: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : void 0
@@ -898,6 +884,7 @@ export class ReportIssueAction extends Action {
 		label: string,
 		@IIntegrityService private integrityService: IIntegrityService,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
+		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super(id, label);
@@ -917,6 +904,7 @@ export class ReportIssueAction extends Action {
 	public run(): TPromise<boolean> {
 		return this._optimisticIsPure().then(isPure => {
 			return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
+				extensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension.identifier));
 				const issueUrl = this.generateNewIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date, isPure, extensions, this.environmentService.disableExtensions);
 
 				window.open(issueUrl);
@@ -1553,5 +1541,95 @@ export class DecreaseViewSizeAction extends BaseResizeViewAction {
 	public run(): TPromise<boolean> {
 		this.resizePart(-BaseResizeViewAction.RESIZE_INCREMENT);
 		return TPromise.as(true);
+	}
+}
+
+export class ShowPreviousWindowTab extends Action {
+
+	public static ID = 'workbench.action.showPreviousWindowTab';
+	public static LABEL = nls.localize('showPreviousTab', "Show Previous Window Tab");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowsService private windowsService: IWindowsService
+	) {
+		super(ShowPreviousWindowTab.ID, ShowPreviousWindowTab.LABEL);
+	}
+
+	public run(): TPromise<boolean> {
+		return this.windowsService.showPreviousWindowTab().then(() => true);
+	}
+}
+
+export class ShowNextWindowTab extends Action {
+
+	public static ID = 'workbench.action.showNextWindowTab';
+	public static LABEL = nls.localize('showNextWindowTab', "Show Next Window Tab");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowsService private windowsService: IWindowsService
+	) {
+		super(ShowNextWindowTab.ID, ShowNextWindowTab.LABEL);
+	}
+
+	public run(): TPromise<boolean> {
+		return this.windowsService.showNextWindowTab().then(() => true);
+	}
+}
+
+export class MoveWindowTabToNewWindow extends Action {
+
+	public static ID = 'workbench.action.moveWindowTabToNewWindow';
+	public static LABEL = nls.localize('moveWindowTabToNewWindow', "Move Window Tab to New Window");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowsService private windowsService: IWindowsService
+	) {
+		super(MoveWindowTabToNewWindow.ID, MoveWindowTabToNewWindow.LABEL);
+	}
+
+	public run(): TPromise<boolean> {
+		return this.windowsService.moveWindowTabToNewWindow().then(() => true);
+	}
+}
+
+export class MergeAllWindowTabs extends Action {
+
+	public static ID = 'workbench.action.mergeAllWindowTabs';
+	public static LABEL = nls.localize('mergeAllWindowTabs', "Merge All Windows");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowsService private windowsService: IWindowsService
+	) {
+		super(MergeAllWindowTabs.ID, MergeAllWindowTabs.LABEL);
+	}
+
+	public run(): TPromise<boolean> {
+		return this.windowsService.mergeAllWindowTabs().then(() => true);
+	}
+}
+
+export class ToggleWindowTabsBar extends Action {
+
+	public static ID = 'workbench.action.toggleWindowTabsBar';
+	public static LABEL = nls.localize('toggleWindowTabsBar', "Toggle Window Tabs Bar");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowsService private windowsService: IWindowsService
+	) {
+		super(ToggleWindowTabsBar.ID, ToggleWindowTabsBar.LABEL);
+	}
+
+	public run(): TPromise<boolean> {
+		return this.windowsService.toggleWindowTabsBar().then(() => true);
 	}
 }

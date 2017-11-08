@@ -97,7 +97,7 @@ suite('workspace-namespace', () => {
 		});
 	});
 
-	test('openTextDocument, untitled closes on save', function (done) {
+	test('openTextDocument, untitled closes on save', function () {
 		const path = join(vscode.workspace.rootPath || '', './newfile.txt');
 
 		return vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + path)).then(doc => {
@@ -115,7 +115,7 @@ suite('workspace-namespace', () => {
 
 					d0.dispose();
 
-					return deleteFile(vscode.Uri.file(join(vscode.workspace.rootPath || '', './newfile.txt'))).then(() => done(null));
+					return deleteFile(vscode.Uri.file(join(vscode.workspace.rootPath || '', './newfile.txt')));
 				});
 			});
 
@@ -483,7 +483,7 @@ suite('workspace-namespace', () => {
 			assert.equal(res.length, 1);
 			assert.equal(basename(vscode.workspace.asRelativePath(res[0])), 'far.js');
 		});
-	}).timeout(60 * 1000); // Increase timeout for search-based test
+	});
 
 	// TODO@Joh this test fails randomly
 	// test('findFiles, cancellation', () => {

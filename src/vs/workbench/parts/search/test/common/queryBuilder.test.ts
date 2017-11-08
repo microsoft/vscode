@@ -11,7 +11,7 @@ import * as arrays from 'vs/base/common/arrays';
 import uri from 'vs/base/common/uri';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { QueryBuilder, ISearchPathsResult } from 'vs/workbench/parts/search/common/queryBuilder';
 import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
@@ -37,7 +37,7 @@ suite('QueryBuilder', () => {
 		instantiationService.stub(IConfigurationService, mockConfigService);
 
 		mockContextService = new TestContextService();
-		mockWorkspace = new Workspace('workspace', 'workspace', [ROOT_1_URI]);
+		mockWorkspace = new Workspace('workspace', 'workspace', toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }]));
 		mockContextService.setWorkspace(mockWorkspace);
 		instantiationService.stub(IWorkspaceContextService, mockContextService);
 
@@ -154,7 +154,7 @@ suite('QueryBuilder', () => {
 		const ROOT_2_URI = getUri(ROOT_2);
 		const ROOT_3 = fixPath('/project/root3');
 		const ROOT_3_URI = getUri(ROOT_3);
-		mockWorkspace.roots = [ROOT_1_URI, ROOT_2_URI, ROOT_3_URI];
+		mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }, { path: ROOT_2_URI.fsPath }, { path: ROOT_3_URI.fsPath }]);
 		mockWorkspace.configuration = uri.file(fixPath('/config'));
 
 		mockConfigService.setUserConfiguration('search', {
@@ -356,12 +356,12 @@ suite('QueryBuilder', () => {
 				includePattern);
 		}
 
-		function testIncludesDataItem([includePattern, expectedResult]): void {
-			testIncludes(<string>includePattern, <ISearchPathsResult>expectedResult);
+		function testIncludesDataItem([includePattern, expectedResult]: [string, ISearchPathsResult]): void {
+			testIncludes(includePattern, expectedResult);
 		}
 
 		test('absolute includes', () => {
-			[
+			const cases: [string, ISearchPathsResult][] = [
 				[
 					fixPath('/foo/bar'),
 					<ISearchPathsResult>{
@@ -425,11 +425,12 @@ suite('QueryBuilder', () => {
 						}]
 					}
 				]
-			].forEach(testIncludesDataItem);
+			];
+			cases.forEach(testIncludesDataItem);
 		});
 
 		test('relative includes w/single root folder', () => {
-			[
+			const cases: [string, ISearchPathsResult][] = [
 				[
 					'./a',
 					<ISearchPathsResult>{
@@ -468,15 +469,16 @@ suite('QueryBuilder', () => {
 						}]
 					}
 				],
-			].forEach(testIncludesDataItem);
+			];
+			cases.forEach(testIncludesDataItem);
 		});
 
 		test('relative includes w/two root folders', () => {
 			const ROOT_2 = '/project/root2';
-			mockWorkspace.roots = [ROOT_1_URI, getUri(ROOT_2)];
+			mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }, { path: getUri(ROOT_2).fsPath }]);
 			mockWorkspace.configuration = uri.file(fixPath('config'));
 
-			[
+			const cases: [string, ISearchPathsResult][] = [
 				[
 					'./root1',
 					<ISearchPathsResult>{
@@ -507,16 +509,17 @@ suite('QueryBuilder', () => {
 							}]
 					}
 				]
-			].forEach(testIncludesDataItem);
+			];
+			cases.forEach(testIncludesDataItem);
 		});
 
 		test('relative includes w/multiple ambiguous root folders', () => {
 			const ROOT_2 = '/project/rootB';
 			const ROOT_3 = '/otherproject/rootB';
-			mockWorkspace.roots = [ROOT_1_URI, getUri(ROOT_2), getUri(ROOT_3)];
+			mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }, { path: getUri(ROOT_2).fsPath }, { path: getUri(ROOT_3).fsPath }]);
 			mockWorkspace.configuration = uri.file(fixPath('/config'));
 
-			[
+			const cases: [string, ISearchPathsResult][] = [
 				[
 					'',
 					<ISearchPathsResult>{
@@ -579,7 +582,8 @@ suite('QueryBuilder', () => {
 							}]
 					}
 				]
-			].forEach(testIncludesDataItem);
+			];
+			cases.forEach(testIncludesDataItem);
 		});
 	});
 });
@@ -593,6 +597,8 @@ function assertEqualQueries(actual: ISearchQuery, expected: ISearchQuery): void 
 			fileEncoding: fq.fileEncoding
 		};
 	};
+
+	delete actual.ignoreSymlinks;
 
 	// Avoid comparing URI objects, not a good idea
 	if (expected.folderQueries) {

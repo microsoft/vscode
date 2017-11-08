@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as paths from 'vs/base/common/paths';
 import * as DOM from 'vs/base/browser/dom';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -14,7 +14,7 @@ import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { ITree, IDataSource, ISorter, IAccessibilityProvider, IFilter, IRenderer } from 'vs/base/parts/tree/browser/tree';
 import { Match, SearchResult, FileMatch, FileMatchOrMatch, SearchModel, FolderMatch } from 'vs/workbench/parts/search/common/searchModel';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { Range } from 'vs/editor/common/core/range';
 import { SearchViewlet } from 'vs/workbench/parts/search/browser/searchViewlet';
 import { RemoveAction, ReplaceAllAction, ReplaceAction } from 'vs/workbench/parts/search/browser/searchActions';
@@ -28,7 +28,17 @@ export class SearchDataSource implements IDataSource {
 
 	private static AUTOEXPAND_CHILD_LIMIT = 10;
 
-	constructor(private includeFolderMatch: boolean = true) { }
+	private includeFolderMatch: boolean;
+	private listener: IDisposable;
+
+	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
+		this.updateIncludeFolderMatch();
+		this.listener = this.contextService.onDidChangeWorkbenchState(() => this.updateIncludeFolderMatch());
+	}
+
+	private updateIncludeFolderMatch(): void {
+		this.includeFolderMatch = (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE);
+	}
 
 	public getId(tree: ITree, element: any): string {
 		if (element instanceof FolderMatch) {
@@ -90,6 +100,10 @@ export class SearchDataSource implements IDataSource {
 		}
 		return numChildren < SearchDataSource.AUTOEXPAND_CHILD_LIMIT || element instanceof FolderMatch;
 	}
+
+	public dispose(): void {
+		this.listener = dispose(this.listener);
+	}
 }
 
 export class SearchSorter implements ISorter {
@@ -141,6 +155,7 @@ export class SearchRenderer extends Disposable implements IRenderer {
 	constructor(
 		actionRunner: IActionRunner,
 		private viewlet: SearchViewlet,
+		// @ts-ignore unused injected service
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService
@@ -310,12 +325,12 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 			const match = <Match>element;
 			const searchModel: SearchModel = (<SearchResult>tree.getInput()).searchModel;
 			const replace = searchModel.isReplaceActive() && !!searchModel.replaceString;
-			const preview = match.preview();
+			const matchString = match.getMatchString();
 			const range = match.range();
 			if (replace) {
-				return nls.localize('replacePreviewResultAria', "Replace term {0} with {1} at column position {2} in line with text {3}", preview.inside, match.replaceString, range.startColumn + 1, match.text());
+				return nls.localize('replacePreviewResultAria', "Replace term {0} with {1} at column position {2} in line with text {3}", matchString, match.replaceString, range.startColumn + 1, match.text());
 			}
-			return nls.localize('searchResultAria', "Found term {0} at column position {1} in line with text {2}", preview.inside, range.startColumn + 1, match.text());
+			return nls.localize('searchResultAria', "Found term {0} at column position {1} in line with text {2}", matchString, range.startColumn + 1, match.text());
 		}
 		return undefined;
 	}

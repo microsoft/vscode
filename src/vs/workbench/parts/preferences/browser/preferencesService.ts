@@ -8,18 +8,16 @@ import * as network from 'vs/base/common/network';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
-import * as paths from 'vs/base/common/paths';
-import { ResourceMap } from 'vs/base/common/map';
 import * as labels from 'vs/base/common/labels';
 import * as strings from 'vs/base/common/strings';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { Position as EditorPosition, IEditor } from 'vs/platform/editor/common/editor';
-import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { Position as EditorPosition, IEditor, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { ICommonCodeEditor, IModel } from 'vs/editor/common/editorCommon';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
@@ -27,9 +25,8 @@ import { IMessageService, Severity, IChoiceService } from 'vs/platform/message/c
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IPreferencesService, IPreferencesEditorModel, ISetting, getSettingsTargetName } from 'vs/workbench/parts/preferences/common/preferences';
-import { SettingsEditorModel, DefaultSettingsEditorModel, DefaultKeybindingsEditorModel, defaultKeybindingsContents, WorkspaceConfigModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
+import { IPreferencesService, IPreferencesEditorModel, ISetting, getSettingsTargetName, FOLDER_SETTINGS_PATH, DEFAULT_SETTINGS_EDITOR_SETTING } from 'vs/workbench/parts/preferences/common/preferences';
+import { SettingsEditorModel, DefaultSettingsEditorModel, DefaultKeybindingsEditorModel, defaultKeybindingsContents, DefaultSettingsModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DefaultPreferencesEditorInput, PreferencesEditorInput } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { KeybindingsEditorInput } from 'vs/workbench/parts/preferences/browser/keybindingsEditor';
@@ -41,15 +38,9 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-
-
-interface IWorkbenchSettingsConfiguration {
-	workbench: {
-		settings: {
-			openDefaultSettings: boolean;
-		}
-	};
-}
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { parse } from 'vs/base/common/json';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -57,11 +48,14 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	_serviceBrand: any;
 
-	// TODO:@sandy merge these models into editor inputs by extending resource editor model
-	private defaultPreferencesEditorModels: ResourceMap<TPromise<IPreferencesEditorModel<any>>>;
 	private lastOpenedSettingsInput: PreferencesEditorInput = null;
 
 	private _onDispose: Emitter<void> = new Emitter<void>();
+
+	private _defaultSettingsUriCounter = 0;
+	private _defaultSettingsContentModel: DefaultSettingsModel;
+	private _defaultResourceSettingsUriCounter = 0;
+	private _defaultResourceSettingsContentModel: DefaultSettingsModel;
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
@@ -69,21 +63,22 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@IFileService private fileService: IFileService,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
 		@IMessageService private messageService: IMessageService,
+		// @ts-ignore unused injected service
 		@IChoiceService private choiceService: IChoiceService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
+		// @ts-ignore unused injected service
 		@IStorageService private storageService: IStorageService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@ITextModelService private textModelResolverService: ITextModelService,
-		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService private modelService: IModelService,
-		@IJSONEditingService private jsonEditingService: IJSONEditingService
+		@IJSONEditingService private jsonEditingService: IJSONEditingService,
+		@IModeService private modeService: IModeService
 	) {
 		super();
-		this.defaultPreferencesEditorModels = new ResourceMap<TPromise<IPreferencesEditorModel<any>>>();
 		this.editorGroupService.onEditorsChanged(() => {
 			const activeEditorInput = this.editorService.getActiveEditorInput();
 			if (activeEditorInput instanceof PreferencesEditorInput) {
@@ -103,10 +98,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		});
 	}
 
-	readonly defaultSettingsResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/settings.json' });
-	readonly defaultResourceSettingsResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/resourceSettings.json' });
 	readonly defaultKeybindingsResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/keybindings.json' });
-	private readonly workspaceConfigSettingsResource = URI.from({ scheme: network.Schemas.vscode, authority: 'settings', path: '/workspaceSettings.json' });
 
 	get userSettingsResource(): URI {
 		return this.getEditableSettingsURI(ConfigurationTarget.USER);
@@ -117,89 +109,66 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	getFolderSettingsResource(resource: URI): URI {
-		return this.getEditableSettingsURI(ConfigurationTarget.FOLDER, resource);
+		return this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE_FOLDER, resource);
 	}
 
-	resolveContent(uri: URI): TPromise<string> {
-		const workspaceSettingsUri = this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE);
-		if (workspaceSettingsUri && workspaceSettingsUri.fsPath === uri.fsPath) {
-			return this.resolveSettingsContentFromWorkspaceConfiguration();
+	resolveModel(uri: URI): TPromise<IModel> {
+		if (this.isDefaultSettingsResource(uri) || this.isDefaultResourceSettingsResource(uri)) {
+			return this.extensionService.onReady()
+				.then(() => {
+					const scope = this.isDefaultSettingsResource(uri) ? ConfigurationScope.WINDOW : ConfigurationScope.RESOURCE;
+					const settingsModel = this.getDefaultSettingsModel(scope);
+					const mode = this.modeService.getOrCreateMode('json');
+					const model = this._register(this.modelService.createModel(settingsModel.content, mode, uri));
+					return model;
+				});
 		}
-		return this.createPreferencesEditorModel(uri)
-			.then(preferencesEditorModel => preferencesEditorModel ? preferencesEditorModel.content : null);
+
+		if (this.defaultKeybindingsResource.toString() === uri.toString()) {
+			const defaultKeybindingsEditorModel = this.instantiationService.createInstance(DefaultKeybindingsEditorModel, uri);
+			const mode = this.modeService.getOrCreateMode('json');
+			const model = this._register(this.modelService.createModel(defaultKeybindingsEditorModel.content, mode, uri));
+			return TPromise.as(model);
+		}
+
+		return TPromise.as(null);
 	}
 
 	createPreferencesEditorModel(uri: URI): TPromise<IPreferencesEditorModel<any>> {
-		let promise = this.defaultPreferencesEditorModels.get(uri);
-		if (promise) {
-			return promise;
+		if (this.isDefaultSettingsResource(uri) || this.isDefaultResourceSettingsResource(uri)) {
+			return this.createDefaultSettingsEditorModel(uri);
 		}
 
-		if (this.defaultSettingsResource.fsPath === uri.fsPath) {
-			promise = TPromise.join<any>([this.extensionService.onReady(), this.fetchMostCommonlyUsedSettings()])
-				.then(result => {
-					const mostCommonSettings = result[1];
-					const model = this.instantiationService.createInstance(DefaultSettingsEditorModel, uri, mostCommonSettings, ConfigurationScope.WINDOW);
-					return model;
-				});
-			this.defaultPreferencesEditorModels.set(uri, promise);
-			return promise;
-		}
-
-		if (this.defaultResourceSettingsResource.fsPath === uri.fsPath) {
-			promise = TPromise.join<any>([this.extensionService.onReady(), this.fetchMostCommonlyUsedSettings()])
-				.then(result => {
-					const mostCommonSettings = result[1];
-					const model = this.instantiationService.createInstance(DefaultSettingsEditorModel, uri, mostCommonSettings, ConfigurationScope.RESOURCE);
-					return model;
-				});
-			this.defaultPreferencesEditorModels.set(uri, promise);
-			return promise;
-		}
-
-		if (this.defaultKeybindingsResource.fsPath === uri.fsPath) {
-			const model = this.instantiationService.createInstance(DefaultKeybindingsEditorModel, uri);
-			promise = TPromise.wrap(model);
-			this.defaultPreferencesEditorModels.set(uri, promise);
-			return promise;
-		}
-
-		if (this.workspaceConfigSettingsResource.fsPath === uri.fsPath) {
-			promise = this.createEditableSettingsEditorModel(ConfigurationTarget.WORKSPACE, uri);
-			this.defaultPreferencesEditorModels.set(uri, promise);
-			return promise;
-		}
-
-		if (this.getEditableSettingsURI(ConfigurationTarget.USER).fsPath === uri.fsPath) {
+		if (this.getEditableSettingsURI(ConfigurationTarget.USER).toString() === uri.toString()) {
 			return this.createEditableSettingsEditorModel(ConfigurationTarget.USER, uri);
 		}
 
 		const workspaceSettingsUri = this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE);
-		if (workspaceSettingsUri && workspaceSettingsUri.fsPath === uri.fsPath) {
+		if (workspaceSettingsUri && workspaceSettingsUri.toString() === uri.toString()) {
 			return this.createEditableSettingsEditorModel(ConfigurationTarget.WORKSPACE, workspaceSettingsUri);
 		}
 
-		if (this.contextService.hasMultiFolderWorkspace()) {
-			return this.createEditableSettingsEditorModel(ConfigurationTarget.FOLDER, uri);
+		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+			return this.createEditableSettingsEditorModel(ConfigurationTarget.WORKSPACE_FOLDER, uri);
 		}
 
 		return TPromise.wrap<IPreferencesEditorModel<any>>(null);
 	}
 
-	openGlobalSettings(): TPromise<IEditor> {
-		return this.doOpenSettings(ConfigurationTarget.USER, this.userSettingsResource);
+	openGlobalSettings(options?: IEditorOptions, position?: EditorPosition): TPromise<IEditor> {
+		return this.doOpenSettings(ConfigurationTarget.USER, this.userSettingsResource, options, position);
 	}
 
-	openWorkspaceSettings(): TPromise<IEditor> {
-		if (!this.contextService.hasWorkspace()) {
+	openWorkspaceSettings(options?: IEditorOptions, position?: EditorPosition): TPromise<IEditor> {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.messageService.show(Severity.Info, nls.localize('openFolderFirst', "Open a folder first to create workspace settings"));
 			return TPromise.as(null);
 		}
-		return this.doOpenSettings(ConfigurationTarget.WORKSPACE, this.workspaceSettingsResource);
+		return this.doOpenSettings(ConfigurationTarget.WORKSPACE, this.workspaceSettingsResource, options, position);
 	}
 
-	openFolderSettings(folder: URI): TPromise<IEditor> {
-		return this.doOpenSettings(ConfigurationTarget.FOLDER, this.getEditableSettingsURI(ConfigurationTarget.FOLDER, folder));
+	openFolderSettings(folder: URI, options?: IEditorOptions, position?: EditorPosition): TPromise<IEditor> {
+		return this.doOpenSettings(ConfigurationTarget.WORKSPACE_FOLDER, this.getEditableSettingsURI(ConfigurationTarget.WORKSPACE_FOLDER, folder), options, position);
 	}
 
 	switchSettings(target: ConfigurationTarget, resource: URI): TPromise<void> {
@@ -223,6 +192,11 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	openGlobalKeybindingSettings(textual: boolean): TPromise<void> {
+		/* __GDPR__
+			"openKeybindings" : {
+				"textual" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		this.telemetryService.publicLog('openKeybindings', { textual });
 		if (textual) {
 			const emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to overwrite the defaults") + '\n[\n]';
@@ -254,30 +228,45 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			});
 	}
 
-	private doOpenSettings(configurationTarget: ConfigurationTarget, resource: URI): TPromise<IEditor> {
-		const openDefaultSettings = !!this.configurationService.getConfiguration<IWorkbenchSettingsConfiguration>().workbench.settings.openDefaultSettings;
+	private doOpenSettings(configurationTarget: ConfigurationTarget, resource: URI, options?: IEditorOptions, position?: EditorPosition): TPromise<IEditor> {
+		const openDefaultSettings = !!this.configurationService.getValue(DEFAULT_SETTINGS_EDITOR_SETTING);
 		return this.getOrCreateEditableSettingsEditorInput(configurationTarget, resource)
 			.then(editableSettingsEditorInput => {
+				if (!options) {
+					options = { pinned: true };
+				} else {
+					options.pinned = true;
+				}
+
 				if (openDefaultSettings) {
 					const defaultPreferencesEditorInput = this.instantiationService.createInstance(DefaultPreferencesEditorInput, this.getDefaultSettingsResource(configurationTarget));
 					const preferencesEditorInput = new PreferencesEditorInput(this.getPreferencesEditorInputName(configurationTarget, resource), editableSettingsEditorInput.getDescription(), defaultPreferencesEditorInput, <EditorInput>editableSettingsEditorInput);
 					this.lastOpenedSettingsInput = preferencesEditorInput;
-					return this.editorService.openEditor(preferencesEditorInput, { pinned: true });
+					return this.editorService.openEditor(preferencesEditorInput, options, position);
 				}
-				return this.editorService.openEditor(editableSettingsEditorInput, { pinned: true });
+				return this.editorService.openEditor(editableSettingsEditorInput, options, position);
 			});
 	}
 
+	private isDefaultSettingsResource(uri: URI): boolean {
+		return uri.authority === 'defaultsettings' && uri.scheme === network.Schemas.vscode && !!uri.path.match(/\/(\d+\/)?settings\.json$/);
+	}
+
+	private isDefaultResourceSettingsResource(uri: URI): boolean {
+		return uri.authority === 'defaultsettings' && uri.scheme === network.Schemas.vscode && !!uri.path.match(/\/(\d+\/)?resourceSettings\.json$/);
+	}
+
 	private getDefaultSettingsResource(configurationTarget: ConfigurationTarget): URI {
-		if (configurationTarget === ConfigurationTarget.FOLDER) {
-			return this.defaultResourceSettingsResource;
+		if (configurationTarget === ConfigurationTarget.WORKSPACE_FOLDER) {
+			return URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: `/${this._defaultResourceSettingsUriCounter++}/resourceSettings.json` });
+		} else {
+			return URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: `/${this._defaultSettingsUriCounter++}/settings.json` });
 		}
-		return this.defaultSettingsResource;
 	}
 
 	private getPreferencesEditorInputName(target: ConfigurationTarget, resource: URI): string {
 		const name = getSettingsTargetName(target, resource, this.contextService);
-		return target === ConfigurationTarget.FOLDER ? nls.localize('folderSettingsName', "{0} (Folder Settings)", name) : name;
+		return target === ConfigurationTarget.WORKSPACE_FOLDER ? nls.localize('folderSettingsName', "{0} (Folder Settings)", name) : name;
 	}
 
 	private getOrCreateEditableSettingsEditorInput(target: ConfigurationTarget, resource: URI): TPromise<EditorInput> {
@@ -288,9 +277,10 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	private createEditableSettingsEditorModel(configurationTarget: ConfigurationTarget, resource: URI): TPromise<SettingsEditorModel> {
 		const settingsUri = this.getEditableSettingsURI(configurationTarget, resource);
 		if (settingsUri) {
-			if (settingsUri.fsPath === this.workspaceConfigSettingsResource.fsPath) {
-				return TPromise.join([this.textModelResolverService.createModelReference(settingsUri), this.textModelResolverService.createModelReference(this.contextService.getWorkspace().configuration)])
-					.then(([reference, workspaceConfigReference]) => this.instantiationService.createInstance(WorkspaceConfigModel, reference, workspaceConfigReference, configurationTarget, this._onDispose.event));
+			const workspace = this.contextService.getWorkspace();
+			if (workspace.configuration && workspace.configuration.toString() === settingsUri.toString()) {
+				return this.textModelResolverService.createModelReference(settingsUri)
+					.then(reference => this.instantiationService.createInstance(WorkspaceConfigurationEditorModel, reference, configurationTarget));
 			}
 			return this.textModelResolverService.createModelReference(settingsUri)
 				.then(reference => this.instantiationService.createInstance(SettingsEditorModel, reference, configurationTarget));
@@ -298,17 +288,27 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return TPromise.wrap<SettingsEditorModel>(null);
 	}
 
-	private resolveSettingsContentFromWorkspaceConfiguration(): TPromise<string> {
-		if (this.contextService.hasMultiFolderWorkspace()) {
-			return this.textModelResolverService.createModelReference(this.contextService.getWorkspace().configuration)
-				.then(reference => {
-					const model = reference.object.textEditorModel;
-					const settingsContent = WorkspaceConfigModel.getSettingsContentFromConfigContent(model.getValue());
-					reference.dispose();
-					return TPromise.as(settingsContent ? settingsContent : emptyEditableSettingsContent);
-				});
+	private createDefaultSettingsEditorModel(defaultSettingsUri: URI): TPromise<DefaultSettingsEditorModel> {
+		return this.textModelResolverService.createModelReference(defaultSettingsUri)
+			.then(reference => {
+				const scope = this.isDefaultSettingsResource(defaultSettingsUri) ? ConfigurationScope.WINDOW : ConfigurationScope.RESOURCE;
+				return this.instantiationService.createInstance(DefaultSettingsEditorModel, defaultSettingsUri, reference, scope, this.getDefaultSettingsModel(scope).settingsGroups);
+			});
+	}
+
+	private getDefaultSettingsModel(scope: ConfigurationScope): DefaultSettingsModel {
+		switch (scope) {
+			case ConfigurationScope.WINDOW:
+				if (!this._defaultSettingsContentModel) {
+					this._defaultSettingsContentModel = new DefaultSettingsModel(this.getMostCommonlyUsedSettings(), scope);
+				}
+				return this._defaultSettingsContentModel;
+			case ConfigurationScope.RESOURCE:
+				if (!this._defaultResourceSettingsContentModel) {
+					this._defaultResourceSettingsContentModel = new DefaultSettingsModel(this.getMostCommonlyUsedSettings(), scope);
+				}
+				return this._defaultResourceSettingsContentModel;
 		}
-		return TPromise.as(null);
 	}
 
 	private getEditableSettingsURI(configurationTarget: ConfigurationTarget, resource?: URI): URI {
@@ -316,30 +316,27 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			case ConfigurationTarget.USER:
 				return URI.file(this.environmentService.appSettingsPath);
 			case ConfigurationTarget.WORKSPACE:
+				if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+					return null;
+				}
 				const workspace = this.contextService.getWorkspace();
-				if (this.contextService.hasFolderWorkspace()) {
-					return this.toResource(paths.join('.vscode', 'settings.json'), workspace.roots[0]);
-				}
-				if (this.contextService.hasMultiFolderWorkspace()) {
-					return workspace.configuration;
-				}
-				return null;
-			case ConfigurationTarget.FOLDER:
-				const root = this.contextService.getRoot(resource);
-				return root ? this.toResource(paths.join('.vscode', 'settings.json'), root) : null;
+				return workspace.configuration || workspace.folders[0].toResource(FOLDER_SETTINGS_PATH);
+			case ConfigurationTarget.WORKSPACE_FOLDER:
+				const folder = this.contextService.getWorkspaceFolder(resource);
+				return folder ? folder.toResource(FOLDER_SETTINGS_PATH) : null;
 		}
 		return null;
 	}
 
-	private toResource(relativePath: string, root: URI): URI {
-		return URI.file(paths.join(root.fsPath, relativePath));
-	}
-
 	private createSettingsIfNotExists(target: ConfigurationTarget, resource: URI): TPromise<void> {
-		if (this.contextService.hasMultiFolderWorkspace() && target === ConfigurationTarget.WORKSPACE) {
-			if (!this.configurationService.keys().workspace.length) {
-				return this.jsonEditingService.write(resource, { key: 'settings', value: {} }, true).then(null, () => { });
-			}
+		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && target === ConfigurationTarget.WORKSPACE) {
+			return this.fileService.resolveContent(this.contextService.getWorkspace().configuration)
+				.then(content => {
+					if (Object.keys(parse(content.value)).indexOf('settings') === -1) {
+						return this.jsonEditingService.write(resource, { key: 'settings', value: {} }, true).then(null, () => { });
+					}
+					return null;
+				});
 		}
 		return this.createIfNotExists(resource, emptyEditableSettingsContent).then(() => { });
 	}
@@ -356,8 +353,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		});
 	}
 
-	private fetchMostCommonlyUsedSettings(): TPromise<string[]> {
-		return TPromise.wrap([
+	private getMostCommonlyUsedSettings(): string[] {
+		return [
 			'files.autoSave',
 			'editor.fontSize',
 			'editor.fontFamily',
@@ -369,7 +366,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			'editor.wordWrap',
 			'files.exclude',
 			'files.associations'
-		]);
+		];
 	}
 
 	private getPosition(language: string, codeEditor: ICommonCodeEditor): TPromise<IPosition> {
@@ -395,7 +392,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 					}
 					return { lineNumber: setting.valueRange.startLineNumber, column: setting.valueRange.startColumn + 1 };
 				}
-				return this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: languageKey, value: {} }, { donotSave: true })
+				return this.configurationService.updateValue(languageKey, {}, ConfigurationTarget.USER)
 					.then(() => {
 						setting = settingsModel.getPreference(languageKey);
 						let content = eol + this.spaces(2, configuration) + eol + this.spaces(1, configuration);
@@ -414,7 +411,6 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	public dispose(): void {
 		this._onDispose.fire();
-		this.defaultPreferencesEditorModels.clear();
 		super.dispose();
 	}
 }

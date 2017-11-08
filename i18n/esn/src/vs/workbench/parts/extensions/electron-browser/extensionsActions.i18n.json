@@ -6,6 +6,8 @@
 {
 	"openExtensionsFolder": "Abrir carpeta de extensiones",
 	"installVSIX": "Instalar desde VSIX...",
+	"installFromVSIX": "Instalar de VSIX",
+	"installButton": "&& Instalar",
 	"InstallVSIXAction.success": "La extensión se instaló correctamente. Reinicie para habilitarla.",
 	"InstallVSIXAction.reloadNow": "Recargar ahora"
 }

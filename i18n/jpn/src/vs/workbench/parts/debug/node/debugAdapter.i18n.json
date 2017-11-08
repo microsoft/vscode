@@ -6,6 +6,9 @@
 {
 	"debugAdapterBinNotFound": "デバッグ アダプターの実行可能ファイル '{0}' がありません。",
 	"debugAdapterCannotDetermineExecutable": "デバッグ アダプター '{0}' の実行可能ファイルを判別できません。",
+	"launch.config.comment1": "IntelliSense を使用して利用可能な属性を学べます。",
+	"launch.config.comment2": "既存の属性の説明をホバーして表示します。",
+	"launch.config.comment3": "詳細情報は次を確認してください: {0}",
 	"debugType": "構成の種類。",
 	"debugTypeNotRecognised": "デバッグの種類は認識されませんでした。対応するデバッグの拡張機能がインストールされており、有効になっていることを確認してください。",
 	"node2NotSupported": "\"node2\" はサポートされていません。代わりに \"node\" を使用し、\"protocol\" 属性を \"inspector\" に設定してください。",

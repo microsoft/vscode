@@ -35,7 +35,10 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 		if (resource.scheme === network.Schemas.file) {
 			return this.textFileService.models.loadOrCreate(resource);
 		}
-
+		if (!this.providers[resource.scheme]) {
+			// TODO@remote
+			return this.textFileService.models.loadOrCreate(resource);
+		}
 		return this.resolveTextModelContent(key).then(() => this.instantiationService.createInstance(ResourceEditorModel, resource));
 	}
 
@@ -99,7 +102,6 @@ export class TextModelResolverService implements ITextModelService {
 	private resourceModelCollection: ResourceModelCollection;
 
 	constructor(
-		@ITextFileService private textFileService: ITextFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IModelService private modelService: IModelService

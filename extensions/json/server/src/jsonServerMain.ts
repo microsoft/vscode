@@ -10,12 +10,11 @@ import {
 	DocumentRangeFormattingRequest, Disposable, ServerCapabilities
 } from 'vscode-languageserver';
 
-import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
+import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities, ColorPresentationRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
 import { xhr, XHRResponse, configure as configureHttpRequests, getErrorStatusDescription } from 'request-light';
-import path = require('path');
 import fs = require('fs');
-import URI from './utils/uri';
+import URI from 'vscode-uri';
 import * as URL from 'url';
 import Strings = require('./utils/strings');
 import { JSONDocument, JSONSchema, LanguageSettings, getLanguageService } from 'vscode-json-languageservice';
@@ -36,6 +35,10 @@ namespace VSCodeContentRequest {
 	export const type: RequestType<string, string, any, any> = new RequestType('vscode/content');
 }
 
+namespace SchemaContentChangeNotification {
+	export const type: NotificationType<string, any> = new NotificationType('json/schemaContent');
+}
+
 // Create a connection for the server
 let connection: IConnection = createConnection();
 
@@ -54,9 +57,7 @@ let clientDynamicRegisterSupport = false;
 
 // After the server has started the client sends an initilize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilities.
-let workspaceRoot: URI;
 connection.onInitialize((params: InitializeParams): InitializeResult => {
-	workspaceRoot = URI.parse(params.rootPath);
 
 	function hasClientCapability(...keys: string[]) {
 		let c = params.capabilities;
@@ -175,6 +176,11 @@ connection.onNotification(SchemaAssociationNotification.type, associations => {
 	updateConfiguration();
 });
 
+// A schema has changed
+connection.onNotification(SchemaContentChangeNotification.type, uri => {
+	languageService.resetSchema(uri);
+});
+
 function updateConfiguration() {
 	let languageSettings: LanguageSettings = {
 		validate: true,
@@ -192,19 +198,12 @@ function updateConfiguration() {
 		}
 	}
 	if (jsonConfigurationSettings) {
-		jsonConfigurationSettings.forEach(schema => {
+		jsonConfigurationSettings.forEach((schema, index) => {
 			let uri = schema.url;
 			if (!uri && schema.schema) {
-				uri = schema.schema.id;
-			}
-			if (!uri && schema.fileMatch) {
-				uri = 'vscode://schemas/custom/' + encodeURIComponent(schema.fileMatch.join('&'));
+				uri = schema.schema.id || `vscode://schemas/custom/${index}`;
 			}
 			if (uri) {
-				if (uri[0] === '.' && workspaceRoot) {
-					// workspace relative path
-					uri = URI.file(path.normalize(path.join(workspaceRoot.fsPath, uri))).toString();
-				}
 				languageSettings.schemas.push({ uri, fileMatch: schema.fileMatch, schema: schema.schema });
 			}
 		});
@@ -317,6 +316,15 @@ connection.onRequest(DocumentColorRequest.type, params => {
 	if (document) {
 		let jsonDocument = getJSONDocument(document);
 		return languageService.findDocumentColors(document, jsonDocument);
+	}
+	return [];
+});
+
+connection.onRequest(ColorPresentationRequest.type, params => {
+	let document = documents.get(params.textDocument.uri);
+	if (document) {
+		let jsonDocument = getJSONDocument(document);
+		return languageService.getColorPresentations(document, jsonDocument, params.color, params.range);
 	}
 	return [];
 });

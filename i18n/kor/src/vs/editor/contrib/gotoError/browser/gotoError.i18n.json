@@ -9,5 +9,6 @@
 	"markerAction.previous.label": "이전 오류 또는 경고로 이동",
 	"editorMarkerNavigationError": "편집기 표식 탐색 위젯 오류 색입니다.",
 	"editorMarkerNavigationWarning": "편집기 표식 탐색 위젯 경고 색입니다.",
+	"editorMarkerNavigationInfo": "편집기 표식 탐색 위젯 정보 색입니다.",
 	"editorMarkerNavigationBackground": "편집기 표식 탐색 위젯 배경입니다."
 }

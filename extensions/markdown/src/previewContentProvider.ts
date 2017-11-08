@@ -38,8 +38,8 @@ export function getMarkdownUri(uri: vscode.Uri) {
 }
 
 class MarkdownPreviewConfig {
-	public static getCurrentConfig() {
-		return new MarkdownPreviewConfig();
+	public static getConfigForResource(resource: vscode.Uri) {
+		return new MarkdownPreviewConfig(resource);
 	}
 
 	public readonly scrollBeyondLastLine: boolean;
@@ -56,9 +56,9 @@ class MarkdownPreviewConfig {
 	public readonly fontFamily: string | undefined;
 	public readonly styles: string[];
 
-	private constructor() {
-		const editorConfig = vscode.workspace.getConfiguration('editor');
-		const markdownConfig = vscode.workspace.getConfiguration('markdown');
+	private constructor(resource: vscode.Uri) {
+		const editorConfig = vscode.workspace.getConfiguration('editor', resource);
+		const markdownConfig = vscode.workspace.getConfiguration('markdown', resource);
 		const markdownEditorConfig = vscode.workspace.getConfiguration('[markdown]');
 
 		this.scrollBeyondLastLine = editorConfig.get<boolean>('scrollBeyondLastLine', false);
@@ -107,11 +107,41 @@ class MarkdownPreviewConfig {
 	[key: string]: any;
 }
 
+class PreviewConfigManager {
+	private previewConfigurationsForWorkspaces = new Map<string, MarkdownPreviewConfig>();
+
+	public loadAndCacheConfiguration(
+		resource: vscode.Uri
+	) {
+		const config = MarkdownPreviewConfig.getConfigForResource(resource);
+		this.previewConfigurationsForWorkspaces.set(this.getKey(resource), config);
+		return config;
+	}
+
+	public shouldUpdateConfiguration(
+		resource: vscode.Uri
+	): boolean {
+		const key = this.getKey(resource);
+		const currentConfig = this.previewConfigurationsForWorkspaces.get(key);
+		const newConfig = MarkdownPreviewConfig.getConfigForResource(resource);
+		return (!currentConfig || !currentConfig.isEqualTo(newConfig));
+	}
+
+	private getKey(
+		resource: vscode.Uri
+	): string {
+		const folder = vscode.workspace.getWorkspaceFolder(resource);
+		if (!folder) {
+			return '';
+		}
+		return folder.uri.toString();
+	}
+}
+
 export class MDDocumentContentProvider implements vscode.TextDocumentContentProvider {
 	private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
 	private _waiting: boolean = false;
-
-	private config: MarkdownPreviewConfig;
+	private previewConfigurations = new PreviewConfigManager();
 
 	private extraStyles: Array<vscode.Uri> = [];
 	private extraScripts: Array<vscode.Uri> = [];
@@ -121,9 +151,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 		private context: vscode.ExtensionContext,
 		private cspArbiter: ContentSecurityPolicyArbiter,
 		private logger: Logger
-	) {
-		this.config = MarkdownPreviewConfig.getCurrentConfig();
-	}
+	) { }
 
 	public addScript(resource: vscode.Uri): void {
 		this.extraScripts.push(resource);
@@ -163,34 +191,34 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 		return vscode.Uri.file(path.join(path.dirname(resource.fsPath), href)).toString();
 	}
 
-	private computeCustomStyleSheetIncludes(uri: vscode.Uri): string {
-		if (this.config.styles && Array.isArray(this.config.styles)) {
-			return this.config.styles.map((style) => {
-				return `<link rel="stylesheet" class="code-user-style" data-source="${style.replace(/"/g, '&quot;')}" href="${this.fixHref(uri, style)}" type="text/css" media="screen">`;
+	private computeCustomStyleSheetIncludes(resource: vscode.Uri, config: MarkdownPreviewConfig): string {
+		if (config.styles && Array.isArray(config.styles)) {
+			return config.styles.map(style => {
+				return `<link rel="stylesheet" class="code-user-style" data-source="${style.replace(/"/g, '&quot;')}" href="${this.fixHref(resource, style)}" type="text/css" media="screen">`;
 			}).join('\n');
 		}
 		return '';
 	}
 
-	private getSettingsOverrideStyles(nonce: string): string {
+	private getSettingsOverrideStyles(nonce: string, config: MarkdownPreviewConfig): string {
 		return `<style nonce="${nonce}">
 			body {
-				${this.config.fontFamily ? `font-family: ${this.config.fontFamily};` : ''}
-				${isNaN(this.config.fontSize) ? '' : `font-size: ${this.config.fontSize}px;`}
-				${isNaN(this.config.lineHeight) ? '' : `line-height: ${this.config.lineHeight};`}
+				${config.fontFamily ? `font-family: ${config.fontFamily};` : ''}
+				${isNaN(config.fontSize) ? '' : `font-size: ${config.fontSize}px;`}
+				${isNaN(config.lineHeight) ? '' : `line-height: ${config.lineHeight};`}
 			}
 		</style>`;
 	}
 
-	private getStyles(resource: vscode.Uri, nonce: string): string {
+	private getStyles(resource: vscode.Uri, nonce: string, config: MarkdownPreviewConfig): string {
 		const baseStyles = [
 			this.getMediaPath('markdown.css'),
 			this.getMediaPath('tomorrow.css')
 		].concat(this.extraStyles.map(resource => resource.toString()));
 
 		return `${baseStyles.map(href => `<link rel="stylesheet" type="text/css" href="${href}">`).join('\n')}
-			${this.getSettingsOverrideStyles(nonce)}
-			${this.computeCustomStyleSheetIncludes(resource)}`;
+			${this.getSettingsOverrideStyles(nonce, config)}
+			${this.computeCustomStyleSheetIncludes(resource, config)}`;
 	}
 
 	private getScripts(nonce: string): string {
@@ -205,20 +233,20 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 
 		let initialLine: number | undefined = undefined;
 		const editor = vscode.window.activeTextEditor;
-		if (editor && editor.document.uri.fsPath === sourceUri.fsPath) {
+		if (editor && editor.document.uri.toString() === sourceUri.toString()) {
 			initialLine = editor.selection.active.line;
 		}
 
 		const document = await vscode.workspace.openTextDocument(sourceUri);
-		this.config = MarkdownPreviewConfig.getCurrentConfig();
+		const config = this.previewConfigurations.loadAndCacheConfiguration(sourceUri);
 
 		const initialData = {
 			previewUri: uri.toString(),
 			source: sourceUri.toString(),
 			line: initialLine,
-			scrollPreviewWithEditorSelection: this.config.scrollPreviewWithEditorSelection,
-			scrollEditorWithPreview: this.config.scrollEditorWithPreview,
-			doubleClickToSwitchToEditor: this.config.doubleClickToSwitchToEditor
+			scrollPreviewWithEditorSelection: config.scrollPreviewWithEditorSelection,
+			scrollEditorWithPreview: config.scrollEditorWithPreview,
+			doubleClickToSwitchToEditor: config.doubleClickToSwitchToEditor
 		};
 
 		this.logger.log('provideTextDocumentContent', initialData);
@@ -227,7 +255,7 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 		const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
 		const csp = this.getCspForResource(sourceUri, nonce);
 
-		const body = await this.engine.render(sourceUri, this.config.previewFrontMatter === 'hide', document.getText());
+		const body = await this.engine.render(sourceUri, config.previewFrontMatter === 'hide', document.getText());
 		return `<!DOCTYPE html>
 			<html>
 			<head>
@@ -236,10 +264,10 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 				<meta id="vscode-markdown-preview-data" data-settings="${JSON.stringify(initialData).replace(/"/g, '&quot;')}" data-strings="${JSON.stringify(previewStrings).replace(/"/g, '&quot;')}">
 				<script src="${this.getMediaPath('csp.js')}" nonce="${nonce}"></script>
 				<script src="${this.getMediaPath('loading.js')}" nonce="${nonce}"></script>
-				${this.getStyles(sourceUri, nonce)}
+				${this.getStyles(sourceUri, nonce, config)}
 				<base href="${document.uri.toString(true)}">
 			</head>
-			<body class="vscode-body ${this.config.scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${this.config.wordWrap ? 'wordWrap' : ''} ${this.config.markEditorSelection ? 'showEditorSelection' : ''}">
+			<body class="vscode-body ${config.scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${config.wordWrap ? 'wordWrap' : ''} ${config.markEditorSelection ? 'showEditorSelection' : ''}">
 				${body}
 				<div class="code-line" data-line="${document.lineCount}"></div>
 				${this.getScripts(nonce)}
@@ -248,12 +276,11 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 	}
 
 	public updateConfiguration() {
-		const newConfig = MarkdownPreviewConfig.getCurrentConfig();
-		if (!this.config.isEqualTo(newConfig)) {
-			this.config = newConfig;
-			// update all generated md documents
-			for (const document of vscode.workspace.textDocuments) {
-				if (document.uri.scheme === 'markdown') {
+		// update all generated md documents
+		for (const document of vscode.workspace.textDocuments) {
+			if (document.uri.scheme === 'markdown') {
+				const sourceUri = vscode.Uri.parse(document.uri.query);
+				if (this.previewConfigurations.shouldUpdateConfiguration(sourceUri)) {
 					this.update(document.uri);
 				}
 			}

@@ -284,6 +284,11 @@ export class AbstractProblemCollector extends EventEmitter implements IDisposabl
 		}
 		return result;
 	}
+
+	protected cleanMarkerCaches(): void {
+		this.markers.clear();
+		this.deliveredMarkers.clear();
+	}
 }
 
 export enum ProblemHandlingStrategy {
@@ -292,17 +297,15 @@ export enum ProblemHandlingStrategy {
 
 export class StartStopProblemCollector extends AbstractProblemCollector implements IProblemMatcher {
 	private owners: string[];
-	private strategy: ProblemHandlingStrategy;
 
 	private currentOwner: string;
 	private currentResource: string;
 
-	constructor(problemMatchers: ProblemMatcher[], markerService: IMarkerService, modelService: IModelService, strategy: ProblemHandlingStrategy = ProblemHandlingStrategy.Clean) {
+	constructor(problemMatchers: ProblemMatcher[], markerService: IMarkerService, modelService: IModelService, _strategy: ProblemHandlingStrategy = ProblemHandlingStrategy.Clean) {
 		super(problemMatchers, markerService, modelService);
 		let ownerSet: { [key: string]: boolean; } = Object.create(null);
 		problemMatchers.forEach(description => ownerSet[description.owner] = true);
 		this.owners = Object.keys(ownerSet);
-		this.strategy = strategy;
 		this.owners.forEach((owner) => {
 			this.recordResourcesToClean(owner);
 		});
@@ -410,6 +413,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 			if (matches) {
 				result = true;
 				this.emit(ProblemCollectorEvents.WatchingBeginDetected, {});
+				this.cleanMarkerCaches();
 				this.resetCurrentResource();
 				let owner = beginMatcher.problemMatcher.owner;
 				let file = matches[beginMatcher.pattern.file];
@@ -435,6 +439,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 				let owner = endMatcher.problemMatcher.owner;
 				this.resetCurrentResource();
 				this.cleanMarkers(owner);
+				this.cleanMarkerCaches();
 			}
 		}
 		return result;

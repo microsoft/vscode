@@ -6,7 +6,7 @@
 {
 	"error.cannotparsejson": "JSON tema dosyasını ayrıştırma sorunları: {0}",
 	"error.invalidformat.colors": "Renk teması dosyasını ayrıştırma sorunu: {0}. 'colors' özelliği 'nesne' türünde değil.",
-	"error.invalidformat.tokenColors": "Renk teması dosyasını ayrıştırma sorunu: {0}. 'tokenColors' özelliği ya renkleri belirten bir dizi ya da bir text mate tema dosyasının yolunu içermelidir",
+	"error.invalidformat.tokenColors": "Renk teması dosyasını ayrıştırma sorunu: {0}. 'tokenColors' özelliği ya renkleri belirten bir dizi ya da bir TextMate tema dosyasının yolunu içermelidir",
 	"error.plist.invalidformat": "tmTheme tema dosyasını ayrıştırma sorunları: {0}. 'settings' dizi değil",
 	"error.cannotparse": "tmTheme tema dosyasını ayrıştırma sorunları: {0}",
 	"error.cannotload": "{0} tmTheme tema dosyasını yükleme sorunları: {1}"

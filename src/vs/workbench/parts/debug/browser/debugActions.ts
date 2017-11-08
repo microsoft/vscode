@@ -11,7 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IDebugService, State, IProcess, IThread, IEnablement, IBreakpoint, IStackFrame, IFunctionBreakpoint, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, IExpression, REPL_ID, ProcessState }
@@ -77,7 +77,6 @@ export class ConfigureAction extends AbstractDebugAction {
 	constructor(id: string, label: string,
 		@IDebugService debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IMessageService private messageService: IMessageService
 	) {
 		super(id, label, 'debug-action configure', debugService, keybindingService);
@@ -98,7 +97,7 @@ export class ConfigureAction extends AbstractDebugAction {
 	}
 
 	public run(event?: any): TPromise<any> {
-		if (!this.contextService.hasWorkspace()) {
+		if (!this.debugService.getConfigurationManager().selectedLaunch) {
 			this.messageService.show(severity.Info, nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
 			return TPromise.as(null);
 		}
@@ -118,13 +117,15 @@ export class StartAction extends AbstractDebugAction {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super(id, label, 'debug-action start', debugService, keybindingService);
-		this.debugService.getConfigurationManager().onDidSelectConfiguration(() => this.updateEnablement());
-		this.debugService.getModel().onDidChangeCallStack(() => this.updateEnablement());
+
+		this.toDispose.push(this.debugService.getConfigurationManager().onDidSelectConfiguration(() => this.updateEnablement()));
+		this.toDispose.push(this.debugService.getModel().onDidChangeCallStack(() => this.updateEnablement()));
+		this.toDispose.push(this.contextService.onDidChangeWorkbenchState(() => this.updateEnablement()));
 	}
 
 	public run(): TPromise<any> {
 		const launch = this.debugService.getConfigurationManager().selectedLaunch;
-		return this.debugService.startDebugging(launch ? launch.workspaceUri : undefined, undefined, this.isNoDebug());
+		return this.debugService.startDebugging(launch ? launch.workspace : undefined, undefined, this.isNoDebug());
 	}
 
 	protected isNoDebug(): boolean {
@@ -140,10 +141,10 @@ export class StartAction extends AbstractDebugAction {
 		if (state === State.Initializing) {
 			return false;
 		}
-		if (this.contextService && !this.contextService.hasWorkspace() && processes.length > 0) {
+		if (this.contextService && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && processes.length > 0) {
 			return false;
 		}
-		if (processes.some(p => p.getName(false) === selectedName && (!launch || p.session.root.toString() === launch.workspaceUri.toString()))) {
+		if (processes.some(p => p.getName(false) === selectedName && (!launch || p.session.root.uri.toString() === launch.workspace.uri.toString()))) {
 			return false;
 		}
 		const compound = launch && launch.getCompound(selectedName);
@@ -215,7 +216,7 @@ export class RestartAction extends AbstractDebugAction {
 	}
 
 	protected isEnabled(state: State): boolean {
-		return super.isEnabled(state) && state !== State.Inactive;
+		return super.isEnabled(state) && (state === State.Running || state === State.Stopped);
 	}
 }
 
@@ -299,7 +300,7 @@ export class StopAction extends AbstractDebugAction {
 	}
 
 	protected isEnabled(state: State): boolean {
-		return super.isEnabled(state) && state !== State.Inactive;
+		return super.isEnabled(state) && (state === State.Running || state === State.Stopped);
 	}
 }
 
@@ -317,7 +318,7 @@ export class DisconnectAction extends AbstractDebugAction {
 	}
 
 	protected isEnabled(state: State): boolean {
-		return super.isEnabled(state) && state !== State.Inactive;
+		return super.isEnabled(state) && (state === State.Running || state === State.Stopped);
 	}
 }
 
@@ -516,7 +517,7 @@ export class ReapplyBreakpointsAction extends AbstractDebugAction {
 
 	protected isEnabled(state: State): boolean {
 		const model = this.debugService.getModel();
-		return super.isEnabled(state) && state !== State.Inactive &&
+		return super.isEnabled(state) && (state === State.Running || state === State.Stopped) &&
 			(model.getFunctionBreakpoints().length + model.getBreakpoints().length + model.getExceptionBreakpoints().length > 0);
 	}
 }

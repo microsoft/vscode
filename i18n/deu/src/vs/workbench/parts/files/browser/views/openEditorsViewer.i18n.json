@@ -9,6 +9,7 @@
 	"saveAll": "Alle speichern",
 	"closeAllUnmodified": "Nicht geänderte schließen",
 	"closeAll": "Alle schließen",
+	"compareWithSaved": "Mit gespeicherter Datei vergleichen",
 	"close": "Schließen",
 	"closeOthers": "Andere schließen"
 }

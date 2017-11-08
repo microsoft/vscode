@@ -531,7 +531,7 @@ function _applyRenderWhitespace(lineContent: string, len: number, tokens: LinePa
  */
 function _applyInlineDecorations(lineContent: string, len: number, tokens: LinePart[], _lineDecorations: LineDecoration[]): LinePart[] {
 	_lineDecorations.sort(LineDecoration.compare);
-	const lineDecorations = LineDecorationsNormalizer.normalize(_lineDecorations);
+	const lineDecorations = LineDecorationsNormalizer.normalize(lineContent, _lineDecorations);
 	const lineDecorationsLen = lineDecorations.length;
 
 	let lineDecorationIndex = 0;
@@ -618,7 +618,6 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 			{
 				let _charIndex = charIndex;
 				let _tabsCharDelta = tabsCharDelta;
-				let _charOffsetInPart = charOffsetInPart;
 
 				for (; _charIndex < partEndIndex; _charIndex++) {
 					const charCode = lineContent.charCodeAt(_charIndex);
@@ -626,20 +625,20 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 					if (charCode === CharCode.Tab) {
 						let insertSpacesCount = tabSize - (_charIndex + _tabsCharDelta) % tabSize;
 						_tabsCharDelta += insertSpacesCount - 1;
-						_charOffsetInPart += insertSpacesCount - 1;
 						partContentCnt += insertSpacesCount;
 					} else {
 						partContentCnt++;
 					}
-
-					_charOffsetInPart++;
 				}
 			}
 
-			if (!fontIsMonospace && !containsForeignElements) {
-				sb.appendASCIIString(' style="width:');
-				sb.appendASCIIString(String(spaceWidth * partContentCnt));
-				sb.appendASCIIString('px"');
+			if (!fontIsMonospace) {
+				const partIsOnlyWhitespace = (partType === 'vs-whitespace');
+				if (partIsOnlyWhitespace || !containsForeignElements) {
+					sb.appendASCIIString(' style="width:');
+					sb.appendASCIIString(String(spaceWidth * partContentCnt));
+					sb.appendASCIIString('px"');
+				}
 			}
 			sb.appendASCII(CharCode.GreaterThan);
 

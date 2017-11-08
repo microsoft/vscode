@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import URI from 'vs/base/common/uri';
 import * as Types from 'vs/base/common/types';
 import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
+import * as Objects from 'vs/base/common/objects';
 
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ProblemMatcher } from 'vs/platform/markers/common/problemMatcher';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 export interface ShellConfiguration {
 	/**
@@ -215,41 +218,64 @@ export namespace TaskGroup {
 export type TaskGroup = 'clean' | 'build' | 'rebuild' | 'test';
 
 
+export enum TaskScope {
+	Global = 1,
+	Workspace = 2,
+	Folder = 3
+}
+
 export namespace TaskSourceKind {
 	export const Workspace: 'workspace' = 'workspace';
 	export const Extension: 'extension' = 'extension';
-	export const Composite: 'composite' = 'composite';
+	export const InMemory: 'inMemory' = 'inMemory';
 }
 
 export interface TaskSourceConfigElement {
+	workspaceFolder: IWorkspaceFolder;
 	file: string;
 	index: number;
 	element: any;
 }
 
 export interface WorkspaceTaskSource {
-	kind: 'workspace';
-	label: string;
-	config: TaskSourceConfigElement;
-	customizes?: TaskIdentifier;
+	readonly kind: 'workspace';
+	readonly label: string;
+	readonly config: TaskSourceConfigElement;
+	readonly customizes?: TaskIdentifier;
 }
 
 export interface ExtensionTaskSource {
-	kind: 'extension';
-	label: string;
-	extension: string;
+	readonly kind: 'extension';
+	readonly label: string;
+	readonly extension: string;
+	readonly scope: TaskScope;
+	readonly workspaceFolder: IWorkspaceFolder | undefined;
 }
 
-export interface CompositeTaskSource {
-	kind: 'composite';
-	label: string;
+export interface ExtensionTaskSourceTransfer {
+	__workspaceFolder: URI;
 }
 
-export type TaskSource = WorkspaceTaskSource | ExtensionTaskSource | CompositeTaskSource;
+export interface InMemoryTaskSource {
+	readonly kind: 'inMemory';
+	readonly label: string;
+}
+
+export type TaskSource = WorkspaceTaskSource | ExtensionTaskSource | InMemoryTaskSource;
 
 export interface TaskIdentifier {
 	_key: string;
 	type: string;
+}
+
+export interface TaskDependency {
+	workspaceFolder: IWorkspaceFolder;
+	task: string;
+}
+
+export enum GroupType {
+	default = 'default',
+	user = 'user'
 }
 
 export interface ConfigurationProperties {
@@ -270,9 +296,9 @@ export interface ConfigurationProperties {
 	group?: string;
 
 	/**
-	 * Whether this task is a primary task in the task group.
+	 * The group type
 	 */
-	isDefaultGroupEntry?: boolean;
+	groupType?: GroupType;
 
 	/**
 	 * The presentation options
@@ -292,7 +318,7 @@ export interface ConfigurationProperties {
 	/**
 	 * The other tasks this task depends on.
 	 */
-	dependsOn?: string[];
+	dependsOn?: TaskDependency[];
 
 	/**
 	 * The problem watchers to use for this task
@@ -382,33 +408,86 @@ export namespace ContributedTask {
 	}
 }
 
-export interface CompositeTask extends CommonTask, ConfigurationProperties {
+export interface InMemoryTask extends CommonTask, ConfigurationProperties {
 	/**
 	 * Indicated the source of the task (e.g tasks.json or extension)
 	 */
-	_source: CompositeTaskSource;
+	_source: InMemoryTaskSource;
 
-	type: 'composite';
+	type: 'inMemory';
 
 	identifier: string;
 }
 
-export namespace CompositeTask {
-	export function is(value: any): value is CompositeTask {
-		let candidate = value as CompositeTask;
-		return candidate && candidate._source && candidate._source.kind === TaskSourceKind.Composite;
+export namespace InMemoryTask {
+	export function is(value: any): value is InMemoryTask {
+		let candidate = value as InMemoryTask;
+		return candidate && candidate._source && candidate._source.kind === TaskSourceKind.InMemory;
 	}
 }
 
-export type Task = CustomTask | ContributedTask | CompositeTask;
+export type Task = CustomTask | ContributedTask | InMemoryTask;
 
 export namespace Task {
-	export function getKey(task: Task): string {
-		if (CustomTask.is(task) || CompositeTask.is(task)) {
-			return task.identifier;
-		} else {
-			return task.defines._key;
+	export function getRecentlyUsedKey(task: Task): string | undefined {
+		interface CustomKey {
+			type: string;
+			folder: string;
+			id: string;
 		}
+		interface ContributedKey {
+			type: string;
+			scope: number;
+			folder?: string;
+			id: string;
+		}
+		if (InMemoryTask.is(task)) {
+			return undefined;
+		}
+		if (CustomTask.is(task)) {
+			let workspaceFolder = task._source.config.workspaceFolder;
+			if (!workspaceFolder) {
+				return undefined;
+			}
+			let key: CustomKey = { type: 'custom', folder: workspaceFolder.uri.toString(), id: task.identifier };
+			return JSON.stringify(key);
+		}
+		if (ContributedTask.is(task)) {
+			let key: ContributedKey = { type: 'contributed', scope: task._source.scope, id: task._id };
+			if (task._source.scope === TaskScope.Folder && task._source.workspaceFolder) {
+				key.folder = task._source.workspaceFolder.uri.toString();
+			}
+			return JSON.stringify(key);
+		}
+		return undefined;
+	}
+
+	export function getMapKey(task: Task): string {
+		if (CustomTask.is(task)) {
+			let workspaceFolder = task._source.config.workspaceFolder;
+			return workspaceFolder ? `${workspaceFolder.uri.toString()}|${task._id}` : task._id;
+		} else if (ContributedTask.is(task)) {
+			let workspaceFolder = task._source.workspaceFolder;
+			return workspaceFolder
+				? `${task._source.scope.toString()}|${workspaceFolder.uri.toString()}|${task._id}`
+				: `${task._source.scope.toString()}|${task._id}`;
+		} else {
+			return task._id;
+		}
+	}
+
+	export function getWorkspaceFolder(task: Task): IWorkspaceFolder | undefined {
+		if (CustomTask.is(task)) {
+			return task._source.config.workspaceFolder;
+		} else if (ContributedTask.is(task)) {
+			return task._source.workspaceFolder;
+		} else {
+			return undefined;
+		}
+	}
+
+	export function clone(task: Task): Task {
+		return Objects.assign({}, task);
 	}
 
 	export function getTelemetryKind(task: Task): string {
@@ -420,10 +499,23 @@ export namespace Task {
 			} else {
 				return 'workspace';
 			}
-		} else if (CompositeTask.is(task)) {
+		} else if (InMemoryTask.is(task)) {
 			return 'composite';
 		} else {
 			return 'unknown';
+		}
+	}
+
+	export function matches(task: Task, alias: string): boolean {
+		return alias === task._label || alias === task.identifier;
+	}
+
+	export function getQualifiedLabel(task: Task): string {
+		let workspaceFolder = getWorkspaceFolder(task);
+		if (workspaceFolder) {
+			return `${task._label} (${workspaceFolder.name})`;
+		} else {
+			return task._label;
 		}
 	}
 }
@@ -449,7 +541,41 @@ export interface TaskSet {
 }
 
 export interface TaskDefinition {
+	extensionId: string;
 	taskType: string;
 	required: string[];
 	properties: IJSONSchemaMap;
+}
+
+export class TaskSorter {
+
+	private _order: Map<string, number> = new Map();
+
+	constructor(workspaceFolders: IWorkspaceFolder[]) {
+		for (let i = 0; i < workspaceFolders.length; i++) {
+			this._order.set(workspaceFolders[i].uri.toString(), i);
+		}
+	}
+
+	public compare(a: Task, b: Task): number {
+		let aw = Task.getWorkspaceFolder(a);
+		let bw = Task.getWorkspaceFolder(b);
+		if (aw && bw) {
+			let ai = this._order.get(aw.uri.toString());
+			ai = ai === void 0 ? 0 : ai + 1;
+			let bi = this._order.get(bw.uri.toString());
+			bi = bi === void 0 ? 0 : bi + 1;
+			if (ai === bi) {
+				return a._label.localeCompare(b._label);
+			} else {
+				return ai - bi;
+			}
+		} else if (!aw && bw) {
+			return -1;
+		} else if (aw && !bw) {
+			return +1;
+		} else {
+			return 0;
+		}
+	}
 }

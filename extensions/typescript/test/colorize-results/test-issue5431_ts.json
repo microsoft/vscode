@@ -364,12 +364,12 @@
 	},
 	{
 		"c": "startTime",
-		"t": "source.ts meta.function.ts meta.block.ts meta.var.expr.ts string.template.ts meta.template.expression.ts variable.other.readwrite.ts",
+		"t": "source.ts meta.function.ts meta.block.ts meta.var.expr.ts string.template.ts meta.template.expression.ts meta.embedded.line.ts variable.other.readwrite.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "meta.template.expression: #D4D4D4",
-			"light_vs": "meta.template.expression: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},
@@ -408,12 +408,12 @@
 	},
 	{
 		"c": "endTime",
-		"t": "source.ts meta.function.ts meta.block.ts meta.var.expr.ts string.template.ts meta.template.expression.ts variable.other.readwrite.ts",
+		"t": "source.ts meta.function.ts meta.block.ts meta.var.expr.ts string.template.ts meta.template.expression.ts meta.embedded.line.ts variable.other.readwrite.ts",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
-			"dark_vs": "meta.template.expression: #D4D4D4",
-			"light_vs": "meta.template.expression: #000000",
+			"dark_vs": "meta.embedded: #D4D4D4",
+			"light_vs": "meta.embedded: #000000",
 			"hc_black": "variable: #9CDCFE"
 		}
 	},

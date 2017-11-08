@@ -11,7 +11,7 @@ import { IFilesConfiguration, FileChangeType, IFileService } from 'vs/platform/f
 import { FileStat, OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IModel } from 'vs/editor/common/editorCommon';
@@ -69,7 +69,12 @@ export interface IFilesConfiguration extends IFilesConfiguration, IWorkbenchEdit
 		};
 		autoReveal: boolean;
 		enableDragAndDrop: boolean;
+		confirmDelete: boolean;
 		sortOrder: SortOrder;
+		decorations: {
+			colors: boolean;
+			badges: boolean;
+		};
 	};
 	editor: IEditorOptions;
 }
@@ -95,9 +100,9 @@ export function explorerItemToFileResource(obj: FileStat | OpenEditor): IFileRes
 	if (obj instanceof OpenEditor) {
 		const editor = obj as OpenEditor;
 		const resource = editor.getResource();
-		if (resource && resource.scheme === 'file') {
+		if (resource) {
 			return {
-				resource: editor.getResource()
+				resource
 			};
 		}
 	}
@@ -127,6 +132,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 	}
 
 	public provideTextContent(resource: URI): TPromise<IModel> {
+		const fileOnDiskResource = URI.file(resource.fsPath);
 
 		// Make sure our file from disk is resolved up to date
 		return this.resolveEditorModel(resource).then(codeEditorModel => {
@@ -134,15 +140,14 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 			// Make sure to keep contents on disk up to date when it changes
 			if (!this.fileWatcher) {
 				this.fileWatcher = this.fileService.onFileChanges(changes => {
-					if (changes.contains(resource, FileChangeType.UPDATED)) {
+					if (changes.contains(fileOnDiskResource, FileChangeType.UPDATED)) { //
 						this.resolveEditorModel(resource, false /* do not create if missing */).done(null, onUnexpectedError); // update model when resource changes
 					}
 				});
 
 				const disposeListener = codeEditorModel.onWillDispose(() => {
 					disposeListener.dispose();
-					this.fileWatcher.dispose();
-					this.fileWatcher = void 0;
+					this.fileWatcher = dispose(this.fileWatcher);
 				});
 			}
 
@@ -175,9 +180,6 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 	}
 
 	public dispose(): void {
-		if (this.fileWatcher) {
-			this.fileWatcher.dispose();
-			this.fileWatcher = void 0;
-		}
+		this.fileWatcher = dispose(this.fileWatcher);
 	}
 }

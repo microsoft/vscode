@@ -13,18 +13,18 @@ import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
+import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IWorkbenchThemeService, COLOR_THEME_SETTING, ICON_THEME_SETTING } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { VIEWLET_ID, IExtensionsViewlet } from 'vs/workbench/parts/extensions/common/extensions';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { Delayer } from 'vs/base/common/async';
-import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IColorRegistry, Extensions as ColorRegistryExtensions } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Color } from 'vs/base/common/color';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 export class SelectColorThemeAction extends Action {
 
@@ -35,6 +35,7 @@ export class SelectColorThemeAction extends Action {
 		id: string,
 		label: string,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		// @ts-ignore unused injected service
 		@IMessageService private messageService: IMessageService,
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
@@ -60,7 +61,7 @@ export class SelectColorThemeAction extends Action {
 				}
 				let target = null;
 				if (applyTheme) {
-					let confValue = this.configurationService.lookup(COLOR_THEME_SETTING);
+					let confValue = this.configurationService.inspect(COLOR_THEME_SETTING);
 					target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 				}
 
@@ -126,7 +127,7 @@ class SelectIconThemeAction extends Action {
 				}
 				let target = null;
 				if (applyTheme) {
-					let confValue = this.configurationService.lookup(ICON_THEME_SETTING);
+					let confValue = this.configurationService.inspect(ICON_THEME_SETTING);
 					target = typeof confValue.workspace !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
 				}
 				this.themeService.setFileIconTheme(theme && theme.id, target).done(null,

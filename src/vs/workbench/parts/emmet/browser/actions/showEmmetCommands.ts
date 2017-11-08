@@ -16,6 +16,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 const EMMET_COMMANDS_PREFIX = '>Emmet: ';
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class ShowEmmetCommandsAction extends EditorAction {
 
 	constructor() {

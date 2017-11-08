@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
-import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 @editorAction
 export class ToggleRenderWhitespaceAction extends EditorAction {
@@ -22,7 +22,7 @@ export class ToggleRenderWhitespaceAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
-		const configurationEditingService = accessor.get(IConfigurationEditingService);
+		const configurationService = accessor.get(IConfigurationService);
 
 		let renderWhitespace = editor.getConfiguration().viewInfo.renderWhitespace;
 		let newRenderWhitespace: string;
@@ -32,6 +32,6 @@ export class ToggleRenderWhitespaceAction extends EditorAction {
 			newRenderWhitespace = 'none';
 		}
 
-		configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: 'editor.renderWhitespace', value: newRenderWhitespace });
+		configurationService.updateValue('editor.renderWhitespace', newRenderWhitespace, ConfigurationTarget.USER);
 	}
 }

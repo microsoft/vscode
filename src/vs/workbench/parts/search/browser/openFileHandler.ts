@@ -12,6 +12,7 @@ import labels = require('vs/base/common/labels');
 import * as objects from 'vs/base/common/objects';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import URI from 'vs/base/common/uri';
+import * as resources from 'vs/base/common/resources';
 import { IIconLabelOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconClasses } from 'vs/workbench/browser/labels';
@@ -162,14 +163,14 @@ export class OpenFileHandler extends QuickOpenHandler {
 			iconClass = 'file'; // only use a generic file icon if we are forced to use an icon and have no icon theme set otherwise
 		}
 
-		const folderResources = this.contextService.hasWorkspace() ? this.contextService.getWorkspace().roots : [];
+		const folderResources = this.contextService.getWorkspace().folders.map(folder => folder.uri);
 		return this.searchService.search(this.queryBuilder.file(folderResources, query)).then((complete) => {
 			const results: QuickOpenEntry[] = [];
 			for (let i = 0; i < complete.results.length; i++) {
 				const fileMatch = complete.results[i];
 
 				const label = paths.basename(fileMatch.resource.fsPath);
-				const description = labels.getPathLabel(paths.dirname(fileMatch.resource.fsPath), this.contextService, this.environmentService);
+				const description = labels.getPathLabel(resources.dirname(fileMatch.resource), this.contextService, this.environmentService);
 
 				results.push(this.instantiationService.createInstance(FileEntry, fileMatch.resource, label, description, iconClass));
 			}
@@ -193,10 +194,10 @@ export class OpenFileHandler extends QuickOpenHandler {
 			filePattern: '',
 			cacheKey: cacheKey,
 			maxResults: 0,
-			sortByScore: true
+			sortByScore: true,
 		};
 
-		const folderResources = this.contextService.hasWorkspace() ? this.contextService.getWorkspace().roots : [];
+		const folderResources = this.contextService.getWorkspace().folders.map(folder => folder.uri);
 		const query = this.queryBuilder.file(folderResources, options);
 
 		return query;
