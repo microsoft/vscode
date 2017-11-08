@@ -140,7 +140,7 @@ class InsertSnippetAction extends EditorAction {
 	}
 }
 
-registerEditorAction(new InsertSnippetAction());
+registerEditorAction(InsertSnippetAction);
 
 // compatibility command to make sure old keybinding are still working
 CommandsRegistry.registerCommand('editor.action.showSnippets', accessor => {

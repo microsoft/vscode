@@ -33,4 +33,4 @@ class ShowEmmetCommandsAction extends EditorAction {
 	}
 }
 
-registerEditorAction(new ShowEmmetCommandsAction());
+registerEditorAction(ShowEmmetCommandsAction);

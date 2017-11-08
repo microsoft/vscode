@@ -496,8 +496,8 @@ class PrevWordHighlightAction extends WordHighlightNavigationAction {
 }
 
 registerCommonEditorContribution(WordHighlighterContribution);
-registerEditorAction(new NextWordHighlightAction());
-registerEditorAction(new PrevWordHighlightAction());
+registerEditorAction(NextWordHighlightAction);
+registerEditorAction(PrevWordHighlightAction);
 
 registerThemingParticipant((theme, collector) => {
 	let selectionHighlight = theme.getColor(editorSelectionHighlight);

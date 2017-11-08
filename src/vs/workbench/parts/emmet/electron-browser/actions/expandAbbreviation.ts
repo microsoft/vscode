@@ -33,4 +33,4 @@ class ExpandAbbreviationAction extends EmmetEditorAction {
 	}
 }
 
-registerEditorAction(new ExpandAbbreviationAction());
+registerEditorAction(ExpandAbbreviationAction);

@@ -238,4 +238,4 @@ class ShowContextMenu extends EditorAction {
 }
 
 registerEditorContribution(ContextMenuController);
-registerEditorAction(new ShowContextMenu());
+registerEditorAction(ShowContextMenu);

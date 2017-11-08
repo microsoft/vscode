@@ -229,7 +229,7 @@ export class RenameAction extends EditorAction {
 }
 
 registerEditorContribution(RenameController);
-registerEditorAction(new RenameAction());
+registerEditorAction(RenameAction);
 
 const RenameCommand = EditorCommand.bindToContribution<RenameController>(RenameController.get);
 

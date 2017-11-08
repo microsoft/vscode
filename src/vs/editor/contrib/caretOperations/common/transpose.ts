@@ -69,4 +69,4 @@ class TransposeLettersAction extends EditorAction {
 	}
 }
 
-registerEditorAction(new TransposeLettersAction());
+registerEditorAction(TransposeLettersAction);

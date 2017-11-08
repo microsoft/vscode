@@ -195,5 +195,5 @@ class ShrinkSelectionAction extends AbstractSmartSelect {
 }
 
 registerCommonEditorContribution(SmartSelectController);
-registerEditorAction(new GrowSelectionAction());
-registerEditorAction(new ShrinkSelectionAction());
+registerEditorAction(GrowSelectionAction);
+registerEditorAction(ShrinkSelectionAction);

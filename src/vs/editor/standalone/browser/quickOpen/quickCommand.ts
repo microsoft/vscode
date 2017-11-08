@@ -133,4 +133,4 @@ export class QuickCommandAction extends BaseEditorQuickOpenAction {
 	}
 }
 
-registerEditorAction(new QuickCommandAction());
+registerEditorAction(QuickCommandAction);

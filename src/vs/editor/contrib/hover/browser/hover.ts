@@ -195,7 +195,7 @@ class ShowHoverAction extends EditorAction {
 }
 
 registerEditorContribution(ModesHoverController);
-registerEditorAction(new ShowHoverAction());
+registerEditorAction(ShowHoverAction);
 
 // theming
 registerThemingParticipant((theme, collector) => {

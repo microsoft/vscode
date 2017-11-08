@@ -172,4 +172,4 @@ export class GotoLineAction extends BaseEditorQuickOpenAction {
 	}
 }
 
-registerEditorAction(new GotoLineAction());
+registerEditorAction(GotoLineAction);

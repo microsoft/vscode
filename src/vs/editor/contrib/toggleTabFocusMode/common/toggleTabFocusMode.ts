@@ -34,4 +34,4 @@ export class ToggleTabFocusModeAction extends EditorAction {
 	}
 }
 
-registerEditorAction(new ToggleTabFocusModeAction());
+registerEditorAction(ToggleTabFocusModeAction);

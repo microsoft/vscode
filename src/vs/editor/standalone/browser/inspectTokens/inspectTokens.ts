@@ -331,7 +331,7 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 }
 
 registerEditorContribution(InspectTokensController);
-registerEditorAction(new InspectTokens());
+registerEditorAction(InspectTokens);
 
 registerThemingParticipant((theme, collector) => {
 	let border = theme.getColor(editorHoverBorder);

@@ -117,7 +117,7 @@ class BlockCommentAction extends EditorAction {
 	}
 }
 
-registerEditorAction(new ToggleCommentLineAction());
-registerEditorAction(new AddLineCommentAction());
-registerEditorAction(new RemoveLineCommentAction());
-registerEditorAction(new BlockCommentAction());
+registerEditorAction(ToggleCommentLineAction);
+registerEditorAction(AddLineCommentAction);
+registerEditorAction(RemoveLineCommentAction);
+registerEditorAction(BlockCommentAction);

@@ -324,7 +324,7 @@ export class TriggerSuggestAction extends EditorAction {
 }
 
 registerEditorContribution(SuggestController);
-registerEditorAction(new TriggerSuggestAction());
+registerEditorAction(TriggerSuggestAction);
 
 const weight = CommonEditorRegistry.commandWeight(90);
 

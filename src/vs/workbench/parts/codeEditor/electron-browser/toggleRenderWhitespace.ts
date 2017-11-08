@@ -35,4 +35,4 @@ export class ToggleRenderWhitespaceAction extends EditorAction {
 	}
 }
 
-registerEditorAction(new ToggleRenderWhitespaceAction());
+registerEditorAction(ToggleRenderWhitespaceAction);

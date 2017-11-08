@@ -533,8 +533,8 @@ class PrevMarkerAction extends MarkerNavigationAction {
 }
 
 registerEditorContribution(MarkerController);
-registerEditorAction(new NextMarkerAction());
-registerEditorAction(new PrevMarkerAction());
+registerEditorAction(NextMarkerAction);
+registerEditorAction(PrevMarkerAction);
 
 const CONTEXT_MARKERS_NAVIGATION_VISIBLE = new RawContextKey<boolean>('markersNavigationVisible', false);
 

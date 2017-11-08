@@ -314,4 +314,4 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 	}
 }
 
-registerEditorAction(new QuickOutlineAction());
+registerEditorAction(QuickOutlineAction);

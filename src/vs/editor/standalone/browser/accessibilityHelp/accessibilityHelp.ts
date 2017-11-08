@@ -356,7 +356,7 @@ class ShowAccessibilityHelpAction extends EditorAction {
 }
 
 registerEditorContribution(AccessibilityHelpController);
-registerEditorAction(new ShowAccessibilityHelpAction());
+registerEditorAction(ShowAccessibilityHelpAction);
 
 const AccessibilityHelpCommand = EditorCommand.bindToContribution<AccessibilityHelpController>(AccessibilityHelpController.get);
 

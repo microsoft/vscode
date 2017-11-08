@@ -549,14 +549,14 @@ export class ShowPreviousFindTermAction extends MatchFindAction {
 	}
 }
 
-registerEditorAction(new StartFindAction());
-registerEditorAction(new NextMatchFindAction());
-registerEditorAction(new PreviousMatchFindAction());
-registerEditorAction(new NextSelectionMatchFindAction());
-registerEditorAction(new PreviousSelectionMatchFindAction());
-registerEditorAction(new StartFindReplaceAction());
-registerEditorAction(new ShowNextFindTermAction());
-registerEditorAction(new ShowPreviousFindTermAction());
+registerEditorAction(StartFindAction);
+registerEditorAction(NextMatchFindAction);
+registerEditorAction(PreviousMatchFindAction);
+registerEditorAction(NextSelectionMatchFindAction);
+registerEditorAction(PreviousSelectionMatchFindAction);
+registerEditorAction(StartFindReplaceAction);
+registerEditorAction(ShowNextFindTermAction);
+registerEditorAction(ShowPreviousFindTermAction);
 
 const FindCommand = EditorCommand.bindToContribution<CommonFindController>(CommonFindController.get);
 

@@ -188,14 +188,14 @@ class ExecCommandCopyWithSyntaxHighlightingAction extends ExecCommandAction {
 }
 
 if (supportsCut) {
-	registerEditorAction(new ExecCommandCutAction());
+	registerEditorAction(ExecCommandCutAction);
 }
 if (supportsCopy) {
-	registerEditorAction(new ExecCommandCopyAction());
+	registerEditorAction(ExecCommandCopyAction);
 }
 if (supportsPaste) {
-	registerEditorAction(new ExecCommandPasteAction());
+	registerEditorAction(ExecCommandPasteAction);
 }
 if (supportsCopyWithSyntaxHighlighting) {
-	registerEditorAction(new ExecCommandCopyWithSyntaxHighlightingAction());
+	registerEditorAction(ExecCommandCopyWithSyntaxHighlightingAction);
 }

@@ -266,13 +266,13 @@ class CloseBreakpointWidgetCommand extends EditorCommand {
 	}
 }
 
-registerEditorAction(new ToggleBreakpointAction());
-registerEditorAction(new ToggleColumnBreakpointAction());
-registerEditorAction(new ToggleColumnBreakpointContextMenuAction());
-registerEditorAction(new ConditionalBreakpointAction());
-registerEditorAction(new RunToCursorAction());
-registerEditorAction(new SelectionToReplAction());
-registerEditorAction(new SelectionToWatchExpressionsAction());
-registerEditorAction(new ShowDebugHoverAction());
+registerEditorAction(ToggleBreakpointAction);
+registerEditorAction(ToggleColumnBreakpointAction);
+registerEditorAction(ToggleColumnBreakpointContextMenuAction);
+registerEditorAction(ConditionalBreakpointAction);
+registerEditorAction(RunToCursorAction);
+registerEditorAction(SelectionToReplAction);
+registerEditorAction(SelectionToWatchExpressionsAction);
+registerEditorAction(ShowDebugHoverAction);
 
 CommonEditorRegistry.registerEditorCommand(new CloseBreakpointWidgetCommand());

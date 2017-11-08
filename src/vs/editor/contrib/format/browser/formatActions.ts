@@ -354,8 +354,8 @@ export class FormatSelectionAction extends AbstractFormatAction {
 
 registerCommonEditorContribution(FormatOnType);
 registerCommonEditorContribution(FormatOnPaste);
-registerEditorAction(new FormatDocumentAction());
-registerEditorAction(new FormatSelectionAction());
+registerEditorAction(FormatDocumentAction);
+registerEditorAction(FormatSelectionAction);
 
 // this is the old format action that does both (format document OR format selection)
 // and we keep it here such that existing keybinding configurations etc will still work

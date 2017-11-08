@@ -819,5 +819,5 @@ function findFocusedDiffEditor(accessor: ServicesAccessor): DiffEditorWidget {
 	return null;
 }
 
-registerEditorAction(new DiffReviewNext());
-registerEditorAction(new DiffReviewPrev());
+registerEditorAction(DiffReviewNext);
+registerEditorAction(DiffReviewPrev);

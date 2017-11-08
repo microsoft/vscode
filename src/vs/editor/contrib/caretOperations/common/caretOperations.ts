@@ -57,5 +57,5 @@ class MoveCaretRightAction extends MoveCaretAction {
 	}
 }
 
-registerEditorAction(new MoveCaretLeftAction());
-registerEditorAction(new MoveCaretRightAction());
+registerEditorAction(MoveCaretLeftAction);
+registerEditorAction(MoveCaretRightAction);

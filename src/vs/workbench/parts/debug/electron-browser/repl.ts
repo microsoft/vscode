@@ -397,10 +397,10 @@ export class ReplCopyAllAction extends EditorAction {
 	}
 }
 
-registerEditorAction(new ReplHistoryPreviousAction());
-registerEditorAction(new ReplHistoryNextAction());
-registerEditorAction(new AcceptReplInputAction());
-registerEditorAction(new ReplCopyAllAction());
+registerEditorAction(ReplHistoryPreviousAction);
+registerEditorAction(ReplHistoryNextAction);
+registerEditorAction(AcceptReplInputAction);
+registerEditorAction(ReplCopyAllAction);
 
 const SuggestCommand = EditorCommand.bindToContribution<SuggestController>(SuggestController.get);
 CommonEditorRegistry.registerEditorCommand(new SuggestCommand({

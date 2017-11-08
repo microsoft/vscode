@@ -33,4 +33,4 @@ class InspectKeyMap extends EditorAction {
 	}
 }
 
-registerEditorAction(new InspectKeyMap());
+registerEditorAction(InspectKeyMap);

@@ -567,4 +567,4 @@ export class CommandsHandler extends QuickOpenHandler {
 	}
 }
 
-registerEditorAction(new CommandPaletteEditorAction());
+registerEditorAction(CommandPaletteEditorAction);

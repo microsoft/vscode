@@ -616,9 +616,9 @@ export class IndentationToTabsCommand implements ICommand {
 }
 
 registerCommonEditorContribution(AutoIndentOnPaste);
-registerEditorAction(new IndentationToSpacesAction());
-registerEditorAction(new IndentationToTabsAction());
-registerEditorAction(new IndentUsingTabs());
-registerEditorAction(new IndentUsingSpaces());
-registerEditorAction(new DetectIndentation());
-registerEditorAction(new ReindentLinesAction());
+registerEditorAction(IndentationToSpacesAction);
+registerEditorAction(IndentationToTabsAction);
+registerEditorAction(IndentUsingTabs);
+registerEditorAction(IndentUsingSpaces);
+registerEditorAction(DetectIndentation);
+registerEditorAction(ReindentLinesAction);

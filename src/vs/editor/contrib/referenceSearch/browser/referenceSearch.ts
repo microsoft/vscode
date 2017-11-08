@@ -88,7 +88,7 @@ export class ReferenceAction extends EditorAction {
 
 registerCommonEditorContribution(ReferenceController);
 
-registerEditorAction(new ReferenceAction());
+registerEditorAction(ReferenceAction);
 
 let findReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resource: URI, position: IPosition) => {
 

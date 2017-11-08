@@ -393,7 +393,7 @@ export class ShowPreviousChangeAction extends EditorAction {
 		controller.previous();
 	}
 }
-registerEditorAction(new ShowPreviousChangeAction());
+registerEditorAction(ShowPreviousChangeAction);
 
 export class ShowNextChangeAction extends EditorAction {
 
@@ -427,7 +427,7 @@ export class ShowNextChangeAction extends EditorAction {
 		controller.next();
 	}
 }
-registerEditorAction(new ShowNextChangeAction());
+registerEditorAction(ShowNextChangeAction);
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'closeDirtyDiff',

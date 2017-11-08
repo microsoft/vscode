@@ -363,10 +363,10 @@ export class PeekTypeDefinitionAction extends TypeDefinitionAction {
 	}
 }
 
-registerEditorAction(new GoToDefinitionAction());
-registerEditorAction(new OpenDefinitionToSideAction());
-registerEditorAction(new PeekDefinitionAction());
-registerEditorAction(new GoToImplementationAction());
-registerEditorAction(new PeekImplementationAction());
-registerEditorAction(new GoToTypeDefintionAction());
-registerEditorAction(new PeekTypeDefinitionAction());
+registerEditorAction(GoToDefinitionAction);
+registerEditorAction(OpenDefinitionToSideAction);
+registerEditorAction(PeekDefinitionAction);
+registerEditorAction(GoToImplementationAction);
+registerEditorAction(PeekImplementationAction);
+registerEditorAction(GoToTypeDefintionAction);
+registerEditorAction(PeekTypeDefinitionAction);

@@ -375,7 +375,7 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 }
 
 registerEditorContribution(InspectTMScopesController);
-registerEditorAction(new InspectTMScopes());
+registerEditorAction(InspectTMScopes);
 
 registerThemingParticipant((theme, collector) => {
 	let border = theme.getColor(editorHoverBorder);

@@ -186,8 +186,8 @@ class InPlaceReplaceDown extends EditorAction {
 }
 
 registerCommonEditorContribution(InPlaceReplaceController);
-registerEditorAction(new InPlaceReplaceUp());
-registerEditorAction(new InPlaceReplaceDown());
+registerEditorAction(InPlaceReplaceUp);
+registerEditorAction(InPlaceReplaceDown);
 
 registerThemingParticipant((theme, collector) => {
 	let border = theme.getColor(editorBracketMatchBorder);

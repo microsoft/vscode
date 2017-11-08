@@ -790,21 +790,21 @@ export class LowerCaseAction extends AbstractCaseAction {
 	}
 }
 
-registerEditorAction(new CopyLinesUpAction());
-registerEditorAction(new CopyLinesDownAction());
-registerEditorAction(new MoveLinesUpAction());
-registerEditorAction(new MoveLinesDownAction());
-registerEditorAction(new SortLinesAscendingAction());
-registerEditorAction(new SortLinesDescendingAction());
-registerEditorAction(new TrimTrailingWhitespaceAction());
-registerEditorAction(new DeleteLinesAction());
-registerEditorAction(new IndentLinesAction());
-registerEditorAction(new OutdentLinesAction());
-registerEditorAction(new InsertLineBeforeAction());
-registerEditorAction(new InsertLineAfterAction());
-registerEditorAction(new DeleteAllLeftAction());
-registerEditorAction(new DeleteAllRightAction());
-registerEditorAction(new JoinLinesAction());
-registerEditorAction(new TransposeAction());
-registerEditorAction(new UpperCaseAction());
-registerEditorAction(new LowerCaseAction());
+registerEditorAction(CopyLinesUpAction);
+registerEditorAction(CopyLinesDownAction);
+registerEditorAction(MoveLinesUpAction);
+registerEditorAction(MoveLinesDownAction);
+registerEditorAction(SortLinesAscendingAction);
+registerEditorAction(SortLinesDescendingAction);
+registerEditorAction(TrimTrailingWhitespaceAction);
+registerEditorAction(DeleteLinesAction);
+registerEditorAction(IndentLinesAction);
+registerEditorAction(OutdentLinesAction);
+registerEditorAction(InsertLineBeforeAction);
+registerEditorAction(InsertLineAfterAction);
+registerEditorAction(DeleteAllLeftAction);
+registerEditorAction(DeleteAllRightAction);
+registerEditorAction(JoinLinesAction);
+registerEditorAction(TransposeAction);
+registerEditorAction(UpperCaseAction);
+registerEditorAction(LowerCaseAction);

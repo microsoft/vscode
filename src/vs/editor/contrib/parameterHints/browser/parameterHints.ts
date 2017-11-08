@@ -82,7 +82,7 @@ export class TriggerParameterHintsAction extends EditorAction {
 }
 
 registerEditorContribution(ParameterHintsController);
-registerEditorAction(new TriggerParameterHintsAction());
+registerEditorAction(TriggerParameterHintsAction);
 
 const weight = CommonEditorRegistry.commandWeight(75);
 

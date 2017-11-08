@@ -251,7 +251,7 @@ function canToggleWordWrap(uri: URI): boolean {
 
 registerCommonEditorContribution(ToggleWordWrapController);
 
-registerEditorAction(new ToggleWordWrapAction());
+registerEditorAction(ToggleWordWrapAction);
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {

@@ -903,12 +903,12 @@ function getValueInRange(model: IModel, range: Range, toLowerCase: boolean): str
 registerCommonEditorContribution(MultiCursorSelectionController);
 registerCommonEditorContribution(SelectionHighlighter);
 
-registerEditorAction(new InsertCursorAbove());
-registerEditorAction(new InsertCursorBelow());
-registerEditorAction(new InsertCursorAtEndOfEachLineSelected());
-registerEditorAction(new AddSelectionToNextFindMatchAction());
-registerEditorAction(new AddSelectionToPreviousFindMatchAction());
-registerEditorAction(new MoveSelectionToNextFindMatchAction());
-registerEditorAction(new MoveSelectionToPreviousFindMatchAction());
-registerEditorAction(new SelectHighlightsAction());
-registerEditorAction(new CompatChangeAll());
+registerEditorAction(InsertCursorAbove);
+registerEditorAction(InsertCursorBelow);
+registerEditorAction(InsertCursorAtEndOfEachLineSelected);
+registerEditorAction(AddSelectionToNextFindMatchAction);
+registerEditorAction(AddSelectionToPreviousFindMatchAction);
+registerEditorAction(MoveSelectionToNextFindMatchAction);
+registerEditorAction(MoveSelectionToPreviousFindMatchAction);
+registerEditorAction(SelectHighlightsAction);
+registerEditorAction(CompatChangeAll);

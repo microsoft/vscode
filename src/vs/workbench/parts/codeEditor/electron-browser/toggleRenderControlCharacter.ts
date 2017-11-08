@@ -29,4 +29,4 @@ export class ToggleRenderControlCharacterAction extends EditorAction {
 	}
 }
 
-registerEditorAction(new ToggleRenderControlCharacterAction());
+registerEditorAction(ToggleRenderControlCharacterAction);

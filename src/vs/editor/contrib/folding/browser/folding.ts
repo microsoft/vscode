@@ -546,12 +546,12 @@ class FoldLevelAction extends FoldingAction<void> {
 }
 
 registerEditorContribution(FoldingController);
-registerEditorAction(new UnfoldAction());
-registerEditorAction(new UnFoldRecursivelyAction());
-registerEditorAction(new FoldAction());
-registerEditorAction(new FoldRecursivelyAction());
-registerEditorAction(new FoldAllAction());
-registerEditorAction(new UnfoldAllAction());
+registerEditorAction(UnfoldAction);
+registerEditorAction(UnFoldRecursivelyAction);
+registerEditorAction(FoldAction);
+registerEditorAction(FoldRecursivelyAction);
+registerEditorAction(FoldAllAction);
+registerEditorAction(UnfoldAllAction);
 
 for (let i = 1; i <= 9; i++) {
 	CommonEditorRegistry.registerEditorAction(

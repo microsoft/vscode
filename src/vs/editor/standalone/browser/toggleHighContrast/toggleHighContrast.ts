@@ -36,4 +36,4 @@ class ToggleHighContrast extends EditorAction {
 	}
 }
 
-registerEditorAction(new ToggleHighContrast());
+registerEditorAction(ToggleHighContrast);

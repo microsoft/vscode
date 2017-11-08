@@ -225,7 +225,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 }
 
 registerCommonEditorContribution(BracketMatchingController);
-registerEditorAction(new SelectBracketAction());
+registerEditorAction(SelectBracketAction);
 registerThemingParticipant((theme, collector) => {
 	let bracketMatchBackground = theme.getColor(editorBracketMatchBackground);
 	if (bracketMatchBackground) {

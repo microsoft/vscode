@@ -130,4 +130,4 @@ export class QuickFixAction extends EditorAction {
 }
 
 registerEditorContribution(QuickFixController);
-registerEditorAction(new QuickFixAction());
+registerEditorAction(QuickFixAction);

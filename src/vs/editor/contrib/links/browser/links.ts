@@ -408,7 +408,7 @@ class OpenLinkAction extends EditorAction {
 }
 
 registerEditorContribution(LinkDetector);
-registerEditorAction(new OpenLinkAction());
+registerEditorAction(OpenLinkAction);
 
 registerThemingParticipant((theme, collector) => {
 	let activeLinkForeground = theme.getColor(editorActiveLinkForeground);

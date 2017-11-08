@@ -29,4 +29,4 @@ export class ToggleMinimapAction extends EditorAction {
 	}
 }
 
-registerEditorAction(new ToggleMinimapAction());
+registerEditorAction(ToggleMinimapAction);

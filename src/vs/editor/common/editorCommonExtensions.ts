@@ -212,8 +212,8 @@ export abstract class EditorAction extends EditorCommand {
 
 // --- Registration of commands and actions
 
-export function registerEditorAction(editorAction: EditorAction): void {
-	CommonEditorRegistry.registerEditorAction(editorAction);
+export function registerEditorAction(ctor: { new(): EditorAction; }): void {
+	CommonEditorRegistry.registerEditorAction(new ctor());
 }
 
 export function registerEditorCommand<T extends EditorCommand>(editorCommand: T): T {
