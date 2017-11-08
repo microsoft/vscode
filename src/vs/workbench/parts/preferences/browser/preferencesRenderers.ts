@@ -673,7 +673,7 @@ export class FeedbackWidgetRenderer extends Disposable {
 			url: result.metadata.remoteUrl,
 			duration: result.metadata.duration,
 			timestamp: result.metadata.timestamp,
-			buildNumber: this.environmentService.debugSearch,
+			buildNumber: this.environmentService.settingsSearchBuildId,
 			alts,
 			autoIngest
 		});
