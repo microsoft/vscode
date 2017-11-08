@@ -25,8 +25,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { generateRandomPipeName, Protocol } from 'vs/base/parts/ipc/node/ipc.net';
 import { createServer, Server, Socket } from 'net';
-import Event, { Emitter, debounceEvent, mapEvent, anyEvent } from 'vs/base/common/event';
-import { fromEventEmitter } from 'vs/base/node/event';
+import Event, { Emitter, debounceEvent, mapEvent, anyEvent, fromNodeEventEmitter } from 'vs/base/common/event';
 import { IInitData, IWorkspaceData, IConfigurationInitData } from 'vs/workbench/api/node/extHost.protocol';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
@@ -170,8 +169,8 @@ export class ExtensionHostProcessWorker {
 				type Output = { data: string, format: string[] };
 				this._extensionHostProcess.stdout.setEncoding('utf8');
 				this._extensionHostProcess.stderr.setEncoding('utf8');
-				const onStdout = fromEventEmitter<string>(this._extensionHostProcess.stdout, 'data');
-				const onStderr = fromEventEmitter<string>(this._extensionHostProcess.stderr, 'data');
+				const onStdout = fromNodeEventEmitter<string>(this._extensionHostProcess.stdout, 'data');
+				const onStderr = fromNodeEventEmitter<string>(this._extensionHostProcess.stderr, 'data');
 				const onOutput = anyEvent(
 					mapEvent(onStdout, o => ({ data: `%c${o}`, format: [''] })),
 					mapEvent(onStderr, o => ({ data: `%c${o}`, format: ['color: red'] }))

@@ -9,10 +9,9 @@ import * as fs from 'original-fs';
 import * as path from 'path';
 import * as electron from 'electron';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import Event, { Emitter, once, filterEvent } from 'vs/base/common/event';
+import Event, { Emitter, once, filterEvent, fromNodeEventEmitter } from 'vs/base/common/event';
 import { always, Throttler } from 'vs/base/common/async';
 import { memoize } from 'vs/base/common/decorators';
-import { fromEventEmitter } from 'vs/base/node/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Win32AutoUpdaterImpl } from './auto-updater.win32';
 import { LinuxAutoUpdaterImpl } from './auto-updater.linux';
@@ -53,22 +52,22 @@ export class UpdateService implements IUpdateService {
 
 	@memoize
 	private get onRawError(): Event<string> {
-		return fromEventEmitter(this.raw, 'error', (_, message) => message);
+		return fromNodeEventEmitter(this.raw, 'error', (_, message) => message);
 	}
 
 	@memoize
 	private get onRawUpdateNotAvailable(): Event<void> {
-		return fromEventEmitter<void>(this.raw, 'update-not-available');
+		return fromNodeEventEmitter<void>(this.raw, 'update-not-available');
 	}
 
 	@memoize
 	private get onRawUpdateAvailable(): Event<{ url: string; version: string; }> {
-		return filterEvent(fromEventEmitter(this.raw, 'update-available', (_, url, version) => ({ url, version })), ({ url }) => !!url);
+		return filterEvent(fromNodeEventEmitter(this.raw, 'update-available', (_, url, version) => ({ url, version })), ({ url }) => !!url);
 	}
 
 	@memoize
 	private get onRawUpdateDownloaded(): Event<IRawUpdate> {
-		return fromEventEmitter(this.raw, 'update-downloaded', (_, releaseNotes, version, date, url) => ({ releaseNotes, version, date }));
+		return fromNodeEventEmitter(this.raw, 'update-downloaded', (_, releaseNotes, version, date, url) => ({ releaseNotes, version, date }));
 	}
 
 	get state(): State {
