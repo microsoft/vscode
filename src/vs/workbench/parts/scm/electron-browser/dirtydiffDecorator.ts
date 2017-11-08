@@ -16,10 +16,8 @@ import * as ext from 'vs/workbench/common/contributions';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IModelService } from 'vs/editor/common/services/modelService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import URI from 'vs/base/common/uri';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -194,8 +192,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		private model: DirtyDiffModel,
 		@IThemeService private themeService: IThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		// @ts-ignore unused injected service
-		@IMenuService private menuService: IMenuService,
+		@IMenuService menuService: IMenuService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMessageService private messageService: IMessageService,
 		@IContextKeyService contextKeyService: IContextKeyService
@@ -468,8 +465,6 @@ export class DirtyDiffController implements IEditorContribution {
 
 	private model: DirtyDiffModel | null = null;
 	private widget: DirtyDiffWidget | null = null;
-	// @ts-ignore unused property
-	private currentLineNumber: number = -1;
 	private currentIndex: number = -1;
 	private readonly isDirtyDiffVisible: IContextKey<boolean>;
 	private session: IDisposable = EmptyDisposable;
@@ -480,8 +475,6 @@ export class DirtyDiffController implements IEditorContribution {
 	constructor(
 		private editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		// @ts-ignore unused injected service
-		@IThemeService private themeService: IThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this.enabled = !contextKeyService.getContextKeyValue('isInDiffEditor');
@@ -513,9 +506,6 @@ export class DirtyDiffController implements IEditorContribution {
 			this.currentIndex = rot(this.currentIndex + 1, this.model.changes.length);
 		}
 
-		const change = this.model.changes[this.currentIndex];
-		this.currentLineNumber = change.modifiedStartLineNumber;
-
 		this.widget.showChange(this.currentIndex);
 	}
 
@@ -529,9 +519,6 @@ export class DirtyDiffController implements IEditorContribution {
 		} else {
 			this.currentIndex = rot(this.currentIndex - 1, this.model.changes.length);
 		}
-
-		const change = this.model.changes[this.currentIndex];
-		this.currentLineNumber = change.modifiedStartLineNumber;
 
 		this.widget.showChange(this.currentIndex);
 	}
@@ -875,13 +862,7 @@ export class DirtyDiffModel {
 	constructor(
 		private _editorModel: IModel,
 		@ISCMService private scmService: ISCMService,
-		// @ts-ignore unused injected service
-		@IModelService private modelService: IModelService,
 		@IEditorWorkerService private editorWorkerService: IEditorWorkerService,
-		// @ts-ignore unused injected service
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		// @ts-ignore unused injected service
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITextModelService private textModelResolverService: ITextModelService
 	) {
 		this.diffDelayer = new ThrottledDelayer<IChange[]>(200);
@@ -1024,12 +1005,8 @@ export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution,
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		// @ts-ignore unused injected service
-		@IMessageService private messageService: IMessageService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
-		// @ts-ignore unused injected service
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this.disposables.push(editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));

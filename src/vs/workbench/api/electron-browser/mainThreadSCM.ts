@@ -11,8 +11,6 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, ISCMResourceCollection, ISCMResourceSplice } from 'vs/workbench/services/scm/common/scm';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { Command } from 'vs/editor/common/modes';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
@@ -120,9 +118,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 		private _contextValue: string,
 		private _label: string,
 		private _rootUri: URI | undefined,
-		@ISCMService scmService: ISCMService,
-		// @ts-ignore unused injected service
-		@ICommandService private commandService: ICommandService
+		@ISCMService scmService: ISCMService
 	) { }
 
 	$updateSourceControl(features: SCMProviderFeatures): void {
@@ -257,10 +253,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 
 	constructor(
 		extHostContext: IExtHostContext,
-		// @ts-ignore unused injected service
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ISCMService private scmService: ISCMService,
-		@ICommandService private commandService: ICommandService
+		@ISCMService private scmService: ISCMService
 	) {
 		this._proxy = extHostContext.get(ExtHostContext.ExtHostSCM);
 	}
@@ -278,7 +271,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	}
 
 	$registerSourceControl(handle: number, id: string, label: string, rootUri: string | undefined): void {
-		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri && URI.parse(rootUri), this.scmService, this.commandService);
+		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri && URI.parse(rootUri), this.scmService);
 		const repository = this.scmService.registerSCMProvider(provider);
 		this._repositories[handle] = repository;
 
