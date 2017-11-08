@@ -450,7 +450,7 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 			}
 			parts.push(encoder(path.substring(lastIdx, idx)), _slash);
 			lastIdx = idx + 1;
-		};
+		}
 	}
 	if (query) {
 		parts.push('?', encoder(query));

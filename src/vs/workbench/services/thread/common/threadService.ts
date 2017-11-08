@@ -21,6 +21,7 @@ export interface IThreadService {
 	assertRegistered(identifiers: ProxyIdentifier<any>[]): void;
 }
 
+// @ts-ignore unused generic parameter
 export class ProxyIdentifier<T> {
 	_proxyIdentifierBrand: void;
 

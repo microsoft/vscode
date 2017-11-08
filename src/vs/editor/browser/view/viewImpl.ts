@@ -90,6 +90,7 @@ export class View extends ViewEventHandler {
 	private overflowGuardContainer: FastDomNode<HTMLElement>;
 
 	// Actual mutable state
+	// @ts-ignore unused property
 	private _isDisposed: boolean;
 
 	private _renderAnimationFrame: IDisposable;

@@ -27,8 +27,8 @@ class TestFileEditorTracker extends FileEditorTracker {
 	}
 }
 
-function toResource(path) {
-	return URI.file(join('C:\\', new Buffer(this.test.fullTitle()).toString('base64'), path));
+function toResource(self: any, path: string) {
+	return URI.file(join('C:\\', new Buffer(self.test.fullTitle()).toString('base64'), path));
 }
 
 class ServiceAccessor {
@@ -58,8 +58,8 @@ suite('Files - FileEditorTracker', () => {
 		const tracker = instantiationService.createInstance(FileEditorTracker);
 		assert.ok(tracker);
 
-		const parent = toResource.call(this, '/foo/bar');
-		const resource = toResource.call(this, '/foo/bar/updatefile.js');
+		const parent = toResource(this, '/foo/bar');
+		const resource = toResource(this, '/foo/bar/updatefile.js');
 		let input = instantiationService.createInstance(FileEditorInput, resource, void 0);
 		group.openEditor(input);
 
@@ -72,7 +72,7 @@ suite('Files - FileEditorTracker', () => {
 		input = instantiationService.createInstance(FileEditorInput, resource, void 0);
 		group.openEditor(input);
 
-		const other = toResource.call(this, '/foo/barfoo');
+		const other = toResource(this, '/foo/barfoo');
 
 		accessor.fileService.fireAfterOperation(new FileOperationEvent(other, FileOperation.DELETE));
 		assert.ok(!input.isDisposed());
@@ -81,7 +81,7 @@ suite('Files - FileEditorTracker', () => {
 		assert.ok(input.isDisposed());
 
 		// Move
-		const to = toResource.call(this, '/foo/barfoo/change.js');
+		const to: any = toResource(this, '/foo/barfoo/change.js');
 		accessor.fileService.fireAfterOperation(new FileOperationEvent(resource, FileOperation.MOVE, to));
 		assert.ok(input.isDisposed());
 
@@ -96,8 +96,8 @@ suite('Files - FileEditorTracker', () => {
 		tracker.setCloseOnFileDelete(false);
 		assert.ok(tracker);
 
-		const parent = toResource.call(this, '/foo/bar');
-		const resource = toResource.call(this, '/foo/bar/updatefile.js');
+		const parent = toResource(this, '/foo/bar');
+		const resource = toResource(this, '/foo/bar/updatefile.js');
 		let input = instantiationService.createInstance(FileEditorInput, resource, void 0);
 		group.openEditor(input);
 
@@ -110,7 +110,7 @@ suite('Files - FileEditorTracker', () => {
 		input = instantiationService.createInstance(FileEditorInput, resource, void 0);
 		group.openEditor(input);
 
-		const other = toResource.call(this, '/foo/barfoo');
+		const other = toResource(this, '/foo/barfoo');
 
 		accessor.fileService.fireAfterOperation(new FileOperationEvent(other, FileOperation.DELETE));
 		assert.ok(!input.isDisposed());
@@ -119,7 +119,7 @@ suite('Files - FileEditorTracker', () => {
 		assert.ok(input.isDisposed());
 
 		// Move
-		const to = toResource.call(this, '/foo/barfoo/change.js');
+		const to: any = toResource(this, '/foo/barfoo/change.js');
 		accessor.fileService.fireAfterOperation(new FileOperationEvent(resource, FileOperation.MOVE, to));
 		assert.ok(input.isDisposed());
 
@@ -133,8 +133,8 @@ suite('Files - FileEditorTracker', () => {
 		const tracker = instantiationService.createInstance(FileEditorTracker);
 		assert.ok(tracker);
 
-		const parent = toResource.call(this, '/foo/bar');
-		const resource = toResource.call(this, '/foo/bar/updatefile.js');
+		const parent = toResource(this, '/foo/bar');
+		const resource = toResource(this, '/foo/bar/updatefile.js');
 		let input = instantiationService.createInstance(FileEditorInput, resource, void 0);
 		group.openEditor(input);
 
@@ -149,7 +149,7 @@ suite('Files - FileEditorTracker', () => {
 			input = instantiationService.createInstance(FileEditorInput, resource, void 0);
 			group.openEditor(input);
 
-			const other = toResource.call(this, '/foo/barfoo');
+			const other = toResource(this, '/foo/barfoo');
 
 			accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: other, type: FileChangeType.DELETED }]));
 			assert.ok(!input.isDisposed());
@@ -173,7 +173,7 @@ suite('Files - FileEditorTracker', () => {
 		tracker.setCloseOnFileDelete(false);
 		assert.ok(tracker);
 
-		const resource = toResource.call(this, '/foo/bar/updatefile.js');
+		const resource = toResource(this, '/foo/bar/updatefile.js');
 		let input = instantiationService.createInstance(FileEditorInput, resource, void 0);
 		group.openEditor(input);
 
@@ -187,7 +187,7 @@ suite('Files - FileEditorTracker', () => {
 	test('file change event updates model', function (done) {
 		const tracker = instantiationService.createInstance(FileEditorTracker);
 
-		const resource = toResource.call(this, '/path/index.txt');
+		const resource = toResource(this, '/path/index.txt');
 
 		accessor.textFileService.models.loadOrCreate(resource).then((model: TextFileEditorModel) => {
 			model.textEditorModel.setValue('Super Good');

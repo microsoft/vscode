@@ -54,6 +54,7 @@ export class ExtensionLinter {
 	private timer: NodeJS.Timer;
 	private markdownIt: MarkdownItType.MarkdownIt;
 
+	// @ts-ignore unused property
 	constructor(private context: ExtensionContext) {
 		this.disposables.push(
 			workspace.onDidOpenTextDocument(document => this.queue(document)),
@@ -227,7 +228,7 @@ export class ExtensionLinter {
 			}
 
 			this.diagnosticsCollection.set(document.uri, diagnostics);
-		};
+		}
 	}
 
 	private locateToken(text: string, begin: number, end: number, token: MarkdownItType.Token, content: string) {

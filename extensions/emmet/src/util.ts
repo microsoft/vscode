@@ -6,12 +6,12 @@
 import * as vscode from 'vscode';
 import parse from '@emmetio/html-matcher';
 import parseStylesheet from '@emmetio/css-parser';
-import { Node, HtmlNode, CssToken, Property } from 'EmmetNode';
+import { Node, HtmlNode, CssToken, Property, Rule } from 'EmmetNode';
 import { DocumentStreamReader } from './bufferStream';
 import * as path from 'path';
 
-let _emmetHelper;
-let _currentExtensionsPath = undefined;
+let _emmetHelper: any;
+let _currentExtensionsPath: string | undefined = undefined;
 
 export function getEmmetHelper() {
 	if (!_emmetHelper) {
@@ -27,15 +27,15 @@ export function resolveUpdateExtensionsPath() {
 	}
 	let extensionsPath = vscode.workspace.getConfiguration('emmet')['extensionsPath'];
 	if (extensionsPath && !path.isAbsolute(extensionsPath)) {
-		extensionsPath = path.join(vscode.workspace.rootPath, extensionsPath);
+		extensionsPath = path.join(vscode.workspace.rootPath || '', extensionsPath);
 	}
 	if (_currentExtensionsPath !== extensionsPath) {
 		_currentExtensionsPath = extensionsPath;
-		_emmetHelper.updateExtensionsPath(_currentExtensionsPath).then(null, err => vscode.window.showErrorMessage(err));
+		_emmetHelper.updateExtensionsPath(_currentExtensionsPath).then(null, (err: string) => vscode.window.showErrorMessage(err));
 	}
 }
 
-export const LANGUAGE_MODES: Object = {
+export const LANGUAGE_MODES: any = {
 	'html': ['!', '.', '}', ':', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'jade': ['!', '.', '}', ':', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
 	'slim': ['!', '.', '}', ':', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'],
@@ -62,7 +62,7 @@ export const MAPPED_MODES: Object = {
 	'php': 'html'
 };
 
-export function isStyleSheet(syntax): boolean {
+export function isStyleSheet(syntax: string): boolean {
 	let stylesheetSyntaxes = ['css', 'scss', 'sass', 'less', 'stylus'];
 	return (stylesheetSyntaxes.indexOf(syntax) > -1);
 }
@@ -80,7 +80,7 @@ export function validate(allowStylesheet: boolean = true): boolean {
 }
 
 export function getMappingForIncludedLanguages(): any {
-	let finalMappedModes = {};
+	const finalMappedModes = Object.create(null);
 	let includeLanguagesConfig = vscode.workspace.getConfiguration('emmet')['includeLanguages'];
 	let includeLanguages = Object.assign({}, MAPPED_MODES, includeLanguagesConfig ? includeLanguagesConfig : {});
 	Object.keys(includeLanguages).forEach(syntax => {
@@ -94,13 +94,13 @@ export function getMappingForIncludedLanguages(): any {
 /**
 * Get the corresponding emmet mode for given vscode language mode
 * Eg: jsx for typescriptreact/javascriptreact or pug for jade
-* If the language is not supported by emmet or has been exlcuded via `exlcudeLanguages` setting, 
+* If the language is not supported by emmet or has been exlcuded via `exlcudeLanguages` setting,
 * then nothing is returned
-* 
-* @param language 
+*
+* @param language
 * @param exlcudedLanguages Array of language ids that user has chosen to exlcude for emmet
 */
-export function getEmmetMode(language: string, excludedLanguages: string[]): string {
+export function getEmmetMode(language: string, excludedLanguages: string[]): string | undefined {
 	if (!language || excludedLanguages.indexOf(language) > -1) {
 		return;
 	}
@@ -120,34 +120,29 @@ export function getEmmetMode(language: string, excludedLanguages: string[]): str
 
 /**
  * Parses the given document using emmet parsing modules
- * @param document
  */
-export function parseDocument(document: vscode.TextDocument, showError: boolean = true): Node {
+export function parseDocument(document: vscode.TextDocument, showError: boolean = true): Node | undefined {
 	let parseContent = isStyleSheet(document.languageId) ? parseStylesheet : parse;
-	let rootNode: Node;
 	try {
-		rootNode = parseContent(new DocumentStreamReader(document));
+		return parseContent(new DocumentStreamReader(document));
 	} catch (e) {
 		if (showError) {
 			vscode.window.showErrorMessage('Emmet: Failed to parse the file');
 		}
 	}
-	return rootNode;
+	return undefined;
 }
 
 /**
  * Returns node corresponding to given position in the given root node
- * @param root
- * @param position
- * @param includeNodeBoundary
  */
-export function getNode(root: Node, position: vscode.Position, includeNodeBoundary: boolean = false) {
+export function getNode(root: Node | undefined, position: vscode.Position, includeNodeBoundary: boolean = false) {
 	if (!root) {
 		return null;
 	}
 
 	let currentNode = root.firstChild;
-	let foundNode: Node = null;
+	let foundNode: Node | null = null;
 
 	while (currentNode) {
 		const nodeStart: vscode.Position = currentNode.start;
@@ -170,14 +165,14 @@ export function getNode(root: Node, position: vscode.Position, includeNodeBounda
  * Returns inner range of an html node.
  * @param currentNode
  */
-export function getInnerRange(currentNode: HtmlNode): vscode.Range {
+export function getInnerRange(currentNode: HtmlNode): vscode.Range | undefined {
 	if (!currentNode.close) {
-		return;
+		return undefined;
 	}
 	return new vscode.Range(currentNode.open.end, currentNode.close.start);
 }
 
-export function getDeepestNode(node: Node): Node {
+export function getDeepestNode(node: Node | undefined): Node | undefined {
 	if (!node || !node.children || node.children.length === 0 || !node.children.find(x => x.type !== 'comment')) {
 		return node;
 	}
@@ -186,6 +181,7 @@ export function getDeepestNode(node: Node): Node {
 			return getDeepestNode(node.children[i]);
 		}
 	}
+	return undefined;
 }
 
 export function findNextWord(propertyValue: string, pos: number): [number, number] {
@@ -342,10 +338,8 @@ export function getEmmetConfiguration(syntax: string) {
 /**
  * Itereates by each child, as well as nested child’ children, in their order
  * and invokes `fn` for each. If `fn` function returns `false`, iteration stops
- * @param  {Token}    token
- * @param  {Function} fn
  */
-export function iterateCSSToken(token: CssToken, fn) {
+export function iterateCSSToken(token: CssToken, fn: (x: any) => any) {
 	for (let i = 0, il = token.size; i < il; i++) {
 		if (fn(token.item(i)) === false || iterateCSSToken(token.item(i), fn) === false) {
 			return false;
@@ -355,21 +349,16 @@ export function iterateCSSToken(token: CssToken, fn) {
 
 /**
  * Returns `name` CSS property from given `rule`
- * @param  {Node} rule
- * @param  {String} name
- * @return {Property}
  */
-export function getCssPropertyFromRule(rule, name): Property {
-	return rule.children.find(node => node.type === 'property' && node.name === name);
+export function getCssPropertyFromRule(rule: Rule, name: string): Property | undefined {
+	return rule.children.find(node => node.type === 'property' && node.name === name) as Property;
 }
 
 /**
  * Returns css property under caret in given editor or `null` if such node cannot
  * be found
- * @param  {TextEditor}  editor
- * @return {Property}
  */
-export function getCssPropertyFromDocument(editor: vscode.TextEditor, position: vscode.Position): Property {
+export function getCssPropertyFromDocument(editor: vscode.TextEditor, position: vscode.Position): Property | undefined {
 	const rootNode = parseDocument(editor.document);
 	const node = getNode(rootNode, position);
 

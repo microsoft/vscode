@@ -352,7 +352,7 @@ export function scoreItem<T>(item: T, query: IPreparedQuery, fuzzy: boolean, acc
 	return itemScore;
 }
 
-function doScoreItem<T>(label: string, description: string, path: string, query: IPreparedQuery, fuzzy: boolean): IItemScore {
+function doScoreItem(label: string, description: string, path: string, query: IPreparedQuery, fuzzy: boolean): IItemScore {
 
 	// 1.) treat identity matches on full path highest
 	if (path && isEqual(query.value, path, true)) {

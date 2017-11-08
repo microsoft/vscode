@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as cp from 'child_process';
 import * as os from 'os';
 import * as platform from 'vs/base/common/platform';
 import * as processes from 'vs/base/node/processes';
@@ -25,10 +24,6 @@ const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW643
 const powerShellPath = `${process.env.windir}\\${is32ProcessOn64Windows ? 'Sysnative' : 'System32'}\\WindowsPowerShell\\v1.0\\powershell.exe`;
 
 export const TERMINAL_DEFAULT_SHELL_WINDOWS = isAtLeastWindows10 ? powerShellPath : processes.getWindowsShell();
-
-export interface ITerminalProcessFactory {
-	create(env: { [key: string]: string }): cp.ChildProcess;
-}
 
 if (platform.isLinux) {
 	const file = '/etc/os-release';

@@ -574,7 +574,7 @@ export namespace IdObject {
 }
 
 export type IWorkspaceSymbol = IdObject & modes.SymbolInformation;
-export interface IWorkspaceSymbols extends IdObject { symbols: IWorkspaceSymbol[]; };
+export interface IWorkspaceSymbols extends IdObject { symbols: IWorkspaceSymbol[]; }
 
 export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentSymbols(handle: number, resource: URI): TPromise<modes.SymbolInformation[]>;

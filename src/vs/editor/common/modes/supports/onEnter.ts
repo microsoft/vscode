@@ -24,6 +24,7 @@ interface IProcessedBracketPair {
 export class OnEnterSupport {
 
 	private readonly _brackets: IProcessedBracketPair[];
+	// @ts-ignore unused property
 	private readonly _indentationRules: IndentationRule;
 	private readonly _regExpRules: OnEnterRule[];
 

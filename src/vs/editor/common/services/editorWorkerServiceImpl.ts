@@ -114,6 +114,7 @@ class WordBasedCompletionItemProvider implements modes.ISuggestSupport {
 
 	private readonly _workerManager: WorkerManager;
 	private readonly _configurationService: ITextResourceConfigurationService;
+	// @ts-ignore unused injected service
 	private readonly _modeService: IModeService;
 	private readonly _modelService: IModelService;
 

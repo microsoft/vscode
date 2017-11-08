@@ -356,12 +356,12 @@ suite('QueryBuilder', () => {
 				includePattern);
 		}
 
-		function testIncludesDataItem([includePattern, expectedResult]): void {
-			testIncludes(<string>includePattern, <ISearchPathsResult>expectedResult);
+		function testIncludesDataItem([includePattern, expectedResult]: [string, ISearchPathsResult]): void {
+			testIncludes(includePattern, expectedResult);
 		}
 
 		test('absolute includes', () => {
-			[
+			const cases: [string, ISearchPathsResult][] = [
 				[
 					fixPath('/foo/bar'),
 					<ISearchPathsResult>{
@@ -425,11 +425,12 @@ suite('QueryBuilder', () => {
 						}]
 					}
 				]
-			].forEach(testIncludesDataItem);
+			];
+			cases.forEach(testIncludesDataItem);
 		});
 
 		test('relative includes w/single root folder', () => {
-			[
+			const cases: [string, ISearchPathsResult][] = [
 				[
 					'./a',
 					<ISearchPathsResult>{
@@ -468,7 +469,8 @@ suite('QueryBuilder', () => {
 						}]
 					}
 				],
-			].forEach(testIncludesDataItem);
+			];
+			cases.forEach(testIncludesDataItem);
 		});
 
 		test('relative includes w/two root folders', () => {
@@ -476,7 +478,7 @@ suite('QueryBuilder', () => {
 			mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }, { path: getUri(ROOT_2).fsPath }]);
 			mockWorkspace.configuration = uri.file(fixPath('config'));
 
-			[
+			const cases: [string, ISearchPathsResult][] = [
 				[
 					'./root1',
 					<ISearchPathsResult>{
@@ -507,7 +509,8 @@ suite('QueryBuilder', () => {
 							}]
 					}
 				]
-			].forEach(testIncludesDataItem);
+			];
+			cases.forEach(testIncludesDataItem);
 		});
 
 		test('relative includes w/multiple ambiguous root folders', () => {
@@ -516,7 +519,7 @@ suite('QueryBuilder', () => {
 			mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }, { path: getUri(ROOT_2).fsPath }, { path: getUri(ROOT_3).fsPath }]);
 			mockWorkspace.configuration = uri.file(fixPath('/config'));
 
-			[
+			const cases: [string, ISearchPathsResult][] = [
 				[
 					'',
 					<ISearchPathsResult>{
@@ -579,7 +582,8 @@ suite('QueryBuilder', () => {
 							}]
 					}
 				]
-			].forEach(testIncludesDataItem);
+			];
+			cases.forEach(testIncludesDataItem);
 		});
 	});
 });

@@ -22,7 +22,7 @@ export interface INativeOpenDialogOptions {
 	windowId?: number;
 	forceNewWindow?: boolean;
 
-	dialogOptions?: Electron.OpenDialogOptions;
+	dialogOptions?: OpenDialogOptions;
 
 	telemetryEventName?: string;
 	telemetryExtraData?: ITelemetryData;
@@ -31,6 +31,63 @@ export interface INativeOpenDialogOptions {
 export interface IEnterWorkspaceResult {
 	workspace: IWorkspaceIdentifier;
 	backupPath: string;
+}
+
+export interface CrashReporterStartOptions {
+	companyName?: string;
+	submitURL: string;
+	productName?: string;
+	uploadToServer?: boolean;
+	ignoreSystemCrashHandler?: boolean;
+	extra?: any;
+	crashesDirectory?: string;
+}
+
+export interface OpenDialogOptions {
+	title?: string;
+	defaultPath?: string;
+	buttonLabel?: string;
+	filters?: FileFilter[];
+	properties?: Array<'openFile' | 'openDirectory' | 'multiSelections' | 'showHiddenFiles' | 'createDirectory' | 'promptToCreate' | 'noResolveAliases' | 'treatPackageAsDirectory'>;
+	message?: string;
+}
+
+export interface FileFilter {
+	extensions: string[];
+	name: string;
+}
+
+export interface MessageBoxOptions {
+	type?: string;
+	buttons?: string[];
+	defaultId?: number;
+	title?: string;
+	message: string;
+	detail?: string;
+	checkboxLabel?: string;
+	checkboxChecked?: boolean;
+	cancelId?: number;
+	noLink?: boolean;
+	normalizeAccessKeys?: boolean;
+}
+
+export interface SaveDialogOptions {
+	title?: string;
+	defaultPath?: string;
+	buttonLabel?: string;
+	filters?: FileFilter[];
+	message?: string;
+	nameFieldLabel?: string;
+	showsTagField?: boolean;
+}
+
+export interface OpenDialogOptions {
+	title?: string;
+	defaultPath?: string;
+	buttonLabel?: string;
+	filters?: FileFilter[];
+	properties?: Array<'openFile' | 'openDirectory' | 'multiSelections' | 'showHiddenFiles' | 'createDirectory' | 'promptToCreate' | 'noResolveAliases' | 'treatPackageAsDirectory'>;
+	message?: string;
 }
 
 export interface IWindowsService {
@@ -96,7 +153,7 @@ export interface IWindowsService {
 	openExternal(url: string): TPromise<boolean>;
 
 	// TODO: this is a bit backwards
-	startCrashReporter(config: Electron.CrashReporterStartOptions): TPromise<void>;
+	startCrashReporter(config: CrashReporterStartOptions): TPromise<void>;
 }
 
 export const IWindowService = createDecorator<IWindowService>('windowService');
@@ -136,10 +193,10 @@ export interface IWindowService {
 	unmaximizeWindow(): TPromise<void>;
 	onWindowTitleDoubleClick(): TPromise<void>;
 	show(): TPromise<void>;
-	showMessageBoxSync(options: Electron.MessageBoxOptions): number;
-	showMessageBox(options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult>;
-	showSaveDialog(options: Electron.SaveDialogOptions, callback?: (fileName: string) => void): string;
-	showOpenDialog(options: Electron.OpenDialogOptions, callback?: (fileNames: string[]) => void): string[];
+	showMessageBoxSync(options: MessageBoxOptions): number;
+	showMessageBox(options: MessageBoxOptions): TPromise<IMessageBoxResult>;
+	showSaveDialog(options: SaveDialogOptions, callback?: (fileName: string) => void): string;
+	showOpenDialog(options: OpenDialogOptions, callback?: (fileNames: string[]) => void): string[];
 }
 
 export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden';

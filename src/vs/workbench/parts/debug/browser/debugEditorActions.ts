@@ -16,6 +16,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class ToggleBreakpointAction extends EditorAction {
 	constructor() {
 		super({
@@ -68,6 +69,7 @@ function addColumnBreakpoint(accessor: ServicesAccessor, editor: ICommonCodeEdit
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class ToggleColumnBreakpointAction extends EditorAction {
 	constructor() {
 		super({
@@ -89,6 +91,7 @@ class ToggleColumnBreakpointAction extends EditorAction {
 
 // TODO@Isidor merge two column breakpoints actions together
 @editorAction
+// @ts-ignore @editorAction uses the class
 class ToggleColumnBreakpointContextMenuAction extends EditorAction {
 	constructor() {
 		super({
@@ -109,6 +112,7 @@ class ToggleColumnBreakpointContextMenuAction extends EditorAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class ConditionalBreakpointAction extends EditorAction {
 
 	constructor() {
@@ -132,6 +136,7 @@ class ConditionalBreakpointAction extends EditorAction {
 
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class RunToCursorAction extends EditorAction {
 
 	constructor() {
@@ -175,6 +180,7 @@ class RunToCursorAction extends EditorAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class SelectionToReplAction extends EditorAction {
 
 	constructor() {
@@ -202,6 +208,7 @@ class SelectionToReplAction extends EditorAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class SelectionToWatchExpressionsAction extends EditorAction {
 
 	constructor() {
@@ -227,6 +234,7 @@ class SelectionToWatchExpressionsAction extends EditorAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class ShowDebugHoverAction extends EditorAction {
 
 	constructor() {

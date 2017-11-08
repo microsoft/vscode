@@ -56,10 +56,10 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 		return this.configuration.toData();
 	}
 
-	getConfiguration<T>(): T
-	getConfiguration<T>(section: string): T
-	getConfiguration<T>(overrides: IConfigurationOverrides): T
-	getConfiguration<T>(section: string, overrides: IConfigurationOverrides): T
+	getConfiguration<T>(): T;
+	getConfiguration<T>(section: string): T;
+	getConfiguration<T>(overrides: IConfigurationOverrides): T;
+	getConfiguration<T>(section: string, overrides: IConfigurationOverrides): T;
 	getConfiguration(arg1?: any, arg2?: any): any {
 		const section = typeof arg1 === 'string' ? arg1 : void 0;
 		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : {};
@@ -70,10 +70,10 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 		return this.configuration.getValue(key, overrides, null);
 	}
 
-	updateValue(key: string, value: any): TPromise<void>
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides): TPromise<void>
-	updateValue(key: string, value: any, target: ConfigurationTarget): TPromise<void>
-	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget): TPromise<void>
+	updateValue(key: string, value: any): TPromise<void>;
+	updateValue(key: string, value: any, overrides: IConfigurationOverrides): TPromise<void>;
+	updateValue(key: string, value: any, target: ConfigurationTarget): TPromise<void>;
+	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget): TPromise<void>;
 	updateValue(key: string, value: any, arg3?: any, arg4?: any): TPromise<void> {
 		return TPromise.wrapError(new Error('not supported'));
 	}

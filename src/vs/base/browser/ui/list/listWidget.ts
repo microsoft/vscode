@@ -52,7 +52,7 @@ interface IRenderedElement {
 	index: number;
 }
 
-class TraitRenderer<T, D> implements IRenderer<T, ITraitTemplateData>
+class TraitRenderer<T> implements IRenderer<T, ITraitTemplateData>
 {
 	private rendered: IRenderedElement[] = [];
 
@@ -107,8 +107,8 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 	get trait(): string { return this._trait; }
 
 	@memoize
-	get renderer(): TraitRenderer<T, any> {
-		return new TraitRenderer<T, any>(this);
+	get renderer(): TraitRenderer<T> {
+		return new TraitRenderer<T>(this);
 	}
 
 	constructor(private _trait: string) {

@@ -12,7 +12,7 @@ import { isIPad } from 'vs/base/browser/browser';
 import { isMacintosh } from 'vs/base/common/platform';
 import types = require('vs/base/common/types');
 import DOM = require('vs/base/browser/dom');
-import { Gesture, EventType, GestureEvent } from 'vs/base/browser/touch';
+import { EventType, GestureEvent } from 'vs/base/browser/touch';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -51,7 +51,6 @@ export enum Orientation {
 export class Sash extends EventEmitter {
 
 	private $e: Builder;
-	private gesture: Gesture;
 	private layoutProvider: ISashLayoutProvider;
 	private isDisabled: boolean;
 	private hidden: boolean;
@@ -66,8 +65,6 @@ export class Sash extends EventEmitter {
 		if (isMacintosh) {
 			this.$e.addClass('mac');
 		}
-
-		this.gesture = new Gesture(this.$e.getHTMLElement());
 
 		this.$e.on(DOM.EventType.MOUSE_DOWN, (e) => { this.onMouseDown(e as MouseEvent); });
 		this.$e.on(DOM.EventType.DBLCLICK, (e) => { this.emit('reset', e as MouseEvent); });
@@ -141,9 +138,6 @@ export class Sash extends EventEmitter {
 		let $window = $(window);
 		let containerCSSClass = `${this.getOrientation()}-cursor-container${isMacintosh ? '-mac' : ''}`;
 
-		let lastCurrentX = startX;
-		let lastCurrentY = startY;
-
 		$window.on('mousemove', (e) => {
 			DOM.EventHelper.stop(e, false);
 			let mouseMoveEvent = new StandardMouseEvent(e as MouseEvent);
@@ -154,9 +148,6 @@ export class Sash extends EventEmitter {
 				startY: startY,
 				currentY: mouseMoveEvent.posy
 			};
-
-			lastCurrentX = mouseMoveEvent.posx;
-			lastCurrentY = mouseMoveEvent.posy;
 
 			this.emit('change', event);
 		}).once('mouseup', (e) => {
@@ -191,9 +182,6 @@ export class Sash extends EventEmitter {
 			currentY: startY
 		});
 
-		let lastCurrentX = startX;
-		let lastCurrentY = startY;
-
 		listeners.push(DOM.addDisposableListener(this.$e.getHTMLElement(), EventType.Change, (event: GestureEvent) => {
 			if (types.isNumber(event.pageX) && types.isNumber(event.pageY)) {
 				this.emit('change', {
@@ -202,9 +190,6 @@ export class Sash extends EventEmitter {
 					startY: startY,
 					currentY: event.pageY
 				});
-
-				lastCurrentX = event.pageX;
-				lastCurrentY = event.pageY;
 			}
 		}));
 

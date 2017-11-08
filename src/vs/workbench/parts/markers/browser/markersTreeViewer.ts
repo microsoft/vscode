@@ -81,8 +81,11 @@ export class Renderer implements IRenderer {
 	private static FILE_RESOURCE_TEMPLATE_ID = 'file-resource-template';
 	private static MARKER_TEMPLATE_ID = 'marker-template';
 
+	// @ts-ignore unused property
 	constructor(private actionRunner: IActionRunner,
+		// @ts-ignore unused property
 		private actionProvider: IActionProvider,
+		// @ts-ignore unused injected service
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService

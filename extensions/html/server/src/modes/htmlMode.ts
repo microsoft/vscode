@@ -69,7 +69,7 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService): LanguageM
 			htmlDocuments.dispose();
 		}
 	};
-};
+}
 
 function merge(src: any, dst: any): any {
 	for (var key in src) {

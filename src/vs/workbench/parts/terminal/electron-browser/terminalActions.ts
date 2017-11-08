@@ -729,8 +729,6 @@ export class ShowPreviousFindTermTerminalFindWidgetAction extends Action {
 export class QuickOpenActionTermContributor extends ActionBarContributor {
 
 	constructor(
-		@ITerminalService private terminalService: ITerminalService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super();
@@ -774,8 +772,7 @@ export class RenameTerminalQuickOpenAction extends RenameTerminalAction {
 		id: string, label: string,
 		private terminal: TerminalEntry,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@ITerminalService terminalService: ITerminalService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@ITerminalService terminalService: ITerminalService
 	) {
 		super(id, label, quickOpenService, terminalService);
 		this.class = 'quick-open-terminal-configure';

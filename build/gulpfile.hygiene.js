@@ -123,7 +123,8 @@ const tslintFilter = [
 	'!**/node_modules/**',
 	'!extensions/typescript/test/colorize-fixtures/**',
 	'!extensions/vscode-api-tests/testWorkspace/**',
-	'!extensions/**/*.test.ts'
+	'!extensions/**/*.test.ts',
+	'!extensions/html/server/lib/jquery.d.ts'
 ];
 
 const copyrightHeader = [
@@ -132,17 +133,6 @@ const copyrightHeader = [
 	' *  Licensed under the MIT License. See License.txt in the project root for license information.',
 	' *--------------------------------------------------------------------------------------------*/'
 ].join('\n');
-
-function reportFailures(failures) {
-	failures.forEach(failure => {
-		const name = failure.name || failure.fileName;
-		const position = failure.startPosition;
-		const line = position.lineAndCharacter ? position.lineAndCharacter.line : position.line;
-		const character = position.lineAndCharacter ? position.lineAndCharacter.character : position.character;
-
-		console.error(`${name}:${line + 1}:${character + 1}:${failure.failure}`);
-	});
-}
 
 gulp.task('eslint', () => {
 	return vfs.src(all, { base: '.', follow: true, allowEmpty: true })
@@ -153,12 +143,12 @@ gulp.task('eslint', () => {
 });
 
 gulp.task('tslint', () => {
-	const options = { summarizeFailureOutput: true };
+	const options = { emitError: false };
 
 	return vfs.src(all, { base: '.', follow: true, allowEmpty: true })
 		.pipe(filter(tslintFilter))
 		.pipe(gulptslint({ rulesDirectory: 'build/lib/tslint' }))
-		.pipe(gulptslint.report(reportFailures, options));
+		.pipe(gulptslint.report(options));
 });
 
 const hygiene = exports.hygiene = (some, options) => {
@@ -219,6 +209,17 @@ const hygiene = exports.hygiene = (some, options) => {
 			cb(err);
 		});
 	});
+	
+	function reportFailures(failures) {
+		failures.forEach(failure => {
+			const name = failure.name || failure.fileName;
+			const position = failure.startPosition;
+			const line = position.lineAndCharacter ? position.lineAndCharacter.line : position.line;
+			const character = position.lineAndCharacter ? position.lineAndCharacter.character : position.character;
+
+			console.error(`${name}:${line + 1}:${character + 1}:${failure.failure}`);
+		});
+	}
 
 	const tsl = es.through(function (file) {
 		const configuration = tslint.Configuration.findConfiguration(null, '.');

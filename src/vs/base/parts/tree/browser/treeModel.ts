@@ -206,8 +206,6 @@ export class Item extends Events.EventEmitter {
 	public firstChild: Item;
 	public lastChild: Item;
 
-	private userContent: HTMLElement;
-
 	private height: number;
 	private depth: number;
 
@@ -238,7 +236,6 @@ export class Item extends Events.EventEmitter {
 		this.firstChild = null;
 		this.lastChild = null;
 
-		this.userContent = null;
 		this.traits = {};
 		this.depth = 0;
 		this.expanded = this.context.dataSource.shouldAutoexpand && this.context.dataSource.shouldAutoexpand(this.context.tree, element);

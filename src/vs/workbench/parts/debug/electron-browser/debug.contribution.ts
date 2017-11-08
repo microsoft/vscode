@@ -188,6 +188,11 @@ configurationRegistry.registerConfiguration({
 			default: false
 		},
 		'debug.internalConsoleOptions': INTERNAL_CONSOLE_OPTIONS_SCHEMA,
+		'debug.openDebug': {
+			enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart'],
+			default: 'openOnFirstSessionStart',
+			description: nls.localize('openDebug', "Controls whether debug viewlet should be open on debugging session start.")
+		},
 		'launch': {
 			type: 'object',
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'launch' }, "Global debug launch configuration. Should be used as an alternative to 'launch.json' that is shared across workspaces"),

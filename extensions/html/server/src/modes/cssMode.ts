@@ -68,4 +68,4 @@ export function getCSSMode(documentRegions: LanguageModelCache<HTMLDocumentRegio
 			cssStylesheets.dispose();
 		}
 	};
-};
+}

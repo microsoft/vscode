@@ -410,7 +410,7 @@ export namespace Suggest {
 
 		return result;
 	}
-};
+}
 
 export namespace ParameterInformation {
 	export function from(info: types.ParameterInformation): modes.ParameterInformation {

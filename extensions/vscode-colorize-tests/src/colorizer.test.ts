@@ -5,6 +5,7 @@
 
 'use strict';
 
+import 'mocha';
 import * as assert from 'assert';
 import { commands, Uri } from 'vscode';
 import { join, basename, normalize, dirname } from 'path';

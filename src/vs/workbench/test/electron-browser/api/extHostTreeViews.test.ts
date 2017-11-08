@@ -31,7 +31,7 @@ suite('ExtHostConfiguration', function () {
 		$refresh(viewId: string, itemHandles: number[]): void {
 			this.onRefresh.fire(itemHandles);
 		}
-	};
+	}
 
 	let testObject: ExtHostTreeViews;
 	let target: RecordingShape;

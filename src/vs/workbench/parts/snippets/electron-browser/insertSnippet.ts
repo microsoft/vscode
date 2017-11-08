@@ -52,6 +52,7 @@ class Args {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class InsertSnippetAction extends EditorAction {
 
 	constructor() {

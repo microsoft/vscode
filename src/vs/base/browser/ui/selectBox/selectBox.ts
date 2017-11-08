@@ -36,7 +36,6 @@ export class SelectBox extends Widget {
 	private selectElement: HTMLSelectElement;
 	private options: string[];
 	private selected: number;
-	private container: HTMLElement;
 	private _onDidSelect: Emitter<ISelectData>;
 	private toDispose: IDisposable[];
 	private selectBackground: Color;
@@ -113,7 +112,6 @@ export class SelectBox extends Widget {
 	}
 
 	public render(container: HTMLElement): void {
-		this.container = container;
 		dom.addClass(container, 'select-container');
 		container.appendChild(this.selectElement);
 		this.setOptions(this.options, this.selected);

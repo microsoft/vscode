@@ -133,7 +133,7 @@ export interface IQuickOpenStyleOverrides extends IListStyleOverrides, IInputBox
 	widgetShadow?: ColorIdentifier;
 	pickerGroupForeground?: ColorIdentifier;
 	pickerGroupBorder?: ColorIdentifier;
-};
+}
 
 export function attachQuickOpenStyler(widget: IThemable, themeService: IThemeService, style?: IQuickOpenStyleOverrides): IDisposable {
 	return attachStyler(themeService, {

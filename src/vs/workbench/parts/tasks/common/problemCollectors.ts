@@ -297,6 +297,7 @@ export enum ProblemHandlingStrategy {
 
 export class StartStopProblemCollector extends AbstractProblemCollector implements IProblemMatcher {
 	private owners: string[];
+	// @ts-ignore unused property
 	private strategy: ProblemHandlingStrategy;
 
 	private currentOwner: string;

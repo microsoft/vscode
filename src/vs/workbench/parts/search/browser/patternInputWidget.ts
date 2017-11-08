@@ -37,6 +37,7 @@ export class PatternInputWidget extends Widget {
 	private ariaLabel: string;
 
 	private domNode: HTMLElement;
+	// @ts-ignore unused property
 	private inputNode: HTMLInputElement;
 	protected inputBox: InputBox;
 
@@ -167,8 +168,7 @@ export class PatternInputWidget extends Widget {
 			placeholder: this.placeholder || '',
 			ariaLabel: this.ariaLabel || '',
 			validationOptions: {
-				validation: null,
-				showMessage: true
+				validation: null
 			}
 		});
 		this._register(attachInputBoxStyler(this.inputBox, this.themeService));

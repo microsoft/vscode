@@ -32,8 +32,8 @@ export class FoldingModel {
 
 	private _updateEventEmitter = new Emitter<FoldingModelChangeEvent>();
 
-	public get regions(): FoldingRegion[] { return this._regions; };
-	public get onDidChange(): Event<FoldingModelChangeEvent> { return this._updateEventEmitter.event; };
+	public get regions(): FoldingRegion[] { return this._regions; }
+	public get onDidChange(): Event<FoldingModelChangeEvent> { return this._updateEventEmitter.event; }
 	public get textModel() { return this._textModel; }
 
 	constructor(textModel: IModel, decorationProvider: IDecorationProvider) {
@@ -198,7 +198,7 @@ export class FoldingModel {
 			let index = this._ranges.findRange(lineNumber);
 			if (index >= 0) {
 				return this._regions[index];
-			};
+			}
 		}
 		return null;
 	}

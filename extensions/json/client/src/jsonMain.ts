@@ -50,6 +50,7 @@ interface Settings {
 	};
 }
 
+// @ts-ignore unused type
 interface JSONSettings {
 	schemas: JSONSchemaSettings[];
 }
@@ -260,8 +261,8 @@ function getSettings(): Settings {
 					folderPath = folderPath + '/';
 				}
 				collectSchemaSettings(folderSchemas, folderUri.fsPath, folderPath + '*');
-			};
-		};
+			}
+		}
 	}
 	return settings;
 }

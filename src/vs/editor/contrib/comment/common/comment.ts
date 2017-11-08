@@ -43,6 +43,7 @@ abstract class CommentLineAction extends EditorAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class ToggleCommentLineAction extends CommentLineAction {
 	constructor() {
 		super(Type.Toggle, {
@@ -59,6 +60,7 @@ class ToggleCommentLineAction extends CommentLineAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class AddLineCommentAction extends CommentLineAction {
 	constructor() {
 		super(Type.ForceAdd, {
@@ -75,6 +77,7 @@ class AddLineCommentAction extends CommentLineAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class RemoveLineCommentAction extends CommentLineAction {
 	constructor() {
 		super(Type.ForceRemove, {
@@ -91,6 +94,7 @@ class RemoveLineCommentAction extends CommentLineAction {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class BlockCommentAction extends EditorAction {
 
 	constructor() {

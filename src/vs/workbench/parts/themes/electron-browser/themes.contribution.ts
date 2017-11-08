@@ -35,6 +35,7 @@ export class SelectColorThemeAction extends Action {
 		id: string,
 		label: string,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		// @ts-ignore unused injected service
 		@IMessageService private messageService: IMessageService,
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,

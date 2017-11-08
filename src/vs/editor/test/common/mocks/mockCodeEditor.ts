@@ -29,7 +29,7 @@ export class MockCodeEditor extends CommonCodeEditor {
 
 	public focus(): void { }
 	public isFocused(): boolean { return this._isFocused; }
-	public hasWidgetFocus(): boolean { return true; };
+	public hasWidgetFocus(): boolean { return true; }
 
 	protected _enableEmptySelectionClipboard(): boolean { return false; }
 	protected _scheduleAtNextAnimationFrame(callback: () => void): IDisposable { throw new Error('Notimplemented'); }

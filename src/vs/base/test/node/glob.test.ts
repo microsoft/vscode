@@ -416,7 +416,7 @@ suite('Glob', () => {
 
 		assert.strictEqual(glob.match(expression, 'test.js', () => siblings), null);
 
-		expression = <any>{
+		expression = {
 			'**/*.js': {
 			}
 		};

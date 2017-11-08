@@ -50,8 +50,6 @@ export function renderFormattedText(formattedText: string, options: RenderOption
 export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions = {}): HTMLElement {
 	const element = createElement(options);
 
-	const { codeBlockRenderer, actionCallback } = options;
-
 	// signal to code-block render that the
 	// element has been created
 	let signalInnerHTML: Function;

@@ -10,6 +10,7 @@ import { DocCommandTemplateResponse } from '../protocol';
 
 import * as nls from 'vscode-nls';
 import { vsPositionToTsFileLocation } from '../utils/convert';
+import { Command, CommandManager } from '../utils/commandManager';
 const localize = nls.loadMessageBundle();
 
 const configurationNamespace = 'jsDocCompletion';
@@ -45,11 +46,14 @@ class JsDocCompletionItem extends CompletionItem {
 	}
 }
 
-export class JsDocCompletionProvider implements CompletionItemProvider {
+export default class JsDocCompletionProvider implements CompletionItemProvider {
 
 	constructor(
 		private client: ITypeScriptServiceClient,
-	) { }
+		commandManager: CommandManager
+	) {
+		commandManager.register(new TryCompleteJsDocCommand(client));
+	}
 
 	public provideCompletionItems(
 		document: TextDocument,
@@ -77,19 +81,20 @@ export class JsDocCompletionProvider implements CompletionItemProvider {
 	}
 }
 
-export class TryCompleteJsDocCommand {
-	static COMMAND_NAME = '_typeScript.tryCompleteJsDoc';
+class TryCompleteJsDocCommand implements Command {
+	public static readonly COMMAND_NAME = '_typeScript.tryCompleteJsDoc';
+	public readonly id = TryCompleteJsDocCommand.COMMAND_NAME;
 
 	constructor(
-		private lazyClient: () => ITypeScriptServiceClient
+		private readonly client: ITypeScriptServiceClient
 	) { }
 
 	/**
 	 * Try to insert a jsdoc comment, using a template provide by typescript
 	 * if possible, otherwise falling back to a default comment format.
 	 */
-	public async tryCompleteJsDoc(resource: Uri, start: Position, shouldGetJSDocFromTSServer: boolean): Promise<boolean> {
-		const file = this.lazyClient().normalizePath(resource);
+	public async execute(resource: Uri, start: Position, shouldGetJSDocFromTSServer: boolean): Promise<boolean> {
+		const file = this.client.normalizePath(resource);
 		if (!file) {
 			return false;
 		}
@@ -113,7 +118,7 @@ export class TryCompleteJsDocCommand {
 	private tryInsertJsDocFromTemplate(editor: TextEditor, file: string, position: Position): Promise<boolean> {
 		const args = vsPositionToTsFileLocation(file, position);
 		return Promise.race([
-			this.lazyClient().execute('docCommentTemplate', args),
+			this.client.execute('docCommentTemplate', args),
 			new Promise<DocCommandTemplateResponse>((_, reject) => setTimeout(reject, 250))
 		]).then((res: DocCommandTemplateResponse) => {
 			if (!res || !res.body) {

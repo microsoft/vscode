@@ -25,7 +25,6 @@ import TypeScriptServiceClient from './typescriptServiceClient';
 import { ITypeScriptServiceClientHost } from './typescriptService';
 
 import BufferSyncSupport from './features/bufferSyncSupport';
-import { JsDocCompletionProvider, TryCompleteJsDocCommand } from './features/jsDocCompletionProvider';
 import TypeScriptTaskProviderManager from './features/taskProvider';
 
 import * as ProjectStatus from './utils/projectStatus';
@@ -36,6 +35,7 @@ import { openOrCreateConfigFile, isImplicitProjectConfigFile } from './utils/tsc
 import { tsLocationToVsPosition } from './utils/convert';
 import FormattingConfigurationManager from './features/formattingConfigurationManager';
 import * as languageModeIds from './utils/languageModeIds';
+import { CommandManager, Command } from './utils/commandManager';
 
 interface LanguageDescription {
 	id: string;
@@ -43,16 +43,6 @@ interface LanguageDescription {
 	modeIds: string[];
 	configFile?: string;
 	isExternal?: boolean;
-}
-
-enum ProjectConfigAction {
-	None,
-	CreateConfig,
-	LearnMore
-}
-
-interface ProjectConfigMessageItem extends MessageItem {
-	id: ProjectConfigAction;
 }
 
 const standardLanguageDescriptions: LanguageDescription[] = [
@@ -69,14 +59,107 @@ const standardLanguageDescriptions: LanguageDescription[] = [
 	}
 ];
 
+class ReloadTypeScriptProjectsCommand implements Command {
+	public readonly id = 'typescript.reloadProjects';
+
+	public constructor(
+		private readonly lazyClientHost: () => TypeScriptServiceClientHost
+	) { }
+
+	public execute() {
+		this.lazyClientHost().reloadProjects();
+	}
+}
+
+class ReloadJavaScriptProjectsCommand implements Command {
+	public readonly id = 'javascript.reloadProjects';
+
+	public constructor(
+		private readonly lazyClientHost: () => TypeScriptServiceClientHost
+	) { }
+
+	public execute() {
+		this.lazyClientHost().reloadProjects();
+	}
+}
+
+class SelectTypeScriptVersionCommand implements Command {
+	public readonly id = 'typescript.selectTypeScriptVersion';
+
+	public constructor(
+		private readonly lazyClientHost: () => TypeScriptServiceClientHost
+	) { }
+
+	public execute() {
+		this.lazyClientHost().serviceClient.onVersionStatusClicked();
+	}
+}
+
+class OpenTsServerLogCommand implements Command {
+	public readonly id = 'typescript.openTsServerLog';
+
+	public constructor(
+		private readonly lazyClientHost: () => TypeScriptServiceClientHost
+	) { }
+
+	public execute() {
+		this.lazyClientHost().serviceClient.openTsServerLogFile();
+	}
+}
+
+class RestartTsServerCommand implements Command {
+	public readonly id = 'typescript.restartTsServer';
+
+	public constructor(
+		private readonly lazyClientHost: () => TypeScriptServiceClientHost
+	) { }
+
+	public execute() {
+		this.lazyClientHost().serviceClient.restartTsServer();
+	}
+}
+
+class TypeScriptGoToProjectConfigCommand implements Command {
+	public readonly id = 'typescript.goToProjectConfig';
+
+	public constructor(
+		private readonly lazyClientHost: () => TypeScriptServiceClientHost,
+	) { }
+
+	public execute() {
+		const editor = window.activeTextEditor;
+		if (editor) {
+			this.lazyClientHost().goToProjectConfig(true, editor.document.uri);
+		}
+	}
+}
+
+class JavaScriptGoToProjectConfigCommand implements Command {
+	public readonly id = 'javascript.goToProjectConfig';
+
+	public constructor(
+		private readonly lazyClientHost: () => TypeScriptServiceClientHost,
+	) { }
+
+	public execute() {
+		const editor = window.activeTextEditor;
+		if (editor) {
+			this.lazyClientHost().goToProjectConfig(false, editor.document.uri);
+		}
+	}
+}
+
 export function activate(context: ExtensionContext): void {
 	const plugins = getContributedTypeScriptServerPlugins();
+
+	const commandManager = new CommandManager();
+	context.subscriptions.push(commandManager);
 
 	const lazyClientHost = (() => {
 		let clientHost: TypeScriptServiceClientHost | undefined;
 		return () => {
 			if (!clientHost) {
-				clientHost = new TypeScriptServiceClientHost(standardLanguageDescriptions, context.workspaceState, plugins);
+				clientHost = new TypeScriptServiceClientHost(standardLanguageDescriptions, context.workspaceState, plugins, commandManager);
 				context.subscriptions.push(clientHost);
 
 				const host = clientHost;
@@ -92,41 +175,15 @@ export function activate(context: ExtensionContext): void {
 		};
 	})();
 
-
-	context.subscriptions.push(commands.registerCommand('typescript.reloadProjects', () => {
-		lazyClientHost().reloadProjects();
-	}));
-
-	context.subscriptions.push(commands.registerCommand('javascript.reloadProjects', () => {
-		lazyClientHost().reloadProjects();
-	}));
-
-	context.subscriptions.push(commands.registerCommand('typescript.selectTypeScriptVersion', () => {
-		lazyClientHost().serviceClient.onVersionStatusClicked();
-	}));
-
-	context.subscriptions.push(commands.registerCommand('typescript.openTsServerLog', () => {
-		lazyClientHost().serviceClient.openTsServerLogFile();
-	}));
-
-	context.subscriptions.push(commands.registerCommand('typescript.restartTsServer', () => {
-		lazyClientHost().serviceClient.restartTsServer();
-	}));
+	commandManager.register(new ReloadTypeScriptProjectsCommand(lazyClientHost));
+	commandManager.register(new ReloadJavaScriptProjectsCommand(lazyClientHost));
+	commandManager.register(new SelectTypeScriptVersionCommand(lazyClientHost));
+	commandManager.register(new OpenTsServerLogCommand(lazyClientHost));
+	commandManager.register(new RestartTsServerCommand(lazyClientHost));
+	commandManager.register(new TypeScriptGoToProjectConfigCommand(lazyClientHost));
+	commandManager.register(new JavaScriptGoToProjectConfigCommand(lazyClientHost));
 
 	context.subscriptions.push(new TypeScriptTaskProviderManager(() => lazyClientHost().serviceClient));
-
-	const goToProjectConfig = (isTypeScript: boolean) => {
-		const editor = window.activeTextEditor;
-		if (editor) {
-			lazyClientHost().goToProjectConfig(isTypeScript, editor.document.uri);
-		}
-	};
-	context.subscriptions.push(commands.registerCommand('typescript.goToProjectConfig', goToProjectConfig.bind(null, true)));
-	context.subscriptions.push(commands.registerCommand('javascript.goToProjectConfig', goToProjectConfig.bind(null, false)));
-
-	const jsDocCompletionCommand = new TryCompleteJsDocCommand(() => lazyClientHost().serviceClient);
-	context.subscriptions.push(commands.registerCommand(TryCompleteJsDocCommand.COMMAND_NAME, jsDocCompletionCommand.tryCompleteJsDoc, jsDocCompletionCommand));
-
 
 	const EMPTY_ELEMENTS: string[] = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'menuitem', 'meta', 'param', 'source', 'track', 'wbr'];
 
@@ -154,7 +211,7 @@ export function activate(context: ExtensionContext): void {
 			return true;
 		}
 		return false;
-	};
+	}
 	const openListener = workspace.onDidOpenTextDocument(didOpenTextDocument);
 	for (let textDocument of workspace.textDocuments) {
 		if (didOpenTextDocument(textDocument)) {
@@ -187,7 +244,8 @@ class LanguageProvider {
 
 	constructor(
 		private readonly client: TypeScriptServiceClient,
-		private readonly description: LanguageDescription
+		private readonly description: LanguageDescription,
+		private readonly commandManager: CommandManager
 	) {
 		this.formattingOptionsManager = new FormattingConfigurationManager(client);
 		this.bufferSyncSupport = new BufferSyncSupport(client, description.modeIds, {
@@ -238,8 +296,9 @@ class LanguageProvider {
 		const selector = this.description.modeIds;
 		const config = workspace.getConfiguration(this.id);
 
-		const completionItemProvider = new (await import('./features/completionItemProvider')).default(client, this.description.id, this.typingsStatus);
-		this.disposables.push(languages.registerCompletionItemProvider(selector, completionItemProvider, '.', '"', '\'', '/', '@'));
+		this.disposables.push(languages.registerCompletionItemProvider(selector,
+			new (await import('./features/completionItemProvider')).default(client, this.typingsStatus, this.commandManager),
+			'.', '"', '\'', '/', '@'));
 
 		this.disposables.push(languages.registerCompletionItemProvider(selector, new (await import('./features/directiveCommentCompletionProvider')).default(client), '@'));
 
@@ -253,7 +312,7 @@ class LanguageProvider {
 		this.disposables.push(formattingProviderManager);
 		this.toUpdateOnConfigurationChanged.push(formattingProviderManager);
 
-		this.disposables.push(languages.registerCompletionItemProvider(selector, new JsDocCompletionProvider(client), '*'));
+		this.disposables.push(languages.registerCompletionItemProvider(selector, new (await import('./features/jsDocCompletionProvider')).default(client, this.commandManager), '*'));
 		this.disposables.push(languages.registerHoverProvider(selector, new (await import('./features/hoverProvider')).default(client)));
 		this.disposables.push(languages.registerDefinitionProvider(selector, new (await import('./features/definitionProvider')).default(client)));
 		this.disposables.push(languages.registerDocumentHighlightProvider(selector, new (await import('./features/documentHighlightProvider')).default(client)));
@@ -261,24 +320,24 @@ class LanguageProvider {
 		this.disposables.push(languages.registerDocumentSymbolProvider(selector, new (await import('./features/documentSymbolProvider')).default(client)));
 		this.disposables.push(languages.registerSignatureHelpProvider(selector, new (await import('./features/signatureHelpProvider')).default(client), '(', ','));
 		this.disposables.push(languages.registerRenameProvider(selector, new (await import('./features/renameProvider')).default(client)));
-		this.disposables.push(languages.registerCodeActionsProvider(selector, new (await import('./features/codeActionProvider')).default(client, this.formattingOptionsManager, this.description.id)));
-		this.disposables.push(languages.registerCodeActionsProvider(selector, new (await import('./features/refactorProvider')).default(client, this.formattingOptionsManager, this.description.id)));
+		this.disposables.push(languages.registerCodeActionsProvider(selector, new (await import('./features/codeActionProvider')).default(client, this.formattingOptionsManager, this.commandManager)));
+		this.disposables.push(languages.registerCodeActionsProvider(selector, new (await import('./features/refactorProvider')).default(client, this.formattingOptionsManager, this.commandManager)));
 		this.registerVersionDependentProviders();
 
-		for (const modeId of this.description.modeIds) {
-			this.disposables.push(languages.registerWorkspaceSymbolProvider(new (await import('./features/workspaceSymbolProvider')).default(client, modeId)));
+		const referenceCodeLensProvider = new (await import('./features/referencesCodeLensProvider')).default(client, this.description.id);
+		referenceCodeLensProvider.updateConfiguration();
+		this.toUpdateOnConfigurationChanged.push(referenceCodeLensProvider);
+		this.disposables.push(languages.registerCodeLensProvider(selector, referenceCodeLensProvider));
 
-			const referenceCodeLensProvider = new (await import('./features/referencesCodeLensProvider')).default(client, modeId);
-			referenceCodeLensProvider.updateConfiguration();
-			this.toUpdateOnConfigurationChanged.push(referenceCodeLensProvider);
-			this.disposables.push(languages.registerCodeLensProvider(selector, referenceCodeLensProvider));
+		const implementationCodeLensProvider = new (await import('./features/implementationsCodeLensProvider')).default(client, this.description.id);
+		implementationCodeLensProvider.updateConfiguration();
+		this.toUpdateOnConfigurationChanged.push(implementationCodeLensProvider);
+		this.disposables.push(languages.registerCodeLensProvider(selector, implementationCodeLensProvider));
 
-			const implementationCodeLensProvider = new (await import('./features/implementationsCodeLensProvider')).default(client, modeId);
-			implementationCodeLensProvider.updateConfiguration();
-			this.toUpdateOnConfigurationChanged.push(implementationCodeLensProvider);
-			this.disposables.push(languages.registerCodeLensProvider(selector, implementationCodeLensProvider));
+		this.disposables.push(languages.registerWorkspaceSymbolProvider(new (await import('./features/workspaceSymbolProvider')).default(client, this.description.modeIds)));
 
-			if (!this.description.isExternal) {
+		if (!this.description.isExternal) {
+			for (const modeId of this.description.modeIds) {
 				this.disposables.push(languages.setLanguageConfiguration(modeId, {
 					indentationRules: {
 						// ^(.*\*/)?\s*\}.*$
@@ -442,7 +501,8 @@ class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
 	constructor(
 		descriptions: LanguageDescription[],
 		workspaceState: Memento,
-		plugins: TypeScriptServerPlugin[]
+		plugins: TypeScriptServerPlugin[],
+		private commandManager: CommandManager
 	) {
 		const handleProjectCreateOrDelete = () => {
 			this.client.execute('reloadProjects', null, false);
@@ -467,7 +527,7 @@ class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
 
 		this.languagePerId = new Map();
 		for (const description of descriptions) {
-			const manager = new LanguageProvider(this.client, description);
+			const manager = new LanguageProvider(this.client, description, this.commandManager);
 			this.languages.push(manager);
 			this.disposables.push(manager);
 			this.languagePerId.set(description.id, manager);
@@ -491,7 +551,7 @@ class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
 					diagnosticSource: 'ts-plugins',
 					isExternal: true
 				};
-				const manager = new LanguageProvider(this.client, description);
+				const manager = new LanguageProvider(this.client, description, this.commandManager);
 				this.languages.push(manager);
 				this.disposables.push(manager);
 				this.languagePerId.set(description.id, manager);
@@ -564,6 +624,16 @@ class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
 			const doc = await workspace.openTextDocument(configFileName);
 			window.showTextDocument(doc, window.activeTextEditor ? window.activeTextEditor.viewColumn : undefined);
 			return;
+		}
+
+		enum ProjectConfigAction {
+			None,
+			CreateConfig,
+			LearnMore
+		}
+
+		interface ProjectConfigMessageItem extends MessageItem {
+			id: ProjectConfigAction;
 		}
 
 		const selected = await window.showInformationMessage<ProjectConfigMessageItem>(

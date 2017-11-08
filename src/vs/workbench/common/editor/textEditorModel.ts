@@ -70,11 +70,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	protected createTextEditorModel(value: string | IRawTextSource, resource?: URI, modeId?: string): TPromise<EditorModel> {
 		const firstLineText = this.getFirstLineText(value);
 		const mode = this.getOrCreateMode(this.modeService, modeId, firstLineText);
-
-		// To avoid flickering, give the mode at most 50ms to load. If the mode doesn't load in 50ms, proceed creating the model with a mode promise
-		return TPromise.any<any>([TPromise.timeout(50), mode]).then(() => {
-			return this.doCreateTextEditorModel(value, mode, resource);
-		});
+		return TPromise.as(this.doCreateTextEditorModel(value, mode, resource));
 	}
 
 	private doCreateTextEditorModel(value: string | IRawTextSource, mode: TPromise<IMode>, resource: URI): EditorModel {

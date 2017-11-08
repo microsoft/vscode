@@ -71,9 +71,11 @@ export class SearchViewlet extends Viewlet {
 
 	private isDisposed: boolean;
 
+	// @ts-ignore unused property
 	private loading: boolean;
 	private queryBuilder: QueryBuilder;
 	private viewModel: SearchModel;
+	// @ts-ignore unused property
 	private callOnModelChange: lifecycle.IDisposable[];
 
 	private viewletVisible: IContextKey<boolean>;
@@ -88,6 +90,7 @@ export class SearchViewlet extends Viewlet {
 	private actionRegistry: { [key: string]: Action; };
 	private tree: ITree;
 	private viewletSettings: any;
+	// @ts-ignore unused property
 	private domNode: Builder;
 	private messages: Builder;
 	private searchWidgetsContainer: Builder;
@@ -254,7 +257,7 @@ export class SearchViewlet extends Viewlet {
 
 		this.createSearchResultsView(builder);
 
-		this.actionRegistry = <any>{};
+		this.actionRegistry = {};
 		let actions: Action[] = [new CollapseDeepestExpandedLevelAction(this), new RefreshAction(this), new ClearSearchResultsAction(this)];
 		actions.forEach((action) => {
 			this.actionRegistry[action.id] = action;

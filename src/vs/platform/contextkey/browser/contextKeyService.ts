@@ -37,7 +37,11 @@ export class Context implements IContext {
 
 	public removeValue(key: string): boolean {
 		// console.log('REMOVE ' + key + ' FROM ' + this._id);
-		return delete this._value[key];
+		if (key in this._value) {
+			delete this._value[key];
+			return true;
+		}
+		return false;
 	}
 
 	public getValue<T>(key: string): T {

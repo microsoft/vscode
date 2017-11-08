@@ -56,7 +56,7 @@ suite('Keybindings Editing', () => {
 	let instantiationService: TestInstantiationService;
 	let testObject: KeybindingsEditingService;
 	let testDir: string;
-	let keybindingsFile;
+	let keybindingsFile: string;
 
 	setup(() => {
 		return setUpWorkspace().then(() => {

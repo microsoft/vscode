@@ -16,7 +16,7 @@ export class HiddenRangeModel {
 	private _foldingModelListener: IDisposable;
 	private _updateEventEmitter = new Emitter<IRange[]>();
 
-	public get onDidChange(): Event<IRange[]> { return this._updateEventEmitter.event; };
+	public get onDidChange(): Event<IRange[]> { return this._updateEventEmitter.event; }
 	public get hiddenRanges() { return this._hiddenRanges; }
 
 	public constructor(model: FoldingModel) {
@@ -50,7 +50,7 @@ export class HiddenRangeModel {
 				updateHiddenAreas = true;
 				newHiddenAreas.push(new Range(range.startLineNumber + 1, 1, range.endLineNumber, 1));
 			}
-		};
+		}
 		if (updateHiddenAreas || i < this._hiddenRanges.length) {
 			this.applyHiddenRanges(newHiddenAreas);
 		}

@@ -170,6 +170,7 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 }
 
 @editorAction
+// @ts-ignore @editorAction uses the class
 class ShowHoverAction extends EditorAction {
 
 	constructor() {
