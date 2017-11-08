@@ -45,7 +45,6 @@ const model: EditorCommon.IModel = EditorModel.createFromString(
 
 let threadService: TestThreadService;
 let extHost: ExtHostLanguageFeatures;
-// @ts-ignore unused local
 let mainThread: MainThreadLanguageFeatures;
 let commands: ExtHostCommands;
 let disposables: vscode.Disposable[] = [];
@@ -132,6 +131,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	suiteTeardown(() => {
 		setUnexpectedErrorHandler(originalErrorHandler);
 		model.dispose();
+		mainThread.dispose();
 	});
 
 	teardown(function (done) {

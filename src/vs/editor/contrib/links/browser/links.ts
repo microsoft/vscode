@@ -16,7 +16,6 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { LinkProviderRegistry } from 'vs/editor/common/modes';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { getLinks, Link } from 'vs/editor/contrib/links/common/links';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -148,20 +147,16 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	private activeLinkDecorationId: string;
 	private openerService: IOpenerService;
 	private messageService: IMessageService;
-	// @ts-ignore unused injected service
-	private editorWorkerService: IEditorWorkerService;
 	private currentOccurrences: { [decorationId: string]: LinkOccurrence; };
 
 	constructor(
 		editor: ICodeEditor,
 		@IOpenerService openerService: IOpenerService,
-		@IMessageService messageService: IMessageService,
-		@IEditorWorkerService editorWorkerService: IEditorWorkerService
+		@IMessageService messageService: IMessageService
 	) {
 		this.editor = editor;
 		this.openerService = openerService;
 		this.messageService = messageService;
-		this.editorWorkerService = editorWorkerService;
 		this.listenersToRemove = [];
 
 		let clickLinkGesture = new ClickLinkGesture(editor);
