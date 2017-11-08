@@ -94,7 +94,7 @@ export class DebugService implements debug.IDebugService {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ILifecycleService lifecycleService: ILifecycleService,
+		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IMarkerService private markerService: IMarkerService,
@@ -124,13 +124,13 @@ export class DebugService implements debug.IDebugService {
 		this.viewModel = new ViewModel();
 		this.firstSessionStart = true;
 
-		this.registerListeners(lifecycleService);
+		this.registerListeners();
 	}
 
-	private registerListeners(lifecycleService: ILifecycleService): void {
+	private registerListeners(): void {
 		this.toDispose.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
-		lifecycleService.onShutdown(this.store, this);
-		lifecycleService.onShutdown(this.dispose, this);
+		this.lifecycleService.onShutdown(this.store, this);
+		this.lifecycleService.onShutdown(this.dispose, this);
 		this.toDispose.push(this.broadcastService.onBroadcast(this.onBroadcast, this));
 	}
 
@@ -324,6 +324,7 @@ export class DebugService implements debug.IDebugService {
 			this.updateStateAndEmit(session.getId(), debug.State.Running);
 		}));
 
+		let outputPromises: TPromise<void>[] = [];
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session.onDidOutput(event => {
 			if (!event.body) {
 				return;
@@ -341,24 +342,26 @@ export class DebugService implements debug.IDebugService {
 				return;
 			}
 
+			// Make sure to append output in the correct order by properly waiting on preivous promises #33822
+			const waitFor = outputPromises.slice();
 			const source = event.body.source ? {
 				lineNumber: event.body.line,
 				column: event.body.column,
 				source: process.getSource(event.body.source)
 			} : undefined;
-
 			if (event.body.variablesReference) {
 				const container = new ExpressionContainer(process, event.body.variablesReference, generateUuid());
-				container.getChildren().then(children => {
-					children.forEach(child => {
+				outputPromises.push(container.getChildren().then(children => {
+					return TPromise.join(waitFor).then(() => children.forEach(child => {
 						// Since we can not display multiple trees in a row, we are displaying these variables one after the other (ignoring their names)
 						child.name = null;
 						this.logToRepl(child, outputSeverity, source);
-					});
-				});
+					}));
+				}));
 			} else if (typeof event.body.output === 'string') {
-				this.logToRepl(event.body.output, outputSeverity, source);
+				TPromise.join(waitFor).then(() => this.logToRepl(event.body.output, outputSeverity, source));
 			}
+			TPromise.join(outputPromises).then(() => outputPromises = []);
 		}));
 
 		this.toDisposeOnSessionEnd.get(session.getId()).push(session.onDidBreakpoint(event => {
