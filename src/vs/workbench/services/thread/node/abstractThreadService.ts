@@ -7,6 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDispatcher, RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
 import { ProxyIdentifier } from 'vs/workbench/services/thread/common/threadService';
+import { CharCode } from 'vs/base/common/charCode';
 
 declare var Proxy: any; // TODO@TypeScript
 
@@ -50,11 +51,8 @@ export abstract class AbstractThreadService implements IDispatcher {
 
 	private _createProxy<T>(proxyId: string): T {
 		let handler = {
-			get: (target, name) => {
-				if (name === 'toJSON') {
-					return undefined;
-				}
-				if (!target[name]) {
+			get: (target, name: string) => {
+				if (!target[name] && name.charCodeAt(0) === CharCode.DollarSign) {
 					target[name] = (...myArgs: any[]) => {
 						return this._callOnRemote(proxyId, name, myArgs);
 					};
