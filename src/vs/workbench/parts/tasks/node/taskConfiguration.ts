@@ -1385,11 +1385,11 @@ namespace TaskParser {
 					CustomTask.fillGlobals(customTask, globals);
 					CustomTask.fillDefaults(customTask, context);
 					if (context.engine === Tasks.ExecutionEngine.Terminal && customTask.command && customTask.command.name && customTask.command.runtime === Tasks.RuntimeType.Shell && customTask.command.args && customTask.command.args.length > 0) {
-						if (hasUnescapedSpaces(customTask.command.name) || customTask.command.args.some(hasUnescapedSpaces)) {
+						if (customTask.command.args.some(hasUnescapedSpaces)) {
 							context.problemReporter.warn(
 								nls.localize(
 									'taskConfiguration.shellArgs',
-									'Warning: the task \'{0}\' is a shell command and either the command name or one of its arguments has unescaped spaces. To ensure correct command line quoting please merge args into the command.',
+									'Warning: the task \'{0}\' is a shell command and one of its arguments might have unescaped spaces. To ensure correct command line quoting please merge args into the command.',
 									customTask.name
 								)
 							);
@@ -1475,25 +1475,20 @@ namespace TaskParser {
 	}
 
 	function hasUnescapedSpaces(this: void, value: string): boolean {
-		if (Platform.isWindows) {
-			if (value.length >= 2 && value.charAt(0) === '"' && value.charAt(value.length - 1) === '"') {
-				return false;
-			}
-			return value.indexOf(' ') !== -1;
-		} else {
-			if (value.length >= 2 && ((value.charAt(0) === '"' && value.charAt(value.length - 1) === '"') || (value.charAt(0) === '\'' && value.charAt(value.length - 1) === '\''))) {
-				return false;
-			}
-			for (let i = 0; i < value.length; i++) {
-				let ch = value.charAt(i);
-				if (ch === ' ') {
-					if (i === 0 || value.charAt(i - 1) !== '\\') {
-						return true;
-					}
-				}
-			}
+		let escapeChar = Platform.isWindows ? '`' : '\\';
+
+		if (value.length >= 2 && ((value.charAt(0) === '"' && value.charAt(value.length - 1) === '"') || (value.charAt(0) === '\'' && value.charAt(value.length - 1) === '\''))) {
 			return false;
 		}
+		for (let i = 0; i < value.length; i++) {
+			let ch = value.charAt(i);
+			if (ch === ' ') {
+				if (i === 0 || value.charAt(i - 1) !== escapeChar) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	export function quickParse(this: void, externals: (CustomTask | ConfiguringTask)[], context: ParseContext): (Tasks.CustomTask | Tasks.ConfiguringTask)[] {
