@@ -869,8 +869,11 @@ export class DebugService implements debug.IDebugService {
 					this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
 				}
 
-				if (!this.viewModel.changedWorkbenchViewState && (this.partService.isVisible(Parts.SIDEBAR_PART) || this.contextService.getWorkbenchState() === WorkbenchState.EMPTY)) {
-					// We only want to change the workbench view state on the first debug session #5738 and if the side bar is not hidden
+				const openDebugOptions = this.configurationService.getConfiguration<debug.IDebugConfiguration>('debug').openDebug;
+				// Open debug viewlet based on the visibility of the side bar and openDebug setting
+				if ((this.partService.isVisible(Parts.SIDEBAR_PART) || this.contextService.getWorkbenchState() === WorkbenchState.EMPTY)
+					&& ((openDebugOptions === 'openOnSessionStart')
+						|| (openDebugOptions === 'openOnFirstSessionStart' && !this.viewModel.changedWorkbenchViewState))) {
 					this.viewModel.changedWorkbenchViewState = true;
 					this.viewletService.openViewlet(debug.VIEWLET_ID);
 				}
