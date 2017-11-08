@@ -1433,7 +1433,7 @@ export class CommandCenter {
 							.replace(/^error: /mi, '')
 							.replace(/^> husky.*$/mi, '')
 							.split(/[\r\n]/)
-							.filter((line: any) => !!line)
+							.filter((line: string) => !!line)
 						[0];
 
 						message = hint
