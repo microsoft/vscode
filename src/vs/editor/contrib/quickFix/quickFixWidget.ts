@@ -24,24 +24,24 @@ export class QuickFixContextMenu {
 	readonly onDidExecuteCodeAction: Event<void> = this._onDidExecuteCodeAction.event;
 
 	constructor(
-		private readonly editor: ICodeEditor,
-		private readonly contextMenuService: IContextMenuService,
-		private readonly onApplyCodeAction: (action: CodeAction) => TPromise<any>
+		private readonly _editor: ICodeEditor,
+		private readonly _contextMenuService: IContextMenuService,
+		private readonly _onApplyCodeAction: (action: CodeAction) => TPromise<any>
 	) { }
 
 	show(fixes: TPromise<CodeAction[]>, at: { x: number; y: number } | Position) {
 
 		const actions = fixes.then(value => {
 			return value.map(action => {
-				return new Action(action.command.id, action.title, undefined, true, () => {
+				return new Action(action.command ? action.command.id : action.title, action.title, undefined, true, () => {
 					return always(
-						this.onApplyCodeAction(action),
+						this._onApplyCodeAction(action),
 						() => this._onDidExecuteCodeAction.fire(undefined));
 				});
 			});
 		});
 
-		this.contextMenuService.showContextMenu({
+		this._contextMenuService.showContextMenu({
 			getAnchor: () => {
 				if (Position.isIPosition(at)) {
 					at = this._toCoords(at);
@@ -60,12 +60,12 @@ export class QuickFixContextMenu {
 
 	private _toCoords(position: Position): { x: number, y: number } {
 
-		this.editor.revealPosition(position, ScrollType.Immediate);
-		this.editor.render();
+		this._editor.revealPosition(position, ScrollType.Immediate);
+		this._editor.render();
 
 		// Translate to absolute editor position
-		const cursorCoords = this.editor.getScrolledVisiblePosition(this.editor.getPosition());
-		const editorCoords = getDomNodePagePosition(this.editor.getDomNode());
+		const cursorCoords = this._editor.getScrolledVisiblePosition(this._editor.getPosition());
+		const editorCoords = getDomNodePagePosition(this._editor.getDomNode());
 		const x = editorCoords.left + cursorCoords.left;
 		const y = editorCoords.top + cursorCoords.top + cursorCoords.height;
 

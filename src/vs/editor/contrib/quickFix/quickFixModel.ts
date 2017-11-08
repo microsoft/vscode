@@ -12,7 +12,7 @@ import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { CodeActionProviderRegistry, CodeAction, Command } from 'vs/editor/common/modes';
+import { CodeActionProviderRegistry, CodeAction } from 'vs/editor/common/modes';
 import { getCodeActions } from './quickFix';
 import { Position } from 'vs/editor/common/core/position';
 
@@ -113,15 +113,7 @@ export class QuickFixOracle {
 			const range = model.validateRange(rangeOrSelection);
 			const position = rangeOrSelection instanceof Selection ? rangeOrSelection.getPosition() : rangeOrSelection.getStartPosition();
 
-			const fixes = getCodeActions(model, range).then(actions =>
-				actions.map(action => {
-					if ('id' in action) {
-						// must be a command
-						const command = action as Command;
-						return { title: command.title, command: command } as CodeAction;
-					}
-					return action;
-				}));
+			const fixes = getCodeActions(model, range);
 
 			this._signalChange({
 				type,

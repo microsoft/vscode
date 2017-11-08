@@ -112,11 +112,11 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 	}
 
 	public async provideCodeActions2(
-		document: TextDocument,
-		range: Range,
-		_context: CodeActionContext,
-		token: CancellationToken
-	): Promise<CodeAction[]> {
+		document: vscode.TextDocument,
+		range: vscode.Range,
+		_context: vscode.CodeActionContext,
+		token: vscode.CancellationToken
+	): Promise<vscode.CodeAction[]> {
 		if (!this.client.apiVersion.has240Features()) {
 			return [];
 		}
@@ -140,7 +140,7 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 						title: info.description,
 						command: {
 							title: info.description,
-							command: this.selectRefactorCommandId,
+							command: SelectRefactorCommand.ID,
 							arguments: [document, file, info, range]
 						}
 					});
@@ -150,7 +150,7 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 							title: info.description,
 							command: {
 								title: info.description,
-								command: this.doRefactorCommandId,
+								command: ApplyRefactoringCommand.ID,
 								arguments: [document, file, info.name, action.name, range]
 							}
 						});

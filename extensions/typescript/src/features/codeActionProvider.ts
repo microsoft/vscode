@@ -9,25 +9,10 @@ import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { vsRangeToTsFileRange } from '../utils/convert';
 import FormattingConfigurationManager from './formattingConfigurationManager';
-import { applyCodeAction, getEditForCodeAction } from '../utils/codeAction';
-import { CommandManager, Command } from '../utils/commandManager';
+import { getEditForCodeAction } from '../utils/codeAction';
 
 interface NumberSet {
 	[key: number]: boolean;
-}
-
-class ApplyCodeActionCommand implements Command {
-
-	public static readonly ID: string = '_typescript.applyCodeAction';
-	public readonly id: string = ApplyCodeActionCommand.ID;
-
-	constructor(
-		private readonly client: ITypeScriptServiceClient
-	) { }
-
-	execute(action: Proto.CodeAction, file: string): void {
-		applyCodeAction(this.client, action, file);
-	}
 }
 
 export default class TypeScriptCodeActionProvider implements vscode.CodeActionProvider {
@@ -35,11 +20,8 @@ export default class TypeScriptCodeActionProvider implements vscode.CodeActionPr
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
-		private readonly formattingConfigurationManager: FormattingConfigurationManager,
-		commandManager: CommandManager
-	) {
-		commandManager.register(new ApplyCodeActionCommand(this.client));
-	}
+		private readonly formattingConfigurationManager: FormattingConfigurationManager
+	) { }
 
 	public provideCodeActions(
 		_document: vscode.TextDocument,
@@ -78,7 +60,7 @@ export default class TypeScriptCodeActionProvider implements vscode.CodeActionPr
 			errorCodes: Array.from(supportedActions)
 		};
 		const response = await this.client.execute('getCodeFixes', args, token);
-		return (response.body || []).map(action => this.getCommandForAction(action, file));
+		return (response.body || []).map(action => this.getCommandForAction(action));
 	}
 
 	private get supportedCodeActions(): Thenable<NumberSet> {
@@ -102,14 +84,9 @@ export default class TypeScriptCodeActionProvider implements vscode.CodeActionPr
 			.filter(code => supportedActions[code]));
 	}
 
-	private getCommandForAction(action: Proto.CodeAction, file: string): vscode.CodeAction {
+	private getCommandForAction(action: Proto.CodeAction): vscode.CodeAction {
 		return {
 			title: action.description,
-			command: {
-				title: action.description,
-				command: ApplyCodeActionCommand.ID,
-				arguments: [action, file]
-			},
 			edits: getEditForCodeAction(this.client, action),
 			diagnostics: []
 		};

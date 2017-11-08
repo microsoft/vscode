@@ -279,7 +279,7 @@ export interface ISuggestSupport {
 export interface CodeAction {
 	title: string;
 	command?: Command;
-	edits?: TextEdit[] | WorkspaceEdit;
+	edits?: WorkspaceEdit;
 	diagnostics?: IMarkerData[];
 }
 
@@ -292,7 +292,7 @@ export interface CodeActionProvider {
 	/**
 	 * Provide commands for the given document and range.
 	 */
-	provideCodeActions(model: editorCommon.IReadOnlyModel, range: Range, token: CancellationToken): (Command | CodeAction)[] | Thenable<(Command | CodeAction)[]>;
+	provideCodeActions(model: editorCommon.IReadOnlyModel, range: Range, token: CancellationToken): CodeAction[] | Thenable<CodeAction[]>;
 }
 
 /**
