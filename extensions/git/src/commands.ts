@@ -1280,6 +1280,32 @@ export class CommandCenter {
 		}));
 	}
 
+	@command('git.syncRebase', { repository: true })
+	async syncRebase(repository: Repository): Promise<void> {
+		const HEAD = repository.HEAD;
+		if (!HEAD || !HEAD.upstream) {
+			return;
+		}
+
+		const config = workspace.getConfiguration('git');
+		const shouldPrompt = config.get<boolean>('confirmSync') === true;
+
+		if (shouldPrompt) {
+			const message = localize('sync is unpredictable', "This action will push and pull commits to and from '{0}'.", HEAD.upstream);
+			const yes = localize('ok', "OK");
+			const neverAgain = localize('never again', "OK, Never Show Again");
+			const pick = await window.showWarningMessage(message, { modal: true }, yes, neverAgain);
+
+			if (pick === neverAgain) {
+				await config.update('confirmSync', false, true);
+			} else if (pick !== yes) {
+				return;
+			}
+		}
+
+		await repository.syncRebase();
+	}
+
 	@command('git.publish', { repository: true })
 	async publish(repository: Repository): Promise<void> {
 		const remotes = repository.remotes;
