@@ -13,7 +13,7 @@ import * as platform from 'vs/base/common/platform';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { editorAction, IActionOptions, EditorAction, ICommandKeybindingsOptions } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, IActionOptions, EditorAction, ICommandKeybindingsOptions } from 'vs/editor/common/editorCommonExtensions';
 import { CopyOptions } from 'vs/editor/browser/controller/textAreaInput';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
@@ -29,13 +29,6 @@ const supportsCopyWithSyntaxHighlighting = (supportsCopy && !browser.isEdgeOrIE)
 const supportsPaste = (platform.isNative || (!browser.isChrome && document.queryCommandSupported('paste')));
 
 type ExecCommand = 'cut' | 'copy' | 'paste';
-
-function conditionalEditorAction(condition: boolean) {
-	if (!condition) {
-		return () => { };
-	}
-	return editorAction;
-}
 
 abstract class ExecCommandAction extends EditorAction {
 
@@ -63,8 +56,6 @@ abstract class ExecCommandAction extends EditorAction {
 	}
 }
 
-@conditionalEditorAction(supportsCut)
-// @ts-ignore @editorAction uses the class
 class ExecCommandCutAction extends ExecCommandAction {
 
 	constructor() {
@@ -102,8 +93,6 @@ class ExecCommandCutAction extends ExecCommandAction {
 	}
 }
 
-@conditionalEditorAction(supportsCopy)
-// @ts-ignore @editorAction uses the class
 class ExecCommandCopyAction extends ExecCommandAction {
 
 	constructor() {
@@ -142,8 +131,6 @@ class ExecCommandCopyAction extends ExecCommandAction {
 	}
 }
 
-@conditionalEditorAction(supportsPaste)
-// @ts-ignore @editorAction uses the class
 class ExecCommandPasteAction extends ExecCommandAction {
 
 	constructor() {
@@ -172,8 +159,6 @@ class ExecCommandPasteAction extends ExecCommandAction {
 	}
 }
 
-@conditionalEditorAction(supportsCopyWithSyntaxHighlighting)
-// @ts-ignore @editorAction uses the class
 class ExecCommandCopyWithSyntaxHighlightingAction extends ExecCommandAction {
 
 	constructor() {
@@ -200,4 +185,17 @@ class ExecCommandCopyWithSyntaxHighlightingAction extends ExecCommandAction {
 		super.run(accessor, editor);
 		CopyOptions.forceCopyWithSyntaxHighlighting = false;
 	}
+}
+
+if (supportsCut) {
+	registerEditorAction(new ExecCommandCutAction());
+}
+if (supportsCopy) {
+	registerEditorAction(new ExecCommandCopyAction());
+}
+if (supportsPaste) {
+	registerEditorAction(new ExecCommandPasteAction());
+}
+if (supportsCopyWithSyntaxHighlighting) {
+	registerEditorAction(new ExecCommandCopyWithSyntaxHighlightingAction());
 }

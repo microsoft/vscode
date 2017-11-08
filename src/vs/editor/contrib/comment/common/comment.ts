@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { ICommand, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { editorAction, IActionOptions, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, IActionOptions, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
 import { BlockCommentCommand } from './blockCommentCommand';
 import { LineCommentCommand, Type } from './lineCommentCommand';
 
@@ -42,8 +42,6 @@ abstract class CommentLineAction extends EditorAction {
 
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class ToggleCommentLineAction extends CommentLineAction {
 	constructor() {
 		super(Type.Toggle, {
@@ -59,8 +57,6 @@ class ToggleCommentLineAction extends CommentLineAction {
 	}
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class AddLineCommentAction extends CommentLineAction {
 	constructor() {
 		super(Type.ForceAdd, {
@@ -76,8 +72,6 @@ class AddLineCommentAction extends CommentLineAction {
 	}
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class RemoveLineCommentAction extends CommentLineAction {
 	constructor() {
 		super(Type.ForceRemove, {
@@ -93,8 +87,6 @@ class RemoveLineCommentAction extends CommentLineAction {
 	}
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class BlockCommentAction extends EditorAction {
 
 	constructor() {
@@ -124,3 +116,8 @@ class BlockCommentAction extends EditorAction {
 		editor.pushUndoStop();
 	}
 }
+
+registerEditorAction(new ToggleCommentLineAction());
+registerEditorAction(new AddLineCommentAction());
+registerEditorAction(new RemoveLineCommentAction());
+registerEditorAction(new BlockCommentAction());

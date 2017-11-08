@@ -8,7 +8,7 @@ import 'vs/css!./media/codeEditor';
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICommonCodeEditor, IEditorContribution, IModel } from 'vs/editor/common/editorCommon';
-import { editorAction, ServicesAccessor, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -130,8 +130,6 @@ function applyWordWrapState(editor: ICommonCodeEditor, state: IWordWrapState): v
 	});
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class ToggleWordWrapAction extends EditorAction {
 
 	constructor() {
@@ -251,6 +249,8 @@ function canToggleWordWrap(uri: URI): boolean {
 	}
 	return (uri.scheme !== 'output' && uri.scheme !== 'vscode');
 }
+
+registerEditorAction(new ToggleWordWrapAction());
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {

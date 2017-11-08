@@ -29,7 +29,7 @@ import { localize } from 'vs/nls';
 import { Color, RGBA } from 'vs/base/common/color';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { editorAction, ServicesAccessor, EditorAction, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor, EditorAction, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { PeekViewWidget, getOuterEditor } from 'vs/editor/contrib/referenceSearch/browser/peekViewWidget';
 import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -361,7 +361,6 @@ class DirtyDiffWidget extends PeekViewWidget {
 	}
 }
 
-@editorAction
 export class ShowPreviousChangeAction extends EditorAction {
 
 	constructor() {
@@ -394,8 +393,8 @@ export class ShowPreviousChangeAction extends EditorAction {
 		controller.previous();
 	}
 }
+registerEditorAction(new ShowPreviousChangeAction());
 
-@editorAction
 export class ShowNextChangeAction extends EditorAction {
 
 	constructor() {
@@ -428,6 +427,7 @@ export class ShowNextChangeAction extends EditorAction {
 		controller.next();
 	}
 }
+registerEditorAction(new ShowNextChangeAction());
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'closeDirtyDiff',

@@ -11,7 +11,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution, ICommonCodeEditor, IModelDecorationsChangeAccessor } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { editorAction, ServicesAccessor, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
 import { IInplaceReplaceSupportResult } from 'vs/editor/common/modes';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { InPlaceReplaceCommand } from './inPlaceReplaceCommand';
@@ -138,8 +138,6 @@ class InPlaceReplaceController implements IEditorContribution {
 	}
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class InPlaceReplaceUp extends EditorAction {
 
 	constructor() {
@@ -164,8 +162,6 @@ class InPlaceReplaceUp extends EditorAction {
 	}
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class InPlaceReplaceDown extends EditorAction {
 
 	constructor() {
@@ -189,6 +185,9 @@ class InPlaceReplaceDown extends EditorAction {
 		return controller.run(this.id, false);
 	}
 }
+
+registerEditorAction(new InPlaceReplaceUp());
+registerEditorAction(new InPlaceReplaceDown());
 
 registerThemingParticipant((theme, collector) => {
 	let border = theme.getColor(editorBracketMatchBorder);

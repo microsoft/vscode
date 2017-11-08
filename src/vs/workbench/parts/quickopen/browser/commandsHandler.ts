@@ -25,7 +25,7 @@ import { IMessageService, Severity, IMessageWithAction } from 'vs/platform/messa
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { editorAction, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { once } from 'vs/base/common/event';
@@ -173,8 +173,6 @@ export class ClearCommandHistoryAction extends Action {
 	}
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class CommandPaletteEditorAction extends EditorAction {
 
 	constructor() {
@@ -568,3 +566,5 @@ export class CommandsHandler extends QuickOpenHandler {
 		}
 	}
 }
+
+registerEditorAction(new CommandPaletteEditorAction());

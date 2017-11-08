@@ -14,7 +14,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ModesContentHoverWidget } from './modesContentHover';
@@ -169,8 +169,6 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 	}
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class ShowHoverAction extends EditorAction {
 
 	constructor() {
@@ -196,6 +194,8 @@ class ShowHoverAction extends EditorAction {
 		controller.showContentHover(range, true);
 	}
 }
+
+registerEditorAction(new ShowHoverAction());
 
 // theming
 registerThemingParticipant((theme, collector) => {

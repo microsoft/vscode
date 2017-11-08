@@ -6,14 +6,12 @@
 
 import * as nls from 'vs/nls';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchKeybindingService } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class InspectKeyMap extends EditorAction {
 
 	constructor() {
@@ -34,3 +32,5 @@ class InspectKeyMap extends EditorAction {
 		}
 	}
 }
+
+registerEditorAction(new InspectKeyMap());

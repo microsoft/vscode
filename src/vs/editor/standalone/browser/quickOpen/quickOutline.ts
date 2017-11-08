@@ -18,7 +18,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { SymbolInformation, DocumentSymbolProviderRegistry, symbolKindToCssClass, IOutline } from 'vs/editor/common/modes';
 import { BaseEditorQuickOpenAction, IDecorator } from './editorQuickOpen';
 import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/common/quickOpen';
-import { editorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Range } from 'vs/editor/common/core/range';
 
@@ -109,7 +109,6 @@ class SymbolEntry extends QuickOpenEntryGroup {
 	}
 }
 
-@editorAction
 export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 
 	constructor() {
@@ -314,3 +313,5 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 		return elementARange.startLineNumber - elementBRange.startLineNumber;
 	}
 }
+
+registerEditorAction(new QuickOutlineAction());

@@ -15,7 +15,7 @@ import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from 'vs/editor/
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
-import { editorAction, ServicesAccessor, IActionOptions, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor, IActionOptions, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { CopyLinesCommand } from './copyLinesCommand';
 import { DeleteLinesCommand } from './deleteLinesCommand';
 import { MoveLinesCommand } from './moveLinesCommand';
@@ -48,8 +48,6 @@ abstract class AbstractCopyLinesAction extends EditorAction {
 	}
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class CopyLinesUpAction extends AbstractCopyLinesAction {
 	constructor() {
 		super(false, {
@@ -66,8 +64,6 @@ class CopyLinesUpAction extends AbstractCopyLinesAction {
 	}
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class CopyLinesDownAction extends AbstractCopyLinesAction {
 	constructor() {
 		super(true, {
@@ -111,8 +107,6 @@ abstract class AbstractMoveLinesAction extends EditorAction {
 	}
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class MoveLinesUpAction extends AbstractMoveLinesAction {
 	constructor() {
 		super(false, {
@@ -129,8 +123,6 @@ class MoveLinesUpAction extends AbstractMoveLinesAction {
 	}
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class MoveLinesDownAction extends AbstractMoveLinesAction {
 	constructor() {
 		super(true, {
@@ -169,8 +161,6 @@ abstract class AbstractSortLinesAction extends EditorAction {
 	}
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class SortLinesAscendingAction extends AbstractSortLinesAction {
 	constructor() {
 		super(false, {
@@ -182,8 +172,6 @@ class SortLinesAscendingAction extends AbstractSortLinesAction {
 	}
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class SortLinesDescendingAction extends AbstractSortLinesAction {
 	constructor() {
 		super(true, {
@@ -195,7 +183,6 @@ class SortLinesDescendingAction extends AbstractSortLinesAction {
 	}
 }
 
-@editorAction
 export class TrimTrailingWhitespaceAction extends EditorAction {
 
 	public static ID = 'editor.action.trimTrailingWhitespace';
@@ -281,8 +268,6 @@ abstract class AbstractRemoveLinesAction extends EditorAction {
 	}
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class DeleteLinesAction extends AbstractRemoveLinesAction {
 
 	constructor() {
@@ -313,7 +298,6 @@ class DeleteLinesAction extends AbstractRemoveLinesAction {
 	}
 }
 
-@editorAction
 export class IndentLinesAction extends EditorAction {
 	constructor() {
 		super({
@@ -335,8 +319,6 @@ export class IndentLinesAction extends EditorAction {
 	}
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class OutdentLinesAction extends EditorAction {
 	constructor() {
 		super({
@@ -356,7 +338,6 @@ class OutdentLinesAction extends EditorAction {
 	}
 }
 
-@editorAction
 export class InsertLineBeforeAction extends EditorAction {
 	constructor() {
 		super({
@@ -377,7 +358,6 @@ export class InsertLineBeforeAction extends EditorAction {
 	}
 }
 
-@editorAction
 export class InsertLineAfterAction extends EditorAction {
 	constructor() {
 		super({
@@ -437,7 +417,6 @@ export abstract class AbstractDeleteAllToBoundaryAction extends EditorAction {
 	protected abstract _getRangesToDelete(editor: ICommonCodeEditor): Range[];
 }
 
-@editorAction
 export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 	constructor() {
 		super({
@@ -491,7 +470,6 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 	}
 }
 
-@editorAction
 export class DeleteAllRightAction extends AbstractDeleteAllToBoundaryAction {
 	constructor() {
 		super({
@@ -549,7 +527,6 @@ export class DeleteAllRightAction extends AbstractDeleteAllToBoundaryAction {
 	}
 }
 
-@editorAction
 export class JoinLinesAction extends EditorAction {
 	constructor() {
 		super({
@@ -698,7 +675,6 @@ export class JoinLinesAction extends EditorAction {
 	}
 }
 
-@editorAction
 export class TransposeAction extends EditorAction {
 	constructor() {
 		super({
@@ -784,7 +760,6 @@ export abstract class AbstractCaseAction extends EditorAction {
 	protected abstract _modifyText(text: string): string;
 }
 
-@editorAction
 export class UpperCaseAction extends AbstractCaseAction {
 	constructor() {
 		super({
@@ -800,7 +775,6 @@ export class UpperCaseAction extends AbstractCaseAction {
 	}
 }
 
-@editorAction
 export class LowerCaseAction extends AbstractCaseAction {
 	constructor() {
 		super({
@@ -815,3 +789,22 @@ export class LowerCaseAction extends AbstractCaseAction {
 		return text.toLocaleLowerCase();
 	}
 }
+
+registerEditorAction(new CopyLinesUpAction());
+registerEditorAction(new CopyLinesDownAction());
+registerEditorAction(new MoveLinesUpAction());
+registerEditorAction(new MoveLinesDownAction());
+registerEditorAction(new SortLinesAscendingAction());
+registerEditorAction(new SortLinesDescendingAction());
+registerEditorAction(new TrimTrailingWhitespaceAction());
+registerEditorAction(new DeleteLinesAction());
+registerEditorAction(new IndentLinesAction());
+registerEditorAction(new OutdentLinesAction());
+registerEditorAction(new InsertLineBeforeAction());
+registerEditorAction(new InsertLineAfterAction());
+registerEditorAction(new DeleteAllLeftAction());
+registerEditorAction(new DeleteAllRightAction());
+registerEditorAction(new JoinLinesAction());
+registerEditorAction(new TransposeAction());
+registerEditorAction(new UpperCaseAction());
+registerEditorAction(new LowerCaseAction());

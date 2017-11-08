@@ -15,7 +15,7 @@ import { IEditorService } from 'vs/platform/editor/common/editor';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { editorAction, IActionOptions, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, IActionOptions, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { Location } from 'vs/editor/common/modes';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition } from './goToDeclaration';
 import { ReferencesController } from 'vs/editor/contrib/referenceSearch/browser/referencesController';
@@ -180,7 +180,6 @@ const goToDeclarationKb = platform.isWeb
 	? KeyMod.CtrlCmd | KeyCode.F12
 	: KeyCode.F12;
 
-@editorAction
 export class GoToDefinitionAction extends DefinitionAction {
 
 	public static ID = 'editor.action.goToDeclaration';
@@ -205,7 +204,6 @@ export class GoToDefinitionAction extends DefinitionAction {
 	}
 }
 
-@editorAction
 export class OpenDefinitionToSideAction extends DefinitionAction {
 
 	public static ID = 'editor.action.openDeclarationToTheSide';
@@ -226,7 +224,6 @@ export class OpenDefinitionToSideAction extends DefinitionAction {
 	}
 }
 
-@editorAction
 export class PeekDefinitionAction extends DefinitionAction {
 	constructor() {
 		super(new DefinitionActionConfig(void 0, true, false), {
@@ -266,7 +263,6 @@ export class ImplementationAction extends DefinitionAction {
 	}
 }
 
-@editorAction
 export class GoToImplementationAction extends ImplementationAction {
 
 	public static ID = 'editor.action.goToImplementation';
@@ -287,7 +283,6 @@ export class GoToImplementationAction extends ImplementationAction {
 	}
 }
 
-@editorAction
 export class PeekImplementationAction extends ImplementationAction {
 
 	public static ID = 'editor.action.peekImplementation';
@@ -324,7 +319,6 @@ export class TypeDefinitionAction extends DefinitionAction {
 	}
 }
 
-@editorAction
 export class GoToTypeDefintionAction extends TypeDefinitionAction {
 
 	public static ID = 'editor.action.goToTypeDefinition';
@@ -349,7 +343,6 @@ export class GoToTypeDefintionAction extends TypeDefinitionAction {
 	}
 }
 
-@editorAction
 export class PeekTypeDefinitionAction extends TypeDefinitionAction {
 
 	public static ID = 'editor.action.peekTypeDefinition';
@@ -370,3 +363,10 @@ export class PeekTypeDefinitionAction extends TypeDefinitionAction {
 	}
 }
 
+registerEditorAction(new GoToDefinitionAction());
+registerEditorAction(new OpenDefinitionToSideAction());
+registerEditorAction(new PeekDefinitionAction());
+registerEditorAction(new GoToImplementationAction());
+registerEditorAction(new PeekImplementationAction());
+registerEditorAction(new GoToTypeDefintionAction());
+registerEditorAction(new PeekTypeDefinitionAction());

@@ -12,7 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Range } from 'vs/editor/common/core/range';
 import { ICommonCodeEditor, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { editorAction, ServicesAccessor, IActionOptions, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor, IActionOptions, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
 import { TokenSelectionSupport, ILogicalSelectionEntry } from './tokenSelectionSupport';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 
@@ -163,8 +163,6 @@ abstract class AbstractSmartSelect extends EditorAction {
 	}
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class GrowSelectionAction extends AbstractSmartSelect {
 	constructor() {
 		super(true, {
@@ -181,8 +179,6 @@ class GrowSelectionAction extends AbstractSmartSelect {
 	}
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class ShrinkSelectionAction extends AbstractSmartSelect {
 	constructor() {
 		super(false, {
@@ -198,3 +194,6 @@ class ShrinkSelectionAction extends AbstractSmartSelect {
 		});
 	}
 }
+
+registerEditorAction(new GrowSelectionAction());
+registerEditorAction(new ShrinkSelectionAction());

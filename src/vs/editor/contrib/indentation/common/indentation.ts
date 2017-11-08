@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as strings from 'vs/base/common/strings';
 import { ICommonCodeEditor, IEditorContribution, IIdentifiedSingleEditOperation, ICommand, ICursorStateComputerData, IEditOperationBuilder, ITokenizedModel, EndOfLineSequence } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { editorAction, ServicesAccessor, IActionOptions, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor, IActionOptions, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Range } from 'vs/editor/common/core/range';
@@ -147,7 +147,6 @@ export function getReindentEditOperations(model: ITokenizedModel, startLineNumbe
 	return indentEdits;
 }
 
-@editorAction
 export class IndentationToSpacesAction extends EditorAction {
 	public static ID = 'editor.action.indentationToSpaces';
 
@@ -178,7 +177,6 @@ export class IndentationToSpacesAction extends EditorAction {
 	}
 }
 
-@editorAction
 export class IndentationToTabsAction extends EditorAction {
 	public static ID = 'editor.action.indentationToTabs';
 
@@ -248,7 +246,6 @@ export class ChangeIndentationSizeAction extends EditorAction {
 	}
 }
 
-@editorAction
 export class IndentUsingTabs extends ChangeIndentationSizeAction {
 
 	public static ID = 'editor.action.indentUsingTabs';
@@ -263,7 +260,6 @@ export class IndentUsingTabs extends ChangeIndentationSizeAction {
 	}
 }
 
-@editorAction
 export class IndentUsingSpaces extends ChangeIndentationSizeAction {
 
 	public static ID = 'editor.action.indentUsingSpaces';
@@ -278,7 +274,6 @@ export class IndentUsingSpaces extends ChangeIndentationSizeAction {
 	}
 }
 
-@editorAction
 export class DetectIndentation extends EditorAction {
 
 	public static ID = 'editor.action.detectIndentation';
@@ -305,7 +300,6 @@ export class DetectIndentation extends EditorAction {
 	}
 }
 
-@editorAction
 export class ReindentLinesAction extends EditorAction {
 	constructor() {
 		super({
@@ -333,7 +327,7 @@ export class ReindentLinesAction extends EditorAction {
 export class AutoIndentOnPasteCommand implements ICommand {
 
 	private _edits: TextEdit[];
-	// @ts-ignore @editorAction unused property
+	// @ts-ignore unused property
 	private _newEol: EndOfLineSequence;
 
 	private _initialSelection: Selection;
@@ -621,3 +615,10 @@ export class IndentationToTabsCommand implements ICommand {
 		return helper.getTrackedSelection(this.selectionId);
 	}
 }
+
+registerEditorAction(new IndentationToSpacesAction());
+registerEditorAction(new IndentationToTabsAction());
+registerEditorAction(new IndentUsingTabs());
+registerEditorAction(new IndentUsingSpaces());
+registerEditorAction(new DetectIndentation());
+registerEditorAction(new ReindentLinesAction());

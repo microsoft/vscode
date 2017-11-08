@@ -10,7 +10,7 @@ import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { ICommonCodeEditor, ScrollType, IEditorContribution, FindMatch, TrackedRangeStickiness, OverviewRulerLane, IModel } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { editorAction, commonEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, commonEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
@@ -24,7 +24,6 @@ import { overviewRulerSelectionHighlightForeground } from 'vs/platform/theme/com
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { INewFindReplaceState, FindOptionOverride } from 'vs/editor/contrib/find/common/findState';
 
-@editorAction
 export class InsertCursorAbove extends EditorAction {
 	constructor() {
 		super({
@@ -64,7 +63,6 @@ export class InsertCursorAbove extends EditorAction {
 	}
 }
 
-@editorAction
 export class InsertCursorBelow extends EditorAction {
 	constructor() {
 		super({
@@ -104,8 +102,6 @@ export class InsertCursorBelow extends EditorAction {
 	}
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 
 	constructor() {
@@ -522,7 +518,6 @@ export abstract class MultiCursorSelectionControllerAction extends EditorAction 
 	protected abstract _run(multiCursorController: MultiCursorSelectionController, findController: CommonFindController): void;
 }
 
-@editorAction
 export class AddSelectionToNextFindMatchAction extends MultiCursorSelectionControllerAction {
 	constructor() {
 		super({
@@ -541,7 +536,6 @@ export class AddSelectionToNextFindMatchAction extends MultiCursorSelectionContr
 	}
 }
 
-@editorAction
 export class AddSelectionToPreviousFindMatchAction extends MultiCursorSelectionControllerAction {
 	constructor() {
 		super({
@@ -556,7 +550,6 @@ export class AddSelectionToPreviousFindMatchAction extends MultiCursorSelectionC
 	}
 }
 
-@editorAction
 export class MoveSelectionToNextFindMatchAction extends MultiCursorSelectionControllerAction {
 	constructor() {
 		super({
@@ -575,7 +568,6 @@ export class MoveSelectionToNextFindMatchAction extends MultiCursorSelectionCont
 	}
 }
 
-@editorAction
 export class MoveSelectionToPreviousFindMatchAction extends MultiCursorSelectionControllerAction {
 	constructor() {
 		super({
@@ -590,7 +582,6 @@ export class MoveSelectionToPreviousFindMatchAction extends MultiCursorSelection
 	}
 }
 
-@editorAction
 export class SelectHighlightsAction extends MultiCursorSelectionControllerAction {
 	constructor() {
 		super({
@@ -609,7 +600,6 @@ export class SelectHighlightsAction extends MultiCursorSelectionControllerAction
 	}
 }
 
-@editorAction
 export class CompatChangeAll extends MultiCursorSelectionControllerAction {
 	constructor() {
 		super({
@@ -911,3 +901,13 @@ function getValueInRange(model: IModel, range: Range, toLowerCase: boolean): str
 	const text = model.getValueInRange(range);
 	return (toLowerCase ? text.toLowerCase() : text);
 }
+
+registerEditorAction(new InsertCursorAbove());
+registerEditorAction(new InsertCursorBelow());
+registerEditorAction(new InsertCursorAtEndOfEachLineSelected());
+registerEditorAction(new AddSelectionToNextFindMatchAction());
+registerEditorAction(new AddSelectionToPreviousFindMatchAction());
+registerEditorAction(new MoveSelectionToNextFindMatchAction());
+registerEditorAction(new MoveSelectionToPreviousFindMatchAction());
+registerEditorAction(new SelectHighlightsAction());
+registerEditorAction(new CompatChangeAll());

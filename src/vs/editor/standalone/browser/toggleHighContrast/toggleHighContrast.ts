@@ -6,11 +6,9 @@
 
 import * as nls from 'vs/nls';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { editorAction, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class ToggleHighContrast extends EditorAction {
 
 	private _originalThemeName: string;
@@ -37,3 +35,5 @@ class ToggleHighContrast extends EditorAction {
 		}
 	}
 }
+
+registerEditorAction(new ToggleHighContrast());

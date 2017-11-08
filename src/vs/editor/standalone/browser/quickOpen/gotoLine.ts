@@ -13,7 +13,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { BaseEditorQuickOpenAction, IDecorator } from './editorQuickOpen';
-import { editorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -141,7 +141,6 @@ export class GotoLineEntry extends QuickOpenEntry {
 	}
 }
 
-@editorAction
 export class GotoLineAction extends BaseEditorQuickOpenAction {
 
 	constructor() {
@@ -172,3 +171,5 @@ export class GotoLineAction extends BaseEditorQuickOpenAction {
 		});
 	}
 }
+
+registerEditorAction(new GotoLineAction());

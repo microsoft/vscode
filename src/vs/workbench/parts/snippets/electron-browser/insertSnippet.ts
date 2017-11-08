@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { LanguageId } from 'vs/editor/common/modes';
@@ -51,8 +51,6 @@ class Args {
 
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class InsertSnippetAction extends EditorAction {
 
 	constructor() {
@@ -141,6 +139,8 @@ class InsertSnippetAction extends EditorAction {
 		});
 	}
 }
+
+registerEditorAction(new InsertSnippetAction());
 
 // compatibility command to make sure old keybinding are still working
 CommandsRegistry.registerCommand('editor.action.showSnippets', accessor => {

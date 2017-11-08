@@ -11,7 +11,7 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { CommonEditorRegistry, commonEditorContribution, EditorAction, IActionOptions, editorAction } from 'vs/editor/common/editorCommonExtensions';
+import { CommonEditorRegistry, commonEditorContribution, EditorAction, IActionOptions, registerEditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { DocumentHighlight, DocumentHighlightKind, DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
@@ -490,8 +490,6 @@ class WordHighlightNavigationAction extends EditorAction {
 	}
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class NextWordHighlightAction extends WordHighlightNavigationAction {
 	constructor() {
 		super(true, {
@@ -507,8 +505,6 @@ class NextWordHighlightAction extends WordHighlightNavigationAction {
 	}
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class PrevWordHighlightAction extends WordHighlightNavigationAction {
 	constructor() {
 		super(false, {
@@ -523,3 +519,6 @@ class PrevWordHighlightAction extends WordHighlightNavigationAction {
 		});
 	}
 }
+
+registerEditorAction(new NextWordHighlightAction());
+registerEditorAction(new PrevWordHighlightAction());

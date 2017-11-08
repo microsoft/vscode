@@ -90,9 +90,6 @@ export class View extends ViewEventHandler {
 	private overflowGuardContainer: FastDomNode<HTMLElement>;
 
 	// Actual mutable state
-	// @ts-ignore unused property
-	private _isDisposed: boolean;
-
 	private _renderAnimationFrame: IDisposable;
 
 	constructor(
@@ -104,7 +101,6 @@ export class View extends ViewEventHandler {
 		execCoreEditorCommandFunc: ExecCoreEditorCommandFunc
 	) {
 		super();
-		this._isDisposed = false;
 		this._cursor = cursor;
 		this._renderAnimationFrame = null;
 		this.outgoingEvents = new ViewOutgoingEvents(model);
@@ -345,7 +341,6 @@ export class View extends ViewEventHandler {
 	// --- end event handlers
 
 	public dispose(): void {
-		this._isDisposed = true;
 		if (this._renderAnimationFrame !== null) {
 			this._renderAnimationFrame.dispose();
 			this._renderAnimationFrame = null;

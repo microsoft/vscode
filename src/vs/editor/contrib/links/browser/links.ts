@@ -14,7 +14,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { LinkProviderRegistry } from 'vs/editor/common/modes';
 import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { getLinks, Link } from 'vs/editor/contrib/links/common/links';
@@ -384,8 +384,6 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	}
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class OpenLinkAction extends EditorAction {
 
 	constructor() {
@@ -409,6 +407,8 @@ class OpenLinkAction extends EditorAction {
 		}
 	}
 }
+
+registerEditorAction(new OpenLinkAction());
 
 registerThemingParticipant((theme, collector) => {
 	let activeLinkForeground = theme.getColor(editorActiveLinkForeground);

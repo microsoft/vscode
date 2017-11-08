@@ -14,7 +14,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorAction, ICommonCodeEditor, IEditor } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { BaseEditorQuickOpenAction } from './editorQuickOpen';
-import { editorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as browser from 'vs/base/browser/browser';
 
@@ -68,7 +68,6 @@ export class EditorActionCommandEntry extends QuickOpenEntryGroup {
 	}
 }
 
-@editorAction
 export class QuickCommandAction extends BaseEditorQuickOpenAction {
 
 	constructor() {
@@ -133,3 +132,5 @@ export class QuickCommandAction extends BaseEditorQuickOpenAction {
 		return entries;
 	}
 }
+
+registerEditorAction(new QuickCommandAction());

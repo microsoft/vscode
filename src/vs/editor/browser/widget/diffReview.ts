@@ -24,7 +24,7 @@ import { editorLineNumbers } from 'vs/editor/common/view/editorColorRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
-import { editorAction, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 
@@ -763,8 +763,6 @@ registerThemingParticipant((theme, collector) => {
 	}
 });
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class DiffReviewNext extends EditorAction {
 	constructor() {
 		super({
@@ -787,8 +785,6 @@ class DiffReviewNext extends EditorAction {
 	}
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class DiffReviewPrev extends EditorAction {
 	constructor() {
 		super({
@@ -822,3 +818,6 @@ function findFocusedDiffEditor(accessor: ServicesAccessor): DiffEditorWidget {
 	}
 	return null;
 }
+
+registerEditorAction(new DiffReviewNext());
+registerEditorAction(new DiffReviewPrev());

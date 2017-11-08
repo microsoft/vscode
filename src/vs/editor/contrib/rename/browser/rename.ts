@@ -14,7 +14,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ICommonCodeEditor, IEditorContribution, IReadOnlyModel } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -201,7 +201,6 @@ class RenameController implements IEditorContribution {
 
 // ---- action implementation
 
-@editorAction
 export class RenameAction extends EditorAction {
 
 	constructor() {
@@ -229,6 +228,8 @@ export class RenameAction extends EditorAction {
 		return undefined;
 	}
 }
+
+registerEditorAction(new RenameAction());
 
 const RenameCommand = EditorCommand.bindToContribution<RenameController>(RenameController.get);
 

@@ -6,10 +6,9 @@
 
 import * as nls from 'vs/nls';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
-@editorAction
 export class ToggleRenderControlCharacterAction extends EditorAction {
 
 	constructor() {
@@ -29,3 +28,5 @@ export class ToggleRenderControlCharacterAction extends EditorAction {
 		configurationService.updateValue('editor.renderControlCharacters', newRenderControlCharacters, ConfigurationTarget.USER);
 	}
 }
+
+registerEditorAction(new ToggleRenderControlCharacterAction());

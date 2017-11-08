@@ -10,7 +10,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { escape } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { ICommonCodeEditor, IEditorContribution, IModel } from 'vs/editor/common/editorCommon';
-import { editorAction, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor, ContentWidgetPositionPreference, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -82,8 +82,6 @@ class InspectTokensController extends Disposable implements IEditorContribution 
 	}
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class InspectTokens extends EditorAction {
 
 	constructor() {
@@ -332,6 +330,8 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 		};
 	}
 }
+
+registerEditorAction(new InspectTokens());
 
 registerThemingParticipant((theme, collector) => {
 	let border = theme.getColor(editorHoverBorder);

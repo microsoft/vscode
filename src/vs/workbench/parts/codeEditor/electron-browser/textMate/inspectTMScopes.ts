@@ -12,7 +12,7 @@ import { escape } from 'vs/base/common/strings';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Position } from 'vs/editor/common/core/position';
 import { ICommonCodeEditor, IEditorContribution, IModel } from 'vs/editor/common/editorCommon';
-import { editorAction, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor, ContentWidgetPositionPreference, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -101,8 +101,6 @@ class InspectTMScopesController extends Disposable implements IEditorContributio
 	}
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class InspectTMScopes extends EditorAction {
 
 	constructor() {
@@ -376,6 +374,8 @@ class InspectTMScopesWidget extends Disposable implements IContentWidget {
 		};
 	}
 }
+
+registerEditorAction(new InspectTMScopes());
 
 registerThemingParticipant((theme, collector) => {
 	let border = theme.getColor(editorHoverBorder);

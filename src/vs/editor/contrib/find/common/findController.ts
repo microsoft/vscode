@@ -11,7 +11,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ContextKeyExpr, RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import * as strings from 'vs/base/common/strings';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { FIND_IDS, FindModelBoundToEditorModel, ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding, ToggleSearchScopeKeybinding, ShowPreviousFindTermKeybinding, ShowNextFindTermKeybinding } from 'vs/editor/contrib/find/common/findModel';
 import { FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState } from 'vs/editor/contrib/find/common/findState';
 import { getSelectionSearchString } from 'vs/editor/contrib/find/common/find';
@@ -303,7 +303,6 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	}
 }
 
-@editorAction
 export class StartFindAction extends EditorAction {
 
 	constructor() {
@@ -353,7 +352,6 @@ export abstract class MatchFindAction extends EditorAction {
 	protected abstract _run(controller: CommonFindController): boolean;
 }
 
-@editorAction
 export class NextMatchFindAction extends MatchFindAction {
 
 	constructor() {
@@ -375,7 +373,6 @@ export class NextMatchFindAction extends MatchFindAction {
 	}
 }
 
-@editorAction
 export class PreviousMatchFindAction extends MatchFindAction {
 
 	constructor() {
@@ -421,7 +418,6 @@ export abstract class SelectionMatchFindAction extends EditorAction {
 	protected abstract _run(controller: CommonFindController): boolean;
 }
 
-@editorAction
 export class NextSelectionMatchFindAction extends SelectionMatchFindAction {
 
 	constructor() {
@@ -442,7 +438,6 @@ export class NextSelectionMatchFindAction extends SelectionMatchFindAction {
 	}
 }
 
-@editorAction
 export class PreviousSelectionMatchFindAction extends SelectionMatchFindAction {
 
 	constructor() {
@@ -463,7 +458,6 @@ export class PreviousSelectionMatchFindAction extends SelectionMatchFindAction {
 	}
 }
 
-@editorAction
 export class StartFindReplaceAction extends EditorAction {
 
 	constructor() {
@@ -507,8 +501,6 @@ export class StartFindReplaceAction extends EditorAction {
 	}
 }
 
-
-@editorAction
 export class ShowNextFindTermAction extends MatchFindAction {
 
 	constructor() {
@@ -533,8 +525,7 @@ export class ShowNextFindTermAction extends MatchFindAction {
 	}
 }
 
-@editorAction
-export class ShpwPreviousFindTermAction extends MatchFindAction {
+export class ShowPreviousFindTermAction extends MatchFindAction {
 
 	constructor() {
 		super({
@@ -557,6 +548,15 @@ export class ShpwPreviousFindTermAction extends MatchFindAction {
 		return controller.showPreviousFindTerm();
 	}
 }
+
+registerEditorAction(new StartFindAction());
+registerEditorAction(new NextMatchFindAction());
+registerEditorAction(new PreviousMatchFindAction());
+registerEditorAction(new NextSelectionMatchFindAction());
+registerEditorAction(new PreviousSelectionMatchFindAction());
+registerEditorAction(new StartFindReplaceAction());
+registerEditorAction(new ShowNextFindTermAction());
+registerEditorAction(new ShowPreviousFindTermAction());
 
 const FindCommand = EditorCommand.bindToContribution<CommonFindController>(CommonFindController.get);
 

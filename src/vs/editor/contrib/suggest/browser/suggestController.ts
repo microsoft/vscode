@@ -15,7 +15,7 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICommonCodeEditor, IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
@@ -295,7 +295,6 @@ export class SuggestController implements IEditorContribution {
 	}
 }
 
-@editorAction
 export class TriggerSuggestAction extends EditorAction {
 
 	static readonly id = 'editor.action.triggerSuggest';
@@ -324,6 +323,8 @@ export class TriggerSuggestAction extends EditorAction {
 		controller.triggerSuggest();
 	}
 }
+
+registerEditorAction(new TriggerSuggestAction());
 
 const weight = CommonEditorRegistry.commandWeight(90);
 

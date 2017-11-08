@@ -9,11 +9,9 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Range } from 'vs/editor/common/core/range';
 import { ICommand, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { editorAction, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
 import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class TransposeLettersAction extends EditorAction {
 
 	constructor() {
@@ -70,3 +68,5 @@ class TransposeLettersAction extends EditorAction {
 		}
 	}
 }
+
+registerEditorAction(new TransposeLettersAction());

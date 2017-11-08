@@ -9,14 +9,12 @@ import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { Range } from 'vs/editor/common/core/range';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ServicesAccessor, editorAction, EditorAction, CommonEditorRegistry, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
+import { ServicesAccessor, registerEditorAction, EditorAction, CommonEditorRegistry, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL, CONTEXT_DEBUG_STATE, State, REPL_ID, VIEWLET_ID, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE } from 'vs/workbench/parts/debug/common/debug';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class ToggleBreakpointAction extends EditorAction {
 	constructor() {
 		super({
@@ -68,8 +66,6 @@ function addColumnBreakpoint(accessor: ServicesAccessor, editor: ICommonCodeEdit
 	return TPromise.as(null);
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class ToggleColumnBreakpointAction extends EditorAction {
 	constructor() {
 		super({
@@ -90,8 +86,6 @@ class ToggleColumnBreakpointAction extends EditorAction {
 }
 
 // TODO@Isidor merge two column breakpoints actions together
-@editorAction
-// @ts-ignore @editorAction uses the class
 class ToggleColumnBreakpointContextMenuAction extends EditorAction {
 	constructor() {
 		super({
@@ -111,8 +105,6 @@ class ToggleColumnBreakpointContextMenuAction extends EditorAction {
 	}
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class ConditionalBreakpointAction extends EditorAction {
 
 	constructor() {
@@ -135,8 +127,6 @@ class ConditionalBreakpointAction extends EditorAction {
 }
 
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class RunToCursorAction extends EditorAction {
 
 	constructor() {
@@ -179,8 +169,6 @@ class RunToCursorAction extends EditorAction {
 	}
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class SelectionToReplAction extends EditorAction {
 
 	constructor() {
@@ -207,8 +195,6 @@ class SelectionToReplAction extends EditorAction {
 	}
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class SelectionToWatchExpressionsAction extends EditorAction {
 
 	constructor() {
@@ -233,8 +219,6 @@ class SelectionToWatchExpressionsAction extends EditorAction {
 	}
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class ShowDebugHoverAction extends EditorAction {
 
 	constructor() {
@@ -281,5 +265,14 @@ class CloseBreakpointWidgetCommand extends EditorCommand {
 		return editor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).closeBreakpointWidget();
 	}
 }
+
+registerEditorAction(new ToggleBreakpointAction());
+registerEditorAction(new ToggleColumnBreakpointAction());
+registerEditorAction(new ToggleColumnBreakpointContextMenuAction());
+registerEditorAction(new ConditionalBreakpointAction());
+registerEditorAction(new RunToCursorAction());
+registerEditorAction(new SelectionToReplAction());
+registerEditorAction(new SelectionToWatchExpressionsAction());
+registerEditorAction(new ShowDebugHoverAction());
 
 CommonEditorRegistry.registerEditorCommand(new CloseBreakpointWidgetCommand());

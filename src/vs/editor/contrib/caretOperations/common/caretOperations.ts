@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import { ICommand, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IActionOptions, editorAction, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { IActionOptions, registerEditorAction, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
 import { MoveCaretCommand } from './moveCaretCommand';
 
 class MoveCaretAction extends EditorAction {
@@ -35,8 +35,6 @@ class MoveCaretAction extends EditorAction {
 	}
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class MoveCaretLeftAction extends MoveCaretAction {
 	constructor() {
 		super(true, {
@@ -48,8 +46,6 @@ class MoveCaretLeftAction extends MoveCaretAction {
 	}
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class MoveCaretRightAction extends MoveCaretAction {
 	constructor() {
 		super(false, {
@@ -60,3 +56,6 @@ class MoveCaretRightAction extends MoveCaretAction {
 		});
 	}
 }
+
+registerEditorAction(new MoveCaretLeftAction());
+registerEditorAction(new MoveCaretRightAction());
