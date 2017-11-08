@@ -197,7 +197,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 				return;
 			}
 			const newBreakpointRange = modelData.model.getDecorationRange(decorationId);
-			if (newBreakpointRange && !breakpointRange.equalsRange(newBreakpointRange)) {
+			if (newBreakpointRange && (breakpointRange.startColumn !== newBreakpointRange.startColumn || breakpointRange.endLineNumber !== newBreakpointRange.endLineNumber)) {
 				somethingChanged = true;
 			}
 		});
