@@ -506,11 +506,11 @@
           "when": "editorLangId == typescriptreact"
         },
         {
-          "command": "typescript.goToProjectConfig",
+          "command": "javascript.goToProjectConfig",
           "when": "editorLangId == 'javascript'"
         },
         {
-          "command": "typescript.goToProjectConfig",
+          "command": "javascript.goToProjectConfig",
           "when": "editorLangId == javascriptreact"
         }
       ]

@@ -119,7 +119,7 @@ class RestartTsServerCommand implements Command {
 	}
 }
 
-class GoToProjectConfigCommand implements Command {
+class TypeScriptGoToProjectConfigCommand implements Command {
 	public readonly id = 'typescript.goToProjectConfig';
 
 	public constructor(
@@ -129,8 +129,22 @@ class GoToProjectConfigCommand implements Command {
 	public execute() {
 		const editor = window.activeTextEditor;
 		if (editor) {
-			const isTsProject = languages.match([languageModeIds.typescript, languageModeIds.typescriptreact], editor.document) > 0;
-			this.lazyClientHost().goToProjectConfig(isTsProject, editor.document.uri);
+			this.lazyClientHost().goToProjectConfig(true, editor.document.uri);
+		}
+	}
+}
+
+class JavaScriptGoToProjectConfigCommand implements Command {
+	public readonly id = 'javascript.goToProjectConfig';
+
+	public constructor(
+		private readonly lazyClientHost: () => TypeScriptServiceClientHost,
+	) { }
+
+	public execute() {
+		const editor = window.activeTextEditor;
+		if (editor) {
+			this.lazyClientHost().goToProjectConfig(false, editor.document.uri);
 		}
 	}
 }
@@ -166,7 +180,8 @@ export function activate(context: ExtensionContext): void {
 	commandManager.register(new SelectTypeScriptVersionCommand(lazyClientHost));
 	commandManager.register(new OpenTsServerLogCommand(lazyClientHost));
 	commandManager.register(new RestartTsServerCommand(lazyClientHost));
-	commandManager.register(new GoToProjectConfigCommand(lazyClientHost));
+	commandManager.register(new TypeScriptGoToProjectConfigCommand(lazyClientHost));
+	commandManager.register(new JavaScriptGoToProjectConfigCommand(lazyClientHost));
 
 	context.subscriptions.push(new TypeScriptTaskProviderManager(() => lazyClientHost().serviceClient));
 
