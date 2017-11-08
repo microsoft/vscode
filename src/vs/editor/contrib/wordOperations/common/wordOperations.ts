@@ -9,7 +9,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICommonCodeEditor, IModel, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Selection } from 'vs/editor/common/core/selection';
-import { editorCommand, ServicesAccessor, EditorCommand, ICommandOptions } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorCommand, ServicesAccessor, EditorCommand, ICommandOptions } from 'vs/editor/common/editorCommonExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { WordNavigationType, WordOperations } from 'vs/editor/common/controller/cursorWordOperations';
@@ -88,7 +88,6 @@ export class WordRightCommand extends MoveWordCommand {
 	}
 }
 
-@editorCommand
 export class CursorWordStartLeft extends WordLeftCommand {
 	constructor() {
 		super({
@@ -105,7 +104,6 @@ export class CursorWordStartLeft extends WordLeftCommand {
 	}
 }
 
-@editorCommand
 export class CursorWordEndLeft extends WordLeftCommand {
 	constructor() {
 		super({
@@ -117,7 +115,6 @@ export class CursorWordEndLeft extends WordLeftCommand {
 	}
 }
 
-@editorCommand
 export class CursorWordLeft extends WordLeftCommand {
 	constructor() {
 		super({
@@ -129,7 +126,6 @@ export class CursorWordLeft extends WordLeftCommand {
 	}
 }
 
-@editorCommand
 export class CursorWordStartLeftSelect extends WordLeftCommand {
 	constructor() {
 		super({
@@ -146,7 +142,6 @@ export class CursorWordStartLeftSelect extends WordLeftCommand {
 	}
 }
 
-@editorCommand
 export class CursorWordEndLeftSelect extends WordLeftCommand {
 	constructor() {
 		super({
@@ -158,7 +153,6 @@ export class CursorWordEndLeftSelect extends WordLeftCommand {
 	}
 }
 
-@editorCommand
 export class CursorWordLeftSelect extends WordLeftCommand {
 	constructor() {
 		super({
@@ -170,7 +164,6 @@ export class CursorWordLeftSelect extends WordLeftCommand {
 	}
 }
 
-@editorCommand
 export class CursorWordStartRight extends WordRightCommand {
 	constructor() {
 		super({
@@ -182,7 +175,6 @@ export class CursorWordStartRight extends WordRightCommand {
 	}
 }
 
-@editorCommand
 export class CursorWordEndRight extends WordRightCommand {
 	constructor() {
 		super({
@@ -199,7 +191,6 @@ export class CursorWordEndRight extends WordRightCommand {
 	}
 }
 
-@editorCommand
 export class CursorWordRight extends WordRightCommand {
 	constructor() {
 		super({
@@ -211,7 +202,6 @@ export class CursorWordRight extends WordRightCommand {
 	}
 }
 
-@editorCommand
 export class CursorWordStartRightSelect extends WordRightCommand {
 	constructor() {
 		super({
@@ -223,7 +213,6 @@ export class CursorWordStartRightSelect extends WordRightCommand {
 	}
 }
 
-@editorCommand
 export class CursorWordEndRightSelect extends WordRightCommand {
 	constructor() {
 		super({
@@ -240,7 +229,6 @@ export class CursorWordEndRightSelect extends WordRightCommand {
 	}
 }
 
-@editorCommand
 export class CursorWordRightSelect extends WordRightCommand {
 	constructor() {
 		super({
@@ -308,7 +296,6 @@ export class DeleteWordRightCommand extends DeleteWordCommand {
 	}
 }
 
-@editorCommand
 export class DeleteWordStartLeft extends DeleteWordLeftCommand {
 	constructor() {
 		super({
@@ -320,7 +307,6 @@ export class DeleteWordStartLeft extends DeleteWordLeftCommand {
 	}
 }
 
-@editorCommand
 export class DeleteWordEndLeft extends DeleteWordLeftCommand {
 	constructor() {
 		super({
@@ -332,7 +318,6 @@ export class DeleteWordEndLeft extends DeleteWordLeftCommand {
 	}
 }
 
-@editorCommand
 export class DeleteWordLeft extends DeleteWordLeftCommand {
 	constructor() {
 		super({
@@ -349,7 +334,6 @@ export class DeleteWordLeft extends DeleteWordLeftCommand {
 	}
 }
 
-@editorCommand
 export class DeleteWordStartRight extends DeleteWordRightCommand {
 	constructor() {
 		super({
@@ -361,7 +345,6 @@ export class DeleteWordStartRight extends DeleteWordRightCommand {
 	}
 }
 
-@editorCommand
 export class DeleteWordEndRight extends DeleteWordRightCommand {
 	constructor() {
 		super({
@@ -373,7 +356,6 @@ export class DeleteWordEndRight extends DeleteWordRightCommand {
 	}
 }
 
-@editorCommand
 export class DeleteWordRight extends DeleteWordRightCommand {
 	constructor() {
 		super({
@@ -389,3 +371,22 @@ export class DeleteWordRight extends DeleteWordRightCommand {
 		});
 	}
 }
+
+registerEditorCommand(new CursorWordStartLeft());
+registerEditorCommand(new CursorWordEndLeft());
+registerEditorCommand(new CursorWordLeft());
+registerEditorCommand(new CursorWordStartLeftSelect());
+registerEditorCommand(new CursorWordEndLeftSelect());
+registerEditorCommand(new CursorWordLeftSelect());
+registerEditorCommand(new CursorWordStartRight());
+registerEditorCommand(new CursorWordEndRight());
+registerEditorCommand(new CursorWordRight());
+registerEditorCommand(new CursorWordStartRightSelect());
+registerEditorCommand(new CursorWordEndRightSelect());
+registerEditorCommand(new CursorWordRightSelect());
+registerEditorCommand(new DeleteWordStartLeft());
+registerEditorCommand(new DeleteWordEndLeft());
+registerEditorCommand(new DeleteWordLeft());
+registerEditorCommand(new DeleteWordStartRight());
+registerEditorCommand(new DeleteWordEndRight());
+registerEditorCommand(new DeleteWordRight());

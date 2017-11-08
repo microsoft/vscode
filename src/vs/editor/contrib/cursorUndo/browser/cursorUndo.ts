@@ -5,7 +5,7 @@
 'use strict';
 
 import { Selection } from 'vs/editor/common/core/selection';
-import { editorCommand, ServicesAccessor, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorCommand, ServicesAccessor, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICommonCodeEditor, IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
@@ -110,7 +110,6 @@ export class CursorUndoController extends Disposable implements IEditorContribut
 	}
 }
 
-@editorCommand
 export class CursorUndo extends EditorCommand {
 	constructor() {
 		super({
@@ -127,3 +126,5 @@ export class CursorUndo extends EditorCommand {
 		CursorUndoController.get(editor).cursorUndo();
 	}
 }
+
+registerEditorCommand(new CursorUndo());

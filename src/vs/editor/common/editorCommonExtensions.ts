@@ -216,10 +216,6 @@ export function registerEditorAction(editorAction: EditorAction): void {
 	CommonEditorRegistry.registerEditorAction(editorAction);
 }
 
-export function editorCommand(ctor: { new(): EditorCommand }): void {
-	registerEditorCommand(new ctor());
-}
-
 export function registerEditorCommand<T extends EditorCommand>(editorCommand: T): T {
 	CommonEditorRegistry.registerEditorCommand(editorCommand);
 	return editorCommand;
