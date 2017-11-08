@@ -912,8 +912,14 @@ class TaskService extends EventEmitter implements ITaskService {
 					} else if (selected.matcher) {
 						let newTask = Task.clone(task);
 						let matcherReference = `$${selected.matcher.name}`;
+						let properties: CustomizationProperties = { problemMatcher: [matcherReference] };
 						newTask.problemMatchers = [matcherReference];
-						this.customize(task, { problemMatcher: [matcherReference] }, true);
+						let matcher = ProblemMatcherRegistry.get(selected.matcher.name);
+						if (matcher && matcher.watching !== void 0) {
+							properties.isBackground = true;
+							newTask.isBackground = true;
+						}
+						this.customize(task, properties, true);
 						return newTask;
 					} else {
 						return task;
