@@ -11,7 +11,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution, ICommonCodeEditor, IModelDecorationsChangeAccessor } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { registerEditorAction, ServicesAccessor, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor, EditorAction, registerCommonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
 import { IInplaceReplaceSupportResult } from 'vs/editor/common/modes';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { InPlaceReplaceCommand } from './inPlaceReplaceCommand';
@@ -20,7 +20,6 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { editorBracketMatchBorder } from 'vs/editor/common/view/editorColorRegistry';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 
-@commonEditorContribution
 class InPlaceReplaceController implements IEditorContribution {
 
 	private static ID = 'editor.contrib.inPlaceReplaceController';
@@ -186,6 +185,7 @@ class InPlaceReplaceDown extends EditorAction {
 	}
 }
 
+registerCommonEditorContribution(InPlaceReplaceController);
 registerEditorAction(new InPlaceReplaceUp());
 registerEditorAction(new InPlaceReplaceDown());
 

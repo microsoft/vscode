@@ -11,7 +11,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { registerEditorAction, ServicesAccessor, EditorAction, commonEditorContribution, IActionOptions } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor, EditorAction, registerCommonEditorContribution, IActionOptions } from 'vs/editor/common/editorCommonExtensions';
 import { OnTypeFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry } from 'vs/editor/common/modes';
 import { getOnTypeFormattingEdits, getDocumentFormattingEdits, getDocumentRangeFormattingEdits, NoProviderError } from '../common/format';
 import { EditOperationsCommand } from '../common/formatCommand';
@@ -53,8 +53,6 @@ function alertFormattingEdits(edits: editorCommon.ISingleEditOperation[]): void 
 	}
 }
 
-@commonEditorContribution
-// @ts-ignore @editorAction uses the class
 class FormatOnType implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.contrib.autoFormat';
@@ -180,8 +178,6 @@ class FormatOnType implements editorCommon.IEditorContribution {
 	}
 }
 
-@commonEditorContribution
-// @ts-ignore @editorAction uses the class
 class FormatOnPaste implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.contrib.formatOnPaste';
@@ -356,6 +352,8 @@ export class FormatSelectionAction extends AbstractFormatAction {
 	}
 }
 
+registerCommonEditorContribution(FormatOnType);
+registerCommonEditorContribution(FormatOnPaste);
 registerEditorAction(new FormatDocumentAction());
 registerEditorAction(new FormatSelectionAction());
 

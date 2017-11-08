@@ -225,7 +225,7 @@ export function registerEditorCommand<T extends EditorCommand>(editorCommand: T)
 	return editorCommand;
 }
 
-export function commonEditorContribution(ctor: ICommonEditorContributionCtor): void {
+export function registerCommonEditorContribution(ctor: ICommonEditorContributionCtor): void {
 	EditorContributionRegistry.INSTANCE.registerEditorContribution(ctor);
 }
 

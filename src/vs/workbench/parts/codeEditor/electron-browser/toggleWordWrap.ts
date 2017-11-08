@@ -8,7 +8,7 @@ import 'vs/css!./media/codeEditor';
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICommonCodeEditor, IEditorContribution, IModel } from 'vs/editor/common/editorCommon';
-import { registerEditorAction, ServicesAccessor, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor, EditorAction, registerCommonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -173,8 +173,6 @@ class ToggleWordWrapAction extends EditorAction {
 	}
 }
 
-@commonEditorContribution
-// @ts-ignore @editorAction uses the class
 class ToggleWordWrapController extends Disposable implements IEditorContribution {
 
 	private static _ID = 'editor.contrib.toggleWordWrapController';
@@ -249,6 +247,9 @@ function canToggleWordWrap(uri: URI): boolean {
 	}
 	return (uri.scheme !== 'output' && uri.scheme !== 'vscode');
 }
+
+
+registerCommonEditorContribution(ToggleWordWrapController);
 
 registerEditorAction(new ToggleWordWrapAction());
 

@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as strings from 'vs/base/common/strings';
 import { ICommonCodeEditor, IEditorContribution, IIdentifiedSingleEditOperation, ICommand, ICursorStateComputerData, IEditOperationBuilder, ITokenizedModel, EndOfLineSequence } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { registerEditorAction, ServicesAccessor, IActionOptions, EditorAction, commonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor, IActionOptions, EditorAction, registerCommonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Range } from 'vs/editor/common/core/range';
@@ -376,7 +376,6 @@ export class AutoIndentOnPasteCommand implements ICommand {
 	}
 }
 
-@commonEditorContribution
 export class AutoIndentOnPaste implements IEditorContribution {
 	private static ID = 'editor.contrib.autoIndentOnPaste';
 
@@ -616,6 +615,7 @@ export class IndentationToTabsCommand implements ICommand {
 	}
 }
 
+registerCommonEditorContribution(AutoIndentOnPaste);
 registerEditorAction(new IndentationToSpacesAction());
 registerEditorAction(new IndentationToTabsAction());
 registerEditorAction(new IndentUsingTabs());

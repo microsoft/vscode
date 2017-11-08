@@ -7,7 +7,7 @@
 
 import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { commonEditorContribution, CommonEditorRegistry, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
+import { registerCommonEditorContribution, CommonEditorRegistry, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { SnippetSession } from './snippetSession';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -18,7 +18,6 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { Choice } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { repeat } from 'vs/base/common/strings';
 
-@commonEditorContribution
 export class SnippetController2 {
 
 	static get(editor: ICommonCodeEditor): SnippetController2 {
@@ -182,6 +181,8 @@ export class SnippetController2 {
 	}
 }
 
+
+registerCommonEditorContribution(SnippetController2);
 
 const CommandCtor = EditorCommand.bindToContribution<SnippetController2>(SnippetController2.get);
 

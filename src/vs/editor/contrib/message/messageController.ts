@@ -12,14 +12,13 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { commonEditorContribution, CommonEditorRegistry, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
+import { registerCommonEditorContribution, CommonEditorRegistry, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor, IContentWidget, IContentWidgetPosition, ContentWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IPosition } from 'vs/editor/common/core/position';
 import { registerThemingParticipant, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
 import { inputValidationInfoBorder, inputValidationInfoBackground } from 'vs/platform/theme/common/colorRegistry';
 
-@commonEditorContribution
 export class MessageController {
 
 	private static _id = 'editor.contrib.messageController';
@@ -173,6 +172,8 @@ class MessageWidget implements IContentWidget {
 		return { position: this._position, preference: [ContentWidgetPositionPreference.ABOVE] };
 	}
 }
+
+registerCommonEditorContribution(MessageController);
 
 registerThemingParticipant((theme, collector) => {
 	let border = theme.getColor(inputValidationInfoBorder);

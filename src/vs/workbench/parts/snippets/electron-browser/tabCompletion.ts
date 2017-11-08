@@ -16,14 +16,13 @@ import { endsWith } from 'vs/base/common/strings';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
-import { CommonEditorRegistry, commonEditorContribution, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
+import { CommonEditorRegistry, registerCommonEditorContribution, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { showSimpleSuggestions } from 'vs/editor/contrib/suggest/browser/suggest';
 import { IConfigurationRegistry, Extensions as ConfigExt } from 'vs/platform/configuration/common/configurationRegistry';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-@commonEditorContribution
 export class TabCompletionController implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.tabCompletionController';
@@ -131,6 +130,8 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 		}
 	}
 }
+
+registerCommonEditorContribution(TabCompletionController);
 
 const TabCompletionCommand = EditorCommand.bindToContribution<TabCompletionController>(TabCompletionController.get);
 
