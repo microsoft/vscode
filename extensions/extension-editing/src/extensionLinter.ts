@@ -10,7 +10,7 @@ import { parseTree, findNodeAtLocation, Node as JsonNode } from 'jsonc-parser';
 import * as nls from 'vscode-nls';
 import * as MarkdownItType from 'markdown-it';
 
-import { languages, workspace, Disposable, ExtensionContext, TextDocument, Uri, Diagnostic, Range, DiagnosticSeverity, Position } from 'vscode';
+import { languages, workspace, Disposable, TextDocument, Uri, Diagnostic, Range, DiagnosticSeverity, Position } from 'vscode';
 
 const product = require('../../../product.json');
 const allowedBadgeProviders: string[] = (product.extensionAllowedBadgeProviders || []).map(s => s.toLowerCase());
@@ -54,8 +54,7 @@ export class ExtensionLinter {
 	private timer: NodeJS.Timer;
 	private markdownIt: MarkdownItType.MarkdownIt;
 
-	// @ts-ignore unused property
-	constructor(private context: ExtensionContext) {
+	constructor() {
 		this.disposables.push(
 			workspace.onDidOpenTextDocument(document => this.queue(document)),
 			workspace.onDidChangeTextDocument(event => this.queue(event.document)),

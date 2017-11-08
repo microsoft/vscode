@@ -21,7 +21,6 @@ import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configur
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExperimentService } from 'vs/platform/telemetry/common/experiments';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Schemas } from 'vs/base/common/network';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -32,7 +31,7 @@ import { used } from 'vs/workbench/parts/welcome/page/electron-browser/vs_code_w
 import { ILifecycleService, StartupKind, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { tildify } from 'vs/base/common/labels';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor, focusBorder, textLinkForeground, textLinkActiveForeground, foreground, descriptionForeground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughUtils';
 import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
@@ -241,10 +240,6 @@ class WelcomePage {
 		@IExtensionTipsService private tipsService: IExtensionTipsService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		// @ts-ignore unused injected service
-		@IThemeService private themeService: IThemeService,
-		// @ts-ignore unused injected service
-		@IExperimentService private experimentService: IExperimentService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		this.disposables.push(lifecycleService.onShutdown(() => this.dispose()));

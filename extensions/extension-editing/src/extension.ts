@@ -17,7 +17,7 @@ export function activate(context: vscode.ExtensionContext) {
 	//package.json suggestions
 	context.subscriptions.push(registerPackageDocumentCompletions());
 
-	context.subscriptions.push(new ExtensionLinter(context));
+	context.subscriptions.push(new ExtensionLinter());
 }
 
 const _linkProvider = new class implements vscode.DocumentLinkProvider {
