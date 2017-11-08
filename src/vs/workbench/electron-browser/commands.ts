@@ -413,11 +413,11 @@ export function registerCommands(): void {
 		});
 	});
 
-	CommandsRegistry.registerCommand('_workbench.open', function (accessor: ServicesAccessor, args: [URI, number]) {
+	CommandsRegistry.registerCommand('_workbench.open', function (accessor: ServicesAccessor, args: [URI, IEditorOptions, EditorPosition]) {
 		const editorService = accessor.get(IWorkbenchEditorService);
-		const [resource, column] = args;
+		const [resource, options, column] = args;
 
-		return editorService.openEditor({ resource }, column).then(() => {
+		return editorService.openEditor({ resource, options }, column).then(() => {
 			return void 0;
 		});
 	});

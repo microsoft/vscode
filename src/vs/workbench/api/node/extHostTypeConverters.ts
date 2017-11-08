@@ -7,7 +7,7 @@
 import Severity from 'vs/base/common/severity';
 import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
-import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
+import { Position as EditorPosition, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IDecorationOptions, EndOfLineSequence } from 'vs/editor/common/editorCommon';
 import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
@@ -542,4 +542,16 @@ export namespace ProgressLocation {
 		}
 		return undefined;
 	}
+}
+
+export function toTextEditorOptions(options?: vscode.TextDocumentShowOptions): ITextEditorOptions {
+	if (options) {
+		return {
+			pinned: typeof options.preview === 'boolean' ? !options.preview : undefined,
+			preserveFocus: options.preserveFocus,
+			selection: typeof options.selection === 'object' ? fromRange(options.selection) : undefined
+		} as ITextEditorOptions;
+	}
+
+	return undefined;
 }
