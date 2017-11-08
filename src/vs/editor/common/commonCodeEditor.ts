@@ -31,6 +31,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 
 let EDITOR_ID = 0;
 
@@ -259,6 +260,42 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 			return null;
 		}
 		return this.viewModel.getCenteredRangeInViewport();
+	}
+
+	public getWhitespaces(): IEditorWhitespace[] {
+		if (!this.hasView) {
+			return [];
+		}
+		return this.viewModel.viewLayout.getWhitespaces();
+	}
+
+	protected _getVerticalOffsetForPosition(modelLineNumber: number, modelColumn: number): number {
+		let modelPosition = this.model.validatePosition({
+			lineNumber: modelLineNumber,
+			column: modelColumn
+		});
+		let viewPosition = this.viewModel.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
+		return this.viewModel.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
+	}
+
+	public getTopForLineNumber(lineNumber: number): number {
+		if (!this.hasView) {
+			return -1;
+		}
+		return this._getVerticalOffsetForPosition(lineNumber, 1);
+	}
+
+	public getTopForPosition(lineNumber: number, column: number): number {
+		if (!this.hasView) {
+			return -1;
+		}
+		return this._getVerticalOffsetForPosition(lineNumber, column);
+	}
+
+	public setHiddenAreas(ranges: IRange[]): void {
+		if (this.viewModel) {
+			this.viewModel.setHiddenAreas(ranges.map(r => Range.lift(r)));
+		}
 	}
 
 	public getVisibleColumnFromPosition(rawPosition: IPosition): number {

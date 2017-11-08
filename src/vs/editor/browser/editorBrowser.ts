@@ -10,10 +10,9 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Position, IPosition } from 'vs/editor/common/core/position';
-import { Range, IRange } from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
-import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 
 /**
  * A view zone is a full horizontal rectangle that 'pushes' text down.
@@ -406,17 +405,6 @@ export interface ICodeEditor extends editorCommon.ICommonCodeEditor {
 	changeViewZones(callback: (accessor: IViewZoneChangeAccessor) => void): void;
 
 	/**
-	 * Returns the range that is currently centered in the view port.
-	 */
-	getCenteredRangeInViewport(): Range;
-
-	/**
-	 * Get the view zones.
-	 * @internal
-	 */
-	getWhitespaces(): IEditorWhitespace[];
-
-	/**
 	 * Get the horizontal position (left offset) for the column w.r.t to the beginning of the line.
 	 * This method works only if the line `lineNumber` is currently rendered (in the editor's viewport).
 	 * Use this method with caution.
@@ -427,16 +415,6 @@ export interface ICodeEditor extends editorCommon.ICommonCodeEditor {
 	 * Force an editor render now.
 	 */
 	render(): void;
-
-	/**
-	 * Get the vertical position (top offset) for the line w.r.t. to the first line.
-	 */
-	getTopForLineNumber(lineNumber: number): number;
-
-	/**
-	 * Get the vertical position (top offset) for the position w.r.t. to the first line.
-	 */
-	getTopForPosition(lineNumber: number, column: number): number;
 
 	/**
 	 * Get the hit test target at coordinates `clientX` and `clientY`.
@@ -454,12 +432,6 @@ export interface ICodeEditor extends editorCommon.ICommonCodeEditor {
 	 * Warning: the results of this method are innacurate for positions that are outside the current editor viewport.
 	 */
 	getScrolledVisiblePosition(position: IPosition): { top: number; left: number; height: number; };
-
-	/**
-	 * Set the model ranges that will be hidden in the view.
-	 * @internal
-	 */
-	setHiddenAreas(ranges: IRange[]): void;
 
 	/**
 	 * @internal

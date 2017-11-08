@@ -14,7 +14,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { CommonCodeEditor } from 'vs/editor/common/commonCodeEditor';
 import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { Range, IRange } from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
@@ -27,7 +27,6 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
-import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
 import { CoreEditorCommand } from 'vs/editor/common/controller/coreCommands';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoBorder, editorInfoForeground } from 'vs/editor/common/view/editorColorRegistry';
@@ -292,36 +291,6 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		}
 	}
 
-	public getWhitespaces(): IEditorWhitespace[] {
-		if (!this.hasView) {
-			return [];
-		}
-		return this.viewModel.viewLayout.getWhitespaces();
-	}
-
-	private _getVerticalOffsetForPosition(modelLineNumber: number, modelColumn: number): number {
-		let modelPosition = this.model.validatePosition({
-			lineNumber: modelLineNumber,
-			column: modelColumn
-		});
-		let viewPosition = this.viewModel.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
-		return this.viewModel.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
-	}
-
-	public getTopForLineNumber(lineNumber: number): number {
-		if (!this.hasView) {
-			return -1;
-		}
-		return this._getVerticalOffsetForPosition(lineNumber, 1);
-	}
-
-	public getTopForPosition(lineNumber: number, column: number): number {
-		if (!this.hasView) {
-			return -1;
-		}
-		return this._getVerticalOffsetForPosition(lineNumber, column);
-	}
-
 	public getTargetAtClientPoint(clientX: number, clientY: number): editorBrowser.IMouseTarget {
 		if (!this.hasView) {
 			return null;
@@ -359,12 +328,6 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 			return;
 		}
 		this._view.render(true, false);
-	}
-
-	public setHiddenAreas(ranges: IRange[]): void {
-		if (this.viewModel) {
-			this.viewModel.setHiddenAreas(ranges.map(r => Range.lift(r)));
-		}
 	}
 
 	public setAriaActiveDescendant(id: string): void {

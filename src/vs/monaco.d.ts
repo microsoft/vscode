@@ -2361,6 +2361,18 @@ declare module monaco.editor {
 		 * Get the layout info for the editor.
 		 */
 		getLayoutInfo(): EditorLayoutInfo;
+		/**
+		 * Returns the range that is currently centered in the view port.
+		 */
+		getCenteredRangeInViewport(): Range;
+		/**
+		 * Get the vertical position (top offset) for the line w.r.t. to the first line.
+		 */
+		getTopForLineNumber(lineNumber: number): number;
+		/**
+		 * Get the vertical position (top offset) for the position w.r.t. to the first line.
+		 */
+		getTopForPosition(lineNumber: number, column: number): number;
 	}
 
 	export interface ICommonDiffEditor extends IEditor {
@@ -3842,10 +3854,6 @@ declare module monaco.editor {
 		 */
 		changeViewZones(callback: (accessor: IViewZoneChangeAccessor) => void): void;
 		/**
-		 * Returns the range that is currently centered in the view port.
-		 */
-		getCenteredRangeInViewport(): Range;
-		/**
 		 * Get the horizontal position (left offset) for the column w.r.t to the beginning of the line.
 		 * This method works only if the line `lineNumber` is currently rendered (in the editor's viewport).
 		 * Use this method with caution.
@@ -3855,14 +3863,6 @@ declare module monaco.editor {
 		 * Force an editor render now.
 		 */
 		render(): void;
-		/**
-		 * Get the vertical position (top offset) for the line w.r.t. to the first line.
-		 */
-		getTopForLineNumber(lineNumber: number): number;
-		/**
-		 * Get the vertical position (top offset) for the position w.r.t. to the first line.
-		 */
-		getTopForPosition(lineNumber: number, column: number): number;
 		/**
 		 * Get the hit test target at coordinates `clientX` and `clientY`.
 		 * The coordinates are relative to the top-left of the viewport.

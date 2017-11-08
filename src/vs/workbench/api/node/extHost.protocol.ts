@@ -417,12 +417,6 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$appendDebugConsole(value: string): TPromise<any>;
 }
 
-export interface MainThreadCredentialsShape extends IDisposable {
-	$readSecret(service: string, account: string): Thenable<string | undefined>;
-	$writeSecret(service: string, account: string, secret: string): Thenable<void>;
-	$deleteSecret(service: string, account: string): Thenable<boolean>;
-}
-
 export interface MainThreadWindowShape extends IDisposable {
 	$getWindowVisibility(): TPromise<boolean>;
 }
@@ -641,9 +635,6 @@ export interface ExtHostDecorationsShape {
 	$providerDecorations(handle: number, uri: URI): TPromise<DecorationData>;
 }
 
-export interface ExtHostCredentialsShape {
-}
-
 export interface ExtHostWindowShape {
 	$onDidChangeWindowFocus(value: boolean): void;
 }
@@ -677,7 +668,6 @@ export const MainContext = {
 	MainThreadExtensionService: createMainId<MainThreadExtensionServiceShape>('MainThreadExtensionService'),
 	MainThreadSCM: createMainId<MainThreadSCMShape>('MainThreadSCM'),
 	MainThreadTask: createMainId<MainThreadTaskShape>('MainThreadTask'),
-	MainThreadCredentials: createMainId<MainThreadCredentialsShape>('MainThreadCredentials'),
 	MainThreadWindow: createMainId<MainThreadWindowShape>('MainThreadWindow'),
 };
 
@@ -703,6 +693,5 @@ export const ExtHostContext = {
 	ExtHostSCM: createExtId<ExtHostSCMShape>('ExtHostSCM'),
 	ExtHostTask: createExtId<ExtHostTaskShape>('ExtHostTask'),
 	ExtHostWorkspace: createExtId<ExtHostWorkspaceShape>('ExtHostWorkspace'),
-	ExtHostCredentials: createExtId<ExtHostCredentialsShape>('ExtHostCredentials'),
 	ExtHostWindow: createExtId<ExtHostWindowShape>('ExtHostWindow'),
 };

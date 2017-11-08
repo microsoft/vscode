@@ -8,7 +8,7 @@
  * https://github.com/Microsoft/TypeScript-Sublime-Plugin/blob/master/TypeScript%20Indent.tmPreferences
  * ------------------------------------------------------------------------------------------ */
 
-import { env, languages, commands, workspace, window, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, Disposable, Uri, MessageItem, DiagnosticSeverity, TextDocument } from 'vscode';
+import { env, languages, commands, workspace, window, ExtensionContext, Memento, IndentAction, Diagnostic, Range, Disposable, Uri, MessageItem, DiagnosticSeverity, TextDocument } from 'vscode';
 
 // This must be the first statement otherwise modules might got loaded with
 // the wrong locale.
@@ -36,6 +36,7 @@ import { tsLocationToVsPosition } from './utils/convert';
 import FormattingConfigurationManager from './features/formattingConfigurationManager';
 import * as languageModeIds from './utils/languageModeIds';
 import { CommandManager, Command } from './utils/commandManager';
+import DiagnosticsManager from './features/diagnostics';
 
 interface LanguageDescription {
 	id: string;
@@ -224,11 +225,8 @@ export function activate(context: ExtensionContext): void {
 const validateSetting = 'validate.enable';
 
 class LanguageProvider {
+	private diagnosticsManager: DiagnosticsManager;
 
-	private syntaxDiagnostics: ObjectMap<Diagnostic[]>;
-	private semanticDiagnostics: ObjectMap<Diagnostic[]>;
-
-	private readonly currentDiagnostics: DiagnosticCollection;
 	private readonly bufferSyncSupport: BufferSyncSupport;
 	private readonly formattingOptionsManager: FormattingConfigurationManager;
 
@@ -250,12 +248,11 @@ class LanguageProvider {
 		this.formattingOptionsManager = new FormattingConfigurationManager(client);
 		this.bufferSyncSupport = new BufferSyncSupport(client, description.modeIds, {
 			delete: (file: string) => {
-				this.currentDiagnostics.delete(client.asUrl(file));
+				this.diagnosticsManager.delete(file);
 			}
 		}, this._validate);
-		this.syntaxDiagnostics = Object.create(null);
-		this.semanticDiagnostics = Object.create(null);
-		this.currentDiagnostics = languages.createDiagnosticCollection(description.id);
+
+		this.diagnosticsManager = new DiagnosticsManager(description.id, this.client);
 
 		this.typingsStatus = new TypingsStatus(client);
 		this.ataProgressReporter = new AtaProgressReporter(client);
@@ -288,7 +285,7 @@ class LanguageProvider {
 
 		this.typingsStatus.dispose();
 		this.ataProgressReporter.dispose();
-		this.currentDiagnostics.dispose();
+		this.diagnosticsManager.dispose();
 		this.bufferSyncSupport.dispose();
 	}
 
@@ -412,19 +409,14 @@ class LanguageProvider {
 		}
 		this._validate = value;
 		this.bufferSyncSupport.validate = value;
+		this.diagnosticsManager.updateValidate(value);
 		if (value) {
 			this.triggerAllDiagnostics();
-		} else {
-			this.syntaxDiagnostics = Object.create(null);
-			this.semanticDiagnostics = Object.create(null);
-			this.currentDiagnostics.clear();
 		}
 	}
 
 	public reInitialize(): void {
-		this.currentDiagnostics.clear();
-		this.syntaxDiagnostics = Object.create(null);
-		this.semanticDiagnostics = Object.create(null);
+		this.diagnosticsManager.reInitialize();
 		this.bufferSyncSupport.reOpenDocuments();
 		this.bufferSyncSupport.requestAllDiagnostics();
 		this.formattingOptionsManager.reset();
@@ -459,25 +451,15 @@ class LanguageProvider {
 	}
 
 	public syntaxDiagnosticsReceived(file: string, syntaxDiagnostics: Diagnostic[]): void {
-		if (!this._validate) {
-			return;
-		}
-		this.syntaxDiagnostics[file] = syntaxDiagnostics;
-		const semanticDianostics = this.semanticDiagnostics[file] || [];
-		this.currentDiagnostics.set(this.client.asUrl(file), semanticDianostics.concat(syntaxDiagnostics));
+		this.diagnosticsManager.syntaxDiagnosticsReceived(file, syntaxDiagnostics);
 	}
 
 	public semanticDiagnosticsReceived(file: string, semanticDiagnostics: Diagnostic[]): void {
-		if (!this._validate) {
-			return;
-		}
-		this.semanticDiagnostics[file] = semanticDiagnostics;
-		const syntaxDiagnostics = this.syntaxDiagnostics[file] || [];
-		this.currentDiagnostics.set(this.client.asUrl(file), semanticDiagnostics.concat(syntaxDiagnostics));
+		this.diagnosticsManager.semanticDiagnosticsReceived(file, semanticDiagnostics);
 	}
 
 	public configFileDiagnosticsReceived(file: string, diagnostics: Diagnostic[]): void {
-		this.currentDiagnostics.set(this.client.asUrl(file), diagnostics);
+		this.diagnosticsManager.configFileDiagnosticsReceived(file, diagnostics);
 	}
 }
 

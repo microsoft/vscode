@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { withTestCodeEditor, TestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
-import { InsertCursorAbove, InsertCursorBelow, MultiCursorSelectionController, SelectHighlightsAction, AddSelectionToNextFindMatchAction } from 'vs/editor/contrib/multicursor/common/multicursor';
+import { InsertCursorAbove, InsertCursorBelow, MultiCursorSelectionController, SelectHighlightsAction, AddSelectionToNextFindMatchAction } from 'vs/editor/contrib/multicursor/multicursor';
 import { Handler, EndOfLineSequence } from 'vs/editor/common/editorCommon';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
