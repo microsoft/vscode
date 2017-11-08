@@ -79,6 +79,8 @@ export interface ISCMProvider extends IDisposable {
 export interface ISCMInput {
 	value: string;
 	readonly onDidChange: Event<string>;
+	readonly placeholder: string;
+	readonly onDidChangePlaceholder: Event<string>;
 }
 
 export interface ISCMRepository extends IDisposable {

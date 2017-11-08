@@ -404,6 +404,7 @@ export interface MainThreadSCMShape extends IDisposable {
 	$spliceResourceStates(sourceControlHandle: number, splices: SCMRawResourceSplices[]): void;
 
 	$setInputBoxValue(sourceControlHandle: number, value: string): void;
+	$setInputBoxPlaceholder(sourceControlHandle: number, placeholder: string): void;
 }
 
 export type DebugSessionUUID = string;
