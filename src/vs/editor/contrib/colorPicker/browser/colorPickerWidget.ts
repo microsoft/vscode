@@ -66,8 +66,8 @@ export class ColorPickerBody extends Disposable {
 	private saturationBox: SaturationBox;
 	private hueStrip: Strip;
 	private opacityStrip: Strip;
-	// @ts-ignore unused property
-	constructor(private container: HTMLElement, private model: ColorPickerModel, private pixelRatio: number) {
+
+	constructor(container: HTMLElement, private model: ColorPickerModel, private pixelRatio: number) {
 		super();
 
 		this.domNode = $('.colorpicker-body');

@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as strings from 'vs/base/common/strings';
-import { ICommonCodeEditor, IEditorContribution, IIdentifiedSingleEditOperation, ICommand, ICursorStateComputerData, IEditOperationBuilder, ITokenizedModel, EndOfLineSequence } from 'vs/editor/common/editorCommon';
+import { ICommonCodeEditor, IEditorContribution, IIdentifiedSingleEditOperation, ICommand, ICursorStateComputerData, IEditOperationBuilder, ITokenizedModel } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerEditorAction, ServicesAccessor, IActionOptions, EditorAction, registerCommonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
@@ -327,8 +327,6 @@ export class ReindentLinesAction extends EditorAction {
 export class AutoIndentOnPasteCommand implements ICommand {
 
 	private _edits: TextEdit[];
-	// @ts-ignore unused property
-	private _newEol: EndOfLineSequence;
 
 	private _initialSelection: Selection;
 	private _selectionId: string;
@@ -336,12 +334,8 @@ export class AutoIndentOnPasteCommand implements ICommand {
 	constructor(edits: TextEdit[], initialSelection: Selection) {
 		this._initialSelection = initialSelection;
 		this._edits = [];
-		this._newEol = undefined;
 
 		for (let edit of edits) {
-			if (typeof edit.eol === 'number') {
-				this._newEol = edit.eol;
-			}
 			if (edit.range && typeof edit.text === 'string') {
 				this._edits.push(edit);
 			}

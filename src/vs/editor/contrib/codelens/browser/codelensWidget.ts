@@ -65,7 +65,7 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 	private readonly _disposables: IDisposable[] = [];
 	private readonly _editor: editorBrowser.ICodeEditor;
 
-	// @ts-ignore unused property
+	// @ts-ignore TODO@Joh unused property
 	private _symbolRange: Range;
 	private _widgetPosition: editorBrowser.IContentWidgetPosition;
 	private _commands: { [id: string]: Command } = Object.create(null);

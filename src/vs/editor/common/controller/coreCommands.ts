@@ -1650,148 +1650,144 @@ export namespace CoreEditingCommands {
 	});
 
 }
-// @ts-ignore unused namespace
-namespace Config {
 
-	function findFocusedEditor(accessor: ServicesAccessor): editorCommon.ICommonCodeEditor {
-		return accessor.get(ICodeEditorService).getFocusedCodeEditor();
-	}
-
-	function getWorkbenchActiveEditor(accessor: ServicesAccessor): editorCommon.ICommonCodeEditor {
-		const editorService = accessor.get(IEditorService);
-		let activeEditor = (<any>editorService).getActiveEditor && (<any>editorService).getActiveEditor();
-		return getCodeEditor(activeEditor);
-	}
-
-	function registerCommand(command: Command) {
-		KeybindingsRegistry.registerCommandAndKeybindingRule(command.toCommandAndKeybindingRule(CORE_WEIGHT));
-	}
-
-	/**
-	 * A command that will:
-	 *  1. invoke a command on the focused editor.
-	 *  2. otherwise, invoke a browser built-in command on the `activeElement`.
-	 *  3. otherwise, invoke a command on the workbench active editor.
-	 */
-	class EditorOrNativeTextInputCommand extends Command {
-
-		private readonly _editorHandler: string | EditorCommand;
-		private readonly _inputHandler: string;
-
-		constructor(opts: ICommandOptions & { editorHandler: string | EditorCommand; inputHandler: string; }) {
-			super(opts);
-			this._editorHandler = opts.editorHandler;
-			this._inputHandler = opts.inputHandler;
-		}
-
-		public runCommand(accessor: ServicesAccessor, args: any): void {
-
-			let focusedEditor = findFocusedEditor(accessor);
-			// Only if editor text focus (i.e. not if editor has widget focus).
-			if (focusedEditor && focusedEditor.isFocused()) {
-				return this._runEditorHandler(focusedEditor, args);
-			}
-
-			// Ignore this action when user is focused on an element that allows for entering text
-			let activeElement = <HTMLElement>document.activeElement;
-			if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
-				document.execCommand(this._inputHandler);
-				return;
-			}
-
-			// Redirecting to last active editor
-			let activeEditor = getWorkbenchActiveEditor(accessor);
-			if (activeEditor) {
-				activeEditor.focus();
-				return this._runEditorHandler(activeEditor, args);
-			}
-		}
-
-		private _runEditorHandler(editor: editorCommon.ICommonCodeEditor, args: any): void {
-			let HANDLER = this._editorHandler;
-			if (typeof HANDLER === 'string') {
-				editor.trigger('keyboard', HANDLER, args);
-			} else {
-				args = args || {};
-				args.source = 'keyboard';
-				HANDLER.runEditorCommand(null, editor, args);
-			}
-		}
-	}
-
-	registerCommand(new EditorOrNativeTextInputCommand({
-		editorHandler: CoreNavigationCommands.SelectAll,
-		inputHandler: 'selectAll',
-		id: 'editor.action.selectAll',
-		precondition: null,
-		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: null,
-			primary: KeyMod.CtrlCmd | KeyCode.KEY_A
-		}
-	}));
-
-	registerCommand(new EditorOrNativeTextInputCommand({
-		editorHandler: H.Undo,
-		inputHandler: 'undo',
-		id: H.Undo,
-		precondition: EditorContextKeys.writable,
-		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textFocus,
-			primary: KeyMod.CtrlCmd | KeyCode.KEY_Z
-		}
-	}));
-
-	registerCommand(new EditorOrNativeTextInputCommand({
-		editorHandler: H.Redo,
-		inputHandler: 'redo',
-		id: H.Redo,
-		precondition: EditorContextKeys.writable,
-		kbOpts: {
-			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textFocus,
-			primary: KeyMod.CtrlCmd | KeyCode.KEY_Y,
-			secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z],
-			mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z }
-		}
-	}));
-
-	/**
-	 * A command that will invoke a command on the focused editor.
-	 */
-	class EditorHandlerCommand extends Command {
-
-		private readonly _handlerId: string;
-
-		constructor(id: string, handlerId: string) {
-			super({
-				id: id,
-				precondition: null
-			});
-			this._handlerId = handlerId;
-		}
-
-		public runCommand(accessor: ServicesAccessor, args: any): void {
-			const editor = findFocusedEditor(accessor);
-			if (!editor) {
-				return;
-			}
-
-			editor.trigger('keyboard', this._handlerId, args);
-		}
-	}
-
-	function registerOverwritableCommand(handlerId: string): void {
-		registerCommand(new EditorHandlerCommand('default:' + handlerId, handlerId));
-		registerCommand(new EditorHandlerCommand(handlerId, handlerId));
-	}
-
-	registerOverwritableCommand(H.Type);
-	registerOverwritableCommand(H.ReplacePreviousChar);
-	registerOverwritableCommand(H.CompositionStart);
-	registerOverwritableCommand(H.CompositionEnd);
-	registerOverwritableCommand(H.Paste);
-	registerOverwritableCommand(H.Cut);
-
+function findFocusedEditor(accessor: ServicesAccessor): editorCommon.ICommonCodeEditor {
+	return accessor.get(ICodeEditorService).getFocusedCodeEditor();
 }
+
+function getWorkbenchActiveEditor(accessor: ServicesAccessor): editorCommon.ICommonCodeEditor {
+	const editorService = accessor.get(IEditorService);
+	let activeEditor = (<any>editorService).getActiveEditor && (<any>editorService).getActiveEditor();
+	return getCodeEditor(activeEditor);
+}
+
+function registerCommand(command: Command) {
+	KeybindingsRegistry.registerCommandAndKeybindingRule(command.toCommandAndKeybindingRule(CORE_WEIGHT));
+}
+
+/**
+ * A command that will:
+ *  1. invoke a command on the focused editor.
+ *  2. otherwise, invoke a browser built-in command on the `activeElement`.
+ *  3. otherwise, invoke a command on the workbench active editor.
+ */
+class EditorOrNativeTextInputCommand extends Command {
+
+	private readonly _editorHandler: string | EditorCommand;
+	private readonly _inputHandler: string;
+
+	constructor(opts: ICommandOptions & { editorHandler: string | EditorCommand; inputHandler: string; }) {
+		super(opts);
+		this._editorHandler = opts.editorHandler;
+		this._inputHandler = opts.inputHandler;
+	}
+
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+
+		let focusedEditor = findFocusedEditor(accessor);
+		// Only if editor text focus (i.e. not if editor has widget focus).
+		if (focusedEditor && focusedEditor.isFocused()) {
+			return this._runEditorHandler(focusedEditor, args);
+		}
+
+		// Ignore this action when user is focused on an element that allows for entering text
+		let activeElement = <HTMLElement>document.activeElement;
+		if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
+			document.execCommand(this._inputHandler);
+			return;
+		}
+
+		// Redirecting to last active editor
+		let activeEditor = getWorkbenchActiveEditor(accessor);
+		if (activeEditor) {
+			activeEditor.focus();
+			return this._runEditorHandler(activeEditor, args);
+		}
+	}
+
+	private _runEditorHandler(editor: editorCommon.ICommonCodeEditor, args: any): void {
+		let HANDLER = this._editorHandler;
+		if (typeof HANDLER === 'string') {
+			editor.trigger('keyboard', HANDLER, args);
+		} else {
+			args = args || {};
+			args.source = 'keyboard';
+			HANDLER.runEditorCommand(null, editor, args);
+		}
+	}
+}
+
+registerCommand(new EditorOrNativeTextInputCommand({
+	editorHandler: CoreNavigationCommands.SelectAll,
+	inputHandler: 'selectAll',
+	id: 'editor.action.selectAll',
+	precondition: null,
+	kbOpts: {
+		weight: CORE_WEIGHT,
+		kbExpr: null,
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_A
+	}
+}));
+
+registerCommand(new EditorOrNativeTextInputCommand({
+	editorHandler: H.Undo,
+	inputHandler: 'undo',
+	id: H.Undo,
+	precondition: EditorContextKeys.writable,
+	kbOpts: {
+		weight: CORE_WEIGHT,
+		kbExpr: EditorContextKeys.textFocus,
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_Z
+	}
+}));
+
+registerCommand(new EditorOrNativeTextInputCommand({
+	editorHandler: H.Redo,
+	inputHandler: 'redo',
+	id: H.Redo,
+	precondition: EditorContextKeys.writable,
+	kbOpts: {
+		weight: CORE_WEIGHT,
+		kbExpr: EditorContextKeys.textFocus,
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_Y,
+		secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z],
+		mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z }
+	}
+}));
+
+/**
+ * A command that will invoke a command on the focused editor.
+ */
+class EditorHandlerCommand extends Command {
+
+	private readonly _handlerId: string;
+
+	constructor(id: string, handlerId: string) {
+		super({
+			id: id,
+			precondition: null
+		});
+		this._handlerId = handlerId;
+	}
+
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const editor = findFocusedEditor(accessor);
+		if (!editor) {
+			return;
+		}
+
+		editor.trigger('keyboard', this._handlerId, args);
+	}
+}
+
+function registerOverwritableCommand(handlerId: string): void {
+	registerCommand(new EditorHandlerCommand('default:' + handlerId, handlerId));
+	registerCommand(new EditorHandlerCommand(handlerId, handlerId));
+}
+
+registerOverwritableCommand(H.Type);
+registerOverwritableCommand(H.ReplacePreviousChar);
+registerOverwritableCommand(H.CompositionStart);
+registerOverwritableCommand(H.CompositionEnd);
+registerOverwritableCommand(H.Paste);
+registerOverwritableCommand(H.Cut);

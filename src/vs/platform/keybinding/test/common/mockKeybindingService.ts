@@ -14,13 +14,10 @@ import { OS } from 'vs/base/common/platform';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 class MockKeybindingContextKey<T> implements IContextKey<T> {
-	// @ts-ignore unused property
-	private _key: string;
 	private _defaultValue: T;
 	private _value: T;
 
-	constructor(key: string, defaultValue: T) {
-		this._key = key;
+	constructor(defaultValue: T) {
 		this._defaultValue = defaultValue;
 		this._value = this._defaultValue;
 	}
@@ -47,7 +44,7 @@ export class MockContextKeyService implements IContextKeyService {
 		//
 	}
 	public createKey<T>(key: string, defaultValue: T): IContextKey<T> {
-		let ret = new MockKeybindingContextKey(key, defaultValue);
+		let ret = new MockKeybindingContextKey(defaultValue);
 		this._keys.set(key, ret);
 		return ret;
 	}
