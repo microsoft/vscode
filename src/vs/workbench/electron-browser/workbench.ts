@@ -8,7 +8,7 @@
 import 'vs/css!./media/workbench';
 
 import { localize } from 'vs/nls';
-import { TPromise, ValueCallback } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter, chain } from 'vs/base/common/event';
 import DOM = require('vs/base/browser/dom');
@@ -188,8 +188,6 @@ export class Workbench implements IPartService {
 	private toDispose: IDisposable[];
 	private toShutdown: { shutdown: () => void; }[];
 	private callbacks: IWorkbenchCallbacks;
-	private creationPromise: TPromise<boolean>;
-	private creationPromiseComplete: ValueCallback;
 	private sideBarHidden: boolean;
 	private statusBarHidden: boolean;
 	private activityBarHidden: boolean;
@@ -245,10 +243,6 @@ export class Workbench implements IPartService {
 		this.closeEmptyWindowScheduler = new RunOnceScheduler(() => this.onAllEditorsClosed(), 50);
 
 		this._onTitleBarVisibilityChange = new Emitter<void>();
-
-		this.creationPromise = new TPromise<boolean>(c => {
-			this.creationPromiseComplete = c;
-		});
 	}
 
 	public get onTitleBarVisibilityChange(): Event<void> {
@@ -302,7 +296,6 @@ export class Workbench implements IPartService {
 		// Restore Parts
 		this.restoreParts().done(startedInfo => {
 			this.workbenchCreated = true;
-			this.creationPromiseComplete(true);
 
 			if (this.callbacks && this.callbacks.onWorkbenchStarted) {
 				this.callbacks.onWorkbenchStarted(startedInfo);
@@ -682,10 +675,6 @@ export class Workbench implements IPartService {
 		return this.workbenchCreated && this.workbenchStarted;
 	}
 
-	public joinCreation(): TPromise<boolean> {
-		return this.creationPromise;
-	}
-
 	public hasFocus(part: Parts): boolean {
 		const activeElement = document.activeElement;
 		if (!activeElement) {
@@ -905,7 +894,7 @@ export class Workbench implements IPartService {
 
 	private setSideBarPosition(position: Position): void {
 		if (this.sideBarHidden) {
-			this.setSideBarHidden(false, true /* Skip Layout */).done(undefined, errors.onUnexpectedError);
+			this.setSideBarHidden(false, true /* Skip Layout */).done(void 0, errors.onUnexpectedError);
 		}
 
 		const newPositionValue = (position === Position.LEFT) ? 'left' : 'right';
@@ -932,7 +921,7 @@ export class Workbench implements IPartService {
 
 	private setPanelPosition(position: Position): void {
 		if (this.panelHidden) {
-			this.setPanelHidden(false, true /* Skip Layout */).done(undefined, errors.onUnexpectedError);
+			this.setPanelHidden(false, true /* Skip Layout */).done(void 0, errors.onUnexpectedError);
 		}
 
 		const newPositionValue = (position === Position.BOTTOM) ? 'bottom' : 'right';
@@ -1297,8 +1286,8 @@ export class Workbench implements IPartService {
 			this.zenMode.transitionedToFullScreen = toggleFullScreen;
 			this.zenMode.wasSideBarVisible = this.isVisible(Parts.SIDEBAR_PART);
 			this.zenMode.wasPanelVisible = this.isVisible(Parts.PANEL_PART);
-			this.setPanelHidden(true, true).done(undefined, errors.onUnexpectedError);
-			this.setSideBarHidden(true, true).done(undefined, errors.onUnexpectedError);
+			this.setPanelHidden(true, true).done(void 0, errors.onUnexpectedError);
+			this.setSideBarHidden(true, true).done(void 0, errors.onUnexpectedError);
 
 			if (config.hideActivityBar) {
 				this.setActivityBarHidden(true, true);
@@ -1313,11 +1302,11 @@ export class Workbench implements IPartService {
 			}
 		} else {
 			if (this.zenMode.wasPanelVisible) {
-				this.setPanelHidden(false, true).done(undefined, errors.onUnexpectedError);
+				this.setPanelHidden(false, true).done(void 0, errors.onUnexpectedError);
 			}
 
 			if (this.zenMode.wasSideBarVisible) {
-				this.setSideBarHidden(false, true).done(undefined, errors.onUnexpectedError);
+				this.setSideBarHidden(false, true).done(void 0, errors.onUnexpectedError);
 			}
 
 			// Status bar and activity bar visibility come from settings -> update their visibility.
@@ -1338,7 +1327,7 @@ export class Workbench implements IPartService {
 		}
 
 		if (toggleFullScreen) {
-			this.windowService.toggleFullScreen().done(undefined, errors.onUnexpectedError);
+			this.windowService.toggleFullScreen().done(void 0, errors.onUnexpectedError);
 		}
 	}
 

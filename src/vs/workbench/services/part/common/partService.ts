@@ -54,11 +54,6 @@ export interface IPartService {
 	isCreated(): boolean;
 
 	/**
-	 * Promise is complete when all parts have been created.
-	 */
-	joinCreation(): TPromise<boolean>;
-
-	/**
 	 * Returns whether the given part has the keyboard focus or not.
 	 */
 	hasFocus(part: Parts): boolean;

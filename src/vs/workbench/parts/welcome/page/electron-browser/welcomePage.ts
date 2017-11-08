@@ -10,7 +10,6 @@ import * as path from 'path';
 import * as arrays from 'vs/base/common/arrays';
 import { WalkThroughInput } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughInput';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Position } from 'vs/platform/editor/common/editor';
@@ -30,7 +29,7 @@ import { IMessageService, Severity, CloseAction } from 'vs/platform/message/comm
 import { getInstalledExtensions, IExtensionStatus, onExtensionChanged, isKeymapExtension } from 'vs/workbench/parts/extensions/electron-browser/extensionsUtils';
 import { IExtensionEnablementService, IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { used } from 'vs/workbench/parts/welcome/page/electron-browser/vs_code_welcome_page';
-import { ILifecycleService, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, StartupKind, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { tildify } from 'vs/base/common/labels';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -50,7 +49,6 @@ const telemetryFrom = 'welcomePage';
 export class WelcomePageContribution implements IWorkbenchContribution {
 
 	constructor(
-		@IPartService partService: IPartService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
@@ -63,7 +61,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 		if (enabled && lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
 			TPromise.join([
 				backupFileService.hasBackups(),
-				partService.joinCreation()
+				lifecycleService.when(LifecyclePhase.Running)
 			]).then(([hasBackups]) => {
 				const activeInput = editorService.getActiveEditorInput();
 				if (!activeInput && !hasBackups) {

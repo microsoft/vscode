@@ -361,10 +361,6 @@ export class TestPartService implements IPartService {
 		return true;
 	}
 
-	public joinCreation(): Promise {
-		return TPromise.as(null);
-	}
-
 	public hasFocus(part): boolean {
 		return false;
 	}

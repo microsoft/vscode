@@ -17,7 +17,6 @@ import DOM = require('vs/base/browser/dom');
 import Severity from 'vs/base/common/severity';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, Action } from 'vs/base/common/actions';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { AutoSaveConfiguration, IFileService } from 'vs/platform/files/common/files';
 import { toResource } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService, IResourceInputType } from 'vs/workbench/services/editor/common/editorService';
@@ -45,6 +44,7 @@ import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ConfigurationTarget, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
+import { LifecyclePhase, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), null, true, () => document.execCommand('undo') && TPromise.as(true)),
@@ -72,7 +72,6 @@ export class ElectronWindow extends Themable {
 		shellContainer: HTMLElement,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IPartService private partService: IPartService,
 		@IWindowsService private windowsService: IWindowsService,
 		@IWindowService private windowService: IWindowService,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
@@ -87,7 +86,8 @@ export class ElectronWindow extends Themable {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
 		@IFileService private fileService: IFileService,
-		@IMenuService private menuService: IMenuService
+		@IMenuService private menuService: IMenuService,
+		@ILifecycleService private lifecycleService: ILifecycleService
 	) {
 		super(themeService);
 
@@ -194,13 +194,13 @@ export class ElectronWindow extends Themable {
 
 		// Fullscreen Events
 		ipc.on('vscode:enterFullScreen', () => {
-			this.partService.joinCreation().then(() => {
+			this.lifecycleService.when(LifecyclePhase.Running).then(() => {
 				browser.setFullscreen(true);
 			});
 		});
 
 		ipc.on('vscode:leaveFullScreen', () => {
-			this.partService.joinCreation().then(() => {
+			this.lifecycleService.when(LifecyclePhase.Running).then(() => {
 				browser.setFullscreen(false);
 			});
 		});
@@ -209,7 +209,7 @@ export class ElectronWindow extends Themable {
 		ipc.on('vscode:enterHighContrast', () => {
 			const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
 			if (windowConfig && windowConfig.autoDetectHighContrast) {
-				this.partService.joinCreation().then(() => {
+				this.lifecycleService.when(LifecyclePhase.Running).then(() => {
 					this.themeService.setColorTheme(VS_HC_THEME, null);
 				});
 			}
@@ -218,7 +218,7 @@ export class ElectronWindow extends Themable {
 		ipc.on('vscode:leaveHighContrast', () => {
 			const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
 			if (windowConfig && windowConfig.autoDetectHighContrast) {
-				this.partService.joinCreation().then(() => {
+				this.lifecycleService.when(LifecyclePhase.Running).then(() => {
 					this.themeService.setColorTheme(VS_DARK_THEME, null);
 				});
 			}
@@ -301,7 +301,7 @@ export class ElectronWindow extends Themable {
 		});
 
 		// Emit event when vscode has loaded
-		this.partService.joinCreation().then(() => {
+		this.lifecycleService.when(LifecyclePhase.Running).then(() => {
 			ipc.send('vscode:workbenchLoaded', this.windowService.getCurrentWindowId());
 		});
 
@@ -370,7 +370,7 @@ export class ElectronWindow extends Themable {
 	}
 
 	private resolveKeybindings(actionIds: string[]): TPromise<{ id: string; label: string, isNative: boolean; }[]> {
-		return TPromise.join([this.partService.joinCreation(), this.extensionService.onReady()]).then(() => {
+		return TPromise.join([this.lifecycleService.when(LifecyclePhase.Running), this.extensionService.onReady()]).then(() => {
 			return arrays.coalesce(actionIds.map(id => {
 				const binding = this.keybindingService.lookupKeybinding(id);
 				if (!binding) {
@@ -417,7 +417,7 @@ export class ElectronWindow extends Themable {
 		}
 
 		if (inputs.length) {
-			this.openResources(inputs, diffMode).done(null, errors.onUnexpectedError);
+			this.openResources(inputs, diffMode).then(null, errors.onUnexpectedError);
 		}
 
 		if (request.filesToWait && inputs.length) {
@@ -436,8 +436,8 @@ export class ElectronWindow extends Themable {
 		}
 	}
 
-	private openResources(resources: (IResourceInput | IUntitledResourceInput)[], diffMode: boolean): TPromise<IEditor | IEditor[]> {
-		return this.partService.joinCreation().then((): TPromise<IEditor | IEditor[]> => {
+	private openResources(resources: (IResourceInput | IUntitledResourceInput)[], diffMode: boolean): Thenable<IEditor | IEditor[]> {
+		return this.lifecycleService.when(LifecyclePhase.Running).then((): TPromise<IEditor | IEditor[]> => {
 
 			// In diffMode we open 2 resources as diff
 			if (diffMode && resources.length === 2) {

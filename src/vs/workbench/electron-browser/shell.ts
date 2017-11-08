@@ -8,7 +8,6 @@
 import 'vs/css!./media/shell';
 
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as platform from 'vs/base/common/platform';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
 import dom = require('vs/base/browser/dom');
@@ -168,18 +167,7 @@ export class WorkbenchShell {
 		this.workbench = instantiationService.createInstance(Workbench, parent.getHTMLElement(), workbenchContainer.getHTMLElement(), this.configuration, serviceCollection, this.lifecycleService);
 		try {
 			this.workbench.startup({
-				onWorkbenchStarted: (info: IWorkbenchStartedInfo) => {
-
-					// run workbench started logic
-					this.onWorkbenchStarted(info);
-
-					// start cached data manager
-					instantiationService.createInstance(NodeCachedDataManager);
-
-					// Set lifecycle phase to `Runnning` so that other contributions
-					// can now do something
-					this.lifecycleService.phase = LifecyclePhase.Running;
-				}
+				onWorkbenchStarted: (info: IWorkbenchStartedInfo) => this.onWorkbenchStarted(info, instantiationService)
 			});
 		} catch (error) {
 
@@ -198,14 +186,14 @@ export class WorkbenchShell {
 			console.warn('Workbench did not finish loading in 10 seconds, that might be a problem that should be reported.');
 		}, 10000);
 
-		this.workbench.joinCreation().then(() => {
+		this.lifecycleService.when(LifecyclePhase.Running).then(() => {
 			clearTimeout(timeoutHandle);
 		});
 
 		return workbenchContainer;
 	}
 
-	private onWorkbenchStarted(info: IWorkbenchStartedInfo): void {
+	private onWorkbenchStarted(info: IWorkbenchStartedInfo, instantiationService: IInstantiationService): void {
 
 		// Telemetry: workspace info
 		const { filesToOpen, filesToCreate, filesToDiff } = this.configuration;
@@ -268,9 +256,17 @@ export class WorkbenchShell {
 		workspaceStats.reportWorkspaceTags(this.configuration);
 		workspaceStats.reportCloudStats();
 
+		// Root Warning
 		if ((platform.isLinux || platform.isMacintosh) && process.getuid() === 0) {
 			this.messageService.show(Severity.Warning, nls.localize('runningAsRoot', "It is recommended not to run Code as 'root'."));
 		}
+
+		// Start cached data manager
+		instantiationService.createInstance(NodeCachedDataManager);
+
+		// Set lifecycle phase to `Runnning` so that other contributions
+		// can now do something
+		this.lifecycleService.phase = LifecyclePhase.Running;
 	}
 
 	private initServiceCollection(container: HTMLElement): [IInstantiationService, ServiceCollection] {
@@ -480,10 +476,6 @@ export class WorkbenchShell {
 
 		this.contextViewService.layout();
 		this.workbench.layout();
-	}
-
-	public joinCreation(): TPromise<boolean> {
-		return this.workbench.joinCreation();
 	}
 
 	public dispose(): void {
