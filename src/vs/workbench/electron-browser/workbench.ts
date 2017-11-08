@@ -311,7 +311,6 @@ export class Workbench implements IPartService {
 		const editorRestoreClock = time('restore:editors');
 		const restoredEditors: string[] = [];
 		restorePromises.push(this.resolveEditorsToOpen().then(inputs => {
-			this.lifecycleService.phase = LifecyclePhase.Restoring;
 
 			let editorOpenPromise: TPromise<IEditor[]>;
 			if (inputs.length) {
@@ -319,6 +318,9 @@ export class Workbench implements IPartService {
 			} else {
 				editorOpenPromise = this.editorPart.restoreEditors();
 			}
+
+			// update lifecycle *after* triggering the editor restore
+			this.lifecycleService.phase = LifecyclePhase.Restoring;
 
 			return editorOpenPromise.then(editors => {
 				this.handleEditorBackground(); // make sure we show the proper background in the editor area
