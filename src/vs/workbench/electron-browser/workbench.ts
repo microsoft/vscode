@@ -883,7 +883,7 @@ export class Workbench implements IPartService {
 	}
 
 	public toggleMaximizedPanel(): void {
-		this.workbenchLayout.layout({ toggleMaximizedPanel: true });
+		this.workbenchLayout.layout({ toggleMaximizedPanel: true, source: Parts.PANEL_PART });
 	}
 
 	public isPanelMaximized(): boolean {
