@@ -61,10 +61,10 @@ function getImageSizeFromURL(urlStr: string) {
 		const getTransport = url.protocol === 'https:' ? https.get : http.get;
 
 		getTransport(url as any, resp => {
-			const chunks = [];
+			const chunks: Buffer[] = [];
 			let bufSize = 0;
 
-			const trySize = chunks => {
+			const trySize = (chunks: Buffer[]) => {
 				try {
 					const size = sizeOf(Buffer.concat(chunks, bufSize));
 					resp.removeListener('data', onData);
@@ -75,7 +75,7 @@ function getImageSizeFromURL(urlStr: string) {
 				}
 			};
 
-			const onData = chunk => {
+			const onData = (chunk: Buffer) => {
 				bufSize += chunk.length;
 				chunks.push(chunk);
 				trySize(chunks);

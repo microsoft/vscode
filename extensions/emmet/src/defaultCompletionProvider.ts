@@ -52,15 +52,15 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 			}
 		}
 
-		return noiseCheckPromise.then(noise => {
+		return noiseCheckPromise.then((noise): vscode.CompletionList | undefined => {
 			if (noise) {
 				return;
 			}
 
-			let result = helper.doComplete(document, position, syntax, getEmmetConfiguration(syntax));
+			let result = helper.doComplete(document, position, syntax, getEmmetConfiguration(syntax!));
 			let newItems: vscode.CompletionItem[] = [];
 			if (result && result.items) {
-				result.items.forEach(item => {
+				result.items.forEach((item: any) => {
 					let newItem = new vscode.CompletionItem(item.label);
 					newItem.documentation = item.documentation;
 					newItem.detail = item.detail;
@@ -78,7 +78,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 				});
 			}
 
-			return Promise.resolve(new vscode.CompletionList(newItems, true));
+			return new vscode.CompletionList(newItems, true);
 		});
 	}
 
@@ -101,23 +101,24 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 
 		if (!isStyleSheet(syntax)) {
 			const currentHtmlNode = <HtmlNode>currentNode;
-			if (currentHtmlNode
-				&& currentHtmlNode.close
-				&& getInnerRange(currentHtmlNode).contains(position)) {
-				if (currentHtmlNode.name === 'style') {
-					return 'css';
-				}
-				if (currentHtmlNode.name === 'script') {
-					if (currentHtmlNode.attributes
-						&& currentHtmlNode.attributes.some(x => x.name.toString() === 'type' && allowedMimeTypesInScriptTag.indexOf(x.value.toString()) > -1)) {
-						return syntax;
+			if (currentHtmlNode && currentHtmlNode.close) {
+				const innerRange = getInnerRange(currentHtmlNode);
+				if (innerRange && innerRange.contains(position)) {
+					if (currentHtmlNode.name === 'style') {
+						return 'css';
 					}
-					return;
+					if (currentHtmlNode.name === 'script') {
+						if (currentHtmlNode.attributes
+							&& currentHtmlNode.attributes.some(x => x.name.toString() === 'type' && allowedMimeTypesInScriptTag.indexOf(x.value.toString()) > -1)) {
+							return syntax;
+						}
+						return;
+					}
 				}
 			}
 		}
 
-		if (!isValidLocationForEmmetAbbreviation(currentNode, syntax, position)) {
+		if (!currentNode || !isValidLocationForEmmetAbbreviation(currentNode, syntax, position)) {
 			return;
 		}
 		return syntax;
