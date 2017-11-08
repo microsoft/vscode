@@ -456,7 +456,7 @@
         },
         {
           "command": "git.syncRebase",
-          "when": "config.git.enabled && scmProvider == git && gitState == idle"
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.publish",
