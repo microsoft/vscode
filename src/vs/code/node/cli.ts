@@ -41,7 +41,7 @@ export function main(argv: string[]): TPromise<void> {
 		console.log(buildHelpMessage(product.nameLong, product.applicationName, pkg.version));
 	} else if (args.version) {
 		console.log(`${pkg.version}\n${product.commit}`);
-		// TODO: print out platform
+		// TODO: print out platform (process.platform)
 	} else if (shouldSpawnCliProcess(args)) {
 		const mainCli = new TPromise<IMainCli>(c => require(['vs/code/node/cliProcessMain'], c));
 		return mainCli.then(cli => cli.main(args));
