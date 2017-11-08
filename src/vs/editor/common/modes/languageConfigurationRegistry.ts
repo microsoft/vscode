@@ -110,6 +110,9 @@ export class RichEditSupport {
 			empty = false;
 			onEnter.brackets = conf.brackets;
 		}
+		if (conf.indentationRules) {
+			empty = false;
+		}
 		if (conf.onEnterRules) {
 			empty = false;
 			onEnter.regExpRules = conf.onEnterRules;
