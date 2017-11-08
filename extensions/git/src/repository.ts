@@ -651,10 +651,9 @@ export class Repository implements Disposable {
 		await this.run(Operation.Push, () => this.repository.push(remote, undefined, false, true));
 	}
 
-	@throttle
-	async sync(): Promise<void> {
+	private async _sync(rebase: boolean): Promise<void> {
 		await this.run(Operation.Sync, async () => {
-			await this.repository.pull();
+			await this.repository.pull(rebase);
 
 			const shouldPush = this.HEAD && typeof this.HEAD.ahead === 'number' ? this.HEAD.ahead > 0 : true;
 
@@ -662,6 +661,16 @@ export class Repository implements Disposable {
 				await this.repository.push();
 			}
 		});
+	}
+
+	@throttle
+	sync(): Promise<void> {
+		return this._sync(false);
+	}
+
+	@throttle
+	async syncRebase(): Promise<void> {
+		return this._sync(true);
 	}
 
 	async show(ref: string, filePath: string): Promise<string> {

@@ -265,6 +265,11 @@
         "category": "Git"
       },
       {
+        "command": "git.syncRebase",
+        "title": "%command.syncRebase%",
+        "category": "Git"
+      },
+      {
         "command": "git.publish",
         "title": "%command.publish%",
         "category": "Git"
@@ -450,6 +455,10 @@
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.syncRebase",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
           "command": "git.publish",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
@@ -494,6 +503,11 @@
           "command": "git.sync",
           "group": "1_sync",
           "when": "config.git.enabled && scmProvider == git"
+        },
+        {
+          "command": "git.syncRebase",
+          "group": "1_sync",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
           "command": "git.pull",
