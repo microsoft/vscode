@@ -401,10 +401,10 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			let shellSpecified: boolean = false;
 			let shellOptions: ShellConfiguration = task.command.options && task.command.options.shell;
 			if (shellOptions && shellOptions.executable) {
-				shellLaunchConfig.executable = shellOptions.executable;
+				shellLaunchConfig.executable = this.resolveVariable(task, shellOptions.executable);
 				shellSpecified = true;
 				if (shellOptions.args) {
-					shellLaunchConfig.args = shellOptions.args.slice();
+					shellLaunchConfig.args = this.resolveVariables(task, shellOptions.args.slice());
 				} else {
 					shellLaunchConfig.args = [];
 				}
