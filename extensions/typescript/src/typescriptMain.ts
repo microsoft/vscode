@@ -296,8 +296,9 @@ class LanguageProvider {
 		const selector = this.description.modeIds;
 		const config = workspace.getConfiguration(this.id);
 
-		const completionItemProvider = new (await import('./features/completionItemProvider')).default(client, this.typingsStatus, this.commandManager);
-		this.disposables.push(languages.registerCompletionItemProvider(selector, completionItemProvider, '.', '"', '\'', '/', '@'));
+		this.disposables.push(languages.registerCompletionItemProvider(selector,
+			new (await import('./features/completionItemProvider')).default(client, this.typingsStatus, this.commandManager),
+			'.', '"', '\'', '/', '@'));
 
 		this.disposables.push(languages.registerCompletionItemProvider(selector, new (await import('./features/directiveCommentCompletionProvider')).default(client), '@'));
 
@@ -323,18 +324,18 @@ class LanguageProvider {
 		this.disposables.push(languages.registerCodeActionsProvider(selector, new (await import('./features/refactorProvider')).default(client, this.formattingOptionsManager, this.commandManager)));
 		this.registerVersionDependentProviders();
 
+		const referenceCodeLensProvider = new (await import('./features/referencesCodeLensProvider')).default(client, this.description.id);
+		referenceCodeLensProvider.updateConfiguration();
+		this.toUpdateOnConfigurationChanged.push(referenceCodeLensProvider);
+		this.disposables.push(languages.registerCodeLensProvider(selector, referenceCodeLensProvider));
+
+		const implementationCodeLensProvider = new (await import('./features/implementationsCodeLensProvider')).default(client, this.description.id);
+		implementationCodeLensProvider.updateConfiguration();
+		this.toUpdateOnConfigurationChanged.push(implementationCodeLensProvider);
+		this.disposables.push(languages.registerCodeLensProvider(selector, implementationCodeLensProvider));
+
 		for (const modeId of this.description.modeIds) {
 			this.disposables.push(languages.registerWorkspaceSymbolProvider(new (await import('./features/workspaceSymbolProvider')).default(client, modeId)));
-
-			const referenceCodeLensProvider = new (await import('./features/referencesCodeLensProvider')).default(client, modeId);
-			referenceCodeLensProvider.updateConfiguration();
-			this.toUpdateOnConfigurationChanged.push(referenceCodeLensProvider);
-			this.disposables.push(languages.registerCodeLensProvider(selector, referenceCodeLensProvider));
-
-			const implementationCodeLensProvider = new (await import('./features/implementationsCodeLensProvider')).default(client, modeId);
-			implementationCodeLensProvider.updateConfiguration();
-			this.toUpdateOnConfigurationChanged.push(implementationCodeLensProvider);
-			this.disposables.push(languages.registerCodeLensProvider(selector, implementationCodeLensProvider));
 
 			if (!this.description.isExternal) {
 				this.disposables.push(languages.setLanguageConfiguration(modeId, {
