@@ -11,23 +11,99 @@ import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { tsTextSpanToVsRange, vsRangeToTsFileRange, tsLocationToVsPosition } from '../utils/convert';
 import FormattingOptionsManager from './formattingConfigurationManager';
-import { CommandManager } from '../utils/commandManager';
+import { CommandManager, Command } from '../utils/commandManager';
 
-export default class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
-	private doRefactorCommandId: string;
-	private selectRefactorCommandId: string;
+class ApplyRefactoringCommand implements Command {
+	public static readonly ID = '_typescript.applyRefactoring';
+	public readonly id = ApplyRefactoringCommand.ID;
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
-		private formattingOptionsManager: FormattingOptionsManager,
-		mode: string,
+		private formattingOptionsManager: FormattingOptionsManager
+	) { }
+
+	public async execute(
+		document: vscode.TextDocument,
+		file: string,
+		refactor: string,
+		action: string,
+		range: vscode.Range
+	): Promise<boolean> {
+		await this.formattingOptionsManager.ensureFormatOptionsForDocument(document, undefined);
+
+		const args: Proto.GetEditsForRefactorRequestArgs = {
+			...vsRangeToTsFileRange(file, range),
+			refactor,
+			action
+		};
+
+		const response = await this.client.execute('getEditsForRefactor', args);
+		if (!response || !response.body || !response.body.edits.length) {
+			return false;
+		}
+
+		const edit = this.toWorkspaceEdit(response.body.edits);
+		if (!(await vscode.workspace.applyEdit(edit))) {
+			return false;
+		}
+
+		const renameLocation = response.body.renameLocation;
+		if (renameLocation) {
+			if (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document.uri.fsPath === file) {
+				const pos = tsLocationToVsPosition(renameLocation);
+				vscode.window.activeTextEditor.selection = new vscode.Selection(pos, pos);
+				await vscode.commands.executeCommand('editor.action.rename');
+			}
+		}
+		return true;
+	}
+
+	private toWorkspaceEdit(edits: Proto.FileCodeEdits[]): vscode.WorkspaceEdit {
+		const workspaceEdit = new vscode.WorkspaceEdit();
+		for (const edit of edits) {
+			for (const textChange of edit.textChanges) {
+				workspaceEdit.replace(this.client.asUrl(edit.fileName),
+					tsTextSpanToVsRange(textChange),
+					textChange.newText);
+			}
+		}
+		return workspaceEdit;
+	}
+}
+
+class SelectRefactorCommand implements Command {
+	public static readonly ID = '_typescript.selectRefactoring';
+	public readonly id = SelectRefactorCommand.ID;
+
+	constructor(
+		private readonly doRefactoring: ApplyRefactoringCommand
+	) { }
+
+	public async execute(
+		document: vscode.TextDocument,
+		file: string,
+		info: Proto.ApplicableRefactorInfo,
+		range: vscode.Range
+	): Promise<boolean> {
+		const selected = await vscode.window.showQuickPick(info.actions.map((action): vscode.QuickPickItem => ({
+			label: action.name,
+			description: action.description
+		})));
+		if (!selected) {
+			return false;
+		}
+		return this.doRefactoring.execute(document, file, info.name, selected.label, range);
+	}
+}
+
+export default class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
+	constructor(
+		private readonly client: ITypeScriptServiceClient,
+		formattingOptionsManager: FormattingOptionsManager,
 		commandManager: CommandManager
 	) {
-		this.doRefactorCommandId = `_typescript.applyRefactoring.${mode}`;
-		this.selectRefactorCommandId = `_typescript.selectRefactoring.${mode}`;
-
-		commandManager.registerCommand(this.doRefactorCommandId, this.doRefactoring, this);
-		commandManager.registerCommand(this.selectRefactorCommandId, this.selectRefactoring, this);
+		const doRefactoringCommand = commandManager.register(new ApplyRefactoringCommand(this.client, formattingOptionsManager));
+		commandManager.register(new SelectRefactorCommand(doRefactoringCommand));
 	}
 
 	public async provideCodeActions(
@@ -57,14 +133,14 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 				if (info.inlineable === false) {
 					actions.push({
 						title: info.description,
-						command: this.selectRefactorCommandId,
+						command: SelectRefactorCommand.ID,
 						arguments: [document, file, info, range]
 					});
 				} else {
 					for (const action of info.actions) {
 						actions.push({
 							title: action.description,
-							command: this.doRefactorCommandId,
+							command: ApplyRefactoringCommand.ID,
 							arguments: [document, file, info.name, action.name, range]
 						});
 					}
@@ -74,58 +150,5 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 		} catch (err) {
 			return [];
 		}
-	}
-
-	private toWorkspaceEdit(edits: Proto.FileCodeEdits[]): vscode.WorkspaceEdit {
-		const workspaceEdit = new vscode.WorkspaceEdit();
-		for (const edit of edits) {
-			for (const textChange of edit.textChanges) {
-				workspaceEdit.replace(this.client.asUrl(edit.fileName),
-					tsTextSpanToVsRange(textChange),
-					textChange.newText);
-			}
-		}
-		return workspaceEdit;
-	}
-
-	private async selectRefactoring(document: vscode.TextDocument, file: string, info: Proto.ApplicableRefactorInfo, range: vscode.Range): Promise<boolean> {
-		const selected = await vscode.window.showQuickPick(info.actions.map((action): vscode.QuickPickItem => ({
-			label: action.name,
-			description: action.description
-		})));
-		if (!selected) {
-			return false;
-		}
-		return this.doRefactoring(document, file, info.name, selected.label, range);
-	}
-
-	private async doRefactoring(document: vscode.TextDocument, file: string, refactor: string, action: string, range: vscode.Range): Promise<boolean> {
-		await this.formattingOptionsManager.ensureFormatOptionsForDocument(document, undefined);
-
-		const args: Proto.GetEditsForRefactorRequestArgs = {
-			...vsRangeToTsFileRange(file, range),
-			refactor,
-			action
-		};
-
-		const response = await this.client.execute('getEditsForRefactor', args);
-		if (!response || !response.body || !response.body.edits.length) {
-			return false;
-		}
-
-		const edit = this.toWorkspaceEdit(response.body.edits);
-		if (!(await vscode.workspace.applyEdit(edit))) {
-			return false;
-		}
-
-		const renameLocation = response.body.renameLocation;
-		if (renameLocation) {
-			if (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document.uri.fsPath === file) {
-				const pos = tsLocationToVsPosition(renameLocation);
-				vscode.window.activeTextEditor.selection = new vscode.Selection(pos, pos);
-				await vscode.commands.executeCommand('editor.action.rename');
-			}
-		}
-		return true;
 	}
 }

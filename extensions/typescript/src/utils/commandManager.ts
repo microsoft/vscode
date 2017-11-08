@@ -29,7 +29,8 @@ export class CommandManager {
 		this.commands.set(id, vscode.commands.registerCommand(id, impl, thisArg));
 	}
 
-	public register(command: Command) {
+	public register<T extends Command>(command: T): T {
 		this.registerCommand(command.id, command.execute, command);
+		return command;
 	}
 }
