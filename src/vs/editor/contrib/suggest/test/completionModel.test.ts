@@ -6,8 +6,8 @@
 
 import * as assert from 'assert';
 import { ISuggestion, ISuggestResult, ISuggestSupport, SuggestionType } from 'vs/editor/common/modes';
-import { ISuggestionItem, getSuggestionComparator } from 'vs/editor/contrib/suggest/browser/suggest';
-import { CompletionModel } from 'vs/editor/contrib/suggest/browser/completionModel';
+import { ISuggestionItem, getSuggestionComparator } from 'vs/editor/contrib/suggest/suggest';
+import { CompletionModel } from 'vs/editor/contrib/suggest/completionModel';
 import { IPosition } from 'vs/editor/common/core/position';
 import { TPromise } from 'vs/base/common/winjs.base';
 

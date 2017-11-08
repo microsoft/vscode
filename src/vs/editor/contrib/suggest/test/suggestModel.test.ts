@@ -12,7 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Model } from 'vs/editor/common/model/model';
 import { ICommonCodeEditor, Handler } from 'vs/editor/common/editorCommon';
 import { ISuggestSupport, ISuggestResult, SuggestRegistry, SuggestTriggerKind } from 'vs/editor/common/modes';
-import { SuggestModel, LineContext } from 'vs/editor/contrib/suggest/browser/suggestModel';
+import { SuggestModel, LineContext } from 'vs/editor/contrib/suggest/suggestModel';
 import { TestCodeEditor, MockScopeLocation } from 'vs/editor/test/browser/testCodeEditor';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';

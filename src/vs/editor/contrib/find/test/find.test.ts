@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { getSelectionSearchString } from 'vs/editor/contrib/find/common/find';
+import { getSelectionSearchString } from 'vs/editor/contrib/find/findController';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 
 

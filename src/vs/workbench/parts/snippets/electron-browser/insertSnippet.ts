@@ -13,7 +13,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { LanguageId } from 'vs/editor/common/modes';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ISnippetsService, Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 interface ISnippetPick extends IPickOpenEntry {

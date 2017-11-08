@@ -25,8 +25,8 @@ import { IDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecyc
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEditorAction, ICommonCodeEditor, EndOfLineSequence, IModel } from 'vs/editor/common/editorCommon';
 import { IModelLanguageChangedEvent, IModelOptionsChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { TrimTrailingWhitespaceAction } from 'vs/editor/contrib/linesOperations/common/linesOperations';
-import { IndentUsingSpaces, IndentUsingTabs, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction } from 'vs/editor/contrib/indentation/common/indentation';
+import { TrimTrailingWhitespaceAction } from 'vs/editor/contrib/linesOperations/linesOperations';
+import { IndentUsingSpaces, IndentUsingTabs, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction } from 'vs/editor/contrib/indentation/indentation';
 import { BaseBinaryResourceEditor } from 'vs/workbench/browser/parts/editor/binaryEditor';
 import { BinaryResourceDiffEditor } from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
 import { IEditor as IBaseEditor, IEditorInput } from 'vs/platform/editor/common/editor';

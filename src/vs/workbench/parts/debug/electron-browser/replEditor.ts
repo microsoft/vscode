@@ -15,9 +15,9 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 // Allowed Editor Contributions:
 import { MenuPreventer } from 'vs/workbench/parts/codeEditor/electron-browser/menuPreventer';
 import { SelectionClipboard } from 'vs/workbench/parts/codeEditor/electron-browser/selectionClipboard';
-import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
-import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
+import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { TabCompletionController } from 'vs/workbench/parts/snippets/electron-browser/tabCompletion';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 

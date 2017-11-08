@@ -18,11 +18,11 @@ import { CursorMoveCommands } from 'vs/editor/common/controller/cursorMoveComman
 import { CursorState, RevealTarget } from 'vs/editor/common/controller/cursorCommon';
 import { Constants } from 'vs/editor/common/core/uint';
 import { DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
-import { CommonFindController } from 'vs/editor/contrib/find/common/findController';
+import { CommonFindController } from 'vs/editor/contrib/find/findController';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import { overviewRulerSelectionHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { INewFindReplaceState, FindOptionOverride } from 'vs/editor/contrib/find/common/findState';
+import { INewFindReplaceState, FindOptionOverride } from 'vs/editor/contrib/find/findState';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class InsertCursorAbove extends EditorAction {

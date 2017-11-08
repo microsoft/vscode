@@ -5,7 +5,7 @@
 'use strict';
 
 import { Selection } from 'vs/editor/common/core/selection';
-import { BlockCommentCommand } from 'vs/editor/contrib/comment/common/blockCommentCommand';
+import { BlockCommentCommand } from 'vs/editor/contrib/comment/blockCommentCommand';
 import { testCommand } from 'vs/editor/test/browser/testCommand';
 import { CommentMode } from 'vs/editor/test/common/commentMode';
 

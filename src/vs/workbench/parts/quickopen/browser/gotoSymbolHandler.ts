@@ -20,7 +20,7 @@ import { IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDelt
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { Position, IEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/common/quickOpen';
+import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/quickOpen';
 import { DocumentSymbolProviderRegistry, SymbolInformation, symbolKindToCssClass } from 'vs/editor/common/modes';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IRange } from 'vs/editor/common/core/range';

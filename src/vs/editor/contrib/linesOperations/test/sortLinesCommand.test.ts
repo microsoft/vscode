@@ -5,7 +5,7 @@
 'use strict';
 
 import { Selection } from 'vs/editor/common/core/selection';
-import { SortLinesCommand } from 'vs/editor/contrib/linesOperations/common/sortLinesCommand';
+import { SortLinesCommand } from 'vs/editor/contrib/linesOperations/sortLinesCommand';
 import { testCommand } from 'vs/editor/test/browser/testCommand';
 
 function testSortLinesAscendingCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {

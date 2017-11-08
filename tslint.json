@@ -289,7 +289,7 @@
 					"**/vs/base/parts/*/{common,browser}/**",
 					"**/vs/platform/*/{common,browser}/**",
 					"**/vs/editor/{common,browser}/**",
-					"**/vs/editor/contrib/*/{common,browser}/**",
+					"**/vs/editor/contrib/**", // editor/contrib is equivalent to /browser/ by convention
 					"**/vs/workbench/{common,browser}/**",
 					"**/vs/workbench/services/*/{common,browser}/**",
 					"assert"
@@ -311,7 +311,7 @@
 					"**/vs/platform/node/**",
 					"**/vs/platform/*/{common,browser,node,electron-browser}/**",
 					"**/vs/editor/{common,browser,node,electron-browser}/**",
-					"**/vs/editor/contrib/*/{common,browser,node,electron-browser}/**",
+					"**/vs/editor/contrib/**", // editor/contrib is equivalent to /browser/ by convention
 					"**/vs/workbench/{common,browser,node,electron-browser,api}/**",
 					"**/vs/workbench/services/*/{common,browser,node,electron-browser}/**",
 					"*" // node modules
@@ -392,7 +392,7 @@
 					"vs/css!./**/*",
 					"**/vs/base/**/{common,browser,node,electron-browser}/**",
 					"**/vs/platform/**/{common,browser,node,electron-browser}/**",
-					"**/vs/editor/**/{common,browser,node,electron-browser}/**",
+					"**/vs/editor/**",
 					"**/vs/workbench/{common,browser,node,electron-browser,api}/**",
 					"**/vs/workbench/services/**/{common,browser,node,electron-browser}/**",
 					"*" // node modules

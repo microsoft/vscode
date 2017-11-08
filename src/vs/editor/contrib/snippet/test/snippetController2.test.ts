@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import { Selection } from 'vs/editor/common/core/selection';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { Model } from 'vs/editor/common/model/model';

@@ -26,7 +26,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
-import { getSelectionSearchString } from 'vs/editor/contrib/find/common/find';
+import { getSelectionSearchString } from 'vs/editor/contrib/find/findController';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
@@ -36,7 +36,7 @@ import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { registerContributions as replaceContributions } from 'vs/workbench/parts/search/browser/replaceContributions';
 import { registerContributions as searchWidgetContributions } from 'vs/workbench/parts/search/browser/searchWidget';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding, ShowPreviousFindTermKeybinding, ShowNextFindTermKeybinding } from 'vs/editor/contrib/find/common/findModel';
+import { ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding, ShowPreviousFindTermKeybinding, ShowNextFindTermKeybinding } from 'vs/editor/contrib/find/findModel';
 import { ISearchWorkbenchService, SearchWorkbenchService } from 'vs/workbench/parts/search/common/searchModel';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { SearchViewlet } from 'vs/workbench/parts/search/browser/searchViewlet';

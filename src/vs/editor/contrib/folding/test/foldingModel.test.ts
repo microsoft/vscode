@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { FoldingModel, FoldingRegion, setCollapseStateAtLevel, setCollapseStateLevelsDown, setCollapseStateLevelsUp } from 'vs/editor/contrib/folding/common/foldingModel';
+import { FoldingModel, FoldingRegion, setCollapseStateAtLevel, setCollapseStateLevelsDown, setCollapseStateLevelsUp } from 'vs/editor/contrib/folding/foldingModel';
 import { Model } from 'vs/editor/common/model/model';
 import { computeRanges } from 'vs/editor/common/model/indentRanges';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';

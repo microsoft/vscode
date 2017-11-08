@@ -11,7 +11,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { EndOfLine, TextEditorLineNumbersStyle } from 'vs/workbench/api/node/extHostTypes';
 import { TextEditorCursorStyle, cursorStyleToString } from 'vs/editor/common/config/editorOptions';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';

@@ -23,7 +23,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { Builder } from 'vs/base/browser/builder';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { isSearchViewletFocused, appendKeyBindingLabel } from 'vs/workbench/parts/search/browser/searchActions';
-import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from 'vs/editor/contrib/find/common/findController';
+import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from 'vs/editor/contrib/find/findController';
 import { HistoryNavigator } from 'vs/base/common/history';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { attachInputBoxStyler, attachFindInputBoxStyler, attachButtonStyler } from 'vs/platform/theme/common/styler';

@@ -10,7 +10,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { IndentAction } from 'vs/editor/common/modes/languageConfiguration';
-import { TokenSelectionSupport } from 'vs/editor/contrib/smartSelect/common/tokenSelectionSupport';
+import { TokenSelectionSupport } from 'vs/editor/contrib/smartSelect/tokenSelectionSupport';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';

@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
-import { ReferencesModel } from 'vs/editor/contrib/referenceSearch/browser/referencesModel';
+import { ReferencesModel } from 'vs/editor/contrib/referenceSearch/referencesModel';
 
 suite('references', function () {
 

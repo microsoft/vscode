@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SimpleFindWidget } from 'vs/editor/contrib/find/browser/simpleFindWidget';
+import { SimpleFindWidget } from 'vs/editor/contrib/find/simpleFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import Webview from './webview';
 

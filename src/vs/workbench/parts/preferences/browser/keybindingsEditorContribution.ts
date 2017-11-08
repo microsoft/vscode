@@ -18,7 +18,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ServicesAccessor, registerEditorCommand, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { SmartSnippetInserter } from 'vs/workbench/parts/preferences/common/smartSnippetInserter';
 import { DefineKeybindingOverlayWidget } from 'vs/workbench/parts/preferences/browser/keybindingWidgets';
 import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';

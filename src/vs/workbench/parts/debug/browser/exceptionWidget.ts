@@ -6,7 +6,7 @@
 import 'vs/css!../browser/media/exceptionWidget';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
+import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IExceptionInfo } from 'vs/workbench/parts/debug/common/debug';
 import { RunOnceScheduler } from 'vs/base/common/async';

@@ -48,8 +48,8 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
-import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
-import { FindController } from 'vs/editor/contrib/find/browser/find';
+import { FoldingController } from 'vs/editor/contrib/folding/folding';
+import { FindController } from 'vs/editor/contrib/find/find';
 import { SelectionHighlighter } from 'vs/editor/contrib/multicursor/multicursor';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
