@@ -679,7 +679,16 @@ export class Repository implements Disposable {
 			const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
 			const encoding = configFiles.get<string>('encoding');
 
-			return await this.repository.buffer(`${ref}:${relativePath}`, encoding);
+			return await this.repository.bufferString(`${ref}:${relativePath}`, encoding);
+		});
+	}
+
+	async buffer(ref: string, filePath: string): Promise<Buffer> {
+		return await this.run(Operation.Show, async () => {
+			const relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
+			const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
+
+			return await this.repository.buffer(`${ref}:${relativePath}`);
 		});
 	}
 
