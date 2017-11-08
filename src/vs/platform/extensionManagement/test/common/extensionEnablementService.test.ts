@@ -33,7 +33,7 @@ function storageService(instantiationService: TestInstantiationService): IStorag
 export class TestExtensionEnablementService extends ExtensionEnablementService {
 	constructor(instantiationService: TestInstantiationService) {
 		super(storageService(instantiationService), instantiationService.get(IWorkspaceContextService),
-			instantiationService.get(IEnvironmentService) || instantiationService.stub(IEnvironmentService, <IEnvironmentService>{}),
+			instantiationService.get(IEnvironmentService) || instantiationService.stub(IEnvironmentService, {} as IEnvironmentService),
 			instantiationService.get(IExtensionManagementService) || instantiationService.stub(IExtensionManagementService, { onDidUninstallExtension: new Emitter() }));
 	}
 

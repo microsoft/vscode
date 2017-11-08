@@ -70,8 +70,8 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 
 	const alwaysEmptySupport: ISuggestSupport = {
-		provideCompletionItems(doc, pos) {
-			return <ISuggestResult>{
+		provideCompletionItems(doc, pos): ISuggestResult {
+			return {
 				incomplete: false,
 				suggestions: []
 			};
@@ -79,8 +79,8 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 	};
 
 	const alwaysSomethingSupport: ISuggestSupport = {
-		provideCompletionItems(doc, pos) {
-			return <ISuggestResult>{
+		provideCompletionItems(doc, pos): ISuggestResult {
+			return {
 				incomplete: false,
 				suggestions: [{
 					label: doc.getWordUntilPosition(pos).word,
@@ -222,9 +222,8 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 	test('#17400: Keep filtering suggestModel.ts after space', function () {
 
 		disposables.push(SuggestRegistry.register({ scheme: 'test' }, {
-			provideCompletionItems(doc, pos) {
-				return <ISuggestResult>{
-					currentWord: '',
+			provideCompletionItems(doc, pos): ISuggestResult {
+				return {
 					incomplete: false,
 					suggestions: [{
 						label: 'My Table',
@@ -272,9 +271,8 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 	test('#21484: Trigger character always force a new completion session', function () {
 
 		disposables.push(SuggestRegistry.register({ scheme: 'test' }, {
-			provideCompletionItems(doc, pos) {
-				return <ISuggestResult>{
-					currentWord: '',
+			provideCompletionItems(doc, pos): ISuggestResult {
+				return {
 					incomplete: false,
 					suggestions: [{
 						label: 'foo.bar',
@@ -288,9 +286,8 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 		disposables.push(SuggestRegistry.register({ scheme: 'test' }, {
 			triggerCharacters: ['.'],
-			provideCompletionItems(doc, pos) {
-				return <ISuggestResult>{
-					currentWord: '',
+			provideCompletionItems(doc, pos): ISuggestResult {
+				return {
 					incomplete: false,
 					suggestions: [{
 						label: 'boom',
@@ -383,8 +380,8 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 	test('Incomplete suggestion results cause re-triggering when typing w/o further context, #28400 (1/2)', function () {
 
 		disposables.push(SuggestRegistry.register({ scheme: 'test' }, {
-			provideCompletionItems(doc, pos) {
-				return <ISuggestResult>{
+			provideCompletionItems(doc, pos): ISuggestResult {
+				return {
 					incomplete: true,
 					suggestions: [{
 						label: 'foo',
@@ -420,8 +417,8 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 	test('Incomplete suggestion results cause re-triggering when typing w/o further context, #28400 (2/2)', function () {
 
 		disposables.push(SuggestRegistry.register({ scheme: 'test' }, {
-			provideCompletionItems(doc, pos) {
-				return <ISuggestResult>{
+			provideCompletionItems(doc, pos): ISuggestResult {
+				return {
 					incomplete: true,
 					suggestions: [{
 						label: 'foo;',
@@ -464,11 +461,10 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		let triggerCharacter = '';
 		disposables.push(SuggestRegistry.register({ scheme: 'test' }, {
 			triggerCharacters: ['.'],
-			provideCompletionItems(doc, pos, context) {
+			provideCompletionItems(doc, pos, context): ISuggestResult {
 				assert.equal(context.triggerKind, SuggestTriggerKind.TriggerCharacter);
 				triggerCharacter = context.triggerCharacter;
-				return <ISuggestResult>{
-					currentWord: '',
+				return {
 					incomplete: false,
 					suggestions: [
 						{
@@ -497,8 +493,8 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 	test('Mac press and hold accent character insertion does not update suggestions, #35269', function () {
 		disposables.push(SuggestRegistry.register({ scheme: 'test' }, {
-			provideCompletionItems(doc, pos) {
-				return <ISuggestResult>{
+			provideCompletionItems(doc, pos): ISuggestResult {
+				return {
 					incomplete: true,
 					suggestions: [{
 						label: 'abc',
