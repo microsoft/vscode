@@ -24,7 +24,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKeyChangeEvent } from 'vs/platform/contextkey/common/contextkey';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { PanelViewlet, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IPanelOptions } from 'vs/base/browser/ui/splitview/panelview';
@@ -239,7 +239,7 @@ export class ViewsViewlet extends PanelViewlet {
 		this._register(this.onDidSashChange(() => this.updateAllViewsSizes()));
 		this._register(ViewsRegistry.onViewsRegistered(this.onViewsRegistered, this));
 		this._register(ViewsRegistry.onViewsDeregistered(this.onViewsDeregistered, this));
-		this._register(this.contextKeyService.onDidChangeContext(keys => this.onContextChanged(keys)));
+		this._register(this.contextKeyService.onDidChangeContext(this.onContextChanged, this));
 
 		// Update headers after and title contributed views after available, since we read from cache in the beginning to know if the viewlet has single view or not. Ref #29609
 		this.extensionService.onReady().then(() => {
@@ -328,20 +328,8 @@ export class ViewsViewlet extends PanelViewlet {
 		return this.updateViews(views);
 	}
 
-	private onContextChanged(keys: string[]): void {
-		if (!keys) {
-			return;
-		}
-
-		let hasToUpdate: boolean = false;
-		for (const key of keys) {
-			if (this.viewsContextKeys.has(key)) {
-				hasToUpdate = true;
-				break;
-			}
-		}
-
-		if (hasToUpdate) {
+	private onContextChanged(event: IContextKeyChangeEvent): void {
+		if (event.affectsSome(this.viewsContextKeys)) {
 			this.updateViews();
 		}
 	}

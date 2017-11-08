@@ -7,7 +7,7 @@
 import { ResolvedKeybinding, Keybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import Event from 'vs/base/common/event';
 import { IKeybindingService, IKeybindingEvent, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { IContextKey, IContextKeyService, IContextKeyServiceTarget, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService, IContextKeyServiceTarget, ContextKeyExpr, IContextKeyChangeEvent } from 'vs/platform/contextkey/common/contextkey';
 import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { OS } from 'vs/base/common/platform';
@@ -54,7 +54,7 @@ export class MockContextKeyService implements IContextKeyService {
 	public contextMatchesRules(rules: ContextKeyExpr): boolean {
 		return false;
 	}
-	public get onDidChangeContext(): Event<string[]> {
+	public get onDidChangeContext(): Event<IContextKeyChangeEvent> {
 		return Event.None;
 	}
 	public getContextKeyValue(key: string) {

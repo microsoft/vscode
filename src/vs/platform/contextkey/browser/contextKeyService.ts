@@ -7,7 +7,7 @@
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
-import { IContextKey, IContext, IContextKeyServiceTarget, IContextKeyService, SET_CONTEXT_COMMAND_ID, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContext, IContextKeyServiceTarget, IContextKeyService, SET_CONTEXT_COMMAND_ID, ContextKeyExpr, IContextKeyChangeEvent } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService, IConfigurationChangeEvent, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import Event, { Emitter, debounceEvent } from 'vs/base/common/event';
 
@@ -55,11 +55,11 @@ export class Context implements IContext {
 
 class ConfigAwareContextValuesContainer extends Context {
 
-	private readonly _emitter: Emitter<string>;
+	private readonly _emitter: Emitter<string | string[]>;
 	private readonly _subscription: IDisposable;
 	private readonly _configurationService: IConfigurationService;
 
-	constructor(id: number, configurationService: IConfigurationService, emitter: Emitter<string>) {
+	constructor(id: number, configurationService: IConfigurationService, emitter: Emitter<string | string[]>) {
 		super(id, null);
 
 		this._emitter = emitter;
@@ -90,33 +90,30 @@ class ConfigAwareContextValuesContainer extends Context {
 
 	private _initFromConfiguration() {
 
-		const config = this._configurationService.getConfiguration();
+		const prefix = 'config.';
+		const configKeys: { [key: string]: boolean } = Object.create(null);
 
-		// remove old config.xyz values
-		for (let key in this._value) {
-			if (key.indexOf('config.') === 0) {
-				delete this._value[key];
+		// add/update keys
+		for (const key of this._configurationService.keys().default) {
+			const value = this._configurationService.getValue(key);
+			if (typeof value === 'boolean') {
+				const configKey = prefix + key;
+				const oldValue = this._value[configKey];
+				this._value[configKey] = value;
+				configKeys[configKey] = oldValue !== value;
 			}
 		}
 
-		// add new value from config
-		const walk = (obj: any, keys: string[]) => {
-			for (let key in obj) {
-				if (Object.prototype.hasOwnProperty.call(obj, key)) {
-					keys.push(key);
-					let value = obj[key];
-					if (typeof value === 'boolean') {
-						const configKey = keys.join('.');
-						this._value[configKey] = value;
-						this._emitter.fire(configKey);
-					} else if (typeof value === 'object') {
-						walk(value, keys);
-					}
-					keys.pop();
-				}
+		// remove unused keys
+		for (let key in this._value) {
+			if (key.indexOf(prefix) === 0 && configKeys[key] === undefined) {
+				delete this._value[key];
+				configKeys[key] = true;
 			}
-		};
-		walk(config, ['config']);
+		}
+
+		// send events
+		this._emitter.fire(Object.keys(configKeys));
 	}
 }
 
@@ -150,11 +147,33 @@ class ContextKey<T> implements IContextKey<T> {
 	}
 }
 
+export class ContextKeyChangeEvent implements IContextKeyChangeEvent {
+
+	private _keys: string[] = [];
+
+	collect(oneOrManyKeys: string | string[]): void {
+		if (Array.isArray(oneOrManyKeys)) {
+			this._keys = this._keys.concat(oneOrManyKeys);
+		} else {
+			this._keys.push(oneOrManyKeys);
+		}
+	}
+
+	affectsSome(keys: Set<string>): boolean {
+		for (const key of this._keys) {
+			if (keys.has(key)) {
+				return true;
+			}
+		}
+		return false;
+	}
+}
+
 export abstract class AbstractContextKeyService implements IContextKeyService {
 	public _serviceBrand: any;
 
-	protected _onDidChangeContext: Event<string[]>;
-	protected _onDidChangeContextKey: Emitter<string>;
+	protected _onDidChangeContext: Event<IContextKeyChangeEvent>;
+	protected _onDidChangeContextKey: Emitter<string | string[]>;
 	protected _myContextId: number;
 
 	constructor(myContextId: number) {
@@ -168,14 +187,13 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 		return new ContextKey(this, key, defaultValue);
 	}
 
-	public get onDidChangeContext(): Event<string[]> {
+	public get onDidChangeContext(): Event<IContextKeyChangeEvent> {
 		if (!this._onDidChangeContext) {
-			this._onDidChangeContext = debounceEvent(this._onDidChangeContextKey.event, (prev: string[], cur) => {
+			this._onDidChangeContext = debounceEvent<string | string[], ContextKeyChangeEvent>(this._onDidChangeContextKey.event, (prev, cur) => {
 				if (!prev) {
-					prev = [cur];
-				} else if (prev.indexOf(cur) < 0) {
-					prev.push(cur);
+					prev = new ContextKeyChangeEvent();
 				}
+				prev.collect(cur);
 				return prev;
 			}, 25);
 		}
@@ -274,7 +292,7 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 	private _parent: AbstractContextKeyService;
 	private _domNode: IContextKeyServiceTarget;
 
-	constructor(parent: AbstractContextKeyService, emitter: Emitter<string>, domNode?: IContextKeyServiceTarget) {
+	constructor(parent: AbstractContextKeyService, emitter: Emitter<string | string[]>, domNode?: IContextKeyServiceTarget) {
 		super(parent.createChildContext());
 		this._parent = parent;
 		this._onDidChangeContextKey = emitter;
@@ -292,7 +310,7 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 		}
 	}
 
-	public get onDidChangeContext(): Event<string[]> {
+	public get onDidChangeContext(): Event<IContextKeyChangeEvent> {
 		return this._parent.onDidChangeContext;
 	}
 

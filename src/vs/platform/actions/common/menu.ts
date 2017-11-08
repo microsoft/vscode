@@ -48,15 +48,9 @@ export class Menu implements IMenu {
 			}
 
 			// subscribe to context changes
-			this._disposables.push(this._contextKeyService.onDidChangeContext(keys => {
-				if (!keys) {
-					return;
-				}
-				for (let k of keys) {
-					if (keysFilter.has(k)) {
-						this._onDidChange.fire();
-						return;
-					}
+			this._disposables.push(this._contextKeyService.onDidChangeContext(event => {
+				if (event.affectsSome(keysFilter)) {
+					this._onDidChange.fire();
 				}
 			}));
 
