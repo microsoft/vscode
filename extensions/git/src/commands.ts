@@ -192,7 +192,7 @@ export class CommandCenter {
 
 					if (/png$/i.test(path)) {
 						const contents = await repository.buffer(ref, path);
-						const uri = `data:image/png;base64,${contents.toString('base64')}`;
+						const uri = Uri.parse(`data:image/png;label:${'Label'};description:${'Description'};base64,${contents.toString('base64')}`); // TODO@JOao
 
 						await commands.executeCommand<void>('vscode.open', uri, opts);
 						return;
