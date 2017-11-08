@@ -52,6 +52,8 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Command } from 'vs/editor/common/modes';
 import { render as renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import * as platform from 'vs/base/common/platform';
+import { format } from 'vs/base/common/strings';
 
 // TODO@Joao
 // Need to subclass MenuItemActionItem in order to respect
@@ -565,17 +567,22 @@ export class RepositoryPanel extends ViewletPanel {
 		// Input
 		this.inputBoxContainer = append(container, $('.scm-editor'));
 
-		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, {
-			flexibleHeight: true
-		});
+		const updatePlaceholder = () => {
+			const placeholder = format(this.repository.input.placeholder, platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter');
+			this.inputBox.setPlaceHolder(placeholder);
+		};
+
+		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, { flexibleHeight: true });
 		this.disposables.push(attachInputBoxStyler(this.inputBox, this.themeService));
 		this.disposables.push(this.inputBox);
 
 		this.inputBox.value = this.repository.input.value;
-		this.inputBox.setPlaceHolder(this.repository.input.placeholder);
 		this.inputBox.onDidChange(value => this.repository.input.value = value, null, this.disposables);
 		this.repository.input.onDidChange(value => this.inputBox.value = value, null, this.disposables);
-		this.repository.input.onDidChangePlaceholder(placeholder => this.inputBox.setPlaceHolder(placeholder), null, this.disposables);
+
+		updatePlaceholder();
+		this.repository.input.onDidChangePlaceholder(updatePlaceholder, null, this.disposables);
+
 		this.disposables.push(this.inputBox.onDidHeightChange(() => this.layoutBody()));
 
 		chain(domEvent(this.inputBox.inputElement, 'keydown'))
