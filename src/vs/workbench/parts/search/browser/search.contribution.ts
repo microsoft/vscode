@@ -401,7 +401,7 @@ configurationRegistry.registerConfiguration({
 		'search.useIgnoreFiles': {
 			'type': 'boolean',
 			'description': nls.localize('useIgnoreFiles', "Controls whether to use .gitignore and .ignore files when searching for files."),
-			'default': false,
+			'default': true,
 			'scope': ConfigurationScope.RESOURCE
 		},
 		'search.quickOpen.includeSymbols': {
