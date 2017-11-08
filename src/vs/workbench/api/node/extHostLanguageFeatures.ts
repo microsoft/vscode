@@ -460,8 +460,15 @@ class RenameAdapter {
 					edits: undefined,
 					rejectReason: err
 				};
+			} else if (err instanceof Error && typeof err.message === 'string') {
+				return <modes.WorkspaceEdit>{
+					edits: undefined,
+					rejectReason: err.message
+				};
+			} else {
+				// generic error
+				return TPromise.wrapError<modes.WorkspaceEdit>(err);
 			}
-			return TPromise.wrapError<modes.WorkspaceEdit>(err);
 		});
 	}
 }

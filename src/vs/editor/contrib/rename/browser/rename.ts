@@ -6,7 +6,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { isPromiseCanceledError, onUnexpectedExternalError, illegalArgument } from 'vs/base/common/errors';
+import { isPromiseCanceledError, illegalArgument } from 'vs/base/common/errors';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -52,9 +52,6 @@ export function rename(model: IReadOnlyModel, position: Position, newName: strin
 						rejects.push(result.rejectReason);
 					}
 					return undefined;
-				}, err => {
-					onUnexpectedExternalError(err);
-					return TPromise.wrapError<WorkspaceEdit>(new Error('provider failed'));
 				});
 			}
 			return undefined;
@@ -154,7 +151,7 @@ class RenameController implements IEditorContribution {
 
 			const renameOperation = rename(this.editor.getModel(), this.editor.getPosition(), newName).then(result => {
 				if (result.rejectReason) {
-					this._messageService.show(Severity.Error, result.rejectReason);
+					this._messageService.show(Severity.Info, result.rejectReason);
 					return undefined;
 				}
 				edit.add(result.edits);
