@@ -54,6 +54,7 @@ export class ExtensionLinter {
 	private timer: NodeJS.Timer;
 	private markdownIt: MarkdownItType.MarkdownIt;
 
+	// @ts-ignore unused property
 	constructor(private context: ExtensionContext) {
 		this.disposables.push(
 			workspace.onDidOpenTextDocument(document => this.queue(document)),

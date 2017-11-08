@@ -50,6 +50,7 @@ interface Settings {
 	};
 }
 
+// @ts-ignore unused type
 interface JSONSettings {
 	schemas: JSONSchemaSettings[];
 }
