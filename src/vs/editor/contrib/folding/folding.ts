@@ -8,7 +8,6 @@
 
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
-import * as dom from 'vs/base/browser/dom';
 import { RunOnceScheduler, Delayer } from 'vs/base/common/async';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -21,7 +20,7 @@ import { FoldingModel, setCollapseStateAtLevel, CollapseMemento, setCollapseStat
 import { FoldingDecorationProvider } from './foldingDecorations';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
-import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
+import { IMarginData, IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
 import { HiddenRangeModel } from 'vs/editor/contrib/folding/hiddenRangeModel';
 import { IRange } from 'vs/editor/common/core/range';
 
@@ -184,11 +183,11 @@ export class FoldingController {
 
 	private onHiddenRangesChanges(hiddenRanges: IRange[]) {
 		if (hiddenRanges.length) {
-		let selections = this.editor.getSelections();
+			let selections = this.editor.getSelections();
 			if (selections) {
-		if (this.hiddenRangeModel.adjustSelections(selections)) {
-			this.editor.setSelections(selections);
-		}
+				if (this.hiddenRangeModel.adjustSelections(selections)) {
+					this.editor.setSelections(selections);
+				}
 			}
 		}
 		this.editor.setHiddenAreas(hiddenRanges);
@@ -205,14 +204,14 @@ export class FoldingController {
 			if (foldingModel) {
 				let selections = this.editor.getSelections();
 				if (selections) {
-				for (let selection of selections) {
-					let lineNumber = selection.selectionStartLineNumber;
-					if (this.hiddenRangeModel.isHidden(lineNumber)) {
-						let toToggle = foldingModel.getAllRegionsAtLine(lineNumber, r => r.isCollapsed && lineNumber > r.startLineNumber);
-						foldingModel.toggleCollapseState(toToggle);
+					for (let selection of selections) {
+						let lineNumber = selection.selectionStartLineNumber;
+						if (this.hiddenRangeModel.isHidden(lineNumber)) {
+							let toToggle = foldingModel.getAllRegionsAtLine(lineNumber, r => r.isCollapsed && lineNumber > r.startLineNumber);
+							foldingModel.toggleCollapseState(toToggle);
+						}
 					}
 				}
-			}
 			}
 		});
 
@@ -244,21 +243,20 @@ export class FoldingController {
 				iconClicked = true;
 				break;
 			case MouseTargetType.CONTENT_EMPTY: {
-				let model = this.editor.getModel();
-				if (range.startColumn === model.getLineMaxColumn(range.startLineNumber)) {
-					let editorCoords = dom.getDomNodePagePosition(this.editor.getDomNode());
-					let pos = this.editor.getScrolledVisiblePosition(range.getEndPosition());
-					if (e.event.posy > editorCoords.top + pos.top + pos.height) {
-						return;
+				if (this.hiddenRangeModel.hasRanges()) {
+					const data = e.target.detail as IEmptyContentData;
+					if (!data.isAfterLines) {
+						break;
 					}
-					break;
 				}
 				return;
 			}
 			case MouseTargetType.CONTENT_TEXT: {
-				let model = this.editor.getModel();
-				if (range.startColumn === model.getLineMaxColumn(range.startLineNumber)) {
-					break;
+				if (this.hiddenRangeModel.hasRanges()) {
+					let model = this.editor.getModel();
+					if (range.startColumn === model.getLineMaxColumn(range.startLineNumber)) {
+						break;
+					}
 				}
 				return;
 			}
