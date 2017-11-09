@@ -10,8 +10,6 @@ import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingReso
 import { IContextKey, IContext, IContextKeyServiceTarget, IContextKeyService, SET_CONTEXT_COMMAND_ID, ContextKeyExpr, IContextKeyChangeEvent } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService, IConfigurationChangeEvent, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import Event, { Emitter, debounceEvent } from 'vs/base/common/event';
-import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/registry/common/platform';
 
 const KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
 
