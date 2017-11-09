@@ -704,7 +704,7 @@ export class FileFilter implements IFilter {
 	}
 
 	private doIsVisible(stat: FileStat): boolean {
-		if (stat instanceof NewStatPlaceholder) {
+		if (stat instanceof NewStatPlaceholder || stat.isRoot) {
 			return true; // always visible
 		}
 
