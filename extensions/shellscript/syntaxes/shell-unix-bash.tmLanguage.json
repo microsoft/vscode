@@ -1,24 +1,38 @@
 {
 	"information_for_contributors": [
-		"This file has been converted from https://github.com/textmate/shellscript.tmbundle/blob/master/Syntaxes/Shell-Unix-Bash.tmLanguage",
+		"This file has been converted from https://github.com/atom/language-shellscript/blob/master/grammars/shell-unix-bash.cson",
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/textmate/shellscript.tmbundle/commit/1c0cc0b904bb87b18b6987109e694f9d0058656d",
+	"version": "https://github.com/atom/language-shellscript/commit/f2cec59e541e3e10153a8e3e5e681baf139c81a3",
+	"scopeName": "source.shell",
+	"name": "Shell Script",
 	"fileTypes": [
 		"sh",
 		"bash",
+		"ksh",
 		"zsh",
+		"zsh-theme",
+		"zshenv",
+		"zlogin",
+		"zlogout",
+		"zprofile",
+		"zshrc",
 		"bashrc",
+		"bash_aliases",
 		"bash_profile",
 		"bash_login",
 		"profile",
 		"bash_logout",
-		".textmate_init"
+		".textmate_init",
+		"npmrc",
+		"PKGBUILD",
+		"install",
+		"cygport",
+		"bats",
+		"ebuild"
 	],
-	"firstLineMatch": "^#!.*\\b(bash|zsh|sh|tcsh)|^#.*-\\*-.*\\bshell-script\\b.*-\\*-",
-	"keyEquivalent": "^~S",
-	"name": "Shell Script (Bash)",
+	"firstLineMatch": "(?x)\n# Hashbang\n^\\#!.*(?:\\s|\\/)\n  (?:bash|zsh|sh|tcsh|ksh|dash|ash|csh|rc)\n(?:$|\\s)\n|\n# Modeline\n(?i:\n  # Emacs\n  -\\*-(?:\\s*(?=[^:;\\s]+\\s*-\\*-)|(?:.*?[;\\s]|(?<=-\\*-))mode\\s*:\\s*)\n    (?:shell-script|sh)\n  (?=[\\s;]|(?<![-*])-\\*-).*?-\\*-\n  |\n  # Vim\n  (?:(?:\\s|^)vi(?:m[<=>]?\\d+|m)?|\\sex)(?=:(?=\\s*set?\\s[^\\n:]+:)|:(?!\\s* set?\\s))(?:(?:\\s|\\s*:\\s*)\\w*(?:\\s*=(?:[^\\n\\\\\\s]|\\\\.)*)?)*[\\s:](?:filetype|ft|syntax)\\s*=\n    sh\n  (?=\\s|:|$)\n)",
 	"patterns": [
 		{
 			"include": "#comment"
@@ -64,9 +78,6 @@
 		},
 		{
 			"include": "#support"
-		},
-		{
-			"include": "#lines"
 		}
 	],
 	"repository": {
@@ -83,13 +94,18 @@
 					"name": "meta.scope.case-clause.shell",
 					"patterns": [
 						{
-							"begin": "(\\(|(?=\\S))",
-							"captures": {
+							"begin": "\\(|(?=\\S)",
+							"beginCaptures": {
 								"0": {
 									"name": "punctuation.definition.case-pattern.shell"
 								}
 							},
 							"end": "\\)",
+							"endCaptures": {
+								"0": {
+									"name": "punctuation.definition.case-pattern.shell"
+								}
+							},
 							"name": "meta.scope.case-pattern.shell",
 							"patterns": [
 								{
@@ -125,7 +141,7 @@
 			]
 		},
 		"comment": {
-			"begin": "(^[ \\t]+)?(?<!\\S)(?=#)(?!#\\{)",
+			"begin": "(^\\s+)?(?<=^|\\W)(?=#)(?!#{)",
 			"beginCaptures": {
 				"1": {
 					"name": "punctuation.whitespace.comment.leading.shell"
@@ -134,14 +150,14 @@
 			"end": "(?!\\G)",
 			"patterns": [
 				{
-					"begin": "^(#!)",
+					"begin": "#!",
 					"beginCaptures": {
-						"1": {
-							"name": "punctuation.definition.comment.line.shebang.shell"
+						"0": {
+							"name": "punctuation.definition.comment.shebang.shell"
 						}
 					},
-					"end": "\\n",
-					"name": "comment.line.shebang.shell"
+					"end": "$",
+					"name": "comment.line.number-sign.shebang.shell"
 				},
 				{
 					"begin": "#",
@@ -150,7 +166,7 @@
 							"name": "punctuation.definition.comment.shell"
 						}
 					},
-					"end": "\\n",
+					"end": "$",
 					"name": "comment.line.number-sign.shell"
 				}
 			]
@@ -158,13 +174,18 @@
 		"compound-command": {
 			"patterns": [
 				{
-					"begin": "(\\[{2})",
-					"captures": {
-						"1": {
+					"begin": "\\[{1,2}",
+					"beginCaptures": {
+						"0": {
 							"name": "punctuation.definition.logical-expression.shell"
 						}
 					},
-					"end": "(\\]{2})",
+					"end": "\\]{1,2}",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.logical-expression.shell"
+						}
+					},
 					"name": "meta.scope.logical-expression.shell",
 					"patterns": [
 						{
@@ -176,13 +197,13 @@
 					]
 				},
 				{
-					"begin": "(\\({2})",
+					"begin": "\\({2}",
 					"beginCaptures": {
 						"0": {
 							"name": "punctuation.definition.string.begin.shell"
 						}
 					},
-					"end": "(\\){2})",
+					"end": "\\){2}",
 					"endCaptures": {
 						"0": {
 							"name": "punctuation.definition.string.end.shell"
@@ -196,13 +217,18 @@
 					]
 				},
 				{
-					"begin": "(\\()",
-					"captures": {
-						"1": {
+					"begin": "\\(",
+					"beginCaptures": {
+						"0": {
 							"name": "punctuation.definition.subshell.shell"
 						}
 					},
-					"end": "(\\))",
+					"end": "\\)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.subshell.shell"
+						}
+					},
 					"name": "meta.scope.subshell.shell",
 					"patterns": [
 						{
@@ -211,13 +237,18 @@
 					]
 				},
 				{
-					"begin": "(?<=\\s|^)(\\{)(?=\\s|$)",
-					"captures": {
+					"begin": "(?<=\\s|^){(?=\\s|$)",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.group.shell"
+						}
+					},
+					"end": "(?<=^|;)\\s*(})",
+					"endCaptures": {
 						"1": {
 							"name": "punctuation.definition.group.shell"
 						}
 					},
-					"end": "(?<=^|;)\\s*(\\})",
 					"name": "meta.scope.group.shell",
 					"patterns": [
 						{
@@ -230,7 +261,7 @@
 		"function-definition": {
 			"patterns": [
 				{
-					"begin": "(?<=^|;|&)\\s*(function)\\s+([^\\s<>;'\"\\\\|$&()]+)(?:\\s*(\\(\\)))?",
+					"begin": "(?<=^|;|&|\\s)(function)\\s+([^\\s\\\\]+)(?:\\s*(\\(\\)))?",
 					"beginCaptures": {
 						"1": {
 							"name": "storage.type.function.shell"
@@ -242,7 +273,7 @@
 							"name": "punctuation.definition.arguments.shell"
 						}
 					},
-					"end": ";|&|\\n",
+					"end": ";|&|$",
 					"endCaptures": {
 						"0": {
 							"name": "punctuation.definition.function.shell"
@@ -256,7 +287,7 @@
 					]
 				},
 				{
-					"begin": "(?<=^|;|&)\\s*([^\\s<>;'\"\\\\|$&()]+)\\s*(\\(\\))",
+					"begin": "(?<=^|;|&|\\s)([^\\s\\\\=]+)\\s*(\\(\\))",
 					"beginCaptures": {
 						"1": {
 							"name": "entity.name.function.shell"
@@ -265,7 +296,7 @@
 							"name": "punctuation.definition.arguments.shell"
 						}
 					},
-					"end": ";|&|\\n",
+					"end": ";|&|$",
 					"endCaptures": {
 						"0": {
 							"name": "punctuation.definition.function.shell"
@@ -283,7 +314,7 @@
 		"heredoc": {
 			"patterns": [
 				{
-					"begin": "(<<)-\\s*(\"|'|)(RUBY)\\2",
+					"begin": "(<<)-(\"|'|)\\s*(RUBY)(?=\\s|;|&|<|\"|')\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -292,12 +323,6 @@
 							"name": "keyword.control.heredoc-token.shell"
 						}
 					},
-					"captures": {
-						"0": {
-							"name": "punctuation.definition.string.shell"
-						}
-					},
-					"contentName": "source.ruby.embedded.shell",
 					"end": "^\\t*(RUBY)(?=\\s|;|&|$)",
 					"endCaptures": {
 						"1": {
@@ -305,6 +330,7 @@
 						}
 					},
 					"name": "string.unquoted.heredoc.no-indent.ruby.shell",
+					"contentName": "source.ruby.embedded.shell",
 					"patterns": [
 						{
 							"include": "source.ruby"
@@ -312,7 +338,7 @@
 					]
 				},
 				{
-					"begin": "(<<)\\s*(\"|'|)(RUBY)\\2",
+					"begin": "(<<)(\"|'|)\\s*(RUBY)(?=\\s|;|&|<|\"|')\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -321,12 +347,6 @@
 							"name": "keyword.control.heredoc-token.shell"
 						}
 					},
-					"captures": {
-						"0": {
-							"name": "punctuation.definition.string.shell"
-						}
-					},
-					"contentName": "source.ruby.embedded.shell",
 					"end": "^(RUBY)(?=\\s|;|&|$)",
 					"endCaptures": {
 						"1": {
@@ -334,6 +354,7 @@
 						}
 					},
 					"name": "string.unquoted.heredoc.ruby.shell",
+					"contentName": "source.ruby.embedded.shell",
 					"patterns": [
 						{
 							"include": "source.ruby"
@@ -341,7 +362,7 @@
 					]
 				},
 				{
-					"begin": "(<<)-\\s*(\"|'|)(PYTHON)\\2",
+					"begin": "(<<)-(\"|'|)\\s*(PYTHON)(?=\\s|;|&|<|\"|')\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -350,12 +371,6 @@
 							"name": "keyword.control.heredoc-token.shell"
 						}
 					},
-					"captures": {
-						"0": {
-							"name": "punctuation.definition.string.shell"
-						}
-					},
-					"contentName": "source.python.embedded.shell",
 					"end": "^\\t*(PYTHON)(?=\\s|;|&|$)",
 					"endCaptures": {
 						"1": {
@@ -363,6 +378,7 @@
 						}
 					},
 					"name": "string.unquoted.heredoc.no-indent.python.shell",
+					"contentName": "source.python.embedded.shell",
 					"patterns": [
 						{
 							"include": "source.python"
@@ -370,7 +386,7 @@
 					]
 				},
 				{
-					"begin": "(<<)\\s*(\"|'|)(PYTHON)\\2",
+					"begin": "(<<)(\"|'|)\\s*(PYTHON)(?=\\s|;|&|<|\"|')\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -379,12 +395,6 @@
 							"name": "keyword.control.heredoc-token.shell"
 						}
 					},
-					"captures": {
-						"0": {
-							"name": "punctuation.definition.string.shell"
-						}
-					},
-					"contentName": "source.python.embedded.shell",
 					"end": "^(PYTHON)(?=\\s|;|&|$)",
 					"endCaptures": {
 						"1": {
@@ -392,6 +402,7 @@
 						}
 					},
 					"name": "string.unquoted.heredoc.python.shell",
+					"contentName": "source.python.embedded.shell",
 					"patterns": [
 						{
 							"include": "source.python"
@@ -399,7 +410,7 @@
 					]
 				},
 				{
-					"begin": "(<<)-\\s*(\"|'|)(APPLESCRIPT)\\2",
+					"begin": "(<<)-(\"|'|)\\s*(APPLESCRIPT)(?=\\s|;|&|<|\"|')\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -408,12 +419,6 @@
 							"name": "keyword.control.heredoc-token.shell"
 						}
 					},
-					"captures": {
-						"0": {
-							"name": "punctuation.definition.string.shell"
-						}
-					},
-					"contentName": "source.applescript.embedded.shell",
 					"end": "^\\t*(APPLESCRIPT)(?=\\s|;|&|$)",
 					"endCaptures": {
 						"1": {
@@ -421,6 +426,7 @@
 						}
 					},
 					"name": "string.unquoted.heredoc.no-indent.applescript.shell",
+					"contentName": "source.applescript.embedded.shell",
 					"patterns": [
 						{
 							"include": "source.applescript"
@@ -428,7 +434,7 @@
 					]
 				},
 				{
-					"begin": "(<<)\\s*(\"|'|)(APPLESCRIPT)\\2",
+					"begin": "(<<)(\"|'|)\\s*(APPLESCRIPT)(?=\\s|;|&|<|\"|')\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -437,12 +443,6 @@
 							"name": "keyword.control.heredoc-token.shell"
 						}
 					},
-					"captures": {
-						"0": {
-							"name": "punctuation.definition.string.shell"
-						}
-					},
-					"contentName": "source.applescript.embedded.shell",
 					"end": "^(APPLESCRIPT)(?=\\s|;|&|$)",
 					"endCaptures": {
 						"1": {
@@ -450,6 +450,7 @@
 						}
 					},
 					"name": "string.unquoted.heredoc.applescript.shell",
+					"contentName": "source.applescript.embedded.shell",
 					"patterns": [
 						{
 							"include": "source.applescript"
@@ -457,7 +458,7 @@
 					]
 				},
 				{
-					"begin": "(<<)-\\s*(\"|'|)(HTML)\\2",
+					"begin": "(<<)-(\"|'|)\\s*(HTML)(?=\\s|;|&|<|\"|')\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -466,12 +467,6 @@
 							"name": "keyword.control.heredoc-token.shell"
 						}
 					},
-					"captures": {
-						"0": {
-							"name": "punctuation.definition.string.shell"
-						}
-					},
-					"contentName": "text.html.embedded.shell",
 					"end": "^\\t*(HTML)(?=\\s|;|&|$)",
 					"endCaptures": {
 						"1": {
@@ -479,6 +474,7 @@
 						}
 					},
 					"name": "string.unquoted.heredoc.no-indent.html.shell",
+					"contentName": "text.html.embedded.shell",
 					"patterns": [
 						{
 							"include": "text.html.basic"
@@ -486,7 +482,7 @@
 					]
 				},
 				{
-					"begin": "(<<)\\s*(\"|'|)(HTML)\\2",
+					"begin": "(<<)(\"|'|)\\s*(HTML)(?=\\s|;|&|<|\"|')\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -495,12 +491,6 @@
 							"name": "keyword.control.heredoc-token.shell"
 						}
 					},
-					"captures": {
-						"0": {
-							"name": "punctuation.definition.string.shell"
-						}
-					},
-					"contentName": "text.html.embedded.shell",
 					"end": "^(HTML)(?=\\s|;|&|$)",
 					"endCaptures": {
 						"1": {
@@ -508,6 +498,7 @@
 						}
 					},
 					"name": "string.unquoted.heredoc.html.shell",
+					"contentName": "text.html.embedded.shell",
 					"patterns": [
 						{
 							"include": "text.html.basic"
@@ -515,7 +506,7 @@
 					]
 				},
 				{
-					"begin": "(<<)-\\s*(\"|'|)(MARKDOWN)\\2",
+					"begin": "(<<)-(\"|'|)\\s*(MARKDOWN)(?=\\s|;|&|<|\"|')\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -524,12 +515,6 @@
 							"name": "keyword.control.heredoc-token.shell"
 						}
 					},
-					"captures": {
-						"0": {
-							"name": "punctuation.definition.string.shell"
-						}
-					},
-					"contentName": "text.html.markdown.embedded.shell",
 					"end": "^\\t*(MARKDOWN)(?=\\s|;|&|$)",
 					"endCaptures": {
 						"1": {
@@ -537,6 +522,7 @@
 						}
 					},
 					"name": "string.unquoted.heredoc.no-indent.markdown.shell",
+					"contentName": "text.html.markdown.embedded.shell",
 					"patterns": [
 						{
 							"include": "text.html.markdown"
@@ -544,7 +530,7 @@
 					]
 				},
 				{
-					"begin": "(<<)\\s*(\"|'|)(MARKDOWN)\\2",
+					"begin": "(<<)(\"|'|)\\s*(MARKDOWN)(?=\\s|;|&|<|\"|')\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -553,12 +539,6 @@
 							"name": "keyword.control.heredoc-token.shell"
 						}
 					},
-					"captures": {
-						"0": {
-							"name": "punctuation.definition.string.shell"
-						}
-					},
-					"contentName": "text.html.markdown.embedded.shell",
 					"end": "^(MARKDOWN)(?=\\s|;|&|$)",
 					"endCaptures": {
 						"1": {
@@ -566,6 +546,7 @@
 						}
 					},
 					"name": "string.unquoted.heredoc.markdown.shell",
+					"contentName": "text.html.markdown.embedded.shell",
 					"patterns": [
 						{
 							"include": "text.html.markdown"
@@ -573,7 +554,7 @@
 					]
 				},
 				{
-					"begin": "(<<)-\\s*(\"|'|)(TEXTILE)\\2",
+					"begin": "(<<)-(\"|'|)\\s*(TEXTILE)(?=\\s|;|&|<|\"|')\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -582,12 +563,6 @@
 							"name": "keyword.control.heredoc-token.shell"
 						}
 					},
-					"captures": {
-						"0": {
-							"name": "punctuation.definition.string.shell"
-						}
-					},
-					"contentName": "text.html.textile.embedded.shell",
 					"end": "^\\t*(TEXTILE)(?=\\s|;|&|$)",
 					"endCaptures": {
 						"1": {
@@ -595,6 +570,7 @@
 						}
 					},
 					"name": "string.unquoted.heredoc.no-indent.textile.shell",
+					"contentName": "text.html.textile.embedded.shell",
 					"patterns": [
 						{
 							"include": "text.html.textile"
@@ -602,7 +578,7 @@
 					]
 				},
 				{
-					"begin": "(<<)\\s*(\"|'|)(TEXTILE)\\2",
+					"begin": "(<<)(\"|'|)\\s*(TEXTILE)(?=\\s|;|&|<|\"|')\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -611,12 +587,6 @@
 							"name": "keyword.control.heredoc-token.shell"
 						}
 					},
-					"captures": {
-						"0": {
-							"name": "punctuation.definition.string.shell"
-						}
-					},
-					"contentName": "text.html.textile.embedded.shell",
 					"end": "^(TEXTILE)(?=\\s|;|&|$)",
 					"endCaptures": {
 						"1": {
@@ -624,6 +594,7 @@
 						}
 					},
 					"name": "string.unquoted.heredoc.textile.shell",
+					"contentName": "text.html.textile.embedded.shell",
 					"patterns": [
 						{
 							"include": "text.html.textile"
@@ -631,7 +602,7 @@
 					]
 				},
 				{
-					"begin": "(<<)-\\s*(\"|'|)\\\\?(\\w+)\\2",
+					"begin": "(<<)-(\"|'|)\\s*(SHELL)(?=\\s|;|&|<|\"|')\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
@@ -640,9 +611,52 @@
 							"name": "keyword.control.heredoc-token.shell"
 						}
 					},
-					"captures": {
-						"0": {
-							"name": "punctuation.definition.string.shell"
+					"end": "^\\t*(\\3)(?=\\s|;|&|$)",
+					"endCaptures": {
+						"1": {
+							"name": "keyword.control.heredoc-token.shell"
+						}
+					},
+					"contentName": "source.shell.embedded.shell",
+					"name": "string.unquoted.heredoc.no-indent.shell.shell",
+					"patterns": [
+						{
+							"include": "source.shell"
+						}
+					]
+				},
+				{
+					"begin": "(<<)(\"|'|)\\s*(SHELL)(?=\\s|;|&|<|\"|')\\2",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.operator.heredoc.shell"
+						},
+						"3": {
+							"name": "keyword.control.heredoc-token.shell"
+						}
+					},
+					"end": "^(\\3)(?=\\s|;|&|$)",
+					"endCaptures": {
+						"1": {
+							"name": "keyword.control.heredoc-token.shell"
+						}
+					},
+					"name": "string.unquoted.heredoc.shell.shell",
+					"contentName": "source.shell.embedded.shell",
+					"patterns": [
+						{
+							"include": "source.shell"
+						}
+					]
+				},
+				{
+					"begin": "(<<)-(\"|'|)\\s*\\\\?([^;&<\\s]+)\\2",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.operator.heredoc.shell"
+						},
+						"3": {
+							"name": "keyword.control.heredoc-token.shell"
 						}
 					},
 					"end": "^\\t*(\\3)(?=\\s|;|&|$)",
@@ -654,18 +668,13 @@
 					"name": "string.unquoted.heredoc.no-indent.shell"
 				},
 				{
-					"begin": "(<<)\\s*(\"|'|)\\\\?(\\w+)\\2",
+					"begin": "(<<)(\"|'|)\\s*\\\\?([^;&<\\s]+)\\2",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.heredoc.shell"
 						},
 						"3": {
 							"name": "keyword.control.heredoc-token.shell"
-						}
-					},
-					"captures": {
-						"0": {
-							"name": "punctuation.definition.string.shell"
 						}
 					},
 					"end": "^(\\3)(?=\\s|;|&|$)",
@@ -681,22 +690,54 @@
 		"herestring": {
 			"patterns": [
 				{
-					"captures": {
+					"begin": "(<<<)\\s*(('))",
+					"beginCaptures": {
 						"1": {
 							"name": "keyword.operator.herestring.shell"
 						},
 						"2": {
-							"name": "string.quoted.single.herestring.shell"
+							"name": "string.quoted.single.shell"
 						},
 						"3": {
 							"name": "punctuation.definition.string.begin.shell"
+						}
+					},
+					"end": "(')",
+					"endCaptures": {
+						"0": {
+							"name": "string.quoted.single.shell"
 						},
-						"4": {
+						"1": {
 							"name": "punctuation.definition.string.end.shell"
 						}
 					},
-					"match": "(<<<)\\s*((')[^']*('))",
-					"name": "meta.herestring.shell"
+					"name": "meta.herestring.shell",
+					"contentName": "string.quoted.single.shell"
+				},
+				{
+					"begin": "(<<<)\\s*((\"))",
+					"beginCaptures": {
+						"1": {
+							"name": "keyword.operator.herestring.shell"
+						},
+						"2": {
+							"name": "string.quoted.double.shell"
+						},
+						"3": {
+							"name": "punctuation.definition.string.begin.shell"
+						}
+					},
+					"end": "(\")",
+					"endCaptures": {
+						"0": {
+							"name": "string.quoted.double.shell"
+						},
+						"1": {
+							"name": "punctuation.definition.string.end.shell"
+						}
+					},
+					"name": "meta.herestring.shell",
+					"contentName": "string.quoted.double.shell"
 				},
 				{
 					"captures": {
@@ -704,25 +745,12 @@
 							"name": "keyword.operator.herestring.shell"
 						},
 						"2": {
-							"name": "string.quoted.double.herestring.shell"
-						},
-						"3": {
-							"name": "punctuation.definition.string.begin.shell"
-						},
-						"6": {
-							"name": "punctuation.definition.string.end.shell"
-						}
-					},
-					"match": "(<<<)\\s*((\")(\\\\(\"|\\\\)|[^\"])*(\"))",
-					"name": "meta.herestring.shell"
-				},
-				{
-					"captures": {
-						"1": {
-							"name": "keyword.operator.herestring.shell"
-						},
-						"2": {
-							"name": "string.unquoted.herestring.shell"
+							"name": "string.unquoted.herestring.shell",
+							"patterns": [
+								{
+									"include": "$self"
+								}
+							]
 						}
 					},
 					"match": "(<<<)\\s*(([^\\s\\\\]|\\\\.)+)",
@@ -772,14 +800,25 @@
 							"name": "constant.character.escape.shell"
 						},
 						{
-							"begin": "(?<=^|;|&|\\s|`)(#)(?!\\{)",
+							"begin": "(?<=\\W)(?=#)(?!#{)",
 							"beginCaptures": {
 								"1": {
-									"name": "punctuation.definition.comment.shell"
+									"name": "punctuation.whitespace.comment.leading.shell"
 								}
 							},
-							"end": "(?=`)|\\n",
-							"name": "comment.line.number-sign.shell"
+							"end": "(?!\\G)",
+							"patterns": [
+								{
+									"begin": "#",
+									"beginCaptures": {
+										"0": {
+											"name": "punctuation.definition.comment.shell"
+										}
+									},
+									"end": "(?=`)",
+									"name": "comment.line.number-sign.shell"
+								}
+							]
 						},
 						{
 							"include": "$self"
@@ -802,16 +841,6 @@
 					"name": "string.interpolated.dollar.shell",
 					"patterns": [
 						{
-							"begin": "(?<=^|;|&|\\s|\\()(#)(?!\\{)",
-							"beginCaptures": {
-								"1": {
-									"name": "punctuation.definition.comment.shell"
-								}
-							},
-							"end": "(?=\\))|\\n",
-							"name": "comment.line.number-sign.shell"
-						},
-						{
 							"include": "$self"
 						}
 					]
@@ -821,20 +850,12 @@
 		"keyword": {
 			"patterns": [
 				{
-					"match": "(?<=^|;|&|\\s)(?:if|then|else|elif|fi|for|in|do|done|select|case|continue|esac|while|until|return|coproc)(?=\\s|;|&|$)",
+					"match": "(?<=^|;|&|\\s)(then|else|elif|fi|for|in|do|done|select|case|continue|esac|while|until|return)(?=\\s|;|&|$)",
 					"name": "keyword.control.shell"
 				},
 				{
 					"match": "(?<=^|;|&|\\s)(?:export|declare|typeset|local|readonly)(?=\\s|;|&|$)",
 					"name": "storage.modifier.shell"
-				}
-			]
-		},
-		"lines": {
-			"patterns": [
-				{
-					"match": "\\\\\\n",
-					"name": "constant.character.escape.newline.shell"
 				}
 			]
 		},
@@ -863,12 +884,17 @@
 			"patterns": [
 				{
 					"begin": "(?<=^|;|&|\\s)(for)\\s+(?=\\({2})",
-					"captures": {
+					"beginCaptures": {
 						"1": {
 							"name": "keyword.control.shell"
 						}
 					},
-					"end": "(?<=^|;|&|\\s)(done)(?=\\s|;|&|$|\\))",
+					"end": "(?<=^|;|&|\\s)done(?=\\s|;|&|$)",
+					"endCaptures": {
+						"0": {
+							"name": "keyword.control.shell"
+						}
+					},
 					"name": "meta.scope.for-loop.shell",
 					"patterns": [
 						{
@@ -877,18 +903,26 @@
 					]
 				},
 				{
-					"begin": "(?<=^|;|&|\\s)(for)\\s+([^\\s\\\\]+)(?=\\s|;|&|$)",
+					"begin": "(?<=^|;|&|\\s)(for)\\s+(.+?)\\s+(in)(?=\\s|;|&|$)",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.control.shell"
 						},
 						"2": {
-							"name": "variable.other.loop.shell"
+							"name": "variable.other.loop.shell",
+							"patterns": [
+								{
+									"include": "#string"
+								}
+							]
+						},
+						"3": {
+							"name": "keyword.control.shell"
 						}
 					},
-					"end": "(?<=^|;|&|\\s)(done)(?=\\s|;|&|$|\\))",
+					"end": "(?<=^|;|&|\\s)done(?=\\s|;|&|$)",
 					"endCaptures": {
-						"1": {
+						"0": {
 							"name": "keyword.control.shell"
 						}
 					},
@@ -901,12 +935,17 @@
 				},
 				{
 					"begin": "(?<=^|;|&|\\s)(while|until)(?=\\s|;|&|$)",
-					"captures": {
+					"beginCaptures": {
 						"1": {
 							"name": "keyword.control.shell"
 						}
 					},
-					"end": "(?<=^|;|&|\\s)(done)(?=\\s|;|&|$|\\))",
+					"end": "(?<=^|;|&|\\s)done(?=\\s|;|&|$)",
+					"endCaptures": {
+						"0": {
+							"name": "keyword.control.shell"
+						}
+					},
 					"name": "meta.scope.while-loop.shell",
 					"patterns": [
 						{
@@ -915,7 +954,7 @@
 					]
 				},
 				{
-					"begin": "(?<=^|;|&|\\s)(select)\\s+([^\\s\\\\]+)(?=\\s|;|&|$)",
+					"begin": "(?<=^|;|&|\\s)(select)\\s+((?:[^\\s\\\\]|\\\\.)+)(?=\\s|;|&|$)",
 					"beginCaptures": {
 						"1": {
 							"name": "keyword.control.shell"
@@ -924,7 +963,7 @@
 							"name": "variable.other.loop.shell"
 						}
 					},
-					"end": "(?<=^|;|&|\\s)(done)(?=\\s|;|&|$|\\))",
+					"end": "(?<=^|;|&|\\s)(done)(?=\\s|;|&|$)",
 					"endCaptures": {
 						"1": {
 							"name": "keyword.control.shell"
@@ -938,23 +977,28 @@
 					]
 				},
 				{
-					"begin": "(?<=^|;|&|\\s)(case)(?=\\s|;|&|$)",
-					"captures": {
-						"1": {
+					"begin": "(?<=^|;|&|\\s)case(?=\\s|;|&|$)",
+					"beginCaptures": {
+						"0": {
 							"name": "keyword.control.shell"
 						}
 					},
-					"end": "(?<=^|;|&|\\s)(esac)(?=\\s|;|&|$|\\))",
+					"end": "(?<=^|;|&|\\s)esac(?=\\s|;|&|$)",
+					"endCaptures": {
+						"0": {
+							"name": "keyword.control.shell"
+						}
+					},
 					"name": "meta.scope.case-block.shell",
 					"patterns": [
 						{
-							"begin": "(?<=^|;|&|\\s)(?:in)(?=\\s|;|&|$)",
+							"begin": "(?<=^|;|&|\\s)in(?=\\s|;|&|$)",
 							"beginCaptures": {
-								"1": {
+								"0": {
 									"name": "keyword.control.shell"
 								}
 							},
-							"end": "(?<=^|;|&|\\s)(?=(?:esac)(?:\\s|;|&|$|\\)))",
+							"end": "(?<=^|;|&|\\s)(?=esac(\\s|;|&|$))",
 							"name": "meta.scope.case-body.shell",
 							"patterns": [
 								{
@@ -974,16 +1018,15 @@
 					]
 				},
 				{
-					"begin": "(^|(?<=[&;|]))\\s*(if)(?=\\s|;|&|$)",
+					"begin": "(?<=^|;|&|\\s)if(?=\\s|;|&|$)",
 					"beginCaptures": {
-						"2": {
+						"0": {
 							"name": "keyword.control.shell"
 						}
 					},
-					"comment": "Restrict match to avoid matching in lines like `dd if=/dev/sda1 …`",
-					"end": "(?<=^|;|&|\\s)(fi)(?=\\s|;|&|$|\\))",
+					"end": "(?<=^|;|&|\\s)fi(?=\\s|;|&|$)",
 					"endCaptures": {
-						"1": {
+						"0": {
 							"name": "keyword.control.shell"
 						}
 					},
@@ -1002,11 +1045,11 @@
 					"include": "#variable"
 				},
 				{
-					"match": "\\+{1,2}|-{1,2}|!|~|\\*{1,2}|/|%|<[<=]?|>[>=]?|==|!=|\\^|\\|{1,2}|&{1,2}|\\?|\\:|,|=|[*/%+\\-&^|]=|<<=|>>=",
+					"match": "\\+{1,2}|-{1,2}|!|~|\\*{1,2}|/|%|<[<=]?|>[>=]?|==|!=|^|\\|{1,2}|&{1,2}|\\?|\\:|,|=|[*/%+\\-&^|]=|<<=|>>=",
 					"name": "keyword.operator.arithmetic.shell"
 				},
 				{
-					"match": "0[xX]\\h+",
+					"match": "0[xX][0-9A-Fa-f]+",
 					"name": "constant.numeric.hex.shell"
 				},
 				{
@@ -1043,9 +1086,9 @@
 							"name": "punctuation.definition.extglob.shell"
 						}
 					},
-					"end": "(\\))",
+					"end": "\\)",
 					"endCaptures": {
-						"1": {
+						"0": {
 							"name": "punctuation.definition.extglob.shell"
 						}
 					},
@@ -1093,8 +1136,7 @@
 					]
 				},
 				{
-					"comment": "valid: &>word >&word >word [n]>&[n] [n]<word [n]>word [n]>>word [n]<&word (last one is duplicate)",
-					"match": "&>|\\d*>&\\d*|\\d*(>>|>|<)|\\d*<&|\\d*<>",
+					"match": "(?<![<>])(&>|\\d*>&\\d*|\\d*(>>|>|<)|\\d*<&|\\d*<>)(?![<>])",
 					"name": "keyword.operator.redirect.shell"
 				}
 			]
@@ -1189,7 +1231,7 @@
 					"name": "support.function.builtin.shell"
 				},
 				{
-					"match": "(?<=^|;|&|\\s)(?:alias|bg|bind|break|builtin|caller|cd|command|compgen|complete|dirs|disown|echo|enable|eval|exec|exit|false|fc|fg|getopts|hash|help|history|jobs|kill|let|logout|mapfile|popd|printf|pushd|pwd|read(array)?|readonly|set|shift|shopt|source|suspend|test|times|trap|true|type|ulimit|umask|unalias|unset|wait)(?=\\s|;|&|$)",
+					"match": "(?<=^|;|&|\\s)(?:alias|bg|bind|break|builtin|caller|cd|command|compgen|complete|dirs|disown|echo|enable|eval|exec|exit|false|fc|fg|getopts|hash|help|history|jobs|kill|let|logout|popd|printf|pushd|pwd|read|readonly|set|shift|shopt|source|suspend|test|times|trap|true|type|ulimit|umask|unalias|unset|wait)(?=\\s|;|&|$)",
 					"name": "support.function.builtin.shell"
 				}
 			]
@@ -1224,17 +1266,22 @@
 					"name": "variable.other.positional.shell"
 				},
 				{
-					"begin": "\\$\\{",
-					"captures": {
+					"begin": "\\${",
+					"beginCaptures": {
 						"0": {
 							"name": "punctuation.definition.variable.shell"
 						}
 					},
-					"end": "\\}",
+					"end": "}",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.variable.shell"
+						}
+					},
 					"name": "variable.other.bracket.shell",
 					"patterns": [
 						{
-							"match": "!|:[-=?+]?|\\*|@|#{1,2}|%{1,2}|/",
+							"match": "!|:[-=?]?|\\*|@|#{1,2}|%{1,2}|/",
 							"name": "keyword.operator.expansion.shell"
 						},
 						{
@@ -1249,19 +1296,14 @@
 							"match": "(\\[)([^\\]]+)(\\])"
 						},
 						{
-							"include": "#string"
-						},
-						{
 							"include": "#variable"
 						},
 						{
-							"include": "#interpolation"
+							"include": "#string"
 						}
 					]
 				}
 			]
 		}
-	},
-	"scopeName": "source.shell",
-	"uuid": "DDEEA3ED-6B1C-11D9-8B10-000D93589AF6"
+	}
 }
