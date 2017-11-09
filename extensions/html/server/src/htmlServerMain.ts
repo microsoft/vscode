@@ -39,7 +39,7 @@ let documents: TextDocuments = new TextDocuments();
 // for open, change and close text document events
 documents.listen(connection);
 
-let workspacePath: string;
+let workspacePath: string | undefined | null;
 var languageModes: LanguageModes;
 
 let clientSnippetSupport = false;
@@ -53,7 +53,7 @@ documents.onDidClose(e => {
 	delete documentSettings[e.document.uri];
 });
 
-function getDocumentSettings(textDocument: TextDocument, needsDocumentSettings: () => boolean): Thenable<Settings> {
+function getDocumentSettings(textDocument: TextDocument, needsDocumentSettings: () => boolean): Thenable<Settings | undefined> {
 	if (scopedSettingsSupport && needsDocumentSettings()) {
 		let promise = documentSettings[textDocument.uri];
 		if (!promise) {
@@ -83,7 +83,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	});
 
 	function hasClientCapability(...keys: string[]) {
-		let c = params.capabilities;
+		let c = <any>params.capabilities;
 		for (let i = 0; c && i < keys.length; i++) {
 			c = c[keys[i]];
 		}
@@ -96,7 +96,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	let capabilities: ServerCapabilities & CPServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
 		textDocumentSync: documents.syncKind,
-		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['.', ':', '<', '"', '=', '/', '>'] } : null,
+		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['.', ':', '<', '"', '=', '/', '>'] } : undefined,
 		hoverProvider: true,
 		documentHighlightProvider: true,
 		documentRangeFormattingProvider: false,
@@ -111,7 +111,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	return { capabilities };
 });
 
-let formatterRegistration: Thenable<Disposable> = null;
+let formatterRegistration: Thenable<Disposable> | null = null;
 
 // The settings have changed. Is send on server activation as well.
 connection.onDidChangeConfiguration((change) => {
@@ -198,11 +198,12 @@ connection.onCompletion(async textDocumentPosition => {
 	let document = documents.get(textDocumentPosition.textDocument.uri);
 	let mode = languageModes.getModeAtPosition(document, textDocumentPosition.position);
 	if (mode && mode.doComplete) {
+		let doComplete = mode.doComplete;
 		if (mode.getId() !== 'html') {
 			connection.telemetry.logEvent({ key: 'html.embbedded.complete', value: { languageId: mode.getId() } });
 		}
-		let settings = await getDocumentSettings(document, () => mode.doComplete.length > 2);
-		return mode.doComplete(document, textDocumentPosition.position, settings);
+		let settings = await getDocumentSettings(document, () => doComplete.length > 2);
+		return doComplete(document, textDocumentPosition.position, settings);
 	}
 	return { isIncomplete: true, items: [] };
 });

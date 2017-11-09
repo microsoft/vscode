@@ -31,7 +31,7 @@ suite('HTML Javascript Support', () => {
 		let list = mode.doComplete!(document, position);
 		assert.ok(list);
 
-		let actualLabels = list.items.map(c => c.label).sort();
+		let actualLabels = list!.items.map(c => c.label).sort();
 		for (let expected of expectedProposals) {
 			assert.ok(actualLabels.indexOf(expected) !== -1, 'Not found:' + expected + ' is ' + actualLabels.join(', '));
 		}

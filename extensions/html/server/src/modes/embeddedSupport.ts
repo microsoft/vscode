@@ -28,8 +28,8 @@ interface EmbeddedRegion { languageId: string; start: number; end: number; attri
 export function getDocumentRegions(languageService: LanguageService, document: TextDocument): HTMLDocumentRegions {
 	let regions: EmbeddedRegion[] = [];
 	let scanner = languageService.createScanner(document.getText());
-	let lastTagName: string;
-	let lastAttributeName: string | null;
+	let lastTagName: string = '';
+	let lastAttributeName: string | null = null;
 	let languageIdFromType: string | undefined = undefined;
 	let importedScripts: string[] = [];
 
@@ -45,7 +45,7 @@ export function getDocumentRegions(languageService: LanguageService, document: T
 				regions.push({ languageId: 'css', start: scanner.getTokenOffset(), end: scanner.getTokenEnd() });
 				break;
 			case TokenType.Script:
-				regions.push({ languageId: languageIdFromType, start: scanner.getTokenOffset(), end: scanner.getTokenEnd() });
+				regions.push({ languageId: languageIdFromType!, start: scanner.getTokenOffset(), end: scanner.getTokenEnd() });
 				break;
 			case TokenType.AttributeName:
 				lastAttributeName = scanner.getTokenText();
@@ -64,7 +64,7 @@ export function getDocumentRegions(languageService: LanguageService, document: T
 						languageIdFromType = void 0;
 					}
 				} else {
-					let attributeLanguageId = getAttributeLanguage(lastAttributeName);
+					let attributeLanguageId = getAttributeLanguage(lastAttributeName!);
 					if (attributeLanguageId) {
 						let start = scanner.getTokenOffset();
 						let end = scanner.getTokenEnd();

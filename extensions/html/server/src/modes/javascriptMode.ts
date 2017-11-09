@@ -118,7 +118,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			}
 			return item;
 		},
-		doHover(document: TextDocument, position: Position): Hover {
+		doHover(document: TextDocument, position: Position): Hover | null {
 			updateCurrentTextDocument(document);
 			let info = jsLanguageService.getQuickInfoAtPosition(FILE_NAME, currentTextDocument.offsetAt(position));
 			if (info) {
@@ -130,7 +130,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			}
 			return null;
 		},
-		doSignatureHelp(document: TextDocument, position: Position): SignatureHelp {
+		doSignatureHelp(document: TextDocument, position: Position): SignatureHelp | null {
 			updateCurrentTextDocument(document);
 			let signHelp = jsLanguageService.getSignatureHelpItems(FILE_NAME, currentTextDocument.offsetAt(position));
 			if (signHelp) {
@@ -155,7 +155,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 							documentation: ts.displayPartsToString(p.documentation)
 						};
 						signature.label += label;
-						signature.parameters.push(parameter);
+						signature.parameters!.push(parameter);
 						if (i < a.length - 1) {
 							signature.label += ts.displayPartsToString(item.separatorDisplayParts);
 						}
@@ -178,7 +178,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 					};
 				});
 			}
-			return null;
+			return [];
 		},
 		findDocumentSymbols(document: TextDocument): SymbolInformation[] {
 			updateCurrentTextDocument(document);
@@ -214,9 +214,9 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 				items.forEach(item => collectSymbols(item));
 				return result;
 			}
-			return null;
+			return [];
 		},
-		findDefinition(document: TextDocument, position: Position): Definition {
+		findDefinition(document: TextDocument, position: Position): Definition | null {
 			updateCurrentTextDocument(document);
 			let definition = jsLanguageService.getDefinitionAtPosition(FILE_NAME, currentTextDocument.offsetAt(position));
 			if (definition) {
@@ -240,7 +240,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 					};
 				});
 			}
-			return null;
+			return [];
 		},
 		format(document: TextDocument, range: Range, formatParams: FormattingOptions, settings: Settings = globalSettings): TextEdit[] {
 			currentTextDocument = documentRegions.get(document).getEmbeddedDocument('javascript', true);
@@ -276,7 +276,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 				}
 				return result;
 			}
-			return null;
+			return [];
 		},
 		onDocumentRemoved(document: TextDocument) {
 			jsDocuments.onDocumentRemoved(document);

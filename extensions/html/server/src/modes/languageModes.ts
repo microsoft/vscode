@@ -34,29 +34,29 @@ export interface LanguageMode {
 	getId(): string;
 	configure?: (options: Settings) => void;
 	doValidation?: (document: TextDocument, settings?: Settings) => Diagnostic[];
-	doComplete?: (document: TextDocument, position: Position, settings?: Settings) => CompletionList;
-	doResolve?: (document: TextDocument, item: CompletionItem) => CompletionItem;
-	doHover?: (document: TextDocument, position: Position) => Hover;
-	doSignatureHelp?: (document: TextDocument, position: Position) => SignatureHelp;
+	doComplete?: (document: TextDocument, position: Position, settings?: Settings) => CompletionList | null;
+	doResolve?: (document: TextDocument, item: CompletionItem) => CompletionItem | null;
+	doHover?: (document: TextDocument, position: Position) => Hover | null;
+	doSignatureHelp?: (document: TextDocument, position: Position) => SignatureHelp | null;
 	findDocumentHighlight?: (document: TextDocument, position: Position) => DocumentHighlight[];
 	findDocumentSymbols?: (document: TextDocument) => SymbolInformation[];
 	findDocumentLinks?: (document: TextDocument, documentContext: DocumentContext) => DocumentLink[];
-	findDefinition?: (document: TextDocument, position: Position) => Definition;
+	findDefinition?: (document: TextDocument, position: Position) => Definition | null;
 	findReferences?: (document: TextDocument, position: Position) => Location[];
 	format?: (document: TextDocument, range: Range, options: FormattingOptions, settings: Settings) => TextEdit[];
 	findDocumentColors?: (document: TextDocument) => ColorInformation[];
 	getColorPresentations?: (document: TextDocument, color: Color, range: Range) => ColorPresentation[];
-	doAutoClose?: (document: TextDocument, position: Position) => string;
+	doAutoClose?: (document: TextDocument, position: Position) => string | null;
 	onDocumentRemoved(document: TextDocument): void;
 	dispose(): void;
 }
 
 export interface LanguageModes {
-	getModeAtPosition(document: TextDocument, position: Position): LanguageMode;
+	getModeAtPosition(document: TextDocument, position: Position): LanguageMode | undefined;
 	getModesInRange(document: TextDocument, range: Range): LanguageModeRange[];
 	getAllModes(): LanguageMode[];
 	getAllModesInDocument(document: TextDocument): LanguageMode[];
-	getMode(languageId: string): LanguageMode;
+	getMode(languageId: string): LanguageMode | undefined;
 	onDocumentRemoved(document: TextDocument): void;
 	dispose(): void;
 }
@@ -83,12 +83,12 @@ export function getLanguageModes(supportedLanguages: { [languageId: string]: boo
 		modes['javascript'] = getJavascriptMode(documentRegions);
 	}
 	return {
-		getModeAtPosition(document: TextDocument, position: Position): LanguageMode {
+		getModeAtPosition(document: TextDocument, position: Position): LanguageMode | undefined {
 			let languageId = documentRegions.get(document).getLanguageAtPosition(position);
 			if (languageId) {
 				return modes[languageId];
 			}
-			return null;
+			return void 0;
 		},
 		getModesInRange(document: TextDocument, range: Range): LanguageModeRange[] {
 			return documentRegions.get(document).getLanguageRanges(range).map(r => {
