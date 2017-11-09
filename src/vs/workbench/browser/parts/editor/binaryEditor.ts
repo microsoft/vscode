@@ -88,7 +88,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 				// Render Input
 				const model = <BinaryEditorModel>resolvedModel;
 				ResourceViewer.show(
-					{ name: model.getName(), resource: model.getResource(), size: model.getSize(), etag: model.getETag() },
+					{ name: model.getName(), resource: model.getResource(), size: model.getSize(), etag: model.getETag(), mime: model.getMime() },
 					this.binaryContainer,
 					this.scrollbar,
 					(resource: URI) => {

@@ -127,6 +127,15 @@ function command(commandId: string, options: CommandOptions = {}): Function {
 	};
 }
 
+const ImageMimetypes = [
+	'image/png',
+	'image/gif',
+	'image/jpeg',
+	'image/webp',
+	'image/tiff',
+	'image/bmp'
+];
+
 export class CommandCenter {
 
 	private disposables: Disposable[];
@@ -159,8 +168,8 @@ export class CommandCenter {
 	}
 
 	private async _openResource(resource: Resource, preview?: boolean, preserveFocus?: boolean, preserveSelection?: boolean): Promise<void> {
-		const left = this.getLeftResource(resource);
-		const right = this.getRightResource(resource);
+		const left = await this.getLeftResource(resource);
+		const right = await this.getRightResource(resource);
 		const title = this.getTitle(resource);
 
 		if (!right) {
@@ -185,38 +194,75 @@ export class CommandCenter {
 
 		if (!left) {
 			await commands.executeCommand<void>('vscode.open', right, opts);
-			return;
+		} else {
+			await commands.executeCommand<void>('vscode.diff', left, right, title, opts);
 		}
-
-		return await commands.executeCommand<void>('vscode.diff', left, right, title, opts);
 	}
 
-	private getLeftResource(resource: Resource): Uri | undefined {
+	private async getURI(uri: Uri, ref: string): Promise<Uri | undefined> {
+		const repository = this.model.getRepository(uri);
+
+		if (!repository) {
+			return toGitUri(uri, ref);
+		}
+
+		try {
+			if (ref === '~') {
+				const uriString = uri.toString();
+				const [indexStatus] = repository.indexGroup.resourceStates.filter(r => r.original.toString() === uriString);
+				ref = indexStatus ? '' : 'HEAD';
+			}
+
+			const { size, object } = await repository.lstree(ref, uri.fsPath);
+
+			if (size > 1000000) { // 1 MB
+				return Uri.parse(`data:;label:${path.basename(uri.fsPath)};description:${ref},`);
+			}
+
+			const { mimetype, encoding } = await repository.detectObjectType(object);
+
+			if (mimetype === 'text/plain') {
+				return toGitUri(uri, ref);
+			}
+
+			if (ImageMimetypes.indexOf(mimetype) > -1) {
+				const contents = await repository.buffer(ref, uri.fsPath);
+				return Uri.parse(`data:${mimetype};label:${path.basename(uri.fsPath)};description:${ref};size:${size};base64,${contents.toString('base64')}`);
+			}
+
+			return Uri.parse(`data:;label:${path.basename(uri.fsPath)};description:${ref},`);
+
+		} catch (err) {
+			return toGitUri(uri, ref);
+		}
+	}
+
+	private async getLeftResource(resource: Resource): Promise<Uri | undefined> {
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_RENAMED:
-				return toGitUri(resource.original, 'HEAD');
+				return this.getURI(resource.original, 'HEAD');
 
 			case Status.MODIFIED:
-				return toGitUri(resource.resourceUri, '~');
+				return this.getURI(resource.resourceUri, '~');
 
 			case Status.DELETED_BY_THEM:
-				return toGitUri(resource.resourceUri, '');
+				return this.getURI(resource.resourceUri, '');
 		}
 	}
 
-	private getRightResource(resource: Resource): Uri | undefined {
+	private async getRightResource(resource: Resource): Promise<Uri | undefined> {
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.INDEX_ADDED:
 			case Status.INDEX_COPIED:
 			case Status.INDEX_RENAMED:
-				return toGitUri(resource.resourceUri, '');
+				return this.getURI(resource.resourceUri, '');
 
 			case Status.INDEX_DELETED:
 			case Status.DELETED_BY_THEM:
 			case Status.DELETED:
-				return toGitUri(resource.resourceUri, 'HEAD');
+				return this.getURI(resource.resourceUri, 'HEAD');
 
 			case Status.MODIFIED:
 			case Status.UNTRACKED:
@@ -445,7 +491,7 @@ export class CommandCenter {
 			return;
 		}
 
-		const HEAD = this.getLeftResource(resource);
+		const HEAD = await this.getLeftResource(resource);
 
 		if (!HEAD) {
 			window.showWarningMessage(localize('HEAD not available', "HEAD version of '{0}' is not available.", path.basename(resource.resourceUri.fsPath)));

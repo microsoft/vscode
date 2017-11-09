@@ -7,6 +7,7 @@
 
 import { Event } from 'vscode';
 import { dirname } from 'path';
+import { Readable } from 'stream';
 import * as fs from 'fs';
 import * as byline from 'byline';
 
@@ -205,4 +206,71 @@ export async function grep(filename: string, pattern: RegExp): Promise<boolean> 
 		stream.on('error', e);
 		stream.on('end', () => c(false));
 	});
+}
+
+export function readBytes(stream: Readable, bytes: number): Promise<Buffer> {
+	return new Promise<Buffer>((complete, error) => {
+		let done = false;
+		let buffer = new Buffer(bytes);
+		let bytesRead = 0;
+
+		stream.on('data', (data: Buffer) => {
+			let bytesToRead = Math.min(bytes - bytesRead, data.length);
+			data.copy(buffer, bytesRead, 0, bytesToRead);
+			bytesRead += bytesToRead;
+
+			if (bytesRead === bytes) {
+				(stream as any).destroy(); // Will trigger the close event eventually
+			}
+		});
+
+		stream.on('error', (e: Error) => {
+			if (!done) {
+				done = true;
+				error(e);
+			}
+		});
+
+		stream.on('close', () => {
+			if (!done) {
+				done = true;
+				complete(buffer.slice(0, bytesRead));
+			}
+		});
+	});
+}
+
+export enum Encoding {
+	UTF8 = 'utf8',
+	UTF16be = 'utf16be',
+	UTF16le = 'utf16le'
+}
+
+export function detectUnicodeEncoding(buffer: Buffer): Encoding | null {
+	if (buffer.length < 2) {
+		return null;
+	}
+
+	const b0 = buffer.readUInt8(0);
+	const b1 = buffer.readUInt8(1);
+
+	if (b0 === 0xFE && b1 === 0xFF) {
+		return Encoding.UTF16be;
+	}
+
+	if (b0 === 0xFF && b1 === 0xFE) {
+		return Encoding.UTF16le;
+	}
+
+	if (buffer.length < 3) {
+		return null;
+	}
+
+	const b2 = buffer.readUInt8(2);
+
+	if (b0 === 0xEF && b1 === 0xBB && b2 === 0xBF) {
+		return Encoding.UTF8;
+	}
+
+	return null;
 }
