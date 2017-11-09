@@ -1988,7 +1988,7 @@ class TaskService extends EventEmitter implements ITaskService {
 				this.showQuickPick(tasks,
 					nls.localize('TaskService.pickBuildTask', 'Select the build task to run'),
 					{
-						label: nls.localize('TaskService.noBuildTask', 'No build task to run found. Configure Tasks...'),
+						label: nls.localize('TaskService.noBuildTask', 'No build task to run found. Configure Build Task...'),
 						task: null
 					},
 					true).then((task) => {
@@ -1996,7 +1996,7 @@ class TaskService extends EventEmitter implements ITaskService {
 							return;
 						}
 						if (task === null) {
-							this.runConfigureTasks();
+							this.runConfigureDefaultBuildTask();
 							return;
 						}
 						this.run(task, { attachProblemMatcher: true });

@@ -41,7 +41,27 @@ export function deepClone<T>(obj: T): T {
 	return result;
 }
 
-const hasOwnProperty = Object.prototype.hasOwnProperty;
+export function deepFreeze<T>(obj: T): T {
+	if (!obj || typeof obj !== 'object') {
+		return obj;
+	}
+	const stack: any[] = [obj];
+	while (stack.length > 0) {
+		let obj = stack.shift();
+		Object.freeze(obj);
+		for (const key in obj) {
+			if (_hasOwnProperty.call(obj, key)) {
+				let prop = obj[key];
+				if (typeof prop === 'object' && !Object.isFrozen(prop)) {
+					stack.push(prop);
+				}
+			}
+		}
+	}
+	return obj;
+}
+
+const _hasOwnProperty = Object.prototype.hasOwnProperty;
 
 export function cloneAndChange(obj: any, changer: (orig: any) => any): any {
 	return _cloneAndChange(obj, changer, []);
@@ -72,7 +92,7 @@ function _cloneAndChange(obj: any, changer: (orig: any) => any, encounteredObjec
 		encounteredObjects.push(obj);
 		const r2 = {};
 		for (let i2 in obj) {
-			if (hasOwnProperty.call(obj, i2)) {
+			if (_hasOwnProperty.call(obj, i2)) {
 				(r2 as any)[i2] = _cloneAndChange(obj[i2], changer, encounteredObjects);
 			}
 		}

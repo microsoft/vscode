@@ -9,7 +9,7 @@ import { BaseWebviewEditor } from 'vs/workbench/browser/parts/editor/webviewEdit
 import { IStorageService } from 'vs/platform/storage/common/storage';
 
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Command, ICommandOptions } from 'vs/editor/common/editorCommonExtensions';
+import { Command, ICommandOptions } from 'vs/editor/browser/editorExtensions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr, IContextKey, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';

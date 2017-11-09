@@ -25,8 +25,8 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
-import { getSelectionSearchString } from 'vs/editor/contrib/find/common/find';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { getSelectionSearchString } from 'vs/editor/contrib/find/findController';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
@@ -36,7 +36,7 @@ import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { registerContributions as replaceContributions } from 'vs/workbench/parts/search/browser/replaceContributions';
 import { registerContributions as searchWidgetContributions } from 'vs/workbench/parts/search/browser/searchWidget';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding, ShowPreviousFindTermKeybinding, ShowNextFindTermKeybinding } from 'vs/editor/contrib/find/common/findModel';
+import { ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding, ShowPreviousFindTermKeybinding, ShowNextFindTermKeybinding } from 'vs/editor/contrib/find/findModel';
 import { ISearchWorkbenchService, SearchWorkbenchService } from 'vs/workbench/parts/search/common/searchModel';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { SearchViewlet } from 'vs/workbench/parts/search/browser/searchViewlet';
@@ -45,6 +45,9 @@ import { IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/pa
 import { defaultQuickOpenContextKey } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { OpenSymbolHandler } from 'vs/workbench/parts/search/browser/openSymbolHandler';
 import { OpenAnythingHandler } from 'vs/workbench/parts/search/browser/openAnythingHandler';
+import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
+import { getWorkspaceSymbols } from 'vs/workbench/parts/search/common/search';
+import { illegalArgument } from 'vs/base/common/errors';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService);
 replaceContributions();
@@ -415,4 +418,12 @@ configurationRegistry.registerConfiguration({
 			'default': true
 		}
 	}
+});
+
+registerLanguageCommand('_executeWorkspaceSymbolProvider', function (accessor, args: { query: string; }) {
+	let { query } = args;
+	if (typeof query !== 'string') {
+		throw illegalArgument();
+	}
+	return getWorkspaceSymbols(query);
 });

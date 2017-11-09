@@ -10,6 +10,7 @@
 	"addFolderToWorkspace": "Aggiungi cartella all'area di lavoro...",
 	"add": "&&Aggiungi",
 	"addFolderToWorkspaceTitle": "Aggiungi cartella all'area di lavoro",
+	"globalRemoveFolderFromWorkspace": "Rimuovi cartella dall'area di lavoro...",
 	"removeFolderFromWorkspace": "Rimuovi cartella dall'area di lavoro",
 	"openFolderSettings": "Apri impostazioni cartella",
 	"saveWorkspaceAsAction": "Salva area di lavoro come...",
@@ -17,5 +18,6 @@
 	"saveWorkspace": "Salva area di lavoro",
 	"openWorkspaceAction": "Apri area di lavoro...",
 	"openWorkspaceConfigFile": "Apri file di configurazione dell'area di lavoro",
+	"openFolderAsWorkspaceInNewWindow": "Apre la cartella come area di lavoro in una nuova finestra",
 	"workspaceFolderPickerPlaceholder": "Selezionare la cartella dell'area di lavoro"
 }

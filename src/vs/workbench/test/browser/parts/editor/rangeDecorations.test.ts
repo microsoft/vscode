@@ -23,7 +23,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { CoreNavigationCommands } from 'vs/editor/common/controller/coreCommands';
+import { CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
 
 suite('Editor - Range decorations', () => {
 

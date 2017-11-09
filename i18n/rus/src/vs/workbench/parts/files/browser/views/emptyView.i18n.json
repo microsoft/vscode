@@ -6,6 +6,8 @@
 {
 	"noWorkspace": "Нет открытой папки",
 	"explorerSection": "Раздел проводника",
+	"noWorkspaceHelp": "Вы еще не добавили папку в рабочую область.",
+	"addFolder": "Добавить папку",
 	"noFolderHelp": "Вы еще не открыли папку.",
 	"openFolder": "Открыть папку"
 }

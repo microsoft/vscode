@@ -7,6 +7,8 @@
 	"ok": "OK",
 	"pathNotExistTitle": "パスが存在しません",
 	"pathNotExistDetail": "パス '{0}' はディスクに存在しなくなったようです。",
+	"reopen": "もう一度開く(&&R)",
+	"wait": "待機を続ける(&&K)",
 	"close": "閉じる(&&C)",
 	"appStalled": "ウィンドウから応答がありません",
 	"appStalledDetail": "ウィンドウを再度開くか、閉じるか、このまま待機できます。",

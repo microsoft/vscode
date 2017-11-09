@@ -655,13 +655,21 @@ export class TreeNavigator implements INavigator<Item> {
 	static lastDescendantOf(item: Item): Item {
 		if (!item) {
 			return null;
-		} else {
-			if (!(item instanceof RootItem) && (!item.isVisible() || !item.isExpanded() || item.lastChild === null)) {
-				return item;
-			} else {
-				return TreeNavigator.lastDescendantOf(item.lastChild);
-			}
 		}
+
+		if (item instanceof RootItem) {
+			return TreeNavigator.lastDescendantOf(item.lastChild);
+		}
+
+		if (!item.isVisible()) {
+			return TreeNavigator.lastDescendantOf(item.previous);
+		}
+
+		if (!item.isExpanded() || item.lastChild === null) {
+			return item;
+		}
+
+		return TreeNavigator.lastDescendantOf(item.lastChild);
 	}
 
 	constructor(item: Item, subTreeOnly: boolean = true) {

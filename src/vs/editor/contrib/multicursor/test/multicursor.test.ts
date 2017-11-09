@@ -12,7 +12,7 @@ import { InsertCursorAbove, InsertCursorBelow, MultiCursorSelectionController, S
 import { Handler, EndOfLineSequence } from 'vs/editor/common/editorCommon';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { CommonFindController } from 'vs/editor/contrib/find/common/findController';
+import { CommonFindController } from 'vs/editor/contrib/find/findController';
 
 suite('Multicursor', () => {
 

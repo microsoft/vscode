@@ -10,7 +10,7 @@ import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/electron-browser
 import { OneGetThreadService, TestThreadService } from './testThreadService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { MockCodeEditorService } from 'vs/editor/test/common/mocks/mockCodeEditorService';
+import { TestCodeEditorService } from 'vs/editor/test/browser/testCodeEditorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ExtHostDocumentsAndEditorsShape, IWorkspaceResourceEdit, ExtHostContext, ExtHostDocumentsShape } from 'vs/workbench/api/node/extHost.protocol';
@@ -34,7 +34,7 @@ suite('MainThreadEditors', () => {
 	setup(() => {
 		const configService = new TestConfigurationService();
 		modelService = new ModelServiceImpl(null, configService);
-		const codeEditorService = new MockCodeEditorService();
+		const codeEditorService = new TestCodeEditorService();
 		const textFileService = new class extends mock<ITextFileService>() {
 			isDirty() { return false; }
 			models = <any>{

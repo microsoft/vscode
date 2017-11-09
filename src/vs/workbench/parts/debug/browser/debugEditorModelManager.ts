@@ -33,6 +33,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	private modelDataMap: Map<string, IDebugEditorModelData>;
 	private toDispose: lifecycle.IDisposable[];
+	private ignoreDecorationsChangedEvent: boolean;
 
 	constructor(
 		@IModelService private modelService: IModelService,
@@ -187,7 +188,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	// breakpoints management. Represent data coming from the debug service and also send data back.
 	private onModelDecorationsChanged(modelUrlStr: string): void {
 		const modelData = this.modelDataMap.get(modelUrlStr);
-		if (modelData.breakpointDecorationsAsMap.size === 0) {
+		if (modelData.breakpointDecorationsAsMap.size === 0 || this.ignoreDecorationsChangedEvent) {
 			// I have no decorations
 			return;
 		}
@@ -262,7 +263,12 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	private updateBreakpoints(modelData: IDebugEditorModelData, newBreakpoints: IBreakpoint[]): void {
 		const desiredDecorations = this.createBreakpointDecorations(modelData.model, newBreakpoints);
-		modelData.breakpointDecorationIds = modelData.model.deltaDecorations(modelData.breakpointDecorationIds, desiredDecorations);
+		try {
+			this.ignoreDecorationsChangedEvent = true;
+			modelData.breakpointDecorationIds = modelData.model.deltaDecorations(modelData.breakpointDecorationIds, desiredDecorations);
+		} finally {
+			this.ignoreDecorationsChangedEvent = false;
+		}
 		modelData.breakpointModelIds = newBreakpoints.map(nbp => nbp.getId());
 		modelData.breakpointDecorationsAsMap.clear();
 		modelData.breakpointDecorationIds.forEach((decorationId, index) => modelData.breakpointDecorationsAsMap.set(decorationId, desiredDecorations[index].range));

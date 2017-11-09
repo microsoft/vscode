@@ -14,13 +14,16 @@
 	"focusPreviousInputBox": "이전 입력 상자에 포커스",
 	"showSearchViewlet": "검색 표시",
 	"findInFiles": "파일에서 찾기",
+	"findInFilesWithSelectedText": "선택한 텍스트가 있는 파일에서 찾기",
 	"replaceInFiles": "파일에서 바꾸기",
+	"replaceInFilesWithSelectedText": "선택한 텍스트가 있는 파일에서 바꾸기",
 	"findInWorkspace": "작업 영역에서 찾기...",
 	"findInFolder": "폴더에서 찾기...",
 	"RefreshAction.label": "새로 고침",
 	"ClearSearchResultsAction.label": "검색 결과 지우기",
 	"FocusNextSearchResult.label": "다음 검색 결과에 포커스",
 	"FocusPreviousSearchResult.label": "이전 검색 결과에 포커스",
+	"RemoveAction.label": "해제",
 	"file.replaceAll.label": "모두 바꾸기",
 	"match.replace.label": "바꾸기"
 }

@@ -12,6 +12,8 @@
 	"breakpointRemoved": "已移除中斷點，行 {0}，檔案 {1}",
 	"compoundMustHaveConfigurations": "複合必須設有 \"configurations\" 屬性，才能啟動多個組態。",
 	"configMissing": "'launch.json' 中遺漏組態 '{0}'。",
+	"debugRequestNotSupported": "在選取的偵錯組態中，屬性 `{0}` 具有不支援的值 '{1}'。",
+	"debugRequesMissing": "所選的偵錯組態遺漏屬性 '{0}'。",
 	"debugTypeNotSupported": "不支援設定的偵錯類型 '{0}'。",
 	"debugTypeMissing": "遺漏所選啟動設定的屬性 `type`。",
 	"debugAnyway": "仍要偵錯",
@@ -20,5 +22,6 @@
 	"preLaunchTaskExitCode": "preLaunchTask '{0}' 已終止，結束代碼為 {1}。",
 	"noFolderWorkspaceDebugError": "無法對使用中的檔案偵錯。請確認檔案已儲存在磁碟上，而且您已經為該檔案類型安裝偵錯延伸模組。",
 	"NewLaunchConfig": "請為您的應用程式設定啟動組態檔。{0}",
-	"DebugTaskNotFound": "找不到 preLaunchTask '{0}'。"
+	"DebugTaskNotFound": "找不到 preLaunchTask '{0}'。",
+	"taskNotTracked": "無法追蹤 preLaunchTask '{0}'。"
 }

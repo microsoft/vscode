@@ -10,7 +10,7 @@ import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/electron-browser
 import { OneGetThreadService } from './testThreadService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { MockCodeEditorService } from 'vs/editor/test/common/mocks/mockCodeEditorService';
+import { TestCodeEditorService } from 'vs/editor/test/browser/testCodeEditorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta } from 'vs/workbench/api/node/extHost.protocol';
@@ -22,7 +22,7 @@ import Event from 'vs/base/common/event';
 suite('MainThreadDocumentsAndEditors', () => {
 
 	let modelService: ModelServiceImpl;
-	let codeEditorService: MockCodeEditorService;
+	let codeEditorService: TestCodeEditorService;
 	let textFileService: ITextFileService;
 	let workbenchEditorService: IWorkbenchEditorService;
 	let deltas: IDocumentsAndEditorsDelta[] = [];
@@ -33,7 +33,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('editor', { 'detectIndentation': false });
 		modelService = new ModelServiceImpl(null, configService);
-		codeEditorService = new MockCodeEditorService();
+		codeEditorService = new TestCodeEditorService();
 		textFileService = new class extends mock<ITextFileService>() {
 			isDirty() { return false; }
 			models = <any>{

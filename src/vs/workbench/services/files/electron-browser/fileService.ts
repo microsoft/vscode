@@ -143,8 +143,8 @@ export class FileService implements IFileService {
 	}
 
 	private onConfigurationChange(event: IConfigurationChangeEvent): void {
-		if (event.affectsConfiguration('files')) {
-			this.updateOptions(this.configurationService.getConfiguration<IFilesConfiguration>('files'));
+		if (event.affectsConfiguration('files.useExperimentalFileWatcher')) {
+			this.updateOptions({ useExperimentalFileWatcher: this.configurationService.getValue<boolean>('files.useExperimentalFileWatcher') });
 		}
 	}
 

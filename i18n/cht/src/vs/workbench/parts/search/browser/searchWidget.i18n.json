@@ -11,5 +11,6 @@
 	"search.placeHolder": "搜尋",
 	"label.Replace": "取代: 輸入取代字詞後按下 Enter 以預覽，或按 Escape 取消",
 	"search.replace.placeHolder": "取代",
-	"regexp.validationFailure": "運算式符合所有項目"
+	"regexp.validationFailure": "運算式符合所有項目",
+	"regexp.backreferenceValidationFailure": "不支援反向參考"
 }

@@ -73,7 +73,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			updateCurrentTextDocument(document);
 			const syntaxDiagnostics = jsLanguageService.getSyntacticDiagnostics(FILE_NAME);
 			const semanticDiagnostics = jsLanguageService.getSemanticDiagnostics(FILE_NAME);
-			return syntaxDiagnostics.concat(semanticDiagnostics).map((diag): Diagnostic => {
+			return syntaxDiagnostics.concat(semanticDiagnostics).map((diag: ts.Diagnostic): Diagnostic => {
 				return {
 					range: convertRange(currentTextDocument, diag),
 					severity: DiagnosticSeverity.Error,
@@ -118,7 +118,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			}
 			return item;
 		},
-		doHover(document: TextDocument, position: Position): Hover {
+		doHover(document: TextDocument, position: Position): Hover | null {
 			updateCurrentTextDocument(document);
 			let info = jsLanguageService.getQuickInfoAtPosition(FILE_NAME, currentTextDocument.offsetAt(position));
 			if (info) {
@@ -130,7 +130,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			}
 			return null;
 		},
-		doSignatureHelp(document: TextDocument, position: Position): SignatureHelp {
+		doSignatureHelp(document: TextDocument, position: Position): SignatureHelp | null {
 			updateCurrentTextDocument(document);
 			let signHelp = jsLanguageService.getSignatureHelpItems(FILE_NAME, currentTextDocument.offsetAt(position));
 			if (signHelp) {
@@ -143,7 +143,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 
 					let signature: SignatureInformation = {
 						label: '',
-						documentation: null,
+						documentation: undefined,
 						parameters: []
 					};
 
@@ -155,7 +155,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 							documentation: ts.displayPartsToString(p.documentation)
 						};
 						signature.label += label;
-						signature.parameters.push(parameter);
+						signature.parameters!.push(parameter);
 						if (i < a.length - 1) {
 							signature.label += ts.displayPartsToString(item.separatorDisplayParts);
 						}
@@ -178,14 +178,14 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 					};
 				});
 			}
-			return null;
+			return [];
 		},
 		findDocumentSymbols(document: TextDocument): SymbolInformation[] {
 			updateCurrentTextDocument(document);
 			let items = jsLanguageService.getNavigationBarItems(FILE_NAME);
 			if (items) {
 				let result: SymbolInformation[] = [];
-				let existing = {};
+				let existing = Object.create(null);
 				let collectSymbols = (item: ts.NavigationBarItem, containerLabel?: string) => {
 					let sig = item.text + item.kind + item.spans[0].start;
 					if (item.kind !== 'script' && !existing[sig]) {
@@ -214,9 +214,9 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 				items.forEach(item => collectSymbols(item));
 				return result;
 			}
-			return null;
+			return [];
 		},
-		findDefinition(document: TextDocument, position: Position): Definition {
+		findDefinition(document: TextDocument, position: Position): Definition | null {
 			updateCurrentTextDocument(document);
 			let definition = jsLanguageService.getDefinitionAtPosition(FILE_NAME, currentTextDocument.offsetAt(position));
 			if (definition) {
@@ -240,7 +240,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 					};
 				});
 			}
-			return null;
+			return [];
 		},
 		format(document: TextDocument, range: Range, formatParams: FormattingOptions, settings: Settings = globalSettings): TextEdit[] {
 			currentTextDocument = documentRegions.get(document).getEmbeddedDocument('javascript', true);
@@ -276,7 +276,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 				}
 				return result;
 			}
-			return null;
+			return [];
 		},
 		onDocumentRemoved(document: TextDocument) {
 			jsDocuments.onDocumentRemoved(document);
@@ -288,9 +288,13 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 	};
 }
 
-function convertRange(document: TextDocument, span: { start: number, length: number }): Range {
-	let startPosition = document.positionAt(span.start);
-	let endPosition = document.positionAt(span.start + span.length);
+function convertRange(document: TextDocument, span: { start: number | undefined, length: number | undefined }): Range {
+	if (typeof span.start === 'undefined') {
+		const pos = document.positionAt(0);
+		return Range.create(pos, pos);
+	}
+	const startPosition = document.positionAt(span.start);
+	const endPosition = document.positionAt(span.start + (span.length || 0));
 	return Range.create(startPosition, endPosition);
 }
 

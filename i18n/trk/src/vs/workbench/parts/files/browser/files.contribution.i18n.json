@@ -40,6 +40,7 @@
 	"dynamicHeight": "Açık düzenleyiciler bölümü yüksekliğinin öge sayısına göre dinamik olarak uyarlanıp uyarlanmayacağını denetler.",
 	"autoReveal": "Gezginin dosyaları açarken, onları otomatik olarak ortaya çıkartmasını ve seçmesini denetler.",
 	"enableDragAndDrop": "Gezgeinin sürükle bırak ile dosyaları ve klasörleri taşımaya izin verip vermeyeceğini denetler.",
+	"confirmDragAndDrop": "Gezginin, sürükle bırak ile dosyalar ve klasörlerin taşındığı zaman onay isteyip istemeyeceğini denetler.",
 	"confirmDelete": "Gezginin, geri dönüşüm kutusu ile dosya silineceği zaman onay isteyip istemeyeceğini denetler.",
 	"sortOrder.default": "Dosya ve klasörler adlarına göre, alfabetik olarak sıralanırlar. Klasörler dosyalardan önce görüntülenir.",
 	"sortOrder.mixed": "Dosya ve klasörler adlarına göre, alfabetik olarak sıralanırlar. Dosyalar ve klasörler iç içe bulunur.",

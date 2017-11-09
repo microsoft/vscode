@@ -5,7 +5,7 @@
 'use strict';
 
 import { Selection } from 'vs/editor/common/core/selection';
-import { MoveCaretCommand } from 'vs/editor/contrib/caretOperations/common/moveCaretCommand';
+import { MoveCaretCommand } from 'vs/editor/contrib/caretOperations/moveCaretCommand';
 import { testCommand } from 'vs/editor/test/browser/testCommand';
 
 

@@ -5,11 +5,10 @@
 'use strict';
 
 import * as assert from 'assert';
-import { ConfigurationModel, CustomConfigurationModel, DefaultConfigurationModel, ConfigurationChangeEvent, AllKeysConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
+import { ConfigurationModel, DefaultConfigurationModel, ConfigurationChangeEvent, ConfigurationModelParser } from 'vs/platform/configuration/common/configurationModels';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import URI from 'vs/base/common/uri';
-import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 suite('ConfigurationModel', () => {
 
@@ -279,86 +278,97 @@ suite('CustomConfigurationModel', () => {
 	});
 
 	test('simple merge using models', () => {
-		let base = new CustomConfigurationModel(JSON.stringify({ 'a': 1, 'b': 2 }));
-		let add = new CustomConfigurationModel(JSON.stringify({ 'a': 3, 'c': 4 }));
-		let result = base.merge(add);
+		let base = new ConfigurationModelParser('base');
+		base.parse(JSON.stringify({ 'a': 1, 'b': 2 }));
+
+		let add = new ConfigurationModelParser('add');
+		add.parse(JSON.stringify({ 'a': 3, 'c': 4 }));
+
+		let result = base.configurationModel.merge(add.configurationModel);
 		assert.deepEqual(result.contents, { 'a': 3, 'b': 2, 'c': 4 });
 	});
 
 	test('simple merge with an undefined contents', () => {
-		let base = new CustomConfigurationModel(JSON.stringify({ 'a': 1, 'b': 2 }));
-		let add = new CustomConfigurationModel(null);
-		let result = base.merge(add);
+		let base = new ConfigurationModelParser('base');
+		base.parse(JSON.stringify({ 'a': 1, 'b': 2 }));
+		let add = new ConfigurationModelParser('add');
+		let result = base.configurationModel.merge(add.configurationModel);
 		assert.deepEqual(result.contents, { 'a': 1, 'b': 2 });
 
-		base = new CustomConfigurationModel(null);
-		add = new CustomConfigurationModel(JSON.stringify({ 'a': 1, 'b': 2 }));
-		result = base.merge(add);
+		base = new ConfigurationModelParser('base');
+		add = new ConfigurationModelParser('add');
+		add.parse(JSON.stringify({ 'a': 1, 'b': 2 }));
+		result = base.configurationModel.merge(add.configurationModel);
 		assert.deepEqual(result.contents, { 'a': 1, 'b': 2 });
 
-		base = new CustomConfigurationModel(null);
-		add = new CustomConfigurationModel(null);
-		result = base.merge(add);
+		base = new ConfigurationModelParser('base');
+		add = new ConfigurationModelParser('add');
+		result = base.configurationModel.merge(add.configurationModel);
 		assert.deepEqual(result.contents, {});
 	});
 
 	test('Recursive merge using config models', () => {
-		let base = new CustomConfigurationModel(JSON.stringify({ 'a': { 'b': 1 } }));
-		let add = new CustomConfigurationModel(JSON.stringify({ 'a': { 'b': 2 } }));
-		let result = base.merge(add);
+		let base = new ConfigurationModelParser('base');
+		base.parse(JSON.stringify({ 'a': { 'b': 1 } }));
+		let add = new ConfigurationModelParser('add');
+		add.parse(JSON.stringify({ 'a': { 'b': 2 } }));
+		let result = base.configurationModel.merge(add.configurationModel);
 		assert.deepEqual(result.contents, { 'a': { 'b': 2 } });
 	});
 
 	test('Test contents while getting an existing property', () => {
-		let testObject = new CustomConfigurationModel(JSON.stringify({ 'a': 1 }));
-		assert.deepEqual(testObject.getSectionContents('a'), 1);
+		let testObject = new ConfigurationModelParser('test');
+		testObject.parse(JSON.stringify({ 'a': 1 }));
+		assert.deepEqual(testObject.configurationModel.getSectionContents('a'), 1);
 
-		testObject = new CustomConfigurationModel(JSON.stringify({ 'a': { 'b': 1 } }));
-		assert.deepEqual(testObject.getSectionContents('a'), { 'b': 1 });
+		testObject.parse(JSON.stringify({ 'a': { 'b': 1 } }));
+		assert.deepEqual(testObject.configurationModel.getSectionContents('a'), { 'b': 1 });
 	});
 
 	test('Test contents are undefined for non existing properties', () => {
-		const testObject = new CustomConfigurationModel(JSON.stringify({
+		const testObject = new ConfigurationModelParser('test');
+		testObject.parse(JSON.stringify({
 			awesome: true
 		}));
 
-		assert.deepEqual(testObject.getSectionContents('unknownproperty'), undefined);
+		assert.deepEqual(testObject.configurationModel.getSectionContents('unknownproperty'), undefined);
 	});
 
 	test('Test contents are undefined for undefined config', () => {
-		const testObject = new CustomConfigurationModel(null);
+		const testObject = new ConfigurationModelParser('test');
 
-		assert.deepEqual(testObject.getSectionContents('unknownproperty'), undefined);
+		assert.deepEqual(testObject.configurationModel.getSectionContents('unknownproperty'), undefined);
 	});
 
 	test('Test configWithOverrides gives all content merged with overrides', () => {
-		const testObject = new CustomConfigurationModel(JSON.stringify({ 'a': 1, 'c': 1, '[b]': { 'a': 2 } }));
+		const testObject = new ConfigurationModelParser('test');
+		testObject.parse(JSON.stringify({ 'a': 1, 'c': 1, '[b]': { 'a': 2 } }));
 
-		assert.deepEqual(testObject.override('b').contents, { 'a': 2, 'c': 1, '[b]': { 'a': 2 } });
+		assert.deepEqual(testObject.configurationModel.override('b').contents, { 'a': 2, 'c': 1, '[b]': { 'a': 2 } });
 	});
 
 	test('Test configWithOverrides gives empty contents', () => {
-		const testObject = new CustomConfigurationModel(null);
+		const testObject = new ConfigurationModelParser('test');
 
-		assert.deepEqual(testObject.override('b').contents, {});
+		assert.deepEqual(testObject.configurationModel.override('b').contents, {});
 	});
 
 	test('Test update with empty data', () => {
-		const testObject = new CustomConfigurationModel();
-		testObject.update('');
+		const testObject = new ConfigurationModelParser('test');
+		testObject.parse('');
 
-		assert.deepEqual(testObject.contents, {});
-		assert.deepEqual(testObject.keys, []);
+		assert.deepEqual(testObject.configurationModel.contents, {});
+		assert.deepEqual(testObject.configurationModel.keys, []);
 
-		testObject.update(null);
+		testObject.parse(null);
 
-		assert.deepEqual(testObject.contents, {});
-		assert.deepEqual(testObject.keys, []);
+		assert.deepEqual(testObject.configurationModel.contents, {});
+		assert.deepEqual(testObject.configurationModel.keys, []);
 
-		testObject.update(undefined);
+		testObject.parse(undefined);
 
-		assert.deepEqual(testObject.contents, {});
-		assert.deepEqual(testObject.keys, []);
+		assert.deepEqual(testObject.configurationModel.contents, {});
+		assert.deepEqual(testObject.configurationModel.keys, []);
 	});
 
 	test('Test registering the same property again', () => {
@@ -503,48 +513,4 @@ suite('ConfigurationChangeEvent', () => {
 		assert.ok(actual.affectsConfiguration('[markdown]', URI.file('file2')));
 	});
 
-});
-
-suite('AllKeysConfigurationChangeEvent', () => {
-
-	test('changeEvent affects keys for any resource', () => {
-		let testObject = new AllKeysConfigurationChangeEvent(['window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows'], ConfigurationTarget.USER, null);
-
-		assert.deepEqual(testObject.affectedKeys, ['window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows']);
-
-		assert.ok(testObject.affectsConfiguration('window.zoomLevel'));
-		assert.ok(testObject.affectsConfiguration('window.zoomLevel', URI.file('file1')));
-		assert.ok(testObject.affectsConfiguration('window.zoomLevel', URI.file('file2')));
-
-		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen'));
-		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen', URI.file('file1')));
-		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen', URI.file('file2')));
-
-		assert.ok(testObject.affectsConfiguration('window.restoreWindows'));
-		assert.ok(testObject.affectsConfiguration('window.restoreWindows', URI.file('file2')));
-		assert.ok(testObject.affectsConfiguration('window.restoreWindows', URI.file('file1')));
-
-		assert.ok(testObject.affectsConfiguration('window.title'));
-		assert.ok(testObject.affectsConfiguration('window.title', URI.file('file1')));
-		assert.ok(testObject.affectsConfiguration('window.title', URI.file('file2')));
-
-		assert.ok(testObject.affectsConfiguration('window'));
-		assert.ok(testObject.affectsConfiguration('window', URI.file('file1')));
-		assert.ok(testObject.affectsConfiguration('window', URI.file('file2')));
-
-		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview'));
-		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview', URI.file('file2')));
-		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview', URI.file('file1')));
-
-		assert.ok(testObject.affectsConfiguration('workbench.editor'));
-		assert.ok(testObject.affectsConfiguration('workbench.editor', URI.file('file2')));
-		assert.ok(testObject.affectsConfiguration('workbench.editor', URI.file('file1')));
-
-		assert.ok(testObject.affectsConfiguration('workbench'));
-		assert.ok(testObject.affectsConfiguration('workbench', URI.file('file2')));
-		assert.ok(testObject.affectsConfiguration('workbench', URI.file('file1')));
-
-		assert.ok(!testObject.affectsConfiguration('files'));
-		assert.ok(!testObject.affectsConfiguration('files', URI.file('file1')));
-	});
 });

@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { parseReplaceString, ReplacePattern, ReplacePiece } from 'vs/editor/contrib/find/common/replacePattern';
+import { parseReplaceString, ReplacePattern, ReplacePiece } from 'vs/editor/contrib/find/replacePattern';
 
 suite('Replace Pattern test', () => {
 

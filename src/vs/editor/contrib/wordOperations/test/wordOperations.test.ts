@@ -16,8 +16,8 @@ import {
 	CursorWordStartRightSelect, CursorWordEndRightSelect, CursorWordRightSelect,
 	DeleteWordLeft, DeleteWordStartLeft, DeleteWordEndLeft,
 	DeleteWordRight, DeleteWordStartRight, DeleteWordEndRight
-} from 'vs/editor/contrib/wordOperations/common/wordOperations';
-import { EditorCommand } from 'vs/editor/common/editorCommonExtensions';
+} from 'vs/editor/contrib/wordOperations/wordOperations';
+import { EditorCommand } from 'vs/editor/browser/editorExtensions';
 
 suite('WordOperations', () => {
 

@@ -40,7 +40,7 @@ export function main(argv: string[]): TPromise<void> {
 	if (args.help) {
 		console.log(buildHelpMessage(product.nameLong, product.applicationName, pkg.version));
 	} else if (args.version) {
-		console.log(`${pkg.version}\n${product.commit}`);
+		console.log(`${pkg.version}\n${product.commit}\n${process.arch}`);
 	} else if (shouldSpawnCliProcess(args)) {
 		const mainCli = new TPromise<IMainCli>(c => require(['vs/code/node/cliProcessMain'], c));
 		return mainCli.then(cli => cli.main(args));

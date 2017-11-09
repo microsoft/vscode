@@ -8,8 +8,8 @@ import * as assert from 'assert';
 import { isWindows } from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import { Selection } from 'vs/editor/common/core/selection';
-import { EditorSnippetVariableResolver } from 'vs/editor/contrib/snippet/browser/snippetVariables';
-import { SnippetParser, Variable } from 'vs/editor/contrib/snippet/browser/snippetParser';
+import { EditorSnippetVariableResolver } from 'vs/editor/contrib/snippet/snippetVariables';
+import { SnippetParser, Variable } from 'vs/editor/contrib/snippet/snippetParser';
 import { Model } from 'vs/editor/common/model/model';
 
 suite('Snippet Variables Resolver', function () {

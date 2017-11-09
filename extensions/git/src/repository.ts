@@ -300,7 +300,8 @@ export enum Operation {
 	Ignore = 'Ignore',
 	Tag = 'Tag',
 	Stash = 'Stash',
-	CheckIgnore = 'CheckIgnore'
+	CheckIgnore = 'CheckIgnore',
+	LSTree = 'LSTree'
 }
 
 function isReadOnly(operation: Operation): boolean {
@@ -308,6 +309,7 @@ function isReadOnly(operation: Operation): boolean {
 		case Operation.Show:
 		case Operation.GetCommitTemplate:
 		case Operation.CheckIgnore:
+		case Operation.LSTree:
 			return true;
 		default:
 			return false;
@@ -318,6 +320,8 @@ function shouldShowProgress(operation: Operation): boolean {
 	switch (operation) {
 		case Operation.Fetch:
 		case Operation.CheckIgnore:
+		case Operation.LSTree:
+		case Operation.Show:
 			return false;
 		default:
 			return true;
@@ -679,8 +683,28 @@ export class Repository implements Disposable {
 			const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
 			const encoding = configFiles.get<string>('encoding');
 
-			return await this.repository.buffer(`${ref}:${relativePath}`, encoding);
+			// TODO@joao: Resource config api
+			return await this.repository.bufferString(`${ref}:${relativePath}`, encoding);
 		});
+	}
+
+	async buffer(ref: string, filePath: string): Promise<Buffer> {
+		return await this.run(Operation.Show, async () => {
+			const relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
+			const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
+			const encoding = configFiles.get<string>('encoding');
+
+			// TODO@joao: REsource config api
+			return await this.repository.buffer(`${ref}:${relativePath}`);
+		});
+	}
+
+	lstree(ref: string, filePath: string): Promise<{ mode: number, object: string, size: number }> {
+		return this.run(Operation.LSTree, () => this.repository.lstree(ref, filePath));
+	}
+
+	detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }> {
+		return this.run(Operation.Show, () => this.repository.detectObjectType(object));
 	}
 
 	async getStashes(): Promise<Stash[]> {

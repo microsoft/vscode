@@ -12,6 +12,7 @@
 	"addFolder": "フォルダーの追加(&&A)",
 	"confirmMove": "'{0}' を移動しますか?",
 	"doNotAskAgain": "再度表示しない",
+	"moveButtonLabel": "移動(&&M)",
 	"confirmOverwriteMessage": "'{0}' は保存先フォルダーに既に存在します。置き換えてもよろしいですか。",
 	"irreversible": "このアクションは元に戻すことができません。",
 	"replaceButtonLabel": "置換(&&R)"

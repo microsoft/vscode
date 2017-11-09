@@ -11,7 +11,7 @@ import { Model } from 'vs/editor/common/model/model';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { BracketMatchingController } from 'vs/editor/contrib/bracketMatching/common/bracketMatching';
+import { BracketMatchingController } from 'vs/editor/contrib/bracketMatching/bracketMatching';
 
 suite('bracket matching', () => {
 	class BracketMode extends MockMode {

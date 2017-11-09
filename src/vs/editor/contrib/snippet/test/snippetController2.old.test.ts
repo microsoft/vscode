@@ -7,16 +7,16 @@
 import * as assert from 'assert';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { TestCodeEditor, withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { Cursor } from 'vs/editor/common/controller/cursor';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 class TestSnippetController extends SnippetController2 {
 
 	constructor(
-		editor: ICommonCodeEditor,
+		editor: ICodeEditor,
 		@IContextKeyService private _contextKeyService: IContextKeyService
 	) {
 		super(editor, _contextKeyService);

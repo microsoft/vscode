@@ -53,8 +53,8 @@ export function format(languageModes: LanguageModes, document: TextDocument, for
 	formatRange = Range.create(startPos, formatRange.end);
 
 	// perform a html format and apply changes to a new document
-	let htmlMode = languageModes.getMode('html');
-	let htmlEdits = htmlMode.format(document, formatRange, formattingOptions, settings);
+	let htmlMode = languageModes.getMode('html')!;
+	let htmlEdits = htmlMode.format!(document, formatRange, formattingOptions, settings);
 	let htmlFormattedContent = applyEdits(document, htmlEdits);
 	let newDocument = TextDocument.create(document.uri + '.tmp', document.languageId, document.version, htmlFormattedContent);
 	try {

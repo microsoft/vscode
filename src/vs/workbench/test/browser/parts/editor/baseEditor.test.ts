@@ -70,7 +70,7 @@ class MyInputFactory implements IEditorInputFactory {
 	}
 
 	deserialize(instantiationService: IInstantiationService, raw: string): EditorInput {
-		return <EditorInput>{};
+		return {} as EditorInput;
 	}
 }
 

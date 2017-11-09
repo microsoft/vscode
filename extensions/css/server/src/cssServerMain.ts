@@ -49,7 +49,7 @@ let scopedSettingsSupport = false;
 connection.onInitialize((params: InitializeParams): InitializeResult => {
 	function hasClientCapability(name: string) {
 		let keys = name.split('.');
-		let c = params.capabilities;
+		let c: any = params.capabilities;
 		for (let i = 0; c && i < keys.length; i++) {
 			c = c[keys[i]];
 		}
@@ -60,7 +60,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	let capabilities: ServerCapabilities & CPServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
 		textDocumentSync: documents.syncKind,
-		completionProvider: snippetSupport ? { resolveProvider: false } : null,
+		completionProvider: snippetSupport ? { resolveProvider: false } : undefined,
 		hoverProvider: true,
 		documentSymbolProvider: true,
 		referencesProvider: true,
@@ -88,12 +88,12 @@ function getLanguageService(document: TextDocument) {
 	return service;
 }
 
-let documentSettings: { [key: string]: Thenable<LanguageSettings> } = {};
+let documentSettings: { [key: string]: Thenable<LanguageSettings | undefined> } = {};
 // remove document settings on close
 documents.onDidClose(e => {
 	delete documentSettings[e.document.uri];
 });
-function getDocumentSettings(textDocument: TextDocument): Thenable<LanguageSettings> {
+function getDocumentSettings(textDocument: TextDocument): Thenable<LanguageSettings | undefined> {
 	if (scopedSettingsSupport) {
 		let promise = documentSettings[textDocument.uri];
 		if (!promise) {
@@ -103,7 +103,7 @@ function getDocumentSettings(textDocument: TextDocument): Thenable<LanguageSetti
 		}
 		return promise;
 	}
-	return void 0;
+	return Promise.resolve(void 0);
 }
 
 // The settings have changed. Is send on server activation as well.
@@ -113,7 +113,7 @@ connection.onDidChangeConfiguration(change => {
 
 function updateConfiguration(settings: Settings) {
 	for (let languageId in languageServices) {
-		languageServices[languageId].configure(settings[languageId]);
+		languageServices[languageId].configure((settings as any)[languageId]);
 	}
 	// reset all document settings
 	documentSettings = {};
@@ -154,8 +154,8 @@ function triggerValidation(textDocument: TextDocument): void {
 
 function validateTextDocument(textDocument: TextDocument): void {
 	let settingsPromise = getDocumentSettings(textDocument);
-	let stylesheet = stylesheets.get(textDocument);
 	settingsPromise.then(settings => {
+		let stylesheet = stylesheets.get(textDocument);
 		let diagnostics = getLanguageService(textDocument).doValidation(textDocument, stylesheet, settings);
 		// Send the computed diagnostics to VSCode.
 		connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });

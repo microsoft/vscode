@@ -9,25 +9,10 @@ import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { vsRangeToTsFileRange } from '../utils/convert';
 import FormattingConfigurationManager from './formattingConfigurationManager';
-import { applyCodeAction } from '../utils/codeAction';
-import { CommandManager, Command } from '../utils/commandManager';
+import { getEditForCodeAction } from '../utils/codeAction';
 
 interface NumberSet {
 	[key: number]: boolean;
-}
-
-class ApplyCodeActionCommand implements Command {
-
-	public static readonly ID: string = '_typescript.applyCodeAction';
-	public readonly id: string = ApplyCodeActionCommand.ID;
-
-	constructor(
-		private readonly client: ITypeScriptServiceClient
-	) { }
-
-	execute(action: Proto.CodeAction, file: string): void {
-		applyCodeAction(this.client, action, file);
-	}
 }
 
 export default class TypeScriptCodeActionProvider implements vscode.CodeActionProvider {
@@ -35,18 +20,25 @@ export default class TypeScriptCodeActionProvider implements vscode.CodeActionPr
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
-		private readonly formattingConfigurationManager: FormattingConfigurationManager,
-		commandManager: CommandManager
+		private readonly formattingConfigurationManager: FormattingConfigurationManager
+	) { }
+
+	public provideCodeActions(
+		_document: vscode.TextDocument,
+		_range: vscode.Range,
+		_context: vscode.CodeActionContext,
+		_token: vscode.CancellationToken
 	) {
-		commandManager.register(new ApplyCodeActionCommand(this.client));
+		// Uses provideCodeActions2 instead
+		return [];
 	}
 
-	public async provideCodeActions(
+	public async provideCodeActions2(
 		document: vscode.TextDocument,
 		range: vscode.Range,
 		context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
-	): Promise<vscode.Command[]> {
+	): Promise<vscode.CodeAction[]> {
 		if (!this.client.apiVersion.has213Features()) {
 			return [];
 		}
@@ -68,7 +60,7 @@ export default class TypeScriptCodeActionProvider implements vscode.CodeActionPr
 			errorCodes: Array.from(supportedActions)
 		};
 		const response = await this.client.execute('getCodeFixes', args, token);
-		return (response.body || []).map(action => this.getCommandForAction(action, file));
+		return (response.body || []).map(action => this.getCommandForAction(action));
 	}
 
 	private get supportedCodeActions(): Thenable<NumberSet> {
@@ -92,11 +84,11 @@ export default class TypeScriptCodeActionProvider implements vscode.CodeActionPr
 			.filter(code => supportedActions[code]));
 	}
 
-	private getCommandForAction(action: Proto.CodeAction, file: string): vscode.Command {
+	private getCommandForAction(action: Proto.CodeAction): vscode.CodeAction {
 		return {
 			title: action.description,
-			command: ApplyCodeActionCommand.ID,
-			arguments: [action, file]
+			edits: getEditForCodeAction(this.client, action),
+			diagnostics: []
 		};
 	}
 }

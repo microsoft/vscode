@@ -11,7 +11,7 @@ import Event from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { StrictResourceMap } from 'vs/base/common/map';
 
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
@@ -122,6 +122,26 @@ export function compare(from: IConfigurationModel, to: IConfigurationModel): { a
 	}
 
 	return { added, removed, updated };
+}
+
+export function toOverrides(raw: any, conflictReporter: (message: string) => void): IOverrides[] {
+	const overrides: IOverrides[] = [];
+	const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
+	for (const key of Object.keys(raw)) {
+		if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
+			const overrideRaw = {};
+			for (const keyInOverrideRaw in raw[key]) {
+				if (configurationProperties[keyInOverrideRaw] && configurationProperties[keyInOverrideRaw].overridable) {
+					overrideRaw[keyInOverrideRaw] = raw[key][keyInOverrideRaw];
+				}
+			}
+			overrides.push({
+				identifiers: [overrideIdentifierFromKey(key).trim()],
+				contents: toValuesTree(overrideRaw, conflictReporter)
+			});
+		}
+	}
+	return overrides;
 }
 
 export function toValuesTree(properties: { [qualifiedKey: string]: any }, conflictReporter: (message: string) => void): any {

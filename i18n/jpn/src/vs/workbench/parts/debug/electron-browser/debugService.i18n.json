@@ -13,6 +13,7 @@
 	"compoundMustHaveConfigurations": "複合構成を開始するには、複合に \"configurations\" 属性が設定されている必要があります。",
 	"configMissing": "構成 '{0}' が 'launch.json' 内にありません。",
 	"debugRequestNotSupported": "選択しているデバッグ構成で `{0}` 属性はサポートされない値 '{1}' を指定しています。",
+	"debugRequesMissing": "選択しているデバッグ構成に属性 '{0}' が含まれていません。",
 	"debugTypeNotSupported": "構成されているデバッグの種類 '{0}' はサポートされていません。",
 	"debugTypeMissing": "選択している起動構成の `type` プロパティがありません。",
 	"debugAnyway": "このままデバッグを続ける",
@@ -21,5 +22,6 @@
 	"preLaunchTaskExitCode": "preLaunchTask '{0}' が終了コード {1} で終了しました。",
 	"noFolderWorkspaceDebugError": "アクティブ ファイルをデバッグできません。ファイルがディスクに保存されており、そのファイル タイプのデバッグ拡張機能がインストールされていることを確認してください。",
 	"NewLaunchConfig": "アプリケーションの起動構成ファイルをセットアップしてください。{0}",
-	"DebugTaskNotFound": "preLaunchTask '{0}' が見つかりませんでした。"
+	"DebugTaskNotFound": "preLaunchTask '{0}' が見つかりませんでした。",
+	"taskNotTracked": "preLaunchTask '{0}' を追跡できません。"
 }

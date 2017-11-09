@@ -6,11 +6,12 @@
 
 import * as assert from 'assert';
 import { Selection } from 'vs/editor/common/core/selection';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { Model } from 'vs/editor/common/model/model';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 suite('SnippetController2', function () {
 
@@ -28,7 +29,7 @@ suite('SnippetController2', function () {
 		assert.equal(SnippetController2.HasNextTabstop.getValue(service), hasNext, `HasNextTabstop`);
 	}
 
-	let editor: ICommonCodeEditor;
+	let editor: ICodeEditor;
 	let model: Model;
 	let contextKeys: MockContextKeyService;
 

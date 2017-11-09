@@ -10,7 +10,7 @@ import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { ScrollType, IEditorContribution, FindMatch, TrackedRangeStickiness, OverviewRulerLane, IModel } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { registerEditorAction, registerCommonEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
@@ -18,11 +18,11 @@ import { CursorMoveCommands } from 'vs/editor/common/controller/cursorMoveComman
 import { CursorState, RevealTarget } from 'vs/editor/common/controller/cursorCommon';
 import { Constants } from 'vs/editor/common/core/uint';
 import { DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
-import { CommonFindController } from 'vs/editor/contrib/find/common/findController';
+import { CommonFindController } from 'vs/editor/contrib/find/findController';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import { overviewRulerSelectionHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { INewFindReplaceState, FindOptionOverride } from 'vs/editor/contrib/find/common/findState';
+import { INewFindReplaceState, FindOptionOverride } from 'vs/editor/contrib/find/findState';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class InsertCursorAbove extends EditorAction {
@@ -901,8 +901,8 @@ function getValueInRange(model: IModel, range: Range, toLowerCase: boolean): str
 	return (toLowerCase ? text.toLowerCase() : text);
 }
 
-registerCommonEditorContribution(MultiCursorSelectionController);
-registerCommonEditorContribution(SelectionHighlighter);
+registerEditorContribution(MultiCursorSelectionController);
+registerEditorContribution(SelectionHighlighter);
 
 registerEditorAction(InsertCursorAbove);
 registerEditorAction(InsertCursorBelow);

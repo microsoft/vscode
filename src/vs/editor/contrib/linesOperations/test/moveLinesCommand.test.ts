@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 import { Selection } from 'vs/editor/common/core/selection';
-import { MoveLinesCommand } from 'vs/editor/contrib/linesOperations/common/moveLinesCommand';
+import { MoveLinesCommand } from 'vs/editor/contrib/linesOperations/moveLinesCommand';
 import { testCommand } from 'vs/editor/test/browser/testCommand';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { LanguageIdentifier } from 'vs/editor/common/modes';

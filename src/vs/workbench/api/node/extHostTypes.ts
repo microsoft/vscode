@@ -808,6 +808,21 @@ export class SymbolInformation {
 	}
 }
 
+export class CodeAction {
+	title: string;
+
+	command?: vscode.Command;
+
+	edits?: TextEdit[] | WorkspaceEdit;
+
+	dianostics?: Diagnostic[];
+
+	constructor(title: string, edits?: TextEdit[] | WorkspaceEdit) {
+		this.title = title;
+		this.edits = edits;
+	}
+}
+
 export class CodeLens {
 
 	range: Range;
@@ -887,6 +902,11 @@ export class SignatureHelp {
 	constructor() {
 		this.signatures = [];
 	}
+}
+
+export enum CodeActionType {
+	QuickFix = 1,
+	Refactoring = 2
 }
 
 export enum CompletionTriggerKind {
