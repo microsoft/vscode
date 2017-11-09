@@ -56,6 +56,7 @@ import { widgetShadow, editorWidgetBackground } from 'vs/platform/theme/common/c
 // tslint:disable-next-line:import-patterns
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { clone } from 'vs/base/common/objects';
 
 function toEditorWithEncodingSupport(input: IEditorInput): IEncodingSupport {
 	if (input instanceof SideBySideEditorInput) {
@@ -977,7 +978,7 @@ export class ChangeModeAction extends Action {
 					}
 
 					// Make sure to write into the value of the target and not the merged value from USER and WORKSPACE config
-					let currentAssociations = (target === ConfigurationTarget.WORKSPACE) ? fileAssociationsConfig.workspace : fileAssociationsConfig.user;
+					let currentAssociations = clone((target === ConfigurationTarget.WORKSPACE) ? fileAssociationsConfig.workspace : fileAssociationsConfig.user);
 					if (!currentAssociations) {
 						currentAssociations = Object.create(null);
 					}
