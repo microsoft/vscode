@@ -796,6 +796,10 @@ export class TestFileService implements IFileService {
 		return TPromise.as(null);
 	}
 
+	canHandleResource(resource: URI): boolean {
+		return resource.scheme === 'file';
+	}
+
 	del(resource: URI, useTrash?: boolean): TPromise<void> {
 		return TPromise.as(null);
 	}
