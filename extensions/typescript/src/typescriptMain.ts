@@ -215,8 +215,6 @@ class LanguageProvider {
 	private readonly bufferSyncSupport: BufferSyncSupport;
 	private readonly formattingOptionsManager: FormattingConfigurationManager;
 
-	private readonly typingsStatus: TypingsStatus;
-	private readonly ataProgressReporter: AtaProgressReporter;
 	private readonly toUpdateOnConfigurationChanged: ({ updateConfiguration: () => void })[] = [];
 
 	private _validate: boolean = true;
@@ -227,7 +225,8 @@ class LanguageProvider {
 	constructor(
 		private readonly client: TypeScriptServiceClient,
 		private readonly description: LanguageDescription,
-		private readonly commandManager: CommandManager
+		commandManager: CommandManager,
+		typingsStatus: TypingsStatus
 	) {
 		this.formattingOptionsManager = new FormattingConfigurationManager(client);
 		this.bufferSyncSupport = new BufferSyncSupport(client, description.modeIds, {
@@ -238,14 +237,11 @@ class LanguageProvider {
 
 		this.diagnosticsManager = new DiagnosticsManager(description.id, this.client);
 
-		this.typingsStatus = new TypingsStatus(client);
-		this.ataProgressReporter = new AtaProgressReporter(client);
-
 		workspace.onDidChangeConfiguration(this.configurationChanged, this, this.disposables);
 		this.configurationChanged();
 
 		client.onReady().then(async () => {
-			await this.registerProviders(client);
+			await this.registerProviders(client, commandManager, typingsStatus);
 			this.bufferSyncSupport.listen();
 		}, () => {
 			// Nothing to do here. The client did show a message;
@@ -267,18 +263,21 @@ class LanguageProvider {
 			}
 		}
 
-		this.typingsStatus.dispose();
-		this.ataProgressReporter.dispose();
 		this.diagnosticsManager.dispose();
 		this.bufferSyncSupport.dispose();
+		this.formattingOptionsManager.dispose();
 	}
 
-	private async registerProviders(client: TypeScriptServiceClient): Promise<void> {
+	private async registerProviders(
+		client: TypeScriptServiceClient,
+		commandManager: CommandManager,
+		typingsStatus: TypingsStatus
+	): Promise<void> {
 		const selector = this.description.modeIds;
 		const config = workspace.getConfiguration(this.id);
 
 		this.disposables.push(languages.registerCompletionItemProvider(selector,
-			new (await import('./features/completionItemProvider')).default(client, this.typingsStatus, this.commandManager),
+			new (await import('./features/completionItemProvider')).default(client, typingsStatus, commandManager),
 			'.', '"', '\'', '/', '@'));
 
 		this.disposables.push(languages.registerCompletionItemProvider(selector, new (await import('./features/directiveCommentCompletionProvider')).default(client), '@'));
@@ -293,7 +292,7 @@ class LanguageProvider {
 		this.disposables.push(formattingProviderManager);
 		this.toUpdateOnConfigurationChanged.push(formattingProviderManager);
 
-		this.disposables.push(languages.registerCompletionItemProvider(selector, new (await import('./features/jsDocCompletionProvider')).default(client, this.commandManager), '*'));
+		this.disposables.push(languages.registerCompletionItemProvider(selector, new (await import('./features/jsDocCompletionProvider')).default(client, commandManager), '*'));
 		this.disposables.push(languages.registerHoverProvider(selector, new (await import('./features/hoverProvider')).default(client)));
 		this.disposables.push(languages.registerDefinitionProvider(selector, new (await import('./features/definitionProvider')).default(client)));
 		this.disposables.push(languages.registerDocumentHighlightProvider(selector, new (await import('./features/documentHighlightProvider')).default(client)));
@@ -302,7 +301,7 @@ class LanguageProvider {
 		this.disposables.push(languages.registerSignatureHelpProvider(selector, new (await import('./features/signatureHelpProvider')).default(client), '(', ','));
 		this.disposables.push(languages.registerRenameProvider(selector, new (await import('./features/renameProvider')).default(client)));
 		this.disposables.push(languages.registerCodeActionsProvider(selector, new (await import('./features/codeActionProvider')).default(client, this.formattingOptionsManager)));
-		this.disposables.push(languages.registerCodeActionsProvider(selector, new (await import('./features/refactorProvider')).default(client, this.formattingOptionsManager, this.commandManager)));
+		this.disposables.push(languages.registerCodeActionsProvider(selector, new (await import('./features/refactorProvider')).default(client, this.formattingOptionsManager, commandManager)));
 		this.registerVersionDependentProviders();
 
 		const referenceCodeLensProvider = new (await import('./features/referencesCodeLensProvider')).default(client, this.description.id);
@@ -424,6 +423,8 @@ const styleCheckDiagnostics = [
 ];
 
 class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
+	ataProgressReporter: AtaProgressReporter;
+	typingsStatus: TypingsStatus;
 	private client: TypeScriptServiceClient;
 	private languages: LanguageProvider[] = [];
 	private languagePerId: Map<string, LanguageProvider>;
@@ -434,7 +435,7 @@ class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
 		descriptions: LanguageDescription[],
 		workspaceState: Memento,
 		plugins: TypeScriptServerPlugin[],
-		private commandManager: CommandManager
+		private readonly commandManager: CommandManager
 	) {
 		const handleProjectCreateOrDelete = () => {
 			this.client.execute('reloadProjects', null, false);
@@ -457,9 +458,12 @@ class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
 		this.client = new TypeScriptServiceClient(this, workspaceState, this.versionStatus, plugins);
 		this.disposables.push(this.client);
 
+		this.typingsStatus = new TypingsStatus(this.client);
+		this.ataProgressReporter = new AtaProgressReporter(this.client);
+
 		this.languagePerId = new Map();
 		for (const description of descriptions) {
-			const manager = new LanguageProvider(this.client, description, this.commandManager);
+			const manager = new LanguageProvider(this.client, description, this.commandManager, this.typingsStatus);
 			this.languages.push(manager);
 			this.disposables.push(manager);
 			this.languagePerId.set(description.id, manager);
@@ -483,7 +487,7 @@ class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
 					diagnosticSource: 'ts-plugins',
 					isExternal: true
 				};
-				const manager = new LanguageProvider(this.client, description, this.commandManager);
+				const manager = new LanguageProvider(this.client, description, this.commandManager, this.typingsStatus);
 				this.languages.push(manager);
 				this.disposables.push(manager);
 				this.languagePerId.set(description.id, manager);
@@ -502,6 +506,9 @@ class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
 				obj.dispose();
 			}
 		}
+
+		this.typingsStatus.dispose();
+		this.ataProgressReporter.dispose();
 	}
 
 	public get serviceClient(): TypeScriptServiceClient {
