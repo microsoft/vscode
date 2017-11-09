@@ -211,20 +211,18 @@ export function activate(context: ExtensionContext): void {
 const validateSetting = 'validate.enable';
 
 class LanguageProvider {
-	private diagnosticsManager: DiagnosticsManager;
-
+	private readonly diagnosticsManager: DiagnosticsManager;
 	private readonly bufferSyncSupport: BufferSyncSupport;
 	private readonly formattingOptionsManager: FormattingConfigurationManager;
 
 	private readonly typingsStatus: TypingsStatus;
 	private readonly ataProgressReporter: AtaProgressReporter;
-	private toUpdateOnConfigurationChanged: ({ updateConfiguration: () => void })[] = [];
+	private readonly toUpdateOnConfigurationChanged: ({ updateConfiguration: () => void })[] = [];
 
 	private _validate: boolean = true;
 
 	private readonly disposables: Disposable[] = [];
-
-	private versionDependentDisposables: Disposable[] = [];
+	private readonly versionDependentDisposables: Disposable[] = [];
 
 	constructor(
 		private readonly client: TypeScriptServiceClient,
@@ -384,7 +382,6 @@ class LanguageProvider {
 			}
 		}
 
-		this.versionDependentDisposables = [];
 		if (!this.client) {
 			return;
 		}
