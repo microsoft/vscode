@@ -6,7 +6,8 @@
 		"noUnusedLocals": true,
 		"lib": [
 			"es5"
-		]
+		],
+		"strict": true
 	},
 	"include": [
 		"src/**/*"
