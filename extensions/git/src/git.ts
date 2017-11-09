@@ -570,7 +570,23 @@ export class Repository {
 		return stdout;
 	}
 
-	async lstree(treeish: string, path: string): Promise<{ mode: number, type: string, object: string, size: number }> {
+	async lstree(treeish: string, path: string): Promise<{ mode: number, object: string, size: number }> {
+		if (!treeish) { // index
+			const { stdout } = await this.run(['ls-files', '--stage', '--', path]);
+
+			const match = /^(\d+)\s+([0-9a-f]{40})\s+(\d+)/.exec(stdout);
+
+			if (!match) {
+				throw new GitError({ message: 'Error running ls-files' });
+			}
+
+			const [, mode, object] = match;
+			const catFile = await this.run(['cat-file', '-s', object]);
+			const size = parseInt(catFile.stdout);
+
+			return { mode: parseInt(mode), object, size };
+		}
+
 		const { stdout } = await this.run(['ls-tree', '-l', treeish, '--', path]);
 
 		const match = /^(\d+)\s+(\w+)\s+([0-9a-f]{40})\s+(\d+)/.exec(stdout);
@@ -579,8 +595,8 @@ export class Repository {
 			throw new GitError({ message: 'Error running ls-tree' });
 		}
 
-		const [, mode, type, object, size] = match;
-		return { mode: parseInt(mode), type, object, size: parseInt(size) };
+		const [, mode, , object, size] = match;
+		return { mode: parseInt(mode), object, size: parseInt(size) };
 	}
 
 	async detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }> {

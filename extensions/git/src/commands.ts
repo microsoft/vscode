@@ -207,9 +207,15 @@ export class CommandCenter {
 		}
 
 		try {
+			if (ref === '~') {
+				const uriString = uri.toString();
+				const [indexStatus] = repository.indexGroup.resourceStates.filter(r => r.original.toString() === uriString);
+				ref = indexStatus ? '' : 'HEAD';
+			}
+
 			const { size, object } = await repository.lstree(ref, uri.fsPath);
 
-			if (size > 5000000) { // 5 MB
+			if (size > 1000000) { // 1 MB
 				return Uri.parse(`data:;label:${path.basename(uri.fsPath)};description:${ref},`);
 			}
 
@@ -485,7 +491,7 @@ export class CommandCenter {
 			return;
 		}
 
-		const HEAD = this.getLeftResource(resource);
+		const HEAD = await this.getLeftResource(resource);
 
 		if (!HEAD) {
 			window.showWarningMessage(localize('HEAD not available', "HEAD version of '{0}' is not available.", path.basename(resource.resourceUri.fsPath)));
