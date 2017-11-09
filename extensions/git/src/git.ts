@@ -11,7 +11,8 @@ import * as os from 'os';
 import * as cp from 'child_process';
 import { EventEmitter } from 'events';
 import iconv = require('iconv-lite');
-import { assign, uniqBy, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp } from './util';
+import * as filetype from 'file-type';
+import { assign, uniqBy, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding } from './util';
 
 const readfile = denodeify<string>(fs.readFile);
 
@@ -567,6 +568,59 @@ export class Repository {
 		}
 
 		return stdout;
+	}
+
+	async lstree(treeish: string, path: string): Promise<{ mode: number, type: string, object: string, size: number }> {
+		const { stdout } = await this.run(['ls-tree', '-l', treeish, '--', path]);
+
+		const match = /^(\d+)\s+(\w+)\s+([0-9a-f]{40})\s+(\d+)/.exec(stdout);
+
+		if (!match) {
+			throw new GitError({ message: 'Error running ls-tree' });
+		}
+
+		const [, mode, type, object, size] = match;
+		return { mode: parseInt(mode), type, object, size: parseInt(size) };
+	}
+
+	async detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }> {
+		const child = await this.stream(['show', object]);
+		const buffer = await readBytes(child.stdout, 4100);
+
+		try {
+			child.kill();
+		} catch (err) {
+			// noop
+		}
+
+		const encoding = detectUnicodeEncoding(buffer);
+		let isText = true;
+
+		if (encoding !== Encoding.UTF16be && encoding !== Encoding.UTF16le) {
+			for (let i = 0; i < buffer.length; i++) {
+				if (buffer.readInt8(i) === 0) {
+					isText = false;
+					break;
+				}
+			}
+		}
+
+		if (!isText) {
+			const result = filetype(buffer);
+
+			if (!result) {
+				return { mimetype: 'application/octet-stream' };
+			} else {
+				return { mimetype: result.mime };
+			}
+		}
+
+		if (encoding) {
+			return { mimetype: 'text/plain', encoding };
+		} else {
+			// TODO@JOAO: read the setting OUTSIDE!
+			return { mimetype: 'text/plain' };
+		}
 	}
 
 	async add(paths: string[]): Promise<void> {

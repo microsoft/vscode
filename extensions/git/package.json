@@ -909,14 +909,16 @@
   },
   "dependencies": {
     "byline": "^5.0.0",
+    "file-type": "^7.2.0",
     "iconv-lite": "0.4.19",
     "vscode-extension-telemetry": "0.0.8",
     "vscode-nls": "2.0.2"
   },
   "devDependencies": {
+    "@types/byline": "4.2.31",
+    "@types/file-type": "^5.2.1",
     "@types/mocha": "2.2.43",
     "@types/node": "7.0.43",
-    "@types/byline": "4.2.31",
     "mocha": "^3.2.0"
   }
 }
