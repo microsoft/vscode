@@ -13,9 +13,8 @@ import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICommonCodeEditor, ScrollType, IModel } from 'vs/editor/common/editorCommon';
-import { registerEditorAction, ServicesAccessor, EditorAction, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, registerInstantiatedEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { FoldingModel, setCollapseStateAtLevel, CollapseMemento, setCollapseStateLevelsDown, setCollapseStateLevelsUp } from 'vs/editor/contrib/folding/foldingModel';
 import { FoldingDecorationProvider } from './foldingDecorations';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -564,7 +563,7 @@ registerEditorAction(FoldAllAction);
 registerEditorAction(UnfoldAllAction);
 
 for (let i = 1; i <= 9; i++) {
-	CommonEditorRegistry.registerEditorAction(
+	registerInstantiatedEditorAction(
 		new FoldLevelAction({
 			id: FoldLevelAction.ID(i),
 			label: nls.localize('foldLevelAction.label', "Fold Level {0}", i),

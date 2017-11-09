@@ -6,7 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { EditorAction, ServicesAccessor, IActionOptions } from 'vs/editor/common/editorCommonExtensions';
+import { EditorAction, ServicesAccessor, IActionOptions } from 'vs/editor/browser/editorExtensions';
 import { grammarsExtPoint, ITMSyntaxExtensionPoint } from 'vs/workbench/services/textMate/electron-browser/TMGrammars';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IExtensionService, ExtensionPointContribution } from 'vs/platform/extensions/common/extensions';
@@ -127,5 +127,3 @@ export abstract class EmmetEditorAction extends EditorAction {
 
 
 }
-
-

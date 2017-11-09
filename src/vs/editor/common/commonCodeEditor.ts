@@ -28,7 +28,6 @@ import {
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
@@ -758,16 +757,14 @@ export abstract class CommonCodeEditor extends Disposable implements editorCommo
 			return;
 		}
 
-		const command = CommonEditorRegistry.getEditorCommand(handlerId);
-		if (command) {
-			payload = payload || {};
-			payload.source = source;
-			TPromise.as(command.runEditorCommand(null, this, payload)).done(null, onUnexpectedError);
+		if (this._triggerEditorCommand(source, handlerId, payload)) {
 			return;
 		}
 
 		this.cursor.trigger(source, handlerId, payload);
 	}
+
+	protected abstract _triggerEditorCommand(source: string, handlerId: string, payload: any): boolean;
 
 	public _getCursors(): ICursors {
 		return this.cursor;

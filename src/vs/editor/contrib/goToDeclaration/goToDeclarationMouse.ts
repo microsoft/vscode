@@ -16,7 +16,7 @@ import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Location, DefinitionProviderRegistry } from 'vs/editor/common/modes';
 import { ICodeEditor, IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { getDefinitionsAtPosition } from './goToDeclaration';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';

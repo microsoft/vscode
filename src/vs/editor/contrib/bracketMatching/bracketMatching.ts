@@ -14,11 +14,12 @@ import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { registerEditorAction, registerCommonEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorBracketMatchBackground, editorBracketMatchBorder } from 'vs/editor/common/view/editorColorRegistry';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 class SelectBracketAction extends EditorAction {
 	constructor() {
@@ -62,7 +63,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 		return editor.getContribution<BracketMatchingController>(BracketMatchingController.ID);
 	}
 
-	private readonly _editor: editorCommon.ICommonCodeEditor;
+	private readonly _editor: ICodeEditor;
 
 	private _lastBracketsData: BracketsData[];
 	private _lastVersionId: number;
@@ -71,7 +72,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 	private _matchBrackets: boolean;
 
 	constructor(
-		editor: editorCommon.ICommonCodeEditor
+		editor: ICodeEditor
 	) {
 		super();
 		this._editor = editor;
@@ -225,7 +226,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 	}
 }
 
-registerCommonEditorContribution(BracketMatchingController);
+registerEditorContribution(BracketMatchingController);
 registerEditorAction(SelectBracketAction);
 registerThemingParticipant((theme, collector) => {
 	let bracketMatchBackground = theme.getColor(editorBracketMatchBackground);

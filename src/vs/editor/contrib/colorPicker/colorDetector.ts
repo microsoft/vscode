@@ -8,7 +8,7 @@ import { hash } from 'vs/base/common/hash';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICommonCodeEditor, IEditorContribution } from 'vs/editor/common/editorCommon';
-import { registerEditorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';

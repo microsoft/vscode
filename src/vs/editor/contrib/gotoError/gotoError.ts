@@ -19,9 +19,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { registerEditorAction, ServicesAccessor, IActionOptions, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, registerEditorContribution, ServicesAccessor, IActionOptions, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import { registerColor, oneOf } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
@@ -31,6 +30,7 @@ import { AccessibilitySupport } from 'vs/base/common/platform';
 import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoForeground, editorInfoBorder } from 'vs/editor/common/view/editorColorRegistry';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 class MarkerModel {
 
@@ -540,12 +540,12 @@ const CONTEXT_MARKERS_NAVIGATION_VISIBLE = new RawContextKey<boolean>('markersNa
 
 const MarkerCommand = EditorCommand.bindToContribution<MarkerController>(MarkerController.get);
 
-CommonEditorRegistry.registerEditorCommand(new MarkerCommand({
+registerEditorCommand(new MarkerCommand({
 	id: 'closeMarkersNavigation',
 	precondition: CONTEXT_MARKERS_NAVIGATION_VISIBLE,
 	handler: x => x.closeMarkersNavigation(),
 	kbOpts: {
-		weight: CommonEditorRegistry.commandWeight(50),
+		weight: KeybindingsRegistry.WEIGHT.editorContrib(50),
 		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]

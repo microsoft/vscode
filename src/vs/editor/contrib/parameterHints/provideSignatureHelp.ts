@@ -8,7 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
-import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { SignatureHelp, SignatureHelpProviderRegistry } from 'vs/editor/common/modes';
 import { asWinJsPromise, sequence } from 'vs/base/common/async';
 import { Position } from 'vs/editor/common/core/position';
@@ -38,4 +38,4 @@ export function provideSignatureHelp(model: IReadOnlyModel, position: Position):
 	})).then(() => result);
 }
 
-CommonEditorRegistry.registerDefaultLanguageCommand('_executeSignatureHelpProvider', provideSignatureHelp);
+registerDefaultLanguageCommand('_executeSignatureHelpProvider', provideSignatureHelp);

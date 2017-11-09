@@ -10,7 +10,6 @@ import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { NoEditorsVisibleContext, InZenModeContext } from 'vs/workbench/electron-browser/workbench';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { IListService, ListFocusContext } from 'vs/platform/list/browser/listService';
@@ -373,7 +372,7 @@ export function registerCommands(): void {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'workbench.action.exitZenMode',
-		weight: CommonEditorRegistry.commandWeight(-1000),
+		weight: KeybindingsRegistry.WEIGHT.editorContrib(-1000),
 		handler(accessor: ServicesAccessor, configurationOrName: any) {
 			const partService = accessor.get(IPartService);
 			partService.toggleZenMode();

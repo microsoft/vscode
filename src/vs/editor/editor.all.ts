@@ -20,7 +20,7 @@ import 'vs/editor/contrib/comment/comment';
 import 'vs/editor/contrib/contextmenu/contextmenu';
 import 'vs/editor/contrib/cursorUndo/cursorUndo';
 import 'vs/editor/contrib/dnd/dnd';
-import 'vs/editor/contrib/find/find';
+import 'vs/editor/contrib/find/findController';
 import 'vs/editor/contrib/folding/folding';
 import 'vs/editor/contrib/format/formatActions';
 import 'vs/editor/contrib/goToDeclaration/goToDeclarationCommands';

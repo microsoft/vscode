@@ -8,7 +8,7 @@ import { KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 
 /**
  * Prevents the top-level menu from showing up when doing Alt + Click in the editor

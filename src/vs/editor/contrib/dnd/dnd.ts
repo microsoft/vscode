@@ -11,7 +11,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ICodeEditor, IEditorMouseEvent, IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';

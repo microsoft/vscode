@@ -12,7 +12,7 @@ import { asWinJsPromise } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedExternalError, illegalArgument } from 'vs/base/common/errors';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 
 export function getCodeActions(model: IReadOnlyModel, range: Range): TPromise<(CodeAction | Command)[]> {
 
@@ -34,7 +34,7 @@ export function getCodeActions(model: IReadOnlyModel, range: Range): TPromise<(C
 	return TPromise.join(promises).then(() => allResults);
 }
 
-CommonEditorRegistry.registerLanguageCommand('_executeCodeActionProvider', function (accessor, args) {
+registerLanguageCommand('_executeCodeActionProvider', function (accessor, args) {
 
 	const { resource, range } = args;
 	if (!(resource instanceof URI) || !Range.isIRange(range)) {
@@ -48,4 +48,3 @@ CommonEditorRegistry.registerLanguageCommand('_executeCodeActionProvider', funct
 
 	return getCodeActions(model, model.validateRange(range));
 });
-

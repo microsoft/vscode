@@ -10,7 +10,7 @@ import { mergeSort } from 'vs/base/common/arrays';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModel } from 'vs/editor/common/editorCommon';
-import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { CodeLensProviderRegistry, CodeLensProvider, ICodeLensSymbol } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { asWinJsPromise } from 'vs/base/common/async';
@@ -56,7 +56,7 @@ export function getCodeLensData(model: IModel): TPromise<ICodeLensData[]> {
 	});
 }
 
-CommonEditorRegistry.registerLanguageCommand('_executeCodeLensProvider', function (accessor, args) {
+registerLanguageCommand('_executeCodeLensProvider', function (accessor, args) {
 
 	const { resource } = args;
 	if (!(resource instanceof URI)) {

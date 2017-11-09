@@ -18,9 +18,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommonCodeEditor, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { registerEditorAction, CommonEditorRegistry, EditorAction, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, registerEditorContribution, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/toggleTabFocusMode';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorWidgetBackground, widgetShadow, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -31,6 +30,7 @@ import URI from 'vs/base/common/uri';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as browser from 'vs/base/browser/browser';
 import { IEditorConstructionOptions } from 'vs/editor/standalone/browser/standaloneCodeEditor';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessibilityHelpWidgetVisible', false);
 
@@ -360,13 +360,13 @@ registerEditorAction(ShowAccessibilityHelpAction);
 
 const AccessibilityHelpCommand = EditorCommand.bindToContribution<AccessibilityHelpController>(AccessibilityHelpController.get);
 
-CommonEditorRegistry.registerEditorCommand(
+registerEditorCommand(
 	new AccessibilityHelpCommand({
 		id: 'closeAccessibilityHelp',
 		precondition: CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE,
 		handler: x => x.hide(),
 		kbOpts: {
-			weight: CommonEditorRegistry.commandWeight(100),
+			weight: KeybindingsRegistry.WEIGHT.editorContrib(100),
 			kbExpr: EditorContextKeys.focus,
 			primary: KeyCode.Escape,
 			secondary: [KeyMod.Shift | KeyCode.Escape]

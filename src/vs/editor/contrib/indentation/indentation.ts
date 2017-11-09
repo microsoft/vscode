@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as strings from 'vs/base/common/strings';
 import { ICommonCodeEditor, IEditorContribution, IIdentifiedSingleEditOperation, ICommand, ICursorStateComputerData, IEditOperationBuilder, ITokenizedModel } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { registerEditorAction, ServicesAccessor, IActionOptions, EditorAction, registerCommonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor, IActionOptions, EditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Range } from 'vs/editor/common/core/range';
@@ -20,6 +20,7 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import { TextEdit, StandardTokenType } from 'vs/editor/common/modes';
 import * as IndentUtil from './indentUtils';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export function shiftIndent(tabSize: number, indentation: string, count?: number): string {
 	count = count || 1;
@@ -373,11 +374,11 @@ export class AutoIndentOnPasteCommand implements ICommand {
 export class AutoIndentOnPaste implements IEditorContribution {
 	private static ID = 'editor.contrib.autoIndentOnPaste';
 
-	private editor: ICommonCodeEditor;
+	private editor: ICodeEditor;
 	private callOnDispose: IDisposable[];
 	private callOnModel: IDisposable[];
 
-	constructor(editor: ICommonCodeEditor) {
+	constructor(editor: ICodeEditor) {
 		this.editor = editor;
 		this.callOnDispose = [];
 		this.callOnModel = [];
@@ -609,7 +610,7 @@ export class IndentationToTabsCommand implements ICommand {
 	}
 }
 
-registerCommonEditorContribution(AutoIndentOnPaste);
+registerEditorContribution(AutoIndentOnPaste);
 registerEditorAction(IndentationToSpacesAction);
 registerEditorAction(IndentationToTabsAction);
 registerEditorAction(IndentUsingTabs);

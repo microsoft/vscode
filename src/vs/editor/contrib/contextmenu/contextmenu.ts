@@ -18,9 +18,8 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { ICommonCodeEditor, IEditorContribution, IScrollEvent, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 
 export interface IPosition {
 	x: number;

@@ -24,7 +24,7 @@ import { editorLineNumbers } from 'vs/editor/common/view/editorColorRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
-import { registerEditorAction, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 

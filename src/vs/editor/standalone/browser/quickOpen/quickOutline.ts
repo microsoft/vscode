@@ -18,7 +18,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { SymbolInformation, DocumentSymbolProviderRegistry, symbolKindToCssClass, IOutline } from 'vs/editor/common/modes';
 import { BaseEditorQuickOpenAction, IDecorator } from './editorQuickOpen';
 import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/quickOpen';
-import { registerEditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Range } from 'vs/editor/common/core/range';
 

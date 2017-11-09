@@ -15,7 +15,7 @@ import { IEditorService } from 'vs/platform/editor/common/editor';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { registerEditorAction, IActionOptions, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, IActionOptions, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { Location } from 'vs/editor/common/modes';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition } from './goToDeclaration';
 import { ReferencesController } from 'vs/editor/contrib/referenceSearch/referencesController';

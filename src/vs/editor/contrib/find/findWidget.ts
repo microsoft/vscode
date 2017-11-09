@@ -21,11 +21,10 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { Sash, IHorizontalSashLayoutProvider, ISashEvent, Orientation } from 'vs/base/browser/ui/sash/sash';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { FIND_IDS, MATCHES_LIMIT } from 'vs/editor/contrib/find/findModel';
+import { FIND_IDS, MATCHES_LIMIT, CONTEXT_FIND_INPUT_FOCUSED } from 'vs/editor/contrib/find/findModel';
 import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/findState';
 import { Range } from 'vs/editor/common/core/range';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { CONTEXT_FIND_INPUT_FOCUSED } from 'vs/editor/contrib/find/findController';
 import { ITheme, registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
@@ -1076,4 +1075,3 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor .find-widget .monaco-sash { background-color: ${border}; width: 3px !important; margin-left: -4px;}`);
 	}
 });
-

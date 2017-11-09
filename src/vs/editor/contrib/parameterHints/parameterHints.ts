@@ -11,11 +11,11 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ICommonCodeEditor, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { registerEditorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { ParameterHintsWidget } from './parameterHintsWidget';
 import { Context } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 class ParameterHintsController implements IEditorContribution {
 
@@ -84,11 +84,11 @@ export class TriggerParameterHintsAction extends EditorAction {
 registerEditorContribution(ParameterHintsController);
 registerEditorAction(TriggerParameterHintsAction);
 
-const weight = CommonEditorRegistry.commandWeight(75);
+const weight = KeybindingsRegistry.WEIGHT.editorContrib(75);
 
 const ParameterHintsCommand = EditorCommand.bindToContribution<ParameterHintsController>(ParameterHintsController.get);
 
-CommonEditorRegistry.registerEditorCommand(new ParameterHintsCommand({
+registerEditorCommand(new ParameterHintsCommand({
 	id: 'closeParameterHints',
 	precondition: Context.Visible,
 	handler: x => x.cancel(),
@@ -99,7 +99,7 @@ CommonEditorRegistry.registerEditorCommand(new ParameterHintsCommand({
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
 }));
-CommonEditorRegistry.registerEditorCommand(new ParameterHintsCommand({
+registerEditorCommand(new ParameterHintsCommand({
 	id: 'showPrevParameterHint',
 	precondition: ContextKeyExpr.and(Context.Visible, Context.MultipleSignatures),
 	handler: x => x.previous(),
@@ -111,7 +111,7 @@ CommonEditorRegistry.registerEditorCommand(new ParameterHintsCommand({
 		mac: { primary: KeyCode.UpArrow, secondary: [KeyMod.Alt | KeyCode.UpArrow, KeyMod.WinCtrl | KeyCode.KEY_P] }
 	}
 }));
-CommonEditorRegistry.registerEditorCommand(new ParameterHintsCommand({
+registerEditorCommand(new ParameterHintsCommand({
 	id: 'showNextParameterHint',
 	precondition: ContextKeyExpr.and(Context.Visible, Context.MultipleSignatures),
 	handler: x => x.next(),

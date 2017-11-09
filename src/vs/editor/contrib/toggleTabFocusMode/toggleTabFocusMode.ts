@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 
 export class ToggleTabFocusModeAction extends EditorAction {

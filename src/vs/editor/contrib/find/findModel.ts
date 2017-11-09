@@ -20,6 +20,12 @@ import { Constants } from 'vs/editor/common/core/uint';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+
+export const CONTEXT_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('findWidgetVisible', false);
+export const CONTEXT_FIND_WIDGET_NOT_VISIBLE: ContextKeyExpr = CONTEXT_FIND_WIDGET_VISIBLE.toNegated();
+// Keep ContextKey use of 'Focussed' to not break when clauses
+export const CONTEXT_FIND_INPUT_FOCUSED = new RawContextKey<boolean>('findInputFocussed', false);
 
 export const ToggleCaseSensitiveKeybinding: IKeybindings = {
 	primary: KeyMod.Alt | KeyCode.KEY_C,

@@ -15,7 +15,7 @@ import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from 'vs/editor/
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
-import { registerEditorAction, ServicesAccessor, IActionOptions, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor, IActionOptions, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { CopyLinesCommand } from './copyLinesCommand';
 import { DeleteLinesCommand } from './deleteLinesCommand';
 import { MoveLinesCommand } from './moveLinesCommand';

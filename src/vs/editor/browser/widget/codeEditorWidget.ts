@@ -16,7 +16,7 @@ import { CommonCodeEditor } from 'vs/editor/common/commonCodeEditor';
 import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { EditorAction, EditorExtensionsRegistry, IEditorContributionCtor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
@@ -140,7 +140,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		this._codeEditorService.addCodeEditor(this);
 	}
 
-	protected abstract _getContributions(): editorBrowser.IEditorContributionCtor[];
+	protected abstract _getContributions(): IEditorContributionCtor[];
 	protected abstract _getActions(): EditorAction[];
 
 	protected _createConfiguration(options: IEditorOptions): CommonEditorConfiguration {
@@ -440,6 +440,18 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 	}
 
 	// END decorations
+
+	protected _triggerEditorCommand(source: string, handlerId: string, payload: any): boolean {
+		const command = EditorExtensionsRegistry.getEditorCommand(handlerId);
+		if (command) {
+			payload = payload || {};
+			payload.source = source;
+			TPromise.as(command.runEditorCommand(null, this, payload)).done(null, onUnexpectedError);
+			return true;
+		}
+
+		return false;
+	}
 }
 
 class CodeEditorWidgetFocusTracker extends Disposable {

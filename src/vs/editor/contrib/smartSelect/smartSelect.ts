@@ -12,9 +12,10 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { Range } from 'vs/editor/common/core/range';
 import { ICommonCodeEditor, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { registerEditorAction, ServicesAccessor, IActionOptions, EditorAction, registerCommonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor, IActionOptions, EditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { TokenSelectionSupport, ILogicalSelectionEntry } from './tokenSelectionSupport';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 // --- selection state machine
 
@@ -50,7 +51,7 @@ class SmartSelectController implements IEditorContribution {
 	private _tokenSelectionSupport: TokenSelectionSupport;
 
 	constructor(
-		private editor: ICommonCodeEditor,
+		private editor: ICodeEditor,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		this._tokenSelectionSupport = instantiationService.createInstance(TokenSelectionSupport);
@@ -194,6 +195,6 @@ class ShrinkSelectionAction extends AbstractSmartSelect {
 	}
 }
 
-registerCommonEditorContribution(SmartSelectController);
+registerEditorContribution(SmartSelectController);
 registerEditorAction(GrowSelectionAction);
 registerEditorAction(ShrinkSelectionAction);

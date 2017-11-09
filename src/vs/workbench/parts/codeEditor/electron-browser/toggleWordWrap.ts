@@ -8,7 +8,7 @@ import 'vs/css!./media/codeEditor';
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICommonCodeEditor, IEditorContribution, IModel } from 'vs/editor/common/editorCommon';
-import { registerEditorAction, ServicesAccessor, EditorAction, registerCommonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor, EditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -18,6 +18,7 @@ import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { InternalEditorOptions, EDITOR_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 const transientWordWrapState = 'transientWordWrapState';
 const isWordWrapMinifiedKey = 'isWordWrapMinified';
@@ -178,7 +179,7 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 	private static _ID = 'editor.contrib.toggleWordWrapController';
 
 	constructor(
-		private readonly editor: ICommonCodeEditor,
+		private readonly editor: ICodeEditor,
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
 		@ITextResourceConfigurationService readonly configurationService: ITextResourceConfigurationService,
 		@ICodeEditorService readonly codeEditorService: ICodeEditorService
@@ -249,7 +250,7 @@ function canToggleWordWrap(uri: URI): boolean {
 }
 
 
-registerCommonEditorContribution(ToggleWordWrapController);
+registerEditorContribution(ToggleWordWrapController);
 
 registerEditorAction(ToggleWordWrapAction);
 

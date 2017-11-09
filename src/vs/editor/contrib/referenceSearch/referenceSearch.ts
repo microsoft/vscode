@@ -15,7 +15,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { registerEditorAction, ServicesAccessor, EditorAction, CommonEditorRegistry, registerCommonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor, EditorAction, registerEditorContribution, registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { Location, ReferenceProviderRegistry } from 'vs/editor/common/modes';
 import { PeekContext, getOuterEditor } from './peekViewWidget';
 import { ReferencesController, RequestOptions, ctxReferenceSearchVisible } from './referencesController';
@@ -24,6 +24,7 @@ import { asWinJsPromise } from 'vs/base/common/async';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 const defaultReferenceSearchOptions: RequestOptions = {
 	getMetaTitle(model) {
@@ -36,7 +37,7 @@ export class ReferenceController implements editorCommon.IEditorContribution {
 	private static ID = 'editor.contrib.referenceController';
 
 	constructor(
-		editor: editorCommon.ICommonCodeEditor,
+		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		if (editor instanceof EmbeddedCodeEditorWidget) {
@@ -86,7 +87,7 @@ export class ReferenceAction extends EditorAction {
 	}
 }
 
-registerCommonEditorContribution(ReferenceController);
+registerEditorContribution(ReferenceController);
 
 registerEditorAction(ReferenceAction);
 
@@ -179,7 +180,7 @@ function closeActiveReferenceSearch(accessor: ServicesAccessor, args: any) {
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'closeReferenceSearch',
-	weight: CommonEditorRegistry.commandWeight(50),
+	weight: KeybindingsRegistry.WEIGHT.editorContrib(50),
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
 	when: ContextKeyExpr.and(ctxReferenceSearchVisible, ContextKeyExpr.not('config.editor.stablePeek')),
@@ -188,7 +189,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'closeReferenceSearchEditor',
-	weight: CommonEditorRegistry.commandWeight(-101),
+	weight: KeybindingsRegistry.WEIGHT.editorContrib(-101),
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
 	when: ContextKeyExpr.and(PeekContext.inPeekEditor, ContextKeyExpr.not('config.editor.stablePeek')),
@@ -223,4 +224,4 @@ export function provideReferences(model: editorCommon.IReadOnlyModel, position: 
 	});
 }
 
-CommonEditorRegistry.registerDefaultLanguageCommand('_executeReferenceProvider', provideReferences);
+registerDefaultLanguageCommand('_executeReferenceProvider', provideReferences);

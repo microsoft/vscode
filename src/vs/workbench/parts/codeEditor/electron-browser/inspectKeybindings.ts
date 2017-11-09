@@ -6,7 +6,7 @@
 
 import * as nls from 'vs/nls';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchKeybindingService } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';

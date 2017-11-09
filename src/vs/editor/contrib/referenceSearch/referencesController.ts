@@ -20,7 +20,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ReferencesModel, OneReference } from './referencesModel';
 import { ReferenceWidget, LayoutData } from './referencesWidget';
 import { Range } from 'vs/editor/common/core/range';

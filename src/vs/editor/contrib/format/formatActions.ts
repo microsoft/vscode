@@ -11,7 +11,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { registerEditorAction, ServicesAccessor, EditorAction, registerCommonEditorContribution, IActionOptions } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor, EditorAction, registerEditorContribution, IActionOptions } from 'vs/editor/browser/editorExtensions';
 import { OnTypeFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry } from 'vs/editor/common/modes';
 import { getOnTypeFormattingEdits, getDocumentFormattingEdits, getDocumentRangeFormattingEdits, NoProviderError } from 'vs/editor/contrib/format/format';
 import { EditOperationsCommand } from 'vs/editor/contrib/format/formatCommand';
@@ -24,6 +24,7 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { EditorState, CodeEditorStateFlag } from 'vs/editor/common/core/editorState';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 
 function alertFormattingEdits(edits: editorCommon.ISingleEditOperation[]): void {
@@ -57,12 +58,12 @@ class FormatOnType implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.contrib.autoFormat';
 
-	private editor: editorCommon.ICommonCodeEditor;
+	private editor: ICodeEditor;
 	private workerService: IEditorWorkerService;
 	private callOnDispose: IDisposable[];
 	private callOnModel: IDisposable[];
 
-	constructor(editor: editorCommon.ICommonCodeEditor, @IEditorWorkerService workerService: IEditorWorkerService) {
+	constructor(editor: ICodeEditor, @IEditorWorkerService workerService: IEditorWorkerService) {
 		this.editor = editor;
 		this.workerService = workerService;
 		this.callOnDispose = [];
@@ -182,12 +183,12 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.contrib.formatOnPaste';
 
-	private editor: editorCommon.ICommonCodeEditor;
+	private editor: ICodeEditor;
 	private workerService: IEditorWorkerService;
 	private callOnDispose: IDisposable[];
 	private callOnModel: IDisposable[];
 
-	constructor(editor: editorCommon.ICommonCodeEditor, @IEditorWorkerService workerService: IEditorWorkerService) {
+	constructor(editor: ICodeEditor, @IEditorWorkerService workerService: IEditorWorkerService) {
 		this.editor = editor;
 		this.workerService = workerService;
 		this.callOnDispose = [];
@@ -352,8 +353,8 @@ export class FormatSelectionAction extends AbstractFormatAction {
 	}
 }
 
-registerCommonEditorContribution(FormatOnType);
-registerCommonEditorContribution(FormatOnPaste);
+registerEditorContribution(FormatOnType);
+registerEditorContribution(FormatOnPaste);
 registerEditorAction(FormatDocumentAction);
 registerEditorAction(FormatSelectionAction);
 

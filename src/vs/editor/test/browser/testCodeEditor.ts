@@ -20,6 +20,9 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IPosition } from 'vs/editor/common/core/position';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export class TestCodeEditor extends CommonCodeEditor implements editorBrowser.ICodeEditor {
 
@@ -95,6 +98,18 @@ export class TestCodeEditor extends CommonCodeEditor implements editorBrowser.IC
 		this._contextKeyService.dispose();
 	}
 
+	protected _triggerEditorCommand(source: string, handlerId: string, payload: any): boolean {
+		const command = EditorExtensionsRegistry.getEditorCommand(handlerId);
+		if (command) {
+			payload = payload || {};
+			payload.source = source;
+			TPromise.as(command.runEditorCommand(null, this, payload)).done(null, onUnexpectedError);
+			return true;
+		}
+
+		return false;
+	}
+
 	//#region ICodeEditor
 	getDomNode(): HTMLElement { throw new Error('Not implemented'); }
 	addContentWidget(widget: editorBrowser.IContentWidget): void { throw new Error('Not implemented'); }
@@ -146,11 +161,11 @@ export function withTestCodeEditor(text: string[], options: TestCodeEditorCreati
 	editor.dispose();
 }
 
-export function createTestCodeEditor(model: editorCommon.IModel): CommonCodeEditor {
+export function createTestCodeEditor(model: editorCommon.IModel): TestCodeEditor {
 	return _createTestCodeEditor({ model: model });
 }
 
-function _createTestCodeEditor(options: TestCodeEditorCreationOptions): CommonCodeEditor {
+function _createTestCodeEditor(options: TestCodeEditorCreationOptions): TestCodeEditor {
 
 	let contextKeyService = new MockContextKeyService();
 

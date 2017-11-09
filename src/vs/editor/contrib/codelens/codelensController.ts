@@ -14,7 +14,7 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CodeLensProviderRegistry, ICodeLensSymbol } from 'vs/editor/common/modes';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeLensData, getCodeLensData } from './codelens';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { CodeLens, CodeLensHelper } from 'vs/editor/contrib/codelens/codelensWidget';

@@ -9,7 +9,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICommonCodeEditor, IModel, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Selection } from 'vs/editor/common/core/selection';
-import { registerEditorCommand, ServicesAccessor, EditorCommand, ICommandOptions } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorCommand, ServicesAccessor, EditorCommand, ICommandOptions } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { WordNavigationType, WordOperations } from 'vs/editor/common/controller/cursorWordOperations';

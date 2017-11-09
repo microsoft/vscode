@@ -6,7 +6,7 @@
 
 import * as nls from 'vs/nls';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 export class ToggleMinimapAction extends EditorAction {

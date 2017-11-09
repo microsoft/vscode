@@ -9,7 +9,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
-import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { Hover, HoverProviderRegistry } from 'vs/editor/common/modes';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { Position } from 'vs/editor/common/core/position';
@@ -38,4 +38,4 @@ export function getHover(model: IReadOnlyModel, position: Position): TPromise<Ho
 	return TPromise.join(promises).then(() => coalesce(values));
 }
 
-CommonEditorRegistry.registerDefaultLanguageCommand('_executeHoverProvider', getHover);
+registerDefaultLanguageCommand('_executeHoverProvider', getHover);

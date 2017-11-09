@@ -5,13 +5,12 @@
 'use strict';
 
 import { Selection } from 'vs/editor/common/core/selection';
-import { registerEditorCommand, ServicesAccessor, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorCommand, ServicesAccessor, EditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICommonCodeEditor, IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 
 class CursorState {
 	readonly selections: Selection[];

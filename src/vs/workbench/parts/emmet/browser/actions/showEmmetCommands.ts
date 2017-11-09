@@ -9,7 +9,7 @@ import nls = require('vs/nls');
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { registerEditorAction, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 

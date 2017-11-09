@@ -19,11 +19,12 @@ import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/acti
 import { IEditorService } from 'vs/platform/editor/common/editor';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditorService, getCodeEditor } from 'vs/editor/common/services/codeEditorService';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export type ServicesAccessor = ServicesAccessor;
-export type ICommonEditorContributionCtor = IConstructorSignature1<editorCommon.ICommonCodeEditor, editorCommon.IEditorContribution>;
+export type IEditorContributionCtor = IConstructorSignature1<ICodeEditor, editorCommon.IEditorContribution>;
 
-// ----- Generic Command
+//#region Command
 
 export interface ICommandKeybindingsOptions extends IKeybindings {
 	kbExpr?: ContextKeyExpr;
@@ -79,7 +80,9 @@ export abstract class Command {
 	public abstract runCommand(accessor: ServicesAccessor, args: any): void | TPromise<void>;
 }
 
-// ----- Editor Command & Editor Contribution Command
+//#endregion Command
+
+//#region EditorCommand
 
 function findFocusedEditor(accessor: ServicesAccessor): editorCommon.ICommonCodeEditor {
 	return accessor.get(ICodeEditorService).getFocusedCodeEditor();
@@ -148,7 +151,9 @@ export abstract class EditorCommand extends Command {
 	public abstract runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void | TPromise<void>;
 }
 
-// ----- Editor Action
+//#endregion EditorCommand
+
+//#region EditorAction
 
 export interface IEditorCommandMenuOptions {
 	group?: string;
@@ -210,88 +215,78 @@ export abstract class EditorAction extends EditorCommand {
 	public abstract run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void | TPromise<void>;
 }
 
+//#endregion EditorAction
+
 // --- Registration of commands and actions
 
-export function registerEditorAction(ctor: { new(): EditorAction; }): void {
-	CommonEditorRegistry.registerEditorAction(new ctor());
+export function registerLanguageCommand(id: string, handler: (accessor: ServicesAccessor, args: { [n: string]: any }) => any) {
+	CommandsRegistry.registerCommand(id, (accessor, args) => handler(accessor, args || {}));
+}
+
+export function registerDefaultLanguageCommand(id: string, handler: (model: editorCommon.IModel, position: Position, args: { [n: string]: any }) => any) {
+	registerLanguageCommand(id, function (accessor, args) {
+
+		const { resource, position } = args;
+		if (!(resource instanceof URI)) {
+			throw illegalArgument('resource');
+		}
+		if (!Position.isIPosition(position)) {
+			throw illegalArgument('position');
+		}
+
+		const model = accessor.get(IModelService).getModel(resource);
+		if (!model) {
+			throw illegalArgument('Can not find open model for ' + resource);
+		}
+
+		const editorPosition = Position.lift(position);
+
+		return handler(model, editorPosition, args);
+	});
 }
 
 export function registerEditorCommand<T extends EditorCommand>(editorCommand: T): T {
-	CommonEditorRegistry.registerEditorCommand(editorCommand);
+	EditorContributionRegistry.INSTANCE.registerEditorCommand(editorCommand);
 	return editorCommand;
 }
 
-export function registerCommonEditorContribution(ctor: ICommonEditorContributionCtor): void {
+export function registerEditorAction(ctor: { new(): EditorAction; }): void {
+	EditorContributionRegistry.INSTANCE.registerEditorAction(new ctor());
+}
+
+export function registerInstantiatedEditorAction(editorAction: EditorAction): void {
+	EditorContributionRegistry.INSTANCE.registerEditorAction(editorAction);
+}
+
+export function registerEditorContribution(ctor: IEditorContributionCtor): void {
 	EditorContributionRegistry.INSTANCE.registerEditorContribution(ctor);
 }
 
-export module CommonEditorRegistry {
+export namespace EditorExtensionsRegistry {
 
-	// --- Editor Actions
-
-	export function registerEditorAction(editorAction: EditorAction) {
-		EditorContributionRegistry.INSTANCE.registerEditorAction(editorAction);
-	}
-	export function getEditorActions(): EditorAction[] {
-		return EditorContributionRegistry.INSTANCE.getEditorActions();
-	}
 	export function getEditorCommand(commandId: string): EditorCommand {
 		return EditorContributionRegistry.INSTANCE.getEditorCommand(commandId);
 	}
 
-	// --- Editor Contributions
+	export function getEditorActions(): EditorAction[] {
+		return EditorContributionRegistry.INSTANCE.getEditorActions();
+	}
 
-	export function getEditorContributions(): ICommonEditorContributionCtor[] {
+	export function getEditorContributions(): IEditorContributionCtor[] {
 		return EditorContributionRegistry.INSTANCE.getEditorContributions();
-	}
-
-	// --- Editor Commands
-
-	export function commandWeight(importance: number = 0): number {
-		return KeybindingsRegistry.WEIGHT.editorContrib(importance);
-	}
-
-	export function registerEditorCommand(editorCommand: EditorCommand): void {
-		EditorContributionRegistry.INSTANCE.registerEditorCommand(editorCommand);
-	}
-
-	export function registerLanguageCommand(id: string, handler: (accessor: ServicesAccessor, args: { [n: string]: any }) => any) {
-		CommandsRegistry.registerCommand(id, (accessor, args) => handler(accessor, args || {}));
-	}
-
-	export function registerDefaultLanguageCommand(id: string, handler: (model: editorCommon.IModel, position: Position, args: { [n: string]: any }) => any) {
-		registerLanguageCommand(id, function (accessor, args) {
-
-			const { resource, position } = args;
-			if (!(resource instanceof URI)) {
-				throw illegalArgument('resource');
-			}
-			if (!Position.isIPosition(position)) {
-				throw illegalArgument('position');
-			}
-
-			const model = accessor.get(IModelService).getModel(resource);
-			if (!model) {
-				throw illegalArgument('Can not find open model for ' + resource);
-			}
-
-			const editorPosition = Position.lift(position);
-
-			return handler(model, editorPosition, args);
-		});
 	}
 }
 
 // Editor extension points
 const Extensions = {
-	EditorCommonContributions: 'editor.commonContributions'
+	EditorCommonContributions: 'editor.contributions'
 };
 
 class EditorContributionRegistry {
 
 	public static INSTANCE = new EditorContributionRegistry();
 
-	private editorContributions: ICommonEditorContributionCtor[];
+	private editorContributions: IEditorContributionCtor[];
 	private editorActions: EditorAction[];
 	private editorCommands: { [commandId: string]: EditorCommand; };
 
@@ -301,7 +296,7 @@ class EditorContributionRegistry {
 		this.editorCommands = Object.create(null);
 	}
 
-	public registerEditorContribution(ctor: ICommonEditorContributionCtor): void {
+	public registerEditorContribution(ctor: IEditorContributionCtor): void {
 		this.editorContributions.push(ctor);
 	}
 
@@ -317,7 +312,7 @@ class EditorContributionRegistry {
 		this.editorActions.push(action);
 	}
 
-	public getEditorContributions(): ICommonEditorContributionCtor[] {
+	public getEditorContributions(): IEditorContributionCtor[] {
 		return this.editorContributions.slice(0);
 	}
 

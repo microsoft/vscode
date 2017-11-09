@@ -12,7 +12,7 @@ import { CursorState, ICursors, RevealTarget, IColumnSelectData, CursorContext, 
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { CursorMoveCommands, CursorMove as CursorMove_ } from 'vs/editor/common/controller/cursorMoveCommands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { registerEditorCommand, ICommandOptions, EditorCommand, Command } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorCommand, ICommandOptions, EditorCommand, Command } from 'vs/editor/browser/editorExtensions';
 import { IColumnSelectResult, ColumnSelection } from 'vs/editor/common/controller/cursorColumnSelection';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';

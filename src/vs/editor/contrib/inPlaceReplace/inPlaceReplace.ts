@@ -11,7 +11,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IEditorContribution, ICommonCodeEditor, IModelDecorationsChangeAccessor } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { registerEditorAction, ServicesAccessor, EditorAction, registerCommonEditorContribution } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor, EditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IInplaceReplaceSupportResult } from 'vs/editor/common/modes';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { InPlaceReplaceCommand } from './inPlaceReplaceCommand';
@@ -19,6 +19,7 @@ import { EditorState, CodeEditorStateFlag } from 'vs/editor/common/core/editorSt
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorBracketMatchBorder } from 'vs/editor/common/view/editorColorRegistry';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 class InPlaceReplaceController implements IEditorContribution {
 
@@ -32,14 +33,14 @@ class InPlaceReplaceController implements IEditorContribution {
 		className: 'valueSetReplacement'
 	});
 
-	private editor: ICommonCodeEditor;
+	private editor: ICodeEditor;
 	private currentRequest: TPromise<IInplaceReplaceSupportResult>;
 	private decorationRemover: TPromise<void>;
 	private decorationIds: string[];
 	private editorWorkerService: IEditorWorkerService;
 
 	constructor(
-		editor: ICommonCodeEditor,
+		editor: ICodeEditor,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
 		this.editor = editor;
@@ -185,7 +186,7 @@ class InPlaceReplaceDown extends EditorAction {
 	}
 }
 
-registerCommonEditorContribution(InPlaceReplaceController);
+registerEditorContribution(InPlaceReplaceController);
 registerEditorAction(InPlaceReplaceUp);
 registerEditorAction(InPlaceReplaceDown);
 

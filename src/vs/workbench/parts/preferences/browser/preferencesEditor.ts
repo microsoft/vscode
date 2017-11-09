@@ -27,12 +27,11 @@ import {
 	CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, SETTINGS_EDITOR_COMMAND_SEARCH, SETTINGS_EDITOR_COMMAND_FOCUS_FILE, ISettingsEditorModel, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING
 } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
-import { registerEditorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { ICodeEditor, IEditorContributionCtor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { SearchWidget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { PreferencesSearchProvider, PreferencesSearchModel } from 'vs/workbench/parts/preferences/browser/preferencesSearch';
 import { ContextKeyExpr, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Command } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorContribution, Command, IEditorContributionCtor } from 'vs/editor/browser/editorExtensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -49,7 +48,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { FoldingController } from 'vs/editor/contrib/folding/folding';
-import { FindController } from 'vs/editor/contrib/find/find';
+import { FindController } from 'vs/editor/contrib/find/findController';
 import { SelectionHighlighter } from 'vs/editor/contrib/multicursor/multicursor';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';

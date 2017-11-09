@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { EditorAction, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { EditorAction, EditorExtensionsRegistry, IEditorContributionCtor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
-import { IEditorContributionCtor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -46,6 +45,6 @@ export class ReplInputEditor extends CodeEditorWidget {
 	}
 
 	protected _getActions(): EditorAction[] {
-		return CommonEditorRegistry.getEditorActions();
+		return EditorExtensionsRegistry.getEditorActions();
 	}
 }

@@ -8,7 +8,7 @@
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
-import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import { DefinitionProviderRegistry, ImplementationProviderRegistry, TypeDefinitionProviderRegistry, Location } from 'vs/editor/common/modes';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -68,6 +68,6 @@ export function getTypeDefinitionsAtPosition(model: IReadOnlyModel, position: Po
 	});
 }
 
-CommonEditorRegistry.registerDefaultLanguageCommand('_executeDefinitionProvider', getDefinitionsAtPosition);
-CommonEditorRegistry.registerDefaultLanguageCommand('_executeImplementationProvider', getImplementationsAtPosition);
-CommonEditorRegistry.registerDefaultLanguageCommand('_executeTypeDefinitionProvider', getTypeDefinitionsAtPosition);
+registerDefaultLanguageCommand('_executeDefinitionProvider', getDefinitionsAtPosition);
+registerDefaultLanguageCommand('_executeImplementationProvider', getImplementationsAtPosition);
+registerDefaultLanguageCommand('_executeTypeDefinitionProvider', getTypeDefinitionsAtPosition);

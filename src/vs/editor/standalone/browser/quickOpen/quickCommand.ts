@@ -14,7 +14,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorAction, ICommonCodeEditor, IEditor } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { BaseEditorQuickOpenAction } from './editorQuickOpen';
-import { registerEditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as browser from 'vs/base/browser/browser';
 

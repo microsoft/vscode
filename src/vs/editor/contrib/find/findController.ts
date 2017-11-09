@@ -8,15 +8,22 @@ import * as nls from 'vs/nls';
 import { HistoryNavigator } from 'vs/base/common/history';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ContextKeyExpr, RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import * as strings from 'vs/base/common/strings';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { registerEditorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
-import { FIND_IDS, FindModelBoundToEditorModel, ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding, ToggleSearchScopeKeybinding, ShowPreviousFindTermKeybinding, ShowNextFindTermKeybinding } from 'vs/editor/contrib/find/findModel';
+import { registerEditorContribution, registerEditorAction, ServicesAccessor, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
+import { FIND_IDS, FindModelBoundToEditorModel, ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding, ToggleSearchScopeKeybinding, ShowPreviousFindTermKeybinding, ShowNextFindTermKeybinding, CONTEXT_FIND_WIDGET_VISIBLE, CONTEXT_FIND_INPUT_FOCUSED } from 'vs/editor/contrib/find/findModel';
 import { FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState } from 'vs/editor/contrib/find/findState';
 import { Delayer } from 'vs/base/common/async';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { FindWidget, IFindController } from 'vs/editor/contrib/find/findWidget';
+import { FindOptionsWidget } from 'vs/editor/contrib/find/findOptionsWidget';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export function getSelectionSearchString(editor: editorCommon.ICommonCodeEditor): string {
 	let selection = editor.getSelection();
@@ -48,11 +55,6 @@ export interface IFindStartOptions {
 	shouldFocus: FindStartFocusAction;
 	shouldAnimate: boolean;
 }
-
-export const CONTEXT_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('findWidgetVisible', false);
-export const CONTEXT_FIND_WIDGET_NOT_VISIBLE: ContextKeyExpr = CONTEXT_FIND_WIDGET_VISIBLE.toNegated();
-// Keep ContextKey use of 'Focussed' to not break when clauses
-export const CONTEXT_FIND_INPUT_FOCUSED = new RawContextKey<boolean>('findInputFocussed', false);
 
 export class CommonFindController extends Disposable implements editorCommon.IEditorContribution {
 
@@ -320,6 +322,44 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	}
 }
 
+export class FindController extends CommonFindController implements IFindController {
+
+	private _widget: FindWidget;
+	private _findOptionsWidget: FindOptionsWidget;
+
+	constructor(
+		editor: ICodeEditor,
+		@IContextViewService contextViewService: IContextViewService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IThemeService themeService: IThemeService,
+		@IStorageService storageService: IStorageService
+	) {
+		super(editor, contextKeyService, storageService);
+
+		this._widget = this._register(new FindWidget(editor, this, this._state, contextViewService, keybindingService, contextKeyService, themeService));
+		this._findOptionsWidget = this._register(new FindOptionsWidget(editor, this._state, keybindingService, themeService));
+	}
+
+	protected _start(opts: IFindStartOptions): void {
+		super._start(opts);
+
+		if (opts.shouldFocus === FindStartFocusAction.FocusReplaceInput) {
+			this._widget.focusReplaceInput();
+		} else if (opts.shouldFocus === FindStartFocusAction.FocusFindInput) {
+			this._widget.focusFindInput();
+		}
+	}
+
+	public highlightFindOptions(): void {
+		if (this._state.isRevealed) {
+			this._widget.highlightFindOptions();
+		} else {
+			this._findOptionsWidget.highlightFindOptions();
+		}
+	}
+}
+
 export class StartFindAction extends EditorAction {
 
 	constructor() {
@@ -527,7 +567,7 @@ export class ShowNextFindTermAction extends MatchFindAction {
 			alias: 'Show Next Find Term',
 			precondition: CONTEXT_FIND_WIDGET_VISIBLE,
 			kbOpts: {
-				weight: CommonEditorRegistry.commandWeight(5),
+				weight: KeybindingsRegistry.WEIGHT.editorContrib(5),
 				kbExpr: ContextKeyExpr.and(CONTEXT_FIND_INPUT_FOCUSED, EditorContextKeys.focus),
 				primary: ShowNextFindTermKeybinding.primary,
 				mac: ShowNextFindTermKeybinding.mac,
@@ -551,7 +591,7 @@ export class ShowPreviousFindTermAction extends MatchFindAction {
 			alias: 'Find Show Previous Find Term',
 			precondition: CONTEXT_FIND_WIDGET_VISIBLE,
 			kbOpts: {
-				weight: CommonEditorRegistry.commandWeight(5),
+				weight: KeybindingsRegistry.WEIGHT.editorContrib(5),
 				kbExpr: ContextKeyExpr.and(CONTEXT_FIND_INPUT_FOCUSED, EditorContextKeys.focus),
 				primary: ShowPreviousFindTermKeybinding.primary,
 				mac: ShowPreviousFindTermKeybinding.mac,
@@ -566,6 +606,8 @@ export class ShowPreviousFindTermAction extends MatchFindAction {
 	}
 }
 
+registerEditorContribution(FindController);
+
 registerEditorAction(StartFindAction);
 registerEditorAction(NextMatchFindAction);
 registerEditorAction(PreviousMatchFindAction);
@@ -577,24 +619,24 @@ registerEditorAction(ShowPreviousFindTermAction);
 
 const FindCommand = EditorCommand.bindToContribution<CommonFindController>(CommonFindController.get);
 
-CommonEditorRegistry.registerEditorCommand(new FindCommand({
+registerEditorCommand(new FindCommand({
 	id: FIND_IDS.CloseFindWidgetCommand,
 	precondition: CONTEXT_FIND_WIDGET_VISIBLE,
 	handler: x => x.closeFindWidget(),
 	kbOpts: {
-		weight: CommonEditorRegistry.commandWeight(5),
+		weight: KeybindingsRegistry.WEIGHT.editorContrib(5),
 		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
 }));
 
-CommonEditorRegistry.registerEditorCommand(new FindCommand({
+registerEditorCommand(new FindCommand({
 	id: FIND_IDS.ToggleCaseSensitiveCommand,
 	precondition: null,
 	handler: x => x.toggleCaseSensitive(),
 	kbOpts: {
-		weight: CommonEditorRegistry.commandWeight(5),
+		weight: KeybindingsRegistry.WEIGHT.editorContrib(5),
 		kbExpr: EditorContextKeys.focus,
 		primary: ToggleCaseSensitiveKeybinding.primary,
 		mac: ToggleCaseSensitiveKeybinding.mac,
@@ -603,12 +645,12 @@ CommonEditorRegistry.registerEditorCommand(new FindCommand({
 	}
 }));
 
-CommonEditorRegistry.registerEditorCommand(new FindCommand({
+registerEditorCommand(new FindCommand({
 	id: FIND_IDS.ToggleWholeWordCommand,
 	precondition: null,
 	handler: x => x.toggleWholeWords(),
 	kbOpts: {
-		weight: CommonEditorRegistry.commandWeight(5),
+		weight: KeybindingsRegistry.WEIGHT.editorContrib(5),
 		kbExpr: EditorContextKeys.focus,
 		primary: ToggleWholeWordKeybinding.primary,
 		mac: ToggleWholeWordKeybinding.mac,
@@ -617,12 +659,12 @@ CommonEditorRegistry.registerEditorCommand(new FindCommand({
 	}
 }));
 
-CommonEditorRegistry.registerEditorCommand(new FindCommand({
+registerEditorCommand(new FindCommand({
 	id: FIND_IDS.ToggleRegexCommand,
 	precondition: null,
 	handler: x => x.toggleRegex(),
 	kbOpts: {
-		weight: CommonEditorRegistry.commandWeight(5),
+		weight: KeybindingsRegistry.WEIGHT.editorContrib(5),
 		kbExpr: EditorContextKeys.focus,
 		primary: ToggleRegexKeybinding.primary,
 		mac: ToggleRegexKeybinding.mac,
@@ -631,12 +673,12 @@ CommonEditorRegistry.registerEditorCommand(new FindCommand({
 	}
 }));
 
-CommonEditorRegistry.registerEditorCommand(new FindCommand({
+registerEditorCommand(new FindCommand({
 	id: FIND_IDS.ToggleSearchScopeCommand,
 	precondition: null,
 	handler: x => x.toggleSearchScope(),
 	kbOpts: {
-		weight: CommonEditorRegistry.commandWeight(5),
+		weight: KeybindingsRegistry.WEIGHT.editorContrib(5),
 		kbExpr: EditorContextKeys.focus,
 		primary: ToggleSearchScopeKeybinding.primary,
 		mac: ToggleSearchScopeKeybinding.mac,
@@ -645,34 +687,34 @@ CommonEditorRegistry.registerEditorCommand(new FindCommand({
 	}
 }));
 
-CommonEditorRegistry.registerEditorCommand(new FindCommand({
+registerEditorCommand(new FindCommand({
 	id: FIND_IDS.ReplaceOneAction,
 	precondition: CONTEXT_FIND_WIDGET_VISIBLE,
 	handler: x => x.replace(),
 	kbOpts: {
-		weight: CommonEditorRegistry.commandWeight(5),
+		weight: KeybindingsRegistry.WEIGHT.editorContrib(5),
 		kbExpr: EditorContextKeys.focus,
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_1
 	}
 }));
 
-CommonEditorRegistry.registerEditorCommand(new FindCommand({
+registerEditorCommand(new FindCommand({
 	id: FIND_IDS.ReplaceAllAction,
 	precondition: CONTEXT_FIND_WIDGET_VISIBLE,
 	handler: x => x.replaceAll(),
 	kbOpts: {
-		weight: CommonEditorRegistry.commandWeight(5),
+		weight: KeybindingsRegistry.WEIGHT.editorContrib(5),
 		kbExpr: EditorContextKeys.focus,
 		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter
 	}
 }));
 
-CommonEditorRegistry.registerEditorCommand(new FindCommand({
+registerEditorCommand(new FindCommand({
 	id: FIND_IDS.SelectAllMatchesAction,
 	precondition: CONTEXT_FIND_WIDGET_VISIBLE,
 	handler: x => x.selectAllMatches(),
 	kbOpts: {
-		weight: CommonEditorRegistry.commandWeight(5),
+		weight: KeybindingsRegistry.WEIGHT.editorContrib(5),
 		kbExpr: EditorContextKeys.focus,
 		primary: KeyMod.Alt | KeyCode.Enter
 	}

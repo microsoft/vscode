@@ -7,7 +7,7 @@
 import * as nls from 'vs/nls';
 import { ICommand, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { IActionOptions, registerEditorAction, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { IActionOptions, registerEditorAction, EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { MoveCaretCommand } from './moveCaretCommand';
 
 class MoveCaretAction extends EditorAction {

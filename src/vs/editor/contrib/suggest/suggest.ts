@@ -11,7 +11,7 @@ import { assign } from 'vs/base/common/objects';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModel, IEditorContribution, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { ISuggestResult, ISuggestSupport, ISuggestion, SuggestRegistry, SuggestContext, SuggestTriggerKind } from 'vs/editor/common/modes';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -201,7 +201,7 @@ export function getSuggestionComparator(snippetConfig: SnippetConfig): (a: ISugg
 	}
 }
 
-CommonEditorRegistry.registerDefaultLanguageCommand('_executeCompletionItemProvider', (model, position, args) => {
+registerDefaultLanguageCommand('_executeCompletionItemProvider', (model, position, args) => {
 
 	const result: ISuggestResult = {
 		incomplete: false,
@@ -244,4 +244,3 @@ export function showSimpleSuggestions(editor: ICommonCodeEditor, suggestions: IS
 		_suggestions = undefined;
 	}, 0);
 }
-

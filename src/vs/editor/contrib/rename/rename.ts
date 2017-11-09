@@ -14,8 +14,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
-import { registerEditorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
-import { registerEditorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, EditorCommand, registerEditorCommand, registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { ICommonCodeEditor, IEditorContribution, IReadOnlyModel } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { createBulkEdit } from 'vs/editor/common/services/bulkEdit';
@@ -31,6 +30,7 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Range } from 'vs/editor/common/core/range';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
 import { EditorState, CodeEditorStateFlag } from 'vs/editor/common/core/editorState';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 
 export function rename(model: IReadOnlyModel, position: Position, newName: string): TPromise<WorkspaceEdit> {
@@ -233,23 +233,23 @@ registerEditorAction(RenameAction);
 
 const RenameCommand = EditorCommand.bindToContribution<RenameController>(RenameController.get);
 
-CommonEditorRegistry.registerEditorCommand(new RenameCommand({
+registerEditorCommand(new RenameCommand({
 	id: 'acceptRenameInput',
 	precondition: CONTEXT_RENAME_INPUT_VISIBLE,
 	handler: x => x.acceptRenameInput(),
 	kbOpts: {
-		weight: CommonEditorRegistry.commandWeight(99),
+		weight: KeybindingsRegistry.WEIGHT.editorContrib(99),
 		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.Enter
 	}
 }));
 
-CommonEditorRegistry.registerEditorCommand(new RenameCommand({
+registerEditorCommand(new RenameCommand({
 	id: 'cancelRenameInput',
 	precondition: CONTEXT_RENAME_INPUT_VISIBLE,
 	handler: x => x.cancelRenameInput(),
 	kbOpts: {
-		weight: CommonEditorRegistry.commandWeight(99),
+		weight: KeybindingsRegistry.WEIGHT.editorContrib(99),
 		kbExpr: EditorContextKeys.focus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]
@@ -258,7 +258,7 @@ CommonEditorRegistry.registerEditorCommand(new RenameCommand({
 
 // ---- api bridge command
 
-CommonEditorRegistry.registerDefaultLanguageCommand('_executeDocumentRenameProvider', function (model, position, args) {
+registerDefaultLanguageCommand('_executeDocumentRenameProvider', function (model, position, args) {
 	let { newName } = args;
 	if (typeof newName !== 'string') {
 		throw illegalArgument('newName');

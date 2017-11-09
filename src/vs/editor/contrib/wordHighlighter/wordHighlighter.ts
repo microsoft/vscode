@@ -11,7 +11,7 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { CommonEditorRegistry, registerCommonEditorContribution, EditorAction, IActionOptions, registerEditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorContribution, EditorAction, IActionOptions, registerEditorAction, registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { DocumentHighlight, DocumentHighlightKind, DocumentHighlightProviderRegistry } from 'vs/editor/common/modes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
@@ -24,6 +24,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { firstIndex } from 'vs/base/common/arrays';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export const editorWordHighlight = registerColor('editor.wordHighlightBackground', { dark: '#575757B8', light: '#57575740', hc: null }, nls.localize('wordHighlight', 'Background color of a symbol during read-access, like reading a variable.'));
 export const editorWordHighlightStrong = registerColor('editor.wordHighlightStrongBackground', { dark: '#004972B8', light: '#0e639c40', hc: null }, nls.localize('wordHighlightStrong', 'Background color of a symbol during write-access, like writing to a variable.'));
@@ -64,11 +65,11 @@ export function getOccurrencesAtPosition(model: editorCommon.IReadOnlyModel, pos
 	});
 }
 
-CommonEditorRegistry.registerDefaultLanguageCommand('_executeDocumentHighlights', getOccurrencesAtPosition);
+registerDefaultLanguageCommand('_executeDocumentHighlights', getOccurrencesAtPosition);
 
 class WordHighlighter {
 
-	private editor: editorCommon.ICommonCodeEditor;
+	private editor: ICodeEditor;
 	private occurrencesHighlight: boolean;
 	private model: editorCommon.IModel;
 	private _lastWordRange: Range;
@@ -86,7 +87,7 @@ class WordHighlighter {
 	private _hasWordHighlights: IContextKey<boolean>;
 	private _ignorePositionChangeEvent: boolean;
 
-	constructor(editor: editorCommon.ICommonCodeEditor, contextKeyService: IContextKeyService) {
+	constructor(editor: ICodeEditor, contextKeyService: IContextKeyService) {
 		this.editor = editor;
 		this._hasWordHighlights = ctxHasWordHighlights.bindTo(contextKeyService);
 		this._ignorePositionChangeEvent = false;
@@ -407,7 +408,7 @@ class WordHighlighterContribution implements editorCommon.IEditorContribution {
 
 	private wordHighligher: WordHighlighter;
 
-	constructor(editor: editorCommon.ICommonCodeEditor, @IContextKeyService contextKeyService: IContextKeyService) {
+	constructor(editor: ICodeEditor, @IContextKeyService contextKeyService: IContextKeyService) {
 		this.wordHighligher = new WordHighlighter(editor, contextKeyService);
 	}
 
@@ -495,7 +496,7 @@ class PrevWordHighlightAction extends WordHighlightNavigationAction {
 	}
 }
 
-registerCommonEditorContribution(WordHighlighterContribution);
+registerEditorContribution(WordHighlighterContribution);
 registerEditorAction(NextWordHighlightAction);
 registerEditorAction(PrevWordHighlightAction);
 

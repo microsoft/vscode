@@ -9,11 +9,12 @@ import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { Range } from 'vs/editor/common/core/range';
 import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ServicesAccessor, registerEditorAction, EditorAction, CommonEditorRegistry, EditorCommand } from 'vs/editor/common/editorCommonExtensions';
+import { ServicesAccessor, registerEditorAction, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL, CONTEXT_DEBUG_STATE, State, REPL_ID, VIEWLET_ID, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_WIDGET_VISIBLE } from 'vs/workbench/parts/debug/common/debug';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 class ToggleBreakpointAction extends EditorAction {
 	constructor() {
@@ -253,7 +254,7 @@ class CloseBreakpointWidgetCommand extends EditorCommand {
 			id: 'closeBreakpointWidget',
 			precondition: CONTEXT_BREAKPOINT_WIDGET_VISIBLE,
 			kbOpts: {
-				weight: CommonEditorRegistry.commandWeight(8),
+				weight: KeybindingsRegistry.WEIGHT.editorContrib(8),
 				kbExpr: EditorContextKeys.focus,
 				primary: KeyCode.Escape,
 				secondary: [KeyMod.Shift | KeyCode.Escape]
@@ -275,4 +276,4 @@ registerEditorAction(SelectionToReplAction);
 registerEditorAction(SelectionToWatchExpressionsAction);
 registerEditorAction(ShowDebugHoverAction);
 
-CommonEditorRegistry.registerEditorCommand(new CloseBreakpointWidgetCommand());
+registerEditorCommand(new CloseBreakpointWidgetCommand());

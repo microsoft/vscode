@@ -11,7 +11,7 @@ import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
 import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
-import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { registerDefaultLanguageCommand, registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { DocumentFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry, OnTypeFormattingEditProviderRegistry, FormattingOptions, TextEdit } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { asWinJsPromise, sequence } from 'vs/base/common/async';
@@ -84,7 +84,7 @@ export function getOnTypeFormattingEdits(model: IReadOnlyModel, position: Positi
 	}).then(r => r, onUnexpectedExternalError);
 }
 
-CommonEditorRegistry.registerLanguageCommand('_executeFormatRangeProvider', function (accessor, args) {
+registerLanguageCommand('_executeFormatRangeProvider', function (accessor, args) {
 	const { resource, range, options } = args;
 	if (!(resource instanceof URI) || !Range.isIRange(range)) {
 		throw illegalArgument();
@@ -96,7 +96,7 @@ CommonEditorRegistry.registerLanguageCommand('_executeFormatRangeProvider', func
 	return getDocumentRangeFormattingEdits(model, Range.lift(range), options);
 });
 
-CommonEditorRegistry.registerLanguageCommand('_executeFormatDocumentProvider', function (accessor, args) {
+registerLanguageCommand('_executeFormatDocumentProvider', function (accessor, args) {
 	const { resource, options } = args;
 	if (!(resource instanceof URI)) {
 		throw illegalArgument('resource');
@@ -109,7 +109,7 @@ CommonEditorRegistry.registerLanguageCommand('_executeFormatDocumentProvider', f
 	return getDocumentFormattingEdits(model, options);
 });
 
-CommonEditorRegistry.registerDefaultLanguageCommand('_executeFormatOnTypeProvider', function (model, position, args) {
+registerDefaultLanguageCommand('_executeFormatOnTypeProvider', function (model, position, args) {
 	const { ch, options } = args;
 	if (typeof ch !== 'string') {
 		throw illegalArgument('ch');

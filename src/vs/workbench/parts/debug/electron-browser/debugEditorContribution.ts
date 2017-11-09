@@ -18,7 +18,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { StandardTokenType } from 'vs/editor/common/modes';
 import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/model/wordHelper';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IDecorationOptions, IModelDecorationOptions, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';

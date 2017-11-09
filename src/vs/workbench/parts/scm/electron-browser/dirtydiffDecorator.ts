@@ -28,8 +28,7 @@ import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { Color, RGBA } from 'vs/base/common/color';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { registerEditorAction, ServicesAccessor, EditorAction, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { PeekViewWidget, getOuterEditor } from 'vs/editor/contrib/referenceSearch/peekViewWidget';
 import { IContextKeyService, IContextKey, ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -431,7 +430,7 @@ registerEditorAction(ShowNextChangeAction);
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'closeDirtyDiff',
-	weight: CommonEditorRegistry.commandWeight(50),
+	weight: KeybindingsRegistry.WEIGHT.editorContrib(50),
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
 	when: ContextKeyExpr.and(isDirtyDiffVisible),

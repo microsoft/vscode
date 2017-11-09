@@ -15,10 +15,9 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ICommonCodeEditor, IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { registerEditorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { alert } from 'vs/base/browser/ui/aria/aria';
-import { registerEditorContribution } from 'vs/editor/browser/editorBrowserExtensions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { ISuggestSupport } from 'vs/editor/common/modes';
@@ -28,6 +27,7 @@ import { Context as SuggestContext } from './suggest';
 import { SuggestModel, State } from './suggestModel';
 import { ICompletionItem } from './completionModel';
 import { SuggestWidget } from './suggestWidget';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 class AcceptOnCharacterOracle {
 
@@ -326,12 +326,12 @@ export class TriggerSuggestAction extends EditorAction {
 registerEditorContribution(SuggestController);
 registerEditorAction(TriggerSuggestAction);
 
-const weight = CommonEditorRegistry.commandWeight(90);
+const weight = KeybindingsRegistry.WEIGHT.editorContrib(90);
 
 const SuggestCommand = EditorCommand.bindToContribution<SuggestController>(SuggestController.get);
 
 
-CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
+registerEditorCommand(new SuggestCommand({
 	id: 'acceptSelectedSuggestion',
 	precondition: SuggestContext.Visible,
 	handler: x => x.acceptSelectedSuggestion(),
@@ -342,7 +342,7 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	}
 }));
 
-CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
+registerEditorCommand(new SuggestCommand({
 	id: 'acceptSelectedSuggestionOnEnter',
 	precondition: SuggestContext.Visible,
 	handler: x => x.acceptSelectedSuggestion(),
@@ -353,7 +353,7 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	}
 }));
 
-CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
+registerEditorCommand(new SuggestCommand({
 	id: 'hideSuggestWidget',
 	precondition: SuggestContext.Visible,
 	handler: x => x.cancelSuggestWidget(),
@@ -365,7 +365,7 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	}
 }));
 
-CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
+registerEditorCommand(new SuggestCommand({
 	id: 'selectNextSuggestion',
 	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
 	handler: c => c.selectNextSuggestion(),
@@ -378,7 +378,7 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	}
 }));
 
-CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
+registerEditorCommand(new SuggestCommand({
 	id: 'selectNextPageSuggestion',
 	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
 	handler: c => c.selectNextPageSuggestion(),
@@ -390,13 +390,13 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	}
 }));
 
-CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
+registerEditorCommand(new SuggestCommand({
 	id: 'selectLastSuggestion',
 	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
 	handler: c => c.selectLastSuggestion()
 }));
 
-CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
+registerEditorCommand(new SuggestCommand({
 	id: 'selectPrevSuggestion',
 	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
 	handler: c => c.selectPrevSuggestion(),
@@ -409,7 +409,7 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	}
 }));
 
-CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
+registerEditorCommand(new SuggestCommand({
 	id: 'selectPrevPageSuggestion',
 	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
 	handler: c => c.selectPrevPageSuggestion(),
@@ -421,13 +421,13 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	}
 }));
 
-CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
+registerEditorCommand(new SuggestCommand({
 	id: 'selectFirstSuggestion',
 	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
 	handler: c => c.selectFirstSuggestion()
 }));
 
-CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
+registerEditorCommand(new SuggestCommand({
 	id: 'toggleSuggestionDetails',
 	precondition: SuggestContext.Visible,
 	handler: x => x.toggleSuggestionDetails(),
@@ -439,7 +439,7 @@ CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
 	}
 }));
 
-CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
+registerEditorCommand(new SuggestCommand({
 	id: 'toggleSuggestionFocus',
 	precondition: SuggestContext.Visible,
 	handler: x => x.toggleSuggestionFocus(),

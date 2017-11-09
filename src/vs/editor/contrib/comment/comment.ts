@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { ICommand, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { registerEditorAction, IActionOptions, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, IActionOptions, EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { BlockCommentCommand } from './blockCommentCommand';
 import { LineCommentCommand, Type } from './lineCommentCommand';
 
