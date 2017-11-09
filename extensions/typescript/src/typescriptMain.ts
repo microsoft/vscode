@@ -187,7 +187,7 @@ export function activate(context: ExtensionContext): void {
 
 	context.subscriptions.push(new TypeScriptTaskProviderManager(() => lazyClientHost().serviceClient));
 
-	context.subscriptions.push(languages.setLanguageConfiguration('jsx-tags', languageConfigurations.jsxTags));
+	context.subscriptions.push(languages.setLanguageConfiguration(languageModeIds.jsxTags, languageConfigurations.jsxTags));
 
 	const supportedLanguage = [].concat.apply([], standardLanguageDescriptions.map(x => x.modeIds).concat(plugins.map(x => x.languages)));
 	function didOpenTextDocument(textDocument: TextDocument): boolean {

@@ -60,4 +60,4 @@ export const jsxTags = {
 			action: { indentAction: IndentAction.Indent }
 		}
 	],
-}
+};
