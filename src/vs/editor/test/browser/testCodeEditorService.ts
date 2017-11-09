@@ -5,9 +5,9 @@
 'use strict';
 
 import { IDecorationRenderOptions, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
-import { AbstractCodeEditorService } from 'vs/editor/common/services/abstractCodeEditorService';
+import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCodeEditorService';
 
-export class MockCodeEditorService extends AbstractCodeEditorService {
+export class TestCodeEditorService extends AbstractCodeEditorService {
 	public registerDecorationType(key: string, options: IDecorationRenderOptions, parentTypeKey?: string): void { }
 	public removeDecorationType(key: string): void { }
 	public resolveDecorationOptions(decorationTypeKey: string, writable: boolean): IModelDecorationOptions { return null; }

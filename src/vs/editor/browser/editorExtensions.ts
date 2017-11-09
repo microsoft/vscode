@@ -18,7 +18,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/actions';
 import { IEditorService } from 'vs/platform/editor/common/editor';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ICodeEditorService, getCodeEditor } from 'vs/editor/common/services/codeEditorService';
+import { ICodeEditorService, getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export type ServicesAccessor = ServicesAccessor;

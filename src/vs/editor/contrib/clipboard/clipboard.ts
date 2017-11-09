@@ -11,7 +11,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as browser from 'vs/base/browser/browser';
 import * as platform from 'vs/base/common/platform';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { registerEditorAction, IActionOptions, EditorAction, ICommandKeybindingsOptions } from 'vs/editor/browser/editorExtensions';
 import { CopyOptions } from 'vs/editor/browser/controller/textAreaInput';

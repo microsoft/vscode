@@ -6,34 +6,35 @@
 
 import Event from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ICommonCodeEditor, ICommonDiffEditor, isCommonCodeEditor, isCommonDiffEditor, IDecorationRenderOptions, IModelDecorationOptions, IModel } from 'vs/editor/common/editorCommon';
+import { isCommonCodeEditor, isCommonDiffEditor, IDecorationRenderOptions, IModelDecorationOptions, IModel } from 'vs/editor/common/editorCommon';
 import { IEditor } from 'vs/platform/editor/common/editor';
+import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 
-export var ICodeEditorService = createDecorator<ICodeEditorService>('codeEditorService');
+export const ICodeEditorService = createDecorator<ICodeEditorService>('codeEditorService');
 
 export interface ICodeEditorService {
 	_serviceBrand: any;
 
-	onCodeEditorAdd: Event<ICommonCodeEditor>;
-	onCodeEditorRemove: Event<ICommonCodeEditor>;
+	onCodeEditorAdd: Event<ICodeEditor>;
+	onCodeEditorRemove: Event<ICodeEditor>;
 
-	onDiffEditorAdd: Event<ICommonDiffEditor>;
-	onDiffEditorRemove: Event<ICommonDiffEditor>;
+	onDiffEditorAdd: Event<IDiffEditor>;
+	onDiffEditorRemove: Event<IDiffEditor>;
 
-	addCodeEditor(editor: ICommonCodeEditor): void;
-	removeCodeEditor(editor: ICommonCodeEditor): void;
-	getCodeEditor(editorId: string): ICommonCodeEditor;
-	listCodeEditors(): ICommonCodeEditor[];
+	addCodeEditor(editor: ICodeEditor): void;
+	removeCodeEditor(editor: ICodeEditor): void;
+	getCodeEditor(editorId: string): ICodeEditor;
+	listCodeEditors(): ICodeEditor[];
 
-	addDiffEditor(editor: ICommonDiffEditor): void;
-	removeDiffEditor(editor: ICommonDiffEditor): void;
-	getDiffEditor(editorId: string): ICommonDiffEditor;
-	listDiffEditors(): ICommonDiffEditor[];
+	addDiffEditor(editor: IDiffEditor): void;
+	removeDiffEditor(editor: IDiffEditor): void;
+	getDiffEditor(editorId: string): IDiffEditor;
+	listDiffEditors(): IDiffEditor[];
 
 	/**
 	 * Returns the current focused code editor (if the focus is in the editor or in an editor widget) or null.
 	 */
-	getFocusedCodeEditor(): ICommonCodeEditor;
+	getFocusedCodeEditor(): ICodeEditor;
 
 	registerDecorationType(key: string, options: IDecorationRenderOptions, parentTypeKey?: string): void;
 	removeDecorationType(key: string): void;
@@ -46,20 +47,20 @@ export interface ICodeEditorService {
 /**
  * Uses `editor.getControl()` and returns either a `codeEditor` or a `diffEditor` or nothing.
  */
-export function getCodeOrDiffEditor(editor: IEditor): { codeEditor: ICommonCodeEditor; diffEditor: ICommonDiffEditor } {
+export function getCodeOrDiffEditor(editor: IEditor): { codeEditor: ICodeEditor; diffEditor: IDiffEditor } {
 	if (editor) {
 		let control = editor.getControl();
 		if (control) {
 			if (isCommonCodeEditor(control)) {
 				return {
-					codeEditor: control,
+					codeEditor: <ICodeEditor>control,
 					diffEditor: null
 				};
 			}
 			if (isCommonDiffEditor(control)) {
 				return {
 					codeEditor: null,
-					diffEditor: control
+					diffEditor: <IDiffEditor>control
 				};
 			}
 		}
@@ -74,7 +75,7 @@ export function getCodeOrDiffEditor(editor: IEditor): { codeEditor: ICommonCodeE
 /**
  * Uses `editor.getControl()` and returns either the code editor, or the modified editor of a diff editor or nothing.
  */
-export function getCodeEditor(editor: IEditor): ICommonCodeEditor {
+export function getCodeEditor(editor: IEditor): ICodeEditor {
 	let r = getCodeOrDiffEditor(editor);
-	return r.codeEditor || (r.diffEditor && r.diffEditor.getModifiedEditor()) || null;
+	return r.codeEditor || (r.diffEditor && <ICodeEditor>r.diffEditor.getModifiedEditor()) || null;
 }

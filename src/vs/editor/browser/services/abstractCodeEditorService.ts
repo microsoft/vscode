@@ -5,86 +5,87 @@
 'use strict';
 
 import Event, { Emitter } from 'vs/base/common/event';
-import { ICommonCodeEditor, ICommonDiffEditor, IDecorationRenderOptions, IModelDecorationOptions, IModel } from 'vs/editor/common/editorCommon';
-import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { IDecorationRenderOptions, IModelDecorationOptions, IModel } from 'vs/editor/common/editorCommon';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 
 export abstract class AbstractCodeEditorService implements ICodeEditorService {
 
 	_serviceBrand: any;
 
-	private _onCodeEditorAdd: Emitter<ICommonCodeEditor>;
-	private _onCodeEditorRemove: Emitter<ICommonCodeEditor>;
-	private _codeEditors: { [editorId: string]: ICommonCodeEditor; };
+	private _onCodeEditorAdd: Emitter<ICodeEditor>;
+	private _onCodeEditorRemove: Emitter<ICodeEditor>;
+	private _codeEditors: { [editorId: string]: ICodeEditor; };
 
-	private _onDiffEditorAdd: Emitter<ICommonDiffEditor>;
-	private _onDiffEditorRemove: Emitter<ICommonDiffEditor>;
-	private _diffEditors: { [editorId: string]: ICommonDiffEditor; };
+	private _onDiffEditorAdd: Emitter<IDiffEditor>;
+	private _onDiffEditorRemove: Emitter<IDiffEditor>;
+	private _diffEditors: { [editorId: string]: IDiffEditor; };
 
 	constructor() {
 		this._codeEditors = Object.create(null);
 		this._diffEditors = Object.create(null);
-		this._onCodeEditorAdd = new Emitter<ICommonCodeEditor>();
-		this._onCodeEditorRemove = new Emitter<ICommonCodeEditor>();
-		this._onDiffEditorAdd = new Emitter<ICommonDiffEditor>();
-		this._onDiffEditorRemove = new Emitter<ICommonDiffEditor>();
+		this._onCodeEditorAdd = new Emitter<ICodeEditor>();
+		this._onCodeEditorRemove = new Emitter<ICodeEditor>();
+		this._onDiffEditorAdd = new Emitter<IDiffEditor>();
+		this._onDiffEditorRemove = new Emitter<IDiffEditor>();
 	}
 
-	addCodeEditor(editor: ICommonCodeEditor): void {
+	addCodeEditor(editor: ICodeEditor): void {
 		this._codeEditors[editor.getId()] = editor;
 		this._onCodeEditorAdd.fire(editor);
 	}
 
-	get onCodeEditorAdd(): Event<ICommonCodeEditor> {
+	get onCodeEditorAdd(): Event<ICodeEditor> {
 		return this._onCodeEditorAdd.event;
 	}
 
-	removeCodeEditor(editor: ICommonCodeEditor): void {
+	removeCodeEditor(editor: ICodeEditor): void {
 		if (delete this._codeEditors[editor.getId()]) {
 			this._onCodeEditorRemove.fire(editor);
 		}
 	}
 
-	get onCodeEditorRemove(): Event<ICommonCodeEditor> {
+	get onCodeEditorRemove(): Event<ICodeEditor> {
 		return this._onCodeEditorRemove.event;
 	}
 
-	getCodeEditor(editorId: string): ICommonCodeEditor {
+	getCodeEditor(editorId: string): ICodeEditor {
 		return this._codeEditors[editorId] || null;
 	}
 
-	listCodeEditors(): ICommonCodeEditor[] {
+	listCodeEditors(): ICodeEditor[] {
 		return Object.keys(this._codeEditors).map(id => this._codeEditors[id]);
 	}
 
-	addDiffEditor(editor: ICommonDiffEditor): void {
+	addDiffEditor(editor: IDiffEditor): void {
 		this._diffEditors[editor.getId()] = editor;
 		this._onDiffEditorAdd.fire(editor);
 	}
 
-	get onDiffEditorAdd(): Event<ICommonDiffEditor> {
+	get onDiffEditorAdd(): Event<IDiffEditor> {
 		return this._onDiffEditorAdd.event;
 	}
 
-	removeDiffEditor(editor: ICommonDiffEditor): void {
+	removeDiffEditor(editor: IDiffEditor): void {
 		if (delete this._diffEditors[editor.getId()]) {
 			this._onDiffEditorRemove.fire(editor);
 		}
 	}
 
-	get onDiffEditorRemove(): Event<ICommonDiffEditor> {
+	get onDiffEditorRemove(): Event<IDiffEditor> {
 		return this._onDiffEditorRemove.event;
 	}
 
-	getDiffEditor(editorId: string): ICommonDiffEditor {
+	getDiffEditor(editorId: string): IDiffEditor {
 		return this._diffEditors[editorId] || null;
 	}
 
-	listDiffEditors(): ICommonDiffEditor[] {
+	listDiffEditors(): IDiffEditor[] {
 		return Object.keys(this._diffEditors).map(id => this._diffEditors[id]);
 	}
 
-	getFocusedCodeEditor(): ICommonCodeEditor {
-		let editorWithWidgetFocus: ICommonCodeEditor = null;
+	getFocusedCodeEditor(): ICodeEditor {
+		let editorWithWidgetFocus: ICodeEditor = null;
 
 		let editors = this.listCodeEditors();
 		for (let i = 0; i < editors.length; i++) {

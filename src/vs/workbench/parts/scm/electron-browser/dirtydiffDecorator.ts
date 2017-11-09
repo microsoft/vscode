@@ -48,7 +48,7 @@ import { fillInActions, MenuItemActionItem } from 'vs/platform/actions/browser/m
 import { IChange, ICommonCodeEditor, IEditorModel, ScrollType, IEditorContribution, OverviewRulerLane, IModel } from 'vs/editor/common/editorCommon';
 import { sortedDiff, Splice, firstIndex } from 'vs/base/common/arrays';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
-import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 // TODO@Joao
 // Need to subclass MenuItemActionItem in order to respect

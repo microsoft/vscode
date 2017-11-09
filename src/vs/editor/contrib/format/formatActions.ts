@@ -16,7 +16,7 @@ import { OnTypeFormattingEditProviderRegistry, DocumentRangeFormattingEditProvid
 import { getOnTypeFormattingEdits, getDocumentFormattingEdits, getDocumentRangeFormattingEdits, NoProviderError } from 'vs/editor/contrib/format/format';
 import { EditOperationsCommand } from 'vs/editor/contrib/format/formatCommand';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
 import { Range } from 'vs/editor/common/core/range';
