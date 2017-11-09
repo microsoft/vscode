@@ -342,8 +342,8 @@ export class EditorGroup implements IEditorGroup {
 		}));
 	}
 
-	public replaceEditor(toReplace: EditorInput, replaceWidth: EditorInput, replaceIndex: number, openNext = true): void {
-		const event = this.doCloseEditor(toReplace, openNext); // optimization to prevent multiple setActive() in one call
+	private replaceEditor(toReplace: EditorInput, replaceWidth: EditorInput, replaceIndex: number, openNext = true): void {
+		const event = this.doCloseEditor(toReplace, openNext, true); // optimization to prevent multiple setActive() in one call
 
 		// We want to first add the new editor into our model before emitting the close event because
 		// firing the close event can trigger a dispose on the same editor that is now being added.
@@ -356,14 +356,14 @@ export class EditorGroup implements IEditorGroup {
 	}
 
 	public closeEditor(editor: EditorInput, openNext = true): void {
-		const event = this.doCloseEditor(editor, openNext);
+		const event = this.doCloseEditor(editor, openNext, false);
 
 		if (event) {
 			this.fireEvent(this._onEditorClosed, event, true);
 		}
 	}
 
-	private doCloseEditor(editor: EditorInput, openNext = true): EditorCloseEvent {
+	private doCloseEditor(editor: EditorInput, openNext: boolean, replaced: boolean): EditorCloseEvent {
 		const index = this.indexOf(editor);
 		if (index === -1) {
 			return null; // not found
@@ -384,17 +384,15 @@ export class EditorGroup implements IEditorGroup {
 		}
 
 		// Preview Editor closed
-		let pinned = true;
 		if (this.matches(this.preview, editor)) {
 			this.preview = null;
-			pinned = false;
 		}
 
 		// Remove from arrays
 		this.splice(index, true);
 
 		// Event
-		return { editor, pinned, index, group: this };
+		return { editor, replaced, index, group: this };
 	}
 
 	public closeEditors(except: EditorInput, direction?: Direction): void {

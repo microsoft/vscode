@@ -244,8 +244,8 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 	private onEditorClosed(event: IEditorCloseEvent): void {
 
-		// Track closing of pinned editor to support to reopen closed editors
-		if (event.pinned) {
+		// Track closing of editor to support to reopen closed editors (unless editor was replaced)
+		if (!event.replaced) {
 			const resource = event.editor ? event.editor.getResource() : void 0;
 			const supportsReopen = resource && this.fileService.canHandleResource(resource); // we only support file'ish things to reopen
 			if (supportsReopen) {
