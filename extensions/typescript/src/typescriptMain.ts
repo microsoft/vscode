@@ -423,11 +423,11 @@ const styleCheckDiagnostics = [
 ];
 
 class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
-	ataProgressReporter: AtaProgressReporter;
-	typingsStatus: TypingsStatus;
-	private client: TypeScriptServiceClient;
-	private languages: LanguageProvider[] = [];
-	private languagePerId: Map<string, LanguageProvider>;
+	private readonly ataProgressReporter: AtaProgressReporter;
+	private readonly typingsStatus: TypingsStatus;
+	private readonly client: TypeScriptServiceClient;
+	private readonly languages: LanguageProvider[] = [];
+	private readonly languagePerId = new Map<string, LanguageProvider>();
 	private readonly disposables: Disposable[] = [];
 	private readonly versionStatus: VersionStatus;
 
@@ -461,7 +461,6 @@ class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
 		this.typingsStatus = new TypingsStatus(this.client);
 		this.ataProgressReporter = new AtaProgressReporter(this.client);
 
-		this.languagePerId = new Map();
 		for (const description of descriptions) {
 			const manager = new LanguageProvider(this.client, description, this.commandManager, this.typingsStatus);
 			this.languages.push(manager);
