@@ -88,12 +88,12 @@ function getLanguageService(document: TextDocument) {
 	return service;
 }
 
-let documentSettings: { [key: string]: Thenable<LanguageSettings> } = {};
+let documentSettings: { [key: string]: Thenable<LanguageSettings | undefined> } = {};
 // remove document settings on close
 documents.onDidClose(e => {
 	delete documentSettings[e.document.uri];
 });
-function getDocumentSettings(textDocument: TextDocument): Thenable<LanguageSettings> | undefined {
+function getDocumentSettings(textDocument: TextDocument): Thenable<LanguageSettings | undefined> {
 	if (scopedSettingsSupport) {
 		let promise = documentSettings[textDocument.uri];
 		if (!promise) {
@@ -103,7 +103,7 @@ function getDocumentSettings(textDocument: TextDocument): Thenable<LanguageSetti
 		}
 		return promise;
 	}
-	return void 0;
+	return Promise.resolve(void 0);
 }
 
 // The settings have changed. Is send on server activation as well.
@@ -154,11 +154,8 @@ function triggerValidation(textDocument: TextDocument): void {
 
 function validateTextDocument(textDocument: TextDocument): void {
 	let settingsPromise = getDocumentSettings(textDocument);
-	if (!settingsPromise) {
-		return;
-	}
-	let stylesheet = stylesheets.get(textDocument);
 	settingsPromise.then(settings => {
+		let stylesheet = stylesheets.get(textDocument);
 		let diagnostics = getLanguageService(textDocument).doValidation(textDocument, stylesheet, settings);
 		// Send the computed diagnostics to VSCode.
 		connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
