@@ -396,11 +396,6 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('useRipgrep', "Controls whether to use ripgrep in text and file search"),
 			'default': true
 		},
-		'search.useIgnoreFilesByDefault': {
-			'type': 'boolean',
-			'description': nls.localize('useIgnoreFilesByDefault', "Controls whether to use .gitignore and .ignore files by default when searching for text in a new workspace."),
-			'default': false
-		},
 		'search.useIgnoreFiles': {
 			'type': 'boolean',
 			'description': nls.localize('useIgnoreFiles', "Controls whether to use .gitignore and .ignore files when searching for files."),
