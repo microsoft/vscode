@@ -403,15 +403,15 @@ class LanguageProvider {
 		this.bufferSyncSupport.requestAllDiagnostics();
 	}
 
-	public syntaxDiagnosticsReceived(file: string, syntaxDiagnostics: Diagnostic[]): void {
+	public syntaxDiagnosticsReceived(file: Uri, syntaxDiagnostics: Diagnostic[]): void {
 		this.diagnosticsManager.syntaxDiagnosticsReceived(file, syntaxDiagnostics);
 	}
 
-	public semanticDiagnosticsReceived(file: string, semanticDiagnostics: Diagnostic[]): void {
+	public semanticDiagnosticsReceived(file: Uri, semanticDiagnostics: Diagnostic[]): void {
 		this.diagnosticsManager.semanticDiagnosticsReceived(file, semanticDiagnostics);
 	}
 
-	public configFileDiagnosticsReceived(file: string, diagnostics: Diagnostic[]): void {
+	public configFileDiagnosticsReceived(file: Uri, diagnostics: Diagnostic[]): void {
 		this.diagnosticsManager.configFileDiagnosticsReceived(file, diagnostics);
 	}
 }
@@ -631,7 +631,7 @@ class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
 		if (body && body.diagnostics) {
 			this.findLanguage(body.file).then(language => {
 				if (language) {
-					language.syntaxDiagnosticsReceived(body.file, this.createMarkerDatas(body.diagnostics, language.diagnosticSource));
+					language.syntaxDiagnosticsReceived(this.client.asUrl(body.file), this.createMarkerDatas(body.diagnostics, language.diagnosticSource));
 				}
 			});
 		}
@@ -642,7 +642,7 @@ class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
 		if (body && body.diagnostics) {
 			this.findLanguage(body.file).then(language => {
 				if (language) {
-					language.semanticDiagnosticsReceived(body.file, this.createMarkerDatas(body.diagnostics, language.diagnosticSource));
+					language.semanticDiagnosticsReceived(this.client.asUrl(body.file), this.createMarkerDatas(body.diagnostics, language.diagnosticSource));
 				}
 			});
 		}
@@ -660,7 +660,7 @@ class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
 				return;
 			}
 			if (body.diagnostics.length === 0) {
-				language.configFileDiagnosticsReceived(body.configFile, []);
+				language.configFileDiagnosticsReceived(this.client.asUrl(body.configFile), []);
 			} else if (body.diagnostics.length >= 1) {
 				workspace.openTextDocument(Uri.file(body.configFile)).then((document) => {
 					let curly: [number, number, number] | undefined = undefined;
@@ -690,10 +690,10 @@ class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
 					}
 					if (diagnostic) {
 						diagnostic.source = language.diagnosticSource;
-						language.configFileDiagnosticsReceived(body.configFile, [diagnostic]);
+						language.configFileDiagnosticsReceived(this.client.asUrl(body.configFile), [diagnostic]);
 					}
 				}, _error => {
-					language.configFileDiagnosticsReceived(body.configFile, [new Diagnostic(new Range(0, 0, 0, 0), body.diagnostics[0].text)]);
+					language.configFileDiagnosticsReceived(this.client.asUrl(body.configFile), [new Diagnostic(new Range(0, 0, 0, 0), body.diagnostics[0].text)]);
 				});
 			}
 		});

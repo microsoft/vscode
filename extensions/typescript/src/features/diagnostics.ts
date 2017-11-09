@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Diagnostic, DiagnosticCollection, languages } from 'vscode';
+import { Diagnostic, DiagnosticCollection, languages, Uri } from 'vscode';
 import { ITypeScriptServiceClient } from '../typescriptService';
 
 export default class DiagnosticsManager {
@@ -42,31 +42,35 @@ export default class DiagnosticsManager {
 		}
 	}
 
-	public syntaxDiagnosticsReceived(file: string, syntaxDiagnostics: Diagnostic[]): void {
-		this.syntaxDiagnostics[file] = syntaxDiagnostics;
+	public syntaxDiagnosticsReceived(file: Uri, syntaxDiagnostics: Diagnostic[]): void {
+		this.syntaxDiagnostics[this.key(file)] = syntaxDiagnostics;
 		this.updateCurrentDiagnostics(file);
 	}
 
-	public semanticDiagnosticsReceived(file: string, semanticDiagnostics: Diagnostic[]): void {
-		this.semanticDiagnostics[file] = semanticDiagnostics;
+	public semanticDiagnosticsReceived(file: Uri, semanticDiagnostics: Diagnostic[]): void {
+		this.semanticDiagnostics[this.key(file)] = semanticDiagnostics;
 		this.updateCurrentDiagnostics(file);
 	}
 
-	public configFileDiagnosticsReceived(file: string, diagnostics: Diagnostic[]): void {
-		this.currentDiagnostics.set(this.client.asUrl(file), diagnostics);
+	public configFileDiagnosticsReceived(file: Uri, diagnostics: Diagnostic[]): void {
+		this.currentDiagnostics.set(file, diagnostics);
 	}
 
 	public delete(file: string): void {
 		this.currentDiagnostics.delete(this.client.asUrl(file));
 	}
 
-	private updateCurrentDiagnostics(file: string) {
+	private key(file: Uri): string {
+		return file.toString(true);
+	}
+
+	private updateCurrentDiagnostics(file: Uri) {
 		if (!this._validate) {
 			return;
 		}
 
-		const semanticDiagnostics = this.semanticDiagnostics[file] || [];
-		const syntaxDiagnostics = this.syntaxDiagnostics[file] || [];
-		this.currentDiagnostics.set(this.client.asUrl(file), semanticDiagnostics.concat(syntaxDiagnostics));
+		const semanticDiagnostics = this.semanticDiagnostics[this.key(file)] || [];
+		const syntaxDiagnostics = this.syntaxDiagnostics[this.key(file)] || [];
+		this.currentDiagnostics.set(file, semanticDiagnostics.concat(syntaxDiagnostics));
 	}
 }
