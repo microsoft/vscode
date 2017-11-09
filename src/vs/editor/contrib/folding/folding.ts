@@ -24,7 +24,7 @@ import { IMarginData, IEmptyContentData } from 'vs/editor/browser/controller/mou
 import { HiddenRangeModel } from 'vs/editor/contrib/folding/hiddenRangeModel';
 import { IRange } from 'vs/editor/common/core/range';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { computeRanges as computeIndentRanges } from 'vs/editor/contrib/folding/common/indentRangeProvider';
+import { computeRanges as computeIndentRanges } from 'vs/editor/contrib/folding/indentRangeProvider';
 
 export const ID = 'editor.contrib.folding';
 

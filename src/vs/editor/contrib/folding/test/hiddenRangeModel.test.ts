@@ -7,7 +7,7 @@
 import * as assert from 'assert';
 import { FoldingModel } from 'vs/editor/contrib/folding/foldingModel';
 import { Model } from 'vs/editor/common/model/model';
-import { computeRanges } from 'vs/editor/contrib/folding/common/indentRangeProvider';
+import { computeRanges } from 'vs/editor/contrib/folding/indentRangeProvider';
 import { TestDecorationProvider } from './foldingModel.test';
 import { HiddenRangeModel } from 'vs/editor/contrib/folding/hiddenRangeModel';
 import { IRange } from 'vs/editor/common/core/range';

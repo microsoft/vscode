@@ -8,7 +8,7 @@
 import { ITextModel } from 'vs/editor/common/editorCommon';
 import { FoldingMarkers } from 'vs/editor/common/modes/languageConfiguration';
 import { computeIndentLevel } from 'vs/editor/common/model/modelLine';
-import { FoldingRanges, MAX_LINE_NUMBER } from 'vs/editor/contrib/folding/common/foldingRanges';
+import { FoldingRanges, MAX_LINE_NUMBER } from 'vs/editor/contrib/folding/foldingRanges';
 
 const MAX_FOLDING_REGIONS_FOR_INDENT_LIMIT = 5000;
 

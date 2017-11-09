@@ -5,7 +5,7 @@
 
 import { TrackedRangeStickiness } from 'vs/editor/common/editorCommon';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
-import { FoldingRegion, IDecorationProvider } from 'vs/editor/contrib/folding/foldingModel';
+import { IDecorationProvider } from 'vs/editor/contrib/folding/foldingModel';
 
 export class FoldingDecorationProvider implements IDecorationProvider {
 
@@ -27,8 +27,8 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 
 	public autoHideFoldingControls: boolean = true;
 
-	getDecorationOption(region: FoldingRegion): ModelDecorationOptions {
-		if (region.isCollapsed) {
+	getDecorationOption(isCollapsed: boolean): ModelDecorationOptions {
+		if (isCollapsed) {
 			return this.COLLAPSED_VISUAL_DECORATION;
 		} else if (this.autoHideFoldingControls) {
 			return this.EXPANDED_AUTO_HIDE_VISUAL_DECORATION;

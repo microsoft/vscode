@@ -5,7 +5,7 @@
 
 import Event, { Emitter } from 'vs/base/common/event';
 import { Range, IRange } from 'vs/editor/common/core/range';
-import { FoldingRegion, FoldingModel, CollapseMemento } from 'vs/editor/contrib/folding/foldingModel';
+import { FoldingModel, CollapseMemento } from 'vs/editor/contrib/folding/foldingModel';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Selection } from 'vs/editor/common/core/selection';
 import { findFirst } from 'vs/base/common/arrays';
@@ -22,7 +22,7 @@ export class HiddenRangeModel {
 	public constructor(model: FoldingModel) {
 		this._foldingModel = model;
 		this._foldingModelListener = model.onDidChange(_ => this.updateHiddenRanges());
-		if (model.regions.length) {
+		if (model.ranges.length) {
 			this.updateHiddenRanges();
 		}
 	}
@@ -31,27 +31,36 @@ export class HiddenRangeModel {
 		let updateHiddenAreas = false;
 		let newHiddenAreas: IRange[] = [];
 		let i = 0; // index into hidden
+		let k = 0;
 
-		let lastCollapsed: FoldingRegion = null;
+		let lastCollapsedStart = Number.MAX_VALUE;
+		let lastCollapsedEnd = -1;
 
-		let regions = this._foldingModel.regions;
-		for (let region of regions) {
-			if (!region.isCollapsed || lastCollapsed && lastCollapsed.contains(region)) {
+		let ranges = this._foldingModel.ranges;
+		for (; i < ranges.length; i++) {
+			if (!ranges.isCollapsed(i)) {
+				continue;
+			}
+
+			let startLineNumber = ranges.getStartLineNumber(i) + 1; // the first line is not hidden
+			let endLineNumber = ranges.getEndLineNumber(i);
+			if (lastCollapsedStart <= startLineNumber && endLineNumber <= lastCollapsedEnd) {
 				// ignore ranges contained in collapsed regions
 				continue;
 			}
-			lastCollapsed = region;
-			let range = region;
 
-			if (!updateHiddenAreas && i < this._hiddenRanges.length && matchesHiddenRange(this._hiddenRanges[i], range)) {
-				newHiddenAreas.push(this._hiddenRanges[i]);
-				i++;
+			if (!updateHiddenAreas && k < this._hiddenRanges.length && this._hiddenRanges[k].startLineNumber === startLineNumber && this._hiddenRanges[k].endLineNumber === endLineNumber) {
+				// reuse the old ranges
+				newHiddenAreas.push(this._hiddenRanges[k]);
+				k++;
 			} else {
 				updateHiddenAreas = true;
-				newHiddenAreas.push(new Range(range.startLineNumber + 1, 1, range.endLineNumber, 1));
+				newHiddenAreas.push(new Range(startLineNumber, 1, endLineNumber, 1));
 			}
+			lastCollapsedStart = startLineNumber;
+			lastCollapsedEnd = endLineNumber;
 		}
-		if (updateHiddenAreas || i < this._hiddenRanges.length) {
+		if (updateHiddenAreas || k < this._hiddenRanges.length) {
 			this.applyHiddenRanges(newHiddenAreas);
 		}
 	}
@@ -128,9 +137,6 @@ export class HiddenRangeModel {
 	}
 }
 
-function matchesHiddenRange(hr: IRange, range: FoldingRegion) {
-	return hr.startLineNumber === range.startLineNumber + 1 && hr.endLineNumber === range.endLineNumber;
-}
 function isInside(line: number, range: IRange) {
 	return line >= range.startLineNumber && line <= range.endLineNumber;
 }

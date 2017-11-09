@@ -18,6 +18,7 @@ const MASK_INDENT = 0xFF000000;
 export class FoldingRanges {
 	private _startIndexes: Uint32Array;
 	private _endIndexes: Uint32Array;
+	private _collapseStates: Uint32Array;
 
 	constructor(startIndexes: Uint32Array, endIndexes: Uint32Array) {
 		if (startIndexes.length !== endIndexes.length || startIndexes.length > MAX_FOLDING_REGIONS) {
@@ -25,6 +26,7 @@ export class FoldingRanges {
 		}
 		this._startIndexes = startIndexes;
 		this._endIndexes = endIndexes;
+		this._collapseStates = new Uint32Array(Math.ceil(startIndexes.length / 32));
 		this._computeParentIndices();
 	}
 
@@ -62,6 +64,23 @@ export class FoldingRanges {
 		return this._endIndexes[index] & MAX_LINE_NUMBER;
 	}
 
+	public isCollapsed(index: number): boolean {
+		let arrayIndex = (index / 32) | 0;
+		let bit = index % 32;
+		return (this._collapseStates[arrayIndex] & (1 << bit)) !== 0;
+	}
+
+	public setCollapsed(index: number, newState: boolean) {
+		let arrayIndex = (index / 32) | 0;
+		let bit = index % 32;
+		let value = this._collapseStates[arrayIndex];
+		if (newState) {
+			this._collapseStates[arrayIndex] = value | (1 << bit);
+		} else {
+			this._collapseStates[arrayIndex] = value & ~(1 << bit);
+		}
+	}
+
 	public getParentIndex(index: number) {
 		let parent = ((this._startIndexes[index] & MASK_INDENT) >>> 24) + ((this._endIndexes[index] & MASK_INDENT) >>> 16);
 		if (parent === MAX_FOLDING_REGIONS) {
@@ -72,25 +91,6 @@ export class FoldingRanges {
 
 	public contains(index: number, line: number) {
 		return this.getStartLineNumber(index) <= line && this.getEndLineNumber(index) >= line;
-	}
-
-	isAfterLine(index: number, lineNumber: number): boolean {
-		return lineNumber < this.getStartLineNumber(index);
-	}
-	isBeforeLine(index: number, lineNumber: number): boolean {
-		return lineNumber > this.getEndLineNumber(index);
-	}
-	containsRange(index: number, range: ILineRange): boolean {
-		return this.getStartLineNumber(index) <= range.startLineNumber && this.getEndLineNumber(index) >= range.endLineNumber;
-	}
-	containedBy(index: number, range: ILineRange): boolean {
-		return range.startLineNumber <= this.getStartLineNumber(index) && range.endLineNumber >= this.getEndLineNumber(index);
-	}
-	containsLine(index: number, lineNumber: number) {
-		return this.getStartLineNumber(index) <= lineNumber && lineNumber <= this.getEndLineNumber(index);
-	}
-	hidesLine(index: number, lineNumber: number) {
-		return this.getStartLineNumber(index) < lineNumber && lineNumber <= this.getEndLineNumber(index);
 	}
 
 	private findIndex(line: number) {

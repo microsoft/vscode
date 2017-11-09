@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { computeRanges } from 'vs/editor/contrib/folding/common/indentRangeProvider';
+import { computeRanges } from 'vs/editor/contrib/folding/indentRangeProvider';
 import { Model } from 'vs/editor/common/model/model';
 
 interface IndentRange {
