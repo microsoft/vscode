@@ -1,6 +1,7 @@
 {
 	"$schema": "http://json.schemastore.org/tsconfig",
 	"compilerOptions": {
+		"noEmit": true,
 		"module": "amd",
 		"moduleResolution": "classic",
 		"noImplicitAny": false,
