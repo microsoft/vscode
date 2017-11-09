@@ -165,7 +165,7 @@ export interface IEditorOptions {
 	 * Controls the interval at which line numbers are rendered.
 	 * Defaults to 1.
 	 */
-	lineNumberInterval?: number | { interval: number, showCurrentLineNumber: boolean };
+	lineNumberInterval?: { interval: number, showCurrentLineNumber: boolean };
 	/**
 	 * Should the corresponding line be selected when clicking on the line number?
 	 * Defaults to true.
@@ -767,7 +767,7 @@ export interface InternalEditorViewOptions {
 	readonly renderCustomLineNumbers: (lineNumber: number) => string;
 	readonly renderRelativeLineNumbers: boolean;
 	readonly selectOnLineNumbers: boolean;
-	readonly lineNumberInterval: number | { interval: number, showCurrentLineNumber: boolean };
+	readonly lineNumberInterval: { interval: number, showCurrentLineNumber: boolean };
 	readonly glyphMargin: boolean;
 	readonly revealHorizontalRightPadding: number;
 	readonly roundedSelection: boolean;
@@ -1184,16 +1184,7 @@ export class InternalEditorOptions {
 		);
 	}
 
-	private static _equalsLineNumberInterval(a: number | { interval: number, showCurrentLineNumber: boolean }, b: number | { interval: number, showCurrentLineNumber: boolean }): boolean {
-		if (typeof a === 'number') {
-			if (typeof b !== 'number') {
-				return false;
-			}
-			return a === b;
-		}
-		if (typeof b === 'number') {
-			return false;
-		}
+	private static _equalsLineNumberInterval(a: { interval: number, showCurrentLineNumber: boolean }, b: { interval: number, showCurrentLineNumber: boolean }): boolean {
 		return (
 			a.interval === b.interval
 			&& a.showCurrentLineNumber === b.showCurrentLineNumber
@@ -1639,15 +1630,10 @@ export class EditorOptionsValidator {
 			renderLineHighlight = _stringSet<'none' | 'gutter' | 'line' | 'all'>(opts.renderLineHighlight, defaults.renderLineHighlight, ['none', 'gutter', 'line', 'all']);
 		}
 
-		let lineNumberInterval: number | { interval: number, showCurrentLineNumber: boolean };
-		if (typeof opts.lineNumberInterval === 'object') {
-			lineNumberInterval = {
-				interval: _clampedInt(opts.lineNumberInterval, 1, 1, Constants.MAX_UINT_32),
-				...opts.lineNumberInterval
-			};
-		} else {
-			lineNumberInterval = _clampedInt(opts.lineNumberInterval, 1, 1, Constants.MAX_UINT_32)
-		}
+		let lineNumberInterval = {
+			interval: _clampedInt(opts.lineNumberInterval, 1, 1, Constants.MAX_UINT_32),
+			...opts.lineNumberInterval
+		};
 
 		const mouseWheelScrollSensitivity = _float(opts.mouseWheelScrollSensitivity, defaults.scrollbar.mouseWheelScrollSensitivity);
 		const scrollbar = this._sanitizeScrollbarOpts(opts.scrollbar, defaults.scrollbar, mouseWheelScrollSensitivity);

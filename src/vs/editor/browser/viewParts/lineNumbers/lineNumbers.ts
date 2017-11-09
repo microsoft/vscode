@@ -27,7 +27,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 	private _renderRelativeLineNumbers: boolean;
 	private _lineNumbersLeft: number;
 	private _lineNumbersWidth: number;
-	private _lineNumberInterval: number | { interval: number, showCurrentLineNumber: boolean };
+	private _lineNumberInterval: { interval: number, showCurrentLineNumber: boolean };
 	private _lastCursorModelPosition: Position;
 	private _renderResult: string[];
 
@@ -146,15 +146,8 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 	}
 
 	private _inInterval(lineNumber: number): boolean {
-		let inInterval = false;
-
-		if (typeof this._lineNumberInterval === 'object') {
-			inInterval = lineNumber % this._lineNumberInterval.interval === 0
-				|| (this._lineNumberInterval.showCurrentLineNumber && this._lastCursorModelPosition.lineNumber === lineNumber);
-		} else if (typeof this._lineNumberInterval === 'number') {
-			inInterval = lineNumber % this._lineNumberInterval === 0;
-		}
-		return inInterval;
+		return lineNumber % this._lineNumberInterval.interval === 0
+			|| (this._lineNumberInterval.showCurrentLineNumber && this._lastCursorModelPosition.lineNumber === lineNumber);
 	}
 
 	public render(startLineNumber: number, lineNumber: number): string {

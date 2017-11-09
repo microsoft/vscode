@@ -2750,7 +2750,7 @@ declare module monaco.editor {
 		 * Controls the interval at which line numbers are rendered.
 		 * Defaults to 1.
 		 */
-		lineNumberInterval?: number | {
+		lineNumberInterval?: {
 			interval: number;
 			showCurrentLineNumber: boolean;
 		};
@@ -3288,7 +3288,7 @@ declare module monaco.editor {
 		readonly renderCustomLineNumbers: (lineNumber: number) => string;
 		readonly renderRelativeLineNumbers: boolean;
 		readonly selectOnLineNumbers: boolean;
-		readonly lineNumberInterval: number | {
+		readonly lineNumberInterval: {
 			interval: number;
 			showCurrentLineNumber: boolean;
 		};
