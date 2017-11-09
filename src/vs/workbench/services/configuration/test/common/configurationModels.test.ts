@@ -6,99 +6,93 @@
 
 import * as assert from 'assert';
 import { join } from 'vs/base/common/paths';
-import { FolderConfigurationModel, ScopedConfigurationModel, FolderSettingsModel, WorkspaceConfigurationChangeEvent } from 'vs/workbench/services/configuration/common/configurationModels';
-import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { FolderSettingsModelParser, WorkspaceConfigurationChangeEvent, StandaloneConfigurationModelParser, AllKeysConfigurationChangeEvent, Configuration } from 'vs/workbench/services/configuration/common/configurationModels';
 import { Workspace, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import URI from 'vs/base/common/uri';
-import { ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
+import { ConfigurationChangeEvent, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { StrictResourceMap } from 'vs/base/common/map';
 
-suite('ConfigurationService - Model', () => {
+suite('FolderSettingsModelParser', () => {
 
-	test('Test scoped configs are undefined', () => {
-		const settingsConfig = new FolderSettingsModel(JSON.stringify({
-			awesome: true
-		}));
-
-		const testObject = new FolderConfigurationModel(settingsConfig, [], ConfigurationScope.WINDOW);
-
-		assert.equal(testObject.getSectionContents('task'), undefined);
+	suiteSetup(() => {
+		const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+		configurationRegistry.registerConfiguration({
+			'id': 'FolderSettingsModelParser_1',
+			'type': 'object',
+			'properties': {
+				'FolderSettingsModelParser.window': {
+					'type': 'string',
+					'default': 'isSet'
+				},
+				'FolderSettingsModelParser.resource': {
+					'type': 'string',
+					'default': 'isSet',
+					scope: ConfigurationScope.RESOURCE
+				},
+				'FolderSettingsModelParser.executable': {
+					'type': 'string',
+					'default': 'isSet',
+					isExecutable: true
+				}
+			}
+		});
 	});
 
-	test('Test consolidate (settings and tasks)', () => {
-		const settingsConfig = new FolderSettingsModel(JSON.stringify({
-			awesome: true
-		}));
+	test('parse all folder settings', () => {
+		const testObject = new FolderSettingsModelParser('settings');
 
-		const tasksConfig = new ScopedConfigurationModel(JSON.stringify({
-			awesome: false
-		}), '', 'tasks');
+		testObject.parse(JSON.stringify({ 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.executable': 'executable' }));
 
-		const expected = {
-			awesome: true,
-			tasks: {
-				awesome: false
-			}
-		};
-
-		assert.deepEqual(new FolderConfigurationModel(settingsConfig, [tasksConfig], ConfigurationScope.WINDOW).contents, expected);
+		assert.deepEqual(testObject.configurationModel.contents, { 'FolderSettingsModelParser': { 'window': 'window', 'resource': 'resource' } });
 	});
 
-	test('Test consolidate (settings and launch)', () => {
-		const settingsConfig = new FolderSettingsModel(JSON.stringify({
-			awesome: true
-		}));
+	test('parse resource folder settings', () => {
+		const testObject = new FolderSettingsModelParser('settings', ConfigurationScope.RESOURCE);
 
-		const launchConfig = new ScopedConfigurationModel(JSON.stringify({
-			awesome: false
-		}), '', 'launch');
+		testObject.parse(JSON.stringify({ 'FolderSettingsModelParser.window': 'window', 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.executable': 'executable' }));
 
-		const expected = {
-			awesome: true,
-			launch: {
-				awesome: false
-			}
-		};
-
-		assert.deepEqual(new FolderConfigurationModel(settingsConfig, [launchConfig], ConfigurationScope.WINDOW).contents, expected);
+		assert.deepEqual(testObject.configurationModel.contents, { 'FolderSettingsModelParser': { 'resource': 'resource' } });
 	});
 
-	test('Test consolidate (settings and launch and tasks) - launch/tasks wins over settings file', () => {
-		const settingsConfig = new FolderSettingsModel(JSON.stringify({
-			awesome: true,
-			launch: {
-				launchConfig: 'defined',
-				otherLaunchConfig: 'alsoDefined'
-			},
-			tasks: {
-				taskConfig: 'defined',
-				otherTaskConfig: 'alsoDefined'
+	test('reprocess folder settings excludes executable', () => {
+		const testObject = new FolderSettingsModelParser('settings');
+
+		testObject.parse(JSON.stringify({ 'FolderSettingsModelParser.resource': 'resource', 'FolderSettingsModelParser.anotherExecutable': 'executable' }));
+
+		assert.deepEqual(testObject.configurationModel.contents, { 'FolderSettingsModelParser': { 'resource': 'resource', 'anotherExecutable': 'executable' } });
+
+		const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+		configurationRegistry.registerConfiguration({
+			'id': 'FolderSettingsModelParser_2',
+			'type': 'object',
+			'properties': {
+				'FolderSettingsModelParser.anotherExecutable': {
+					'type': 'string',
+					'default': 'isSet',
+					isExecutable: true
+				}
 			}
-		}));
+		});
 
-		const tasksConfig = new ScopedConfigurationModel(JSON.stringify({
-			taskConfig: 'overwritten',
-		}), '', 'tasks');
-
-		const launchConfig = new ScopedConfigurationModel(JSON.stringify({
-			launchConfig: 'overwritten',
-		}), '', 'launch');
-
-		const expected = {
-			awesome: true,
-			launch: {
-				launchConfig: 'overwritten',
-				otherLaunchConfig: 'alsoDefined'
-			},
-			tasks: {
-				taskConfig: 'overwritten',
-				otherTaskConfig: 'alsoDefined'
-			}
-		};
-
-		assert.deepEqual(new FolderConfigurationModel(settingsConfig, [launchConfig, tasksConfig], ConfigurationScope.WINDOW).contents, expected);
-		assert.deepEqual(new FolderConfigurationModel(settingsConfig, [tasksConfig, launchConfig], ConfigurationScope.WINDOW).contents, expected);
+		testObject.reprocess();
+		assert.deepEqual(testObject.configurationModel.contents, { 'FolderSettingsModelParser': { 'resource': 'resource' } });
 	});
+
+});
+
+suite('StandaloneConfigurationModelParser', () => {
+
+	test('parse tasks stand alone configuration model', () => {
+		const testObject = new StandaloneConfigurationModelParser('tasks', 'tasks');
+
+		testObject.parse(JSON.stringify({ 'version': '1.1.1', 'tasks': [] }));
+
+		assert.deepEqual(testObject.configurationModel.contents, { 'tasks': { 'version': '1.1.1', 'tasks': [] } });
+	});
+
 });
 
 suite('WorkspaceConfigurationChangeEvent', () => {
@@ -194,4 +188,50 @@ suite('WorkspaceConfigurationChangeEvent', () => {
 		assert.ok(!testObject.affectsConfiguration('files', URI.file(join('folder3', 'file3'))));
 	});
 
+});
+
+suite('AllKeysConfigurationChangeEvent', () => {
+
+	test('changeEvent affects keys for any resource', () => {
+		const configuraiton = new Configuration(new ConfigurationModel({}, ['window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows']),
+			new ConfigurationModel(), new ConfigurationModel(), new StrictResourceMap(), new ConfigurationModel(), new StrictResourceMap(), null);
+		let testObject = new AllKeysConfigurationChangeEvent(configuraiton, ConfigurationTarget.USER, null);
+
+		assert.deepEqual(testObject.affectedKeys, ['window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows']);
+
+		assert.ok(testObject.affectsConfiguration('window.zoomLevel'));
+		assert.ok(testObject.affectsConfiguration('window.zoomLevel', URI.file('file1')));
+		assert.ok(testObject.affectsConfiguration('window.zoomLevel', URI.file('file2')));
+
+		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen'));
+		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen', URI.file('file1')));
+		assert.ok(testObject.affectsConfiguration('window.restoreFullscreen', URI.file('file2')));
+
+		assert.ok(testObject.affectsConfiguration('window.restoreWindows'));
+		assert.ok(testObject.affectsConfiguration('window.restoreWindows', URI.file('file2')));
+		assert.ok(testObject.affectsConfiguration('window.restoreWindows', URI.file('file1')));
+
+		assert.ok(testObject.affectsConfiguration('window.title'));
+		assert.ok(testObject.affectsConfiguration('window.title', URI.file('file1')));
+		assert.ok(testObject.affectsConfiguration('window.title', URI.file('file2')));
+
+		assert.ok(testObject.affectsConfiguration('window'));
+		assert.ok(testObject.affectsConfiguration('window', URI.file('file1')));
+		assert.ok(testObject.affectsConfiguration('window', URI.file('file2')));
+
+		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview'));
+		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview', URI.file('file2')));
+		assert.ok(testObject.affectsConfiguration('workbench.editor.enablePreview', URI.file('file1')));
+
+		assert.ok(testObject.affectsConfiguration('workbench.editor'));
+		assert.ok(testObject.affectsConfiguration('workbench.editor', URI.file('file2')));
+		assert.ok(testObject.affectsConfiguration('workbench.editor', URI.file('file1')));
+
+		assert.ok(testObject.affectsConfiguration('workbench'));
+		assert.ok(testObject.affectsConfiguration('workbench', URI.file('file2')));
+		assert.ok(testObject.affectsConfiguration('workbench', URI.file('file1')));
+
+		assert.ok(!testObject.affectsConfiguration('files'));
+		assert.ok(!testObject.affectsConfiguration('files', URI.file('file1')));
+	});
 });

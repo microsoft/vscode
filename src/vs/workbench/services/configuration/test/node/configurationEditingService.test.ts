@@ -33,7 +33,6 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { IChoiceService } from 'vs/platform/message/common/message';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
@@ -105,8 +104,7 @@ suite('ConfigurationEditingService', () => {
 		instantiationService = <TestInstantiationService>workbenchInstantiationService();
 		const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
 		instantiationService.stub(IEnvironmentService, environmentService);
-		const workspacesService = instantiationService.stub(IWorkspacesService, {});
-		const workspaceService = new WorkspaceService(environmentService, workspacesService);
+		const workspaceService = new WorkspaceService(environmentService);
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 		return workspaceService.initialize(noWorkspace ? {} as IWindowConfiguration : workspaceDir).then(() => {
 			instantiationService.stub(IConfigurationService, workspaceService);
