@@ -25,7 +25,7 @@ import { IHeapService } from 'vs/workbench/api/electron-browser/mainThreadHeapSe
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/quickOpen';
-import { DocumentSymbolProviderRegistry, DocumentHighlightKind, Hover } from 'vs/editor/common/modes';
+import { DocumentSymbolProviderRegistry, DocumentHighlightKind, Hover, Command } from 'vs/editor/common/modes';
 import { getCodeLensData } from 'vs/editor/contrib/codelens/codelens';
 import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition } from 'vs/editor/contrib/goToDeclaration/goToDeclaration';
 import { getHover } from 'vs/editor/contrib/hover/getHover';
@@ -642,11 +642,11 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('Quick Fix, data conversion', function () {
 
-		disposables.push(extHost.registerCodeActionProvider(defaultSelector, <vscode.CodeActionProvider>{
-			provideCodeActions(): any {
+		disposables.push(extHost.registerCodeActionProvider(defaultSelector, {
+			provideCodeActions(): vscode.Command[] {
 				return [
-					<vscode.Command>{ command: 'test1', title: 'Testing1' },
-					<vscode.Command>{ command: 'test2', title: 'Testing2' }
+					{ command: 'test1', title: 'Testing1' },
+					{ command: 'test2', title: 'Testing2' }
 				];
 			}
 		}));
@@ -655,7 +655,7 @@ suite('ExtHostLanguageFeatures', function () {
 			return getCodeActions(model, model.getFullModelRange()).then(value => {
 				assert.equal(value.length, 2);
 
-				let [first, second] = value;
+				const [first, second]: Command[] = value as any;
 				assert.equal(first.title, 'Testing1');
 				assert.equal(first.id, 'test1');
 				assert.equal(second.title, 'Testing2');

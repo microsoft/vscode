@@ -531,6 +531,7 @@ export function createApiFactory(
 			debug,
 			// types
 			CancellationTokenSource: CancellationTokenSource,
+			CodeAction: extHostTypes.CodeAction,
 			CodeLens: extHostTypes.CodeLens,
 			Color: extHostTypes.Color,
 			ColorPresentation: extHostTypes.ColorPresentation,

@@ -223,6 +223,35 @@ export const TextEdit = {
 	}
 };
 
+export namespace WorkspaceEdit {
+	export function from(value: vscode.WorkspaceEdit): modes.WorkspaceEdit {
+		const result: modes.WorkspaceEdit = { edits: [] };
+		for (let entry of value.entries()) {
+			let [uri, textEdits] = entry;
+			for (let textEdit of textEdits) {
+				result.edits.push({
+					resource: uri,
+					newText: textEdit.newText,
+					range: fromRange(textEdit.range)
+				});
+			}
+		}
+		return result;
+	}
+
+	export function fromTextEdits(uri: vscode.Uri, textEdits: vscode.TextEdit[]): modes.WorkspaceEdit {
+		const result: modes.WorkspaceEdit = { edits: [] };
+		for (let textEdit of textEdits) {
+			result.edits.push({
+				resource: uri,
+				newText: textEdit.newText,
+				range: fromRange(textEdit.range)
+			});
+		}
+		return result;
+	}
+}
+
 
 export namespace SymbolKind {
 

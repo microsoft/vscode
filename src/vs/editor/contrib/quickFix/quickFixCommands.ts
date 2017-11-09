@@ -20,6 +20,11 @@ import { registerEditorContribution } from 'vs/editor/browser/editorBrowserExten
 import { QuickFixContextMenu } from './quickFixWidget';
 import { LightBulbWidget } from './lightBulbWidget';
 import { QuickFixModel, QuickFixComputeEvent } from './quickFixModel';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { CodeAction } from 'vs/editor/common/modes';
+import { createBulkEdit } from 'vs/editor/common/services/bulkEdit';
+import { IFileService } from 'vs/platform/files/common/files';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 export class QuickFixController implements IEditorContribution {
 
@@ -38,13 +43,15 @@ export class QuickFixController implements IEditorContribution {
 	constructor(editor: ICodeEditor,
 		@IMarkerService markerService: IMarkerService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ICommandService commandService: ICommandService,
+		@ICommandService private readonly _commandService: ICommandService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IKeybindingService private _keybindingService: IKeybindingService
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@ITextModelService private readonly _textModelService: ITextModelService,
+		@IFileService private _fileService: IFileService
 	) {
 		this._editor = editor;
 		this._model = new QuickFixModel(this._editor, markerService);
-		this._quickFixContextMenu = new QuickFixContextMenu(editor, contextMenuService, commandService);
+		this._quickFixContextMenu = new QuickFixContextMenu(editor, contextMenuService, action => this._onApplyCodeAction(action));
 		this._lightBulbWidget = new LightBulbWidget(editor);
 
 		this._updateLightBulbTitle();
@@ -101,6 +108,18 @@ export class QuickFixController implements IEditorContribution {
 			title = nls.localize('quickFix', "Show Fixes");
 		}
 		this._lightBulbWidget.title = title;
+	}
+
+	private async _onApplyCodeAction(action: CodeAction): TPromise<void> {
+		if (action.edits) {
+			const edit = createBulkEdit(this._textModelService, this._editor, this._fileService);
+			edit.add(action.edits.edits);
+			await edit.finish();
+		}
+
+		if (action.command) {
+			await this._commandService.executeCommand(action.command.id, ...action.command.arguments);
+		}
 	}
 }
 
