@@ -55,6 +55,12 @@ export class QueryBuilder {
 			}
 		}
 
+		// TODO@rob - see #37998
+		const useIgnoreFiles = folderResources && folderResources.every(folder => {
+			const folderConfig = this.configurationService.getConfiguration<ISearchConfiguration>({ resource: folder });
+			return folderConfig.search.useIgnoreFiles;
+		});
+
 		const useRipgrep = !folderResources || folderResources.every(folder => {
 			const folderConfig = this.configurationService.getConfiguration<ISearchConfiguration>({ resource: folder });
 			return folderConfig.search.useRipgrep;
@@ -75,7 +81,7 @@ export class QueryBuilder {
 			cacheKey: options.cacheKey,
 			contentPattern: contentPattern,
 			useRipgrep,
-			disregardIgnoreFiles: options.disregardIgnoreFiles,
+			disregardIgnoreFiles: options.disregardIgnoreFiles || !useIgnoreFiles,
 			disregardExcludeSettings: options.disregardExcludeSettings,
 			ignoreSymlinks
 		};
