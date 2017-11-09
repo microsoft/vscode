@@ -10,6 +10,8 @@ import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingReso
 import { IContextKey, IContext, IContextKeyServiceTarget, IContextKeyService, SET_CONTEXT_COMMAND_ID, ContextKeyExpr, IContextKeyChangeEvent } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService, IConfigurationChangeEvent, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import Event, { Emitter, debounceEvent } from 'vs/base/common/event';
+import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 const KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
 
@@ -94,9 +96,11 @@ class ConfigAwareContextValuesContainer extends Context {
 		const configKeys: { [key: string]: boolean } = Object.create(null);
 
 		// add/update keys
-		for (const key of this._configurationService.keys().default) {
-			const value = this._configurationService.getValue(key);
-			if (typeof value === 'boolean') {
+		const configProps = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
+		for (const key in configProps) {
+			const node = configProps[key];
+			if (node.type === 'boolean') {
+				const value = this._configurationService.getValue(key);
 				const configKey = prefix + key;
 				const oldValue = this._value[configKey];
 				this._value[configKey] = value;
