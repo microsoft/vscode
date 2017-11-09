@@ -479,7 +479,7 @@ export class ViewsViewlet extends PanelViewlet {
 
 	private canBeVisible(viewDescriptor: IViewDescriptor): boolean {
 		const viewstate = this.viewsStates.get(viewDescriptor.id);
-		if (viewstate && viewstate.isHidden) {
+		if (viewDescriptor.canToggleVisibility && viewstate && viewstate.isHidden) {
 			return false;
 		}
 		return this.contextKeyService.contextMatchesRules(viewDescriptor.when);
