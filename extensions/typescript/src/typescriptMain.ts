@@ -603,15 +603,13 @@ class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
 		}
 	}
 
-	private findLanguage(file: string): Thenable<LanguageProvider | null> {
-		return workspace.openTextDocument(this.client.asUrl(file)).then((doc: TextDocument) => {
-			for (const language of this.languages) {
-				if (language.handles(file, doc)) {
-					return language;
-				}
-			}
-			return null;
-		}, () => null);
+	private async findLanguage(file: string): Promise<LanguageProvider | undefined> {
+		try {
+			const doc = await workspace.openTextDocument(this.client.asUrl(file));
+			return this.languages.find(language => language.handles(file, doc));
+		} catch {
+			return undefined;
+		}
 	}
 
 	private triggerAllDiagnostics() {
