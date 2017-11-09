@@ -23,10 +23,16 @@ import * as watchdog from 'native-watchdog';
 import * as glob from 'vs/base/common/glob';
 
 // const nativeExit = process.exit.bind(process);
-process.exit = function () {
-	const err = new Error('An extension called process.exit() and this was prevented.');
-	console.warn(err.stack);
-};
+function patchExit(allowExit: boolean) {
+	process.exit = function (code) {
+		if (allowExit) {
+			exit(code);
+		} else {
+			const err = new Error('An extension called process.exit() and this was prevented.');
+			console.warn(err.stack);
+		}
+	};
+}
 export function exit(code?: number) {
 	//nativeExit(code);
 
@@ -65,6 +71,9 @@ export class ExtensionHostMain {
 	constructor(rpcProtocol: RPCProtocol, initData: IInitData) {
 		this._environment = initData.environment;
 		this._workspace = initData.workspace;
+
+		const allowExit = !!this._environment.extensionTestsPath; // to support other test frameworks like Jasmin that use process.exit (https://github.com/Microsoft/vscode/issues/37708)
+		patchExit(allowExit);
 
 		// services
 		const threadService = new ExtHostThreadService(rpcProtocol);
