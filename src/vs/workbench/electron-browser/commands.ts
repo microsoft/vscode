@@ -372,6 +372,17 @@ export function registerCommands(): void {
 	});
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: 'workbench.action.exit',
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: void 0,
+		primary: KeyMod.Alt | KeyCode.F4,
+		handler: accessor => {
+			const windowService = accessor.get(IWindowService);
+			windowService.closeWindow();
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'workbench.action.exitZenMode',
 		weight: CommonEditorRegistry.commandWeight(-1000),
 		handler(accessor: ServicesAccessor, configurationOrName: any) {
