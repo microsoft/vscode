@@ -42,29 +42,26 @@ export function deepClone<T>(obj: T): T {
 }
 
 export function deepFreeze<T>(obj: T): T {
-
 	if (!obj || typeof obj !== 'object') {
 		return obj;
 	}
-
-	// Retrieve the property names defined on obj
-	var propNames = Object.getOwnPropertyNames(obj);
-
-	// Freeze properties before freezing self
-	propNames.forEach(function (name) {
-		var prop = obj[name];
-
-		// Freeze prop if it is an object
-		if (typeof prop === 'object' && prop !== null) {
-			deepFreeze(prop);
+	const stack: any[] = [obj];
+	while (stack.length > 0) {
+		let obj = stack.shift();
+		Object.freeze(obj);
+		for (const key in obj) {
+			if (_hasOwnProperty.call(obj, key)) {
+				let prop = obj[key];
+				if (typeof prop === 'object' && !Object.isFrozen(prop)) {
+					stack.push(prop);
+				}
+			}
 		}
-	});
-
-	// Freeze self (no-op if already frozen)
-	return Object.freeze(obj);
+	}
+	return obj;
 }
 
-const hasOwnProperty = Object.prototype.hasOwnProperty;
+const _hasOwnProperty = Object.prototype.hasOwnProperty;
 
 export function cloneAndChange(obj: any, changer: (orig: any) => any): any {
 	return _cloneAndChange(obj, changer, []);
@@ -95,7 +92,7 @@ function _cloneAndChange(obj: any, changer: (orig: any) => any, encounteredObjec
 		encounteredObjects.push(obj);
 		const r2 = {};
 		for (let i2 in obj) {
-			if (hasOwnProperty.call(obj, i2)) {
+			if (_hasOwnProperty.call(obj, i2)) {
 				(r2 as any)[i2] = _cloneAndChange(obj[i2], changer, encounteredObjects);
 			}
 		}
