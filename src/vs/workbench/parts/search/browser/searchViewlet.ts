@@ -105,6 +105,7 @@ export class SearchViewlet extends Viewlet {
 
 	private selectCurrentMatchEmitter: Emitter<string>;
 	private delayedRefresh: Delayer<void>;
+	private changedWhileHidden: boolean;
 
 	private searchWithoutFolderMessageBuilder: Builder;
 
@@ -354,6 +355,15 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	private onSearchResultsChanged(event?: IChangeEvent): TPromise<any> {
+		if (this.isVisible()) {
+			return this.refreshAndUpdateCount(event);
+		} else {
+			this.changedWhileHidden = true;
+			return TPromise.wrap(null);
+		}
+	}
+
+	private refreshAndUpdateCount(event?: IChangeEvent): TPromise<void> {
 		return this.refreshTree(event).then(() => {
 			this.searchWidget.setReplaceAllActionState(!this.viewModel.searchResult.isEmpty());
 			this.updateSearchResultCount();
@@ -632,6 +642,12 @@ export class SearchViewlet extends Viewlet {
 		let promise: TPromise<void>;
 		this.viewletVisible.set(visible);
 		if (visible) {
+			if (this.changedWhileHidden) {
+				// Render if results changed while viewlet was hidden - #37818
+				this.refreshAndUpdateCount();
+				this.changedWhileHidden = false;
+			}
+
 			promise = super.setVisible(visible);
 			this.tree.onVisible();
 		} else {
