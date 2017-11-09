@@ -41,6 +41,7 @@ import { KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { listHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 
 let $ = DOM.$;
 
@@ -350,7 +351,13 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		if (this.input) {
 			return this.input.resolve()
 				.then((keybindingsModel: KeybindingsEditorModel) => this.keybindingsEditorModel = keybindingsModel)
-				.then(() => this.keybindingsEditorModel.resolve())
+				.then(() => {
+					const editorActionsLabels: { [id: string]: string; } = CommonEditorRegistry.getEditorActions().reduce((editorActions, editorAction) => {
+						editorActions[editorAction.id] = editorAction.label;
+						return editorActions;
+					}, {});
+					return this.keybindingsEditorModel.resolve(editorActionsLabels);
+				})
 				.then(() => this.renderKeybindingsEntries(false));
 		}
 		return TPromise.as(null);

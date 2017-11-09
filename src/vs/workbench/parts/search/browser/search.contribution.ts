@@ -45,6 +45,9 @@ import { IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/pa
 import { defaultQuickOpenContextKey } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { OpenSymbolHandler } from 'vs/workbench/parts/search/browser/openSymbolHandler';
 import { OpenAnythingHandler } from 'vs/workbench/parts/search/browser/openAnythingHandler';
+import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { getWorkspaceSymbols } from 'vs/workbench/parts/search/common/search';
+import { illegalArgument } from 'vs/base/common/errors';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService);
 replaceContributions();
@@ -415,4 +418,12 @@ configurationRegistry.registerConfiguration({
 			'default': true
 		}
 	}
+});
+
+CommonEditorRegistry.registerLanguageCommand('_executeWorkspaceSymbolProvider', function (accessor, args: { query: string; }) {
+	let { query } = args;
+	if (typeof query !== 'string') {
+		throw illegalArgument();
+	}
+	return getWorkspaceSymbols(query);
 });

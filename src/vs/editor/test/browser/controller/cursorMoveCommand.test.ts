@@ -12,7 +12,7 @@ import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration
 import { CursorMove } from 'vs/editor/common/controller/cursorMoveCommands';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { CoreNavigationCommands } from 'vs/editor/common/controller/coreCommands';
+import { CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 
 suite('Cursor move command test', () => {

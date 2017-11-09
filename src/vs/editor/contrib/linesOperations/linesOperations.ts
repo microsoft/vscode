@@ -20,7 +20,7 @@ import { CopyLinesCommand } from './copyLinesCommand';
 import { DeleteLinesCommand } from './deleteLinesCommand';
 import { MoveLinesCommand } from './moveLinesCommand';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
-import { CoreEditingCommands } from 'vs/editor/common/controller/coreCommands';
+import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 
 // copy lines
 
