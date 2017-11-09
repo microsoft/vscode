@@ -28,7 +28,7 @@ suite('HTML Javascript Support', () => {
 		var mode = getJavascriptMode(documentRegions);
 
 		let position = document.positionAt(offset);
-		let list = mode.doComplete(document, position);
+		let list = mode.doComplete!(document, position);
 		assert.ok(list);
 
 		let actualLabels = list.items.map(c => c.label).sort();

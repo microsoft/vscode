@@ -31,7 +31,7 @@ export interface SettingProvider {
 }
 
 export interface LanguageMode {
-	getId();
+	getId(): string;
 	configure?: (options: Settings) => void;
 	doValidation?: (document: TextDocument, settings?: Settings) => Diagnostic[];
 	doComplete?: (document: TextDocument, position: Position, settings?: Settings) => CompletionList;
@@ -74,7 +74,7 @@ export function getLanguageModes(supportedLanguages: { [languageId: string]: boo
 	let modelCaches: LanguageModelCache<any>[] = [];
 	modelCaches.push(documentRegions);
 
-	let modes = {};
+	let modes = Object.create(null);
 	modes['html'] = getHTMLMode(htmlLanguageService);
 	if (supportedLanguages['css']) {
 		modes['css'] = getCSSMode(documentRegions);

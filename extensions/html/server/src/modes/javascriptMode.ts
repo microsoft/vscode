@@ -73,7 +73,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			updateCurrentTextDocument(document);
 			const syntaxDiagnostics = jsLanguageService.getSyntacticDiagnostics(FILE_NAME);
 			const semanticDiagnostics = jsLanguageService.getSemanticDiagnostics(FILE_NAME);
-			return syntaxDiagnostics.concat(semanticDiagnostics).map((diag): Diagnostic => {
+			return syntaxDiagnostics.concat(semanticDiagnostics).map((diag: ts.Diagnostic): Diagnostic => {
 				return {
 					range: convertRange(currentTextDocument, diag),
 					severity: DiagnosticSeverity.Error,
@@ -143,7 +143,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 
 					let signature: SignatureInformation = {
 						label: '',
-						documentation: null,
+						documentation: undefined,
 						parameters: []
 					};
 
@@ -185,7 +185,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 			let items = jsLanguageService.getNavigationBarItems(FILE_NAME);
 			if (items) {
 				let result: SymbolInformation[] = [];
-				let existing = {};
+				let existing = Object.create(null);
 				let collectSymbols = (item: ts.NavigationBarItem, containerLabel?: string) => {
 					let sig = item.text + item.kind + item.spans[0].start;
 					if (item.kind !== 'script' && !existing[sig]) {
@@ -288,9 +288,13 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 	};
 }
 
-function convertRange(document: TextDocument, span: { start: number, length: number }): Range {
-	let startPosition = document.positionAt(span.start);
-	let endPosition = document.positionAt(span.start + span.length);
+function convertRange(document: TextDocument, span: { start: number | undefined, length: number | undefined }): Range {
+	if (typeof span.start === 'undefined') {
+		const pos = document.positionAt(0);
+		return Range.create(pos, pos);
+	}
+	const startPosition = document.positionAt(span.start);
+	const endPosition = document.positionAt(span.start + (span.length || 0));
 	return Range.create(startPosition, endPosition);
 }
 

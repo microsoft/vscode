@@ -29,9 +29,9 @@ export function getDocumentRegions(languageService: LanguageService, document: T
 	let regions: EmbeddedRegion[] = [];
 	let scanner = languageService.createScanner(document.getText());
 	let lastTagName: string;
-	let lastAttributeName: string;
-	let languageIdFromType: string;
-	let importedScripts = [];
+	let lastAttributeName: string | null;
+	let languageIdFromType: string | undefined = undefined;
+	let importedScripts: string[] = [];
 
 	let token = scanner.scan();
 	while (token !== TokenType.EOS) {
@@ -224,7 +224,7 @@ function append(result: string, str: string, n: number): string {
 	return result;
 }
 
-function getAttributeLanguage(attributeName: string): string {
+function getAttributeLanguage(attributeName: string): string | null {
 	let match = attributeName.match(/^(style)$|^(on\w+)$/i);
 	if (!match) {
 		return null;
