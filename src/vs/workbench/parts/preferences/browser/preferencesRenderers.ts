@@ -593,7 +593,7 @@ export class FeedbackWidgetRenderer extends Disposable {
 		const result = this._currentResult;
 		const actualResultNames = Object.keys(result.metadata.scoredResults);
 
-		const feedbackQuery = {};
+		const feedbackQuery: any = {};
 		feedbackQuery['comment'] = FeedbackWidgetRenderer.DEFAULT_COMMENT_TEXT;
 		feedbackQuery['queryString'] = result.query;
 		feedbackQuery['resultScores'] = {};

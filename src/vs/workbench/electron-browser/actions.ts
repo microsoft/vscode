@@ -439,7 +439,7 @@ export class ShowStartupPerformance extends Action {
 	}
 
 	private analyzeLoaderStats(): { [type: string]: any[] } {
-		const stats = <ILoaderEvent[]>(<any>require).getStats().slice(0).sort((a, b) => {
+		const stats = <ILoaderEvent[]>(<any>require).getStats().slice(0).sort((a: ILoaderEvent, b: ILoaderEvent) => {
 			if (a.detail < b.detail) {
 				return -1;
 			} else if (a.detail > b.detail) {

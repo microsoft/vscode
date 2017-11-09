@@ -130,7 +130,7 @@ export class CodeApplication {
 		const isValidWebviewSource = (source: string) =>
 			!source || (URI.parse(source.toLowerCase()).toString() as any).startsWith(URI.file(this.environmentService.appRoot.toLowerCase()).toString());
 
-		app.on('web-contents-created', (event, contents) => {
+		app.on('web-contents-created', (_event: any, contents) => {
 			contents.on('will-attach-webview', (event: Electron.Event, webPreferences, params) => {
 				delete webPreferences.preload;
 				webPreferences.nodeIntegration = false;
@@ -185,19 +185,19 @@ export class CodeApplication {
 			this.windowsMainService.openNewWindow(OpenContext.DESKTOP); //macOS native tab "+" button
 		});
 
-		ipc.on('vscode:exit', (event, code: number) => {
+		ipc.on('vscode:exit', (_event: any, code: number) => {
 			this.logService.log('IPC#vscode:exit', code);
 
 			this.dispose();
 			this.lifecycleService.kill(code);
 		});
 
-		ipc.on(machineIdIpcChannel, (event, machineId: string) => {
+		ipc.on(machineIdIpcChannel, (_event: any, machineId: string) => {
 			this.logService.log('IPC#vscode-machineId');
 			this.storageService.setItem(machineIdStorageKey, machineId);
 		});
 
-		ipc.on('vscode:fetchShellEnv', (event, windowId) => {
+		ipc.on('vscode:fetchShellEnv', (_event: any, windowId: number) => {
 			const { webContents } = BrowserWindow.fromId(windowId);
 			getShellEnvironment().then(shellEnv => {
 				if (!webContents.isDestroyed()) {
@@ -212,7 +212,7 @@ export class CodeApplication {
 			});
 		});
 
-		ipc.on('vscode:broadcast', (event, windowId: number, broadcast: { channel: string; payload: any; }) => {
+		ipc.on('vscode:broadcast', (_event: any, windowId: number, broadcast: { channel: string; payload: any; }) => {
 			if (this.windowsMainService && broadcast.channel && !isUndefinedOrNull(broadcast.payload)) {
 				this.logService.log('IPC#vscode:broadcast', broadcast.channel, broadcast.payload);
 
