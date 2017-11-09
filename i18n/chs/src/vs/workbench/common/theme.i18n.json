@@ -20,6 +20,7 @@
 	"editorGroupBorder": "将多个编辑器组彼此分隔开的颜色。编辑器组是编辑器的容器。",
 	"editorDragAndDropBackground": "拖动编辑器时的背景颜色。此颜色应有透明度，以便编辑器内容能透过背景。",
 	"panelBackground": "面板的背景色。面板显示在编辑器区域下方，可包含输出和集成终端等视图。",
+	"panelBorder": "将面板与编辑器隔开的边框的颜色。面板显示在编辑区域下方，包含输出和集成终端等视图。",
 	"panelActiveTitleForeground": "活动面板的标题颜色。面板显示在编辑器区域下方，并包含输出和集成终端等视图。",
 	"panelInactiveTitleForeground": "非活动面板的标题颜色。面板显示在编辑器区域下方，并包含输出和集成终端等视图。",
 	"panelActiveTitleBorder": "活动面板的边框颜色。面板显示在编辑器区域下方，包含输出和集成终端等视图。",

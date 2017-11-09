@@ -44,6 +44,7 @@
 	"listHoverForeground": "Vordergrund der Liste/Struktur, wenn mit der Maus auf Elemente gezeigt wird.",
 	"listDropBackground": "Drag & Drop-Hintergrund der Liste/Struktur, wenn Elemente mithilfe der Maus verschoben werden.",
 	"highlight": "Vordergrundfarbe der Liste/Struktur zur Trefferhervorhebung beim Suchen innerhalb der Liste/Struktur.",
+	"invalidItemForeground": "Liste/Baum Vordergrundfarbe für ungültige Elemente, z. B. eine ungelöste Wurzel im Explorer.",
 	"pickerGroupForeground": "Schnellauswahlfarbe für das Gruppieren von Bezeichnungen.",
 	"pickerGroupBorder": "Schnellauswahlfarbe für das Gruppieren von Rahmen.",
 	"buttonForeground": "Vordergrundfarbe der Schaltfläche.",

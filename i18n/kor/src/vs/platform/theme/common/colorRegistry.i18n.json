@@ -44,6 +44,7 @@
 	"listHoverForeground": "마우스로 항목을 가리킬 때 목록/트리 전경입니다.",
 	"listDropBackground": "마우스로 항목을 이동할 때 목록/트리 끌어서 놓기 배경입니다.",
 	"highlight": "목록/트리 내에서 검색할 때 일치 항목 강조 표시의 목록/트리 전경색입니다.",
+	"invalidItemForeground": "잘못된 항목에 대한 목록/트리 전경 색(예: 탐색기의 확인할 수 없는 루트).",
 	"pickerGroupForeground": "그룹화 레이블에 대한 빠른 선택기 색입니다.",
 	"pickerGroupBorder": "그룹화 테두리에 대한 빠른 선택기 색입니다.",
 	"buttonForeground": "단추 기본 전경색입니다.",

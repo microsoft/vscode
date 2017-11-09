@@ -16,6 +16,8 @@
 	"exclude.boolean": "Modèle Glob auquel les chemins de fichiers doivent correspondre. Affectez la valeur true ou false pour activer ou désactiver le modèle.",
 	"exclude.when": "Vérification supplémentaire des frères d'un fichier correspondant. Utilisez $(basename) comme variable pour le nom de fichier correspondant.",
 	"useRipgrep": "Contrôle si ripgrep doit être utilisé dans la recherche de texte et de fichier",
+	"useIgnoreFilesByDefault": "Contrôle s'il faut utiliser les fichiers .gitignore et .ignore par défaut en cas de recherche dans un nouvel espace de travail.",
+	"useIgnoreFiles": "Contrôle s'il faut utiliser les fichiers .gitignore et .ignore par défaut pendant la recherche de fichiers.",
 	"search.quickOpen.includeSymbols": "Configurez l'ajout des résultats d'une recherche de symboles globale dans le fichier de résultats pour Quick Open.",
 	"search.followSymlinks": "Détermine s’il faut suivre les liens symboliques lors de la recherche."
 }

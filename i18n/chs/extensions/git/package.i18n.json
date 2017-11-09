@@ -61,5 +61,11 @@
 	"config.defaultCloneDirectory": "克隆 Git 存储库的默认位置",
 	"config.enableSmartCommit": "在没有暂存的更改时提交所有更改。",
 	"config.enableCommitSigning": "启用使用 GPG 签名的提交",
-	"config.discardAllScope": "控制运行“放弃所有更改”命令时放弃的更改类型。\"all\" 放弃所有更改。\"tracked\" 只放弃跟踪的文件。\"prompt\" 表示在每次运行此操作时显示提示对话框。"
+	"config.discardAllScope": "控制运行“放弃所有更改”命令时放弃的更改类型。\"all\" 放弃所有更改。\"tracked\" 只放弃跟踪的文件。\"prompt\" 表示在每次运行此操作时显示提示对话框。",
+	"config.decorations.enabled": "控制 Git 是否向资源管理器和“打开的编辑器”视图添加颜色和小标。",
+	"colors.modified": "已修改资源的颜色。",
+	"colors.deleted": "已删除资源的颜色。",
+	"colors.untracked": "未跟踪资源的颜色。",
+	"colors.ignored": "已忽略资源的颜色。",
+	"colors.conflict": "存在冲突的资源的颜色。"
 }

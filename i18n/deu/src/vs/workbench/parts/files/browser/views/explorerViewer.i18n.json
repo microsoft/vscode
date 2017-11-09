@@ -12,6 +12,7 @@
 	"addFolder": "&&Ordner hinzufügen",
 	"confirmMove": "Sind Sie sicher, dass Sie \"{0}\" verschieben möchten?",
 	"doNotAskAgain": "Nicht erneut fragen",
+	"moveButtonLabel": "&&Verschieben",
 	"confirmOverwriteMessage": "{0} ist im Zielordner bereits vorhanden. Möchten Sie das Element ersetzen?",
 	"irreversible": "Diese Aktion kann nicht rückgängig gemacht werden.",
 	"replaceButtonLabel": "&&Ersetzen"

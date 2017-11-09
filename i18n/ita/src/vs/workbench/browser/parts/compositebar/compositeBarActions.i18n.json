@@ -9,5 +9,7 @@
 	"numberBadge": "{0} ({1})",
 	"manageExtension": "Gestisci estensione",
 	"titleKeybinding": "{0} ({1})",
+	"hide": "Nascondi",
+	"keep": "Mantieni",
 	"toggle": "Attiva/Disattiva visualizzazione bloccata"
 }

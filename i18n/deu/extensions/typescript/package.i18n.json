@@ -44,6 +44,11 @@
 	"typescript.npm": "Gibt den Pfad zur ausführbaren NPM-Datei an, die für die automatische Typerfassung verwendet wird. Hierfür ist TypeScript 2.3.4 oder höher erforderlich.",
 	"typescript.check.npmIsInstalled": "Überprüfen Sie, ob NPM für die automatische Typerfassung installiert ist.",
 	"javascript.nameSuggestions": "Das Einbeziehen eindeutiger Namen von der Datei in der JavaScript-Vorschlagsliste aktivieren/deaktivieren.",
+	"typescript.tsc.autoDetect": "Steuert die automatische Erkennung von TSC-Aufgaben. \"Aus\" deaktiviert diese Funktion. \"Build\" erstellt nur Kompilierungsaufgaben mit einer Ausführung. \"Überwachen\" erstellt nur Kompilierungs- und Überwachungsaufgaben. \"Ein\" erstellt sowohl Build- als auch Überwachungsaufgaben. Der Standardwert ist \"Ein\".",
 	"typescript.problemMatchers.tsc.label": "TypeScript-Probleme",
-	"typescript.problemMatchers.tscWatch.label": "TypeScript-Probleme (Überwachungsmodus)"
+	"typescript.problemMatchers.tscWatch.label": "TypeScript-Probleme (Überwachungsmodus)",
+	"typescript.quickSuggestionsForPaths": "Aktiviert oder deaktiviert Schnellvorschläge, wenn Sie einen Importpfad ausschreiben.",
+	"typescript.locale": "Legt das zum Melden von TypeScript-Fehlern verwendete Gebietsschema fest. Erfordert TypeScript 2.6.0 oder höher. Der Standardwert \"null\" verwendet für TypeScript-Fehler das Gebietsschema von VS Code.",
+	"javascript.implicitProjectConfig.experimentalDecorators": "Aktiviert oder deaktiviert \"experimentalDecorators\" für JavaScript-Dateien, die nicht Teil eines Projekts sind. Vorhandene jsconfig.json- oder tsconfig.json-Dateien setzen diese Einstellung außer Kraft. Erfordert TypeScript 2.3.1 oder höher.",
+	"typescript.autoImportSuggestions.enabled": "Aktiviert oder deaktiviert Vorschläge für den automatischen Import. Erfordert TypeScript 2.6.1 oder höher."
 }

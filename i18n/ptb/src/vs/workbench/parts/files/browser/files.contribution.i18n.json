@@ -40,6 +40,7 @@
 	"dynamicHeight": "Controla se a altura da seção de editores abertos deve adaptar-se dinamicamente para o número de elementos ou não.",
 	"autoReveal": "Controla se o explorador deve automaticamente revelar e selecionar arquivos ao abri-los.",
 	"enableDragAndDrop": "Controla se o explorador deve permitir mover arquivos e pastas através de arrastar e soltar.",
+	"confirmDragAndDrop": "Controla se o explorer deve pedir a confirmação ao mover arquivos ou pastas através de arrastar e soltar.",
 	"confirmDelete": "Controla se o explorador deve pedir a confirmação ao excluir um arquivo por meio do lixo.",
 	"sortOrder.default": "Arquivos e pastas são classificadas por seus nomes, em ordem alfabética. Pastas são exibidas acima dos arquivos.",
 	"sortOrder.mixed": "Arquivos e pastas são classificadas por seus nomes, em ordem alfabética. Arquivos são misturados com pastas.",

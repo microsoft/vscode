@@ -10,6 +10,7 @@
 	"addFolderToWorkspace": "Добавить папку в рабочую область...",
 	"add": "&&Добавить",
 	"addFolderToWorkspaceTitle": "Добавить папку в рабочую область",
+	"globalRemoveFolderFromWorkspace": "Удалить папку из рабочей области...",
 	"removeFolderFromWorkspace": "Удалить папку из рабочей области",
 	"openFolderSettings": "Открыть параметры папок",
 	"saveWorkspaceAsAction": "Сохранить рабочую область как...",
@@ -17,5 +18,6 @@
 	"saveWorkspace": "Сохранить рабочую область",
 	"openWorkspaceAction": "Открыть рабочую область...",
 	"openWorkspaceConfigFile": "Открыть файл конфигурации рабочей области",
+	"openFolderAsWorkspaceInNewWindow": "Открыть папку как рабочую область в новом окне",
 	"workspaceFolderPickerPlaceholder": "Выберите папку рабочей области"
 }
