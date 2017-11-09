@@ -93,31 +93,46 @@ class ConfigAwareContextValuesContainer extends Context {
 	private _initFromConfiguration() {
 
 		const prefix = 'config.';
+		const config = this._configurationService.getConfiguration();
 		const configKeys: { [key: string]: boolean } = Object.create(null);
+		const configKeysChanged: string[] = [];
 
-		// add/update keys
-		const configProps = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
-		for (const key in configProps) {
-			const node = configProps[key];
-			if (node.type === 'boolean') {
-				const value = this._configurationService.getValue(key);
-				const configKey = prefix + key;
-				const oldValue = this._value[configKey];
-				this._value[configKey] = value;
-				configKeys[configKey] = oldValue !== value;
+		// add new value from config
+		const walk = (obj: any, keys: string[]) => {
+			for (let key in obj) {
+				if (Object.prototype.hasOwnProperty.call(obj, key)) {
+					keys.push(key);
+					let value = obj[key];
+					if (typeof value === 'boolean') {
+						const configKey = keys.join('.');
+						const oldValue = this._value[configKey];
+						this._value[configKey] = value;
+						if (oldValue !== value) {
+							configKeysChanged.push(configKey);
+							configKeys[configKey] = true;
+						} else {
+							configKeys[configKey] = false;
+						}
+					} else if (typeof value === 'object') {
+						walk(value, keys);
+					}
+					keys.pop();
+				}
 			}
-		}
+		};
+		walk(config, ['config']);
 
 		// remove unused keys
 		for (let key in this._value) {
 			if (key.indexOf(prefix) === 0 && configKeys[key] === undefined) {
 				delete this._value[key];
 				configKeys[key] = true;
+				configKeysChanged.push(key);
 			}
 		}
 
 		// send events
-		this._emitter.fire(Object.keys(configKeys));
+		this._emitter.fire(configKeysChanged);
 	}
 }
 
