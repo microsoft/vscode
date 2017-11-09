@@ -362,7 +362,7 @@ class LanguageProvider {
 		}
 		this._validate = value;
 		this.bufferSyncSupport.validate = value;
-		this.diagnosticsManager.updateValidate(value);
+		this.diagnosticsManager.validate = value;
 		if (value) {
 			this.triggerAllDiagnostics();
 		}

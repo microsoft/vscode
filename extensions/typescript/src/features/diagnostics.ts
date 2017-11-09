@@ -32,41 +32,41 @@ export default class DiagnosticsManager {
 		this.semanticDiagnostics = Object.create(null);
 	}
 
-	public updateValidate(value: boolean) {
+	public set validate(value: boolean) {
 		if (this._validate === value) {
 			return;
 		}
 		this._validate = value;
 		if (!value) {
-			this.syntaxDiagnostics = Object.create(null);
-			this.semanticDiagnostics = Object.create(null);
 			this.currentDiagnostics.clear();
 		}
 	}
 
 	public syntaxDiagnosticsReceived(file: string, syntaxDiagnostics: Diagnostic[]): void {
-		if (!this._validate) {
-			return;
-		}
 		this.syntaxDiagnostics[file] = syntaxDiagnostics;
-		const semanticDianostics = this.semanticDiagnostics[file] || [];
-		this.currentDiagnostics.set(this.client.asUrl(file), semanticDianostics.concat(syntaxDiagnostics));
+		this.updateCurrentDiagnostics(file);
 	}
 
 	public semanticDiagnosticsReceived(file: string, semanticDiagnostics: Diagnostic[]): void {
-		if (!this._validate) {
-			return;
-		}
 		this.semanticDiagnostics[file] = semanticDiagnostics;
-		const syntaxDiagnostics = this.syntaxDiagnostics[file] || [];
-		this.currentDiagnostics.set(this.client.asUrl(file), semanticDiagnostics.concat(syntaxDiagnostics));
+		this.updateCurrentDiagnostics(file);
 	}
 
 	public configFileDiagnosticsReceived(file: string, diagnostics: Diagnostic[]): void {
 		this.currentDiagnostics.set(this.client.asUrl(file), diagnostics);
 	}
 
-	public delete(file: string) {
+	public delete(file: string): void {
 		this.currentDiagnostics.delete(this.client.asUrl(file));
+	}
+
+	private updateCurrentDiagnostics(file: string) {
+		if (!this._validate) {
+			return;
+		}
+
+		const semanticDiagnostics = this.semanticDiagnostics[file] || [];
+		const syntaxDiagnostics = this.syntaxDiagnostics[file] || [];
+		this.currentDiagnostics.set(this.client.asUrl(file), semanticDiagnostics.concat(syntaxDiagnostics));
 	}
 }
