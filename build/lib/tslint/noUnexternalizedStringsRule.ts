@@ -45,7 +45,7 @@ interface KeyMessagePair {
 
 class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 
-	private static ImportFailureMessage = 'Do not use double qoutes for imports.';
+	private static ImportFailureMessage = 'Do not use double quotes for imports.';
 
 	private static DOUBLE_QUOTE: string = '"';
 
