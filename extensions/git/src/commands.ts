@@ -1432,23 +1432,7 @@ export class CommandCenter {
 		await this.runByRepository(resources, async (repository, resources) => repository.ignore(resources));
 	}
 
-	@command('git.stashIncludeUntracked', { repository: true })
-	async stashIncludeUntracked(repository: Repository): Promise<void> {
-		if (repository.workingTreeGroup.resourceStates.length === 0) {
-			window.showInformationMessage(localize('no changes stash', "There are no changes to stash."));
-			return;
-		}
-
-		const message = await this.getStashMessage();
-
-		if (typeof message === 'undefined') {
-			return;
-		}
-		await repository.createStash(message, true);
-	}
-
-	@command('git.stash', { repository: true })
-	async stash(repository: Repository): Promise<void> {
+	private async _stash(repository: Repository, includeUntracked = false): Promise<void> {
 		if (repository.workingTreeGroup.resourceStates.length === 0) {
 			window.showInformationMessage(localize('no changes stash', "There are no changes to stash."));
 			return;
@@ -1460,7 +1444,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await repository.createStash(message);
+		await repository.createStash(message, includeUntracked);
 	}
 
 	private async getStashMessage(): Promise<string | undefined> {
@@ -1468,6 +1452,16 @@ export class CommandCenter {
 			prompt: localize('provide stash message', "Optionally provide a stash message"),
 			placeHolder: localize('stash message', "Stash message")
 		});
+	}
+
+	@command('git.stash', { repository: true })
+	stash(repository: Repository): Promise<void> {
+		return this._stash(repository);
+	}
+
+	@command('git.stashIncludeUntracked', { repository: true })
+	stashIncludeUntracked(repository: Repository): Promise<void> {
+		return this._stash(repository, true);
 	}
 
 	@command('git.stashPop', { repository: true })
