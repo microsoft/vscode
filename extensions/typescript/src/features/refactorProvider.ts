@@ -147,9 +147,9 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 				} else {
 					for (const action of info.actions) {
 						actions.push({
-							title: info.description,
+							title: action.description,
 							command: {
-								title: info.description,
+								title: action.description,
 								command: ApplyRefactoringCommand.ID,
 								arguments: [document, file, info.name, action.name, range]
 							}
