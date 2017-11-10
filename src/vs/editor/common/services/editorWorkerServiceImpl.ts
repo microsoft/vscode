@@ -125,7 +125,7 @@ class WordBasedCompletionItemProvider implements modes.ISuggestSupport {
 	}
 
 	provideCompletionItems(model: editorCommon.IModel, position: Position): TPromise<modes.ISuggestResult> {
-		const { wordBasedSuggestions } = this._configurationService.getConfiguration<IEditorOptions>(model.uri, position, 'editor');
+		const { wordBasedSuggestions } = this._configurationService.getValue<IEditorOptions>(model.uri, position, 'editor');
 		if (!wordBasedSuggestions) {
 			return undefined;
 		}

@@ -11,7 +11,7 @@ import os = require('os');
 import crypto = require('crypto');
 import assert = require('assert');
 
-import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, MAX_FILE_SIZE, FileChangesEvent, IFilesConfiguration, ICreateFileOptions } from 'vs/platform/files/common/files';
+import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, MAX_FILE_SIZE, FileChangesEvent, ICreateFileOptions } from 'vs/platform/files/common/files';
 import { isEqualOrParent } from 'vs/base/common/paths';
 import { ResourceMap } from 'vs/base/common/map';
 import arrays = require('vs/base/common/arrays');
@@ -643,15 +643,11 @@ export class FileService implements IFileService {
 	}
 
 	private configuredAutoGuessEncoding(resource: uri): boolean {
-		const config = this.textResourceConfigurationService.getConfiguration(resource) as IFilesConfiguration;
-
-		return config && config.files && config.files.autoGuessEncoding === true;
+		return this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding');
 	}
 
 	private configuredEncoding(resource: uri): string {
-		const config = this.textResourceConfigurationService.getConfiguration(resource) as IFilesConfiguration;
-
-		return config && config.files && config.files.encoding;
+		return this.textResourceConfigurationService.getValue(resource, 'files.encoding');
 	}
 
 	private getEncodingOverride(resource: uri): string {

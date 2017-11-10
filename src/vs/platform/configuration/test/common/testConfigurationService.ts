@@ -32,8 +32,11 @@ export class TestConfigurationService extends EventEmitter implements IConfigura
 		return this.configuration;
 	}
 
-	public getValue(key: string, overrides?: IConfigurationOverrides): any {
-		return this.inspect(key).value;
+	public getValue(arg1?: any, arg2?: any): any {
+		if (arg1 && typeof arg1 === 'string') {
+			return this.inspect(<string>arg1).value;
+		}
+		return this.getConfiguration(arg1, arg2);
 	}
 
 	public updateValue(key: string, overrides?: IConfigurationOverrides): TPromise<void> {

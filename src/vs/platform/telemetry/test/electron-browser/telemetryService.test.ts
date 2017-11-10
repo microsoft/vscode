@@ -681,8 +681,10 @@ suite('TelemetryService', () => {
 						enableTelemetry: enableTelemetry
 					} as any;
 				},
-				getValue(key) {
-					return getConfigurationValue(this.getConfiguration(), key);
+				getValue() {
+					return {
+						enableTelemetry: enableTelemetry
+					} as any;
 				},
 				updateValue(): TPromise<void> {
 					return null;

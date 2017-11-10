@@ -303,9 +303,9 @@ export class Configuration {
 		return section ? configModel.getSectionContents<C>(section) : configModel.contents;
 	}
 
-	getValue(key: string, overrides: IConfigurationOverrides, workspace: Workspace): any {
+	getValue(section: string, overrides: IConfigurationOverrides, workspace: Workspace): any {
 		const consolidateConfigurationModel = this.getConsolidateConfigurationModel(overrides, workspace);
-		return getConfigurationValue<any>(consolidateConfigurationModel.contents, key);
+		return section ? getConfigurationValue<any>(consolidateConfigurationModel.contents, section) : consolidateConfigurationModel.contents;
 	}
 
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides = {}): void {
