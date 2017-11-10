@@ -1364,6 +1364,11 @@ export class WindowsManager implements IWindowsMainService {
 			return; // Windows/Linux: quits when last window is closed, so do not ask then
 		}
 
+		if (windowClosing && this.workspacesService.resolveWorkspaceSync(workspace.configPath).folders.length <= 1) {
+			this.workspacesService.deleteUntitledWorkspaceSync(workspace);
+			return; // don't bother saving a workspace with only a single folder inside
+		}
+
 		// Handle untitled workspaces with prompt as needed
 		this.workspacesManager.promptToSaveUntitledWorkspace(e, workspace);
 	}
