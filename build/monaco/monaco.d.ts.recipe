@@ -52,7 +52,7 @@ declare module monaco.editor {
 #include(vs/editor/standalone/common/standaloneThemeService): BuiltinTheme, IStandaloneThemeData, IColors
 #include(vs/editor/common/modes/supports/tokenization): ITokenThemeRule
 #include(vs/editor/common/services/webWorker): MonacoWebWorker, IWebWorkerOptions
-#include(vs/editor/standalone/browser/standaloneCodeEditor): IEditorConstructionOptions, IDiffEditorConstructionOptions, IStandaloneCodeEditor, IStandaloneDiffEditor
+#include(vs/editor/standalone/browser/standaloneCodeEditor): IActionDescriptor, IEditorConstructionOptions, IDiffEditorConstructionOptions, IStandaloneCodeEditor, IStandaloneDiffEditor
 export interface ICommandHandler {
 	(...args:any[]): void;
 }

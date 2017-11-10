@@ -8,9 +8,10 @@ import * as assert from 'vs/base/common/assert';
 import { EventEmitter } from 'vs/base/common/eventEmitter';
 import * as objects from 'vs/base/common/objects';
 import { Range } from 'vs/editor/common/core/range';
-import { ICommonDiffEditor, ILineChange, ScrollType } from 'vs/editor/common/editorCommon';
+import { ILineChange, ScrollType } from 'vs/editor/common/editorCommon';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 
 interface IDiffRange {
 	rhs: boolean;
@@ -38,7 +39,7 @@ export class DiffNavigator extends EventEmitter {
 		UPDATED: 'navigation.updated'
 	};
 
-	private editor: ICommonDiffEditor;
+	private editor: IDiffEditor;
 	private options: Options;
 	private disposed: boolean;
 	private toUnbind: IDisposable[];
@@ -48,7 +49,7 @@ export class DiffNavigator extends EventEmitter {
 	private ignoreSelectionChange: boolean;
 	public revealFirst: boolean;
 
-	constructor(editor: ICommonDiffEditor, options: Options = {}) {
+	constructor(editor: IDiffEditor, options: Options = {}) {
 		super([
 			DiffNavigator.Events.UPDATED
 		]);
@@ -223,4 +224,3 @@ export class DiffNavigator extends EventEmitter {
 		super.dispose();
 	}
 }
-

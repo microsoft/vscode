@@ -35,7 +35,7 @@ import { Schemas } from 'vs/base/common/network';
 
 let EDITOR_ID = 0;
 
-export abstract class CommonCodeEditor extends Disposable implements editorCommon.ICommonCodeEditor {
+export abstract class CommonCodeEditor extends Disposable {
 
 	private readonly _onDidDispose: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidDispose: Event<void> = this._onDidDispose.event;
