@@ -9,7 +9,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import errors = require('vs/base/common/errors');
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import { IEditorViewState, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { toResource, SideBySideEditorInput, IEditorGroup, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
@@ -26,6 +26,7 @@ import { isLinux } from 'vs/base/common/platform';
 import { ResourceQueue } from 'vs/base/common/async';
 import { ResourceMap } from 'vs/base/common/map';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class FileEditorTracker implements IWorkbenchContribution {
 
@@ -242,7 +243,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 				const editorResource = editor.input.getResource();
 				if (editorResource && resource.toString() === editorResource.toString()) {
 					const control = editor.getControl();
-					if (isCommonCodeEditor(control)) {
+					if (isCodeEditor(control)) {
 						return control.saveViewState();
 					}
 				}

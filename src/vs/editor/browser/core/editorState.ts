@@ -5,9 +5,9 @@
 'use strict';
 
 import * as strings from 'vs/base/common/strings';
-import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export const enum CodeEditorStateFlag {
 	Value = 1,
@@ -26,7 +26,7 @@ export class EditorState {
 	private readonly scrollLeft: number;
 	private readonly scrollTop: number;
 
-	constructor(editor: ICommonCodeEditor, flags: number) {
+	constructor(editor: ICodeEditor, flags: number) {
 		this.flags = flags;
 
 		if ((this.flags & CodeEditorStateFlag.Value) !== 0) {
@@ -67,7 +67,7 @@ export class EditorState {
 		return true;
 	}
 
-	public validate(editor: ICommonCodeEditor): boolean {
+	public validate(editor: ICodeEditor): boolean {
 		return this._equals(new EditorState(editor, this.flags));
 	}
 }

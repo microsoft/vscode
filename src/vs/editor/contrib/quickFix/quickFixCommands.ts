@@ -21,7 +21,7 @@ import { LightBulbWidget } from './lightBulbWidget';
 import { QuickFixModel, QuickFixComputeEvent } from './quickFixModel';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CodeAction } from 'vs/editor/common/modes';
-import { createBulkEdit } from 'vs/editor/common/services/bulkEdit';
+import { createBulkEdit } from 'vs/editor/browser/services/bulkEdit';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 

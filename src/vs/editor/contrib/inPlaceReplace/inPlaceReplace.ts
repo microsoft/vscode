@@ -15,7 +15,7 @@ import { registerEditorAction, ServicesAccessor, EditorAction, registerEditorCon
 import { IInplaceReplaceSupportResult } from 'vs/editor/common/modes';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { InPlaceReplaceCommand } from './inPlaceReplaceCommand';
-import { EditorState, CodeEditorStateFlag } from 'vs/editor/common/core/editorState';
+import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorBracketMatchBorder } from 'vs/editor/common/view/editorColorRegistry';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';

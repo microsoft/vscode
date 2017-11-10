@@ -2083,17 +2083,6 @@ export var EditorType = {
 };
 
 /**
- *@internal
- */
-export function isCommonCodeEditor(thing: any): thing is ICommonCodeEditor {
-	if (thing && typeof (<ICommonCodeEditor>thing).getEditorType === 'function') {
-		return (<ICommonCodeEditor>thing).getEditorType() === EditorType.ICodeEditor;
-	} else {
-		return false;
-	}
-}
-
-/**
  * Built-in commands.
  * @internal
  */

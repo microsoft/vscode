@@ -11,7 +11,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import WorkbenchEditorService = require('vs/workbench/services/editor/common/editorService');
-import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
+import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
 import { Model } from 'vs/editor/common/model/model';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { IEditorInput } from 'vs/platform/editor/common/editor';

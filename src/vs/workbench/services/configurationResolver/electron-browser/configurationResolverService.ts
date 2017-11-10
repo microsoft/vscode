@@ -12,11 +12,11 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class ConfigurationResolverService implements IConfigurationResolverService {
 	_serviceBrand: any;
@@ -92,7 +92,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 	private get lineNumber(): string {
 		const activeEditor = this.editorService.getActiveEditor();
 		if (activeEditor) {
-			const editorControl = (<ICommonCodeEditor>activeEditor.getControl());
+			const editorControl = (<ICodeEditor>activeEditor.getControl());
 			if (editorControl) {
 				const lineNumber = editorControl.getSelection().positionLineNumber;
 				return String(lineNumber);

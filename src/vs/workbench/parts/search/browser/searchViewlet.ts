@@ -1359,10 +1359,10 @@ export class SearchViewlet extends Viewlet {
 			}
 		}, sideBySide).then(editor => {
 			if (editor && element instanceof Match && preserveFocus) {
-				this.viewModel.searchResult.rangeHighlightDecorations.highlightRange({
-					resource,
-					range: element.range()
-				}, <ICodeEditor>editor.getControl());
+				this.viewModel.searchResult.rangeHighlightDecorations.highlightRange(
+					(<ICodeEditor>editor.getControl()).getModel(),
+					element.range()
+				);
 			} else {
 				this.viewModel.searchResult.rangeHighlightDecorations.removeHighlightRange();
 			}

@@ -23,7 +23,7 @@ import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { bulkEdit, IResourceEdit } from 'vs/editor/common/services/bulkEdit';
+import { bulkEdit, IResourceEdit } from 'vs/editor/browser/services/bulkEdit';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { isCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
