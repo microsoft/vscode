@@ -12,7 +12,8 @@ import * as cp from 'child_process';
 import { EventEmitter } from 'events';
 import iconv = require('iconv-lite');
 import * as filetype from 'file-type';
-import { assign, uniqBy, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding } from './util';
+import { assign, uniqBy, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent } from './util';
+import { CancellationToken } from 'vscode';
 
 const readfile = denodeify<string>(fs.readFile);
 
@@ -163,13 +164,16 @@ export interface SpawnOptions extends cp.SpawnOptions {
 	input?: string;
 	encoding?: string;
 	log?: boolean;
+	cancellationToken?: CancellationToken;
 }
 
-async function exec(child: cp.ChildProcess): Promise<IExecutionResult<Buffer>> {
+async function exec(child: cp.ChildProcess, cancellationToken?: CancellationToken): Promise<IExecutionResult<Buffer>> {
 	if (!child.stdout || !child.stderr) {
-		throw new GitError({
-			message: 'Failed to get stdout or stderr from git process.'
-		});
+		throw new GitError({ message: 'Failed to get stdout or stderr from git process.' });
+	}
+
+	if (cancellationToken && cancellationToken.isCancellationRequested) {
+		throw new GitError({ message: 'Cancelled' });
 	}
 
 	const disposables: IDisposable[] = [];
@@ -184,7 +188,7 @@ async function exec(child: cp.ChildProcess): Promise<IExecutionResult<Buffer>> {
 		disposables.push(toDisposable(() => ee.removeListener(name, fn)));
 	};
 
-	const [exitCode, stdout, stderr] = await Promise.all<any>([
+	let result = Promise.all<any>([
 		new Promise<number>((c, e) => {
 			once(child, 'error', cpErrorHandler(e));
 			once(child, 'exit', c);
@@ -199,11 +203,30 @@ async function exec(child: cp.ChildProcess): Promise<IExecutionResult<Buffer>> {
 			on(child.stderr, 'data', (b: Buffer) => buffers.push(b));
 			once(child.stderr, 'close', () => c(Buffer.concat(buffers).toString('utf8')));
 		})
-	]);
+	]) as Promise<[number, Buffer, string]>;
 
-	dispose(disposables);
+	if (cancellationToken) {
+		const cancellationPromise = new Promise<[number, Buffer, string]>((_, e) => {
+			onceEvent(cancellationToken.onCancellationRequested)(() => {
+				try {
+					child.kill();
+				} catch (err) {
+					// noop
+				}
 
-	return { exitCode, stdout, stderr };
+				e(new GitError({ message: 'Cancelled' }));
+			});
+		});
+
+		result = Promise.race([result, cancellationPromise]);
+	}
+
+	try {
+		const [exitCode, stdout, stderr] = await result;
+		return { exitCode, stdout, stderr };
+	} finally {
+		dispose(disposables);
+	}
 }
 
 export interface IGitErrorData {
@@ -339,12 +362,12 @@ export class Git {
 		return;
 	}
 
-	async clone(url: string, parentPath: string): Promise<string> {
+	async clone(url: string, parentPath: string, cancellationToken?: CancellationToken): Promise<string> {
 		const folderName = decodeURI(url).replace(/^.*\//, '').replace(/\.git$/, '') || 'repository';
 		const folderPath = path.join(parentPath, folderName);
 
 		await mkdirp(parentPath);
-		await this.exec(parentPath, ['clone', url, folderPath]);
+		await this.exec(parentPath, ['clone', url, folderPath], { cancellationToken });
 		return folderPath;
 	}
 
@@ -370,7 +393,7 @@ export class Git {
 			child.stdin.end(options.input, 'utf8');
 		}
 
-		const bufferResult = await exec(child);
+		const bufferResult = await exec(child, options.cancellationToken);
 
 		if (options.log !== false && bufferResult.stderr.length > 0) {
 			this.log(`${bufferResult.stderr}\n`);
