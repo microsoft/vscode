@@ -9,7 +9,6 @@ import 'vs/css!./media/searchviewlet';
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Emitter, debounceEvent } from 'vs/base/common/event';
-import lifecycle = require('vs/base/common/lifecycle');
 import errors = require('vs/base/common/errors');
 import aria = require('vs/base/browser/ui/aria/aria');
 import env = require('vs/base/common/platform');
@@ -71,12 +70,8 @@ export class SearchViewlet extends Viewlet {
 
 	private isDisposed: boolean;
 
-	// @ts-ignore unused property
-	private loading: boolean;
 	private queryBuilder: QueryBuilder;
 	private viewModel: SearchModel;
-	// @ts-ignore unused property
-	private callOnModelChange: lifecycle.IDisposable[];
 
 	private viewletVisible: IContextKey<boolean>;
 	private inputBoxFocused: IContextKey<boolean>;
@@ -90,8 +85,6 @@ export class SearchViewlet extends Viewlet {
 	private actionRegistry: { [key: string]: Action; };
 	private tree: ITree;
 	private viewletSettings: any;
-	// @ts-ignore unused property
-	private domNode: Builder;
 	private messages: Builder;
 	private searchWidgetsContainer: Builder;
 	private searchWidget: SearchWidget;
@@ -140,7 +133,6 @@ export class SearchViewlet extends Viewlet {
 		this.fileMatchOrMatchFocused = Constants.FileMatchOrMatchFocusKey.bindTo(contextKeyService);
 		this.fileMatchFocused = Constants.FileFocusKey.bindTo(contextKeyService);
 		this.matchFocused = Constants.MatchFocusKey.bindTo(this.contextKeyService);
-		this.callOnModelChange = [];
 
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
@@ -167,7 +159,7 @@ export class SearchViewlet extends Viewlet {
 
 		this.viewModel = this.searchWorkbenchService.searchModel;
 		let builder: Builder;
-		this.domNode = parent.div({
+		parent.div({
 			'class': 'search-viewlet'
 		}, (div) => {
 			builder = div;
@@ -1053,7 +1045,6 @@ export class SearchViewlet extends Viewlet {
 			this.progressService.show(/*infinite=*/true) :
 			this.progressService.show(progressTotal);
 
-		this.loading = true;
 		this.searchWidget.searchInput.clearMessage();
 		this.showEmptyStage();
 
@@ -1089,7 +1080,6 @@ export class SearchViewlet extends Viewlet {
 			this.viewModel.replaceString = this.searchWidget.getReplaceValue();
 
 			let hasResults = !this.viewModel.searchResult.isEmpty();
-			this.loading = false;
 
 			this.actionRegistry['refresh'].enabled = true;
 			this.actionRegistry['vs.tree.collapse'].enabled = hasResults;
@@ -1201,7 +1191,6 @@ export class SearchViewlet extends Viewlet {
 			if (errors.isPromiseCanceledError(e)) {
 				onComplete(null);
 			} else {
-				this.loading = false;
 				isDone = true;
 				progressRunner.done();
 				this.searchWidget.searchInput.showMessage({ content: e.message, type: MessageType.ERROR });

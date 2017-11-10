@@ -155,8 +155,6 @@ export class SearchRenderer extends Disposable implements IRenderer {
 	constructor(
 		actionRunner: IActionRunner,
 		private viewlet: SearchViewlet,
-		// @ts-ignore unused injected service
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService
 	) {

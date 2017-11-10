@@ -17,7 +17,6 @@ import { IRequestService } from 'vs/platform/request/node/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPager } from 'vs/base/common/paging';
 import { IRequestOptions, IRequestContext, download, asJson, asText } from 'vs/base/node/request';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
 import { isVersionValid } from 'vs/platform/extensions/node/extensionValidator';
@@ -291,9 +290,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	constructor(
 		@IRequestService private requestService: IRequestService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		// @ts-ignore unused injected service
-		@IConfigurationService private configurationService: IConfigurationService
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		const config = product.extensionsGallery;
 		this.extensionsGalleryUrl = config && config.serviceUrl;

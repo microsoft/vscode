@@ -19,9 +19,8 @@ import { IWorkspaceConfigurationService } from 'vs/workbench/services/configurat
 import { Position as EditorPosition, IEditor, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { IMessageService, Severity, IChoiceService } from 'vs/platform/message/common/message';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -64,12 +63,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@IFileService private fileService: IFileService,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
 		@IMessageService private messageService: IMessageService,
-		// @ts-ignore unused injected service
-		@IChoiceService private choiceService: IChoiceService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		// @ts-ignore unused injected service
-		@IStorageService private storageService: IStorageService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@ITextModelService private textModelResolverService: ITextModelService,

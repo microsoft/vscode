@@ -10,7 +10,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ViewsRegistry } from 'vs/workbench/browser/parts/views/viewsRegistry';
-import { ITreeViewDataProvider, ITreeItem, TreeItemCollapsibleState } from 'vs/workbench/common/views';
+import { ITreeViewDataProvider, ITreeItem } from 'vs/workbench/common/views';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadTreeViews)
@@ -103,18 +103,6 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 		this._onDispose.fire();
 	}
 
-	// @ts-ignore unused property
-	private clearChildren(treeItemHandle: TreeItemHandle): void {
-		const children = this.childrenMap.get(treeItemHandle);
-		if (children) {
-			for (const child of children) {
-				this.clearChildren(child);
-				this.itemsMap.delete(child);
-			}
-			this.childrenMap.delete(treeItemHandle);
-		}
-	}
-
 	private postGetElements(parent: TreeItemHandle, children: ITreeItem[]) {
 		this.setElements(parent, children);
 	}
@@ -129,18 +117,6 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 			}
 			if (parent) {
 				this.childrenMap.set(parent, children.map(child => child.handle));
-			}
-		}
-	}
-
-	// @ts-ignore unused property
-	private populateElementsToExpand(elements: ITreeItem[], toExpand: ITreeItem[]) {
-		for (const element of elements) {
-			if (element.collapsibleState === TreeItemCollapsibleState.Expanded) {
-				toExpand.push(element);
-				if (element.children && element.children.length) {
-					this.populateElementsToExpand(element.children, toExpand);
-				}
 			}
 		}
 	}

@@ -175,14 +175,11 @@ CommandsRegistry.registerCommand(searchActions.FindInFolderAction.ID, searchActi
 
 class ExplorerViewerActionContributor extends ActionBarContributor {
 	private _instantiationService: IInstantiationService;
-	// @ts-ignore unused injected service
-	private _contextService: IWorkspaceContextService;
 
 	constructor( @IInstantiationService instantiationService: IInstantiationService, @IWorkspaceContextService contextService: IWorkspaceContextService) {
 		super();
 
 		this._instantiationService = instantiationService;
-		this._contextService = contextService;
 	}
 
 	public hasSecondaryActions(context: any): boolean {
