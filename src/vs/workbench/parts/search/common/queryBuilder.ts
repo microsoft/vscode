@@ -56,7 +56,7 @@ export class QueryBuilder {
 		}
 
 		// TODO@rob - see #37998
-		const useIgnoreFiles = folderResources && folderResources.every(folder => {
+		const useIgnoreFiles = !folderResources || folderResources.every(folder => {
 			const folderConfig = this.configurationService.getConfiguration<ISearchConfiguration>({ resource: folder });
 			return folderConfig.search.useIgnoreFiles;
 		});
