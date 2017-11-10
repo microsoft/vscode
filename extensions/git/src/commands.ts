@@ -328,13 +328,8 @@ export class CommandCenter {
 		}
 
 		const config = workspace.getConfiguration('git');
-		let value;
-		const userInputtedDirectory = config.get<string>('defaultCloneDirectory');
-		if (userInputtedDirectory !== undefined && userInputtedDirectory.match(/^~/)) {
-			value = userInputtedDirectory.replace(/^~/, os.homedir());
-		} else {
-			value = config.get<string>('defaultCloneDirectory') || os.homedir();
-		}
+		let value = config.get<string>('defaultCloneDirectory') || os.homedir();
+		value = value.replace(/^~/, os.homedir());
 
 		const parentPath = await window.showInputBox({
 			prompt: localize('parent', "Parent Directory"),
