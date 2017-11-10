@@ -62,7 +62,7 @@ export class FoldingController {
 		this.globalToDispose = [];
 		this.localToDispose = [];
 
-		this.foldingDecorationProvider = new FoldingDecorationProvider();
+		this.foldingDecorationProvider = new FoldingDecorationProvider(editor);
 		this.foldingDecorationProvider.autoHideFoldingControls = this._autoHideFoldingControls;
 
 		this.globalToDispose.push(this.editor.onDidChangeModel(() => this.onModelChanged()));
