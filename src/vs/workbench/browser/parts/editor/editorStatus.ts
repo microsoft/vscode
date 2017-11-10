@@ -631,7 +631,7 @@ export class EditorStatus implements IStatusbarItem {
 		if (editorWidget) {
 			const screenReaderDetected = (browser.getAccessibilitySupport() === AccessibilitySupport.Enabled);
 			if (screenReaderDetected) {
-				const screenReaderConfiguration = this.configurationService.getConfiguration<IEditorOptions>('editor').accessibilitySupport;
+				const screenReaderConfiguration = this.configurationService.getValue<IEditorOptions>('editor').accessibilitySupport;
 				if (screenReaderConfiguration === 'auto') {
 					// show explanation
 					if (!this._promptedScreenReader) {

@@ -207,7 +207,7 @@ export class ElectronWindow extends Themable {
 
 		// High Contrast Events
 		ipc.on('vscode:enterHighContrast', () => {
-			const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 			if (windowConfig && windowConfig.autoDetectHighContrast) {
 				this.lifecycleService.when(LifecyclePhase.Running).then(() => {
 					this.themeService.setColorTheme(VS_HC_THEME, null);
@@ -216,7 +216,7 @@ export class ElectronWindow extends Themable {
 		});
 
 		ipc.on('vscode:leaveHighContrast', () => {
-			const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 			if (windowConfig && windowConfig.autoDetectHighContrast) {
 				this.lifecycleService.when(LifecyclePhase.Running).then(() => {
 					this.themeService.setColorTheme(VS_DARK_THEME, null);
@@ -261,7 +261,7 @@ export class ElectronWindow extends Themable {
 			return;
 		}
 
-		const windowConfig: IWindowsConfiguration = this.configurationService.getConfiguration<IWindowsConfiguration>();
+		const windowConfig: IWindowsConfiguration = this.configurationService.getValue<IWindowsConfiguration>();
 
 		let newZoomLevel = 0;
 		if (windowConfig.window && typeof windowConfig.window.zoomLevel === 'number') {

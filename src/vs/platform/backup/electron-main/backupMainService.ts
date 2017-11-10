@@ -65,7 +65,7 @@ export class BackupMainService implements IBackupMainService {
 	}
 
 	private getHotExitConfig(): string {
-		const config = this.configurationService.getConfiguration<IFilesConfiguration>();
+		const config = this.configurationService.getValue<IFilesConfiguration>();
 
 		return (config && config.files && config.files.hotExit) || HotExitConfiguration.ON_EXIT;
 	}

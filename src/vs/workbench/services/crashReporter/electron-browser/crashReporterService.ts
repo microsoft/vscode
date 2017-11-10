@@ -64,7 +64,7 @@ export class CrashReporterService implements ICrashReporterService {
 		@IWindowsService private windowsService: IWindowsService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		const config = configurationService.getConfiguration<ICrashReporterConfig>(TELEMETRY_SECTION_ID);
+		const config = configurationService.getValue<ICrashReporterConfig>(TELEMETRY_SECTION_ID);
 		this.isEnabled = !!config.enableCrashReporter;
 
 		if (this.isEnabled) {

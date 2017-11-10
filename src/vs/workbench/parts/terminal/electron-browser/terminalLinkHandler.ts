@@ -167,7 +167,7 @@ export class TerminalLinkHandler {
 	}
 
 	private _isLinkActivationModifierDown(event: MouseEvent): boolean {
-		const editorConf = this._configurationService.getConfiguration<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
+		const editorConf = this._configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
 		if (editorConf.multiCursorModifier === 'ctrlCmd') {
 			return !!event.altKey;
 		}
@@ -175,7 +175,7 @@ export class TerminalLinkHandler {
 	}
 
 	private _getLinkHoverString(): string {
-		const editorConf = this._configurationService.getConfiguration<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
+		const editorConf = this._configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
 		if (editorConf.multiCursorModifier === 'ctrlCmd') {
 			return nls.localize('terminalLinkHandler.followLinkAlt', 'Alt + click to follow link');
 		}

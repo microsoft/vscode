@@ -62,8 +62,8 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 
 	getConfiguration(section?: string, resource?: URI, extensionId?: string): vscode.WorkspaceConfiguration {
 		const config = section
-			? lookUp(this._configuration.getSection(null, { resource }, this._extHostWorkspace.workspace), section)
-			: this._configuration.getSection(null, { resource }, this._extHostWorkspace.workspace);
+			? lookUp(this._configuration.getValue(null, { resource }, this._extHostWorkspace.workspace), section)
+			: this._configuration.getValue(null, { resource }, this._extHostWorkspace.workspace);
 
 		if (section) {
 			this._validateConfigurationAccess(section, resource, extensionId);

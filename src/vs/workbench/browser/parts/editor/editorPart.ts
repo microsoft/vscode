@@ -153,7 +153,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		this.textCompareEditorVisible = TextCompareEditorVisible.bindTo(contextKeyService);
 
-		const config = configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
+		const config = configurationService.getValue<IWorkbenchEditorConfiguration>();
 		if (config && config.workbench && config.workbench.editor) {
 			const editorConfig = config.workbench.editor;
 
@@ -215,7 +215,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	private onConfigurationUpdated(event: IConfigurationChangeEvent): void {
 		if (event.affectsConfiguration('workbench.editor')) {
-			const configuration = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
+			const configuration = this.configurationService.getValue<IWorkbenchEditorConfiguration>();
 			if (configuration && configuration.workbench && configuration.workbench.editor) {
 				const editorConfig = configuration.workbench.editor;
 
@@ -282,7 +282,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	public hideTabs(forceHide: boolean): void {
 		this.forceHideTabs = forceHide;
-		const config = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
+		const config = this.configurationService.getValue<IWorkbenchEditorConfiguration>();
 		this.tabOptions.showTabs = forceHide ? false : config && config.workbench && config.workbench.editor && config.workbench.editor.showTabs;
 		this._onTabOptionsChanged.fire(this.tabOptions);
 	}

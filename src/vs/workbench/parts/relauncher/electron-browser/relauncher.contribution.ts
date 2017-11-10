@@ -52,14 +52,14 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		this.firstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : void 0;
 		this.extensionHostRestarter = new RunOnceScheduler(() => this.extensionService.restartExtensionHost(), 10);
 
-		this.onConfigurationChange(configurationService.getConfiguration<IConfiguration>(), false);
+		this.onConfigurationChange(configurationService.getValue<IConfiguration>(), false);
 		this.handleWorkbenchState();
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(this.configurationService.getConfiguration<IConfiguration>(), true)));
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(this.configurationService.getValue<IConfiguration>(), true)));
 		this.toDispose.push(this.contextService.onDidChangeWorkbenchState(() => setTimeout(() => this.handleWorkbenchState())));
 	}
 

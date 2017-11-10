@@ -376,16 +376,16 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				const languageKey = `[${language}]`;
 				let setting = settingsModel.getPreference(languageKey);
 				const model = codeEditor.getModel();
-				const configuration = this.configurationService.getConfiguration<{ tabSize: number; insertSpaces: boolean }>('editor');
-				const { eol } = this.configurationService.getConfiguration<{ eol: string }>('files');
+				const configuration = this.configurationService.getValue<{ editor: { tabSize: number; insertSpaces: boolean }, files: { eol: string } }>();
+				const eol = configuration.files && configuration.files.eol;
 				if (setting) {
 					if (setting.overrides.length) {
 						const lastSetting = setting.overrides[setting.overrides.length - 1];
 						let content;
 						if (lastSetting.valueRange.endLineNumber === setting.range.endLineNumber) {
-							content = ',' + eol + this.spaces(2, configuration) + eol + this.spaces(1, configuration);
+							content = ',' + eol + this.spaces(2, configuration.editor) + eol + this.spaces(1, configuration.editor);
 						} else {
-							content = ',' + eol + this.spaces(2, configuration);
+							content = ',' + eol + this.spaces(2, configuration.editor);
 						}
 						const editOperation = EditOperation.insert(new Position(lastSetting.valueRange.endLineNumber, lastSetting.valueRange.endColumn), content);
 						model.pushEditOperations([], [editOperation], () => []);
@@ -396,7 +396,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				return this.configurationService.updateValue(languageKey, {}, ConfigurationTarget.USER)
 					.then(() => {
 						setting = settingsModel.getPreference(languageKey);
-						let content = eol + this.spaces(2, configuration) + eol + this.spaces(1, configuration);
+						let content = eol + this.spaces(2, configuration.editor) + eol + this.spaces(1, configuration.editor);
 						let editOperation = EditOperation.insert(new Position(setting.valueRange.endLineNumber, setting.valueRange.endColumn - 1), content);
 						model.pushEditOperations([], [editOperation], () => []);
 						let lineNumber = setting.valueRange.endLineNumber + 1;

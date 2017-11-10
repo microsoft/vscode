@@ -54,7 +54,7 @@ export class SearchService implements ISearchService {
 	}
 
 	public extendQuery(query: ISearchQuery): void {
-		const configuration = this.configurationService.getConfiguration<ISearchConfiguration>();
+		const configuration = this.configurationService.getValue<ISearchConfiguration>();
 
 		// Configuration: Encoding
 		if (!query.fileEncoding) {

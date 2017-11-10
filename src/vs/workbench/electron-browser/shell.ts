@@ -297,7 +297,7 @@ export class WorkbenchShell {
 
 		// Warm up font cache information before building up too many dom elements
 		restoreFontInfo(this.storageService);
-		readFontInfo(BareFontInfo.createFromRawSettings(this.configurationService.getConfiguration('editor'), browser.getZoomLevel()));
+		readFontInfo(BareFontInfo.createFromRawSettings(this.configurationService.getValue('editor'), browser.getZoomLevel()));
 
 		// Hash
 		serviceCollection.set(IHashService, new SyncDescriptor(HashService));

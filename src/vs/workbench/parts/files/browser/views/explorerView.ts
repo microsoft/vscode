@@ -124,7 +124,7 @@ export class ExplorerView extends ViewsViewletPanel {
 
 	private getFileEventsExcludes(root?: URI): glob.IExpression {
 		const scope = root ? { resource: root } : void 0;
-		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(scope);
+		const configuration = this.configurationService.getValue<IFilesConfiguration>(scope);
 
 		return (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
 	}
@@ -202,7 +202,7 @@ export class ExplorerView extends ViewsViewletPanel {
 	public create(): TPromise<void> {
 
 		// Update configuration
-		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
+		const configuration = this.configurationService.getValue<IFilesConfiguration>();
 		this.onConfigurationUpdated(configuration);
 
 		// Load and Fill Viewer
@@ -216,7 +216,7 @@ export class ExplorerView extends ViewsViewletPanel {
 			this.disposables.push(this.editorGroupService.onEditorsChanged(() => this.revealActiveFile()));
 
 			// Also handle configuration updates
-			this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>(), e)));
+			this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>(), e)));
 
 			this.revealActiveFile();
 		});

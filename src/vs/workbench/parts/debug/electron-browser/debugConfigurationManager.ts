@@ -380,7 +380,7 @@ export class ConfigurationManager implements IConfigurationManager {
 			// do not allow breakpoints in our settings files
 			return false;
 		}
-		if (this.configurationService.getConfiguration<IDebugConfiguration>('debug').allowBreakpointsEverywhere) {
+		if (this.configurationService.getValue<IDebugConfiguration>('debug').allowBreakpointsEverywhere) {
 			return true;
 		}
 
@@ -449,7 +449,7 @@ class Launch implements ILaunch {
 	}
 
 	public getCompound(name: string): ICompound {
-		const config = this.configurationService.getConfiguration<IGlobalConfig>('launch', { resource: this.workspace.uri });
+		const config = this.configurationService.getValue<IGlobalConfig>('launch', { resource: this.workspace.uri });
 		if (!config || !config.compounds) {
 			return null;
 		}
@@ -458,7 +458,7 @@ class Launch implements ILaunch {
 	}
 
 	public getConfigurationNames(): string[] {
-		const config = this.configurationService.getConfiguration<IGlobalConfig>('launch', { resource: this.workspace.uri });
+		const config = this.configurationService.getValue<IGlobalConfig>('launch', { resource: this.workspace.uri });
 		if (!config || !config.configurations || !Array.isArray(config.configurations)) {
 			return [];
 		} else {
@@ -475,7 +475,7 @@ class Launch implements ILaunch {
 	}
 
 	public getConfiguration(name: string): IConfig {
-		const config = this.configurationService.getConfiguration<IGlobalConfig>('launch', { resource: this.workspace.uri });
+		const config = this.configurationService.getValue<IGlobalConfig>('launch', { resource: this.workspace.uri });
 		if (!config || !config.configurations) {
 			return null;
 		}

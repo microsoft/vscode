@@ -43,7 +43,7 @@ export class PreferencesSearchProvider {
 	}
 
 	get endpoint(): IEndpointDetails {
-		const workbenchSettings = this.configurationService.getConfiguration<IWorkbenchSettingsConfiguration>().workbench.settings;
+		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
 		return {
 			urlBase: workbenchSettings.experimentalFuzzySearchEndpoint,
 			key: workbenchSettings.experimentalFuzzySearchKey,

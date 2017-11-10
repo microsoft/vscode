@@ -676,11 +676,6 @@ suite('TelemetryService', () => {
 			appender: testAppender
 		}, {
 				_serviceBrand: undefined,
-				getConfiguration() {
-					return {
-						enableTelemetry: enableTelemetry
-					} as any;
-				},
 				getValue() {
 					return {
 						enableTelemetry: enableTelemetry
@@ -691,9 +686,9 @@ suite('TelemetryService', () => {
 				},
 				inspect(key: string) {
 					return {
-						value: getConfigurationValue(this.getConfiguration(), key),
-						default: getConfigurationValue(this.getConfiguration(), key),
-						user: getConfigurationValue(this.getConfiguration(), key),
+						value: getConfigurationValue(this.getValue(), key),
+						default: getConfigurationValue(this.getValue(), key),
+						user: getConfigurationValue(this.getValue(), key),
 						workspace: null,
 						workspaceFolder: null
 					};

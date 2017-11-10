@@ -225,16 +225,6 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		return this._configuration.toData();
 	}
 
-	getConfiguration<T>(): T;
-	getConfiguration<T>(section: string): T;
-	getConfiguration<T>(overrides: IConfigurationOverrides): T;
-	getConfiguration<T>(section: string, overrides: IConfigurationOverrides): T;
-	getConfiguration(arg1?: any, arg2?: any): any {
-		const section = typeof arg1 === 'string' ? arg1 : void 0;
-		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : void 0;
-		return this._configuration.getSection(section, overrides);
-	}
-
 	getValue<T>(): T;
 	getValue<T>(section: string): T;
 	getValue<T>(overrides: IConfigurationOverrides): T;

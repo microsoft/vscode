@@ -57,11 +57,6 @@ export interface IConfigurationService {
 
 	getConfigurationData(): IConfigurationData;
 
-	getConfiguration<T>(): T;
-	getConfiguration<T>(section: string): T;
-	getConfiguration<T>(overrides: IConfigurationOverrides): T;
-	getConfiguration<T>(section: string, overrides: IConfigurationOverrides): T;
-
 	/**
 	 * Fetches the value of the section for the given overrides.
 	 * Value can be of native type or an object keyed off the section name.

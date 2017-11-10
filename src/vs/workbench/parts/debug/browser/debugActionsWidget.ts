@@ -202,7 +202,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 	}
 
 	private update(state: State): void {
-		if (state === State.Inactive || state === State.Initializing || this.configurationService.getConfiguration<IDebugConfiguration>('debug').hideActionBar) {
+		if (state === State.Inactive || state === State.Initializing || this.configurationService.getValue<IDebugConfiguration>('debug').hideActionBar) {
 			return this.hide();
 		}
 

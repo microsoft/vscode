@@ -37,8 +37,8 @@ export class ConfigurationModel implements IConfigurationModel {
 		return this.checkAndFreeze(this._keys);
 	}
 
-	getSectionContents<V>(section: string): V {
-		return this.contents[section];
+	getValue<V>(section: string): V {
+		return section ? getConfigurationValue<any>(this.contents, section) : this.contents;
 	}
 
 	override(identifier: string): ConfigurationModel {
@@ -298,14 +298,9 @@ export class Configuration {
 		private _memoryConfigurationByResource: StrictResourceMap<ConfigurationModel> = new StrictResourceMap<ConfigurationModel>()) {
 	}
 
-	getSection<C>(section: string = '', overrides: IConfigurationOverrides, workspace: Workspace): C {
-		const configModel = this.getConsolidateConfigurationModel(overrides, workspace);
-		return section ? configModel.getSectionContents<C>(section) : configModel.contents;
-	}
-
 	getValue(section: string, overrides: IConfigurationOverrides, workspace: Workspace): any {
 		const consolidateConfigurationModel = this.getConsolidateConfigurationModel(overrides, workspace);
-		return section ? getConfigurationValue<any>(consolidateConfigurationModel.contents, section) : consolidateConfigurationModel.contents;
+		return consolidateConfigurationModel.getValue(section);
 	}
 
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides = {}): void {

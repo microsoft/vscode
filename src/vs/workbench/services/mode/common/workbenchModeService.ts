@@ -148,7 +148,7 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 	}
 
 	private updateMime(): void {
-		const configuration = this._configurationService.getConfiguration<IFilesConfiguration>();
+		const configuration = this._configurationService.getValue<IFilesConfiguration>();
 
 		// Clear user configured mime associations
 		mime.clearTextMimes(true /* user configured */);
