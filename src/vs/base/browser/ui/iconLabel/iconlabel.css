@@ -46,6 +46,10 @@
 	white-space: pre; /* enable to show labels that include multiple whitespaces */
 }
 
+.monaco-icon-label.rootfolder-icon .monaco-icon-label-description-container .label-name{
+	font-weight: bold; /* in multiple root workspace - bold the root folders. https://github.com/Microsoft/vscode/issues/37979 */
+}
+
 .monaco-icon-label.italic > .monaco-icon-label-description-container > .label-name,
 .monaco-icon-label.italic > .monaco-icon-label-description-container > .label-description {
 	font-style: italic;
