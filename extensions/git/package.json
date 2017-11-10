@@ -290,6 +290,11 @@
         "category": "Git"
       },
       {
+        "command": "git.stashIncludeUntracked",
+        "title": "%command.stashIncludeUntracked%",
+        "category": "Git"
+      },
+      {
         "command": "git.stash",
         "title": "%command.stash%",
         "category": "Git"
@@ -596,6 +601,11 @@
         {
           "command": "git.cleanAll",
           "group": "4_stage",
+          "when": "config.git.enabled && scmProvider == git"
+        },
+        {
+          "command": "git.stashIncludeUntracked",
+          "group": "5_stash",
           "when": "config.git.enabled && scmProvider == git"
         },
         {
