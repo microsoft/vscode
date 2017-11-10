@@ -77,3 +77,4 @@ export default () => `
 	</div>
 </div>
 `;
+// #35719
