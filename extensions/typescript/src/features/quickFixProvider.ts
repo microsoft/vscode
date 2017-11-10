@@ -15,7 +15,7 @@ interface NumberSet {
 	[key: number]: boolean;
 }
 
-export default class TypeScriptCodeActionProvider implements vscode.CodeActionProvider {
+export default class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 	private _supportedCodeActions?: Thenable<NumberSet>;
 
 	constructor(
