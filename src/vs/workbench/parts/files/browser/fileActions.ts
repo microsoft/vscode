@@ -9,7 +9,7 @@ import 'vs/css!./media/fileactions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
-import { sequence, ITask } from 'vs/base/common/async';
+import { sequence, ITask, always } from 'vs/base/common/async';
 import paths = require('vs/base/common/paths');
 import resources = require('vs/base/common/resources');
 import URI from 'vs/base/common/uri';
@@ -53,7 +53,6 @@ import { once } from 'vs/base/common/event';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
-
 
 export interface IEditableData {
 	action: IAction;
@@ -2058,9 +2057,9 @@ export class CompareWithClipboardAction extends Action {
 	public static ID = 'workbench.files.action.compareWithClipboard';
 	public static LABEL = nls.localize('compareWithClipboard', "Compare Active File with Clipboard");
 
-	private static SCHEME = 'clipboard';
+	private static SCHEME = 'clipboardCompare';
 
-	private toDispose: IDisposable[];
+	private registrationDisposal: IDisposable;
 
 	constructor(
 		id: string,
@@ -2072,25 +2071,25 @@ export class CompareWithClipboardAction extends Action {
 		super(id, label);
 
 		this.enabled = true;
-		this.toDispose = [];
-
 	}
 
 	public run(): TPromise<any> {
-		let resource: URI = toResource(this.editorService.getActiveEditorInput(),
-			{ supportSideBySide: true, filter: 'file' }
-		);
+		const resource: URI = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
 		const provider = this.instantiationService.createInstance(ClipboardContentProvider);
 
-		const registrationDisposal = this.textModelService.registerTextModelContentProvider(CompareWithClipboardAction.SCHEME, provider);
-		this.toDispose.push(registrationDisposal);
-
-
 		if (resource) {
+			if (!this.registrationDisposal) {
+				this.registrationDisposal = this.textModelService.registerTextModelContentProvider(CompareWithClipboardAction.SCHEME, provider);
+			}
+
 			const name = paths.basename(resource.fsPath);
 			const editorLabel = nls.localize('clipboardComparisonLabel', "Clipboard ↔ {0}", name);
 
-			return this.editorService.openEditor({ leftResource: URI.from({ scheme: CompareWithClipboardAction.SCHEME, path: resource.fsPath }), rightResource: resource, label: editorLabel });
+			const cleanUp = () => {
+				this.registrationDisposal = dispose(this.registrationDisposal);
+			};
+
+			return always(this.editorService.openEditor({ leftResource: URI.from({ scheme: CompareWithClipboardAction.SCHEME, path: resource.fsPath }), rightResource: resource, label: editorLabel }), cleanUp);
 		}
 
 		return TPromise.as(true);
@@ -2099,7 +2098,7 @@ export class CompareWithClipboardAction extends Action {
 	public dispose(): void {
 		super.dispose();
 
-		this.toDispose = dispose(this.toDispose);
+		this.registrationDisposal = dispose(this.registrationDisposal);
 	}
 }
 
@@ -2112,9 +2111,9 @@ class ClipboardContentProvider implements ITextModelContentProvider {
 
 	provideTextContent(resource: URI): TPromise<IModel> {
 		const model = this.modelService.createModel(this.clipboardService.readText(), this.modeService.getOrCreateMode('text/plain'), resource);
+
 		return TPromise.as(model);
 	}
-
 }
 
 // Diagnostics support
