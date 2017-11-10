@@ -42,7 +42,6 @@ suite('LanguagesRegistry', () => {
 		registry._registerLanguages([{
 			id: 'modeId',
 			extensions: [],
-			aliases: [],
 			mimetypes: ['bla'],
 		}]);
 
@@ -171,6 +170,32 @@ suite('LanguagesRegistry', () => {
 		assert.deepEqual(registry.getModeIdForLanguageNameLowercase('a3'), 'a');
 		assert.deepEqual(registry.getModeIdForLanguageNameLowercase('a4'), 'a');
 		assert.deepEqual(registry.getLanguageName('a'), 'A3');
+	});
+
+	test('empty aliases array means no alias', () => {
+		let registry = new LanguagesRegistry(false);
+
+		registry._registerLanguages([{
+			id: 'a'
+		}]);
+
+		assert.deepEqual(registry.getRegisteredLanguageNames(), ['a']);
+		assert.deepEqual(registry.getModeIdsFromLanguageName('a'), ['a']);
+		assert.deepEqual(registry.getModeIdForLanguageNameLowercase('a'), 'a');
+		assert.deepEqual(registry.getLanguageName('a'), 'a');
+
+		registry._registerLanguages([{
+			id: 'b',
+			aliases: []
+		}]);
+
+		assert.deepEqual(registry.getRegisteredLanguageNames(), ['a']);
+		assert.deepEqual(registry.getModeIdsFromLanguageName('a'), ['a']);
+		assert.deepEqual(registry.getModeIdsFromLanguageName('b'), []);
+		assert.deepEqual(registry.getModeIdForLanguageNameLowercase('a'), 'a');
+		assert.deepEqual(registry.getModeIdForLanguageNameLowercase('b'), 'b');
+		assert.deepEqual(registry.getLanguageName('a'), 'a');
+		assert.deepEqual(registry.getLanguageName('b'), null);
 	});
 
 	test('extensions', () => {

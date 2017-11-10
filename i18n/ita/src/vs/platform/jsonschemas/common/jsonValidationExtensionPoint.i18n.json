@@ -7,8 +7,8 @@
 	"contributes.jsonValidation": "Configurazione dello schema JSON per contributes.",
 	"contributes.jsonValidation.fileMatch": "Criteri dei file da soddisfare, ad esempio \"package.json\" o \"*.launch\".",
 	"contributes.jsonValidation.url": "URL dello schema ('http:', 'https:') o percorso relativo della cartella delle estensioni ('./').",
-	"invalid.fileMatch": "'configuration.jsonValidation.fileMatch' deve essere definito",
 	"invalid.jsonValidation": "'configuration.jsonValidation' deve essere una matrice",
+	"invalid.fileMatch": "'configuration.jsonValidation.fileMatch' deve essere definito",
 	"invalid.url": "'configuration.jsonValidation.url' deve essere un URL o un percorso relativo",
 	"invalid.url.fileschema": "'configuration.jsonValidation.url' è un URL relativo non valido: {0}",
 	"invalid.url.schema": "'configuration.jsonValidation.url' deve iniziare con 'http:', 'https:' o './' per fare riferimento agli schemi presenti nell'estensione"

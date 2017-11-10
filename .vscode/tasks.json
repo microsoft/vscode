@@ -1,23 +1,15 @@
 {
-	"version": "0.1.0",
-	"windows": {
-		"command": ".\\node_modules\\.bin\\gulp"
-	},
-	"osx": {
-		"command": "./node_modules/.bin/gulp"
-	},
-	"linux": {
-		"command": "./node_modules/.bin/gulp"
-	},
-	"isShellCommand": true,
+	"version": "2.0.0",
 	"tasks": [
 		{
-			"taskName": "watch",
-			"args": [
-				"--no-color"
-			],
-			"isBuildCommand": true,
-			"isWatching": true,
+			"type": "npm",
+			"script": "watch",
+			"label": "Build VS Code",
+			"group": "build",
+			"isBackground": true,
+			"presentation": {
+				"reveal": "never"
+			},
 			"problemMatcher": {
 				"owner": "typescript",
 				"applyTo": "closedDocuments",
@@ -30,38 +22,51 @@
 					"location": 2,
 					"message": 3
 				},
-				"watching": {
+				"background": {
 					"beginsPattern": "Starting compilation",
 					"endsPattern": "Finished compilation"
 				}
 			}
 		},
 		{
-			"taskName": "tslint",
-			"args": [],
-			"problemMatcher": {
-				"owner": "tslint",
-				"fileLocation": [
-					"relative",
-					"${workspaceRoot}"
-				],
-				"severity": "warning",
-				"pattern": {
-					"regexp": "(.*):(\\d+):(\\d+):(.*)$",
-					"file": 1,
-					"line": 2,
-					"column": 3,
-					"message": 4
-				}
+			"type": "gulp",
+			"task": "tslint",
+			"label": "Run tslint",
+			"problemMatcher": [
+				"$tslint5"
+			]
+		},
+		{
+			"label": "Run tests",
+			"type": "shell",
+			"command": "./scripts/test.sh",
+			"windows": {
+				"command": ".\\scripts\\test.bat"
+			},
+			"group": "test",
+			"presentation": {
+				"echo": true,
+				"reveal": "always"
 			}
 		},
 		{
-			"taskName": "test",
-			"args": [
-				"--no-color"
-			],
-			"showOutput": "always",
-			"isTestCommand": true
+			"label": "Run Dev",
+			"type": "shell",
+			"command": "./scripts/code.sh",
+			"windows": {
+				"command": ".\\scripts\\code.bat"
+			},
+			"problemMatcher": []
+		},
+		{
+			"type": "gulp",
+			"task": "electron",
+			"label": "Download electron"
+		},
+		{
+			"type": "gulp",
+			"task": "hygiene",
+			"problemMatcher": []
 		}
 	]
 }

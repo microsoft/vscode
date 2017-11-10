@@ -4,34 +4,41 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as strings from 'vs/base/common/strings';
 import { assign } from 'vs/base/common/objects';
-import { LinkedMap as Map } from 'vs/base/common/map';
+import { tail } from 'vs/base/common/arrays';
 import URI from 'vs/base/common/uri';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { Registry } from 'vs/platform/platform';
+import { IReference } from 'vs/base/common/lifecycle';
+import Event from 'vs/base/common/event';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { visit, JSONVisitor } from 'vs/base/common/json';
-import { IModel, IRange } from 'vs/editor/common/editorCommon';
-import { IConfigurationNode, IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting, IFilterResult, ISettingsSection } from 'vs/workbench/parts/preferences/common/preferences';
+import { IModel } from 'vs/editor/common/editorCommon';
+import { EditorModel } from 'vs/workbench/common/editor';
+import { IConfigurationNode, IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN, IConfigurationPropertySchema, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting, IFilterResult, ISettingsSection, IGroupFilter, ISettingFilter } from 'vs/workbench/parts/preferences/common/preferences';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IFilter, IMatch, or, matchesContiguousSubString, matchesPrefix, matchesFuzzy, matchesWords } from 'vs/base/common/filters';
+import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { ITextFileService, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { Queue } from 'vs/base/common/async';
+import { IFileService } from 'vs/platform/files/common/files';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
-export abstract class AbstractSettingsModel extends Disposable {
-
-	static _fuzzyFilter: IFilter = or(matchesPrefix, matchesContiguousSubString, matchesWords, matchesFuzzy);
+export abstract class AbstractSettingsModel extends EditorModel {
 
 	public get groupsTerms(): string[] {
 		return this.settingsGroups.map(group => '@' + group.id);
 	}
 
-	protected doFilterSettings(filter: string, allGroups: ISettingsGroup[]): IFilterResult {
+	protected doFilterSettings(filter: string, groupFilter: IGroupFilter, settingFilter: ISettingFilter): IFilterResult {
+		const allGroups = this.settingsGroups;
+
 		if (!filter) {
 			return {
 				filteredGroups: allGroups,
 				allGroups,
-				matches: new Map<string, IRange[]>()
+				matches: [],
+				query: filter
 			};
 		}
 
@@ -40,30 +47,33 @@ export abstract class AbstractSettingsModel extends Disposable {
 			return {
 				filteredGroups: [group],
 				allGroups,
-				matches: new Map<string, IRange[]>()
+				matches: [],
+				query: filter
 			};
 		}
 
-		const matches: Map<string, IRange[]> = new Map<string, IRange[]>();
+		const matches: IRange[] = [];
 		const filteredGroups: ISettingsGroup[] = [];
-		const regex = strings.createRegExp(filter, false, { global: true });
 		for (const group of allGroups) {
-			const groupMatched = regex.test(group.title);
+			const groupMatched = groupFilter(group);
 			const sections: ISettingsSection[] = [];
 			for (const section of group.sections) {
 				const settings: ISetting[] = [];
 				for (const setting of section.settings) {
-					const settingMatches = this._findMatchesInSetting(filter, regex, setting);
-					if (groupMatched || settingMatches.length > 0) {
+					const settingMatches = settingFilter(setting);
+					if (groupMatched || settingMatches && settingMatches.length) {
 						settings.push(setting);
 					}
-					matches.set(group.title + setting.key, settingMatches);
+
+					if (settingMatches) {
+						matches.push(...settingMatches);
+					}
 				}
 				if (settings.length) {
 					sections.push({
-						description: section.description,
+						title: section.title,
 						settings,
-						descriptionRange: section.descriptionRange
+						titleRange: section.titleRange
 					});
 				}
 			}
@@ -77,7 +87,7 @@ export abstract class AbstractSettingsModel extends Disposable {
 				});
 			}
 		}
-		return { filteredGroups, matches, allGroups };
+		return { filteredGroups, matches, allGroups, query: filter };
 	}
 
 	private filterByGroupTerm(filter: string): ISettingsGroup {
@@ -88,23 +98,40 @@ export abstract class AbstractSettingsModel extends Disposable {
 		return null;
 	}
 
-	protected abstract _findMatchesInSetting(searchString: string, searchRegex: RegExp, setting: ISetting): IRange[];
+	public getPreference(key: string): ISetting {
+		for (const group of this.settingsGroups) {
+			for (const section of group.sections) {
+				for (const setting of section.settings) {
+					if (key === setting.key) {
+						return setting;
+					}
+				}
+			}
+		}
+		return null;
+	}
+
 	public abstract settingsGroups: ISettingsGroup[];
+
+	public abstract findValueMatches(filter: string, setting: ISetting): IRange[];
 }
 
 export class SettingsEditorModel extends AbstractSettingsModel implements ISettingsEditorModel {
 
 	private _settingsGroups: ISettingsGroup[];
+	protected settingsModel: IModel;
+	private queue: Queue<void>;
 
-	constructor(private model: IModel, private _configurationTarget: ConfigurationTarget) {
+	constructor(reference: IReference<ITextEditorModel>, private _configurationTarget: ConfigurationTarget, @ITextFileService protected textFileService: ITextFileService) {
 		super();
-		this._register(this.model.onDidChangeContent(() => {
-			this._settingsGroups = null;
-		}));
+		this.settingsModel = reference.object.textEditorModel;
+		this._register(this.onDispose(() => reference.dispose()));
+		this._register(this.settingsModel.onDidChangeContent(() => this._settingsGroups = null));
+		this.queue = new Queue<void>();
 	}
 
 	public get uri(): URI {
-		return this.model.uri;
+		return this.settingsModel.uri;
 	}
 
 	public get configurationTarget(): ConfigurationTarget {
@@ -119,180 +146,370 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 	}
 
 	public get content(): string {
-		return this.model.getValue();
+		return this.settingsModel.getValue();
 	}
 
-	public filterSettings(filter: string): IFilterResult {
-		return this.doFilterSettings(filter, this.settingsGroups);
+	public filterSettings(filter: string, groupFilter: IGroupFilter, settingFilter: ISettingFilter): IFilterResult {
+		return this.doFilterSettings(filter, groupFilter, settingFilter);
 	}
 
-	private parse() {
-		const model = this.model;
-		const settings: ISetting[] = [];
+	public findValueMatches(filter: string, setting: ISetting): IRange[] {
+		return this.settingsModel.findMatches(filter, setting.valueRange, false, false, null, false).map(match => match.range);
+	}
 
-		let currentProperty: string = null;
-		let currentParent: any = [];
-		let previousParents: any[] = [];
-		let range = {
-			startLineNumber: 0,
-			startColumn: 0,
-			endLineNumber: 0,
-			endColumn: 0
-		};
+	public save(): TPromise<any> {
+		return this.queue.queue(() => this.doSave());
+	}
 
-		function onValue(value: any, offset: number, length: number) {
-			if (Array.isArray(currentParent)) {
-				(<any[]>currentParent).push(value);
-			} else if (currentProperty) {
-				currentParent[currentProperty] = value;
-			}
-			if (previousParents.length === 1) {
-				// settings value started
+	protected isSettingsProperty(property: string, previousParents: string[]): boolean {
+		return previousParents.length === 0; // Settings is root
+	}
+
+	protected doSave(): TPromise<any> {
+		return this.textFileService.save(this.uri);
+	}
+
+	protected parse(): void {
+		this._settingsGroups = parse(this.settingsModel, (property: string, previousParents: string[]): boolean => this.isSettingsProperty(property, previousParents));
+	}
+}
+
+function parse(model: IModel, isSettingsProperty: (currentProperty: string, previousParents: string[]) => boolean): ISettingsGroup[] {
+	const settings: ISetting[] = [];
+	let overrideSetting: ISetting = null;
+
+	let currentProperty: string = null;
+	let currentParent: any = [];
+	let previousParents: any[] = [];
+	let settingsPropertyIndex: number = -1;
+	let range = {
+		startLineNumber: 0,
+		startColumn: 0,
+		endLineNumber: 0,
+		endColumn: 0
+	};
+
+	function onValue(value: any, offset: number, length: number) {
+		if (Array.isArray(currentParent)) {
+			(<any[]>currentParent).push(value);
+		} else if (currentProperty) {
+			currentParent[currentProperty] = value;
+		}
+		if (previousParents.length === settingsPropertyIndex + 1 || (previousParents.length === settingsPropertyIndex + 2 && overrideSetting !== null)) {
+			// settings value started
+			const setting = previousParents.length === settingsPropertyIndex + 1 ? settings[settings.length - 1] : overrideSetting.overrides[overrideSetting.overrides.length - 1];
+			if (setting) {
 				let valueStartPosition = model.getPositionAt(offset);
 				let valueEndPosition = model.getPositionAt(offset + length);
-				settings[settings.length - 1].value = value;
-				settings[settings.length - 1].valueRange = {
+				setting.value = value;
+				setting.valueRange = {
 					startLineNumber: valueStartPosition.lineNumber,
 					startColumn: valueStartPosition.column,
 					endLineNumber: valueEndPosition.lineNumber,
 					endColumn: valueEndPosition.column
 				};
-				settings[settings.length - 1].range = assign(settings[settings.length - 1].range, {
+				setting.range = assign(setting.range, {
 					endLineNumber: valueEndPosition.lineNumber,
 					endColumn: valueEndPosition.column
 				});
 			}
 		}
-		let visitor: JSONVisitor = {
-			onObjectBegin: (offset: number, length: number) => {
-				if (previousParents.length === 0) {
-					// Settings started
-					let position = model.getPositionAt(offset);
-					range.startLineNumber = position.lineNumber;
-					range.startColumn = position.column;
+	}
+	let visitor: JSONVisitor = {
+		onObjectBegin: (offset: number, length: number) => {
+			if (isSettingsProperty(currentProperty, previousParents)) {
+				// Settings started
+				settingsPropertyIndex = previousParents.length;
+				let position = model.getPositionAt(offset);
+				range.startLineNumber = position.lineNumber;
+				range.startColumn = position.column;
+			}
+			let object = {};
+			onValue(object, offset, length);
+			currentParent = object;
+			currentProperty = null;
+			previousParents.push(currentParent);
+		},
+		onObjectProperty: (name: string, offset: number, length: number) => {
+			currentProperty = name;
+			if (previousParents.length === settingsPropertyIndex + 1 || (previousParents.length === settingsPropertyIndex + 2 && overrideSetting !== null)) {
+				// setting started
+				let settingStartPosition = model.getPositionAt(offset);
+				const setting: ISetting = {
+					description: [],
+					key: name,
+					keyRange: {
+						startLineNumber: settingStartPosition.lineNumber,
+						startColumn: settingStartPosition.column + 1,
+						endLineNumber: settingStartPosition.lineNumber,
+						endColumn: settingStartPosition.column + length
+					},
+					range: {
+						startLineNumber: settingStartPosition.lineNumber,
+						startColumn: settingStartPosition.column,
+						endLineNumber: 0,
+						endColumn: 0
+					},
+					value: null,
+					valueRange: null,
+					descriptionRanges: null,
+					overrides: [],
+					overrideOf: overrideSetting
+				};
+				if (previousParents.length === settingsPropertyIndex + 1) {
+					settings.push(setting);
+					if (OVERRIDE_PROPERTY_PATTERN.test(name)) {
+						overrideSetting = setting;
+					}
+				} else {
+					overrideSetting.overrides.push(setting);
 				}
-				let object = {};
-				onValue(object, offset, length);
-				currentParent = object;
-				currentProperty = null;
-				previousParents.push(currentParent);
-			},
+			}
+		},
+		onObjectEnd: (offset: number, length: number) => {
+			currentParent = previousParents.pop();
+			if (previousParents.length === settingsPropertyIndex + 1 || (previousParents.length === settingsPropertyIndex + 2 && overrideSetting !== null)) {
+				// setting ended
+				const setting = previousParents.length === settingsPropertyIndex + 1 ? settings[settings.length - 1] : overrideSetting.overrides[overrideSetting.overrides.length - 1];
+				if (setting) {
+					let valueEndPosition = model.getPositionAt(offset + length);
+					setting.valueRange = assign(setting.valueRange, {
+						endLineNumber: valueEndPosition.lineNumber,
+						endColumn: valueEndPosition.column
+					});
+					setting.range = assign(setting.range, {
+						endLineNumber: valueEndPosition.lineNumber,
+						endColumn: valueEndPosition.column
+					});
+				}
+
+				if (previousParents.length === settingsPropertyIndex + 1) {
+					overrideSetting = null;
+				}
+			}
+			if (previousParents.length === settingsPropertyIndex) {
+				// settings ended
+				let position = model.getPositionAt(offset);
+				range.endLineNumber = position.lineNumber;
+				range.endColumn = position.column;
+			}
+		},
+		onArrayBegin: (offset: number, length: number) => {
+			let array: any[] = [];
+			onValue(array, offset, length);
+			previousParents.push(currentParent);
+			currentParent = array;
+			currentProperty = null;
+		},
+		onArrayEnd: (offset: number, length: number) => {
+			currentParent = previousParents.pop();
+			if (previousParents.length === settingsPropertyIndex + 1 || (previousParents.length === settingsPropertyIndex + 2 && overrideSetting !== null)) {
+				// setting value ended
+				const setting = previousParents.length === settingsPropertyIndex + 1 ? settings[settings.length - 1] : overrideSetting.overrides[overrideSetting.overrides.length - 1];
+				if (setting) {
+					let valueEndPosition = model.getPositionAt(offset + length);
+					setting.valueRange = assign(setting.valueRange, {
+						endLineNumber: valueEndPosition.lineNumber,
+						endColumn: valueEndPosition.column
+					});
+					setting.range = assign(setting.range, {
+						endLineNumber: valueEndPosition.lineNumber,
+						endColumn: valueEndPosition.column
+					});
+				}
+			}
+		},
+		onLiteralValue: onValue,
+		onError: (error) => {
+			const setting = settings[settings.length - 1];
+			if (setting && (!setting.range || !setting.keyRange || !setting.valueRange)) {
+				settings.pop();
+			}
+		}
+	};
+	if (!model.isDisposed()) {
+		visit(model.getValue(), visitor);
+	}
+	return settings.length > 0 ? [<ISettingsGroup>{
+		sections: [
+			{
+				settings
+			}
+		],
+		title: null,
+		titleRange: null,
+		range
+	}] : [];
+}
+
+export class WorkspaceConfigurationEditorModel extends SettingsEditorModel {
+
+	private _configurationGroups: ISettingsGroup[];
+
+	get configurationGroups(): ISettingsGroup[] {
+		return this._configurationGroups;
+	}
+
+	protected parse(): void {
+		super.parse();
+		this._configurationGroups = parse(this.settingsModel, (property: string, previousParents: string[]): boolean => previousParents.length === 0);
+	}
+
+	protected isSettingsProperty(property: string, previousParents: string[]): boolean {
+		return property === 'settings' && previousParents.length === 1;
+	}
+
+}
+
+export class WorkspaceConfigModel extends SettingsEditorModel implements ISettingsEditorModel {
+
+	private workspaceConfigModel: IModel;
+	private workspaceConfigEtag: string;
+
+	constructor(
+		reference: IReference<ITextEditorModel>,
+		workspaceConfigModelReference: IReference<ITextEditorModel>,
+		_configurationTarget: ConfigurationTarget,
+		onDispose: Event<void>,
+		@IFileService private fileService: IFileService,
+		// @ts-ignore unused injected service
+		@ITextModelService private textModelResolverService: ITextModelService,
+		@ITextFileService textFileService: ITextFileService
+	) {
+		super(reference, _configurationTarget, textFileService);
+
+		this._register(workspaceConfigModelReference);
+		this.workspaceConfigModel = workspaceConfigModelReference.object.textEditorModel;
+
+		// Only listen to state changes. Content changes without saving are not synced.
+		this._register(this.textFileService.models.get(this.workspaceConfigModel.uri).onDidStateChange(statChange => this._onWorkspaceConfigFileStateChanged(statChange)));
+		this.onDispose(() => super.dispose());
+	}
+
+	protected doSave(): TPromise<any> {
+		if (this.textFileService.isDirty(this.workspaceConfigModel.uri)) {
+			// Throw an error?
+			return TPromise.as(null);
+		}
+
+		const content = this.createWorkspaceConfigContentFromSettingsModel();
+		if (content !== this.workspaceConfigModel.getValue()) {
+			return this.fileService.updateContent(this.workspaceConfigModel.uri, content)
+				.then(stat => this.workspaceConfigEtag = stat.etag);
+		}
+
+		return TPromise.as(null);
+	}
+
+	private createWorkspaceConfigContentFromSettingsModel(): string {
+		const workspaceConfigContent = this.workspaceConfigModel.getValue();
+		const { settingsPropertyEndsAt, nodeAfterSettingStartsAt } = WorkspaceConfigModel.parseWorkspaceConfigContent(workspaceConfigContent);
+		const workspaceConfigEndsAt = workspaceConfigContent.lastIndexOf('}');
+
+		// Settings property exist in Workspace Configuration and has Ending Brace
+		if (settingsPropertyEndsAt !== -1 && workspaceConfigEndsAt > settingsPropertyEndsAt) {
+
+			// Place settings at the end
+			let from = workspaceConfigContent.indexOf(':', settingsPropertyEndsAt) + 1;
+			let to = workspaceConfigEndsAt;
+			let settingsContent = this.settingsModel.getValue();
+
+			// There is a node after settings property
+			// Place settings before that node
+			if (nodeAfterSettingStartsAt !== -1) {
+				settingsContent += ',';
+				to = nodeAfterSettingStartsAt;
+			}
+
+			return workspaceConfigContent.substring(0, from) + settingsContent + workspaceConfigContent.substring(to);
+		}
+
+		// Settings property does not exist. Place it at the end
+		return workspaceConfigContent.substring(0, workspaceConfigEndsAt) + `,\n"settings": ${this.settingsModel.getValue()}\n` + workspaceConfigContent.substring(workspaceConfigEndsAt);
+	}
+
+	private _onWorkspaceConfigFileStateChanged(stateChange: StateChange): void {
+		let hasToUpdate = false;
+		switch (stateChange) {
+			case StateChange.SAVED:
+				hasToUpdate = this.workspaceConfigEtag !== this.textFileService.models.get(this.workspaceConfigModel.uri).getETag();
+				break;
+		}
+		if (hasToUpdate) {
+			this.onWorkspaceConfigFileContentChanged();
+		}
+	}
+
+	private onWorkspaceConfigFileContentChanged(): void {
+		this.workspaceConfigEtag = this.textFileService.models.get(this.workspaceConfigModel.uri).getETag();
+		const settingsValue = WorkspaceConfigModel.getSettingsContentFromConfigContent(this.workspaceConfigModel.getValue());
+		if (settingsValue) {
+			this.settingsModel.setValue(settingsValue);
+		}
+	}
+
+	dispose() {
+		// Not disposable by default
+	}
+
+	static getSettingsContentFromConfigContent(workspaceConfigContent: string): string {
+		const { settingsPropertyEndsAt, nodeAfterSettingStartsAt } = WorkspaceConfigModel.parseWorkspaceConfigContent(workspaceConfigContent);
+
+		const workspaceConfigEndsAt = workspaceConfigContent.lastIndexOf('}');
+
+		if (settingsPropertyEndsAt !== -1) {
+			const from = workspaceConfigContent.indexOf(':', settingsPropertyEndsAt) + 1;
+			const to = nodeAfterSettingStartsAt !== -1 ? nodeAfterSettingStartsAt : workspaceConfigEndsAt;
+			return workspaceConfigContent.substring(from, to);
+		}
+
+		return null;
+	}
+
+	static parseWorkspaceConfigContent(content: string): { settingsPropertyEndsAt: number, nodeAfterSettingStartsAt: number } {
+
+		let settingsPropertyEndsAt = -1;
+		let nodeAfterSettingStartsAt = -1;
+
+		let rootProperties: string[] = [];
+		let ancestors: string[] = [];
+		let currentProperty = '';
+
+		visit(content, <JSONVisitor>{
 			onObjectProperty: (name: string, offset: number, length: number) => {
 				currentProperty = name;
-				if (previousParents.length === 1) {
-					// setting started
-					let settingStartPosition = model.getPositionAt(offset);
-					settings.push({
-						description: '',
-						key: name,
-						keyRange: {
-							startLineNumber: settingStartPosition.lineNumber,
-							startColumn: settingStartPosition.column,
-							endLineNumber: settingStartPosition.lineNumber,
-							endColumn: settingStartPosition.column + length
-						},
-						range: {
-							startLineNumber: settingStartPosition.lineNumber,
-							startColumn: settingStartPosition.column,
-							endLineNumber: 0,
-							endColumn: 0
-						},
-						value: null,
-						valueRange: null,
-						descriptionRange: null,
-					});
+				if (ancestors.length === 1) {
+					rootProperties.push(name);
+					if (rootProperties[rootProperties.length - 1] === 'settings') {
+						settingsPropertyEndsAt = offset + length;
+					}
+					if (rootProperties[rootProperties.length - 2] === 'settings') {
+						nodeAfterSettingStartsAt = offset;
+					}
 				}
+			},
+			onObjectBegin: (offset: number, length: number) => {
+				ancestors.push(currentProperty);
 			},
 			onObjectEnd: (offset: number, length: number) => {
-				currentParent = previousParents.pop();
-				if (previousParents.length === 1) {
-					// setting ended
-					let valueEndPosition = model.getPositionAt(offset + length);
-					settings[settings.length - 1].valueRange = assign(settings[settings.length - 1].valueRange, {
-						endLineNumber: valueEndPosition.lineNumber,
-						endColumn: valueEndPosition.column
-					});
-					settings[settings.length - 1].range = assign(settings[settings.length - 1].range, {
-						endLineNumber: valueEndPosition.lineNumber,
-						endColumn: valueEndPosition.column
-					});
-				}
-				if (previousParents.length === 0) {
-					// settings ended
-					let position = model.getPositionAt(offset);
-					range.endLineNumber = position.lineNumber;
-					range.endColumn = position.column;
-				}
-			},
-			onArrayBegin: (offset: number, length: number) => {
-				let array = [];
-				onValue(array, offset, length);
-				previousParents.push(currentParent);
-				currentParent = array;
-				currentProperty = null;
-			},
-			onArrayEnd: (offset: number, length: number) => {
-				currentParent = previousParents.pop();
-				if (previousParents.length === 1) {
-					// setting value ended
-					let valueEndPosition = model.getPositionAt(offset + length);
-					settings[settings.length - 1].valueRange = assign(settings[settings.length - 1].valueRange, {
-						endLineNumber: valueEndPosition.lineNumber,
-						endColumn: valueEndPosition.column
-					});
-					settings[settings.length - 1].range = assign(settings[settings.length - 1].range, {
-						endLineNumber: valueEndPosition.lineNumber,
-						endColumn: valueEndPosition.column
-					});
-				}
-			},
-			onLiteralValue: onValue,
-			onError: (error) => {
+				ancestors.pop();
 			}
-		};
-		visit(model.getValue(), visitor);
-		this._settingsGroups = settings.length > 0 ? [<ISettingsGroup>{
-			sections: [
-				{
-					settings
-				}
-			],
-			title: null,
-			titleRange: null,
-			range
-		}] : [];
-	}
+		}, { allowTrailingComma: true });
 
-	protected _findMatchesInSetting(searchString: string, searchRegex: RegExp, setting: ISetting): IRange[] {
-		const result: IRange[] = [];
-		for (let lineNumber = setting.range.startLineNumber; lineNumber <= setting.range.endLineNumber; lineNumber++) {
-			result.push(...this._findMatchesInLine(searchString, lineNumber));
-		}
-		return result;
-	}
-
-	private _findMatchesInLine(searchString: string, lineNumber: number): IRange[] {
-		return this.model.findMatches(searchString, {
-			startLineNumber: lineNumber, startColumn: this.model.getLineMinColumn(lineNumber), endLineNumber: lineNumber, endColumn: this.model.getLineMaxColumn(lineNumber),
-		}, false, false, false);
+		return { settingsPropertyEndsAt, nodeAfterSettingStartsAt };
 	}
 }
 
-export class DefaultSettingsEditorModel extends AbstractSettingsModel implements ISettingsEditorModel {
-
-	private indent: string;
+export class DefaultSettingsModel {
 
 	private _allSettingsGroups: ISettingsGroup[];
 	private _content: string;
-	private _contentByLines: string[];
+	private _settingsByName: Map<string, ISetting>;
 
-	constructor(private _uri: URI, private _mostCommonlyUsedSettingsKeys: string[]) {
-		super();
-		this.indent = '  ';
-	}
-
-	public get uri(): URI {
-		return this._uri;
+	constructor(
+		private _mostCommonlyUsedSettingsKeys: string[],
+		readonly configurationScope: ConfigurationScope,
+	) {
 	}
 
 	public get content(): string {
@@ -309,53 +526,37 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return this._allSettingsGroups;
 	}
 
-	public get mostCommonlyUsedSettings(): ISettingsGroup {
-		return this.settingsGroups[0];
-	}
-
-	public filterSettings(filter: string): IFilterResult {
-		return this.doFilterSettings(filter, this.settingsGroups);
-	}
-
-	public getSetting(key: string): ISetting {
-		for (const group of this.settingsGroups) {
-			for (const section of group.sections) {
-				for (const setting of section.settings) {
-					if (setting.key === key) {
-						return setting;
-					}
-				}
-			}
-		}
-		return null;
-	}
-
 	private parse() {
-		const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations();
-		const settingsGroups = configurations.sort(this.compareConfigurationNodes).reduce((result, config) => this.parseConfig(config, result), []);
+		const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations().slice();
+		const settingsGroups = this.removeEmptySettingsGroups(configurations.sort(this.compareConfigurationNodes).reduce((result, config, index, array) => this.parseConfig(config, result, array), []));
+		this.initAllSettingsMap(settingsGroups);
 		const mostCommonlyUsed = this.getMostCommonlyUsedSettings(settingsGroups);
 		this._allSettingsGroups = [mostCommonlyUsed, ...settingsGroups];
 		this._content = this.toContent(mostCommonlyUsed, settingsGroups);
 	}
 
-	private getMostCommonlyUsedSettings(allSettingsGroups: ISettingsGroup[]): ISettingsGroup {
-		const map: Map<string, ISetting> = new Map<string, ISetting>();
+	private initAllSettingsMap(allSettingsGroups: ISettingsGroup[]): void {
+		this._settingsByName = new Map<string, ISetting>();
 		for (const group of allSettingsGroups) {
 			for (const section of group.sections) {
 				for (const setting of section.settings) {
-					map.set(setting.key, setting);
+					this._settingsByName.set(setting.key, setting);
 				}
 			}
 		}
+	}
+
+	private getMostCommonlyUsedSettings(allSettingsGroups: ISettingsGroup[]): ISettingsGroup {
 		const settings = this._mostCommonlyUsedSettingsKeys.map(key => {
-			const setting = map.get(key);
+			const setting = this._settingsByName.get(key);
 			if (setting) {
 				return <ISetting>{
 					description: setting.description,
 					key: setting.key,
 					value: setting.value,
 					range: null,
-					valueRange: null
+					valueRange: null,
+					overrides: []
 				};
 			}
 			return null;
@@ -364,7 +565,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return <ISettingsGroup>{
 			id: 'mostCommonlyUsed',
 			range: null,
-			title: nls.localize('commonlyUsed', "Most Commonly Used"),
+			title: nls.localize('commonlyUsed', "Commonly Used"),
 			titleRange: null,
 			sections: [
 				{
@@ -374,16 +575,23 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		};
 	}
 
-	private parseConfig(config: IConfigurationNode, result: ISettingsGroup[], settingsGroup?: ISettingsGroup): ISettingsGroup[] {
-		if (config.title) {
+	private parseConfig(config: IConfigurationNode, result: ISettingsGroup[], configurations: IConfigurationNode[], settingsGroup?: ISettingsGroup): ISettingsGroup[] {
+		let title = config.title;
+		if (!title) {
+			const configWithTitleAndSameId = configurations.filter(c => c.id === config.id && c.title)[0];
+			if (configWithTitleAndSameId) {
+				title = configWithTitleAndSameId.title;
+			}
+		}
+		if (title) {
 			if (!settingsGroup) {
-				settingsGroup = result.filter(g => g.title === config.title)[0];
+				settingsGroup = result.filter(g => g.title === title)[0];
 				if (!settingsGroup) {
-					settingsGroup = { sections: [{ settings: [] }], id: config.id, title: config.title, titleRange: null, range: null };
+					settingsGroup = { sections: [{ settings: [] }], id: config.id, title: title, titleRange: null, range: null };
 					result.push(settingsGroup);
 				}
 			} else {
-				settingsGroup.sections[settingsGroup.sections.length - 1].description = config.title;
+				settingsGroup.sections[settingsGroup.sections.length - 1].title = title;
 			}
 		}
 		if (config.properties) {
@@ -391,18 +599,51 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 				settingsGroup = { sections: [{ settings: [] }], id: config.id, title: config.id, titleRange: null, range: null };
 				result.push(settingsGroup);
 			}
-			const configurationSettings: ISetting[] = Object.keys(config.properties).map((key) => {
-				const prop = config.properties[key];
-				const value = prop.default;
-				const description = prop.description || '';
-				return { key, value, description, range: null, keyRange: null, valueRange: null, descriptionRange: null };
-			});
-			settingsGroup.sections[settingsGroup.sections.length - 1].settings.push(...configurationSettings);
+			const configurationSettings: ISetting[] = this.parseSettings(config.properties);
+			if (configurationSettings.length) {
+				settingsGroup.sections[settingsGroup.sections.length - 1].settings.push(...configurationSettings);
+			}
 		}
 		if (config.allOf) {
-			config.allOf.forEach(c => this.parseConfig(c, result, settingsGroup));
+			config.allOf.forEach(c => this.parseConfig(c, result, configurations, settingsGroup));
 		}
 		return result;
+	}
+
+	private removeEmptySettingsGroups(settingsGroups: ISettingsGroup[]): ISettingsGroup[] {
+		const result = [];
+		for (const settingsGroup of settingsGroups) {
+			settingsGroup.sections = settingsGroup.sections.filter(section => section.settings.length > 0);
+			if (settingsGroup.sections.length) {
+				result.push(settingsGroup);
+			}
+		}
+		return result;
+	}
+
+	private parseSettings(settingsObject: { [path: string]: IConfigurationPropertySchema; }): ISetting[] {
+		let result = [];
+		for (let key in settingsObject) {
+			const prop = settingsObject[key];
+			if (!prop.deprecationMessage && this.matchesScope(prop)) {
+				const value = prop.default;
+				const description = (prop.description || '').split('\n');
+				const overrides = OVERRIDE_PROPERTY_PATTERN.test(key) ? this.parseOverrideSettings(prop.default) : [];
+				result.push({ key, value, description, range: null, keyRange: null, valueRange: null, descriptionRanges: [], overrides });
+			}
+		}
+		return result;
+	}
+
+	private parseOverrideSettings(overrideSettings: any): ISetting[] {
+		return Object.keys(overrideSettings).map((key) => ({ key, value: overrideSettings[key], description: [], range: null, keyRange: null, valueRange: null, descriptionRanges: [], overrides: [] }));
+	}
+
+	private matchesScope(property: IConfigurationNode): boolean {
+		if (this.configurationScope === ConfigurationScope.WINDOW) {
+			return true;
+		}
+		return property.scope === this.configurationScope;
 	}
 
 	private compareConfigurationNodes(c1: IConfigurationNode, c2: IConfigurationNode): number {
@@ -421,134 +662,279 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	}
 
 	private toContent(mostCommonlyUsed: ISettingsGroup, settingsGroups: ISettingsGroup[]): string {
-		this._contentByLines = [];
-		this._contentByLines.push('[');
-		this.pushGroups([mostCommonlyUsed]);
-		this._contentByLines.push(',');
-		this.pushGroups(settingsGroups);
-		this._contentByLines.push(']');
-		return this._contentByLines.join('\n');
+		const builder = new SettingsContentBuilder();
+		builder.pushLine('[');
+		builder.pushGroups([mostCommonlyUsed]);
+		builder.pushLine(',');
+		builder.pushGroups(settingsGroups);
+		builder.pushLine(']');
+		return builder.getContent();
 	}
 
-	private pushGroups(settingsGroups: ISettingsGroup[]): void {
+}
+
+export class DefaultSettingsEditorModel extends AbstractSettingsModel implements ISettingsEditorModel {
+
+	private _model: IModel;
+	private _settingsByName: Map<string, ISetting>;
+	private _mostRelevantLineOffset: number;
+
+	constructor(
+		private _uri: URI,
+		reference: IReference<ITextEditorModel>,
+		readonly configurationScope: ConfigurationScope,
+		readonly settingsGroups: ISettingsGroup[]
+	) {
+		super();
+		this._model = reference.object.textEditorModel;
+		this._register(this.onDispose(() => reference.dispose()));
+
+		this.initAllSettingsMap();
+		this._mostRelevantLineOffset = tail(this.settingsGroups).range.endLineNumber + 2;
+	}
+
+	public get uri(): URI {
+		return this._uri;
+	}
+
+	public filterSettings(filter: string, groupFilter: IGroupFilter, settingFilter: ISettingFilter, mostRelevantSettings?: string[]): IFilterResult {
+		if (mostRelevantSettings) {
+			const mostRelevantGroup = this.renderMostRelevantSettings(mostRelevantSettings);
+
+			return {
+				allGroups: [...this.settingsGroups, mostRelevantGroup],
+				filteredGroups: mostRelevantGroup.sections[0].settings.length ? [mostRelevantGroup] : [],
+				matches: [],
+				query: filter
+			};
+		} else {
+			// Do local search and add empty 'most relevant' group
+			const mostRelevantGroup = this.renderMostRelevantSettings([]);
+			const result = this.doFilterSettings(filter, groupFilter, settingFilter);
+			result.allGroups = [...result.allGroups, mostRelevantGroup];
+			return result;
+		}
+	}
+
+	private renderMostRelevantSettings(mostRelevantSettings: string[]): ISettingsGroup {
+		const builder = new SettingsContentBuilder(this._mostRelevantLineOffset - 1);
+		builder.pushLine(',');
+		const mostRelevantGroup = this.getMostRelevantSettings(mostRelevantSettings);
+		builder.pushGroups([mostRelevantGroup]);
+		builder.pushLine('');
+
+		// note: 1-indexed line numbers here
+		const mostRelevantContent = builder.getContent();
+		const mostRelevantEndLine = this._model.getLineCount();
+		this._model.applyEdits([
+			{
+				text: mostRelevantContent,
+				forceMoveMarkers: false,
+				range: new Range(this._mostRelevantLineOffset, 1, mostRelevantEndLine, 1),
+				identifier: { major: 1, minor: 0 }
+			}
+		]);
+
+		return mostRelevantGroup;
+	}
+
+	public findValueMatches(filter: string, setting: ISetting): IRange[] {
+		return [];
+	}
+
+	public getPreference(key: string): ISetting {
+		for (const group of this.settingsGroups) {
+			for (const section of group.sections) {
+				for (const setting of section.settings) {
+					if (setting.key === key) {
+						return setting;
+					}
+				}
+			}
+		}
+		return null;
+	}
+
+	private initAllSettingsMap(): void {
+		this._settingsByName = new Map<string, ISetting>();
+		for (const group of this.settingsGroups) {
+			for (const section of group.sections) {
+				for (const setting of section.settings) {
+					this._settingsByName.set(setting.key, setting);
+				}
+			}
+		}
+	}
+
+	private getMostRelevantSettings(rankedSettingNames: string[]): ISettingsGroup {
+		const settings = rankedSettingNames.map(key => {
+			const setting = this._settingsByName.get(key);
+			if (setting) {
+				return <ISetting>{
+					description: setting.description,
+					key: setting.key,
+					value: setting.value,
+					range: null,
+					valueRange: null,
+					overrides: []
+				};
+			}
+			return null;
+		}).filter(setting => !!setting);
+
+		return <ISettingsGroup>{
+			id: 'mostRelevant',
+			range: null,
+			title: nls.localize('mostRelevant', "Most Relevant"),
+			titleRange: null,
+			sections: [
+				{
+					settings
+				}
+			]
+		};
+	}
+}
+
+class SettingsContentBuilder {
+	private _contentByLines: string[];
+
+	get lines(): string[] {
+		return this._contentByLines;
+	}
+
+	private get lineCountWithOffset(): number {
+		return this._contentByLines.length + this._rangeOffset;
+	}
+
+	private get lastLine(): string {
+		return this._contentByLines[this._contentByLines.length - 1] || '';
+	}
+
+	// @ts-ignore unused property
+	constructor(private _rangeOffset = 0, private _maxLines = Infinity) {
+		this._contentByLines = [];
+	}
+
+	private offsetIndexToIndex(offsetIdx: number): number {
+		return offsetIdx - this._rangeOffset;
+	}
+
+	pushLine(...lineText: string[]): void {
+		this._contentByLines.push(...lineText);
+	}
+
+	pushGroups(settingsGroups: ISettingsGroup[]): void {
 		let lastSetting: ISetting = null;
 		this._contentByLines.push('{');
 		this._contentByLines.push('');
 		for (const group of settingsGroups) {
+			this._contentByLines.push('');
 			lastSetting = this.pushGroup(group);
 		}
 		if (lastSetting) {
-			const content = this._contentByLines[lastSetting.range.endLineNumber - 2];
-			this._contentByLines[lastSetting.range.endLineNumber - 2] = content.substring(0, content.length - 1);
+			// Strip the comma from the last setting
+			const lineIdx = this.offsetIndexToIndex(lastSetting.range.endLineNumber);
+			const content = this._contentByLines[lineIdx - 2];
+			this._contentByLines[lineIdx - 2] = content.substring(0, content.length - 1);
 		}
 		this._contentByLines.push('}');
 	}
 
 	private pushGroup(group: ISettingsGroup): ISetting {
+		const indent = '  ';
 		let lastSetting: ISetting = null;
-		this._contentByLines.push('');
-		let groupStart = this._contentByLines.length + 1;
+		let groupStart = this.lineCountWithOffset + 1;
 		for (const section of group.sections) {
-			if (section.description) {
-				let sectionTitleStart = this._contentByLines.length + 1;
-				this.addDescription(section.description, this.indent, this._contentByLines);
-				section.descriptionRange = { startLineNumber: sectionTitleStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
+			if (section.title) {
+				let sectionTitleStart = this.lineCountWithOffset + 1;
+				this.addDescription([section.title], indent, this._contentByLines);
+				section.titleRange = { startLineNumber: sectionTitleStart, startColumn: 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length };
 			}
 
-			for (const setting of section.settings) {
-				const settingStart = this._contentByLines.length + 1;
-				this.addDescription(setting.description, this.indent, this._contentByLines);
-				setting.descriptionRange = { startLineNumber: settingStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
-
-				let preValueConent = this.indent;
-				const keyString = JSON.stringify(setting.key);
-				preValueConent += keyString;
-				setting.keyRange = { startLineNumber: this._contentByLines.length + 1, startColumn: preValueConent.indexOf(setting.key) + 1, endLineNumber: this._contentByLines.length + 1, endColumn: setting.key.length };
-
-				preValueConent += ': ';
-				const valueStart = this._contentByLines.length + 1;
-				let valueString = JSON.stringify(setting.value, null, this.indent);
-				if (valueString && (typeof setting.value === 'object')) {
-					const mulitLineValue = valueString.split('\n');
-					this._contentByLines.push(preValueConent + mulitLineValue[0]);
-					for (let i = 1; i < mulitLineValue.length; i++) {
-						this._contentByLines.push(this.indent + mulitLineValue[i]);
-					}
-				} else {
-					this._contentByLines.push(preValueConent + valueString);
+			if (section.settings.length) {
+				for (const setting of section.settings) {
+					this.pushSetting(setting, indent);
+					lastSetting = setting;
 				}
-
-				setting.valueRange = { startLineNumber: valueStart, startColumn: preValueConent.length + 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length + 1 };
-				this._contentByLines[this._contentByLines.length - 1] += ',';
-				lastSetting = setting;
-				this._contentByLines.push('');
-				setting.range = { startLineNumber: settingStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
 			}
+
 		}
-		group.range = { startLineNumber: groupStart, startColumn: 1, endLineNumber: this._contentByLines.length, endColumn: this._contentByLines[this._contentByLines.length - 1].length };
+		group.range = { startLineNumber: groupStart, startColumn: 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length };
 		return lastSetting;
 	}
 
-	private addDescription(description: string, indent: string, result: string[]) {
-		const multiLines = description.split('\n');
-		for (const line of multiLines) {
+	getContent(): string {
+		return this._contentByLines.join('\n');
+	}
+
+	private pushSetting(setting: ISetting, indent: string): void {
+		const settingStart = this.lineCountWithOffset + 1;
+		setting.descriptionRanges = [];
+		const descriptionPreValue = indent + '// ';
+		for (const line of setting.description) {
+			this._contentByLines.push(descriptionPreValue + line);
+			setting.descriptionRanges.push({ startLineNumber: this.lineCountWithOffset, startColumn: this.lastLine.indexOf(line) + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length });
+		}
+
+		let preValueConent = indent;
+		const keyString = JSON.stringify(setting.key);
+		preValueConent += keyString;
+		setting.keyRange = { startLineNumber: this.lineCountWithOffset + 1, startColumn: preValueConent.indexOf(setting.key) + 1, endLineNumber: this.lineCountWithOffset + 1, endColumn: setting.key.length };
+
+		preValueConent += ': ';
+		const valueStart = this.lineCountWithOffset + 1;
+		this.pushValue(setting, preValueConent, indent);
+
+		setting.valueRange = { startLineNumber: valueStart, startColumn: preValueConent.length + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length + 1 };
+		this._contentByLines[this._contentByLines.length - 1] += ',';
+		this._contentByLines.push('');
+		setting.range = { startLineNumber: settingStart, startColumn: 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length };
+	}
+
+	private pushValue(setting: ISetting, preValueConent: string, indent: string): void {
+		let valueString = JSON.stringify(setting.value, null, indent);
+		if (valueString && (typeof setting.value === 'object')) {
+			if (setting.overrides.length) {
+				this._contentByLines.push(preValueConent + ' {');
+				for (const subSetting of setting.overrides) {
+					this.pushSetting(subSetting, indent + indent);
+					this._contentByLines.pop();
+				}
+				const lastSetting = setting.overrides[setting.overrides.length - 1];
+				const content = this._contentByLines[lastSetting.range.endLineNumber - 2];
+				this._contentByLines[lastSetting.range.endLineNumber - 2] = content.substring(0, content.length - 1);
+				this._contentByLines.push(indent + '}');
+			} else {
+				const mulitLineValue = valueString.split('\n');
+				this._contentByLines.push(preValueConent + mulitLineValue[0]);
+				for (let i = 1; i < mulitLineValue.length; i++) {
+					this._contentByLines.push(indent + mulitLineValue[i]);
+				}
+			}
+		} else {
+			this._contentByLines.push(preValueConent + valueString);
+		}
+	}
+
+	private addDescription(description: string[], indent: string, result: string[]) {
+		for (const line of description) {
 			result.push(indent + '// ' + line);
 		}
 	}
-
-	protected _findMatchesInSetting(searchString: string, searchRegex: RegExp, setting: ISetting): IRange[] {
-		const result: IRange[] = [...this._findMatchesInDescription(searchString, setting)];
-		for (let lineNumber = setting.valueRange.startLineNumber; lineNumber <= setting.valueRange.endLineNumber; lineNumber++) {
-			result.push(...this._findMatchesInLine(searchRegex, lineNumber));
-		}
-		return result;
-	}
-
-	private _findMatchesInDescription(searchString: string, setting: ISetting): IRange[] {
-		const result: IRange[] = [];
-		for (let lineNumber = setting.descriptionRange.startLineNumber; lineNumber <= setting.descriptionRange.endLineNumber; lineNumber++) {
-			const content = this._contentByLines[lineNumber - 1];
-			const matches: IMatch[] = AbstractSettingsModel._fuzzyFilter(searchString, content);
-			if (matches) {
-				result.push(...matches.map(match => {
-					return <IRange>{
-						startLineNumber: lineNumber,
-						startColumn: match.start + 1,
-						endLineNumber: lineNumber,
-						endColumn: match.end + 1
-					};
-				}));
-			}
-		}
-		return result;
-	}
-
-	private _findMatchesInLine(searchRegex: RegExp, lineNumber: number): IRange[] {
-		const result: IRange[] = [];
-		const text = this._contentByLines[lineNumber - 1];
-		var m: RegExpExecArray;
-		// Reset regex to search from the beginning
-		searchRegex.lastIndex = 0;
-		do {
-			m = searchRegex.exec(text);
-			if (m) {
-				var range: IRange = { startLineNumber: lineNumber, startColumn: m.index + 1, endLineNumber: lineNumber, endColumn: m.index + 1 + m[0].length };
-				result.push(range);
-				if (m.index + m[0].length === text.length) {
-					// Reached the end of the line
-					return result;
-				}
-			}
-		} while (m);
-		return result;
-	}
 }
 
-export class DefaultKeybindingsEditorModel implements IKeybindingsEditorModel {
+export function defaultKeybindingsContents(keybindingService: IKeybindingService): string {
+	const defaultsHeader = '// ' + nls.localize('defaultKeybindingsHeader', "Overwrite key bindings by placing them into your key bindings file.");
+	return defaultsHeader + '\n' + keybindingService.getDefaultKeybindingsContent();
+}
+
+export class DefaultKeybindingsEditorModel implements IKeybindingsEditorModel<any> {
 
 	private _content: string;
 
-	constructor(private _uri: URI, @IKeybindingService private keybindingService: IKeybindingService) {
+	constructor(private _uri: URI,
+		@IKeybindingService private keybindingService: IKeybindingService) {
 	}
 
 	public get uri(): URI {
@@ -557,9 +943,16 @@ export class DefaultKeybindingsEditorModel implements IKeybindingsEditorModel {
 
 	public get content(): string {
 		if (!this._content) {
-			const defaultsHeader = '// ' + nls.localize('defaultKeybindingsHeader', "Overwrite key bindings by placing them into your key bindings file.");
-			this._content = defaultsHeader + '\n' + this.keybindingService.getDefaultKeybindings();
+			this._content = defaultKeybindingsContents(this.keybindingService);
 		}
 		return this._content;
+	}
+
+	public getPreference(): any {
+		return null;
+	}
+
+	public dispose(): void {
+		// Not disposable
 	}
 }

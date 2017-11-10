@@ -63,7 +63,7 @@ export function setProperty(text: string, path: JSONPath, value: any, formatting
 			}
 		} else {
 			if (value === void 0) { // delete
-				throw new Error(`Property ${lastSegment} does not exist.`);
+				return []; // property does not exist, nothing to do
 			}
 			let newProperty = `${JSON.stringify(lastSegment)}: ${JSON.stringify(value)}`;
 			let index = getInsertionIndex ? getInsertionIndex(parent.children.map(p => p.children[0].value)) : parent.children.length;
@@ -79,7 +79,41 @@ export function setProperty(text: string, path: JSONPath, value: any, formatting
 			return withFormatting(text, edit, formattingOptions);
 		}
 	} else if (parent.type === 'array' && typeof lastSegment === 'number') {
-		throw new Error('Array modification not supported yet');
+		let insertIndex = lastSegment;
+		if (insertIndex === -1) {
+			// Insert
+			let newProperty = `${JSON.stringify(value)}`;
+			let edit: Edit;
+			if (parent.children.length === 0) {
+				edit = { offset: parent.offset + 1, length: 0, content: newProperty };
+			} else {
+				let previous = parent.children[parent.children.length - 1];
+				edit = { offset: previous.offset + previous.length, length: 0, content: ',' + newProperty };
+			}
+			return withFormatting(text, edit, formattingOptions);
+		} else {
+			if (value === void 0 && parent.children.length >= 0) {
+				//Removal
+				let removalIndex = lastSegment;
+				let toRemove = parent.children[removalIndex];
+				let edit: Edit;
+				if (parent.children.length === 1) {
+					// only item
+					edit = { offset: parent.offset + 1, length: parent.length - 2, content: '' };
+				} else if (parent.children.length - 1 === removalIndex) {
+					// last item
+					let previous = parent.children[removalIndex - 1];
+					let offset = previous.offset + previous.length;
+					let parentEndOffset = parent.offset + parent.length;
+					edit = { offset, length: parentEndOffset - 2 - offset, content: '' };
+				} else {
+					edit = { offset: toRemove.offset, length: parent.children[removalIndex + 1].offset - toRemove.offset, content: '' };
+				}
+				return withFormatting(text, edit, formattingOptions);
+			} else {
+				throw new Error('Array modification not supported yet');
+			}
+		}
 	} else {
 		throw new Error(`Can not add ${typeof lastSegment !== 'number' ? 'index' : 'property'} to parent of type ${parent.type}`);
 	}

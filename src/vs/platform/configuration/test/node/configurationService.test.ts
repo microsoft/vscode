@@ -10,7 +10,7 @@ import os = require('os');
 import path = require('path');
 import fs = require('fs');
 
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { parseArgs } from 'vs/platform/environment/node/argv';
@@ -122,7 +122,8 @@ suite('ConfigurationService - Node', () => {
 			assert.equal(config.foo, 'bar');
 
 			// force a reload to get latest
-			service.reloadConfiguration<{ foo: string }>().then(config => {
+			service.reloadConfiguration().then(() => {
+				config = service.getConfiguration<{ foo: string }>();
 				assert.ok(config);
 				assert.equal(config.foo, 'changed');
 
@@ -202,23 +203,58 @@ suite('ConfigurationService - Node', () => {
 		testFile((testFile, cleanUp) => {
 			const service = new ConfigurationService(new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, testFile));
 
-			let res = service.lookup('something.missing');
-			assert.ok(!res.value);
-			assert.ok(!res.default);
-			assert.ok(!res.user);
+			let res = service.inspect('something.missing');
+			assert.strictEqual(res.value, void 0);
+			assert.strictEqual(res.default, void 0);
+			assert.strictEqual(res.user, void 0);
 
-			res = service.lookup('lookup.service.testSetting');
-			assert.equal(res.default, 'isSet');
-			assert.equal(res.value, 'isSet');
-			assert.ok(!res.user);
+			res = service.inspect('lookup.service.testSetting');
+			assert.strictEqual(res.default, 'isSet');
+			assert.strictEqual(res.value, 'isSet');
+			assert.strictEqual(res.user, void 0);
 
 			fs.writeFileSync(testFile, '{ "lookup.service.testSetting": "bar" }');
 
 			return service.reloadConfiguration().then(() => {
-				res = service.lookup('lookup.service.testSetting');
-				assert.equal(res.default, 'isSet');
-				assert.equal(res.user, 'bar');
-				assert.equal(res.value, 'bar');
+				res = service.inspect('lookup.service.testSetting');
+				assert.strictEqual(res.default, 'isSet');
+				assert.strictEqual(res.user, 'bar');
+				assert.strictEqual(res.value, 'bar');
+
+				service.dispose();
+
+				cleanUp(done);
+			});
+		});
+	});
+
+	test('lookup with null', (done: () => void) => {
+		const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+		configurationRegistry.registerConfiguration({
+			'id': '_testNull',
+			'type': 'object',
+			'properties': {
+				'lookup.service.testNullSetting': {
+					'type': 'null',
+				}
+			}
+		});
+
+		testFile((testFile, cleanUp) => {
+			const service = new ConfigurationService(new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, testFile));
+
+			let res = service.inspect('lookup.service.testNullSetting');
+			assert.strictEqual(res.default, null);
+			assert.strictEqual(res.value, null);
+			assert.strictEqual(res.user, void 0);
+
+			fs.writeFileSync(testFile, '{ "lookup.service.testNullSetting": null }');
+
+			return service.reloadConfiguration().then(() => {
+				res = service.inspect('lookup.service.testNullSetting');
+				assert.strictEqual(res.default, null);
+				assert.strictEqual(res.value, null);
+				assert.strictEqual(res.user, null);
 
 				service.dispose();
 

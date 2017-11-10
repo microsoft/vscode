@@ -8,7 +8,7 @@
 			{
 				"label": "Solarized Light",
 				"uiTheme": "vs",
-				"path": "./themes/Solarized-light.tmTheme"
+				"path": "./themes/solarized-light-color-theme.json"
 			}
 		]
 	}

@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-var net = require('net'),
-	fs = require('fs'),
-	stream = require('stream'),
-	util = require('util');
+const net = require('net');
+const fs = require('fs');
+// const stream = require('stream');
+// const util = require('util');
 
 var ENABLE_LOGGING = false;
 
-var log = (function() {
+var log = (function () {
 	if (!ENABLE_LOGGING) {
-		return function() {};
+		return function () { };
 	}
 	var isFirst = true;
 	var LOG_LOCATION = 'C:\\stdFork.log';
@@ -23,7 +23,7 @@ var log = (function() {
 			return;
 		}
 		fs.appendFileSync(LOG_LOCATION, str + '\n');
-	}
+	};
 })();
 
 var stdInPipeName = process.env['STDIN_PIPE_NAME'];
@@ -36,7 +36,7 @@ log('STDERR_PIPE_NAME: ' + stdErrPipeName);
 log('ELECTRON_RUN_AS_NODE: ' + process.env['ELECTRON_RUN_AS_NODE']);
 
 // stdout redirection to named pipe
-(function() {
+(function () {
 	log('Beginning stdout redirection...');
 
 	// Create a writing stream to the stdout pipe
@@ -46,7 +46,7 @@ log('ELECTRON_RUN_AS_NODE: ' + process.env['ELECTRON_RUN_AS_NODE']);
 	stdOutStream.unref();
 
 	// handle process.stdout
-	process.__defineGetter__('stdout', function() { return stdOutStream; });
+	process.__defineGetter__('stdout', function () { return stdOutStream; });
 
 	// Create a writing stream to the stderr pipe
 	var stdErrStream = net.connect(stdErrPipeName);
@@ -55,15 +55,15 @@ log('ELECTRON_RUN_AS_NODE: ' + process.env['ELECTRON_RUN_AS_NODE']);
 	stdErrStream.unref();
 
 	// handle process.stderr
-	process.__defineGetter__('stderr', function() { return stdErrStream; });
+	process.__defineGetter__('stderr', function () { return stdErrStream; });
 
-	var fsWriteSyncString = function(fd, str, position, encoding) {
+	var fsWriteSyncString = function (fd, str, position, encoding) {
 		//  fs.writeSync(fd, string[, position[, encoding]]);
 		var buf = new Buffer(str, encoding || 'utf8');
 		return fsWriteSyncBuffer(fd, buf, 0, buf.length);
 	};
 
-	var fsWriteSyncBuffer = function(fd, buffer, off, len, position) {
+	var fsWriteSyncBuffer = function (fd, buffer, off, len/* , position */) {
 		off = Math.abs(off | 0);
 		len = Math.abs(len | 0);
 
@@ -99,7 +99,7 @@ log('ELECTRON_RUN_AS_NODE: ' + process.env['ELECTRON_RUN_AS_NODE']);
 
 	// handle fs.writeSync(1, ...) and fs.writeSync(2, ...)
 	var originalWriteSync = fs.writeSync;
-	fs.writeSync = function(fd, data, position, encoding) {
+	fs.writeSync = function (fd, data/* , position, encoding */) {
 		if (fd !== 1 && fd !== 2) {
 			return originalWriteSync.apply(fs, arguments);
 		}
@@ -124,17 +124,17 @@ log('ELECTRON_RUN_AS_NODE: ' + process.env['ELECTRON_RUN_AS_NODE']);
 })();
 
 // stdin redirection to named pipe
-(function() {
+(function () {
 
 	// Begin listening to stdin pipe
-	var server = net.createServer(function(stream) {
+	var server = net.createServer(function (stream) {
 		// Stop accepting new connections, keep the existing one alive
 		server.close();
 
 		log('Parent process has connected to my stdin. All should be good now.');
 
 		// handle process.stdin
-		process.__defineGetter__('stdin', function() {
+		process.__defineGetter__('stdin', function () {
 			return stream;
 		});
 
@@ -156,7 +156,7 @@ log('ELECTRON_RUN_AS_NODE: ' + process.env['ELECTRON_RUN_AS_NODE']);
 		log('Finished loading program.');
 
 		var stdinIsReferenced = true;
-		var timer = setInterval(function() {
+		var timer = setInterval(function () {
 			var listenerCount = (
 				stream.listeners('data').length +
 				stream.listeners('end').length +
@@ -189,7 +189,7 @@ log('ELECTRON_RUN_AS_NODE: ' + process.env['ELECTRON_RUN_AS_NODE']);
 	});
 
 
-	server.listen(stdInPipeName, function() {
+	server.listen(stdInPipeName, function () {
 		// signal via stdout that the parent process can now begin writing to stdin pipe
 		process.stdout.write('ready');
 	});

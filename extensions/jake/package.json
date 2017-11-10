@@ -1,0 +1,62 @@
+{
+  "name": "jake",
+  "publisher": "vscode",
+  "description": "Extension to add Jake capabilities to VSCode.",
+  "displayName": "Jake support for VSCode",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "*"
+  },
+  "categories": [
+    "Other"
+  ],
+  "scripts": {
+    "compile": "gulp compile-extension:jake",
+    "watch": "gulp watch-extension:jake"
+  },
+  "dependencies": {
+    "vscode-nls": "^2.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "7.0.43"
+  },
+  "main": "./out/main",
+  "activationEvents": [
+    "onCommand:workbench.action.tasks.runTask"
+  ],
+  "contributes": {
+    "configuration": {
+      "id": "jake",
+      "type": "object",
+      "title": "Jake",
+      "properties": {
+        "jake.autoDetect": {
+          "scope": "resource",
+          "type": "string",
+          "enum": [
+            "off",
+            "on"
+          ],
+          "default": "on",
+          "description": "%config.jake.autoDetect%"
+        }
+      }
+    },
+    "taskDefinitions": [
+      {
+        "type": "jake",
+        "required": ["task"],
+        "properties": {
+          "task": {
+            "type": "string",
+            "description": "The Jake task to customize"
+          },
+          "file": {
+            "type": "string",
+            "description": "The Jake file that provides the task. Can be omitted."
+          }
+        }
+      }
+    ]
+  }
+}

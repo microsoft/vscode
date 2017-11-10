@@ -9,7 +9,14 @@ import objects = require('vs/base/common/objects');
 import types = require('vs/base/common/types');
 import arrays = require('vs/base/common/arrays');
 import strings = require('vs/base/common/strings');
-import { IXHRResponse } from 'vs/base/common/http';
+
+export interface IXHRResponse {
+	responseText: string;
+	status: number;
+
+	readyState: number;
+	getResponseHeader: (header: string) => string;
+}
 
 export interface IConnectionErrorData {
 	status: number;
@@ -165,7 +172,7 @@ function detectSystemErrorMessage(exception: any): string {
 
 	// See https://nodejs.org/api/errors.html#errors_class_system_error
 	if (typeof exception.code === 'string' && typeof exception.errno === 'number' && typeof exception.syscall === 'string') {
-		return nls.localize('nodeExceptionMessage', "A system error occured ({0})", exception.message);
+		return nls.localize('nodeExceptionMessage', "A system error occurred ({0})", exception.message);
 	}
 
 	return exception.message;

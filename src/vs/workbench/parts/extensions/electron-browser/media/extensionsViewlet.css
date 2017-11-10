@@ -27,9 +27,58 @@
 	height: calc(100% - 38px);
 }
 
-.extensions-viewlet > .message {
+.extensions-viewlet > .extensions .extensions-list > .monaco-list {
+	height: auto;
+}
+
+.extensions-viewlet > .extensions .list-actionbar-container .monaco-action-bar .action-item > .octicon {
+	font-size: 12px;
+	line-height: 1;
+	margin-right: 10px;
+}
+
+.extensions-viewlet > .extensions .list-actionbar-container .monaco-action-bar .action-item.disabled  {
+	display: none;
+}
+
+.extensions-viewlet > .extensions .extensions-list.hidden,
+.extensions-viewlet > .extensions .message.hidden {
+	display: none;
+	visibility: hidden;
+}
+
+.extensions-viewlet > .extensions .panel-header {
+	padding-right: 12px;
+}
+
+.extensions-viewlet > .extensions .panel-header > .title {
+	flex: 1;
+}
+
+.extensions-viewlet > .extensions .message {
 	padding: 5px 9px 5px 16px;
 	cursor: default;
+}
+
+.extensions-viewlet > .extensions .monaco-list-row > .bookmark {
+	display: none;
+}
+
+.extensions-viewlet > .extensions .monaco-list-row.recommended > .bookmark {
+	display: inline-block;
+	height: 20px;
+	width: 20px;
+	border-right: 20px solid transparent;
+	border-top: 20px solid;
+	box-sizing: border-box;
+}
+
+.extensions-viewlet > .extensions .monaco-list-row > .bookmark > .octicon {
+	position: absolute;
+	top: 1px;
+	left: 1px;
+	color: white;
+	font-size: 90%;
 }
 
 .extensions-viewlet > .extensions .extension {
@@ -39,6 +88,12 @@
 	padding: 0 11px 0 16px;
 	overflow: hidden;
 	display: flex;
+	position: absolute;
+	top: 0;
+}
+
+.extensions-viewlet > .extensions .extension.loading {
+	background: url('loading.svg') center center no-repeat;
 }
 
 .extensions-viewlet > .extensions .extension > .icon {
@@ -72,18 +127,21 @@
 .extensions-viewlet > .extensions .extension > .details > .header-container > .header {
 	display: flex;
 	align-items: baseline;
-	flex-wrap: wrap;
+	flex-wrap: nowrap;
 	overflow: hidden;
 	flex: 1;
+	min-width: 0;
 }
 
 .extensions-viewlet > .extensions .extension > .details > .header-container > .header > .name {
 	font-weight: bold;
-	min-width: fit-content;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	overflow: hidden;
 }
 
 .extensions-viewlet > .extensions .extension > .details > .header-container > .header > .version {
-	opacity: 0.6;
+	opacity: 0.85;
 	font-size: 80%;
 	padding-left: 6px;
 	flex: 1;
@@ -107,12 +165,6 @@
 .extensions-viewlet.narrow > .extensions .extension > .details > .header-container > .header > .ratings,
 .extensions-viewlet.narrow > .extensions .extension > .details > .header-container > .header > .install-count {
 	display: none;
-}
-
-.extensions-viewlet > .extensions .extension > .details > .header-container .extension-status {
-	width: 8px;
-	height: 8px;
-	margin-left: 6px;
 }
 
 .extensions-viewlet > .extensions .extension > .details > .footer {
@@ -140,9 +192,13 @@
 	line-height: 15px;
 }
 
+.extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar .action-label:not(:empty) {
+	opacity: 0.9;
+}
+
 .extensions-viewlet > .extensions .extension.disabled > .icon,
 .extensions-viewlet > .extensions .extension.disabled > .details > .header-container,
-.extensions-viewlet > .extensions .extension.disabled > .details > .description,
+.extensions-viewlet > .extensions .extension.disabled > .details > .description
 .extensions-viewlet > .extensions .extension.disabled > .details > .footer > .author {
 	opacity: 0.5;
 }
@@ -157,8 +213,4 @@
 	background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNCIgaGVpZ2h0PSIxNCIgdmlld0JveD0iMiAyIDE0IDE0IiBlbmFibGUtYmFja2dyb3VuZD0ibmV3IDIgMiAxNCAxNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTkgMTZjLTMuODYgMC03LTMuMTQtNy03czMuMTQtNyA3LTdjMy44NTkgMCA3IDMuMTQxIDcgN3MtMy4xNDEgNy03IDd6bTAtMTIuNmMtMy4wODggMC01LjYgMi41MTMtNS42IDUuNnMyLjUxMiA1LjYgNS42IDUuNiA1LjYtMi41MTIgNS42LTUuNi0yLjUxMi01LjYtNS42LTUuNnptMy44NiA3LjFsLTMuMTYtMS44OTZ2LTMuODA0aC0xLjR2NC41OTZsMy44NCAyLjMwNS43Mi0xLjIwMXoiLz48L3N2Zz4=");
 	background-position: center center;
 	background-repeat: no-repeat;
-}
-
-.hc-black .monaco-workbench .extensions-viewlet > .header > .search-box {
-	border: 1px solid #6FC3DF;
 }

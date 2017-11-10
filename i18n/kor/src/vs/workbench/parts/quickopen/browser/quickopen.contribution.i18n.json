@@ -9,5 +9,6 @@
 	"gotoLineDescriptionWin": "줄 이동",
 	"gotoSymbolDescription": "파일의 기호로 이동",
 	"gotoSymbolDescriptionScoped": "범주로 파일의 기호로 이동",
-	"helpDescription": "도움말 표시"
+	"helpDescription": "도움말 표시",
+	"viewPickerDescription": "뷰 열기"
 }

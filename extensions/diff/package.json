@@ -3,12 +3,15 @@
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js textmate/diff.tmbundle Syntaxes/Diff.plist ./syntaxes/diff.tmLanguage.json"
+	},
 	"contributes": {
 		"languages": [
 			{
 				"id": "diff",
 				"aliases": ["Diff", "diff" ],
-				"extensions": [".patch", ".diff", ".rej"],
+				"extensions": [".diff", ".patch", ".rej"],
 				"configuration": "./language-configuration.json"
 			}
 		],
@@ -16,7 +19,7 @@
 			{
 				"language": "diff",
 				"scopeName": "source.diff",
-				"path": "./syntaxes/diff.tmLanguage"
+				"path": "./syntaxes/diff.tmLanguage.json"
 			}
 		]
 	}

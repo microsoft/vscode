@@ -4,27 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TextAreaHandler } from 'vs/editor/common/controller/textAreaHandler';
-import * as browser from 'vs/base/browser/browser';
-import { TextAreaStrategy, ISimpleModel } from 'vs/editor/common/controller/textAreaState';
-import { Range } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { TextAreaWrapper } from 'vs/editor/browser/controller/input/textAreaWrapper';
+import { TextAreaInput, ITextAreaInputHost } from 'vs/editor/browser/controller/textAreaInput';
+import { ISimpleModel, TextAreaState, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/textAreaState';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { createFastDomNode } from 'vs/base/browser/fastDomNode';
+import * as browser from 'vs/base/browser/browser';
 
 // To run this test, open imeTester.html
 
 class SingleLineTestModel implements ISimpleModel {
 
 	private _line: string;
-	private _eol: string;
 
 	constructor(line: string) {
 		this._line = line;
-		this._eol = '\n';
 	}
 
-	setText(text: string) {
+	_setText(text: string) {
 		this._line = text;
 	}
 
@@ -32,11 +30,7 @@ class SingleLineTestModel implements ISimpleModel {
 		return this._line.length + 1;
 	}
 
-	getEOL(): string {
-		return this._eol;
-	}
-
-	getValueInRange(range: editorCommon.IRange, eol: editorCommon.EndOfLinePreference): string {
+	getValueInRange(range: IRange, eol: editorCommon.EndOfLinePreference): string {
 		return this._line.substring(range.startColumn - 1, range.endColumn - 1);
 	}
 
@@ -46,10 +40,6 @@ class SingleLineTestModel implements ISimpleModel {
 
 	getLineCount(): number {
 		return 1;
-	}
-
-	convertViewPositionToModelPosition(viewLineNumber: number, viewColumn: number): Position {
-		return new Position(viewLineNumber, viewColumn);
 	}
 }
 
@@ -71,13 +61,17 @@ class TestView {
 	}
 }
 
-function doCreateTest(strategy: TextAreaStrategy, description: string, inputStr: string, expectedStr: string): HTMLElement {
+function doCreateTest(description: string, inputStr: string, expectedStr: string): HTMLElement {
+	let cursorOffset: number = 0;
+	let cursorLength: number = 0;
+
 	let container = document.createElement('div');
 	container.className = 'container';
 
 	let title = document.createElement('div');
 	title.className = 'title';
-	title.innerHTML = TextAreaStrategy[strategy] + ' strategy: ' + description + '. Type <strong>' + inputStr + '</strong>';
+
+	title.innerHTML = description + '. Type <strong>' + inputStr + '</strong>';
 	container.appendChild(title);
 
 	let startBtn = document.createElement('button');
@@ -90,18 +84,28 @@ function doCreateTest(strategy: TextAreaStrategy, description: string, inputStr:
 	input.setAttribute('cols', '40');
 	container.appendChild(input);
 
-	let textAreaWrapper = new TextAreaWrapper(input);
-
 	let model = new SingleLineTestModel('some  text');
 
-	let handler = new TextAreaHandler(browser, strategy, textAreaWrapper, model, () => { });
+	const textAreaInputHost: ITextAreaInputHost = {
+		getPlainTextToCopy: (): string => '',
+		getHTMLToCopy: (): string => '',
+		getScreenReaderContent: (currentState: TextAreaState): TextAreaState => {
 
-	input.onfocus = () => {
-		handler.setHasFocus(true);
+			if (browser.isIPad) {
+				// Do not place anything in the textarea for the iPad
+				return TextAreaState.EMPTY;
+			}
+
+			const selection = new Range(1, 1 + cursorOffset, 1, 1 + cursorOffset + cursorLength);
+
+			return PagedScreenReaderStrategy.fromEditorSelection(currentState, model, selection, true);
+		},
+		deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {
+			return null;
+		}
 	};
-	input.onblur = () => {
-		handler.setHasFocus(false);
-	};
+
+	let handler = new TextAreaInput(textAreaInputHost, createFastDomNode(input));
 
 	let output = document.createElement('pre');
 	output.className = 'output';
@@ -117,18 +121,15 @@ function doCreateTest(strategy: TextAreaStrategy, description: string, inputStr:
 
 	let view = new TestView(model);
 
-
-	let cursorOffset: number;
-	let cursorLength: number;
 	let updatePosition = (off: number, len: number) => {
 		cursorOffset = off;
 		cursorLength = len;
-		handler.setCursorSelections(new Range(1, 1 + cursorOffset, 1, 1 + cursorOffset + cursorLength), []);
-		handler.writePlaceholderAndSelectTextAreaSync();
+		handler.writeScreenReaderContent('selection changed');
+		handler.focusTextArea();
 	};
 
 	let updateModelAndPosition = (text: string, off: number, len: number) => {
-		model.setText(text);
+		model._setText(text);
 		updatePosition(off, len);
 		view.paint(output);
 
@@ -176,6 +177,5 @@ const TESTS = [
 ];
 
 TESTS.forEach((t) => {
-	document.body.appendChild(doCreateTest(TextAreaStrategy.NVDA, t.description, t.in, t.out));
-	document.body.appendChild(doCreateTest(TextAreaStrategy.IENarrator, t.description, t.in, t.out));
+	document.body.appendChild(doCreateTest(t.description, t.in, t.out));
 });

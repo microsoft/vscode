@@ -16,13 +16,16 @@ import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { once } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
-import { InstallAction, UpdateAction, BuiltinStatusLabelAction, ManageExtensionAction, ReloadAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { InstallAction, UpdateAction, BuiltinStatusLabelAction, ManageExtensionAction, ReloadAction, extensionButtonProminentBackground } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { Label, RatingsWidget, InstallWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
 import { EventType } from 'vs/base/common/events';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export interface ITemplateData {
+	root: HTMLElement;
 	element: HTMLElement;
 	icon: HTMLImageElement;
 	name: HTMLElement;
@@ -46,15 +49,25 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IMessageService private messageService: IMessageService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionService private extensionService: IExtensionService
+		@IExtensionService private extensionService: IExtensionService,
+		@IExtensionTipsService private extensionTipsService: IExtensionTipsService,
+		@IThemeService private themeService: IThemeService
 	) { }
 
 	get templateId() { return 'extension'; }
 
 	renderTemplate(root: HTMLElement): ITemplateData {
+		const bookmark = append(root, $('span.bookmark'));
+		append(bookmark, $('span.octicon.octicon-star'));
+		const applyBookmarkStyle = (theme) => {
+			const borderColor = theme.getColor(extensionButtonProminentBackground);
+			bookmark.style.borderTopColor = borderColor ? borderColor.toString() : 'transparent';
+		};
+		applyBookmarkStyle(this.themeService.getTheme());
+		const bookmarkStyler = this.themeService.onThemeChange(applyBookmarkStyle.bind(this));
+
 		const element = append(root, $('.extension'));
 		const icon = append(element, $<HTMLImageElement>('img.icon'));
 		const details = append(element, $('.details'));
@@ -76,9 +89,9 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 				return null;
 			}
 		});
-		actionbar.addListener2(EventType.RUN, ({ error }) => error && this.messageService.show(Severity.Error, error));
+		actionbar.addListener(EventType.RUN, ({ error }) => error && this.messageService.show(Severity.Error, error));
 
-		const versionWidget = this.instantiationService.createInstance(Label, version, e => e.version);
+		const versionWidget = this.instantiationService.createInstance(Label, version, (e: IExtension) => e.version);
 		const installCountWidget = this.instantiationService.createInstance(InstallWidget, installCount, { small: true });
 		const ratingsWidget = this.instantiationService.createInstance(RatingsWidget, ratings, { small: true });
 
@@ -89,10 +102,10 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const manageAction = this.instantiationService.createInstance(ManageExtensionAction);
 
 		actionbar.push([reloadAction, updateAction, installAction, builtinStatusAction, manageAction], actionOptions);
-		const disposables = [versionWidget, installCountWidget, ratingsWidget, builtinStatusAction, updateAction, reloadAction, manageAction, actionbar];
+		const disposables = [versionWidget, installCountWidget, ratingsWidget, builtinStatusAction, updateAction, reloadAction, manageAction, actionbar, bookmarkStyler];
 
 		return {
-			element, icon, name, installCount, ratings, author, description, disposables,
+			root, element, icon, name, installCount, ratings, author, description, disposables,
 			extensionDisposables: [],
 			set extension(extension: IExtension) {
 				versionWidget.extension = extension;
@@ -110,6 +123,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 	renderPlaceholder(index: number, data: ITemplateData): void {
 		addClass(data.element, 'loading');
 
+		data.root.removeAttribute('aria-label');
 		data.extensionDisposables = dispose(data.extensionDisposables);
 		data.icon.src = '';
 		data.name.textContent = '';
@@ -124,10 +138,11 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		removeClass(data.element, 'loading');
 
 		data.extensionDisposables = dispose(data.extensionDisposables);
+		const isInstalled = this.extensionsWorkbenchService.local.some(e => e.id === extension.id);
 
 		this.extensionService.getExtensions().then(enabledExtensions => {
-			const isExtensionRunning = enabledExtensions.some(e => e.id === extension.identifier);
-			const isInstalled = this.extensionsWorkbenchService.local.some(e => e.identifier === extension.identifier);
+			const isExtensionRunning = enabledExtensions.some(e => areSameExtensions(e, extension));
+
 			toggleClass(data.element, 'disabled', isInstalled && !isExtensionRunning);
 		});
 
@@ -140,6 +155,16 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			data.icon.onload = () => data.icon.style.visibility = 'inherit';
 		} else {
 			data.icon.style.visibility = 'inherit';
+		}
+
+		data.root.setAttribute('aria-label', extension.displayName);
+		removeClass(data.root, 'recommended');
+
+		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
+		if (extRecommendations[extension.id.toLowerCase()]) {
+			data.root.setAttribute('aria-label', extension.displayName + '. ' + extRecommendations[extension.id]);
+			addClass(data.root, 'recommended');
+			data.root.title = extRecommendations[extension.id.toLowerCase()];
 		}
 
 		data.name.textContent = extension.displayName;

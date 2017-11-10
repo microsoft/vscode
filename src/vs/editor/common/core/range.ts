@@ -5,8 +5,29 @@
 
 'use strict';
 
-import { Position } from 'vs/editor/common/core/position';
-import { IPosition, IRange } from 'vs/editor/common/editorCommon';
+import { Position, IPosition } from 'vs/editor/common/core/position';
+
+/**
+ * A range in the editor. This interface is suitable for serialization.
+ */
+export interface IRange {
+	/**
+	 * Line number on which the range starts (starts at 1).
+	 */
+	readonly startLineNumber: number;
+	/**
+	 * Column on which the range starts in line `startLineNumber` (starts at 1).
+	 */
+	readonly startColumn: number;
+	/**
+	 * Line number on which the range ends.
+	 */
+	readonly endLineNumber: number;
+	/**
+	 * Column on which the range ends in line `endLineNumber`.
+	 */
+	readonly endColumn: number;
+}
 
 /**
  * A range in the editor. (startLineNumber,startColumn) is <= (endLineNumber,endColumn)
@@ -269,6 +290,10 @@ export class Range {
 
 	// ---
 
+	public static fromPositions(start: IPosition, end: IPosition = start): Range {
+		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
+	}
+
 	/**
 	 * Create a `Range` from an `IRange`.
 	 */
@@ -317,16 +342,18 @@ export class Range {
 	public static compareRangesUsingStarts(a: IRange, b: IRange): number {
 		let aStartLineNumber = a.startLineNumber | 0;
 		let bStartLineNumber = b.startLineNumber | 0;
-		let aStartColumn = a.startColumn | 0;
-		let bStartColumn = b.startColumn | 0;
-		let aEndLineNumber = a.endLineNumber | 0;
-		let bEndLineNumber = b.endLineNumber | 0;
-		let aEndColumn = a.endColumn | 0;
-		let bEndColumn = b.endColumn | 0;
 
 		if (aStartLineNumber === bStartLineNumber) {
+			let aStartColumn = a.startColumn | 0;
+			let bStartColumn = b.startColumn | 0;
+
 			if (aStartColumn === bStartColumn) {
+				let aEndLineNumber = a.endLineNumber | 0;
+				let bEndLineNumber = b.endLineNumber | 0;
+
 				if (aEndLineNumber === bEndLineNumber) {
+					let aEndColumn = a.endColumn | 0;
+					let bEndColumn = b.endColumn | 0;
 					return aEndColumn - bEndColumn;
 				}
 				return aEndLineNumber - bEndLineNumber;

@@ -55,7 +55,7 @@ log('ELECTRON_RUN_AS_NODE: ' + process.env['ELECTRON_RUN_AS_NODE']);
 	// handle process.stderr
 	(<any>process).__defineGetter__('stderr', function () { return stdErrStream; });
 
-	var fsWriteSyncString = function (fd: number, str: string, position: number, encoding?: string) {
+	var fsWriteSyncString = function (fd: number, str: string, _position: number, encoding?: string) {
 		//  fs.writeSync(fd, string[, position[, encoding]]);
 		var buf = new Buffer(str, encoding || 'utf8');
 		return fsWriteSyncBuffer(fd, buf, 0, buf.length);
@@ -97,7 +97,7 @@ log('ELECTRON_RUN_AS_NODE: ' + process.env['ELECTRON_RUN_AS_NODE']);
 
 	// handle fs.writeSync(1, ...)
 	var originalWriteSync = fs.writeSync;
-	fs.writeSync = function (fd: number, data: any, position: number, encoding?: string) {
+	fs.writeSync = function (fd: number, data: any, _position: number, _encoding?: string) {
 		if (fd !== 1 && fd !== 2) {
 			return originalWriteSync.apply(fs, arguments);
 		}

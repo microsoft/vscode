@@ -1,0 +1,22 @@
+{
+	"name": "hlsl",
+	"version": "0.1.0",
+	"publisher": "vscode",
+	"engines": { "vscode": "*" },
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js tgjones/shaders-tmLanguage grammars/hlsl.json ./syntaxes/hlsl.json"
+	},
+	"contributes": {
+		"languages": [{
+			"id": "hlsl",
+			"extensions": [".hlsl",".hlsli",".fx",".fxh",".vsh",".psh",".cginc",".compute"],
+			"aliases": ["HLSL", "hlsl"],
+			"configuration": "./language-configuration.json"
+		}],
+		"grammars": [{
+			"language": "hlsl",
+			"path": "./syntaxes/hlsl.json",
+			"scopeName":"source.hlsl"
+		}]
+	}
+}

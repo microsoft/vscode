@@ -26,6 +26,7 @@ suite('OpenerService', function () {
 
 	const commandService = new class implements ICommandService {
 		_serviceBrand: any;
+		onWillExecuteCommand = () => ({ dispose: () => { } });
 		executeCommand(id: string, ...args: any[]): TPromise<any> {
 			lastCommand = { id, args };
 			return TPromise.as(undefined);

@@ -1,0 +1,9 @@
+test/**
+server/tsconfig.json
+server/node_modules/@types/**
+server/src/**
+server/test/**
+server/out/test/**
+client/tsconfig.json
+client/src/**
+npm-shrinkwrap.json

@@ -5,63 +5,88 @@
 'use strict';
 
 import nls = require('vs/nls');
+import * as errors from 'vs/base/common/errors';
 import env = require('vs/base/common/platform');
 import DOM = require('vs/base/browser/dom');
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IAction, Action } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { $ } from 'vs/base/browser/builder';
+import { $, Builder } from 'vs/base/browser/builder';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { CollapsibleView } from 'vs/base/browser/ui/splitview/splitview';
+import { ViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/platform';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
+import { OpenFolderAction, OpenFileFolderAction, AddRootFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { attachButtonStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 
-export class EmptyView extends CollapsibleView {
-	private openFolderButton: Button;
+export class EmptyView extends ViewsViewletPanel {
 
-	constructor( @ITelemetryService private telemetryService: ITelemetryService,
-		@IInstantiationService private instantiationService: IInstantiationService
+	public static ID: string = 'workbench.explorer.emptyView';
+	public static NAME = nls.localize('noWorkspace', "No Folder Opened");
+
+	private button: Button;
+	private messageDiv: Builder;
+	private titleDiv: Builder;
+
+	constructor(
+		options: IViewletViewOptions,
+		@IThemeService private themeService: IThemeService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
-		super({
-			minimumSize: 2 * 22,
-			ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section")
-		});
+		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService);
+		this.contextService.onDidChangeWorkbenchState(() => this.setLabels());
 	}
 
 	public renderHeader(container: HTMLElement): void {
-		let titleDiv = $('div.title').appendTo(container);
-		$('span').text(nls.localize('noWorkspace', "No Folder Opened")).appendTo(titleDiv);
+		this.titleDiv = $('span').text(name).appendTo($('div.title').appendTo(container));
 	}
 
 	protected renderBody(container: HTMLElement): void {
 		DOM.addClass(container, 'explorer-empty-view');
 
-		let titleDiv = $('div.section').appendTo(container);
-		$('p').text(nls.localize('noWorkspaceHelp', "You have not yet opened a folder.")).appendTo(titleDiv);
+		this.messageDiv = $('p').appendTo($('div.section').appendTo(container));
 
 		let section = $('div.section').appendTo(container);
 
-		this.openFolderButton = new Button(section);
-		this.openFolderButton.label = nls.localize('openFolder', "Open Folder");
-		this.openFolderButton.addListener2('click', () => {
-			this.runWorkbenchAction(env.isMacintosh ? 'workbench.action.files.openFileFolder' : 'workbench.action.files.openFolder');
+		this.button = new Button(section);
+		attachButtonStyler(this.button, this.themeService);
+		this.button.addListener('click', () => {
+			const actionClass = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? AddRootFolderAction : env.isMacintosh ? OpenFileFolderAction : OpenFolderAction;
+			const action = this.instantiationService.createInstance<string, string, IAction>(actionClass, actionClass.ID, actionClass.LABEL);
+			this.actionRunner.run(action).done(() => {
+				action.dispose();
+			}, err => {
+				action.dispose();
+				errors.onUnexpectedError(err);
+			});
 		});
+		this.setLabels();
 	}
 
-	protected layoutBody(size: number): void {
+	private setLabels(): void {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+			this.messageDiv.text(nls.localize('noWorkspaceHelp', "You have not yet added a folder to the workspace."));
+			if (this.button) {
+				this.button.label = nls.localize('addFolder', "Add Folder");
+			}
+			this.titleDiv.text(this.contextService.getWorkspace().name);
+		} else {
+			this.messageDiv.text(nls.localize('noFolderHelp', "You have not yet opened a folder."));
+			if (this.button) {
+				this.button.label = nls.localize('openFolder', "Open Folder");
+			}
+			this.titleDiv.text(this.name);
+		}
+	}
+
+	layoutBody(size: number): void {
 		// no-op
-	}
-
-	private runWorkbenchAction(actionId: string): void {
-		this.telemetryService.publicLog('workbenchActionExecuted', { id: actionId, from: 'explorer' });
-		let actionRegistry = <IWorkbenchActionRegistry>Registry.as(Extensions.WorkbenchActions);
-		let actionDescriptor = actionRegistry.getWorkbenchAction(actionId);
-
-		let action = <Action>this.instantiationService.createInstance(actionDescriptor.syncDescriptor);
-
-		return action.run().done(() => action.dispose());
 	}
 
 	public create(): TPromise<void> {
@@ -73,8 +98,8 @@ export class EmptyView extends CollapsibleView {
 	}
 
 	public focusBody(): void {
-		if (this.openFolderButton) {
-			this.openFolderButton.getElement().focus();
+		if (this.button) {
+			this.button.getElement().focus();
 		}
 	}
 

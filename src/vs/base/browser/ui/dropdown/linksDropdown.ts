@@ -22,7 +22,7 @@ export class LinksDropdownMenu extends DropdownMenu {
 		this.tooltip = options.tooltip;
 	}
 
-	/*protected*/ public onEvent(e: Event, activeElement: HTMLElement): void {
+	protected onEvent(e: Event, activeElement: HTMLElement): void {
 		if (e instanceof KeyboardEvent && ((<KeyboardEvent>e).ctrlKey || (isMacintosh && (<KeyboardEvent>e).metaKey))) {
 			return; // allow to use Ctrl/Meta in workspace dropdown menu
 		}

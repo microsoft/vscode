@@ -11,23 +11,21 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import { ThrottledDelayer } from 'vs/base/common/async';
 import types = require('vs/base/common/types');
-import { isWindows } from 'vs/base/common/platform';
-import paths = require('vs/base/common/paths');
-import strings = require('vs/base/common/strings');
-import { IRange } from 'vs/editor/common/editorCommon';
 import { IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
-import { QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { QuickOpenEntry, QuickOpenModel, QuickOpenItemAccessor } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
 import { FileEntry, OpenFileHandler, FileQuickOpenModel } from 'vs/workbench/parts/search/browser/openFileHandler';
-/* tslint:disable:no-unused-variable */
 import * as openSymbolHandler from 'vs/workbench/parts/search/browser/openSymbolHandler';
-/* tslint:enable:no-unused-variable */
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ISearchStats, ICachedSearchStats, IUncachedSearchStats } from 'vs/platform/search/common/search';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchSearchConfiguration } from 'vs/workbench/parts/search/common/search';
+import { IRange } from 'vs/editor/common/core/range';
+import { compareItemsByScore, scoreItem, ScorerCache, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
+
+export import OpenSymbolHandler = openSymbolHandler.OpenSymbolHandler; // OpenSymbolHandler is used from an extension and must be in the main bundle file so it can load
 
 const objects_assign: <T, U>(destination: T, source: U) => T & U = objects.assign;
 
@@ -36,6 +34,38 @@ interface ISearchWithRange {
 	range: IRange;
 }
 
+/* __GDPR__FRAGMENT__
+	"ITimerEventData" : {
+		"searchLength" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"unsortedResultDuration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"sortedResultDuration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"resultCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"symbols.fromCache": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"files.fromCache": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"files.unsortedResultDuration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"files.sortedResultDuration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"files.resultCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"files.traversal": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"files.errors": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"files.fileWalkStartDuration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"files.fileWalkResultDuration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"files.directoriesWalked": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"files.filesWalked": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"files.cmdForkStartTime": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"files.cmdForkResultTime": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"files.cmdResultCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"files.cacheLookupStartDuration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"files.cacheFilterStartDuration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"files.cacheLookupResultDuration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"files.cacheEntryCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"${wildcard}": [
+			{
+				"${prefix}": "files.joined",
+			"${classification}": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+			}
+		]
+	}
+*/
 interface ITimerEventData {
 	searchLength: number;
 	unsortedResultDuration: number;
@@ -79,10 +109,9 @@ interface ITelemetryData {
 	files: ISearchStats;
 }
 
-// OpenSymbolHandler is used from an extension and must be in the main bundle file so it can load
-export import OpenSymbolHandler = openSymbolHandler.OpenSymbolHandler;
-
 export class OpenAnythingHandler extends QuickOpenHandler {
+
+	public static readonly ID = 'workbench.picker.anything';
 
 	private static LINE_COLON_PATTERN = /[#|:|\(](\d*)([#|:|,](\d*))?\)?$/;
 
@@ -96,7 +125,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	private searchDelayer: ThrottledDelayer<QuickOpenModel>;
 	private pendingSearch: TPromise<QuickOpenModel>;
 	private isClosed: boolean;
-	private scorerCache: { [key: string]: number };
+	private scorerCache: ScorerCache;
 	private includeSymbols: boolean;
 
 	constructor(
@@ -119,7 +148,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 	}
 
 	private registerListeners(): void {
-		this.configurationService.onDidUpdateConfiguration(e => this.updateHandlers(e.config));
+		this.configurationService.onDidChangeConfiguration(e => this.updateHandlers(this.configurationService.getConfiguration<IWorkbenchSearchConfiguration>()));
 	}
 
 	private updateHandlers(configuration: IWorkbenchSearchConfiguration): void {
@@ -144,18 +173,16 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		this.cancelPendingSearch();
 		this.isClosed = false; // Treat this call as the handler being in use
 
-		// Massage search value
-		searchValue = searchValue.replace(/ /g, ''); // get rid of all whitespace
-		if (isWindows) {
-			searchValue = searchValue.replace(/\//g, '\\'); // Help Windows users to search for paths when using slash
-		}
+		// Prepare search for scoring
+		const query = prepareQuery(searchValue);
 
-		const searchWithRange = this.extractRange(searchValue); // Find a suitable range from the pattern looking for ":" and "#"
+		const searchWithRange = this.extractRange(query.value); // Find a suitable range from the pattern looking for ":" and "#"
 		if (searchWithRange) {
-			searchValue = searchWithRange.search; // ignore range portion in query
+			query.value = searchWithRange.search; // ignore range portion in query
+			query.lowercase = query.value.toLowerCase();
 		}
 
-		if (!searchValue) {
+		if (!query.value) {
 			return TPromise.as(new QuickOpenModel()); // Respond directly to empty search
 		}
 
@@ -164,13 +191,12 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			const resultPromises: TPromise<QuickOpenModel | FileQuickOpenModel>[] = [];
 
 			// File Results
-			resultPromises.push(this.openFileHandler.getResults(searchValue, OpenAnythingHandler.MAX_DISPLAYED_RESULTS));
+			const filePromise = this.openFileHandler.getResults(query.value, OpenAnythingHandler.MAX_DISPLAYED_RESULTS);
+			resultPromises.push(filePromise);
 
 			// Symbol Results (unless disabled or a range or absolute path is specified)
-			if (this.includeSymbols && !searchWithRange && !paths.isAbsolute(searchValue)) {
-				resultPromises.push(this.openSymbolHandler.getResults(searchValue));
-			} else {
-				resultPromises.push(TPromise.as(new QuickOpenModel())); // We need this empty promise because we are using the throttler below!
+			if (this.includeSymbols && !searchWithRange) {
+				resultPromises.push(this.openSymbolHandler.getResults(query.value));
 			}
 
 			// Join and sort unified
@@ -182,13 +208,12 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 					return TPromise.as<QuickOpenModel>(new QuickOpenModel());
 				}
 
-				// Combine file results and symbol results (if any)
-				const mergedResults = [...results[0].entries, ...results[1].entries];
+				// Combine results.
+				const mergedResults = [].concat(...results.map(r => r.entries));
 
 				// Sort
 				const unsortedResultTime = Date.now();
-				const normalizedSearchValue = strings.stripWildcards(searchValue).toLowerCase();
-				const compare = (elementA: QuickOpenEntry, elementB: QuickOpenEntry) => QuickOpenEntry.compareByScore(elementA, elementB, searchValue, normalizedSearchValue, this.scorerCache);
+				const compare = (elementA: QuickOpenEntry, elementB: QuickOpenEntry) => compareItemsByScore(elementA, elementB, query, true, QuickOpenItemAccessor, this.scorerCache);
 				const viewResults = arrays.top(mergedResults, compare, OpenAnythingHandler.MAX_DISPLAYED_RESULTS);
 				const sortedResultTime = Date.now();
 
@@ -197,34 +222,42 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 					if (entry instanceof FileEntry) {
 						entry.setRange(searchWithRange ? searchWithRange.range : null);
 
-						const {labelHighlights, descriptionHighlights} = QuickOpenEntry.highlight(entry, searchValue, true /* fuzzy highlight */);
-						entry.setHighlights(labelHighlights, descriptionHighlights);
+						const itemScore = scoreItem(entry, query, true, QuickOpenItemAccessor, this.scorerCache);
+						entry.setHighlights(itemScore.labelMatch, itemScore.descriptionMatch);
 					}
 				});
 
-				let fileSearchStats: ISearchStats;
-				if (results[0] instanceof FileQuickOpenModel) {
-					fileSearchStats = (<FileQuickOpenModel>results[0]).stats;
-				} else if (results[1] instanceof FileQuickOpenModel) {
-					fileSearchStats = (<FileQuickOpenModel>results[1]).stats;
-				}
-
 				const duration = new Date().getTime() - startTime;
-				const data = this.createTimerEventData(startTime, {
-					searchLength: searchValue.length,
-					unsortedResultTime,
-					sortedResultTime,
-					resultCount: mergedResults.length,
-					symbols: { fromCache: false },
-					files: fileSearchStats
+				filePromise.then(fileModel => {
+					const data = this.createTimerEventData(startTime, {
+						searchLength: query.value.length,
+						unsortedResultTime,
+						sortedResultTime,
+						resultCount: mergedResults.length,
+						symbols: { fromCache: false },
+						files: fileModel.stats,
+					});
+
+					/* __GDPR__
+						"openAnything" : {
+							"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+							"${include}": [
+								"${ITimerEventData}"
+							]
+						}
+					*/
+					this.telemetryService.publicLog('openAnything', objects.assign(data, { duration }));
 				});
 
-				this.telemetryService.publicLog('openAnything', objects.assign(data, { duration }));
-
 				return TPromise.as<QuickOpenModel>(new QuickOpenModel(viewResults));
-			}, (error: Error) => {
+			}, (error: Error[]) => {
 				this.pendingSearch = null;
-				this.messageService.show(Severity.Error, error);
+				if (error && error[0] && error[0].message) {
+					this.messageService.show(Severity.Error, error[0].message.replace(/[\*_\[\]]/g, '\\$&'));
+				} else {
+					this.messageService.show(Severity.Error, error);
+				}
+				return null;
 			});
 
 			return this.pendingSearch;
@@ -341,7 +374,7 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			sortedResultDuration: telemetry.sortedResultTime - startTime,
 			resultCount: telemetry.resultCount,
 			symbols: telemetry.symbols,
-			files: this.createFileEventData(startTime, telemetry.files)
+			files: telemetry.files && this.createFileEventData(startTime, telemetry.files)
 		};
 	}
 

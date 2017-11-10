@@ -1,11 +1,13 @@
+"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-"use strict";
-var fs = require('fs');
-var ts = require('typescript');
-var path = require('path');
+Object.defineProperty(exports, "__esModule", { value: true });
+var fs = require("fs");
+var ts = require("typescript");
+var path = require("path");
+var tsfmt = require('../../tsfmt.json');
 var util = require('gulp-util');
 function log(message) {
     var rest = [];
@@ -34,17 +36,14 @@ function moduleIdToPath(out, moduleId) {
     return path.join(OUT_ROOT, out, moduleId) + '.d.ts';
 }
 var SOURCE_FILE_MAP = {};
-function getSourceFile(out, moduleId) {
+function getSourceFile(out, inputFiles, moduleId) {
     if (!SOURCE_FILE_MAP[moduleId]) {
-        var filePath = moduleIdToPath(out, moduleId);
-        var fileContents = void 0;
-        try {
-            fileContents = fs.readFileSync(filePath).toString();
-        }
-        catch (err) {
-            logErr('CANNOT FIND FILE ' + filePath);
+        var filePath = path.normalize(moduleIdToPath(out, moduleId));
+        if (!inputFiles.hasOwnProperty(filePath)) {
+            logErr('CANNOT FIND FILE ' + filePath + '. YOU MIGHT NEED TO RESTART gulp');
             return null;
         }
+        var fileContents = inputFiles[filePath];
         var sourceFile = ts.createSourceFile(filePath, fileContents, ts.ScriptTarget.ES5);
         SOURCE_FILE_MAP[moduleId] = sourceFile;
     }
@@ -150,9 +149,11 @@ function getMassagedTopLevelDeclarationText(sourceFile, declaration) {
                 if (memberText.indexOf('@internal') >= 0 || memberText.indexOf('private') >= 0) {
                     // console.log('BEFORE: ', result);
                     result = result.replace(memberText, '');
+                    // console.log('AFTER: ', result);
                 }
             }
             catch (err) {
+                // life..
             }
         });
     }
@@ -161,11 +162,10 @@ function getMassagedTopLevelDeclarationText(sourceFile, declaration) {
     return result;
 }
 function format(text) {
-    var options = getDefaultOptions();
     // Parse the source text
     var sourceFile = ts.createSourceFile('file.ts', text, ts.ScriptTarget.Latest, /*setParentPointers*/ true);
     // Get the formatting edits on the input sources
-    var edits = ts.formatting.formatDocument(sourceFile, getRuleProvider(options), options);
+    var edits = ts.formatting.formatDocument(sourceFile, getRuleProvider(tsfmt), tsfmt);
     // Apply the edits on the input code
     return applyEdits(text, edits);
     function getRuleProvider(options) {
@@ -185,25 +185,6 @@ function format(text) {
             result = head + change.newText + tail;
         }
         return result;
-    }
-    function getDefaultOptions() {
-        return {
-            IndentSize: 4,
-            TabSize: 4,
-            NewLineCharacter: '\r\n',
-            ConvertTabsToSpaces: true,
-            IndentStyle: ts.IndentStyle.Block,
-            InsertSpaceAfterCommaDelimiter: true,
-            InsertSpaceAfterSemicolonInForStatements: true,
-            InsertSpaceBeforeAndAfterBinaryOperators: true,
-            InsertSpaceAfterKeywordsInControlFlowStatements: true,
-            InsertSpaceAfterFunctionKeywordForAnonymousFunctions: false,
-            InsertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: false,
-            InsertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: false,
-            InsertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: true,
-            PlaceOpenBraceOnNewLineForFunctions: false,
-            PlaceOpenBraceOnNewLineForControlBlocks: false,
-        };
     }
 }
 function createReplacer(data) {
@@ -228,7 +209,7 @@ function createReplacer(data) {
         return str;
     };
 }
-function generateDeclarationFile(out, recipe) {
+function generateDeclarationFile(out, inputFiles, recipe) {
     var lines = recipe.split(/\r\n|\n|\r/);
     var result = [];
     lines.forEach(function (line) {
@@ -236,7 +217,7 @@ function generateDeclarationFile(out, recipe) {
         if (m1) {
             CURRENT_PROCESSING_RULE = line;
             var moduleId = m1[1];
-            var sourceFile_1 = getSourceFile(out, moduleId);
+            var sourceFile_1 = getSourceFile(out, inputFiles, moduleId);
             if (!sourceFile_1) {
                 return;
             }
@@ -260,7 +241,7 @@ function generateDeclarationFile(out, recipe) {
         if (m2) {
             CURRENT_PROCESSING_RULE = line;
             var moduleId = m2[1];
-            var sourceFile_2 = getSourceFile(out, moduleId);
+            var sourceFile_2 = getSourceFile(out, inputFiles, moduleId);
             if (!sourceFile_2) {
                 return;
             }
@@ -326,11 +307,11 @@ function getFilesToWatch(out) {
     return result;
 }
 exports.getFilesToWatch = getFilesToWatch;
-function run(out) {
+function run(out, inputFiles) {
     log('Starting monaco.d.ts generation');
     SOURCE_FILE_MAP = {};
     var recipe = fs.readFileSync(RECIPE_PATH).toString();
-    var result = generateDeclarationFile(out, recipe);
+    var result = generateDeclarationFile(out, inputFiles, recipe);
     var currentContent = fs.readFileSync(DECLARATION_PATH).toString();
     log('Finished monaco.d.ts generation');
     return {

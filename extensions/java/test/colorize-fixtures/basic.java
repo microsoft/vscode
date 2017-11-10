@@ -11,6 +11,7 @@ public class TestClass {
 	private String aString;
 
 	/**
+	 * <p>Note:</p> Hello
 	 * @param args
 	 */
 	public void doSomething(int a) {

@@ -18,6 +18,12 @@
 			"language": "yaml",
 			"scopeName": "source.yaml",
 			"path": "./syntaxes/yaml.json"
-		}]
+		}],
+		"configurationDefaults": {
+			"[yaml]": {
+				"editor.insertSpaces": true,
+				"editor.tabSize": 2
+			}
+		}
 	}
 }

@@ -1,0 +1,636 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+'use strict';
+
+import * as assert from 'assert';
+import { Position } from 'vs/editor/common/core/position';
+import { FindMatch, EndOfLineSequence } from 'vs/editor/common/editorCommon';
+import { Range } from 'vs/editor/common/core/range';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { TextModelSearch, SearchParams, SearchData } from 'vs/editor/common/model/textModelSearch';
+import { getMapForWordSeparators } from 'vs/editor/common/controller/wordCharacterClassifier';
+import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
+
+// --------- Find
+suite('TextModelSearch', () => {
+
+	const usualWordSeparators = getMapForWordSeparators(USUAL_WORD_SEPARATORS);
+
+	function assertFindMatch(actual: FindMatch, expectedRange: Range, expectedMatches: string[] = null): void {
+		assert.deepEqual(actual, new FindMatch(expectedRange, expectedMatches));
+	}
+
+	function _assertFindMatches(model: TextModel, searchParams: SearchParams, expectedMatches: FindMatch[]): void {
+		let actual = TextModelSearch.findMatches(model, searchParams, model.getFullModelRange(), false, 1000);
+		assert.deepEqual(actual, expectedMatches, 'findMatches OK');
+
+		// test `findNextMatch`
+		let startPos = new Position(1, 1);
+		let match = TextModelSearch.findNextMatch(model, searchParams, startPos, false);
+		assert.deepEqual(match, expectedMatches[0], `findNextMatch ${startPos}`);
+		for (let i = 0; i < expectedMatches.length; i++) {
+			startPos = expectedMatches[i].range.getStartPosition();
+			match = TextModelSearch.findNextMatch(model, searchParams, startPos, false);
+			assert.deepEqual(match, expectedMatches[i], `findNextMatch ${startPos}`);
+		}
+
+		// test `findPrevMatch`
+		startPos = new Position(model.getLineCount(), model.getLineMaxColumn(model.getLineCount()));
+		match = TextModelSearch.findPreviousMatch(model, searchParams, startPos, false);
+		assert.deepEqual(match, expectedMatches[expectedMatches.length - 1], `findPrevMatch ${startPos}`);
+		for (let i = 0; i < expectedMatches.length; i++) {
+			startPos = expectedMatches[i].range.getEndPosition();
+			match = TextModelSearch.findPreviousMatch(model, searchParams, startPos, false);
+			assert.deepEqual(match, expectedMatches[i], `findPrevMatch ${startPos}`);
+		}
+	}
+
+	function assertFindMatches(text: string, searchString: string, isRegex: boolean, matchCase: boolean, wordSeparators: string, _expected: [number, number, number, number][]): void {
+		let expectedRanges = _expected.map(entry => new Range(entry[0], entry[1], entry[2], entry[3]));
+		let expectedMatches = expectedRanges.map(entry => new FindMatch(entry, null));
+		let searchParams = new SearchParams(searchString, isRegex, matchCase, wordSeparators);
+
+		let model = TextModel.createFromString(text);
+		_assertFindMatches(model, searchParams, expectedMatches);
+		model.dispose();
+
+
+		let model2 = TextModel.createFromString(text);
+		model2.setEOL(EndOfLineSequence.CRLF);
+		_assertFindMatches(model2, searchParams, expectedMatches);
+		model2.dispose();
+	}
+
+	let regularText = [
+		'This is some foo - bar text which contains foo and bar - as in Barcelona.',
+		'Now it begins a word fooBar and now it is caps Foo-isn\'t this great?',
+		'And here\'s a dull line with nothing interesting in it',
+		'It is also interesting if it\'s part of a word like amazingFooBar',
+		'Again nothing interesting here'
+	];
+
+	test('Simple find', () => {
+		assertFindMatches(
+			regularText.join('\n'),
+			'foo', false, false, null,
+			[
+				[1, 14, 1, 17],
+				[1, 44, 1, 47],
+				[2, 22, 2, 25],
+				[2, 48, 2, 51],
+				[4, 59, 4, 62]
+			]
+		);
+	});
+
+	test('Case sensitive find', () => {
+		assertFindMatches(
+			regularText.join('\n'),
+			'foo', false, true, null,
+			[
+				[1, 14, 1, 17],
+				[1, 44, 1, 47],
+				[2, 22, 2, 25]
+			]
+		);
+	});
+
+	test('Whole words find', () => {
+		assertFindMatches(
+			regularText.join('\n'),
+			'foo', false, false, USUAL_WORD_SEPARATORS,
+			[
+				[1, 14, 1, 17],
+				[1, 44, 1, 47],
+				[2, 48, 2, 51]
+			]
+		);
+	});
+
+	test('/^/ find', () => {
+		assertFindMatches(
+			regularText.join('\n'),
+			'^', true, false, null,
+			[
+				[1, 1, 1, 1],
+				[2, 1, 2, 1],
+				[3, 1, 3, 1],
+				[4, 1, 4, 1],
+				[5, 1, 5, 1]
+			]
+		);
+	});
+
+	test('/$/ find', () => {
+		assertFindMatches(
+			regularText.join('\n'),
+			'$', true, false, null,
+			[
+				[1, 74, 1, 74],
+				[2, 69, 2, 69],
+				[3, 54, 3, 54],
+				[4, 65, 4, 65],
+				[5, 31, 5, 31]
+			]
+		);
+	});
+
+	test('/.*/ find', () => {
+		assertFindMatches(
+			regularText.join('\n'),
+			'.*', true, false, null,
+			[
+				[1, 1, 1, 74],
+				[2, 1, 2, 69],
+				[3, 1, 3, 54],
+				[4, 1, 4, 65],
+				[5, 1, 5, 31]
+			]
+		);
+	});
+
+	test('/^$/ find', () => {
+		assertFindMatches(
+			[
+				'This is some foo - bar text which contains foo and bar - as in Barcelona.',
+				'',
+				'And here\'s a dull line with nothing interesting in it',
+				'',
+				'Again nothing interesting here'
+			].join('\n'),
+			'^$', true, false, null,
+			[
+				[2, 1, 2, 1],
+				[4, 1, 4, 1]
+			]
+		);
+	});
+
+	test('multiline find 1', () => {
+		assertFindMatches(
+			[
+				'Just some text text',
+				'Just some text text',
+				'some text again',
+				'again some text'
+			].join('\n'),
+			'text\\n', true, false, null,
+			[
+				[1, 16, 2, 1],
+				[2, 16, 3, 1],
+			]
+		);
+	});
+
+	test('multiline find 2', () => {
+		assertFindMatches(
+			[
+				'Just some text text',
+				'Just some text text',
+				'some text again',
+				'again some text'
+			].join('\n'),
+			'text\\nJust', true, false, null,
+			[
+				[1, 16, 2, 5]
+			]
+		);
+	});
+
+	test('multiline find 3', () => {
+		assertFindMatches(
+			[
+				'Just some text text',
+				'Just some text text',
+				'some text again',
+				'again some text'
+			].join('\n'),
+			'\\nagain', true, false, null,
+			[
+				[3, 16, 4, 6]
+			]
+		);
+	});
+
+	test('multiline find 4', () => {
+		assertFindMatches(
+			[
+				'Just some text text',
+				'Just some text text',
+				'some text again',
+				'again some text'
+			].join('\n'),
+			'.*\\nJust.*\\n', true, false, null,
+			[
+				[1, 1, 3, 1]
+			]
+		);
+	});
+
+	test('multiline find with line beginning regex', () => {
+		assertFindMatches(
+			[
+				'if',
+				'else',
+				'',
+				'if',
+				'else'
+			].join('\n'),
+			'^if\\nelse', true, false, null,
+			[
+				[1, 1, 2, 5],
+				[4, 1, 5, 5]
+			]
+		);
+	});
+
+	test('matching empty lines using boundary expression', () => {
+		assertFindMatches(
+			[
+				'if',
+				'',
+				'else',
+				'  ',
+				'if',
+				' ',
+				'else'
+			].join('\n'),
+			'^\\s*$\\n', true, false, null,
+			[
+				[2, 1, 3, 1],
+				[4, 1, 5, 1],
+				[6, 1, 7, 1]
+			]
+		);
+	});
+
+	test('matching lines starting with A and ending with B', () => {
+		assertFindMatches(
+			[
+				'a if b',
+				'a',
+				'ab',
+				'eb'
+			].join('\n'),
+			'^a.*b$', true, false, null,
+			[
+				[1, 1, 1, 7],
+				[3, 1, 3, 3]
+			]
+		);
+	});
+
+	test('multiline find with line ending regex', () => {
+		assertFindMatches(
+			[
+				'if',
+				'else',
+				'',
+				'if',
+				'elseif',
+				'else'
+			].join('\n'),
+			'if\\nelse$', true, false, null,
+			[
+				[1, 1, 2, 5],
+				[5, 5, 6, 5]
+			]
+		);
+	});
+
+	test('issue #4836 - ^.*$', () => {
+		assertFindMatches(
+			[
+				'Just some text text',
+				'',
+				'some text again',
+				'',
+				'again some text'
+			].join('\n'),
+			'^.*$', true, false, null,
+			[
+				[1, 1, 1, 20],
+				[2, 1, 2, 1],
+				[3, 1, 3, 16],
+				[4, 1, 4, 1],
+				[5, 1, 5, 16],
+			]
+		);
+	});
+
+	test('multiline find for non-regex string', () => {
+		assertFindMatches(
+			[
+				'Just some text text',
+				'some text text',
+				'some text again',
+				'again some text',
+				'but not some'
+			].join('\n'),
+			'text\nsome', false, false, null,
+			[
+				[1, 16, 2, 5],
+				[2, 11, 3, 5],
+			]
+		);
+	});
+
+	test('issue #3623: Match whole word does not work for not latin characters', () => {
+		assertFindMatches(
+			[
+				'я',
+				'компилятор',
+				'обфускация',
+				':я-я'
+			].join('\n'),
+			'я', false, false, USUAL_WORD_SEPARATORS,
+			[
+				[1, 1, 1, 2],
+				[4, 2, 4, 3],
+				[4, 4, 4, 5],
+			]
+		);
+	});
+
+	test('issue #27459: Match whole words regression', () => {
+		assertFindMatches(
+			[
+				'this._register(this._textAreaInput.onKeyDown((e: IKeyboardEvent) => {',
+				'	this._viewController.emitKeyDown(e);',
+				'}));',
+			].join('\n'),
+			'((e: ', false, false, USUAL_WORD_SEPARATORS,
+			[
+				[1, 45, 1, 50]
+			]
+		);
+	});
+
+	test('issue #27594: Search results disappear', () => {
+		assertFindMatches(
+			[
+				'this.server.listen(0);',
+			].join('\n'),
+			'listen(', false, false, USUAL_WORD_SEPARATORS,
+			[
+				[1, 13, 1, 20]
+			]
+		);
+	});
+
+	test('findNextMatch without regex', () => {
+		let model = TextModel.createFromString('line line one\nline two\nthree');
+
+		let searchParams = new SearchParams('line', false, false, null);
+
+		let actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), false);
+		assertFindMatch(actual, new Range(1, 1, 1, 5));
+
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
+		assertFindMatch(actual, new Range(1, 6, 1, 10));
+
+		actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 3), false);
+		assertFindMatch(actual, new Range(1, 6, 1, 10));
+
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
+		assertFindMatch(actual, new Range(2, 1, 2, 5));
+
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
+		assertFindMatch(actual, new Range(1, 1, 1, 5));
+
+		model.dispose();
+	});
+
+	test('findNextMatch with beginning boundary regex', () => {
+		let model = TextModel.createFromString('line one\nline two\nthree');
+
+		let searchParams = new SearchParams('^line', true, false, null);
+
+		let actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), false);
+		assertFindMatch(actual, new Range(1, 1, 1, 5));
+
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
+		assertFindMatch(actual, new Range(2, 1, 2, 5));
+
+		actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 3), false);
+		assertFindMatch(actual, new Range(2, 1, 2, 5));
+
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
+		assertFindMatch(actual, new Range(1, 1, 1, 5));
+
+		model.dispose();
+	});
+
+	test('findNextMatch with beginning boundary regex and line has repetitive beginnings', () => {
+		let model = TextModel.createFromString('line line one\nline two\nthree');
+
+		let searchParams = new SearchParams('^line', true, false, null);
+
+		let actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), false);
+		assertFindMatch(actual, new Range(1, 1, 1, 5));
+
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
+		assertFindMatch(actual, new Range(2, 1, 2, 5));
+
+		actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 3), false);
+		assertFindMatch(actual, new Range(2, 1, 2, 5));
+
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
+		assertFindMatch(actual, new Range(1, 1, 1, 5));
+
+		model.dispose();
+	});
+
+	test('findNextMatch with beginning boundary multiline regex and line has repetitive beginnings', () => {
+		let model = TextModel.createFromString('line line one\nline two\nline three\nline four');
+
+		let searchParams = new SearchParams('^line.*\\nline', true, false, null);
+
+		let actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), false);
+		assertFindMatch(actual, new Range(1, 1, 2, 5));
+
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
+		assertFindMatch(actual, new Range(3, 1, 4, 5));
+
+		actual = TextModelSearch.findNextMatch(model, searchParams, new Position(2, 1), false);
+		assertFindMatch(actual, new Range(2, 1, 3, 5));
+
+		model.dispose();
+	});
+
+	test('findNextMatch with ending boundary regex', () => {
+		let model = TextModel.createFromString('one line line\ntwo line\nthree');
+
+		let searchParams = new SearchParams('line$', true, false, null);
+
+		let actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), false);
+		assertFindMatch(actual, new Range(1, 10, 1, 14));
+
+		actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 4), false);
+		assertFindMatch(actual, new Range(1, 10, 1, 14));
+
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
+		assertFindMatch(actual, new Range(2, 5, 2, 9));
+
+		actual = TextModelSearch.findNextMatch(model, searchParams, actual.range.getEndPosition(), false);
+		assertFindMatch(actual, new Range(1, 10, 1, 14));
+
+		model.dispose();
+	});
+
+	test('findMatches with capturing matches', () => {
+		let model = TextModel.createFromString('one line line\ntwo line\nthree');
+
+		let searchParams = new SearchParams('(l(in)e)', true, false, null);
+
+		let actual = TextModelSearch.findMatches(model, searchParams, model.getFullModelRange(), true, 100);
+		assert.deepEqual(actual, [
+			new FindMatch(new Range(1, 5, 1, 9), ['line', 'line', 'in']),
+			new FindMatch(new Range(1, 10, 1, 14), ['line', 'line', 'in']),
+			new FindMatch(new Range(2, 5, 2, 9), ['line', 'line', 'in']),
+		]);
+
+		model.dispose();
+	});
+
+	test('findMatches multiline with capturing matches', () => {
+		let model = TextModel.createFromString('one line line\ntwo line\nthree');
+
+		let searchParams = new SearchParams('(l(in)e)\\n', true, false, null);
+
+		let actual = TextModelSearch.findMatches(model, searchParams, model.getFullModelRange(), true, 100);
+		assert.deepEqual(actual, [
+			new FindMatch(new Range(1, 10, 2, 1), ['line\n', 'line', 'in']),
+			new FindMatch(new Range(2, 5, 3, 1), ['line\n', 'line', 'in']),
+		]);
+
+		model.dispose();
+	});
+
+	test('findNextMatch with capturing matches', () => {
+		let model = TextModel.createFromString('one line line\ntwo line\nthree');
+
+		let searchParams = new SearchParams('(l(in)e)', true, false, null);
+
+		let actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), true);
+		assertFindMatch(actual, new Range(1, 5, 1, 9), ['line', 'line', 'in']);
+
+		model.dispose();
+	});
+
+	test('findNextMatch multiline with capturing matches', () => {
+		let model = TextModel.createFromString('one line line\ntwo line\nthree');
+
+		let searchParams = new SearchParams('(l(in)e)\\n', true, false, null);
+
+		let actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), true);
+		assertFindMatch(actual, new Range(1, 10, 2, 1), ['line\n', 'line', 'in']);
+
+		model.dispose();
+	});
+
+	test('findPreviousMatch with capturing matches', () => {
+		let model = TextModel.createFromString('one line line\ntwo line\nthree');
+
+		let searchParams = new SearchParams('(l(in)e)', true, false, null);
+
+		let actual = TextModelSearch.findPreviousMatch(model, searchParams, new Position(1, 1), true);
+		assertFindMatch(actual, new Range(2, 5, 2, 9), ['line', 'line', 'in']);
+
+		model.dispose();
+	});
+
+	test('findPreviousMatch multiline with capturing matches', () => {
+		let model = TextModel.createFromString('one line line\ntwo line\nthree');
+
+		let searchParams = new SearchParams('(l(in)e)\\n', true, false, null);
+
+		let actual = TextModelSearch.findPreviousMatch(model, searchParams, new Position(1, 1), true);
+		assertFindMatch(actual, new Range(2, 5, 3, 1), ['line\n', 'line', 'in']);
+
+		model.dispose();
+	});
+
+	test('\\n matches \\r\\n', () => {
+		let model = TextModel.createFromString('a\r\nb\r\nc\r\nd\r\ne\r\nf\r\ng\r\nh\r\ni');
+
+		assert.equal(model.getEOL(), '\r\n');
+
+		let searchParams = new SearchParams('h\\n', true, false, null);
+		let actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), true);
+		actual = TextModelSearch.findMatches(model, searchParams, model.getFullModelRange(), true, 1000)[0];
+		assertFindMatch(actual, new Range(8, 1, 9, 1), ['h\n']);
+
+		searchParams = new SearchParams('g\\nh\\n', true, false, null);
+		actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), true);
+		actual = TextModelSearch.findMatches(model, searchParams, model.getFullModelRange(), true, 1000)[0];
+		assertFindMatch(actual, new Range(7, 1, 9, 1), ['g\nh\n']);
+
+		searchParams = new SearchParams('\\ni', true, false, null);
+		actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), true);
+		actual = TextModelSearch.findMatches(model, searchParams, model.getFullModelRange(), true, 1000)[0];
+		assertFindMatch(actual, new Range(8, 2, 9, 2), ['\ni']);
+
+		model.dispose();
+	});
+
+	test('\\r can never be found', () => {
+		let model = TextModel.createFromString('a\r\nb\r\nc\r\nd\r\ne\r\nf\r\ng\r\nh\r\ni');
+
+		assert.equal(model.getEOL(), '\r\n');
+
+		let searchParams = new SearchParams('\\r\\n', true, false, null);
+		let actual = TextModelSearch.findNextMatch(model, searchParams, new Position(1, 1), true);
+		assert.equal(actual, null);
+		assert.deepEqual(TextModelSearch.findMatches(model, searchParams, model.getFullModelRange(), true, 1000), []);
+
+		model.dispose();
+	});
+
+	function assertParseSearchResult(searchString: string, isRegex: boolean, matchCase: boolean, wordSeparators: string, expected: SearchData): void {
+		let searchParams = new SearchParams(searchString, isRegex, matchCase, wordSeparators);
+		let actual = searchParams.parseSearchRequest();
+
+		if (expected === null) {
+			assert.ok(actual === null);
+		} else {
+			assert.deepEqual(actual.regex, expected.regex);
+			assert.deepEqual(actual.simpleSearch, expected.simpleSearch);
+			if (wordSeparators) {
+				assert.ok(actual.wordSeparators !== null);
+			} else {
+				assert.ok(actual.wordSeparators === null);
+			}
+		}
+	}
+
+	test('parseSearchRequest invalid', () => {
+		assertParseSearchResult('', true, true, USUAL_WORD_SEPARATORS, null);
+		assertParseSearchResult(null, true, true, USUAL_WORD_SEPARATORS, null);
+		assertParseSearchResult('(', true, false, null, null);
+	});
+
+	test('parseSearchRequest non regex', () => {
+		assertParseSearchResult('foo', false, false, null, new SearchData(/foo/gi, null, null));
+		assertParseSearchResult('foo', false, false, USUAL_WORD_SEPARATORS, new SearchData(/foo/gi, usualWordSeparators, null));
+		assertParseSearchResult('foo', false, true, null, new SearchData(/foo/g, null, 'foo'));
+		assertParseSearchResult('foo', false, true, USUAL_WORD_SEPARATORS, new SearchData(/foo/g, usualWordSeparators, 'foo'));
+		assertParseSearchResult('foo\\n', false, false, null, new SearchData(/foo\\n/gi, null, null));
+		assertParseSearchResult('foo\\\\n', false, false, null, new SearchData(/foo\\\\n/gi, null, null));
+		assertParseSearchResult('foo\\r', false, false, null, new SearchData(/foo\\r/gi, null, null));
+		assertParseSearchResult('foo\\\\r', false, false, null, new SearchData(/foo\\\\r/gi, null, null));
+	});
+
+	test('parseSearchRequest regex', () => {
+		assertParseSearchResult('foo', true, false, null, new SearchData(/foo/gi, null, null));
+		assertParseSearchResult('foo', true, false, USUAL_WORD_SEPARATORS, new SearchData(/foo/gi, usualWordSeparators, null));
+		assertParseSearchResult('foo', true, true, null, new SearchData(/foo/g, null, null));
+		assertParseSearchResult('foo', true, true, USUAL_WORD_SEPARATORS, new SearchData(/foo/g, usualWordSeparators, null));
+		assertParseSearchResult('foo\\n', true, false, null, new SearchData(/foo\n/gim, null, null));
+		assertParseSearchResult('foo\\\\n', true, false, null, new SearchData(/foo\\n/gi, null, null));
+		assertParseSearchResult('foo\\r', true, false, null, new SearchData(/foo\r/gim, null, null));
+		assertParseSearchResult('foo\\\\r', true, false, null, new SearchData(/foo\\r/gi, null, null));
+	});
+});

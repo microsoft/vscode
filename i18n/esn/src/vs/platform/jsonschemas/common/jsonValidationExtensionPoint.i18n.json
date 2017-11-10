@@ -7,8 +7,8 @@
 	"contributes.jsonValidation": "Aporta la configuración del esquema JSON.",
 	"contributes.jsonValidation.fileMatch": "Patrón de archivo para buscar coincidencias, por ejemplo, \"package.json\" o \"*.launch\".",
 	"contributes.jsonValidation.url": "Dirección URL de esquema ('http:', 'https:') o ruta de acceso relativa a la carpeta de extensión ('./').",
-	"invalid.fileMatch": "configuration.jsonValidation.fileMatch debe haberse definido",
 	"invalid.jsonValidation": "configuration.jsonValidation debe ser una matriz",
+	"invalid.fileMatch": "configuration.jsonValidation.fileMatch debe haberse definido",
 	"invalid.url": "configuration.jsonValidation.url debe ser una dirección URL o una ruta de acceso relativa",
 	"invalid.url.fileschema": "configuration.jsonValidation.url es una dirección URL relativa no válida: {0}",
 	"invalid.url.schema": "configuration.jsonValidation.url debe empezar por \"http:\", \"https:\" o \"./\" para hacer referencia a los esquemas ubicados en la extensión"

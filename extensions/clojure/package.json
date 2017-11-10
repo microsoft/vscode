@@ -3,17 +3,20 @@
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js atom/language-clojure grammars/clojure.cson ./syntaxes/clojure.tmLanguage.json"
+	},
 	"contributes": {
 		"languages": [{
 			"id": "clojure",
 			"aliases": ["Clojure", "clojure"],
-			"extensions": [".clj", ".cljs", ".cljx", ".clojure", ".edn"],
+			"extensions": [".clj", ".cljs", ".cljc", ".cljx", ".clojure", ".edn"],
 			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
 			"language": "clojure",
 			"scopeName": "source.clojure",
-			"path": "./syntaxes/Clojure.tmLanguage"
+			"path": "./syntaxes/clojure.tmLanguage.json"
 		}]
 	}
 }

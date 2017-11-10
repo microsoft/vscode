@@ -6,14 +6,14 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { TimeoutTimer } from 'vs/base/common/async';
-import { FastDomNode } from 'vs/base/browser/styleMutator';
+import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 
 export class ScrollbarVisibilityController extends Disposable {
 	private _visibility: ScrollbarVisibility;
 	private _visibleClassName: string;
 	private _invisibleClassName: string;
-	private _domNode: FastDomNode;
+	private _domNode: FastDomNode<HTMLElement>;
 	private _shouldBeVisible: boolean;
 	private _isNeeded: boolean;
 	private _isVisible: boolean;
@@ -59,7 +59,7 @@ export class ScrollbarVisibilityController extends Disposable {
 		}
 	}
 
-	public setDomNode(domNode: FastDomNode): void {
+	public setDomNode(domNode: FastDomNode<HTMLElement>): void {
 		this._domNode = domNode;
 		this._domNode.setClassName(this._invisibleClassName);
 

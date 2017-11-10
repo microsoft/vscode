@@ -6,18 +6,17 @@
 
 import * as paths from 'vs/base/common/paths';
 import * as types from 'vs/base/common/types';
-import * as Map from 'vs/base/common/map';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
-import { IRange } from 'vs/editor/common/editorCommon';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { IMarker, MarkerStatistics } from 'vs/platform/markers/common/markers';
 import { IFilter, IMatch, or, matchesContiguousSubString, matchesPrefix, matchesFuzzy } from 'vs/base/common/filters';
 import Messages from 'vs/workbench/parts/markers/common/messages';
+import { Schemas } from 'vs/base/common/network';
 
 export interface BulkUpdater {
-	add(resource: URI, markers: IMarker[]);
-	done();
+	add(resource: URI, markers: IMarker[]): void;
+	done(): void;
 }
 
 export class Resource {
@@ -26,8 +25,8 @@ export class Resource {
 	private _path: string = null;
 
 	constructor(public uri: URI, public markers: Marker[],
-								public statistics: MarkerStatistics,
-								public matches: IMatch[] = []) {
+		public statistics: MarkerStatistics,
+		public matches: IMatch[] = []) {
 	}
 
 	public get path(): string {
@@ -47,8 +46,8 @@ export class Resource {
 
 export class Marker {
 	constructor(public id: string, public marker: IMarker,
-								public labelMatches: IMatch[] = [],
-								public sourceMatches: IMatch[] = []) { }
+		public labelMatches: IMatch[] = [],
+		public sourceMatches: IMatch[] = []) { }
 
 	public get resource(): URI {
 		return this.marker.resource;
@@ -59,11 +58,14 @@ export class Marker {
 	}
 
 	public toString(): string {
-		return [`file: '${this.marker.resource}'`,
-		`severity: '${Severity.toString(this.marker.severity)}'`,
-		`message: '${this.marker.message}'`,
-		`at: '${this.marker.startLineNumber},${this.marker.startColumn}'`,
-		`source: '${this.marker.source ? this.marker.source : ''}'`].join('\n');
+		return [
+			`file: '${this.marker.resource}'`,
+			`severity: '${Severity.toString(this.marker.severity)}'`,
+			`message: '${this.marker.message}'`,
+			`at: '${this.marker.startLineNumber},${this.marker.startColumn}'`,
+			`source: '${this.marker.source ? this.marker.source : ''}'`,
+			`code: '${this.marker.code ? this.marker.code : ''}'`
+		].join('\n');
 	}
 
 }
@@ -125,14 +127,14 @@ export class FilterOptions {
 
 export class MarkersModel {
 
-	private markersByResource: Map.LinkedMap<URI, IMarker[]>;
+	private markersByResource: Map<string, IMarker[]>;
 
 	private _filteredResources: Resource[];
 	private _nonFilteredResources: Resource[];
 	private _filterOptions: FilterOptions;
 
 	constructor(markers: IMarker[] = []) {
-		this.markersByResource = new Map.LinkedMap<URI, IMarker[]>();
+		this.markersByResource = new Map<string, IMarker[]>();
 		this._filterOptions = new FilterOptions();
 		this.update(markers);
 	}
@@ -154,7 +156,7 @@ export class MarkersModel {
 	}
 
 	public hasResource(resource: URI): boolean {
-		return this.markersByResource.has(resource);
+		return this.markersByResource.has(resource.toString());
 	}
 
 	public get nonFilteredResources(): Resource[] {
@@ -172,9 +174,9 @@ export class MarkersModel {
 		};
 	}
 
-	public update(filterOptions: FilterOptions);
-	public update(resourceUri: URI, markers: IMarker[]);
-	public update(markers: IMarker[]);
+	public update(filterOptions: FilterOptions): void;
+	public update(resourceUri: URI, markers: IMarker[]): void;
+	public update(markers: IMarker[]): void;
 	public update(arg1?: any, arg2?: any) {
 		if (arg1 instanceof FilterOptions) {
 			this._filterOptions = arg1;
@@ -198,48 +200,47 @@ export class MarkersModel {
 	private refreshResources(): void {
 		this._nonFilteredResources = [];
 		this._filteredResources = [];
-		for (const entry of this.markersByResource.entries()) {
-			const filteredResource = this.toFilteredResource(entry);
+		this.markersByResource.forEach((values, uri) => {
+			const filteredResource = this.toFilteredResource(URI.parse(uri), values);
 			if (filteredResource.markers.length) {
 				this._filteredResources.push(filteredResource);
 			} else {
 				this._nonFilteredResources.push(filteredResource);
 			}
-		}
+		});
 	}
 
 	private updateResource(resourceUri: URI, markers: IMarker[]) {
-		if (this.markersByResource.has(resourceUri)) {
-			this.markersByResource.delete(resourceUri);
+		if (this.markersByResource.has(resourceUri.toString())) {
+			this.markersByResource.delete(resourceUri.toString());
 		}
 		if (markers.length > 0) {
-			this.markersByResource.set(resourceUri, markers);
+			this.markersByResource.set(resourceUri.toString(), markers);
 		}
 	}
 
 	private updateMarkers(markers: IMarker[]) {
 		markers.forEach((marker: IMarker) => {
 			let uri: URI = marker.resource;
-			let markers: IMarker[] = this.markersByResource.get(uri);
+			let markers: IMarker[] = this.markersByResource.get(uri.toString());
 			if (!markers) {
 				markers = [];
-				this.markersByResource.set(uri, markers);
+				this.markersByResource.set(uri.toString(), markers);
 			}
 			markers.push(marker);
 		});
 	}
 
-	private toFilteredResource(entry: Map.Entry<URI, IMarker[]>) {
+	private toFilteredResource(uri: URI, values: IMarker[]) {
 		let markers: Marker[] = [];
-		for (let i = 0; i < entry.value.length; i++) {
-			const m = entry.value[i];
-			const uri = entry.key.toString();
-			if (!this._filterOptions.hasFilters() || this.filterMarker(m)) {
-				markers.push(this.toMarker(m, i, uri));
+		for (let i = 0; i < values.length; i++) {
+			const m = values[i];
+			if (uri.scheme !== Schemas.walkThrough && uri.scheme !== Schemas.walkThroughSnippet && (!this._filterOptions.hasFilters() || this.filterMarker(m))) {
+				markers.push(this.toMarker(m, i, uri.toString()));
 			}
 		}
-		const matches = this._filterOptions.hasFilters() ? FilterOptions._filter(this._filterOptions.filter, paths.basename(entry.key.fsPath)) : [];
-		return new Resource(entry.key, markers, this.getStatistics(entry.value), matches || []);
+		const matches = this._filterOptions.hasFilters() ? FilterOptions._filter(this._filterOptions.filter, paths.basename(uri.fsPath)) : [];
+		return new Resource(uri, markers, this.getStatistics(values), matches || []);
 	}
 
 	private toMarker(marker: IMarker, index: number, uri: string): Marker {

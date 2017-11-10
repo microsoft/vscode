@@ -8,17 +8,22 @@
 import env = require('vs/base/common/platform');
 import nls = require('vs/nls');
 import { QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions as QuickOpenExtensions } from 'vs/workbench/browser/quickopen';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { GotoSymbolAction, GOTO_SYMBOL_PREFIX, SCOPE_PREFIX } from 'vs/workbench/parts/quickopen/browser/gotoSymbolHandler';
-import { ShowAllCommandsAction, ALL_COMMANDS_PREFIX } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
-import { GotoLineAction, GOTO_LINE_PREFIX } from 'vs/workbench/parts/quickopen/browser/gotoLineHandler';
-import { HELP_PREFIX } from 'vs/workbench/parts/quickopen/browser/helpHandler';
+import { GotoSymbolAction, GOTO_SYMBOL_PREFIX, SCOPE_PREFIX, GotoSymbolHandler } from 'vs/workbench/parts/quickopen/browser/gotoSymbolHandler';
+import { ShowAllCommandsAction, ALL_COMMANDS_PREFIX, ClearCommandHistoryAction, CommandsHandler } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
+import { GotoLineAction, GOTO_LINE_PREFIX, GotoLineHandler } from 'vs/workbench/parts/quickopen/browser/gotoLineHandler';
+import { HELP_PREFIX, HelpHandler } from 'vs/workbench/parts/quickopen/browser/helpHandler';
+import { VIEW_PICKER_PREFIX, OpenViewPickerAction, QuickOpenViewPickerAction, ViewPickerHandler } from 'vs/workbench/parts/quickopen/browser/viewPickerHandler';
+import { inQuickOpenContext, getQuickNavigateHandler } from 'vs/workbench/browser/parts/quickopen/quickopen';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 // Register Actions
-let registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
+const registry = <IWorkbenchActionRegistry>Registry.as(ActionExtensions.WorkbenchActions);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ClearCommandHistoryAction, ClearCommandHistoryAction.ID, ClearCommandHistoryAction.LABEL), 'Clear Command History');
 registry.registerWorkbenchAction(new SyncActionDescriptor(ShowAllCommandsAction, ShowAllCommandsAction.ID, ShowAllCommandsAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_P,
 	secondary: [KeyCode.F1]
@@ -31,24 +36,58 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(GotoLineAction, GotoLi
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(GotoSymbolAction, GotoSymbolAction.ID, GotoSymbolAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O
-}), 'Go to Symbol...');
+}), 'Go to Symbol in File...');
+
+const inViewsPickerContextKey = 'inViewsPicker';
+const inViewsPickerContext = ContextKeyExpr.and(inQuickOpenContext, ContextKeyExpr.has(inViewsPickerContextKey));
+
+const viewPickerKeybinding = { primary: KeyMod.CtrlCmd | KeyCode.KEY_Q, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_Q }, linux: { primary: null } };
+
+registry.registerWorkbenchAction(new SyncActionDescriptor(OpenViewPickerAction, OpenViewPickerAction.ID, OpenViewPickerAction.LABEL), 'Open View');
+registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenViewPickerAction, QuickOpenViewPickerAction.ID, QuickOpenViewPickerAction.LABEL, viewPickerKeybinding), 'Quick Open View');
+
+const quickOpenNavigateNextInViewPickerId = 'workbench.action.quickOpenNavigateNextInViewPicker';
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: quickOpenNavigateNextInViewPickerId,
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+	handler: getQuickNavigateHandler(quickOpenNavigateNextInViewPickerId, true),
+	when: inViewsPickerContext,
+	primary: viewPickerKeybinding.primary,
+	linux: viewPickerKeybinding.linux,
+	mac: viewPickerKeybinding.mac
+});
+
+const quickOpenNavigatePreviousInViewPickerId = 'workbench.action.quickOpenNavigatePreviousInViewPicker';
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: quickOpenNavigatePreviousInViewPickerId,
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(50),
+	handler: getQuickNavigateHandler(quickOpenNavigatePreviousInViewPickerId, false),
+	when: inViewsPickerContext,
+	primary: viewPickerKeybinding.primary | KeyMod.Shift,
+	linux: viewPickerKeybinding.linux,
+	mac: {
+		primary: viewPickerKeybinding.mac.primary | KeyMod.Shift
+	}
+});
 
 // Register Quick Open Handler
 
-(<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
+Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
-		'vs/workbench/parts/quickopen/browser/commandsHandler',
-		'CommandsHandler',
+		CommandsHandler,
+		CommandsHandler.ID,
 		ALL_COMMANDS_PREFIX,
+		'inCommandsPicker',
 		nls.localize('commandsHandlerDescriptionDefault', "Show and Run Commands")
 	)
 );
 
-(<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
+Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
-		'vs/workbench/parts/quickopen/browser/gotoLineHandler',
-		'GotoLineHandler',
+		GotoLineHandler,
+		GotoLineHandler.ID,
 		GOTO_LINE_PREFIX,
+		null,
 		[
 			{
 				prefix: GOTO_LINE_PREFIX,
@@ -59,11 +98,12 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(GotoSymbolAction, Goto
 	)
 );
 
-(<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
+Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
-		'vs/workbench/parts/quickopen/browser/gotoSymbolHandler',
-		'GotoSymbolHandler',
+		GotoSymbolHandler,
+		GotoSymbolHandler.ID,
 		GOTO_SYMBOL_PREFIX,
+		'inFileSymbolsPicker',
 		[
 			{
 				prefix: GOTO_SYMBOL_PREFIX,
@@ -79,11 +119,28 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(GotoSymbolAction, Goto
 	)
 );
 
-(<IQuickOpenRegistry>Registry.as(QuickOpenExtensions.Quickopen)).registerQuickOpenHandler(
+Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
 	new QuickOpenHandlerDescriptor(
-		'vs/workbench/parts/quickopen/browser/helpHandler',
-		'HelpHandler',
+		HelpHandler,
+		HelpHandler.ID,
 		HELP_PREFIX,
+		null,
 		nls.localize('helpDescription', "Show Help")
+	)
+);
+
+Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen).registerQuickOpenHandler(
+	new QuickOpenHandlerDescriptor(
+		ViewPickerHandler,
+		ViewPickerHandler.ID,
+		VIEW_PICKER_PREFIX,
+		inViewsPickerContextKey,
+		[
+			{
+				prefix: VIEW_PICKER_PREFIX,
+				needsEditor: false,
+				description: nls.localize('viewPickerDescription', "Open View")
+			}
+		]
 	)
 );

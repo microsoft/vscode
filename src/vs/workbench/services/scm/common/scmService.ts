@@ -5,38 +5,102 @@
 
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ISCMService, IBaselineResourceProvider } from './scm';
+import Event, { Emitter } from 'vs/base/common/event';
+import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository } from './scm';
+
+class SCMInput implements ISCMInput {
+
+	private _value = '';
+
+	get value(): string {
+		return this._value;
+	}
+
+	set value(value: string) {
+		this._value = value;
+		this._onDidChange.fire(value);
+	}
+
+	private _onDidChange = new Emitter<string>();
+	get onDidChange(): Event<string> { return this._onDidChange.event; }
+
+	private _placeholder = '';
+
+	get placeholder(): string {
+		return this._placeholder;
+	}
+
+	set placeholder(placeholder: string) {
+		this._placeholder = placeholder;
+		this._onDidChangePlaceholder.fire(placeholder);
+	}
+
+	private _onDidChangePlaceholder = new Emitter<string>();
+	get onDidChangePlaceholder(): Event<string> { return this._onDidChangePlaceholder.event; }
+}
+
+class SCMRepository implements ISCMRepository {
+
+	private _onDidFocus = new Emitter<void>();
+	readonly onDidFocus: Event<void> = this._onDidFocus.event;
+
+	readonly input: ISCMInput = new SCMInput();
+
+	constructor(
+		public readonly provider: ISCMProvider,
+		private disposable: IDisposable
+	) { }
+
+	focus(): void {
+		this._onDidFocus.fire();
+	}
+
+	dispose(): void {
+		this.disposable.dispose();
+		this.provider.dispose();
+	}
+}
 
 export class SCMService implements ISCMService {
 
-	_serviceBrand;
+	_serviceBrand: any;
 
-	private providers: IBaselineResourceProvider[] = [];
+	private _providerIds = new Set<string>();
+	private _repositories: ISCMRepository[] = [];
+	get repositories(): ISCMRepository[] { return [...this._repositories]; }
 
-	getBaselineResource(resource: URI): TPromise<URI> {
-		const promises = this.providers
-			.map(p => p.getBaselineResource(resource));
+	private _onDidAddProvider = new Emitter<ISCMRepository>();
+	get onDidAddRepository(): Event<ISCMRepository> { return this._onDidAddProvider.event; }
 
-		return TPromise.join(promises).then(originalResources => {
-			// TODO@Joao: just take the first
-			return originalResources.filter(uri => !!uri)[0];
-		});
-	}
+	private _onDidRemoveProvider = new Emitter<ISCMRepository>();
+	get onDidRemoveRepository(): Event<ISCMRepository> { return this._onDidRemoveProvider.event; }
 
-	registerBaselineResourceProvider(provider: IBaselineResourceProvider): IDisposable {
-		this.providers = [provider, ...this.providers];
+	constructor() { }
 
-		return toDisposable(() => {
-			const index = this.providers.indexOf(provider);
+	registerSCMProvider(provider: ISCMProvider): ISCMRepository {
+		if (this._providerIds.has(provider.id)) {
+			throw new Error(`SCM Provider ${provider.id} already exists.`);
+		}
+
+		this._providerIds.add(provider.id);
+
+		const disposable = toDisposable(() => {
+			const index = this._repositories.indexOf(repository);
 
 			if (index < 0) {
 				return;
 			}
 
-			this.providers.splice(index, 1);
+			this._providerIds.delete(provider.id);
+			this._repositories.splice(index, 1);
+			this._onDidRemoveProvider.fire(repository);
 		});
+
+		const repository = new SCMRepository(provider, disposable);
+		this._repositories.push(repository);
+		this._onDidAddProvider.fire(repository);
+
+		return repository;
 	}
 }

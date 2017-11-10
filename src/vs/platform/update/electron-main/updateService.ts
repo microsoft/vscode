@@ -9,19 +9,19 @@ import * as fs from 'original-fs';
 import * as path from 'path';
 import * as electron from 'electron';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import Event, { Emitter, once, filterEvent } from 'vs/base/common/event';
+import Event, { Emitter, once, filterEvent, fromNodeEventEmitter } from 'vs/base/common/event';
 import { always, Throttler } from 'vs/base/common/async';
 import { memoize } from 'vs/base/common/decorators';
-import { fromEventEmitter } from 'vs/base/node/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Win32AutoUpdaterImpl } from './auto-updater.win32';
 import { LinuxAutoUpdaterImpl } from './auto-updater.linux';
-import { ILifecycleService } from 'vs/code/electron-main/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
+import { IRequestService } from 'vs/platform/request/node/request';
 import product from 'vs/platform/node/product';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IUpdateService, State, IAutoUpdater, IUpdate, IRawUpdate } from 'vs/platform/update/common/update';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export class UpdateService implements IUpdateService {
 
@@ -44,30 +44,30 @@ export class UpdateService implements IUpdateService {
 	private _onUpdateNotAvailable = new Emitter<boolean>();
 	get onUpdateNotAvailable(): Event<boolean> { return this._onUpdateNotAvailable.event; }
 
-	private _onUpdateReady = new Emitter<IUpdate>();
-	get onUpdateReady(): Event<IUpdate> { return this._onUpdateReady.event; }
+	private _onUpdateReady = new Emitter<IRawUpdate>();
+	get onUpdateReady(): Event<IRawUpdate> { return this._onUpdateReady.event; }
 
 	private _onStateChange = new Emitter<State>();
 	get onStateChange(): Event<State> { return this._onStateChange.event; }
 
 	@memoize
 	private get onRawError(): Event<string> {
-		return fromEventEmitter(this.raw, 'error', (_, message) => message);
+		return fromNodeEventEmitter(this.raw, 'error', (_, message) => message);
 	}
 
 	@memoize
 	private get onRawUpdateNotAvailable(): Event<void> {
-		return fromEventEmitter<void>(this.raw, 'update-not-available');
+		return fromNodeEventEmitter<void>(this.raw, 'update-not-available');
 	}
 
 	@memoize
 	private get onRawUpdateAvailable(): Event<{ url: string; version: string; }> {
-		return filterEvent(fromEventEmitter(this.raw, 'update-available', (_, url, version) => ({ url, version })), ({ url }) => !!url);
+		return filterEvent(fromNodeEventEmitter(this.raw, 'update-available', (_, url, version) => ({ url, version })), ({ url }) => !!url);
 	}
 
 	@memoize
 	private get onRawUpdateDownloaded(): Event<IRawUpdate> {
-		return fromEventEmitter(this.raw, 'update-downloaded', (_, releaseNotes, version, date, url) => ({ releaseNotes, version, date }));
+		return fromNodeEventEmitter(this.raw, 'update-downloaded', (_, releaseNotes, version, date, url) => ({ releaseNotes, version, date }));
 	}
 
 	get state(): State {
@@ -84,18 +84,23 @@ export class UpdateService implements IUpdateService {
 	}
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IRequestService requestService: IRequestService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		if (process.platform === 'win32') {
-			this.raw = instantiationService.createInstance(Win32AutoUpdaterImpl);
+			this.raw = new Win32AutoUpdaterImpl(requestService);
 		} else if (process.platform === 'linux') {
-			this.raw = instantiationService.createInstance(LinuxAutoUpdaterImpl);
+			this.raw = new LinuxAutoUpdaterImpl(requestService);
 		} else if (process.platform === 'darwin') {
 			this.raw = electron.autoUpdater;
 		} else {
+			return;
+		}
+
+		if (this.environmentService.disableUpdates) {
 			return;
 		}
 
@@ -135,7 +140,13 @@ export class UpdateService implements IUpdateService {
 
 	checkForUpdates(explicit = false): TPromise<IUpdate> {
 		return this.throttler.queue(() => this._checkForUpdates(explicit))
-			.then(null, err => this._onError.fire(err));
+			.then(null, err => {
+				if (explicit) {
+					this._onError.fire(err);
+				}
+
+				return null;
+			});
 	}
 
 	private _checkForUpdates(explicit: boolean): TPromise<IUpdate> {
@@ -158,6 +169,11 @@ export class UpdateService implements IUpdateService {
 			if (!update) {
 				this._onUpdateNotAvailable.fire(explicit);
 				this.state = State.Idle;
+				/* __GDPR__
+					"update:notAvailable" : {
+						"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
 				this.telemetryService.publicLog('update:notAvailable', { explicit });
 
 			} else if (update.url) {
@@ -171,9 +187,17 @@ export class UpdateService implements IUpdateService {
 				this._availableUpdate = data;
 				this._onUpdateAvailable.fire({ url: update.url, version: update.version });
 				this.state = State.UpdateAvailable;
+				/* __GDPR__
+					"update:available" : {
+						"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"version": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"currentVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
+				this.telemetryService.publicLog('update:available', { explicit, version: update.version, currentVersion: product.commit });
 
 			} else {
-				const data: IUpdate = {
+				const data: IRawUpdate = {
 					releaseNotes: update.releaseNotes,
 					version: update.version,
 					date: update.date
@@ -182,13 +206,18 @@ export class UpdateService implements IUpdateService {
 				this._availableUpdate = data;
 				this._onUpdateReady.fire(data);
 				this.state = State.UpdateDownloaded;
+				/* __GDPR__
+					"update:downloaded" : {
+						"version" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
 				this.telemetryService.publicLog('update:downloaded', { version: update.version });
 			}
 
 			return update;
 		}, err => {
 			this.state = State.Idle;
-			return TPromise.wrapError(err);
+			return TPromise.wrapError<IUpdate>(err);
 		});
 
 		return always(result, () => dispose(listeners));
@@ -214,9 +243,21 @@ export class UpdateService implements IUpdateService {
 			return null;
 		}
 
-		const platform = process.platform === 'linux' ? `linux-${process.arch}` : process.platform;
+		const platform = this.getUpdatePlatform();
 
 		return `${product.updateUrl}/api/update/${platform}/${channel}/${product.commit}`;
+	}
+
+	private getUpdatePlatform(): string {
+		if (process.platform === 'linux') {
+			return `linux-${process.arch}`;
+		}
+
+		if (process.platform === 'win32' && process.arch === 'x64') {
+			return 'win32-x64';
+		}
+
+		return process.platform;
 	}
 
 	quitAndInstall(): TPromise<void> {

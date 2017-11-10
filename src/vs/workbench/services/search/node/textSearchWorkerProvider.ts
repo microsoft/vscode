@@ -40,7 +40,8 @@ export class TextSearchWorkerProvider implements ITextSearchWorkerProvider {
 					AMD_ENTRYPOINT: 'vs/workbench/services/search/node/worker/searchWorkerApp',
 					PIPE_LOGGING: 'true',
 					VERBOSE_LOGGING: process.env.VERBOSE_LOGGING
-				}
+				},
+				useQueue: true
 			});
 
 		const channel = ipc.getNextTickChannel(client.getChannel<ISearchWorkerChannel>('searchWorker'));

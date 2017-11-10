@@ -6,35 +6,38 @@
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as lifecycle from 'vs/base/common/lifecycle';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import * as paths from 'vs/base/common/paths';
-import * as async from 'vs/base/common/async';
+import * as resources from 'vs/base/common/resources';
 import * as errors from 'vs/base/common/errors';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { isMacintosh } from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
 import { IMouseEvent, DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { getPathLabel } from 'vs/base/common/labels';
-import { IAction, IActionRunner } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ITree, IAccessibilityProvider, ContextMenuEvent, IDataSource, IRenderer, DRAG_OVER_ACCEPT, IDragAndDropData, IDragOverReaction } from 'vs/base/parts/tree/browser/tree';
+import { ITree, IAccessibilityProvider, ContextMenuEvent, IDataSource, IRenderer, DRAG_OVER_REJECT, IDragAndDropData, IDragOverReaction, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { InputBox, IInputValidationOptions } from 'vs/base/browser/ui/inputbox/inputBox';
-import { DefaultController, DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
-import { IActionProvider } from 'vs/base/parts/tree/browser/actionsRenderer';
+import { DefaultController, DefaultDragAndDrop, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
+import { Constants } from 'vs/editor/common/core/uint';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
-import { Expression, Variable, FunctionBreakpoint, StackFrame, Thread, Process, Breakpoint, ExceptionBreakpoint, Model, Scope } from 'vs/workbench/parts/debug/common/debugModel';
+import { Expression, Variable, FunctionBreakpoint, StackFrame, Thread, Process, Breakpoint, ExceptionBreakpoint, Model, Scope, ThreadAndProcessIds } from 'vs/workbench/parts/debug/common/debugModel';
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
-import { ContinueAction, StepOverAction, PauseAction, ReapplyBreakpointsAction, DisableAllBreakpointsAction, RemoveBreakpointAction, RemoveWatchExpressionAction, AddWatchExpressionAction, RemoveAllBreakpointsAction, EnableAllBreakpointsAction, StepOutAction, StepIntoAction, SetValueAction, RemoveAllWatchExpressionsAction, RestartFrameAction, AddToWatchExpressionsAction } from 'vs/workbench/parts/debug/browser/debugActions';
-import { CopyValueAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
+import { ContinueAction, StepOverAction, PauseAction, ReapplyBreakpointsAction, DisableAllBreakpointsAction, RemoveBreakpointAction, RemoveWatchExpressionAction, AddWatchExpressionAction, EditWatchExpressionAction, RemoveAllBreakpointsAction, EnableAllBreakpointsAction, StepOutAction, StepIntoAction, SetValueAction, RemoveAllWatchExpressionsAction, RestartFrameAction, AddToWatchExpressionsAction, StopAction, RestartAction } from 'vs/workbench/parts/debug/browser/debugActions';
+import { CopyValueAction, CopyStackTraceAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
-
+import { once } from 'vs/base/common/functional';
+import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 const $ = dom.$;
 const booleanRegex = /^true|false$/i;
@@ -46,6 +49,12 @@ export interface IRenderValueOptions {
 	showChanged?: boolean;
 	maxValueLength?: number;
 	showHover?: boolean;
+	colorize?: boolean;
+}
+
+function replaceWhitespace(value: string): string {
+	const map: { [x: string]: string } = { '\n': '\\n', '\r': '\\r', '\t': '\\t' };
+	return value.replace(/[\n\r\t]/g, char => map[char]);
 }
 
 export function renderExpressionValue(expressionOrValue: debug.IExpression | string, container: HTMLElement, options: IRenderValueOptions): void {
@@ -59,12 +68,18 @@ export function renderExpressionValue(expressionOrValue: debug.IExpression | str
 		if (value !== Expression.DEFAULT_VALUE) {
 			dom.addClass(container, 'error');
 		}
-	} else if (!isNaN(+value)) {
-		dom.addClass(container, 'number');
-	} else if (booleanRegex.test(value)) {
-		dom.addClass(container, 'boolean');
-	} else if (stringRegex.test(value)) {
-		dom.addClass(container, 'string');
+	}
+
+	if (options.colorize && typeof expressionOrValue !== 'string') {
+		if (expressionOrValue.type === 'number' || expressionOrValue.type === 'boolean' || expressionOrValue.type === 'string') {
+			dom.addClass(container, expressionOrValue.type);
+		} else if (!isNaN(+value)) {
+			dom.addClass(container, 'number');
+		} else if (booleanRegex.test(value)) {
+			dom.addClass(container, 'boolean');
+		} else if (stringRegex.test(value)) {
+			dom.addClass(container, 'string');
+		}
 	}
 
 	if (options.showChanged && (<any>expressionOrValue).valueChanged && value !== Expression.DEFAULT_VALUE) {
@@ -76,7 +91,7 @@ export function renderExpressionValue(expressionOrValue: debug.IExpression | str
 		value = value.substr(0, options.maxValueLength) + '...';
 	}
 	if (value && !options.preserveWhitespace) {
-		container.textContent = value.replace(/[\n\r\t]/g, char => '\\' + char);
+		container.textContent = replaceWhitespace(value);
 	} else {
 		container.textContent = value;
 	}
@@ -87,8 +102,8 @@ export function renderExpressionValue(expressionOrValue: debug.IExpression | str
 
 export function renderVariable(tree: ITree, variable: Variable, data: IVariableTemplateData, showChanged: boolean): void {
 	if (variable.available) {
-		data.name.textContent = variable.name;
-		data.name.title = variable.type ? variable.type : '';
+		data.name.textContent = replaceWhitespace(variable.name);
+		data.name.title = variable.type ? variable.type : variable.name;
 	}
 
 	if (variable.value) {
@@ -97,7 +112,8 @@ export function renderVariable(tree: ITree, variable: Variable, data: IVariableT
 			showChanged,
 			maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
 			preserveWhitespace: false,
-			showHover: true
+			showHover: true,
+			colorize: true
 		});
 	} else {
 		data.value.textContent = '';
@@ -112,22 +128,24 @@ interface IRenameBoxOptions {
 	validationOptions?: IInputValidationOptions;
 }
 
-function renderRenameBox(debugService: debug.IDebugService, contextViewService: IContextViewService, tree: ITree, element: any, container: HTMLElement, options: IRenameBoxOptions): void {
+function renderRenameBox(debugService: debug.IDebugService, contextViewService: IContextViewService, themeService: IThemeService, tree: ITree, element: any, container: HTMLElement, options: IRenameBoxOptions): void {
 	let inputBoxContainer = dom.append(container, $('.inputBoxContainer'));
 	let inputBox = new InputBox(inputBoxContainer, contextViewService, {
 		validationOptions: options.validationOptions,
 		placeholder: options.placeholder,
 		ariaLabel: options.ariaLabel
 	});
+	const styler = attachInputBoxStyler(inputBox, themeService);
 
+	tree.setHighlight();
 	inputBox.value = options.initialValue ? options.initialValue : '';
 	inputBox.focus();
 	inputBox.select();
 
 	let disposed = false;
-	const toDispose: [lifecycle.IDisposable] = [inputBox];
+	const toDispose: lifecycle.IDisposable[] = [inputBox, styler];
 
-	const wrapUp = async.once((renamed: boolean) => {
+	const wrapUp = once((renamed: boolean) => {
 		if (!disposed) {
 			disposed = true;
 			if (element instanceof Expression && renamed && inputBox.value) {
@@ -143,7 +161,10 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 				if (renamed && element.value !== inputBox.value) {
 					element.setVariable(inputBox.value)
 						// if everything went fine we need to refresh ui elements since the variable update can change watch and variables view
-						.done(() => tree.refresh(element, false), errors.onUnexpectedError);
+						.done(() => {
+							tree.refresh(element, false);
+							debugService.evaluateWatchExpressions();
+						}, errors.onUnexpectedError);
 				}
 			}
 
@@ -161,6 +182,8 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 		const isEscape = e.equals(KeyCode.Escape);
 		const isEnter = e.equals(KeyCode.Enter);
 		if (isEscape || isEnter) {
+			e.preventDefault();
+			e.stopPropagation();
 			wrapUp(isEnter);
 		}
 	}));
@@ -169,12 +192,12 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 	}));
 }
 
-function getSourceName(source: Source, contextService: IWorkspaceContextService): string {
-	if (source.inMemory) {
+function getSourceName(source: Source, contextService: IWorkspaceContextService, environmentService?: IEnvironmentService): string {
+	if (source.name) {
 		return source.name;
 	}
 
-	return getPathLabel(paths.basename(source.uri.fsPath), contextService);
+	return resources.basenameOrAuthority(source.uri);
 }
 
 export class BaseDebugController extends DefaultController {
@@ -185,27 +208,17 @@ export class BaseDebugController extends DefaultController {
 		private actionProvider: IActionProvider,
 		menuId: MenuId,
 		@debug.IDebugService protected debugService: debug.IDebugService,
+		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService menuService: IMenuService
 	) {
-		super();
+		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP, keyboardSupport: false });
 
 		this.contributedContextMenu = menuService.createMenu(menuId, contextKeyService);
-		if (isMacintosh) {
-			this.downKeyBindingDispatcher.set(KeyMod.CtrlCmd | KeyCode.Backspace, this.onDelete.bind(this));
-		} else {
-			this.downKeyBindingDispatcher.set(KeyCode.Delete, this.onDelete.bind(this));
-			this.downKeyBindingDispatcher.set(KeyMod.Shift | KeyCode.Delete, this.onDelete.bind(this));
-		}
-		if (isMacintosh) {
-			this.downKeyBindingDispatcher.set(KeyCode.Enter, this.onRename.bind(this));
-		} else {
-			this.downKeyBindingDispatcher.set(KeyCode.F2, this.onRename.bind(this));
-		}
 	}
 
-	public onContextMenu(tree: ITree, element: debug.IEnablement, event: ContextMenuEvent): boolean {
+	public onContextMenu(tree: ITree, element: debug.IEnablement, event: ContextMenuEvent, focusElement = true): boolean {
 		if (event.target && event.target.tagName && event.target.tagName.toLowerCase() === 'input') {
 			return false;
 		}
@@ -213,14 +226,16 @@ export class BaseDebugController extends DefaultController {
 		event.preventDefault();
 		event.stopPropagation();
 
-		tree.setFocus(element);
+		if (focusElement) {
+			tree.setFocus(element);
+		}
 
 		if (this.actionProvider.hasSecondaryActions(tree, element)) {
-			const anchor = { x: event.posx + 1, y: event.posy };
+			const anchor = { x: event.posx, y: event.posy };
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => anchor,
 				getActions: () => this.actionProvider.getSecondaryActions(tree, element).then(actions => {
-					fillInActions(this.contributedContextMenu, this.getContext(element), actions);
+					fillInActions(this.contributedContextMenu, { arg: this.getContext(element) }, actions);
 					return actions;
 				}),
 				onHide: (wasCancelled?: boolean) => {
@@ -237,14 +252,6 @@ export class BaseDebugController extends DefaultController {
 		return false;
 	}
 
-	protected onDelete(tree: ITree, event: IKeyboardEvent): boolean {
-		return false;
-	}
-
-	protected onRename(tree: ITree, event: IKeyboardEvent): boolean {
-		return false;
-	}
-
 	protected getContext(element: any): any {
 		return undefined;
 	}
@@ -252,108 +259,58 @@ export class BaseDebugController extends DefaultController {
 
 // call stack
 
-class ThreadAndProcessIds implements debug.ITreeElement {
-	constructor(public processId: string, public threadId: number) { }
-
-	public getId(): string {
-		return `${this.processId}:${this.threadId}`;
-	}
-}
-
 export class CallStackController extends BaseDebugController {
 
 	protected onLeftClick(tree: ITree, element: any, event: IMouseEvent): boolean {
 		if (element instanceof ThreadAndProcessIds) {
 			return this.showMoreStackFrames(tree, element);
 		}
-		this.focusStackFrame(element, event, true);
+		if (element instanceof StackFrame) {
+			super.onLeftClick(tree, element, event);
+			this.focusStackFrame(element, event, event.detail !== 2);
+			return true;
+		}
 
 		return super.onLeftClick(tree, element, event);
 	}
 
-	protected onEnter(tree: ITree, event: IKeyboardEvent): boolean {
-		const element = tree.getFocus();
-		if (element instanceof ThreadAndProcessIds) {
-			return this.showMoreStackFrames(tree, element);
-		}
-		this.focusStackFrame(element, event, false);
-
-		return super.onEnter(tree, event);
-	}
-
-	protected onUp(tree: ITree, event: IKeyboardEvent): boolean {
-		super.onUp(tree, event);
-		this.focusStackFrame(tree.getFocus(), event, true);
-
-		return true;
-	}
-
-	protected onPageUp(tree: ITree, event: IKeyboardEvent): boolean {
-		super.onPageUp(tree, event);
-		this.focusStackFrame(tree.getFocus(), event, true);
-
-		return true;
-	}
-
-	protected onDown(tree: ITree, event: IKeyboardEvent): boolean {
-		super.onDown(tree, event);
-		this.focusStackFrame(tree.getFocus(), event, true);
-
-		return true;
-	}
-
-	protected onPageDown(tree: ITree, event: IKeyboardEvent): boolean {
-		super.onPageDown(tree, event);
-		this.focusStackFrame(tree.getFocus(), event, true);
-
-		return true;
-	}
-
 	protected getContext(element: any): any {
 		if (element instanceof StackFrame) {
+			if (element.source.inMemory) {
+				return element.source.raw.path || element.source.reference;
+			}
+
 			return element.source.uri.toString();
+		}
+		if (element instanceof Thread) {
+			return element.threadId;
 		}
 	}
 
 	// user clicked / pressed on 'Load More Stack Frames', get those stack frames and refresh the tree.
-	private showMoreStackFrames(tree: ITree, threadAndProcessIds: ThreadAndProcessIds): boolean {
+	public showMoreStackFrames(tree: ITree, threadAndProcessIds: ThreadAndProcessIds): boolean {
 		const process = this.debugService.getModel().getProcesses().filter(p => p.getId() === threadAndProcessIds.processId).pop();
 		const thread = process && process.getThread(threadAndProcessIds.threadId);
 		if (thread) {
-			(<Thread>thread).fetchCallStack(true)
+			(<Thread>thread).fetchCallStack()
 				.done(() => tree.refresh(), errors.onUnexpectedError);
 		}
 
 		return true;
 	}
 
-	private focusStackFrame(element: any, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
-		let stackFrame: debug.IStackFrame;
-		let process: debug.IProcess;
-		if (element instanceof StackFrame) {
-			stackFrame = element;
-			process = element.thread.process;
-		}
-		if (element instanceof Thread) {
-			process = element.process;
-		}
-		if (element instanceof Process) {
-			process = element;
-		}
-
-		this.debugService.focusStackFrameAndEvaluate(stackFrame, process).done(null, errors.onUnexpectedError);
-
-		if (stackFrame) {
+	public focusStackFrame(stackFrame: debug.IStackFrame, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
+		this.debugService.focusStackFrameAndEvaluate(stackFrame, undefined, true).then(() => {
 			const sideBySide = (event && (event.ctrlKey || event.metaKey));
-			this.debugService.openOrRevealSource(stackFrame.source, stackFrame.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
-		}
+			return stackFrame.openInEditor(this.editorService, preserveFocus, sideBySide);
+		}, errors.onUnexpectedError);
 	}
 }
 
 
 export class CallStackActionProvider implements IActionProvider {
 
-	constructor( @IInstantiationService private instantiationService: IInstantiationService, @debug.IDebugService private debugService: debug.IDebugService) {
+	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
 		// noop
 	}
 
@@ -366,12 +323,15 @@ export class CallStackActionProvider implements IActionProvider {
 	}
 
 	public hasSecondaryActions(tree: ITree, element: any): boolean {
-		return element instanceof Thread || element instanceof StackFrame;
+		return element !== tree.getInput();
 	}
 
 	public getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
 		const actions: IAction[] = [];
-		if (element instanceof Thread) {
+		if (element instanceof Process) {
+			actions.push(this.instantiationService.createInstance(RestartAction, RestartAction.ID, RestartAction.LABEL));
+			actions.push(this.instantiationService.createInstance(StopAction, StopAction.ID, StopAction.LABEL));
+		} else if (element instanceof Thread) {
 			const thread = <Thread>element;
 			if (thread.stopped) {
 				actions.push(this.instantiationService.createInstance(ContinueAction, ContinueAction.ID, ContinueAction.LABEL));
@@ -382,10 +342,10 @@ export class CallStackActionProvider implements IActionProvider {
 				actions.push(this.instantiationService.createInstance(PauseAction, PauseAction.ID, PauseAction.LABEL));
 			}
 		} else if (element instanceof StackFrame) {
-			const capabilities = this.debugService.getViewModel().focusedProcess.session.configuration.capabilities;
-			if (typeof capabilities.supportsRestartFrame === 'boolean' && capabilities.supportsRestartFrame) {
+			if (element.thread.process.session.capabilities.supportsRestartFrame) {
 				actions.push(this.instantiationService.createInstance(RestartFrameAction, RestartFrameAction.ID, RestartFrameAction.LABEL));
 			}
+			actions.push(new CopyStackTraceAction(CopyStackTraceAction.ID, CopyStackTraceAction.LABEL));
 		}
 
 		return TPromise.as(actions);
@@ -423,12 +383,24 @@ export class CallStackDataSource implements IDataSource {
 	}
 
 	private getThreadChildren(thread: Thread): TPromise<any> {
-		return thread.fetchCallStack().then((callStack: any[]) => {
-			if (thread.stoppedDetails && thread.stoppedDetails.framesErrorMessage) {
-				return callStack.concat([thread.stoppedDetails.framesErrorMessage]);
+		let callStack: any[] = thread.getCallStack();
+		let callStackPromise: TPromise<any> = TPromise.as(null);
+		if (!callStack || !callStack.length) {
+			callStackPromise = thread.fetchCallStack().then(() => callStack = thread.getCallStack());
+		}
+
+		return callStackPromise.then(() => {
+			if (callStack.length === 1 && thread.process.session.capabilities.supportsDelayedStackTraceLoading) {
+				// To reduce flashing of the call stack view simply append the stale call stack
+				// once we have the correct data the tree will refresh and we will no longer display it.
+				callStack = callStack.concat(thread.getStaleCallStack().slice(1));
 			}
-			if (thread.stoppedDetails && thread.stoppedDetails.totalFrames > callStack.length) {
-				return callStack.concat([new ThreadAndProcessIds(thread.process.getId(), thread.threadId)]);
+
+			if (thread.stoppedDetails && thread.stoppedDetails.framesErrorMessage) {
+				callStack = callStack.concat([thread.stoppedDetails.framesErrorMessage]);
+			}
+			if (thread.stoppedDetails && thread.stoppedDetails.totalFrames > callStack.length && callStack.length > 1) {
+				callStack = callStack.concat([new ThreadAndProcessIds(thread.process.getId(), thread.threadId)]);
 			}
 
 			return callStack;
@@ -478,7 +450,10 @@ export class CallStackRenderer implements IRenderer {
 	private static LOAD_MORE_TEMPLATE_ID = 'loadMore';
 	private static PROCESS_TEMPLATE_ID = 'process';
 
-	constructor( @IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	constructor(
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IEnvironmentService private environmentService: IEnvironmentService
+	) {
 		// noop
 	}
 
@@ -541,7 +516,8 @@ export class CallStackRenderer implements IRenderer {
 		data.label = dom.append(data.stackFrame, $('span.label.expression'));
 		data.file = dom.append(data.stackFrame, $('.file'));
 		data.fileName = dom.append(data.file, $('span.file-name'));
-		data.lineNumber = dom.append(data.file, $('span.line-number'));
+		const wrapper = dom.append(data.file, $('span.line-number-wrapper'));
+		data.lineNumber = dom.append(wrapper, $('span.line-number'));
 
 		return data;
 	}
@@ -562,7 +538,7 @@ export class CallStackRenderer implements IRenderer {
 
 	private renderProcess(process: debug.IProcess, data: IProcessTemplateData): void {
 		data.process.title = nls.localize({ key: 'process', comment: ['Process is a noun'] }, "Process");
-		data.name.textContent = process.name;
+		data.name.textContent = process.getName(this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE);
 		const stoppedThread = process.getAllThreads().filter(t => t.stopped).pop();
 
 		data.stateLabel.textContent = stoppedThread ? nls.localize('paused', "Paused")
@@ -573,8 +549,12 @@ export class CallStackRenderer implements IRenderer {
 		data.thread.title = nls.localize('thread', "Thread");
 		data.name.textContent = thread.name;
 
-		data.stateLabel.textContent = thread.stopped ? nls.localize({ key: 'pausedOn', comment: ['indicates reason for program being paused'] }, "Paused on {0}", thread.stoppedDetails.reason)
-			: nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
+		if (thread.stopped) {
+			data.stateLabel.textContent = thread.stoppedDetails.description ||
+				thread.stoppedDetails.reason ? nls.localize({ key: 'pausedOn', comment: ['indicates reason for program being paused'] }, "Paused on {0}", thread.stoppedDetails.reason) : nls.localize('paused', "Paused");
+		} else {
+			data.stateLabel.textContent = nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
+		}
 	}
 
 	private renderError(element: string, data: IErrorTemplateData) {
@@ -587,13 +567,22 @@ export class CallStackRenderer implements IRenderer {
 	}
 
 	private renderStackFrame(stackFrame: debug.IStackFrame, data: IStackFrameTemplateData): void {
-		stackFrame.source.available ? dom.removeClass(data.stackFrame, 'disabled') : dom.addClass(data.stackFrame, 'disabled');
-		data.file.title = stackFrame.source.uri.fsPath;
+		dom.toggleClass(data.stackFrame, 'disabled', !stackFrame.source.available || stackFrame.source.presentationHint === 'deemphasize');
+		dom.toggleClass(data.stackFrame, 'label', stackFrame.presentationHint === 'label');
+		dom.toggleClass(data.stackFrame, 'subtle', stackFrame.presentationHint === 'subtle');
+
+		data.file.title = stackFrame.source.raw.path || stackFrame.source.name;
+		if (stackFrame.source.raw.origin) {
+			data.file.title += `\n${stackFrame.source.raw.origin}`;
+		}
 		data.label.textContent = stackFrame.name;
 		data.label.title = stackFrame.name;
-		data.fileName.textContent = getSourceName(stackFrame.source, this.contextService);
-		if (stackFrame.lineNumber !== undefined) {
-			data.lineNumber.textContent = `${stackFrame.lineNumber}`;
+		data.fileName.textContent = getSourceName(stackFrame.source, this.contextService, this.environmentService);
+		if (stackFrame.range.startLineNumber !== undefined) {
+			data.lineNumber.textContent = `${stackFrame.range.startLineNumber}`;
+			if (stackFrame.range.startColumn) {
+				data.lineNumber.textContent += `:${stackFrame.range.startColumn}`;
+			}
 			dom.removeClass(data.lineNumber, 'unavailable');
 		} else {
 			dom.addClass(data.lineNumber, 'unavailable');
@@ -616,7 +605,7 @@ export class CallstackAccessibilityProvider implements IAccessibilityProvider {
 			return nls.localize('threadAriaLabel', "Thread {0}, callstack, debug", (<Thread>element).name);
 		}
 		if (element instanceof StackFrame) {
-			return nls.localize('stackFrameAriaLabel', "Stack Frame {0} line {1} {2}, callstack, debug", (<StackFrame>element).name, (<StackFrame>element).lineNumber, getSourceName((<StackFrame>element).source, this.contextService));
+			return nls.localize('stackFrameAriaLabel', "Stack Frame {0} line {1} {2}, callstack, debug", (<StackFrame>element).name, (<StackFrame>element).range.startLineNumber, getSourceName((<StackFrame>element).source, this.contextService));
 		}
 
 		return null;
@@ -640,19 +629,18 @@ export class VariablesActionProvider implements IActionProvider {
 	}
 
 	public hasSecondaryActions(tree: ITree, element: any): boolean {
-		return element instanceof Variable;
+		// Only show context menu on "real" variables. Not on array chunk nodes.
+		return element instanceof Variable && !!element.value;
 	}
 
 	public getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
-		let actions: IAction[] = [];
+		const actions: IAction[] = [];
 		const variable = <Variable>element;
-		if (!variable.hasChildren) {
-			actions.push(this.instantiationService.createInstance(SetValueAction, SetValueAction.ID, SetValueAction.LABEL, variable));
-			actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, variable));
-			actions.push(new Separator());
-		}
-
+		actions.push(this.instantiationService.createInstance(SetValueAction, SetValueAction.ID, SetValueAction.LABEL, variable));
+		actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, variable));
+		actions.push(new Separator());
 		actions.push(this.instantiationService.createInstance(AddToWatchExpressionsAction, AddToWatchExpressionsAction.ID, AddToWatchExpressionsAction.LABEL, variable));
+
 		return TPromise.as(actions);
 	}
 
@@ -708,7 +696,8 @@ export class VariablesRenderer implements IRenderer {
 
 	constructor(
 		@debug.IDebugService private debugService: debug.IDebugService,
-		@IContextViewService private contextViewService: IContextViewService
+		@IContextViewService private contextViewService: IContextViewService,
+		@IThemeService private themeService: IThemeService
 	) {
 		// noop
 	}
@@ -750,7 +739,7 @@ export class VariablesRenderer implements IRenderer {
 		} else {
 			const variable = <Variable>element;
 			if (variable === this.debugService.getViewModel().getSelectedExpression() || variable.errorMessage) {
-				renderRenameBox(this.debugService, this.contextViewService, tree, variable, (<IVariableTemplateData>templateData).expression, {
+				renderRenameBox(this.debugService, this.contextViewService, this.themeService, tree, variable, (<IVariableTemplateData>templateData).expression, {
 					initialValue: variable.value,
 					ariaLabel: nls.localize('variableValueAriaLabel', "Type new variable value"),
 					validationOptions: {
@@ -792,23 +781,11 @@ export class VariablesController extends BaseDebugController {
 		// double click on primitive value: open input box to be able to set the value
 		if (element instanceof Variable && event.detail === 2) {
 			const expression = <debug.IExpression>element;
-			if (!expression.hasChildren) {
-				this.debugService.getViewModel().setSelectedExpression(expression);
-			}
+			this.debugService.getViewModel().setSelectedExpression(expression);
 			return true;
 		}
 
 		return super.onLeftClick(tree, element, event);
-	}
-
-	protected onEnter(tree: ITree, event: IKeyboardEvent): boolean {
-		const element = tree.getFocus();
-		if (element instanceof Variable && !element.hasChildren) {
-			this.debugService.getViewModel().setSelectedExpression(element);
-			return true;
-		}
-
-		return false;
 	}
 }
 
@@ -839,6 +816,7 @@ export class WatchExpressionsActionProvider implements IActionProvider {
 		if (element instanceof Expression) {
 			const expression = <Expression>element;
 			actions.push(this.instantiationService.createInstance(AddWatchExpressionAction, AddWatchExpressionAction.ID, AddWatchExpressionAction.LABEL));
+			actions.push(this.instantiationService.createInstance(EditWatchExpressionAction, EditWatchExpressionAction.ID, EditWatchExpressionAction.LABEL));
 			if (!expression.hasChildren) {
 				actions.push(this.instantiationService.createInstance(CopyValueAction, CopyValueAction.ID, CopyValueAction.LABEL, expression.value));
 			}
@@ -907,16 +885,13 @@ export class WatchExpressionsRenderer implements IRenderer {
 	private static WATCH_EXPRESSION_TEMPLATE_ID = 'watchExpression';
 	private static VARIABLE_TEMPLATE_ID = 'variables';
 	private toDispose: lifecycle.IDisposable[];
-	private actionProvider: WatchExpressionsActionProvider;
 
 	constructor(
-		actionProvider: IActionProvider,
-		private actionRunner: IActionRunner,
 		@debug.IDebugService private debugService: debug.IDebugService,
-		@IContextViewService private contextViewService: IContextViewService
+		@IContextViewService private contextViewService: IContextViewService,
+		@IThemeService private themeService: IThemeService
 	) {
 		this.toDispose = [];
-		this.actionProvider = <WatchExpressionsActionProvider>actionProvider;
 	}
 
 	public getHeight(tree: ITree, element: any): number {
@@ -963,7 +938,7 @@ export class WatchExpressionsRenderer implements IRenderer {
 	private renderWatchExpression(tree: ITree, watchExpression: debug.IExpression, data: IWatchExpressionTemplateData): void {
 		let selectedExpression = this.debugService.getViewModel().getSelectedExpression();
 		if ((selectedExpression instanceof Expression && selectedExpression.getId() === watchExpression.getId()) || (watchExpression instanceof Expression && !watchExpression.name)) {
-			renderRenameBox(this.debugService, this.contextViewService, tree, watchExpression, data.expression, {
+			renderRenameBox(this.debugService, this.contextViewService, this.themeService, tree, watchExpression, data.expression, {
 				initialValue: watchExpression.name,
 				placeholder: nls.localize('watchExpressionPlaceholder', "Expression to watch"),
 				ariaLabel: nls.localize('watchExpressionInputAriaLabel', "Type watch expression")
@@ -977,7 +952,8 @@ export class WatchExpressionsRenderer implements IRenderer {
 				showChanged: true,
 				maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
 				preserveWhitespace: false,
-				showHover: true
+				showHover: true,
+				colorize: true
 			});
 			data.name.title = watchExpression.type ? watchExpression.type : watchExpression.value;
 		}
@@ -1012,38 +988,11 @@ export class WatchExpressionsController extends BaseDebugController {
 		// double click on primitive value: open input box to be able to select and copy value.
 		if (element instanceof Expression && event.detail === 2) {
 			const expression = <debug.IExpression>element;
-			if (!expression.hasChildren) {
-				this.debugService.getViewModel().setSelectedExpression(expression);
-			}
+			this.debugService.getViewModel().setSelectedExpression(expression);
 			return true;
 		}
 
 		return super.onLeftClick(tree, element, event);
-	}
-
-	protected onRename(tree: ITree, event: IKeyboardEvent): boolean {
-		const element = tree.getFocus();
-		if (element instanceof Expression) {
-			const watchExpression = <Expression>element;
-			if (!watchExpression.hasChildren) {
-				this.debugService.getViewModel().setSelectedExpression(watchExpression);
-			}
-			return true;
-		}
-
-		return false;
-	}
-
-	protected onDelete(tree: ITree, event: IKeyboardEvent): boolean {
-		const element = tree.getFocus();
-		if (element instanceof Expression) {
-			const we = <Expression>element;
-			this.debugService.removeWatchExpressions(we.getId());
-
-			return true;
-		}
-
-		return false;
 	}
 }
 
@@ -1070,7 +1019,14 @@ export class WatchExpressionsDragAndDrop extends DefaultDragAndDrop {
 	}
 
 	public onDragOver(tree: ITree, data: IDragAndDropData, target: Expression | Model, originalEvent: DragMouseEvent): IDragOverReaction {
-		return DRAG_OVER_ACCEPT;
+		if (target instanceof Expression || target instanceof Model) {
+			return {
+				accept: true,
+				autoExpand: false
+			};
+		}
+
+		return DRAG_OVER_REJECT;
 	}
 
 	public drop(tree: ITree, data: IDragAndDropData, target: Expression | Model, originalEvent: DragMouseEvent): void {
@@ -1093,7 +1049,7 @@ export class BreakpointsActionProvider implements IActionProvider {
 	}
 
 	public hasActions(tree: ITree, element: any): boolean {
-		return false;;
+		return false;
 	}
 
 	public hasSecondaryActions(tree: ITree, element: any): boolean {
@@ -1105,11 +1061,12 @@ export class BreakpointsActionProvider implements IActionProvider {
 	}
 
 	public getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
-		const actions: IAction[] = [];
-
-		if (element instanceof Breakpoint || element instanceof FunctionBreakpoint) {
-			actions.push(this.instantiationService.createInstance(RemoveBreakpointAction, RemoveBreakpointAction.ID, RemoveBreakpointAction.LABEL));
+		if (element instanceof ExceptionBreakpoint) {
+			return TPromise.as([]);
 		}
+
+		const actions: IAction[] = [];
+		actions.push(this.instantiationService.createInstance(RemoveBreakpointAction, RemoveBreakpointAction.ID, RemoveBreakpointAction.LABEL));
 		if (this.debugService.getModel().getBreakpoints().length + this.debugService.getModel().getFunctionBreakpoints().length > 1) {
 			actions.push(this.instantiationService.createInstance(RemoveAllBreakpointsAction, RemoveAllBreakpointsAction.ID, RemoveAllBreakpointsAction.LABEL));
 			actions.push(new Separator());
@@ -1171,11 +1128,11 @@ export class BreakpointsRenderer implements IRenderer {
 	private static BREAKPOINT_TEMPLATE_ID = 'breakpoint';
 
 	constructor(
-		private actionProvider: BreakpointsActionProvider,
-		private actionRunner: IActionRunner,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@debug.IDebugService private debugService: debug.IDebugService,
-		@IContextViewService private contextViewService: IContextViewService
+		@IContextViewService private contextViewService: IContextViewService,
+		@IThemeService private themeService: IThemeService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		// noop
 	}
@@ -1237,7 +1194,7 @@ export class BreakpointsRenderer implements IRenderer {
 	}
 
 	private renderExceptionBreakpoint(exceptionBreakpoint: debug.IExceptionBreakpoint, data: IBaseBreakpointTemplateData): void {
-		data.name.textContent = exceptionBreakpoint.label || `${exceptionBreakpoint.filter} exceptions`;;
+		data.name.textContent = exceptionBreakpoint.label || `${exceptionBreakpoint.filter} exceptions`;
 		data.breakpoint.title = data.name.textContent;
 		data.checkbox.checked = exceptionBreakpoint.enabled;
 	}
@@ -1246,7 +1203,7 @@ export class BreakpointsRenderer implements IRenderer {
 		const selected = this.debugService.getViewModel().getSelectedFunctionBreakpoint();
 		if (!functionBreakpoint.name || (selected && selected.getId() === functionBreakpoint.getId())) {
 			data.name.textContent = '';
-			renderRenameBox(this.debugService, this.contextViewService, tree, functionBreakpoint, data.breakpoint, {
+			renderRenameBox(this.debugService, this.contextViewService, this.themeService, tree, functionBreakpoint, data.breakpoint, {
 				initialValue: functionBreakpoint.name,
 				placeholder: nls.localize('functionBreakpointPlaceholder', "Function to break on"),
 				ariaLabel: nls.localize('functionBreakPointInputAriaLabel', "Type function breakpoint")
@@ -1258,9 +1215,9 @@ export class BreakpointsRenderer implements IRenderer {
 
 			// Mark function breakpoints as disabled if deactivated or if debug type does not support them #9099
 			const process = this.debugService.getViewModel().focusedProcess;
-			if ((process && !process.session.configuration.capabilities.supportsFunctionBreakpoints) || !this.debugService.getModel().areBreakpointsActivated()) {
+			if ((process && !process.session.capabilities.supportsFunctionBreakpoints) || !this.debugService.getModel().areBreakpointsActivated()) {
 				tree.addTraits('disabled', [functionBreakpoint]);
-				if (process && !process.session.configuration.capabilities.supportsFunctionBreakpoints) {
+				if (process && !process.session.capabilities.supportsFunctionBreakpoints) {
 					data.breakpoint.title = nls.localize('functionBreakpointsNotSupported', "Function breakpoints are not supported by this debug type");
 				}
 			} else {
@@ -1272,12 +1229,15 @@ export class BreakpointsRenderer implements IRenderer {
 	private renderBreakpoint(tree: ITree, breakpoint: debug.IBreakpoint, data: IBreakpointTemplateData): void {
 		this.debugService.getModel().areBreakpointsActivated() ? tree.removeTraits('disabled', [breakpoint]) : tree.addTraits('disabled', [breakpoint]);
 
-		data.name.textContent = getPathLabel(paths.basename(breakpoint.uri.fsPath), this.contextService);
+		data.name.textContent = paths.basename(getPathLabel(breakpoint.uri, this.contextService));
 		data.lineNumber.textContent = breakpoint.lineNumber.toString();
-		data.filePath.textContent = getPathLabel(paths.dirname(breakpoint.uri.fsPath), this.contextService);
+		if (breakpoint.column) {
+			data.lineNumber.textContent += `:${breakpoint.column}`;
+		}
+		data.filePath.textContent = getPathLabel(resources.dirname(breakpoint.uri), this.contextService, this.environmentService);
 		data.checkbox.checked = breakpoint.enabled;
 
-		const debugActive = this.debugService.state === debug.State.Running || this.debugService.state === debug.State.Stopped || this.debugService.state === debug.State.Initializing;
+		const debugActive = this.debugService.state === debug.State.Running || this.debugService.state === debug.State.Stopped;
 		if (debugActive && !breakpoint.verified) {
 			tree.addTraits('disabled', [breakpoint]);
 			if (breakpoint.message) {
@@ -1301,7 +1261,7 @@ export class BreakpointsAccessibilityProvider implements IAccessibilityProvider 
 
 	public getAriaLabel(tree: ITree, element: any): string {
 		if (element instanceof Breakpoint) {
-			return nls.localize('breakpointAriaLabel', "Breakpoint line {0} {1}, breakpoints, debug", (<Breakpoint>element).lineNumber, getPathLabel(paths.basename((<Breakpoint>element).uri.fsPath), this.contextService), this.contextService);
+			return nls.localize('breakpointAriaLabel', "Breakpoint line {0} {1}, breakpoints, debug", (<Breakpoint>element).lineNumber, getPathLabel(resources.basenameOrAuthority((<Breakpoint>element).uri), this.contextService), this.contextService);
 		}
 		if (element instanceof FunctionBreakpoint) {
 			return nls.localize('functionBreakpointAriaLabel', "Function breakpoint {0}, breakpoints, debug", (<FunctionBreakpoint>element).name);
@@ -1322,50 +1282,41 @@ export class BreakpointsController extends BaseDebugController {
 			return true;
 		}
 		if (element instanceof Breakpoint) {
-			this.openBreakpointSource(element, event, true);
+			super.onLeftClick(tree, element, event);
+			this.openBreakpointSource(element, event, event.detail !== 2);
+			return true;
 		}
 
 		return super.onLeftClick(tree, element, event);
 	}
 
-	protected onRename(tree: ITree, event: IKeyboardEvent): boolean {
-		const element = tree.getFocus();
-		if (element instanceof FunctionBreakpoint && element.name) {
-			this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
-			return true;
-		}
-		if (element instanceof Breakpoint) {
-			this.openBreakpointSource(element, event, false);
+	public openBreakpointSource(breakpoint: Breakpoint, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
+		if (breakpoint.uri.scheme === debug.DEBUG_SCHEME && this.debugService.state === debug.State.Inactive) {
+			return;
 		}
 
-		return super.onEnter(tree, event);
-	}
-
-	protected onSpace(tree: ITree, event: IKeyboardEvent): boolean {
-		super.onSpace(tree, event);
-		const element = <debug.IEnablement>tree.getFocus();
-		this.debugService.enableOrDisableBreakpoints(!element.enabled, element).done(null, errors.onUnexpectedError);
-
-		return true;
-	}
-
-	protected onDelete(tree: ITree, event: IKeyboardEvent): boolean {
-		const element = tree.getFocus();
-		if (element instanceof Breakpoint) {
-			this.debugService.removeBreakpoints((<Breakpoint>element).getId()).done(null, errors.onUnexpectedError);
-			return true;
-		} else if (element instanceof FunctionBreakpoint) {
-			const fbp = <FunctionBreakpoint>element;
-			this.debugService.removeFunctionBreakpoints(fbp.getId()).done(null, errors.onUnexpectedError);
-
-			return true;
-		}
-
-		return false;
-	}
-
-	private openBreakpointSource(breakpoint: Breakpoint, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
 		const sideBySide = (event && (event.ctrlKey || event.metaKey));
-		this.debugService.openOrRevealSource(breakpoint.uri, breakpoint.lineNumber, preserveFocus, sideBySide).done(null, errors.onUnexpectedError);
+		const selection = breakpoint.endLineNumber ? {
+			startLineNumber: breakpoint.lineNumber,
+			endLineNumber: breakpoint.endLineNumber,
+			startColumn: breakpoint.column,
+			endColumn: breakpoint.endColumn
+		} : {
+				startLineNumber: breakpoint.lineNumber,
+				startColumn: breakpoint.column || 1,
+				endLineNumber: breakpoint.lineNumber,
+				endColumn: breakpoint.column || Constants.MAX_SAFE_SMALL_INTEGER
+			};
+
+		this.editorService.openEditor({
+			resource: breakpoint.uri,
+			options: {
+				preserveFocus,
+				selection,
+				revealIfVisible: true,
+				revealInCenterIfOutsideViewport: true,
+				pinned: !preserveFocus
+			}
+		}, sideBySide).done(undefined, errors.onUnexpectedError);
 	}
 }

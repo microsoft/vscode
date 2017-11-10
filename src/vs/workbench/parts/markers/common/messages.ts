@@ -11,7 +11,9 @@ import { IMarker } from 'vs/platform/markers/common/markers';
 export default class Messages {
 
 	public static MARKERS_PANEL_VIEW_CATEGORY: string = nls.localize('viewCategory', "View");
-	public static MARKERS_PANEL_TOGGLE_LABEL: string = nls.localize('problems.view.show.label', "Show Problems");
+	public static MARKERS_PANEL_TOGGLE_LABEL: string = nls.localize('problems.view.toggle.label', "Toggle Problems");
+	public static MARKERS_PANEL_SHOW_LABEL: string = nls.localize('problems.view.focus.label', "Focus Problems");
+	public static MARKERS_PANEL_HIDE_LABEL: string = nls.localize('problems.view.hide.label', "Hide Problems");
 
 	public static PROBLEMS_PANEL_CONFIGURATION_TITLE: string = nls.localize('problems.panel.configuration.title', "Problems View");
 	public static PROBLEMS_PANEL_CONFIGURATION_AUTO_REVEAL: string = nls.localize('problems.panel.configuration.autoreveal', "Controls if Problems view should automatically reveal files when opening them");
@@ -37,9 +39,9 @@ export default class Messages {
 	public static MARKERS_PANEL_SINGLE_UNKNOWN_LABEL: string = nls.localize('markers.panel.single.unknown.label', "1 Unknown");
 	public static MARKERS_PANEL_MULTIPLE_UNKNOWNS_LABEL = (noOfUnknowns: number): string => { return nls.localize('markers.panel.multiple.unknowns.label', "{0} Unknowns", '' + noOfUnknowns); };
 
-	public static MARKERS_PANEL_AT_LINE_COL_NUMBER = (ln: number, col: number): string => { return nls.localize('markers.panel.at.ln.col.number', "({0}, {1})", '' + ln, '' + col); }
+	public static MARKERS_PANEL_AT_LINE_COL_NUMBER = (ln: number, col: number): string => { return nls.localize('markers.panel.at.ln.col.number', "({0}, {1})", '' + ln, '' + col); };
 
-	public static MARKERS_TREE_ARIA_LABEL_RESOURCE = (fileName, noOfProblems): string => { return nls.localize('problems.tree.aria.label.resource', "{0} with {1} problems", fileName, noOfProblems); }
+	public static MARKERS_TREE_ARIA_LABEL_RESOURCE = (fileName, noOfProblems): string => { return nls.localize('problems.tree.aria.label.resource', "{0} with {1} problems", fileName, noOfProblems); };
 	public static MARKERS_TREE_ARIA_LABEL_MARKER = (marker: IMarker): string => {
 		switch (marker.severity) {
 			case Severity.Error:

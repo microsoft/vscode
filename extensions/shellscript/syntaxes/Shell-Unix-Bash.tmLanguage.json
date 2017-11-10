@@ -1,4 +1,10 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/textmate/shellscript.tmbundle/blob/master/Syntaxes/Shell-Unix-Bash.tmLanguage",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
+	"version": "https://github.com/textmate/shellscript.tmbundle/commit/1c0cc0b904bb87b18b6987109e694f9d0058656d",
 	"fileTypes": [
 		"sh",
 		"bash",
@@ -58,6 +64,9 @@
 		},
 		{
 			"include": "#support"
+		},
+		{
+			"include": "#lines"
 		}
 	],
 	"repository": {
@@ -221,7 +230,7 @@
 		"function-definition": {
 			"patterns": [
 				{
-					"begin": "(?<=^|;|&|\\s)(function)\\s+([^\\s<>;'\"\\\\|$&()]+)(?:\\s*(\\(\\)))?",
+					"begin": "(?<=^|;|&)\\s*(function)\\s+([^\\s<>;'\"\\\\|$&()]+)(?:\\s*(\\(\\)))?",
 					"beginCaptures": {
 						"1": {
 							"name": "storage.type.function.shell"
@@ -233,7 +242,7 @@
 							"name": "punctuation.definition.arguments.shell"
 						}
 					},
-					"end": ";|&|$",
+					"end": ";|&|\\n",
 					"endCaptures": {
 						"0": {
 							"name": "punctuation.definition.function.shell"
@@ -247,7 +256,7 @@
 					]
 				},
 				{
-					"begin": "(?<=^|;|&|\\s)([^\\s<>;'\"\\\\|$&()]+)\\s*(\\(\\))",
+					"begin": "(?<=^|;|&)\\s*([^\\s<>;'\"\\\\|$&()]+)\\s*(\\(\\))",
 					"beginCaptures": {
 						"1": {
 							"name": "entity.name.function.shell"
@@ -256,7 +265,7 @@
 							"name": "punctuation.definition.arguments.shell"
 						}
 					},
-					"end": ";|&|$",
+					"end": ";|&|\\n",
 					"endCaptures": {
 						"0": {
 							"name": "punctuation.definition.function.shell"
@@ -763,6 +772,16 @@
 							"name": "constant.character.escape.shell"
 						},
 						{
+							"begin": "(?<=^|;|&|\\s|`)(#)(?!\\{)",
+							"beginCaptures": {
+								"1": {
+									"name": "punctuation.definition.comment.shell"
+								}
+							},
+							"end": "(?=`)|\\n",
+							"name": "comment.line.number-sign.shell"
+						},
+						{
 							"include": "$self"
 						}
 					]
@@ -783,6 +802,16 @@
 					"name": "string.interpolated.dollar.shell",
 					"patterns": [
 						{
+							"begin": "(?<=^|;|&|\\s|\\()(#)(?!\\{)",
+							"beginCaptures": {
+								"1": {
+									"name": "punctuation.definition.comment.shell"
+								}
+							},
+							"end": "(?=\\))|\\n",
+							"name": "comment.line.number-sign.shell"
+						},
+						{
 							"include": "$self"
 						}
 					]
@@ -798,6 +827,14 @@
 				{
 					"match": "(?<=^|;|&|\\s)(?:export|declare|typeset|local|readonly)(?=\\s|;|&|$)",
 					"name": "storage.modifier.shell"
+				}
+			]
+		},
+		"lines": {
+			"patterns": [
+				{
+					"match": "\\\\\\n",
+					"name": "constant.character.escape.newline.shell"
 				}
 			]
 		},
@@ -831,7 +868,7 @@
 							"name": "keyword.control.shell"
 						}
 					},
-					"end": "(?<=^|;|&|\\s)(done)(?=\\s|;|&|$)",
+					"end": "(?<=^|;|&|\\s)(done)(?=\\s|;|&|$|\\))",
 					"name": "meta.scope.for-loop.shell",
 					"patterns": [
 						{
@@ -849,7 +886,7 @@
 							"name": "variable.other.loop.shell"
 						}
 					},
-					"end": "(?<=^|;|&|\\s)(done)(?=\\s|;|&|$)",
+					"end": "(?<=^|;|&|\\s)(done)(?=\\s|;|&|$|\\))",
 					"endCaptures": {
 						"1": {
 							"name": "keyword.control.shell"
@@ -869,7 +906,7 @@
 							"name": "keyword.control.shell"
 						}
 					},
-					"end": "(?<=^|;|&|\\s)(done)(?=\\s|;|&|$)",
+					"end": "(?<=^|;|&|\\s)(done)(?=\\s|;|&|$|\\))",
 					"name": "meta.scope.while-loop.shell",
 					"patterns": [
 						{
@@ -887,7 +924,7 @@
 							"name": "variable.other.loop.shell"
 						}
 					},
-					"end": "(?<=^|;|&|\\s)(done)(?=\\s|;|&|$)",
+					"end": "(?<=^|;|&|\\s)(done)(?=\\s|;|&|$|\\))",
 					"endCaptures": {
 						"1": {
 							"name": "keyword.control.shell"
@@ -907,7 +944,7 @@
 							"name": "keyword.control.shell"
 						}
 					},
-					"end": "(?<=^|;|&|\\s)(esac)(?=\\s|;|&|$)",
+					"end": "(?<=^|;|&|\\s)(esac)(?=\\s|;|&|$|\\))",
 					"name": "meta.scope.case-block.shell",
 					"patterns": [
 						{
@@ -917,7 +954,7 @@
 									"name": "keyword.control.shell"
 								}
 							},
-							"end": "(?<=^|;|&|\\s)(?=(?:esac)(?:\\s|;|&|$))",
+							"end": "(?<=^|;|&|\\s)(?=(?:esac)(?:\\s|;|&|$|\\)))",
 							"name": "meta.scope.case-body.shell",
 							"patterns": [
 								{
@@ -944,7 +981,7 @@
 						}
 					},
 					"comment": "Restrict match to avoid matching in lines like `dd if=/dev/sda1 …`",
-					"end": "(?<=^|;|&|\\s)(fi)(?=\\s|;|&|$)",
+					"end": "(?<=^|;|&|\\s)(fi)(?=\\s|;|&|$|\\))",
 					"endCaptures": {
 						"1": {
 							"name": "keyword.control.shell"
@@ -1226,6 +1263,5 @@
 		}
 	},
 	"scopeName": "source.shell",
-	"uuid": "DDEEA3ED-6B1C-11D9-8B10-000D93589AF6",
-	"version": "https://github.com/textmate/shellscript.tmbundle/commit/2677fdc83ed9d6a517d5d204e003f49141fc72e4"
+	"uuid": "DDEEA3ED-6B1C-11D9-8B10-000D93589AF6"
 }

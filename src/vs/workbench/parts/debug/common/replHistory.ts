@@ -17,12 +17,12 @@ export class ReplHistory {
 
 	private historyPointer: number;
 	private currentExpressionStoredMarkers: boolean;
-	private historyOverwrites: { [position: string]: string; };
+	private historyOverwrites: Map<string, string>;
 
 	constructor(private history: string[]) {
 		this.historyPointer = this.history.length;
 		this.currentExpressionStoredMarkers = false;
-		this.historyOverwrites = {};
+		this.historyOverwrites = new Map<string, string>();
 	}
 
 	public next(): string {
@@ -48,8 +48,8 @@ export class ReplHistory {
 			this.historyPointer = newPointer;
 
 			// check for overwrite
-			if (this.historyOverwrites && this.historyOverwrites[newPointer.toString()]) {
-				return this.historyOverwrites[newPointer.toString()];
+			if (this.historyOverwrites.has(newPointer.toString())) {
+				return this.historyOverwrites.get(newPointer.toString());
 			}
 
 			return this.history[newPointer];
@@ -78,11 +78,7 @@ export class ReplHistory {
 
 		// keep edits that are made to history items up until the user actually evaluates a expression
 		else {
-			if (!this.historyOverwrites) {
-				this.historyOverwrites = {};
-			}
-
-			this.historyOverwrites[previousPointer.toString()] = expression;
+			this.historyOverwrites.set(previousPointer.toString(), expression);
 		}
 	}
 
@@ -104,7 +100,7 @@ export class ReplHistory {
 		this.currentExpressionStoredMarkers = false;
 
 		// reset overwrites
-		this.historyOverwrites = null;
+		this.historyOverwrites.clear();
 	}
 
 	public save(): string[] {

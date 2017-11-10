@@ -1,0 +1,6 @@
+{
+	"config.npm.autoDetect": "Controls whether auto detection of npm scripts is on or off. Default is on.",
+	"config.npm.runSilent": "Run npm commands with the `--silent` option.",
+	"config.npm.packageManager": "The package manager used to run scripts.",
+	"npm.parseError": "Npm task detection: failed to parse the file {0}"
+}

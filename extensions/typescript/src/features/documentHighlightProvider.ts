@@ -3,37 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { DocumentHighlightProvider, DocumentHighlight, DocumentHighlightKind, TextDocument, Position, Range, CancellationToken } from 'vscode';
 
-import * as Proto from '../protocol';
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
+import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
 
 
 export default class TypeScriptDocumentHighlightProvider implements DocumentHighlightProvider {
+	public constructor(
+		private client: ITypeScriptServiceClient) { }
 
-	private client: ITypescriptServiceClient;
-
-	public constructor(client: ITypescriptServiceClient) {
-		this.client = client;
-	}
-
-	public provideDocumentHighlights(resource: TextDocument, position: Position, token: CancellationToken): Promise<DocumentHighlight[]> {
-		const filepath = this.client.asAbsolutePath(resource.uri);
+	public async provideDocumentHighlights(
+		resource: TextDocument,
+		position: Position,
+		token: CancellationToken
+	): Promise<DocumentHighlight[]> {
+		const filepath = this.client.normalizePath(resource.uri);
 		if (!filepath) {
-			return Promise.resolve<DocumentHighlight[]>([]);
+			return [];
 		}
-		let args: Proto.FileLocationRequestArgs = {
-			file: filepath,
-			line: position.line + 1,
-			offset: position.character + 1
-		};
-		if (!args.file) {
-			return Promise.resolve<DocumentHighlight[]>([]);
-		}
-		return this.client.execute('occurrences', args, token).then((response): DocumentHighlight[] => {
-			let data = response.body;
+
+		const args = vsPositionToTsFileLocation(filepath, position);
+		try {
+			const response = await this.client.execute('occurrences', args, token);
+			const data = response.body;
 			if (data && data.length) {
 				// Workaround for https://github.com/Microsoft/TypeScript/issues/12780
 				// Don't highlight string occurrences
@@ -46,15 +39,14 @@ export default class TypeScriptDocumentHighlightProvider implements DocumentHigh
 						return [];
 					}
 				}
-				return data.map((item) => {
-					return new DocumentHighlight(new Range(item.start.line - 1, item.start.offset - 1, item.end.line - 1, item.end.offset - 1),
-						item.isWriteAccess ? DocumentHighlightKind.Write : DocumentHighlightKind.Read);
-				});
+				return data.map(item =>
+					new DocumentHighlight(
+						tsTextSpanToVsRange(item),
+						item.isWriteAccess ? DocumentHighlightKind.Write : DocumentHighlightKind.Read));
 			}
 			return [];
-		}, (err) => {
-			this.client.error(`'occurrences' request failed with error.`, err);
+		} catch {
 			return [];
-		});
+		}
 	}
 }

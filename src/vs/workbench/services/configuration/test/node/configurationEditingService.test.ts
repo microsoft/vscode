@@ -5,383 +5,271 @@
 
 'use strict';
 
+import * as sinon from 'sinon';
 import assert = require('assert');
 import os = require('os');
 import path = require('path');
 import fs = require('fs');
 import * as json from 'vs/base/common/json';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Registry } from 'vs/platform/platform';
-import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { ParsedArgs, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { parseArgs } from 'vs/platform/environment/node/argv';
-import { WorkspaceContextService, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import extfs = require('vs/base/node/extfs');
-import { TestEventService, workbenchInstantiationService, TestTextFileService } from 'vs/test/utils/servicesTestUtils';
+import { TestTextFileService, TestTextResourceConfigurationService, workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 import uuid = require('vs/base/common/uuid');
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { WorkspaceConfigurationService } from 'vs/workbench/services/configuration/node/configurationService';
-import URI from 'vs/base/common/uri';
-import utils = require('vs/workbench/services/files/test/node/utils');
+import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
-import { ConfigurationEditingService } from 'vs/workbench/services/configuration/node/configurationEditingService';
-import { ConfigurationTarget, IConfigurationEditingError, ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { ConfigurationEditingService, ConfigurationEditingError, ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/node/configurationEditingService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WORKSPACE_STANDALONE_CONFIGURATIONS } from 'vs/workbench/services/configuration/common/configuration';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IMessageService } from 'vs/platform/message/common/message';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
+import { IChoiceService } from 'vs/platform/message/common/message';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
-	constructor(args: ParsedArgs, _execPath: string, private customAppSettingsHome) {
+	constructor(args: ParsedArgs, _execPath: string, private customAppSettingsHome: string) {
 		super(args, _execPath);
 	}
 
 	get appSettingsPath(): string { return this.customAppSettingsHome; }
 }
 
-class TestDirtyTextFileService extends TestTextFileService {
+suite('ConfigurationEditingService', () => {
 
-	constructor(
-		private dirty: boolean,
-		@ILifecycleService lifecycleService: ILifecycleService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@IFileService fileService: IFileService,
-		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IMessageService messageService: IMessageService,
-		@IBackupFileService backupFileService: IBackupFileService,
-		@IWindowsService windowsService: IWindowsService
-	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, editorService, editorGroupService, fileService, untitledEditorService, instantiationService, messageService, backupFileService, windowsService);
-	}
+	let instantiationService: TestInstantiationService;
+	let testObject: ConfigurationEditingService;
+	let parentDir: string;
+	let workspaceDir: string;
+	let globalSettingsFile: string;
+	let workspaceSettingsDir;
 
-	public isDirty(resource?: URI): boolean {
-		return this.dirty;
-	}
-}
+	suiteSetup(() => {
+		const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
+		configurationRegistry.registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'configurationEditing.service.testSetting': {
+					'type': 'string',
+					'default': 'isSet'
+				},
+				'configurationEditing.service.testSettingTwo': {
+					'type': 'string',
+					'default': 'isSet'
+				},
+				'configurationEditing.service.testSettingThree': {
+					'type': 'string',
+					'default': 'isSet'
+				}
+			}
+		});
+	});
 
-suite('WorkspaceConfigurationEditingService - Node', () => {
+	setup(() => {
+		return setUpWorkspace()
+			.then(() => setUpServices());
+	});
 
-	function createWorkspace(callback: (workspaceDir: string, globalSettingsFile: string, cleanUp: (done: () => void, error?: Error) => void, error: Error) => void): void {
-		const id = uuid.generateUuid();
-		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
-		const workspaceDir = path.join(parentDir, 'workspaceconfig', id);
-		const workspaceSettingsDir = path.join(workspaceDir, '.vscode');
-		const globalSettingsFile = path.join(workspaceDir, 'config.json');
-
-		extfs.mkdirp(workspaceSettingsDir, 493, (error) => {
-			callback(workspaceDir, globalSettingsFile, (done, error) => {
-				extfs.del(parentDir, os.tmpdir(), () => { }, () => {
-					if (error) {
-						assert.fail(error);
-					}
-
-					done();
-				});
-			}, error);
+	function setUpWorkspace(): TPromise<void> {
+		return new TPromise<void>((c, e) => {
+			const id = uuid.generateUuid();
+			parentDir = path.join(os.tmpdir(), 'vsctests', id);
+			workspaceDir = path.join(parentDir, 'workspaceconfig', id);
+			globalSettingsFile = path.join(workspaceDir, 'config.json');
+			workspaceSettingsDir = path.join(workspaceDir, '.vscode');
+			extfs.mkdirp(workspaceSettingsDir, 493, (error) => {
+				if (error) {
+					e(error);
+				} else {
+					c(null);
+				}
+			});
 		});
 	}
 
-	function createServices(workspaceDir: string, globalSettingsFile: string, dirty?: boolean, noWorkspace?: boolean): TPromise<{ configurationService: WorkspaceConfigurationService, configurationEditingService: ConfigurationEditingService }> {
-		const workspaceContextService = new WorkspaceContextService(noWorkspace ? null : { resource: URI.file(workspaceDir) });
+	function setUpServices(noWorkspace: boolean = false): TPromise<void> {
+		// Clear services if they are already created
+		clearServices();
+
+		instantiationService = <TestInstantiationService>workbenchInstantiationService();
 		const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
-		const configurationService = new WorkspaceConfigurationService(workspaceContextService, new TestEventService(), environmentService);
-		const textFileService = workbenchInstantiationService().createInstance(TestDirtyTextFileService, dirty);
-		const events = new utils.TestEventService();
-		const fileService = new FileService(noWorkspace ? null : workspaceDir, { disableWatcher: true }, events);
-
-		return configurationService.initialize().then(() => {
-			return {
-				configurationEditingService: new ConfigurationEditingService(configurationService, workspaceContextService, environmentService, fileService, null, textFileService),
-				configurationService
-			};
+		instantiationService.stub(IEnvironmentService, environmentService);
+		const workspaceService = new WorkspaceService(environmentService);
+		instantiationService.stub(IWorkspaceContextService, workspaceService);
+		return workspaceService.initialize(noWorkspace ? {} as IWindowConfiguration : workspaceDir).then(() => {
+			instantiationService.stub(IConfigurationService, workspaceService);
+			instantiationService.stub(IFileService, new FileService(workspaceService, new TestTextResourceConfigurationService(), new TestConfigurationService(), { disableWatcher: true }));
+			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
+			instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
+			testObject = instantiationService.createInstance(ConfigurationEditingService);
 		});
 	}
 
-	const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
-	configurationRegistry.registerConfiguration({
-		'id': '_test',
-		'type': 'object',
-		'properties': {
-			'configurationEditing.service.testSetting': {
-				'type': 'string',
-				'default': 'isSet'
-			},
-			'configurationEditing.service.testSettingTwo': {
-				'type': 'string',
-				'default': 'isSet'
-			},
-			'configurationEditing.service.testSettingThree': {
-				'type': 'string',
-				'default': 'isSet'
+	teardown(() => {
+		clearServices();
+		return clearWorkspace();
+	});
+
+	function clearServices(): void {
+		if (instantiationService) {
+			const configuraitonService = <WorkspaceService>instantiationService.get(IConfigurationService);
+			if (configuraitonService) {
+				configuraitonService.dispose();
 			}
+			instantiationService = null;
 		}
+	}
+
+	function clearWorkspace(): TPromise<void> {
+		return new TPromise<void>((c, e) => {
+			if (parentDir) {
+				extfs.del(parentDir, os.tmpdir(), () => c(null), () => c(null));
+			} else {
+				c(null);
+			}
+		}).then(() => parentDir = null);
+	}
+
+	test('errors cases - invalid key', () => {
+		return testObject.writeConfiguration(ConfigurationTarget.WORKSPACE, { key: 'unknown.key', value: 'value' })
+			.then(() => assert.fail('Should fail with ERROR_UNKNOWN_KEY'),
+			(error: ConfigurationEditingError) => assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY));
 	});
 
-	test('errors cases - invalid key', (done: () => void) => {
-		createWorkspace((workspaceDir, globalSettingsFile, cleanUp, error) => {
-			if (error) {
-				return cleanUp(done, error);
-			}
-
-			createServices(workspaceDir, globalSettingsFile, false, true /* no workspace */).done(services => {
-				return services.configurationEditingService.writeConfiguration(ConfigurationTarget.WORKSPACE, { key: 'unknown.key', value: 'value' }).then(res => {
-				}, (error: IConfigurationEditingError) => {
-					assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_UNKNOWN_KEY);
-					services.configurationService.dispose();
-					cleanUp(done);
-				});
-			}, error => cleanUp(done, error));
-		});
+	test('errors cases - invalid target', () => {
+		return testObject.writeConfiguration(ConfigurationTarget.USER, { key: 'tasks.something', value: 'value' })
+			.then(() => assert.fail('Should fail with ERROR_INVALID_TARGET'),
+			(error: ConfigurationEditingError) => assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_INVALID_USER_TARGET));
 	});
 
-	test('errors cases - invalid target', (done: () => void) => {
-		createWorkspace((workspaceDir, globalSettingsFile, cleanUp, error) => {
-			if (error) {
-				return cleanUp(done, error);
-			}
-
-			createServices(workspaceDir, globalSettingsFile).done(services => {
-				return services.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: 'tasks.something', value: 'value' }).then(res => {
-				}, (error: IConfigurationEditingError) => {
-					assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_INVALID_TARGET);
-					services.configurationService.dispose();
-					cleanUp(done);
-				});
-			}, error => cleanUp(done, error));
-		});
+	test('errors cases - no workspace', () => {
+		return setUpServices(true)
+			.then(() => testObject.writeConfiguration(ConfigurationTarget.WORKSPACE, { key: 'configurationEditing.service.testSetting', value: 'value' }))
+			.then(() => assert.fail('Should fail with ERROR_NO_WORKSPACE_OPENED'),
+			(error: ConfigurationEditingError) => assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED));
 	});
 
-	test('errors cases - no workspace', (done: () => void) => {
-		createWorkspace((workspaceDir, globalSettingsFile, cleanUp, error) => {
-			if (error) {
-				return cleanUp(done, error);
-			}
-
-			createServices(workspaceDir, globalSettingsFile, false, true /* no workspace */).done(services => {
-				return services.configurationEditingService.writeConfiguration(ConfigurationTarget.WORKSPACE, { key: 'configurationEditing.service.testSetting', value: 'value' }).then(res => {
-				}, (error: IConfigurationEditingError) => {
-					assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_NO_WORKSPACE_OPENED);
-					services.configurationService.dispose();
-					cleanUp(done);
-				});
-			}, error => cleanUp(done, error));
-		});
+	test('errors cases - invalid configuration', () => {
+		fs.writeFileSync(globalSettingsFile, ',,,,,,,,,,,,,,');
+		return testObject.writeConfiguration(ConfigurationTarget.USER, { key: 'configurationEditing.service.testSetting', value: 'value' })
+			.then(() => assert.fail('Should fail with ERROR_INVALID_CONFIGURATION'),
+			(error: ConfigurationEditingError) => assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION));
 	});
 
-	test('errors cases - invalid configuration', (done: () => void) => {
-		createWorkspace((workspaceDir, globalSettingsFile, cleanUp, error) => {
-			if (error) {
-				return cleanUp(done, error);
-			}
-
-			createServices(workspaceDir, globalSettingsFile).done(services => {
-				fs.writeFileSync(globalSettingsFile, ',,,,,,,,,,,,,,');
-
-				return services.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: 'configurationEditing.service.testSetting', value: 'value' }).then(res => {
-				}, (error: IConfigurationEditingError) => {
-					assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_INVALID_CONFIGURATION);
-					services.configurationService.dispose();
-					cleanUp(done);
-				});
-			}, error => cleanUp(done, error));
-		});
+	test('errors cases - dirty', () => {
+		instantiationService.stub(ITextFileService, 'isDirty', true);
+		return testObject.writeConfiguration(ConfigurationTarget.USER, { key: 'configurationEditing.service.testSetting', value: 'value' })
+			.then(() => assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.'),
+			(error: ConfigurationEditingError) => assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY));
 	});
 
-	test('errors cases - dirty', (done: () => void) => {
-		createWorkspace((workspaceDir, globalSettingsFile, cleanUp, error) => {
-			if (error) {
-				return cleanUp(done, error);
-			}
-
-			createServices(workspaceDir, globalSettingsFile, true).done(services => {
-				return services.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: 'configurationEditing.service.testSetting', value: 'value' }).then(res => {
-				}, (error: IConfigurationEditingError) => {
-					assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY);
-					services.configurationService.dispose();
-					cleanUp(done);
-				});
-			}, error => cleanUp(done, error));
-		});
+	test('dirty error is not thrown if not asked to save', () => {
+		instantiationService.stub(ITextFileService, 'isDirty', true);
+		return testObject.writeConfiguration(ConfigurationTarget.USER, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotSave: true })
+			.then(() => null, error => assert.fail('Should not fail.'));
 	});
 
-	test('write one setting - empty file', (done: () => void) => {
-		createWorkspace((workspaceDir, globalSettingsFile, cleanUp, error) => {
-			if (error) {
-				return cleanUp(done, error);
-			}
-
-			createServices(workspaceDir, globalSettingsFile).done(services => {
-				return services.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: 'configurationEditing.service.testSetting', value: 'value' }).then(res => {
-					const contents = fs.readFileSync(globalSettingsFile).toString('utf8');
-					const parsed = json.parse(contents);
-					assert.equal(parsed['configurationEditing.service.testSetting'], 'value');
-					assert.equal(services.configurationService.lookup('configurationEditing.service.testSetting').value, 'value');
-
-					services.configurationService.dispose();
-					cleanUp(done);
-				});
-			}, error => cleanUp(done, error));
-		});
+	test('do not notify error', () => {
+		instantiationService.stub(ITextFileService, 'isDirty', true);
+		const target = sinon.stub();
+		instantiationService.stubPromise(IChoiceService, 'choose', target);
+		return testObject.writeConfiguration(ConfigurationTarget.USER, { key: 'configurationEditing.service.testSetting', value: 'value' }, { donotNotifyError: true })
+			.then(() => assert.fail('Should fail with ERROR_CONFIGURATION_FILE_DIRTY error.'),
+			(error: ConfigurationEditingError) => {
+				assert.equal(false, target.calledOnce);
+				assert.equal(error.code, ConfigurationEditingErrorCode.ERROR_CONFIGURATION_FILE_DIRTY);
+			});
 	});
 
-	test('write one setting - existing file', (done: () => void) => {
-		createWorkspace((workspaceDir, globalSettingsFile, cleanUp, error) => {
-			if (error) {
-				return cleanUp(done, error);
-			}
-
-			createServices(workspaceDir, globalSettingsFile).done(services => {
-				fs.writeFileSync(globalSettingsFile, '{ "my.super.setting": "my.super.value" }');
-
-				return services.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: 'configurationEditing.service.testSetting', value: 'value' }).then(res => {
-					const contents = fs.readFileSync(globalSettingsFile).toString('utf8');
-					const parsed = json.parse(contents);
-					assert.equal(parsed['configurationEditing.service.testSetting'], 'value');
-					assert.equal(parsed['my.super.setting'], 'my.super.value');
-
-					assert.equal(services.configurationService.lookup('configurationEditing.service.testSetting').value, 'value');
-					assert.equal(services.configurationService.lookup('my.super.setting').value, 'my.super.value');
-
-					services.configurationService.dispose();
-					cleanUp(done);
-				});
-			}, error => cleanUp(done, error));
-		});
+	test('write one setting - empty file', () => {
+		return testObject.writeConfiguration(ConfigurationTarget.USER, { key: 'configurationEditing.service.testSetting', value: 'value' })
+			.then(() => {
+				const contents = fs.readFileSync(globalSettingsFile).toString('utf8');
+				const parsed = json.parse(contents);
+				assert.equal(parsed['configurationEditing.service.testSetting'], 'value');
+			});
 	});
 
-	test('write workspace standalone setting - empty file', (done: () => void) => {
-		createWorkspace((workspaceDir, globalSettingsFile, cleanUp, error) => {
-			if (error) {
-				return cleanUp(done, error);
-			}
-
-			createServices(workspaceDir, globalSettingsFile).done(services => {
-				return services.configurationEditingService.writeConfiguration(ConfigurationTarget.WORKSPACE, { key: 'tasks.service.testSetting', value: 'value' }).then(res => {
-					const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['tasks']);
-					const contents = fs.readFileSync(target).toString('utf8');
-					const parsed = json.parse(contents);
-					assert.equal(parsed['service.testSetting'], 'value');
-					assert.equal(services.configurationService.lookup('tasks.service.testSetting').value, 'value');
-
-					services.configurationService.dispose();
-					cleanUp(done);
-				});
-			}, error => cleanUp(done, error));
-		});
+	test('write one setting - existing file', () => {
+		fs.writeFileSync(globalSettingsFile, '{ "my.super.setting": "my.super.value" }');
+		return testObject.writeConfiguration(ConfigurationTarget.USER, { key: 'configurationEditing.service.testSetting', value: 'value' })
+			.then(() => {
+				const contents = fs.readFileSync(globalSettingsFile).toString('utf8');
+				const parsed = json.parse(contents);
+				assert.equal(parsed['configurationEditing.service.testSetting'], 'value');
+				assert.equal(parsed['my.super.setting'], 'my.super.value');
+			});
 	});
 
-	test('write workspace standalone setting - existing file', (done: () => void) => {
-		createWorkspace((workspaceDir, globalSettingsFile, cleanUp, error) => {
-			if (error) {
-				return cleanUp(done, error);
-			}
-
-			createServices(workspaceDir, globalSettingsFile).done(services => {
-				const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['launch']);
-
-				fs.writeFileSync(target, '{ "my.super.setting": "my.super.value" }');
-
-				return services.configurationEditingService.writeConfiguration(ConfigurationTarget.WORKSPACE, { key: 'launch.service.testSetting', value: 'value' }).then(res => {
-					const contents = fs.readFileSync(target).toString('utf8');
-					const parsed = json.parse(contents);
-					assert.equal(parsed['service.testSetting'], 'value');
-					assert.equal(parsed['my.super.setting'], 'my.super.value');
-
-					assert.equal(services.configurationService.lookup('launch.service.testSetting').value, 'value');
-					assert.equal(services.configurationService.lookup('launch.my.super.setting').value, 'my.super.value');
-
-					services.configurationService.dispose();
-					cleanUp(done);
-				});
-			}, error => cleanUp(done, error));
-		});
+	test('write workspace standalone setting - empty file', () => {
+		return testObject.writeConfiguration(ConfigurationTarget.WORKSPACE, { key: 'tasks.service.testSetting', value: 'value' })
+			.then(() => {
+				const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['tasks']);
+				const contents = fs.readFileSync(target).toString('utf8');
+				const parsed = json.parse(contents);
+				assert.equal(parsed['service.testSetting'], 'value');
+			});
 	});
 
-	test('write workspace standalone setting - empty file - full JSON', (done: () => void) => {
-		createWorkspace((workspaceDir, globalSettingsFile, cleanUp, error) => {
-			if (error) {
-				return cleanUp(done, error);
-			}
-
-			createServices(workspaceDir, globalSettingsFile).done(services => {
-				return services.configurationEditingService.writeConfiguration(ConfigurationTarget.WORKSPACE, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } }).then(res => {
-					const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['tasks']);
-					const contents = fs.readFileSync(target).toString('utf8');
-					const parsed = json.parse(contents);
-
-					assert.equal(parsed['version'], '1.0.0');
-					assert.equal(parsed['tasks'][0]['taskName'], 'myTask');
-
-					services.configurationService.dispose();
-					cleanUp(done);
-				});
-			}, error => cleanUp(done, error));
-		});
+	test('write workspace standalone setting - existing file', () => {
+		const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['launch']);
+		fs.writeFileSync(target, '{ "my.super.setting": "my.super.value" }');
+		return testObject.writeConfiguration(ConfigurationTarget.WORKSPACE, { key: 'launch.service.testSetting', value: 'value' })
+			.then(() => {
+				const contents = fs.readFileSync(target).toString('utf8');
+				const parsed = json.parse(contents);
+				assert.equal(parsed['service.testSetting'], 'value');
+				assert.equal(parsed['my.super.setting'], 'my.super.value');
+			});
 	});
 
-	test('write workspace standalone setting - existing file - full JSON', (done: () => void) => {
-		createWorkspace((workspaceDir, globalSettingsFile, cleanUp, error) => {
-			if (error) {
-				return cleanUp(done, error);
-			}
+	test('write workspace standalone setting - empty file - full JSON', () => {
+		return testObject.writeConfiguration(ConfigurationTarget.WORKSPACE, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } })
+			.then(() => {
+				const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['tasks']);
+				const contents = fs.readFileSync(target).toString('utf8');
+				const parsed = json.parse(contents);
 
-			createServices(workspaceDir, globalSettingsFile).done(services => {
-				const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['launch']);
-
-				fs.writeFileSync(target, '{ "my.super.setting": "my.super.value" }');
-
-				return services.configurationEditingService.writeConfiguration(ConfigurationTarget.WORKSPACE, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } }).then(res => {
-					const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['tasks']);
-					const contents = fs.readFileSync(target).toString('utf8');
-					const parsed = json.parse(contents);
-
-					assert.equal(parsed['version'], '1.0.0');
-					assert.equal(parsed['tasks'][0]['taskName'], 'myTask');
-
-					services.configurationService.dispose();
-					cleanUp(done);
-				});
-			}, error => cleanUp(done, error));
-		});
+				assert.equal(parsed['version'], '1.0.0');
+				assert.equal(parsed['tasks'][0]['taskName'], 'myTask');
+			});
 	});
 
-	test('write workspace standalone setting - existing file with JSON errors - full JSON', (done: () => void) => {
-		createWorkspace((workspaceDir, globalSettingsFile, cleanUp, error) => {
-			if (error) {
-				return cleanUp(done, error);
-			}
+	test('write workspace standalone setting - existing file - full JSON', () => {
+		const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['launch']);
+		fs.writeFileSync(target, '{ "my.super.setting": "my.super.value" }');
+		return testObject.writeConfiguration(ConfigurationTarget.WORKSPACE, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } })
+			.then(() => {
+				const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['tasks']);
+				const contents = fs.readFileSync(target).toString('utf8');
+				const parsed = json.parse(contents);
 
-			createServices(workspaceDir, globalSettingsFile).done(services => {
-				const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['launch']);
+				assert.equal(parsed['version'], '1.0.0');
+				assert.equal(parsed['tasks'][0]['taskName'], 'myTask');
+			});
+	});
 
-				fs.writeFileSync(target, '{ "my.super.setting": '); // invalid JSON
+	test('write workspace standalone setting - existing file with JSON errors - full JSON', () => {
+		const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['launch']);
+		fs.writeFileSync(target, '{ "my.super.setting": '); // invalid JSON
+		return testObject.writeConfiguration(ConfigurationTarget.WORKSPACE, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } })
+			.then(() => {
+				const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['tasks']);
+				const contents = fs.readFileSync(target).toString('utf8');
+				const parsed = json.parse(contents);
 
-				return services.configurationEditingService.writeConfiguration(ConfigurationTarget.WORKSPACE, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } }).then(res => {
-					const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['tasks']);
-					const contents = fs.readFileSync(target).toString('utf8');
-					const parsed = json.parse(contents);
-
-					assert.equal(parsed['version'], '1.0.0');
-					assert.equal(parsed['tasks'][0]['taskName'], 'myTask');
-
-					services.configurationService.dispose();
-					cleanUp(done);
-				});
-			}, error => cleanUp(done, error));
-		});
+				assert.equal(parsed['version'], '1.0.0');
+				assert.equal(parsed['tasks'][0]['taskName'], 'myTask');
+			});
 	});
 });

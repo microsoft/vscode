@@ -16,7 +16,7 @@ suite('CancellationToken', function () {
 
 	test('cancel before token', function (done) {
 
-		var source = new CancellationTokenSource();
+		const source = new CancellationTokenSource();
 		assert.equal(source.token.isCancellationRequested, false);
 		source.cancel();
 

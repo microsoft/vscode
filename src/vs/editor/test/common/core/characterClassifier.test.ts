@@ -11,7 +11,7 @@ import { CharCode } from 'vs/base/common/charCode';
 suite('CharacterClassifier', () => {
 
 	test('works', () => {
-		let classifier = new CharacterClassifier(0);
+		let classifier = new CharacterClassifier<number>(0);
 
 		assert.equal(classifier.get(-1), 0);
 		assert.equal(classifier.get(0), 0);

@@ -5,43 +5,65 @@
 
 'use strict';
 
-import { EventType } from 'vs/platform/files/common/files';
-import watcher = require('vs/workbench/services/files/node/watcher/common');
+import { IRawFileChange, toFileChangesEvent } from 'vs/workbench/services/files/node/watcher/common';
 import { OutOfProcessWin32FolderWatcher } from 'vs/workbench/services/files/node/watcher/win32/csharpWatcherService';
-import { IEventService } from 'vs/platform/event/common/event';
+import { FileChangesEvent } from 'vs/platform/files/common/files';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { normalize } from 'path';
+import { rtrim, endsWith } from 'vs/base/common/strings';
+import { sep } from 'vs/base/common/paths';
 
 export class FileWatcher {
+	private isDisposed: boolean;
 
 	constructor(
-		private basePath: string,
+		private contextService: IWorkspaceContextService,
 		private ignored: string[],
-		private eventEmitter: IEventService,
+		private onFileChanges: (changes: FileChangesEvent) => void,
 		private errorLogger: (msg: string) => void,
 		private verboseLogging: boolean
 	) {
 	}
 
 	public startWatching(): () => void {
-		let watcher = new OutOfProcessWin32FolderWatcher(
-			this.basePath,
+		let basePath: string = normalize(this.contextService.getWorkspace().folders[0].uri.fsPath);
+
+		if (basePath && basePath.indexOf('\\\\') === 0 && endsWith(basePath, sep)) {
+			// for some weird reason, node adds a trailing slash to UNC paths
+			// we never ever want trailing slashes as our base path unless
+			// someone opens root ("/").
+			// See also https://github.com/nodejs/io.js/issues/1765
+			basePath = rtrim(basePath, sep);
+		}
+
+		const watcher = new OutOfProcessWin32FolderWatcher(
+			basePath,
 			this.ignored,
-			(events) => this.onRawFileEvents(events),
-			(error) => this.onError(error),
+			events => this.onRawFileEvents(events),
+			error => this.onError(error),
 			this.verboseLogging
 		);
 
-		return () => watcher.dispose();
+		return () => {
+			this.isDisposed = true;
+			watcher.dispose();
+		};
 	}
 
-	private onRawFileEvents(events: watcher.IRawFileChange[]): void {
+	private onRawFileEvents(events: IRawFileChange[]): void {
+		if (this.isDisposed) {
+			return;
+		}
 
-		// Emit through broadcast service
+		// Emit through event emitter
 		if (events.length > 0) {
-			this.eventEmitter.emit(EventType.FILE_CHANGES, watcher.toFileChangesEvent(events));
+			this.onFileChanges(toFileChangesEvent(events));
 		}
 	}
 
 	private onError(error: string): void {
-		this.errorLogger(error);
+		if (!this.isDisposed) {
+			this.errorLogger(error);
+		}
 	}
 }

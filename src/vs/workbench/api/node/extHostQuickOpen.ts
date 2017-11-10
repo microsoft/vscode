@@ -5,26 +5,33 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { wireCancellationToken } from 'vs/base/common/async';
+import { wireCancellationToken, asWinJsPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { QuickPickOptions, QuickPickItem, InputBoxOptions } from 'vscode';
-import { MainContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, MyQuickPickItems } from './extHost.protocol';
+import { QuickPickOptions, QuickPickItem, InputBoxOptions, WorkspaceFolderPickOptions, WorkspaceFolder } from 'vscode';
+import { MainContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, MyQuickPickItems, IMainContext } from './extHost.protocol';
+import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
+import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 
 export type Item = string | QuickPickItem;
 
-export class ExtHostQuickOpen extends ExtHostQuickOpenShape {
+export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 
 	private _proxy: MainThreadQuickOpenShape;
-	private _onDidSelectItem: (handle: number) => void;
-	private _validateInput: (input: string) => string;
+	private _workspace: ExtHostWorkspace;
+	private _commands: ExtHostCommands;
 
-	constructor(threadService: IThreadService) {
-		super();
-		this._proxy = threadService.get(MainContext.MainThreadQuickOpen);
+	private _onDidSelectItem: (handle: number) => void;
+	private _validateInput: (input: string) => string | Thenable<string>;
+
+	constructor(mainContext: IMainContext, workspace: ExtHostWorkspace, commands: ExtHostCommands) {
+		this._proxy = mainContext.get(MainContext.MainThreadQuickOpen);
+		this._workspace = workspace;
+		this._commands = commands;
 	}
 
-	showQuickPick(itemsOrItemsPromise: Item[] | Thenable<Item[]>, options?: QuickPickOptions, token: CancellationToken = CancellationToken.None): Thenable<Item> {
+	showQuickPick(itemsOrItemsPromise: string[] | Thenable<string[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<string | undefined>;
+	showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Thenable<QuickPickItem[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<QuickPickItem | undefined>;
+	showQuickPick(itemsOrItemsPromise: Item[] | Thenable<Item[]>, options?: QuickPickOptions, token: CancellationToken = CancellationToken.None): Thenable<Item | undefined> {
 
 		// clear state from last invocation
 		this._onDidSelectItem = undefined;
@@ -39,53 +46,59 @@ export class ExtHostQuickOpen extends ExtHostQuickOpenShape {
 			ignoreFocusLost: options && options.ignoreFocusOut
 		});
 
-		const promise = itemsPromise.then(items => {
+		const promise = TPromise.any(<TPromise<number | Item[]>[]>[quickPickWidget, itemsPromise]).then(values => {
+			if (values.key === '0') {
+				return undefined;
+			}
 
-			let pickItems: MyQuickPickItems[] = [];
-			for (let handle = 0; handle < items.length; handle++) {
+			return itemsPromise.then(items => {
 
-				let item = items[handle];
-				let label: string;
-				let description: string;
-				let detail: string;
+				let pickItems: MyQuickPickItems[] = [];
+				for (let handle = 0; handle < items.length; handle++) {
 
-				if (typeof item === 'string') {
-					label = item;
-				} else {
-					label = item.label;
-					description = item.description;
-					detail = item.detail;
+					let item = items[handle];
+					let label: string;
+					let description: string;
+					let detail: string;
+
+					if (typeof item === 'string') {
+						label = item;
+					} else {
+						label = item.label;
+						description = item.description;
+						detail = item.detail;
+					}
+					pickItems.push({
+						label,
+						description,
+						handle,
+						detail
+					});
 				}
-				pickItems.push({
-					label,
-					description,
-					handle,
-					detail
+
+				// handle selection changes
+				if (options && typeof options.onDidSelectItem === 'function') {
+					this._onDidSelectItem = (handle) => {
+						options.onDidSelectItem(items[handle]);
+					};
+				}
+
+				// show items
+				this._proxy.$setItems(pickItems);
+
+				return quickPickWidget.then(handle => {
+					if (typeof handle === 'number') {
+						return items[handle];
+					}
+					return undefined;
 				});
-			}
+			}, (err) => {
+				this._proxy.$setError(err);
 
-			// handle selection changes
-			if (options && typeof options.onDidSelectItem === 'function') {
-				this._onDidSelectItem = (handle) => {
-					options.onDidSelectItem(items[handle]);
-				};
-			}
-
-			// show items
-			this._proxy.$setItems(pickItems);
-
-			return quickPickWidget.then(handle => {
-				if (typeof handle === 'number') {
-					return items[handle];
-				}
+				return TPromise.wrapError(err);
 			});
-		}, (err) => {
-			this._proxy.$setError(err);
-
-			return TPromise.wrapError(err);
 		});
-
-		return wireCancellationToken(token, promise, true);
+		return wireCancellationToken<Item>(token, promise, true);
 	}
 
 	$onItemSelected(handle: number): void {
@@ -107,7 +120,20 @@ export class ExtHostQuickOpen extends ExtHostQuickOpenShape {
 
 	$validateInput(input: string): TPromise<string> {
 		if (this._validateInput) {
-			return TPromise.as(this._validateInput(input));
+			return asWinJsPromise(_ => this._validateInput(input));
 		}
+		return undefined;
+	}
+
+	// ---- workspace folder picker
+
+	showWorkspaceFolderPick(options?: WorkspaceFolderPickOptions, token = CancellationToken.None): Thenable<WorkspaceFolder> {
+		return this._commands.executeCommand('_workbench.pickWorkspaceFolder', [options]).then((selectedFolder: WorkspaceFolder) => {
+			if (!selectedFolder) {
+				return undefined;
+			}
+
+			return this._workspace.getWorkspaceFolders().filter(folder => folder.uri.toString() === selectedFolder.uri.toString())[0];
+		});
 	}
 }

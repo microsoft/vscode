@@ -15,7 +15,15 @@
 	opacity: 0.6;
 }
 
-/* -- under-line-style -- */
+/* -- block-outline-style -- */
+.monaco-editor .cursors-layer.cursor-block-outline-style > .cursor {
+	box-sizing: border-box;
+	background: transparent !important;
+	border-style: solid;
+	border-width: 1px;
+}
+
+/* -- underline-style -- */
 .monaco-editor .cursors-layer.cursor-underline-style > .cursor {
 	border-bottom-width: 2px;
 	border-bottom-style: solid;
@@ -23,32 +31,15 @@
 	box-sizing: border-box;
 }
 
-.monaco-editor.vs .cursor {
-	background: black;
-	border-color: black;
-	color: white; /* opposite of black */
-}
-.monaco-editor.vs-dark .cursor {
-	background: #AEAFAD;
-	border-color: #AEAFAD;
-	color: #51504f; /* opposite of #AEAFAD */
-}
-.monaco-editor.hc-black .cursor {
-	background: #fff;
-	border-color: #fff;
-	color: #000; /* opposite of #fff */
+/* -- underline-thin-style -- */
+.monaco-editor .cursors-layer.cursor-underline-thin-style > .cursor {
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+	background: transparent !important;
+	box-sizing: border-box;
 }
 
-@keyframes cursor-blink {
-	50% {
-		opacity: 0;
-	}
-	100% {
-		opacity: 1;
-	}
-}
-
-@keyframes cursor-smooth {
+@keyframes monaco-cursor-smooth {
 	0%,
 	20% {
 		opacity: 1;
@@ -59,7 +50,7 @@
 	}
 }
 
-@keyframes cursor-phase {
+@keyframes monaco-cursor-phase {
 	0%,
 	20% {
 		opacity: 1;
@@ -70,7 +61,7 @@
 	}
 }
 
-@keyframes cursor-expand {
+@keyframes monaco-cursor-expand {
 	0%,
 	20% {
 		transform: scaleY(1);
@@ -81,18 +72,14 @@
 	}
 }
 
-.cursor-blink {
-	animation: cursor-blink 1s step-start 0s infinite;
-}
-
 .cursor-smooth {
-	animation: cursor-smooth 0.5s ease-in-out 0s infinite alternate;
+	animation: monaco-cursor-smooth 0.5s ease-in-out 0s 20 alternate;
 }
 
 .cursor-phase {
-	animation: cursor-phase 0.5s ease-in-out 0s infinite alternate;
+	animation: monaco-cursor-phase 0.5s ease-in-out 0s 20 alternate;
 }
 
 .cursor-expand > .cursor {
-	animation: cursor-expand 0.5s ease-in-out 0s infinite alternate;
+	animation: monaco-cursor-expand 0.5s ease-in-out 0s 20 alternate;
 }

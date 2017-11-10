@@ -7,31 +7,38 @@
 
 import * as vscode from 'vscode';
 import * as ts from 'typescript';
+import { PackageDocument } from './packageDocumentHelper';
+import { ExtensionLinter } from './extensionLinter';
 
 export function activate(context: vscode.ExtensionContext) {
 	const registration = vscode.languages.registerDocumentLinkProvider({ language: 'typescript', pattern: '**/vscode.d.ts' }, _linkProvider);
 	context.subscriptions.push(registration);
+
+	//package.json suggestions
+	context.subscriptions.push(registerPackageDocumentCompletions());
+
+	context.subscriptions.push(new ExtensionLinter());
 }
 
 const _linkProvider = new class implements vscode.DocumentLinkProvider {
 
-	private _cachedResult: { version: number; links: vscode.DocumentLink[] };
+	private _cachedResult: { key: string; links: vscode.DocumentLink[] };
 	private _linkPattern = /[^!]\[.*?\]\(#(.*?)\)/g;
 
-	provideDocumentLinks(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.DocumentLink[] {
-		const {version} = document;
-		if (!this._cachedResult || this._cachedResult.version !== version) {
-			const links = this._computeDocumentLinks(document);
-			this._cachedResult = { version, links };
+	async provideDocumentLinks(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.DocumentLink[]> {
+		const key = `${document.uri.toString()}@${document.version}`;
+		if (!this._cachedResult || this._cachedResult.key !== key) {
+			const links = await this._computeDocumentLinks(document);
+			this._cachedResult = { key, links };
 		}
 		return this._cachedResult.links;
 	}
 
-	private _computeDocumentLinks(document: vscode.TextDocument): vscode.DocumentLink[] {
+	private async _computeDocumentLinks(document: vscode.TextDocument): Promise<vscode.DocumentLink[]> {
 
 		const results: vscode.DocumentLink[] = [];
 		const text = document.getText();
-		const lookUp = ast.createNamedNodeLookUp(text);
+		const lookUp = await ast.createNamedNodeLookUp(text);
 
 		this._linkPattern.lastIndex = 0;
 		let match: RegExpMatchArray;
@@ -39,7 +46,7 @@ const _linkProvider = new class implements vscode.DocumentLinkProvider {
 
 			const offset = lookUp(match[1]);
 			if (offset === -1) {
-				console.warn(match[1]);
+				console.warn(`Could not find symbol for link ${match[1]}`);
 				continue;
 			}
 
@@ -62,7 +69,9 @@ namespace ast {
 		(dottedName: string): number;
 	}
 
-	export function createNamedNodeLookUp(str: string): NamedNodeLookUp {
+	export async function createNamedNodeLookUp(str: string): Promise<NamedNodeLookUp> {
+
+		const ts = await import('typescript');
 
 		const sourceFile = ts.createSourceFile('fake.d.ts', str, ts.ScriptTarget.Latest);
 
@@ -70,7 +79,7 @@ namespace ast {
 		const spans: number[] = [];
 
 		ts.forEachChild(sourceFile, function visit(node: ts.Node) {
-			const declIdent = (<ts.Declaration>node).name;
+			const declIdent = (<ts.NamedDeclaration>node).name;
 			if (declIdent && declIdent.kind === ts.SyntaxKind.Identifier) {
 				identifiers.push((<ts.Identifier>declIdent).text);
 				spans.push(node.pos, node.end);
@@ -100,4 +109,12 @@ namespace ast {
 			return start;
 		};
 	}
+}
+
+function registerPackageDocumentCompletions(): vscode.Disposable {
+	return vscode.languages.registerCompletionItemProvider({ language: 'json', pattern: '**/package.json' }, {
+		provideCompletionItems(document, position, token) {
+			return new PackageDocument(document).provideCompletionItems(position, token);
+		}
+	});
 }

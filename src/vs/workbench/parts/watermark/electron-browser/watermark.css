@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .part.editor.empty {
+.monaco-workbench .part.editor.empty.has-watermark {
 	background-position-y: calc(50% - 100px);
 }
 
@@ -11,7 +11,7 @@
 	display: none; /* only visible when no editors are opened */
 }
 
-.monaco-workbench > .part.editor.empty > .content > .watermark {
+.monaco-workbench > .part.editor.empty.has-watermark > .content > .watermark {
 	display: block;
 	position: absolute;
 	width: 100%;
@@ -27,19 +27,11 @@
 	border-spacing: 13px 17px;
 }
 
-@media (min-height: 501px) {
-	.monaco-workbench > .part.editor.empty > .content > .watermark {
-		display: block;
-	}
+.monaco-workbench > .part.editor.empty.max-height-478px > .content > .watermark {
+	display: none;
 }
-
-@media (max-height: 500px) {
-	.monaco-workbench > .part.editor.empty > .content > .watermark {
-		display: none;
-	}
-	.monaco-workbench .part.editor.empty {
-		background-position-y: 50%;
-	}
+.monaco-workbench .part.editor.empty.max-height-478px {
+	background-position-y: 50%;
 }
 
 .monaco-workbench > .part.editor.empty > .content > .watermark dl {

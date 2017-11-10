@@ -5,16 +5,18 @@
 
 import nls = require('vs/nls');
 import * as dom from 'vs/base/browser/dom';
-import strings = require('vs/base/common/strings');
 import { $ } from 'vs/base/browser/builder';
 import { Widget } from 'vs/base/browser/ui/widget';
-import { IExpression, splitGlobAware } from 'vs/base/common/glob';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { MessageType, InputBox, IInputValidator } from 'vs/base/browser/ui/inputbox/inputBox';
+import { InputBox, IInputValidator } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { attachInputBoxStyler, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { HistoryNavigator } from 'vs/base/common/history';
 
 export interface IOptions {
 	placeholder?: string;
@@ -29,30 +31,32 @@ export class PatternInputWidget extends Widget {
 
 	public inputFocusTracker: dom.IFocusTracker;
 
-	private onOptionChange: (event: Event) => void;
+	protected onOptionChange: (event: Event) => void;
 	private width: number;
 	private placeholder: string;
 	private ariaLabel: string;
 
-	private toDispose: any[];
-	private pattern: Checkbox;
-
 	private domNode: HTMLElement;
+	// @ts-ignore unused property
 	private inputNode: HTMLInputElement;
-	private inputBox: InputBox;
+	protected inputBox: InputBox;
+
+	private history: HistoryNavigator<string>;
 
 	private _onSubmit = this._register(new Emitter<boolean>());
 	public onSubmit: CommonEvent<boolean> = this._onSubmit.event;
 
-	constructor(parent: HTMLElement, private contextViewProvider: IContextViewProvider, options: IOptions = Object.create(null)) {
+	private _onCancel = this._register(new Emitter<boolean>());
+	public onCancel: CommonEvent<boolean> = this._onCancel.event;
+
+	constructor(parent: HTMLElement, private contextViewProvider: IContextViewProvider, protected themeService: IThemeService, options: IOptions = Object.create(null)) {
 		super();
+		this.history = new HistoryNavigator<string>();
 		this.onOptionChange = null;
 		this.width = options.width || 100;
 		this.placeholder = options.placeholder || '';
 		this.ariaLabel = options.ariaLabel || nls.localize('defaultLabel', "input");
 
-		this.toDispose = [];
-		this.pattern = null;
 		this.domNode = null;
 		this.inputNode = null;
 		this.inputBox = null;
@@ -64,14 +68,9 @@ export class PatternInputWidget extends Widget {
 
 	public dispose(): void {
 		super.dispose();
-		this.pattern.dispose();
-		this.toDispose.forEach((element) => {
-			element();
-		});
 		if (this.inputFocusTracker) {
 			this.inputFocusTracker.dispose();
 		}
-		this.toDispose = [];
 	}
 
 	public on(eventType: string, handler: (event: Event) => void): PatternInputWidget {
@@ -104,31 +103,6 @@ export class PatternInputWidget extends Widget {
 		}
 	}
 
-	public getGlob(): IExpression {
-		let pattern = this.getValue();
-		let isGlobPattern = this.isGlobPattern();
-
-		if (!pattern) {
-			return void 0;
-		}
-
-		let glob: IExpression = Object.create(null);
-
-		let segments: string[];
-		if (isGlobPattern) {
-			segments = splitGlobAware(pattern, ',').map(s => s.trim()).filter(s => !!s.length);
-		} else {
-			segments = pattern.split(',').map(s => strings.trim(s.trim(), '/')).filter(s => !!s.length).map(p => {
-				if (p[0] === '.') {
-					p = '*' + p; // convert ".js" to "*.js"
-				}
-
-				return strings.format('{{0}/**,**/{1}}', p, p); // convert foo to {foo/**,**/foo} to cover files and folders
-			});
-		}
-
-		return segments.reduce((prev, cur) => { glob[cur] = true; return glob; }, glob);
-	}
 
 	public select(): void {
 		this.inputBox.select();
@@ -142,18 +116,47 @@ export class PatternInputWidget extends Widget {
 		return this.inputBox.hasFocus();
 	}
 
-	public isGlobPattern(): boolean {
-		return this.pattern.checked;
-	}
-
-	public setIsGlobPattern(value: boolean): void {
-		this.pattern.checked = value;
-		this.setInputWidth();
-	}
-
 	private setInputWidth(): void {
-		let w = this.width - this.pattern.width();
-		this.inputBox.width = w;
+		this.inputBox.width = this.width - this.getSubcontrolsWidth() - 2; // 2 for input box border
+	}
+
+	protected getSubcontrolsWidth(): number {
+		return 0;
+	}
+
+	public getHistory(): string[] {
+		return this.history.getHistory();
+	}
+
+	public setHistory(history: string[]) {
+		this.history = new HistoryNavigator<string>(history);
+	}
+
+	public onSearchSubmit(): void {
+		const value = this.getValue();
+		if (value) {
+			this.history.addIfNotPresent(value);
+		}
+	}
+
+	public showNextTerm() {
+		let next = this.history.next();
+		if (next) {
+			this.setValue(next);
+		}
+	}
+
+	public showPreviousTerm() {
+		let previous;
+		if (this.getValue().length === 0) {
+			previous = this.history.current();
+		} else {
+			this.history.addIfNotPresent(this.getValue());
+			previous = this.history.previous();
+		}
+		if (previous) {
+			this.setValue(previous);
+		}
 	}
 
 	private render(): void {
@@ -165,59 +168,22 @@ export class PatternInputWidget extends Widget {
 			placeholder: this.placeholder || '',
 			ariaLabel: this.ariaLabel || '',
 			validationOptions: {
-				validation: null,
-				showMessage: true
+				validation: null
 			}
 		});
+		this._register(attachInputBoxStyler(this.inputBox, this.themeService));
 		this.inputFocusTracker = dom.trackFocus(this.inputBox.inputElement);
 		this.onkeyup(this.inputBox.inputElement, (keyboardEvent) => this.onInputKeyUp(keyboardEvent));
 
-		this.pattern = new Checkbox({
-			actionClassName: 'pattern',
-			title: nls.localize('patternDescription', "Use Glob Patterns"),
-			isChecked: false,
-			onChange: (viaKeyboard) => {
-				this.onOptionChange(null);
-				if (!viaKeyboard) {
-					this.inputBox.focus();
-				}
-				this.setInputWidth();
-
-				if (this.isGlobPattern()) {
-					this.showGlobHelp();
-				} else {
-					this.inputBox.hideMessage();
-				}
-			}
-		});
-
-		$(this.pattern.domNode).on('mouseover', () => {
-			if (this.isGlobPattern()) {
-				this.showGlobHelp();
-			}
-		});
-
-		$(this.pattern.domNode).on(['mouseleave', 'mouseout'], () => {
-			this.inputBox.hideMessage();
-		});
-
-		this.setInputWidth();
-
 		let controls = document.createElement('div');
 		controls.className = 'controls';
-		controls.appendChild(this.pattern.domNode);
+		this.renderSubcontrols(controls);
 
 		this.domNode.appendChild(controls);
+		this.setInputWidth();
 	}
 
-	private showGlobHelp(): void {
-		this.inputBox.showMessage({
-			type: MessageType.INFO,
-			formatContent: true,
-			content: nls.localize('patternHelpInclude',
-				"The pattern to match. e.g. **\\*\\*/*.js** to match all JavaScript files or **myFolder/\\*\\*** to match that folder with all children.\n\n**Reference**:\n**\\*** matches 0 or more characters\n**?** matches 1 character\n**\\*\\*** matches zero or more directories\n**[a-z]** matches a range of characters\n**{a,b}** matches any of the patterns)"
-			)
-		}, true);
+	protected renderSubcontrols(controlsDiv: HTMLDivElement): void {
 	}
 
 	private onInputKeyUp(keyboardEvent: IKeyboardEvent) {
@@ -225,8 +191,59 @@ export class PatternInputWidget extends Widget {
 			case KeyCode.Enter:
 				this._onSubmit.fire();
 				return;
+			case KeyCode.Escape:
+				this._onCancel.fire();
+				return;
 			default:
 				return;
 		}
+	}
+}
+
+export class ExcludePatternInputWidget extends PatternInputWidget {
+
+	constructor(parent: HTMLElement, contextViewProvider: IContextViewProvider, themeService: IThemeService, private telemetryService: ITelemetryService, options: IOptions = Object.create(null)) {
+		super(parent, contextViewProvider, themeService, options);
+	}
+
+	private useExcludesAndIgnoreFilesBox: Checkbox;
+
+	public dispose(): void {
+		super.dispose();
+		this.useExcludesAndIgnoreFilesBox.dispose();
+	}
+
+	public useExcludesAndIgnoreFiles(): boolean {
+		return this.useExcludesAndIgnoreFilesBox.checked;
+	}
+
+	public setUseExcludesAndIgnoreFiles(value: boolean) {
+		this.useExcludesAndIgnoreFilesBox.checked = value;
+	}
+
+	protected getSubcontrolsWidth(): number {
+		return super.getSubcontrolsWidth() + this.useExcludesAndIgnoreFilesBox.width();
+	}
+
+	protected renderSubcontrols(controlsDiv: HTMLDivElement): void {
+		this.useExcludesAndIgnoreFilesBox = new Checkbox({
+			actionClassName: 'useExcludesAndIgnoreFiles',
+			title: nls.localize('useExcludesAndIgnoreFilesDescription', "Use Exclude Settings and Ignore Files"),
+			isChecked: true,
+			onChange: (viaKeyboard) => {
+				/* __GDPR__
+					"search.useExcludesAndIgnoreFiles.toggled" : {}
+				*/
+				this.telemetryService.publicLog('search.useExcludesAndIgnoreFiles.toggled');
+				this.onOptionChange(null);
+				if (!viaKeyboard) {
+					this.inputBox.focus();
+				}
+			}
+		});
+		this._register(attachCheckboxStyler(this.useExcludesAndIgnoreFilesBox, this.themeService));
+
+		controlsDiv.appendChild(this.useExcludesAndIgnoreFilesBox.domNode);
+		super.renderSubcontrols(controlsDiv);
 	}
 }

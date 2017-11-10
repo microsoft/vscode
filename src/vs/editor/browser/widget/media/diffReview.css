@@ -1,0 +1,70 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-diff-editor .diff-review-line-number {
+	text-align: right;
+	display: inline-block;
+}
+
+.monaco-diff-editor .diff-review {
+	position: absolute;
+	-webkit-user-select: none;
+	-ms-user-select: none;
+	-khtml-user-select: none;
+	-moz-user-select: none;
+	-o-user-select: none;
+	user-select: none;
+}
+
+.monaco-diff-editor .diff-review-summary {
+	padding-left: 10px;
+}
+
+.monaco-diff-editor .diff-review-shadow {
+	position: absolute;
+}
+
+.monaco-diff-editor .diff-review-row {
+	white-space: pre;
+}
+
+.monaco-diff-editor .diff-review-table {
+	display: table;
+	min-width: 100%;
+}
+
+.monaco-diff-editor .diff-review-row {
+	display: table-row;
+	width: 100%;
+}
+
+.monaco-diff-editor .diff-review-cell {
+	display: table-cell;
+}
+
+.monaco-diff-editor .diff-review-spacer {
+	display: inline-block;
+	width: 10px;
+}
+
+.monaco-diff-editor .diff-review-actions {
+	display: inline-block;
+	position: absolute;
+	right: 10px;
+	top: 2px;
+}
+
+.monaco-diff-editor .diff-review-actions .action-label {
+	width: 16px;
+	height: 16px;
+	margin: 2px 0;
+}
+.monaco-diff-editor .action-label.icon.close-diff-review {
+	background: url('close.svg') center center no-repeat;
+}
+.monaco-diff-editor.hc-black .action-label.icon.close-diff-review,
+.monaco-diff-editor.vs-dark .action-label.icon.close-diff-review {
+	background: url('close-inverse.svg') center center no-repeat;
+}

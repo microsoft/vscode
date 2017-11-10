@@ -15,7 +15,7 @@ import { ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEng
 import { ISearchWorker } from './worker/searchWorkerIpc';
 import { ITextSearchWorkerProvider } from './textSearchWorkerProvider';
 
-export class Engine implements ISearchEngine<ISerializedFileMatch> {
+export class Engine implements ISearchEngine<ISerializedFileMatch[]> {
 
 	private static PROGRESS_FLUSH_CHUNK_SIZE = 50; // optimization: number of files to process before emitting progress event
 
@@ -60,9 +60,13 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 		});
 	}
 
-	search(onResult: (match: ISerializedFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
+	search(onResult: (match: ISerializedFileMatch[]) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
 		this.workers = this.workerProvider.getWorkers();
 		this.initializeWorkers();
+
+		const fileEncoding = this.config.folderQueries.length === 1 ?
+			this.config.folderQueries[0].fileEncoding || 'utf8' :
+			'utf8';
 
 		const progress = () => {
 			if (++this.progressed % Engine.PROGRESS_FLUSH_CHUNK_SIZE === 0) {
@@ -93,17 +97,15 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 			this.nextWorker = (this.nextWorker + 1) % this.workers.length;
 
 			const maxResults = this.config.maxResults && (this.config.maxResults - this.numResults);
-			const searchArgs = { absolutePaths: batch, maxResults, pattern: this.config.contentPattern, fileEncoding: this.config.fileEncoding };
+			const searchArgs = { absolutePaths: batch, maxResults, pattern: this.config.contentPattern, fileEncoding };
 			worker.search(searchArgs).then(result => {
 				if (!result || this.limitReached || this.isCanceled) {
 					return unwind(batchBytes);
 				}
 
 				const matches = result.matches;
+				onResult(matches);
 				this.numResults += result.numMatches;
-				matches.forEach(m => {
-					onResult(m);
-				});
 
 				if (this.config.maxResults && this.numResults >= this.config.maxResults) {
 					// It's possible to go over maxResults like this, but it's much simpler than trying to extract the exact number
@@ -121,10 +123,10 @@ export class Engine implements ISearchEngine<ISerializedFileMatch> {
 		};
 
 		// Walk over the file system
-		let nextBatch = [];
+		let nextBatch: string[] = [];
 		let nextBatchBytes = 0;
 		const batchFlushBytes = 2 ** 20; // 1MB
-		this.walker.walk(this.config.rootFolders, this.config.extraFiles, result => {
+		this.walker.walk(this.config.folderQueries, this.config.extraFiles, result => {
 			let bytes = result.size || 1;
 			this.totalBytes += bytes;
 

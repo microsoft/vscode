@@ -5,15 +5,19 @@
 
 'use strict';
 
-import { CompletionItemProvider, CompletionItem, CompletionItemKind, CancellationToken, TextDocument, Position, Range, TextEdit } from 'vscode';
+import { CompletionItemProvider, CompletionItem, CompletionItemKind, CancellationToken, TextDocument, Position, Range, TextEdit, workspace } from 'vscode';
 import phpGlobals = require('./phpGlobals');
 
 export default class PHPCompletionItemProvider implements CompletionItemProvider {
 
-	public triggerCharacters = ['.', ':', '$'];
-
-	public provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken): Promise<CompletionItem[]> {
+	public provideCompletionItems(document: TextDocument, position: Position, _token: CancellationToken): Promise<CompletionItem[]> {
 		let result: CompletionItem[] = [];
+
+		let shouldProvideCompletionItems = workspace.getConfiguration('php').get<boolean>('suggest.basic', true);
+		if (!shouldProvideCompletionItems) {
+			return Promise.resolve(result);
+		}
+
 		var range = document.getWordRangeAtPosition(position);
 		var prefix = range ? document.getText(range) : '';
 		if (!range) {
@@ -21,7 +25,7 @@ export default class PHPCompletionItemProvider implements CompletionItemProvider
 		}
 
 		var added: any = {};
-		var createNewProposal = function (kind: CompletionItemKind, name: string, entry: phpGlobals.IEntry): CompletionItem {
+		var createNewProposal = function (kind: CompletionItemKind, name: string, entry: phpGlobals.IEntry | null): CompletionItem {
 			var proposal: CompletionItem = new CompletionItem(name);
 			proposal.kind = kind;
 			if (entry) {
@@ -79,7 +83,7 @@ export default class PHPCompletionItemProvider implements CompletionItemProvider
 		var text = document.getText();
 		if (prefix[0] === '$') {
 			var variableMatch = /\$([a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*)/g;
-			var match: RegExpExecArray = null;
+			var match: RegExpExecArray | null = null;
 			while (match = variableMatch.exec(text)) {
 				var word = match[0];
 				if (!added[word]) {
@@ -89,7 +93,7 @@ export default class PHPCompletionItemProvider implements CompletionItemProvider
 			}
 		}
 		var functionMatch = /function\s+([a-zA-Z_\x7f-\xff][a-zA-Z0-9_\x7f-\xff]*)\s*\(/g;
-		var match: RegExpExecArray = null;
+		var match: RegExpExecArray | null = null;
 		while (match = functionMatch.exec(text)) {
 			var word = match[1];
 			if (!added[word]) {

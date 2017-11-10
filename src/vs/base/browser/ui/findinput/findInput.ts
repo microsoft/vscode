@@ -8,15 +8,18 @@ import 'vs/css!./findInput';
 
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { IMessage as InputBoxMessage, IInputValidator, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
+import { IMessage as InputBoxMessage, IInputValidator, InputBox, IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { Widget } from 'vs/base/browser/ui/widget';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { CaseSensitiveCheckbox, WholeWordsCheckbox, RegexCheckbox } from 'vs/base/browser/ui/findinput/findInputCheckboxes';
+import { Color } from 'vs/base/common/color';
+import { ICheckboxStyles } from 'vs/base/browser/ui/checkbox/checkbox';
 
-export interface IFindInputOptions {
+export interface IFindInputOptions extends IFindInputStyles {
 	placeholder?: string;
 	width?: number;
 	validation?: IInputValidator;
@@ -27,9 +30,10 @@ export interface IFindInputOptions {
 	appendRegexLabel?: string;
 }
 
-const NLS_REGEX_CHECKBOX_LABEL = nls.localize('regexDescription', "Use Regular Expression");
-const NLS_WHOLE_WORD_CHECKBOX_LABEL = nls.localize('wordsDescription', "Match Whole Word");
-const NLS_CASE_SENSITIVE_CHECKBOX_LABEL = nls.localize('caseDescription', "Match Case");
+export interface IFindInputStyles extends IInputBoxStyles {
+	inputActiveOptionBorder?: Color;
+}
+
 const NLS_DEFAULT_LABEL = nls.localize('defaultLabel', "input");
 
 export class FindInput extends Widget {
@@ -42,9 +46,21 @@ export class FindInput extends Widget {
 	private validation: IInputValidator;
 	private label: string;
 
-	private regex: Checkbox;
-	private wholeWords: Checkbox;
-	private caseSensitive: Checkbox;
+	private inputActiveOptionBorder: Color;
+	private inputBackground: Color;
+	private inputForeground: Color;
+	private inputBorder: Color;
+
+	private inputValidationInfoBorder: Color;
+	private inputValidationInfoBackground: Color;
+	private inputValidationWarningBorder: Color;
+	private inputValidationWarningBackground: Color;
+	private inputValidationErrorBorder: Color;
+	private inputValidationErrorBackground: Color;
+
+	private regex: RegexCheckbox;
+	private wholeWords: WholeWordsCheckbox;
+	private caseSensitive: CaseSensitiveCheckbox;
 	public domNode: HTMLElement;
 	public inputBox: InputBox;
 
@@ -53,6 +69,9 @@ export class FindInput extends Widget {
 
 	private _onKeyDown = this._register(new Emitter<IKeyboardEvent>());
 	public onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
+
+	private _onMouseDown = this._register(new Emitter<IMouseEvent>());
+	public onMouseDown: Event<IMouseEvent> = this._onMouseDown.event;
 
 	private _onInput = this._register(new Emitter<void>());
 	public onInput: Event<void> = this._onInput.event;
@@ -71,6 +90,18 @@ export class FindInput extends Widget {
 		this.validation = options.validation;
 		this.label = options.label || NLS_DEFAULT_LABEL;
 
+		this.inputActiveOptionBorder = options.inputActiveOptionBorder;
+		this.inputBackground = options.inputBackground;
+		this.inputForeground = options.inputForeground;
+		this.inputBorder = options.inputBorder;
+
+		this.inputValidationInfoBorder = options.inputValidationInfoBorder;
+		this.inputValidationInfoBackground = options.inputValidationInfoBackground;
+		this.inputValidationWarningBorder = options.inputValidationWarningBorder;
+		this.inputValidationWarningBackground = options.inputValidationWarningBackground;
+		this.inputValidationErrorBorder = options.inputValidationErrorBorder;
+		this.inputValidationErrorBackground = options.inputValidationErrorBackground;
+
 		this.regex = null;
 		this.wholeWords = null;
 		this.caseSensitive = null;
@@ -86,6 +117,7 @@ export class FindInput extends Widget {
 		this.onkeydown(this.inputBox.inputElement, (e) => this._onKeyDown.fire(e));
 		this.onkeyup(this.inputBox.inputElement, (e) => this._onKeyUp.fire(e));
 		this.oninput(this.inputBox.inputElement, (e) => this._onInput.fire());
+		this.onmousedown(this.inputBox.inputElement, (e) => this._onMouseDown.fire(e));
 	}
 
 	public enable(): void {
@@ -135,6 +167,46 @@ export class FindInput extends Widget {
 		}
 	}
 
+	public style(styles: IFindInputStyles): void {
+		this.inputActiveOptionBorder = styles.inputActiveOptionBorder;
+		this.inputBackground = styles.inputBackground;
+		this.inputForeground = styles.inputForeground;
+		this.inputBorder = styles.inputBorder;
+
+		this.inputValidationInfoBackground = styles.inputValidationInfoBackground;
+		this.inputValidationInfoBorder = styles.inputValidationInfoBorder;
+		this.inputValidationWarningBackground = styles.inputValidationWarningBackground;
+		this.inputValidationWarningBorder = styles.inputValidationWarningBorder;
+		this.inputValidationErrorBackground = styles.inputValidationErrorBackground;
+		this.inputValidationErrorBorder = styles.inputValidationErrorBorder;
+
+		this.applyStyles();
+	}
+
+	protected applyStyles(): void {
+		if (this.domNode) {
+			const checkBoxStyles: ICheckboxStyles = {
+				inputActiveOptionBorder: this.inputActiveOptionBorder,
+			};
+			this.regex.style(checkBoxStyles);
+			this.wholeWords.style(checkBoxStyles);
+			this.caseSensitive.style(checkBoxStyles);
+
+			const inputBoxStyles: IInputBoxStyles = {
+				inputBackground: this.inputBackground,
+				inputForeground: this.inputForeground,
+				inputBorder: this.inputBorder,
+				inputValidationInfoBackground: this.inputValidationInfoBackground,
+				inputValidationInfoBorder: this.inputValidationInfoBorder,
+				inputValidationWarningBackground: this.inputValidationWarningBackground,
+				inputValidationWarningBorder: this.inputValidationWarningBorder,
+				inputValidationErrorBackground: this.inputValidationErrorBackground,
+				inputValidationErrorBorder: this.inputValidationErrorBorder
+			};
+			this.inputBox.style(inputBoxStyles);
+		}
+	}
+
 	public select(): void {
 		this.inputBox.select();
 	}
@@ -168,10 +240,18 @@ export class FindInput extends Widget {
 	public setRegex(value: boolean): void {
 		this.regex.checked = value;
 		this.setInputWidth();
+		this.validate();
 	}
 
 	public focusOnCaseSensitive(): void {
 		this.caseSensitive.focus();
+	}
+
+	private _lastHighlightFindOptions: number = 0;
+	public highlightFindOptions(): void {
+		dom.removeClass(this.domNode, 'highlight-' + (this._lastHighlightFindOptions));
+		this._lastHighlightFindOptions = 1 - this._lastHighlightFindOptions;
+		dom.addClass(this.domNode, 'highlight-' + (this._lastHighlightFindOptions));
 	}
 
 	private setInputWidth(): void {
@@ -188,14 +268,21 @@ export class FindInput extends Widget {
 			placeholder: this.placeholder || '',
 			ariaLabel: this.label || '',
 			validationOptions: {
-				validation: this.validation || null,
-				showMessage: true
-			}
+				validation: this.validation || null
+			},
+			inputBackground: this.inputBackground,
+			inputForeground: this.inputForeground,
+			inputBorder: this.inputBorder,
+			inputValidationInfoBackground: this.inputValidationInfoBackground,
+			inputValidationInfoBorder: this.inputValidationInfoBorder,
+			inputValidationWarningBackground: this.inputValidationWarningBackground,
+			inputValidationWarningBorder: this.inputValidationWarningBorder,
+			inputValidationErrorBackground: this.inputValidationErrorBackground,
+			inputValidationErrorBorder: this.inputValidationErrorBorder
 		}));
 
-		this.regex = this._register(new Checkbox({
-			actionClassName: 'regex',
-			title: NLS_REGEX_CHECKBOX_LABEL + appendRegexLabel,
+		this.regex = this._register(new RegexCheckbox({
+			appendTitle: appendRegexLabel,
 			isChecked: false,
 			onChange: (viaKeyboard) => {
 				this._onDidOptionChange.fire(viaKeyboard);
@@ -204,11 +291,11 @@ export class FindInput extends Widget {
 				}
 				this.setInputWidth();
 				this.validate();
-			}
+			},
+			inputActiveOptionBorder: this.inputActiveOptionBorder
 		}));
-		this.wholeWords = this._register(new Checkbox({
-			actionClassName: 'whole-word',
-			title: NLS_WHOLE_WORD_CHECKBOX_LABEL + appendWholeWordsLabel,
+		this.wholeWords = this._register(new WholeWordsCheckbox({
+			appendTitle: appendWholeWordsLabel,
 			isChecked: false,
 			onChange: (viaKeyboard) => {
 				this._onDidOptionChange.fire(viaKeyboard);
@@ -217,11 +304,11 @@ export class FindInput extends Widget {
 				}
 				this.setInputWidth();
 				this.validate();
-			}
+			},
+			inputActiveOptionBorder: this.inputActiveOptionBorder
 		}));
-		this.caseSensitive = this._register(new Checkbox({
-			actionClassName: 'case-sensitive',
-			title: NLS_CASE_SENSITIVE_CHECKBOX_LABEL + appendCaseSensitiveLabel,
+		this.caseSensitive = this._register(new CaseSensitiveCheckbox({
+			appendTitle: appendCaseSensitiveLabel,
 			isChecked: false,
 			onChange: (viaKeyboard) => {
 				this._onDidOptionChange.fire(viaKeyboard);
@@ -233,7 +320,8 @@ export class FindInput extends Widget {
 			},
 			onKeyDown: (e) => {
 				this._onCaseSensitiveKeyDown.fire(e);
-			}
+			},
+			inputActiveOptionBorder: this.inputActiveOptionBorder
 		}));
 
 		// Arrow-Key support to navigate between options

@@ -7,21 +7,30 @@
 import * as assert from 'assert';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { resolveWorkbenchCommonProperties } from 'vs/platform/telemetry/node/workbenchCommonProperties';
-import { TestStorageService } from 'vs/test/utils/servicesTestUtils';
+import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
+import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 suite('Telemetry - common properties', function () {
 
-	const commit = void 0;
-	const version = void 0;
+	const commit: string = void 0;
+	const version: string = void 0;
+	const source: string = void 0;
+	let storageService: StorageService;
+
+	setup(() => {
+		storageService = new StorageService(new InMemoryLocalStorage(), null, TestWorkspace.id);
+	});
 
 	test('default', function () {
 
-		return resolveWorkbenchCommonProperties(new TestStorageService(), commit, version).then(props => {
+		return resolveWorkbenchCommonProperties(storageService, commit, version, source).then(props => {
 
 			assert.ok('commitHash' in props);
 			assert.ok('sessionID' in props);
 			assert.ok('timestamp' in props);
 			assert.ok('common.platform' in props);
+			assert.ok('common.nodePlatform' in props);
+			assert.ok('common.nodeArch' in props);
 			assert.ok('common.timesincesessionstart' in props);
 			assert.ok('common.sequence' in props);
 
@@ -29,6 +38,7 @@ suite('Telemetry - common properties', function () {
 			// assert.ok('common.version.renderer' in first.data);
 			assert.ok('common.osVersion' in props, 'osVersion');
 			assert.ok('version' in props);
+			assert.ok('common.source' in props);
 
 			assert.ok('common.firstSessionDate' in props, 'firstSessionDate');
 			assert.ok('common.lastSessionDate' in props, 'lastSessionDate'); // conditional, see below, 'lastSessionDate'ow
@@ -37,21 +47,15 @@ suite('Telemetry - common properties', function () {
 			// machine id et al
 			assert.ok('common.instanceId' in props, 'instanceId');
 			assert.ok('common.machineId' in props, 'machineId');
-			if (process.platform === 'win32') { // SQM only on windows
-				assert.ok('common.sqm.userid' in props, 'userid');
-				assert.ok('common.sqm.machineid' in props, 'machineid');
-			}
 
-			assert.equal(Object.keys(props).length, process.platform === 'win32' ? 18 : 16);
 		});
 	});
 
 	test('lastSessionDate when aviablale', function () {
 
-		let service = new TestStorageService();
-		service.store('telemetry.lastSessionDate', new Date().toUTCString());
+		storageService.store('telemetry.lastSessionDate', new Date().toUTCString());
 
-		return resolveWorkbenchCommonProperties(service, commit, version).then(props => {
+		return resolveWorkbenchCommonProperties(storageService, commit, version, source).then(props => {
 
 			assert.ok('common.lastSessionDate' in props); // conditional, see below
 			assert.ok('common.isNewSession' in props);
@@ -60,7 +64,7 @@ suite('Telemetry - common properties', function () {
 	});
 
 	test('values chance on ask', function () {
-		return resolveWorkbenchCommonProperties(new TestStorageService(), commit, version).then(props => {
+		return resolveWorkbenchCommonProperties(storageService, commit, version, source).then(props => {
 			let value1 = props['common.sequence'];
 			let value2 = props['common.sequence'];
 			assert.ok(value1 !== value2, 'seq');

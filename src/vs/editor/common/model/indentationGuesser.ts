@@ -81,6 +81,9 @@ export interface IGuessedIndentation {
 }
 
 export function guessIndentation(lines: string[], defaultTabSize: number, defaultInsertSpaces: boolean): IGuessedIndentation {
+	// Look at most at the first 10k lines
+	const linesLen = Math.min(lines.length, 10000);
+
 	let linesIndentedWithTabsCount = 0;				// number of lines that contain at least one tab in indentation
 	let linesIndentedWithSpacesCount = 0;			// number of lines that contain only spaces in indentation
 
@@ -92,7 +95,7 @@ export function guessIndentation(lines: string[], defaultTabSize: number, defaul
 
 	let spacesDiffCount = [0, 0, 0, 0, 0, 0, 0, 0, 0];		// `tabSize` scores
 
-	for (let i = 0, len = lines.length; i < len; i++) {
+	for (let i = 0; i < linesLen; i++) {
 		let currentLineText = lines[i];
 
 		let currentLineHasContent = false;			// does `currentLineText` contain non-whitespace chars
@@ -146,7 +149,7 @@ export function guessIndentation(lines: string[], defaultTabSize: number, defaul
 	}
 
 	let tabSize = defaultTabSize;
-	let tabSizeScore = (insertSpaces ? 0 : 0.1 * lines.length);
+	let tabSizeScore = (insertSpaces ? 0 : 0.1 * linesLen);
 
 	// console.log("score threshold: " + tabSizeScore);
 

@@ -1,6 +1,17 @@
 {
-	"name": "Dark Visual Studio",
-	"settings": [
+	"$schema": "vscode://schemas/color-theme",
+	"name": "Dark (Visual Studio)",
+	"include": "./dark_defaults.json",
+	"tokenColors": [
+		{
+			"scope": [
+				"meta.embedded",
+				"source.groovy.embedded"
+			],
+			"settings": {
+				"foreground": "#D4D4D4"
+			}
+		},
 		{
 			"scope": "emphasis",
 			"settings": {
@@ -19,7 +30,6 @@
 				"foreground": "#000080"
 			}
 		},
-
 		{
 			"scope": "comment",
 			"settings": {
@@ -33,7 +43,9 @@
 			}
 		},
 		{
-			"scope": "constant.numeric",
+			"scope": [
+				"constant.numeric"
+			],
 			"settings": {
 				"foreground": "#b5cea8"
 			}
@@ -45,19 +57,13 @@
 			}
 		},
 		{
-			"scope": "constant.rgb-value",
-			"settings": {
-				"foreground": "#d4d4d4"
-			}
-		},
-		{
 			"scope": "entity.name.tag",
 			"settings": {
 				"foreground": "#569cd6"
 			}
 		},
 		{
-			"scope": "entity.name.selector",
+			"scope": "entity.name.tag.css",
 			"settings": {
 				"foreground": "#d7ba7d"
 			}
@@ -69,7 +75,17 @@
 			}
 		},
 		{
-			"scope": "entity.other.attribute-name.css",
+			"scope": [
+				"entity.other.attribute-name.class.css",
+				"entity.other.attribute-name.class.mixin.css",
+				"entity.other.attribute-name.id.css",
+				"entity.other.attribute-name.parent-selector.css",
+				"entity.other.attribute-name.pseudo-class.css",
+				"entity.other.attribute-name.pseudo-element.css",
+				"source.css.less entity.other.attribute-name.id",
+				"entity.other.attribute-name.attribute.scss",
+				"entity.other.attribute-name.scss"
+			],
 			"settings": {
 				"foreground": "#d7ba7d"
 			}
@@ -125,13 +141,13 @@
 			}
 		},
 		{
-			"scope": "markup.punctuation.quote.beginning",
+			"scope": "beginning.punctuation.definition.quote.markdown",
 			"settings": {
 				"foreground": "#608b4e"
 			}
 		},
 		{
-			"scope": "markup.punctuation.list.beginning",
+			"scope": "beginning.punctuation.definition.list.markdown",
 			"settings": {
 				"foreground": "#6796e6"
 			}
@@ -180,7 +196,7 @@
 			}
 		},
 		{
-			"scope": "meta.header.diff",
+			"scope": "meta.diff.header",
 			"settings": {
 				"foreground": "#569cd6"
 			}
@@ -228,14 +244,34 @@
 			}
 		},
 		{
-			"name": "JavaScript string interpolation ${}",
-			"scope": "string.template-expression",
+			"name": "String interpolation",
+			"scope": [
+				"punctuation.definition.template-expression.begin",
+				"punctuation.definition.template-expression.end",
+				"punctuation.section.embedded"
+			],
 			"settings": {
 				"foreground": "#569cd6"
 			}
 		},
 		{
-			"scope": "support.type.property-name",
+			"name": "Reset JavaScript string interpolation expression",
+			"scope": [
+				"meta.template.expression"
+			],
+			"settings": {
+				"foreground": "#d4d4d4"
+			}
+		},
+		{
+			"scope": [
+				"support.type.vendored.property-name",
+				"support.type.property-name",
+				"variable.css",
+				"variable.scss",
+				"variable.other.less",
+				"source.coffee.embedded"
+			],
 			"settings": {
 				"foreground": "#9cdcfe"
 			}
@@ -259,7 +295,13 @@
 			}
 		},
 		{
-			"scope": ["keyword.operator.new", "keyword.operator.expression"],
+			"scope": [
+				"keyword.operator.new",
+				"keyword.operator.expression",
+				"keyword.operator.cast",
+				"keyword.operator.sizeof",
+				"keyword.operator.logical.python"
+			],
 			"settings": {
 				"foreground": "#569cd6"
 			}
@@ -271,8 +313,10 @@
 			}
 		},
 		{
-			"name": "coloring of the PHP start and end tag (<?php and ?>)",
-			"scope": ["punctuation.section.embedded.begin.metatag.php", "punctuation.section.embedded.end.metatag.php"],
+			"scope": [
+				"punctuation.section.embedded.begin.php",
+				"punctuation.section.embedded.end.php"
+			],
 			"settings": {
 				"foreground": "#569cd6"
 			}
@@ -291,7 +335,11 @@
 		},
 		{
 			"name": "coloring of the Java import and package identifiers",
-			"scope": ["storage.modifier.import.java", "storage.modifier.package.java"],
+			"scope": [
+				"storage.modifier.import.java",
+				"variable.language.wildcard.java",
+				"storage.modifier.package.java"
+			],
 			"settings": {
 				"foreground": "#d4d4d4"
 			}

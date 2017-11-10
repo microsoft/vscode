@@ -6,6 +6,7 @@
 import fs = require('fs');
 import ts = require('typescript');
 import path = require('path');
+const tsfmt = require('../../tsfmt.json');
 
 var util = require('gulp-util');
 function log(message: any, ...rest: any[]): void {
@@ -31,18 +32,16 @@ function moduleIdToPath(out:string, moduleId:string): string {
 }
 
 let SOURCE_FILE_MAP: {[moduleId:string]:ts.SourceFile;} = {};
-function getSourceFile(out:string, moduleId:string): ts.SourceFile {
+function getSourceFile(out:string, inputFiles: { [file: string]: string; }, moduleId:string): ts.SourceFile {
 	if (!SOURCE_FILE_MAP[moduleId]) {
-		let filePath = moduleIdToPath(out, moduleId);
+		let filePath = path.normalize(moduleIdToPath(out, moduleId));
 
-		let fileContents: string;
-		try {
-			fileContents = fs.readFileSync(filePath).toString();
-		} catch (err) {
-			logErr('CANNOT FIND FILE ' + filePath);
+		if (!inputFiles.hasOwnProperty(filePath)) {
+			logErr('CANNOT FIND FILE ' + filePath + '. YOU MIGHT NEED TO RESTART gulp');
 			return null;
 		}
 
+		let fileContents = inputFiles[filePath];
 		let sourceFile = ts.createSourceFile(filePath, fileContents, ts.ScriptTarget.ES5);
 
 		SOURCE_FILE_MAP[moduleId] = sourceFile;
@@ -184,18 +183,17 @@ function getMassagedTopLevelDeclarationText(sourceFile:ts.SourceFile, declaratio
 }
 
 function format(text:string): string {
-	let options = getDefaultOptions();
 
 	// Parse the source text
 	let sourceFile = ts.createSourceFile('file.ts', text, ts.ScriptTarget.Latest, /*setParentPointers*/ true);
 
 	// Get the formatting edits on the input sources
-	let edits = (<any>ts).formatting.formatDocument(sourceFile, getRuleProvider(options), options);
+	let edits = (<any>ts).formatting.formatDocument(sourceFile, getRuleProvider(tsfmt), tsfmt);
 
 	// Apply the edits on the input code
 	return applyEdits(text, edits);
 
-	function getRuleProvider(options: ts.FormatCodeOptions) {
+	function getRuleProvider(options: ts.FormatCodeSettings) {
 		// Share this between multiple formatters using the same options.
 		// This represents the bulk of the space the formatter uses.
 		let ruleProvider = new (<any>ts).formatting.RulesProvider();
@@ -213,27 +211,6 @@ function format(text:string): string {
 			result = head + change.newText + tail;
 		}
 		return result;
-	}
-
-	function getDefaultOptions(): ts.FormatCodeOptions {
-		return {
-			IndentSize: 4,
-			TabSize: 4,
-			NewLineCharacter: '\r\n',
-			ConvertTabsToSpaces: true,
-			IndentStyle: ts.IndentStyle.Block,
-
-			InsertSpaceAfterCommaDelimiter: true,
-			InsertSpaceAfterSemicolonInForStatements: true,
-			InsertSpaceBeforeAndAfterBinaryOperators: true,
-			InsertSpaceAfterKeywordsInControlFlowStatements: true,
-			InsertSpaceAfterFunctionKeywordForAnonymousFunctions: false,
-			InsertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: false,
-			InsertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: false,
-			InsertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: true,
-			PlaceOpenBraceOnNewLineForFunctions: false,
-			PlaceOpenBraceOnNewLineForControlBlocks: false,
-		};
 	}
 }
 
@@ -262,7 +239,7 @@ function createReplacer(data:string): (str:string)=>string {
 	};
 }
 
-function generateDeclarationFile(out:string, recipe:string): string {
+function generateDeclarationFile(out: string, inputFiles: { [file: string]: string; }, recipe:string): string {
 	let lines = recipe.split(/\r\n|\n|\r/);
 	let result = [];
 
@@ -273,7 +250,7 @@ function generateDeclarationFile(out:string, recipe:string): string {
 		if (m1) {
 			CURRENT_PROCESSING_RULE = line;
 			let moduleId = m1[1];
-			let sourceFile = getSourceFile(out, moduleId);
+			let sourceFile = getSourceFile(out, inputFiles, moduleId);
 			if (!sourceFile) {
 				return;
 			}
@@ -300,7 +277,7 @@ function generateDeclarationFile(out:string, recipe:string): string {
 		if (m2) {
 			CURRENT_PROCESSING_RULE = line;
 			let moduleId = m2[1];
-			let sourceFile = getSourceFile(out, moduleId);
+			let sourceFile = getSourceFile(out, inputFiles, moduleId);
 			if (!sourceFile) {
 				return;
 			}
@@ -383,12 +360,12 @@ export interface IMonacoDeclarationResult {
 	isTheSame: boolean;
 }
 
-export function run(out:string): IMonacoDeclarationResult {
+export function run(out: string, inputFiles: { [file: string]: string; }): IMonacoDeclarationResult {
 	log('Starting monaco.d.ts generation');
 	SOURCE_FILE_MAP = {};
 
 	let recipe = fs.readFileSync(RECIPE_PATH).toString();
-	let result = generateDeclarationFile(out, recipe);
+	let result = generateDeclarationFile(out, inputFiles, recipe);
 
 	let currentContent = fs.readFileSync(DECLARATION_PATH).toString();
 	log('Finished monaco.d.ts generation');

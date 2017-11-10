@@ -4,17 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as modes from 'vs/editor/common/modes';
+import { IMode, LanguageIdentifier } from 'vs/editor/common/modes';
 
-export class FrankensteinMode implements modes.IMode {
+export class FrankensteinMode implements IMode {
 
-	private _modeId: string;
+	private _languageIdentifier: LanguageIdentifier;
 
-	constructor(descriptor: modes.IModeDescriptor) {
-		this._modeId = descriptor.id;
+	constructor(languageIdentifier: LanguageIdentifier) {
+		this._languageIdentifier = languageIdentifier;
 	}
 
 	public getId(): string {
-		return this._modeId;
+		return this._languageIdentifier.language;
+	}
+
+	public getLanguageIdentifier(): LanguageIdentifier {
+		return this._languageIdentifier;
 	}
 }

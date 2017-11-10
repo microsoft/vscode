@@ -3,10 +3,14 @@
 		"module": "commonjs",
 		"target": "ES5",
 		"outDir": "out",
-		"noLib": true,
-		"sourceMap": true
+		"noUnusedLocals": true,
+		"lib": [
+			"es2015"
+		],
+		"sourceMap": true,
+		"strict": true
 	},
-	"exclude": [
-		"node_modules"
+	"include": [
+		"src/**/*"
 	]
 }

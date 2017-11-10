@@ -41,48 +41,70 @@ export class ValidationStatus {
 	}
 }
 
-export interface ILogger {
-	log(value: string): void;
+export interface IProblemReporter {
+	info(message: string): void;
+	warn(message: string): void;
+	error(message: string): void;
+	fatal(message: string): void;
+	status: ValidationStatus;
+}
+
+export class NullProblemReporter implements IProblemReporter {
+	info(message: string): void { }
+	warn(message: string): void { }
+	error(message: string): void { }
+	fatal(message: string): void { }
+	status: ValidationStatus = new ValidationStatus();
 }
 
 export abstract class Parser {
 
-	private _logger: ILogger;
-	private validationStatus: ValidationStatus;
+	private _problemReporter: IProblemReporter;
 
-	constructor(logger: ILogger, validationStatus: ValidationStatus = new ValidationStatus()) {
-		this._logger = logger;
-		this.validationStatus = validationStatus;
+	constructor(problemReporter: IProblemReporter) {
+		this._problemReporter = problemReporter;
 	}
 
-	public get logger(): ILogger {
-		return this._logger;
+	public reset(): void {
+		this._problemReporter.status.state = ValidationState.OK;
 	}
 
-	public get status(): ValidationStatus {
-		return this.validationStatus;
+	public get problemReporter(): IProblemReporter {
+		return this._problemReporter;
 	}
 
-	protected log(message: string): void {
-		this._logger.log(message);
+	public info(message: string): void {
+		this._problemReporter.info(message);
+	}
+
+	public warn(message: string): void {
+		this._problemReporter.warn(message);
+	}
+
+	public error(message: string): void {
+		this._problemReporter.error(message);
+	}
+
+	public fatal(message: string): void {
+		this._problemReporter.fatal(message);
 	}
 
 	protected is(value: any, func: (value: any) => boolean, wrongTypeState?: ValidationState, wrongTypeMessage?: string, undefinedState?: ValidationState, undefinedMessage?: string): boolean {
 		if (Types.isUndefined(value)) {
 			if (undefinedState) {
-				this.validationStatus.state = undefinedState;
+				this._problemReporter.status.state = undefinedState;
 			}
 			if (undefinedMessage) {
-				this.log(undefinedMessage);
+				this._problemReporter.info(undefinedMessage);
 			}
 			return false;
 		}
 		if (!func(value)) {
 			if (wrongTypeState) {
-				this.validationStatus.state = wrongTypeState;
+				this._problemReporter.status.state = wrongTypeState;
 			}
 			if (wrongTypeMessage) {
-				this.log(wrongTypeMessage);
+				this.info(wrongTypeMessage);
 			}
 			return false;
 		}
@@ -90,7 +112,7 @@ export abstract class Parser {
 	}
 
 	protected static merge<T>(destination: T, source: T, overwrite: boolean): void {
-		Object.keys(source).forEach((key) => {
+		Object.keys(source).forEach((key: keyof T) => {
 			let destValue = destination[key];
 			let sourceValue = source[key];
 			if (Types.isUndefined(sourceValue)) {
@@ -141,7 +163,7 @@ export abstract class AbstractSystemVariables implements ISystemVariables {
 	}
 
 	resolveAny<T>(value: T): T;
-	resolveAny<T>(value: any): any {
+	resolveAny(value: any): any {
 		if (Types.isString(value)) {
 			return this.resolveString(value);
 		} else if (Types.isArray(value)) {
@@ -175,7 +197,7 @@ export abstract class AbstractSystemVariables implements ISystemVariables {
 	}
 
 	private __resolveAnyLiteral<T>(values: T): T;
-	private __resolveAnyLiteral<T>(values: any): any {
+	private __resolveAnyLiteral(values: any): any {
 		let result: IStringDictionary<string | IStringDictionary<string> | string[]> = Object.create(null);
 		Object.keys(values).forEach(key => {
 			let value = values[key];

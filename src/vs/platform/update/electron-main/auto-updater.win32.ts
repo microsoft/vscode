@@ -41,7 +41,7 @@ export class Win32AutoUpdaterImpl extends EventEmitter implements IAutoUpdater {
 	}
 
 	get cachePath(): TPromise<string> {
-		const result = path.join(tmpdir(), 'vscode-update');
+		const result = path.join(tmpdir(), `vscode-update-${process.arch}`);
 		return new TPromise<string>((c, e) => mkdirp(result, null, err => err ? e(err) : c(result)));
 	}
 

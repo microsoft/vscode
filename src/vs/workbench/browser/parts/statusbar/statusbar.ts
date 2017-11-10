@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IDisposable } from 'vs/base/common/lifecycle';
-/* tslint:disable:no-unused-variable */
-import statusbarService = require('vs/platform/statusbar/common/statusbar');
-/* tslint:enable:no-unused-variable */
+import * as statusbarService from 'vs/platform/statusbar/common/statusbar';
 import { SyncDescriptor0, createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 

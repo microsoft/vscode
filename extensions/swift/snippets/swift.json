@@ -11,7 +11,7 @@
 		"prefix": "repeat",
 		"body": [
 			"repeat {",
-			"	$0",
+			"\t$0",
 			"} while ${1:true}"
 		],
 		"description": "repeat...while loop"
@@ -20,7 +20,7 @@
 		"prefix": "while",
 		"body": [
 			"while ${1:true} {",
-			"	$0",
+			"\t$0",
 			"}"
 		],
 		"description": "While loop"
@@ -29,7 +29,7 @@
 		"prefix": "forin",
 		"body": [
 			"for ${1:item} in ${2:collection} {",
-			"	$0",
+			"\t$0",
 			"}"
 		],
 		"description": "For-In statement"
@@ -38,7 +38,7 @@
 		"prefix": "forr",
 		"body": [
 			"for var ${1:i} = ${2:length} - 1; ${1:i} >= 0; ${1:i}-- {",
-			"	$0",
+			"\t$0",
 			"}"
 		],
 		"description": "Reverse for loop"
@@ -47,7 +47,7 @@
 		"prefix": "for",
 		"body": [
 			"for var ${1:i} = 0; ${1:i} < ${2:length}; ${1:i}++ {",
-			"	$0",
+			"\t$0",
 			"}"
 		],
 		"description": "for loop"
@@ -56,7 +56,7 @@
 		"prefix": "if",
 		"body": [
 			"if ${1:true} {",
-			"	$0",
+			"\t$0",
 			"}"
 		],
 		"description": "if statement"
@@ -65,7 +65,7 @@
 		"prefix": "elif",
 		"body": [
 			"else if ${1:true} {",
-			"	$0",
+			"\t$0",
 			"}"
 		],
 		"description": "if statement"
@@ -74,7 +74,7 @@
 		"prefix": "else",
 		"body": [
 			"else {",
-			"	$0",
+			"\t$0",
 			"}"
 		],
 		"description": "Else statement"
@@ -83,7 +83,7 @@
 		"prefix": "guard",
 		"body": [
 			"guard let ${1:a} = ${2:optional} else {",
-			"	$0",
+			"\t$0",
 			"}"
 		],
 		"description": "Guard statement"
@@ -92,7 +92,7 @@
 		"prefix": "ifnil",
 		"body": [
 			"if let ${1:a} = ${2:optional} {",
-			"	$0",
+			"\t$0",
 			"}"
 		],
 		"description": "Optional Binding statement"
@@ -102,9 +102,9 @@
 		"body": [
 			"switch ${1:switch_on} {",
 			"case ${2:a}:",
-			"	$0",
+			"\t$0",
 			"default:",
-			"	$1",
+			"\t$1",
 			"}"
 		],
 		"description": "Switch statement"
@@ -113,9 +113,9 @@
 		"prefix": "docatch",
 		"body": [
 			"do {",
-			"	try ${1:function that throws}",
+			"\ttry ${1:function that throws}",
 			"} catch ${2:pattern} {",
-			"	$0",
+			"\t$0",
 			"}"
 		],
 		"description": "Try catch"
@@ -124,7 +124,7 @@
 		"prefix": "enum",
 		"body": [
 			"enum ${1:Name} {",
-			"	case $0",
+			"\tcase $0",
 			"}"
 		],
 		"description": "Enum"

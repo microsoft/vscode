@@ -23,6 +23,7 @@ namespace MapMap {
 		if (map[key1]) {
 			return map[key1][key2];
 		}
+		return undefined;
 	}
 
 	export function set<V>(map: MapMap<V>, key1: string, key2: string, value: V): void {
@@ -82,11 +83,11 @@ class MarkerStats implements MarkerStatistics {
 		const result: MarkerStatistics = { errors: 0, warnings: 0, infos: 0, unknowns: 0 };
 
 		// TODO this is a hack
-		if (resource.scheme === Schemas.inMemory) {
+		if (resource.scheme === Schemas.inMemory || resource.scheme === Schemas.walkThrough || resource.scheme === Schemas.walkThroughSnippet) {
 			return result;
 		}
 
-		for (const {severity} of this._service.read({ resource })) {
+		for (const { severity } of this._service.read({ resource })) {
 			if (severity === Severity.Error) {
 				result.errors += 1;
 			} else if (severity === Severity.Warning) {
@@ -179,10 +180,10 @@ export class MarkerService implements IMarkerService {
 	}
 
 	private static _toMarker(owner: string, resource: URI, data: IMarkerData): IMarker {
-		let {code, severity, message, source, startLineNumber, startColumn, endLineNumber, endColumn} = data;
+		let { code, severity, message, source, startLineNumber, startColumn, endLineNumber, endColumn } = data;
 
 		if (!message) {
-			return;
+			return undefined;
 		}
 
 		// santize data
@@ -229,7 +230,7 @@ export class MarkerService implements IMarkerService {
 
 			// group by resource
 			const groups: { [resource: string]: IMarker[] } = Object.create(null);
-			for (const {resource, marker: markerData} of data) {
+			for (const { resource, marker: markerData } of data) {
 				const marker = MarkerService._toMarker(owner, resource, markerData);
 				if (!marker) {
 					// filter bad markers
@@ -258,7 +259,7 @@ export class MarkerService implements IMarkerService {
 
 	read(filter: { owner?: string; resource?: URI; take?: number; } = Object.create(null)): IMarker[] {
 
-		let {owner, resource, take} = filter;
+		let { owner, resource, take } = filter;
 
 		if (!take || take < 0) {
 			take = -1;

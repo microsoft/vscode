@@ -12,7 +12,7 @@ import spawn = cp.spawn;
 import { PassThrough } from 'stream';
 import { fork } from 'vs/base/node/stdFork';
 import nls = require('vs/nls');
-import { PPromise, Promise, TPromise, TValueCallback, TProgressCallback, ErrorCallback } from 'vs/base/common/winjs.base';
+import { PPromise, TPromise, TValueCallback, TProgressCallback, ErrorCallback } from 'vs/base/common/winjs.base';
 import * as Types from 'vs/base/common/types';
 import { IStringDictionary } from 'vs/base/common/collections';
 import URI from 'vs/base/common/uri';
@@ -168,7 +168,7 @@ export abstract class AbstractProcess<TProgressData> {
 
 	public start(): PPromise<SuccessData, TProgressData> {
 		if (Platform.isWindows && ((this.options && this.options.cwd && TPath.isUNC(this.options.cwd)) || !this.options && !this.options.cwd && TPath.isUNC(process.cwd()))) {
-			return Promise.wrapError(nls.localize('TaskRunner.UNC', 'Can\'t execute a shell command on an UNC drive.'));
+			return TPromise.wrapError(new Error(nls.localize('TaskRunner.UNC', 'Can\'t execute a shell command on an UNC drive.')));
 		}
 		return this.useExec().then((useExec) => {
 			let cc: TValueCallback<SuccessData>;
@@ -194,7 +194,7 @@ export abstract class AbstractProcess<TProgressData> {
 					if (err && err.killed) {
 						ee({ killed: this.terminateRequested, stdout: stdout.toString(), stderr: stderr.toString() });
 					} else {
-						this.handleExec(cc, pp, error, stdout, stderr);
+						this.handleExec(cc, pp, error, stdout as any, stderr as any);
 					}
 				});
 			} else {
@@ -455,7 +455,7 @@ export interface IQueuedSender {
 // On Windows we always wait for the send() method to return before sending the next message
 // to workaround https://github.com/nodejs/node/issues/7657 (IPC can freeze process)
 export function createQueuedSender(childProcess: ChildProcess | NodeJS.Process): IQueuedSender {
-	let msgQueue = [];
+	let msgQueue: string[] = [];
 	let useQueue = false;
 
 	const send = function (msg: any): void {
@@ -464,7 +464,7 @@ export function createQueuedSender(childProcess: ChildProcess | NodeJS.Process):
 			return;
 		}
 
-		let result = childProcess.send(msg, error => {
+		let result = childProcess.send(msg, (error: Error) => {
 			if (error) {
 				console.error(error); // unlikely to happen, best we can do is log this error
 			}

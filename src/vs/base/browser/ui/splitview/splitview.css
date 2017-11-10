@@ -3,98 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-split-view {
+.monaco-split-view2 {
 	position: relative;
-}
-
-.monaco-split-view > .split-view-view {
 	overflow: hidden;
-}
-
-.monaco-split-view.vertical > .split-view-view {
 	width: 100%;
-}
-
-.monaco-split-view.horizontal > .split-view-view {
 	height: 100%;
 }
 
-.monaco-split-view > .split-view-view > .header {
-	position: relative;
-	line-height: 22px;
-	font-size: 11px;
-	font-weight: bold;
-	text-transform: uppercase;
-	padding-left: 20px;
-	background: rgba(128, 128, 128, 0.2);
+.monaco-split-view2 > .split-view-view {
 	overflow: hidden;
-	display: flex;
 }
 
-/* Bold font style does not go well with CJK fonts */
-.monaco-split-view:lang(zh-Hans) > .split-view-view > .header,
-.monaco-split-view:lang(zh-Hant) > .split-view-view > .header,
-.monaco-split-view:lang(ja) > .split-view-view > .header,
-.monaco-split-view:lang(ko) > .split-view-view > .header { font-weight: normal; }
-
-.monaco-split-view > .split-view-view > .header.collapsible {
-	cursor: pointer;
+.monaco-split-view2.vertical > .split-view-view {
+	width: 100%;
 }
 
-.monaco-split-view > .split-view-view > .header.collapsible {
-	background-image: url('arrow-collapse.svg');
-	background-position: 2px center;
-	background-repeat: no-repeat;
-}
-
-.monaco-split-view > .split-view-view > .header.collapsible:not(.collapsed) {
-	background-image: url('arrow-expand.svg');
-	background-position: 2px center;
-	background-repeat: no-repeat;
-}
-
-.vs-dark .monaco-split-view > .split-view-view > .header.collapsible {
-	background-image: url('arrow-collapse-dark.svg');
-}
-
-.vs-dark .monaco-split-view > .split-view-view > .header.collapsible:not(.collapsed) {
-	background-image: url('arrow-expand-dark.svg');
-	background-position: 2px center;
-	background-repeat: no-repeat;
-}
-
-/* Animation */
-
-.monaco-split-view.animated > .split-view-view {
-	transition-duration: 0.15s;
-	-webkit-transition-duration: 0.15s;
-	-moz-transition-duration: 0.15s;
-	transition-timing-function: ease-out;
-	-webkit-transition-timing-function: ease-out;
-	-moz-transition-timing-function: ease-out;
-}
-
-.monaco-split-view.vertical.animated > .split-view-view {
-	transition-property: height;
-	-webkit-transition-property: height;
-	-moz-transition-property: height;
-}
-
-.monaco-split-view.horizontal.animated > .split-view-view {
-	transition-property: width;
-	-webkit-transition-property: width;
-	-moz-transition-property: width;
-}
-
-/* High Contrast Theming */
-.hc-black .monaco-split-view > .split-view-view:not(:first-child) > .header {
-	border-top: 1px solid #6FC3DF;
-}
-
-.hc-black .split-view-view .action-label {
-	background: none;
-}
-
-.hc-black .split-view-view > .header .action-label:before {
-	top: 4px !important;
+.monaco-split-view2.horizontal > .split-view-view {
+	height: 100%;
 }

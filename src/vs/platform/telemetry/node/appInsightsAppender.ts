@@ -8,7 +8,7 @@ import * as appInsights from 'applicationinsights';
 import { isObject } from 'vs/base/common/types';
 import { safeStringify, mixin } from 'vs/base/common/objects';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ITelemetryAppender } from '../common/telemetry';
+import { ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 
 let _initialized = false;
 
@@ -77,7 +77,7 @@ export class AppInsightsAppender implements ITelemetryAppender {
 		for (let prop in flat) {
 			// enforce property names less than 150 char, take the last 150 char
 			prop = prop.length > 150 ? prop.substr(prop.length - 149) : prop;
-			var value = flat[prop];
+			const value = flat[prop];
 
 			if (typeof value === 'number') {
 				measurements[prop] = value;
@@ -105,7 +105,7 @@ export class AppInsightsAppender implements ITelemetryAppender {
 			return;
 		}
 
-		for (var item of Object.getOwnPropertyNames(obj)) {
+		for (let item of Object.getOwnPropertyNames(obj)) {
 			const value = obj[item];
 			const index = prefix ? prefix + item : item;
 
@@ -133,7 +133,7 @@ export class AppInsightsAppender implements ITelemetryAppender {
 			return;
 		}
 		data = mixin(data, this._defaultData);
-		let {properties, measurements} = AppInsightsAppender._getData(data);
+		let { properties, measurements } = AppInsightsAppender._getData(data);
 		this._aiClient.trackEvent(this._eventPrefix + '/' + eventName, properties, measurements);
 	}
 
@@ -147,5 +147,6 @@ export class AppInsightsAppender implements ITelemetryAppender {
 				});
 			});
 		}
+		return undefined;
 	}
 }

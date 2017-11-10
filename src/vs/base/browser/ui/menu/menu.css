@@ -51,7 +51,6 @@
 	display: inline-block;
 	-ms-flex: 2 1 auto;
 	flex: 2 1 auto;
-	opacity: 0.7;
 	padding: 0.8em 1em;
 	line-height: 1.1em;
 	font-size: 12px;
@@ -102,10 +101,6 @@
 	-moz-animation: fadeIn 0.083s linear;
 	-ms-animation: fadeIn 0.083s linear;
 	animation: fadeIn 0.083s linear;
-}
-
-.ie.ie9 .context-view.monaco-menu-container {
-	box-shadow: 0 2px 8px 2px #A8A8A8;
 }
 
 .context-view.monaco-menu-container :focus {

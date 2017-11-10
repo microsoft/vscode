@@ -111,7 +111,7 @@ export default class ErrorTelemetry {
 		};
 
 		if (err) {
-			let {name, message, stack} = err;
+			let { name, message, stack } = err;
 			data.error = { name, message };
 			if (stack) {
 				data.stack = Array.isArray(err.stack)
@@ -143,6 +143,17 @@ export default class ErrorTelemetry {
 
 	private _flushBuffer(): void {
 		for (let error of this._buffer) {
+			/* __GDPR__
+			"UnhandledError" : {
+					"message" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"name": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"stack": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"id": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"line": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"column": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+				}
+			*/
+			// __GDPR__TODO__ what's the complete set of properties?
 			this._telemetryService.publicLog('UnhandledError', error);
 		}
 		this._buffer.length = 0;

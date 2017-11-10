@@ -2,9 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 'use strict';
 
-import { isArray } from './types';
+import { once } from 'vs/base/common/functional';
 
 export const empty: IDisposable = Object.freeze({
 	dispose() { }
@@ -14,17 +15,30 @@ export interface IDisposable {
 	dispose(): void;
 }
 
-export function dispose<T extends IDisposable>(...disposables: T[]): T;
+export function isDisposable<E extends object>(thing: E): thing is E & IDisposable {
+	return typeof (<IDisposable><any>thing).dispose === 'function'
+		&& (<IDisposable><any>thing).dispose.length === 0;
+}
+
+export function dispose<T extends IDisposable>(disposable: T): T;
+export function dispose<T extends IDisposable>(...disposables: T[]): T[];
 export function dispose<T extends IDisposable>(disposables: T[]): T[];
-export function dispose<T extends IDisposable>(...disposables: T[]): T[] {
-	const first = disposables[0];
+export function dispose<T extends IDisposable>(first: T | T[], ...rest: T[]): T | T[] {
 
-	if (isArray(first)) {
-		disposables = first as any as T[];
+	if (Array.isArray(first)) {
+		first.forEach(d => d && d.dispose());
+		return [];
+	} else if (rest.length === 0) {
+		if (first) {
+			first.dispose();
+			return first;
+		}
+		return undefined;
+	} else {
+		dispose(first);
+		dispose(rest);
+		return [];
 	}
-
-	disposables.forEach(d => d && d.dispose());
-	return [];
 }
 
 export function combinedDisposable(disposables: IDisposable[]): IDisposable {
@@ -32,7 +46,13 @@ export function combinedDisposable(disposables: IDisposable[]): IDisposable {
 }
 
 export function toDisposable(...fns: (() => void)[]): IDisposable {
-	return combinedDisposable(fns.map(fn => ({ dispose: fn })));
+	return {
+		dispose() {
+			for (const fn of fns) {
+				fn();
+			}
+		}
+	};
 }
 
 export abstract class Disposable implements IDisposable {
@@ -50,21 +70,6 @@ export abstract class Disposable implements IDisposable {
 	protected _register<T extends IDisposable>(t: T): T {
 		this._toDispose.push(t);
 		return t;
-	}
-}
-
-export class Disposables extends Disposable {
-
-	public add<T extends IDisposable>(e: T): T;
-	public add(...elements: IDisposable[]): void;
-	public add<T extends IDisposable>(arg: T | T[]): T {
-		if (!Array.isArray(arg)) {
-			return this._register(arg);
-		} else {
-			for (let element of arg) {
-				return this._register(element);
-			}
-		}
 	}
 }
 
@@ -86,12 +91,12 @@ export abstract class ReferenceCollection<T> {
 		}
 
 		const { object } = reference;
-		const dispose = () => {
+		const dispose = once(() => {
 			if (--reference.counter === 0) {
 				this.destroyReferencedObject(reference.object);
 				delete this.references[key];
 			}
-		};
+		});
 
 		reference.counter++;
 

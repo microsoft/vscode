@@ -20,21 +20,26 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Position, POSITIONS } from 'vs/platform/editor/common/editor';
-import { IEditorGroupService, GroupArrangement, GroupOrientation } from 'vs/workbench/services/group/common/groupService';
+import { IEditorGroupService, IEditorTabOptions, GroupArrangement, GroupOrientation } from 'vs/workbench/services/group/common/groupService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
-import { TitleControl, ITitleAreaControl } from 'vs/workbench/browser/parts/editor/titleControl';
+import { TitleControl, ITitleAreaControl, handleWorkspaceExternalDrop } from 'vs/workbench/browser/parts/editor/titleControl';
 import { NoTabsTitleControl } from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
-import { IEditorStacksModel, IStacksModelChangeEvent, IWorkbenchEditorConfiguration, IEditorGroup, EditorOptions, TextEditorOptions, IEditorIdentifier } from 'vs/workbench/common/editor';
-import { extractResources } from 'vs/base/browser/dnd';
-import { IWindowService } from 'vs/platform/windows/common/windows';
-import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
+import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup, EditorOptions, TextEditorOptions, IEditorIdentifier } from 'vs/workbench/common/editor';
+import { extractResources } from 'vs/workbench/browser/editor';
+import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
+import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { editorBackground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { Themable, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, EDITOR_GROUP_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BORDER } from 'vs/workbench/common/theme';
+import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 
 export enum Rochade {
 	NONE,
@@ -68,6 +73,7 @@ export interface IEditorGroupsControl {
 	getInstantiationService(position: Position): IInstantiationService;
 	getProgressBar(position: Position): ProgressBar;
 	updateProgress(position: Position, state: ProgressState): void;
+	updateTitleAreas(refreshActive?: boolean): void;
 
 	layout(dimension: Dimension): void;
 	layout(position: Position): void;
@@ -77,14 +83,18 @@ export interface IEditorGroupsControl {
 	setGroupOrientation(orientation: GroupOrientation): void;
 	getGroupOrientation(): GroupOrientation;
 
+	resizeGroup(position: Position, groupSizeChange: number): void;
+
 	getRatio(): number[];
+
+
 	dispose(): void;
 }
 
 /**
  * Helper class to manage multiple side by side editors for the editor part.
  */
-export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider {
+export class EditorGroupsControl extends Themable implements IEditorGroupsControl, IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider {
 
 	private static TITLE_AREA_CONTROL_KEY = '__titleAreaControl';
 	private static PROGRESS_BAR_CONTROL_KEY = '__progressBar';
@@ -106,9 +116,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 
 	private layoutVertically: boolean;
 
-	private showTabs: boolean;
-	private showTabCloseButton: boolean;
-	private showIcons: boolean;
+	private tabOptions: IEditorTabOptions;
 
 	private silos: Builder[];
 	private silosSize: number[];
@@ -133,22 +141,25 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 	private onStacksChangeScheduler: RunOnceScheduler;
 	private stacksChangedBuffer: IStacksModelChangeEvent[];
 
-	private toDispose: IDisposable[];
-
 	constructor(
 		parent: Builder,
 		groupOrientation: GroupOrientation,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IConfigurationService private configurationService: IConfigurationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWindowService private windowService: IWindowService
+		@IWindowService private windowService: IWindowService,
+		@IWindowsService private windowsService: IWindowsService,
+		@IThemeService themeService: IThemeService,
+		@IFileService private fileService: IFileService,
+		@IMessageService private messageService: IMessageService,
+		@IWorkspacesService private workspacesService: IWorkspacesService
 	) {
+		super(themeService);
+
 		this.stacks = editorGroupService.getStacksModel();
-		this.toDispose = [];
 
 		this.parent = parent;
 		this.dimension = new Dimension(0, 0);
@@ -161,12 +172,13 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 		this.visibleEditorFocusTrackers = [];
 
 		this._onGroupFocusChanged = new Emitter<void>();
+		this.toUnbind.push(this._onGroupFocusChanged);
 
 		this.onStacksChangeScheduler = new RunOnceScheduler(() => this.handleStacksChanged(), 0);
-		this.toDispose.push(this.onStacksChangeScheduler);
+		this.toUnbind.push(this.onStacksChangeScheduler);
 		this.stacksChangedBuffer = [];
 
-		this.onConfigurationUpdated(this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>());
+		this.updateTabOptions(this.editorGroupService.getTabOptions());
 
 		const editorGroupOrientation = groupOrientation || 'vertical';
 		this.layoutVertically = (editorGroupOrientation !== 'horizontal');
@@ -209,23 +221,14 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.stacks.onModelChanged(e => this.onStacksChanged(e)));
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(e.config, true)));
+		this.toUnbind.push(this.stacks.onModelChanged(e => this.onStacksChanged(e)));
+		this.toUnbind.push(this.editorGroupService.onTabOptionsChanged(options => this.updateTabOptions(options, true)));
 		this.extensionService.onReady().then(() => this.onExtensionsReady());
 	}
 
-	private onConfigurationUpdated(config: IWorkbenchEditorConfiguration, refresh?: boolean): void {
-		const showTabCloseButton = this.showTabCloseButton;
-
-		if (config.workbench && config.workbench.editor) {
-			this.showTabs = config.workbench.editor.showTabs;
-			this.showTabCloseButton = config.workbench.editor.showTabCloseButton;
-			this.showIcons = config.workbench.editor.showIcons;
-		} else {
-			this.showTabs = true;
-			this.showTabCloseButton = true;
-			this.showIcons = false;
-		}
+	private updateTabOptions(tabOptions: IEditorTabOptions, refresh?: boolean): void {
+		const tabCloseButton = this.tabOptions ? this.tabOptions.tabCloseButton : 'right';
+		this.tabOptions = tabOptions;
 
 		if (!refresh) {
 			return; // return early if no refresh is needed
@@ -235,16 +238,16 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 		POSITIONS.forEach(position => {
 			const titleControl = this.getTitleAreaControl(position);
 
-			// TItle Container
+			// Title Container
 			const titleContainer = $(titleControl.getContainer());
-			if (this.showTabs) {
+			if (this.tabOptions.showTabs) {
 				titleContainer.addClass('tabs');
 			} else {
 				titleContainer.removeClass('tabs');
 			}
 
 			const showingIcons = titleContainer.hasClass('show-file-icons');
-			if (this.showIcons) {
+			if (this.tabOptions.showIcons) {
 				titleContainer.addClass('show-file-icons');
 			} else {
 				titleContainer.removeClass('show-file-icons');
@@ -255,17 +258,20 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 				const usingTabs = (titleControl instanceof TabsTitleControl);
 
 				// Recreate title when tabs change
-				if (usingTabs !== this.showTabs) {
+				if (usingTabs !== this.tabOptions.showTabs) {
 					titleControl.dispose();
 					titleContainer.empty();
 					this.createTitleControl(this.stacks.groupAt(position), this.silos[position], titleContainer, this.getInstantiationService(position));
 				}
 
 				// Refresh title when icons change
-				else if (showingIcons !== this.showIcons || showTabCloseButton !== this.showTabCloseButton) {
+				else if (showingIcons !== this.tabOptions.showIcons || tabCloseButton !== this.tabOptions.tabCloseButton) {
 					titleControl.refresh();
 				}
 			}
+
+			// Update Styles
+			this.updateStyles();
 		});
 	}
 
@@ -403,9 +409,6 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 
 		// Show editor container
 		editor.getContainer().show();
-
-		// Styles
-		this.updateParentStyle();
 	}
 
 	private getVisibleEditorCount(): number {
@@ -441,6 +444,9 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 
 				// Log this fact in telemetry
 				if (this.telemetryService) {
+					/* __GDPR__
+						"workbenchEditorMaximized" : {}
+					*/
 					this.telemetryService.publicLog('workbenchEditorMaximized');
 				}
 
@@ -455,7 +461,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 					}
 				});
 
-				// Grow focussed position if there is more size to spend
+				// Grow focused position if there is more size to spend
 				if (remainingSize > this.minSize) {
 					this.silosSize[this.lastActivePosition] = remainingSize;
 
@@ -486,7 +492,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 
 	private focusNextNonMinimized(): void {
 
-		// If the current focussed editor is minimized, try to focus the next largest editor
+		// If the current focused editor is minimized, try to focus the next largest editor
 		if (!types.isUndefinedOrNull(this.lastActivePosition) && this.silosMinimized[this.lastActivePosition]) {
 			let candidate: Position = null;
 			let currentSize = this.minSize;
@@ -610,19 +616,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 			}
 		}
 
-		// Styles
-		this.updateParentStyle();
-
 		return result;
-	}
-
-	private updateParentStyle(): void {
-		const editorCount = this.getVisibleEditorCount();
-		if (editorCount > 1) {
-			this.parent.addClass('multiple-editors');
-		} else {
-			this.parent.removeClass('multiple-editors');
-		}
 	}
 
 	private doSetActive(editor: BaseEditor, newActive: Position): void {
@@ -756,6 +750,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 		}
 
 		this.layoutContainers();
+		this.updateStyles();
 	}
 
 	public setGroupOrientation(orientation: GroupOrientation): void {
@@ -770,8 +765,11 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 			this.sashOne.setOrientation(this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL);
 			this.sashTwo.setOrientation(this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL);
 
+			// Update styles
+			this.updateStyles();
+
 			// Trigger layout
-			this.arrangeGroups(GroupArrangement.EVEN);
+			this.arrangeGroups();
 		}
 	}
 
@@ -779,7 +777,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 		return this.layoutVertically ? 'vertical' : 'horizontal';
 	}
 
-	public arrangeGroups(arrangement: GroupArrangement): void {
+	public arrangeGroups(arrangement?: GroupArrangement): void {
 		if (!this.dimension) {
 			return; // too early
 		}
@@ -791,27 +789,49 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 			return; // need more editors
 		}
 
-		// Minimize Others
-		if (arrangement === GroupArrangement.MINIMIZE_OTHERS) {
-			POSITIONS.forEach(position => {
-				if (this.visibleEditors[position]) {
-					if (position !== this.lastActivePosition) {
-						this.silosSize[position] = this.minSize;
-						availableSize -= this.minSize;
+		switch (arrangement) {
+			case GroupArrangement.MINIMIZE_OTHERS:
+				// Minimize Others
+				POSITIONS.forEach(position => {
+					if (this.visibleEditors[position]) {
+						if (position !== this.lastActivePosition) {
+							this.silosSize[position] = this.minSize;
+							availableSize -= this.minSize;
+						}
 					}
-				}
-			});
+				});
 
-			this.silosSize[this.lastActivePosition] = availableSize;
-		}
+				this.silosSize[this.lastActivePosition] = availableSize;
+				break;
+			case GroupArrangement.EVEN:
+				// Even Sizes
+				POSITIONS.forEach(position => {
+					if (this.visibleEditors[position]) {
+						this.silosSize[position] = availableSize / visibleEditors;
+					}
+				});
+				break;
+			default:
+				// Minimized editors should remain minimized, others should keep their relative Sizes
+				let oldNonMinimizedTotal = 0;
+				POSITIONS.forEach(position => {
+					if (this.visibleEditors[position]) {
+						if (this.silosMinimized[position]) {
+							this.silosSize[position] = this.minSize;
+							availableSize -= this.minSize;
+						} else {
+							oldNonMinimizedTotal += this.silosSize[position];
+						}
+					}
+				});
 
-		// Even Sizes
-		else if (arrangement === GroupArrangement.EVEN) {
-			POSITIONS.forEach(position => {
-				if (this.visibleEditors[position]) {
-					this.silosSize[position] = availableSize / visibleEditors;
-				}
-			});
+				// Set size for non-minimized editors
+				const scaleFactor = availableSize / oldNonMinimizedTotal;
+				POSITIONS.forEach(position => {
+					if (this.visibleEditors[position] && !this.silosMinimized[position]) {
+						this.silosSize[position] *= scaleFactor;
+					}
+				});
 		}
 
 		// Since we triggered a change in minimized/maximized editors, we need
@@ -838,6 +858,82 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 		return ratio;
 	}
 
+	// Resize the editor/group position - changes main axis
+	public resizeGroup(position: Position, groupSizeChange: number): void {
+
+		enum VISIBLE_EDITORS {
+			ONE = 1,
+			TWO = 2,
+			THREE = 3
+		}
+
+		const visibleEditors = this.getVisibleEditorCount();
+
+		if (visibleEditors <= VISIBLE_EDITORS.ONE) {
+			return;
+		}
+
+		const availableSize = this.totalSize;
+		const activeGroupPosition = this.getActivePosition();
+
+		switch (visibleEditors) {
+			case VISIBLE_EDITORS.TWO:
+				switch (activeGroupPosition) {
+					case Position.ONE:
+						this.silosSize[Position.ONE] = this.boundSiloSize(Position.ONE, groupSizeChange);
+						this.silosSize[Position.TWO] = availableSize - this.silosSize[Position.ONE];
+						break;
+					case Position.TWO:
+						this.silosSize[Position.TWO] = this.boundSiloSize(Position.TWO, groupSizeChange);
+						this.silosSize[Position.ONE] = availableSize - this.silosSize[Position.TWO];
+					default:
+						break;
+				}
+				break;
+			case VISIBLE_EDITORS.THREE:
+				switch (activeGroupPosition) {
+					case Position.ONE:
+						this.silosSize[Position.ONE] = this.boundSiloSize(Position.ONE, groupSizeChange);
+						this.distributeRemainingSilosSize(Position.TWO, Position.THREE, availableSize - this.silosSize[Position.ONE]);
+						break;
+					case Position.TWO:
+						this.silosSize[Position.TWO] = this.boundSiloSize(Position.TWO, groupSizeChange);
+						this.distributeRemainingSilosSize(Position.ONE, Position.THREE, availableSize - this.silosSize[Position.TWO]);
+						break;
+					case Position.THREE:
+						this.silosSize[Position.THREE] = this.boundSiloSize(Position.THREE, groupSizeChange);
+						this.distributeRemainingSilosSize(Position.ONE, Position.TWO, availableSize - this.silosSize[Position.THREE]);
+						break;
+					default:
+						break;
+				}
+			default:
+				break;
+		}
+
+		this.layout(this.dimension);
+	}
+
+	private boundSiloSize(siloPosition: Position, sizeChangePx: number): number {
+		const visibleEditors = this.getVisibleEditorCount();
+		let newSiloSize: number = 0;
+
+		newSiloSize = Math.max(this.minSize, this.silosSize[siloPosition] + sizeChangePx);
+		newSiloSize = Math.min(newSiloSize, (this.totalSize - this.minSize * (visibleEditors - 1)));
+
+		return newSiloSize;
+	}
+
+	private distributeRemainingSilosSize(remPosition1: Position, remPosition2: Position, availableSize: number): void {
+		let scaleFactor: number = 0;
+
+		scaleFactor = this.silosSize[remPosition1] / (this.silosSize[remPosition1] + this.silosSize[remPosition2]);
+		this.silosSize[remPosition1] = scaleFactor * availableSize;
+		this.silosSize[remPosition1] = Math.max(this.silosSize[remPosition1], this.minSize);
+		this.silosSize[remPosition1] = Math.min(this.silosSize[remPosition1], (availableSize - this.minSize));
+		this.silosSize[remPosition2] = availableSize - this.silosSize[remPosition1];
+	}
+
 	public getActiveEditor(): BaseEditor {
 		return this.lastActiveEditor;
 	}
@@ -855,29 +951,29 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 		this.enableDropTarget(this.parent.getHTMLElement());
 
 		// Silo One
-		this.silos[Position.ONE] = $(this.parent).div({ class: 'one-editor-silo editor-one monaco-editor-background' });
+		this.silos[Position.ONE] = $(this.parent).div({ class: 'one-editor-silo editor-one' });
 
 		// Sash One
 		this.sashOne = new Sash(this.parent.getHTMLElement(), this, { baseSize: 5, orientation: this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL });
-		this.toDispose.push(this.sashOne.addListener2('start', () => this.onSashOneDragStart()));
-		this.toDispose.push(this.sashOne.addListener2('change', (e: ISashEvent) => this.onSashOneDrag(e)));
-		this.toDispose.push(this.sashOne.addListener2('end', () => this.onSashOneDragEnd()));
-		this.toDispose.push(this.sashOne.addListener2('reset', () => this.onSashOneReset()));
+		this.toUnbind.push(this.sashOne.addListener('start', () => this.onSashOneDragStart()));
+		this.toUnbind.push(this.sashOne.addListener('change', (e: ISashEvent) => this.onSashOneDrag(e)));
+		this.toUnbind.push(this.sashOne.addListener('end', () => this.onSashOneDragEnd()));
+		this.toUnbind.push(this.sashOne.addListener('reset', () => this.onSashOneReset()));
 		this.sashOne.hide();
 
 		// Silo Two
-		this.silos[Position.TWO] = $(this.parent).div({ class: 'one-editor-silo editor-two monaco-editor-background' });
+		this.silos[Position.TWO] = $(this.parent).div({ class: 'one-editor-silo editor-two' });
 
 		// Sash Two
 		this.sashTwo = new Sash(this.parent.getHTMLElement(), this, { baseSize: 5, orientation: this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL });
-		this.toDispose.push(this.sashTwo.addListener2('start', () => this.onSashTwoDragStart()));
-		this.toDispose.push(this.sashTwo.addListener2('change', (e: ISashEvent) => this.onSashTwoDrag(e)));
-		this.toDispose.push(this.sashTwo.addListener2('end', () => this.onSashTwoDragEnd()));
-		this.toDispose.push(this.sashTwo.addListener2('reset', () => this.onSashTwoReset()));
+		this.toUnbind.push(this.sashTwo.addListener('start', () => this.onSashTwoDragStart()));
+		this.toUnbind.push(this.sashTwo.addListener('change', (e: ISashEvent) => this.onSashTwoDrag(e)));
+		this.toUnbind.push(this.sashTwo.addListener('end', () => this.onSashTwoDragEnd()));
+		this.toUnbind.push(this.sashTwo.addListener('reset', () => this.onSashTwoReset()));
 		this.sashTwo.hide();
 
 		// Silo Three
-		this.silos[Position.THREE] = $(this.parent).div({ class: 'one-editor-silo editor-three monaco-editor-background' });
+		this.silos[Position.THREE] = $(this.parent).div({ class: 'one-editor-silo editor-three' });
 
 		// For each position
 		POSITIONS.forEach(position => {
@@ -894,10 +990,10 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 
 			// Title containers
 			const titleContainer = $(container).div({ 'class': 'title' });
-			if (this.showTabs) {
+			if (this.tabOptions.showTabs) {
 				titleContainer.addClass('tabs');
 			}
-			if (this.showIcons) {
+			if (this.tabOptions.showIcons) {
 				titleContainer.addClass('show-file-icons');
 			}
 			this.hookTitleDragListener(titleContainer);
@@ -907,8 +1003,38 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 
 			// Progress Bar
 			const progressBar = new ProgressBar($(container));
+			this.toUnbind.push(attachProgressBarStyler(progressBar, this.themeService));
 			progressBar.getContainer().hide();
 			container.setProperty(EditorGroupsControl.PROGRESS_BAR_CONTROL_KEY, progressBar); // associate with container
+		});
+
+		// Update Styles
+		this.updateStyles();
+	}
+
+	protected updateStyles(): void {
+		super.updateStyles();
+
+		// Editor container colors
+		this.silos.forEach((silo, index) => {
+
+			// Background
+			silo.style('background-color', this.getColor(editorBackground));
+
+			// Border
+			silo.style('border-left-color', index > Position.ONE ? (this.getColor(EDITOR_GROUP_BORDER) || this.getColor(contrastBorder)) : null);
+			silo.style('border-top-color', index > Position.ONE ? (this.getColor(EDITOR_GROUP_BORDER) || this.getColor(contrastBorder)) : null);
+		});
+
+		// Title control
+		POSITIONS.forEach(position => {
+			const container = this.getTitleAreaControl(position).getContainer();
+			const borderColor = this.getColor(EDITOR_GROUP_HEADER_TABS_BORDER) || this.getColor(contrastBorder);
+
+			container.style.backgroundColor = this.getColor(this.tabOptions.showTabs ? EDITOR_GROUP_HEADER_TABS_BACKGROUND : EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND);
+			container.style.borderBottomWidth = (borderColor && this.tabOptions.showTabs) ? '1px' : null;
+			container.style.borderBottomStyle = (borderColor && this.tabOptions.showTabs) ? 'solid' : null;
+			container.style.borderBottomColor = this.tabOptions.showTabs ? borderColor : null;
 		});
 	}
 
@@ -939,21 +1065,20 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 			const activeEditor = $this.editorService.getActiveEditor();
 			const editor = getCodeEditor(activeEditor);
 			if (editor && activeEditor.position === stacks.positionOfGroup(identifier.group) && identifier.editor.matches(activeEditor.input)) {
-				options = TextEditorOptions.create({ pinned: true });
-				(<TextEditorOptions>options).fromEditor(editor);
+				options = TextEditorOptions.fromEditor(editor, { pinned: true });
 			}
 
 			return options;
 		}
 
 		function onDrop(e: DragEvent, position: Position, splitTo?: Position): void {
-			DOM.removeClass(node, 'dropfeedback');
+			$this.updateFromDropping(node, false);
 			cleanUp();
 
 			const editorService = $this.editorService;
 			const groupService = $this.editorGroupService;
 
-			const splitEditor = (typeof splitTo === 'number'); // TODO@Ben ugly split code should benefit from empty group support once available!
+			const splitEditor = (typeof splitTo === 'number');
 			const freeGroup = (stacks.groups.length === 1) ? Position.TWO : Position.THREE;
 
 			// Check for transfer from title control
@@ -999,29 +1124,33 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 			else {
 				const droppedResources = extractResources(e).filter(r => r.resource.scheme === 'file' || r.resource.scheme === 'untitled');
 				if (droppedResources.length) {
+					handleWorkspaceExternalDrop(droppedResources, $this.fileService, $this.messageService, $this.windowsService, $this.windowService, $this.workspacesService).then(handled => {
+						if (handled) {
+							return;
+						}
 
-					// Add external ones to recently open list
-					const externalResources = droppedResources.filter(d => d.isExternal).map(d => d.resource);
-					if (externalResources.length) {
-						$this.windowService.addToRecentlyOpen(externalResources.map(resource => {
-							return {
-								path: resource.fsPath,
-								isFile: true
-							};
-						}));
-					}
+						// Add external ones to recently open list
+						const externalResources = droppedResources.filter(d => d.isExternal).map(d => d.resource);
+						if (externalResources.length) {
+							$this.windowsService.addRecentlyOpened(externalResources.map(resource => resource.fsPath));
+						}
 
-					// Open in Editor
-					$this.windowService.focusWindow()
-						.then(() => editorService.openEditors(droppedResources.map(d => { return { input: { resource: d.resource, options: { pinned: true } }, position: splitEditor ? freeGroup : position }; })))
-						.then(() => {
-							if (splitEditor && splitTo !== freeGroup) {
-								groupService.moveGroup(freeGroup, splitTo);
-							}
+						// Open in Editor
+						$this.windowService.focusWindow()
+							.then(() => editorService.openEditors(droppedResources.map(d => {
+								return {
+									input: { resource: d.resource, options: { pinned: true } },
+									position: splitEditor ? freeGroup : position
+								};
+							}))).then(() => {
+								if (splitEditor && splitTo !== freeGroup) {
+									groupService.moveGroup(freeGroup, splitTo);
+								}
 
-							groupService.focusGroup(splitEditor ? splitTo : position);
-						})
-						.done(null, errors.onUnexpectedError);
+								groupService.focusGroup(splitEditor ? splitTo : position);
+							})
+							.done(null, errors.onUnexpectedError);
+					});
 				}
 			}
 		}
@@ -1091,7 +1220,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 				if ($this.layoutVertically) {
 					overlay.style({ left: '0', width: '100%' });
 				} else {
-					overlay.style({ top: $this.showTabs ? `${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : 0, height: $this.showTabs ? `calc(100% - ${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : '100%' });
+					overlay.style({ top: $this.tabOptions.showTabs ? `${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : 0, height: $this.tabOptions.showTabs ? `calc(100% - ${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : '100%' });
 				}
 			}
 
@@ -1113,9 +1242,15 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 				const containers = $this.visibleEditors.filter(e => !!e).map(e => e.getContainer());
 				containers.forEach((container, index) => {
 					if (container && DOM.isAncestor(target, container.getHTMLElement())) {
+						const activeContrastBorderColor = $this.getColor(activeContrastBorder);
 						overlay = $('div').style({
-							top: $this.showTabs ? `${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : 0,
-							height: $this.showTabs ? `calc(100% - ${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : '100%'
+							top: $this.tabOptions.showTabs ? `${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : 0,
+							height: $this.tabOptions.showTabs ? `calc(100% - ${EditorGroupsControl.EDITOR_TITLE_HEIGHT}px` : '100%',
+							backgroundColor: $this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND),
+							outlineColor: activeContrastBorderColor,
+							outlineOffset: activeContrastBorderColor ? '-2px' : null,
+							outlineStyle: activeContrastBorderColor ? 'dashed' : null,
+							outlineWidth: activeContrastBorderColor ? '2px' : null
 						}).id(overlayId);
 
 						overlay.appendTo(container);
@@ -1126,6 +1261,13 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 						});
 
 						overlay.on(DOM.EventType.DRAG_OVER, (e: DragEvent) => {
+
+							// update the dropEffect, otherwise it would look like a "move" operation. but only if we are
+							// not dragging a tab actually because there we support both moving as well as copying
+							if (!TabsTitleControl.getDraggedEditor()) {
+								e.dataTransfer.dropEffect = 'copy';
+							}
+
 							positionOverlay(e, containers.length, index);
 						});
 
@@ -1151,24 +1293,30 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 		}
 
 		// let a dropped file open inside Code (only if dropped over editor area)
-		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DROP, (e: DragEvent) => {
+		this.toUnbind.push(DOM.addDisposableListener(node, DOM.EventType.DROP, (e: DragEvent) => {
 			if (e.target === node || DOM.isAncestor(e.target as HTMLElement, node)) {
 				DOM.EventHelper.stop(e, true);
 				onDrop(e, Position.ONE);
 			} else {
-				DOM.removeClass(node, 'dropfeedback');
+				this.updateFromDropping(node, false);
 			}
 		}));
 
 		// Drag enter
 		let counter = 0; // see https://github.com/Microsoft/vscode/issues/14470
-		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DRAG_ENTER, (e: DragEvent) => {
-			if (!TitleControl.getDraggedEditor() && !extractResources(e).length) {
-				return; // invalid DND
+		this.toUnbind.push(DOM.addDisposableListener(node, DOM.EventType.DRAG_ENTER, (e: DragEvent) => {
+			if (!TitleControl.getDraggedEditor()) {
+				// we used to check for the dragged resources here (via dnd.extractResources()) but this
+				// seems to be not possible on Linux and Windows where during DRAG_ENTER the resources
+				// are always undefined up until they are dropped when dragged from the tree. The workaround
+				// is to check for a datatransfer type being set. See https://github.com/Microsoft/vscode/issues/25789
+				if (!e.dataTransfer.types.length) {
+					return; // invalid DND
+				}
 			}
 
 			counter++;
-			DOM.addClass(node, 'dropfeedback');
+			this.updateFromDropping(node, true);
 
 			const target = <HTMLElement>e.target;
 			if (target) {
@@ -1178,31 +1326,31 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 				createOverlay(target);
 
 				if (overlay) {
-					DOM.removeClass(node, 'dropfeedback'); // if we show an overlay, we can remove the drop feedback from the editor background
+					this.updateFromDropping(node, false); // if we show an overlay, we can remove the drop feedback from the editor background
 				}
 			}
 		}));
 
 		// Drag leave
-		this.toDispose.push(DOM.addDisposableListener(node, DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
+		this.toUnbind.push(DOM.addDisposableListener(node, DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
 			counter--;
 			if (counter === 0) {
-				DOM.removeClass(node, 'dropfeedback');
+				this.updateFromDropping(node, false);
 			}
 		}));
 
 		// Drag end (also install globally to be safe)
 		[node, window].forEach(container => {
-			this.toDispose.push(DOM.addDisposableListener(container, DOM.EventType.DRAG_END, (e: DragEvent) => {
+			this.toUnbind.push(DOM.addDisposableListener(container, DOM.EventType.DRAG_END, (e: DragEvent) => {
 				counter = 0;
-				DOM.removeClass(node, 'dropfeedback');
+				this.updateFromDropping(node, false);
 				cleanUp();
 			}));
 		});
 	}
 
 	private createTitleControl(context: IEditorGroup, silo: Builder, container: Builder, instantiationService: IInstantiationService): void {
-		const titleAreaControl = instantiationService.createInstance<ITitleAreaControl>(this.showTabs ? TabsTitleControl : NoTabsTitleControl);
+		const titleAreaControl = instantiationService.createInstance<ITitleAreaControl>(this.tabOptions.showTabs ? TabsTitleControl : NoTabsTitleControl);
 		titleAreaControl.create(container.getHTMLElement());
 		titleAreaControl.setContext(context);
 		titleAreaControl.refresh(true /* instant */);
@@ -1270,7 +1418,6 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 			let oldNewPos: number = null;
 
 			this.silos[position].addClass('drag');
-			this.parent.addClass('drag');
 
 			const $window = $(window);
 			$window.on(DOM.EventType.MOUSE_MOVE, (e: MouseEvent) => {
@@ -1373,8 +1520,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 				// Move the editor to provide feedback to the user and add class
 				if (newPos !== null) {
 					this.posSilo(position, `${newPos}px`);
-					this.silos[position].addClass('dragging');
-					this.parent.addClass('dragging');
+					this.updateFromDragging(position, true);
 				}
 			}).once(DOM.EventType.MOUSE_UP, (e: MouseEvent) => {
 				DOM.EventHelper.stop(e, false);
@@ -1389,10 +1535,8 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 				}
 
 				// Restore styles
-				this.parent.removeClass('drag');
 				this.silos[position].removeClass('drag');
-				this.parent.removeClass('dragging');
-				this.silos[position].removeClass('dragging');
+				this.updateFromDragging(position, false);
 				POSITIONS.forEach(p => this.silos[p].removeClass('draggedunder'));
 
 				this.posSilo(Position.ONE, 0, 'auto');
@@ -1422,6 +1566,43 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 				$window.off('mousemove');
 			});
 		});
+	}
+
+	private updateFromDragging(position: Position, isDragging: boolean): void {
+		const silo = this.silos[position];
+		if (silo.hasClass('dragging') === isDragging) {
+			return; // avoid repeated work
+		}
+
+		let borderColor = null;
+		if (isDragging) {
+			this.parent.addClass('dragging');
+			silo.addClass('dragging');
+			borderColor = this.getColor(EDITOR_GROUP_BORDER) || this.getColor(contrastBorder);
+		} else {
+			this.parent.removeClass('dragging');
+			silo.removeClass('dragging');
+		}
+
+		silo.style(this.layoutVertically ? 'border-left-color' : 'border-top-color', borderColor);
+		silo.style(this.layoutVertically ? 'border-right-color' : 'border-bottom-color', borderColor);
+
+		// Back to normal styles once dragging stops
+		if (!isDragging) {
+			this.updateStyles();
+		}
+	}
+
+	private updateFromDropping(element: HTMLElement, isDropping: boolean): void {
+		const groupCount = this.stacks.groups.length;
+		const background = this.getColor(isDropping ? EDITOR_DRAG_AND_DROP_BACKGROUND : groupCount > 0 ? EDITOR_GROUP_BACKGROUND : null);
+		element.style.backgroundColor = background;
+
+		const activeContrastBorderColor = this.getColor(activeContrastBorder);
+		element.style.outlineColor = isDropping ? activeContrastBorderColor : null;
+		element.style.outlineStyle = isDropping && activeContrastBorderColor ? 'dashed' : null;
+		element.style.outlineWidth = isDropping && activeContrastBorderColor ? '2px' : null;
+		element.style.outlineOffset = isDropping && activeContrastBorderColor ? '-2px' : null;
 	}
 
 	private posSilo(pos: number, leftTop: string | number, rightBottom?: string | number, borderLeftTopWidth?: string | number): void {
@@ -1900,6 +2081,32 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 		return silo ? silo.child().getProperty(key) : void 0;
 	}
 
+	public updateTitleAreas(refreshActive?: boolean): void {
+		POSITIONS.forEach(position => {
+			const group = this.stacks.groupAt(position);
+			if (!group) {
+				return;
+			}
+
+			const titleControl = this.getTitleAreaControl(position);
+			if (!titleControl) {
+				return;
+			}
+
+			// Make sure the active group is shown in the title
+			// and refresh it if we are instructed to refresh it
+			if (refreshActive && group.isActive) {
+				titleControl.setContext(group);
+				titleControl.refresh(true);
+			}
+
+			// Otherwise, just refresh the toolbar
+			else {
+				titleControl.updateEditorActionsToolbar();
+			}
+		});
+	}
+
 	public updateProgress(position: Position, state: ProgressState): void {
 		const progressbar = this.getProgressBar(position);
 		if (!progressbar) {
@@ -1920,7 +2127,7 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 	}
 
 	public dispose(): void {
-		dispose(this.toDispose);
+		super.dispose();
 
 		// Positions
 		POSITIONS.forEach(position => {
@@ -1945,7 +2152,5 @@ export class EditorGroupsControl implements IEditorGroupsControl, IVerticalSashL
 		this.lastActiveEditor = null;
 		this.lastActivePosition = null;
 		this.visibleEditors = null;
-
-		this._onGroupFocusChanged.dispose();
 	}
 }

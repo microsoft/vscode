@@ -9,5 +9,6 @@
 	"gotoLineDescriptionWin": "Перейти к строке",
 	"gotoSymbolDescription": "Перейти к символу в файле",
 	"gotoSymbolDescriptionScoped": "Перейти к символу в файле по категории",
-	"helpDescription": "Показать справку"
+	"helpDescription": "Показать справку",
+	"viewPickerDescription": "Открыть представление"
 }

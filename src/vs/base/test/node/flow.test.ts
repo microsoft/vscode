@@ -8,57 +8,57 @@
 import * as assert from 'assert';
 import flow = require('vs/base/node/flow');
 
-var loop = flow.loop;
-var sequence = flow.sequence;
-var parallel = flow.parallel;
+const loop = flow.loop;
+const sequence = flow.sequence;
+const parallel = flow.parallel;
 
 suite('Flow', () => {
-	function assertCounterEquals(counter, expected): void {
+	function assertCounterEquals(counter: number, expected: number): void {
 		assert.ok(counter === expected, 'Expected ' + expected + ' assertions, but got ' + counter);
 	}
 
-	function syncThrowsError(callback): void {
+	function syncThrowsError(callback: any): void {
 		callback(new Error('foo'), null);
 	}
 
-	function syncSequenceGetThrowsError(value, callback) {
+	function syncSequenceGetThrowsError(value: any, callback: any) {
 		sequence(
 			function onError(error) {
 				callback(error, null);
 			},
 
-			function getFirst() {
+			function getFirst(this: any) {
 				syncThrowsError(this);
 			},
 
-			function handleFirst(first) {
+			function handleFirst(first: number) {
 				//Foo
 			}
 		);
 	}
 
-	function syncGet(value, callback): void {
+	function syncGet(value: any, callback: any): void {
 		callback(null, value);
 	}
 
-	function syncGetError(value, callback): void {
+	function syncGetError(value: any, callback: any): void {
 		callback(new Error(''), null);
 	}
 
-	function asyncGet(value, callback): void {
+	function asyncGet(value: any, callback: any): void {
 		process.nextTick(function () {
 			callback(null, value);
 		});
 	}
 
-	function asyncGetError(value, callback): void {
+	function asyncGetError(value: any, callback: any): void {
 		process.nextTick(function () {
 			callback(new Error(''), null);
 		});
 	}
 
 	test('loopSync', function (done: () => void) {
-		var elements = ['1', '2', '3'];
+		const elements = ['1', '2', '3'];
 		loop(elements, function (element, callback, index, total) {
 			assert.ok(index === 0 || index === 1 || index === 2);
 			assert.deepEqual(3, total);
@@ -72,7 +72,7 @@ suite('Flow', () => {
 	});
 
 	test('loopByFunctionSync', function (done: () => void) {
-		var elements = function (callback) {
+		const elements = function (callback: Function) {
 			callback(null, ['1', '2', '3']);
 		};
 
@@ -87,7 +87,7 @@ suite('Flow', () => {
 	});
 
 	test('loopByFunctionAsync', function (done: () => void) {
-		var elements = function (callback) {
+		const elements = function (callback: Function) {
 			process.nextTick(function () {
 				callback(null, ['1', '2', '3']);
 			});
@@ -104,7 +104,7 @@ suite('Flow', () => {
 	});
 
 	test('loopSyncErrorByThrow', function (done: () => void) {
-		var elements = ['1', '2', '3'];
+		const elements = ['1', '2', '3'];
 		loop(elements, function (element, callback) {
 			if (element === '2') {
 				throw new Error('foo');
@@ -120,7 +120,7 @@ suite('Flow', () => {
 	});
 
 	test('loopSyncErrorByCallback', function (done: () => void) {
-		var elements = ['1', '2', '3'];
+		const elements = ['1', '2', '3'];
 		loop(elements, function (element, callback) {
 			if (element === '2') {
 				callback(new Error('foo'), null);
@@ -136,7 +136,7 @@ suite('Flow', () => {
 	});
 
 	test('loopAsync', function (done: () => void) {
-		var elements = ['1', '2', '3'];
+		const elements = ['1', '2', '3'];
 		loop(elements, function (element, callback) {
 			process.nextTick(function () {
 				callback(null, element);
@@ -150,7 +150,7 @@ suite('Flow', () => {
 	});
 
 	test('loopAsyncErrorByCallback', function (done: () => void) {
-		var elements = ['1', '2', '3'];
+		const elements = ['1', '2', '3'];
 		loop(elements, function (element, callback) {
 			process.nextTick(function () {
 				if (element === '2') {
@@ -168,31 +168,31 @@ suite('Flow', () => {
 	});
 
 	test('sequenceSync', function (done: () => void) {
-		var assertionCount = 0;
-		var errorCount = 0;
+		let assertionCount = 0;
+		let errorCount = 0;
 
 		sequence(
 			function onError(error) {
 				errorCount++;
 			},
 
-			function getFirst() {
+			function getFirst(this: any) {
 				syncGet('1', this);
 			},
 
-			function handleFirst(first) {
+			function handleFirst(this: any, first: number) {
 				assert.deepEqual('1', first);
 				assertionCount++;
 				syncGet('2', this);
 			},
 
-			function handleSecond(second) {
+			function handleSecond(this: any, second: any) {
 				assert.deepEqual('2', second);
 				assertionCount++;
 				syncGet(null, this);
 			},
 
-			function handleThird(third) {
+			function handleThird(third: any) {
 				assert.ok(!third);
 				assertionCount++;
 
@@ -204,31 +204,31 @@ suite('Flow', () => {
 	});
 
 	test('sequenceAsync', function (done: () => void) {
-		var assertionCount = 0;
-		var errorCount = 0;
+		let assertionCount = 0;
+		let errorCount = 0;
 
 		sequence(
 			function onError(error) {
 				errorCount++;
 			},
 
-			function getFirst() {
+			function getFirst(this: any) {
 				asyncGet('1', this);
 			},
 
-			function handleFirst(first) {
+			function handleFirst(this: any, first: number) {
 				assert.deepEqual('1', first);
 				assertionCount++;
 				asyncGet('2', this);
 			},
 
-			function handleSecond(second) {
+			function handleSecond(this: any, second: number) {
 				assert.deepEqual('2', second);
 				assertionCount++;
 				asyncGet(null, this);
 			},
 
-			function handleThird(third) {
+			function handleThird(third: number) {
 				assert.ok(!third);
 				assertionCount++;
 
@@ -240,8 +240,8 @@ suite('Flow', () => {
 	});
 
 	test('sequenceSyncErrorByThrow', function (done: () => void) {
-		var assertionCount = 0;
-		var errorCount = 0;
+		let assertionCount = 0;
+		let errorCount = 0;
 
 		sequence(
 			function onError(error) {
@@ -252,17 +252,17 @@ suite('Flow', () => {
 				done();
 			},
 
-			function getFirst() {
+			function getFirst(this: any) {
 				syncGet('1', this);
 			},
 
-			function handleFirst(first) {
+			function handleFirst(this: any, first: number) {
 				assert.deepEqual('1', first);
 				assertionCount++;
 				syncGet('2', this);
 			},
 
-			function handleSecond(second) {
+			function handleSecond(second: number) {
 				if (true) {
 					throw new Error('');
 				}
@@ -270,15 +270,15 @@ suite('Flow', () => {
 				// syncGet(null, this);
 			},
 
-			function handleThird(third) {
+			function handleThird(third: number) {
 				throw new Error('We should not be here');
 			}
 		);
 	});
 
 	test('sequenceSyncErrorByCallback', function (done: () => void) {
-		var assertionCount = 0;
-		var errorCount = 0;
+		let assertionCount = 0;
+		let errorCount = 0;
 
 		sequence(
 			function onError(error) {
@@ -289,25 +289,25 @@ suite('Flow', () => {
 				done();
 			},
 
-			function getFirst() {
+			function getFirst(this: any) {
 				syncGet('1', this);
 			},
 
-			function handleFirst(first) {
+			function handleFirst(this: any, first: number) {
 				assert.deepEqual('1', first);
 				assertionCount++;
 				syncGetError('2', this);
 			},
 
-			function handleSecond(second) {
+			function handleSecond(second: number) {
 				throw new Error('We should not be here');
 			}
 		);
 	});
 
 	test('sequenceAsyncErrorByThrow', function (done: () => void) {
-		var assertionCount = 0;
-		var errorCount = 0;
+		let assertionCount = 0;
+		let errorCount = 0;
 
 		sequence(
 			function onError(error) {
@@ -318,17 +318,17 @@ suite('Flow', () => {
 				done();
 			},
 
-			function getFirst() {
+			function getFirst(this: any) {
 				asyncGet('1', this);
 			},
 
-			function handleFirst(first) {
+			function handleFirst(this: any, first: number) {
 				assert.deepEqual('1', first);
 				assertionCount++;
 				asyncGet('2', this);
 			},
 
-			function handleSecond(second) {
+			function handleSecond(second: number) {
 				if (true) {
 					throw new Error('');
 				}
@@ -336,15 +336,15 @@ suite('Flow', () => {
 				// asyncGet(null, this);
 			},
 
-			function handleThird(third) {
+			function handleThird(third: number) {
 				throw new Error('We should not be here');
 			}
 		);
 	});
 
 	test('sequenceAsyncErrorByCallback', function (done: () => void) {
-		var assertionCount = 0;
-		var errorCount = 0;
+		let assertionCount = 0;
+		let errorCount = 0;
 
 		sequence(
 			function onError(error) {
@@ -355,17 +355,17 @@ suite('Flow', () => {
 				done();
 			},
 
-			function getFirst() {
+			function getFirst(this: any) {
 				asyncGet('1', this);
 			},
 
-			function handleFirst(first) {
+			function handleFirst(this: any, first: number) {
 				assert.deepEqual('1', first);
 				assertionCount++;
 				asyncGetError('2', this);
 			},
 
-			function handleSecond(second) {
+			function handleSecond(second: number) {
 				throw new Error('We should not be here');
 			}
 		);
@@ -377,31 +377,31 @@ suite('Flow', () => {
 				done();
 			},
 
-			function getFirst() {
+			function getFirst(this: any) {
 				syncSequenceGetThrowsError('1', this);
 			}
 		);
 	});
 
 	test('tolerateBooleanResults', function (done: () => void) {
-		var assertionCount = 0;
-		var errorCount = 0;
+		let assertionCount = 0;
+		let errorCount = 0;
 
 		sequence(
 			function onError(error) {
 				errorCount++;
 			},
 
-			function getFirst() {
+			function getFirst(this: any) {
 				this(true);
 			},
 
-			function getSecond(result) {
+			function getSecond(this: any, result: boolean) {
 				assert.equal(result, true);
 				this(false);
 			},
 
-			function last(result) {
+			function last(result: boolean) {
 				assert.equal(result, false);
 				assertionCount++;
 
@@ -413,7 +413,7 @@ suite('Flow', () => {
 	});
 
 	test('loopTolerateBooleanResults', function (done: () => void) {
-		var elements = ['1', '2', '3'];
+		let elements = ['1', '2', '3'];
 		loop(elements, function (element, callback) {
 			process.nextTick(function () {
 				(<any>callback)(true);
@@ -427,8 +427,8 @@ suite('Flow', () => {
 	});
 
 	test('parallel', function (done: () => void) {
-		var elements = [1, 2, 3, 4, 5];
-		var sum = 0;
+		let elements = [1, 2, 3, 4, 5];
+		let sum = 0;
 
 		parallel(elements, function (element, callback) {
 			sum += element;
@@ -444,9 +444,9 @@ suite('Flow', () => {
 	});
 
 	test('parallel - setTimeout', function (done: () => void) {
-		var elements = [1, 2, 3, 4, 5];
-		var timeouts = [10, 30, 5, 0, 4];
-		var sum = 0;
+		let elements = [1, 2, 3, 4, 5];
+		let timeouts = [10, 30, 5, 0, 4];
+		let sum = 0;
 
 		parallel(elements, function (element, callback) {
 			setTimeout(function () {
@@ -464,9 +464,9 @@ suite('Flow', () => {
 	});
 
 	test('parallel - with error', function (done: () => void) {
-		var elements = [1, 2, 3, 4, 5];
-		var timeouts = [10, 30, 5, 0, 4];
-		var sum = 0;
+		const elements = [1, 2, 3, 4, 5];
+		const timeouts = [10, 30, 5, 0, 4];
+		let sum = 0;
 
 		parallel(elements, function (element, callback) {
 			setTimeout(function () {

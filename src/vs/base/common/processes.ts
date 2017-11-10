@@ -11,7 +11,7 @@ import * as Platform from 'vs/base/common/platform';
 import { IStringDictionary } from 'vs/base/common/collections';
 import * as Types from 'vs/base/common/types';
 
-import { ValidationStatus, ValidationState, ILogger, Parser } from 'vs/base/common/parsers';
+import { ValidationState, IProblemReporter, Parser } from 'vs/base/common/parsers';
 
 /**
  * Options to be passed to the external program or shell.
@@ -172,13 +172,13 @@ export interface ParserOptions {
 
 export class ExecutableParser extends Parser {
 
-	constructor(logger: ILogger, validationStatus: ValidationStatus = new ValidationStatus()) {
-		super(logger, validationStatus);
+	constructor(logger: IProblemReporter) {
+		super(logger);
 	}
 
 	public parse(json: Config.Executable, parserOptions: ParserOptions = { globals: null, emptyCommand: false, noDefaults: false }): Executable {
 		let result = this.parseExecutable(json, parserOptions.globals);
-		if (this.status.isFatal()) {
+		if (this.problemReporter.status.isFatal()) {
 			return result;
 		}
 		let osExecutable: Executable;
@@ -193,8 +193,7 @@ export class ExecutableParser extends Parser {
 			result = ExecutableParser.mergeExecutable(result, osExecutable);
 		}
 		if ((!result || !result.command) && !parserOptions.emptyCommand) {
-			this.status.state = ValidationState.Fatal;
-			this.log(NLS.localize('ExecutableParser.commandMissing', 'Error: executable info must define a command of type string.'));
+			this.fatal(NLS.localize('ExecutableParser.commandMissing', 'Error: executable info must define a command of type string.'));
 			return null;
 		}
 		if (!parserOptions.noDefaults) {

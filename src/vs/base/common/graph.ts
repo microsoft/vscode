@@ -5,7 +5,7 @@
 'use strict';
 
 import { isEmptyObject } from 'vs/base/common/types';
-import { forEach, contains, lookup } from 'vs/base/common/collections';
+import { forEach } from 'vs/base/common/collections';
 
 export interface Node<T> {
 	data: T;
@@ -30,7 +30,7 @@ export class Graph<T> {
 	}
 
 	roots(): Node<T>[] {
-		var ret: Node<T>[] = [];
+		const ret: Node<T>[] = [];
 		forEach(this._nodes, entry => {
 			if (isEmptyObject(entry.value.outgoing)) {
 				ret.push(entry.value);
@@ -40,7 +40,7 @@ export class Graph<T> {
 	}
 
 	traverse(start: T, inwards: boolean, callback: (data: T) => void): void {
-		var startNode = this.lookup(start);
+		const startNode = this.lookup(start);
 		if (!startNode) {
 			return;
 		}
@@ -48,18 +48,18 @@ export class Graph<T> {
 	}
 
 	private _traverse(node: Node<T>, inwards: boolean, seen: { [key: string]: boolean }, callback: (data: T) => void): void {
-		var key = this._hashFn(node.data);
-		if (contains(seen, key)) {
+		const key = this._hashFn(node.data);
+		if (seen[key]) {
 			return;
 		}
 		seen[key] = true;
 		callback(node.data);
-		var nodes = inwards ? node.outgoing : node.incoming;
+		const nodes = inwards ? node.outgoing : node.incoming;
 		forEach(nodes, (entry) => this._traverse(entry.value, inwards, seen, callback));
 	}
 
 	insertEdge(from: T, to: T): void {
-		var fromNode = this.lookupOrInsertNode(from),
+		const fromNode = this.lookupOrInsertNode(from),
 			toNode = this.lookupOrInsertNode(to);
 
 		fromNode.outgoing[this._hashFn(to)] = toNode;
@@ -67,7 +67,7 @@ export class Graph<T> {
 	}
 
 	removeNode(data: T): void {
-		var key = this._hashFn(data);
+		const key = this._hashFn(data);
 		delete this._nodes[key];
 		forEach(this._nodes, (entry) => {
 			delete entry.value.outgoing[key];
@@ -76,8 +76,8 @@ export class Graph<T> {
 	}
 
 	lookupOrInsertNode(data: T): Node<T> {
-		var key = this._hashFn(data),
-			node = lookup(this._nodes, key);
+		const key = this._hashFn(data);
+		let node = this._nodes[key];
 
 		if (!node) {
 			node = newNode(data);
@@ -88,7 +88,7 @@ export class Graph<T> {
 	}
 
 	lookup(data: T): Node<T> {
-		return lookup(this._nodes, this._hashFn(data));
+		return this._nodes[this._hashFn(data)];
 	}
 
 	get length(): number {

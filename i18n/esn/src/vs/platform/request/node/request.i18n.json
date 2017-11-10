@@ -6,6 +6,6 @@
 {
 	"httpConfigurationTitle": "HTTP",
 	"proxy": "El valor del proxy que se debe utilizar. Si no se establece, se tomará de las variables de entorno http_proxy y https_proxy",
-	"proxyAuthorization": "Valor que debe enviarse como encabezado de 'Proxy-Authorization' para cada solicitud de red.",
-	"strictSSL": "Indica si el certificado del servidor proxy debe comprobarse en la lista de entidades de certificación proporcionada."
+	"strictSSL": "Indica si el certificado del servidor proxy debe comprobarse en la lista de entidades de certificación proporcionada.",
+	"proxyAuthorization": "Valor que debe enviarse como encabezado de 'Proxy-Authorization' para cada solicitud de red."
 }

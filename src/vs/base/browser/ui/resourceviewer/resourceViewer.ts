@@ -13,10 +13,15 @@ import paths = require('vs/base/common/paths');
 import { Builder, $ } from 'vs/base/browser/builder';
 import DOM = require('vs/base/browser/dom');
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { BoundedLinkedMap } from 'vs/base/common/map';
+import { BoundedMap } from 'vs/base/common/map';
+import { Schemas } from 'vs/base/common/network';
+
+interface MapExtToMediaMimes {
+	[index: string]: string;
+}
 
 // Known media mimes that we can handle
-const mapExtToMediaMimes = {
+const mapExtToMediaMimes: MapExtToMediaMimes = {
 	'.bmp': 'image/bmp',
 	'.gif': 'image/gif',
 	'.jpg': 'image/jpg',
@@ -28,6 +33,7 @@ const mapExtToMediaMimes = {
 	'.ico': 'image/x-icon',
 	'.tga': 'image/x-tga',
 	'.psd': 'image/vnd.adobe.photoshop',
+	'.webp': 'image/webp',
 	'.mid': 'audio/midi',
 	'.midi': 'audio/midi',
 	'.mp4a': 'audio/mp4',
@@ -69,14 +75,19 @@ export interface IResourceDescriptor {
 	name: string;
 	size: number;
 	etag: string;
+	mime: string;
 }
 
 // Chrome is caching images very aggressively and so we use the ETag information to find out if
 // we need to bypass the cache or not. We could always bypass the cache everytime we show the image
 // however that has very bad impact on memory consumption because each time the image gets shown,
 // memory grows (see also https://github.com/electron/electron/issues/6275)
-const IMAGE_RESOURCE_ETAG_CACHE = new BoundedLinkedMap<{ etag: string, src: string }>(100);
+const IMAGE_RESOURCE_ETAG_CACHE = new BoundedMap<{ etag: string, src: string }>(100);
 function imageSrc(descriptor: IResourceDescriptor): string {
+	if (descriptor.resource.scheme === Schemas.data) {
+		return descriptor.resource.toString(true /* skip encoding */);
+	}
+
 	const src = descriptor.resource.toString();
 
 	let cached = IMAGE_RESOURCE_ETAG_CACHE.get(src);
@@ -106,46 +117,72 @@ export class ResourceViewer {
 
 	private static MAX_IMAGE_SIZE = ResourceViewer.MB; // showing images inline is memory intense, so we have a limit
 
-	public static show(descriptor: IResourceDescriptor, container: Builder, scrollbar: DomScrollableElement, metadataClb?: (meta: string) => void): void {
+	public static show(
+		descriptor: IResourceDescriptor,
+		container: Builder,
+		scrollbar: DomScrollableElement,
+		openExternal: (uri: URI) => void,
+		metadataClb?: (meta: string) => void
+	): void {
 
 		// Ensure CSS class
 		$(container).setClass('monaco-resource-viewer');
 
 		// Lookup media mime if any
-		let mime: string;
-		const ext = paths.extname(descriptor.resource.toString());
-		if (ext) {
-			mime = mapExtToMediaMimes[ext.toLowerCase()];
+		let mime = descriptor.mime;
+		if (!mime && descriptor.resource.scheme === Schemas.file) {
+			const ext = paths.extname(descriptor.resource.toString());
+			if (ext) {
+				mime = mapExtToMediaMimes[ext.toLowerCase()];
+			}
 		}
 
 		if (!mime) {
 			mime = mimes.MIME_BINARY;
 		}
 
-		// Show Image inline
-		if (mime.indexOf('image/') >= 0 && descriptor.size <= ResourceViewer.MAX_IMAGE_SIZE) {
-			$(container)
-				.empty()
-				.addClass('image')
-				.img({ src: imageSrc(descriptor) })
-				.on(DOM.EventType.LOAD, (e, img) => {
-					const imgElement = <HTMLImageElement>img.getHTMLElement();
-					if (imgElement.naturalWidth > imgElement.width || imgElement.naturalHeight > imgElement.height) {
-						$(container).addClass('oversized');
+		// Show Image inline unless they are large
+		if (mime.indexOf('image/') >= 0) {
+			if (ResourceViewer.inlineImage(descriptor)) {
+				$(container)
+					.empty()
+					.addClass('image')
+					.img({ src: imageSrc(descriptor) })
+					.on(DOM.EventType.LOAD, (e, img) => {
+						const imgElement = <HTMLImageElement>img.getHTMLElement();
+						if (imgElement.naturalWidth > imgElement.width || imgElement.naturalHeight > imgElement.height) {
+							$(container).addClass('oversized');
 
-						img.on(DOM.EventType.CLICK, (e, img) => {
-							$(container).toggleClass('full-size');
+							img.on(DOM.EventType.CLICK, (e, img) => {
+								$(container).toggleClass('full-size');
 
-							scrollbar.scanDomNode();
-						});
-					}
+								scrollbar.scanDomNode();
+							});
+						}
 
-					if (metadataClb) {
-						metadataClb(nls.localize('imgMeta', "{0}x{1} {2}", imgElement.naturalWidth, imgElement.naturalHeight, ResourceViewer.formatSize(descriptor.size)));
-					}
+						if (metadataClb) {
+							metadataClb(nls.localize('imgMeta', "{0}x{1} {2}", imgElement.naturalWidth, imgElement.naturalHeight, ResourceViewer.formatSize(descriptor.size)));
+						}
 
-					scrollbar.scanDomNode();
-				});
+						scrollbar.scanDomNode();
+					});
+			} else {
+				const imageContainer = $(container)
+					.empty()
+					.p({
+						text: nls.localize('largeImageError', "The image is too large to display in the editor. ")
+					});
+
+				if (descriptor.resource.scheme !== Schemas.data) {
+					imageContainer.append($('a', {
+						role: 'button',
+						class: 'open-external',
+						text: nls.localize('resourceOpenExternalButton', "Open image using external program?")
+					}).on(DOM.EventType.CLICK, (e) => {
+						openExternal(descriptor.resource);
+					}));
+				}
+			}
 		}
 
 		// Handle generic Binary Files
@@ -162,6 +199,26 @@ export class ResourceViewer {
 
 			scrollbar.scanDomNode();
 		}
+	}
+
+	private static inlineImage(descriptor: IResourceDescriptor): boolean {
+		let skipInlineImage: boolean;
+
+		// Data URI
+		if (descriptor.resource.scheme === Schemas.data) {
+			const BASE64_MARKER = 'base64,';
+			const base64MarkerIndex = descriptor.resource.path.indexOf(BASE64_MARKER);
+			const hasData = base64MarkerIndex >= 0 && descriptor.resource.path.substring(base64MarkerIndex + BASE64_MARKER.length).length > 0;
+
+			skipInlineImage = !hasData || descriptor.size > ResourceViewer.MAX_IMAGE_SIZE || descriptor.resource.path.length > ResourceViewer.MAX_IMAGE_SIZE;
+		}
+
+		// File URI
+		else {
+			skipInlineImage = typeof descriptor.size !== 'number' || descriptor.size > ResourceViewer.MAX_IMAGE_SIZE;
+		}
+
+		return !skipInlineImage;
 	}
 
 	private static formatSize(size: number): string {

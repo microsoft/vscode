@@ -9,7 +9,7 @@ import * as errors from 'vs/base/common/errors';
 import * as objects from 'vs/base/common/objects';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CacheState } from 'vs/workbench/parts/search/browser/openFileHandler';
-import { DeferredTPromise } from 'vs/test/utils/promiseTestUtils';
+import { DeferredTPromise } from 'vs/base/test/common/utils';
 import { QueryType, ISearchQuery } from 'vs/platform/search/common/search';
 
 suite('CacheState', () => {
@@ -134,7 +134,7 @@ suite('CacheState', () => {
 		const second = createCacheState(cache, first);
 		second.load();
 		const secondKey = cache.cacheKeys[1];
-		var origErrorHandler = errors.errorHandler.getUnexpectedErrorHandler();
+		const origErrorHandler = errors.errorHandler.getUnexpectedErrorHandler();
 		try {
 			errors.setUnexpectedErrorHandler(() => null);
 			cache.loading[secondKey].error('loading failed');

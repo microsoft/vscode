@@ -13,7 +13,7 @@ export interface LanguageRange extends Range {
 }
 
 export interface HTMLDocumentRegions {
-	getEmbeddedDocument(languageId: string): TextDocument;
+	getEmbeddedDocument(languageId: string, ignoreAttributeValues?: boolean): TextDocument;
 	getLanguageRanges(range: Range): LanguageRange[];
 	getLanguageAtPosition(position: Position): string;
 	getLanguagesInDocument(): string[];
@@ -22,16 +22,16 @@ export interface HTMLDocumentRegions {
 
 export var CSS_STYLE_RULE = '__';
 
-interface EmbeddedRegion { languageId: string; start: number; end: number; attributeValue?: boolean; };
+interface EmbeddedRegion { languageId: string; start: number; end: number; attributeValue?: boolean; }
 
 
 export function getDocumentRegions(languageService: LanguageService, document: TextDocument): HTMLDocumentRegions {
 	let regions: EmbeddedRegion[] = [];
 	let scanner = languageService.createScanner(document.getText());
-	let lastTagName: string;
-	let lastAttributeName: string;
-	let languageIdFromType: string;
-	let importedScripts = [];
+	let lastTagName: string = '';
+	let lastAttributeName: string | null = null;
+	let languageIdFromType: string | undefined = undefined;
+	let importedScripts: string[] = [];
 
 	let token = scanner.scan();
 	while (token !== TokenType.EOS) {
@@ -45,7 +45,7 @@ export function getDocumentRegions(languageService: LanguageService, document: T
 				regions.push({ languageId: 'css', start: scanner.getTokenOffset(), end: scanner.getTokenEnd() });
 				break;
 			case TokenType.Script:
-				regions.push({ languageId: languageIdFromType, start: scanner.getTokenOffset(), end: scanner.getTokenEnd() });
+				regions.push({ languageId: languageIdFromType!, start: scanner.getTokenOffset(), end: scanner.getTokenEnd() });
 				break;
 			case TokenType.AttributeName:
 				lastAttributeName = scanner.getTokenText();
@@ -58,13 +58,13 @@ export function getDocumentRegions(languageService: LanguageService, document: T
 					}
 					importedScripts.push(value);
 				} else if (lastAttributeName === 'type' && lastTagName.toLowerCase() === 'script') {
-					if (/["'](text|application)\/(java|ecma)script["']/.test(scanner.getTokenText())) {
+					if (/["'](module|(text|application)\/(java|ecma)script)["']/.test(scanner.getTokenText())) {
 						languageIdFromType = 'javascript';
 					} else {
 						languageIdFromType = void 0;
 					}
 				} else {
-					let attributeLanguageId = getAttributeLanguage(lastAttributeName);
+					let attributeLanguageId = getAttributeLanguage(lastAttributeName!);
 					if (attributeLanguageId) {
 						let start = scanner.getTokenOffset();
 						let end = scanner.getTokenEnd();
@@ -83,7 +83,7 @@ export function getDocumentRegions(languageService: LanguageService, document: T
 	}
 	return {
 		getLanguageRanges: (range: Range) => getLanguageRanges(document, regions, range),
-		getEmbeddedDocument: (languageId: string) => getEmbeddedDocument(document, regions, languageId),
+		getEmbeddedDocument: (languageId: string, ignoreAttributeValues: boolean) => getEmbeddedDocument(document, regions, languageId, ignoreAttributeValues),
 		getLanguageAtPosition: (position: Position) => getLanguageAtPosition(document, regions, position),
 		getLanguagesInDocument: () => getLanguagesInDocument(document, regions),
 		getImportedScripts: () => importedScripts
@@ -160,13 +160,13 @@ function getLanguageAtPosition(document: TextDocument, regions: EmbeddedRegion[]
 	return 'html';
 }
 
-function getEmbeddedDocument(document: TextDocument, contents: EmbeddedRegion[], languageId: string): TextDocument {
+function getEmbeddedDocument(document: TextDocument, contents: EmbeddedRegion[], languageId: string, ignoreAttributeValues: boolean): TextDocument {
 	let currentPos = 0;
 	let oldContent = document.getText();
 	let result = '';
 	let lastSuffix = '';
 	for (let c of contents) {
-		if (c.languageId === languageId) {
+		if (c.languageId === languageId && (!ignoreAttributeValues || !c.attributeValue)) {
 			result = substituteWithWhitespace(result, currentPos, c.start, oldContent, lastSuffix, getPrefix(c));
 			result += oldContent.substring(c.start, c.end);
 			currentPos = c.end;
@@ -224,7 +224,7 @@ function append(result: string, str: string, n: number): string {
 	return result;
 }
 
-function getAttributeLanguage(attributeName: string): string {
+function getAttributeLanguage(attributeName: string): string | null {
 	let match = attributeName.match(/^(style)$|^(on\w+)$/i);
 	if (!match) {
 		return null;

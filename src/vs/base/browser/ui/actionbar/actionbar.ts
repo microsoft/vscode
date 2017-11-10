@@ -8,10 +8,9 @@
 import 'vs/css!./actionbar';
 import nls = require('vs/nls');
 import lifecycle = require('vs/base/common/lifecycle');
-import { Promise } from 'vs/base/common/winjs.base';
+import { TPromise } from 'vs/base/common/winjs.base';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
-import platform = require('vs/base/common/platform');
 import { IAction, IActionRunner, Action, IActionChangeEvent, ActionRunner } from 'vs/base/common/actions';
 import DOM = require('vs/base/browser/dom');
 import { EventType as CommonEventType } from 'vs/base/common/events';
@@ -26,13 +25,14 @@ export interface IActionItem extends IEventEmitter {
 	setActionContext(context: any): void;
 	render(element: HTMLElement): void;
 	isEnabled(): boolean;
-	focus(): void;
+	focus(fromRight?: boolean): void;
 	blur(): void;
 	dispose(): void;
 }
 
 export interface IBaseActionItemOptions {
 	draggable?: boolean;
+	isMenu?: boolean;
 }
 
 export class BaseActionItem extends EventEmitter implements IActionItem {
@@ -118,26 +118,35 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 
 		this.builder.on(EventType.Tap, e => this.onClick(e));
 
-		if (platform.isMacintosh) {
-			this.builder.on(DOM.EventType.CONTEXT_MENU, (event: Event) => this.onClick(event)); // https://github.com/Microsoft/vscode/issues/1011
-		}
-
-		this.builder.on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+		this.builder.on(DOM.EventType.MOUSE_DOWN, (e) => {
 			if (!enableDragging) {
-				DOM.EventHelper.stop(e); // do not run when dragging is on because that would disable it
+				DOM.EventHelper.stop(e, true); // do not run when dragging is on because that would disable it
 			}
 
-			if (this._action.enabled) {
+			const mouseEvent = e as MouseEvent;
+			if (this._action.enabled && mouseEvent.button === 0) {
 				this.builder.addClass('active');
 			}
 		});
 
-		this.builder.on(DOM.EventType.CLICK, (e: MouseEvent) => {
+		this.builder.on(DOM.EventType.CLICK, (e) => {
 			DOM.EventHelper.stop(e, true);
-			setTimeout(() => this.onClick(e), 50);
+			// See https://developer.mozilla.org/en-US/Add-ons/WebExtensions/Interact_with_the_clipboard
+			// > Writing to the clipboard
+			// > You can use the "cut" and "copy" commands without any special
+			// permission if you are using them in a short-lived event handler
+			// for a user action (for example, a click handler).
+
+			// => to get the Copy and Paste context menu actions working on Firefox,
+			// there should be no timeout here
+			if (this.options && this.options.isMenu) {
+				this.onClick(e);
+			} else {
+				setTimeout(() => this.onClick(e), 50);
+			}
 		});
 
-		this.builder.on([DOM.EventType.MOUSE_UP, DOM.EventType.MOUSE_OUT], (e: MouseEvent) => {
+		this.builder.on([DOM.EventType.MOUSE_UP, DOM.EventType.MOUSE_OUT], (e) => {
 			DOM.EventHelper.stop(e);
 			this.builder.removeClass('active');
 		});
@@ -244,7 +253,16 @@ export class ActionItem extends BaseActionItem {
 		super.render(container);
 
 		this.$e = $('a.action-label').appendTo(this.builder);
-		this.$e.attr({ role: 'button' });
+		if (this._action.id === Separator.ID) {
+			// A separator is a presentation item
+			this.$e.attr({ role: 'presentation' });
+		} else {
+			if (this.options.isMenu) {
+				this.$e.attr({ role: 'menuitem' });
+			} else {
+				this.$e.attr({ role: 'button' });
+			}
+		}
 
 		if (this.options.label && this.options.keybinding) {
 			$('span.keybinding').text(this.options.keybinding).appendTo(this.builder);
@@ -333,8 +351,10 @@ export class ActionItem extends BaseActionItem {
 }
 
 export enum ActionsOrientation {
-	HORIZONTAL = 1,
-	VERTICAL = 2
+	HORIZONTAL,
+	HORIZONTAL_REVERSE,
+	VERTICAL,
+	VERTICAL_REVERSE,
 }
 
 export interface IActionItemProvider {
@@ -348,6 +368,7 @@ export interface IActionBarOptions {
 	actionRunner?: IActionRunner;
 	ariaLabel?: string;
 	animated?: boolean;
+	isMenu?: boolean;
 }
 
 let defaultOptions: IActionBarOptions = {
@@ -390,7 +411,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 			this.toDispose.push(this._actionRunner);
 		}
 
-		this.toDispose.push(this.addEmitter2(this._actionRunner));
+		this.toDispose.push(this.addEmitter(this._actionRunner));
 
 		this.items = [];
 		this.focusedItem = undefined;
@@ -402,18 +423,38 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 			DOM.addClass(this.domNode, 'animated');
 		}
 
-		let isVertical = this.options.orientation === ActionsOrientation.VERTICAL;
-		if (isVertical) {
-			this.domNode.className += ' vertical';
+		let previousKey: KeyCode;
+		let nextKey: KeyCode;
+
+		switch (this.options.orientation) {
+			case ActionsOrientation.HORIZONTAL:
+				previousKey = KeyCode.LeftArrow;
+				nextKey = KeyCode.RightArrow;
+				break;
+			case ActionsOrientation.HORIZONTAL_REVERSE:
+				previousKey = KeyCode.RightArrow;
+				nextKey = KeyCode.LeftArrow;
+				this.domNode.className += ' reverse';
+				break;
+			case ActionsOrientation.VERTICAL:
+				previousKey = KeyCode.UpArrow;
+				nextKey = KeyCode.DownArrow;
+				this.domNode.className += ' vertical';
+				break;
+			case ActionsOrientation.VERTICAL_REVERSE:
+				previousKey = KeyCode.DownArrow;
+				nextKey = KeyCode.UpArrow;
+				this.domNode.className += ' vertical reverse';
+				break;
 		}
 
-		$(this.domNode).on(DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			let event = new StandardKeyboardEvent(e);
+		$(this.domNode).on(DOM.EventType.KEY_DOWN, (e) => {
+			let event = new StandardKeyboardEvent(e as KeyboardEvent);
 			let eventHandled = true;
 
-			if (event.equals(isVertical ? KeyCode.UpArrow : KeyCode.LeftArrow)) {
+			if (event.equals(previousKey)) {
 				this.focusPrevious();
-			} else if (event.equals(isVertical ? KeyCode.DownArrow : KeyCode.RightArrow)) {
+			} else if (event.equals(nextKey)) {
 				this.focusNext();
 			} else if (event.equals(KeyCode.Escape)) {
 				this.cancel();
@@ -429,14 +470,8 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 			}
 		});
 
-		// Prevent native context menu on actions
-		$(this.domNode).on(DOM.EventType.CONTEXT_MENU, (e: Event) => {
-			e.preventDefault();
-			e.stopPropagation();
-		});
-
-		$(this.domNode).on(DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
-			let event = new StandardKeyboardEvent(e);
+		$(this.domNode).on(DOM.EventType.KEY_UP, (e) => {
+			let event = new StandardKeyboardEvent(e as KeyboardEvent);
 
 			// Run action on Enter/Space
 			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
@@ -463,7 +498,11 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 
 		this.actionsList = document.createElement('ul');
 		this.actionsList.className = 'actions-container';
-		this.actionsList.setAttribute('role', 'toolbar');
+		if (this.options.isMenu) {
+			this.actionsList.setAttribute('role', 'menubar');
+		} else {
+			this.actionsList.setAttribute('role', 'toolbar');
+		}
 		if (this.options.ariaLabel) {
 			this.actionsList.setAttribute('aria-label', this.options.ariaLabel);
 		}
@@ -526,6 +565,12 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 			actionItemElement.className = 'action-item';
 			actionItemElement.setAttribute('role', 'presentation');
 
+			// Prevent native context menu on actions
+			$(actionItemElement).on(DOM.EventType.CONTEXT_MENU, (e: Event) => {
+				e.preventDefault();
+				e.stopPropagation();
+			});
+
 			let item: IActionItem = null;
 
 			if (this.options.actionItemProvider) {
@@ -538,7 +583,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 
 			item.actionRunner = this._actionRunner;
 			item.setActionContext(this.context);
-			this.addEmitter2(item);
+			this.addEmitter(item);
 			item.render(actionItemElement);
 
 			if (index === null || index < 0 || index >= this.actionsList.children.length) {
@@ -551,6 +596,22 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 		});
 	}
 
+	public getWidth(index: number): number {
+		if (index >= 0 && index < this.actionsList.children.length) {
+			return this.actionsList.children.item(index).clientWidth;
+		}
+
+		return 0;
+	}
+
+	public getHeight(index: number): number {
+		if (index >= 0 && index < this.actionsList.children.length) {
+			return this.actionsList.children.item(index).clientHeight;
+		}
+
+		return 0;
+	}
+
 	public pull(index: number): void {
 		if (index >= 0 && index < this.items.length) {
 			this.items.splice(index, 1);
@@ -559,8 +620,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 	}
 
 	public clear(): void {
-		// Do not dispose action items if they were provided from outside
-		this.items = this.options.actionItemProvider ? [] : lifecycle.dispose(this.items);
+		this.items = lifecycle.dispose(this.items);
 		$(this.actionsList).empty();
 	}
 
@@ -622,10 +682,10 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 			this.focusedItem = undefined;
 		}
 
-		this.updateFocus();
+		this.updateFocus(true);
 	}
 
-	private updateFocus(): void {
+	private updateFocus(fromRight?: boolean): void {
 		if (typeof this.focusedItem === 'undefined') {
 			this.domNode.focus();
 			return;
@@ -638,7 +698,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 
 			if (i === this.focusedItem) {
 				if (types.isFunction(actionItem.focus)) {
-					actionItem.focus();
+					actionItem.focus(fromRight);
 				}
 			} else {
 				if (types.isFunction(actionItem.blur)) {
@@ -663,13 +723,13 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 
 	private cancel(): void {
 		if (document.activeElement instanceof HTMLElement) {
-			(<HTMLElement>document.activeElement).blur(); // remove focus from focussed action
+			(<HTMLElement>document.activeElement).blur(); // remove focus from focused action
 		}
 
 		this.emit(CommonEventType.CANCEL);
 	}
 
-	public run(action: IAction, context?: any): Promise {
+	public run(action: IAction, context?: any): TPromise<void> {
 		return this._actionRunner.run(action, context);
 	}
 
@@ -693,7 +753,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 }
 
 export class SelectActionItem extends BaseActionItem {
-	private selectBox: SelectBox;
+	protected selectBox: SelectBox;
 	protected toDispose: lifecycle.IDisposable[];
 
 	constructor(ctx: any, action: IAction, options: string[], selected: number) {
@@ -705,13 +765,17 @@ export class SelectActionItem extends BaseActionItem {
 		this.registerListeners();
 	}
 
-	public setOptions(options: string[], selected: number): void {
+	public setOptions(options: string[], selected?: number): void {
 		this.selectBox.setOptions(options, selected);
 	}
 
+	public select(index: number): void {
+		this.selectBox.select(index);
+	}
+
 	private registerListeners(): void {
-		this.toDispose.push(this.selectBox.onDidSelect(selected => {
-			this.actionRunner.run(this._action, this.getActionContext(selected)).done();
+		this.toDispose.push(this.selectBox.onDidSelect(e => {
+			this.actionRunner.run(this._action, this.getActionContext(e.selected)).done();
 		}));
 	}
 
@@ -733,10 +797,6 @@ export class SelectActionItem extends BaseActionItem {
 
 	public render(container: HTMLElement): void {
 		this.selectBox.render(container);
-	}
-
-	protected getSelected(): string {
-		return this.selectBox.getSelected();
 	}
 
 	public dispose(): void {

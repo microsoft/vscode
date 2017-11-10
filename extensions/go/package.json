@@ -17,6 +17,11 @@
 			"language": "go",
 			"scopeName": "source.go",
 			"path": "./syntaxes/go.json"
-		}]
+		}],
+		"configurationDefaults": {
+			"[go]": {
+				"editor.insertSpaces": false
+			}
+		}
 	}
 }

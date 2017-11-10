@@ -21,11 +21,12 @@ var app = express();
 
 app.use('/out', express.static(path.join(root, 'out')));
 app.use('/test', express.static(path.join(root, 'test')));
+app.use('/node_modules', express.static(path.join(root, 'node_modules')));
 
 app.get('/', function (req, res) {
-	glob('**/test/**/*.js', {
+	glob('**/vs/{base,platform,editor}/**/test/{common,browser}/**/*.test.js', {
 		cwd: path.join(root, 'out'),
-		ignore: ['**/test/{node,electron*}/**/*.js']
+		// ignore: ['**/test/{node,electron*}/**/*.js']
 	}, function (err, files) {
 		if (err) { return res.sendStatus(500); }
 

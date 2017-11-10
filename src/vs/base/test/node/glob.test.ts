@@ -7,6 +7,7 @@
 import * as assert from 'assert';
 import * as path from 'path';
 import glob = require('vs/base/common/glob');
+import { isWindows } from 'vs/base/common/platform';
 
 suite('Glob', () => {
 
@@ -15,12 +16,12 @@ suite('Glob', () => {
 	// 	let patterns = [
 	// 		'{**/*.cs,**/*.json,**/*.csproj,**/*.sln}',
 	// 		'{**/*.cs,**/*.csproj,**/*.sln}',
-	// 		'{**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.es6}',
+	// 		'{**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.es6,**/*.mjs}',
 	// 		'**/*.go',
 	// 		'{**/*.ps,**/*.ps1}',
 	// 		'{**/*.c,**/*.cpp,**/*.h}',
 	// 		'{**/*.fsx,**/*.fsi,**/*.fs,**/*.ml,**/*.mli}',
-	// 		'{**/*.js,**/*.jsx,**/*.es6}',
+	// 		'{**/*.js,**/*.jsx,**/*.es6,**/*.mjs}',
 	// 		'{**/*.ts,**/*.tsx}',
 	// 		'{**/*.php}',
 	// 		'{**/*.php}',
@@ -63,7 +64,7 @@ suite('Glob', () => {
 	// });
 
 	test('simple', function () {
-		var p = 'node_modules';
+		let p = 'node_modules';
 
 		assert(glob.match(p, 'node_modules'));
 		assert(!glob.match(p, 'node_module'));
@@ -98,7 +99,7 @@ suite('Glob', () => {
 	});
 
 	test('dot hidden', function () {
-		var p = '.*';
+		let p = '.*';
 
 		assert(glob.match(p, '.git'));
 		assert(glob.match(p, '.hidden.txt'));
@@ -138,7 +139,7 @@ suite('Glob', () => {
 	});
 
 	test('file pattern', function () {
-		var p = '*.js';
+		let p = '*.js';
 
 		assert(glob.match(p, 'foo.js'));
 		assert(!glob.match(p, 'folder/foo.js'));
@@ -167,7 +168,7 @@ suite('Glob', () => {
 	});
 
 	test('star', function () {
-		var p = 'node*modules';
+		let p = 'node*modules';
 
 		assert(glob.match(p, 'node_modules'));
 		assert(glob.match(p, 'node_super_modules'));
@@ -184,7 +185,7 @@ suite('Glob', () => {
 	});
 
 	test('questionmark', function () {
-		var p = 'node?modules';
+		let p = 'node?modules';
 
 		assert(glob.match(p, 'node_modules'));
 		assert(!glob.match(p, 'node_super_modules'));
@@ -201,7 +202,7 @@ suite('Glob', () => {
 	});
 
 	test('globstar', function () {
-		var p = '**/*.js';
+		let p = '**/*.js';
 
 		assert(glob.match(p, 'foo.js'));
 		assert(glob.match(p, 'folder/foo.js'));
@@ -301,7 +302,7 @@ suite('Glob', () => {
 	});
 
 	test('brace expansion', function () {
-		var p = '*.{html,js}';
+		let p = '*.{html,js}';
 
 		assert(glob.match(p, 'foo.js'));
 		assert(glob.match(p, 'foo.html'));
@@ -393,10 +394,10 @@ suite('Glob', () => {
 	});
 
 	test('expression support (single)', function () {
-		var siblings = ['test.html', 'test.txt', 'test.ts', 'test.js'];
+		let siblings = ['test.html', 'test.txt', 'test.ts', 'test.js'];
 
 		// { "**/*.js": { "when": "$(basename).ts" } }
-		var expression: glob.IExpression = {
+		let expression: glob.IExpression = {
 			'**/*.js': {
 				when: '$(basename).ts'
 			}
@@ -415,7 +416,7 @@ suite('Glob', () => {
 
 		assert.strictEqual(glob.match(expression, 'test.js', () => siblings), null);
 
-		expression = <any>{
+		expression = {
 			'**/*.js': {
 			}
 		};
@@ -428,10 +429,10 @@ suite('Glob', () => {
 	});
 
 	test('expression support (multiple)', function () {
-		var siblings = ['test.html', 'test.txt', 'test.ts', 'test.js'];
+		let siblings = ['test.html', 'test.txt', 'test.ts', 'test.js'];
 
 		// { "**/*.js": { "when": "$(basename).ts" } }
-		var expression: glob.IExpression = {
+		let expression: glob.IExpression = {
 			'**/*.js': { when: '$(basename).ts' },
 			'**/*.as': true,
 			'**/*.foo': false,
@@ -446,7 +447,7 @@ suite('Glob', () => {
 	});
 
 	test('brackets', function () {
-		var p = 'foo.[0-9]';
+		let p = 'foo.[0-9]';
 
 		assert(glob.match(p, 'foo.5'));
 		assert(glob.match(p, 'foo.8'));
@@ -459,16 +460,56 @@ suite('Glob', () => {
 		assert(!glob.match(p, 'foo.8'));
 		assert(!glob.match(p, 'bar.5'));
 		assert(glob.match(p, 'foo.f'));
+
+		p = 'foo.[!0-9]';
+
+		assert(!glob.match(p, 'foo.5'));
+		assert(!glob.match(p, 'foo.8'));
+		assert(!glob.match(p, 'bar.5'));
+		assert(glob.match(p, 'foo.f'));
+
+		p = 'foo.[0!^*?]';
+
+		assert(!glob.match(p, 'foo.5'));
+		assert(!glob.match(p, 'foo.8'));
+		assert(glob.match(p, 'foo.0'));
+		assert(glob.match(p, 'foo.!'));
+		assert(glob.match(p, 'foo.^'));
+		assert(glob.match(p, 'foo.*'));
+		assert(glob.match(p, 'foo.?'));
+
+		p = 'foo[/]bar';
+
+		assert(!glob.match(p, 'foo/bar'));
+
+		p = 'foo.[[]';
+
+		assert(glob.match(p, 'foo.['));
+
+		p = 'foo.[]]';
+
+		assert(glob.match(p, 'foo.]'));
+
+		p = 'foo.[][!]';
+
+		assert(glob.match(p, 'foo.]'));
+		assert(glob.match(p, 'foo.['));
+		assert(glob.match(p, 'foo.!'));
+
+		p = 'foo.[]-]';
+
+		assert(glob.match(p, 'foo.]'));
+		assert(glob.match(p, 'foo.-'));
 	});
 
 	test('full path', function () {
-		var p = 'testing/this/foo.txt';
+		let p = 'testing/this/foo.txt';
 
 		assert(glob.match(p, nativeSep('testing/this/foo.txt')));
 	});
 
 	test('prefix agnostic', function () {
-		var p = '**/*.js';
+		let p = '**/*.js';
 
 		assert(glob.match(p, 'foo.js'));
 		assert(glob.match(p, '/foo.js'));
@@ -512,7 +553,7 @@ suite('Glob', () => {
 	});
 
 	test('cached properly', function () {
-		var p = '**/*.js';
+		let p = '**/*.js';
 
 		assert(glob.match(p, 'foo.js'));
 		assert(glob.match(p, 'testing/foo.js'));
@@ -572,7 +613,7 @@ suite('Glob', () => {
 	});
 
 	test('invalid glob', function () {
-		var p = '**/*(.js';
+		let p = '**/*(.js';
 
 		assert(!glob.match(p, 'foo.js'));
 	});
@@ -590,13 +631,13 @@ suite('Glob', () => {
 	});
 
 	test('expression with disabled glob', function () {
-		var expr = { '**/*.js': false };
+		let expr = { '**/*.js': false };
 
 		assert.strictEqual(glob.match(expr, 'foo.js'), null);
 	});
 
 	test('expression with two non-trivia globs', function () {
-		var expr = {
+		let expr = {
 			'**/*.j?': true,
 			'**/*.t?': true
 		};
@@ -606,19 +647,19 @@ suite('Glob', () => {
 	});
 
 	test('expression with empty glob', function () {
-		var expr = { '': true };
+		let expr = { '': true };
 
 		assert.strictEqual(glob.match(expr, 'foo.js'), null);
 	});
 
 	test('expression with other falsy value', function () {
-		var expr = { '**/*.js': 0 };
+		let expr = { '**/*.js': 0 };
 
 		assert.strictEqual(glob.match(expr, 'foo.js'), '**/*.js');
 	});
 
 	test('expression with two basename globs', function () {
-		var expr = {
+		let expr = {
 			'**/bar': true,
 			'**/baz': true
 		};
@@ -631,13 +672,13 @@ suite('Glob', () => {
 	});
 
 	test('expression with two basename globs and a siblings expression', function () {
-		var expr = {
+		let expr = {
 			'**/bar': true,
 			'**/baz': true,
 			'**/*.js': { when: '$(basename).ts' }
 		};
 
-		var sibilings = () => ['foo.ts', 'foo.js', 'foo', 'bar'];
+		let sibilings = () => ['foo.ts', 'foo.js', 'foo', 'bar'];
 
 		assert.strictEqual(glob.match(expr, 'bar', sibilings), '**/bar');
 		assert.strictEqual(glob.match(expr, 'foo', sibilings), null);
@@ -649,7 +690,7 @@ suite('Glob', () => {
 	});
 
 	test('expression with multipe basename globs', function () {
-		var expr = {
+		let expr = {
 			'**/bar': true,
 			'{**/baz,**/foo}': true
 		};
@@ -689,8 +730,8 @@ suite('Glob', () => {
 		assert.strictEqual(glob.parse('{**/baz,**/foo}')('baz/bar', 'bar'), false);
 		assert.strictEqual(glob.parse('{**/baz,**/foo}')('baz/foo', 'foo'), true);
 
-		var expr = { '**/*.js': { when: '$(basename).ts' } };
-		var sibilings = () => ['foo.ts', 'foo.js'];
+		let expr = { '**/*.js': { when: '$(basename).ts' } };
+		let sibilings = () => ['foo.ts', 'foo.js'];
 
 		assert.strictEqual(glob.parse(expr)('bar/baz.js', 'baz.js', sibilings), null);
 		assert.strictEqual(glob.parse(expr)('bar/foo.js', 'foo.js', sibilings), '**/*.js');
@@ -865,4 +906,75 @@ suite('Glob', () => {
 	function nativeSep(slashPath: string): string {
 		return slashPath.replace(/\//g, path.sep);
 	}
+
+	test('mergeExpressions', () => {
+		// Empty => empty
+		assert.deepEqual(glob.mergeExpressions(), glob.getEmptyExpression());
+
+		// Doesn't modify given expressions
+		const expr1 = { 'a': true };
+		glob.mergeExpressions(expr1, { 'b': true });
+		assert.deepEqual(expr1, { 'a': true });
+
+		// Merges correctly
+		assert.deepEqual(glob.mergeExpressions({ 'a': true }, { 'b': true }), { 'a': true, 'b': true });
+
+		// Ignores null/undefined portions
+		assert.deepEqual(glob.mergeExpressions(undefined, { 'a': true }, null, { 'b': true }), { 'a': true, 'b': true });
+
+		// Later expressions take precedence
+		assert.deepEqual(glob.mergeExpressions({ 'a': true, 'b': false, 'c': true }, { 'a': false, 'b': true }), { 'a': false, 'b': true, 'c': true });
+	});
+
+	test('relative pattern - glob star', function () {
+		if (isWindows) {
+			let p = { base: 'C:\\DNXConsoleApp\\foo', pattern: '**/*.cs' };
+			assert(glob.match(p, 'C:\\DNXConsoleApp\\foo\\Program.cs'));
+			assert(glob.match(p, 'C:\\DNXConsoleApp\\foo\\bar\\Program.cs'));
+			assert(!glob.match(p, 'C:\\DNXConsoleApp\\foo\\Program.ts'));
+			assert(!glob.match(p, 'C:\\DNXConsoleApp\\Program.cs'));
+			assert(!glob.match(p, 'C:\\other\\DNXConsoleApp\\foo\\Program.ts'));
+		} else {
+			let p: glob.IRelativePattern = { base: '/DNXConsoleApp/foo', pattern: '**/*.cs' };
+			assert(glob.match(p, '/DNXConsoleApp/foo/Program.cs'));
+			assert(glob.match(p, '/DNXConsoleApp/foo/bar/Program.cs'));
+			assert(!glob.match(p, '/DNXConsoleApp/foo/Program.ts'));
+			assert(!glob.match(p, '/DNXConsoleApp/Program.cs'));
+			assert(!glob.match(p, '/other/DNXConsoleApp/foo/Program.ts'));
+		}
+	});
+
+	test('relative pattern - single star', function () {
+		if (isWindows) {
+			let p = { base: 'C:\\DNXConsoleApp\\foo', pattern: '*.cs' };
+			assert(glob.match(p, 'C:\\DNXConsoleApp\\foo\\Program.cs'));
+			assert(!glob.match(p, 'C:\\DNXConsoleApp\\foo\\bar\\Program.cs'));
+			assert(!glob.match(p, 'C:\\DNXConsoleApp\\foo\\Program.ts'));
+			assert(!glob.match(p, 'C:\\DNXConsoleApp\\Program.cs'));
+			assert(!glob.match(p, 'C:\\other\\DNXConsoleApp\\foo\\Program.ts'));
+		} else {
+			let p: glob.IRelativePattern = { base: '/DNXConsoleApp/foo', pattern: '*.cs' };
+			assert(glob.match(p, '/DNXConsoleApp/foo/Program.cs'));
+			assert(!glob.match(p, '/DNXConsoleApp/foo/bar/Program.cs'));
+			assert(!glob.match(p, '/DNXConsoleApp/foo/Program.ts'));
+			assert(!glob.match(p, '/DNXConsoleApp/Program.cs'));
+			assert(!glob.match(p, '/other/DNXConsoleApp/foo/Program.ts'));
+		}
+	});
+
+	test('relative pattern - single star with path', function () {
+		if (isWindows) {
+			let p = { base: 'C:\\DNXConsoleApp\\foo', pattern: 'something/*.cs' };
+			assert(glob.match(p, 'C:\\DNXConsoleApp\\foo\\something\\Program.cs'));
+			assert(!glob.match(p, 'C:\\DNXConsoleApp\\foo\\Program.cs'));
+		} else {
+			let p: glob.IRelativePattern = { base: '/DNXConsoleApp/foo', pattern: 'something/*.cs' };
+			assert(glob.match(p, '/DNXConsoleApp/foo/something/Program.cs'));
+			assert(!glob.match(p, '/DNXConsoleApp/foo/Program.cs'));
+		}
+	});
+
+	test('pattern with "base" does not explode - #36081', function () {
+		assert.ok(glob.match({ 'base': true }, 'base'));
+	});
 });

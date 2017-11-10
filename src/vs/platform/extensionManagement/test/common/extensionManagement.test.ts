@@ -10,7 +10,7 @@ import { EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/co
 suite('Extension Identifier Pattern', () => {
 
 	test('extension identifier pattern', () => {
-		var regEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
+		const regEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
 		assert.equal(true, regEx.test('publisher.name'));
 		assert.equal(true, regEx.test('publiSher.name'));
 		assert.equal(true, regEx.test('publisher.Name'));

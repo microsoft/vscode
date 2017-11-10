@@ -19,6 +19,12 @@ import { Action } from 'vs/base/common/actions';
 import htmlRenderer = require('vs/base/browser/htmlContentRenderer');
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { NOTIFICATIONS_FOREGROUND, NOTIFICATIONS_BACKGROUND, NOTIFICATIONS_BUTTON_BACKGROUND, NOTIFICATIONS_BUTTON_HOVER_BACKGROUND, NOTIFICATIONS_BUTTON_FOREGROUND, NOTIFICATIONS_INFO_BACKGROUND, NOTIFICATIONS_WARNING_BACKGROUND, NOTIFICATIONS_ERROR_BACKGROUND, NOTIFICATIONS_INFO_FOREGROUND, NOTIFICATIONS_WARNING_FOREGROUND, NOTIFICATIONS_ERROR_FOREGROUND } from 'vs/workbench/common/theme';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Color } from 'vs/base/common/color';
 
 export enum Severity {
 	Info,
@@ -29,11 +35,13 @@ export enum Severity {
 export interface IMessageWithAction {
 	message: string;
 	actions: Action[];
+	source: string;
 }
 
 interface IMessageEntry {
 	id: any;
 	text: string;
+	source: string;
 	severity: Severity;
 	time: number;
 	count?: number;
@@ -47,32 +55,47 @@ export class IMessageListOptions {
 	maxMessageLength: number;
 }
 
-export interface IUsageLogger {
-	publicLog(eventName: string, data?: any): void;
-}
+const DEFAULT_MESSAGE_LIST_OPTIONS = {
+	purgeInterval: 10000,
+	maxMessages: 5,
+	maxMessageLength: 500
+};
 
 export class MessageList {
-
-	private static DEFAULT_MESSAGE_PURGER_INTERVAL = 10000;
-	private static DEFAULT_MAX_MESSAGES = 5;
-	private static DEFAULT_MAX_MESSAGE_LENGTH = 500;
-
 	private messages: IMessageEntry[];
 	private messageListPurger: TPromise<void>;
 	private messageListContainer: Builder;
 
 	private container: HTMLElement;
 	private options: IMessageListOptions;
-	private usageLogger: IUsageLogger;
 
 	private _onMessagesShowing: Emitter<void>;
 	private _onMessagesCleared: Emitter<void>;
 
-	constructor(container: HTMLElement, usageLogger?: IUsageLogger, options: IMessageListOptions = { purgeInterval: MessageList.DEFAULT_MESSAGE_PURGER_INTERVAL, maxMessages: MessageList.DEFAULT_MAX_MESSAGES, maxMessageLength: MessageList.DEFAULT_MAX_MESSAGE_LENGTH }) {
+	private toDispose: IDisposable[];
+
+	private background = Color.fromHex('#333333');
+	private foreground = Color.fromHex('#EEEEEE');
+	private widgetShadow = Color.fromHex('#000000');
+	private outlineBorder: Color;
+	private buttonBackground = Color.fromHex('#0E639C');
+	private buttonForeground = this.foreground;
+	private infoBackground = Color.fromHex('#007ACC');
+	private infoForeground = this.foreground;
+	private warningBackground = Color.fromHex('#B89500');
+	private warningForeground = this.foreground;
+	private errorBackground = Color.fromHex('#BE1100');
+	private errorForeground = this.foreground;
+
+	constructor(
+		container: HTMLElement,
+		private telemetryService: ITelemetryService,
+		options: IMessageListOptions = DEFAULT_MESSAGE_LIST_OPTIONS
+	) {
+		this.toDispose = [];
 		this.messages = [];
 		this.messageListPurger = null;
 		this.container = container;
-		this.usageLogger = usageLogger;
 		this.options = options;
 
 		this._onMessagesShowing = new Emitter<void>();
@@ -82,8 +105,29 @@ export class MessageList {
 	}
 
 	private registerListeners(): void {
-		browser.onDidChangeFullscreen(() => this.positionMessageList());
-		browser.onDidChangeZoomLevel(() => this.positionMessageList());
+		this.toDispose.push(browser.onDidChangeFullscreen(() => this.positionMessageList()));
+		this.toDispose.push(browser.onDidChangeZoomLevel(() => this.positionMessageList()));
+		this.toDispose.push(registerThemingParticipant((theme, collector) => {
+			this.background = theme.getColor(NOTIFICATIONS_BACKGROUND);
+			this.foreground = theme.getColor(NOTIFICATIONS_FOREGROUND);
+			this.widgetShadow = theme.getColor(widgetShadow);
+			this.outlineBorder = theme.getColor(contrastBorder);
+			this.buttonBackground = theme.getColor(NOTIFICATIONS_BUTTON_BACKGROUND);
+			this.buttonForeground = theme.getColor(NOTIFICATIONS_BUTTON_FOREGROUND);
+			this.infoBackground = theme.getColor(NOTIFICATIONS_INFO_BACKGROUND);
+			this.infoForeground = theme.getColor(NOTIFICATIONS_INFO_FOREGROUND);
+			this.warningBackground = theme.getColor(NOTIFICATIONS_WARNING_BACKGROUND);
+			this.warningForeground = theme.getColor(NOTIFICATIONS_WARNING_FOREGROUND);
+			this.errorBackground = theme.getColor(NOTIFICATIONS_ERROR_BACKGROUND);
+			this.errorForeground = theme.getColor(NOTIFICATIONS_ERROR_FOREGROUND);
+
+			const buttonHoverBackgroundColor = theme.getColor(NOTIFICATIONS_BUTTON_HOVER_BACKGROUND);
+			if (buttonHoverBackgroundColor) {
+				collector.addRule(`.global-message-list li.message-list-entry .actions-container .message-action .action-button:hover { background-color: ${buttonHoverBackgroundColor} !important; }`);
+			}
+
+			this.updateStyles();
+		}));
 	}
 
 	public get onMessagesShowing(): Event<void> {
@@ -92,6 +136,15 @@ export class MessageList {
 
 	public get onMessagesCleared(): Event<void> {
 		return this._onMessagesCleared.event;
+	}
+
+	public updateStyles(): void {
+		if (this.messageListContainer) {
+			this.messageListContainer.style('background-color', this.background ? this.background.toString() : null);
+			this.messageListContainer.style('color', this.foreground ? this.foreground.toString() : null);
+			this.messageListContainer.style('outline-color', this.outlineBorder ? this.outlineBorder.toString() : null);
+			this.messageListContainer.style('box-shadow', this.widgetShadow ? `0 5px 8px ${this.widgetShadow}` : null);
+		}
 	}
 
 	public showMessage(severity: Severity, message: string, onHide?: () => void): () => void;
@@ -126,7 +179,7 @@ export class MessageList {
 			return toErrorMessage(message, false);
 		}
 
-		if ((<IMessageWithAction>message).message) {
+		if (message && (<IMessageWithAction>message).message) {
 			return (<IMessageWithAction>message).message;
 		}
 
@@ -148,6 +201,7 @@ export class MessageList {
 			severity: severity,
 			time: Date.now(),
 			actions: (<IMessageWithAction>id).actions,
+			source: (<IMessageWithAction>id).source,
 			onHide
 		});
 
@@ -206,6 +260,9 @@ export class MessageList {
 				}, 50 /* Need this delay to reliably get the animation on some browsers */);
 			}
 		});
+
+		// Styles
+		this.updateStyles();
 	}
 
 	private positionMessageList(animate?: boolean): void {
@@ -232,30 +289,39 @@ export class MessageList {
 				for (let i = 0; i < messageActions.length; i++) {
 					const action = messageActions[i];
 					actionContainer.div({ class: 'message-action' }, div => {
-						div.a({ class: 'action-button', tabindex: '0', role: 'button' }).text(action.label).on([DOM.EventType.CLICK, DOM.EventType.KEY_DOWN], e => {
-							if (e instanceof KeyboardEvent) {
-								const event = new StandardKeyboardEvent(e);
-								if (!event.equals(KeyCode.Enter) && !event.equals(KeyCode.Space)) {
-									return; // Only handle Enter/Escape for keyboard access
-								}
-							}
-
-							DOM.EventHelper.stop(e, true);
-
-							if (this.usageLogger) {
-								this.usageLogger.publicLog('workbenchActionExecuted', { id: action.id, from: 'message' });
-							}
-
-							(action.run() || TPromise.as(null))
-								.then(null, error => this.showMessage(Severity.Error, error))
-								.done(r => {
-									if (typeof r === 'boolean' && r === false) {
-										return;
+						div.a({ class: 'action-button', tabindex: '0', role: 'button' })
+							.style('border-color', this.outlineBorder ? this.outlineBorder.toString() : null)
+							.style('background-color', this.buttonBackground ? this.buttonBackground.toString() : null)
+							.style('color', this.buttonForeground ? this.buttonForeground.toString() : null)
+							.text(action.label)
+							.on([DOM.EventType.CLICK, DOM.EventType.KEY_DOWN], e => {
+								if (e instanceof KeyboardEvent) {
+									const event = new StandardKeyboardEvent(e);
+									if (!event.equals(KeyCode.Enter) && !event.equals(KeyCode.Space)) {
+										return; // Only handle Enter/Escape for keyboard access
 									}
+								}
 
-									this.hideMessage(message.text); // hide all matching the text since there may be duplicates
-								});
-						});
+								DOM.EventHelper.stop(e, true);
+
+								/* __GDPR__
+									"workbenchActionExecuted" : {
+										"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+										"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+									}
+								*/
+								this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'message' });
+
+								(action.run() || TPromise.as(null))
+									.then(null, error => this.showMessage(Severity.Error, error))
+									.done(r => {
+										if (typeof r === 'boolean' && r === false) {
+											return;
+										}
+
+										this.hideMessage(message.text); // hide all matching the text since there may be duplicates
+									});
+							});
 					});
 				}
 			});
@@ -268,16 +334,26 @@ export class MessageList {
 				// Severity indicator
 				const sev = message.severity;
 				const label = (sev === Severity.Error) ? nls.localize('error', "Error") : (sev === Severity.Warning) ? nls.localize('warning', "Warn") : nls.localize('info', "Info");
-				$().span({ class: 'message-left-side severity ' + ((sev === Severity.Error) ? 'app-error' : (sev === Severity.Warning) ? 'app-warning' : 'app-info'), text: label }).appendTo(div);
+				const color = (sev === Severity.Error) ? this.errorBackground : (sev === Severity.Warning) ? this.warningBackground : this.infoBackground;
+				const foregroundColor = (sev === Severity.Error) ? this.errorForeground : (sev === Severity.Warning) ? this.warningForeground : this.infoForeground;
+				const sevLabel = $().span({ class: `message-left-side severity ${sev === Severity.Error ? 'app-error' : sev === Severity.Warning ? 'app-warning' : 'app-info'}`, text: label });
+				sevLabel.style('border-color', this.outlineBorder ? this.outlineBorder.toString() : null);
+				sevLabel.style('background-color', color ? color.toString() : null);
+				sevLabel.style('color', foregroundColor ? foregroundColor.toString() : null);
+				sevLabel.appendTo(div);
 
 				// Error message
-				const messageContentElement = htmlRenderer.renderHtml({
-					tagName: 'span',
+				const messageContentElement = htmlRenderer.renderFormattedText(text, {
+					inline: true,
 					className: 'message-left-side',
-					formattedText: text
 				});
 
-				$(messageContentElement as HTMLElement).title(messageContentElement.textContent).appendTo(div);
+				// Hover title
+				const title = message.source ? `[${message.source}] ${messageContentElement.textContent}` : messageContentElement.textContent;
+
+				sevLabel.title(title);
+
+				$(messageContentElement).title(title).appendTo(div);
 			});
 		});
 	}
@@ -412,5 +488,9 @@ export class MessageList {
 				this.renderMessages(false, counter);
 			}
 		});
+	}
+
+	public dispose(): void {
+		this.toDispose = dispose(this.toDispose);
 	}
 }

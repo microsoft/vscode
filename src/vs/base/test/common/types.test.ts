@@ -184,7 +184,7 @@ suite('Types', () => {
 		function isFoo(f) { }
 		assert.throws(() => types.validateConstraints([new foo()], [isFoo]));
 
-		function isFoo2(f) { return true; };
+		function isFoo2(f) { return true; }
 		types.validateConstraints([new foo()], [isFoo2]);
 
 		assert.throws(() => types.validateConstraints([1, true], [types.isNumber, types.isString]));
@@ -193,18 +193,18 @@ suite('Types', () => {
 	});
 
 	test('create', () => {
-		var zeroConstructor = function () { /**/ };
+		let zeroConstructor = function () { /**/ };
 
 		assert(types.create(zeroConstructor) instanceof zeroConstructor);
 		assert(types.isObject(types.create(zeroConstructor)));
 
-		var manyArgConstructor = function (foo, bar) {
+		let manyArgConstructor = function (this: any, foo, bar) {
 			this.foo = foo;
 			this.bar = bar;
 		};
 
-		var foo = {};
-		var bar = 'foo';
+		let foo = {};
+		let bar = 'foo';
 
 		assert(types.create(manyArgConstructor) instanceof manyArgConstructor);
 		assert(types.isObject(types.create(manyArgConstructor)));
@@ -212,7 +212,7 @@ suite('Types', () => {
 		assert(types.create(manyArgConstructor, foo, bar) instanceof manyArgConstructor);
 		assert(types.isObject(types.create(manyArgConstructor, foo, bar)));
 
-		var obj = types.create(manyArgConstructor, foo, bar);
+		let obj = types.create(manyArgConstructor, foo, bar);
 		assert.strictEqual(obj.foo, foo);
 		assert.strictEqual(obj.bar, bar);
 	});

@@ -6,6 +6,6 @@
 {
 	"httpConfigurationTitle": "HTTP",
 	"proxy": "使用するプロキシ設定。設定されていない場合、環境変数 http_proxy および https_proxy から取得されます。",
-	"proxyAuthorization": "すべてのネットワーク要求に対して 'Proxy-Authorization' ヘッダーとして送信する値。",
-	"strictSSL": "提供された CA の一覧と照らしてプロキシ サーバーの証明書を確認するかどうか。"
+	"strictSSL": "提供された CA の一覧と照らしてプロキシ サーバーの証明書を確認するかどうか。",
+	"proxyAuthorization": "すべてのネットワーク要求に対して 'Proxy-Authorization' ヘッダーとして送信する値。"
 }

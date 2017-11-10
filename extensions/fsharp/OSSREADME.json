@@ -1,8 +1,8 @@
 // ATTENTION - THIS DIRECTORY CONTAINS THIRD PARTY OPEN SOURCE MATERIALS:
 [{
-	"name": "ionide/ionide-fsharp",
+	"name": "ionide/ionide-fsgrammar",
 	"version": "0.0.0",
 	"license": "MIT",
-	"repositoryURL": "https://github.com/ionide/ionide-atom-fsharp",
-	"description": "The file syntaxes/fsharp.json was included from https://github.com/ionide/ionide-atom-fsharp/blob/develop/release/grammars/fsharp.json."
+	"repositoryURL": "https://github.com/ionide/ionide-fsgrammar",
+	"description": "The file syntaxes/fsharp.json was included from https://github.com/ionide/ionide-fsgrammar/blob/master/grammar/fsharp.json."
 }]

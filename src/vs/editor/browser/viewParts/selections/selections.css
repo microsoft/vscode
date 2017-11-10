@@ -20,12 +20,3 @@
 .monaco-editor.hc-black .bottom-left-radius		{ border-bottom-left-radius: 0; }
 .monaco-editor.hc-black .top-right-radius		{ border-top-right-radius: 0; }
 .monaco-editor.hc-black .bottom-right-radius	{ border-bottom-right-radius: 0; }
-
-.monaco-editor.vs				.view-overlays			.selected-text { background: #E5EBF1; }
-.monaco-editor.vs				.view-overlays.focused	.selected-text { background: #ADD6FF; }
-.monaco-editor.vs-dark			.view-overlays			.selected-text { background: #3A3D41; }
-.monaco-editor.vs-dark			.view-overlays.focused	.selected-text { background: #264F78; }
-.monaco-editor.hc-black			.view-overlays			.selected-text { background: none; }
-.monaco-editor.hc-black			.view-overlays.focused	.selected-text { background: white; }
-.monaco-editor.ie.hc-black		.view-overlays.focused	.selected-text { background: none; border: 2px solid #f38518; }
-.monaco-editor.edge.hc-black	.view-overlays.focused	.selected-text { background: none; border: 2px solid #f38518; }
