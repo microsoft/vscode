@@ -28,6 +28,7 @@
 	"command.checkout": "Checkout to...",
 	"command.branch": "Create Branch...",
 	"command.deleteBranch": "Delete Branch...",
+	"command.renameBranch": "Rename Branch...",
 	"command.merge": "Merge Branch...",
 	"command.createTag": "Create Tag",
 	"command.pull": "Pull",

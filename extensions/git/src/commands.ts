@@ -1139,6 +1139,31 @@ export class CommandCenter {
 		}
 	}
 
+	@command('git.renameBranch', { repository: true })
+	async renameBranch(repository: Repository): Promise<void> {
+		const placeHolder = localize('provide branch name', "Please provide a branch name");
+		const name = await window.showInputBox({ placeHolder });
+
+		if (!name || name.trim().length === 0) {
+			return;
+		}
+
+		try {
+			await repository.renameBranch(name);
+		} catch (err) {
+			switch (err.gitErrorCode) {
+				case GitErrorCodes.InvalidBranchName:
+					window.showErrorMessage(localize('invalid branch name', 'Invalid branch name'));
+					return;
+				case GitErrorCodes.BranchAlreadyExists:
+					window.showErrorMessage(localize('branch already exists', `A branch named '${name}' already exists`));
+					return;
+				default:
+					throw err;
+			}
+		}
+	}
+
 	@command('git.merge', { repository: true })
 	async merge(repository: Repository): Promise<void> {
 		const config = workspace.getConfiguration('git');

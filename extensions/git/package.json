@@ -220,6 +220,11 @@
         "category": "Git"
       },
       {
+        "command": "git.renameBranch",
+        "title": "%command.renameBranch%",
+        "category": "Git"
+      },
+      {
         "command": "git.merge",
         "title": "%command.merge%",
         "category": "Git"
@@ -412,6 +417,10 @@
         },
         {
           "command": "git.deleteBranch",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.renameBranch",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
