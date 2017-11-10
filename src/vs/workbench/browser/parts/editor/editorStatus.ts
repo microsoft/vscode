@@ -23,7 +23,7 @@ import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorIn
 import { IFileEditorInput, EncodingMode, IEncodingSupport, toResource, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { IDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IEditorAction, ICommonCodeEditor, EndOfLineSequence, IModel } from 'vs/editor/common/editorCommon';
+import { IEditorAction, EndOfLineSequence, IModel } from 'vs/editor/common/editorCommon';
 import { IModelLanguageChangedEvent, IModelOptionsChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { TrimTrailingWhitespaceAction } from 'vs/editor/contrib/linesOperations/linesOperations';
 import { IndentUsingSpaces, IndentUsingTabs, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction } from 'vs/editor/contrib/indentation/indentation';
@@ -57,6 +57,7 @@ import { widgetShadow, editorWidgetBackground } from 'vs/platform/theme/common/c
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { clone } from 'vs/base/common/objects';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 function toEditorWithEncodingSupport(input: IEditorInput): IEncodingSupport {
 	if (input instanceof SideBySideEditorInput) {
@@ -577,7 +578,7 @@ export class EditorStatus implements IStatusbarItem {
 		}
 	}
 
-	private onModeChange(editorWidget: ICommonCodeEditor): void {
+	private onModeChange(editorWidget: ICodeEditor): void {
 		let info: StateDelta = { mode: null };
 
 		// We only support text based editors
@@ -593,7 +594,7 @@ export class EditorStatus implements IStatusbarItem {
 		this.updateState(info);
 	}
 
-	private onIndentationChange(editorWidget: ICommonCodeEditor): void {
+	private onIndentationChange(editorWidget: ICodeEditor): void {
 		const update: StateDelta = { indentation: null };
 
 		if (editorWidget) {
@@ -623,7 +624,7 @@ export class EditorStatus implements IStatusbarItem {
 
 	private _promptedScreenReader: boolean = false;
 
-	private onScreenReaderModeChange(editorWidget: ICommonCodeEditor): void {
+	private onScreenReaderModeChange(editorWidget: ICodeEditor): void {
 		let screenReaderMode = false;
 
 		// We only support text based editors
@@ -653,7 +654,7 @@ export class EditorStatus implements IStatusbarItem {
 		this.updateState({ screenReaderMode: screenReaderMode });
 	}
 
-	private onSelectionChange(editorWidget: ICommonCodeEditor): void {
+	private onSelectionChange(editorWidget: ICodeEditor): void {
 		const info: IEditorSelectionStatus = {};
 
 		// We only support text based editors
@@ -690,7 +691,7 @@ export class EditorStatus implements IStatusbarItem {
 		this.updateState({ selectionStatus: this.getSelectionLabel(info) });
 	}
 
-	private onEOLChange(editorWidget: ICommonCodeEditor): void {
+	private onEOLChange(editorWidget: ICodeEditor): void {
 		const info: StateDelta = { EOL: null };
 
 		if (editorWidget && !editorWidget.getConfiguration().readOnly) {
@@ -750,7 +751,7 @@ export class EditorStatus implements IStatusbarItem {
 	}
 }
 
-function isWritableCodeEditor(codeEditor: ICommonCodeEditor): boolean {
+function isWritableCodeEditor(codeEditor: ICodeEditor): boolean {
 	if (!codeEditor) {
 		return false;
 	}

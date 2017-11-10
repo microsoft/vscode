@@ -12,7 +12,7 @@ import { RunOnceScheduler, Delayer } from 'vs/base/common/async';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ICommonCodeEditor, ScrollType, IModel } from 'vs/editor/common/editorCommon';
+import { ScrollType, IModel } from 'vs/editor/common/editorCommon';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, registerInstantiatedEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { FoldingModel, setCollapseStateAtLevel, CollapseMemento, setCollapseStateLevelsDown, setCollapseStateLevelsUp } from 'vs/editor/contrib/folding/foldingModel';
@@ -32,7 +32,7 @@ export class FoldingController {
 	static MAX_FOLDING_REGIONS = 5000;
 
 
-	public static get(editor: ICommonCodeEditor): FoldingController {
+	public static get(editor: ICodeEditor): FoldingController {
 		return editor.getContribution<FoldingController>(ID);
 	}
 
@@ -314,9 +314,9 @@ export class FoldingController {
 
 abstract class FoldingAction<T> extends EditorAction {
 
-	abstract invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICommonCodeEditor, args: T): void;
+	abstract invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor, args: T): void;
 
-	public runEditorCommand(accessor: ServicesAccessor, editor: ICommonCodeEditor, args: T): void | TPromise<void> {
+	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: T): void | TPromise<void> {
 		let foldingController = FoldingController.get(editor);
 		if (!foldingController) {
 			return;
@@ -329,19 +329,19 @@ abstract class FoldingAction<T> extends EditorAction {
 		});
 	}
 
-	protected getSelectedLines(editor: ICommonCodeEditor) {
+	protected getSelectedLines(editor: ICodeEditor) {
 		let selections = editor.getSelections();
 		return selections ? selections.map(s => s.startLineNumber) : [];
 	}
 
-	protected getLineNumbers(args: FoldingArguments, editor: ICommonCodeEditor) {
+	protected getLineNumbers(args: FoldingArguments, editor: ICodeEditor) {
 		if (args && args.selectionLines) {
 			return args.selectionLines.map(l => l + 1); // to 0-bases line numbers
 		}
 		return this.getSelectedLines(editor);
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 	}
 }
 
@@ -402,7 +402,7 @@ class UnfoldAction extends FoldingAction<FoldingArguments> {
 		});
 	}
 
-	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICommonCodeEditor, args: FoldingArguments): void {
+	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor, args: FoldingArguments): void {
 		let levels = args && args.levels || 1;
 		let lineNumbers = this.getLineNumbers(args, editor);
 		if (args && args.direction === 'up') {
@@ -428,7 +428,7 @@ class UnFoldRecursivelyAction extends FoldingAction<void> {
 		});
 	}
 
-	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICommonCodeEditor, args: any): void {
+	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor, args: any): void {
 		setCollapseStateLevelsDown(foldingModel, false, Number.MAX_VALUE, this.getSelectedLines(editor));
 	}
 }
@@ -465,7 +465,7 @@ class FoldAction extends FoldingAction<FoldingArguments> {
 		});
 	}
 
-	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICommonCodeEditor, args: FoldingArguments): void {
+	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor, args: FoldingArguments): void {
 		let levels = args && args.levels || 1;
 		let lineNumbers = this.getLineNumbers(args, editor);
 		if (args && args.direction === 'up') {
@@ -491,7 +491,7 @@ class FoldRecursivelyAction extends FoldingAction<void> {
 		});
 	}
 
-	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICommonCodeEditor): void {
+	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
 		let selectedLines = this.getSelectedLines(editor);
 		setCollapseStateLevelsDown(foldingModel, true, Number.MAX_VALUE, selectedLines);
 		if (selectedLines.length > 0) {
@@ -516,7 +516,7 @@ class FoldAllAction extends FoldingAction<void> {
 		});
 	}
 
-	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICommonCodeEditor): void {
+	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
 		setCollapseStateLevelsDown(foldingModel, true);
 	}
 }
@@ -536,7 +536,7 @@ class UnfoldAllAction extends FoldingAction<void> {
 		});
 	}
 
-	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICommonCodeEditor): void {
+	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
 		setCollapseStateLevelsDown(foldingModel, false);
 	}
 }
@@ -549,7 +549,7 @@ class FoldLevelAction extends FoldingAction<void> {
 		return parseInt(this.id.substr(FoldLevelAction.ID_PREFIX.length));
 	}
 
-	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICommonCodeEditor): void {
+	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
 		setCollapseStateAtLevel(foldingModel, this.getFoldingLevel(), true, this.getSelectedLines(editor));
 	}
 }

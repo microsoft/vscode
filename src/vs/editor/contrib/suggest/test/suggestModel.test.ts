@@ -10,7 +10,7 @@ import URI from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Model } from 'vs/editor/common/model/model';
-import { ICommonCodeEditor, Handler } from 'vs/editor/common/editorCommon';
+import { Handler } from 'vs/editor/common/editorCommon';
 import { ISuggestSupport, ISuggestResult, SuggestRegistry, SuggestTriggerKind } from 'vs/editor/common/modes';
 import { SuggestModel, LineContext } from 'vs/editor/contrib/suggest/suggestModel';
 import { TestCodeEditor, MockScopeLocation } from 'vs/editor/test/browser/testCodeEditor';
@@ -22,6 +22,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 function createMockEditor(model: Model): TestCodeEditor {
 	const contextKeyService = new MockContextKeyService();
@@ -100,7 +101,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		disposables.push(model);
 	});
 
-	function withOracle(callback: (model: SuggestModel, editor: ICommonCodeEditor) => any): TPromise<any> {
+	function withOracle(callback: (model: SuggestModel, editor: ICodeEditor) => any): TPromise<any> {
 
 		return new TPromise((resolve, reject) => {
 			const editor = createMockEditor(model);

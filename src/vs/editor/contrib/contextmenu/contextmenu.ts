@@ -16,7 +16,7 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { ICommonCodeEditor, IEditorContribution, IScrollEvent, ScrollType } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, IScrollEvent, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
@@ -30,7 +30,7 @@ export class ContextMenuController implements IEditorContribution {
 
 	private static ID = 'editor.contrib.contextmenu';
 
-	public static get(editor: ICommonCodeEditor): ContextMenuController {
+	public static get(editor: ICodeEditor): ContextMenuController {
 		return editor.getContribution<ContextMenuController>(ContextMenuController.ID);
 	}
 
@@ -230,7 +230,7 @@ class ShowContextMenu extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let contribution = ContextMenuController.get(editor);
 		contribution.showContextMenu();
 	}

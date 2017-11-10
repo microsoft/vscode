@@ -14,7 +14,7 @@ import * as objects from 'vs/base/common/objects';
 import uri from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { IModel, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { IModel } from 'vs/editor/common/editorCommon';
 import { IEditor } from 'vs/platform/editor/common/editor';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -32,6 +32,7 @@ import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 
 // debuggers extension point
 export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawAdapter[]>('debuggers', [], {
@@ -399,7 +400,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		const editor = this.editorService.getActiveEditor();
 		if (editor) {
 			const codeEditor = editor.getControl();
-			if (isCommonCodeEditor(codeEditor)) {
+			if (isCodeEditor(codeEditor)) {
 				const model = codeEditor.getModel();
 				const language = model ? model.getLanguageIdentifier().language : undefined;
 				const adapters = this.adapters.filter(a => a.languages && a.languages.indexOf(language) >= 0);

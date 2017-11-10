@@ -7,10 +7,11 @@
 
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
-import { ICommonCodeEditor, IModel } from 'vs/editor/common/editorCommon';
+import { IModel } from 'vs/editor/common/editorCommon';
 import { EditorState, CodeEditorStateFlag } from 'vs/editor/common/core/editorState';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 interface IStubEditorState {
 	model?: { uri?: URI, version?: number };
@@ -88,7 +89,7 @@ suite('Editor Core - Editor State', () => {
 		return result;
 	}
 
-	function createEditor({ model, position, selection, scroll }: IStubEditorState = {}): ICommonCodeEditor {
+	function createEditor({ model, position, selection, scroll }: IStubEditorState = {}): ICodeEditor {
 		let mappedModel = model ? { uri: model.uri ? model.uri : URI.parse('http://dummy.org'), getVersionId: () => model.version } : null;
 
 		return {
@@ -97,8 +98,7 @@ suite('Editor Core - Editor State', () => {
 			getSelection: (): Selection => selection,
 			getScrollLeft: (): number => scroll && scroll.left,
 			getScrollTop: (): number => scroll && scroll.top
-		} as ICommonCodeEditor;
+		} as ICodeEditor;
 	}
 
 });
-

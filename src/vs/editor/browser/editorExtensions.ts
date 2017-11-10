@@ -84,10 +84,7 @@ export abstract class Command {
 
 //#region EditorCommand
 
-function findFocusedEditor(accessor: ServicesAccessor): editorCommon.ICommonCodeEditor {
-	return accessor.get(ICodeEditorService).getFocusedCodeEditor();
-}
-function getWorkbenchActiveEditor(accessor: ServicesAccessor): editorCommon.ICommonCodeEditor {
+function getWorkbenchActiveEditor(accessor: ServicesAccessor): ICodeEditor {
 	const editorService = accessor.get(IEditorService);
 	let activeEditor = (<any>editorService).getActiveEditor && (<any>editorService).getActiveEditor();
 	return getCodeEditor(activeEditor);
@@ -104,7 +101,7 @@ export abstract class EditorCommand extends Command {
 	/**
 	 * Create a command class that is bound to a certain editor contribution.
 	 */
-	public static bindToContribution<T extends editorCommon.IEditorContribution>(controllerGetter: (editor: editorCommon.ICommonCodeEditor) => T): EditorControllerCommand<T> {
+	public static bindToContribution<T extends editorCommon.IEditorContribution>(controllerGetter: (editor: ICodeEditor) => T): EditorControllerCommand<T> {
 		return class EditorControllerCommandImpl extends EditorCommand {
 			private _callback: (controller: T) => void;
 
@@ -114,7 +111,7 @@ export abstract class EditorCommand extends Command {
 				this._callback = opts.handler;
 			}
 
-			public runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void {
+			public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 				let controller = controllerGetter(editor);
 				if (controller) {
 					this._callback(controllerGetter(editor));
@@ -124,8 +121,10 @@ export abstract class EditorCommand extends Command {
 	}
 
 	public runCommand(accessor: ServicesAccessor, args: any): void | TPromise<void> {
+		const codeEditorService = accessor.get(ICodeEditorService);
+
 		// Find the editor with text focus
-		let editor = findFocusedEditor(accessor);
+		let editor = codeEditorService.getFocusedCodeEditor();
 
 		if (!editor) {
 			// Fallback to use what the workbench considers the active editor
@@ -148,7 +147,7 @@ export abstract class EditorCommand extends Command {
 		});
 	}
 
-	public abstract runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void | TPromise<void>;
+	public abstract runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | TPromise<void>;
 }
 
 //#endregion EditorCommand
@@ -194,12 +193,12 @@ export abstract class EditorAction extends EditorCommand {
 		};
 	}
 
-	public runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void | TPromise<void> {
+	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | TPromise<void> {
 		this.reportTelemetry(accessor, editor);
 		return this.run(accessor, editor, args || {});
 	}
 
-	protected reportTelemetry(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor) {
+	protected reportTelemetry(accessor: ServicesAccessor, editor: ICodeEditor) {
 		/* __GDPR__
 			"editorActionInvoked" : {
 				"name" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -212,7 +211,7 @@ export abstract class EditorAction extends EditorCommand {
 		accessor.get(ITelemetryService).publicLog('editorActionInvoked', { name: this.label, id: this.id, ...editor.getTelemetryData() });
 	}
 
-	public abstract run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void | TPromise<void>;
+	public abstract run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | TPromise<void>;
 }
 
 //#endregion EditorAction

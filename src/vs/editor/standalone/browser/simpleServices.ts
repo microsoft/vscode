@@ -20,7 +20,7 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { IConfirmation, IMessageService, IConfirmationResult } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService, IWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Selection } from 'vs/editor/common/core/selection';
 import Event, { Emitter } from 'vs/base/common/event';
 import { Configuration, DefaultConfigurationModel, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
@@ -59,7 +59,7 @@ export class SimpleEditor implements IEditor {
 	public isVisible(): boolean { return true; }
 
 	public withTypedEditor<T>(codeEditorCallback: (editor: ICodeEditor) => T, diffEditorCallback: (editor: IDiffEditor) => T): T {
-		if (editorCommon.isCommonCodeEditor(this._widget)) {
+		if (isCodeEditor(this._widget)) {
 			// Single Editor
 			return codeEditorCallback(<ICodeEditor>this._widget);
 		} else {
@@ -128,7 +128,7 @@ export class SimpleEditorService implements IEditorService {
 		));
 	}
 
-	private doOpenEditor(editor: editorCommon.ICommonCodeEditor, data: IResourceInput): IEditor {
+	private doOpenEditor(editor: ICodeEditor, data: IResourceInput): IEditor {
 		let model = this.findModel(editor, data);
 		if (!model) {
 			if (data.resource) {
@@ -165,7 +165,7 @@ export class SimpleEditorService implements IEditorService {
 		return this.editor;
 	}
 
-	private findModel(editor: editorCommon.ICommonCodeEditor, data: IResourceInput): editorCommon.IModel {
+	private findModel(editor: ICodeEditor, data: IResourceInput): editorCommon.IModel {
 		let model = editor.getModel();
 		if (model.uri.toString() !== data.resource.toString()) {
 			return null;
@@ -205,7 +205,7 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 		};
 	}
 
-	private findModel(editor: editorCommon.ICommonCodeEditor, resource: URI): editorCommon.IModel {
+	private findModel(editor: ICodeEditor, resource: URI): editorCommon.IModel {
 		let model = editor.getModel();
 		if (model.uri.toString() !== resource.toString()) {
 			return null;

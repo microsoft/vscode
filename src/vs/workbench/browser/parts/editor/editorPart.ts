@@ -44,9 +44,9 @@ import { EDITOR_GROUP_BACKGROUND } from 'vs/workbench/common/theme';
 import { createCSSRule } from 'vs/base/browser/dom';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { join } from 'vs/base/common/paths';
-import { isCommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IEditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { ThrottledEmitter } from 'vs/base/common/async';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 
 class ProgressMonitor {
 
@@ -1328,7 +1328,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		const activeEditor = this.getActiveEditor();
 		if (activeEditor) {
 			const activeEditorControl = activeEditor.getControl();
-			if (isCommonCodeEditor(activeEditorControl)) {
+			if (isCodeEditor(activeEditorControl)) {
 				return activeEditorControl.invokeWithinContext(fn);
 			}
 

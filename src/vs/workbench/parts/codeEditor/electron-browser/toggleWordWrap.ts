@@ -7,7 +7,7 @@
 import 'vs/css!./media/codeEditor';
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ICommonCodeEditor, IEditorContribution, IModel } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, IModel } from 'vs/editor/common/editorCommon';
 import { registerEditorAction, ServicesAccessor, EditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
@@ -73,7 +73,7 @@ function readWordWrapState(model: IModel, configurationService: ITextResourceCon
 	};
 }
 
-function toggleWordWrap(editor: ICommonCodeEditor, state: IWordWrapState): IWordWrapState {
+function toggleWordWrap(editor: ICodeEditor, state: IWordWrapState): IWordWrapState {
 	if (state.transientState) {
 		// toggle off => go to null
 		return {
@@ -114,7 +114,7 @@ function toggleWordWrap(editor: ICommonCodeEditor, state: IWordWrapState): IWord
 	};
 }
 
-function applyWordWrapState(editor: ICommonCodeEditor, state: IWordWrapState): void {
+function applyWordWrapState(editor: ICodeEditor, state: IWordWrapState): void {
 	if (state.transientState) {
 		// toggle is on
 		editor.updateOptions({
@@ -146,7 +146,7 @@ class ToggleWordWrapAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const editorConfiguration = editor.getConfiguration();
 		if (editorConfiguration.wrappingInfo.inDiffEditor) {
 			// Cannot change wrapping settings inside the diff editor

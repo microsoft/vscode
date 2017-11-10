@@ -9,7 +9,6 @@ import 'vs/css!./media/searchviewlet';
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Emitter, debounceEvent } from 'vs/base/common/event';
-import { ICommonCodeEditor, isCommonCodeEditor, isCommonDiffEditor } from 'vs/editor/common/editorCommon';
 import lifecycle = require('vs/base/common/lifecycle');
 import errors = require('vs/base/common/errors');
 import aria = require('vs/base/browser/ui/aria/aria');
@@ -63,6 +62,7 @@ import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/common/search';
 import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
 import { SimpleFileResourceDragAndDrop } from 'vs/base/parts/tree/browser/treeDnd';
+import { isDiffEditor, isCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class SearchViewlet extends Viewlet {
 
@@ -815,7 +815,7 @@ export class SearchViewlet extends Viewlet {
 		}
 
 		let editorControl = this.editorService.getActiveEditor().getControl();
-		if (isCommonDiffEditor(editorControl)) {
+		if (isDiffEditor(editorControl)) {
 			if (editorControl.getOriginalEditor().isFocused()) {
 				editorControl = editorControl.getOriginalEditor();
 			} else {
@@ -823,11 +823,11 @@ export class SearchViewlet extends Viewlet {
 			}
 		}
 
-		if (!isCommonCodeEditor(editorControl)) {
+		if (!isCodeEditor(editorControl)) {
 			return null;
 		}
 
-		const codeEditor: ICommonCodeEditor = <ICommonCodeEditor>editorControl;
+		const codeEditor: ICodeEditor = <ICodeEditor>editorControl;
 		const range = codeEditor.getSelection();
 		if (!range) {
 			return null;
@@ -1373,7 +1373,7 @@ export class SearchViewlet extends Viewlet {
 				this.viewModel.searchResult.rangeHighlightDecorations.highlightRange({
 					resource,
 					range: element.range()
-				}, <ICommonCodeEditor>editor.getControl());
+				}, <ICodeEditor>editor.getControl());
 			} else {
 				this.viewModel.searchResult.rangeHighlightDecorations.removeHighlightRange();
 			}

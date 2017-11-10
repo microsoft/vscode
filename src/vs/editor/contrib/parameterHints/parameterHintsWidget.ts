@@ -17,7 +17,6 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import Event, { Emitter, chain } from 'vs/base/common/event';
 import { domEvent, stop } from 'vs/base/browser/event';
-import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context, provideSignatureHelp } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -46,13 +45,13 @@ export class ParameterHintsModel extends Disposable {
 	private _onCancel = this._register(new Emitter<void>());
 	onCancel: Event<void> = this._onCancel.event;
 
-	private editor: ICommonCodeEditor;
+	private editor: ICodeEditor;
 	private enabled: boolean;
 	private triggerCharactersListeners: IDisposable[];
 	private active: boolean;
 	private throttledDelayer: RunOnceScheduler;
 
-	constructor(editor: ICommonCodeEditor) {
+	constructor(editor: ICodeEditor) {
 		super();
 
 		this.editor = editor;

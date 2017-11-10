@@ -17,7 +17,7 @@ import { QuickOpenEntryGroup, IHighlight, QuickOpenModel, QuickOpenEntry } from 
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { QuickOpenHandler, IWorkbenchQuickOpenConfiguration } from 'vs/workbench/browser/quickopen';
-import { IEditorAction, IEditor, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { IEditorAction, IEditor } from 'vs/editor/common/editorCommon';
 import { matchesWords, matchesPrefix, matchesContiguousSubString, or } from 'vs/base/common/filters';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -34,6 +34,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export const ALL_COMMANDS_PREFIX = '>';
 
@@ -186,7 +187,7 @@ class CommandPaletteEditorAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
 		const quickOpenService = accessor.get(IQuickOpenService);
 
 		// Show with prefix

@@ -7,7 +7,7 @@ import { RGBA } from 'vs/base/common/color';
 import { hash } from 'vs/base/common/hash';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ICommonCodeEditor, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
@@ -88,7 +88,7 @@ export class ColorDetector implements IEditorContribution {
 		return ColorDetector.ID;
 	}
 
-	static get(editor: ICommonCodeEditor): ColorDetector {
+	static get(editor: ICodeEditor): ColorDetector {
 		return editor.getContribution<ColorDetector>(this.ID);
 	}
 

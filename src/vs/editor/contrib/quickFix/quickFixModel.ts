@@ -11,17 +11,17 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { CodeActionProviderRegistry, CodeAction, Command } from 'vs/editor/common/modes';
 import { getCodeActions } from './quickFix';
 import { Position } from 'vs/editor/common/core/position';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class QuickFixOracle {
 
 	private _disposables: IDisposable[] = [];
 
 	constructor(
-		private _editor: ICommonCodeEditor,
+		private _editor: ICodeEditor,
 		private _markerService: IMarkerService,
 		private _signalChange: (e: QuickFixComputeEvent) => any,
 		delay: number = 250
@@ -142,13 +142,13 @@ export interface QuickFixComputeEvent {
 
 export class QuickFixModel {
 
-	private _editor: ICommonCodeEditor;
+	private _editor: ICodeEditor;
 	private _markerService: IMarkerService;
 	private _quickFixOracle: QuickFixOracle;
 	private _onDidChangeFixes = new Emitter<QuickFixComputeEvent>();
 	private _disposables: IDisposable[] = [];
 
-	constructor(editor: ICommonCodeEditor, markerService: IMarkerService) {
+	constructor(editor: ICodeEditor, markerService: IMarkerService) {
 		this._editor = editor;
 		this._markerService = markerService;
 

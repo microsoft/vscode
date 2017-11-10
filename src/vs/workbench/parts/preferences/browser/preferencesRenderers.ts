@@ -1108,7 +1108,7 @@ class SettingHighlighter extends Disposable {
 	private volatileHighlighter: RangeHighlightDecorations;
 	private highlightedSetting: ISetting;
 
-	constructor(private editor: editorCommon.ICommonCodeEditor, private focusEventEmitter: Emitter<ISetting>, private clearFocusEventEmitter: Emitter<ISetting>,
+	constructor(private editor: ICodeEditor, private focusEventEmitter: Emitter<ISetting>, private clearFocusEventEmitter: Emitter<ISetting>,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
@@ -1148,7 +1148,7 @@ class UnsupportedSettingsRenderer extends Disposable {
 	private renderingDelayer: Delayer<void> = new Delayer<void>(200);
 
 	constructor(
-		private editor: editorCommon.ICommonCodeEditor,
+		private editor: ICodeEditor,
 		private settingsEditorModel: SettingsEditorModel,
 		// @ts-ignore unused injected service
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
@@ -1247,7 +1247,7 @@ class WorkspaceConfigurationRenderer extends Disposable {
 	private decorationIds: string[] = [];
 	private renderingDelayer: Delayer<void> = new Delayer<void>(200);
 
-	constructor(private editor: editorCommon.ICommonCodeEditor, private workspaceSettingsEditorModel: SettingsEditorModel,
+	constructor(private editor: ICodeEditor, private workspaceSettingsEditorModel: SettingsEditorModel,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
 	) {
 		super();

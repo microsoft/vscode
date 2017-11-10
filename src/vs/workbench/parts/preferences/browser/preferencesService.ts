@@ -17,7 +17,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { Position as EditorPosition, IEditor, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { ICommonCodeEditor, IModel } from 'vs/editor/common/editorCommon';
+import { IModel } from 'vs/editor/common/editorCommon';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
@@ -41,6 +41,7 @@ import { ConfigurationScope } from 'vs/platform/configuration/common/configurati
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { parse } from 'vs/base/common/json';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -369,7 +370,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		];
 	}
 
-	private getPosition(language: string, codeEditor: ICommonCodeEditor): TPromise<IPosition> {
+	private getPosition(language: string, codeEditor: ICodeEditor): TPromise<IPosition> {
 		return this.createPreferencesEditorModel(this.userSettingsResource)
 			.then((settingsModel: IPreferencesEditorModel<ISetting>) => {
 				const languageKey = `[${language}]`;

@@ -5,13 +5,13 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { EditorAction, ServicesAccessor, IActionOptions } from 'vs/editor/browser/editorExtensions';
 import { grammarsExtPoint, ITMSyntaxExtensionPoint } from 'vs/workbench/services/textMate/electron-browser/TMGrammars';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IExtensionService, ExtensionPointContribution } from 'vs/platform/extensions/common/extensions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 interface ModeScopeMap {
 	[key: string]: string;
@@ -78,7 +78,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 		return this._lastGrammarContributions;
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
 		const extensionService = accessor.get(IExtensionService);
 		const modeService = accessor.get(IModeService);
 		const commandService = accessor.get(ICommandService);
@@ -94,7 +94,7 @@ export abstract class EmmetEditorAction extends EditorAction {
 
 	}
 
-	public static getLanguage(languageIdentifierResolver: ILanguageIdentifierResolver, editor: ICommonCodeEditor, grammars: IGrammarContributions) {
+	public static getLanguage(languageIdentifierResolver: ILanguageIdentifierResolver, editor: ICodeEditor, grammars: IGrammarContributions) {
 		let position = editor.getSelection().getStartPosition();
 		editor.getModel().tokenizeIfCheap(position.lineNumber);
 		let languageId = editor.getModel().getLanguageIdAtPosition(position.lineNumber, position.column);

@@ -10,11 +10,12 @@ import { compareIgnoreCase } from 'vs/base/common/strings';
 import { assign } from 'vs/base/common/objects';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IModel, IEditorContribution, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { IModel, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { ISuggestResult, ISuggestSupport, ISuggestion, SuggestRegistry, SuggestContext, SuggestTriggerKind } from 'vs/editor/common/modes';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export const Context = {
 	Visible: new RawContextKey<boolean>('suggestWidgetVisible', false),
@@ -237,7 +238,7 @@ SuggestRegistry.register('*', _provider);
  * @param editor
  * @param suggestions
  */
-export function showSimpleSuggestions(editor: ICommonCodeEditor, suggestions: ISuggestion[]) {
+export function showSimpleSuggestions(editor: ICodeEditor, suggestions: ISuggestion[]) {
 	setTimeout(() => {
 		_suggestions = suggestions;
 		editor.getContribution<SuggestController>('editor.contrib.suggestController').triggerSuggest([_provider]);

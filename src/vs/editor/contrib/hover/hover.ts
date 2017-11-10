@@ -37,7 +37,7 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 	private _isMouseDown: boolean;
 	private _hoverClicked: boolean;
 
-	static get(editor: editorCommon.ICommonCodeEditor): ModesHoverController {
+	static get(editor: ICodeEditor): ModesHoverController {
 		return editor.getContribution<ModesHoverController>(ModesHoverController.ID);
 	}
 
@@ -182,7 +182,7 @@ class ShowHoverAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let controller = ModesHoverController.get(editor);
 		if (!controller) {
 			return;

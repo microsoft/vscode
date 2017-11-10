@@ -6,9 +6,9 @@
 
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class ToggleTabFocusModeAction extends EditorAction {
 
@@ -28,7 +28,7 @@ export class ToggleTabFocusModeAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let oldValue = TabFocus.getTabFocusMode();
 		TabFocus.setTabFocusMode(!oldValue);
 	}

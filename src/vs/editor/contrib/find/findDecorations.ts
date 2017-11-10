@@ -11,10 +11,11 @@ import { Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import { editorFindMatchHighlight, editorFindMatch } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class FindDecorations implements IDisposable {
 
-	private _editor: editorCommon.ICommonCodeEditor;
+	private _editor: ICodeEditor;
 	private _decorations: string[];
 	private _overviewRulerApproximateDecorations: string[];
 	private _findScopeDecorationId: string;
@@ -22,7 +23,7 @@ export class FindDecorations implements IDisposable {
 	private _highlightedDecorationId: string;
 	private _startPosition: Position;
 
-	constructor(editor: editorCommon.ICommonCodeEditor) {
+	constructor(editor: ICodeEditor) {
 		this._editor = editor;
 		this._decorations = [];
 		this._overviewRulerApproximateDecorations = [];

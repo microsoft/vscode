@@ -795,7 +795,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		return editor;
 	}
 
-	private showReadonlyHint(editor: editorCommon.ICommonCodeEditor): void {
+	private showReadonlyHint(editor: ICodeEditor): void {
 		const messageController = MessageController.get(editor);
 		if (!messageController.isVisible()) {
 			messageController.showMessage(nls.localize('defaultEditorReadonly', "Edit in the right hand side editor to override defaults."), editor.getSelection().getPosition());

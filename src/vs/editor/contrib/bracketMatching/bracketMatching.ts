@@ -35,7 +35,7 @@ class SelectBracketAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let controller = BracketMatchingController.get(editor);
 		if (!controller) {
 			return;
@@ -59,7 +59,7 @@ class BracketsData {
 export class BracketMatchingController extends Disposable implements editorCommon.IEditorContribution {
 	private static ID = 'editor.contrib.bracketMatchingController';
 
-	public static get(editor: editorCommon.ICommonCodeEditor): BracketMatchingController {
+	public static get(editor: ICodeEditor): BracketMatchingController {
 		return editor.getContribution<BracketMatchingController>(BracketMatchingController.ID);
 	}
 

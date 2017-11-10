@@ -14,7 +14,6 @@ import WorkbenchEditorService = require('vs/workbench/services/editor/common/edi
 import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
 import { Model } from 'vs/editor/common/model/model';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { TextModel } from 'vs/editor/common/model/textModel';
@@ -24,11 +23,12 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 suite('Editor - Range decorations', () => {
 
 	let instantiationService: TestInstantiationService;
-	let codeEditor: editorCommon.ICommonCodeEditor;
+	let codeEditor: ICodeEditor;
 	let model: Model;
 	let text: string;
 	let testObject: RangeHighlightDecorations;

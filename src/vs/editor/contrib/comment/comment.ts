@@ -6,11 +6,12 @@
 
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
-import { ICommand, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { ICommand } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerEditorAction, IActionOptions, EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { BlockCommentCommand } from './blockCommentCommand';
 import { LineCommentCommand, Type } from './lineCommentCommand';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 abstract class CommentLineAction extends EditorAction {
 
@@ -21,7 +22,7 @@ abstract class CommentLineAction extends EditorAction {
 		this._type = type;
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let model = editor.getModel();
 		if (!model) {
 			return;
@@ -103,7 +104,7 @@ class BlockCommentAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		var commands: ICommand[] = [];
 		var selections = editor.getSelections();
 

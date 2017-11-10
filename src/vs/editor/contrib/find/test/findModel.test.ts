@@ -9,15 +9,15 @@ import { Cursor } from 'vs/editor/common/controller/cursor';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
-import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { FindModelBoundToEditorModel } from 'vs/editor/contrib/find/findModel';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 suite('FindModel', () => {
 
-	function findTest(testName: string, callback: (editor: ICommonCodeEditor, cursor: Cursor) => void): void {
+	function findTest(testName: string, callback: (editor: ICodeEditor, cursor: Cursor) => void): void {
 		test(testName, () => {
 			withTestCodeEditor([
 				'// my cool header',
@@ -40,7 +40,7 @@ suite('FindModel', () => {
 		return [rng.startLineNumber, rng.startColumn, rng.endLineNumber, rng.endColumn];
 	}
 
-	function _getFindState(editor: ICommonCodeEditor) {
+	function _getFindState(editor: ICodeEditor) {
 		let model = editor.getModel();
 		let currentFindMatches: Range[] = [];
 		let allFindMatches: Range[] = [];
@@ -63,7 +63,7 @@ suite('FindModel', () => {
 		};
 	}
 
-	function assertFindState(editor: ICommonCodeEditor, cursor: number[], highlighted: number[], findDecorations: number[][]): void {
+	function assertFindState(editor: ICodeEditor, cursor: number[], highlighted: number[], findDecorations: number[][]): void {
 		assert.deepEqual(fromRange(editor.getSelection()), cursor, 'cursor');
 
 		let expectedState = {

@@ -12,7 +12,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { ICommonCodeEditor, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -29,7 +29,7 @@ export class QuickFixController implements IEditorContribution {
 
 	private static ID = 'editor.contrib.quickFixController';
 
-	public static get(editor: ICommonCodeEditor): QuickFixController {
+	public static get(editor: ICodeEditor): QuickFixController {
 		return editor.getContribution<QuickFixController>(QuickFixController.ID);
 	}
 
@@ -139,7 +139,7 @@ export class QuickFixAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let controller = QuickFixController.get(editor);
 		if (controller) {
 			controller.triggerFromEditorSelection();

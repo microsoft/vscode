@@ -8,10 +8,10 @@
 import nls = require('vs/nls');
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { registerEditorAction, EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 const EMMET_COMMANDS_PREFIX = '>Emmet: ';
 
@@ -26,7 +26,7 @@ class ShowEmmetCommandsAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
 		const quickOpenService = accessor.get(IQuickOpenService);
 		quickOpenService.show(EMMET_COMMANDS_PREFIX);
 		return TPromise.as(null);
