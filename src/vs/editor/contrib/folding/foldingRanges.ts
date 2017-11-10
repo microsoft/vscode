@@ -19,6 +19,7 @@ export class FoldingRanges {
 	private _startIndexes: Uint32Array;
 	private _endIndexes: Uint32Array;
 	private _collapseStates: Uint32Array;
+	private _parentsComputed: boolean;
 
 	constructor(startIndexes: Uint32Array, endIndexes: Uint32Array) {
 		if (startIndexes.length !== endIndexes.length || startIndexes.length > MAX_FOLDING_REGIONS) {
@@ -27,28 +28,30 @@ export class FoldingRanges {
 		this._startIndexes = startIndexes;
 		this._endIndexes = endIndexes;
 		this._collapseStates = new Uint32Array(Math.ceil(startIndexes.length / 32));
-		this._computeParentIndices();
 	}
 
-	private _computeParentIndices() {
-		let parentIndexes = [];
-		let isInsideLast = (startLineNumber: number, endLineNumber: number) => {
-			let index = parentIndexes[parentIndexes.length - 1];
-			return this.getStartLineNumber(index) <= startLineNumber && this.getEndLineNumber(index) >= endLineNumber;
-		};
-		for (let i = 0, len = this._startIndexes.length; i < len; i++) {
-			let startLineNumber = this._startIndexes[i];
-			let endLineNumber = this._endIndexes[i];
-			if (startLineNumber > MAX_LINE_NUMBER || endLineNumber > MAX_LINE_NUMBER) {
-				throw new Error('startLineNumber or endLineNumber must not exceed ' + MAX_LINE_NUMBER);
+	private ensureParentIndices() {
+		if (!this._parentsComputed) {
+			this._parentsComputed = true;
+			let parentIndexes = [];
+			let isInsideLast = (startLineNumber: number, endLineNumber: number) => {
+				let index = parentIndexes[parentIndexes.length - 1];
+				return this.getStartLineNumber(index) <= startLineNumber && this.getEndLineNumber(index) >= endLineNumber;
+			};
+			for (let i = 0, len = this._startIndexes.length; i < len; i++) {
+				let startLineNumber = this._startIndexes[i];
+				let endLineNumber = this._endIndexes[i];
+				if (startLineNumber > MAX_LINE_NUMBER || endLineNumber > MAX_LINE_NUMBER) {
+					throw new Error('startLineNumber or endLineNumber must not exceed ' + MAX_LINE_NUMBER);
+				}
+				while (parentIndexes.length > 0 && !isInsideLast(startLineNumber, endLineNumber)) {
+					parentIndexes.pop();
+				}
+				let parentIndex = parentIndexes.length > 0 ? parentIndexes[parentIndexes.length - 1] : -1;
+				parentIndexes.push(i);
+				this._startIndexes[i] = startLineNumber + ((parentIndex & 0xFF) << 24);
+				this._endIndexes[i] = endLineNumber + ((parentIndex & 0xFF00) << 16);
 			}
-			while (parentIndexes.length > 0 && !isInsideLast(startLineNumber, endLineNumber)) {
-				parentIndexes.pop();
-			}
-			let parentIndex = parentIndexes.length > 0 ? parentIndexes[parentIndexes.length - 1] : -1;
-			parentIndexes.push(i);
-			this._startIndexes[i] = startLineNumber + ((parentIndex & 0xFF) << 24);
-			this._endIndexes[i] = endLineNumber + ((parentIndex & 0xFF00) << 16);
 		}
 	}
 
@@ -82,6 +85,7 @@ export class FoldingRanges {
 	}
 
 	public getParentIndex(index: number) {
+		this.ensureParentIndices();
 		let parent = ((this._startIndexes[index] & MASK_INDENT) >>> 24) + ((this._endIndexes[index] & MASK_INDENT) >>> 16);
 		if (parent === MAX_FOLDING_REGIONS) {
 			return -1;
@@ -108,7 +112,6 @@ export class FoldingRanges {
 		}
 		return low - 1;
 	}
-
 
 	public findRange(line: number): number {
 		let index = this.findIndex(line);
