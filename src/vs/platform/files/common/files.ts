@@ -16,6 +16,7 @@ import { beginsWithIgnoreCase } from 'vs/base/common/strings';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isEqualOrParent, isEqual } from 'vs/base/common/resources';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
@@ -73,6 +74,11 @@ export interface IFileService {
 	 * The returned object contains properties of the file and the full value as string.
 	 */
 	resolveContent(resource: URI, options?: IResolveContentOptions): TPromise<IContent>;
+
+	/**
+	 * Create a content stream for the provided resource.
+	 */
+	resolveStringStream(resource: URI, options?: IResolveContentOptions, token?: CancellationToken): IStringStream;
 
 	/**
 	 * Resolve the contents of a file identified by the resource.
@@ -456,6 +462,7 @@ export interface IStringStream {
 	on(event: 'data', callback: (chunk: string) => void): void;
 	on(event: 'error', callback: (err: any) => void): void;
 	on(event: 'end', callback: () => void): void;
+	on(event: 'encoding', callback: (encoding: string) => void): void;
 	on(event: string, callback: any): void;
 }
 

@@ -11,7 +11,7 @@ import paths = require('vs/base/common/paths');
 import encoding = require('vs/base/node/encoding');
 import errors = require('vs/base/common/errors');
 import uri from 'vs/base/common/uri';
-import { FileOperation, FileOperationEvent, IFileService, IFilesConfiguration, IResolveFileOptions, IFileStat, IResolveFileResult, IContent, IStreamContent, IImportResult, IResolveContentOptions, IUpdateContentOptions, FileChangesEvent, ICreateFileOptions } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, IFileService, IFilesConfiguration, IResolveFileOptions, IFileStat, IResolveFileResult, IContent, IStreamContent, IImportResult, IResolveContentOptions, IUpdateContentOptions, FileChangesEvent, ICreateFileOptions, IStringStream } from 'vs/platform/files/common/files';
 import { FileService as NodeFileService, IFileServiceOptions, IEncodingOverride } from 'vs/workbench/services/files/node/fileService';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -24,6 +24,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 
 import { shell } from 'electron';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class FileService implements IFileService {
 
@@ -166,6 +167,10 @@ export class FileService implements IFileService {
 
 	public resolveContent(resource: uri, options?: IResolveContentOptions): TPromise<IContent> {
 		return this.raw.resolveContent(resource, options);
+	}
+
+	public resolveStringStream(resource: uri, options?: IResolveContentOptions, token?: CancellationToken): IStringStream {
+		return this.raw.resolveStringStream(resource, options, token);
 	}
 
 	public resolveStreamContent(resource: uri, options?: IResolveContentOptions): TPromise<IStreamContent> {

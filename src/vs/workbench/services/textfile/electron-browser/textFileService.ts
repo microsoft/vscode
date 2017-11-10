@@ -15,7 +15,7 @@ import { ConfirmResult } from 'vs/workbench/common/editor';
 import { TextFileService as AbstractTextFileService } from 'vs/workbench/services/textfile/common/textFileService';
 import { IRawTextContent } from 'vs/workbench/services/textfile/common/textfiles';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IFileService, IResolveContentOptions } from 'vs/platform/files/common/files';
+import { IFileService, IResolveContentOptions, FileOperationError, FileOperationResult, MAX_FILE_SIZE } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -30,6 +30,7 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 
 export class TextFileService extends AbstractTextFileService {
 
@@ -55,20 +56,73 @@ export class TextFileService extends AbstractTextFileService {
 	}
 
 	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
-		return this.fileService.resolveStreamContent(resource, options).then(streamContent => {
-			return ModelBuilder.fromStringStream(streamContent.value).then(res => {
-				const r: IRawTextContent = {
-					resource: streamContent.resource,
-					name: streamContent.name,
-					mtime: streamContent.mtime,
-					etag: streamContent.etag,
-					encoding: streamContent.encoding,
-					value: res.value,
-					valueLogicalHash: res.hash
-				};
-				return r;
-			});
+
+		const result: IRawTextContent = {
+			resource: undefined,
+			name: undefined,
+			mtime: undefined,
+			etag: undefined,
+			encoding: undefined,
+			value: undefined,
+			valueLogicalHash: undefined,
+		};
+
+		let contentToken = new CancellationTokenSource();
+		let completePromise: Thenable<any>;
+
+		let statsPromise = this.fileService.resolveFile(resource).then(stat => {
+			result.resource = stat.resource;
+			result.name = stat.name;
+			result.mtime = stat.mtime;
+			result.etag = stat.etag;
+
+			if (stat.size > MAX_FILE_SIZE) {
+				// stop reading the file. the stat and content resolve call
+				// usually race, mostly likely the stat call will win and cancel
+				// the content call
+				contentToken.cancel();
+				throw new FileOperationError(
+					nls.localize('fileTooLargeError', "File too large to open"),
+					FileOperationResult.FILE_TOO_LARGE
+				);
+			}
 		});
+
+		if (options && options.etag) {
+			// await the stat iff we already have an etag so that we compare the
+			// etag from the stat before we actually read the file again.
+			completePromise = statsPromise.then(() => {
+				// Return early if file not modified since
+				if (result.etag === options.etag) {
+					return TPromise.wrapError<IRawTextContent>(new FileOperationError(
+						nls.localize('fileNotModifiedError', "File not modified since"),
+						FileOperationResult.FILE_NOT_MODIFIED_SINCE)
+					);
+				}
+				// Waterfall -> only now resolve the contents
+				return this.fillInContents(result, resource, options, contentToken.token);
+			});
+
+		} else {
+			// a fresh load without a previous etag which means we can resolve the file stat
+			// and the content at the same time, avoiding the waterfall.
+			completePromise = Promise.all([statsPromise, this.fillInContents(result, resource, options, contentToken.token)]);
+		}
+
+		return TPromise.wrap(completePromise).then(() => result);
+	}
+
+	private fillInContents(content: IRawTextContent, resource: URI, options: IResolveContentOptions, token: CancellationToken): Thenable<any> {
+		const contentStream = this.fileService.resolveStringStream(resource, options, token);
+		const encodingPromise = new Promise(resolve => contentStream.on('encoding', encoding => {
+			content.encoding = encoding;
+			resolve();
+		}));
+		const contentPromise = ModelBuilder.fromStringStream(contentStream).then(res => {
+			content.value = res.value;
+			content.valueLogicalHash = res.hash;
+		});
+		return Promise.all([encodingPromise, contentPromise]);
 	}
 
 	public confirmSave(resources?: URI[]): ConfirmResult {

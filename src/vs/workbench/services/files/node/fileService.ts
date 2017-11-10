@@ -11,7 +11,7 @@ import os = require('os');
 import crypto = require('crypto');
 import assert = require('assert');
 
-import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, MAX_FILE_SIZE, FileChangesEvent, IFilesConfiguration, ICreateFileOptions } from 'vs/platform/files/common/files';
+import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, MAX_FILE_SIZE, FileChangesEvent, IFilesConfiguration, ICreateFileOptions, IStringStream } from 'vs/platform/files/common/files';
 import { isEqualOrParent } from 'vs/base/common/paths';
 import { ResourceMap } from 'vs/base/common/map';
 import arrays = require('vs/base/common/arrays');
@@ -26,10 +26,9 @@ import nls = require('vs/nls');
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-
 import pfs = require('vs/base/node/pfs');
 import encoding = require('vs/base/node/encoding');
-import { detectMimesFromFile } from 'vs/base/node/mime';
+import { detectMimesFromFile, detectMimeAndEncodingFromBuffer, IMimeAndEncoding } from 'vs/base/node/mime';
 import flow = require('vs/base/node/flow');
 import { FileWatcher as UnixWatcherService } from 'vs/workbench/services/files/node/watcher/unix/watcherService';
 import { FileWatcher as WindowsWatcherService } from 'vs/workbench/services/files/node/watcher/win32/watcherService';
@@ -38,6 +37,8 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { FileWatcher as NsfwWatcherService } from 'vs/workbench/services/files/node/watcher/nsfw/watcherService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { EventEmitter } from 'events';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export interface IEncodingOverride {
 	resource: uri;
@@ -195,6 +196,111 @@ export class FileService implements IFileService {
 		return this.doResolveContent(resource, options, (stat, enc) => this.resolveFileContent(stat, enc));
 	}
 
+	private static chunkSize = 64 * 1024;
+	private static chunkBuffer = Buffer.allocUnsafe(FileService.chunkSize);
+
+	public resolveStringStream(resource: uri, options?: IResolveContentOptions, token: CancellationToken = CancellationToken.None): IStringStream {
+		const ret = new EventEmitter();
+
+		fs.open(resource.path, 'r', (err, fd) => {
+
+			if (err) {
+				ret.emit('error', err);
+				return;
+			}
+
+			let decoder: NodeJS.ReadWriteStream;
+			let totalBytesRead = 0;
+
+			const finish = (err?: any) => {
+				if (err) {
+					ret.emit('error', err);
+				}
+				fs.close(fd, err => {
+					if (err) {
+						ret.emit('error', err);
+					}
+					if (decoder) {
+						decoder.removeAllListeners();
+					}
+					ret.emit('end');
+				});
+			};
+
+			const handleChunk = (bytesRead) => {
+				if (token.isCancellationRequested) {
+					// cancellation
+					finish(new Error('cancelled'));
+
+				} else if (bytesRead < FileService.chunkSize) {
+					// done, write rest, end
+					decoder.write(FileService.chunkBuffer.slice(0, bytesRead), finish);
+
+				} else {
+					// read, write, repeat
+					decoder.write(FileService.chunkBuffer, readChunk);
+				}
+			};
+
+			const readChunk = () => {
+				fs.read(fd, FileService.chunkBuffer, 0, FileService.chunkSize, null, (err, bytesRead) => {
+					totalBytesRead += bytesRead;
+
+					if (totalBytesRead > MAX_FILE_SIZE) {
+						// reading too much... this looks stupid because we have already read much
+						// but it safes an upfront stat call for every 'normal' file we open.
+						finish(new FileOperationError(
+							nls.localize('fileTooLargeError', "File too large to open"),
+							FileOperationResult.FILE_TOO_LARGE
+						));
+					} else if (err) {
+						// some error happened
+						finish(err);
+
+					} else if (decoder) {
+						//
+						handleChunk(bytesRead);
+
+					} else {
+						// when receiving the first chunk of data we need to create the
+						// decoding stream which is then used to drive the string stream.
+						Promise.resolve(detectMimeAndEncodingFromBuffer(
+							{ buffer: FileService.chunkBuffer, bytesRead },
+							options && options.autoGuessEncoding)
+						).then(value => {
+
+							if (options && options.acceptTextOnly && value.mimes.indexOf(baseMime.MIME_BINARY) >= 0) {
+								// Return error early if client only accepts text and this is not text
+								finish(new FileOperationError(
+									nls.localize('fileBinaryError', "File seems to be binary and cannot be opened as text"),
+									FileOperationResult.FILE_IS_BINARY
+								));
+
+							} else {
+								value.encoding = this.getEncoding(resource, this.getEncoding2(resource, options, value));
+								ret.emit('encoding', value.encoding);
+								decoder = encoding.decodeStream(value.encoding);
+								decoder.on('data', arg => ret.emit('data', arg));
+								decoder.on('error', arg => ret.emit('error', arg));
+								handleChunk(bytesRead);
+							}
+
+						}).catch(err => {
+							// failed to get encoding
+							finish(err);
+						});
+					}
+				});
+			};
+
+			readChunk();
+		});
+
+		return ret;
+	}
+
+	//#endregion
+
 	public resolveStreamContent(resource: uri, options?: IResolveContentOptions): TPromise<IStreamContent> {
 		return this.doResolveContent(resource, options, (stat, enc) => this.resolveFileStreamContent(stat, enc));
 	}
@@ -244,24 +350,8 @@ export class FileService implements IFileService {
 					));
 				}
 
-				let preferredEncoding: string;
-				if (options && options.encoding) {
-					if (detected.encoding === encoding.UTF8 && options.encoding === encoding.UTF8) {
-						preferredEncoding = encoding.UTF8_with_bom; // indicate the file has BOM if we are to resolve with UTF 8
-					} else {
-						preferredEncoding = options.encoding; // give passed in encoding highest priority
-					}
-				} else if (detected.encoding) {
-					if (detected.encoding === encoding.UTF8) {
-						preferredEncoding = encoding.UTF8_with_bom; // if we detected UTF-8, it can only be because of a BOM
-					} else {
-						preferredEncoding = detected.encoding;
-					}
-				} else if (this.configuredEncoding(resource) === encoding.UTF8_with_bom) {
-					preferredEncoding = encoding.UTF8; // if we did not detect UTF 8 BOM before, this can only be UTF 8 then
-				}
-
 				// 3.) get content
+				let preferredEncoding = this.getEncoding2(resource, options, detected);
 				return contentResolver(model, preferredEncoding);
 			});
 		}, error => {
@@ -621,6 +711,28 @@ export class FileService implements IFileService {
 				});
 			});
 		});
+	}
+
+	// TODO@ben, I extracted this from `resolveStreamContent` but I am not sure
+	// what it does in comparsion to the other encoding related functions...
+	public getEncoding2(resource: uri, options: IResolveContentOptions, detected: IMimeAndEncoding): string {
+		let preferredEncoding: string;
+		if (options && options.encoding) {
+			if (detected.encoding === encoding.UTF8 && options.encoding === encoding.UTF8) {
+				preferredEncoding = encoding.UTF8_with_bom; // indicate the file has BOM if we are to resolve with UTF 8
+			} else {
+				preferredEncoding = options.encoding; // give passed in encoding highest priority
+			}
+		} else if (detected.encoding) {
+			if (detected.encoding === encoding.UTF8) {
+				preferredEncoding = encoding.UTF8_with_bom; // if we detected UTF-8, it can only be because of a BOM
+			} else {
+				preferredEncoding = detected.encoding;
+			}
+		} else if (this.configuredEncoding(resource) === encoding.UTF8_with_bom) {
+			preferredEncoding = encoding.UTF8; // if we did not detect UTF 8 BOM before, this can only be UTF 8 then
+		}
+		return preferredEncoding;
 	}
 
 	public getEncoding(resource: uri, preferredEncoding?: string): string {

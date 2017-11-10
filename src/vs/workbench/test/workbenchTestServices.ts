@@ -34,7 +34,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IEditorGroupService, GroupArrangement, GroupOrientation, IEditorTabOptions, IMoveOptions } from 'vs/workbench/services/group/common/groupService';
 import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
-import { FileOperationEvent, IFileService, IResolveContentOptions, FileOperationError, IFileStat, IResolveFileResult, IImportResult, FileChangesEvent, IResolveFileOptions, IContent, IUpdateContentOptions, IStreamContent, ICreateFileOptions } from 'vs/platform/files/common/files';
+import { FileOperationEvent, IFileService, IResolveContentOptions, FileOperationError, IFileStat, IResolveFileResult, IImportResult, FileChangesEvent, IResolveFileOptions, IContent, IUpdateContentOptions, IStreamContent, ICreateFileOptions, IStringStream } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
@@ -736,6 +736,18 @@ export class TestFileService implements IFileService {
 			mtime: Date.now(),
 			name: paths.basename(resource.fsPath)
 		});
+	}
+
+	resolveStringStream(resource: URI, options?: IResolveContentOptions): IStringStream {
+		const callback: { [name: string]: Function } = Object.create(null);
+		const result = {
+			on(type, callback) { callback[type] = callback; }
+		};
+		this.resolveContent(resource, options).then(content => {
+			callback['data'](content.value);
+			callback['end']();
+		});
+		return result;
 	}
 
 	resolveStreamContent(resource: URI, options?: IResolveContentOptions): TPromise<IStreamContent> {
