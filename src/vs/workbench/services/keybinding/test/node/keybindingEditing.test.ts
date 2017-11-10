@@ -66,7 +66,7 @@ suite('Keybindings Editing', () => {
 
 			instantiationService.stub(IEnvironmentService, { appKeybindingsPath: keybindingsFile });
 			instantiationService.stub(IConfigurationService, ConfigurationService);
-			instantiationService.stub(IConfigurationService, 'getConfiguration', { 'eol': '\n' });
+			instantiationService.stub(IConfigurationService, 'getValue', { 'eol': '\n' });
 			instantiationService.stub(IConfigurationService, 'onDidUpdateConfiguration', () => { });
 			instantiationService.stub(IConfigurationService, 'onDidChangeConfiguration', () => { });
 			instantiationService.stub(IWorkspaceContextService, new TestContextService());
