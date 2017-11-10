@@ -113,7 +113,7 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 
 	public async provideCodeActions2(
 		document: vscode.TextDocument,
-		range: vscode.Range,
+		_range: vscode.Range,
 		_context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
 	): Promise<vscode.CodeAction[]> {
@@ -121,11 +121,17 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 			return [];
 		}
 
-		const file = this.client.normalizePath(document.uri);
-		if (!file) {
+		if (!vscode.window.activeTextEditor) {
 			return [];
 		}
 
+		const editor = vscode.window.activeTextEditor;
+		const file = this.client.normalizePath(document.uri);
+		if (!file || editor.document.uri.fsPath !== document.uri.fsPath) {
+			return [];
+		}
+
+		const range = editor.selection;
 		const args: Proto.GetApplicableRefactorsRequestArgs = vsRangeToTsFileRange(file, range);
 		try {
 			const response = await this.client.execute('getApplicableRefactors', args, token);
@@ -158,7 +164,7 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 				}
 			}
 			return actions;
-		} catch (err) {
+		} catch {
 			return [];
 		}
 	}
