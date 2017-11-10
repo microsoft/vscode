@@ -28,7 +28,7 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 	const config = workspace.getConfiguration('git');
 	const enabled = config.get<boolean>('enabled') === true;
 	const pathHint = workspace.getConfiguration('git').get<string>('path');
-	const info = await findGit(pathHint);
+	const info = await findGit(pathHint, path => outputChannel.appendLine(localize('looking', "Looking for git in: {0}", path)));
 	const askpass = new Askpass();
 	const env = await askpass.getEnv();
 	const git = new Git({ gitPath: info.path, version: info.version, env });
