@@ -1756,6 +1756,13 @@ registerCommand(new EditorOrNativeTextInputCommand({
 	}
 }));
 
+registerCommand(new EditorOrNativeTextInputCommand({
+	editorHandler: H.HistoryTree,
+	inputHandler: 'historyTree',
+	id: H.HistoryTree,
+	precondition: EditorContextKeys.writable
+}));
+
 /**
  * A command that will invoke a command on the focused editor.
  */
