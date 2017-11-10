@@ -233,7 +233,7 @@ export class UntitledEditorService implements IUntitledEditorService {
 
 		// Look up default language from settings if any
 		if (!modeId && !hasAssociatedFilePath) {
-			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
+			const configuration = this.configurationService.getValue<IFilesConfiguration>();
 			if (configuration.files && configuration.files.defaultLanguage) {
 				modeId = configuration.files.defaultLanguage;
 			}

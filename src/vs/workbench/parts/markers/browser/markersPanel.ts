@@ -29,7 +29,6 @@ import { CollapseAllAction, FilterAction, FilterInputBoxActionItem } from 'vs/wo
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import Messages from 'vs/workbench/parts/markers/common/messages';
 import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
-import { ContributableActionProvider } from 'vs/workbench/browser/actions';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -69,8 +68,7 @@ export class MarkersPanel extends Panel {
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		// @ts-ignore unused injected service
-		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IListService private listService: IListService,
 		@IThemeService themeService: IThemeService
@@ -200,8 +198,7 @@ export class MarkersPanel extends Panel {
 	private createTree(parent: HTMLElement): void {
 		this.treeContainer = dom.append(parent, dom.$('.tree-container'));
 		dom.addClass(this.treeContainer, 'show-file-icons');
-		const actionProvider = this.instantiationService.createInstance(ContributableActionProvider);
-		const renderer = this.instantiationService.createInstance(Viewer.Renderer, this.getActionRunner(), actionProvider);
+		const renderer = this.instantiationService.createInstance(Viewer.Renderer);
 		const dnd = new SimpleFileResourceDragAndDrop(obj => obj instanceof Resource ? obj.uri : void 0);
 		let controller = this.instantiationService.createInstance(Controller);
 		this.tree = new TreeImpl.Tree(this.treeContainer, {
@@ -239,7 +236,7 @@ export class MarkersPanel extends Panel {
 
 	private createActions(): void {
 		this.collapseAllAction = this.instantiationService.createInstance(CollapseAllAction, this.tree, true);
-		this.filterAction = new FilterAction(this);
+		this.filterAction = new FilterAction();
 		this.actions = [
 			this.filterAction,
 			this.collapseAllAction

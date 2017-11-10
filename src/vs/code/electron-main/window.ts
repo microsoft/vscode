@@ -161,7 +161,7 @@ export class CodeWindow implements ICodeWindow {
 			options.icon = path.join(this.environmentService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
 		}
 
-		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 
 		let useNativeTabs = false;
 		if (windowConfig && windowConfig.nativeTabs) {
@@ -451,7 +451,7 @@ export class CodeWindow implements ICodeWindow {
 
 		// Swipe command support (macOS)
 		if (isMacintosh) {
-			const config = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
+			const config = this.configurationService.getValue<IWorkbenchEditorConfiguration>();
 			if (config && config.workbench && config.workbench.editor && config.workbench.editor.swipeToNavigate) {
 				this.registerNavigationListenerOn('swipe', 'left', 'right', true);
 			} else {
@@ -562,7 +562,7 @@ export class CodeWindow implements ICodeWindow {
 	private getUrl(windowConfiguration: IWindowConfiguration): string {
 
 		// Set zoomlevel
-		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 		const zoomLevel = windowConfig && windowConfig.zoomLevel;
 		if (typeof zoomLevel === 'number') {
 			windowConfiguration.zoomLevel = zoomLevel;
@@ -796,7 +796,7 @@ export class CodeWindow implements ICodeWindow {
 	}
 
 	private getMenuBarVisibility(): MenuBarVisibility {
-		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 		if (!windowConfig || !windowConfig.menuBarVisibility) {
 			return 'default';
 		}

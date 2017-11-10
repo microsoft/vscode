@@ -43,7 +43,7 @@ let commandHistory: BoundedMap<number>;
 let commandCounter = 1;
 
 function resolveCommandHistory(configurationService: IConfigurationService): number {
-	const config = <IWorkbenchQuickOpenConfiguration>configurationService.getConfiguration();
+	const config = <IWorkbenchQuickOpenConfiguration>configurationService.getValue();
 
 	let commandHistory = config.workbench && config.workbench.commandPalette && config.workbench.commandPalette.history;
 	if (typeof commandHistory !== 'number') {
@@ -135,7 +135,7 @@ export class ShowAllCommandsAction extends Action {
 	}
 
 	public run(context?: any): TPromise<void> {
-		const config = <IWorkbenchQuickOpenConfiguration>this.configurationService.getConfiguration();
+		const config = <IWorkbenchQuickOpenConfiguration>this.configurationService.getValue();
 		const restoreInput = config.workbench && config.workbench.commandPalette && config.workbench.commandPalette.preserveInput === true;
 
 		// Show with last command palette input if any and configured

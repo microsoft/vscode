@@ -61,7 +61,7 @@ export class TerminalSupport {
 
 		// get the shell configuration for the current platform
 		let shell: string;
-		const shell_config = (<ITerminalConfiguration>configurationService.getConfiguration<any>().terminal.integrated).shell;
+		const shell_config = (<ITerminalConfiguration>configurationService.getValue<any>().terminal.integrated).shell;
 		if (platform.isWindows) {
 			shell = shell_config.windows;
 			shellType = ShellType.cmd;

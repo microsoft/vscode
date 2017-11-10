@@ -296,6 +296,7 @@ export enum Operation {
 	Stage = 'Stage',
 	GetCommitTemplate = 'GetCommitTemplate',
 	DeleteBranch = 'DeleteBranch',
+	RenameBranch = 'RenameBranch',
 	Merge = 'Merge',
 	Ignore = 'Ignore',
 	Tag = 'Tag',
@@ -603,6 +604,10 @@ export class Repository implements Disposable {
 		await this.run(Operation.DeleteBranch, () => this.repository.deleteBranch(name, force));
 	}
 
+	async renameBranch(name: string): Promise<void> {
+		await this.run(Operation.RenameBranch, () => this.repository.renameBranch(name));
+	}
+
 	async merge(ref: string): Promise<void> {
 		await this.run(Operation.Merge, () => this.repository.merge(ref));
 	}
@@ -711,8 +716,8 @@ export class Repository implements Disposable {
 		return await this.repository.getStashes();
 	}
 
-	async createStash(message?: string): Promise<void> {
-		return await this.run(Operation.Stash, () => this.repository.createStash(message));
+	async createStash(message?: string, includeUntracked?: boolean): Promise<void> {
+		return await this.run(Operation.Stash, () => this.repository.createStash(message, includeUntracked));
 	}
 
 	async popStash(index?: number): Promise<void> {

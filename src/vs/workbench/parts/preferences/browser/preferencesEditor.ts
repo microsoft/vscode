@@ -34,12 +34,10 @@ import { ContextKeyExpr, IContextKeyService, IContextKey } from 'vs/platform/con
 import { registerEditorContribution, Command, IEditorContributionCtor } from 'vs/editor/browser/editorExtensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IModelService } from 'vs/editor/common/services/modelService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { VSash } from 'vs/base/browser/ui/sash/sash';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IPreferencesRenderer, DefaultSettingsRenderer, UserSettingsRenderer, WorkspaceSettingsRenderer, FolderSettingsRenderer } from 'vs/workbench/parts/preferences/browser/preferencesRenderers';
@@ -118,8 +116,6 @@ export class PreferencesEditor extends BaseEditor {
 
 	constructor(
 		@IPreferencesService private preferencesService: IPreferencesService,
-		// @ts-ignore unused injected service
-		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
@@ -697,15 +693,11 @@ export class EditableSettingsEditor extends BaseTextEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		// @ts-ignore unused injected service
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IPreferencesService private preferencesService: IPreferencesService,
-		// @ts-ignore unused injected service
-		@IModelService private modelService: IModelService,
 		@ITextFileService textFileService: ITextFileService,
 		@IEditorGroupService editorGroupService: IEditorGroupService
 	) {
@@ -769,16 +761,10 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		// @ts-ignore unused injected service
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
-		// @ts-ignore unused injected service
-		@IPreferencesService private preferencesService: IPreferencesService,
-		// @ts-ignore unused injected service
-		@IModelService private modelService: IModelService,
 		@ITextFileService textFileService: ITextFileService,
 		@IEditorGroupService editorGroupService: IEditorGroupService
 	) {

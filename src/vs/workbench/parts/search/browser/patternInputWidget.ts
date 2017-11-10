@@ -37,8 +37,6 @@ export class PatternInputWidget extends Widget {
 	private ariaLabel: string;
 
 	private domNode: HTMLElement;
-	// @ts-ignore unused property
-	private inputNode: HTMLInputElement;
 	protected inputBox: InputBox;
 
 	private history: HistoryNavigator<string>;
@@ -58,7 +56,6 @@ export class PatternInputWidget extends Widget {
 		this.ariaLabel = options.ariaLabel || nls.localize('defaultLabel', "input");
 
 		this.domNode = null;
-		this.inputNode = null;
 		this.inputBox = null;
 
 		this.render();

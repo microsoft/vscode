@@ -36,7 +36,7 @@ export class WinTerminalService implements ITerminalService {
 	}
 
 	public openTerminal(cwd?: string): void {
-		const configuration = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		const configuration = this._configurationService.getValue<ITerminalConfiguration>();
 
 		this.spawnTerminal(cp, configuration, processes.getWindowsShell(), cwd)
 			.done(null, errors.onUnexpectedError);
@@ -44,7 +44,7 @@ export class WinTerminalService implements ITerminalService {
 
 	public runInTerminal(title: string, dir: string, args: string[], envVars: IProcessEnvironment): TPromise<void> {
 
-		const configuration = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		const configuration = this._configurationService.getValue<ITerminalConfiguration>();
 		const terminalConfig = configuration.terminal.external;
 		const exec = terminalConfig.windowsExec || DEFAULT_TERMINAL_WINDOWS;
 
@@ -121,14 +121,14 @@ export class MacTerminalService implements ITerminalService {
 	) { }
 
 	public openTerminal(cwd?: string): void {
-		const configuration = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		const configuration = this._configurationService.getValue<ITerminalConfiguration>();
 
 		this.spawnTerminal(cp, configuration, cwd).done(null, errors.onUnexpectedError);
 	}
 
 	public runInTerminal(title: string, dir: string, args: string[], envVars: IProcessEnvironment): TPromise<void> {
 
-		const configuration = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		const configuration = this._configurationService.getValue<ITerminalConfiguration>();
 		const terminalConfig = configuration.terminal.external;
 		const terminalApp = terminalConfig.osxExec || DEFAULT_TERMINAL_OSX;
 
@@ -207,7 +207,7 @@ export class LinuxTerminalService implements ITerminalService {
 
 
 	public openTerminal(cwd?: string): void {
-		const configuration = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		const configuration = this._configurationService.getValue<ITerminalConfiguration>();
 
 		this.spawnTerminal(cp, configuration, cwd)
 			.done(null, errors.onUnexpectedError);
@@ -215,7 +215,7 @@ export class LinuxTerminalService implements ITerminalService {
 
 	public runInTerminal(title: string, dir: string, args: string[], envVars: IProcessEnvironment): TPromise<void> {
 
-		const configuration = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		const configuration = this._configurationService.getValue<ITerminalConfiguration>();
 		const terminalConfig = configuration.terminal.external;
 		const execPromise = terminalConfig.linuxExec ? TPromise.as(terminalConfig.linuxExec) : DEFAULT_TERMINAL_LINUX_READY;
 

@@ -152,8 +152,6 @@ export class DefineKeybindingWidget extends Widget {
 
 	constructor(
 		parent: HTMLElement,
-		// @ts-ignore unused injected service
-		@IKeybindingService private keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService
 	) {

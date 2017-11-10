@@ -191,7 +191,7 @@ class AccessibilityHelpWidget extends Widget implements IOverlayWidget {
 
 		text += '\n\n' + nls.localize('status', "Status:");
 
-		const configuredValue = this._configurationService.getConfiguration<editorOptions.IEditorOptions>('editor').accessibilitySupport;
+		const configuredValue = this._configurationService.getValue<editorOptions.IEditorOptions>('editor').accessibilitySupport;
 		const actualValue = opts.accessibilitySupport;
 
 		const emergencyTurnOnMessage = (

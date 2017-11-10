@@ -461,7 +461,7 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	private getEditorOptions(language: string): IEditorOptions {
-		const config = this.configurationService.getConfiguration<IEditorOptions>('editor', { overrideIdentifier: language });
+		const config = this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: language });
 		return {
 			...isObject(config) ? config : Object.create(null),
 			scrollBeyondLastLine: false,

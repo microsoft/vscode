@@ -41,7 +41,7 @@ suite('Hidden Range Model', () => {
 		/* 10*/	'}'];
 
 		let textModel = Model.createFromString(lines.join('\n'));
-		let foldingModel = new FoldingModel(textModel, new TestDecorationProvider());
+		let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
 		let hiddenRangeModel = new HiddenRangeModel(foldingModel);
 
 		assert.equal(hiddenRangeModel.hasRanges(), false);

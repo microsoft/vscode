@@ -73,7 +73,7 @@ export class ColorDetector implements IEditorContribution {
 		}
 		const languageId = model.getLanguageIdentifier();
 		// handle deprecated settings. [languageId].colorDecorators.enable
-		let deprecatedConfig = this._configurationService.getConfiguration(languageId.language);
+		let deprecatedConfig = this._configurationService.getValue(languageId.language);
 		if (deprecatedConfig) {
 			let colorDecorators = deprecatedConfig['colorDecorators']; // deprecatedConfig.valueOf('.colorDecorators.enable');
 			if (colorDecorators && colorDecorators['enable'] !== undefined && !colorDecorators['enable']) {

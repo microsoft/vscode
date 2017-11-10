@@ -59,7 +59,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 	) {
 		super(id, telemetryService, themeService);
 
-		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.handleConfigurationChangeEvent(this.configurationService.getConfiguration<IEditorConfiguration>(this.getResource()))));
+		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.handleConfigurationChangeEvent(this.configurationService.getValue<IEditorConfiguration>(this.getResource()))));
 	}
 
 	protected get instantiationService(): IInstantiationService {
@@ -127,7 +127,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 		// Editor for Text
 		this._editorContainer = parent;
-		this.editorControl = this.createEditorControl(parent, this.computeConfiguration(this.configurationService.getConfiguration<IEditorConfiguration>(this.getResource())));
+		this.editorControl = this.createEditorControl(parent, this.computeConfiguration(this.configurationService.getValue<IEditorConfiguration>(this.getResource())));
 
 		// Model & Language changes
 		const codeEditor = getCodeEditor(this);
@@ -280,7 +280,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		return null;
 	}
 
-	private updateEditorConfiguration(configuration = this.configurationService.getConfiguration<IEditorConfiguration>(this.getResource())): void {
+	private updateEditorConfiguration(configuration = this.configurationService.getValue<IEditorConfiguration>(this.getResource())): void {
 		if (!this.editorControl) {
 			return;
 		}

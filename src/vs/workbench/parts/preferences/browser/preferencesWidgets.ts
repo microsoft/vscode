@@ -444,8 +444,6 @@ export class SearchWidget extends Widget {
 
 	constructor(parent: HTMLElement, protected options: SearchOptions,
 		@IContextViewService private contextViewService: IContextViewService,
-		// @ts-ignore unused injected service
-		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService
 	) {
@@ -594,8 +592,7 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 	constructor(
 		private editor: ICodeEditor,
 		private label: string,
-		// @ts-ignore unused property
-		private keyBindingAction: string,
+		keyBindingAction: string,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IThemeService private themeService: IThemeService
 	) {
