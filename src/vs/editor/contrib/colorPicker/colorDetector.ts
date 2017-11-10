@@ -7,7 +7,7 @@ import { RGBA } from 'vs/base/common/color';
 import { hash } from 'vs/base/common/hash';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ICommonCodeEditor, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
@@ -73,7 +73,7 @@ export class ColorDetector implements IEditorContribution {
 		}
 		const languageId = model.getLanguageIdentifier();
 		// handle deprecated settings. [languageId].colorDecorators.enable
-		let deprecatedConfig = this._configurationService.getConfiguration(languageId.language);
+		let deprecatedConfig = this._configurationService.getValue(languageId.language);
 		if (deprecatedConfig) {
 			let colorDecorators = deprecatedConfig['colorDecorators']; // deprecatedConfig.valueOf('.colorDecorators.enable');
 			if (colorDecorators && colorDecorators['enable'] !== undefined && !colorDecorators['enable']) {
@@ -88,7 +88,7 @@ export class ColorDetector implements IEditorContribution {
 		return ColorDetector.ID;
 	}
 
-	static get(editor: ICommonCodeEditor): ColorDetector {
+	static get(editor: ICodeEditor): ColorDetector {
 		return editor.getContribution<ColorDetector>(this.ID);
 	}
 

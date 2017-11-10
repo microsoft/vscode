@@ -49,7 +49,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	}
 
 	public get config(): ITerminalConfiguration {
-		return this._configurationService.getConfiguration<IFullTerminalConfiguration>().terminal.integrated;
+		return this._configurationService.getValue<IFullTerminalConfiguration>().terminal.integrated;
 	}
 
 	private _measureFont(fontFamily: string, fontSize: number, lineHeight: number): ITerminalFont {
@@ -88,7 +88,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	 * terminal.integrated.fontSize, terminal.integrated.lineHeight configuration properties
 	 */
 	public getFont(excludeDimensions?: boolean): ITerminalFont {
-		const config = this._configurationService.getConfiguration();
+		const config = this._configurationService.getValue();
 		const editorConfig = (<IEditorConfiguration>config).editor;
 		const terminalConfig = this.config;
 

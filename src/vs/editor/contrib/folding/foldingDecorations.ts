@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TrackedRangeStickiness } from 'vs/editor/common/editorCommon';
+import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationsChangeAccessor } from 'vs/editor/common/editorCommon';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import { IDecorationProvider } from 'vs/editor/contrib/folding/foldingModel';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class FoldingDecorationProvider implements IDecorationProvider {
 
@@ -27,6 +28,9 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 
 	public autoHideFoldingControls: boolean = true;
 
+	constructor(private editor: ICodeEditor) {
+	}
+
 	getDecorationOption(isCollapsed: boolean): ModelDecorationOptions {
 		if (isCollapsed) {
 			return this.COLLAPSED_VISUAL_DECORATION;
@@ -35,5 +39,13 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 		} else {
 			return this.EXPANDED_VISUAL_DECORATION;
 		}
+	}
+
+	deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[] {
+		return this.editor.deltaDecorations(oldDecorations, newDecorations);
+	}
+
+	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T {
+		return this.editor.changeDecorations(callback);
 	}
 }

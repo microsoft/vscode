@@ -15,7 +15,6 @@ import DOM = require('vs/base/browser/dom');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { isCommonCodeEditor, isCommonDiffEditor } from 'vs/editor/common/editorCommon';
 import arrays = require('vs/base/common/arrays');
 import { IEditorStacksModel, IEditorGroup, IEditorIdentifier, EditorInput, IStacksModelChangeEvent, toResource } from 'vs/workbench/common/editor';
 import { EventType as BaseEventType } from 'vs/base/common/events';
@@ -45,6 +44,7 @@ import { extname } from 'vs/base/common/paths';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import URI from 'vs/base/common/uri';
+import { isDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -330,7 +330,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 			// take this code as sample of how to work with menus
 			this.disposeOnEditorActions = dispose(this.disposeOnEditorActions);
 			const widget = control.getControl();
-			const codeEditor = isCommonCodeEditor(widget) && widget || isCommonDiffEditor(widget) && widget.getModifiedEditor();
+			const codeEditor = isCodeEditor(widget) && widget || isDiffEditor(widget) && widget.getModifiedEditor();
 			const scopedContextKeyService = codeEditor && codeEditor.invokeWithinContext(accessor => accessor.get(IContextKeyService)) || this.contextKeyService;
 			const titleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, scopedContextKeyService);
 			this.disposeOnEditorActions.push(titleBarMenu, titleBarMenu.onDidChange(_ => this.update()));

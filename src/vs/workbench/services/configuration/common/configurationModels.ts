@@ -144,10 +144,6 @@ export class Configuration extends BaseConfiguration {
 		super(defaults, user, workspaceConfiguration, folders, memoryConfiguration, memoryConfigurationByResource);
 	}
 
-	getSection<C>(section: string = '', overrides: IConfigurationOverrides = {}): C {
-		return super.getSection(section, overrides, this._workspace);
-	}
-
 	getValue(key: string, overrides: IConfigurationOverrides = {}): any {
 		return super.getValue(key, overrides, this._workspace);
 	}

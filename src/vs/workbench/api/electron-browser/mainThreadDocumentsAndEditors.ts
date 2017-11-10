@@ -5,7 +5,7 @@
 'use strict';
 
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModel, ICommonCodeEditor, isCommonCodeEditor, isCommonDiffEditor } from 'vs/editor/common/editorCommon';
+import { IModel } from 'vs/editor/common/editorCommon';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -23,6 +23,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { isCodeEditor, isDiffEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 namespace mapset {
 
@@ -88,7 +89,7 @@ class EditorSnapshot {
 	readonly id: string;
 
 	constructor(
-		readonly editor: ICommonCodeEditor,
+		readonly editor: ICodeEditor,
 	) {
 		this.id = `${editor.getId()},${editor.getModel().id}`;
 	}
@@ -181,14 +182,14 @@ class MainThreadDocumentAndEditorStateComputer {
 		this._toDispose = dispose(this._toDispose);
 	}
 
-	private _onDidAddEditor(e: ICommonCodeEditor): void {
+	private _onDidAddEditor(e: ICodeEditor): void {
 		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidChangeModel(() => this._updateState()));
 		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidFocusEditor(() => this._updateState()));
 		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidBlurEditor(() => this._updateState()));
 		this._updateState();
 	}
 
-	private _onDidRemoveEditor(e: ICommonCodeEditor): void {
+	private _onDidRemoveEditor(e: ICodeEditor): void {
 		const sub = this._toDisposeOnEditorRemove.get(e.getId());
 		if (sub) {
 			this._toDisposeOnEditorRemove.delete(e.getId());
@@ -259,10 +260,10 @@ class MainThreadDocumentAndEditorStateComputer {
 			const workbenchEditor = this._workbenchEditorService.getActiveEditor();
 			if (workbenchEditor) {
 				const workbenchEditorControl = workbenchEditor.getControl();
-				let candidate: ICommonCodeEditor;
-				if (isCommonCodeEditor(workbenchEditorControl)) {
+				let candidate: ICodeEditor;
+				if (isCodeEditor(workbenchEditorControl)) {
 					candidate = workbenchEditorControl;
-				} else if (isCommonDiffEditor(workbenchEditorControl)) {
+				} else if (isDiffEditor(workbenchEditorControl)) {
 					candidate = workbenchEditorControl.getModifiedEditor();
 				}
 				if (candidate) {

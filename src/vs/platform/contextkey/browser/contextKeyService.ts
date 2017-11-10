@@ -91,7 +91,7 @@ class ConfigAwareContextValuesContainer extends Context {
 	private _initFromConfiguration() {
 
 		const prefix = 'config.';
-		const config = this._configurationService.getConfiguration();
+		const config = this._configurationService.getValue();
 		const configKeys: { [key: string]: boolean } = Object.create(null);
 		const configKeysChanged: string[] = [];
 

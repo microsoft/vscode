@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-sass/commit/d47701c2d389c5e657b8c51a34d90691e4bac3ea",
+	"version": "https://github.com/atom/language-sass/commit/a07688bd078f420f56df6221e9263d80e738869b",
 	"scopeName": "source.css.scss",
 	"name": "SCSS",
 	"fileTypes": [
@@ -32,9 +32,6 @@
 		},
 		{
 			"include": "#rules"
-		},
-		{
-			"include": "#selectors"
 		},
 		{
 			"include": "#property_list"
@@ -495,9 +492,6 @@
 						},
 						{
 							"include": "#rules"
-						},
-						{
-							"include": "#selectors"
 						}
 					]
 				}
@@ -1161,7 +1155,7 @@
 		"properties": {
 			"patterns": [
 				{
-					"begin": "(?<![-a-z])(?!--)(?=[-a-z])",
+					"begin": "(?<![-a-z])(?=[-a-z])",
 					"end": "$|(?![-a-z])",
 					"name": "meta.property-name.scss",
 					"patterns": [
@@ -1220,13 +1214,7 @@
 					"include": "#rules"
 				},
 				{
-					"include": "#selector_custom"
-				},
-				{
 					"include": "#properties"
-				},
-				{
-					"include": "selectors"
 				},
 				{
 					"include": "$self"
@@ -1314,6 +1302,9 @@
 				},
 				{
 					"include": "#at_rule_media"
+				},
+				{
+					"include": "#selectors"
 				}
 			]
 		},

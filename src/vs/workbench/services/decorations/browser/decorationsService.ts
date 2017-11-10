@@ -132,7 +132,7 @@ class DecorationStyles {
 		if (onlyChildren) {
 			// show items from its children only
 			badgeClassName = rule.bubbleBadgeClassName;
-			tooltip = localize('bubbleTitle', "contains emphasized items");
+			tooltip = localize('bubbleTitle', "Contains emphasized items");
 		}
 
 		return {

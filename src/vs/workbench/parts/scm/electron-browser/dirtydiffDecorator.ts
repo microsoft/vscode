@@ -45,7 +45,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { basename } from 'vs/base/common/paths';
 import { MenuId, IMenuService, IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { fillInActions, MenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
-import { IChange, ICommonCodeEditor, IEditorModel, ScrollType, IEditorContribution, OverviewRulerLane, IModel } from 'vs/editor/common/editorCommon';
+import { IChange, IEditorModel, ScrollType, IEditorContribution, OverviewRulerLane, IModel } from 'vs/editor/common/editorCommon';
 import { sortedDiff, Splice, firstIndex } from 'vs/base/common/arrays';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -114,12 +114,12 @@ function lineIntersectsChange(lineNumber: number, change: IChange): boolean {
 
 class UIEditorAction extends Action {
 
-	private editor: ICommonCodeEditor;
+	private editor: ICodeEditor;
 	private action: EditorAction;
 	private instantiationService: IInstantiationService;
 
 	constructor(
-		editor: ICommonCodeEditor,
+		editor: ICodeEditor,
 		action: EditorAction,
 		cssClass: string,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -164,7 +164,7 @@ function getChangeTypeColor(theme: ITheme, changeType: ChangeType): Color {
 	}
 }
 
-function getOuterEditorFromDiffEditor(accessor: ServicesAccessor): ICommonCodeEditor {
+function getOuterEditorFromDiffEditor(accessor: ServicesAccessor): ICodeEditor {
 	const diffEditors = accessor.get(ICodeEditorService).listDiffEditors();
 
 	for (const diffEditor of diffEditors) {
@@ -372,7 +372,7 @@ export class ShowPreviousChangeAction extends EditorAction {
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const outerEditor = getOuterEditorFromDiffEditor(accessor);
 
 		if (!outerEditor) {
@@ -406,7 +406,7 @@ export class ShowNextChangeAction extends EditorAction {
 		});
 	}
 
-	run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const outerEditor = getOuterEditorFromDiffEditor(accessor);
 
 		if (!outerEditor) {
@@ -455,7 +455,7 @@ export class DirtyDiffController implements IEditorContribution {
 
 	private static ID = 'editor.contrib.dirtydiff';
 
-	static get(editor: ICommonCodeEditor): DirtyDiffController {
+	static get(editor: ICodeEditor): DirtyDiffController {
 		return editor.getContribution<DirtyDiffController>(DirtyDiffController.ID);
 	}
 

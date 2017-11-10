@@ -76,8 +76,7 @@ export class KeybindingsEditorModel extends EditorModel {
 	private modifierLabels: ModifierLabels;
 
 	constructor(
-		// @ts-ignore unused property
-		private os: OperatingSystem,
+		os: OperatingSystem,
 		@IKeybindingService private keybindingsService: IKeybindingService,
 		@IExtensionService private extensionService: IExtensionService
 	) {
@@ -240,8 +239,7 @@ class KeybindingItemMatches {
 	public readonly whenMatches: IMatch[] = null;
 	public readonly keybindingMatches: KeybindingMatches = null;
 
-	// @ts-ignore unused property
-	constructor(private modifierLabels: ModifierLabels, keybindingItem: IKeybindingItem, private searchValue: string, private words: string[], private keybindingWords: string[], private completeMatch: boolean) {
+	constructor(private modifierLabels: ModifierLabels, keybindingItem: IKeybindingItem, searchValue: string, words: string[], keybindingWords: string[], private completeMatch: boolean) {
 		this.commandIdMatches = this.matches(searchValue, keybindingItem.command, or(matchesWords, matchesCamelCase), words);
 		this.commandLabelMatches = keybindingItem.commandLabel ? this.matches(searchValue, keybindingItem.commandLabel, (word, wordToMatchAgainst) => matchesWords(word, keybindingItem.commandLabel, true), words) : null;
 		this.commandDefaultLabelMatches = keybindingItem.commandDefaultLabel ? this.matches(searchValue, keybindingItem.commandDefaultLabel, (word, wordToMatchAgainst) => matchesWords(word, keybindingItem.commandDefaultLabel, true), words) : null;

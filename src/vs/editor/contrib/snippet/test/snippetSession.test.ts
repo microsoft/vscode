@@ -9,16 +9,16 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { SnippetSession } from 'vs/editor/contrib/snippet/snippetSession';
-import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { Model } from 'vs/editor/common/model/model';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 suite('SnippetSession', function () {
 
-	let editor: ICommonCodeEditor;
+	let editor: ICodeEditor;
 	let model: Model;
 
-	function assertSelections(editor: ICommonCodeEditor, ...s: Selection[]) {
+	function assertSelections(editor: ICodeEditor, ...s: Selection[]) {
 		for (const selection of editor.getSelections()) {
 			const actual = s.shift();
 			assert.ok(selection.equalsSelection(actual), `actual=${selection.toString()} <> expected=${actual.toString()}`);

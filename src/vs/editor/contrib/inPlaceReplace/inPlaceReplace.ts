@@ -9,7 +9,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IEditorContribution, ICommonCodeEditor, IModelDecorationsChangeAccessor } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, IModelDecorationsChangeAccessor } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerEditorAction, ServicesAccessor, EditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IInplaceReplaceSupportResult } from 'vs/editor/common/modes';
@@ -25,7 +25,7 @@ class InPlaceReplaceController implements IEditorContribution {
 
 	private static ID = 'editor.contrib.inPlaceReplaceController';
 
-	static get(editor: ICommonCodeEditor): InPlaceReplaceController {
+	static get(editor: ICodeEditor): InPlaceReplaceController {
 		return editor.getContribution<InPlaceReplaceController>(InPlaceReplaceController.ID);
 	}
 
@@ -153,7 +153,7 @@ class InPlaceReplaceUp extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
 		let controller = InPlaceReplaceController.get(editor);
 		if (!controller) {
 			return undefined;
@@ -177,7 +177,7 @@ class InPlaceReplaceDown extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
 		let controller = InPlaceReplaceController.get(editor);
 		if (!controller) {
 			return undefined;

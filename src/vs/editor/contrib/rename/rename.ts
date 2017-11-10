@@ -15,7 +15,7 @@ import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from '
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, EditorCommand, registerEditorCommand, registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
-import { ICommonCodeEditor, IEditorContribution, IReadOnlyModel } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, IReadOnlyModel } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { createBulkEdit } from 'vs/editor/common/services/bulkEdit';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -87,7 +87,7 @@ class RenameController implements IEditorContribution {
 
 	private static ID = 'editor.contrib.renameController';
 
-	public static get(editor: ICommonCodeEditor): RenameController {
+	public static get(editor: ICodeEditor): RenameController {
 		return editor.getContribution<RenameController>(RenameController.ID);
 	}
 
@@ -219,7 +219,7 @@ export class RenameAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
 		let controller = RenameController.get(editor);
 		if (controller) {
 			return controller.run();

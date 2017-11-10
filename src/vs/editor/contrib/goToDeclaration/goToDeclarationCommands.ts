@@ -26,6 +26,7 @@ import { MessageController } from 'vs/editor/contrib/message/messageController';
 import * as corePosition from 'vs/editor/common/core/position';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IProgressService } from 'vs/platform/progress/common/progress';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class DefinitionActionConfig {
 
@@ -48,7 +49,7 @@ export class DefinitionAction extends EditorAction {
 		this._configuration = configuration;
 	}
 
-	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
 		const messageService = accessor.get(IMessageService);
 		const editorService = accessor.get(IEditorService);
 		const progressService = accessor.get(IProgressService);
@@ -125,7 +126,7 @@ export class DefinitionAction extends EditorAction {
 		return model.references.length > 1 && nls.localize('meta.title', " – {0} definitions", model.references.length);
 	}
 
-	private _onResult(editorService: IEditorService, editor: editorCommon.ICommonCodeEditor, model: ReferencesModel) {
+	private _onResult(editorService: IEditorService, editor: ICodeEditor, model: ReferencesModel) {
 
 		const msg = model.getAriaMessage();
 		alert(msg);
@@ -144,7 +145,7 @@ export class DefinitionAction extends EditorAction {
 		}
 	}
 
-	private _openReference(editorService: IEditorService, reference: Location, sideBySide: boolean): TPromise<editorCommon.ICommonCodeEditor> {
+	private _openReference(editorService: IEditorService, reference: Location, sideBySide: boolean): TPromise<ICodeEditor> {
 		let { uri, range } = reference;
 		return editorService.openEditor({
 			resource: uri,
@@ -154,11 +155,11 @@ export class DefinitionAction extends EditorAction {
 				revealInCenterIfOutsideViewport: true
 			}
 		}, sideBySide).then(editor => {
-			return editor && <editorCommon.ICommonCodeEditor>editor.getControl();
+			return editor && <ICodeEditor>editor.getControl();
 		});
 	}
 
-	private _openInPeek(editorService: IEditorService, target: editorCommon.ICommonCodeEditor, model: ReferencesModel) {
+	private _openInPeek(editorService: IEditorService, target: ICodeEditor, model: ReferencesModel) {
 		let controller = ReferencesController.get(target);
 		if (controller) {
 			controller.toggleWidget(target.getSelection(), TPromise.as(model), {

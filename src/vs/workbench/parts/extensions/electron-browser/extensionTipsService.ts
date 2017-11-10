@@ -249,7 +249,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				StorageScope.GLOBAL
 			);
 
-			const config = this.configurationService.getConfiguration<IExtensionsConfiguration>(ConfigurationKey);
+			const config = this.configurationService.getValue<IExtensionsConfiguration>(ConfigurationKey);
 
 			if (config.ignoreRecommendations) {
 				return;
@@ -345,7 +345,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			return;
 		}
 
-		const config = this.configurationService.getConfiguration<IExtensionsConfiguration>(ConfigurationKey);
+		const config = this.configurationService.getValue<IExtensionsConfiguration>(ConfigurationKey);
 
 		if (config.ignoreRecommendations) {
 			return;

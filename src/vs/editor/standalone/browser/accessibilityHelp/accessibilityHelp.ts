@@ -16,7 +16,7 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ICommonCodeEditor, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerEditorAction, registerEditorContribution, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
@@ -38,7 +38,7 @@ class AccessibilityHelpController extends Disposable
 	implements IEditorContribution {
 	private static ID = 'editor.contrib.accessibilityHelpController';
 
-	public static get(editor: ICommonCodeEditor): AccessibilityHelpController {
+	public static get(editor: ICodeEditor): AccessibilityHelpController {
 		return editor.getContribution<AccessibilityHelpController>(
 			AccessibilityHelpController.ID
 		);
@@ -347,7 +347,7 @@ class ShowAccessibilityHelpAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let controller = AccessibilityHelpController.get(editor);
 		if (controller) {
 			controller.show();

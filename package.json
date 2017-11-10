@@ -42,7 +42,7 @@
     "semver": "4.3.6",
     "v8-profiler": "jrieken/v8-profiler#vscode",
     "vscode-debugprotocol": "1.24.0",
-    "vscode-ripgrep": "0.6.0-patch.0",
+    "vscode-ripgrep": "0.6.0-patch.0.2",
     "vscode-textmate": "^3.2.0",
     "xterm": "Tyriar/xterm.js#vscode-release/1.19",
     "yauzl": "2.8.0"

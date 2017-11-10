@@ -3896,6 +3896,14 @@ declare module monaco.editor {
 		 * @see ICodeEditor.getDomNode
 		 */
 		getDomNode(): HTMLElement;
+		/**
+		 * Get the `original` editor.
+		 */
+		getOriginalEditor(): ICodeEditor;
+		/**
+		 * Get the `modified` editor.
+		 */
+		getModifiedEditor(): ICodeEditor;
 	}
 
 	export class FontInfo extends BareFontInfo {

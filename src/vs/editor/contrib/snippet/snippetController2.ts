@@ -6,7 +6,6 @@
 'use strict';
 
 import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { registerEditorContribution, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { SnippetSession } from './snippetSession';
@@ -22,7 +21,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 
 export class SnippetController2 {
 
-	static get(editor: ICommonCodeEditor): SnippetController2 {
+	static get(editor: ICodeEditor): SnippetController2 {
 		return editor.getContribution<SnippetController2>('snippetController2');
 	}
 

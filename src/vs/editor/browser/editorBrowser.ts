@@ -446,4 +446,37 @@ export interface IDiffEditor extends editorCommon.ICommonDiffEditor {
 	 * @see ICodeEditor.getDomNode
 	 */
 	getDomNode(): HTMLElement;
+
+	/**
+	 * Get the `original` editor.
+	 */
+	getOriginalEditor(): ICodeEditor;
+
+	/**
+	 * Get the `modified` editor.
+	 */
+	getModifiedEditor(): ICodeEditor;
+
+}
+
+/**
+ *@internal
+ */
+export function isCodeEditor(thing: any): thing is ICodeEditor {
+	if (thing && typeof (<ICodeEditor>thing).getEditorType === 'function') {
+		return (<ICodeEditor>thing).getEditorType() === editorCommon.EditorType.ICodeEditor;
+	} else {
+		return false;
+	}
+}
+
+/**
+ *@internal
+ */
+export function isDiffEditor(thing: any): thing is IDiffEditor {
+	if (thing && typeof (<IDiffEditor>thing).getEditorType === 'function') {
+		return (<IDiffEditor>thing).getEditorType() === editorCommon.EditorType.IDiffEditor;
+	} else {
+		return false;
+	}
 }

@@ -10,12 +10,13 @@ import { TimeoutTimer } from 'vs/base/common/async';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ICommonCodeEditor, IModel, IWordAtPosition } from 'vs/editor/common/editorCommon';
+import { IModel, IWordAtPosition } from 'vs/editor/common/editorCommon';
 import { ISuggestSupport, SuggestRegistry, StandardTokenType, SuggestTriggerKind } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import { provideSuggestionItems, getSuggestionComparator, ISuggestionItem } from './suggest';
 import { CompletionModel } from './completionModel';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export interface ICancelEvent {
 	retrigger: boolean;
@@ -38,7 +39,7 @@ export interface SuggestTriggerContext {
 
 export class LineContext {
 
-	static shouldAutoTrigger(editor: ICommonCodeEditor): boolean {
+	static shouldAutoTrigger(editor: ICodeEditor): boolean {
 		const model = editor.getModel();
 		if (!model) {
 			return false;
@@ -58,7 +59,7 @@ export class LineContext {
 		return true;
 	}
 
-	static isInEditableRange(editor: ICommonCodeEditor): boolean {
+	static isInEditableRange(editor: ICodeEditor): boolean {
 		const model = editor.getModel();
 		const position = editor.getPosition();
 		if (model.hasEditableRange()) {
@@ -93,7 +94,7 @@ export const enum State {
 
 export class SuggestModel implements IDisposable {
 
-	private _editor: ICommonCodeEditor;
+	private _editor: ICodeEditor;
 	private _toDispose: IDisposable[] = [];
 	private _quickSuggestDelay: number;
 	private _triggerCharacterListener: IDisposable;
@@ -114,7 +115,7 @@ export class SuggestModel implements IDisposable {
 	readonly onDidTrigger: Event<ITriggerEvent> = this._onDidTrigger.event;
 	readonly onDidSuggest: Event<ISuggestEvent> = this._onDidSuggest.event;
 
-	constructor(editor: ICommonCodeEditor) {
+	constructor(editor: ICodeEditor) {
 		this._editor = editor;
 		this._state = State.Idle;
 		this._triggerAutoSuggestPromise = null;

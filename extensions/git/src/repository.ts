@@ -296,6 +296,7 @@ export enum Operation {
 	Stage = 'Stage',
 	GetCommitTemplate = 'GetCommitTemplate',
 	DeleteBranch = 'DeleteBranch',
+	RenameBranch = 'RenameBranch',
 	Merge = 'Merge',
 	Ignore = 'Ignore',
 	Tag = 'Tag',
@@ -603,6 +604,10 @@ export class Repository implements Disposable {
 		await this.run(Operation.DeleteBranch, () => this.repository.deleteBranch(name, force));
 	}
 
+	async renameBranch(name: string): Promise<void> {
+		await this.run(Operation.RenameBranch, () => this.repository.renameBranch(name));
+	}
+
 	async merge(ref: string): Promise<void> {
 		await this.run(Operation.Merge, () => this.repository.merge(ref));
 	}
@@ -711,8 +716,8 @@ export class Repository implements Disposable {
 		return await this.repository.getStashes();
 	}
 
-	async createStash(message?: string): Promise<void> {
-		return await this.run(Operation.Stash, () => this.repository.createStash(message));
+	async createStash(message?: string, includeUntracked?: boolean): Promise<void> {
+		return await this.run(Operation.Stash, () => this.repository.createStash(message, includeUntracked));
 	}
 
 	async popStash(index?: number): Promise<void> {
@@ -756,15 +761,17 @@ export class Repository implements Disposable {
 					return Promise.resolve(new Set<string>());
 				}
 
-				const child = this.repository.stream(['check-ignore', ...filePaths]);
+				// https://git-scm.com/docs/git-check-ignore#git-check-ignore--z
+				const child = this.repository.stream(['check-ignore', '-z', '--stdin'], { stdio: [null, null, null] });
+				child.stdin.end(filePaths.join('\0'), 'utf8');
 
 				const onExit = (exitCode: number) => {
 					if (exitCode === 1) {
 						// nothing ignored
 						resolve(new Set<string>());
 					} else if (exitCode === 0) {
-						// each line is something ignored
-						resolve(new Set<string>(data.split('\n')));
+						// paths are separated by the null-character
+						resolve(new Set<string>(data.split('\0')));
 					} else {
 						reject(new GitError({ stdout: data, stderr, exitCode }));
 					}

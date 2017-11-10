@@ -139,7 +139,7 @@ export const optionsHelp: { [name: string]: string; } = {
 	'--list-extensions': localize('listExtensions', "List the installed extensions."),
 	'--show-versions': localize('showVersions', "Show versions of installed extensions, when using --list-extension."),
 	'--install-extension (<extension-id> | <extension-vsix-path>)': localize('installExtension', "Installs an extension."),
-	'--uninstall-extension <extension-id>': localize('uninstallExtension', "Uninstalls an extension."),
+	'--uninstall-extension (<extension-id> | <extension-vsix-path>)': localize('uninstallExtension', "Uninstalls an extension."),
 	'--enable-proposed-api <extension-id>': localize('experimentalApis', "Enables proposed api features for an extension."),
 	'--disable-extensions': localize('disableExtensions', "Disable all installed extensions."),
 	'--disable-gpu': localize('disableGPU', "Disable GPU hardware acceleration."),

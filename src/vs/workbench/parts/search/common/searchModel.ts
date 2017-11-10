@@ -348,8 +348,7 @@ export class FolderMatch extends Disposable {
 	private _unDisposedFileMatches: ResourceMap<FileMatch>;
 	private _replacingAll: boolean = false;
 
-	// @ts-ignore unused injected service
-	constructor(private _resource: URI, private _id: string, private _index: number, private _query: ISearchQuery, private _parent: SearchResult, private _searchModel: SearchModel, @IReplaceService private replaceService: IReplaceService, @ITelemetryService private telemetryService: ITelemetryService,
+	constructor(private _resource: URI, private _id: string, private _index: number, private _query: ISearchQuery, private _parent: SearchResult, private _searchModel: SearchModel, @IReplaceService private replaceService: IReplaceService,
 		@IInstantiationService private instantiationService: IInstantiationService) {
 		super();
 		this._fileMatches = new ResourceMap<FileMatch>();
@@ -498,8 +497,6 @@ export class SearchResult extends Disposable {
 
 	private _folderMatches: FolderMatch[] = [];
 	private _folderMatchesMap: TernarySearchTree<FolderMatch> = TernarySearchTree.forPaths<FolderMatch>();
-	// @ts-ignore unused property
-	private _query: ISearchQuery = null;
 	private _showHighlights: boolean;
 
 	private _rangeHighlightDecorations: RangeHighlightDecorations;
@@ -513,7 +510,6 @@ export class SearchResult extends Disposable {
 	public set query(query: ISearchQuery) {
 		// When updating the query we could change the roots, so ensure we clean up the old roots first.
 		this.clear();
-		this._query = query;
 		const otherFiles = URI.parse('');
 		this._folderMatches = (query.folderQueries || []).map((fq) => fq.folder).concat([otherFiles]).map((resource, index) => {
 			const id = resource.toString() || 'otherFiles';

@@ -26,11 +26,12 @@ import { IEditorService } from 'vs/platform/editor/common/editor';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 const CORE_WEIGHT = KeybindingsRegistry.WEIGHT.editorCore();
 
 export abstract class CoreEditorCommand extends EditorCommand {
-	public runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void {
+	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 		this.runCoreEditorCommand(editor._getCursors(), args || {});
 	}
 
@@ -1546,7 +1547,7 @@ export namespace CoreEditingCommands {
 			});
 		}
 
-		public runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void {
+		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 			editor.pushUndoStop();
 			editor.executeCommands(this.id, TypeOperations.lineBreakInsert(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
 		}
@@ -1568,7 +1569,7 @@ export namespace CoreEditingCommands {
 			});
 		}
 
-		public runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void {
+		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 			editor.pushUndoStop();
 			editor.executeCommands(this.id, TypeOperations.outdent(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
 			editor.pushUndoStop();
@@ -1591,7 +1592,7 @@ export namespace CoreEditingCommands {
 			});
 		}
 
-		public runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void {
+		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 			editor.pushUndoStop();
 			editor.executeCommands(this.id, TypeOperations.tab(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
 			editor.pushUndoStop();
@@ -1613,7 +1614,7 @@ export namespace CoreEditingCommands {
 			});
 		}
 
-		public runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void {
+		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 			const cursors = editor._getCursors();
 			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteLeft(cursors.getPrevEditOperationType(), editor._getCursorConfiguration(), editor.getModel(), editor.getSelections());
 			if (shouldPushStackElementBefore) {
@@ -1638,7 +1639,7 @@ export namespace CoreEditingCommands {
 			});
 		}
 
-		public runEditorCommand(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor, args: any): void {
+		public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 			const cursors = editor._getCursors();
 			const [shouldPushStackElementBefore, commands] = DeleteOperations.deleteRight(cursors.getPrevEditOperationType(), editor._getCursorConfiguration(), editor.getModel(), editor.getSelections());
 			if (shouldPushStackElementBefore) {
@@ -1651,11 +1652,11 @@ export namespace CoreEditingCommands {
 
 }
 
-function findFocusedEditor(accessor: ServicesAccessor): editorCommon.ICommonCodeEditor {
+function findFocusedEditor(accessor: ServicesAccessor): ICodeEditor {
 	return accessor.get(ICodeEditorService).getFocusedCodeEditor();
 }
 
-function getWorkbenchActiveEditor(accessor: ServicesAccessor): editorCommon.ICommonCodeEditor {
+function getWorkbenchActiveEditor(accessor: ServicesAccessor): ICodeEditor {
 	const editorService = accessor.get(IEditorService);
 	let activeEditor = (<any>editorService).getActiveEditor && (<any>editorService).getActiveEditor();
 	return getCodeEditor(activeEditor);
@@ -1705,7 +1706,7 @@ class EditorOrNativeTextInputCommand extends Command {
 		}
 	}
 
-	private _runEditorHandler(editor: editorCommon.ICommonCodeEditor, args: any): void {
+	private _runEditorHandler(editor: ICodeEditor, args: any): void {
 		let HANDLER = this._editorHandler;
 		if (typeof HANDLER === 'string') {
 			editor.trigger('keyboard', HANDLER, args);

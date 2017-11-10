@@ -154,7 +154,7 @@ export class Renderer implements IRenderer {
 		templateData.root.setEditor(editor.editorInput, {
 			italic: editor.isPreview(),
 			extraClasses: ['open-editor'],
-			fileDecorations: this.configurationService.getConfiguration<IFilesConfiguration>().explorer.decorations
+			fileDecorations: this.configurationService.getValue<IFilesConfiguration>().explorer.decorations
 		});
 		templateData.actionBar.context = { group: editor.editorGroup, editor: editor.editorInput };
 	}

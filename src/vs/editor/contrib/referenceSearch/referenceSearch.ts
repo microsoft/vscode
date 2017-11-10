@@ -24,7 +24,7 @@ import { asWinJsPromise } from 'vs/base/common/async';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 
 const defaultReferenceSearchOptions: RequestOptions = {
 	getMetaTitle(model) {
@@ -75,7 +75,7 @@ export class ReferenceAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let controller = ReferencesController.get(editor);
 		if (!controller) {
 			return;
@@ -103,7 +103,7 @@ let findReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 	return accessor.get(IEditorService).openEditor({ resource }).then(editor => {
 
 		let control = editor.getControl();
-		if (!editorCommon.isCommonCodeEditor(control)) {
+		if (!isCodeEditor(control)) {
 			return undefined;
 		}
 
@@ -126,7 +126,7 @@ let showReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 	return accessor.get(IEditorService).openEditor({ resource: resource }).then(editor => {
 
 		let control = editor.getControl();
-		if (!editorCommon.isCommonCodeEditor(control)) {
+		if (!isCodeEditor(control)) {
 			return undefined;
 		}
 

@@ -12,7 +12,8 @@ import * as cp from 'child_process';
 import { EventEmitter } from 'events';
 import iconv = require('iconv-lite');
 import * as filetype from 'file-type';
-import { assign, uniqBy, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding } from './util';
+import { assign, uniqBy, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent } from './util';
+import { CancellationToken } from 'vscode';
 
 const readfile = denodeify<string>(fs.readFile);
 
@@ -61,8 +62,10 @@ function parseVersion(raw: string): string {
 	return raw.replace(/^git version /, '');
 }
 
-function findSpecificGit(path: string): Promise<IGit> {
+function findSpecificGit(path: string, onLookup: (path: string) => void): Promise<IGit> {
 	return new Promise<IGit>((c, e) => {
+		onLookup(path);
+
 		const buffers: Buffer[] = [];
 		const child = cp.spawn(path, ['--version']);
 		child.stdout.on('data', (b: Buffer) => buffers.push(b));
@@ -71,7 +74,7 @@ function findSpecificGit(path: string): Promise<IGit> {
 	});
 }
 
-function findGitDarwin(): Promise<IGit> {
+function findGitDarwin(onLookup: (path: string) => void): Promise<IGit> {
 	return new Promise<IGit>((c, e) => {
 		cp.exec('which git', (err, gitPathBuffer) => {
 			if (err) {
@@ -81,8 +84,11 @@ function findGitDarwin(): Promise<IGit> {
 			const path = gitPathBuffer.toString().replace(/^\s+|\s+$/g, '');
 
 			function getVersion(path: string) {
+				onLookup(path);
+
 				// make sure git executes
 				cp.exec('git --version', (err, stdout) => {
+
 					if (err) {
 						return e('git not found');
 					}
@@ -110,30 +116,29 @@ function findGitDarwin(): Promise<IGit> {
 	});
 }
 
-function findSystemGitWin32(base: string): Promise<IGit> {
+function findSystemGitWin32(base: string, onLookup: (path: string) => void): Promise<IGit> {
 	if (!base) {
 		return Promise.reject<IGit>('Not found');
 	}
 
-	return findSpecificGit(path.join(base, 'Git', 'cmd', 'git.exe'));
+	return findSpecificGit(path.join(base, 'Git', 'cmd', 'git.exe'), onLookup);
 }
 
-function findGitWin32(): Promise<IGit> {
-	return findSystemGitWin32(process.env['ProgramW6432'] as string)
-		.then(void 0, () => findSystemGitWin32(process.env['ProgramFiles(x86)'] as string))
-		.then(void 0, () => findSystemGitWin32(process.env['ProgramFiles'] as string))
-		.then(void 0, () => findSpecificGit('git'));
+function findGitWin32(onLookup: (path: string) => void): Promise<IGit> {
+	return findSystemGitWin32(process.env['ProgramW6432'] as string, onLookup)
+		.then(void 0, () => findSystemGitWin32(process.env['ProgramFiles(x86)'] as string, onLookup))
+		.then(void 0, () => findSystemGitWin32(process.env['ProgramFiles'] as string, onLookup));
 }
 
-export function findGit(hint: string | undefined): Promise<IGit> {
-	var first = hint ? findSpecificGit(hint) : Promise.reject<IGit>(null);
+export function findGit(hint: string | undefined, onLookup: (path: string) => void): Promise<IGit> {
+	var first = hint ? findSpecificGit(hint, onLookup) : Promise.reject<IGit>(null);
 
 	return first
 		.then(void 0, () => {
 			switch (process.platform) {
-				case 'darwin': return findGitDarwin();
-				case 'win32': return findGitWin32();
-				default: return findSpecificGit('git');
+				case 'darwin': return findGitDarwin(onLookup);
+				case 'win32': return findGitWin32(onLookup);
+				default: return findSpecificGit('git', onLookup);
 			}
 		})
 		.then(null, () => Promise.reject(new Error('Git installation not found.')));
@@ -163,13 +168,16 @@ export interface SpawnOptions extends cp.SpawnOptions {
 	input?: string;
 	encoding?: string;
 	log?: boolean;
+	cancellationToken?: CancellationToken;
 }
 
-async function exec(child: cp.ChildProcess): Promise<IExecutionResult<Buffer>> {
+async function exec(child: cp.ChildProcess, cancellationToken?: CancellationToken): Promise<IExecutionResult<Buffer>> {
 	if (!child.stdout || !child.stderr) {
-		throw new GitError({
-			message: 'Failed to get stdout or stderr from git process.'
-		});
+		throw new GitError({ message: 'Failed to get stdout or stderr from git process.' });
+	}
+
+	if (cancellationToken && cancellationToken.isCancellationRequested) {
+		throw new GitError({ message: 'Cancelled' });
 	}
 
 	const disposables: IDisposable[] = [];
@@ -184,7 +192,7 @@ async function exec(child: cp.ChildProcess): Promise<IExecutionResult<Buffer>> {
 		disposables.push(toDisposable(() => ee.removeListener(name, fn)));
 	};
 
-	const [exitCode, stdout, stderr] = await Promise.all<any>([
+	let result = Promise.all<any>([
 		new Promise<number>((c, e) => {
 			once(child, 'error', cpErrorHandler(e));
 			once(child, 'exit', c);
@@ -199,11 +207,30 @@ async function exec(child: cp.ChildProcess): Promise<IExecutionResult<Buffer>> {
 			on(child.stderr, 'data', (b: Buffer) => buffers.push(b));
 			once(child.stderr, 'close', () => c(Buffer.concat(buffers).toString('utf8')));
 		})
-	]);
+	]) as Promise<[number, Buffer, string]>;
 
-	dispose(disposables);
+	if (cancellationToken) {
+		const cancellationPromise = new Promise<[number, Buffer, string]>((_, e) => {
+			onceEvent(cancellationToken.onCancellationRequested)(() => {
+				try {
+					child.kill();
+				} catch (err) {
+					// noop
+				}
 
-	return { exitCode, stdout, stderr };
+				e(new GitError({ message: 'Cancelled' }));
+			});
+		});
+
+		result = Promise.race([result, cancellationPromise]);
+	}
+
+	try {
+		const [exitCode, stdout, stderr] = await result;
+		return { exitCode, stdout, stderr };
+	} finally {
+		dispose(disposables);
+	}
 }
 
 export interface IGitErrorData {
@@ -286,6 +313,8 @@ export const GitErrorCodes = {
 	RepositoryIsLocked: 'RepositoryIsLocked',
 	BranchNotFullyMerged: 'BranchNotFullyMerged',
 	NoRemoteReference: 'NoRemoteReference',
+	InvalidBranchName: 'InvalidBranchName',
+	BranchAlreadyExists: 'BranchAlreadyExists',
 	NoLocalChanges: 'NoLocalChanges',
 	NoStashFound: 'NoStashFound',
 	LocalChangesOverwritten: 'LocalChangesOverwritten'
@@ -310,6 +339,10 @@ function getGitErrorCode(stderr: string): string | undefined {
 		return GitErrorCodes.BranchNotFullyMerged;
 	} else if (/Couldn\'t find remote ref/.test(stderr)) {
 		return GitErrorCodes.NoRemoteReference;
+	} else if (/A branch named '.+' already exists/.test(stderr)) {
+		return GitErrorCodes.BranchAlreadyExists;
+	} else if (/'.+' is not a valid branch name/.test(stderr)) {
+		return GitErrorCodes.InvalidBranchName;
 	}
 
 	return void 0;
@@ -339,12 +372,12 @@ export class Git {
 		return;
 	}
 
-	async clone(url: string, parentPath: string): Promise<string> {
+	async clone(url: string, parentPath: string, cancellationToken?: CancellationToken): Promise<string> {
 		const folderName = decodeURI(url).replace(/^.*\//, '').replace(/\.git$/, '') || 'repository';
 		const folderPath = path.join(parentPath, folderName);
 
 		await mkdirp(parentPath);
-		await this.exec(parentPath, ['clone', url, folderPath]);
+		await this.exec(parentPath, ['clone', url, folderPath], { cancellationToken });
 		return folderPath;
 	}
 
@@ -370,7 +403,7 @@ export class Git {
 			child.stdin.end(options.input, 'utf8');
 		}
 
-		const bufferResult = await exec(child);
+		const bufferResult = await exec(child, options.cancellationToken);
 
 		if (options.log !== false && bufferResult.stderr.length > 0) {
 			this.log(`${bufferResult.stderr}\n`);
@@ -746,6 +779,11 @@ export class Repository {
 		await this.run(args);
 	}
 
+	async renameBranch(name: string): Promise<void> {
+		const args = ['branch', '-m', name];
+		await this.run(args);
+	}
+
 	async merge(ref: string): Promise<void> {
 		const args = ['merge', ref];
 
@@ -913,9 +951,13 @@ export class Repository {
 		}
 	}
 
-	async createStash(message?: string): Promise<void> {
+	async createStash(message?: string, includeUntracked?: boolean): Promise<void> {
 		try {
 			const args = ['stash', 'save'];
+
+			if (includeUntracked) {
+				args.push('-u');
+			}
 
 			if (message) {
 				args.push('--', message);

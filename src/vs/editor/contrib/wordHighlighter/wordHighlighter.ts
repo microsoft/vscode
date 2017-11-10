@@ -402,7 +402,7 @@ class WordHighlighterContribution implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.contrib.wordHighlighter';
 
-	public static get(editor: editorCommon.ICommonCodeEditor): WordHighlighterContribution {
+	public static get(editor: ICodeEditor): WordHighlighterContribution {
 		return editor.getContribution<WordHighlighterContribution>(WordHighlighterContribution.ID);
 	}
 
@@ -452,7 +452,7 @@ class WordHighlightNavigationAction extends EditorAction {
 		this._isNext = next;
 	}
 
-	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const controller = WordHighlighterContribution.get(editor);
 		if (!controller) {
 			return;

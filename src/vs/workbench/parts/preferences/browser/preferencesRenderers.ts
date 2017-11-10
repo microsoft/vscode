@@ -24,9 +24,7 @@ import { IContextMenuService, ContextSubMenu } from 'vs/platform/contextview/bro
 import { SettingsGroupTitleWidget, EditPreferenceWidget, SettingsHeaderWidget, DefaultSettingsHeaderWidget, FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IMarkerService, IMarkerData } from 'vs/platform/markers/common/markers';
-import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
@@ -74,8 +72,6 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	constructor(protected editor: ICodeEditor, public readonly preferencesModel: SettingsEditorModel,
 		@IPreferencesService protected preferencesService: IPreferencesService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		// @ts-ignore unused injected service
-		@ITextFileService private textFileService: ITextFileService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService protected instantiationService: IInstantiationService
 	) {
@@ -182,11 +178,10 @@ export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements I
 	constructor(editor: ICodeEditor, preferencesModel: SettingsEditorModel,
 		@IPreferencesService preferencesService: IPreferencesService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@ITextFileService textFileService: ITextFileService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(editor, preferencesModel, preferencesService, telemetryService, textFileService, configurationService, instantiationService);
+		super(editor, preferencesModel, preferencesService, telemetryService, configurationService, instantiationService);
 		this.unsupportedSettingsRenderer = this._register(instantiationService.createInstance(UnsupportedSettingsRenderer, editor, preferencesModel));
 		this.workspaceConfigurationRenderer = this._register(instantiationService.createInstance(WorkspaceConfigurationRenderer, editor, preferencesModel));
 	}
@@ -209,11 +204,10 @@ export class FolderSettingsRenderer extends UserSettingsRenderer implements IPre
 	constructor(editor: ICodeEditor, preferencesModel: SettingsEditorModel,
 		@IPreferencesService preferencesService: IPreferencesService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@ITextFileService textFileService: ITextFileService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(editor, preferencesModel, preferencesService, telemetryService, textFileService, configurationService, instantiationService);
+		super(editor, preferencesModel, preferencesService, telemetryService, configurationService, instantiationService);
 		this.unsupportedSettingsRenderer = this._register(instantiationService.createInstance(UnsupportedSettingsRenderer, editor, preferencesModel));
 	}
 
@@ -253,8 +247,6 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 
 	constructor(protected editor: ICodeEditor, public readonly preferencesModel: DefaultSettingsEditorModel,
 		@IPreferencesService protected preferencesService: IPreferencesService,
-		// @ts-ignore unused injected service
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService protected instantiationService: IInstantiationService
 	) {
 		super();
@@ -418,8 +410,7 @@ class DefaultSettingsHeaderRenderer extends Disposable {
 	private settingsHeaderWidget: DefaultSettingsHeaderWidget;
 	public onClick: Event<void>;
 
-	// @ts-ignore unused property
-	constructor(private editor: ICodeEditor, scope: ConfigurationScope) {
+	constructor(editor: ICodeEditor, scope: ConfigurationScope) {
 		super();
 		const title = scope === ConfigurationScope.RESOURCE ? nls.localize('defaultFolderSettingsTitle', "Default Folder Settings") : nls.localize('defaultSettingsTitle', "Default Settings");
 		this.settingsHeaderWidget = this._register(new DefaultSettingsHeaderWidget(editor, title));
@@ -534,9 +525,7 @@ export class SettingsGroupTitleRenderer extends Disposable implements HiddenArea
 
 export class HiddenAreasRenderer extends Disposable {
 
-	constructor(private editor: ICodeEditor, private hiddenAreasProviders: HiddenAreasProvider[],
-		// @ts-ignore unused injected service
-		@IInstantiationService private instantiationService: IInstantiationService
+	constructor(private editor: ICodeEditor, private hiddenAreasProviders: HiddenAreasProvider[]
 	) {
 		super();
 	}
@@ -651,7 +640,7 @@ export class FeedbackWidgetRenderer extends Disposable {
 
 		const altsAdded = expectedQuery.alts && expectedQuery.alts[0] && (expectedQuery.alts[0][0] !== FeedbackWidgetRenderer.DEFAULT_ALTS[0] || expectedQuery.alts[0][1] !== FeedbackWidgetRenderer.DEFAULT_ALTS[1]);
 		const alts = altsAdded ? expectedQuery.alts : undefined;
-		const workbenchSettings = this.configurationService.getConfiguration<IWorkbenchSettingsConfiguration>().workbench.settings;
+		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
 		const autoIngest = workbenchSettings.experimentalFuzzySearchAutoIngestFeedback;
 
 		/* __GDPR__
@@ -718,9 +707,7 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 	private decorationIds: string[] = [];
 	public hiddenAreas: IRange[] = [];
 
-	constructor(private editor: ICodeEditor,
-		// @ts-ignore unused injected service
-		@IInstantiationService private instantiationService: IInstantiationService
+	constructor(private editor: ICodeEditor
 	) {
 		super();
 	}
@@ -823,9 +810,7 @@ export class HighlightMatchesRenderer extends Disposable {
 
 	private decorationIds: string[] = [];
 
-	constructor(private editor: ICodeEditor,
-		// @ts-ignore unused injected service
-		@IInstantiationService private instantiationService: IInstantiationService
+	constructor(private editor: ICodeEditor
 	) {
 		super();
 	}
@@ -878,8 +863,6 @@ class EditSettingRenderer extends Disposable {
 
 	constructor(private editor: ICodeEditor, private masterSettingsModel: ISettingsEditorModel,
 		private settingHighlighter: SettingHighlighter,
-		// @ts-ignore unused injected service
-		@IPreferencesService private preferencesService: IPreferencesService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
@@ -1108,7 +1091,7 @@ class SettingHighlighter extends Disposable {
 	private volatileHighlighter: RangeHighlightDecorations;
 	private highlightedSetting: ISetting;
 
-	constructor(private editor: editorCommon.ICommonCodeEditor, private focusEventEmitter: Emitter<ISetting>, private clearFocusEventEmitter: Emitter<ISetting>,
+	constructor(private editor: ICodeEditor, private focusEventEmitter: Emitter<ISetting>, private clearFocusEventEmitter: Emitter<ISetting>,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
@@ -1148,10 +1131,8 @@ class UnsupportedSettingsRenderer extends Disposable {
 	private renderingDelayer: Delayer<void> = new Delayer<void>(200);
 
 	constructor(
-		private editor: editorCommon.ICommonCodeEditor,
+		private editor: ICodeEditor,
 		private settingsEditorModel: SettingsEditorModel,
-		// @ts-ignore unused injected service
-		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
 		@IMarkerService private markerService: IMarkerService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
@@ -1247,7 +1228,7 @@ class WorkspaceConfigurationRenderer extends Disposable {
 	private decorationIds: string[] = [];
 	private renderingDelayer: Delayer<void> = new Delayer<void>(200);
 
-	constructor(private editor: editorCommon.ICommonCodeEditor, private workspaceSettingsEditorModel: SettingsEditorModel,
+	constructor(private editor: ICodeEditor, private workspaceSettingsEditorModel: SettingsEditorModel,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService
 	) {
 		super();

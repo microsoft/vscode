@@ -82,7 +82,7 @@ export abstract class TextFileService implements ITextFileService {
 
 		this._models = this.instantiationService.createInstance(TextFileEditorModelManager);
 
-		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
+		const configuration = this.configurationService.getValue<IFilesConfiguration>();
 		this.currentFilesAssociationConfig = configuration && configuration.files && configuration.files.associations;
 
 		this.onFilesConfigurationChange(configuration);
@@ -126,7 +126,7 @@ export abstract class TextFileService implements ITextFileService {
 		// Files configuration changes
 		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('files')) {
-				this.onFilesConfigurationChange(this.configurationService.getConfiguration<IFilesConfiguration>());
+				this.onFilesConfigurationChange(this.configurationService.getValue<IFilesConfiguration>());
 			}
 		}));
 	}

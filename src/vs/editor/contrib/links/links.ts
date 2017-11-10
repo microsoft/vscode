@@ -131,7 +131,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 
 	private static ID: string = 'editor.linkDetector';
 
-	public static get(editor: editorCommon.ICommonCodeEditor): LinkDetector {
+	public static get(editor: ICodeEditor): LinkDetector {
 		return editor.getContribution<LinkDetector>(LinkDetector.ID);
 	}
 
@@ -393,7 +393,7 @@ class OpenLinkAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let linkDetector = LinkDetector.get(editor);
 		if (!linkDetector) {
 			return;

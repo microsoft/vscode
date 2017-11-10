@@ -196,7 +196,7 @@ export class ExplorerViewerActionContributor extends ActionBarContributor {
 			resource = resources.dirname(resource);
 		}
 
-		const configuration = this.configurationService.getConfiguration<ITerminalConfiguration>();
+		const configuration = this.configurationService.getValue<ITerminalConfiguration>();
 		const explorerKind = configuration.terminal.explorerKind;
 
 		if (explorerKind === 'integrated') {

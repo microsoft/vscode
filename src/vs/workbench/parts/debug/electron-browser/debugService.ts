@@ -862,12 +862,12 @@ export class DebugService implements debug.IDebugService {
 				this._onDidNewProcess.fire(process);
 				this.focusStackFrameAndEvaluate(null, process);
 
-				const internalConsoleOptions = configuration.internalConsoleOptions || this.configurationService.getConfiguration<debug.IDebugConfiguration>('debug').internalConsoleOptions;
+				const internalConsoleOptions = configuration.internalConsoleOptions || this.configurationService.getValue<debug.IDebugConfiguration>('debug').internalConsoleOptions;
 				if (internalConsoleOptions === 'openOnSessionStart' || (this.firstSessionStart && internalConsoleOptions === 'openOnFirstSessionStart')) {
 					this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
 				}
 
-				const openDebugOptions = this.configurationService.getConfiguration<debug.IDebugConfiguration>('debug').openDebug;
+				const openDebugOptions = this.configurationService.getValue<debug.IDebugConfiguration>('debug').openDebug;
 				// Open debug viewlet based on the visibility of the side bar and openDebug setting
 				if (openDebugOptions === 'openOnSessionStart' || (openDebugOptions === 'openOnFirstSessionStart' && this.firstSessionStart)) {
 					this.viewletService.openViewlet(debug.VIEWLET_ID);
@@ -898,7 +898,7 @@ export class DebugService implements debug.IDebugService {
 					watchExpressionsCount: this.model.getWatchExpressions().length,
 					extensionName: `${adapter.extensionDescription.publisher}.${adapter.extensionDescription.name}`,
 					isBuiltin: adapter.extensionDescription.isBuiltin,
-					launchJsonExists: root && !!this.configurationService.getConfiguration<debug.IGlobalConfig>('launch', { resource: root.uri })
+					launchJsonExists: root && !!this.configurationService.getValue<debug.IGlobalConfig>('launch', { resource: root.uri })
 				});
 			}).then(() => process, (error: any) => {
 				if (error instanceof Error && error.message === 'Canceled') {
@@ -1085,7 +1085,7 @@ export class DebugService implements debug.IDebugService {
 			this.debugType.reset();
 			this.viewModel.setMultiProcessView(false);
 
-			if (this.partService.isVisible(Parts.SIDEBAR_PART) && this.configurationService.getConfiguration<debug.IDebugConfiguration>('debug').openExplorerOnEnd) {
+			if (this.partService.isVisible(Parts.SIDEBAR_PART) && this.configurationService.getValue<debug.IDebugConfiguration>('debug').openExplorerOnEnd) {
 				this.viewletService.openViewlet(EXPLORER_VIEWLET_ID).done(null, errors.onUnexpectedError);
 			}
 		}

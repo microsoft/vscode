@@ -10,8 +10,6 @@ import phpGlobals = require('./phpGlobals');
 
 export default class PHPCompletionItemProvider implements CompletionItemProvider {
 
-	public triggerCharacters = ['.', ':', '$'];
-
 	public provideCompletionItems(document: TextDocument, position: Position, _token: CancellationToken): Promise<CompletionItem[]> {
 		let result: CompletionItem[] = [];
 

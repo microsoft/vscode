@@ -8,7 +8,7 @@ import URI from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { disposed } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ISingleEditOperation, IDecorationRenderOptions, IDecorationOptions, ILineChange, ICommonCodeEditor, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { ISingleEditOperation, IDecorationRenderOptions, IDecorationOptions, ILineChange } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -25,6 +25,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { bulkEdit, IResourceEdit } from 'vs/editor/common/services/bulkEdit';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { isCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class MainThreadEditors implements MainThreadEditorsShape {
 
@@ -259,11 +260,11 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 			}
 		}
 
-		let codeEditor: ICommonCodeEditor;
+		let codeEditor: ICodeEditor;
 		let editor = this._workbenchEditorService.getActiveEditor();
 		if (editor) {
 			let candidate = editor.getControl();
-			if (isCommonCodeEditor(candidate)) {
+			if (isCodeEditor(candidate)) {
 				codeEditor = candidate;
 			}
 		}

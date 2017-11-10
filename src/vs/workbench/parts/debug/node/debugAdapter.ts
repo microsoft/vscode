@@ -157,7 +157,7 @@ export class Adapter {
 		].join('\n');
 
 		// fix formatting
-		const editorConfig = this.configurationService.getConfiguration<any>();
+		const editorConfig = this.configurationService.getValue<any>();
 		if (editorConfig.editor && editorConfig.editor.insertSpaces) {
 			content = content.replace(new RegExp('\t', 'g'), strings.repeat(' ', editorConfig.editor.tabSize));
 		}

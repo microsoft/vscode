@@ -14,7 +14,7 @@ import * as objects from 'vs/base/common/objects';
 import uri from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { IModel, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { IModel } from 'vs/editor/common/editorCommon';
 import { IEditor } from 'vs/platform/editor/common/editor';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -32,6 +32,7 @@ import { Adapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 
 // debuggers extension point
 export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawAdapter[]>('debuggers', [], {
@@ -379,7 +380,7 @@ export class ConfigurationManager implements IConfigurationManager {
 			// do not allow breakpoints in our settings files
 			return false;
 		}
-		if (this.configurationService.getConfiguration<IDebugConfiguration>('debug').allowBreakpointsEverywhere) {
+		if (this.configurationService.getValue<IDebugConfiguration>('debug').allowBreakpointsEverywhere) {
 			return true;
 		}
 
@@ -399,7 +400,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		const editor = this.editorService.getActiveEditor();
 		if (editor) {
 			const codeEditor = editor.getControl();
-			if (isCommonCodeEditor(codeEditor)) {
+			if (isCodeEditor(codeEditor)) {
 				const model = codeEditor.getModel();
 				const language = model ? model.getLanguageIdentifier().language : undefined;
 				const adapters = this.adapters.filter(a => a.languages && a.languages.indexOf(language) >= 0);
@@ -448,7 +449,7 @@ class Launch implements ILaunch {
 	}
 
 	public getCompound(name: string): ICompound {
-		const config = this.configurationService.getConfiguration<IGlobalConfig>('launch', { resource: this.workspace.uri });
+		const config = this.configurationService.getValue<IGlobalConfig>('launch', { resource: this.workspace.uri });
 		if (!config || !config.compounds) {
 			return null;
 		}
@@ -457,7 +458,7 @@ class Launch implements ILaunch {
 	}
 
 	public getConfigurationNames(): string[] {
-		const config = this.configurationService.getConfiguration<IGlobalConfig>('launch', { resource: this.workspace.uri });
+		const config = this.configurationService.getValue<IGlobalConfig>('launch', { resource: this.workspace.uri });
 		if (!config || !config.configurations || !Array.isArray(config.configurations)) {
 			return [];
 		} else {
@@ -474,7 +475,7 @@ class Launch implements ILaunch {
 	}
 
 	public getConfiguration(name: string): IConfig {
-		const config = this.configurationService.getConfiguration<IGlobalConfig>('launch', { resource: this.workspace.uri });
+		const config = this.configurationService.getValue<IGlobalConfig>('launch', { resource: this.workspace.uri });
 		if (!config || !config.configurations) {
 			return null;
 		}

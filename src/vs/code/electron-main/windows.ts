@@ -934,7 +934,7 @@ export class WindowsManager implements IWindowsMainService {
 		if (this.lifecycleService.wasRestarted) {
 			restoreWindows = 'all'; // always reopen all windows when an update was applied
 		} else {
-			const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 			restoreWindows = ((windowConfig && windowConfig.restoreWindows) || 'one') as RestoreWindowsSetting;
 
 			if (restoreWindows === 'one' /* default */ && windowConfig && windowConfig.reopenFolders) {
@@ -1003,7 +1003,7 @@ export class WindowsManager implements IWindowsMainService {
 	private shouldOpenNewWindow(openConfig: IOpenConfiguration): { openFolderInNewWindow: boolean; openFilesInNewWindow: boolean; } {
 
 		// let the user settings override how folders are open in a new window or same window unless we are forced
-		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 		const openFolderInNewWindowConfig = (windowConfig && windowConfig.openFoldersInNewWindow) || 'default' /* default */;
 		const openFilesInNewWindowConfig = (windowConfig && windowConfig.openFilesInNewWindow) || 'off' /* default */;
 
@@ -1094,7 +1094,7 @@ export class WindowsManager implements IWindowsMainService {
 
 		// New window
 		if (!window) {
-			const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 			const state = this.getNewWindowState(configuration);
 
 			// Window state is not from a previous session: only allow fullscreen if we inherit it or user wants fullscreen
@@ -1257,7 +1257,7 @@ export class WindowsManager implements IWindowsMainService {
 		state.y = displayToUse.bounds.y + (displayToUse.bounds.height / 2) - (state.height / 2);
 
 		// Check for newWindowDimensions setting and adjust accordingly
-		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 		let ensureNoOverlap = true;
 		if (windowConfig && windowConfig.newWindowDimensions) {
 			if (windowConfig.newWindowDimensions === 'maximized') {

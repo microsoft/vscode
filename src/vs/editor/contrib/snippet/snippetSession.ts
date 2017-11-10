@@ -7,7 +7,7 @@
 
 import 'vs/css!./snippetSession';
 import { getLeadingWhitespace } from 'vs/base/common/strings';
-import { ICommonCodeEditor, IModel, TrackedRangeStickiness, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
+import { IModel, TrackedRangeStickiness, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { TextmateSnippet, Placeholder, Choice, SnippetParser } from './snippetParser';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -17,10 +17,11 @@ import { groupBy } from 'vs/base/common/arrays';
 import { dispose } from 'vs/base/common/lifecycle';
 import { EditorSnippetVariableResolver } from './snippetVariables';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class OneSnippet {
 
-	private readonly _editor: ICommonCodeEditor;
+	private readonly _editor: ICodeEditor;
 	private readonly _snippet: TextmateSnippet;
 	private readonly _offset: number;
 
@@ -36,7 +37,7 @@ export class OneSnippet {
 		inactiveFinal: ModelDecorationOptions.register({ stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges, className: 'finish-snippet-placeholder' }),
 	};
 
-	constructor(editor: ICommonCodeEditor, snippet: TextmateSnippet, offset: number) {
+	constructor(editor: ICodeEditor, snippet: TextmateSnippet, offset: number) {
 		this._editor = editor;
 		this._snippet = snippet;
 		this._offset = offset;
@@ -251,7 +252,7 @@ export class SnippetSession {
 		return selection;
 	}
 
-	static createEditsAndSnippets(editor: ICommonCodeEditor, template: string, overwriteBefore: number, overwriteAfter: number, enforceFinalTabstop: boolean): { edits: IIdentifiedSingleEditOperation[], snippets: OneSnippet[] } {
+	static createEditsAndSnippets(editor: ICodeEditor, template: string, overwriteBefore: number, overwriteAfter: number, enforceFinalTabstop: boolean): { edits: IIdentifiedSingleEditOperation[], snippets: OneSnippet[] } {
 
 		const model = editor.getModel();
 		const edits: IIdentifiedSingleEditOperation[] = [];
@@ -313,13 +314,13 @@ export class SnippetSession {
 		return { edits, snippets };
 	}
 
-	private readonly _editor: ICommonCodeEditor;
+	private readonly _editor: ICodeEditor;
 	private readonly _template: string;
 	private readonly _overwriteBefore: number;
 	private readonly _overwriteAfter: number;
 	private _snippets: OneSnippet[] = [];
 
-	constructor(editor: ICommonCodeEditor, template: string, overwriteBefore: number = 0, overwriteAfter: number = 0) {
+	constructor(editor: ICodeEditor, template: string, overwriteBefore: number = 0, overwriteAfter: number = 0) {
 		this._editor = editor;
 		this._template = template;
 		this._overwriteBefore = overwriteBefore;
