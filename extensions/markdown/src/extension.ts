@@ -174,7 +174,9 @@ export function activate(context: vscode.ExtensionContext) {
 				return tryOpen(args.path + '.md');
 			}
 			const resource = vscode.Uri.file(args.path);
-			return vscode.commands.executeCommand('vscode.open', resource);
+			return Promise.resolve(void 0)
+				.then(() => vscode.commands.executeCommand('vscode.open', resource))
+				.then(() => void 0);
 		});
 	}));
 
