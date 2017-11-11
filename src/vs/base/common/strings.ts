@@ -674,27 +674,6 @@ export function computeLineStarts(text: string): number[] {
  * Given a string and a max length returns a shorted version. Shorting
  * happens at favorable positions - such as whitespace or punctuation characters.
  */
-export function lcut_orig(text: string, n: number): string {
-
-	if (text.length < n) {
-		return text;
-	}
-
-	let segments = text.split(/\b/),
-		count = 0;
-
-	for (let i = segments.length - 1; i >= 0; i--) {
-		count += segments[i].length;
-
-		if (count > n) {
-			segments.splice(0, i);
-			break;
-		}
-	}
-
-	return segments.join(empty).replace(/^\s/, empty);
-}
-
 export function lcut(text: string, n: number) {
 	if (text.length < n) {
 		return text;
