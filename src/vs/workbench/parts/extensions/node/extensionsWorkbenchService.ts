@@ -141,7 +141,7 @@ class Extension implements IExtension {
 		return require.toUrl('../browser/media/defaultIcon.png');
 	}
 
-  get repository(): string {
+	get repository(): string {
 		return this.gallery && this.gallery.assets.repository.uri;
 	}
 
