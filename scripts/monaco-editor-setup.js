@@ -11,8 +11,8 @@ var path = require('path');
 
 var ROOT = path.join(__dirname, '..');
 var ROOT_NODE_MODULES_PATH = path.join(ROOT, 'node_modules');
-var EDITOR_ROOT = path.join(ROOT, 'build/monaco')
-var EDITOR_NODE_MODULES_PATH = path.join(EDITOR_ROOT, 'node_modules')
+var EDITOR_ROOT = path.join(ROOT, 'build/monaco');
+var EDITOR_NODE_MODULES_PATH = path.join(EDITOR_ROOT, 'node_modules');
 
 var cmd = `npm install`;
 cp.execSync(cmd, {
