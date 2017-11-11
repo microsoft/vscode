@@ -110,7 +110,7 @@ function compareResourceStates(a: vscode.SourceControlResourceState, b: vscode.S
 	return result;
 }
 
-export class ExtHostSCMInputBox {
+export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 
 	private _value: string = '';
 
@@ -138,6 +138,17 @@ export class ExtHostSCMInputBox {
 	set placeholder(placeholder: string) {
 		this._proxy.$setInputBoxPlaceholder(this._sourceControlHandle, placeholder);
 		this._placeholder = placeholder;
+	}
+
+	private _warningLength: number | undefined;
+
+	get warningLength(): number | undefined {
+		return this._warningLength;
+	}
+
+	set warningLength(warningLength: number) {
+		this._proxy.$setWarningLength(this._sourceControlHandle, warningLength);
+		this._warningLength = warningLength;
 	}
 
 	constructor(private _proxy: MainThreadSCMShape, private _sourceControlHandle: number) {
