@@ -264,7 +264,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 		choose: (severity, message, options, cancelId): TPromise<number> => {
 			return TPromise.as(cancelId);
 		}
-	});
+	} as IChoiceService);
 
 	return instantiationService;
 }
@@ -361,15 +361,15 @@ export class TestPartService implements IPartService {
 		return true;
 	}
 
-	public hasFocus(part): boolean {
+	public hasFocus(part: Parts): boolean {
 		return false;
 	}
 
-	public isVisible(part): boolean {
+	public isVisible(part: Parts): boolean {
 		return true;
 	}
 
-	public getContainer(part): HTMLElement {
+	public getContainer(part: Parts): HTMLElement {
 		return null;
 	}
 
@@ -598,11 +598,11 @@ export class TestEditorService implements IWorkbenchEditorService {
 		this.mockLineNumber = 15;
 	}
 
-	public openEditors(inputs): Promise {
+	public openEditors(inputs: any[]): Promise {
 		return TPromise.as([]);
 	}
 
-	public replaceEditors(editors): TPromise<IEditor[]> {
+	public replaceEditors(editors: any[]): TPromise<IEditor[]> {
 		return TPromise.as([]);
 	}
 

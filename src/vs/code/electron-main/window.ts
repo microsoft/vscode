@@ -339,7 +339,7 @@ export class CodeWindow implements ICodeWindow {
 			'X-Market-User-Id': this.environmentService.machineUUID
 		};
 
-		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, (details, cb) => {
+		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, (details: any, cb: any) => {
 			cb({ cancel: false, requestHeaders: objects.assign(details.requestHeaders, headers) });
 		});
 
@@ -355,7 +355,7 @@ export class CodeWindow implements ICodeWindow {
 			return callback({});
 		});
 
-		this._win.webContents.session.webRequest.onHeadersReceived(null, (details, callback) => {
+		this._win.webContents.session.webRequest.onHeadersReceived(null, (details: any, callback: any) => {
 			const contentType: string[] = (details.responseHeaders['content-type'] || details.responseHeaders['Content-Type']) as any;
 			if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
 				return callback({ cancel: true });

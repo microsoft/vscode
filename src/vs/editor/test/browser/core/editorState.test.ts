@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import { IModel } from 'vs/editor/common/editorCommon';
-import { EditorState, CodeEditorStateFlag } from 'vs/editor/common/core/editorState';
+import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';

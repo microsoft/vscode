@@ -28,7 +28,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { CollapseAllAction, FilterAction, FilterInputBoxActionItem } from 'vs/workbench/parts/markers/browser/markersPanelActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import Messages from 'vs/workbench/parts/markers/common/messages';
-import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
+import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';

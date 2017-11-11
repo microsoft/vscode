@@ -22,7 +22,6 @@ import { IInstantiationService, createDecorator } from 'vs/platform/instantiatio
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
-import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import { overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
@@ -626,10 +625,10 @@ export class SearchResult extends Disposable {
 			}
 		});
 		if (this._showHighlights && selectedMatch) {
-			this._rangeHighlightDecorations.highlightRange({
-				resource: selectedMatch.parent().resource(),
-				range: selectedMatch.range()
-			});
+			this._rangeHighlightDecorations.highlightRange(
+				selectedMatch.parent().resource(),
+				selectedMatch.range()
+			);
 		} else {
 			this._rangeHighlightDecorations.removeHighlightRange();
 		}
@@ -840,4 +839,82 @@ export interface ISearchWorkbenchService {
 	_serviceBrand: any;
 
 	readonly searchModel: SearchModel;
+}
+
+/**
+ * Can add a range highlight decoration to a model.
+ * It will automatically remove it when the model has its decorations changed.
+ */
+export class RangeHighlightDecorations implements IDisposable {
+
+	private _decorationId: string = null;
+	private _model: IModel = null;
+	private _modelDisposables: IDisposable[] = [];
+
+	constructor(
+		@IModelService private readonly _modelService: IModelService
+	) {
+	}
+
+	public removeHighlightRange() {
+		if (this._model && this._decorationId) {
+			this._model.deltaDecorations([this._decorationId], []);
+		}
+		this._decorationId = null;
+	}
+
+	public highlightRange(resource: URI | IModel, range: Range, ownerId: number = 0): void {
+		let model: IModel;
+		if (URI.isUri(resource)) {
+			model = this._modelService.getModel(resource);
+		} else {
+			model = resource;
+		}
+
+		if (model) {
+			this.doHighlightRange(model, range);
+		}
+	}
+
+	private doHighlightRange(model: IModel, range: Range) {
+		this.removeHighlightRange();
+		this._decorationId = model.deltaDecorations([], [{ range: range, options: RangeHighlightDecorations._RANGE_HIGHLIGHT_DECORATION }])[0];
+		this.setModel(model);
+	}
+
+	private setModel(model: IModel) {
+		if (this._model !== model) {
+			this.disposeModelListeners();
+			this._model = model;
+			this._modelDisposables.push(this._model.onDidChangeDecorations((e) => {
+				this.disposeModelListeners();
+				this.removeHighlightRange();
+				this._model = null;
+			}));
+			this._modelDisposables.push(this._model.onWillDispose(() => {
+				this.disposeModelListeners();
+				this.removeHighlightRange();
+				this._model = null;
+			}));
+		}
+	}
+
+	private disposeModelListeners() {
+		this._modelDisposables.forEach(disposable => disposable.dispose());
+		this._modelDisposables = [];
+	}
+
+	public dispose() {
+		if (this._model) {
+			this.removeHighlightRange();
+			this.disposeModelListeners();
+			this._model = null;
+		}
+	}
+
+	private static _RANGE_HIGHLIGHT_DECORATION = ModelDecorationOptions.register({
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		className: 'rangeHighlight',
+		isWholeLine: true
+	});
 }

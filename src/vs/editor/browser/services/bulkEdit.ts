@@ -15,8 +15,9 @@ import { IFileService, IFileChange } from 'vs/platform/files/common/files';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
-import { IIdentifiedSingleEditOperation, IModel, EndOfLineSequence, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { IIdentifiedSingleEditOperation, IModel, EndOfLineSequence } from 'vs/editor/common/editorCommon';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export interface IResourceEdit {
 	resource: URI;
@@ -297,14 +298,14 @@ export interface BulkEdit {
 	ariaMessage(): string;
 }
 
-export function bulkEdit(textModelResolverService: ITextModelService, editor: ICommonCodeEditor, edits: IResourceEdit[], fileService?: IFileService, progress: IProgressRunner = null): TPromise<any> {
+export function bulkEdit(textModelResolverService: ITextModelService, editor: ICodeEditor, edits: IResourceEdit[], fileService?: IFileService, progress: IProgressRunner = null): TPromise<any> {
 	let bulk = createBulkEdit(textModelResolverService, editor, fileService);
 	bulk.add(edits);
 	bulk.progress(progress);
 	return bulk.finish();
 }
 
-export function createBulkEdit(textModelResolverService: ITextModelService, editor?: ICommonCodeEditor, fileService?: IFileService): BulkEdit {
+export function createBulkEdit(textModelResolverService: ITextModelService, editor?: ICodeEditor, fileService?: IFileService): BulkEdit {
 
 	let all: IResourceEdit[] = [];
 	let recording = new ChangeRecorder(fileService).start();

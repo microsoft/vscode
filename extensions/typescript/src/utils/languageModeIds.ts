@@ -7,3 +7,4 @@ export const typescript = 'typescript';
 export const typescriptreact = 'typescriptreact';
 export const javascript = 'javascript';
 export const javascriptreact = 'javascriptreact';
+export const jsxTags = 'jsx-tags';

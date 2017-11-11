@@ -38,7 +38,7 @@ if (typeof global.Promise === 'undefined') {
 let base = createMonacoBaseAPI();
 for (let prop in base) {
 	if (base.hasOwnProperty(prop)) {
-		exports[prop] = base[prop];
+		exports[prop] = (base as any)[prop];
 	}
 }
 exports.editor = createMonacoEditorAPI();
