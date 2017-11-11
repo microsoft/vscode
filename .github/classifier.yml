@@ -40,6 +40,6 @@
         snippets: [ jrieken ],
         tasks: [ dbaeumer ],
         typescript: [ mjbvz ],
-        workbench: [ bpasero, isidorn, sandy081]
+        workbench: [ bpasero ]
     }
 }
