@@ -23,7 +23,7 @@ import { VIEWLET_ID, OpenEditorsFocusedContext, ExplorerFocusedContext } from 'v
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
-import { Renderer, DataSource, Controller, AccessibilityProvider, ActionProvider, DragAndDrop } from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
+import { Renderer, DataSource, Controller, AccessibilityProvider, ActionProvider, DragAndDrop, EditorSort } from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { CloseAllEditorsAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { ToggleEditorLayoutAction } from 'vs/workbench/browser/actions/toggleEditorLayout';
@@ -112,6 +112,14 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		];
 	}
 
+	private onModelSave(): void {
+		const editorSort = this.instantiationService.createInstance(EditorSort);
+		if (editorSort.orderBySavedRecently)
+			editorSort.moveToTop();
+
+		this.updateDirtyIndicator();
+	}
+
 	public renderBody(container: HTMLElement): void {
 		this.treeContainer = super.renderViewTree(container);
 		dom.addClass(this.treeContainer, 'explorer-open-editors');
@@ -184,7 +192,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		// Handle dirty counter
 		this.disposables.push(this.untitledEditorService.onDidChangeDirty(e => this.updateDirtyIndicator()));
 		this.disposables.push(this.textFileService.models.onModelsDirty(e => this.updateDirtyIndicator()));
-		this.disposables.push(this.textFileService.models.onModelsSaved(e => this.updateDirtyIndicator()));
+		this.disposables.push(this.textFileService.models.onModelsSaved(e => this.onModelSave()));
 		this.disposables.push(this.textFileService.models.onModelsSaveError(e => this.updateDirtyIndicator()));
 		this.disposables.push(this.textFileService.models.onModelsReverted(e => this.updateDirtyIndicator()));
 
