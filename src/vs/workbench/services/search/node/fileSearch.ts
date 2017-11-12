@@ -117,7 +117,7 @@ export class FileWalker {
 		this.isCanceled = true;
 	}
 
-	public walkP(folderQueries: IFolderSearch[],extraFiles: string[]): PPromise<boolean, IRawFileMatch> {
+	public walkP(folderQueries: IFolderSearch[], extraFiles: string[]): PPromise<boolean, IRawFileMatch> {
 		return new PPromise((onComplete, onError, onResult) => {
 			this.fileWalkStartTime = Date.now();
 
@@ -807,12 +807,28 @@ export class Engine implements ISearchEngine<IRawFileMatch> {
 	}
 
 	public search(onResult: (result: IRawFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
-		this.walker.walk(this.folderQueries, this.extraFiles, onResult, (err: Error, isLimitHit: boolean) => {
-			done(err, {
-				limitHit: isLimitHit,
-				stats: this.walker.getStats()
-			});
-		});
+		let completeResult: boolean;
+		let error: Error;
+
+		this.walker.walkP(this.folderQueries, this.extraFiles).then(
+			walkComplete => {
+				completeResult = walkComplete;
+				done(error, {
+					limitHit: completeResult,
+					stats: this.walker.getStats()
+				});
+			},
+			walkError => {
+				error = walkError;
+				done(walkError, {
+					limitHit: completeResult,
+					stats: this.walker.getStats()
+				});
+			},
+			walkProgress => {
+				onResult(walkProgress);
+			}
+		);
 	}
 
 	public cancel(): void {
