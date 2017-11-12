@@ -49,8 +49,8 @@ suite('FileSearchEngine', () => {
 				done();
 			},
 			error => { assert.ok(!error); },
-			result => {
-				if (result) {
+			({ results }) => {
+				if (results) {
 					count++;
 				}
 			}
@@ -71,8 +71,8 @@ suite('FileSearchEngine', () => {
 				done();
 			},
 			error => { assert.ok(!error); },
-			result => {
-				if (result) {
+			({ results }) => {
+				if (results) {
 					count++;
 				}
 			}
@@ -94,8 +94,8 @@ suite('FileSearchEngine', () => {
 				done();
 			},
 			error => { assert.ok(!error); },
-			result => {
-				if (result) {
+			({ results }) => {
+				if (results) {
 					count++;
 				}
 			}
@@ -118,8 +118,8 @@ suite('FileSearchEngine', () => {
 				done();
 			},
 			error => { assert.ok(!error); },
-			result => {
-				if (result) {
+			({ results }) => {
+				if (results) {
 					count++;
 				}
 			}
@@ -142,8 +142,8 @@ suite('FileSearchEngine', () => {
 				done();
 			},
 			error => { assert.ok(!error); },
-			result => {
-				if (result) {
+			({ results }) => {
+				if (results) {
 					count++;
 				}
 			}
@@ -167,8 +167,8 @@ suite('FileSearchEngine', () => {
 				done();
 			},
 			error => { assert.ok(!error); },
-			result => {
-				if (result) {
+			({ results }) => {
+				if (results) {
 					count++;
 				}
 			}
@@ -192,8 +192,8 @@ suite('FileSearchEngine', () => {
 				done();
 			},
 			error => { assert.ok(!error); },
-			result => {
-				if (result) {
+			({ results }) => {
+				if (results) {
 					count++;
 				}
 			}
@@ -214,8 +214,8 @@ suite('FileSearchEngine', () => {
 				done();
 			},
 			error => { assert.ok(!error); },
-			result => {
-				if (result) {
+			({ results }) => {
+				if (results) {
 					count++;
 				}
 			}
@@ -236,8 +236,8 @@ suite('FileSearchEngine', () => {
 				done();
 			},
 			error => { assert.ok(!error); },
-			result => {
-				if (result) {
+			({ results }) => {
+				if (results) {
 					count++;
 				}
 			}
@@ -258,8 +258,8 @@ suite('FileSearchEngine', () => {
 				done();
 			},
 			error => { assert.ok(!error); },
-			result => {
-				if (result) {
+			({ results }) => {
+				if (results) {
 					count++;
 				}
 			}
@@ -285,8 +285,8 @@ suite('FileSearchEngine', () => {
 				done();
 			},
 			error => { assert.ok(!error); },
-			result => {
-				if (result) {
+			({ results }) => {
+				if (results) {
 					count++;
 				}
 			}
@@ -313,8 +313,8 @@ suite('FileSearchEngine', () => {
 				done();
 			},
 			error => { assert.ok(!error); },
-			result => {
-				if (result) {
+			({ results }) => {
+				if (results) {
 					count++;
 				}
 			}
@@ -335,8 +335,8 @@ suite('FileSearchEngine', () => {
 				done();
 			},
 			error => { assert.ok(!error); },
-			result => {
-				if (result) {
+			({ results }) => {
+				if (results) {
 					count++;
 				}
 			}
@@ -357,8 +357,8 @@ suite('FileSearchEngine', () => {
 				done();
 			},
 			error => { assert.ok(!error); },
-			result => {
-				if (result) {
+			({ results }) => {
+				if (results) {
 					count++;
 				}
 			}
@@ -379,8 +379,8 @@ suite('FileSearchEngine', () => {
 				done();
 			},
 			error => { assert.ok(!error); },
-			result => {
-				if (result) {
+			({ results }) => {
+				if (results) {
 					count++;
 				}
 			}
@@ -404,11 +404,11 @@ suite('FileSearchEngine', () => {
 				done();
 			},
 			error => { assert.ok(!error); },
-			result => {
-				if (result) {
+			({ results }) => {
+				if (results) {
 					count++;
 				}
-				res = result;
+				res = results;
 			}
 		);
 	});
@@ -428,8 +428,8 @@ suite('FileSearchEngine', () => {
 				done();
 			},
 			error => { assert.ok(!error); },
-			result => {
-				if (result) {
+			({ results }) => {
+				if (results) {
 					count++;
 				}
 			}
@@ -450,8 +450,8 @@ suite('FileSearchEngine', () => {
 				done();
 			},
 			error => { assert.ok(!error); },
-			result => {
-				if (result) {
+			({ results }) => {
+				if (results) {
 					count++;
 				}
 			}
@@ -472,8 +472,8 @@ suite('FileSearchEngine', () => {
 				done();
 			},
 			error => { assert.ok(!error); },
-			result => {
-				if (result) {
+			({ results }) => {
+				if (results) {
 					count++;
 				}
 			}
@@ -495,8 +495,8 @@ suite('FileSearchEngine', () => {
 				done();
 			},
 			error => { assert.ok(!error); },
-			result => {
-				if (result) {
+			({ results }) => {
+				if (results) {
 					count++;
 				}
 			}
@@ -518,8 +518,8 @@ suite('FileSearchEngine', () => {
 				done();
 			},
 			error => { assert.ok(!error); },
-			result => {
-				if (result) {
+			({ results }) => {
+				if (results) {
 					count++;
 				}
 			}
@@ -541,8 +541,8 @@ suite('FileSearchEngine', () => {
 				done();
 			},
 			error => { assert.ok(!error); },
-			result => {
-				if (result) {
+			({ results }) => {
+				if (results) {
 					count++;
 				}
 			}
@@ -578,8 +578,8 @@ suite('FileSearchEngine', () => {
 				done();
 			},
 			error => { assert.ok(!error); },
-			result => {
-				if (result) {
+			({ results }) => {
+				if (results) {
 					count++;
 				}
 			}
@@ -602,11 +602,11 @@ suite('FileSearchEngine', () => {
 				done();
 			},
 			error => { assert.ok(!error); },
-			result => {
-				if (result) {
+			({ results }) => {
+				if (results) {
 					count++;
 				}
-				res = result;
+				res = results;
 			}
 		);
 	});
@@ -625,8 +625,8 @@ suite('FileSearchEngine', () => {
 				done();
 			},
 			error => { assert.ok(!error); },
-			result => {
-				if (result) {
+			({ results }) => {
+				if (results) {
 					count++;
 				}
 			}
@@ -650,11 +650,11 @@ suite('FileSearchEngine', () => {
 				done();
 			},
 			error => { assert.ok(!error); },
-			result => {
-				if (result) {
+			({ results }) => {
+				if (results) {
 					count++;
 				}
-				res = result;
+				res = results;
 			}
 		);
 	});
@@ -675,11 +675,11 @@ suite('FileSearchEngine', () => {
 				done();
 			},
 			error => { assert.ok(!error); },
-			result => {
-				if (result) {
+			({ results }) => {
+				if (results) {
 					count++;
 				}
-				res = result;
+				res = results;
 			}
 		);
 	});
@@ -701,11 +701,11 @@ suite('FileSearchEngine', () => {
 				done();
 			},
 			error => { assert.ok(!error); },
-			result => {
-				if (result) {
+			({ results }) => {
+				if (results) {
 					count++;
 				}
-				res = result;
+				res = results;
 			}
 		);
 	});
@@ -731,8 +731,8 @@ suite('FileSearchEngine', () => {
 				done();
 			},
 			error => { assert.ok(!error); },
-			result => {
-				res.push(result);
+			({ results }) => {
+				res.push(results);
 			}
 		);
 	});
@@ -758,11 +758,11 @@ suite('FileSearchEngine', () => {
 				done();
 			},
 			error => { assert.ok(!error); },
-			result => {
-				if (result) {
+			({ results }) => {
+				if (results) {
 					count++;
 				}
-				res = result;
+				res = results;
 			}
 		);
 	});
@@ -789,11 +789,11 @@ suite('FileSearchEngine', () => {
 				done();
 			},
 			error => { assert.ok(!error); },
-			result => {
-				if (result) {
+			({ results }) => {
+				if (results) {
 					count++;
 				}
-				res = result;
+				res = results;
 			}
 		);
 	});
@@ -818,8 +818,8 @@ suite('FileSearchEngine', () => {
 				done();
 			},
 			error => { assert.ok(!error); },
-			result => {
-				if (result) {
+			({ results }) => {
+				if (results) {
 					count++;
 				}
 			}
@@ -843,8 +843,8 @@ suite('FileSearchEngine', () => {
 				done();
 			},
 			error => { assert.ok(!error); },
-			result => {
-				if (result) {
+			({ results }) => {
+				if (results) {
 					count++;
 				}
 			}

@@ -24,7 +24,7 @@ import { IProgress, IUncachedSearchStats } from 'vs/platform/search/common/searc
 
 import extfs = require('vs/base/node/extfs');
 import flow = require('vs/base/node/flow');
-import { IRawFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine, IFolderSearch } from './search';
+import { IRawFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine, IFolderSearch, ISearchProgress } from './search';
 import { spawnRipgrepCmd } from './ripgrepFileSearch';
 
 enum Traversal {
@@ -807,7 +807,7 @@ export class Engine implements ISearchEngine<IRawFileMatch> {
 	}
 
 	// TODO: "search" function doesn't seem to emit progress out.
-	public searchP(): PPromise<ISerializedSearchComplete, IRawFileMatch> {
+	public searchP(): PPromise<ISerializedSearchComplete, ISearchProgress<IRawFileMatch>> {
 		return new PPromise((sComplete, sError, sProgress) => {
 			return this.walker.walkP(this.folderQueries, this.extraFiles).then(
 				walkComplete => {
@@ -820,7 +820,7 @@ export class Engine implements ISearchEngine<IRawFileMatch> {
 					sError(walkError);
 				},
 				walkProgress => {
-					sProgress(walkProgress);
+					sProgress({ results: walkProgress });
 				}
 			);
 		});

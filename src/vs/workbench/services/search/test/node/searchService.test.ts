@@ -9,8 +9,9 @@ import * as assert from 'assert';
 import { normalize } from 'path';
 import path = require('path');
 
+import { PPromise } from 'vs/base/common/winjs.base';
 import { IProgress, IUncachedSearchStats } from 'vs/platform/search/common/search';
-import { ISearchEngine, IRawSearch, IRawFileMatch, ISerializedFileMatch, ISerializedSearchComplete, IFolderSearch } from 'vs/workbench/services/search/node/search';
+import { ISearchEngine, IRawSearch, IRawFileMatch, ISerializedFileMatch, ISerializedSearchComplete, IFolderSearch, ISearchProgress } from 'vs/workbench/services/search/node/search';
 import { SearchService as RawSearchService } from 'vs/workbench/services/search/node/rawSearchService';
 import { DiskSearch } from 'vs/workbench/services/search/node/searchService';
 
@@ -43,6 +44,33 @@ class TestSearchEngine implements ISearchEngine<IRawFileMatch> {
 
 	constructor(private result: () => IRawFileMatch, public config?: IRawSearch) {
 		TestSearchEngine.last = this;
+	}
+
+	public searchP(): PPromise<ISerializedSearchComplete, ISearchProgress<IRawFileMatch>> {
+		const self = this;
+		return new PPromise<ISerializedSearchComplete, ISearchProgress<IRawFileMatch>>((c, e, p) => {
+			(function next() {
+				process.nextTick(() => {
+					if (self.isCanceled) {
+						c({
+							limitHit: false,
+							stats
+						});
+						return;
+					}
+					const result = self.result();
+					if (!result) {
+						c({
+							limitHit: false,
+							stats: stats
+						});
+					} else {
+						p({ results: result });
+						next();
+					}
+				});
+			})();
+		});
 	}
 
 	public search(onResult: (match: IRawFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
