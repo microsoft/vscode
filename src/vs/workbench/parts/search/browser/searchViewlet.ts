@@ -21,7 +21,7 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
 import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
-import { ITree } from 'vs/base/parts/tree/browser/tree';
+import { ITree, IFocusEvent } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { Scope } from 'vs/workbench/common/memento';
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
@@ -522,9 +522,9 @@ export class SearchViewlet extends Viewlet {
 				}
 			}));
 
-			this.toUnbind.push(this.tree.onDOMFocus(e => {
-				const focus = this.tree.getFocus();
-				this.firstMatchFocused.set(this.tree.getNavigator().first() === this.tree.getFocus());
+			this.toUnbind.push(this.tree.addListener('focus', (e: IFocusEvent) => {
+				const focus = e.focus;
+				this.firstMatchFocused.set(this.tree.getNavigator().first() === focus);
 				this.fileMatchOrMatchFocused.set(true);
 				this.fileMatchFocused.set(focus instanceof FileMatch);
 				this.matchFocused.set(focus instanceof Match);
