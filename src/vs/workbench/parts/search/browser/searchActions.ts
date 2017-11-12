@@ -10,7 +10,6 @@ import resources = require('vs/base/common/resources');
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
-import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { INavigator } from 'vs/base/common/iterator';
@@ -586,7 +585,7 @@ export class ReplaceAllInFolderAction extends AbstractSearchAndReplaceAction {
 		@IKeybindingService keyBindingService: IKeybindingService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
-		super(Constants.ReplaceAllInFileActionId, nls.localize('file.replaceAll.label', "Replace All"), 'action-replace-all');
+		super(Constants.ReplaceAllInFolderActionId, nls.localize('file.replaceAll.label', "Replace All"), 'action-replace-all');
 	}
 
 	public async run(): TPromise<any> {

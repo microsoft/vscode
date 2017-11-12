@@ -28,7 +28,7 @@ import { IPreferencesService } from 'vs/workbench/parts/preferences/common/prefe
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { FileChangeType, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
-import { Match, FileMatch, SearchModel, FileMatchOrMatch, IChangeEvent, ISearchWorkbenchService } from 'vs/workbench/parts/search/common/searchModel';
+import { Match, FileMatch, SearchModel, FileMatchOrMatch, IChangeEvent, ISearchWorkbenchService, FolderMatch } from 'vs/workbench/parts/search/common/searchModel';
 import { QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
 import { MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ISearchProgressItem, ISearchComplete, ISearchQuery, IQueryOptions, ISearchConfiguration } from 'vs/platform/search/common/search';
@@ -80,6 +80,7 @@ export class SearchViewlet extends Viewlet {
 	private firstMatchFocused: IContextKey<boolean>;
 	private fileMatchOrMatchFocused: IContextKey<boolean>;
 	private fileMatchFocused: IContextKey<boolean>;
+	private folderMatchFocused: IContextKey<boolean>;
 	private matchFocused: IContextKey<boolean>;
 
 	private actionRegistry: { [key: string]: Action; };
@@ -132,6 +133,7 @@ export class SearchViewlet extends Viewlet {
 		this.firstMatchFocused = Constants.FirstMatchFocusKey.bindTo(contextKeyService);
 		this.fileMatchOrMatchFocused = Constants.FileMatchOrMatchFocusKey.bindTo(contextKeyService);
 		this.fileMatchFocused = Constants.FileFocusKey.bindTo(contextKeyService);
+		this.folderMatchFocused = Constants.FolderFocusKey.bindTo(contextKeyService);
 		this.matchFocused = Constants.MatchFocusKey.bindTo(this.contextKeyService);
 
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
@@ -527,6 +529,7 @@ export class SearchViewlet extends Viewlet {
 				this.firstMatchFocused.set(this.tree.getNavigator().first() === focus);
 				this.fileMatchOrMatchFocused.set(true);
 				this.fileMatchFocused.set(focus instanceof FileMatch);
+				this.folderMatchFocused.set(focus instanceof FolderMatch);
 				this.matchFocused.set(focus instanceof Match);
 			}));
 
@@ -534,6 +537,7 @@ export class SearchViewlet extends Viewlet {
 				this.firstMatchFocused.reset();
 				this.fileMatchOrMatchFocused.reset();
 				this.fileMatchFocused.reset();
+				this.folderMatchFocused.reset();
 				this.matchFocused.reset();
 			}));
 
