@@ -40,24 +40,30 @@ function doLegacySearchTest(config: IRawSearch, expectedResultCount: number | Fu
 		let engine = new TextSearchEngine(config, new FileWalker({ ...config, useRipgrep: false }), textSearchWorkerProvider);
 
 		let c = 0;
-		engine.search((result) => {
-			if (result) {
-				c += countAll(result);
-			}
-		}, () => { }, (error) => {
-			try {
-				assert.ok(!error);
-				if (typeof expectedResultCount === 'function') {
-					assert(expectedResultCount(c));
-				} else {
-					assert.equal(c, expectedResultCount, 'legacy');
-				}
-			} catch (e) {
-				reject(e);
-			}
 
-			resolve(undefined);
-		});
+		return engine.searchP().then(
+			complete => {
+				try {
+					if (typeof expectedResultCount === 'function') {
+						assert(expectedResultCount(c));
+					} else {
+						assert.equal(c, expectedResultCount, 'legacy');
+					}
+				} catch (e) {
+					reject(e);
+				}
+
+				resolve(undefined);
+			},
+			error => {
+				assert.ok(!error);
+			},
+			({ results }) => {
+				if (results) {
+					c += countAll(results);
+				}
+			}
+		);
 	});
 }
 
