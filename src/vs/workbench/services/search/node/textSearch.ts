@@ -126,41 +126,59 @@ export class Engine implements ISearchEngine<ISerializedFileMatch[]> {
 		let nextBatch: string[] = [];
 		let nextBatchBytes = 0;
 		const batchFlushBytes = 2 ** 20; // 1MB
-		this.walker.walk(this.config.folderQueries, this.config.extraFiles, result => {
-			let bytes = result.size || 1;
-			this.totalBytes += bytes;
+		this.walker.walkP(this.config.folderQueries, this.config.extraFiles).then(
+			complete => {
+				this.walkerIsDone = true;
+				this.walkerError = null;
 
-			// If we have reached the limit or we are canceled, ignore it
-			if (this.limitReached || this.isCanceled) {
-				return unwind(bytes);
-			}
-
-			// Indicate progress to the outside
-			progress();
-
-			const absolutePath = result.base ? [result.base, result.relativePath].join(path.sep) : result.relativePath;
-			nextBatch.push(absolutePath);
-			nextBatchBytes += bytes;
-
-			if (nextBatchBytes >= batchFlushBytes) {
-				run(nextBatch, nextBatchBytes);
-				nextBatch = [];
-				nextBatchBytes = 0;
-			}
-		}, (error, isLimitHit) => {
-			this.walkerIsDone = true;
-			this.walkerError = error;
-
-			// Send any remaining paths to a worker, or unwind if we're stopping
-			if (nextBatch.length) {
-				if (this.limitReached || this.isCanceled) {
-					unwind(nextBatchBytes);
+				// Send any remaining paths to a worker, or unwind if we're stopping
+				if (nextBatch.length) {
+					if (this.limitReached || this.isCanceled) {
+						unwind(nextBatchBytes);
+					} else {
+						run(nextBatch, nextBatchBytes);
+					}
 				} else {
-					run(nextBatch, nextBatchBytes);
+					unwind(0);
 				}
-			} else {
-				unwind(0);
+			},
+			error => {
+				this.walkerIsDone = true;
+				this.walkerError = error;
+
+				// Send any remaining paths to a worker, or unwind if we're stopping
+				if (nextBatch.length) {
+					if (this.limitReached || this.isCanceled) {
+						unwind(nextBatchBytes);
+					} else {
+						run(nextBatch, nextBatchBytes);
+					}
+				} else {
+					unwind(0);
+				}
+			},
+			result => {
+				let bytes = result.size || 1;
+				this.totalBytes += bytes;
+
+				// If we have reached the limit or we are canceled, ignore it
+				if (this.limitReached || this.isCanceled) {
+					return unwind(bytes);
+				}
+
+				// Indicate progress to the outside
+				progress();
+
+				const absolutePath = result.base ? [result.base, result.relativePath].join(path.sep) : result.relativePath;
+				nextBatch.push(absolutePath);
+				nextBatchBytes += bytes;
+
+				if (nextBatchBytes >= batchFlushBytes) {
+					run(nextBatch, nextBatchBytes);
+					nextBatch = [];
+					nextBatchBytes = 0;
+				}
 			}
-		});
+		);
 	}
 }
