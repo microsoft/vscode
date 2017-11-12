@@ -806,8 +806,8 @@ export class Engine implements ISearchEngine<IRawFileMatch> {
 		this.walker = new FileWalker(config);
 	}
 
+	// TODO: "search" function doesn't seem to emit progress out.
 	public searchP(): PPromise<ISerializedSearchComplete, IRawFileMatch> {
-		// What do the progress and complete mean after promisifications. It sees more natural to invert the result set where in the "done" is called as onComplete callback (with the search result, may be?)
 		return new PPromise((sComplete, sError, sProgress) => {
 			return this.walker.walkP(this.folderQueries, this.extraFiles).then(
 				walkComplete => {
