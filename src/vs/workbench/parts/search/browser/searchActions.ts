@@ -221,32 +221,6 @@ export class FocusPreviousInputAction extends Action {
 	}
 }
 
-export class OpenSearchViewletAction extends ToggleViewletAction {
-
-	public static LABEL = nls.localize('showSearchViewlet', "Show Search");
-
-	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
-		super(id, label, Constants.VIEWLET_ID, viewletService, editorService);
-	}
-
-	public run(): TPromise<any> {
-		const activeViewlet = this.viewletService.getActiveViewlet();
-		const searchViewletWasOpen = activeViewlet && activeViewlet.getId() === Constants.VIEWLET_ID;
-
-		return super.run().then(() => {
-			if (!searchViewletWasOpen) {
-				// Get the search viewlet and ensure that 'replace' is collapsed
-				const searchViewlet = this.viewletService.getActiveViewlet();
-				if (searchViewlet && searchViewlet.getId() === Constants.VIEWLET_ID) {
-					const searchAndReplaceWidget = (<SearchViewlet>searchViewlet).searchAndReplaceWidget;
-					searchAndReplaceWidget.toggleReplace(false);
-				}
-			}
-		});
-	}
-
-}
-
 export const FocusActiveEditorCommand = (accessor: ServicesAccessor) => {
 	const editorService = accessor.get(IWorkbenchEditorService);
 	const editor = editorService.getActiveEditor();
@@ -288,6 +262,8 @@ export abstract class FindOrReplaceInFilesAction extends Action {
 		});
 	}
 }
+
+export const SHOW_SEARCH_LABEL = nls.localize('showSearchViewlet', "Show Search");
 
 export class FindInFilesAction extends FindOrReplaceInFilesAction {
 
