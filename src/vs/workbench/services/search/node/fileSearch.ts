@@ -806,29 +806,33 @@ export class Engine implements ISearchEngine<IRawFileMatch> {
 		this.walker = new FileWalker(config);
 	}
 
-	public search(onResult: (result: IRawFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
-		let completeResult: boolean;
-		let error: Error;
+	public searchP(): PPromise<ISerializedSearchComplete, IRawFileMatch> {
+		// What do the progress and complete mean after promisifications. It sees more natural to invert the result set where in the "done" is called as onComplete callback (with the search result, may be?)
+		return new PPromise((sComplete, sError, sProgress) => {
+			return this.walker.walkP(this.folderQueries, this.extraFiles).then(
+				walkComplete => {
+					sComplete({
+						limitHit: walkComplete,
+						stats: this.walker.getStats()
+					});
+				},
+				walkError => {
+					sError(walkError);
+				},
+				walkProgress => {
+					sProgress(walkProgress);
+				}
+			);
+		});
+	}
 
-		this.walker.walkP(this.folderQueries, this.extraFiles).then(
-			walkComplete => {
-				completeResult = walkComplete;
-				done(error, {
-					limitHit: completeResult,
-					stats: this.walker.getStats()
-				});
-			},
-			walkError => {
-				error = walkError;
-				done(walkError, {
-					limitHit: completeResult,
-					stats: this.walker.getStats()
-				});
-			},
-			walkProgress => {
-				onResult(walkProgress);
-			}
-		);
+	public search(onResult: (result: IRawFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
+		this.walker.walk(this.folderQueries, this.extraFiles, onResult, (err: Error, isLimitHit: boolean) => {
+			done(err, {
+				limitHit: isLimitHit,
+				stats: this.walker.getStats()
+			});
+		});
 	}
 
 	public cancel(): void {
