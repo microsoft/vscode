@@ -604,6 +604,30 @@ export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 	}
 }
 
+export class ReplaceAllInFolderAction extends AbstractSearchAndReplaceAction {
+
+	constructor(private viewer: ITree, private folderMatch: FolderMatch,
+		@IKeybindingService keyBindingService: IKeybindingService,
+		@ITelemetryService private telemetryService: ITelemetryService
+	) {
+		super(Constants.ReplaceAllInFileActionId, nls.localize('file.replaceAll.label', "Replace All"), 'action-replace-all');
+	}
+
+	public async run(): TPromise<any> {
+		/* __GDPR__
+			"replaceAllInFolder.action.selected" : {}
+		*/
+		this.telemetryService.publicLog('replaceAllInFolder.action.selected');
+		let nextFocusElement = this.getElementToFocusAfterRemoved(this.viewer, this.folderMatch);
+		await this.folderMatch.replaceAll();
+
+		if (nextFocusElement) {
+			this.viewer.setFocus(nextFocusElement);
+		}
+		this.viewer.DOMFocus();
+	}
+}
+
 export class ReplaceAction extends AbstractSearchAndReplaceAction {
 
 	constructor(private viewer: ITree, private element: Match, private viewlet: SearchViewlet,

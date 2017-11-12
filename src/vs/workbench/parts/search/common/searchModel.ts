@@ -422,6 +422,13 @@ export class FolderMatch extends Disposable {
 		});
 	}
 
+	public replaceAll(): TPromise<any> {
+		const matches = this.matches();
+		return this.replaceService.replace(matches).then(() => {
+			matches.forEach(match => this.doRemove(match, false, true));
+		});
+	}
+
 	public matches(): FileMatch[] {
 		return this._fileMatches.values();
 	}
