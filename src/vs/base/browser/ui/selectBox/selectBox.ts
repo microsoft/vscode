@@ -110,7 +110,6 @@ export class SelectBox extends Widget implements IDelegate<ISelectOptionItem> {
 	private options: string[];
 	private selected: number;
 	private disabledOptionIndex: number;
-	private container: HTMLElement;
 	private _onDidSelect: Emitter<ISelectData>;
 	private toDispose: IDisposable[];
 	private styles: ISelectBoxStyles;
@@ -331,7 +330,6 @@ export class SelectBox extends Widget implements IDelegate<ISelectOptionItem> {
 	}
 
 	public render(container: HTMLElement): void {
-		this.container = container;
 		dom.addClass(container, 'select-container');
 		container.appendChild(this.selectElement);
 		this.setOptions(this.options, this.selected);

@@ -10,7 +10,7 @@
 	"searchScope.excludes": "除外するファイル",
 	"label.excludes": "検索除外パターン",
 	"replaceAll.confirmation.title": "すべて置換",
-	"replaceAll.confirm.button": "置換",
+	"replaceAll.confirm.button": "置換(&&R)",
 	"replaceAll.occurrence.file.message": "{1} 個のファイルで {0} 件の出現箇所を '{2}' に置換しました。",
 	"removeAll.occurrence.file.message": "{1} 個のファイルで {0} 件の出現箇所を置換しました。",
 	"replaceAll.occurrence.files.message": "{1} 個のファイルで {0} 件の出現箇所を '{2}' に置換しました。",

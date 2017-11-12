@@ -44,6 +44,7 @@
 	"listHoverForeground": "滑鼠暫留在項目時的清單/樹狀前景。",
 	"listDropBackground": "使用滑鼠四處移動項目時的清單/樹狀拖放背景。",
 	"highlight": "在清單/樹狀內搜尋時，相符醒目提示的清單/樹狀前景色彩。",
+	"invalidItemForeground": "列表/樹狀 無效項目的前景色彩，例如在瀏覽視窗無法解析的根目錄",
 	"pickerGroupForeground": "分組標籤的快速選擇器色彩。",
 	"pickerGroupBorder": "分組邊界的快速選擇器色彩。",
 	"buttonForeground": "按鈕前景色彩。",

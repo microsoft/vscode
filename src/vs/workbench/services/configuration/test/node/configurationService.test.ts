@@ -20,8 +20,9 @@ import extfs = require('vs/base/node/extfs');
 import uuid = require('vs/base/common/uuid');
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
+import { ConfigurationEditingErrorCode } from 'vs/workbench/services/configuration/node/configurationEditingService';
 import { FileChangeType, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { workbenchInstantiationService, TestTextResourceConfigurationService, TestTextFileService } from 'vs/workbench/test/workbenchTestServices';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
@@ -29,6 +30,8 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
+import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
+import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -99,7 +102,7 @@ suite('WorkspaceContextService - Folder', () => {
 				workspaceResource = folderDir;
 				const globalSettingsFile = path.join(parentDir, 'settings.json');
 				const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
-				workspaceContextService = new WorkspaceService(environmentService, null);
+				workspaceContextService = new WorkspaceService(environmentService);
 				return (<WorkspaceService>workspaceContextService).initialize(folderDir);
 			});
 	});
@@ -155,7 +158,7 @@ suite('WorkspaceContextService - Workspace', () => {
 				parentResource = parentDir;
 
 				const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, path.join(parentDir, 'settings.json'));
-				const workspaceService = new WorkspaceService(environmentService, null);
+				const workspaceService = new WorkspaceService(environmentService);
 
 				const instantiationService = <TestInstantiationService>workbenchInstantiationService();
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
@@ -193,7 +196,7 @@ suite('WorkspaceContextService - Workspace', () => {
 
 	test('add folders', () => {
 		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
-		return testObject.addFolders([URI.file(path.join(workspaceDir, 'd')), URI.file(path.join(workspaceDir, 'c'))])
+		return testObject.addFolders([{ uri: URI.file(path.join(workspaceDir, 'd')) }, { uri: URI.file(path.join(workspaceDir, 'c')) }])
 			.then(() => {
 				const actual = testObject.getWorkspace().folders;
 
@@ -225,8 +228,15 @@ suite('WorkspaceContextService - Workspace', () => {
 		const target = sinon.spy();
 		testObject.onDidChangeWorkspaceFolders(target);
 		const workspaceDir = path.dirname(testObject.getWorkspace().folders[0].uri.fsPath);
-		return testObject.addFolders([URI.file(path.join(workspaceDir, 'd')), URI.file(path.join(workspaceDir, 'c'))])
-			.then(() => assert.ok(target.called));
+		const addedFolders = [{ uri: URI.file(path.join(workspaceDir, 'd')) }, { uri: URI.file(path.join(workspaceDir, 'c')) }];
+		return testObject.addFolders(addedFolders)
+			.then(() => {
+				assert.ok(target.calledOnce);
+				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
+				assert.deepEqual(actual.added.map(r => r.uri.toString()), addedFolders.map(a => a.uri.toString()));
+				assert.deepEqual(actual.removed, []);
+				assert.deepEqual(actual.changed, []);
+			});
 	});
 
 	test('remove folders', () => {
@@ -241,8 +251,45 @@ suite('WorkspaceContextService - Workspace', () => {
 	test('remove folders triggers change event', () => {
 		const target = sinon.spy();
 		testObject.onDidChangeWorkspaceFolders(target);
-		return testObject.removeFolders([testObject.getWorkspace().folders[0].uri])
-			.then(() => assert.ok(target.called));
+		const removedFolder = testObject.getWorkspace().folders[0];
+		return testObject.removeFolders([removedFolder.uri])
+			.then(() => {
+				assert.ok(target.calledOnce);
+				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
+				assert.deepEqual(actual.added, []);
+				assert.deepEqual(actual.removed.map(r => r.uri.toString()), [removedFolder.uri.toString()]);
+				assert.deepEqual(actual.changed.map(c => c.uri.toString()), [testObject.getWorkspace().folders[0].uri.toString()]);
+			});
+	});
+
+	test('reorder folders trigger change event', () => {
+		const target = sinon.spy();
+		testObject.onDidChangeWorkspaceFolders(target);
+		const workspace = { folders: [{ path: testObject.getWorkspace().folders[1].uri.fsPath }, { path: testObject.getWorkspace().folders[0].uri.fsPath }] };
+		fs.writeFileSync(testObject.getWorkspace().configuration.fsPath, JSON.stringify(workspace, null, '\t'));
+		return testObject.reloadConfiguration()
+			.then(() => {
+				assert.ok(target.calledOnce);
+				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
+				assert.deepEqual(actual.added, []);
+				assert.deepEqual(actual.removed, []);
+				assert.deepEqual(actual.changed.map(c => c.uri.toString()), testObject.getWorkspace().folders.map(f => f.uri.toString()).reverse());
+			});
+	});
+
+	test('rename folders trigger change event', () => {
+		const target = sinon.spy();
+		testObject.onDidChangeWorkspaceFolders(target);
+		const workspace = { folders: [{ path: testObject.getWorkspace().folders[0].uri.fsPath, name: '1' }, { path: testObject.getWorkspace().folders[1].uri.fsPath }] };
+		fs.writeFileSync(testObject.getWorkspace().configuration.fsPath, JSON.stringify(workspace, null, '\t'));
+		return testObject.reloadConfiguration()
+			.then(() => {
+				assert.ok(target.calledOnce);
+				const actual = <IWorkspaceFoldersChangeEvent>target.args[0][0];
+				assert.deepEqual(actual.added, []);
+				assert.deepEqual(actual.removed, []);
+				assert.deepEqual(actual.changed.map(c => c.uri.toString()), [testObject.getWorkspace().folders[0].uri.toString()]);
+			});
 	});
 
 });
@@ -275,7 +322,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 
 				const instantiationService = <TestInstantiationService>workbenchInstantiationService();
 				const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
-				const workspaceService = new WorkspaceService(environmentService, null);
+				const workspaceService = new WorkspaceService(environmentService);
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
 				instantiationService.stub(IConfigurationService, workspaceService);
 				instantiationService.stub(IEnvironmentService, environmentService);
@@ -505,7 +552,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 
 suite('WorkspaceConfigurationService - Update (Multiroot)', () => {
 
-	let parentResource: string, workspaceContextService: IWorkspaceContextService, testObject: IConfigurationService;
+	let parentResource: string, workspaceContextService: IWorkspaceContextService, jsonEditingServce: IJSONEditingService, testObject: IConfigurationService;
 
 	suiteSetup(() => {
 		const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
@@ -533,7 +580,7 @@ suite('WorkspaceConfigurationService - Update (Multiroot)', () => {
 				parentResource = parentDir;
 
 				const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, path.join(parentDir, 'settings.json'));
-				const workspaceService = new WorkspaceService(environmentService, null);
+				const workspaceService = new WorkspaceService(environmentService);
 
 				const instantiationService = <TestInstantiationService>workbenchInstantiationService();
 				instantiationService.stub(IWorkspaceContextService, workspaceService);
@@ -548,6 +595,7 @@ suite('WorkspaceConfigurationService - Update (Multiroot)', () => {
 					workspaceService.setInstantiationService(instantiationService);
 
 					workspaceContextService = workspaceService;
+					jsonEditingServce = instantiationService.createInstance(JSONEditingService);
 					testObject = workspaceService;
 				});
 			});
@@ -600,9 +648,39 @@ suite('WorkspaceConfigurationService - Update (Multiroot)', () => {
 			.then(() => assert.ok(target.called));
 	});
 
-	test('update tasks configuration', () => {
+	test('update tasks configuration in a folder', () => {
 		const workspace = workspaceContextService.getWorkspace();
 		return testObject.updateValue('tasks', { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }, { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE_FOLDER)
 			.then(() => assert.deepEqual(testObject.getValue('tasks', { resource: workspace.folders[0].uri }), { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }));
+	});
+
+	test('update tasks configuration in a workspace is not supported', () => {
+		const workspace = workspaceContextService.getWorkspace();
+		return testObject.updateValue('tasks', { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] }, { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE, true)
+			.then(() => assert.fail('Should not be supported'), (e) => assert.equal(e.code, ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_TARGET));
+	});
+
+	test('update launch configuration in a workspace is not supported', () => {
+		const workspace = workspaceContextService.getWorkspace();
+		return testObject.updateValue('launch', { 'version': '1.0.0', configurations: [{ 'name': 'myLaunch' }] }, { resource: workspace.folders[0].uri }, ConfigurationTarget.WORKSPACE, true)
+			.then(() => assert.fail('Should not be supported'), (e) => assert.equal(e.code, ConfigurationEditingErrorCode.ERROR_INVALID_WORKSPACE_TARGET));
+	});
+
+	test('task configurations are not read from workspace', () => {
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration, { key: 'tasks', value: { 'version': '1.0' } }, true)
+			.then(() => testObject.reloadConfiguration())
+			.then(() => {
+				const actual = testObject.inspect('tasks.version');
+				assert.equal(actual.workspace, void 0);
+			});
+	});
+
+	test('launch configurations are not read from workspace', () => {
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration, { key: 'launch', value: { 'version': '1.0' } }, true)
+			.then(() => testObject.reloadConfiguration())
+			.then(() => {
+				const actual = testObject.inspect('launch.version');
+				assert.equal(actual.workspace, void 0);
+			});
 	});
 });

@@ -11,5 +11,6 @@
 	"search.placeHolder": "Cerca",
 	"label.Replace": "Sostituisci: digitare il termine da sostituire e premere INVIO per visualizzare l'anteprima oppure ESC per annullare",
 	"search.replace.placeHolder": "Sostituisci",
-	"regexp.validationFailure": "Espressione corrispondente a qualsiasi valore"
+	"regexp.validationFailure": "Espressione corrispondente a qualsiasi valore",
+	"regexp.backreferenceValidationFailure": "I backreference non sono supportati"
 }

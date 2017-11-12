@@ -42,18 +42,18 @@ suite('ExtHostDocumentData', () => {
 	});
 
 	test('readonly-ness', function () {
-		assert.throws(() => (<any>data).document.uri = null);
-		assert.throws(() => (<any>data).document.fileName = 'foofile');
-		assert.throws(() => (<any>data).document.isDirty = false);
-		assert.throws(() => (<any>data).document.isUntitled = false);
-		assert.throws(() => (<any>data).document.languageId = 'dddd');
-		assert.throws(() => (<any>data).document.lineCount = 9);
+		assert.throws((): void => (data as any).document.uri = null);
+		assert.throws(() => (data as any).document.fileName = 'foofile');
+		assert.throws(() => (data as any).document.isDirty = false);
+		assert.throws(() => (data as any).document.isUntitled = false);
+		assert.throws(() => (data as any).document.languageId = 'dddd');
+		assert.throws(() => (data as any).document.lineCount = 9);
 	});
 
 	test('save, when disposed', function () {
 		let saved: URI;
 		let data = new ExtHostDocumentData(new class extends mock<MainThreadDocumentsShape>() {
-			$trySaveDocument(uri) {
+			$trySaveDocument(uri: URI) {
 				assert.ok(!saved);
 				saved = uri;
 				return TPromise.as(true);

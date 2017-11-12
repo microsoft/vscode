@@ -8,8 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Delayer } from 'vs/base/common/async';
 import { clone, assign } from 'vs/base/common/objects';
-import { Emitter } from 'vs/base/common/event';
-import { fromEventEmitter } from 'vs/base/node/event';
+import { Emitter, fromNodeEventEmitter } from 'vs/base/common/event';
 import { createQueuedSender } from 'vs/base/node/processes';
 import { ChannelServer as IPCServer, ChannelClient as IPCClient, IChannelClient, IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { isRemoteConsoleLog, log } from 'vs/base/node/console';
@@ -18,7 +17,7 @@ export class Server extends IPCServer {
 	constructor() {
 		super({
 			send: r => { try { process.send(r); } catch (e) { /* not much to do */ } },
-			onMessage: fromEventEmitter(process, 'message', msg => msg)
+			onMessage: fromNodeEventEmitter(process, 'message', msg => msg)
 		});
 
 		process.once('disconnect', () => this.dispose());
@@ -149,7 +148,7 @@ export class Client implements IChannelClient, IDisposable {
 			this.child = fork(this.modulePath, args, forkOpts);
 
 			const onMessageEmitter = new Emitter<any>();
-			const onRawMessage = fromEventEmitter(this.child, 'message', msg => msg);
+			const onRawMessage = fromNodeEventEmitter(this.child, 'message', msg => msg);
 
 			onRawMessage(msg => {
 

@@ -10,7 +10,7 @@
 	"searchScope.excludes": "Auszuschließende Dateien",
 	"label.excludes": "Suchausschlussmuster",
 	"replaceAll.confirmation.title": "Alle ersetzen",
-	"replaceAll.confirm.button": "Ersetzen",
+	"replaceAll.confirm.button": "&&Ersetzen",
 	"replaceAll.occurrence.file.message": "{0} Vorkommen in {1} Datei durch \"{2}\" ersetzt.",
 	"removeAll.occurrence.file.message": "{0} Vorkommen in {1} Datei ersetzt.",
 	"replaceAll.occurrence.files.message": "{0} Vorkommen in {1} Dateien durch \"{2}\" ersetzt.",

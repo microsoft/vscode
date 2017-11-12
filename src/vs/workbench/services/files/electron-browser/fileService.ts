@@ -57,7 +57,7 @@ export class FileService implements IFileService {
 		this._onAfterOperation = new Emitter<FileOperationEvent>();
 		this.toUnbind.push(this._onAfterOperation);
 
-		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
+		const configuration = this.configurationService.getValue<IFilesConfiguration>();
 
 		let watcherIgnoredPatterns: string[] = [];
 		if (configuration.files && configuration.files.watcherExclude) {
@@ -143,8 +143,8 @@ export class FileService implements IFileService {
 	}
 
 	private onConfigurationChange(event: IConfigurationChangeEvent): void {
-		if (event.affectsConfiguration('files')) {
-			this.updateOptions(this.configurationService.getConfiguration<IFilesConfiguration>('files'));
+		if (event.affectsConfiguration('files.useExperimentalFileWatcher')) {
+			this.updateOptions({ useExperimentalFileWatcher: this.configurationService.getValue<boolean>('files.useExperimentalFileWatcher') });
 		}
 	}
 

@@ -24,18 +24,18 @@ export interface ISuggestionsCollector {
 
 export interface IJSONContribution {
 	getDocumentSelector(): DocumentSelector;
-	getInfoContribution(fileName: string, location: Location): Thenable<MarkedString[]>;
-	collectPropertySuggestions(fileName: string, location: Location, currentWord: string, addValue: boolean, isLast: boolean, result: ISuggestionsCollector): Thenable<any>;
-	collectValueSuggestions(fileName: string, location: Location, result: ISuggestionsCollector): Thenable<any>;
+	getInfoContribution(fileName: string, location: Location): Thenable<MarkedString[] | null> | null;
+	collectPropertySuggestions(fileName: string, location: Location, currentWord: string, addValue: boolean, isLast: boolean, result: ISuggestionsCollector): Thenable<any> | null;
+	collectValueSuggestions(fileName: string, location: Location, result: ISuggestionsCollector): Thenable<any> | null;
 	collectDefaultSuggestions(fileName: string, result: ISuggestionsCollector): Thenable<any>;
-	resolveSuggestion?(item: CompletionItem): Thenable<CompletionItem>;
+	resolveSuggestion?(item: CompletionItem): Thenable<CompletionItem | null> | null;
 }
 
 export function addJSONProviders(xhr: XHRRequest): Disposable {
-	let contributions = [new PackageJSONContribution(xhr), new BowerJSONContribution(xhr)];
-	let subscriptions: Disposable[] = [];
+	const contributions = [new PackageJSONContribution(xhr), new BowerJSONContribution(xhr)];
+	const subscriptions: Disposable[] = [];
 	contributions.forEach(contribution => {
-		let selector = contribution.getDocumentSelector();
+		const selector = contribution.getDocumentSelector();
 		subscriptions.push(languages.registerCompletionItemProvider(selector, new JSONCompletionItemProvider(contribution), '"', ':'));
 		subscriptions.push(languages.registerHoverProvider(selector, new JSONHoverProvider(contribution)));
 	});
@@ -47,18 +47,21 @@ export class JSONHoverProvider implements HoverProvider {
 	constructor(private jsonContribution: IJSONContribution) {
 	}
 
-	public provideHover(document: TextDocument, position: Position, token: CancellationToken): Thenable<Hover> {
-		let fileName = basename(document.fileName);
-		let offset = document.offsetAt(position);
-		let location = getLocation(document.getText(), offset);
-		let node = location.previousNode;
+	public provideHover(document: TextDocument, position: Position, _token: CancellationToken): Thenable<Hover> | null {
+		const fileName = basename(document.fileName);
+		const offset = document.offsetAt(position);
+		const location = getLocation(document.getText(), offset);
+		if (!location.previousNode) {
+			return null;
+		}
+		const node = location.previousNode;
 		if (node && node.offset <= offset && offset <= node.offset + node.length) {
-			let promise = this.jsonContribution.getInfoContribution(fileName, location);
+			const promise = this.jsonContribution.getInfoContribution(fileName, location);
 			if (promise) {
 				return promise.then(htmlContent => {
-					let range = new Range(document.positionAt(node.offset), document.positionAt(node.offset + node.length));
-					let result: Hover = {
-						contents: htmlContent,
+					const range = new Range(document.positionAt(node.offset), document.positionAt(node.offset + node.length));
+					const result: Hover = {
+						contents: htmlContent || [],
 						range: range
 					};
 					return result;
@@ -74,9 +77,9 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 	constructor(private jsonContribution: IJSONContribution) {
 	}
 
-	public resolveCompletionItem(item: CompletionItem, token: CancellationToken): Thenable<CompletionItem> {
+	public resolveCompletionItem(item: CompletionItem, _token: CancellationToken): Thenable<CompletionItem | null> {
 		if (this.jsonContribution.resolveSuggestion) {
-			let resolver = this.jsonContribution.resolveSuggestion(item);
+			const resolver = this.jsonContribution.resolveSuggestion(item);
 			if (resolver) {
 				return resolver;
 			}
@@ -84,28 +87,28 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 		return Promise.resolve(item);
 	}
 
-	public provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken): Thenable<CompletionList> {
+	public provideCompletionItems(document: TextDocument, position: Position, _token: CancellationToken): Thenable<CompletionList | null> | null {
 
-		let fileName = basename(document.fileName);
+		const fileName = basename(document.fileName);
 
-		let currentWord = this.getCurrentWord(document, position);
+		const currentWord = this.getCurrentWord(document, position);
 		let overwriteRange: Range;
 
-		let items: CompletionItem[] = [];
+		const items: CompletionItem[] = [];
 		let isIncomplete = false;
 
-		let offset = document.offsetAt(position);
-		let location = getLocation(document.getText(), offset);
+		const offset = document.offsetAt(position);
+		const location = getLocation(document.getText(), offset);
 
-		let node = location.previousNode;
+		const node = location.previousNode;
 		if (node && node.offset <= offset && offset <= node.offset + node.length && (node.type === 'property' || node.type === 'string' || node.type === 'number' || node.type === 'boolean' || node.type === 'null')) {
 			overwriteRange = new Range(document.positionAt(node.offset), document.positionAt(node.offset + node.length));
 		} else {
 			overwriteRange = new Range(document.positionAt(offset - currentWord.length), position);
 		}
 
-		let proposed: { [key: string]: boolean } = {};
-		let collector: ISuggestionsCollector = {
+		const proposed: { [key: string]: boolean } = {};
+		const collector: ISuggestionsCollector = {
 			add: (suggestion: CompletionItem) => {
 				if (!proposed[suggestion.label]) {
 					proposed[suggestion.label] = true;
@@ -118,11 +121,11 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 			log: (message: string) => console.log(message)
 		};
 
-		let collectPromise: Thenable<any> = null;
+		let collectPromise: Thenable<any> | null = null;
 
 		if (location.isAtPropertyKey) {
-			let addValue = !location.previousNode || !location.previousNode.columnOffset;
-			let isLast = this.isLast(document, position);
+			const addValue = !location.previousNode || !location.previousNode.columnOffset;
+			const isLast = this.isLast(document, position);
 			collectPromise = this.jsonContribution.collectPropertySuggestions(fileName, location, currentWord, addValue, isLast, collector);
 		} else {
 			if (location.path.length === 0) {
@@ -143,8 +146,8 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 	}
 
 	private getCurrentWord(document: TextDocument, position: Position) {
-		var i = position.character - 1;
-		var text = document.lineAt(position.line).text;
+		let i = position.character - 1;
+		const text = document.lineAt(position.line).text;
 		while (i >= 0 && ' \t\n\r\v":{[,'.indexOf(text.charAt(i)) === -1) {
 			i--;
 		}
@@ -152,7 +155,7 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 	}
 
 	private isLast(document: TextDocument, position: Position): boolean {
-		let scanner = createScanner(document.getText(), true);
+		const scanner = createScanner(document.getText(), true);
 		scanner.setPosition(document.offsetAt(position));
 		let nextToken = scanner.scan();
 		if (nextToken === SyntaxKind.StringLiteral && scanner.getTokenError() === ScanError.UnexpectedEndOfString) {

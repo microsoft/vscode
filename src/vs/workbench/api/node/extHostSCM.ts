@@ -127,6 +127,17 @@ export class ExtHostSCMInputBox {
 		return this._onDidChange.event;
 	}
 
+	private _placeholder: string = '';
+
+	get placeholder(): string {
+		return this._placeholder;
+	}
+
+	set placeholder(placeholder: string) {
+		this._proxy.$setInputBoxPlaceholder(this._sourceControlHandle, placeholder);
+		this._placeholder = placeholder;
+	}
+
 	constructor(private _proxy: MainThreadSCMShape, private _sourceControlHandle: number) {
 		// noop
 	}
@@ -244,7 +255,11 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 					const strikeThrough = r.decorations && !!r.decorations.strikeThrough;
 					const faded = r.decorations && !!r.decorations.faded;
 
-					return [handle, sourceUri, icons, tooltip, strikeThrough, faded] as SCMRawResource;
+					const source = r.decorations && r.decorations.source || undefined;
+					const letter = r.decorations && r.decorations.letter || undefined;
+					const color = r.decorations && r.decorations.color || undefined;
+
+					return [handle, sourceUri, icons, tooltip, strikeThrough, faded, source, letter, color] as SCMRawResource;
 				});
 
 			handlesToDelete.push(...this._handlesSnapshot.splice(start, deleteCount, ...handles));

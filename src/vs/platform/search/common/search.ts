@@ -37,6 +37,7 @@ export interface IFolderQuery {
 	excludePattern?: glob.IExpression;
 	includePattern?: glob.IExpression;
 	fileEncoding?: string;
+	disregardIgnoreFiles?: boolean;
 }
 
 export interface ICommonQueryOptions {
@@ -173,7 +174,10 @@ export interface ISearchConfiguration extends IFilesConfiguration {
 	search: {
 		exclude: glob.IExpression;
 		useRipgrep: boolean;
-		useIgnoreFilesByDefault: boolean;
+		/**
+		 * Use ignore file for file search.
+		 */
+		useIgnoreFiles: boolean;
 		followSymlinks: boolean;
 	};
 	editor: {

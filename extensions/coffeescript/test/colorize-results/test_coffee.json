@@ -661,7 +661,7 @@
 	},
 	{
 		"c": "new",
-		"t": "source.coffee meta.class.instance.constructor keyword.operator.new.coffee",
+		"t": "source.coffee meta.class.instance.constructor.coffee keyword.operator.new.coffee",
 		"r": {
 			"dark_plus": "keyword.operator.new: #569CD6",
 			"light_plus": "keyword.operator.new: #0000FF",
@@ -672,7 +672,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.coffee meta.class.instance.constructor",
+		"t": "source.coffee meta.class.instance.constructor.coffee",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -683,7 +683,7 @@
 	},
 	{
 		"c": "Car",
-		"t": "source.coffee meta.class.instance.constructor entity.name.type.instance.coffee",
+		"t": "source.coffee meta.class.instance.constructor.coffee entity.name.type.instance.coffee",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
 			"light_plus": "entity.name.type: #267F99",
@@ -914,7 +914,7 @@
 	},
 	{
 		"c": "new",
-		"t": "source.coffee meta.class.instance.constructor keyword.operator.new.coffee",
+		"t": "source.coffee meta.class.instance.constructor.coffee keyword.operator.new.coffee",
 		"r": {
 			"dark_plus": "keyword.operator.new: #569CD6",
 			"light_plus": "keyword.operator.new: #0000FF",
@@ -925,7 +925,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.coffee meta.class.instance.constructor",
+		"t": "source.coffee meta.class.instance.constructor.coffee",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -936,7 +936,7 @@
 	},
 	{
 		"c": "Car",
-		"t": "source.coffee meta.class.instance.constructor entity.name.type.instance.coffee",
+		"t": "source.coffee meta.class.instance.constructor.coffee entity.name.type.instance.coffee",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
 			"light_plus": "entity.name.type: #267F99",

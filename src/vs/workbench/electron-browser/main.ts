@@ -39,8 +39,6 @@ import { URLChannelClient } from 'vs/platform/url/common/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
 import { WorkspacesChannelClient } from 'vs/platform/workspaces/common/workspacesIpc';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
-import { CredentialsChannelClient } from 'vs/platform/credentials/node/credentialsIpc';
 
 import fs = require('fs');
 gracefulFs.gracefulify(fs); // enable gracefulFs
@@ -77,7 +75,7 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
 	// right before startup of the workbench shell to have its data ready for consumers
-	return createAndInitializeWorkspaceService(configuration, environmentService, <IWorkspacesService>mainServices.get(IWorkspacesService)).then(workspaceService => {
+	return createAndInitializeWorkspaceService(configuration, environmentService).then(workspaceService => {
 		const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, workspaceService.getWorkbenchState() === WorkbenchState.EMPTY);
 		const storageService = createStorageService(workspaceService, environmentService);
 
@@ -109,22 +107,25 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 	});
 }
 
-function createAndInitializeWorkspaceService(configuration: IWindowConfiguration, environmentService: EnvironmentService, workspacesService: IWorkspacesService): TPromise<WorkspaceService> {
-	return validateWorkspacePath(configuration).then(() => {
-		const workspaceService = new WorkspaceService(environmentService, workspacesService);
+function createAndInitializeWorkspaceService(configuration: IWindowConfiguration, environmentService: EnvironmentService): TPromise<WorkspaceService> {
+	return validateSingleFolderPath(configuration).then(() => {
+		const workspaceService = new WorkspaceService(environmentService);
 
 		return workspaceService.initialize(configuration.workspace || configuration.folderPath || configuration).then(() => workspaceService, error => workspaceService);
 	});
 }
 
-function validateWorkspacePath(configuration: IWindowConfiguration): TPromise<void> {
+function validateSingleFolderPath(configuration: IWindowConfiguration): TPromise<void> {
+
+	// Return early if we do not have a single folder path
 	if (!configuration.folderPath) {
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
+	// Otherwise: use realpath to resolve symbolic links to the truth
 	return realpath(configuration.folderPath).then(realFolderPath => {
 
-		// for some weird reason, node adds a trailing slash to UNC paths
+		// For some weird reason, node adds a trailing slash to UNC paths
 		// we never ever want trailing slashes as our workspace path unless
 		// someone opens root ("/").
 		// See also https://github.com/nodejs/io.js/issues/1765
@@ -132,12 +133,19 @@ function validateWorkspacePath(configuration: IWindowConfiguration): TPromise<vo
 			realFolderPath = strings.rtrim(realFolderPath, paths.nativeSep);
 		}
 
-		// update config
-		configuration.folderPath = realFolderPath;
+		return realFolderPath;
 	}, error => {
-		errors.onUnexpectedError(error);
+		if (configuration.verbose) {
+			errors.onUnexpectedError(error);
+		}
 
-		return null; // treat invalid paths as empty workspace
+		// Treat any error case as empty workbench case (no folder path)
+		return null;
+
+	}).then(realFolderPathOrNull => {
+
+		// Update config with real path if we have one
+		configuration.folderPath = realFolderPathOrNull;
 	});
 }
 
@@ -191,9 +199,6 @@ function createMainProcessServices(mainProcessClient: ElectronIPCClient): Servic
 
 	const workspacesChannel = mainProcessClient.getChannel('workspaces');
 	serviceCollection.set(IWorkspacesService, new WorkspacesChannelClient(workspacesChannel));
-
-	const credentialsChannel = mainProcessClient.getChannel('credentials');
-	serviceCollection.set(ICredentialsService, new CredentialsChannelClient(credentialsChannel));
 
 	return serviceCollection;
 }

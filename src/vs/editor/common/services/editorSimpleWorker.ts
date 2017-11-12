@@ -344,7 +344,7 @@ export abstract class BaseEditorSimpleWorker {
 
 	private static _diffLimit = 10000;
 
-	public computeMoreMinimalEdits(modelUrl: string, edits: TextEdit[], ranges: IRange[]): TPromise<TextEdit[]> {
+	public computeMoreMinimalEdits(modelUrl: string, edits: TextEdit[]): TPromise<TextEdit[]> {
 		const model = this._getModel(modelUrl);
 		if (!model) {
 			return TPromise.as(edits);

@@ -44,6 +44,7 @@
 	"listHoverForeground": "Premier plan de la liste/l'arborescence pendant le pointage sur des éléments avec la souris.",
 	"listDropBackground": "Arrière-plan de l'opération de glisser-déplacer dans une liste/arborescence pendant le déplacement d'éléments avec la souris.",
 	"highlight": "Couleur de premier plan dans la liste/l'arborescence pour la surbrillance des correspondances pendant la recherche dans une liste/arborescence.",
+	"invalidItemForeground": "Couleur de premier plan de liste/arbre pour les éléments non valides, par exemple une racine non résolue dans l’Explorateur.",
 	"pickerGroupForeground": "Couleur du sélecteur rapide pour les étiquettes de regroupement.",
 	"pickerGroupBorder": "Couleur du sélecteur rapide pour les bordures de regroupement.",
 	"buttonForeground": "Couleur de premier plan du bouton.",

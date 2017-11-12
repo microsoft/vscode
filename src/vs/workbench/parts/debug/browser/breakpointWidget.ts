@@ -13,7 +13,7 @@ import * as lifecycle from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
+import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IDebugService, IBreakpoint, IRawBreakpoint } from 'vs/workbench/parts/debug/common/debug';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';

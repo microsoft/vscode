@@ -229,7 +229,7 @@ taskDefinitions.push(customize);
 
 let definitions = Objects.deepClone(commonSchema.definitions);
 let taskDescription: IJSONSchema = definitions.taskDescription;
-taskDescription.required = ['label', 'type'];
+taskDescription.required = ['label'];
 taskDescription.properties.label = Objects.deepClone(label);
 taskDescription.properties.isShellCommand = Objects.deepClone(shellCommand);
 taskDescription.properties.dependsOn = dependsOn;

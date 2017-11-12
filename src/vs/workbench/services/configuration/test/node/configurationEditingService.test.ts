@@ -33,12 +33,11 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { IChoiceService } from 'vs/platform/message/common/message';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
-	constructor(args: ParsedArgs, _execPath: string, private customAppSettingsHome) {
+	constructor(args: ParsedArgs, _execPath: string, private customAppSettingsHome: string) {
 		super(args, _execPath);
 	}
 
@@ -49,9 +48,9 @@ suite('ConfigurationEditingService', () => {
 
 	let instantiationService: TestInstantiationService;
 	let testObject: ConfigurationEditingService;
-	let parentDir;
-	let workspaceDir;
-	let globalSettingsFile;
+	let parentDir: string;
+	let workspaceDir: string;
+	let globalSettingsFile: string;
 	let workspaceSettingsDir;
 
 	suiteSetup(() => {
@@ -105,10 +104,9 @@ suite('ConfigurationEditingService', () => {
 		instantiationService = <TestInstantiationService>workbenchInstantiationService();
 		const environmentService = new SettingsTestEnvironmentService(parseArgs(process.argv), process.execPath, globalSettingsFile);
 		instantiationService.stub(IEnvironmentService, environmentService);
-		const workspacesService = instantiationService.stub(IWorkspacesService, {});
-		const workspaceService = new WorkspaceService(environmentService, workspacesService);
+		const workspaceService = new WorkspaceService(environmentService);
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
-		return workspaceService.initialize(noWorkspace ? <IWindowConfiguration>{} : workspaceDir).then(() => {
+		return workspaceService.initialize(noWorkspace ? {} as IWindowConfiguration : workspaceDir).then(() => {
 			instantiationService.stub(IConfigurationService, workspaceService);
 			instantiationService.stub(IFileService, new FileService(workspaceService, new TestTextResourceConfigurationService(), new TestConfigurationService(), { disableWatcher: true }));
 			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));

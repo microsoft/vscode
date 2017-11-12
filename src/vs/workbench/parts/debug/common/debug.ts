@@ -304,7 +304,7 @@ export interface IModel extends ITreeElement {
 	onDidChangeCallStack: Event<void>;
 	onDidChangeWatchExpressions: Event<IExpression>;
 	onDidChangeReplElements: Event<void>;
-};
+}
 
 // Debug enums
 
@@ -319,6 +319,7 @@ export enum State {
 
 export interface IDebugConfiguration {
 	allowBreakpointsEverywhere: boolean;
+	openDebug: string;
 	openExplorerOnEnd: boolean;
 	inlineValues: boolean;
 	hideActionBar: boolean;
@@ -590,11 +591,6 @@ export interface IDebugService {
 	 * and resolveds configurations via DebugConfigurationProviders.
 	 */
 	startDebugging(root: IWorkspaceFolder, configOrName?: IConfig | string, noDebug?: boolean): TPromise<any>;
-
-	/**
-	 * Find process by ID.
-	 */
-	findProcessByUUID(uuid: string): IProcess | null;
 
 	/**
 	 * Restarts a process or creates a new one if there is no active session.

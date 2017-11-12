@@ -157,14 +157,27 @@ export function activate(context: vscode.ExtensionContext) {
 				}
 			}
 		};
-		if (vscode.window.activeTextEditor && isMarkdownFile(vscode.window.activeTextEditor.document) && vscode.window.activeTextEditor.document.uri.fsPath === args.path) {
-			return tryRevealLine(vscode.window.activeTextEditor);
-		} else {
+
+		const tryOpen = async (path: string) => {
+			if (vscode.window.activeTextEditor && isMarkdownFile(vscode.window.activeTextEditor.document) && vscode.window.activeTextEditor.document.uri.fsPath === path) {
+				return tryRevealLine(vscode.window.activeTextEditor);
+			} else {
+				const resource = vscode.Uri.file(path);
+				return vscode.workspace.openTextDocument(resource)
+					.then(vscode.window.showTextDocument)
+					.then(tryRevealLine);
+			}
+		};
+
+		return tryOpen(args.path).catch(() => {
+			if (path.extname(args.path) === '') {
+				return tryOpen(args.path + '.md');
+			}
 			const resource = vscode.Uri.file(args.path);
-			return vscode.workspace.openTextDocument(resource)
-				.then(vscode.window.showTextDocument)
-				.then(tryRevealLine, _ => vscode.commands.executeCommand('vscode.open', resource));
-		}
+			return Promise.resolve(void 0)
+				.then(() => vscode.commands.executeCommand('vscode.open', resource))
+				.then(() => void 0);
+		});
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreviewSecuritySelector', (resource: string | undefined) => {

@@ -210,7 +210,7 @@ suite('Quick Open Scorer', () => {
 	});
 
 	test('scoreItem - avoid match scattering (bug #36119)', function () {
-		const resource = URI.file('projects/ui/cula/ats/target.mk');;
+		const resource = URI.file('projects/ui/cula/ats/target.mk');
 
 		const pathRes = scoreItem(resource, 'tcltarget.mk', true, ResourceAccessor, cache);
 		assert.ok(pathRes.score);
@@ -235,6 +235,13 @@ suite('Quick Open Scorer', () => {
 		assert.equal(res.descriptionMatch[0].end, 12);
 		assert.equal(res.descriptionMatch[1].start, 13);
 		assert.equal(res.descriptionMatch[1].end, 14);
+	});
+
+	test('scoreItem - proper target offset', function () {
+		const resource = URI.file('etem');
+
+		const res = scoreItem(resource, 'teem', true, ResourceAccessor, cache);
+		assert.ok(!res.score);
 	});
 
 	test('compareItemsByScore - identity', function () {

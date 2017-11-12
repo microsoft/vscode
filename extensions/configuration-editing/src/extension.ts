@@ -14,12 +14,12 @@ import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 const decoration = vscode.window.createTextEditorDecorationType({
-	color: '#b1b1b1'
+	color: '#9e9e9e'
 });
 
 let pendingLaunchJsonDecoration: NodeJS.Timer;
 
-export function activate(context): void {
+export function activate(context: vscode.ExtensionContext): void {
 
 	//keybindings.json command-suggestions
 	context.subscriptions.push(registerKeybindingsCompletions());

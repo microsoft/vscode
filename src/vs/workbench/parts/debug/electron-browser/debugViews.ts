@@ -24,7 +24,6 @@ import { AddWatchExpressionAction, RemoveAllWatchExpressionsAction, AddFunctionB
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MenuId } from 'vs/platform/actions/common/actions';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IListService } from 'vs/platform/list/browser/listService';
@@ -47,11 +46,11 @@ export class VariablesView extends ViewsViewletPanel {
 	private onFocusStackFrameScheduler: RunOnceScheduler;
 	private variablesFocusedContext: IContextKey<boolean>;
 	private settings: any;
+	private expandedElements: any[];
 
 	constructor(
-		private options: IViewletViewOptions,
+		options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@ITelemetryService private telemetryService: ITelemetryService,
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -63,14 +62,20 @@ export class VariablesView extends ViewsViewletPanel {
 
 		this.settings = options.viewletSettings;
 		this.variablesFocusedContext = CONTEXT_VARIABLES_FOCUSED.bindTo(contextKeyService);
+		this.expandedElements = [];
 		// Use scheduler to prevent unnecessary flashing
 		this.onFocusStackFrameScheduler = new RunOnceScheduler(() => {
+			// Remember expanded elements when there are some (otherwise don't override/erase the previous ones)
+			const expanded = this.tree.getExpandedElements();
+			if (expanded.length > 0) {
+				this.expandedElements = expanded;
+			}
+
 			// Always clear tree highlight to avoid ending up in a broken state #12203
 			this.tree.clearHighlight();
-			const expanded = this.tree.getExpandedElements();
 			this.tree.refresh().then(() => {
 				const stackFrame = this.debugService.getViewModel().focusedStackFrame;
-				return sequence(expanded.map(e => () => this.tree.expand(e))).then(() => {
+				return sequence(this.expandedElements.map(e => () => this.tree.expand(e))).then(() => {
 					// If there is no preserved expansion state simply expand the first scope
 					if (stackFrame && this.tree.getExpandedElements().length === 0) {
 						return stackFrame.getScopes().then(scopes => {
@@ -155,7 +160,7 @@ export class WatchExpressionsView extends ViewsViewletPanel {
 	private settings: any;
 
 	constructor(
-		private options: IViewletViewOptions,
+		options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -189,7 +194,7 @@ export class WatchExpressionsView extends ViewsViewletPanel {
 		const actionProvider = new viewer.WatchExpressionsActionProvider(this.instantiationService);
 		this.tree = new Tree(this.treeContainer, {
 			dataSource: new viewer.WatchExpressionsDataSource(),
-			renderer: this.instantiationService.createInstance(viewer.WatchExpressionsRenderer, actionProvider, this.actionRunner),
+			renderer: this.instantiationService.createInstance(viewer.WatchExpressionsRenderer),
 			accessibilityProvider: new viewer.WatchExpressionsAccessibilityProvider(),
 			controller: this.instantiationService.createInstance(viewer.WatchExpressionsController, actionProvider, MenuId.DebugWatchContext),
 			dnd: this.instantiationService.createInstance(viewer.WatchExpressionsDragAndDrop)
@@ -249,7 +254,6 @@ export class CallStackView extends ViewsViewletPanel {
 	constructor(
 		private options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@ITelemetryService private telemetryService: ITelemetryService,
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -383,7 +387,7 @@ export class BreakpointsView extends ViewsViewletPanel {
 	private settings: any;
 
 	constructor(
-		private options: IViewletViewOptions,
+		options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -411,7 +415,7 @@ export class BreakpointsView extends ViewsViewletPanel {
 
 		this.tree = new Tree(this.treeContainer, {
 			dataSource: new viewer.BreakpointsDataSource(),
-			renderer: this.instantiationService.createInstance(viewer.BreakpointsRenderer, actionProvider, this.actionRunner),
+			renderer: this.instantiationService.createInstance(viewer.BreakpointsRenderer),
 			accessibilityProvider: this.instantiationService.createInstance(viewer.BreakpointsAccessibilityProvider),
 			controller,
 			sorter: {

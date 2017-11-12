@@ -11,7 +11,9 @@ import * as os from 'os';
 import * as cp from 'child_process';
 import { EventEmitter } from 'events';
 import iconv = require('iconv-lite');
-import { assign, uniqBy, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp } from './util';
+import * as filetype from 'file-type';
+import { assign, uniqBy, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent } from './util';
+import { CancellationToken } from 'vscode';
 
 const readfile = denodeify<string>(fs.readFile);
 
@@ -60,8 +62,10 @@ function parseVersion(raw: string): string {
 	return raw.replace(/^git version /, '');
 }
 
-function findSpecificGit(path: string): Promise<IGit> {
+function findSpecificGit(path: string, onLookup: (path: string) => void): Promise<IGit> {
 	return new Promise<IGit>((c, e) => {
+		onLookup(path);
+
 		const buffers: Buffer[] = [];
 		const child = cp.spawn(path, ['--version']);
 		child.stdout.on('data', (b: Buffer) => buffers.push(b));
@@ -70,7 +74,7 @@ function findSpecificGit(path: string): Promise<IGit> {
 	});
 }
 
-function findGitDarwin(): Promise<IGit> {
+function findGitDarwin(onLookup: (path: string) => void): Promise<IGit> {
 	return new Promise<IGit>((c, e) => {
 		cp.exec('which git', (err, gitPathBuffer) => {
 			if (err) {
@@ -80,8 +84,11 @@ function findGitDarwin(): Promise<IGit> {
 			const path = gitPathBuffer.toString().replace(/^\s+|\s+$/g, '');
 
 			function getVersion(path: string) {
+				onLookup(path);
+
 				// make sure git executes
 				cp.exec('git --version', (err, stdout) => {
+
 					if (err) {
 						return e('git not found');
 					}
@@ -109,38 +116,37 @@ function findGitDarwin(): Promise<IGit> {
 	});
 }
 
-function findSystemGitWin32(base: string): Promise<IGit> {
+function findSystemGitWin32(base: string, onLookup: (path: string) => void): Promise<IGit> {
 	if (!base) {
 		return Promise.reject<IGit>('Not found');
 	}
 
-	return findSpecificGit(path.join(base, 'Git', 'cmd', 'git.exe'));
+	return findSpecificGit(path.join(base, 'Git', 'cmd', 'git.exe'), onLookup);
 }
 
-function findGitWin32(): Promise<IGit> {
-	return findSystemGitWin32(process.env['ProgramW6432'])
-		.then(void 0, () => findSystemGitWin32(process.env['ProgramFiles(x86)']))
-		.then(void 0, () => findSystemGitWin32(process.env['ProgramFiles']))
-		.then(void 0, () => findSpecificGit('git'));
+function findGitWin32(onLookup: (path: string) => void): Promise<IGit> {
+	return findSystemGitWin32(process.env['ProgramW6432'] as string, onLookup)
+		.then(void 0, () => findSystemGitWin32(process.env['ProgramFiles(x86)'] as string, onLookup))
+		.then(void 0, () => findSystemGitWin32(process.env['ProgramFiles'] as string, onLookup));
 }
 
-export function findGit(hint: string | undefined): Promise<IGit> {
-	var first = hint ? findSpecificGit(hint) : Promise.reject<IGit>(null);
+export function findGit(hint: string | undefined, onLookup: (path: string) => void): Promise<IGit> {
+	var first = hint ? findSpecificGit(hint, onLookup) : Promise.reject<IGit>(null);
 
 	return first
 		.then(void 0, () => {
 			switch (process.platform) {
-				case 'darwin': return findGitDarwin();
-				case 'win32': return findGitWin32();
-				default: return findSpecificGit('git');
+				case 'darwin': return findGitDarwin(onLookup);
+				case 'win32': return findGitWin32(onLookup);
+				default: return findSpecificGit('git', onLookup);
 			}
 		})
 		.then(null, () => Promise.reject(new Error('Git installation not found.')));
 }
 
-export interface IExecutionResult {
+export interface IExecutionResult<T extends string | Buffer> {
 	exitCode: number;
-	stdout: string;
+	stdout: T;
 	stderr: string;
 }
 
@@ -162,50 +168,69 @@ export interface SpawnOptions extends cp.SpawnOptions {
 	input?: string;
 	encoding?: string;
 	log?: boolean;
+	cancellationToken?: CancellationToken;
 }
 
-async function exec(child: cp.ChildProcess, options: SpawnOptions = {}): Promise<IExecutionResult> {
+async function exec(child: cp.ChildProcess, cancellationToken?: CancellationToken): Promise<IExecutionResult<Buffer>> {
 	if (!child.stdout || !child.stderr) {
-		throw new GitError({
-			message: 'Failed to get stdout or stderr from git process.'
-		});
+		throw new GitError({ message: 'Failed to get stdout or stderr from git process.' });
+	}
+
+	if (cancellationToken && cancellationToken.isCancellationRequested) {
+		throw new GitError({ message: 'Cancelled' });
 	}
 
 	const disposables: IDisposable[] = [];
 
-	const once = (ee: NodeJS.EventEmitter, name: string, fn: Function) => {
+	const once = (ee: NodeJS.EventEmitter, name: string, fn: (...args: any[]) => void) => {
 		ee.once(name, fn);
 		disposables.push(toDisposable(() => ee.removeListener(name, fn)));
 	};
 
-	const on = (ee: NodeJS.EventEmitter, name: string, fn: Function) => {
+	const on = (ee: NodeJS.EventEmitter, name: string, fn: (...args: any[]) => void) => {
 		ee.on(name, fn);
 		disposables.push(toDisposable(() => ee.removeListener(name, fn)));
 	};
 
-	let encoding = options.encoding || 'utf8';
-	encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
-
-	const [exitCode, stdout, stderr] = await Promise.all<any>([
+	let result = Promise.all<any>([
 		new Promise<number>((c, e) => {
 			once(child, 'error', cpErrorHandler(e));
 			once(child, 'exit', c);
 		}),
-		new Promise<string>(c => {
+		new Promise<Buffer>(c => {
 			const buffers: Buffer[] = [];
-			on(child.stdout, 'data', b => buffers.push(b));
-			once(child.stdout, 'close', () => c(iconv.decode(Buffer.concat(buffers), encoding)));
+			on(child.stdout, 'data', (b: Buffer) => buffers.push(b));
+			once(child.stdout, 'close', () => c(Buffer.concat(buffers)));
 		}),
 		new Promise<string>(c => {
 			const buffers: Buffer[] = [];
-			on(child.stderr, 'data', b => buffers.push(b));
+			on(child.stderr, 'data', (b: Buffer) => buffers.push(b));
 			once(child.stderr, 'close', () => c(Buffer.concat(buffers).toString('utf8')));
 		})
-	]);
+	]) as Promise<[number, Buffer, string]>;
 
-	dispose(disposables);
+	if (cancellationToken) {
+		const cancellationPromise = new Promise<[number, Buffer, string]>((_, e) => {
+			onceEvent(cancellationToken.onCancellationRequested)(() => {
+				try {
+					child.kill();
+				} catch (err) {
+					// noop
+				}
 
-	return { exitCode, stdout, stderr };
+				e(new GitError({ message: 'Cancelled' }));
+			});
+		});
+
+		result = Promise.race([result, cancellationPromise]);
+	}
+
+	try {
+		const [exitCode, stdout, stderr] = await result;
+		return { exitCode, stdout, stderr };
+	} finally {
+		dispose(disposables);
+	}
 }
 
 export interface IGitErrorData {
@@ -251,7 +276,7 @@ export class GitError {
 			gitCommand: this.gitCommand,
 			stdout: this.stdout,
 			stderr: this.stderr
-		}, [], 2);
+		}, null, 2);
 
 		if (this.error) {
 			result += (<any>this.error).stack;
@@ -288,6 +313,8 @@ export const GitErrorCodes = {
 	RepositoryIsLocked: 'RepositoryIsLocked',
 	BranchNotFullyMerged: 'BranchNotFullyMerged',
 	NoRemoteReference: 'NoRemoteReference',
+	InvalidBranchName: 'InvalidBranchName',
+	BranchAlreadyExists: 'BranchAlreadyExists',
 	NoLocalChanges: 'NoLocalChanges',
 	NoStashFound: 'NoStashFound',
 	LocalChangesOverwritten: 'LocalChangesOverwritten'
@@ -312,6 +339,10 @@ function getGitErrorCode(stderr: string): string | undefined {
 		return GitErrorCodes.BranchNotFullyMerged;
 	} else if (/Couldn\'t find remote ref/.test(stderr)) {
 		return GitErrorCodes.NoRemoteReference;
+	} else if (/A branch named '.+' already exists/.test(stderr)) {
+		return GitErrorCodes.BranchAlreadyExists;
+	} else if (/'.+' is not a valid branch name/.test(stderr)) {
+		return GitErrorCodes.InvalidBranchName;
 	}
 
 	return void 0;
@@ -341,12 +372,12 @@ export class Git {
 		return;
 	}
 
-	async clone(url: string, parentPath: string): Promise<string> {
+	async clone(url: string, parentPath: string, cancellationToken?: CancellationToken): Promise<string> {
 		const folderName = decodeURI(url).replace(/^.*\//, '').replace(/\.git$/, '') || 'repository';
 		const folderPath = path.join(parentPath, folderName);
 
 		await mkdirp(parentPath);
-		await this.exec(parentPath, ['clone', url, folderPath]);
+		await this.exec(parentPath, ['clone', url, folderPath], { cancellationToken });
 		return folderPath;
 	}
 
@@ -355,7 +386,7 @@ export class Git {
 		return path.normalize(result.stdout.trim());
 	}
 
-	async exec(cwd: string, args: string[], options: SpawnOptions = {}): Promise<IExecutionResult> {
+	async exec(cwd: string, args: string[], options: SpawnOptions = {}): Promise<IExecutionResult<string>> {
 		options = assign({ cwd }, options || {});
 		return await this._exec(args, options);
 	}
@@ -365,21 +396,30 @@ export class Git {
 		return this.spawn(args, options);
 	}
 
-	private async _exec(args: string[], options: SpawnOptions = {}): Promise<IExecutionResult> {
+	private async _exec(args: string[], options: SpawnOptions = {}): Promise<IExecutionResult<string>> {
 		const child = this.spawn(args, options);
 
 		if (options.input) {
 			child.stdin.end(options.input, 'utf8');
 		}
 
-		const result = await exec(child, options);
+		const bufferResult = await exec(child, options.cancellationToken);
 
-		if (options.log !== false && result.stderr.length > 0) {
-			this.log(`${result.stderr}\n`);
+		if (options.log !== false && bufferResult.stderr.length > 0) {
+			this.log(`${bufferResult.stderr}\n`);
 		}
 
-		if (result.exitCode) {
-			return Promise.reject<IExecutionResult>(new GitError({
+		let encoding = options.encoding || 'utf8';
+		encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
+
+		const result: IExecutionResult<string> = {
+			exitCode: bufferResult.exitCode,
+			stdout: iconv.decode(bufferResult.stdout, encoding),
+			stderr: bufferResult.stderr
+		};
+
+		if (bufferResult.exitCode) {
+			return Promise.reject<IExecutionResult<string>>(new GitError({
 				message: 'Failed to execute git',
 				stdout: result.stdout,
 				stderr: result.stderr,
@@ -510,7 +550,7 @@ export class Repository {
 	}
 
 	// TODO@Joao: rename to exec
-	async run(args: string[], options: SpawnOptions = {}): Promise<IExecutionResult> {
+	async run(args: string[], options: SpawnOptions = {}): Promise<IExecutionResult<string>> {
 		return await this.git.exec(this.repositoryRoot, args, options);
 	}
 
@@ -539,39 +579,97 @@ export class Repository {
 		return result.stdout;
 	}
 
-	async buffer(object: string, encoding: string = 'utf8'): Promise<string> {
+	async bufferString(object: string, encoding: string = 'utf8'): Promise<string> {
+		const stdout = await this.buffer(object);
+		return iconv.decode(stdout, iconv.encodingExists(encoding) ? encoding : 'utf8');
+	}
+
+	async buffer(object: string): Promise<Buffer> {
 		const child = this.stream(['show', object]);
 
 		if (!child.stdout) {
-			return Promise.reject<string>('Can\'t open file from git');
+			return Promise.reject<Buffer>('Can\'t open file from git');
 		}
 
-		const { exitCode, stdout } = await exec(child, { encoding });
+		const { exitCode, stdout } = await exec(child);
 
 		if (exitCode) {
-			return Promise.reject<string>(new GitError({
+			return Promise.reject<Buffer>(new GitError({
 				message: 'Could not show object.',
 				exitCode
 			}));
 		}
 
 		return stdout;
+	}
 
-		// TODO@joao
-		// return new Promise((c, e) => {
-		// detectMimesFromStream(child.stdout, null, (err, result) => {
-		// 	if (err) {
-		// 		e(err);
-		// 	} else if (isBinaryMime(result.mimes)) {
-		// 		e(<IFileOperationResult>{
-		// 			message: localize('fileBinaryError', "File seems to be binary and cannot be opened as text"),
-		// 			fileOperationResult: FileOperationResult.FILE_IS_BINARY
-		// 		});
-		// 	} else {
-		// c(this.doBuffer(object));
-		// 	}
-		// });
-		// });
+	async lstree(treeish: string, path: string): Promise<{ mode: number, object: string, size: number }> {
+		if (!treeish) { // index
+			const { stdout } = await this.run(['ls-files', '--stage', '--', path]);
+
+			const match = /^(\d+)\s+([0-9a-f]{40})\s+(\d+)/.exec(stdout);
+
+			if (!match) {
+				throw new GitError({ message: 'Error running ls-files' });
+			}
+
+			const [, mode, object] = match;
+			const catFile = await this.run(['cat-file', '-s', object]);
+			const size = parseInt(catFile.stdout);
+
+			return { mode: parseInt(mode), object, size };
+		}
+
+		const { stdout } = await this.run(['ls-tree', '-l', treeish, '--', path]);
+
+		const match = /^(\d+)\s+(\w+)\s+([0-9a-f]{40})\s+(\d+)/.exec(stdout);
+
+		if (!match) {
+			throw new GitError({ message: 'Error running ls-tree' });
+		}
+
+		const [, mode, , object, size] = match;
+		return { mode: parseInt(mode), object, size: parseInt(size) };
+	}
+
+	async detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }> {
+		const child = await this.stream(['show', object]);
+		const buffer = await readBytes(child.stdout, 4100);
+
+		try {
+			child.kill();
+		} catch (err) {
+			// noop
+		}
+
+		const encoding = detectUnicodeEncoding(buffer);
+		let isText = true;
+
+		if (encoding !== Encoding.UTF16be && encoding !== Encoding.UTF16le) {
+			for (let i = 0; i < buffer.length; i++) {
+				if (buffer.readInt8(i) === 0) {
+					isText = false;
+					break;
+				}
+			}
+		}
+
+		if (!isText) {
+			const result = filetype(buffer);
+
+			if (!result) {
+				return { mimetype: 'application/octet-stream' };
+			} else {
+				return { mimetype: result.mime };
+			}
+		}
+
+		if (encoding) {
+			return { mimetype: 'text/plain', encoding };
+		} else {
+			// TODO@JOAO: read the setting OUTSIDE!
+			return { mimetype: 'text/plain' };
+		}
 	}
 
 	async add(paths: string[]): Promise<void> {
@@ -591,6 +689,7 @@ export class Repository {
 		child.stdin.end(data, 'utf8');
 
 		const { exitCode, stdout } = await exec(child);
+		const hash = stdout.toString('utf8');
 
 		if (exitCode) {
 			throw new GitError({
@@ -599,7 +698,7 @@ export class Repository {
 			});
 		}
 
-		await this.run(['update-index', '--cacheinfo', '100644', stdout, path]);
+		await this.run(['update-index', '--cacheinfo', '100644', hash, path]);
 	}
 
 	async checkout(treeish: string, paths: string[]): Promise<void> {
@@ -677,6 +776,11 @@ export class Repository {
 
 	async deleteBranch(name: string, force?: boolean): Promise<void> {
 		const args = ['branch', force ? '-D' : '-d', name];
+		await this.run(args);
+	}
+
+	async renameBranch(name: string): Promise<void> {
+		const args = ['branch', '-m', name];
 		await this.run(args);
 	}
 
@@ -847,9 +951,13 @@ export class Repository {
 		}
 	}
 
-	async createStash(message?: string): Promise<void> {
+	async createStash(message?: string, includeUntracked?: boolean): Promise<void> {
 		try {
 			const args = ['stash', 'save'];
+
+			if (includeUntracked) {
+				args.push('-u');
+			}
 
 			if (message) {
 				args.push('--', message);
@@ -891,7 +999,7 @@ export class Repository {
 			const env = { GIT_OPTIONAL_LOCKS: '0' };
 			const child = this.stream(['status', '-z', '-u'], { env });
 
-			const onExit = exitCode => {
+			const onExit = (exitCode: number) => {
 				if (exitCode !== 0) {
 					const stderr = stderrData.join('');
 					return e(new GitError({
@@ -953,7 +1061,7 @@ export class Repository {
 	async getRefs(): Promise<Ref[]> {
 		const result = await this.run(['for-each-ref', '--format', '%(refname) %(objectname)']);
 
-		const fn = (line): Ref | null => {
+		const fn = (line: string): Ref | null => {
 			let match: RegExpExecArray | null;
 
 			if (match = /^refs\/heads\/([^ ]+) ([0-9a-f]{40})$/.exec(line)) {
@@ -978,7 +1086,7 @@ export class Repository {
 		const regex = /^stash@{(\d+)}:(.+)$/;
 		const rawStashes = result.stdout.trim().split('\n')
 			.filter(b => !!b)
-			.map(line => regex.exec(line))
+			.map(line => regex.exec(line) as RegExpExecArray)
 			.filter(g => !!g)
 			.map(([, index, description]: RegExpExecArray) => ({ index: parseInt(index), description }));
 
@@ -990,7 +1098,7 @@ export class Repository {
 		const regex = /^([^\s]+)\s+([^\s]+)\s/;
 		const rawRemotes = result.stdout.trim().split('\n')
 			.filter(b => !!b)
-			.map(line => regex.exec(line))
+			.map(line => regex.exec(line) as RegExpExecArray)
 			.filter(g => !!g)
 			.map((groups: RegExpExecArray) => ({ name: groups[1], url: groups[2] }));
 

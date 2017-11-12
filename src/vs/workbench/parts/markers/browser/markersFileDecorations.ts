@@ -45,7 +45,7 @@ class MarkersDecorationsProvider implements IDecorationsProvider {
 		return {
 			weight: 100 * first.severity,
 			bubble: true,
-			title: markers.length === 1 ? localize('tooltip.1', "1 problem in this file") : localize('tooltip.N', "{0} problems in this file", markers.length),
+			tooltip: markers.length === 1 ? localize('tooltip.1', "1 problem in this file") : localize('tooltip.N', "{0} problems in this file", markers.length),
 			letter: markers.length < 10 ? markers.length.toString() : '+9',
 			color: first.severity === Severity.Error ? editorErrorForeground : editorWarningForeground,
 		};
@@ -80,7 +80,7 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 	}
 
 	private _updateEnablement(): void {
-		let value = this._configurationService.getConfiguration<{ decorations: { enabled: boolean } }>('problems');
+		let value = this._configurationService.getValue<{ decorations: { enabled: boolean } }>('problems');
 		if (value.decorations.enabled === this._enabled) {
 			return;
 		}

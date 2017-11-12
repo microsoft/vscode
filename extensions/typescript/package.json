@@ -166,17 +166,23 @@
           "description": "%typescript.useCodeSnippetsOnMethodSuggest.dec%",
           "scope": "resource"
         },
+        "typescript.reportStyleChecksAsWarnings": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.reportStyleChecksAsWarnings%",
+          "scope": "window"
+        },
         "typescript.validate.enable": {
           "type": "boolean",
           "default": true,
           "description": "%typescript.validate.enable%",
-          "scope": "resource"
+          "scope": "window"
         },
         "typescript.format.enable": {
           "type": "boolean",
           "default": true,
           "description": "%typescript.format.enable%",
-          "scope": "resource"
+          "scope": "window"
         },
         "typescript.format.insertSpaceAfterCommaDelimiter": {
           "type": "boolean",
@@ -272,13 +278,13 @@
           "type": "boolean",
           "default": true,
           "description": "%javascript.validate.enable%",
-          "scope": "resource"
+          "scope": "window"
         },
         "javascript.format.enable": {
           "type": "boolean",
           "default": true,
           "description": "%javascript.format.enable%",
-          "scope": "resource"
+          "scope": "window"
         },
         "javascript.format.insertSpaceAfterCommaDelimiter": {
           "type": "boolean",
@@ -376,6 +382,12 @@
           "description": "%javascript.implicitProjectConfig.checkJs%",
           "scope": "window"
         },
+        "javascript.implicitProjectConfig.experimentalDecorators": {
+          "type": "boolean",
+          "default": false,
+          "description": "%javascript.implicitProjectConfig.experimentalDecorators%",
+          "scope": "window"
+        },
         "javascript.nameSuggestions": {
           "type": "boolean",
           "default": true,
@@ -392,7 +404,7 @@
             "watch"
           ],
           "description": "%typescript.tsc.autoDetect%",
-          "scope": "resource"
+          "scope": "window"
         },
         "typescript.quickSuggestionsForPaths": {
           "type": "boolean",
@@ -400,10 +412,29 @@
           "description": "%typescript.quickSuggestionsForPaths%",
           "scope": "resource"
         },
+        "typescript.autoImportSuggestions.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.autoImportSuggestions.enabled%",
+          "scope": "resource"
+        },
         "typescript.locale": {
           "type": [
             "string",
             "null"
+          ],
+          "enum": [
+            "de",
+            "es",
+            "en",
+            "fr",
+            "it",
+            "ja",
+            "ko",
+            "ru",
+            "zh-CN",
+            "zh-TW",
+            null
           ],
           "default": null,
           "description": "%typescript.locale%",
@@ -499,7 +530,7 @@
       },
       {
         "language": "typescriptreact",
-        "path": "./snippets/typescriptreact.json"
+        "path": "./snippets/typescript.json"
       }
     ],
     "jsonValidation": [

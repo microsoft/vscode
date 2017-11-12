@@ -6,6 +6,8 @@
 {
 	"noWorkspace": "열린 폴더 없음",
 	"explorerSection": "파일 탐색기 섹션",
+	"noWorkspaceHelp": "작업 영역에 아직 폴더를 추가하지 않았습니다.",
+	"addFolder": "폴더 추가",
 	"noFolderHelp": "아직 폴더를 열지 않았습니다.",
 	"openFolder": "폴더 열기"
 }

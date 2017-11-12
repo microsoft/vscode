@@ -808,6 +808,21 @@ export class SymbolInformation {
 	}
 }
 
+export class CodeAction {
+	title: string;
+
+	command?: vscode.Command;
+
+	edits?: TextEdit[] | WorkspaceEdit;
+
+	dianostics?: Diagnostic[];
+
+	constructor(title: string, edits?: TextEdit[] | WorkspaceEdit) {
+		this.title = title;
+		this.edits = edits;
+	}
+}
+
 export class CodeLens {
 
 	range: Range;
@@ -887,6 +902,11 @@ export class SignatureHelp {
 	constructor() {
 		this.signatures = [];
 	}
+}
+
+export enum CodeActionType {
+	QuickFix = 1,
+	Refactoring = 2
 }
 
 export enum CompletionTriggerKind {
@@ -1131,7 +1151,6 @@ export enum TaskPanelKind {
 export class TaskGroup implements vscode.TaskGroup {
 
 	private _id: string;
-	private _label: string;
 
 	public static Clean: TaskGroup = new TaskGroup('clean', 'Clean');
 
@@ -1141,15 +1160,14 @@ export class TaskGroup implements vscode.TaskGroup {
 
 	public static Test: TaskGroup = new TaskGroup('test', 'Test');
 
-	constructor(id: string, label: string) {
+	constructor(id: string, _label: string) {
 		if (typeof id !== 'string') {
 			throw illegalArgument('name');
 		}
-		if (typeof label !== 'string') {
+		if (typeof _label !== 'string') {
 			throw illegalArgument('name');
 		}
 		this._id = id;
-		this._label = label;
 	}
 
 	get id(): string {

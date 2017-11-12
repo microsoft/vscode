@@ -4,7 +4,7 @@
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
 	"scripts": {
-		"update-grammar": "node ../../build/npm/update-grammar.js textmate/shellscript.tmbundle Syntaxes/Shell-Unix-Bash.tmLanguage ./syntaxes/Shell-Unix-Bash.tmLanguage.json"
+		"update-grammar": "node ../../build/npm/update-grammar.js atom/language-shellscript grammars/shell-unix-bash.cson ./syntaxes/shell-unix-bash.tmLanguage.json"
 	},
 	"contributes": {
 		"languages": [{
@@ -19,7 +19,7 @@
 		"grammars": [{
 			"language": "shellscript",
 			"scopeName": "source.shell",
-			"path": "./syntaxes/Shell-Unix-Bash.tmLanguage.json"
+			"path": "./syntaxes/shell-unix-bash.tmLanguage.json"
 		}]
 	}
 }

@@ -12,6 +12,7 @@
 	"errorUnknownKey": "因為 {1} 非已註冊的組態，所以無法寫入至 {0}。",
 	"errorInvalidFolderConfiguration": "因為 {0} 不支援資料夾資源範圍，所以無法寫入至資料夾設定。",
 	"errorInvalidUserTarget": "因為 {0} 不支援全域範圍，所以無法寫入至使用者設定。",
+	"errorInvalidWorkspaceTarget": "因為 {0} 不支援多資料夾工作區中使用工作區範圍，所以無法寫入工作區設定。",
 	"errorInvalidFolderTarget": "因為未提供資源，所以無法寫入至資料夾設定。",
 	"errorNoWorkspaceOpened": "因為未開啟工作區，所以無法寫入至 {0}。請先開啟工作區，再試一次。",
 	"errorInvalidTaskConfiguration": "無法寫入工作檔案。請開啟 **工作** 檔案以修正其中的錯誤/警告，然後重試一次。",

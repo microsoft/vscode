@@ -11,7 +11,7 @@ import os = require('os');
 import crypto = require('crypto');
 import assert = require('assert');
 
-import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, MAX_FILE_SIZE, FileChangesEvent, IFilesConfiguration, ICreateFileOptions } from 'vs/platform/files/common/files';
+import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, MAX_FILE_SIZE, FileChangesEvent, ICreateFileOptions } from 'vs/platform/files/common/files';
 import { isEqualOrParent } from 'vs/base/common/paths';
 import { ResourceMap } from 'vs/base/common/map';
 import arrays = require('vs/base/common/arrays');
@@ -483,7 +483,7 @@ export class FileService implements IFileService {
 			}
 
 			// 2.) make sure target is deleted before we move/copy unless this is a case rename of the same file
-			let deleteTargetPromise = TPromise.as<void>(void 0);
+			let deleteTargetPromise = TPromise.wrap<void>(void 0);
 			if (exists && !isCaseRename) {
 				if (isEqualOrParent(sourcePath, targetPath, !isLinux /* ignorecase */)) {
 					return TPromise.wrapError<boolean>(new Error(nls.localize('unableToMoveCopyError', "Unable to move/copy. File would replace folder it is contained in."))); // catch this corner case!
@@ -499,7 +499,7 @@ export class FileService implements IFileService {
 
 					// 4.) copy/move
 					if (isSameFile) {
-						return TPromise.as(null);
+						return TPromise.wrap(null);
 					} else if (keepCopy) {
 						return nfcall(extfs.copy, sourcePath, targetPath);
 					} else {
@@ -643,15 +643,11 @@ export class FileService implements IFileService {
 	}
 
 	private configuredAutoGuessEncoding(resource: uri): boolean {
-		const config = this.textResourceConfigurationService.getConfiguration(resource) as IFilesConfiguration;
-
-		return config && config.files && config.files.autoGuessEncoding === true;
+		return this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding');
 	}
 
 	private configuredEncoding(resource: uri): string {
-		const config = this.textResourceConfigurationService.getConfiguration(resource) as IFilesConfiguration;
-
-		return config && config.files && config.files.encoding;
+		return this.textResourceConfigurationService.getValue(resource, 'files.encoding');
 	}
 
 	private getEncodingOverride(resource: uri): string {
@@ -919,11 +915,11 @@ export class StatResolver {
 						clb(null, null); // return - we might not have permissions to read the folder or stat the file
 					},
 
-					function stat(): void {
+					function stat(this: any): void {
 						fs.stat(fileResource.fsPath, this);
 					},
 
-					function countChildren(fsstat: fs.Stats): void {
+					function countChildren(this: any, fsstat: fs.Stats): void {
 						fileStat = fsstat;
 
 						if (fileStat.isDirectory()) {

@@ -15,6 +15,8 @@
 	"command.stageAll": "모든 변경 내용 스테이징",
 	"command.stageSelectedRanges": "선택한 범위 스테이징",
 	"command.revertSelectedRanges": "선택한 범위 되돌리기",
+	"command.stageChange": "변경 내용 스테이징",
+	"command.revertChange": "변경 내용 되돌리기",
 	"command.unstage": "변경 내용 스테이징 취소",
 	"command.unstageAll": "모든 변경 내용 스테이징 취소",
 	"command.unstageSelectedRanges": "선택한 범위 스테이징 취소",
@@ -59,5 +61,11 @@
 	"config.defaultCloneDirectory": "git 리포지토리를 복제할 기본 위치",
 	"config.enableSmartCommit": "단계적 변경 사항이 없는 경우 모든 변경 사항을 저장합니다.",
 	"config.enableCommitSigning": "GPG를 사용한 커밋 서명을 사용하도록 설정합니다.",
-	"config.discardAllScope": "`모든 변경 내용 취소` 명령으로 취소되는 변경 내용을 제어합니다. `all`이면 모든 변경 내용을 취소합니다. `tracked`이면 추적된 파일만 취소합니다. `prompt`이면 작업을 실행할 때마다 프롬프트 대화 상자를 표시합니다."
+	"config.discardAllScope": "`모든 변경 내용 취소` 명령으로 취소되는 변경 내용을 제어합니다. `all`이면 모든 변경 내용을 취소합니다. `tracked`이면 추적된 파일만 취소합니다. `prompt`이면 작업을 실행할 때마다 프롬프트 대화 상자를 표시합니다.",
+	"config.decorations.enabled": "Git에서 색과 배지를 탐색기와 열려 있는 편집기 뷰에 적용하는지 제어합니다.",
+	"colors.modified": "수정된 리소스의 색상입니다.",
+	"colors.deleted": "삭제된 리소스의 색상입니다.",
+	"colors.untracked": "추적되지 않은 리소스의 색상입니다.",
+	"colors.ignored": "무시된 리소스의 색상입니다.",
+	"colors.conflict": "충돌이 발생한 리소스의 색상입니다."
 }

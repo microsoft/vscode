@@ -17,7 +17,6 @@ import { IRequestService } from 'vs/platform/request/node/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPager } from 'vs/base/common/paging';
 import { IRequestOptions, IRequestContext, download, asJson, asText } from 'vs/base/node/request';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
 import { isVersionValid } from 'vs/platform/extensions/node/extensionValidator';
@@ -107,6 +106,7 @@ const AssetType = {
 	Manifest: 'Microsoft.VisualStudio.Code.Manifest',
 	VSIX: 'Microsoft.VisualStudio.Services.VSIXPackage',
 	License: 'Microsoft.VisualStudio.Services.Content.License',
+	Repository: 'Microsoft.VisualStudio.Services.Links.Source'
 };
 
 const PropertyType = {
@@ -200,6 +200,25 @@ function getStatistic(statistics: IRawGalleryExtensionStatistics[], name: string
 function getVersionAsset(version: IRawGalleryExtensionVersion, type: string): IGalleryExtensionAsset {
 	const result = version.files.filter(f => f.assetType === type)[0];
 
+	if (type === AssetType.Repository) {
+		const results = version.properties.filter(p => p.key === type);
+		const gitRegExp = new RegExp('((git|ssh|http(s)?)|(git@[\w\.]+))(:(//)?)([\w\.@\:/\-~]+)(\.git)(/)?');
+
+		const uri = results.filter(r => gitRegExp.test(r.value))[0];
+		if (!uri) {
+			return {
+				uri: null,
+				fallbackUri: null
+			};
+		}
+
+		return {
+			uri: uri.value,
+			fallbackUri: uri.value,
+		};
+
+	}
+
 	if (!result) {
 		if (type === AssetType.Icon) {
 			const uri = require.toUrl('./media/defaultIcon.png');
@@ -241,7 +260,8 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 		changelog: getVersionAsset(version, AssetType.Changelog),
 		download: getVersionAsset(version, AssetType.VSIX),
 		icon: getVersionAsset(version, AssetType.Icon),
-		license: getVersionAsset(version, AssetType.License)
+		license: getVersionAsset(version, AssetType.License),
+		repository: getVersionAsset(version, AssetType.Repository),
 	};
 
 	return {
@@ -291,8 +311,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	constructor(
 		@IRequestService private requestService: IRequestService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		const config = product.extensionsGallery;
 		this.extensionsGalleryUrl = config && config.serviceUrl;
@@ -385,8 +404,8 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		});
 	}
 
-	private async queryGallery(query: Query): TPromise<{ galleryExtensions: IRawGalleryExtension[], total: number; }> {
-		const commonHeaders = await this.commonHTTPHeaders;
+	private queryGallery(query: Query): TPromise<{ galleryExtensions: IRawGalleryExtension[], total: number; }> {
+		const commonHeaders = this.commonHTTPHeaders;
 		const data = JSON.stringify(query.raw);
 		const headers = assign({}, commonHeaders, {
 			'Content-Type': 'application/json',
@@ -395,45 +414,40 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			'Content-Length': data.length
 		});
 
-		const context = await this.requestService.request({
+		return this.requestService.request({
 			type: 'POST',
 			url: this.api('/extensionquery'),
 			data,
 			headers
+		}).then(context => {
+
+			if (context.res.statusCode >= 400 && context.res.statusCode < 500) {
+				return { galleryExtensions: [], total: 0 };
+			}
+
+			return asJson<IRawGalleryQueryResult>(context).then(result => {
+				const r = result.results[0];
+				const galleryExtensions = r.extensions;
+				const resultCount = r.resultMetadata && r.resultMetadata.filter(m => m.metadataType === 'ResultCount')[0];
+				const total = resultCount && resultCount.metadataItems.filter(i => i.name === 'TotalCount')[0].count || 0;
+
+				return { galleryExtensions, total };
+			});
 		});
-
-		if (context.res.statusCode >= 400 && context.res.statusCode < 500) {
-			return { galleryExtensions: [], total: 0 };
-		}
-
-		const result = await asJson<IRawGalleryQueryResult>(context);
-		const r = result.results[0];
-		const galleryExtensions = r.extensions;
-		const resultCount = r.resultMetadata && r.resultMetadata.filter(m => m.metadataType === 'ResultCount')[0];
-		const total = resultCount && resultCount.metadataItems.filter(i => i.name === 'TotalCount')[0].count || 0;
-
-		return { galleryExtensions, total };
 	}
 
-	async reportStatistic(publisher: string, name: string, version: string, type: StatisticType): TPromise<void> {
+	reportStatistic(publisher: string, name: string, version: string, type: StatisticType): TPromise<void> {
 		if (!this.isEnabled()) {
-			return;
+			return TPromise.as(null);
 		}
 
-		try {
-			const headers = {
-				...await this.commonHTTPHeaders,
-				Accept: '*/*;api-version=4.0-preview.1'
-			};
+		const headers = { ...this.commonHTTPHeaders, Accept: '*/*;api-version=4.0-preview.1' };
 
-			await this.requestService.request({
-				type: 'POST',
-				url: this.api(`/publishers/${publisher}/extensions/${name}/${version}/stats?statType=${type}`),
-				headers
-			});
-		} catch (err) {
-			// noop
-		}
+		return this.requestService.request({
+			type: 'POST',
+			url: this.api(`/publishers/${publisher}/extensions/${name}/${version}/stats?statType=${type}`),
+			headers
+		}).then(null, () => null);
 	}
 
 	download(extension: IGalleryExtension): TPromise<string> {

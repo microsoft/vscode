@@ -14,11 +14,12 @@ import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/p
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import URI from 'vs/base/common/uri';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { WORKSPACE_FILTER, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isLinux } from 'vs/base/common/platform';
 import { dirname } from 'vs/base/common/paths';
+import * as resources from 'vs/base/common/resources';
 import { mnemonicButtonLabel, getPathLabel } from 'vs/base/common/labels';
 import { isParent, FileKind } from 'vs/platform/files/common/files';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -203,7 +204,6 @@ export class AddRootFolderAction extends BaseWorkspacesAction {
 		@IWindowService windowService: IWindowService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
 		@IViewletService private viewletService: IViewletService,
 		@IHistoryService historyService: IHistoryService
@@ -218,7 +218,7 @@ export class AddRootFolderAction extends BaseWorkspacesAction {
 		}
 
 		// Add and show Files Explorer viewlet
-		return this.workspaceEditingService.addFolders(folders.map(folder => URI.file(folder))).then(() => this.viewletService.openViewlet(this.viewletService.getDefaultViewletId(), true));
+		return this.workspaceEditingService.addFolders(folders.map(folder => ({ uri: URI.file(folder) }))).then(() => this.viewletService.openViewlet(this.viewletService.getDefaultViewletId(), true));
 	}
 }
 
@@ -322,8 +322,8 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 			switch (this.contextService.getWorkbenchState()) {
 				case WorkbenchState.EMPTY:
 				case WorkbenchState.FOLDER:
-					const workspaceFolders = this.contextService.getWorkspace().folders.map(root => root.uri.fsPath);
-					return this.workspaceEditingService.createAndEnterWorkspace(workspaceFolders, configPath);
+					const folders = this.contextService.getWorkspace().folders.map(folder => ({ uri: folder.uri }));
+					return this.workspaceEditingService.createAndEnterWorkspace(folders, configPath);
 
 				case WorkbenchState.WORKSPACE:
 					return this.workspaceEditingService.saveAndEnterWorkspace(configPath);
@@ -419,7 +419,7 @@ export class OpenFolderAsWorkspaceInNewWindowAction extends Action {
 				return void 0; // need at least one folder
 			}
 
-			return this.workspacesService.createWorkspace([folder.uri]).then(newWorkspace => {
+			return this.workspacesService.createWorkspace([{ uri: folder.uri }]).then(newWorkspace => {
 				return this.workspaceEditingService.copyWorkspaceSettings(newWorkspace).then(() => {
 					return this.windowsService.openWindow([newWorkspace.configPath], { forceNewWindow: true });
 				});
@@ -443,7 +443,7 @@ CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND, function (access
 	const folderPicks = folders.map(folder => {
 		return {
 			label: folder.name,
-			description: getPathLabel(dirname(folder.uri.fsPath), void 0, environmentService),
+			description: getPathLabel(resources.dirname(folder.uri), void 0, environmentService),
 			folder,
 			resource: folder.uri,
 			fileKind: FileKind.ROOT_FOLDER

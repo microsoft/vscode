@@ -36,7 +36,7 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { extractResources } from 'vs/base/browser/dnd';
+import { extractResources } from 'vs/workbench/browser/editor';
 import { getOrSet } from 'vs/base/common/map';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
@@ -168,10 +168,11 @@ export class TabsTitleControl extends TitleControl {
 
 		// Drag over
 		this.toUnbind.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
+			const draggedEditor = TabsTitleControl.getDraggedEditor();
 
 			// update the dropEffect, otherwise it would look like a "move" operation. but only if we are
 			// not dragging a tab actually because there we support both moving as well as copying
-			if (!TabsTitleControl.getDraggedEditor()) {
+			if (!draggedEditor) {
 				e.dataTransfer.dropEffect = 'copy';
 			}
 
@@ -179,7 +180,17 @@ export class TabsTitleControl extends TitleControl {
 
 			const target = e.target;
 			if (target instanceof HTMLElement && target.className.indexOf('tabs-container') === 0) {
-				this.updateDropFeedback(this.tabsContainer, true);
+
+				// Find out if the currently dragged editor is the last tab of this group and in that
+				// case we do not want to show any drop feedback because the drop would be a no-op
+				let draggedEditorIsLastTab = false;
+				if (draggedEditor && this.context === draggedEditor.group && this.context.indexOf(draggedEditor.editor) === this.context.count - 1) {
+					draggedEditorIsLastTab = true;
+				}
+
+				if (!draggedEditorIsLastTab) {
+					this.updateDropFeedback(this.tabsContainer, true);
+				}
 			}
 		}));
 
@@ -576,13 +587,19 @@ export class TabsTitleControl extends TitleControl {
 			tab.blur();
 
 			if (e instanceof MouseEvent && e.button !== 0) {
-				return; // only for left mouse click
+				if (e.button === 1) {
+					return false; // required due to https://github.com/Microsoft/vscode/issues/16690
+				}
+
+				return void 0; // only for left mouse click
 			}
 
 			const { editor, position } = this.toTabContext(index);
 			if (!this.isTabActionBar((e.target || e.srcElement) as HTMLElement)) {
 				setTimeout(() => this.editorService.openEditor(editor, null, position).done(null, errors.onUnexpectedError)); // timeout to keep focus in editor after mouse up
 			}
+
+			return void 0;
 		};
 
 		const showContextMenu = (e: Event) => {

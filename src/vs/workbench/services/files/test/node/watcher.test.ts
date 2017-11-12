@@ -44,7 +44,7 @@ enum Path {
 	UNIX,
 	WINDOWS,
 	UNC
-};
+}
 
 suite('Watcher', () => {
 

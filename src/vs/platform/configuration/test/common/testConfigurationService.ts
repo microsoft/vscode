@@ -19,21 +19,19 @@ export class TestConfigurationService extends EventEmitter implements IConfigura
 	private configurationByRoot: TernarySearchTree<any> = TernarySearchTree.forPaths<any>();
 
 	public reloadConfiguration<T>(): TPromise<T> {
-		return TPromise.as(this.getConfiguration());
+		return TPromise.as(this.getValue());
 	}
 
-	public getConfiguration<C>(arg1?: any, arg2?: any): C {
+	public getValue(arg1?: any, arg2?: any): any {
+		if (arg1 && typeof arg1 === 'string') {
+			return this.inspect(<string>arg1).value;
+		}
 		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : void 0;
 		if (overrides && overrides.resource) {
 			const configForResource = this.configurationByRoot.findSubstr(overrides.resource.fsPath);
 			return configForResource || this.configuration;
 		}
-
 		return this.configuration;
-	}
-
-	public getValue(key: string, overrides?: IConfigurationOverrides): any {
-		return this.inspect(key).value;
 	}
 
 	public updateValue(key: string, overrides?: IConfigurationOverrides): TPromise<void> {
@@ -63,7 +61,7 @@ export class TestConfigurationService extends EventEmitter implements IConfigura
 		workspaceFolder: T
 		value: T,
 	} {
-		const config = this.getConfiguration(undefined, overrides);
+		const config = this.getValue(undefined, overrides);
 
 		return {
 			value: getConfigurationValue<T>(config, key),

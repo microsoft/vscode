@@ -15,6 +15,7 @@
 	"label.replaceButton": "Değiştir",
 	"label.replaceAllButton": "Tümünü Değiştir",
 	"label.toggleReplaceButton": "Değiştirme modunu değiştir",
+	"title.matchesCountLimit": "Sadece ilk {0} sonuç vurgulandı, fakat metnin tamamında tüm arama işlemleri çalışıyor.",
 	"label.matchesLocation": "{0}/{1}",
 	"label.noResults": "Sonuç Yok"
 }

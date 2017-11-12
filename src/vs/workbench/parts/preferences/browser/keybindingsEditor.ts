@@ -35,12 +35,13 @@ import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IDelegate, IRenderer, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IChoiceService, IMessageService, Severity } from 'vs/platform/message/common/message';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { listHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 
 let $ = DOM.$;
 
@@ -49,7 +50,7 @@ export class KeybindingsEditorInput extends EditorInput {
 	public static ID: string = 'workbench.input.keybindings';
 	public readonly keybindingsModel: KeybindingsEditorModel;
 
-	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
+	constructor( @IInstantiationService instantiationService: IInstantiationService) {
 		super();
 		this.keybindingsModel = instantiationService.createInstance(KeybindingsEditorModel, OS);
 	}
@@ -106,7 +107,6 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		@IKeybindingEditingService private keybindingEditingService: IKeybindingEditingService,
 		@IListService private listService: IListService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IChoiceService private choiceService: IChoiceService,
 		@IMessageService private messageService: IMessageService,
 		@IClipboardService private clipboardService: IClipboardService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -348,7 +348,13 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		if (this.input) {
 			return this.input.resolve()
 				.then((keybindingsModel: KeybindingsEditorModel) => this.keybindingsEditorModel = keybindingsModel)
-				.then(() => this.keybindingsEditorModel.resolve())
+				.then(() => {
+					const editorActionsLabels: { [id: string]: string; } = EditorExtensionsRegistry.getEditorActions().reduce((editorActions, editorAction) => {
+						editorActions[editorAction.id] = editorAction.label;
+						return editorActions;
+					}, {});
+					return this.keybindingsEditorModel.resolve(editorActionsLabels);
+				})
 				.then(() => this.renderKeybindingsEntries(false));
 		}
 		return TPromise.as(null);
@@ -723,16 +729,21 @@ class CommandColumn extends Column {
 		const commandDefaultLabelMatched = !!keybindingItemEntry.commandDefaultLabelMatches;
 		DOM.toggleClass(this.commandColumn, 'vertical-align-column', commandIdMatched || commandDefaultLabelMatched);
 		this.commandColumn.setAttribute('aria-label', this.getAriaLabel(keybindingItemEntry));
+		let commandLabel: HighlightedLabel;
 		if (keybindingItem.commandLabel) {
-			const commandLabel = new HighlightedLabel(this.commandColumn);
+			commandLabel = new HighlightedLabel(this.commandColumn);
 			commandLabel.set(keybindingItem.commandLabel, keybindingItemEntry.commandLabelMatches);
-			commandLabel.element.title = keybindingItem.command;
 		}
 		if (keybindingItemEntry.commandDefaultLabelMatches) {
-			new HighlightedLabel(DOM.append(this.commandColumn, $('.command-default-label'))).set(keybindingItem.commandDefaultLabel, keybindingItemEntry.commandDefaultLabelMatches);
+			commandLabel = new HighlightedLabel(DOM.append(this.commandColumn, $('.command-default-label')));
+			commandLabel.set(keybindingItem.commandDefaultLabel, keybindingItemEntry.commandDefaultLabelMatches);
 		}
 		if (keybindingItemEntry.commandIdMatches || !keybindingItem.commandLabel) {
-			new HighlightedLabel(DOM.append(this.commandColumn, $('.code'))).set(keybindingItem.command, keybindingItemEntry.commandIdMatches);
+			commandLabel = new HighlightedLabel(DOM.append(this.commandColumn, $('.code')));
+			commandLabel.set(keybindingItem.command, keybindingItemEntry.commandIdMatches);
+		}
+		if (commandLabel) {
+			commandLabel.element.title = keybindingItem.command;
 		}
 	}
 

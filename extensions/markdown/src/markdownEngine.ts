@@ -35,7 +35,7 @@ export class MarkdownEngine {
 		}
 	}
 
-	private async getEngine(): Promise<MarkdownIt> {
+	private async getEngine(resource: vscode.Uri): Promise<MarkdownIt> {
 		if (!this.md) {
 			const hljs = await import('highlight.js');
 			const mdnh = await import('markdown-it-named-headers');
@@ -66,10 +66,10 @@ export class MarkdownEngine {
 			this.addLinkValidator(this.md);
 		}
 
-		const config = vscode.workspace.getConfiguration('markdown');
+		const config = vscode.workspace.getConfiguration('markdown', resource);
 		this.md.set({
-			breaks: config.get('preview.breaks', false),
-			linkify: config.get('preview.linkify', true)
+			breaks: config.get<boolean>('preview.breaks', false),
+			linkify: config.get<boolean>('preview.linkify', true)
 		});
 		return this.md;
 	}
@@ -94,14 +94,14 @@ export class MarkdownEngine {
 		}
 		this.currentDocument = document;
 		this.firstLine = offset;
-		const engine = await this.getEngine();
+		const engine = await this.getEngine(document);
 		return engine.render(text);
 	}
 
 	public async parse(document: vscode.Uri, source: string): Promise<Token[]> {
 		const { text, offset } = this.stripFrontmatter(source);
 		this.currentDocument = document;
-		const engine = await this.getEngine();
+		const engine = await this.getEngine(document);
 
 		return engine.parse(text, {}).map(token => {
 			if (token.map) {

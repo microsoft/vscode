@@ -53,7 +53,7 @@ interface IRenderedElement {
 	index: number;
 }
 
-class TraitRenderer<T, D> implements IRenderer<T, ITraitTemplateData>
+class TraitRenderer<T> implements IRenderer<T, ITraitTemplateData>
 {
 	private rendered: IRenderedElement[] = [];
 
@@ -108,8 +108,8 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 	get trait(): string { return this._trait; }
 
 	@memoize
-	get renderer(): TraitRenderer<T, any> {
-		return new TraitRenderer<T, any>(this);
+	get renderer(): TraitRenderer<T> {
+		return new TraitRenderer<T>(this);
 	}
 
 	constructor(private _trait: string) {
@@ -324,6 +324,7 @@ function isSelectionChangeEvent(event: IListMouseEvent<any>): boolean {
 
 export interface IMouseControllerOptions {
 	selectOnMouseDown?: boolean;
+	focusOnMouseDown?: boolean;
 }
 
 class MouseController<T> implements IDisposable {
@@ -365,7 +366,12 @@ class MouseController<T> implements IDisposable {
 	}
 
 	private onMouseDown(e: IListMouseEvent<T>): void {
-		this.view.domNode.focus();
+		if (this.options.focusOnMouseDown === false) {
+			e.preventDefault();
+			e.stopPropagation();
+		} else {
+			this.view.domNode.focus();
+		}
 
 		let reference = this.list.getFocus()[0];
 		reference = reference === undefined ? this.list.getSelection()[0] : reference;

@@ -126,6 +126,17 @@ suite('Strings', () => {
 		assertLineStart('far\nboo\nfar', 0, 4, 8);
 	});
 
+	test('lcut', () => {
+		assert.strictEqual(strings.lcut('foo bar', 0), '');
+		assert.strictEqual(strings.lcut('foo bar', 1), 'bar');
+		assert.strictEqual(strings.lcut('foo bar', 3), 'bar');
+		assert.strictEqual(strings.lcut('foo bar', 4), 'bar'); // Leading whitespace trimmed
+		assert.strictEqual(strings.lcut('foo bar', 5), 'foo bar');
+		assert.strictEqual(strings.lcut('test string 0.1.2.3', 3), '2.3');
+
+		assert.strictEqual(strings.lcut('', 10), '');
+		assert.strictEqual(strings.lcut('a', 10), 'a');
+	});
 
 	test('pad', function () {
 		assert.strictEqual(strings.pad(1, 0), '1');
@@ -310,6 +321,22 @@ suite('Strings', () => {
 		assert(regExpWithFlags.global);
 		assert(!regExpWithFlags.ignoreCase);
 		assert(regExpWithFlags.multiline);
+	});
+
+	test('regExpContainsBackreference', () => {
+		assert(strings.regExpContainsBackreference('foo \\5 bar'));
+		assert(strings.regExpContainsBackreference('\\2'));
+		assert(strings.regExpContainsBackreference('(\\d)(\\n)(\\1)'));
+		assert(strings.regExpContainsBackreference('(A).*?\\1'));
+		assert(strings.regExpContainsBackreference('\\\\\\1'));
+		assert(strings.regExpContainsBackreference('foo \\\\\\1'));
+
+		assert(!strings.regExpContainsBackreference(''));
+		assert(!strings.regExpContainsBackreference('\\\\1'));
+		assert(!strings.regExpContainsBackreference('foo \\\\1'));
+		assert(!strings.regExpContainsBackreference('(A).*?\\\\1'));
+		assert(!strings.regExpContainsBackreference('foo \\d1 bar'));
+		assert(!strings.regExpContainsBackreference('123'));
 	});
 
 	test('getLeadingWhitespace', () => {

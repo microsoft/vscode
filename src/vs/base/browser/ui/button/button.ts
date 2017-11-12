@@ -67,8 +67,8 @@ export class Button extends EventEmitter {
 			this.emit(DOM.EventType.CLICK, e);
 		});
 
-		this.$el.on(DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			let event = new StandardKeyboardEvent(e);
+		this.$el.on(DOM.EventType.KEY_DOWN, (e) => {
+			let event = new StandardKeyboardEvent(e as KeyboardEvent);
 			let eventHandled = false;
 			if (this.enabled && event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				this.emit(DOM.EventType.CLICK, e);
@@ -83,7 +83,7 @@ export class Button extends EventEmitter {
 			}
 		});
 
-		this.$el.on(DOM.EventType.MOUSE_OVER, (e: MouseEvent) => {
+		this.$el.on(DOM.EventType.MOUSE_OVER, (e) => {
 			if (!this.$el.hasClass('disabled')) {
 				const hoverBackground = this.buttonHoverBackground ? this.buttonHoverBackground.toString() : null;
 				if (hoverBackground) {
@@ -92,7 +92,7 @@ export class Button extends EventEmitter {
 			}
 		});
 
-		this.$el.on(DOM.EventType.MOUSE_OUT, (e: MouseEvent) => {
+		this.$el.on(DOM.EventType.MOUSE_OUT, (e) => {
 			this.applyStyles(); // restore standard styles
 		});
 

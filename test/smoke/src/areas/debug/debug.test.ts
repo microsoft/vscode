@@ -9,46 +9,48 @@ import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as stripJsonComments from 'strip-json-comments';
-import { SpectronApplication, VSCODE_BUILD, EXTENSIONS_DIR, findFreePort, WORKSPACE_PATH } from '../../spectron/application';
+import { SpectronApplication, Quality } from '../../spectron/application';
 
 describe('Debug', () => {
-	let app: SpectronApplication = new SpectronApplication();
-	let port: number;
 
-	if (app.build === VSCODE_BUILD.DEV) {
-		const extensionsPath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions');
+	before(async function () {
+		const app = this.app as SpectronApplication;
 
-		const debugPath = path.join(extensionsPath, 'vscode-node-debug');
-		const debugExists = fs.existsSync(debugPath);
+		if (app.quality === Quality.Dev) {
+			const extensionsPath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions');
 
-		const debug2Path = path.join(extensionsPath, 'vscode-node-debug2');
-		const debug2Exists = fs.existsSync(debug2Path);
+			const debugPath = path.join(extensionsPath, 'vscode-node-debug');
+			const debugExists = fs.existsSync(debugPath);
 
-		if (!debugExists) {
-			console.warn(`Skipping debug tests because vscode-node-debug extension was not found in ${extensionsPath}`);
-			return;
+			const debug2Path = path.join(extensionsPath, 'vscode-node-debug2');
+			const debug2Exists = fs.existsSync(debug2Path);
+
+			if (!debugExists) {
+				console.warn(`Skipping debug tests because vscode-node-debug extension was not found in ${extensionsPath}`);
+				return;
+			}
+
+			if (!debug2Exists) {
+				console.warn(`Skipping debug tests because vscode-node-debug2 extension was not found in ${extensionsPath}`);
+				return;
+			}
+
+			await new Promise((c, e) => fs.symlink(debugPath, path.join(app.extensionsPath, 'vscode-node-debug'), err => err ? e(err) : c()));
+			await new Promise((c, e) => fs.symlink(debug2Path, path.join(app.extensionsPath, 'vscode-node-debug2'), err => err ? e(err) : c()));
+			await app.reload();
 		}
 
-		if (!debug2Exists) {
-			console.warn(`Skipping debug tests because vscode-node-debug2 extension was not found in ${extensionsPath}`);
-			return;
-		}
-
-		fs.symlinkSync(debugPath, path.join(EXTENSIONS_DIR, 'vscode-node-debug'));
-		fs.symlinkSync(debug2Path, path.join(EXTENSIONS_DIR, 'vscode-node-debug2'));
-	}
-
-	// We must get a different port for our smoketest express app
-	// otherwise concurrent test runs will clash on those ports
-	before(async () => await app.start('Debug', [], { PORT: String(await findFreePort()), ...process.env }));
-	after(() => app.stop());
+		this.app.suiteName = 'Debug';
+	});
 
 	it('configure launch json', async function () {
+		const app = this.app as SpectronApplication;
+
 		await app.workbench.debug.openDebugViewlet();
 		await app.workbench.quickopen.openFile('app.js');
 		await app.workbench.debug.configure();
 
-		const launchJsonPath = path.join(WORKSPACE_PATH, '.vscode', 'launch.json');
+		const launchJsonPath = path.join(app.workspacePath, '.vscode', 'launch.json');
 		const content = fs.readFileSync(launchJsonPath, 'utf8');
 		const config = JSON.parse(stripJsonComments(content));
 		config.configurations[0].protocol = 'inspector';
@@ -67,12 +69,17 @@ describe('Debug', () => {
 	});
 
 	it('breakpoints', async function () {
+		const app = this.app as SpectronApplication;
+
 		await app.workbench.quickopen.openFile('index.js');
 		await app.workbench.debug.setBreakpointOnLine(6);
 		await app.screenCapturer.capture('breakpoints are set');
 	});
 
+	let port: number;
 	it('start debugging', async function () {
+		const app = this.app as SpectronApplication;
+
 		port = await app.workbench.debug.startDebugging();
 		await app.screenCapturer.capture('debugging has started');
 
@@ -86,6 +93,8 @@ describe('Debug', () => {
 	});
 
 	it('focus stack frames and variables', async function () {
+		const app = this.app as SpectronApplication;
+
 		await app.client.waitFor(() => app.workbench.debug.getLocalVariableCount(), c => c === 4, 'there should be 4 local variables');
 
 		await app.workbench.debug.focusStackFrame('layer.js', 'looking for layer.js');
@@ -99,6 +108,8 @@ describe('Debug', () => {
 	});
 
 	it('stepOver, stepIn, stepOut', async function () {
+		const app = this.app as SpectronApplication;
+
 		await app.workbench.debug.stepIn();
 		await app.screenCapturer.capture('debugging has stepped in');
 
@@ -114,6 +125,8 @@ describe('Debug', () => {
 	});
 
 	it('continue', async function () {
+		const app = this.app as SpectronApplication;
+
 		await app.workbench.debug.continue();
 		await app.screenCapturer.capture('debugging has continued');
 
@@ -127,10 +140,14 @@ describe('Debug', () => {
 	});
 
 	it('debug console', async function () {
+		const app = this.app as SpectronApplication;
+
 		await app.workbench.debug.waitForReplCommand('2 + 2', r => r === '4');
 	});
 
 	it('stop debugging', async function () {
+		const app = this.app as SpectronApplication;
+
 		await app.workbench.debug.stopDebugging();
 		await app.screenCapturer.capture('debugging has stopped');
 	});

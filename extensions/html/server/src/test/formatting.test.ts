@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import 'mocha';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -18,7 +19,7 @@ suite('HTML Embedded Formatting', () => {
 	function assertFormat(value: string, expected: string, options?: any, formatOptions?: FormattingOptions, message?: string): void {
 		var languageModes = getLanguageModes({ css: true, javascript: true });
 		if (options) {
-			languageModes.getAllModes().forEach(m => m.configure(options));
+			languageModes.getAllModes().forEach(m => m.configure!(options));
 		}
 
 		let rangeStartOffset = value.indexOf('|');

@@ -8,11 +8,11 @@ import { localize } from 'vs/nls';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { ISuggestSupport, ISuggestResult, ISuggestion, LanguageId, SuggestionType, SnippetType } from 'vs/editor/common/modes';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/browser/suggest';
+import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/suggest';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Position } from 'vs/editor/common/core/position';
 import { overlap, compare, startsWith } from 'vs/base/common/strings';
-import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
+import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -99,12 +99,12 @@ class SnippetsService implements ISnippetsService {
 	private readonly _disposables: IDisposable[] = [];
 
 	constructor(
-		@IModeService readonly _modeService: IModeService,
+		@IModeService private readonly _modeService: IModeService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IExtensionService extensionService: IExtensionService,
-		@IEnvironmentService environmentService: IEnvironmentService,
 	) {
 		this._wait = Promise.resolve(extensionService.onReady());
-		this._userSnippetsFolder = join(environmentService.appSettingsHome, 'snippets');
+		this._userSnippetsFolder = join(_environmentService.appSettingsHome, 'snippets');
 		this._prepUserSnippetsWatching();
 		this._prepExtensionSnippets();
 
@@ -182,18 +182,18 @@ class SnippetsService implements ISnippetsService {
 
 			return Promise.all(pending.map(([extension, filepath]) => {
 				return SnippetFile.fromFile(filepath, extension.description.displayName || extension.description.name, true).then(file => {
-					for (const snippet of file.data) {
-						snippets.push(snippet);
-						bucket.push(snippet);
 
-						if (snippet.isBogous) {
-							// warn about bad tabstop/variable usage
-							extension.collector.warn(localize(
-								'badVariableUse',
-								"The \"{0}\"-snippet very likely confuses snippet-variables and snippet-placeholders. See https://code.visualstudio.com/docs/editor/userdefinedsnippets#_snippet-syntax for more details.",
-								snippet.name
-							));
-						}
+					// collect
+					snippets.push(...file.data);
+					bucket.push(...file.data);
+
+					// warn about bad tabstop/variable usage
+					if (this._environmentService.isExtensionDevelopment && file.data.some(snippet => snippet.isBogous)) {
+						extension.collector.warn(localize(
+							'badVariableUse',
+							"One or more snippets from the extension '{0}' very likely confuse snippet-variables and snippet-placeholders (see https://code.visualstudio.com/docs/editor/userdefinedsnippets#_snippet-syntax for more details)",
+							extension.description.name
+						));
 					}
 
 				}, err => {
@@ -204,7 +204,9 @@ class SnippetsService implements ISnippetsService {
 						filepath
 					));
 				});
-			}));
+			})).then(() => {
+
+			});
 
 		} else {
 			return undefined;
@@ -283,7 +285,7 @@ export class SnippetSuggestion implements ISuggestion {
 	) {
 		this.label = snippet.prefix;
 		this.detail = localize('detail.snippet', "{0} ({1})", snippet.description, snippet.source);
-		this.insertText = snippet.codeSnippet;
+		this.insertText = snippet.body;
 		this.overwriteBefore = overwriteBefore;
 		this.sortText = `${snippet.isFromExtension ? 'z' : 'a'}-${snippet.prefix}`;
 		this.noAutoAccept = true;
@@ -293,6 +295,7 @@ export class SnippetSuggestion implements ISuggestion {
 
 	resolve(): this {
 		this.documentation = new MarkdownString().appendCodeblock('', new SnippetParser().text(this.snippet.codeSnippet));
+		this.insertText = this.snippet.codeSnippet;
 		return this;
 	}
 

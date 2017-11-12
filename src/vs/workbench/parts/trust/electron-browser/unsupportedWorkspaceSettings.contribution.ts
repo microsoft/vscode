@@ -17,6 +17,7 @@ import { IPreferencesService } from 'vs/workbench/parts/preferences/common/prefe
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 
 
@@ -28,6 +29,7 @@ class UnsupportedWorkspaceSettingsContribution implements IWorkbenchContribution
 
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceConfigurationService private workspaceConfigurationService: IWorkspaceConfigurationService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IMessageService private messageService: IMessageService,
@@ -36,6 +38,7 @@ class UnsupportedWorkspaceSettingsContribution implements IWorkbenchContribution
 	) {
 		lifecycleService.onShutdown(this.dispose, this);
 		this.toDispose.push(this.workspaceConfigurationService.onDidChangeConfiguration(e => this.checkWorkspaceSettings()));
+		this.toDispose.push(workspaceContextService.onDidChangeWorkspaceFolders(e => this.checkWorkspaceSettings()));
 	}
 
 	getId(): string {

@@ -7,7 +7,6 @@
 
 import * as assert from 'assert';
 import { IConfigurationService, getConfigurationValue, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
-import { Platform } from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
@@ -17,14 +16,13 @@ class MockConfigurationService implements IConfigurationService {
 	public _serviceBrand: any;
 	public serviceId = IConfigurationService;
 	public constructor(private configuration: any = {}) { }
-	public inspect<T>(key: string, overrides?: IConfigurationOverrides): any { return { value: getConfigurationValue<T>(this.getConfiguration(), key), default: getConfigurationValue<T>(this.getConfiguration(), key), user: getConfigurationValue<T>(this.getConfiguration(), key), workspace: void 0, workspaceFolder: void 0 }; }
-	public keys() { return { default: [], user: [], workspace: [], workspaceFolder: [] }; }
-	public getConfiguration(): any { return this.configuration; }
-	public getValue<T>(key: string, overrides?: IConfigurationOverrides): T { return getConfigurationValue<T>(this.getConfiguration(), key); }
-	public updateValue<T>(): TPromise<void> { return null; }
+	public inspect<T>(key: string, overrides?: IConfigurationOverrides): any { return { value: getConfigurationValue<T>(this.getValue(), key), default: getConfigurationValue<T>(this.getValue(), key), user: getConfigurationValue<T>(this.getValue(), key), workspace: void 0, workspaceFolder: void 0 }; }
+	public keys() { return { default: [] as string[], user: [] as string[], workspace: [] as string[], workspaceFolder: [] as string[] }; }
+	public getValue(): any { return this.configuration; }
+	public updateValue(): TPromise<void> { return null; }
 	public getConfigurationData(): any { return null; }
 	public onDidChangeConfiguration() { return { dispose() { } }; }
-	public reloadConfiguration() { return null; }
+	public reloadConfiguration(): TPromise<void> { return null; }
 }
 
 suite('Workbench - TerminalConfigHelper', () => {
@@ -48,7 +46,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 				}
 			}
 		});
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, null, null, null);
+		configHelper = new TerminalConfigHelper(configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
 		assert.equal(configHelper.getFont().fontFamily, 'bar', 'terminal.integrated.fontFamily should be selected over editor.fontFamily');
 
@@ -62,7 +60,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 				}
 			}
 		});
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, null, null, null);
+		configHelper = new TerminalConfigHelper(configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
 		if (isFedora) {
 			assert.equal(configHelper.getFont().fontFamily, '\'DejaVu Sans Mono\'', 'Fedora should have its font overridden when terminal.integrated.fontFamily not set');
@@ -87,7 +85,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 				}
 			}
 		});
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, null, null, null);
+		configHelper = new TerminalConfigHelper(configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
 		assert.equal(configHelper.getFont().fontSize, 10, 'terminal.integrated.fontSize should be selected over editor.fontSize');
 
@@ -102,7 +100,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 				}
 			}
 		});
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, null, null, null);
+		configHelper = new TerminalConfigHelper(configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
 		assert.equal(configHelper.getFont().fontSize, 6, 'The minimum terminal font size should be used when terminal.integrated.fontSize less than it');
 
@@ -117,7 +115,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 				}
 			}
 		});
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, null, null, null);
+		configHelper = new TerminalConfigHelper(configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
 		assert.equal(configHelper.getFont().fontSize, EDITOR_FONT_DEFAULTS.fontSize, 'The default editor font size should be used when terminal.integrated.fontSize is not set');
 	});
@@ -138,7 +136,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 				}
 			}
 		});
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, null, null, null);
+		configHelper = new TerminalConfigHelper(configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
 		assert.equal(configHelper.getFont().lineHeight, 2, 'terminal.integrated.lineHeight should be selected over editor.lineHeight');
 
@@ -154,7 +152,7 @@ suite('Workbench - TerminalConfigHelper', () => {
 				}
 			}
 		});
-		configHelper = new TerminalConfigHelper(Platform.Linux, configurationService, null, null, null);
+		configHelper = new TerminalConfigHelper(configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
 		assert.equal(configHelper.getFont().lineHeight, 1, 'editor.lineHeight should be 1 when terminal.integrated.lineHeight not set');
 	});

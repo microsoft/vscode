@@ -29,6 +29,7 @@ interface IFullTerminalConfiguration {
 const DEFAULT_LINE_HEIGHT = 1.0;
 
 const MINIMUM_FONT_SIZE = 6;
+const MAXIMUM_FONT_SIZE = 25;
 
 /**
  * Encapsulates terminal configuration logic, the primary purpose of this file is so that platform
@@ -41,7 +42,6 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	private _lastFontMeasurement: ITerminalFont;
 
 	public constructor(
-		private _platform: platform.Platform,
 		@IConfigurationService private _configurationService: IConfigurationService,
 		@IWorkspaceConfigurationService private _workspaceConfigurationService: IWorkspaceConfigurationService,
 		@IChoiceService private _choiceService: IChoiceService,
@@ -49,7 +49,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	}
 
 	public get config(): ITerminalConfiguration {
-		return this._configurationService.getConfiguration<IFullTerminalConfiguration>().terminal.integrated;
+		return this._configurationService.getValue<IFullTerminalConfiguration>().terminal.integrated;
 	}
 
 	private _measureFont(fontFamily: string, fontSize: number, lineHeight: number): ITerminalFont {
@@ -88,7 +88,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	 * terminal.integrated.fontSize, terminal.integrated.lineHeight configuration properties
 	 */
 	public getFont(excludeDimensions?: boolean): ITerminalFont {
-		const config = this._configurationService.getConfiguration();
+		const config = this._configurationService.getValue();
 		const editorConfig = (<IEditorConfiguration>config).editor;
 		const terminalConfig = this.config;
 
@@ -101,7 +101,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 			}
 		}
 
-		let fontSize = this._toInteger(terminalConfig.fontSize, MINIMUM_FONT_SIZE, EDITOR_FONT_DEFAULTS.fontSize);
+		let fontSize = this._toInteger(terminalConfig.fontSize, MINIMUM_FONT_SIZE, MAXIMUM_FONT_SIZE, EDITOR_FONT_DEFAULTS.fontSize);
 		const lineHeight = terminalConfig.lineHeight ? Math.max(terminalConfig.lineHeight, 1) : DEFAULT_LINE_HEIGHT;
 
 		if (excludeDimensions) {
@@ -179,13 +179,16 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		}
 	}
 
-	private _toInteger(source: any, minimum: number, fallback: number): number {
+	private _toInteger(source: any, minimum: number, maximum: number, fallback: number): number {
 		let r = parseInt(source, 10);
 		if (isNaN(r)) {
 			return fallback;
 		}
 		if (typeof minimum === 'number') {
 			r = Math.max(minimum, r);
+		}
+		if (typeof maximum === 'number') {
+			r = Math.min(maximum, r);
 		}
 		return r;
 	}

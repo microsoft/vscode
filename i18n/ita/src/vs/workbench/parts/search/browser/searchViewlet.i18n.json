@@ -10,7 +10,7 @@
 	"searchScope.excludes": "file da escludere",
 	"label.excludes": "Criteri di esclusione per la ricerca",
 	"replaceAll.confirmation.title": "Sostituisci tutto",
-	"replaceAll.confirm.button": "Sostituisci",
+	"replaceAll.confirm.button": "&&Sostituisci",
 	"replaceAll.occurrence.file.message": "{0} occorrenza in {1} file è stata sostituita con '{2}'.",
 	"removeAll.occurrence.file.message": "È stata sostituita {0} occorrenza in {1} file.",
 	"replaceAll.occurrence.files.message": "{0} occorrenza in {1} file è stata sostituita con '{2}'.",

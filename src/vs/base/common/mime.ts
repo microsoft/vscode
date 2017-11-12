@@ -37,7 +37,7 @@ let userRegisteredAssociations: ITextMimeAssociationItem[] = [];
 /**
  * Associate a text mime to the registry.
  */
-export function registerTextMime(association: ITextMimeAssociation): void {
+export function registerTextMime(association: ITextMimeAssociation, warnOnOverwrite = false): void {
 
 	// Register
 	const associationItem = toTextMimeAssociationItem(association);
@@ -49,7 +49,7 @@ export function registerTextMime(association: ITextMimeAssociation): void {
 	}
 
 	// Check for conflicts unless this is a user configured association
-	if (!associationItem.userConfigured) {
+	if (warnOnOverwrite && !associationItem.userConfigured) {
 		registeredAssociations.forEach(a => {
 			if (a.mime === associationItem.mime || a.userConfigured) {
 				return; // same mime or userConfigured is ok

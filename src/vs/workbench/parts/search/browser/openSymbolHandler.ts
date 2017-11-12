@@ -86,7 +86,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 
 		TPromise.as(this._bearingResolve)
 			.then(_ => super.run(mode, context))
-			.done(undefined, onUnexpectedError);
+			.then(undefined, onUnexpectedError);
 
 		// hide if OPEN
 		return mode === Mode.OPEN;
@@ -96,7 +96,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 		let input: IResourceInput = {
 			resource: this._bearing.location.uri,
 			options: {
-				pinned: !this._configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen
+				pinned: !this._configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen
 			}
 		};
 
