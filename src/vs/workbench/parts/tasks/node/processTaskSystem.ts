@@ -128,7 +128,8 @@ export class ProcessTaskSystem implements ITaskSystem {
 	public terminateAll(): TPromise<TaskTerminateResponse[]> {
 		if (this.childProcess) {
 			let task = this.activeTask;
-			return TPromise.join([this.childProcess.terminate(), this.activeTaskPromise]).then(([response, taskSummary]) => {
+			return TPromise.join([this.childProcess.terminate(), this.activeTaskPromise]).then((res) => {
+				let response = res[0];
 				let result: TaskTerminateResponse = Objects.assign({ task: task }, response);
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Terminated, task));
 				return [result];
