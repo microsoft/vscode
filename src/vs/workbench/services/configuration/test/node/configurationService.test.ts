@@ -762,6 +762,55 @@ suite('WorkspaceConfigurationService - Multiroot', () => {
 			});
 	});
 
+	test('inspect', () => {
+		let actual = testObject.inspect('something.missing');
+		assert.equal(actual.default, void 0);
+		assert.equal(actual.user, void 0);
+		assert.equal(actual.workspace, void 0);
+		assert.equal(actual.workspaceFolder, void 0);
+		assert.equal(actual.value, void 0);
+
+		actual = testObject.inspect('configurationService.workspace.testResourceSetting');
+		assert.equal(actual.default, 'isSet');
+		assert.equal(actual.user, void 0);
+		assert.equal(actual.workspace, void 0);
+		assert.equal(actual.workspaceFolder, void 0);
+		assert.equal(actual.value, 'isSet');
+
+		fs.writeFileSync(environmentService.appSettingsPath, '{ "configurationService.workspace.testResourceSetting": "userValue" }');
+		return testObject.reloadConfiguration()
+			.then(() => {
+				actual = testObject.inspect('configurationService.workspace.testResourceSetting');
+				assert.equal(actual.default, 'isSet');
+				assert.equal(actual.user, 'userValue');
+				assert.equal(actual.workspace, void 0);
+				assert.equal(actual.workspaceFolder, void 0);
+				assert.equal(actual.value, 'userValue');
+
+				return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration, { key: 'settings', value: { 'configurationService.workspace.testResourceSetting': 'workspaceValue' } }, true)
+					.then(() => testObject.reloadConfiguration())
+					.then(() => {
+						actual = testObject.inspect('configurationService.workspace.testResourceSetting');
+						assert.equal(actual.default, 'isSet');
+						assert.equal(actual.user, 'userValue');
+						assert.equal(actual.workspace, 'workspaceValue');
+						assert.equal(actual.workspaceFolder, void 0);
+						assert.equal(actual.value, 'workspaceValue');
+
+						fs.writeFileSync(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json').fsPath, '{ "configurationService.workspace.testResourceSetting": "workspaceFolderValue" }');
+
+						return testObject.reloadConfiguration()
+							.then(() => {
+								actual = testObject.inspect('configurationService.workspace.testResourceSetting', { resource: workspaceContextService.getWorkspace().folders[0].uri });
+								assert.equal(actual.default, 'isSet');
+								assert.equal(actual.user, 'userValue');
+								assert.equal(actual.workspace, 'workspaceValue');
+								assert.equal(actual.workspaceFolder, 'workspaceFolderValue');
+								assert.equal(actual.value, 'workspaceFolderValue');
+							});
+					});
+			});
+	});
 
 	test('update user configuration', () => {
 		return testObject.updateValue('configurationService.workspace.testSetting', 'userValue', ConfigurationTarget.USER)

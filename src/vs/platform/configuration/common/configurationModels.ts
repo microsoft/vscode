@@ -338,12 +338,12 @@ export class Configuration {
 		const folderConfigurationModel = this.getFolderConfigurationModelForResource(overrides.resource, workspace);
 		const memoryConfigurationModel = overrides.resource ? this._memoryConfigurationByResource.get(overrides.resource) || this._memoryConfiguration : this._memoryConfiguration;
 		return {
-			default: getConfigurationValue<C>(overrides.overrideIdentifier ? this._defaultConfiguration.freeze().override(overrides.overrideIdentifier).contents : this._defaultConfiguration.freeze().contents, key),
-			user: getConfigurationValue<C>(overrides.overrideIdentifier ? this._userConfiguration.freeze().override(overrides.overrideIdentifier).contents : this._userConfiguration.freeze().contents, key),
-			workspace: workspace ? getConfigurationValue<C>(overrides.overrideIdentifier ? this._workspaceConfiguration.freeze().override(overrides.overrideIdentifier).contents : this._workspaceConfiguration.freeze().contents, key) : void 0, //Check on workspace exists or not because _workspaceConfiguration is never null
-			workspaceFolder: folderConfigurationModel ? getConfigurationValue<C>(overrides.overrideIdentifier ? folderConfigurationModel.freeze().override(overrides.overrideIdentifier).contents : folderConfigurationModel.freeze().contents, key) : void 0,
-			memory: getConfigurationValue<C>(overrides.overrideIdentifier ? memoryConfigurationModel.freeze().override(overrides.overrideIdentifier).contents : memoryConfigurationModel.freeze().contents, key),
-			value: getConfigurationValue<C>(consolidateConfigurationModel.contents, key)
+			default: overrides.overrideIdentifier ? this._defaultConfiguration.freeze().override(overrides.overrideIdentifier).getValue(key) : this._defaultConfiguration.freeze().getValue(key),
+			user: overrides.overrideIdentifier ? this._userConfiguration.freeze().override(overrides.overrideIdentifier).getValue(key) : this._userConfiguration.freeze().getValue(key),
+			workspace: workspace ? overrides.overrideIdentifier ? this._workspaceConfiguration.freeze().override(overrides.overrideIdentifier).getValue(key) : this._workspaceConfiguration.freeze().getValue(key) : void 0, //Check on workspace exists or not because _workspaceConfiguration is never null
+			workspaceFolder: folderConfigurationModel ? overrides.overrideIdentifier ? folderConfigurationModel.freeze().override(overrides.overrideIdentifier).getValue(key) : folderConfigurationModel.freeze().getValue(key) : void 0,
+			memory: overrides.overrideIdentifier ? memoryConfigurationModel.freeze().override(overrides.overrideIdentifier).getValue(key) : memoryConfigurationModel.freeze().getValue(key),
+			value: consolidateConfigurationModel.getValue(key)
 		};
 	}
 
