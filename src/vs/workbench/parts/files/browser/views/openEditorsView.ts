@@ -53,6 +53,8 @@ export class OpenEditorsView extends ViewsViewletPanel {
 	private openEditorsFocusedContext: IContextKey<boolean>;
 	private explorerFocusedContext: IContextKey<boolean>;
 
+	private editorSort: EditorSort;
+
 	constructor(
 		options: IViewletViewOptions,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -79,6 +81,9 @@ export class OpenEditorsView extends ViewsViewletPanel {
 
 		this.structuralRefreshDelay = 0;
 		this.structuralTreeRefreshScheduler = new RunOnceScheduler(() => this.structuralTreeUpdate(), this.structuralRefreshDelay);
+
+		this.editorSort = this.instantiationService.createInstance(EditorSort);
+		this.disposables.push(this.editorSort);
 	}
 
 	protected renderHeaderTitle(container: HTMLElement): void {
@@ -113,9 +118,8 @@ export class OpenEditorsView extends ViewsViewletPanel {
 	}
 
 	private onModelSave(): void {
-		const editorSort = this.instantiationService.createInstance(EditorSort);
-		if (editorSort.orderBySavedRecently)
-			editorSort.moveToTop();
+		if (this.editorSort.orderBySavedRecently)
+			this.editorSort.moveToTop();
 
 		this.updateDirtyIndicator();
 	}
