@@ -459,8 +459,12 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		this.registerConfigurationSchemas();
 		if (this.workspace && this._configuration) {
 			this._configuration.updateDefaultConfiguration(this.defaultConfiguration);
-			this._configuration.updateWorkspaceConfiguration(this.workspaceConfiguration.reprocessWorkspaceSettings());
-			this.workspace.folders.forEach(folder => this._configuration.updateFolderConfiguration(folder.uri, this.cachedFolderConfigs.get(folder.uri).reprocess()));
+			if (this.getWorkbenchState() === WorkbenchState.FOLDER) {
+				this._configuration.updateWorkspaceConfiguration(this.cachedFolderConfigs.get(this.workspace.folders[0].uri).reprocess());
+			} else {
+				this._configuration.updateWorkspaceConfiguration(this.workspaceConfiguration.reprocessWorkspaceSettings());
+				this.workspace.folders.forEach(folder => this._configuration.updateFolderConfiguration(folder.uri, this.cachedFolderConfigs.get(folder.uri).reprocess()));
+			}
 			this.triggerConfigurationChange(new ConfigurationChangeEvent().change(keys), ConfigurationTarget.DEFAULT);
 		}
 	}
