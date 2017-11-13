@@ -618,7 +618,7 @@ export class TabsTitleControl extends TitleControl {
 
 		// Touch Scroll Support
 		disposables.push(DOM.addDisposableListener(tab, TouchEventType.Change, (e: GestureEvent) => {
-			this.tabsContainer.scrollLeft -= e.translationX;
+			this.scrollbar.setScrollPosition({ scrollLeft: this.scrollbar.getScrollPosition().scrollLeft - e.translationX });
 		}));
 
 		// Close on mouse middle click
