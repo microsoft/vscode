@@ -67,7 +67,6 @@ import { WorkbenchModeServiceImpl } from 'vs/workbench/services/mode/common/work
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { ICrashReporterService, NullCrashReporterService, CrashReporterService } from 'vs/workbench/services/crashReporter/electron-browser/crashReporterService';
-import { NodeCachedDataManager } from 'vs/workbench/electron-browser/nodeCachedDataManager';
 import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { IExtensionManagementChannel, ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
@@ -253,11 +252,7 @@ export class WorkbenchShell {
 			this.messageService.show(Severity.Warning, nls.localize('runningAsRoot', "It is recommended not to run Code as 'root'."));
 		}
 
-		// Start cached data manager
-		instantiationService.createInstance(NodeCachedDataManager);
-
-		// Set lifecycle phase to `Runnning` so that other contributions
-		// can now do something
+		// Set lifecycle phase to `Runnning` so that other contributions can now do something
 		this.lifecycleService.phase = LifecyclePhase.Running;
 	}
 

@@ -15,7 +15,6 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWindowConfiguration, IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 const SshProtocolMatcher = /^([^@:]+@)?([^:]+):/;
 const SshUrlMatcher = /^([^@:]+@)?([^:]+):(.+)$/;
@@ -133,13 +132,20 @@ export function getHashedRemotes(text: string): string[] {
 	});
 }
 
-class WorkspaceStats {
+export class WorkspaceStats implements IWorkbenchContribution {
 	constructor(
 		@IFileService private fileService: IFileService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IWindowService windowService: IWindowService
 	) {
+		this.reportWorkspaceTags(windowService.getConfiguration());
+		this.reportCloudStats();
+	}
+
+	public getId(): string {
+		return 'vs.stats.workspaceStatsReporter';
 	}
 
 	private searchArray(arr: string[], regEx: RegExp): boolean {
@@ -414,26 +420,5 @@ class WorkspaceStats {
 			this.reportRemotes(uris);
 			this.reportAzure(uris);
 		}
-	}
-}
-
-// Telemetry: workspace tags
-export class WorkspaceStatsReporter implements IWorkbenchContribution {
-
-	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWindowService private windowService: IWindowService
-	) {
-		this.reportWorkspaceStats();
-	}
-
-	public getId(): string {
-		return 'vs.backup.backupModelTracker';
-	}
-
-	private reportWorkspaceStats(): void {
-		const workspaceStats: WorkspaceStats = this.instantiationService.createInstance(WorkspaceStats);
-		workspaceStats.reportWorkspaceTags(this.windowService.getConfiguration());
-		workspaceStats.reportCloudStats();
 	}
 }

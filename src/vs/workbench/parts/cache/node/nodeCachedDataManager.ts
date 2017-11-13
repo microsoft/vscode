@@ -6,19 +6,24 @@
 
 import { basename } from 'path';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 
 declare type OnNodeCachedDataArgs = [{ errorCode: string, path: string, detail?: string }, { path: string, length: number }];
 declare const MonacoEnvironment: { onNodeCachedData: OnNodeCachedDataArgs[] };
 
-export class NodeCachedDataManager {
+export class NodeCachedDataManager implements IWorkbenchContribution {
 
 	private readonly _telemetryService: ITelemetryService;
 
 	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
+		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		this._telemetryService = telemetryService;
 		this._handleCachedDataInfo();
+	}
+
+	public getId(): string {
+		return 'vs.cache.nodeCachedDataManager';
 	}
 
 	private _handleCachedDataInfo(): void {

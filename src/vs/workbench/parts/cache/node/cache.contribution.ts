@@ -7,8 +7,8 @@
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { WorkspaceStats } from 'vs/workbench/parts/stats/node/workspaceStats';
+import { NodeCachedDataManager } from 'vs/workbench/parts/cache/node/nodeCachedDataManager';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
-// Register Workspace Stats Contribution
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceStats, LifecyclePhase.Running);
+// Register NodeCachedDataManager Contribution
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NodeCachedDataManager, LifecyclePhase.Running);
