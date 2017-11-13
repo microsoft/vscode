@@ -11,7 +11,6 @@ import { Action } from 'vs/base/common/actions';
 import { firstIndex } from 'vs/base/common/arrays';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
@@ -36,8 +35,6 @@ export class SelectColorThemeAction extends Action {
 		id: string,
 		label: string,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		// @ts-ignore unused injected service
-		@IMessageService private messageService: IMessageService,
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
 		@IViewletService private viewletService: IViewletService,
@@ -97,7 +94,6 @@ class SelectIconThemeAction extends Action {
 		id: string,
 		label: string,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IMessageService private messageService: IMessageService,
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService,
 		@IViewletService private viewletService: IViewletService,
@@ -128,7 +124,6 @@ class SelectIconThemeAction extends Action {
 				}
 				this.themeService.setFileIconTheme(theme && theme.id, target).done(null,
 					err => {
-						this.messageService.show(Severity.Info, localize('problemChangingIconTheme', "Problem setting icon theme: {0}", err.message));
 						this.themeService.setFileIconTheme(currentTheme.id, null);
 					}
 				);
