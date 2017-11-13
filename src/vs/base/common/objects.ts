@@ -26,21 +26,6 @@ export function clone<T>(obj: T): T {
 	return result;
 }
 
-export function deepClone<T>(obj: T): T {
-	if (!obj || typeof obj !== 'object') {
-		return obj;
-	}
-	const result: any = Array.isArray(obj) ? [] : {};
-	Object.getOwnPropertyNames(obj).forEach((key: keyof T) => {
-		if (obj[key] && typeof obj[key] === 'object') {
-			result[key] = deepClone(obj[key]);
-		} else {
-			result[key] = obj[key];
-		}
-	});
-	return result;
-}
-
 export function deepFreeze<T>(obj: T): T {
 	if (!obj || typeof obj !== 'object') {
 		return obj;
