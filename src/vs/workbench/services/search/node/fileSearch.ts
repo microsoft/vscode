@@ -118,9 +118,9 @@ export class FileWalker {
 	}
 
 	public walkP(folderQueries: IFolderSearch[], extraFiles: string[]): PPromise<boolean, IRawFileMatch> {
-		return new PPromise((onComplete, onError, onResult) => {
-			this.fileWalkStartTime = Date.now();
+		this.fileWalkStartTime = Date.now();
 
+		return new PPromise((onComplete, onError, onResult) => {
 			// Support that the file pattern is a full path to a file that exists
 			this.checkFilePatternAbsoluteMatch((exists, size) => {
 				if (this.isCanceled) {
@@ -194,7 +194,7 @@ export class FileWalker {
 					if (err) {
 						onError(err);
 					}
-					onComplete(this.isLimitHit);
+					return onComplete(this.isLimitHit);
 				});
 			});
 		});
@@ -806,7 +806,6 @@ export class Engine implements ISearchEngine<IRawFileMatch> {
 		this.walker = new FileWalker(config);
 	}
 
-	// TODO: "search" function doesn't seem to emit progress out.
 	public searchP(): PPromise<ISerializedSearchComplete, ISearchProgress<IRawFileMatch>> {
 		return new PPromise((sComplete, sError, sProgress) => {
 			return this.walker.walkP(this.folderQueries, this.extraFiles).then(
@@ -816,9 +815,7 @@ export class Engine implements ISearchEngine<IRawFileMatch> {
 						stats: this.walker.getStats()
 					});
 				},
-				walkError => {
-					sError(walkError);
-				},
+				sError,
 				walkProgress => {
 					sProgress({ results: walkProgress });
 				}
