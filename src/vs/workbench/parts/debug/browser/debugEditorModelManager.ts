@@ -11,16 +11,20 @@ import { Constants } from 'vs/editor/common/core/uint';
 import { Range } from 'vs/editor/common/core/range';
 import { IModel, TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IDebugService, IBreakpoint, IRawBreakpoint, State } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IBreakpoint, State } from 'vs/workbench/parts/debug/common/debug';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { MarkdownString } from 'vs/base/common/htmlContent';
+
+interface IBreakpointDecoration {
+	decorationId: string;
+	modelId: string;
+	range: Range;
+}
 
 interface IDebugEditorModelData {
 	model: IModel;
 	toDispose: lifecycle.IDisposable[];
-	breakpointDecorationIds: string[];
-	breakpointModelIds: string[];
-	breakpointDecorationsAsMap: Map<string, Range>;
+	breakpointDecorations: IBreakpointDecoration[];
 	currentStackDecorations: string[];
 	dirty: boolean;
 	topStackFrameRange: Range;
@@ -51,7 +55,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	public dispose(): void {
 		this.modelDataMap.forEach(modelData => {
 			lifecycle.dispose(modelData.toDispose);
-			modelData.model.deltaDecorations(modelData.breakpointDecorationIds, []);
+			modelData.model.deltaDecorations(modelData.breakpointDecorations.map(bpd => bpd.decorationId), []);
 			modelData.model.deltaDecorations(modelData.currentStackDecorations, []);
 		});
 		this.toDispose = lifecycle.dispose(this.toDispose);
@@ -82,18 +86,13 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 		const currentStackDecorations = model.deltaDecorations([], this.createCallStackDecorations(modelUrlStr));
 		const desiredDecorations = this.createBreakpointDecorations(model, breakpoints);
-		const breakPointDecorations = model.deltaDecorations([], desiredDecorations);
-
+		const breakpointDecorationIds = model.deltaDecorations([], desiredDecorations);
 		const toDispose: lifecycle.IDisposable[] = [model.onDidChangeDecorations((e) => this.onModelDecorationsChanged(modelUrlStr))];
-		const breakpointDecorationsAsMap = new Map<string, Range>();
-		breakPointDecorations.forEach((decorationId, index) => breakpointDecorationsAsMap.set(decorationId, desiredDecorations[index].range));
 
 		this.modelDataMap.set(modelUrlStr, {
 			model: model,
 			toDispose: toDispose,
-			breakpointDecorationIds: breakPointDecorations,
-			breakpointModelIds: breakpoints.map(bp => bp.getId()),
-			breakpointDecorationsAsMap,
+			breakpointDecorations: breakpointDecorationIds.map((decorationId, index) => ({ decorationId, modelId: breakpoints[index].getId(), range: desiredDecorations[index].range })),
 			currentStackDecorations: currentStackDecorations,
 			dirty: false,
 			topStackFrameRange: undefined
@@ -188,17 +187,17 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	// breakpoints management. Represent data coming from the debug service and also send data back.
 	private onModelDecorationsChanged(modelUrlStr: string): void {
 		const modelData = this.modelDataMap.get(modelUrlStr);
-		if (modelData.breakpointDecorationsAsMap.size === 0 || this.ignoreDecorationsChangedEvent) {
+		if (modelData.breakpointDecorations.length === 0 || this.ignoreDecorationsChangedEvent) {
 			// I have no decorations
 			return;
 		}
 		let somethingChanged = false;
-		modelData.breakpointDecorationsAsMap.forEach((breakpointRange, decorationId) => {
+		modelData.breakpointDecorations.forEach(breakpointDecoration => {
 			if (somethingChanged) {
 				return;
 			}
-			const newBreakpointRange = modelData.model.getDecorationRange(decorationId);
-			if (newBreakpointRange && (breakpointRange.startColumn !== newBreakpointRange.startColumn || breakpointRange.endLineNumber !== newBreakpointRange.endLineNumber)) {
+			const newBreakpointRange = modelData.model.getDecorationRange(breakpointDecoration.decorationId);
+			if (newBreakpointRange && (breakpointDecoration.range.startColumn !== newBreakpointRange.startColumn || breakpointDecoration.range.endLineNumber !== newBreakpointRange.endLineNumber)) {
 				somethingChanged = true;
 			}
 		});
@@ -207,34 +206,32 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			return;
 		}
 
-		const data: IRawBreakpoint[] = [];
-
+		const data: { [id: string]: DebugProtocol.Breakpoint } = Object.create(null);
 		const breakpoints = this.debugService.getModel().getBreakpoints();
 		const modelUri = modelData.model.uri;
-		for (let i = 0, len = modelData.breakpointDecorationIds.length; i < len; i++) {
-			const decorationRange = modelData.model.getDecorationRange(modelData.breakpointDecorationIds[i]);
+		const toRemove: string[] = [];
+		for (let i = 0, len = modelData.breakpointDecorations.length; i < len; i++) {
+			const breakpointDecoration = modelData.breakpointDecorations[i];
+			const decorationRange = modelData.model.getDecorationRange(breakpointDecoration.decorationId);
 			// check if the line got deleted.
-			if (decorationRange && decorationRange.endColumn - decorationRange.startColumn > 0) {
-				const breakpoint = breakpoints.filter(bp => bp.getId() === modelData.breakpointModelIds[i]).pop();
+			if (decorationRange && decorationRange.endColumn > decorationRange.startColumn) {
+				const breakpoint = breakpoints.filter(bp => bp.getId() === breakpointDecoration.modelId).pop();
 				// since we know it is collapsed, it cannot grow to multiple lines
 				if (breakpoint) {
-					data.push({
-						lineNumber: decorationRange.startLineNumber,
-						enabled: breakpoint.enabled,
-						condition: breakpoint.condition,
-						hitCondition: breakpoint.hitCondition,
-						column: breakpoint.column ? decorationRange.startColumn : undefined
-					});
+					data[breakpoint.getId()] = {
+						line: decorationRange.startLineNumber,
+						column: breakpoint.column ? decorationRange.startColumn : undefined,
+						verified: breakpoint.verified
+					};
 				}
+			} else {
+				toRemove.push(breakpointDecoration.modelId);
 			}
 		}
 		modelData.dirty = this.debugService.state !== State.Inactive;
 
-		const toRemove = this.debugService.getModel().getBreakpoints()
-			.filter(bp => bp.uri.toString() === modelUri.toString());
-
-		TPromise.join(toRemove.map(bp => this.debugService.removeBreakpoints(bp.getId()))).then(() => {
-			this.debugService.addBreakpoints(modelUri, data);
+		TPromise.join(toRemove.map(id => this.debugService.removeBreakpoints(id, true))).then(() => {
+			this.debugService.updateBreakpoints(modelUri, data);
 		});
 	}
 
@@ -263,15 +260,16 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	private updateBreakpoints(modelData: IDebugEditorModelData, newBreakpoints: IBreakpoint[]): void {
 		const desiredDecorations = this.createBreakpointDecorations(modelData.model, newBreakpoints);
+		let breakpointDecorationIds: string[];
 		try {
 			this.ignoreDecorationsChangedEvent = true;
-			modelData.breakpointDecorationIds = modelData.model.deltaDecorations(modelData.breakpointDecorationIds, desiredDecorations);
+			breakpointDecorationIds = modelData.model.deltaDecorations(modelData.breakpointDecorations.map(bpd => bpd.decorationId), desiredDecorations);
 		} finally {
 			this.ignoreDecorationsChangedEvent = false;
 		}
-		modelData.breakpointModelIds = newBreakpoints.map(nbp => nbp.getId());
-		modelData.breakpointDecorationsAsMap.clear();
-		modelData.breakpointDecorationIds.forEach((decorationId, index) => modelData.breakpointDecorationsAsMap.set(decorationId, desiredDecorations[index].range));
+
+		modelData.breakpointDecorations = breakpointDecorationIds.map((decorationId, index) =>
+			({ decorationId, modelId: newBreakpoints[index].getId(), range: desiredDecorations[index].range }));
 	}
 
 	private createBreakpointDecorations(model: IModel, breakpoints: IBreakpoint[]): { range: Range; options: IModelDecorationOptions; }[] {
