@@ -354,12 +354,12 @@ export class Configuration {
 		workspaceFolder: string[];
 	} {
 		const folderConfigurationModel = this.getFolderConfigurationModelForResource(null, workspace);
-		return objects.deepClone({
+		return {
 			default: this._defaultConfiguration.freeze().keys,
 			user: this._userConfiguration.freeze().keys,
 			workspace: this._workspaceConfiguration.freeze().keys,
 			workspaceFolder: folderConfigurationModel ? folderConfigurationModel.freeze().keys : []
-		});
+		};
 	}
 
 	updateDefaultConfiguration(defaultConfiguration: ConfigurationModel): void {
