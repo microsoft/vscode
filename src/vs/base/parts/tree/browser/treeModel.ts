@@ -1114,7 +1114,7 @@ export class TreeModel extends Events.EventEmitter {
 			previousItem: Item = null;
 
 		if (selection.length === 0) {
-			var nav = this.getNavigator(this.input);
+			let nav = this.getNavigator(this.input);
 
 			while (item = nav.next()) {
 				previousItem = item;
@@ -1124,7 +1124,7 @@ export class TreeModel extends Events.EventEmitter {
 
 		} else {
 			item = selection[0];
-			var nav = this.getNavigator(item, false);
+			let nav = this.getNavigator(item, false);
 
 			for (var i = 0; i < count; i++) {
 				previousItem = nav.previous();
@@ -1357,7 +1357,7 @@ export class TreeModel extends Events.EventEmitter {
 			var items: { [id: string]: Item; } = {};
 			var item: Item;
 
-			for (var i = 0, len = elements.length; i < len; i++) {
+			for (let i = 0, len = elements.length; i < len; i++) {
 				item = this.getItem(elements[i]);
 
 				if (item) {
@@ -1379,7 +1379,7 @@ export class TreeModel extends Events.EventEmitter {
 				}
 			}
 
-			for (var i = 0, len = itemsToRemoveTrait.length; i < len; i++) {
+			for (let i = 0, len = itemsToRemoveTrait.length; i < len; i++) {
 				item = itemsToRemoveTrait[i];
 				item.removeTrait(trait);
 				delete traitItems[item.id];

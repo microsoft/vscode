@@ -229,9 +229,9 @@ const hygiene = exports.hygiene = (some, options) => {
 		linter.lint(file.relative, contents, configuration.results);
 		const result = linter.getResult();
 
-		if (result.failureCount > 0) {
+		if (result.failures.length > 0) {
 			reportFailures(result.failures);
-			errorCount += result.failureCount;
+			errorCount += result.failures.length;
 		}
 
 		this.emit('data', file);
@@ -261,7 +261,7 @@ const hygiene = exports.hygiene = (some, options) => {
 	return es.merge(typescript, javascript)
 		.pipe(es.through(function (data) {
 			count++;
-			if (count % 10 === 0) {
+			if (process.env['TRAVIS'] && count % 10 === 0) {
 				process.stdout.write('.');
 			}
 			this.emit('data', data);
