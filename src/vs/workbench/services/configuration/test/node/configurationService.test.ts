@@ -297,9 +297,9 @@ suite('WorkspaceContextService - Workspace', () => {
 suite('WorkspaceConfigurationService - Folder', () => {
 
 	let workspaceName = `testWorkspace${uuid.generateUuid()}`, parentResource: string, workspaceDir: string, testObject: IConfigurationService, globalSettingsFile: string;
+	const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
 
 	suiteSetup(() => {
-		const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigurationExtensions.Configuration);
 		configurationRegistry.registerConfiguration({
 			'id': '_test',
 			'type': 'object',
@@ -308,6 +308,11 @@ suite('WorkspaceConfigurationService - Folder', () => {
 					'type': 'string',
 					'default': 'isSet'
 				},
+				'configurationService.folder.executableSetting': {
+					'type': 'string',
+					'default': 'isSet',
+					isExecutable: true
+				}
 			}
 		});
 	});
@@ -347,7 +352,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 	});
 
 	test('defaults', () => {
-		assert.deepEqual(testObject.getValue('configurationService'), { 'folder': { 'testSetting': 'isSet' } });
+		assert.deepEqual(testObject.getValue('configurationService'), { 'folder': { 'testSetting': 'isSet', 'executableSetting': 'isSet' } });
 	});
 
 	test('globals override defaults', () => {
@@ -373,6 +378,31 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		fs.writeFileSync(path.join(workspaceDir, '.vscode', 'settings.json'), '{ "configurationService.folder.testSetting": "workspaceValue" }');
 		return testObject.reloadConfiguration()
 			.then(() => assert.equal(testObject.getValue('configurationService.folder.testSetting'), 'workspaceValue'));
+	});
+
+	test('workspace settings override user settings after defaults are registered ', () => {
+		fs.writeFileSync(globalSettingsFile, '{ "configurationService.folder.newSetting": "userValue" }');
+		fs.writeFileSync(path.join(workspaceDir, '.vscode', 'settings.json'), '{ "configurationService.folder.newSetting": "workspaceValue" }');
+
+		configurationRegistry.registerConfiguration({
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'configurationService.folder.newSetting': {
+					'type': 'string',
+					'default': 'isSet'
+				}
+			}
+		});
+		return testObject.reloadConfiguration()
+			.then(() => assert.equal(testObject.getValue('configurationService.folder.newSetting'), 'workspaceValue'));
+	});
+
+	test('executable settings are not read from workspace', () => {
+		fs.writeFileSync(globalSettingsFile, '{ "configurationService.folder.executableSetting": "userValue" }');
+		fs.writeFileSync(path.join(workspaceDir, '.vscode', 'settings.json'), '{ "configurationService.folder.executableSetting": "workspaceValue" }');
+		return testObject.reloadConfiguration()
+			.then(() => assert.equal(testObject.getValue('configurationService.folder.executableSetting'), 'userValue'));
 	});
 
 	test('workspace change triggers event', () => {
