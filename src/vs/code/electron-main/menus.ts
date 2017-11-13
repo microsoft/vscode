@@ -99,7 +99,7 @@ export class CodeMenu {
 		this.windowsService.onWindowClose(() => this.updateWorkspaceMenuItems());
 
 		// Listen to extension viewlets
-		ipc.on('vscode:extensionViewlets', (event, rawExtensionViewlets) => {
+		ipc.on('vscode:extensionViewlets', (_event: any, rawExtensionViewlets: string) => {
 			let extensionViewlets: IExtensionViewlet[] = [];
 			try {
 				extensionViewlets = JSON.parse(rawExtensionViewlets);

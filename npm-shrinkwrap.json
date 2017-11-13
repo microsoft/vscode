@@ -301,9 +301,9 @@
       "resolved": "https://registry.npmjs.org/native-watchdog/-/native-watchdog-0.3.0.tgz"
     },
     "node-pty": {
-      "version": "0.7.2",
-      "from": "node-pty@0.7.2",
-      "resolved": "https://registry.npmjs.org/node-pty/-/node-pty-0.7.2.tgz",
+      "version": "0.7.3",
+      "from": "node-pty@0.7.3",
+      "resolved": "https://registry.npmjs.org/node-pty/-/node-pty-0.7.3.tgz",
       "dependencies": {
         "nan": {
           "version": "2.5.0",

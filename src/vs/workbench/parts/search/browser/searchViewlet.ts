@@ -21,14 +21,14 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
 import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
-import { ITree } from 'vs/base/parts/tree/browser/tree';
+import { ITree, IFocusEvent } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { Scope } from 'vs/workbench/common/memento';
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { FileChangeType, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
 import { Viewlet } from 'vs/workbench/browser/viewlet';
-import { Match, FileMatch, SearchModel, FileMatchOrMatch, IChangeEvent, ISearchWorkbenchService } from 'vs/workbench/parts/search/common/searchModel';
+import { Match, FileMatch, SearchModel, FileMatchOrMatch, IChangeEvent, ISearchWorkbenchService, FolderMatch } from 'vs/workbench/parts/search/common/searchModel';
 import { QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
 import { MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ISearchProgressItem, ISearchComplete, ISearchQuery, IQueryOptions, ISearchConfiguration } from 'vs/platform/search/common/search';
@@ -80,6 +80,7 @@ export class SearchViewlet extends Viewlet {
 	private firstMatchFocused: IContextKey<boolean>;
 	private fileMatchOrMatchFocused: IContextKey<boolean>;
 	private fileMatchFocused: IContextKey<boolean>;
+	private folderMatchFocused: IContextKey<boolean>;
 	private matchFocused: IContextKey<boolean>;
 
 	private actionRegistry: { [key: string]: Action; };
@@ -132,6 +133,7 @@ export class SearchViewlet extends Viewlet {
 		this.firstMatchFocused = Constants.FirstMatchFocusKey.bindTo(contextKeyService);
 		this.fileMatchOrMatchFocused = Constants.FileMatchOrMatchFocusKey.bindTo(contextKeyService);
 		this.fileMatchFocused = Constants.FileFocusKey.bindTo(contextKeyService);
+		this.folderMatchFocused = Constants.FolderFocusKey.bindTo(contextKeyService);
 		this.matchFocused = Constants.MatchFocusKey.bindTo(this.contextKeyService);
 
 		this.queryBuilder = this.instantiationService.createInstance(QueryBuilder);
@@ -253,7 +255,7 @@ export class SearchViewlet extends Viewlet {
 			this.actionRegistry[action.id] = action;
 		});
 
-		if (filePatterns !== '' || patternExclusions !== '' || patternIncludes !== '' || queryDetailsExpanded !== '' || useExcludesAndIgnoreFiles) {
+		if (filePatterns !== '' || patternExclusions !== '' || patternIncludes !== '' || queryDetailsExpanded !== '' || !useExcludesAndIgnoreFiles) {
 			this.toggleQueryDetails(true, true, true);
 		}
 
@@ -522,11 +524,12 @@ export class SearchViewlet extends Viewlet {
 				}
 			}));
 
-			this.toUnbind.push(this.tree.onDOMFocus(e => {
-				const focus = this.tree.getFocus();
-				this.firstMatchFocused.set(this.tree.getNavigator().first() === this.tree.getFocus());
+			this.toUnbind.push(this.tree.addListener('focus', (e: IFocusEvent) => {
+				const focus = e.focus;
+				this.firstMatchFocused.set(this.tree.getNavigator().first() === focus);
 				this.fileMatchOrMatchFocused.set(true);
 				this.fileMatchFocused.set(focus instanceof FileMatch);
+				this.folderMatchFocused.set(focus instanceof FolderMatch);
 				this.matchFocused.set(focus instanceof Match);
 			}));
 
@@ -534,6 +537,7 @@ export class SearchViewlet extends Viewlet {
 				this.firstMatchFocused.reset();
 				this.fileMatchOrMatchFocused.reset();
 				this.fileMatchFocused.reset();
+				this.folderMatchFocused.reset();
 				this.matchFocused.reset();
 			}));
 
@@ -1359,10 +1363,10 @@ export class SearchViewlet extends Viewlet {
 			}
 		}, sideBySide).then(editor => {
 			if (editor && element instanceof Match && preserveFocus) {
-				this.viewModel.searchResult.rangeHighlightDecorations.highlightRange({
-					resource,
-					range: element.range()
-				}, <ICodeEditor>editor.getControl());
+				this.viewModel.searchResult.rangeHighlightDecorations.highlightRange(
+					(<ICodeEditor>editor.getControl()).getModel(),
+					element.range()
+				);
 			} else {
 				this.viewModel.searchResult.rangeHighlightDecorations.removeHighlightRange();
 			}

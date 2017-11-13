@@ -758,7 +758,7 @@ export class Repository implements Disposable {
 
 				if (filePaths.length === 0) {
 					// nothing left
-					return Promise.resolve(new Set<string>());
+					return resolve(new Set<string>());
 				}
 
 				// https://git-scm.com/docs/git-check-ignore#git-check-ignore--z

@@ -17,7 +17,7 @@ import { Match, SearchResult, FileMatch, FileMatchOrMatch, SearchModel, FolderMa
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { Range } from 'vs/editor/common/core/range';
 import { SearchViewlet } from 'vs/workbench/parts/search/browser/searchViewlet';
-import { RemoveAction, ReplaceAllAction, ReplaceAction } from 'vs/workbench/parts/search/browser/searchActions';
+import { RemoveAction, ReplaceAllAction, ReplaceAction, ReplaceAllInFolderAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -251,7 +251,15 @@ export class SearchRenderer extends Disposable implements IRenderer {
 		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchFileMatches', "{0} files found", count) : nls.localize('searchFileMatch', "{0} file found", count));
 
 		templateData.actions.clear();
-		templateData.actions.push([new RemoveAction(tree, folderMatch)], { icon: true, label: false });
+
+		const input = <SearchResult>tree.getInput();
+		const actions: IAction[] = [];
+		if (input.searchModel.isReplaceActive() && count > 0) {
+			actions.push(this.instantiationService.createInstance(ReplaceAllInFolderAction, tree, folderMatch));
+		}
+
+		actions.push(new RemoveAction(tree, folderMatch));
+		templateData.actions.push(actions, { icon: true, label: false });
 	}
 
 	private renderFileMatch(tree: ITree, fileMatch: FileMatch, templateData: IFileMatchTemplate): void {

@@ -15,7 +15,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Match, FileMatch, FileMatchOrMatch, ISearchWorkbenchService } from 'vs/workbench/parts/search/common/searchModel';
-import { BulkEdit, IResourceEdit, createBulkEdit } from 'vs/editor/common/services/bulkEdit';
+import { BulkEdit, IResourceEdit, createBulkEdit } from 'vs/editor/browser/services/bulkEdit';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';

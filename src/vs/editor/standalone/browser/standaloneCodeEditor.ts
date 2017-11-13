@@ -12,7 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { CommandsRegistry, ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IActionDescriptor, IModel, IModelChangedEvent } from 'vs/editor/common/editorCommon';
+import { IModel, IModelChangedEvent } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { StandaloneKeybindingService } from 'vs/editor/standalone/browser/simpleServices';
@@ -29,6 +29,51 @@ import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IMessageService } from 'vs/platform/message/common/message';
 import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
+
+/**
+ * Description of an action contribution
+ */
+export interface IActionDescriptor {
+	/**
+	 * An unique identifier of the contributed action.
+	 */
+	id: string;
+	/**
+	 * A label of the action that will be presented to the user.
+	 */
+	label: string;
+	/**
+	 * Precondition rule.
+	 */
+	precondition?: string;
+	/**
+	 * An array of keybindings for the action.
+	 */
+	keybindings?: number[];
+	/**
+	 * The keybinding rule (condition on top of precondition).
+	 */
+	keybindingContext?: string;
+	/**
+	 * Control if the action should show up in the context menu and where.
+	 * The context menu of the editor has these default:
+	 *   navigation - The navigation group comes first in all cases.
+	 *   1_modification - This group comes next and contains commands that modify your code.
+	 *   9_cutcopypaste - The last default group with the basic editing commands.
+	 * You can also create your own group.
+	 * Defaults to null (don't show in context menu).
+	 */
+	contextMenuGroupId?: string;
+	/**
+	 * Control the order in the context menu group.
+	 */
+	contextMenuOrder?: number;
+	/**
+	 * Method that will be executed when the action is triggered.
+	 * @param editor The editor instance is passed in as a convinience
+	 */
+	run(editor: ICodeEditor): void | TPromise<void>;
+}
 
 /**
  * The options to create an editor.

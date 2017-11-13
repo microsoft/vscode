@@ -11,6 +11,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IRange } from 'vs/editor/common/core/range';
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export interface IRangeHighlightDecoration {
 	resource: URI;
@@ -21,7 +22,7 @@ export interface IRangeHighlightDecoration {
 export class RangeHighlightDecorations implements IDisposable {
 
 	private rangeHighlightDecorationId: string = null;
-	private editor: editorCommon.ICommonCodeEditor = null;
+	private editor: ICodeEditor = null;
 	private editorDisposables: IDisposable[] = [];
 
 	private _onHighlightRemoved: Emitter<void> = new Emitter<void>();
@@ -38,14 +39,14 @@ export class RangeHighlightDecorations implements IDisposable {
 		this.rangeHighlightDecorationId = null;
 	}
 
-	public highlightRange(range: IRangeHighlightDecoration, editor?: editorCommon.ICommonCodeEditor) {
+	public highlightRange(range: IRangeHighlightDecoration, editor?: ICodeEditor) {
 		editor = editor ? editor : this.getEditor(range);
 		if (editor) {
 			this.doHighlightRange(editor, range);
 		}
 	}
 
-	private doHighlightRange(editor: editorCommon.ICommonCodeEditor, selectionRange: IRangeHighlightDecoration) {
+	private doHighlightRange(editor: ICodeEditor, selectionRange: IRangeHighlightDecoration) {
 		this.removeHighlightRange();
 		editor.changeDecorations((changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => {
 			this.rangeHighlightDecorationId = changeAccessor.addDecoration(selectionRange.range, this.createRangeHighlightDecoration(selectionRange.isWholeLine));
@@ -53,18 +54,18 @@ export class RangeHighlightDecorations implements IDisposable {
 		this.setEditor(editor);
 	}
 
-	private getEditor(resourceRange: IRangeHighlightDecoration): editorCommon.ICommonCodeEditor {
+	private getEditor(resourceRange: IRangeHighlightDecoration): ICodeEditor {
 		const activeInput = this.editorService.getActiveEditorInput();
 		const resource = activeInput && activeInput.getResource();
 		if (resource) {
 			if (resource.toString() === resourceRange.resource.toString()) {
-				return <editorCommon.ICommonCodeEditor>this.editorService.getActiveEditor().getControl();
+				return <ICodeEditor>this.editorService.getActiveEditor().getControl();
 			}
 		}
 		return null;
 	}
 
-	private setEditor(editor: editorCommon.ICommonCodeEditor) {
+	private setEditor(editor: ICodeEditor) {
 		if (this.editor !== editor) {
 			this.disposeEditorListeners();
 			this.editor = editor;

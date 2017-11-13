@@ -5,11 +5,6 @@
 
 'use strict';
 
-export function not<A>(fn: (a: A) => boolean): (a: A) => boolean;
-export function not(fn: Function): Function {
-	return (...args) => !fn(...args);
-}
-
 export function once<T extends Function>(this: any, fn: T): T {
 	const _this = this;
 	let didCall = false;

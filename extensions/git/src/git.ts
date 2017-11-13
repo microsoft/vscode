@@ -62,8 +62,10 @@ function parseVersion(raw: string): string {
 	return raw.replace(/^git version /, '');
 }
 
-function findSpecificGit(path: string): Promise<IGit> {
+function findSpecificGit(path: string, onLookup: (path: string) => void): Promise<IGit> {
 	return new Promise<IGit>((c, e) => {
+		onLookup(path);
+
 		const buffers: Buffer[] = [];
 		const child = cp.spawn(path, ['--version']);
 		child.stdout.on('data', (b: Buffer) => buffers.push(b));
@@ -72,7 +74,7 @@ function findSpecificGit(path: string): Promise<IGit> {
 	});
 }
 
-function findGitDarwin(): Promise<IGit> {
+function findGitDarwin(onLookup: (path: string) => void): Promise<IGit> {
 	return new Promise<IGit>((c, e) => {
 		cp.exec('which git', (err, gitPathBuffer) => {
 			if (err) {
@@ -82,8 +84,11 @@ function findGitDarwin(): Promise<IGit> {
 			const path = gitPathBuffer.toString().replace(/^\s+|\s+$/g, '');
 
 			function getVersion(path: string) {
+				onLookup(path);
+
 				// make sure git executes
 				cp.exec('git --version', (err, stdout) => {
+
 					if (err) {
 						return e('git not found');
 					}
@@ -111,30 +116,29 @@ function findGitDarwin(): Promise<IGit> {
 	});
 }
 
-function findSystemGitWin32(base: string): Promise<IGit> {
+function findSystemGitWin32(base: string, onLookup: (path: string) => void): Promise<IGit> {
 	if (!base) {
 		return Promise.reject<IGit>('Not found');
 	}
 
-	return findSpecificGit(path.join(base, 'Git', 'cmd', 'git.exe'));
+	return findSpecificGit(path.join(base, 'Git', 'cmd', 'git.exe'), onLookup);
 }
 
-function findGitWin32(): Promise<IGit> {
-	return findSystemGitWin32(process.env['ProgramW6432'] as string)
-		.then(void 0, () => findSystemGitWin32(process.env['ProgramFiles(x86)'] as string))
-		.then(void 0, () => findSystemGitWin32(process.env['ProgramFiles'] as string))
-		.then(void 0, () => findSpecificGit('git'));
+function findGitWin32(onLookup: (path: string) => void): Promise<IGit> {
+	return findSystemGitWin32(process.env['ProgramW6432'] as string, onLookup)
+		.then(void 0, () => findSystemGitWin32(process.env['ProgramFiles(x86)'] as string, onLookup))
+		.then(void 0, () => findSystemGitWin32(process.env['ProgramFiles'] as string, onLookup));
 }
 
-export function findGit(hint: string | undefined): Promise<IGit> {
-	var first = hint ? findSpecificGit(hint) : Promise.reject<IGit>(null);
+export function findGit(hint: string | undefined, onLookup: (path: string) => void): Promise<IGit> {
+	var first = hint ? findSpecificGit(hint, onLookup) : Promise.reject<IGit>(null);
 
 	return first
 		.then(void 0, () => {
 			switch (process.platform) {
-				case 'darwin': return findGitDarwin();
-				case 'win32': return findGitWin32();
-				default: return findSpecificGit('git');
+				case 'darwin': return findGitDarwin(onLookup);
+				case 'win32': return findGitWin32(onLookup);
+				default: return findSpecificGit('git', onLookup);
 			}
 		})
 		.then(null, () => Promise.reject(new Error('Git installation not found.')));

@@ -209,7 +209,7 @@ export class CommandCenter {
 		try {
 			if (ref === '~') {
 				const uriString = uri.toString();
-				const [indexStatus] = repository.indexGroup.resourceStates.filter(r => r.original.toString() === uriString);
+				const [indexStatus] = repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
 				ref = indexStatus ? '' : 'HEAD';
 			}
 

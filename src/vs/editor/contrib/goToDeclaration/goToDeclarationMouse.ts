@@ -22,7 +22,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
-import { EditorState, CodeEditorStateFlag } from 'vs/editor/common/core/editorState';
+import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
 import { DefinitionAction, DefinitionActionConfig } from './goToDeclarationCommands';
 import { ClickLinkGesture, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from 'vs/editor/contrib/goToDeclaration/clickLinkGesture';
 
