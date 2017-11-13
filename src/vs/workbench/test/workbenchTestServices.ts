@@ -60,7 +60,6 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { IPosition, Position as EditorPosition } from 'vs/editor/common/core/position';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
-import { notImplemented } from 'vs/base/common/errors';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
