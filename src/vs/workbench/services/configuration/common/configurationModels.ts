@@ -148,7 +148,7 @@ export class Configuration extends BaseConfiguration {
 		return super.getValue(key, overrides, this._workspace);
 	}
 
-	lookup<C>(key: string, overrides: IConfigurationOverrides = {}): {
+	inspect<C>(key: string, overrides: IConfigurationOverrides = {}): {
 		default: C,
 		user: C,
 		workspace: C,
@@ -156,7 +156,7 @@ export class Configuration extends BaseConfiguration {
 		memory?: C
 		value: C,
 	} {
-		return super.lookup(key, overrides, this._workspace);
+		return super.inspect(key, overrides, this._workspace);
 	}
 
 	keys(): {

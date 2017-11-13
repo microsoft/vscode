@@ -265,7 +265,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 		memory?: T,
 		value: T
 	} {
-		return this._configuration.lookup<T>(key);
+		return this._configuration.inspect<T>(key);
 	}
 
 	keys(): {

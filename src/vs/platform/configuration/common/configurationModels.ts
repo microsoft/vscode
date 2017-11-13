@@ -326,7 +326,7 @@ export class Configuration {
 		}
 	}
 
-	lookup<C>(key: string, overrides: IConfigurationOverrides, workspace: Workspace): {
+	inspect<C>(key: string, overrides: IConfigurationOverrides, workspace: Workspace): {
 		default: C,
 		user: C,
 		workspace: C,
@@ -338,11 +338,11 @@ export class Configuration {
 		const folderConfigurationModel = this.getFolderConfigurationModelForResource(overrides.resource, workspace);
 		const memoryConfigurationModel = overrides.resource ? this._memoryConfigurationByResource.get(overrides.resource) || this._memoryConfiguration : this._memoryConfiguration;
 		return {
-			default: getConfigurationValue<C>(overrides.overrideIdentifier ? this._defaultConfiguration.override(overrides.overrideIdentifier).contents : this._defaultConfiguration.contents, key),
-			user: getConfigurationValue<C>(overrides.overrideIdentifier ? this._userConfiguration.override(overrides.overrideIdentifier).contents : this._userConfiguration.contents, key),
-			workspace: workspace ? getConfigurationValue<C>(overrides.overrideIdentifier ? this._workspaceConfiguration.override(overrides.overrideIdentifier).contents : this._workspaceConfiguration.contents, key) : void 0, //Check on workspace exists or not because _workspaceConfiguration is never null
-			workspaceFolder: folderConfigurationModel ? getConfigurationValue<C>(overrides.overrideIdentifier ? folderConfigurationModel.override(overrides.overrideIdentifier).contents : folderConfigurationModel.contents, key) : void 0,
-			memory: getConfigurationValue<C>(overrides.overrideIdentifier ? memoryConfigurationModel.override(overrides.overrideIdentifier).contents : memoryConfigurationModel.contents, key),
+			default: getConfigurationValue<C>(overrides.overrideIdentifier ? this._defaultConfiguration.freeze().override(overrides.overrideIdentifier).contents : this._defaultConfiguration.freeze().contents, key),
+			user: getConfigurationValue<C>(overrides.overrideIdentifier ? this._userConfiguration.freeze().override(overrides.overrideIdentifier).contents : this._userConfiguration.freeze().contents, key),
+			workspace: workspace ? getConfigurationValue<C>(overrides.overrideIdentifier ? this._workspaceConfiguration.freeze().override(overrides.overrideIdentifier).contents : this._workspaceConfiguration.freeze().contents, key) : void 0, //Check on workspace exists or not because _workspaceConfiguration is never null
+			workspaceFolder: folderConfigurationModel ? getConfigurationValue<C>(overrides.overrideIdentifier ? folderConfigurationModel.freeze().override(overrides.overrideIdentifier).contents : folderConfigurationModel.freeze().contents, key) : void 0,
+			memory: getConfigurationValue<C>(overrides.overrideIdentifier ? memoryConfigurationModel.freeze().override(overrides.overrideIdentifier).contents : memoryConfigurationModel.freeze().contents, key),
 			value: getConfigurationValue<C>(consolidateConfigurationModel.contents, key)
 		};
 	}
@@ -354,12 +354,12 @@ export class Configuration {
 		workspaceFolder: string[];
 	} {
 		const folderConfigurationModel = this.getFolderConfigurationModelForResource(null, workspace);
-		return {
-			default: this._defaultConfiguration.keys,
-			user: this._userConfiguration.keys,
-			workspace: this._workspaceConfiguration.keys,
-			workspaceFolder: folderConfigurationModel ? folderConfigurationModel.keys : []
-		};
+		return objects.clone({
+			default: this._defaultConfiguration.freeze().keys,
+			user: this._userConfiguration.freeze().keys,
+			workspace: this._workspaceConfiguration.freeze().keys,
+			workspaceFolder: folderConfigurationModel ? folderConfigurationModel.freeze().keys : []
+		});
 	}
 
 	updateDefaultConfiguration(defaultConfiguration: ConfigurationModel): void {

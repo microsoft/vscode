@@ -479,7 +479,7 @@ export class SimpleConfigurationService implements IConfigurationService {
 		workspaceFolder: C
 		value: C,
 	} {
-		return this.configuration().lookup<C>(key, options, null);
+		return this.configuration().inspect<C>(key, options, null);
 	}
 
 	public keys() {

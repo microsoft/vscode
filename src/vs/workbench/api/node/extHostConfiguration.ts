@@ -107,7 +107,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 			},
 			inspect: <T>(key: string): ConfigurationInspect<T> => {
 				key = section ? `${section}.${key}` : key;
-				const config = clone(this._configuration.lookup<T>(key, { resource }, this._extHostWorkspace.workspace));
+				const config = clone(this._configuration.inspect<T>(key, { resource }, this._extHostWorkspace.workspace));
 				if (config) {
 					return {
 						key,
