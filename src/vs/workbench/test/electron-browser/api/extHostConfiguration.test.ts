@@ -91,6 +91,31 @@ suite('ExtHostConfiguration', function () {
 		assert.deepEqual(config.get('nested'), { config1: 42, config2: 'Das Pferd frisst kein Reis.' });
 	});
 
+	test('can modify the returned configuration', function () {
+
+		const all = createExtHostConfiguration({
+			'farboo': {
+				'config0': true,
+				'nested': {
+					'config1': 42,
+					'config2': 'Das Pferd frisst kein Reis.'
+				},
+				'config4': ''
+			}
+		});
+
+		const testObject = all.getConfiguration();
+		let actual = testObject.get('farboo');
+		actual['farboo1'] = 'newValue';
+
+		assert.equal('newValue', actual['farboo1']);
+
+		actual = testObject.inspect('farboo');
+		actual['value'] = 'effectiveValue';
+
+		assert.equal('effectiveValue', actual['value']);
+	});
+
 	test('inspect in no workspace context', function () {
 		const testObject = new ExtHostConfiguration(
 			new class extends mock<MainThreadConfigurationShape>() { },
