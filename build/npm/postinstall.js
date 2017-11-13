@@ -7,8 +7,6 @@ const cp = require('child_process');
 const path = require('path');
 const yarn = process.platform === 'win32' ? 'yarn.cmd' : 'yarn';
 
-process.exit(0);
-
 function yarnInstall(location, opts) {
 	opts = opts || {};
 	opts.cwd = location;
