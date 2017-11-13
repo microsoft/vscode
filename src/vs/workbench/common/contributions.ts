@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Registry, BaseRegistry } from 'vs/platform/registry/common/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 // --- Workbench Contribution Registry
 
@@ -31,29 +32,60 @@ export interface IWorkbenchContributionsRegistry {
 	/**
 	 * Registers a workbench contribution to the platform that will be loaded when the workbench starts and disposed when
 	 * the workbench shuts down.
+	 *
+	 * @param phase the lifecycle phase when to instantiate the contribution.
 	 */
-	registerWorkbenchContribution(contribution: IWorkbenchContributionSignature): void;
+	registerWorkbenchContribution(contribution: IWorkbenchContributionSignature, phase?: LifecyclePhase): void;
 
 	/**
-	 * Returns all workbench contributions that are known to the platform.
+	 * Starts the registry by providing the required services.
 	 */
-	getWorkbenchContributions(): IWorkbenchContribution[];
-
-	setInstantiationService(service: IInstantiationService): void;
+	start(instantiationService: IInstantiationService, lifecycleService: ILifecycleService): void;
 }
 
-class WorkbenchContributionsRegistry extends BaseRegistry<IWorkbenchContribution> implements IWorkbenchContributionsRegistry {
+export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry {
+	private instantiationService: IInstantiationService;
+	private lifecycleService: ILifecycleService;
 
-	public registerWorkbenchContribution(ctor: IWorkbenchContributionSignature): void {
-		super._register(ctor);
+	private toBeInstantiated: Map<LifecyclePhase, IConstructorSignature0<IWorkbenchContribution>[]> = new Map<LifecyclePhase, IConstructorSignature0<IWorkbenchContribution>[]>();
+
+	public registerWorkbenchContribution(ctor: IWorkbenchContributionSignature, phase: LifecyclePhase = LifecyclePhase.Starting): void {
+
+		// Instantiate directly if we are already matching the provided phase
+		if (this.instantiationService && this.lifecycleService && this.lifecycleService.phase >= phase) {
+			this.instantiationService.createInstance(ctor);
+		}
+
+		// Otherwise keep contributions by lifecycle phase
+		else {
+			let toBeInstantiated = this.toBeInstantiated.get(phase);
+			if (!toBeInstantiated) {
+				toBeInstantiated = [];
+				this.toBeInstantiated.set(phase, toBeInstantiated);
+			}
+
+			toBeInstantiated.push(ctor);
+		}
 	}
 
-	public getWorkbenchContributions(): IWorkbenchContribution[] {
-		return super._getInstances();
+	public start(instantiationService: IInstantiationService, lifecycleService: ILifecycleService): void {
+		this.instantiationService = instantiationService;
+		this.lifecycleService = lifecycleService;
+
+		[LifecyclePhase.Starting, LifecyclePhase.Restoring, LifecyclePhase.Running, LifecyclePhase.ShuttingDown].forEach(phase => {
+			this.instantiateByPhase(instantiationService, lifecycleService, phase);
+		});
 	}
 
-	public setWorkbenchContributions(contributions: IWorkbenchContribution[]): void {
-		super._setInstances(contributions);
+	private instantiateByPhase(instantiationService: IInstantiationService, lifecycleService: ILifecycleService, phase: LifecyclePhase): void {
+		lifecycleService.when(phase).then(() => {
+			const toBeInstantiated = this.toBeInstantiated.get(phase);
+			if (toBeInstantiated) {
+				while (toBeInstantiated.length > 0) {
+					instantiationService.createInstance(toBeInstantiated.shift());
+				}
+			}
+		});
 	}
 }
 
