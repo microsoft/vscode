@@ -538,18 +538,21 @@ export class EditorSort {
 		if (this.orderBySavedRecently && saved) {
 			const model = this.editorGroupService.getStacksModel();
 			const index = 0;
-			const editors = model.activeGroup.getEditors();
 
-			if (editors && editors.length > 0) {
-				saved.forEach(s => {
-					for (var i = 0, len = editors.length; i < len; i++) {
-						if (editors[i].getResource() == s.resource) {
-							this.editorGroupService.moveEditor(editors[i], 0, 0, { index });
-							break;
+			model.groups.forEach(group => {
+				let editors = group.getEditors();
+				if (editors && editors.length > 0) {
+					saved.forEach(s => {
+						for (var i = 0, len = editors.length; i < len; i++) {
+							if (editors[i].getResource() == s.resource) {
+								let position = model.positionOfGroup(group);
+								this.editorGroupService.moveEditor(editors[i], position, position, { index });
+								break;
+							}
 						}
-					}
-				});
-			}
+					});
+				}
+			});
 		}
 	}
 
