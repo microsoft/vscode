@@ -44,6 +44,7 @@ import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, 
 import { activeContrastBorder, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { Dimension } from 'vs/base/browser/builder';
 
 interface IEditorInputLabel {
 	name: string;
@@ -56,11 +57,14 @@ type AugmentedLabel = IEditorInputLabel & { editor: IEditorInput };
 export class TabsTitleControl extends TitleControl {
 	private titleContainer: HTMLElement;
 	private tabsContainer: HTMLElement;
+	private editorToolbarContainer: HTMLElement;
 	private activeTab: HTMLElement;
 	private editorLabels: ResourceLabel[];
 	private scrollbar: ScrollableElement;
 	private tabDisposeables: IDisposable[];
 	private blockRevealActiveTab: boolean;
+	private dimension: Dimension;
+	private editorToolbarWidth: number;
 
 	constructor(
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -83,6 +87,7 @@ export class TabsTitleControl extends TitleControl {
 
 		this.tabDisposeables = [];
 		this.editorLabels = [];
+		this.editorToolbarWidth = 0;
 	}
 
 	protected initActions(services: IInstantiationService): void {
@@ -223,13 +228,13 @@ export class TabsTitleControl extends TitleControl {
 			}
 		}));
 
-		// Editor Actions Container
-		const editorActionsContainer = document.createElement('div');
-		DOM.addClass(editorActionsContainer, 'editor-actions');
-		this.titleContainer.appendChild(editorActionsContainer);
+		// Editor Toolbar Container
+		this.editorToolbarContainer = document.createElement('div');
+		DOM.addClass(this.editorToolbarContainer, 'editor-actions');
+		this.titleContainer.appendChild(this.editorToolbarContainer);
 
 		// Editor Actions Toolbar
-		this.createEditorActionsToolBar(editorActionsContainer);
+		this.createEditorActionsToolBar(this.editorToolbarContainer);
 	}
 
 	private updateDropFeedback(element: HTMLElement, isDND: boolean, index?: number): void {
@@ -280,66 +285,64 @@ export class TabsTitleControl extends TitleControl {
 
 		// Tab label and styles
 		editorsOfGroup.forEach((editor, index) => {
-			const tabContainer = this.tabsContainer.children[index];
-			if (tabContainer instanceof HTMLElement) {
-				const isPinned = group.isPinned(index);
-				const isTabActive = group.isActive(editor);
-				const isDirty = editor.isDirty();
+			const tabContainer = this.tabsContainer.children[index] as HTMLElement;
+			const isPinned = group.isPinned(index);
+			const isTabActive = group.isActive(editor);
+			const isDirty = editor.isDirty();
 
-				const label = labels[index];
-				const name = label.name;
-				const description = label.description || '';
-				const title = label.title || '';
+			const label = labels[index];
+			const name = label.name;
+			const description = label.description || '';
+			const title = label.title || '';
 
-				// Container
-				tabContainer.setAttribute('aria-label', `${name}, tab`);
-				tabContainer.title = title;
-				tabContainer.style.borderLeftColor = (index !== 0) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;
-				tabContainer.style.borderRightColor = (index === editorsOfGroup.length - 1) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;
-				tabContainer.style.outlineColor = this.getColor(activeContrastBorder);
+			// Container
+			tabContainer.setAttribute('aria-label', `${name}, tab`);
+			tabContainer.title = title;
+			tabContainer.style.borderLeftColor = (index !== 0) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;
+			tabContainer.style.borderRightColor = (index === editorsOfGroup.length - 1) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;
+			tabContainer.style.outlineColor = this.getColor(activeContrastBorder);
 
-				const tabOptions = this.editorGroupService.getTabOptions();
-				['off', 'left'].forEach(option => {
-					const domAction = tabOptions.tabCloseButton === option ? DOM.addClass : DOM.removeClass;
-					domAction(tabContainer, `close-button-${option}`);
-				});
+			const tabOptions = this.editorGroupService.getTabOptions();
+			['off', 'left'].forEach(option => {
+				const domAction = tabOptions.tabCloseButton === option ? DOM.addClass : DOM.removeClass;
+				domAction(tabContainer, `close-button-${option}`);
+			});
 
-				// Label
-				const tabLabel = this.editorLabels[index];
-				tabLabel.setLabel({ name, description, resource: toResource(editor, { supportSideBySide: true }) }, { extraClasses: ['tab-label'], italic: !isPinned });
+			// Label
+			const tabLabel = this.editorLabels[index];
+			tabLabel.setLabel({ name, description, resource: toResource(editor, { supportSideBySide: true }) }, { extraClasses: ['tab-label'], italic: !isPinned });
 
-				// Active state
-				if (isTabActive) {
-					DOM.addClass(tabContainer, 'active');
-					tabContainer.setAttribute('aria-selected', 'true');
-					tabContainer.style.backgroundColor = this.getColor(TAB_ACTIVE_BACKGROUND);
-					tabLabel.element.style.color = this.getColor(isGroupActive ? TAB_ACTIVE_FOREGROUND : TAB_UNFOCUSED_ACTIVE_FOREGROUND);
+			// Active state
+			if (isTabActive) {
+				DOM.addClass(tabContainer, 'active');
+				tabContainer.setAttribute('aria-selected', 'true');
+				tabContainer.style.backgroundColor = this.getColor(TAB_ACTIVE_BACKGROUND);
+				tabLabel.element.style.color = this.getColor(isGroupActive ? TAB_ACTIVE_FOREGROUND : TAB_UNFOCUSED_ACTIVE_FOREGROUND);
 
-					// Use boxShadow for the active tab border because if we also have a editor group header
-					// color, the two colors would collide and the tab border never shows up.
-					// see https://github.com/Microsoft/vscode/issues/33111
-					const activeTabBorderColor = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
-					if (activeTabBorderColor) {
-						tabContainer.style.boxShadow = `${activeTabBorderColor} 0 -1px inset`;
-					} else {
-						tabContainer.style.boxShadow = null;
-					}
-
-					this.activeTab = tabContainer;
+				// Use boxShadow for the active tab border because if we also have a editor group header
+				// color, the two colors would collide and the tab border never shows up.
+				// see https://github.com/Microsoft/vscode/issues/33111
+				const activeTabBorderColor = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
+				if (activeTabBorderColor) {
+					tabContainer.style.boxShadow = `${activeTabBorderColor} 0 -1px inset`;
 				} else {
-					DOM.removeClass(tabContainer, 'active');
-					tabContainer.setAttribute('aria-selected', 'false');
-					tabContainer.style.backgroundColor = this.getColor(TAB_INACTIVE_BACKGROUND);
-					tabLabel.element.style.color = this.getColor(isGroupActive ? TAB_INACTIVE_FOREGROUND : TAB_UNFOCUSED_INACTIVE_FOREGROUND);
 					tabContainer.style.boxShadow = null;
 				}
 
-				// Dirty State
-				if (isDirty) {
-					DOM.addClass(tabContainer, 'dirty');
-				} else {
-					DOM.removeClass(tabContainer, 'dirty');
-				}
+				this.activeTab = tabContainer;
+			} else {
+				DOM.removeClass(tabContainer, 'active');
+				tabContainer.setAttribute('aria-selected', 'false');
+				tabContainer.style.backgroundColor = this.getColor(TAB_INACTIVE_BACKGROUND);
+				tabLabel.element.style.color = this.getColor(isGroupActive ? TAB_INACTIVE_FOREGROUND : TAB_UNFOCUSED_INACTIVE_FOREGROUND);
+				tabContainer.style.boxShadow = null;
+			}
+
+			// Dirty State
+			if (isDirty) {
+				DOM.addClass(tabContainer, 'dirty');
+			} else {
+				DOM.removeClass(tabContainer, 'dirty');
 			}
 		});
 
@@ -347,7 +350,7 @@ export class TabsTitleControl extends TitleControl {
 		this.updateEditorActionsToolbar();
 
 		// Ensure the active tab is always revealed
-		this.layout();
+		this.layout(this.dimension);
 	}
 
 	private getTabLabels(editors: IEditorInput[]): IEditorInputLabel[] {
@@ -538,12 +541,33 @@ export class TabsTitleControl extends TitleControl {
 		return tabContainer;
 	}
 
-	public layout(): void {
-		if (!this.activeTab) {
+	public updateEditorActionsToolbar(): void {
+		super.updateEditorActionsToolbar();
+
+		this.editorToolbarWidth = this.getElementWidth(this.editorToolbarContainer);
+	}
+
+	protected clearEditorActionsToolbar(): void {
+		super.clearEditorActionsToolbar();
+
+		this.editorToolbarWidth = this.getElementWidth(this.editorToolbarContainer);
+	}
+
+	private getElementWidth(element: HTMLElement): number {
+		// We are using getBoundingClientRect() over offsetWidth for a reason: only the former will return subpixel sizes
+		// whereas the other (offsetWidth) will round the value to the nearest number. For our layout code we really need
+		// the sizes with their fractions to not cause rounding issues.
+		return element.getBoundingClientRect().width;
+	}
+
+	public layout(dimension: Dimension): void {
+		if (!this.activeTab || !dimension) {
 			return;
 		}
 
-		const visibleContainerWidth = this.tabsContainer.offsetWidth;
+		this.dimension = dimension;
+
+		const visibleContainerWidth = this.dimension.width - this.editorToolbarWidth;
 		const totalContainerWidth = this.tabsContainer.scrollWidth;
 
 		// Update scrollbar
@@ -559,7 +583,7 @@ export class TabsTitleControl extends TitleControl {
 		}
 
 		// Reveal the active one
-		const containerScrollPosX = this.tabsContainer.scrollLeft;
+		const containerScrollPosX = this.scrollbar.getScrollPosition().scrollLeft;
 		const activeTabPosX = this.activeTab.offsetLeft;
 		const activeTabWidth = this.activeTab.offsetWidth;
 		const activeTabFits = activeTabWidth <= visibleContainerWidth;
@@ -575,7 +599,7 @@ export class TabsTitleControl extends TitleControl {
 		// Tab is overlflowng to the left or does not fit: Scroll it into view to the left
 		else if (containerScrollPosX > activeTabPosX || !activeTabFits) {
 			this.scrollbar.setScrollPosition({
-				scrollLeft: this.activeTab.offsetLeft
+				scrollLeft: activeTabPosX
 			});
 		}
 	}

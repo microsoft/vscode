@@ -45,6 +45,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import URI from 'vs/base/common/uri';
 import { isDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { Dimension } from 'vs/base/browser/builder';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -61,7 +62,7 @@ export interface ITitleAreaControl {
 	refresh(instant?: boolean): void;
 	update(instant?: boolean): void;
 	updateEditorActionsToolbar(): void;
-	layout(): void;
+	layout(dimension: Dimension): void;
 	dispose(): void;
 }
 
@@ -223,7 +224,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 		this.doRefresh();
 	}
 
-	public layout(): void {
+	public layout(dimension: Dimension): void {
 		// Subclasses can opt in to react on layout
 	}
 
