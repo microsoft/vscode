@@ -143,7 +143,7 @@ gulp.task('eslint', () => {
 });
 
 gulp.task('tslint', () => {
-	const options = { emitError: false };
+	const options = { emitError: true };
 
 	return vfs.src(all, { base: '.', follow: true, allowEmpty: true })
 		.pipe(filter(tslintFilter))
@@ -209,7 +209,7 @@ const hygiene = exports.hygiene = (some, options) => {
 			cb(err);
 		});
 	});
-	
+
 	function reportFailures(failures) {
 		failures.forEach(failure => {
 			const name = failure.name || failure.fileName;
