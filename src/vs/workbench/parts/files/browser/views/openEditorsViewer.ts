@@ -25,7 +25,7 @@ import { IEditorGroup, IEditorStacksModel } from 'vs/workbench/common/editor';
 import { OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
 import { ContributableActionProvider } from 'vs/workbench/browser/actions';
 import { explorerItemToFileResource, IFilesConfiguration } from 'vs/workbench/parts/files/common/files';
-import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, AutoSaveMode, TextFileModelChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorStacksModel, EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
 import { SaveFileAction, RevertFileAction, SaveFileAsAction, OpenToSideAction, SelectResourceForCompareAction, CompareResourcesAction, SaveAllInGroupAction, CompareWithSavedAction } from 'vs/workbench/parts/files/browser/fileActions';
@@ -534,11 +534,22 @@ export class EditorSort {
 		this.registerListeners();
 	}
 
-	public moveToTop(): void {
-		if (this.orderBySavedRecently) {
+	public moveToTop(saved: TextFileModelChangeEvent[]): void {
+		if (this.orderBySavedRecently && saved) {
 			const model = this.editorGroupService.getStacksModel();
 			const index = 0;
-			this.editorGroupService.moveEditor(model.activeGroup.activeEditor, 0, 0, { index });
+			const editors = model.activeGroup.getEditors();
+
+			if (editors && editors.length > 0) {
+				saved.forEach(s => {
+					for (var i = 0, len = editors.length; i < len; i++) {
+						if (editors[i].getResource() == s.resource) {
+							this.editorGroupService.moveEditor(editors[i], 0, 0, { index });
+							break;
+						}
+					}
+				});
+			}
 		}
 	}
 
