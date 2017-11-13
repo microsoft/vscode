@@ -177,12 +177,6 @@ export function equals(one: any, other: any): boolean {
 	return true;
 }
 
-export function ensureProperty(obj: any, property: string, defaultValue: any) {
-	if (typeof obj[property] === 'undefined') {
-		obj[property] = defaultValue;
-	}
-}
-
 export function arrayToHash(array: any[]) {
 	const result: any = {};
 	for (let i = 0; i < array.length; ++i) {
