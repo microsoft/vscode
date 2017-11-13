@@ -306,9 +306,9 @@
       "resolved": "https://registry.npmjs.org/node-pty/-/node-pty-0.7.3.tgz",
       "dependencies": {
         "nan": {
-          "version": "2.5.0",
-          "from": "nan@2.5.0",
-          "resolved": "https://registry.npmjs.org/nan/-/nan-2.5.0.tgz"
+          "version": "2.6.2",
+          "from": "nan@2.6.2",
+          "resolved": "https://registry.npmjs.org/nan/-/nan-2.6.2.tgz"
         }
       }
     },

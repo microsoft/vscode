@@ -57,6 +57,7 @@ const indentationFilter = [
 	'!**/*.template',
 	'!**/*.yaml',
 	'!**/*.yml',
+	'!**/yarn.lock',
 	'!**/lib/**',
 	'!extensions/**/*.d.ts',
 	'!src/typings/**/*.d.ts',

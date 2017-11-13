@@ -5,21 +5,23 @@
 
 const cp = require('child_process');
 const path = require('path');
-const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+const yarn = process.platform === 'win32' ? 'yarn.cmd' : 'yarn';
 
-function npmInstall(location, opts) {
+process.exit(0);
+
+function yarnInstall(location, opts) {
 	opts = opts || {};
 	opts.cwd = location;
 	opts.stdio = 'inherit';
 
-	const result = cp.spawnSync(npm, ['install'], opts);
+	const result = cp.spawnSync(yarn, ['install'], opts);
 
 	if (result.error || result.status !== 0) {
 		process.exit(1);
 	}
 }
 
-npmInstall('extensions'); // node modules shared by all extensions
+yarnInstall('extensions'); // node modules shared by all extensions
 
 const extensions = [
 	'vscode-api-tests',
@@ -43,9 +45,9 @@ const extensions = [
 	'jake'
 ];
 
-extensions.forEach(extension => npmInstall(`extensions/${extension}`));
+extensions.forEach(extension => yarnInstall(`extensions/${extension}`));
 
-function npmInstallBuildDependencies() {
+function yarnInstallBuildDependencies() {
 	// make sure we install gulp watch for the system installed
 	// node, since that is the driver of gulp
 	const env = Object.assign({}, process.env);
@@ -54,9 +56,9 @@ function npmInstallBuildDependencies() {
 	delete env['npm_config_target'];
 	delete env['npm_config_runtime'];
 
-	npmInstall(path.join(path.dirname(__dirname), 'lib', 'watch'), { env });
+	yarnInstall(path.join(path.dirname(__dirname), 'lib', 'watch'), { env });
 }
 
-npmInstall(`build`); // node modules required for build
-npmInstall('test/smoke'); // node modules required for smoketest
-npmInstallBuildDependencies(); // node modules for watching, specific to host node version, not electron
+yarnInstall(`build`); // node modules required for build
+yarnInstall('test/smoke'); // node modules required for smoketest
+yarnInstallBuildDependencies(); // node modules for watching, specific to host node version, not electron
