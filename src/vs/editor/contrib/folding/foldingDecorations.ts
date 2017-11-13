@@ -18,12 +18,12 @@ export class FoldingDecorationProvider implements IDecorationProvider {
 
 	private EXPANDED_AUTO_HIDE_VISUAL_DECORATION = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		linesDecorationsClassName: 'folding autoHide'
+		linesDecorationsClassName: 'folding'
 	});
 
 	private EXPANDED_VISUAL_DECORATION = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		linesDecorationsClassName: 'folding'
+		linesDecorationsClassName: 'folding alwaysShowFoldIcons'
 	});
 
 	public autoHideFoldingControls: boolean = true;

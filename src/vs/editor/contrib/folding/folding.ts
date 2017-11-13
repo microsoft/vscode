@@ -177,12 +177,14 @@ export class FoldingController {
 	}
 
 	private onModelContentChanged() {
-		this.foldingModelPromise = this.updateScheduler.trigger(() => {
-			if (this.foldingModel) { // null if editor has been disposed, or folding turned off
-				this.foldingModel.update(this.computeRanges(this.foldingModel.textModel));
-			}
-			return this.foldingModel;
-		});
+		if (this.updateScheduler) {
+			this.foldingModelPromise = this.updateScheduler.trigger(() => {
+				if (this.foldingModel) { // null if editor has been disposed, or folding turned off
+					this.foldingModel.update(this.computeRanges(this.foldingModel.textModel));
+				}
+				return this.foldingModel;
+			});
+		}
 	}
 
 	private onHiddenRangesChanges(hiddenRanges: IRange[]) {
