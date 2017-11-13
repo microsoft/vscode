@@ -64,7 +64,7 @@ namespace Configuration {
 				}
 			}
 		}
-		return { extensionId, taskType, required: required.length >= 0 ? required : undefined, properties: value.properties ? Objects.deepClone(value.properties) : undefined };
+		return { extensionId, taskType, required: required.length >= 0 ? required : undefined, properties: value.properties ? Objects.clone(value.properties) : undefined };
 	}
 }
 

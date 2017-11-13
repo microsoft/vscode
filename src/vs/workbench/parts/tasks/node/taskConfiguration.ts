@@ -519,7 +519,7 @@ function _fillDefaults<T>(this: void, target: T, defaults: T, properties: MetaDa
 	}
 	if (target === void 0 || target === null) {
 		if (defaults !== void 0 && defaults !== null) {
-			return Objects.deepClone(defaults);
+			return Objects.clone(defaults);
 		} else {
 			return undefined;
 		}
@@ -1166,7 +1166,7 @@ namespace ConfiguringTask {
 				} else if (required.has(property)) {
 					let schema = properties[property];
 					if (schema.default !== void 0) {
-						identifier[property] = Objects.deepClone(schema.default);
+						identifier[property] = Objects.clone(schema.default);
 					} else {
 						switch (schema.type) {
 							case 'boolean':
