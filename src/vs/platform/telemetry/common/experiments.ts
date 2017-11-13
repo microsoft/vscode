@@ -7,7 +7,7 @@
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { clone } from 'vs/base/common/objects';
+import { deepClone } from 'vs/base/common/objects';
 
 /* __GDPR__FRAGMENT__
 	"IExperiments" : {
@@ -89,5 +89,5 @@ function splitRandom(random: number): [number, boolean] {
 }
 
 function getExperimentsOverrides(configurationService: IConfigurationService): IExperiments {
-	return clone(configurationService.getValue<any>('experiments')) || {};
+	return deepClone(configurationService.getValue<any>('experiments')) || {};
 }

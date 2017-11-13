@@ -11,7 +11,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import types = require('vs/base/common/types');
 import * as strings from 'vs/base/common/strings';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
-import { clone } from 'vs/base/common/objects';
+import { deepClone } from 'vs/base/common/objects';
 
 export const Extensions = {
 	Configuration: 'base.contributions.configuration'
@@ -223,7 +223,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 			if (properties) {
 				for (let key in properties) {
 					settingsSchema.properties[key] = properties[key];
-					resourceSettingsSchema.properties[key] = clone(properties[key]);
+					resourceSettingsSchema.properties[key] = deepClone(properties[key]);
 					if (properties[key].scope !== ConfigurationScope.RESOURCE) {
 						resourceSettingsSchema.properties[key].doNotSuggest = true;
 					}

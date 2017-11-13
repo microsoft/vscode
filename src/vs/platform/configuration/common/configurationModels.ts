@@ -59,7 +59,7 @@ export class ConfigurationModel implements IConfigurationModel {
 			if (overrideContentsForKey) {
 				// Clone and merge only if base contents and override contents are of type object otherwise just override
 				if (typeof contentsForKey === 'object' && typeof overrideContentsForKey === 'object') {
-					contentsForKey = objects.clone(contentsForKey);
+					contentsForKey = objects.deepClone(contentsForKey);
 					this.mergeContents(contentsForKey, overrideContentsForKey);
 				} else {
 					contentsForKey = overrideContentsForKey;
@@ -73,8 +73,8 @@ export class ConfigurationModel implements IConfigurationModel {
 	}
 
 	merge(...others: ConfigurationModel[]): ConfigurationModel {
-		const contents = objects.clone(this.contents);
-		const overrides = objects.clone(this.overrides);
+		const contents = objects.deepClone(this.contents);
+		const overrides = objects.deepClone(this.overrides);
 		const keys = [...this.keys];
 
 		for (const other of others) {
@@ -110,7 +110,7 @@ export class ConfigurationModel implements IConfigurationModel {
 					continue;
 				}
 			}
-			source[key] = objects.clone(target[key]);
+			source[key] = objects.deepClone(target[key]);
 		}
 	}
 
@@ -354,7 +354,7 @@ export class Configuration {
 		workspaceFolder: string[];
 	} {
 		const folderConfigurationModel = this.getFolderConfigurationModelForResource(null, workspace);
-		return objects.clone({
+		return objects.deepClone({
 			default: this._defaultConfiguration.freeze().keys,
 			user: this._userConfiguration.freeze().keys,
 			workspace: this._workspaceConfiguration.freeze().keys,

@@ -136,7 +136,7 @@ export class ExtensionHostProcessWorker {
 				const port = data[1];
 
 				const opts = {
-					env: objects.mixin(objects.clone(process.env), {
+					env: objects.mixin(objects.deepClone(process.env), {
 						AMD_ENTRYPOINT: 'vs/workbench/node/extensionHostProcess',
 						PIPE_LOGGING: 'true',
 						VERBOSE_LOGGING: true,

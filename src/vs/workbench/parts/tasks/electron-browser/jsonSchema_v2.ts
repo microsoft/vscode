@@ -101,7 +101,7 @@ const presentation: IJSONSchema = {
 	}
 };
 
-const terminal: IJSONSchema = Objects.clone(presentation);
+const terminal: IJSONSchema = Objects.deepClone(presentation);
 terminal.deprecationMessage = nls.localize('JsonSchema.tasks.terminal', 'The terminal property is deprecated. Use presentation instead');
 
 const group: IJSONSchema = {
@@ -178,8 +178,8 @@ let taskConfiguration: IJSONSchema = {
 			description: nls.localize('JsonSchema.tasks.taskName', 'The task\'s name'),
 			deprecationMessage: nls.localize('JsonSchema.tasks.taskName.deprecated', 'The task\'s name property is deprecated. Use the label property instead.')
 		},
-		identifier: Objects.clone(identifier),
-		group: Objects.clone(group),
+		identifier: Objects.deepClone(identifier),
+		group: Objects.deepClone(group),
 		isBackground: {
 			type: 'boolean',
 			description: nls.localize('JsonSchema.tasks.background', 'Whether the executed task is kept alive and is running in the background.'),
@@ -190,7 +190,7 @@ let taskConfiguration: IJSONSchema = {
 			description: nls.localize('JsonSchema.tasks.promptOnClose', 'Whether the user is prompted when VS Code closes with a running task.'),
 			default: false
 		},
-		presentation: Objects.clone(presentation),
+		presentation: Objects.deepClone(presentation),
 		problemMatcher: {
 			$ref: '#/definitions/problemMatcherType',
 			description: nls.localize('JsonSchema.tasks.matchers', 'The problem matcher(s) to use. Can either be a string or a problem matcher definition or an array of strings and problem matchers.')
@@ -201,7 +201,7 @@ let taskConfiguration: IJSONSchema = {
 let taskDefinitions: IJSONSchema[] = [];
 TaskDefinitionRegistry.onReady().then(() => {
 	for (let taskType of TaskDefinitionRegistry.all()) {
-		let schema: IJSONSchema = Objects.clone(taskConfiguration);
+		let schema: IJSONSchema = Objects.deepClone(taskConfiguration);
 		// Since we do this after the schema is assigned we need to patch the refs.
 		schema.properties.type = {
 			type: 'string',
@@ -213,31 +213,31 @@ TaskDefinitionRegistry.onReady().then(() => {
 		}
 		for (let key of Object.keys(taskType.properties)) {
 			let property = taskType.properties[key];
-			schema.properties[key] = Objects.clone(property);
+			schema.properties[key] = Objects.deepClone(property);
 		}
 		fixReferences(schema);
 		taskDefinitions.push(schema);
 	}
 });
 
-let customize = Objects.clone(taskConfiguration);
+let customize = Objects.deepClone(taskConfiguration);
 customize.properties.customize = {
 	type: 'string',
 	deprecationMessage: nls.localize('JsonSchema.tasks.customize.deprecated', 'The customize property is deprecated. See the 1.14 release notes on how to migrate to the new task customization approach')
 };
 taskDefinitions.push(customize);
 
-let definitions = Objects.clone(commonSchema.definitions);
+let definitions = Objects.deepClone(commonSchema.definitions);
 let taskDescription: IJSONSchema = definitions.taskDescription;
 taskDescription.required = ['label'];
-taskDescription.properties.label = Objects.clone(label);
-taskDescription.properties.isShellCommand = Objects.clone(shellCommand);
+taskDescription.properties.label = Objects.deepClone(label);
+taskDescription.properties.isShellCommand = Objects.deepClone(shellCommand);
 taskDescription.properties.dependsOn = dependsOn;
-taskDescription.properties.identifier = Objects.clone(identifier);
-taskDescription.properties.type = Objects.clone(taskType);
-taskDescription.properties.presentation = Objects.clone(presentation);
+taskDescription.properties.identifier = Objects.deepClone(identifier);
+taskDescription.properties.type = Objects.deepClone(taskType);
+taskDescription.properties.presentation = Objects.deepClone(presentation);
 taskDescription.properties.terminal = terminal;
-taskDescription.properties.group = Objects.clone(group);
+taskDescription.properties.group = Objects.deepClone(group);
 taskDescription.properties.taskName.deprecationMessage = nls.localize(
 	'JsonSchema.tasks.taskName.deprecated',
 	'The task\'s name property is deprecated. Use the label property instead.'
@@ -278,15 +278,15 @@ tasks.items = {
 	oneOf: taskDefinitions
 };
 
-definitions.commandConfiguration.properties.isShellCommand = Objects.clone(shellCommand);
+definitions.commandConfiguration.properties.isShellCommand = Objects.deepClone(shellCommand);
 definitions.options.properties.shell = {
 	$ref: '#/definitions/shellConfiguration'
 };
 
-definitions.taskRunnerConfiguration.properties.isShellCommand = Objects.clone(shellCommand);
-definitions.taskRunnerConfiguration.properties.type = Objects.clone(taskType);
-definitions.taskRunnerConfiguration.properties.group = Objects.clone(group);
-definitions.taskRunnerConfiguration.properties.presentation = Objects.clone(presentation);
+definitions.taskRunnerConfiguration.properties.isShellCommand = Objects.deepClone(shellCommand);
+definitions.taskRunnerConfiguration.properties.type = Objects.deepClone(taskType);
+definitions.taskRunnerConfiguration.properties.group = Objects.deepClone(group);
+definitions.taskRunnerConfiguration.properties.presentation = Objects.deepClone(presentation);
 definitions.taskRunnerConfiguration.properties.suppressTaskName.deprecationMessage = nls.localize(
 	'JsonSchema.tasks.suppressTaskName.deprecated',
 	'The property suppressTaskName is deprecated. Inline the command with its arguments into the task instead. See also the 1.14 release notes.'
@@ -296,11 +296,11 @@ definitions.taskRunnerConfiguration.properties.taskSelector.deprecationMessage =
 	'The property taskSelector is deprecated. Inline the command with its arguments into the task instead. See also the 1.14 release notes.'
 );
 
-let osSpecificTaskRunnerConfiguration = Objects.clone(definitions.taskRunnerConfiguration);
+let osSpecificTaskRunnerConfiguration = Objects.deepClone(definitions.taskRunnerConfiguration);
 delete osSpecificTaskRunnerConfiguration.properties.tasks;
 osSpecificTaskRunnerConfiguration.additionalProperties = false;
 definitions.osSpecificTaskRunnerConfiguration = osSpecificTaskRunnerConfiguration;
-definitions.taskRunnerConfiguration.properties.version = Objects.clone(version);
+definitions.taskRunnerConfiguration.properties.version = Objects.deepClone(version);
 
 const schema: IJSONSchema = {
 	oneOf: [
@@ -310,7 +310,7 @@ const schema: IJSONSchema = {
 					type: 'object',
 					required: ['version'],
 					properties: {
-						version: Objects.clone(version),
+						version: Objects.deepClone(version),
 						windows: {
 							'$ref': '#/definitions/osSpecificTaskRunnerConfiguration',
 							'description': nls.localize('JsonSchema.windows', 'Windows specific command configuration')

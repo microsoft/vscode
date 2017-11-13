@@ -299,7 +299,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 					!breakpoint.condition && !breakpoint.hitCondition ? DebugEditorModelManager.BREAKPOINT_DECORATION : null;
 
 		if (result) {
-			result = objects.clone(result);
+			result = objects.deepClone(result);
 			if (breakpoint.message) {
 				result.glyphMarginHoverMessage = new MarkdownString().appendText(breakpoint.message);
 			}

@@ -39,7 +39,7 @@ export class Checkbox extends Widget {
 
 	constructor(opts: ICheckboxOpts) {
 		super();
-		this._opts = objects.clone(opts);
+		this._opts = objects.deepClone(opts);
 		objects.mixin(this._opts, defaultOpts, false);
 		this._checked = this._opts.isChecked;
 

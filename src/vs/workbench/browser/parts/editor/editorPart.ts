@@ -174,7 +174,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 					]
 				}
 			*/
-			this.telemetryService.publicLog('workbenchEditorConfiguration', objects.clone(editorConfig)); // Clone because telemetry service will modify the passed data by adding more details.
+			this.telemetryService.publicLog('workbenchEditorConfiguration', objects.deepClone(editorConfig)); // Clone because telemetry service will modify the passed data by adding more details.
 		} else {
 			this.tabOptions = {
 				previewEditors: true,
@@ -229,7 +229,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 					});
 				}
 
-				const oldTabOptions = objects.clone(this.tabOptions);
+				const oldTabOptions = objects.deepClone(this.tabOptions);
 				this.tabOptions = {
 					previewEditors: newPreviewEditors,
 					showIcons: editorConfig.showIcons,

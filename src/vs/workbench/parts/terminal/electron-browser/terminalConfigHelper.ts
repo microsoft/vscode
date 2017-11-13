@@ -15,7 +15,7 @@ import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShellLau
 import { TPromise } from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
 import { isFedora } from 'vs/workbench/parts/terminal/electron-browser/terminal';
-import { clone } from 'vs/base/common/objects';
+import { deepClone } from 'vs/base/common/objects';
 
 interface IEditorConfiguration {
 	editor: IEditorOptions;
@@ -50,7 +50,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	}
 
 	public get config(): ITerminalConfiguration {
-		return clone(this._configurationService.getValue<IFullTerminalConfiguration>().terminal.integrated);
+		return deepClone(this._configurationService.getValue<IFullTerminalConfiguration>().terminal.integrated);
 	}
 
 	private _measureFont(fontFamily: string, fontSize: number, lineHeight: number): ITerminalFont {

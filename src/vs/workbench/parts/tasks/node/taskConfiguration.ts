@@ -519,7 +519,7 @@ function _fillDefaults<T>(this: void, target: T, defaults: T, properties: MetaDa
 	}
 	if (target === void 0 || target === null) {
 		if (defaults !== void 0 && defaults !== null) {
-			return Objects.clone(defaults);
+			return Objects.deepClone(defaults);
 		} else {
 			return undefined;
 		}
@@ -631,7 +631,7 @@ namespace CommandOptions {
 			}
 		}
 		if (options.env !== void 0) {
-			result.env = Objects.clone(options.env);
+			result.env = Objects.deepClone(options.env);
 		}
 		result.shell = ShellConfiguration.from(options.shell, context);
 		return isEmpty(result) ? undefined : result;
@@ -983,11 +983,11 @@ namespace ProblemMatcherConverter {
 				variableName = variableName.substring(1);
 				let global = ProblemMatcherRegistry.get(variableName);
 				if (global) {
-					return Objects.clone(global);
+					return Objects.deepClone(global);
 				}
 				let localProblemMatcher = context.namedProblemMatchers[variableName];
 				if (localProblemMatcher) {
-					localProblemMatcher = Objects.clone(localProblemMatcher);
+					localProblemMatcher = Objects.deepClone(localProblemMatcher);
 					// remove the name
 					delete localProblemMatcher.name;
 					return localProblemMatcher;
@@ -1166,7 +1166,7 @@ namespace ConfiguringTask {
 				} else if (required.has(property)) {
 					let schema = properties[property];
 					if (schema.default !== void 0) {
-						identifier[property] = Objects.clone(schema.default);
+						identifier[property] = Objects.deepClone(schema.default);
 					} else {
 						switch (schema.type) {
 							case 'boolean':

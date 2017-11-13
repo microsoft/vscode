@@ -379,7 +379,7 @@ class MultiLineMatcher extends AbstractLineMatcher {
 			} else {
 				// Only the last pattern can loop
 				if (pattern.loop && i === this.patterns.length - 1) {
-					data = Objects.clone(data);
+					data = Objects.deepClone(data);
 				}
 				this.fillProblemData(data, pattern, matches);
 			}
@@ -399,7 +399,7 @@ class MultiLineMatcher extends AbstractLineMatcher {
 			this.data = null;
 			return null;
 		}
-		let data = Objects.clone(this.data);
+		let data = Objects.deepClone(this.data);
 		this.fillProblemData(data, pattern, matches);
 		return this.getMarkerMatch(data);
 	}
@@ -911,8 +911,8 @@ export namespace Schemas {
 		}
 	};
 
-	export const NamedProblemPattern: IJSONSchema = Objects.clone(ProblemPattern);
-	NamedProblemPattern.properties = Objects.clone(NamedProblemPattern.properties);
+	export const NamedProblemPattern: IJSONSchema = Objects.deepClone(ProblemPattern);
+	NamedProblemPattern.properties = Objects.deepClone(NamedProblemPattern.properties);
 	NamedProblemPattern.properties['name'] = {
 		type: 'string',
 		description: localize('NamedProblemPatternSchema.name', 'The name of the problem pattern.')
@@ -1215,7 +1215,7 @@ export class ProblemMatcherParser extends Parser {
 			if (variableName.length > 1 && variableName[0] === '$') {
 				let base = ProblemMatcherRegistry.get(variableName.substring(1));
 				if (base) {
-					result = Objects.clone(base);
+					result = Objects.deepClone(base);
 					if (description.owner) {
 						result.owner = owner;
 					}
@@ -1475,8 +1475,8 @@ export namespace Schemas {
 		}
 	};
 
-	export const LegacyProblemMatcher: IJSONSchema = Objects.clone(ProblemMatcher);
-	LegacyProblemMatcher.properties = Objects.clone(LegacyProblemMatcher.properties);
+	export const LegacyProblemMatcher: IJSONSchema = Objects.deepClone(ProblemMatcher);
+	LegacyProblemMatcher.properties = Objects.deepClone(LegacyProblemMatcher.properties);
 	LegacyProblemMatcher.properties['watchedTaskBeginsRegExp'] = {
 		type: 'string',
 		deprecationMessage: localize('LegacyProblemMatcherSchema.watchedBegin.deprecated', 'This property is deprecated. Use the watching property instead.'),
@@ -1488,8 +1488,8 @@ export namespace Schemas {
 		description: localize('LegacyProblemMatcherSchema.watchedEnd', 'A regular expression signaling that a watched tasks ends executing.')
 	};
 
-	export const NamedProblemMatcher: IJSONSchema = Objects.clone(ProblemMatcher);
-	NamedProblemMatcher.properties = Objects.clone(NamedProblemMatcher.properties);
+	export const NamedProblemMatcher: IJSONSchema = Objects.deepClone(ProblemMatcher);
+	NamedProblemMatcher.properties = Objects.deepClone(NamedProblemMatcher.properties);
 	NamedProblemMatcher.properties.name = {
 		type: 'string',
 		description: localize('NamedProblemMatcherSchema.name', 'The name of the problem matcher used to refer to it.')

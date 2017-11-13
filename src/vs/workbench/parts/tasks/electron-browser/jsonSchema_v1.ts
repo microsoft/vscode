@@ -62,11 +62,11 @@ const shellCommand: IJSONSchema = {
 	description: nls.localize('JsonSchema.shell', 'Specifies whether the command is a shell command or an external program. Defaults to false if omitted.')
 };
 
-schema.definitions = Objects.clone(commonSchema.definitions);
+schema.definitions = Objects.deepClone(commonSchema.definitions);
 let definitions = schema.definitions;
-definitions['commandConfiguration']['properties']['isShellCommand'] = Objects.clone(shellCommand);
-definitions['taskDescription']['properties']['isShellCommand'] = Objects.clone(shellCommand);
-definitions['taskRunnerConfiguration']['properties']['isShellCommand'] = Objects.clone(shellCommand);
+definitions['commandConfiguration']['properties']['isShellCommand'] = Objects.deepClone(shellCommand);
+definitions['taskDescription']['properties']['isShellCommand'] = Objects.deepClone(shellCommand);
+definitions['taskRunnerConfiguration']['properties']['isShellCommand'] = Objects.deepClone(shellCommand);
 
 Object.getOwnPropertyNames(definitions).forEach(key => {
 	let newKey = key + '1';
