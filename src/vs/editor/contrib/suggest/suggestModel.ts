@@ -223,6 +223,8 @@ export class SuggestModel implements IDisposable {
 
 	cancel(retrigger: boolean = false): void {
 
+		this._triggerRefilter.cancel();
+
 		if (this._triggerAutoSuggestPromise) {
 			this._triggerAutoSuggestPromise.cancel();
 			this._triggerAutoSuggestPromise = null;
