@@ -104,16 +104,32 @@ suite('ExtHostConfiguration', function () {
 			}
 		});
 
-		const testObject = all.getConfiguration();
+		let testObject = all.getConfiguration();
 		let actual = testObject.get('farboo');
 		actual['farboo1'] = 'newValue';
-
 		assert.equal('newValue', actual['farboo1']);
 
+		testObject = all.getConfiguration();
+		testObject['farboo']['farboo1'] = 'newValue';
+		assert.equal('newValue', testObject['farboo']['farboo1']);
+
+		testObject = all.getConfiguration();
+		testObject['farboo']['farboo1'] = 'newValue';
+		assert.equal('newValue', testObject.get('farboo')['farboo1']);
+
+		testObject = all.getConfiguration();
 		actual = testObject.inspect('farboo');
 		actual['value'] = 'effectiveValue';
-
 		assert.equal('effectiveValue', actual['value']);
+
+		testObject = all.getConfiguration();
+		actual = testObject.get('farboo');
+		assert.equal(undefined, actual['farboo1']);
+
+		testObject = all.getConfiguration();
+		testObject['farboo']['farboo1'] = 'newValue';
+		testObject = all.getConfiguration();
+		assert.equal(undefined, testObject['farboo']['farboo1']);
 	});
 
 	test('inspect in no workspace context', function () {

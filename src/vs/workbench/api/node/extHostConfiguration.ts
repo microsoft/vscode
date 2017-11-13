@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { mixin } from 'vs/base/common/objects';
+import { mixin, clone } from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as vscode from 'vscode';
@@ -61,9 +61,9 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 	}
 
 	getConfiguration(section?: string, resource?: URI, extensionId?: string): vscode.WorkspaceConfiguration {
-		const config = section
+		const config = clone(section
 			? lookUp(this._configuration.getValue(null, { resource }, this._extHostWorkspace.workspace), section)
-			: this._configuration.getValue(null, { resource }, this._extHostWorkspace.workspace);
+			: this._configuration.getValue(null, { resource }, this._extHostWorkspace.workspace));
 
 		if (section) {
 			this._validateConfigurationAccess(section, resource, extensionId);
@@ -107,7 +107,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 			},
 			inspect: <T>(key: string): ConfigurationInspect<T> => {
 				key = section ? `${section}.${key}` : key;
-				const config = this._configuration.lookup<T>(key, { resource }, this._extHostWorkspace.workspace);
+				const config = clone(this._configuration.lookup<T>(key, { resource }, this._extHostWorkspace.workspace));
 				if (config) {
 					return {
 						key,
