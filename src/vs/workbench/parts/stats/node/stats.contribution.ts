@@ -11,4 +11,4 @@ import { WorkspaceStats } from 'vs/workbench/parts/stats/node/workspaceStats';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 // Register Workspace Stats Contribution
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceStats, LifecyclePhase.Running);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceStats, LifecyclePhase.RunningForABit);

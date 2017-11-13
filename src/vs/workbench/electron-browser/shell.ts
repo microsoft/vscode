@@ -191,7 +191,32 @@ export class WorkbenchShell {
 
 	private onWorkbenchStarted(info: IWorkbenchStartedInfo, instantiationService: IInstantiationService): void {
 
-		// Telemetry: workspace info
+		// Startup Telemetry
+		this.logStartupTelemetry(info);
+
+		// Root Warning
+		if ((platform.isLinux || platform.isMacintosh) && process.getuid() === 0) {
+			this.messageService.show(Severity.Warning, nls.localize('runningAsRoot', "It is recommended not to run Code as 'root'."));
+		}
+
+		// Set lifecycle phase to `Runnning` so that other contributions can now do something
+		this.lifecycleService.phase = LifecyclePhase.Running;
+
+		// Set lifecycle phase to `Runnning For A Bit` after a short delay
+		let timeoutHandle = setTimeout(() => {
+			timeoutHandle = void 0;
+			this.lifecycleService.phase = LifecyclePhase.RunningForABit;
+		}, 3000);
+		this.toUnbind.push({
+			dispose: () => {
+				if (timeoutHandle) {
+					clearTimeout(timeoutHandle);
+				}
+			}
+		});
+	}
+
+	private logStartupTelemetry(info: IWorkbenchStartedInfo): void {
 		const { filesToOpen, filesToCreate, filesToDiff } = this.configuration;
 		/* __GDPR__
 			"workspaceLoad" : {
@@ -246,14 +271,6 @@ export class WorkbenchShell {
 			*/
 			this.telemetryService.publicLog('startupTime', this.timerService.startupMetrics);
 		});
-
-		// Root Warning
-		if ((platform.isLinux || platform.isMacintosh) && process.getuid() === 0) {
-			this.messageService.show(Severity.Warning, nls.localize('runningAsRoot', "It is recommended not to run Code as 'root'."));
-		}
-
-		// Set lifecycle phase to `Runnning` so that other contributions can now do something
-		this.lifecycleService.phase = LifecyclePhase.Running;
 	}
 
 	private initServiceCollection(container: HTMLElement): [IInstantiationService, ServiceCollection] {
