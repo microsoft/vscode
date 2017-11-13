@@ -345,34 +345,37 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 	}
 
 	private updateWorkspaceAndInitializeConfiguration(workspace: Workspace): TPromise<void> {
-		let folderChanges: IWorkspaceFoldersChangeEvent;
-		if (this.workspace) {
-			const currentState = this.getWorkbenchState();
-			const currentWorkspacePath = this.workspace.configuration ? this.workspace.configuration.fsPath : void 0;
-			const currentFolders = this.workspace.folders;
+		const hasWorkspaceBefore = !!this.workspace;
+		let previousState;
+		let previousWorkspacePath;
+		let previousFolders;
 
+		if (hasWorkspaceBefore) {
+			previousState = this.getWorkbenchState();
+			previousWorkspacePath = this.workspace.configuration ? this.workspace.configuration.fsPath : void 0;
+			previousFolders = this.workspace.folders;
 			this.workspace.update(workspace);
-
-			const newState = this.getWorkbenchState();
-			if (newState !== currentState) {
-				this._onDidChangeWorkbenchState.fire(newState);
-			}
-
-			const newWorkspacePath = this.workspace.configuration ? this.workspace.configuration.fsPath : void 0;
-			if (newWorkspacePath !== currentWorkspacePath || newState !== currentState) {
-				this._onDidChangeWorkspaceName.fire();
-			}
-
-			folderChanges = this.compareFolders(currentFolders, this.workspace.folders);
-
 		} else {
 			this.workspace = workspace;
 		}
 
 		return this.initializeConfiguration().then(() => {
-			// Trigger folders change after configuration initialization so that configuration is up to date.
-			if (folderChanges && (folderChanges.added.length || folderChanges.removed.length || folderChanges.changed.length)) {
-				this._onDidChangeWorkspaceFolders.fire(folderChanges);
+			// Trigger changes after configuration initialization so that configuration is up to date.
+			if (hasWorkspaceBefore) {
+				const newState = this.getWorkbenchState();
+				if (previousState && newState !== previousState) {
+					this._onDidChangeWorkbenchState.fire(newState);
+				}
+
+				const newWorkspacePath = this.workspace.configuration ? this.workspace.configuration.fsPath : void 0;
+				if (previousWorkspacePath && newWorkspacePath !== previousWorkspacePath || newState !== previousState) {
+					this._onDidChangeWorkspaceName.fire();
+				}
+
+				const folderChanges = this.compareFolders(previousFolders, this.workspace.folders);
+				if (folderChanges && (folderChanges.added.length || folderChanges.removed.length || folderChanges.changed.length)) {
+					this._onDidChangeWorkspaceFolders.fire(folderChanges);
+				}
 			}
 		});
 	}

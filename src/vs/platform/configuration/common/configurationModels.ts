@@ -446,8 +446,14 @@ export class Configuration {
 	private getFolderConsolidatedConfiguration(folder: URI): ConfigurationModel {
 		let folderConsolidatedConfiguration = this._foldersConsolidatedConfigurations.get(folder);
 		if (!folderConsolidatedConfiguration) {
-			folderConsolidatedConfiguration = this.getWorkspaceConsolidatedConfiguration().merge(this._folderConfigurations.get(folder)).freeze();
-			this._foldersConsolidatedConfigurations.set(folder, folderConsolidatedConfiguration);
+			const workspaceConsolidateConfiguration = this.getWorkspaceConsolidatedConfiguration();
+			const folderConfiguration = this._folderConfigurations.get(folder);
+			if (folderConfiguration) {
+				folderConsolidatedConfiguration = workspaceConsolidateConfiguration.merge(folderConfiguration).freeze();
+				this._foldersConsolidatedConfigurations.set(folder, folderConsolidatedConfiguration);
+			} else {
+				folderConsolidatedConfiguration = workspaceConsolidateConfiguration;
+			}
 		}
 		return folderConsolidatedConfiguration;
 	}
