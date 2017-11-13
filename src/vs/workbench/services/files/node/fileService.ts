@@ -38,6 +38,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { FileWatcher as NsfwWatcherService } from 'vs/workbench/services/files/node/watcher/nsfw/watcherService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 export interface IEncodingOverride {
 	resource: uri;
@@ -89,12 +90,13 @@ export class FileService implements IFileService {
 	private fileChangesWatchDelayer: ThrottledDelayer<void>;
 	private undeliveredRawFileChangesEvents: IRawFileChange[];
 
-	private activeWorkspaceChangeWatcher: IDisposable;
+	private activeWorkspaceFileChangeWatcher: IDisposable;
 
 	constructor(
 		private contextService: IWorkspaceContextService,
 		private textResourceConfigurationService: ITextResourceConfigurationService,
 		private configurationService: IConfigurationService,
+		private lifecycleService: ILifecycleService,
 		options: IFileServiceOptions
 	) {
 		this.toDispose = [];
@@ -115,13 +117,19 @@ export class FileService implements IFileService {
 		this.fileChangesWatchDelayer = new ThrottledDelayer<void>(FileService.FS_EVENT_DELAY);
 		this.undeliveredRawFileChangesEvents = [];
 
-		this.setupWorkspaceWatching();
+		lifecycleService.when(LifecyclePhase.Running).then(() => {
+			this.setupFileWatching(); // wait until we are fully running before starting file watchers
+		});
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.contextService.onDidChangeWorkbenchState(() => this.setupWorkspaceWatching()));
+		this.toDispose.push(this.contextService.onDidChangeWorkbenchState(() => {
+			if (this.lifecycleService.phase === LifecyclePhase.Running) {
+				this.setupFileWatching();
+			}
+		}));
 	}
 
 	public get onFileChanges(): Event<FileChangesEvent> {
@@ -138,11 +146,11 @@ export class FileService implements IFileService {
 		}
 	}
 
-	private setupWorkspaceWatching(): void {
+	private setupFileWatching(): void {
 
 		// dispose old if any
-		if (this.activeWorkspaceChangeWatcher) {
-			this.activeWorkspaceChangeWatcher.dispose();
+		if (this.activeWorkspaceFileChangeWatcher) {
+			this.activeWorkspaceFileChangeWatcher.dispose();
 		}
 
 		// Return if not aplicable
@@ -153,15 +161,15 @@ export class FileService implements IFileService {
 
 		// new watcher: use it if setting tells us so or we run in multi-root environment
 		if (this.options.useExperimentalFileWatcher || workbenchState === WorkbenchState.WORKSPACE) {
-			this.activeWorkspaceChangeWatcher = toDisposable(this.setupNsfwWorkspaceWatching().startWatching());
+			this.activeWorkspaceFileChangeWatcher = toDisposable(this.setupNsfwWorkspaceWatching().startWatching());
 		}
 
 		// old watcher
 		else {
 			if (isWindows) {
-				this.activeWorkspaceChangeWatcher = toDisposable(this.setupWin32WorkspaceWatching().startWatching());
+				this.activeWorkspaceFileChangeWatcher = toDisposable(this.setupWin32WorkspaceWatching().startWatching());
 			} else {
-				this.activeWorkspaceChangeWatcher = toDisposable(this.setupUnixWorkspaceWatching().startWatching());
+				this.activeWorkspaceFileChangeWatcher = toDisposable(this.setupUnixWorkspaceWatching().startWatching());
 			}
 		}
 	}
@@ -814,9 +822,9 @@ export class FileService implements IFileService {
 	public dispose(): void {
 		this.toDispose = dispose(this.toDispose);
 
-		if (this.activeWorkspaceChangeWatcher) {
-			this.activeWorkspaceChangeWatcher.dispose();
-			this.activeWorkspaceChangeWatcher = null;
+		if (this.activeWorkspaceFileChangeWatcher) {
+			this.activeWorkspaceFileChangeWatcher.dispose();
+			this.activeWorkspaceFileChangeWatcher = null;
 		}
 
 		this.activeFileChangesWatchers.forEach(watcher => watcher.close());

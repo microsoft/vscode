@@ -1011,7 +1011,7 @@ export class TestLifecycleService implements ILifecycleService {
 	private _onShutdown = new Emitter<ShutdownReason>();
 
 	when(): Thenable<void> {
-		throw notImplemented();
+		return TPromise.as(void 0);
 	}
 
 	public fireShutdown(reason = ShutdownReason.QUIT): void {

@@ -74,7 +74,7 @@ export class FileService implements IFileService {
 		};
 
 		// create service
-		this.raw = new NodeFileService(contextService, textResourceConfigurationService, configurationService, fileServiceConfig);
+		this.raw = new NodeFileService(contextService, textResourceConfigurationService, configurationService, lifecycleService, fileServiceConfig);
 
 		// Listeners
 		this.registerListeners();
