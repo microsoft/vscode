@@ -32,7 +32,7 @@ import { SaveFileAction, RevertFileAction, SaveFileAsAction, OpenToSideAction, S
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { CloseOtherEditorsInGroupAction, CloseEditorAction, CloseEditorsInGroupAction, CloseUnmodifiedEditorsInGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 const $ = dom.$;
 
@@ -548,5 +548,9 @@ export class EditorSort {
 
 	private updateSettings(): void {
 		this.orderBySavedRecently = this.configurationService.getValue('editor.recentlySavedFirst') || false;
+	}
+
+	public dispose(): void {
+		this.toDispose = dispose(this.toDispose);
 	}
 }
