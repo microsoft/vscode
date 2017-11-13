@@ -421,7 +421,7 @@
 			},
 			{
 				"target": "{**/**.test.ts,**/test/**}",
-				"restrictions": "{**/vs/**,assert,sinon}"
+				"restrictions": "{**/vs/**,assert,sinon,crypto}"
 			},
 			{
 				"target": "**/{common,browser,workbench}/**",

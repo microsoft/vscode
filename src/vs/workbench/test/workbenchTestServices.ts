@@ -46,7 +46,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IWindowsService, IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { RawTextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -888,6 +888,10 @@ export class TestWindowService implements IWindowService {
 
 	isFocused(): TPromise<boolean> {
 		return TPromise.as(false);
+	}
+
+	getConfiguration(): IWindowConfiguration {
+		return Object.create(null);
 	}
 
 	getCurrentWindowId(): number {

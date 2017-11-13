@@ -13,7 +13,9 @@ import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { IWindowConfiguration, IWindowService } from 'vs/platform/windows/common/windows';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 const SshProtocolMatcher = /^([^@:]+@)?([^:]+):/;
 const SshUrlMatcher = /^([^@:]+@)?([^:]+):(.+)$/;
@@ -131,7 +133,7 @@ export function getHashedRemotes(text: string): string[] {
 	});
 }
 
-export class WorkspaceStats {
+class WorkspaceStats {
 	constructor(
 		@IFileService private fileService: IFileService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
@@ -412,5 +414,26 @@ export class WorkspaceStats {
 			this.reportRemotes(uris);
 			this.reportAzure(uris);
 		}
+	}
+}
+
+// Telemetry: workspace tags
+export class WorkspaceStatsReporter implements IWorkbenchContribution {
+
+	constructor(
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IWindowService private windowService: IWindowService
+	) {
+		this.reportWorkspaceStats();
+	}
+
+	public getId(): string {
+		return 'vs.backup.backupModelTracker';
+	}
+
+	private reportWorkspaceStats(): void {
+		const workspaceStats: WorkspaceStats = this.instantiationService.createInstance(WorkspaceStats);
+		workspaceStats.reportWorkspaceTags(this.windowService.getConfiguration());
+		workspaceStats.reportCloudStats();
 	}
 }

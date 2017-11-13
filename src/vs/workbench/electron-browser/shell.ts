@@ -30,7 +30,6 @@ import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
 import { ElectronWindow } from 'vs/workbench/electron-browser/window';
 import { resolveWorkbenchCommonProperties, getOrCreateMachineId } from 'vs/platform/telemetry/node/workbenchCommonProperties';
 import { machineIdIpcChannel } from 'vs/platform/telemetry/node/commonProperties';
-import { WorkspaceStats } from 'vs/workbench/services/telemetry/node/workspaceStats';
 import { IWindowsService, IWindowService, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
 import { MessageService } from 'vs/workbench/services/message/electron-browser/messageService';
@@ -249,11 +248,6 @@ export class WorkbenchShell {
 			this.telemetryService.publicLog('startupTime', this.timerService.startupMetrics);
 		});
 
-		// Telemetry: workspace tags
-		const workspaceStats: WorkspaceStats = <WorkspaceStats>this.workbench.getInstantiationService().createInstance(WorkspaceStats);
-		workspaceStats.reportWorkspaceTags(this.configuration);
-		workspaceStats.reportCloudStats();
-
 		// Root Warning
 		if ((platform.isLinux || platform.isMacintosh) && process.getuid() === 0) {
 			this.messageService.show(Severity.Warning, nls.localize('runningAsRoot', "It is recommended not to run Code as 'root'."));
@@ -285,7 +279,7 @@ export class WorkbenchShell {
 		this.broadcastService = new BroadcastService(currentWindow.id);
 		serviceCollection.set(IBroadcastService, this.broadcastService);
 
-		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, currentWindow.id));
+		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, currentWindow.id, this.configuration));
 
 		const sharedProcess = (<IWindowsService>serviceCollection.get(IWindowsService)).whenSharedProcessReady()
 			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${currentWindow.id}`));
