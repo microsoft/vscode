@@ -1601,7 +1601,7 @@ class TaskService extends EventEmitter implements ITaskService {
 
 	private getConfiguration(workspaceFolder: IWorkspaceFolder): { config: TaskConfig.ExternalTaskRunnerConfiguration; hasParseErrors: boolean } {
 		let result = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY
-			? this.configurationService.getValue<TaskConfig.ExternalTaskRunnerConfiguration>('tasks', { resource: workspaceFolder.uri })
+			? Objects.clone(this.configurationService.getValue<TaskConfig.ExternalTaskRunnerConfiguration>('tasks', { resource: workspaceFolder.uri }))
 			: undefined;
 		if (!result) {
 			return { config: undefined, hasParseErrors: false };
