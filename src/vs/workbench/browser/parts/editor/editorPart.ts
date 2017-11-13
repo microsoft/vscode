@@ -174,7 +174,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 					]
 				}
 			*/
-			this.telemetryService.publicLog('workbenchEditorConfiguration', editorConfig);
+			this.telemetryService.publicLog('workbenchEditorConfiguration', objects.clone(editorConfig)); // Clone because telemetry service will modify the passed data by adding more details.
 		} else {
 			this.tabOptions = {
 				previewEditors: true,

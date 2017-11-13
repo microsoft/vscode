@@ -198,8 +198,9 @@ export function getExcludes(configuration: ISearchConfiguration): glob.IExpressi
 	}
 
 	let allExcludes: glob.IExpression = Object.create(null);
-	allExcludes = objects.mixin(allExcludes, fileExcludes);
-	allExcludes = objects.mixin(allExcludes, searchExcludes, true);
+	// clone the config as it could be frozen
+	allExcludes = objects.mixin(allExcludes, objects.clone(fileExcludes));
+	allExcludes = objects.mixin(allExcludes, objects.clone(searchExcludes), true);
 
 	return allExcludes;
 }
