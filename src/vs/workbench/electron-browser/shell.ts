@@ -166,9 +166,7 @@ export class WorkbenchShell {
 		// Workbench
 		this.workbench = instantiationService.createInstance(Workbench, parent.getHTMLElement(), workbenchContainer.getHTMLElement(), this.configuration, serviceCollection, this.lifecycleService);
 		try {
-			this.workbench.startup({
-				onWorkbenchStarted: (info: IWorkbenchStartedInfo) => this.onWorkbenchStarted(info, instantiationService)
-			});
+			this.workbench.startup().done(startupInfos => this.onWorkbenchStarted(startupInfos, instantiationService));
 		} catch (error) {
 
 			// Print out error
