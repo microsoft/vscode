@@ -544,7 +544,7 @@
     "v8-profiler": {
       "version": "5.6.5",
       "from": "jrieken/v8-profiler#vscode",
-      "resolved": "git://github.com/jrieken/v8-profiler.git#5e4a336693e1d5b079c7aecd286a1abcfbc10421"
+      "resolved": "git+https://github.com/jrieken/v8-profiler.git#5e4a336693e1d5b079c7aecd286a1abcfbc10421"
     },
     "vscode-debugprotocol": {
       "version": "1.24.0",
