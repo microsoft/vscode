@@ -202,7 +202,15 @@ export class FileService implements IFileService {
 	public resolveStringStream(resource: uri, options?: IResolveContentOptions, token: CancellationToken = CancellationToken.None): IStringStream {
 		const ret = new EventEmitter();
 
-		fs.open(resource.path, 'r', (err, fd) => {
+		fs.open(this.toAbsolutePath(resource), 'r', (err, fd) => {
+
+			if (err instanceof Error && err.code === 'EISDIR') {
+				ret.emit('error', new FileOperationError(
+					nls.localize('fileIsDirectoryError', "File is directory"),
+					FileOperationResult.FILE_IS_DIRECTORY
+				));
+				return;
+			}
 
 			if (err) {
 				ret.emit('error', err);
@@ -277,7 +285,7 @@ export class FileService implements IFileService {
 								));
 
 							} else {
-								value.encoding = this.getEncoding(resource, this.getEncoding2(resource, options, value));
+								value.encoding = this.getEncoding(resource, this.getPeferredEncoding(resource, options, value));
 								ret.emit('encoding', value.encoding);
 								decoder = encoding.decodeStream(value.encoding);
 								decoder.on('data', arg => ret.emit('data', arg));
@@ -351,7 +359,7 @@ export class FileService implements IFileService {
 				}
 
 				// 3.) get content
-				let preferredEncoding = this.getEncoding2(resource, options, detected);
+				let preferredEncoding = this.getPeferredEncoding(resource, options, detected);
 				return contentResolver(model, preferredEncoding);
 			});
 		}, error => {
@@ -713,9 +721,7 @@ export class FileService implements IFileService {
 		});
 	}
 
-	// TODO@ben, I extracted this from `resolveStreamContent` but I am not sure
-	// what it does in comparsion to the other encoding related functions...
-	public getEncoding2(resource: uri, options: IResolveContentOptions, detected: IMimeAndEncoding): string {
+	private getPeferredEncoding(resource: uri, options: IResolveContentOptions, detected: IMimeAndEncoding): string {
 		let preferredEncoding: string;
 		if (options && options.encoding) {
 			if (detected.encoding === encoding.UTF8 && options.encoding === encoding.UTF8) {
