@@ -408,9 +408,11 @@ class NavigateTypeAdapter {
 		return asWinJsPromise(token => this._provider.provideWorkspaceSymbols(search, token)).then(value => {
 			if (!isFalsyOrEmpty(value)) {
 				for (const item of value) {
-					const symbol = IdObject.mixin(TypeConverters.fromSymbolInformation(item));
-					this._symbolCache[symbol._id] = item;
-					result.symbols.push(symbol);
+					if (item) {
+						const symbol = IdObject.mixin(TypeConverters.fromSymbolInformation(item));
+						this._symbolCache[symbol._id] = item;
+						result.symbols.push(symbol);
+					}
 				}
 			}
 		}).then(() => {
