@@ -604,7 +604,8 @@ export class FeedbackWidgetRenderer extends Disposable {
 		}
 
 		const result = this._currentResult;
-		const actualResultNames = Object.keys(result.metadata.scoredResults);
+		const actualResults = result.metadata.scoredResults;
+		const actualResultNames = Object.keys(actualResults);
 
 		const feedbackQuery: any = {};
 		feedbackQuery['comment'] = FeedbackWidgetRenderer.DEFAULT_COMMENT_TEXT;
@@ -615,7 +616,10 @@ export class FeedbackWidgetRenderer extends Disposable {
 		});
 		feedbackQuery['alts'] = [];
 
-		const contents = FeedbackWidgetRenderer.INSTRUCTION_TEXT + '\n' + JSON.stringify(feedbackQuery, undefined, '    ');
+		const contents = FeedbackWidgetRenderer.INSTRUCTION_TEXT + '\n' +
+			JSON.stringify(feedbackQuery, undefined, '    ') + '\n\n' +
+			actualResultNames.map(name => `// ${name}: ${result.metadata.scoredResults[name]}`).join('\n');
+
 		this.editorService.openEditor({ contents, language: 'json' }, /*sideBySide=*/true).then(feedbackEditor => {
 			const sendFeedbackWidget = this._register(this.instantiationService.createInstance(FloatingClickWidget, feedbackEditor.getControl(), 'Send feedback', null));
 			sendFeedbackWidget.render();
