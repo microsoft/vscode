@@ -451,7 +451,7 @@ export interface IContent extends IBaseStat {
 
 // this should eventually replace IContent such
 // that we have a clear separation between content
-// and metadata
+// and metadata (TODO@Joh, TODO@Ben)
 export interface IContentData {
 	encoding: string;
 	stream: IStringStream;

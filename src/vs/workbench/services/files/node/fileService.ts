@@ -199,7 +199,6 @@ export class FileService implements IFileService {
 	}
 
 	public resolveContent(resource: uri, options?: IResolveContentOptions): TPromise<IContent> {
-		// return this.doResolveContent(resource, options, (stat, enc) => this.resolveFileContent(stat, enc));
 		return this.resolveStreamContent(resource, options).then(streamContent => {
 			return new TPromise<IContent>((resolve, reject) => {
 
@@ -222,6 +221,15 @@ export class FileService implements IFileService {
 	}
 
 	public resolveStreamContent(resource: uri, options?: IResolveContentOptions): TPromise<IStreamContent> {
+
+		// Guard early against attempts to resolve an invalid file path
+		if (resource.scheme !== 'file' || !resource.fsPath) {
+			return TPromise.wrapError<IStreamContent>(new FileOperationError(
+				nls.localize('fileInvalidPath', "Invalid file resource ({0})", resource.toString(true)),
+				FileOperationResult.FILE_INVALID_PATH
+			));
+		}
+
 		const result: IStreamContent = {
 			resource: undefined,
 			name: undefined,
@@ -231,57 +239,77 @@ export class FileService implements IFileService {
 			value: undefined
 		};
 
-		let contentToken = new CancellationTokenSource();
-		let completePromise: Thenable<any>;
+		const contentResolverToken = new CancellationTokenSource();
 
-		let statsPromise = this.resolveFile(resource).then(stat => {
+		const onStatError = error => {
+
+			// error: stop reading the file the stat and content resolve call
+			// usually race, mostly likely the stat call will win and cancel
+			// the content call
+			contentResolverToken.cancel();
+
+			// forward error
+			return TPromise.wrapError(error);
+		};
+
+		const statsPromise = this.resolveFile(resource).then(stat => {
 			result.resource = stat.resource;
 			result.name = stat.name;
 			result.mtime = stat.mtime;
 			result.etag = stat.etag;
 
-			if (stat.size > MAX_FILE_SIZE) {
-				// stop reading the file. the stat and content resolve call
-				// usually race, mostly likely the stat call will win and cancel
-				// the content call
-				contentToken.cancel();
-				throw new FileOperationError(
+			// Return early if resource is a directory
+			if (stat.isDirectory) {
+				return onStatError(new FileOperationError(
+					nls.localize('fileIsDirectoryError', "File is directory"),
+					FileOperationResult.FILE_IS_DIRECTORY
+				));
+			}
+
+			// Return early if file not modified since
+			if (options && options.etag && options.etag === stat.etag) {
+				return onStatError(new FileOperationError(
+					nls.localize('fileNotModifiedError', "File not modified since"),
+					FileOperationResult.FILE_NOT_MODIFIED_SINCE
+				));
+			}
+
+			// Return early if file is too large to load
+			if (typeof stat.size === 'number' && stat.size > MAX_FILE_SIZE) {
+				return onStatError(new FileOperationError(
 					nls.localize('fileTooLargeError', "File too large to open"),
 					FileOperationResult.FILE_TOO_LARGE
-				);
+				));
 			}
+
+			return undefined;
 		}, err => {
-			// error: stop reading the file. forward the error
-			contentToken.cancel();
+
+			// Wrap file not found errors
 			if (err.code === 'ENOENT') {
-				throw new FileOperationError(
+				return onStatError(new FileOperationError(
 					nls.localize('fileNotFoundError', "File not found ({0})", resource.toString(true)),
 					FileOperationResult.FILE_NOT_FOUND
-				);
-			} else {
-				throw err;
+				));
 			}
+
+			return onStatError(err);
 		});
 
-		if (options && options.etag) {
-			// await the stat iff we already have an etag so that we compare the
-			// etag from the stat before we actually read the file again.
-			completePromise = statsPromise.then(() => {
-				// Return early if file not modified since
-				if (result.etag === options.etag) {
-					return TPromise.wrapError<IStreamContent>(new FileOperationError(
-						nls.localize('fileNotModifiedError', "File not modified since"),
-						FileOperationResult.FILE_NOT_MODIFIED_SINCE)
-					);
-				}
-				// Waterfall -> only now resolve the contents
-				return this.fillInContents(result, resource, options, contentToken.token);
-			});
+		let completePromise: Thenable<any>;
 
-		} else {
-			// a fresh load without a previous etag which means we can resolve the file stat
-			// and the content at the same time, avoiding the waterfall.
-			completePromise = Promise.all([statsPromise, this.fillInContents(result, resource, options, contentToken.token)]);
+		// await the stat iff we already have an etag so that we compare the
+		// etag from the stat before we actually read the file again.
+		if (options && options.etag) {
+			completePromise = statsPromise.then(() => {
+				return this.fillInContents(result, resource, options, contentResolverToken.token); // Waterfall -> only now resolve the contents
+			});
+		}
+
+		// a fresh load without a previous etag which means we can resolve the file stat
+		// and the content at the same time, avoiding the waterfall.
+		else {
+			completePromise = Promise.all([statsPromise, this.fillInContents(result, resource, options, contentResolverToken.token)]);
 		}
 
 		return TPromise.wrap(completePromise).then(() => result);
@@ -300,7 +328,6 @@ export class FileService implements IFileService {
 	private static chunkBuffer = Buffer.allocUnsafe(FileService.chunkSize);
 
 	private resolveFileData(resource: uri, options?: IResolveContentOptions, token: CancellationToken = CancellationToken.None): Thenable<IContentData> {
-
 		const result: IContentData = {
 			encoding: undefined,
 			stream: undefined,
@@ -309,6 +336,14 @@ export class FileService implements IFileService {
 		return new Promise<IContentData>((resolve, reject) => {
 			fs.open(this.toAbsolutePath(resource), 'r', (err, fd) => {
 				if (err) {
+					if (err.code === 'ENOENT') {
+						// Wrap file not found errors
+						err = new FileOperationError(
+							nls.localize('fileNotFoundError', "File not found ({0})", resource.toString(true)),
+							FileOperationResult.FILE_NOT_FOUND
+						);
+					}
+
 					return reject(err);
 				}
 
@@ -317,16 +352,17 @@ export class FileService implements IFileService {
 
 				const finish = (err?: any) => {
 
-					if (err && err.code === 'EISDIR') {
-						// you can call fs.open on a directory, but you cannot
-						// read from it. trun nodejs-error into our error
-						err = new FileOperationError(
-							nls.localize('fileIsDirectoryError', "File is directory"),
-							FileOperationResult.FILE_IS_DIRECTORY
-						);
-					}
 					if (err) {
+						if (err.code === 'EISDIR') {
+							// Wrap EISDIR errors (fs.open on a directory works, but you cannot read from it)
+							err = new FileOperationError(
+								nls.localize('fileIsDirectoryError', "File is directory"),
+								FileOperationResult.FILE_IS_DIRECTORY
+							);
+						}
 						if (decoder) {
+							// If the decoder already started, we have to emit the error through it as
+							// event because the promise is already resolved!
 							decoder.emit('error', err);
 						} else {
 							reject(err);
@@ -360,8 +396,7 @@ export class FileService implements IFileService {
 						totalBytesRead += bytesRead;
 
 						if (totalBytesRead > MAX_FILE_SIZE) {
-							// reading too much... this looks stupid because we have already read much
-							// but it safes an upfront stat call for every 'normal' file we open.
+							// stop when reading too much
 							finish(new FileOperationError(
 								nls.localize('fileTooLargeError', "File too large to open"),
 								FileOperationResult.FILE_TOO_LARGE
@@ -371,7 +406,7 @@ export class FileService implements IFileService {
 							finish(err);
 
 						} else if (decoder) {
-							//
+							// pass on to decoder
 							handleChunk(bytesRead);
 
 						} else {
@@ -404,6 +439,7 @@ export class FileService implements IFileService {
 					});
 				};
 
+				// start reading
 				readChunk();
 			});
 		});
