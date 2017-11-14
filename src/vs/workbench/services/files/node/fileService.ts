@@ -414,15 +414,16 @@ export class FileService implements IFileService {
 
 				const handleChunk = (bytesRead) => {
 					if (token.isCancellationRequested) {
-						// cancellation
+						// cancellation -> finish
 						finish(new Error('cancelled'));
-
+					} else if (bytesRead === 0) {
+						// no more data -> finish
+						finish();
 					} else if (bytesRead < chunkBuffer.length) {
-						// done, write rest, end
-						decoder.write(chunkBuffer.slice(0, bytesRead), finish);
-
+						// write the sub-part of data we received -> repeat
+						decoder.write(chunkBuffer.slice(0, bytesRead), readChunk);
 					} else {
-						// read, write, repeat
+						// write all data we received -> repeat
 						decoder.write(chunkBuffer, readChunk);
 					}
 				};
