@@ -374,7 +374,7 @@ export class FileService implements IFileService {
 					if (fd) {
 						fs.close(fd, err => {
 							if (err) {
-								this.options.errorLogger(err.toString());
+								this.options.errorLogger(`resolveFileData#close(): ${err.toString()}`);
 							}
 						});
 					}
