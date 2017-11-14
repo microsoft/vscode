@@ -524,7 +524,7 @@ suite('FileService', () => {
 
 	test('resolveFile', function (done: () => void) {
 		service.resolveFile(uri.file(testDir), { resolveTo: [uri.file(path.join(testDir, 'deep'))] }).done(r => {
-			assert.equal(r.children.length, 6);
+			assert.equal(r.children.length, 7);
 
 			const deep = utils.getByName(r, 'deep');
 			assert.equal(deep.children.length, 4);
@@ -540,7 +540,7 @@ suite('FileService', () => {
 		]).then(res => {
 			const r1 = res[0].stat;
 
-			assert.equal(r1.children.length, 6);
+			assert.equal(r1.children.length, 7);
 
 			const deep = utils.getByName(r1, 'deep');
 			assert.equal(deep.children.length, 4);
@@ -622,6 +622,16 @@ suite('FileService', () => {
 					});
 				});
 			});
+		}, error => onError(error, done));
+	});
+
+	test('resolveContent - large file', function (done: () => void) {
+		const resource = uri.file(path.join(testDir, 'lorem.txt'));
+
+		service.resolveContent(resource).done(c => {
+			assert.ok(c.value.length > 64000);
+
+			done();
 		}, error => onError(error, done));
 	});
 

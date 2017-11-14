@@ -327,7 +327,7 @@ export class FileService implements IFileService {
 	private static chunkSize = 64 * 1024;
 	private static chunkBuffer = Buffer.allocUnsafe(FileService.chunkSize);
 
-	private resolveFileData(resource: uri, options?: IResolveContentOptions, token: CancellationToken = CancellationToken.None): Thenable<IContentData> {
+	private resolveFileData(resource: uri, options: IResolveContentOptions, token: CancellationToken): Thenable<IContentData> {
 		const result: IContentData = {
 			encoding: undefined,
 			stream: undefined,
