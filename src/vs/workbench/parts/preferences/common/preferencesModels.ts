@@ -8,7 +8,7 @@ import { assign } from 'vs/base/common/objects';
 import { tail } from 'vs/base/common/arrays';
 import URI from 'vs/base/common/uri';
 import { IReference } from 'vs/base/common/lifecycle';
-import Event from 'vs/base/common/event';
+import Event, { Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { visit, JSONVisitor } from 'vs/base/common/json';
 import { IModel } from 'vs/editor/common/editorCommon';
@@ -499,7 +499,8 @@ export class WorkspaceConfigModel extends SettingsEditorModel implements ISettin
 	}
 }
 
-export class DefaultSettingsModel {
+export class DefaultSettings {
+
 
 	private _allSettingsGroups: ISettingsGroup[];
 	private _content: string;
@@ -525,13 +526,14 @@ export class DefaultSettingsModel {
 		return this._allSettingsGroups;
 	}
 
-	private parse() {
+	parse(): string {
 		const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations().slice();
 		const settingsGroups = this.removeEmptySettingsGroups(configurations.sort(this.compareConfigurationNodes).reduce((result, config, index, array) => this.parseConfig(config, result, array), []));
 		this.initAllSettingsMap(settingsGroups);
 		const mostCommonlyUsed = this.getMostCommonlyUsedSettings(settingsGroups);
 		this._allSettingsGroups = [mostCommonlyUsed, ...settingsGroups];
 		this._content = this.toContent(mostCommonlyUsed, settingsGroups);
+		return this._content;
 	}
 
 	private initAllSettingsMap(allSettingsGroups: ISettingsGroup[]): void {
@@ -678,15 +680,26 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	private _settingsByName: Map<string, ISetting>;
 	private _mostRelevantLineOffset: number;
 
+	private _settingsGroups: ISettingsGroup[];
+
+	private _onDidChangeGroups: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidChangeGroups: Event<void> = this._onDidChangeGroups.event;
+
 	constructor(
 		private _uri: URI,
 		reference: IReference<ITextEditorModel>,
 		readonly configurationScope: ConfigurationScope,
-		readonly settingsGroups: ISettingsGroup[]
+		defaultSettings: DefaultSettings
 	) {
 		super();
+		this._settingsGroups = defaultSettings.settingsGroups;
+
 		this._model = reference.object.textEditorModel;
 		this._register(this.onDispose(() => reference.dispose()));
+		this._register(this._model.onDidChangeContent(() => {
+			this._settingsGroups = defaultSettings.settingsGroups;
+			this._onDidChangeGroups.fire();
+		}));
 
 		this.initAllSettingsMap();
 		this._mostRelevantLineOffset = tail(this.settingsGroups).range.endLineNumber + 2;
@@ -694,6 +707,10 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 
 	public get uri(): URI {
 		return this._uri;
+	}
+
+	public get settingsGroups(): ISettingsGroup[] {
+		return this._settingsGroups;
 	}
 
 	public filterSettings(filter: string, groupFilter: IGroupFilter, settingFilter: ISettingFilter, mostRelevantSettings?: string[]): IFilterResult {

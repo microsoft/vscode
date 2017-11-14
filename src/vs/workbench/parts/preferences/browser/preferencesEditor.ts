@@ -44,7 +44,6 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { IPreferencesRenderer, DefaultSettingsRenderer, UserSettingsRenderer, WorkspaceSettingsRenderer, FolderSettingsRenderer } from 'vs/workbench/parts/preferences/browser/preferencesRenderers';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { FoldingController } from 'vs/editor/contrib/folding/folding';
 import { FindController } from 'vs/editor/contrib/find/findController';
@@ -694,77 +693,6 @@ class SideBySidePreferencesWidget extends Widget {
 	public dispose(): void {
 		this.disposeEditors();
 		super.dispose();
-	}
-}
-
-export class EditableSettingsEditor extends BaseTextEditor {
-
-	public static ID: string = 'workbench.editor.settingsEditor';
-
-	private modelDisposables: IDisposable[] = [];
-	private saveDelayer: Delayer<void>;
-
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IStorageService storageService: IStorageService,
-		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
-		@IThemeService themeService: IThemeService,
-		@IPreferencesService private preferencesService: IPreferencesService,
-		@ITextFileService textFileService: ITextFileService,
-		@IEditorGroupService editorGroupService: IEditorGroupService
-	) {
-		super(EditableSettingsEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorGroupService);
-		this._register({ dispose: () => dispose(this.modelDisposables) });
-		this.saveDelayer = new Delayer<void>(1000);
-	}
-
-	protected createEditor(parent: Builder): void {
-		super.createEditor(parent);
-
-		const codeEditor = getCodeEditor(this);
-		if (codeEditor) {
-			this._register(codeEditor.onDidChangeModel(() => this.onDidModelChange()));
-		}
-	}
-
-	protected getAriaLabel(): string {
-		const input = this.input;
-		const inputName = input && input.getName();
-
-		let ariaLabel: string;
-		if (inputName) {
-			ariaLabel = nls.localize('fileEditorWithInputAriaLabel', "{0}. Text file editor.", inputName);
-		} else {
-			ariaLabel = nls.localize('fileEditorAriaLabel', "Text file editor.");
-		}
-
-		return ariaLabel;
-	}
-
-	setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
-		return super.setInput(input, options)
-			.then(() => this.input.resolve()
-				.then(editorModel => editorModel.load())
-				.then(editorModel => this.getControl().setModel((<ResourceEditorModel>editorModel).textEditorModel)));
-	}
-
-	clearInput(): void {
-		this.modelDisposables = dispose(this.modelDisposables);
-		super.clearInput();
-	}
-
-	private onDidModelChange(): void {
-		this.modelDisposables = dispose(this.modelDisposables);
-		const model = getCodeEditor(this).getModel();
-		if (model) {
-			this.preferencesService.createPreferencesEditorModel(model.uri)
-				.then(preferencesEditorModel => {
-					const settingsEditorModel = <SettingsEditorModel>preferencesEditorModel;
-					this.modelDisposables.push(settingsEditorModel);
-					this.modelDisposables.push(model.onDidChangeContent(() => this.saveDelayer.trigger(() => settingsEditorModel.save())));
-				});
-		}
 	}
 }
 
