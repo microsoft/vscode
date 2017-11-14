@@ -372,7 +372,7 @@ suite('WorkspaceService - Initialization', () => {
 						assert.equal(target.callCount, 3);
 						assert.deepEqual(target.args[0], [WorkbenchState.FOLDER]);
 						assert.deepEqual(target.args[1], [undefined]);
-						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).added.map(folder => folder.uri.fsPath), [path.join(parentResource, '1')]);
+						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).added.map(folder => folder.uri.fsPath), [URI.file(path.join(parentResource, '1')).fsPath]);
 						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).removed, []);
 						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).changed, []);
 					});
@@ -402,7 +402,7 @@ suite('WorkspaceService - Initialization', () => {
 						assert.deepEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1']);
 						assert.deepEqual(target.args[1], [WorkbenchState.FOLDER]);
 						assert.deepEqual(target.args[2], [undefined]);
-						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).added.map(folder => folder.uri.fsPath), [path.join(parentResource, '1')]);
+						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).added.map(folder => folder.uri.fsPath), [URI.file(path.join(parentResource, '1')).fsPath]);
 						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).removed, []);
 						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).changed, []);
 					});
@@ -428,7 +428,7 @@ suite('WorkspaceService - Initialization', () => {
 						assert.equal(target.callCount, 3);
 						assert.deepEqual(target.args[0], [WorkbenchState.WORKSPACE]);
 						assert.deepEqual(target.args[1], [undefined]);
-						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).added.map(folder => folder.uri.fsPath), [path.join(parentResource, '1'), path.join(parentResource, '2')]);
+						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).added.map(folder => folder.uri.fsPath), [URI.file(path.join(parentResource, '1')).fsPath, URI.file(path.join(parentResource, '2')).fsPath]);
 						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).removed, []);
 						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[2][0]).changed, []);
 					});
@@ -458,7 +458,7 @@ suite('WorkspaceService - Initialization', () => {
 						assert.deepEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1', 'initialization.testSetting2']);
 						assert.deepEqual(target.args[1], [WorkbenchState.WORKSPACE]);
 						assert.deepEqual(target.args[2], [undefined]);
-						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).added.map(folder => folder.uri.fsPath), [path.join(parentResource, '1'), path.join(parentResource, '2')]);
+						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).added.map(folder => folder.uri.fsPath), [URI.file(path.join(parentResource, '1')).fsPath, URI.file(path.join(parentResource, '2')).fsPath]);
 						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).removed, []);
 						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).changed, []);
 					});
@@ -485,8 +485,8 @@ suite('WorkspaceService - Initialization', () => {
 							.then(() => {
 								assert.equal(testObject.getValue('initialization.testSetting1'), 'userValue');
 								assert.equal(target.callCount, 1);
-								assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[0][0]).added.map(folder => folder.uri.fsPath), [path.join(parentResource, '2')]);
-								assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[0][0]).removed.map(folder => folder.uri.fsPath), [path.join(parentResource, '1')]);
+								assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[0][0]).added.map(folder => folder.uri.fsPath), [URI.file(path.join(parentResource, '2')).fsPath]);
+								assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[0][0]).removed.map(folder => folder.uri.fsPath), [URI.file(path.join(parentResource, '1')).fsPath]);
 								assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[0][0]).changed, []);
 							});
 
@@ -512,8 +512,8 @@ suite('WorkspaceService - Initialization', () => {
 						assert.equal(testObject.getValue('initialization.testSetting1'), 'workspaceValue2');
 						assert.equal(target.callCount, 2);
 						assert.deepEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1']);
-						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[1][0]).added.map(folder => folder.uri.fsPath), [path.join(parentResource, '2')]);
-						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[1][0]).removed.map(folder => folder.uri.fsPath), [path.join(parentResource, '1')]);
+						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[1][0]).added.map(folder => folder.uri.fsPath), [URI.file(path.join(parentResource, '2')).fsPath]);
+						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[1][0]).removed.map(folder => folder.uri.fsPath), [URI.file(path.join(parentResource, '1')).fsPath]);
 						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[1][0]).changed, []);
 					});
 			});
@@ -539,7 +539,7 @@ suite('WorkspaceService - Initialization', () => {
 						assert.deepEqual((<IConfigurationChangeEvent>target.args[0][0]).affectedKeys, ['initialization.testSetting1']);
 						assert.deepEqual(target.args[1], [WorkbenchState.WORKSPACE]);
 						assert.deepEqual(target.args[2], [undefined]);
-						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).added.map(folder => folder.uri.fsPath), [path.join(parentResource, '2')]);
+						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).added.map(folder => folder.uri.fsPath), [URI.file(path.join(parentResource, '2')).fsPath]);
 						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).removed, []);
 						assert.deepEqual((<IWorkspaceFoldersChangeEvent>target.args[3][0]).changed, []);
 					});
