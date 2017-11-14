@@ -143,7 +143,9 @@ export class PreferencesEditor extends BaseEditor {
 		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, this.headerContainer, {
 			ariaLabel: nls.localize('SearchSettingsWidget.AriaLabel', "Search settings"),
 			placeholder: nls.localize('SearchSettingsWidget.Placeholder', "Search Settings"),
-			focusKey: this.focusSettingsContextKey
+			focusKey: this.focusSettingsContextKey,
+			showFuzzyToggle: true,
+			showResultCount: true
 		}));
 		this.searchWidget.setFuzzyToggleVisible(this.searchProvider.remoteSearchEnabled);
 		this.searchWidget.fuzzyEnabled = this.memento['fuzzyEnabled'];

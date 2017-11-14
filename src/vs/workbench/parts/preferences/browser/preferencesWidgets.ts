@@ -424,6 +424,8 @@ export class SettingsTargetsWidget extends Widget {
 
 export interface SearchOptions extends IInputOptions {
 	focusKey?: IContextKey<boolean>;
+	showFuzzyToggle?: boolean;
+	showResultCount?: boolean;
 }
 
 export class SearchWidget extends Widget {
@@ -463,33 +465,37 @@ export class SearchWidget extends Widget {
 		this.domNode = DOM.append(parent, DOM.$('div.settings-header-widget'));
 		this.createSearchContainer(DOM.append(this.domNode, DOM.$('div.settings-search-container')));
 		this.controlsDiv = DOM.append(this.domNode, DOM.$('div.settings-search-controls'));
-		this.fuzzyToggle = this._register(new Checkbox({
-			actionClassName: 'prefs-fuzzy-search-toggle',
-			isChecked: false,
-			onChange: () => {
-				this.inputBox.focus();
-				this._onDidChange.fire();
-			},
-			title: localize('enableFuzzySearch', 'Enable experimental fuzzy search')
-		}));
-		DOM.append(this.controlsDiv, this.fuzzyToggle.domNode);
-		this._register(attachCheckboxStyler(this.fuzzyToggle, this.themeService));
+		if (this.options.showFuzzyToggle) {
+			this.fuzzyToggle = this._register(new Checkbox({
+				actionClassName: 'prefs-fuzzy-search-toggle',
+				isChecked: false,
+				onChange: () => {
+					this.inputBox.focus();
+					this._onDidChange.fire();
+				},
+				title: localize('enableFuzzySearch', 'Enable experimental fuzzy search')
+			}));
+			DOM.append(this.controlsDiv, this.fuzzyToggle.domNode);
+			this._register(attachCheckboxStyler(this.fuzzyToggle, this.themeService));
+		}
 
-		this.countElement = DOM.append(this.controlsDiv, DOM.$('.settings-count-widget'));
-		this._register(attachStylerCallback(this.themeService, { badgeBackground, contrastBorder }, colors => {
-			const background = colors.badgeBackground ? colors.badgeBackground.toString() : null;
-			const border = colors.contrastBorder ? colors.contrastBorder.toString() : null;
+		if (this.options.showResultCount) {
+			this.countElement = DOM.append(this.controlsDiv, DOM.$('.settings-count-widget'));
+			this._register(attachStylerCallback(this.themeService, { badgeBackground, contrastBorder }, colors => {
+				const background = colors.badgeBackground ? colors.badgeBackground.toString() : null;
+				const border = colors.contrastBorder ? colors.contrastBorder.toString() : null;
 
-			this.countElement.style.backgroundColor = background;
+				this.countElement.style.backgroundColor = background;
 
-			this.countElement.style.borderWidth = border ? '1px' : null;
-			this.countElement.style.borderStyle = border ? 'solid' : null;
-			this.countElement.style.borderColor = border;
+				this.countElement.style.borderWidth = border ? '1px' : null;
+				this.countElement.style.borderStyle = border ? 'solid' : null;
+				this.countElement.style.borderColor = border;
 
-			this.styleCountElementForeground();
-		}));
+				this.styleCountElementForeground();
+			}));
+		}
+
 		this.inputBox.inputElement.setAttribute('aria-live', 'assertive');
-
 		const focusTracker = this._register(DOM.trackFocus(this.inputBox.inputElement));
 		this._register(focusTracker.addFocusListener(() => this._onFocus.fire()));
 
@@ -514,11 +520,13 @@ export class SearchWidget extends Widget {
 	}
 
 	public showMessage(message: string, count: number): void {
-		this.countElement.textContent = message;
-		this.inputBox.inputElement.setAttribute('aria-label', message);
-		DOM.toggleClass(this.countElement, 'no-results', count === 0);
-		this.inputBox.inputElement.style.paddingRight = this.getControlsWidth() + 'px';
-		this.styleCountElementForeground();
+		if (this.countElement) {
+			this.countElement.textContent = message;
+			this.inputBox.inputElement.setAttribute('aria-label', message);
+			DOM.toggleClass(this.countElement, 'no-results', count === 0);
+			this.inputBox.inputElement.style.paddingRight = this.getControlsWidth() + 'px';
+			this.styleCountElementForeground();
+		}
 	}
 
 	public setFuzzyToggleVisible(visible: boolean): void {
@@ -539,16 +547,24 @@ export class SearchWidget extends Widget {
 
 	public layout(dimension: Dimension) {
 		if (dimension.width < 400) {
-			DOM.addClass(this.countElement, 'hide');
+			if (this.countElement) {
+				DOM.addClass(this.countElement, 'hide');
+			}
+
 			this.inputBox.inputElement.style.paddingRight = '0px';
 		} else {
-			DOM.removeClass(this.countElement, 'hide');
+			if (this.countElement) {
+				DOM.removeClass(this.countElement, 'hide');
+			}
+
 			this.inputBox.inputElement.style.paddingRight = this.getControlsWidth() + 'px';
 		}
 	}
 
 	private getControlsWidth(): number {
-		return DOM.getTotalWidth(this.countElement) + DOM.getTotalWidth(this.fuzzyToggle.domNode) + 20;
+		const countWidth = this.countElement ? DOM.getTotalWidth(this.countElement) : 0;
+		const fuzzyToggleWidth = this.fuzzyToggle ? DOM.getTotalWidth(this.fuzzyToggle.domNode) : 0;
+		return countWidth + fuzzyToggleWidth + 20;
 	}
 
 	public focus() {
