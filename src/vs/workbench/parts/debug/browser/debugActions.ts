@@ -132,9 +132,8 @@ export class StartAction extends AbstractDebugAction {
 		return false;
 	}
 
-	public static isEnabled(debugService: IDebugService, contextService: IWorkspaceContextService) {
+	public static isEnabled(debugService: IDebugService, contextService: IWorkspaceContextService, configName: string) {
 		const processes = debugService.getModel().getProcesses();
-		const selectedName = debugService.getConfigurationManager().selectedName;
 		const launch = debugService.getConfigurationManager().selectedLaunch;
 
 		if (debugService.state === State.Initializing) {
@@ -143,10 +142,10 @@ export class StartAction extends AbstractDebugAction {
 		if (contextService && contextService.getWorkbenchState() === WorkbenchState.EMPTY && processes.length > 0) {
 			return false;
 		}
-		if (processes.some(p => p.getName(false) === selectedName && (!launch || p.session.root.uri.toString() === launch.workspace.uri.toString()))) {
+		if (processes.some(p => p.getName(false) === configName && (!launch || p.session.root.uri.toString() === launch.workspace.uri.toString()))) {
 			return false;
 		}
-		const compound = launch && launch.getCompound(selectedName);
+		const compound = launch && launch.getCompound(configName);
 		if (compound && compound.configurations && processes.some(p => compound.configurations.indexOf(p.getName(false)) !== -1)) {
 			return false;
 		}
@@ -156,7 +155,7 @@ export class StartAction extends AbstractDebugAction {
 
 	// Disabled if the launch drop down shows the launch config that is already running.
 	protected isEnabled(state: State): boolean {
-		return StartAction.isEnabled(this.debugService, this.contextService);
+		return StartAction.isEnabled(this.debugService, this.contextService, this.debugService.getConfigurationManager().selectedName);
 	}
 }
 
