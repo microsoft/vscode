@@ -136,10 +136,8 @@ var NoUnexternalizedStringsRuleWalker = /** @class */ (function (_super) {
                 }
             }
         }
-        var messageArg = callInfo.argIndex === this.messageIndex
-            ? callInfo.callExpression.arguments[this.messageIndex]
-            : null;
-        if (messageArg && messageArg !== node) {
+        var messageArg = callInfo.callExpression.arguments[this.messageIndex];
+        if (messageArg && messageArg.kind !== ts.SyntaxKind.StringLiteral) {
             this.addFailure(this.createFailure(messageArg.getStart(), messageArg.getWidth(), "Message argument to '" + callInfo.callExpression.expression.getText() + "' must be a string literal."));
             return;
         }

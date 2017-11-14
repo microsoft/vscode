@@ -6,7 +6,7 @@
 
 import nls = require('vs/nls');
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { assign, clone } from 'vs/base/common/objects';
+import { assign, deepClone } from 'vs/base/common/objects';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -94,7 +94,7 @@ export class CrashReporterService implements ICrashReporterService {
 				});
 
 				// start crash reporter right here
-				crashReporter.start(clone(this.options));
+				crashReporter.start(deepClone(this.options));
 
 				// start crash reporter in the main process
 				return this.windowsService.startCrashReporter(this.options);
@@ -119,7 +119,7 @@ export class CrashReporterService implements ICrashReporterService {
 
 		// Experimental crash reporting support for child processes on Mac only for now
 		if (this.isEnabled && isMacintosh) {
-			const childProcessOptions = clone(this.options);
+			const childProcessOptions = deepClone(this.options);
 			childProcessOptions.extra.processName = name;
 			childProcessOptions.crashesDirectory = os.tmpdir();
 

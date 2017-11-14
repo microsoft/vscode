@@ -14,7 +14,7 @@ import processes = require('vs/base/node/processes');
 
 function fork(id: string): cp.ChildProcess {
 	const opts: any = {
-		env: objects.mixin(objects.clone(process.env), {
+		env: objects.mixin(objects.deepClone(process.env), {
 			AMD_ENTRYPOINT: id,
 			PIPE_LOGGING: 'true',
 			VERBOSE_LOGGING: true

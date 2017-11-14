@@ -92,8 +92,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 	constructor(
 		container: HTMLElement,
-		// @ts-ignore unused injected service
-		@IExtensionService private extensionService: IExtensionService,
+		@IExtensionService extensionService: IExtensionService,
 		@IStorageService private storageService: IStorageService,
 		@IBroadcastService private broadcastService: IBroadcastService,
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -375,10 +374,10 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 
 	private updateColorCustomizations(notify = true): void {
-		let newColorCustomizations = this.configurationService.getValue<IColorCustomizations>(CUSTOM_WORKBENCH_COLORS_SETTING) || {};
+		let newColorCustomizations = objects.deepClone(this.configurationService.getValue<IColorCustomizations>(CUSTOM_WORKBENCH_COLORS_SETTING)) || {};
 		let newColorIds = Object.keys(newColorCustomizations);
 
-		let newTokenColorCustomizations = this.configurationService.getValue<ITokenColorCustomizations>(CUSTOM_EDITOR_COLORS_SETTING) || {};
+		let newTokenColorCustomizations = objects.deepClone(this.configurationService.getValue<ITokenColorCustomizations>(CUSTOM_EDITOR_COLORS_SETTING)) || {};
 
 		if (this.hasCustomizationChanged(newColorCustomizations, newColorIds, newTokenColorCustomizations)) {
 			this.colorCustomizations = newColorCustomizations;

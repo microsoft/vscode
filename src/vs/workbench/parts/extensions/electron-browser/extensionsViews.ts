@@ -294,6 +294,11 @@ export class ExtensionsListView extends ViewsViewletPanel {
 					.then(workspaceRecommendations => {
 						const names = this.getTrimmedRecommendations(installedExtensions, value, fileBasedRecommendations, others, workspaceRecommendations);
 
+						/* __GDPR__
+							"extensionAllRecommendations:open" : {
+								"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+							}
+						*/
 						this.telemetryService.publicLog('extensionAllRecommendations:open', { count: names.length });
 						if (!names.length) {
 							return TPromise.as(new PagedModel([]));
@@ -314,28 +319,34 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		return this.extensionsWorkbenchService.queryLocal()
 			.then(result => result.filter(e => e.type === LocalExtensionType.User))
 			.then(local => {
+				const installedExtensions = local.map(x => `${x.publisher}.${x.name}`);
 				let fileBasedRecommendations = this.tipsService.getFileBasedRecommendations();
 				let others = this.tipsService.getOtherRecommendations();
 
-				const installedExtensions = local.map(x => `${x.publisher}.${x.name}`);
+				return this.tipsService.getWorkspaceRecommendations()
+					.then(workspaceRecommendations => {
+						workspaceRecommendations = workspaceRecommendations.map(x => x.toLowerCase());
+						fileBasedRecommendations = fileBasedRecommendations.filter(x => workspaceRecommendations.indexOf(x.toLowerCase()) === -1);
+						others = others.filter(x => workspaceRecommendations.indexOf(x.toLowerCase()) === -1);
 
-				const names = this.getTrimmedRecommendations(installedExtensions, value, fileBasedRecommendations, others, []);
+						const names = this.getTrimmedRecommendations(installedExtensions, value, fileBasedRecommendations, others, []);
 
-				/* __GDPR__
-					"extensionRecommendations:open" : {
-						"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-				*/
-				this.telemetryService.publicLog('extensionRecommendations:open', { count: names.length });
+						/* __GDPR__
+							"extensionRecommendations:open" : {
+								"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+							}
+						*/
+						this.telemetryService.publicLog('extensionRecommendations:open', { count: names.length });
 
-				if (!names.length) {
-					return TPromise.as(new PagedModel([]));
-				}
-				options.source = 'recommendations';
-				return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
-					.then(pager => {
-						this.sortFirstPage(pager, names);
-						return new PagedModel(pager || []);
+						if (!names.length) {
+							return TPromise.as(new PagedModel([]));
+						}
+						options.source = 'recommendations';
+						return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
+							.then(pager => {
+								this.sortFirstPage(pager, names);
+								return new PagedModel(pager || []);
+							});
 					});
 			});
 	}

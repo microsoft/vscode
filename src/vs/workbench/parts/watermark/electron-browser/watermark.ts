@@ -118,12 +118,10 @@ export class WatermarkContribution implements IWorkbenchContribution {
 		this.workbenchState = contextService.getWorkbenchState();
 
 		lifecycleService.onShutdown(this.dispose, this);
-		lifecycleService.when(LifecyclePhase.Running).then(() => {
-			this.enabled = this.configurationService.getValue<boolean>(WORKBENCH_TIPS_ENABLED_KEY);
-			if (this.enabled) {
-				this.create();
-			}
-		});
+		this.enabled = this.configurationService.getValue<boolean>(WORKBENCH_TIPS_ENABLED_KEY);
+		if (this.enabled) {
+			this.create();
+		}
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(WORKBENCH_TIPS_ENABLED_KEY)) {
 				const enabled = this.configurationService.getValue<boolean>(WORKBENCH_TIPS_ENABLED_KEY);
@@ -212,7 +210,7 @@ export class WatermarkContribution implements IWorkbenchContribution {
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WatermarkContribution);
+	.registerWorkbenchContribution(WatermarkContribution, LifecyclePhase.Running);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 	.registerConfiguration({

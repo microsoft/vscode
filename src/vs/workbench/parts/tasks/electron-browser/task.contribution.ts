@@ -1529,7 +1529,7 @@ class TaskService extends EventEmitter implements ITaskService {
 					if (!detectedConfig) {
 						return { workspaceFolder, config, hasErrors };
 					}
-					let result: TaskConfig.ExternalTaskRunnerConfiguration = Objects.clone(config);
+					let result: TaskConfig.ExternalTaskRunnerConfiguration = Objects.deepClone(config);
 					let configuredTasks: IStringDictionary<TaskConfig.CustomTask> = Object.create(null);
 					if (!result.tasks) {
 						if (detectedConfig.tasks) {
@@ -1601,7 +1601,7 @@ class TaskService extends EventEmitter implements ITaskService {
 
 	private getConfiguration(workspaceFolder: IWorkspaceFolder): { config: TaskConfig.ExternalTaskRunnerConfiguration; hasParseErrors: boolean } {
 		let result = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY
-			? this.configurationService.getValue<TaskConfig.ExternalTaskRunnerConfiguration>('tasks', { resource: workspaceFolder.uri })
+			? Objects.deepClone(this.configurationService.getValue<TaskConfig.ExternalTaskRunnerConfiguration>('tasks', { resource: workspaceFolder.uri }))
 			: undefined;
 		if (!result) {
 			return { config: undefined, hasParseErrors: false };
@@ -2383,8 +2383,6 @@ statusbarRegistry.registerStatusbarItem(new StatusbarItemDescriptor(TaskStatusBa
 // Output channel
 let outputChannelRegistry = <IOutputChannelRegistry>Registry.as(OutputExt.OutputChannels);
 outputChannelRegistry.registerChannel(TaskService.OutputChannelId, TaskService.OutputChannelLabel);
-
-// (<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(TaskServiceParticipant);
 
 // tasks.json validation
 let schemaId = 'vscode://schemas/tasks';

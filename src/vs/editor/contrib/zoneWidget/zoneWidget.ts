@@ -174,7 +174,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 	constructor(editor: ICodeEditor, options: IOptions = {}) {
 		this.editor = editor;
-		this.options = objects.clone(options);
+		this.options = objects.deepClone(options);
 		objects.mixin(this.options, defaultOptions, false);
 		this.domNode = document.createElement('div');
 		if (!this.options.isAccessible) {

@@ -46,7 +46,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IWindowsService, IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { RawTextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -60,7 +60,6 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { IPosition, Position as EditorPosition } from 'vs/editor/common/core/position';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
-import { notImplemented } from 'vs/base/common/errors';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -891,6 +890,10 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(false);
 	}
 
+	getConfiguration(): IWindowConfiguration {
+		return Object.create(null);
+	}
+
 	getCurrentWindowId(): number {
 		return 0;
 	}
@@ -1011,7 +1014,7 @@ export class TestLifecycleService implements ILifecycleService {
 	private _onShutdown = new Emitter<ShutdownReason>();
 
 	when(): Thenable<void> {
-		throw notImplemented();
+		return TPromise.as(void 0);
 	}
 
 	public fireShutdown(reason = ShutdownReason.QUIT): void {

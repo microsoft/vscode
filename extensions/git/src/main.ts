@@ -66,7 +66,13 @@ export function activate(context: ExtensionContext): any {
 	context.subscriptions.push(new Disposable(() => Disposable.from(...disposables).dispose()));
 
 	init(context, disposables)
-		.catch(err => console.error(err));
+		.catch(err => {
+			if (/Git installation not found/.test(err.message || '')) {
+				console.warn(localize('notfound', "Git not found. You can configure its location with the `git.path` configuration setting."));
+			} else {
+				console.error(err);
+			}
+		});
 }
 
 async function checkGitVersion(info: IGit): Promise<void> {

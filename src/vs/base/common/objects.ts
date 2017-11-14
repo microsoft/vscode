@@ -7,7 +7,7 @@
 
 import { isObject, isUndefinedOrNull, isArray } from 'vs/base/common/types';
 
-export function clone<T>(obj: T): T {
+export function deepClone<T>(obj: T): T {
 	if (!obj || typeof obj !== 'object') {
 		return obj;
 	}
@@ -17,21 +17,6 @@ export function clone<T>(obj: T): T {
 	}
 	const result: any = Array.isArray(obj) ? [] : {};
 	Object.keys(obj).forEach((key: keyof T) => {
-		if (obj[key] && typeof obj[key] === 'object') {
-			result[key] = clone(obj[key]);
-		} else {
-			result[key] = obj[key];
-		}
-	});
-	return result;
-}
-
-export function deepClone<T>(obj: T): T {
-	if (!obj || typeof obj !== 'object') {
-		return obj;
-	}
-	const result: any = Array.isArray(obj) ? [] : {};
-	Object.getOwnPropertyNames(obj).forEach((key: keyof T) => {
 		if (obj[key] && typeof obj[key] === 'object') {
 			result[key] = deepClone(obj[key]);
 		} else {
@@ -190,12 +175,6 @@ export function equals(one: any, other: any): boolean {
 		}
 	}
 	return true;
-}
-
-export function ensureProperty(obj: any, property: string, defaultValue: any) {
-	if (typeof obj[property] === 'undefined') {
-		obj[property] = defaultValue;
-	}
 }
 
 export function arrayToHash(array: any[]) {
