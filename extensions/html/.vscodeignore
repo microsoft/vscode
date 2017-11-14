@@ -6,4 +6,3 @@ server/test/**
 server/out/test/**
 client/tsconfig.json
 client/src/**
-npm-shrinkwrap.json
