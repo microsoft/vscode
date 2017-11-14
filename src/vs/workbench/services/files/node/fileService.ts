@@ -372,7 +372,11 @@ export class FileService implements IFileService {
 						decoder.end();
 					}
 					if (fd) {
-						fs.close(fd, err => this.options.errorLogger(err.toString()));
+						fs.close(fd, err => {
+							if (err) {
+								this.options.errorLogger(err.toString());
+							}
+						});
 					}
 				};
 
