@@ -531,7 +531,7 @@ export interface IDebugService {
 	 * Removes all breakpoints. If id is passed only removes the breakpoint associated with that id.
 	 * Notifies debug adapter of breakpoint changes.
 	 */
-	removeBreakpoints(id?: string, skipEmit?: boolean): TPromise<any>;
+	removeBreakpoints(id?: string): TPromise<any>;
 
 	/**
 	 * Adds a new no name function breakpoint. The function breakpoint should be renamed once user enters the name.

@@ -578,15 +578,12 @@ export class DebugService implements debug.IDebugService {
 		return this.sendBreakpoints(uri);
 	}
 
-	public removeBreakpoints(id?: string, skipEmit?: boolean): TPromise<any> {
+	public removeBreakpoints(id?: string): TPromise<any> {
 		const toRemove = this.model.getBreakpoints().filter(bp => !id || bp.getId() === id);
 		toRemove.forEach(bp => aria.status(nls.localize('breakpointRemoved', "Removed breakpoint, line {0}, file {1}", bp.lineNumber, bp.uri.fsPath)));
 		const urisToClear = distinct(toRemove, bp => bp.uri.toString()).map(bp => bp.uri);
 
-		this.model.removeBreakpoints(toRemove, skipEmit);
-		if (skipEmit) {
-			return TPromise.as(null);
-		}
+		this.model.removeBreakpoints(toRemove);
 
 		return TPromise.join(urisToClear.map(uri => this.sendBreakpoints(uri)));
 	}

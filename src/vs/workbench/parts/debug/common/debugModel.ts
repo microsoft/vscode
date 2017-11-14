@@ -875,11 +875,9 @@ export class Model implements IModel {
 		return newBreakpoints;
 	}
 
-	public removeBreakpoints(toRemove: IBreakpoint[], skipEvent?: boolean): void {
+	public removeBreakpoints(toRemove: IBreakpoint[]): void {
 		this.breakpoints = this.breakpoints.filter(bp => !toRemove.some(toRemove => toRemove.getId() === bp.getId()));
-		if (!skipEvent) {
-			this._onDidChangeBreakpoints.fire();
-		}
+		this._onDidChangeBreakpoints.fire();
 	}
 
 	public updateBreakpoints(data: { [id: string]: DebugProtocol.Breakpoint }): void {
