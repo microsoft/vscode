@@ -14,6 +14,7 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { Position } from 'vs/editor/common/core/position';
+import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 
 export class LineNumbersOverlay extends DynamicViewOverlay {
 
@@ -22,9 +23,8 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 	private _context: ViewContext;
 
 	private _lineHeight: number;
-	private _renderLineNumbers: boolean;
+	private _renderLineNumbers: RenderLineNumbersType;
 	private _renderCustomLineNumbers: (lineNumber: number) => string;
-	private _renderRelativeLineNumbers: boolean;
 	private _lineNumbersLeft: number;
 	private _lineNumbersWidth: number;
 	private _lineNumberInterval: { interval: number, showCurrentLineNumber: boolean };
@@ -47,7 +47,6 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		this._lineHeight = config.lineHeight;
 		this._renderLineNumbers = config.viewInfo.renderLineNumbers;
 		this._renderCustomLineNumbers = config.viewInfo.renderCustomLineNumbers;
-		this._renderRelativeLineNumbers = config.viewInfo.renderRelativeLineNumbers;
 		this._lineNumbersLeft = config.layoutInfo.lineNumbersLeft;
 		this._lineNumbersWidth = config.layoutInfo.lineNumbersWidth;
 		this._lineNumberInterval = config.viewInfo.lineNumberInterval;
@@ -103,7 +102,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 			return this._renderCustomLineNumbers(modelLineNumber);
 		}
 
-		if (this._renderRelativeLineNumbers) {
+		if (this._renderLineNumbers === RenderLineNumbersType.Relative) {
 			let diff = Math.abs(this._lastCursorModelPosition.lineNumber - modelLineNumber);
 			if (diff === 0) {
 				return '<span class="relative-current-line-number">' + modelLineNumber + '</span>';
@@ -115,7 +114,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 	}
 
 	public prepareRender(ctx: RenderingContext): void {
-		if (!this._renderLineNumbers) {
+		if (this._renderLineNumbers === RenderLineNumbersType.Off) {
 			this._renderResult = null;
 			return;
 		}

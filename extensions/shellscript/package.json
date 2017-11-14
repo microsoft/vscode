@@ -9,7 +9,7 @@
 	"contributes": {
 		"languages": [{
 			"id": "shellscript",
-			"aliases": ["Shell Script (Bash)", "shellscript", "bash", "sh", "zsh"],
+			"aliases": ["Shell Script", "shellscript", "bash", "sh", "zsh"],
 			"extensions": [".sh", ".bash", ".bashrc", ".bash_aliases", ".bash_profile", ".bash_login", ".ebuild", ".install", ".profile", ".bash_logout", ".zsh", ".zshrc", ".zprofile", ".zlogin", ".zlogout", ".zshenv", ".zsh-theme"],
 			"filenames": ["PKGBUILD"],
 			"firstLine": "^#!.*\\b(bash|zsh|sh|tcsh).*|^#\\s*-\\*-[^*]*mode:\\s*shell-script[^*]*-\\*-",

@@ -3032,14 +3032,20 @@ declare module monaco.editor {
 		readonly wordWrapBreakObtrusiveCharacters: string;
 	}
 
+	export const enum RenderLineNumbersType {
+		Off = 0,
+		On = 1,
+		Relative = 2,
+		Custom = 3,
+	}
+
 	export interface InternalEditorViewOptions {
 		readonly extraEditorClassName: string;
 		readonly disableMonospaceOptimizations: boolean;
 		readonly rulers: number[];
 		readonly ariaLabel: string;
-		readonly renderLineNumbers: boolean;
+		readonly renderLineNumbers: RenderLineNumbersType;
 		readonly renderCustomLineNumbers: (lineNumber: number) => string;
-		readonly renderRelativeLineNumbers: boolean;
 		readonly selectOnLineNumbers: boolean;
 		readonly lineNumberInterval: {
 			interval: number;
