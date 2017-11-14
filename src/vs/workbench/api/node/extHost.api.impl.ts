@@ -35,7 +35,6 @@ import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFe
 import { ExtHostApiCommands } from 'vs/workbench/api/node/extHostApiCommands';
 import { ExtHostTask } from 'vs/workbench/api/node/extHostTask';
 import { ExtHostDebugService } from 'vs/workbench/api/node/extHostDebugService';
-import { ExtHostCredentials } from 'vs/workbench/api/node/extHostCredentials';
 import { ExtHostWindow } from 'vs/workbench/api/node/extHostWindow';
 import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
 import URI from 'vs/base/common/uri';
@@ -103,7 +102,6 @@ export function createApiFactory(
 	const extHostTerminalService = threadService.set(ExtHostContext.ExtHostTerminalService, new ExtHostTerminalService(threadService));
 	const extHostSCM = threadService.set(ExtHostContext.ExtHostSCM, new ExtHostSCM(threadService, extHostCommands));
 	const extHostTask = threadService.set(ExtHostContext.ExtHostTask, new ExtHostTask(threadService, extHostWorkspace));
-	const extHostCredentials = threadService.set(ExtHostContext.ExtHostCredentials, new ExtHostCredentials(threadService));
 	const extHostWindow = threadService.set(ExtHostContext.ExtHostWindow, new ExtHostWindow(threadService));
 	threadService.set(ExtHostContext.ExtHostExtensionService, extensionService);
 
@@ -142,7 +140,7 @@ export function createApiFactory(
 
 		// namespace: commands
 		const commands: typeof vscode.commands = {
-			registerCommand<T>(id: string, command: <T>(...args: any[]) => T | Thenable<T>, thisArgs?: any): vscode.Disposable {
+			registerCommand(id: string, command: <T>(...args: any[]) => T | Thenable<T>, thisArgs?: any): vscode.Disposable {
 				return extHostCommands.registerCommand(id, command, thisArgs);
 			},
 			registerTextEditorCommand(id: string, callback: (textEditor: vscode.TextEditor, edit: vscode.TextEditorEdit, ...args: any[]) => void, thisArg?: any): vscode.Disposable {
@@ -403,12 +401,6 @@ export function createApiFactory(
 			set name(value) {
 				throw errors.readonly();
 			},
-			addWorkspaceFolder(uri, name) {
-				return extHostWorkspace.addWorkspaceFolder(extension.displayName || extension.name, uri, name);
-			},
-			removeWorkspaceFolder(folder) {
-				return extHostWorkspace.removeWorkspaceFolder(extension.displayName || extension.name, folder);
-			},
 			onDidChangeWorkspaceFolders: function (listener, thisArgs?, disposables?) {
 				return extHostWorkspace.onDidChangeWorkspace(listener, thisArgs, disposables);
 			},
@@ -525,21 +517,8 @@ export function createApiFactory(
 			}
 		};
 
-		// namespace: credentials
-		const credentials = {
-			readSecret(service: string, account: string): Thenable<string | undefined> {
-				return extHostCredentials.readSecret(service, account);
-			},
-			writeSecret(service: string, account: string, secret: string): Thenable<void> {
-				return extHostCredentials.writeSecret(service, account, secret);
-			},
-			deleteSecret(service: string, account: string): Thenable<boolean> {
-				return extHostCredentials.deleteSecret(service, account);
-			}
-		};
 
-
-		const api: typeof vscode = {
+		return <typeof vscode>{
 			version: pkg.version,
 			// namespaces
 			commands,
@@ -552,6 +531,7 @@ export function createApiFactory(
 			debug,
 			// types
 			CancellationTokenSource: CancellationTokenSource,
+			CodeAction: extHostTypes.CodeAction,
 			CodeLens: extHostTypes.CodeLens,
 			Color: extHostTypes.Color,
 			ColorPresentation: extHostTypes.ColorPresentation,
@@ -612,10 +592,6 @@ export function createApiFactory(
 			FileChangeType: <any>FileChangeType,
 			FileType: <any>FileType
 		};
-		if (extension.enableProposedApi && extension.isBuiltin) {
-			api['credentials'] = credentials;
-		}
-		return api;
 	};
 }
 

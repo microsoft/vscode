@@ -331,13 +331,13 @@
 	},
 	{
 		"c": "p",
-		"t": "source.css.scss meta.property-list.scss meta.property-name.scss",
+		"t": "source.css.scss meta.property-list.scss entity.name.tag.css",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "entity.name.tag.css: #D7BA7D",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag.css: #D7BA7D",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag.css: #D7BA7D"
 		}
 	},
 	{
@@ -353,13 +353,13 @@
 	},
 	{
 		"c": "div",
-		"t": "source.css.scss meta.property-list.scss meta.property-name.scss",
+		"t": "source.css.scss meta.property-list.scss entity.name.tag.css",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "entity.name.tag.css: #D7BA7D",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag.css: #D7BA7D",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag.css: #D7BA7D"
 		}
 	},
 	{
@@ -474,13 +474,13 @@
 	},
 	{
 		"c": "a",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss entity.name.tag.css",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "entity.name.tag.css: #D7BA7D",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag.css: #D7BA7D",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag.css: #D7BA7D"
 		}
 	},
 	{
@@ -628,13 +628,13 @@
 	},
 	{
 		"c": "pre",
-		"t": "source.css.scss meta.property-list.scss meta.property-name.scss",
+		"t": "source.css.scss meta.property-list.scss entity.name.tag.css",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "entity.name.tag.css: #D7BA7D",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag.css: #D7BA7D",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag.css: #D7BA7D"
 		}
 	},
 	{
@@ -925,13 +925,13 @@
 	},
 	{
 		"c": "a",
-		"t": "source.css.scss meta.property-list.scss meta.property-name.scss",
+		"t": "source.css.scss meta.property-list.scss entity.name.tag.css",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "entity.name.tag.css: #D7BA7D",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag.css: #D7BA7D",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag.css: #D7BA7D"
 		}
 	},
 	{
@@ -1046,7 +1046,29 @@
 	},
 	{
 		"c": ":",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss punctuation.separator.key-value.scss",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss entity.other.attribute-name.pseudo-class.css punctuation.definition.entity.css",
+		"r": {
+			"dark_plus": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
+			"light_plus": "entity.other.attribute-name.pseudo-class.css: #800000",
+			"dark_vs": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
+			"light_vs": "entity.other.attribute-name.pseudo-class.css: #800000",
+			"hc_black": "entity.other.attribute-name.pseudo-class.css: #D7BA7D"
+		}
+	},
+	{
+		"c": "hover",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss entity.other.attribute-name.pseudo-class.css",
+		"r": {
+			"dark_plus": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
+			"light_plus": "entity.other.attribute-name.pseudo-class.css: #800000",
+			"dark_vs": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
+			"light_vs": "entity.other.attribute-name.pseudo-class.css: #800000",
+			"hc_black": "entity.other.attribute-name.pseudo-class.css: #D7BA7D"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1056,52 +1078,8 @@
 		}
 	},
 	{
-		"c": "hover { ",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "color",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss support.constant.property-value.css",
-		"r": {
-			"dark_plus": "support.constant.property-value: #CE9178",
-			"light_plus": "support.constant.property-value: #0451A5",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "support.constant.property-value: #CE9178"
-		}
-	},
-	{
-		"c": ": ",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "red",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss support.constant.color.w3c-standard-color-name.css",
-		"r": {
-			"dark_plus": "support.constant.color: #CE9178",
-			"light_plus": "support.constant.color: #0451A5",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "support.constant.color: #0451A5",
-			"hc_black": "support.constant.color: #CE9178"
-		}
-	},
-	{
-		"c": ";",
-		"t": "source.css.scss meta.property-list.scss meta.property-list.scss punctuation.terminator.rule.scss",
+		"c": "{",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss punctuation.section.property-list.begin.bracket.curly.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1112,6 +1090,94 @@
 	},
 	{
 		"c": " ",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "color",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name: #FF0000",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name: #FF0000",
+			"hc_black": "support.type.property-name: #D4D4D4"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss punctuation.separator.key-value.scss",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "red",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss support.constant.color.w3c-standard-color-name.css",
+		"r": {
+			"dark_plus": "support.constant.color: #CE9178",
+			"light_plus": "support.constant.color: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "support.constant.color: #0451A5",
+			"hc_black": "support.constant.color: #CE9178"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss punctuation.terminator.rule.scss",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss punctuation.section.property-list.end.bracket.curly.scss",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "  ",
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -1133,30 +1199,8 @@
 		}
 	},
 	{
-		"c": "  ",
-		"t": "source.css.scss meta.property-list.scss",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
 		"c": "}",
 		"t": "source.css.scss meta.property-list.scss punctuation.section.property-list.end.bracket.curly.scss",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "}",
-		"t": "source.css.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1255,13 +1299,13 @@
 	},
 	{
 		"c": "font",
-		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
+		"t": "source.css.scss meta.property-list.scss entity.name.tag.css",
 		"r": {
-			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
-			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
-			"hc_black": "support.type.property-name: #D4D4D4"
+			"dark_plus": "entity.name.tag.css: #D7BA7D",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag.css: #D7BA7D",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag.css: #D7BA7D"
 		}
 	},
 	{
@@ -3312,13 +3356,13 @@
 	},
 	{
 		"c": "font",
-		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
+		"t": "source.css.scss meta.property-list.scss entity.name.tag.css",
 		"r": {
-			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
-			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
-			"hc_black": "support.type.property-name: #D4D4D4"
+			"dark_plus": "entity.name.tag.css: #D7BA7D",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag.css: #D7BA7D",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag.css: #D7BA7D"
 		}
 	},
 	{
@@ -4687,13 +4731,13 @@
 	},
 	{
 		"c": "content",
-		"t": "source.css.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
+		"t": "source.css.scss meta.property-list.scss entity.name.tag.css",
 		"r": {
-			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
-			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
-			"hc_black": "support.type.property-name: #D4D4D4"
+			"dark_plus": "entity.name.tag.css: #D7BA7D",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag.css: #D7BA7D",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag.css: #D7BA7D"
 		}
 	},
 	{
@@ -12816,13 +12860,13 @@
 	},
 	{
 		"c": "font",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss entity.name.tag.css",
 		"r": {
-			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
-			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
-			"hc_black": "support.type.property-name: #D4D4D4"
+			"dark_plus": "entity.name.tag.css: #D7BA7D",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag.css: #D7BA7D",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag.css: #D7BA7D"
 		}
 	},
 	{
@@ -13751,13 +13795,13 @@
 	},
 	{
 		"c": "style",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss entity.name.tag.css",
 		"r": {
-			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
-			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
-			"hc_black": "support.type.property-name: #D4D4D4"
+			"dark_plus": "entity.name.tag.css: #D7BA7D",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag.css: #D7BA7D",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag.css: #D7BA7D"
 		}
 	},
 	{
@@ -15544,13 +15588,13 @@
 	},
 	{
 		"c": "html",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss entity.name.tag.css",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "entity.name.tag.css: #D7BA7D",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag.css: #D7BA7D",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag.css: #D7BA7D"
 		}
 	},
 	{
@@ -16248,13 +16292,13 @@
 	},
 	{
 		"c": "content",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-name.scss support.type.property-name.css",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss entity.name.tag.css",
 		"r": {
-			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
-			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
-			"hc_black": "support.type.property-name: #D4D4D4"
+			"dark_plus": "entity.name.tag.css: #D7BA7D",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag.css: #D7BA7D",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag.css: #D7BA7D"
 		}
 	},
 	{
@@ -17942,13 +17986,13 @@
 	},
 	{
 		"c": "a",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss entity.name.tag.css",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "entity.name.tag.css: #D7BA7D",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag.css: #D7BA7D",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag.css: #D7BA7D"
 		}
 	},
 	{
@@ -18063,13 +18107,13 @@
 	},
 	{
 		"c": "b",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-name.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss entity.name.tag.css",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "entity.name.tag.css: #D7BA7D",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag.css: #D7BA7D",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag.css: #D7BA7D"
 		}
 	},
 	{
@@ -20582,7 +20626,29 @@
 	},
 	{
 		"c": ":",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss punctuation.separator.key-value.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss entity.other.attribute-name.pseudo-element.css punctuation.definition.entity.css",
+		"r": {
+			"dark_plus": "entity.other.attribute-name.pseudo-element.css: #D7BA7D",
+			"light_plus": "entity.other.attribute-name.pseudo-element.css: #800000",
+			"dark_vs": "entity.other.attribute-name.pseudo-element.css: #D7BA7D",
+			"light_vs": "entity.other.attribute-name.pseudo-element.css: #800000",
+			"hc_black": "entity.other.attribute-name.pseudo-element.css: #D7BA7D"
+		}
+	},
+	{
+		"c": "before",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss entity.other.attribute-name.pseudo-element.css",
+		"r": {
+			"dark_plus": "entity.other.attribute-name.pseudo-element.css: #D7BA7D",
+			"light_plus": "entity.other.attribute-name.pseudo-element.css: #800000",
+			"dark_vs": "entity.other.attribute-name.pseudo-element.css: #D7BA7D",
+			"light_vs": "entity.other.attribute-name.pseudo-element.css: #800000",
+			"hc_black": "entity.other.attribute-name.pseudo-element.css: #D7BA7D"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -20592,19 +20658,8 @@
 		}
 	},
 	{
-		"c": "before",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss support.type.property-name.css",
-		"r": {
-			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name: #FF0000",
-			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name: #FF0000",
-			"hc_black": "support.type.property-name: #D4D4D4"
-		}
-	},
-	{
-		"c": " {",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss",
+		"c": "{",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss punctuation.section.property-list.begin.bracket.curly.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -20615,7 +20670,7 @@
 	},
 	{
 		"c": "  ",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -20626,18 +20681,139 @@
 	},
 	{
 		"c": "content",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss support.constant.property-value.css",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss entity.name.tag.css",
 		"r": {
-			"dark_plus": "support.constant.property-value: #CE9178",
-			"light_plus": "support.constant.property-value: #0451A5",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "support.constant.property-value: #0451A5",
-			"hc_black": "support.constant.property-value: #CE9178"
+			"dark_plus": "entity.name.tag.css: #D7BA7D",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag.css: #D7BA7D",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag.css: #D7BA7D"
 		}
 	},
 	{
 		"c": ":",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss punctuation.separator.key-value.scss",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "'",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss string.quoted.single.scss punctuation.definition.string.begin.scss",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "\\\\",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss string.quoted.single.scss constant.character.escape.scss",
+		"r": {
+			"dark_plus": "constant.character.escape: #D7BA7D",
+			"light_plus": "constant.character.escape: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "constant.character: #569CD6"
+		}
+	},
+	{
+		"c": "'",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss string.quoted.single.scss punctuation.definition.string.end.scss",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss punctuation.terminator.rule.scss",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss punctuation.section.property-list.end.bracket.curly.scss",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "/*",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss comment.block.scss punctuation.definition.comment.scss",
+		"r": {
+			"dark_plus": "comment: #608B4E",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": " a comment ",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss comment.block.scss",
+		"r": {
+			"dark_plus": "comment: #608B4E",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "*/",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss comment.block.scss punctuation.definition.comment.scss",
+		"r": {
+			"dark_plus": "comment: #608B4E",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "$var1",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss variable.scss",
+		"r": {
+			"dark_plus": "variable.scss: #9CDCFE",
+			"light_plus": "variable.scss: #FF0000",
+			"dark_vs": "variable.scss: #9CDCFE",
+			"light_vs": "variable.scss: #FF0000",
+			"hc_black": "variable.scss: #D4D4D4"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss punctuation.separator.key-value.scss",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -20658,7 +20834,7 @@
 		}
 	},
 	{
-		"c": "\\\\",
+		"c": "\\'",
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss string.quoted.single.scss constant.character.escape.scss",
 		"r": {
 			"dark_plus": "constant.character.escape: #D7BA7D",
@@ -20691,118 +20867,8 @@
 		}
 	},
 	{
-		"c": "}",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss punctuation.section.property-list.end.bracket.curly.scss",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "/*",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss comment.block.scss punctuation.definition.comment.scss",
-		"r": {
-			"dark_plus": "comment: #608B4E",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
-		}
-	},
-	{
-		"c": " a comment ",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss comment.block.scss",
-		"r": {
-			"dark_plus": "comment: #608B4E",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
-		}
-	},
-	{
-		"c": "*/",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss comment.block.scss punctuation.definition.comment.scss",
-		"r": {
-			"dark_plus": "comment: #608B4E",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #608B4E",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668"
-		}
-	},
-	{
-		"c": "$var1",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss variable.scss",
-		"r": {
-			"dark_plus": "variable.scss: #9CDCFE",
-			"light_plus": "variable.scss: #FF0000",
-			"dark_vs": "variable.scss: #9CDCFE",
-			"light_vs": "variable.scss: #FF0000",
-			"hc_black": "variable.scss: #D4D4D4"
-		}
-	},
-	{
-		"c": ": ",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
-		"c": "'",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss string.quoted.single.scss punctuation.definition.string.begin.scss",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
-		}
-	},
-	{
-		"c": "\\'",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss string.quoted.single.scss constant.character.escape.scss",
-		"r": {
-			"dark_plus": "constant.character.escape: #D7BA7D",
-			"light_plus": "constant.character.escape: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "constant.character: #569CD6"
-		}
-	},
-	{
-		"c": "'",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss string.quoted.single.scss punctuation.definition.string.end.scss",
-		"r": {
-			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
-			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
-			"hc_black": "string: #CE9178"
-		}
-	},
-	{
-		"c": ";",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss punctuation.terminator.rule.css",
-		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
-		}
-	},
-	{
 		"c": "$var2",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss variable.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss variable.scss",
 		"r": {
 			"dark_plus": "variable.scss: #9CDCFE",
 			"light_plus": "variable.scss: #FF0000",
@@ -20812,8 +20878,19 @@
 		}
 	},
 	{
-		"c": ": ",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss",
+		"c": ":",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss punctuation.separator.key-value.scss",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -20824,7 +20901,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss string.quoted.double.scss punctuation.definition.string.begin.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss string.quoted.double.scss punctuation.definition.string.begin.scss",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -20835,7 +20912,7 @@
 	},
 	{
 		"c": "\\\"",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss string.quoted.double.scss constant.character.escape.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss string.quoted.double.scss constant.character.escape.scss",
 		"r": {
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #A31515",
@@ -20846,7 +20923,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss string.quoted.double.scss punctuation.definition.string.end.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss string.quoted.double.scss punctuation.definition.string.end.scss",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -20857,7 +20934,7 @@
 	},
 	{
 		"c": ";",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss punctuation.terminator.rule.css",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss punctuation.terminator.rule.scss",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -20868,7 +20945,7 @@
 	},
 	{
 		"c": "/*",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss comment.block.scss punctuation.definition.comment.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss comment.block.scss punctuation.definition.comment.scss",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -20879,7 +20956,7 @@
 	},
 	{
 		"c": " another comment ",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss comment.block.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss comment.block.scss",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -20890,7 +20967,7 @@
 	},
 	{
 		"c": "*/",
-		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss comment.block.scss punctuation.definition.comment.scss",
+		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss comment.block.scss punctuation.definition.comment.scss",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",

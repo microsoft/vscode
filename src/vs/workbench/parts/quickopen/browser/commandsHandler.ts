@@ -14,10 +14,10 @@ import { Action } from 'vs/base/common/actions';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Mode, IEntryRunContext, IAutoFocus, IModel, IQuickNavigateConfiguration } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntryGroup, IHighlight, QuickOpenModel, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import { SyncActionDescriptor, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { QuickOpenHandler, IWorkbenchQuickOpenConfiguration } from 'vs/workbench/browser/quickopen';
-import { IEditorAction, IEditor, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { IEditorAction, IEditor } from 'vs/editor/common/editorCommon';
 import { matchesWords, matchesPrefix, matchesContiguousSubString, or } from 'vs/base/common/filters';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -25,7 +25,7 @@ import { IMessageService, Severity, IMessageWithAction } from 'vs/platform/messa
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { editorAction, EditorAction } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { once } from 'vs/base/common/event';
@@ -34,6 +34,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export const ALL_COMMANDS_PREFIX = '>';
 
@@ -42,7 +43,7 @@ let commandHistory: BoundedMap<number>;
 let commandCounter = 1;
 
 function resolveCommandHistory(configurationService: IConfigurationService): number {
-	const config = <IWorkbenchQuickOpenConfiguration>configurationService.getConfiguration();
+	const config = <IWorkbenchQuickOpenConfiguration>configurationService.getValue();
 
 	let commandHistory = config.workbench && config.workbench.commandPalette && config.workbench.commandPalette.history;
 	if (typeof commandHistory !== 'number') {
@@ -134,7 +135,7 @@ export class ShowAllCommandsAction extends Action {
 	}
 
 	public run(context?: any): TPromise<void> {
-		const config = <IWorkbenchQuickOpenConfiguration>this.configurationService.getConfiguration();
+		const config = <IWorkbenchQuickOpenConfiguration>this.configurationService.getValue();
 		const restoreInput = config.workbench && config.workbench.commandPalette && config.workbench.commandPalette.preserveInput === true;
 
 		// Show with last command palette input if any and configured
@@ -157,7 +158,6 @@ export class ClearCommandHistoryAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IStorageService private storageService: IStorageService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(id, label);
@@ -174,7 +174,6 @@ export class ClearCommandHistoryAction extends Action {
 	}
 }
 
-@editorAction
 class CommandPaletteEditorAction extends EditorAction {
 
 	constructor() {
@@ -188,7 +187,7 @@ class CommandPaletteEditorAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
 		const quickOpenService = accessor.get(IQuickOpenService);
 
 		// Show with prefix
@@ -322,28 +321,6 @@ abstract class BaseCommandEntry extends QuickOpenEntryGroup {
 	}
 }
 
-class CommandEntry extends BaseCommandEntry {
-
-	constructor(
-		commandId: string,
-		keybinding: ResolvedKeybinding,
-		label: string,
-		meta: string,
-		highlights: { label: IHighlight[], alias: IHighlight[] },
-		private actionDescriptor: SyncActionDescriptor,
-		onBeforeRun: (commandId: string) => void,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IMessageService messageService: IMessageService,
-		@ITelemetryService telemetryService: ITelemetryService
-	) {
-		super(commandId, keybinding, label, meta, highlights, onBeforeRun, messageService, telemetryService);
-	}
-
-	protected getAction(): Action | IEditorAction {
-		return <Action>this.instantiationService.createInstance(this.actionDescriptor.syncDescriptor);
-	}
-}
-
 class EditorActionCommandEntry extends BaseCommandEntry {
 
 	constructor(
@@ -402,7 +379,6 @@ export class CommandsHandler extends QuickOpenHandler {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMenuService private menuService: IMenuService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
@@ -591,3 +567,5 @@ export class CommandsHandler extends QuickOpenHandler {
 		}
 	}
 }
+
+registerEditorAction(CommandPaletteEditorAction);

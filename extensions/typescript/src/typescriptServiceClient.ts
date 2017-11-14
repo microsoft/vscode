@@ -13,7 +13,7 @@ import { Reader } from './utils/wireProtocol';
 
 import { workspace, window, Uri, CancellationToken, Disposable, Memento, MessageItem, EventEmitter, Event, commands, env } from 'vscode';
 import * as Proto from './protocol';
-import { ITypescriptServiceClient, ITypescriptServiceClientHost } from './typescriptService';
+import { ITypeScriptServiceClient, ITypeScriptServiceClientHost } from './typescriptService';
 import { TypeScriptServerPlugin } from './utils/plugins';
 import Logger from './utils/logger';
 
@@ -36,14 +36,14 @@ interface CallbackItem {
 }
 
 class CallbackMap {
-	private callbacks: Map<number, CallbackItem> = new Map();
+	private readonly callbacks: Map<number, CallbackItem> = new Map();
 	public pendingResponses: number = 0;
 
 	public destroy(e: any): void {
 		for (const callback of this.callbacks.values()) {
 			callback.e(e);
 		}
-		this.callbacks = new Map();
+		this.callbacks.clear();
 		this.pendingResponses = 0;
 	}
 
@@ -69,15 +69,6 @@ interface RequestItem {
 	request: Proto.Request;
 	promise: Promise<any> | null;
 	callbacks: CallbackItem | null;
-}
-
-
-enum MessageAction {
-	reportIssue
-}
-
-interface MyMessageItem extends MessageItem {
-	id: MessageAction;
 }
 
 class RequestQueue {
@@ -116,8 +107,7 @@ class RequestQueue {
 	}
 }
 
-
-export default class TypeScriptServiceClient implements ITypescriptServiceClient {
+export default class TypeScriptServiceClient implements ITypeScriptServiceClient {
 	private static readonly WALK_THROUGH_SNIPPET_SCHEME = 'walkThroughSnippet';
 	private static readonly WALK_THROUGH_SNIPPET_SCHEME_COLON = `${TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME}:`;
 
@@ -129,7 +119,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private versionPicker: TypeScriptVersionPicker;
 
 	private tracer: Tracer;
-	private readonly logger: Logger = new Logger();
+	public readonly logger: Logger = new Logger();
 	private tsServerLogFile: string | null = null;
 	private servicePromise: Thenable<cp.ChildProcess> | null;
 	private lastError: Error | null;
@@ -148,13 +138,20 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private readonly _onDidEndInstallTypings = new EventEmitter<Proto.EndInstallTypesEventBody>();
 	private readonly _onTypesInstallerInitializationFailed = new EventEmitter<Proto.TypesInstallerInitializationFailedEventBody>();
 
+	public readonly telemetryReporter: TelemetryReporter;
+	/**
+	 * API version obtained from the version picker after checking the corresponding path exists.
+	 */
 	private _apiVersion: API;
-	private telemetryReporter: TelemetryReporter;
+	/**
+	 * Version reported by currently-running tsserver.
+	 */
+	private _tsserverVersion: string | undefined;
 
 	private readonly disposables: Disposable[] = [];
 
 	constructor(
-		private readonly host: ITypescriptServiceClientHost,
+		private readonly host: ITypeScriptServiceClientHost,
 		private readonly workspaceState: Memento,
 		private readonly versionStatus: VersionStatus,
 		public readonly plugins: TypeScriptServerPlugin[]
@@ -178,6 +175,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 		this.versionPicker = new TypeScriptVersionPicker(this.versionProvider, this.workspaceState);
 
 		this._apiVersion = API.defaultVersion;
+		this._tsserverVersion = undefined;
 		this.tracer = new Tracer(this.logger);
 
 		workspace.onDidChangeConfiguration(() => {
@@ -199,7 +197,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				}
 			}
 		}, this, this.disposables);
-		this.telemetryReporter = new TelemetryReporter();
+		this.telemetryReporter = new TelemetryReporter(() => this._tsserverVersion || this._apiVersion.versionString);
 		this.disposables.push(this.telemetryReporter);
 		this.startService();
 	}
@@ -237,6 +235,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 					this.info('Killing TS Server');
 					this.isRestarting = true;
 					cp.kill();
+					this.resetClientVersion();
 				}
 			}).then(start);
 		} else {
@@ -337,6 +336,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 							}
 						*/
 						this.logTelemetry('error', { message: err.message });
+						this.resetClientVersion();
 						return;
 					}
 
@@ -375,6 +375,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 						this.isRestarting = false;
 					});
 
+					// tslint:disable-next-line:no-unused-expression
 					new Reader<Proto.Response>(
 						childProcess.stdout,
 						(msg) => { this.dispatchMessage(msg); },
@@ -493,11 +494,22 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	private serviceExited(restart: boolean): void {
+		enum MessageAction {
+			reportIssue
+		}
+
+		interface MyMessageItem extends MessageItem {
+			id: MessageAction;
+		}
+
 		this.servicePromise = null;
 		this.tsServerLogFile = null;
 		this.callbacks.destroy(new Error('Service died.'));
 		this.callbacks = new CallbackMap();
-		if (restart) {
+		if (!restart) {
+			this.resetClientVersion();
+		}
+		else {
 			const diff = Date.now() - this.lastStart;
 			this.numberRestarts++;
 			let startService = true;
@@ -518,6 +530,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 						"serviceExited" : {}
 					*/
 					this.logTelemetry('serviceExited');
+					this.resetClientVersion();
 				} else if (diff < 60 * 1000 /* 1 Minutes */) {
 					this.lastStart = Date.now();
 					prompt = window.showWarningMessage<MyMessageItem>(
@@ -808,6 +821,10 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 				}
 				break;
 		}
+		if (telemetryData.telemetryEventName === 'projectInfo') {
+			this._tsserverVersion = properties['version'];
+		}
+
 		/* __GDPR__
 			"typingsInstalled" : {
 				"installedPackages" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
@@ -882,6 +899,11 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 			}
 		}
 		return args;
+	}
+
+	private resetClientVersion() {
+		this._apiVersion = API.defaultVersion;
+		this._tsserverVersion = undefined;
 	}
 }
 

@@ -14,6 +14,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IMatch, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase, matchesWords } from 'vs/base/common/filters';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export interface IEndpointDetails {
 	urlBase: string;
@@ -25,17 +26,24 @@ export class PreferencesSearchProvider {
 	private _onRemoteSearchEnablementChanged = new Emitter<boolean>();
 	public onRemoteSearchEnablementChanged: Event<boolean> = this._onRemoteSearchEnablementChanged.event;
 
-	constructor( @IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService) {
+	constructor(
+		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
+		@IEnvironmentService private environmentService: IEnvironmentService
+	) {
 		configurationService.onDidChangeConfiguration(() => this._onRemoteSearchEnablementChanged.fire(this.remoteSearchEnabled));
 	}
 
 	get remoteSearchEnabled(): boolean {
+		if (this.environmentService.appQuality === 'stable') {
+			return false;
+		}
+
 		const endpoint = this.endpoint;
 		return !!endpoint.urlBase && !!endpoint.key;
 	}
 
 	get endpoint(): IEndpointDetails {
-		const workbenchSettings = this.configurationService.getConfiguration<IWorkbenchSettingsConfiguration>().workbench.settings;
+		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
 		return {
 			urlBase: workbenchSettings.experimentalFuzzySearchEndpoint,
 			key: workbenchSettings.experimentalFuzzySearchKey,
@@ -44,7 +52,7 @@ export class PreferencesSearchProvider {
 	}
 
 	startSearch(filter: string, remote: boolean): PreferencesSearchModel {
-		return new PreferencesSearchModel(this, filter, remote);
+		return new PreferencesSearchModel(this, filter, remote, this.environmentService);
 	}
 }
 
@@ -52,11 +60,11 @@ export class PreferencesSearchModel {
 	private _localProvider: LocalSearchProvider;
 	private _remoteProvider: RemoteSearchProvider;
 
-	constructor(private provider: PreferencesSearchProvider, private filter: string, remote: boolean) {
+	constructor(private provider: PreferencesSearchProvider, private filter: string, remote: boolean, environmentService: IEnvironmentService) {
 		this._localProvider = new LocalSearchProvider(filter);
 
 		if (remote && filter) {
-			this._remoteProvider = new RemoteSearchProvider(filter, this.provider.endpoint);
+			this._remoteProvider = new RemoteSearchProvider(filter, this.provider.endpoint, environmentService);
 		}
 	}
 
@@ -101,9 +109,9 @@ class RemoteSearchProvider {
 	private _filter: string;
 	private _remoteSearchP: TPromise<IFilterMetadata>;
 
-	constructor(filter: string, endpoint: IEndpointDetails) {
+	constructor(filter: string, endpoint: IEndpointDetails, private environmentService: IEnvironmentService) {
 		this._filter = filter;
-		this._remoteSearchP = filter ? getSettingsFromBing(filter, endpoint) : TPromise.wrap(null);
+		this._remoteSearchP = filter ? this.getSettingsFromBing(filter, endpoint) : TPromise.wrap(null);
 	}
 
 	filterPreferences(preferencesModel: ISettingsEditorModel): TPromise<IFilterResult> {
@@ -122,7 +130,12 @@ class RemoteSearchProvider {
 			};
 
 			if (remoteResult) {
-				const sortedNames = Object.keys(remoteResult.scoredResults).sort((a, b) => remoteResult.scoredResults[b] - remoteResult.scoredResults[a]);
+				let sortedNames = Object.keys(remoteResult.scoredResults).sort((a, b) => remoteResult.scoredResults[b] - remoteResult.scoredResults[a]);
+				if (sortedNames.length) {
+					const highScore = remoteResult.scoredResults[sortedNames[0]];
+					sortedNames = sortedNames.filter(name => remoteResult.scoredResults[name] >= highScore / 2);
+				}
+
 				const result = preferencesModel.filterSettings(this._filter, group => null, settingFilter, sortedNames);
 				result.metadata = remoteResult;
 				return result;
@@ -131,47 +144,47 @@ class RemoteSearchProvider {
 			}
 		});
 	}
-}
 
-function getSettingsFromBing(filter: string, endpoint: IEndpointDetails): TPromise<IFilterMetadata> {
-	const url = prepareUrl(filter, endpoint);
-	console.log('fetching: ' + url);
-	const start = Date.now();
-	const p = fetch(url, {
-		headers: new Headers({
-			'User-Agent': 'request',
-			'Content-Type': 'application/json; charset=utf-8',
-			'api-key': endpoint.key
+	private getSettingsFromBing(filter: string, endpoint: IEndpointDetails): TPromise<IFilterMetadata> {
+		const url = prepareUrl(filter, endpoint, this.environmentService.settingsSearchBuildId);
+		console.log('fetching: ' + url);
+		const start = Date.now();
+		const p = fetch(url, {
+			headers: new Headers({
+				'User-Agent': 'request',
+				'Content-Type': 'application/json; charset=utf-8',
+				'api-key': endpoint.key
+			})
 		})
-	})
-		.then(r => r.json())
-		.then(result => {
-			const timestamp = Date.now();
-			const duration = timestamp - start;
-			console.log('time: ' + duration / 1000);
-			const suggestions = (result.value || [])
-				.map(r => ({
-					name: r.setting || r.Setting,
-					score: r['@search.score']
-				}));
+			.then(r => r.json())
+			.then(result => {
+				const timestamp = Date.now();
+				const duration = timestamp - start;
+				console.log('time: ' + duration / 1000);
+				const suggestions = (result.value || [])
+					.map(r => ({
+						name: r.setting || r.Setting,
+						score: r['@search.score']
+					}));
 
-			const scoredResults = Object.create(null);
-			suggestions.forEach(s => {
-				const name = s.name
-					.replace(/^"/, '')
-					.replace(/"$/, '');
-				scoredResults[name] = s.score;
+				const scoredResults = Object.create(null);
+				suggestions.forEach(s => {
+					const name = s.name
+						.replace(/^"/, '')
+						.replace(/"$/, '');
+					scoredResults[name] = s.score;
+				});
+
+				return <IFilterMetadata>{
+					remoteUrl: url,
+					duration,
+					timestamp,
+					scoredResults
+				};
 			});
 
-			return <IFilterMetadata>{
-				remoteUrl: url,
-				duration,
-				timestamp,
-				scoredResults
-			};
-		});
-
-	return TPromise.as(p as any);
+		return TPromise.as(p as any);
+	}
 }
 
 const API_VERSION = 'api-version=2016-09-01-Preview';
@@ -185,7 +198,7 @@ function escapeSpecialChars(query: string): string {
 		.trim();
 }
 
-function prepareUrl(query: string, endpoint: IEndpointDetails): string {
+function prepareUrl(query: string, endpoint: IEndpointDetails, buildNumber: number): string {
 	query = escapeSpecialChars(query);
 	const boost = endpoint.boost || 1;
 	const userQuery = `(${query})^${boost}`;
@@ -193,7 +206,12 @@ function prepareUrl(query: string, endpoint: IEndpointDetails): string {
 	// Appending Fuzzy after each word.
 	query = query.replace(/\ +/g, '~ ') + '~';
 
-	return `${endpoint.urlBase}?${API_VERSION}&search=${encodeURIComponent(userQuery + ' || ' + query)}&${QUERY_TYPE}&${SCORING_PROFILE}`;
+	let url = `${endpoint.urlBase}?${API_VERSION}&search=${encodeURIComponent(userQuery + ' || ' + query)}&${QUERY_TYPE}&${SCORING_PROFILE}`;
+	if (buildNumber) {
+		url += `&$filter startbuildno le ${buildNumber} and endbuildno ge ${buildNumber}`;
+	}
+
+	return url;
 }
 
 class SettingMatches {

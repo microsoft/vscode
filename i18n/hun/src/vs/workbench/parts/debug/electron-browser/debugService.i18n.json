@@ -13,7 +13,7 @@
 	"compoundMustHaveConfigurations": "A kombinációk \"configurations\" tulajdonságát be kell állítani több konfiguráció elindításához.",
 	"configMissing": "A(z) '{0}' konfiguráció hiányzik a 'launch.json'-ból.",
 	"debugRequestNotSupported": "A(z) `{0}` attribútumnak nem támogatott értéke van ('{1}') a kiválasztott hibakeresési konfigurációban.",
-	"debugRequesMissing": "A(z) `{0}` attribútum hiányzik a kiválasztott hibakeresési konfigurációból.",
+	"debugRequesMissing": "A(z) '{0}' attribútum hiányzik a kiválasztott hibakeresési konfigurációból.",
 	"debugTypeNotSupported": "A megadott hibakeresési típus ('{0}') nem támogatott.",
 	"debugTypeMissing": "A kiválasztott indítási konfigurációnak hiányzik a `type` tulajdonsága.",
 	"debugAnyway": "Hibakeresés indítása mindenképp",
@@ -22,5 +22,6 @@
 	"preLaunchTaskExitCode": "A(z) '{0}' preLaunchTask a következő hibakóddal fejeződött be: {1}.",
 	"noFolderWorkspaceDebugError": "Az aktív fájlon nem lehet hibakeresést végezni. Bizonyosodjon meg róla, hogy el van mentve a lemezre, és hogy az adott fájltípushoz telepítve van a megfelelő hibakeresési kiegészítő.",
 	"NewLaunchConfig": "Állítson be egy indítási konfigurációt az alkalmazása számára. {0}",
-	"DebugTaskNotFound": "A(z) '{0}' preLaunchTask nem található."
+	"DebugTaskNotFound": "A(z) '{0}' preLaunchTask nem található.",
+	"taskNotTracked": "A(z) ${0} preLaunchTaskot nem lehet követni."
 }

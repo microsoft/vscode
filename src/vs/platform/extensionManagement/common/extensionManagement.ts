@@ -133,6 +133,7 @@ export interface IGalleryExtensionAssets {
 	download: IGalleryExtensionAsset;
 	icon: IGalleryExtensionAsset;
 	license: IGalleryExtensionAsset;
+	repository: IGalleryExtensionAsset;
 }
 
 export interface IExtensionIdentifier {
@@ -156,6 +157,7 @@ export interface IGalleryExtension {
 	assets: IGalleryExtensionAssets;
 	properties: IGalleryExtensionProperties;
 	telemetryData: any;
+	preview: boolean;
 }
 
 export interface IGalleryMetadata {
@@ -288,6 +290,11 @@ export interface IExtensionEnablementService {
 	 * Returns `true` if given extension can be enabled by calling `setEnablement`, otherwise false`.
 	 */
 	canEnable(identifier: IExtensionIdentifier): boolean;
+
+	/**
+	 * Returns `true` if the given extension identifier is enabled.
+	 */
+	isEnabled(identifier: IExtensionIdentifier): boolean;
 
 	/**
 	 * Enable or disable the given extension.

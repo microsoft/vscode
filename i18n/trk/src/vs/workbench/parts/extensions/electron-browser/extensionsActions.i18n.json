@@ -6,6 +6,8 @@
 {
 	"openExtensionsFolder": "Eklentiler Klasörünü Aç",
 	"installVSIX": "VSIX'ten yükle...",
+	"installFromVSIX": "VSIX'den Yükle",
+	"installButton": "&&Yükle",
 	"InstallVSIXAction.success": "Eklenti başarıyla yüklendi. Etkinleştirmek için yeniden başlatın.",
 	"InstallVSIXAction.reloadNow": "Şimdi Yeniden Yükle"
 }

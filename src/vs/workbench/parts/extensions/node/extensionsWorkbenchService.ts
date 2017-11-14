@@ -20,7 +20,7 @@ import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions, IExtensionManifest,
-	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionTipsService, IExtensionIdentifier
+	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionIdentifier
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionIdFromLocal, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -141,6 +141,10 @@ class Extension implements IExtension {
 		return require.toUrl('../browser/media/defaultIcon.png');
 	}
 
+	get repository(): string {
+		return this.gallery && this.gallery.assets.repository.uri;
+	}
+
 	get licenseUrl(): string {
 		return this.gallery && this.gallery.assets.license && this.gallery.assets.license.uri;
 	}
@@ -173,6 +177,10 @@ class Extension implements IExtension {
 		} else {
 			return getLocalExtensionTelemetryData(local);
 		}
+	}
+
+	get preview(): boolean {
+		return this.gallery ? this.gallery.preview : false;
 	}
 
 	getManifest(): TPromise<IExtensionManifest> {
@@ -332,7 +340,6 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		@IChoiceService private choiceService: IChoiceService,
 		@IURLService urlService: IURLService,
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
-		@IExtensionTipsService private tipsService: IExtensionTipsService,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 		@IWindowService private windowService: IWindowService
 	) {

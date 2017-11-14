@@ -66,12 +66,12 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 		}
 		this.debugService.getConfigurationManager().registerDebugConfigurationProvider(handle, provider);
 
-		return TPromise.as<void>(undefined);
+		return TPromise.wrap<void>(undefined);
 	}
 
 	public $unregisterDebugConfigurationProvider(handle: number): TPromise<any> {
 		this.debugService.getConfigurationManager().unregisterDebugConfigurationProvider(handle);
-		return TPromise.as<void>(undefined);
+		return TPromise.wrap<void>(undefined);
 	}
 
 	public $startDebugging(folderUri: uri | undefined, nameOrConfiguration: string | IConfig): TPromise<boolean> {
@@ -100,6 +100,6 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 	public $appendDebugConsole(value: string): TPromise<any> {
 		// Use warning as severity to get the orange color for messages coming from the debug extension
 		this.debugService.logToRepl(value, severity.Warning);
-		return TPromise.as<void>(undefined);
+		return TPromise.wrap<void>(undefined);
 	}
 }

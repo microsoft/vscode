@@ -28,6 +28,13 @@
 	"command.incrementNumberByTen": "Um 10 erhöhen",
 	"command.decrementNumberByTen": "Um 10 verringern",
 	"emmetSyntaxProfiles": "Definieren Sie das Profil für die angegebene Syntax, oder verwenden Sie Ihr eigenes Profil mit bestimmten Regeln.",
+	"emmetExclude": "Ein Array von Sprachen, in dem Emmet-Abkürzungen nicht erweitert werden sollten.",
+	"emmetExtensionsPath": "Pfad zu einem Ordner mit Emmet-Profilen und Ausschnitten.",
+	"emmetShowExpandedAbbreviation": "Zeigt erweiterte Emmet-Abkürzungen als Vorschläge an.\nDie Option inMarkupAndStylesheetFilesOnly gilt für HTML, HAML, Jade, Slim, XML, XSL, CSS, SCSS, Sass, Less und Stylus.\nDie Option \"always\" gilt unabhängig vom Markup/CSS für alle Teile der Datei.",
+	"emmetShowAbbreviationSuggestions": "Zeigt mögliche Emmet-Abkürzungen als Vorschläge an. Diese Option gilt nicht in Stylesheets oder wenn emmet.showExpandedAbbreviation auf \"never\" festgelegt ist.",
+	"emmetIncludeLanguages": "Aktivieren Sie Emmet-Abkürzungen in Sprachen, die nicht standardmäßig unterstützt werden. Fügen Sie hier ein Mapping zwischen der Sprache und der von Emmet unterstützten Sprache hinzu.\nBeispiel: {\"vue-html\": \"html\", \"javascript\": \"javascriptreact\"}",
+	"emmetVariables": "In Emmet-Ausschnitten zu verwendende Codeausschnitte",
+	"emmetTriggerExpansionOnTab": "Wenn aktiviert, werden Emmet-Abkürzungen beim Drücken der TAB-Taste erweitert.",
 	"emmetPreferences": "Einstellungen, die zum Ändern des Verhaltens einiger Aktionen und Konfliktlöser von Emmet verwendet werden.",
 	"emmetPreferencesIntUnit": "Standardeinheit für Integerwerte",
 	"emmetPreferencesFloatUnit": "Standardeinheit für Floatwerte",
@@ -36,5 +43,11 @@
 	"emmetPreferencesStylusAfter": "Symbol, das beim Erweitern von CSS-Abkürzungen in Stylus-Dateien am Ende der CSS-Eigenschaft eingefügt werden soll",
 	"emmetPreferencesCssBetween": "Symbol, das beim Erweitern von CSS-Abkürzungen zwischen der CSS-Eigenschaft und dem Wert eingefügt werden soll",
 	"emmetPreferencesSassBetween": "Symbol, das beim Erweitern von CSS-Abkürzungen in Sass-Dateien zwischen der CSS-Eigenschaft und dem Wert eingefügt werden soll",
-	"emmetPreferencesStylusBetween": "Symbol, das beim Erweitern von CSS-Abkürzungen in Stylus-Dateien zwischen der CSS-Eigenschaft und dem Wert eingefügt werden soll"
+	"emmetPreferencesStylusBetween": "Symbol, das beim Erweitern von CSS-Abkürzungen in Stylus-Dateien zwischen der CSS-Eigenschaft und dem Wert eingefügt werden soll",
+	"emmetShowSuggestionsAsSnippets": "Bei TRUE werden die Emmet-Vorschläge als Ausschnitte angezeigt, mit denen Sie sie der editor.snippetSuggestions-Einstellung entsprechend anordnen können.",
+	"emmetPreferencesBemElementSeparator": "Elementtrennzeichen für Klassen unter Verwendung des BEM-Filters",
+	"emmetPreferencesBemModifierSeparator": "Modifizierertrennzeichen für Klassen unter Verwendung des BEM-Filters",
+	"emmetPreferencesFilterCommentBefore": "Eine Kommentardefinition, die vor dem abgeglichenen Element platziert werden muss, wenn ein Kommentarfilter angewendet wird.",
+	"emmetPreferencesFilterCommentAfter": "Eine Kommentardefinition, die nach dem abgeglichenen Element platziert werden muss, wenn ein Kommentarfilter angewendet wird.",
+	"emmetPreferencesFilterCommentTrigger": "Eine durch Trennzeichen getrennte Liste von Attributnamen, die in abgekürzter Form vorliegen müssen, damit der Kommentarfilter angewendet werden kann"
 }

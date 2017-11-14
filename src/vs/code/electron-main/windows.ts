@@ -143,7 +143,7 @@ export class WindowsManager implements IWindowsMainService {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IBackupMainService private backupService: IBackupMainService,
-		@ITelemetryService private telemetryService: ITelemetryService,
+		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IHistoryMainService private historyService: IHistoryMainService,
 		@IWorkspacesMainService private workspacesService: IWorkspacesMainService,
@@ -152,7 +152,7 @@ export class WindowsManager implements IWindowsMainService {
 		this.windowsState = this.storageService.getItem<IWindowsState>(WindowsManager.windowsStateStorageKey) || { openedWindows: [] };
 
 		this.fileDialog = new FileDialog(environmentService, telemetryService, storageService, this);
-		this.workspacesManager = new WorkspacesManager(workspacesService, lifecycleService, backupService, environmentService, this);
+		this.workspacesManager = new WorkspacesManager(workspacesService, backupService, environmentService, this);
 
 		this.migrateLegacyWindowState();
 	}
@@ -201,7 +201,7 @@ export class WindowsManager implements IWindowsMainService {
 		});
 
 		// React to workbench loaded events from windows
-		ipc.on('vscode:workbenchLoaded', (event, windowId: number) => {
+		ipc.on('vscode:workbenchLoaded', (_event: any, windowId: number) => {
 			this.logService.log('IPC#vscode-workbenchLoaded');
 
 			const win = this.getWindowById(windowId);
@@ -934,7 +934,7 @@ export class WindowsManager implements IWindowsMainService {
 		if (this.lifecycleService.wasRestarted) {
 			restoreWindows = 'all'; // always reopen all windows when an update was applied
 		} else {
-			const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 			restoreWindows = ((windowConfig && windowConfig.restoreWindows) || 'one') as RestoreWindowsSetting;
 
 			if (restoreWindows === 'one' /* default */ && windowConfig && windowConfig.reopenFolders) {
@@ -1003,7 +1003,7 @@ export class WindowsManager implements IWindowsMainService {
 	private shouldOpenNewWindow(openConfig: IOpenConfiguration): { openFolderInNewWindow: boolean; openFilesInNewWindow: boolean; } {
 
 		// let the user settings override how folders are open in a new window or same window unless we are forced
-		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 		const openFolderInNewWindowConfig = (windowConfig && windowConfig.openFoldersInNewWindow) || 'default' /* default */;
 		const openFilesInNewWindowConfig = (windowConfig && windowConfig.openFilesInNewWindow) || 'off' /* default */;
 
@@ -1094,7 +1094,7 @@ export class WindowsManager implements IWindowsMainService {
 
 		// New window
 		if (!window) {
-			const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 			const state = this.getNewWindowState(configuration);
 
 			// Window state is not from a previous session: only allow fullscreen if we inherit it or user wants fullscreen
@@ -1257,7 +1257,7 @@ export class WindowsManager implements IWindowsMainService {
 		state.y = displayToUse.bounds.y + (displayToUse.bounds.height / 2) - (state.height / 2);
 
 		// Check for newWindowDimensions setting and adjust accordingly
-		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 		let ensureNoOverlap = true;
 		if (windowConfig && windowConfig.newWindowDimensions) {
 			if (windowConfig.newWindowDimensions === 'maximized') {
@@ -1672,7 +1672,6 @@ class WorkspacesManager {
 
 	constructor(
 		private workspacesService: IWorkspacesMainService,
-		private lifecycleService: ILifecycleService,
 		private backupService: IBackupMainService,
 		private environmentService: IEnvironmentService,
 		private windowsMainService: IWindowsMainService

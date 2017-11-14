@@ -61,5 +61,11 @@
 	"config.defaultCloneDirectory": "Git リポジトリをクローンする既定の場所",
 	"config.enableSmartCommit": "ステージされた変更がない場合はすべての変更をコミットします。",
 	"config.enableCommitSigning": "GPG によりデジタル署名されたコミットを有効にします。",
-	"config.discardAllScope": "'すべての変更を破棄' コマンドによってどの変更が破棄されるかを制御します。'all' はすべての変更を破棄します。 'tracked' は追跡されているファイルだけを破棄します。 'prompt' は、アクションが実行されるたびにプロンプ​​ト ダイアログを表示します。"
+	"config.discardAllScope": "'すべての変更を破棄' コマンドによってどの変更が破棄されるかを制御します。'all' はすべての変更を破棄します。 'tracked' は追跡されているファイルだけを破棄します。 'prompt' は、アクションが実行されるたびにプロンプ​​ト ダイアログを表示します。",
+	"config.decorations.enabled": "Git が配色とバッジをエクスプローラーと開いているエディターのビューに提供するかどうかを制御します。",
+	"colors.modified": "リソースを改変した場合の配色",
+	"colors.deleted": "リソースを検出した場合の配色",
+	"colors.untracked": "リソースを追跡しない場合の配色",
+	"colors.ignored": "リソースを無視する場合の配色",
+	"colors.conflict": "リソースが競合する場合の配色"
 }

@@ -53,17 +53,15 @@ import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { getPathLabel } from 'vs/base/common/labels';
-import { extractResources } from 'vs/base/browser/dnd';
+import { extractResources } from 'vs/workbench/browser/editor';
 
 export class FileDataSource implements IDataSource {
 	constructor(
 		@IProgressService private progressService: IProgressService,
 		@IMessageService private messageService: IMessageService,
 		@IFileService private fileService: IFileService,
-		@IPartService private partService: IPartService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IPartService private partService: IPartService
 	) { }
 
 	public getId(tree: ITree, stat: FileStat | Model): string {
@@ -277,6 +275,8 @@ export class FileRenderer implements IRenderer {
 	private static FILE_TEMPLATE_ID = 'file';
 
 	private state: FileViewletState;
+	private config: IFilesConfiguration;
+	private configListener: IDisposable;
 
 	constructor(
 		state: FileViewletState,
@@ -286,6 +286,16 @@ export class FileRenderer implements IRenderer {
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.state = state;
+		this.config = this.configurationService.getValue<IFilesConfiguration>();
+		this.configListener = this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('explorer')) {
+				this.config = this.configurationService.getValue();
+			}
+		});
+	}
+
+	dispose(): void {
+		this.configListener.dispose();
 	}
 
 	public getHeight(tree: ITree, element: any): number {
@@ -317,7 +327,7 @@ export class FileRenderer implements IRenderer {
 				hidePath: true,
 				fileKind: stat.isRoot ? FileKind.ROOT_FOLDER : stat.isDirectory ? FileKind.FOLDER : FileKind.FILE,
 				extraClasses,
-				fileDecorations: this.configurationService.getConfiguration<IFilesConfiguration>().explorer.decorations
+				fileDecorations: this.config.explorer.decorations
 			});
 		}
 
@@ -340,8 +350,7 @@ export class FileRenderer implements IRenderer {
 		// Input field for name
 		const inputBox = new InputBox(label.element, this.contextViewService, {
 			validationOptions: {
-				validation: editableData.validator,
-				showMessage: true
+				validation: editableData.validator
 			},
 			ariaLabel: nls.localize('fileInputAriaLabel', "Type file name. Press Enter to confirm or Escape to cancel.")
 		});
@@ -413,9 +422,7 @@ export class FileController extends DefaultController {
 	constructor(state: FileViewletState,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
@@ -683,10 +690,10 @@ export class FileFilter implements IFilter {
 	public updateConfiguration(): boolean {
 		let needsRefresh = false;
 		this.contextService.getWorkspace().folders.forEach(folder => {
-			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>({ resource: folder.uri });
+			const configuration = this.configurationService.getValue<IFilesConfiguration>({ resource: folder.uri });
 			const excludesConfig = (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
 			needsRefresh = needsRefresh || !objects.equals(this.hiddenExpressionPerRoot.get(folder.uri.toString()), excludesConfig);
-			this.hiddenExpressionPerRoot.set(folder.uri.toString(), objects.clone(excludesConfig)); // do not keep the config, as it gets mutated under our hoods
+			this.hiddenExpressionPerRoot.set(folder.uri.toString(), objects.deepClone(excludesConfig)); // do not keep the config, as it gets mutated under our hoods
 		});
 
 		return needsRefresh;
@@ -697,7 +704,7 @@ export class FileFilter implements IFilter {
 	}
 
 	private doIsVisible(stat: FileStat): boolean {
-		if (stat instanceof NewStatPlaceholder) {
+		if (stat instanceof NewStatPlaceholder || stat.isRoot) {
 			return true; // always visible
 		}
 
@@ -739,8 +746,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		@ITextFileService private textFileService: ITextFileService,
 		@IBackupFileService private backupFileService: IBackupFileService,
 		@IWindowService private windowService: IWindowService,
-		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
 	) {
 		super(stat => this.statToResource(stat));
 
@@ -902,7 +908,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			this.windowService.focusWindow();
 
 			// Handle folders by adding to workspace if we are in workspace context
-			const folders = result.filter(result => result.stat.isDirectory).map(result => ({ uri: result.stat.resource }));
+			const folders = result.filter(r => r.success && r.stat.isDirectory).map(result => ({ uri: result.stat.resource }));
 			if (folders.length > 0) {
 
 				// If we are in no-workspace context, ask for confirmation to create a workspace
@@ -945,7 +951,8 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 				checkbox: {
 					label: nls.localize('doNotAskAgain', "Do not ask me again")
 				},
-				type: 'question'
+				type: 'question',
+				primaryButton: nls.localize({ key: 'moveButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Move")
 			});
 		} else {
 			confirmPromise = TPromise.as({ confirmed: true } as IConfirmationResult);
@@ -1018,14 +1025,11 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 				// 3.) run the move operation
 				.then(() => {
 					const targetResource = target.resource.with({ path: paths.join(target.resource.path, source.name) });
-					let didHandleConflict = false;
 
 					return this.fileService.moveFile(source.resource, targetResource).then(null, error => {
 
 						// Conflict
 						if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
-							didHandleConflict = true;
-
 							const confirm: IConfirmation = {
 								message: nls.localize('confirmOverwriteMessage', "'{0}' already exists in the destination folder. Do you want to replace it?", source.name),
 								detail: nls.localize('irreversible', "This action is irreversible!"),

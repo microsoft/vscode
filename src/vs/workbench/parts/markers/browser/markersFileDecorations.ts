@@ -17,6 +17,7 @@ import Severity from 'vs/base/common/severity';
 import { editorErrorForeground, editorWarningForeground } from 'vs/editor/common/view/editorColorRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 class MarkersDecorationsProvider implements IDecorationsProvider {
 
@@ -80,7 +81,7 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 	}
 
 	private _updateEnablement(): void {
-		let value = this._configurationService.getConfiguration<{ decorations: { enabled: boolean } }>('problems');
+		let value = this._configurationService.getValue<{ decorations: { enabled: boolean } }>('problems');
 		if (value.decorations.enabled === this._enabled) {
 			return;
 		}
@@ -95,7 +96,7 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(MarkersFileDecorations);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(MarkersFileDecorations, LifecyclePhase.Running);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	'id': 'problems',

@@ -16,6 +16,8 @@ import strings = require('vs/base/common/strings');
 import extfs = require('vs/base/node/extfs');
 import { onError } from 'vs/base/test/common/utils';
 
+const ignore = () => { };
+
 suite('Extfs', () => {
 
 	test('mkdirp', function (done: () => void) {
@@ -30,7 +32,7 @@ suite('Extfs', () => {
 
 			assert.ok(fs.existsSync(newDir));
 
-			extfs.del(parentDir, os.tmpdir(), () => { }, done);
+			extfs.del(parentDir, os.tmpdir(), done, ignore);
 		}); // 493 = 0755
 	});
 
@@ -160,7 +162,7 @@ suite('Extfs', () => {
 				extfs.readdir(path.join(parentDir, 'extfs', id), (error, children) => {
 					assert.equal(children.some(n => n === 'öäü'), true); // Mac always converts to NFD, so
 
-					extfs.del(parentDir, os.tmpdir(), () => { }, done);
+					extfs.del(parentDir, os.tmpdir(), done, ignore);
 				});
 			}); // 493 = 0755
 		} else {
@@ -197,7 +199,7 @@ suite('Extfs', () => {
 
 					assert.equal(fs.readFileSync(testFile), largeString);
 
-					extfs.del(parentDir, os.tmpdir(), () => { }, done);
+					extfs.del(parentDir, os.tmpdir(), done, ignore);
 				});
 			});
 		});
@@ -228,7 +230,7 @@ suite('Extfs', () => {
 				assert.equal(real, newDir);
 			}
 
-			extfs.del(parentDir, os.tmpdir(), () => { }, done);
+			extfs.del(parentDir, os.tmpdir(), done, ignore);
 		});
 	});
 
@@ -243,7 +245,7 @@ suite('Extfs', () => {
 				assert.ok(realpath);
 				assert.ok(!error);
 
-				extfs.del(parentDir, os.tmpdir(), () => { }, done);
+				extfs.del(parentDir, os.tmpdir(), done, ignore);
 			});
 		});
 	});
@@ -262,7 +264,7 @@ suite('Extfs', () => {
 			}
 			assert.ok(realpath);
 
-			extfs.del(parentDir, os.tmpdir(), () => { }, done);
+			extfs.del(parentDir, os.tmpdir(), done, ignore);
 		});
 	});
 });

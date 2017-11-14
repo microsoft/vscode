@@ -664,8 +664,6 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 			};
 			this._eventEmitter.emit(textModelEvents.TextModelEventType.ModelContentChanged, e);
 		}
-
-		this._resetIndentRanges();
 	}
 
 	private _undo(): Selection[] {

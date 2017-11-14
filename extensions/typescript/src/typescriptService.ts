@@ -9,8 +9,9 @@ import * as Proto from './protocol';
 import API from './utils/api';
 import { TypeScriptServerPlugin } from './utils/plugins';
 import { TypeScriptServiceConfiguration } from './utils/configuration';
+import Logger from './utils/logger';
 
-export interface ITypescriptServiceClientHost {
+export interface ITypeScriptServiceClientHost {
 	syntaxDiagnosticsReceived(event: Proto.DiagnosticEvent): void;
 	semanticDiagnosticsReceived(event: Proto.DiagnosticEvent): void;
 	configFileDiagnosticsReceived(event: Proto.ConfigFileDiagnosticEvent): void;
@@ -18,27 +19,21 @@ export interface ITypescriptServiceClientHost {
 }
 
 
-export interface ITypescriptServiceClient {
+export interface ITypeScriptServiceClient {
 	normalizePath(resource: Uri): string | null;
 	asUrl(filepath: string): Uri;
 	getWorkspaceRootForResource(resource: Uri): string | undefined;
 
-	warn(message: string, data?: any): void;
-
 	onTsServerStarted: Event<void>;
-
 	onProjectLanguageServiceStateChanged: Event<Proto.ProjectLanguageServiceStateEventBody>;
 	onDidBeginInstallTypings: Event<Proto.BeginInstallTypesEventBody>;
 	onDidEndInstallTypings: Event<Proto.EndInstallTypesEventBody>;
 	onTypesInstallerInitializationFailed: Event<Proto.TypesInstallerInitializationFailedEventBody>;
 
-	logTelemetry(eventName: string, properties?: { [prop: string]: string }): void;
-
 	apiVersion: API;
-
 	plugins: TypeScriptServerPlugin[];
-
 	configuration: TypeScriptServiceConfiguration;
+	logger: Logger;
 
 	execute(command: 'configure', args: Proto.ConfigureRequestArguments, token?: CancellationToken): Promise<Proto.ConfigureResponse>;
 	execute(command: 'open', args: Proto.OpenRequestArgs, expectedResult: boolean, token?: CancellationToken): Promise<any>;

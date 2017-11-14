@@ -19,7 +19,7 @@ import extfs = require('vs/base/node/extfs');
 import encodingLib = require('vs/base/node/encoding');
 import utils = require('vs/workbench/services/files/test/node/utils');
 import { onError } from 'vs/base/test/common/utils';
-import { TestContextService, TestTextResourceConfigurationService, getRandomTestPath } from 'vs/workbench/test/workbenchTestServices';
+import { TestContextService, TestTextResourceConfigurationService, getRandomTestPath, TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
 import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
@@ -38,7 +38,7 @@ suite('FileService', () => {
 				return onError(error, done);
 			}
 
-			service = new FileService(new TestContextService(new Workspace(testDir, testDir, toWorkspaceFolders([{ path: testDir }]))), new TestTextResourceConfigurationService(), new TestConfigurationService(), { disableWatcher: true });
+			service = new FileService(new TestContextService(new Workspace(testDir, testDir, toWorkspaceFolders([{ path: testDir }]))), new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), { disableWatcher: true });
 			done();
 		});
 	});
@@ -524,7 +524,7 @@ suite('FileService', () => {
 
 	test('resolveFile', function (done: () => void) {
 		service.resolveFile(uri.file(testDir), { resolveTo: [uri.file(path.join(testDir, 'deep'))] }).done(r => {
-			assert.equal(r.children.length, 6);
+			assert.equal(r.children.length, 7);
 
 			const deep = utils.getByName(r, 'deep');
 			assert.equal(deep.children.length, 4);
@@ -540,7 +540,7 @@ suite('FileService', () => {
 		]).then(res => {
 			const r1 = res[0].stat;
 
-			assert.equal(r1.children.length, 6);
+			assert.equal(r1.children.length, 7);
 
 			const deep = utils.getByName(r1, 'deep');
 			assert.equal(deep.children.length, 4);
@@ -622,6 +622,16 @@ suite('FileService', () => {
 					});
 				});
 			});
+		}, error => onError(error, done));
+	});
+
+	test('resolveContent - large file', function (done: () => void) {
+		const resource = uri.file(path.join(testDir, 'lorem.txt'));
+
+		service.resolveContent(resource).done(c => {
+			assert.ok(c.value.length > 64000);
+
+			done();
 		}, error => onError(error, done));
 	});
 
@@ -784,7 +794,7 @@ suite('FileService', () => {
 
 			const textResourceConfigurationService = new TestTextResourceConfigurationService(configurationService);
 
-			const _service = new FileService(new TestContextService(new Workspace(_testDir, _testDir, toWorkspaceFolders([{ path: _testDir }]))), textResourceConfigurationService, configurationService, {
+			const _service = new FileService(new TestContextService(new Workspace(_testDir, _testDir, toWorkspaceFolders([{ path: _testDir }]))), textResourceConfigurationService, configurationService, new TestLifecycleService(), {
 				encodingOverride,
 				disableWatcher: true
 			});
@@ -811,7 +821,7 @@ suite('FileService', () => {
 		const _sourceDir = require.toUrl('./fixtures/service');
 		const resource = uri.file(path.join(testDir, 'index.html'));
 
-		const _service = new FileService(new TestContextService(new Workspace(_testDir, _testDir, toWorkspaceFolders([{ path: _testDir }]))), new TestTextResourceConfigurationService(), new TestConfigurationService(), {
+		const _service = new FileService(new TestContextService(new Workspace(_testDir, _testDir, toWorkspaceFolders([{ path: _testDir }]))), new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), {
 			disableWatcher: true
 		});
 

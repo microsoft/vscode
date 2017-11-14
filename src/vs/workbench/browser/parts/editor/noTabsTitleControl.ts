@@ -91,8 +91,11 @@ export class NoTabsTitleControl extends TitleControl {
 			this.closeEditorAction.run({ group, editor: group.activeEditor }).done(null, errors.onUnexpectedError);
 		}
 
-		// Focus editor group unless click on toolbar
-		else if (this.stacks.groups.length === 1 && !DOM.isAncestor((e.target || e.srcElement) as HTMLElement, this.editorActionsToolbar.getContainer().getHTMLElement())) {
+		// Focus editor group unless:
+		// - click on toolbar: should trigger actions within
+		// - mouse click: do not focus group if there are more than one as it otherwise makes group DND funky
+		// - touch: always focus
+		else if ((this.stacks.groups.length === 1 || !(e instanceof MouseEvent)) && !DOM.isAncestor((e.target || e.srcElement) as HTMLElement, this.editorActionsToolbar.getContainer().getHTMLElement())) {
 			this.editorGroupService.focusGroup(group);
 		}
 	}

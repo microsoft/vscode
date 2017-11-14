@@ -24,9 +24,10 @@ import { editorLineNumbers } from 'vs/editor/common/view/editorColorRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
-import { editorAction, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 const DIFF_LINES_PADDING = 3;
 
@@ -763,7 +764,6 @@ registerThemingParticipant((theme, collector) => {
 	}
 });
 
-@editorAction
 class DiffReviewNext extends EditorAction {
 	constructor() {
 		super({
@@ -778,7 +778,7 @@ class DiffReviewNext extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const diffEditor = findFocusedDiffEditor(accessor);
 		if (diffEditor) {
 			diffEditor.diffReviewNext();
@@ -786,7 +786,6 @@ class DiffReviewNext extends EditorAction {
 	}
 }
 
-@editorAction
 class DiffReviewPrev extends EditorAction {
 	constructor() {
 		super({
@@ -801,7 +800,7 @@ class DiffReviewPrev extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const diffEditor = findFocusedDiffEditor(accessor);
 		if (diffEditor) {
 			diffEditor.diffReviewPrev();
@@ -820,3 +819,6 @@ function findFocusedDiffEditor(accessor: ServicesAccessor): DiffEditorWidget {
 	}
 	return null;
 }
+
+registerEditorAction(DiffReviewNext);
+registerEditorAction(DiffReviewPrev);

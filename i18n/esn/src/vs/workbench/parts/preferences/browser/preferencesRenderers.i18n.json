@@ -14,5 +14,6 @@
 	"copyDefaultValue": "Copiar en Configuración",
 	"unsupportedPHPExecutablePathSetting": "Este valor debe estar en la configuración de usuario. Si quiere configurar PHP para el área de trabajo, abra un archivo PHP y haga clic en \"Ruta de acceso PHP\" en la barra de estado.",
 	"unsupportedWorkspaceSetting": "Este valor debe estar en Configuración de usuario.",
-	"unsupportedWorkbenchSetting": "Esta configuración no se puede aplicar ahora. Se aplicará al abrir esta carpeta directamente."
+	"unsupportedWorkbenchSetting": "Esta configuración no se puede aplicar ahora. Se aplicará al abrir esta carpeta directamente.",
+	"unsupportedWorkbenchSettingDevMode": "Esta configuración no se puede aplicar ahora. Se aplicará si se define su alcance como 'recurso' o al abrir esta carpeta directamente. "
 }

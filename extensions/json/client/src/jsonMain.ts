@@ -50,10 +50,6 @@ interface Settings {
 	};
 }
 
-interface JSONSettings {
-	schemas: JSONSchemaSettings[];
-}
-
 interface JSONSchemaSettings {
 	fileMatch?: string[];
 	url?: string;
@@ -148,7 +144,8 @@ export function activate(context: ExtensionContext) {
 			provideColorPresentations(color: Color, context): Thenable<ColorPresentation[]> {
 				let params: ColorPresentationParams = {
 					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(context.document),
-					colorInfo: { range: client.code2ProtocolConverter.asRange(context.range), color }
+					color: color,
+					range: client.code2ProtocolConverter.asRange(context.range)
 				};
 				return client.sendRequest(ColorPresentationRequest.type, params).then(presentations => {
 					return presentations.map(p => {
@@ -259,8 +256,8 @@ function getSettings(): Settings {
 					folderPath = folderPath + '/';
 				}
 				collectSchemaSettings(folderSchemas, folderUri.fsPath, folderPath + '*');
-			};
-		};
+			}
+		}
 	}
 	return settings;
 }

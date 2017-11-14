@@ -28,6 +28,7 @@
 	"command.checkout": "Checkout to...",
 	"command.branch": "Create Branch...",
 	"command.deleteBranch": "Delete Branch...",
+	"command.renameBranch": "Rename Branch...",
 	"command.merge": "Merge Branch...",
 	"command.createTag": "Create Tag",
 	"command.pull": "Pull",
@@ -37,9 +38,11 @@
 	"command.pushTo": "Push to...",
 	"command.pushWithTags": "Push With Tags",
 	"command.sync": "Sync",
+	"command.syncRebase": "Sync (Rebase)",
 	"command.publish": "Publish Branch",
 	"command.showOutput": "Show Git Output",
 	"command.ignore": "Add File to .gitignore",
+	"command.stashIncludeUntracked": "Stash (Include Untracked)",
 	"command.stash": "Stash",
 	"command.stashPop": "Pop Stash...",
 	"command.stashPopLatest": "Pop Latest Stash",
@@ -56,5 +59,11 @@
 	"config.defaultCloneDirectory": "The default location where to clone a git repository",
 	"config.enableSmartCommit": "Commit all changes when there are no staged changes.",
 	"config.enableCommitSigning": "Enables commit signing with GPG.",
-	"config.discardAllScope": "Controls what changes are discarded by the `Discard all changes` command. `all` discards all changes. `tracked` discards only tracked files. `prompt` shows a prompt dialog every time the action is run."
+	"config.discardAllScope": "Controls what changes are discarded by the `Discard all changes` command. `all` discards all changes. `tracked` discards only tracked files. `prompt` shows a prompt dialog every time the action is run.",
+	"config.decorations.enabled": "Controls if Git contributes colors and badges to the explorer and the open editors view.",
+	"colors.modified": "Color for modified resources.",
+	"colors.deleted": "Color for deleted resources.",
+	"colors.untracked": "Color for untracked resources.",
+	"colors.ignored": "Color for ignored resources.",
+	"colors.conflict": "Color for resources with conflicts."
 }

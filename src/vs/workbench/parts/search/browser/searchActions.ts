@@ -10,7 +10,6 @@ import resources = require('vs/base/common/resources');
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
-import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { INavigator } from 'vs/base/common/iterator';
@@ -18,7 +17,6 @@ import { SearchViewlet } from 'vs/workbench/parts/search/browser/searchViewlet';
 import { Match, FileMatch, FileMatchOrMatch, FolderMatch, RenderableMatch } from 'vs/workbench/parts/search/common/searchModel';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
-import { CollapseAllAction as TreeCollapseAction } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ResolvedKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
@@ -222,32 +220,6 @@ export class FocusPreviousInputAction extends Action {
 	}
 }
 
-export class OpenSearchViewletAction extends ToggleViewletAction {
-
-	public static LABEL = nls.localize('showSearchViewlet', "Show Search");
-
-	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
-		super(id, label, Constants.VIEWLET_ID, viewletService, editorService);
-	}
-
-	public run(): TPromise<any> {
-		const activeViewlet = this.viewletService.getActiveViewlet();
-		const searchViewletWasOpen = activeViewlet && activeViewlet.getId() === Constants.VIEWLET_ID;
-
-		return super.run().then(() => {
-			if (!searchViewletWasOpen) {
-				// Get the search viewlet and ensure that 'replace' is collapsed
-				const searchViewlet = this.viewletService.getActiveViewlet();
-				if (searchViewlet && searchViewlet.getId() === Constants.VIEWLET_ID) {
-					const searchAndReplaceWidget = (<SearchViewlet>searchViewlet).searchAndReplaceWidget;
-					searchAndReplaceWidget.toggleReplace(false);
-				}
-			}
-		});
-	}
-
-}
-
 export const FocusActiveEditorCommand = (accessor: ServicesAccessor) => {
 	const editorService = accessor.get(IWorkbenchEditorService);
 	const editor = editorService.getActiveEditor();
@@ -289,6 +261,8 @@ export abstract class FindOrReplaceInFilesAction extends Action {
 		});
 	}
 }
+
+export const SHOW_SEARCH_LABEL = nls.localize('showSearchViewlet', "Show Search");
 
 export class FindInFilesAction extends FindOrReplaceInFilesAction {
 
@@ -370,8 +344,8 @@ export class FindInWorkspaceAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.viewletService.openViewlet(Constants.VIEWLET_ID, true).then((viewlet: SearchViewlet) => {
-			viewlet.searchInFolder(null);
+		return this.viewletService.openViewlet(Constants.VIEWLET_ID, true).then(viewlet => {
+			(viewlet as SearchViewlet).searchInFolder(null);
 		});
 	}
 }
@@ -407,9 +381,9 @@ export const findInFolderCommand = (accessor: ServicesAccessor, resource?: URI) 
 		}
 	}
 
-	viewletService.openViewlet(Constants.VIEWLET_ID, true).then((viewlet: SearchViewlet) => {
+	viewletService.openViewlet(Constants.VIEWLET_ID, true).then(viewlet => {
 		if (resource) {
-			viewlet.searchInFolder(resource);
+			(viewlet as SearchViewlet).searchInFolder(resource);
 		}
 	}).done(null, errors.onUnexpectedError);
 };
@@ -431,11 +405,27 @@ export class RefreshAction extends Action {
 	}
 }
 
-export class CollapseAllAction extends TreeCollapseAction {
+export class CollapseDeepestExpandedLevelAction extends Action {
+	private viewer: ITree;
 
-	constructor(viewlet: SearchViewlet) {
-		super(viewlet.getControl(), false);
+	constructor(viewlet: SearchViewlet, enabled: boolean = false) {
+		super('vs.tree.collapse', nls.localize('collapse', "Collapse"), 'monaco-tree-action collapse-all', enabled);
+		this.viewer = viewlet.getControl();
 		this.class = 'search-action collapse';
+	}
+
+	public run(context?: any): TPromise<any> {
+		if (this.viewer.getHighlight()) {
+			return TPromise.as(null); // Global action disabled if user is in edit mode from another action
+		}
+
+		this.viewer.collapseDeepestExpandedLevel();
+		this.viewer.clearSelection();
+		this.viewer.clearFocus();
+		this.viewer.DOMFocus();
+		this.viewer.focusFirst();
+
+		return TPromise.as(null);
 	}
 }
 
@@ -465,8 +455,8 @@ export class FocusNextSearchResultAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		return this.viewletService.openViewlet(Constants.VIEWLET_ID).then((searchViewlet: SearchViewlet) => {
-			searchViewlet.selectNextMatch();
+		return this.viewletService.openViewlet(Constants.VIEWLET_ID).then(searchViewlet => {
+			(searchViewlet as SearchViewlet).selectNextMatch();
 		});
 	}
 }
@@ -480,8 +470,8 @@ export class FocusPreviousSearchResultAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		return this.viewletService.openViewlet(Constants.VIEWLET_ID).then((searchViewlet: SearchViewlet) => {
-			searchViewlet.selectPreviousMatch();
+		return this.viewletService.openViewlet(Constants.VIEWLET_ID).then(searchViewlet => {
+			(searchViewlet as SearchViewlet).selectPreviousMatch();
 		});
 	}
 }
@@ -503,10 +493,10 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 		let navigator: INavigator<any> = this.getNavigatorAt(element, viewer);
 		if (element instanceof FolderMatch) {
 			// If file match is removed then next element is the next file match
-			while (!!navigator.next() && !(navigator.current() instanceof FolderMatch)) { };
+			while (!!navigator.next() && !(navigator.current() instanceof FolderMatch)) { }
 		} else if (element instanceof FileMatch) {
 			// If file match is removed then next element is the next file match
-			while (!!navigator.next() && !(navigator.current() instanceof FileMatch)) { };
+			while (!!navigator.next() && !(navigator.current() instanceof FileMatch)) { }
 		} else {
 			navigator.next();
 		}
@@ -568,7 +558,6 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 
 	constructor(private viewer: ITree, private fileMatch: FileMatch, private viewlet: SearchViewlet,
-		@IReplaceService private replaceService: IReplaceService,
 		@IKeybindingService keyBindingService: IKeybindingService,
 		@ITelemetryService private telemetryService: ITelemetryService) {
 		super(Constants.ReplaceAllInFileActionId, appendKeyBindingLabel(nls.localize('file.replaceAll.label', "Replace All"), keyBindingService.lookupKeybinding(Constants.ReplaceAllInFileActionId), keyBindingService), 'action-replace-all');
@@ -587,6 +576,30 @@ export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 			this.viewer.DOMFocus();
 			this.viewlet.open(this.fileMatch, true);
 		});
+	}
+}
+
+export class ReplaceAllInFolderAction extends AbstractSearchAndReplaceAction {
+
+	constructor(private viewer: ITree, private folderMatch: FolderMatch,
+		@IKeybindingService keyBindingService: IKeybindingService,
+		@ITelemetryService private telemetryService: ITelemetryService
+	) {
+		super(Constants.ReplaceAllInFolderActionId, nls.localize('file.replaceAll.label', "Replace All"), 'action-replace-all');
+	}
+
+	public async run(): TPromise<any> {
+		/* __GDPR__
+			"replaceAllInFolder.action.selected" : {}
+		*/
+		this.telemetryService.publicLog('replaceAllInFolder.action.selected');
+		let nextFocusElement = this.getElementToFocusAfterRemoved(this.viewer, this.folderMatch);
+		await this.folderMatch.replaceAll();
+
+		if (nextFocusElement) {
+			this.viewer.setFocus(nextFocusElement);
+		}
+		this.viewer.DOMFocus();
 	}
 }
 

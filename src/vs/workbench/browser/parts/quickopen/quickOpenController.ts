@@ -98,7 +98,6 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	private promisesToCompleteOnHide: ValueCallback[];
 	private previousActiveHandlerDescriptor: QuickOpenHandlerDescriptor;
 	private actionProvider = new ContributableActionProvider();
-	private previousValue = '';
 	private visibilityChangeTimeoutHandle: number;
 	private closeOnFocusLost: boolean;
 	private editorHistoryHandler: EditorHistoryHandler;
@@ -107,10 +106,8 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IHistoryService private historyService: IHistoryService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
 		@IListService private listService: IListService,
@@ -196,29 +193,32 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 				valueSelection: options.valueSelection,
 				inputDecoration: currentDecoration,
 				onDidType: (value) => {
-					lastValue = value;
+					if (lastValue !== value) {
 
-					if (options.validateInput) {
-						if (currentValidation) {
-							currentValidation.cancel();
-						}
+						lastValue = value;
 
-						currentValidation = TPromise.timeout(100).then(() => {
-							return options.validateInput(value).then(message => {
-								currentDecoration = !!message ? Severity.Error : void 0;
-								const newPick = message || defaultMessage;
-								if (newPick !== currentPick) {
-									options.valueSelection = [lastValue.length, lastValue.length];
-									currentPick = newPick;
-									resolve(new TPromise<any>(init));
-								}
+						if (options.validateInput) {
+							if (currentValidation) {
+								currentValidation.cancel();
+							}
 
-								return !message;
+							currentValidation = TPromise.timeout(100).then(() => {
+								return options.validateInput(value).then(message => {
+									currentDecoration = !!message ? Severity.Error : void 0;
+									const newPick = message || defaultMessage;
+									if (newPick !== currentPick) {
+										options.valueSelection = [lastValue.length, lastValue.length];
+										currentPick = newPick;
+										resolve(new TPromise<any>(init));
+									}
+
+									return !message;
+								});
+							}, err => {
+								// ignore
+								return null;
 							});
-						}, err => {
-							// ignore
-							return null;
-						});
+						}
 					}
 				}
 			}, token).then(resolve, reject);
@@ -548,8 +548,6 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		let inputSelection = options ? options.inputSelection : void 0;
 		let autoFocus = options ? options.autoFocus : void 0;
 
-		this.previousValue = prefix;
-
 		const promiseCompletedOnHide = new TPromise<void>(c => {
 			this.promisesToCompleteOnHide.push(c);
 		});
@@ -744,7 +742,6 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	}
 
 	private onType(value: string): void {
-		this.previousValue = value;
 
 		// look for a handler
 		const registry = Registry.as<IQuickOpenRegistry>(Extensions.Quickopen);
@@ -1173,7 +1170,6 @@ class EditorHistoryHandler {
 	constructor(
 		@IHistoryService private historyService: IHistoryService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IFileService private fileService: IFileService
 	) {
 		this.scorerCache = Object.create(null);
@@ -1262,7 +1258,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IFileService private fileService: IFileService
+		@IFileService fileService: IFileService
 	) {
 		super(editorService);
 
@@ -1319,7 +1315,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 	public run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
 			const sideBySide = !context.quickNavigateConfiguration && context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
-			const pinned = !this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen;
+			const pinned = !this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen;
 
 			if (this.input instanceof EditorInput) {
 				this.editorService.openEditor(this.input, { pinned }, sideBySide).done(null, errors.onUnexpectedError);

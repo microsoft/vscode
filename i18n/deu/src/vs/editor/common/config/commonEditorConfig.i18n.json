@@ -47,6 +47,7 @@
 	"autoClosingBrackets": "Steuert, ob der Editor Klammern automatisch nach dem Öffnen schließt.",
 	"formatOnType": "Steuert, ob der Editor Zeilen automatisch nach der Eingabe formatiert.",
 	"formatOnPaste": "Steuert, ob der Editor den eingefügten Inhalt automatisch formatiert.",
+	"autoIndent": "Steuert, ob der Editor die Einzüge automatisch anpasst, wenn Benutzer Text eingeben oder Zeilen einfügen oder verschieben. Einzugsregeln der Sprache müssen verfügbar sein. ",
 	"suggestOnTriggerCharacters": "Steuert, ob Vorschläge automatisch bei der Eingabe von Triggerzeichen angezeigt werden.",
 	"acceptSuggestionOnEnter": "Steuert, ob Vorschläge über die Eingabetaste (zusätzlich zur TAB-Taste) angenommen werden sollen. Vermeidet Mehrdeutigkeit zwischen dem Einfügen neuer Zeilen oder dem Annehmen von Vorschlägen. Der Wert \"smart\" bedeutet, dass ein Vorschlag nur über die Eingabetaste akzeptiert wird, wenn eine Textänderung vorgenommen wird.",
 	"acceptSuggestionOnCommitCharacter": "Steuert, ob Vorschläge über Commitzeichen angenommen werden sollen. In JavaScript kann ein Semikolon (\";\") beispielsweise ein Commitzeichen sein, das einen Vorschlag annimmt und dieses Zeichen eingibt.",

@@ -17,14 +17,12 @@ export class ViewModel implements debug.IViewModel {
 	private _onDidSelectExpression: Emitter<debug.IExpression>;
 	private _onDidSelectFunctionBreakpoint: Emitter<debug.IFunctionBreakpoint>;
 	private multiProcessView: boolean;
-	public changedWorkbenchViewState: boolean;
 
 	constructor() {
 		this._onDidFocusProcess = new Emitter<debug.IProcess | undefined>();
 		this._onDidFocusStackFrame = new Emitter<{ stackFrame: debug.IStackFrame, explicit: boolean }>();
 		this._onDidSelectExpression = new Emitter<debug.IExpression>();
 		this._onDidSelectFunctionBreakpoint = new Emitter<debug.IFunctionBreakpoint>();
-		this.changedWorkbenchViewState = false;
 		this.multiProcessView = false;
 	}
 

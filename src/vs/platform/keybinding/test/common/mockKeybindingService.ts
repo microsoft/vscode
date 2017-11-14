@@ -7,19 +7,17 @@
 import { ResolvedKeybinding, Keybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import Event from 'vs/base/common/event';
 import { IKeybindingService, IKeybindingEvent, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { IContextKey, IContextKeyService, IContextKeyServiceTarget, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService, IContextKeyServiceTarget, ContextKeyExpr, IContextKeyChangeEvent } from 'vs/platform/contextkey/common/contextkey';
 import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { OS } from 'vs/base/common/platform';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 class MockKeybindingContextKey<T> implements IContextKey<T> {
-	private _key: string;
 	private _defaultValue: T;
 	private _value: T;
 
-	constructor(key: string, defaultValue: T) {
-		this._key = key;
+	constructor(defaultValue: T) {
 		this._defaultValue = defaultValue;
 		this._value = this._defaultValue;
 	}
@@ -46,14 +44,14 @@ export class MockContextKeyService implements IContextKeyService {
 		//
 	}
 	public createKey<T>(key: string, defaultValue: T): IContextKey<T> {
-		let ret = new MockKeybindingContextKey(key, defaultValue);
+		let ret = new MockKeybindingContextKey(defaultValue);
 		this._keys.set(key, ret);
 		return ret;
 	}
 	public contextMatchesRules(rules: ContextKeyExpr): boolean {
 		return false;
 	}
-	public get onDidChangeContext(): Event<string[]> {
+	public get onDidChangeContext(): Event<IContextKeyChangeEvent> {
 		return Event.None;
 	}
 	public getContextKeyValue(key: string) {

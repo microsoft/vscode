@@ -291,7 +291,9 @@ export class CompositeOverflowActivityAction extends ActivityAction {
 }
 
 export class CompositeOverflowActivityActionItem extends ActivityActionItem {
+	// @ts-ignore unused property
 	private name: string;
+	// @ts-ignore unused property
 	private cssClass: string;
 	private actions: Action[];
 
@@ -302,6 +304,7 @@ export class CompositeOverflowActivityActionItem extends ActivityActionItem {
 		private getBadge: (compositeId: string) => IBadge,
 		private getCompositeOpenAction: (compositeId: string) => Action,
 		colors: ICompositeBarColors,
+		// @ts-ignore unused injected service
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IThemeService themeService: IThemeService
@@ -400,8 +403,7 @@ export class CompositeActionItem extends ActivityActionItem {
 	protected get activity(): IActivity {
 		if (!this.compositeActivity) {
 			let activityName: string;
-
-			const keybinding = this.getKeybindingLabel(this.compositeActivityAction.activity.id);
+			const keybinding = this.getKeybindingLabel(this.compositeActivityAction.activity.keybindingId);
 			if (keybinding) {
 				activityName = nls.localize('titleKeybinding', "{0} ({1})", this.compositeActivityAction.activity.name, keybinding);
 			} else {

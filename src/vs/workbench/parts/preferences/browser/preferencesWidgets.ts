@@ -444,7 +444,6 @@ export class SearchWidget extends Widget {
 
 	constructor(parent: HTMLElement, protected options: SearchOptions,
 		@IContextViewService private contextViewService: IContextViewService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService
 	) {
@@ -593,7 +592,7 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 	constructor(
 		private editor: ICodeEditor,
 		private label: string,
-		private keyBindingAction: string,
+		keyBindingAction: string,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IThemeService private themeService: IThemeService
 	) {

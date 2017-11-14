@@ -10,5 +10,6 @@
 	"close": "Cerrar",
 	"enterWorkspace.close": "Cerrar",
 	"enterWorkspace.dontShowAgain": "No volver a mostrar",
-	"enterWorkspace.moreInfo": "Más información"
+	"enterWorkspace.moreInfo": "Más información",
+	"enterWorkspace.prompt": "Obtenga más información acerca de cómo trabajar con varias carpetas en VS Code. "
 }

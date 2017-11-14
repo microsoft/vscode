@@ -25,6 +25,6 @@
     "spectron": "^3.7.2",
     "strip-json-comments": "^2.0.1",
     "tmp": "0.0.33",
-    "typescript": "^2.2.2"
+    "typescript": "2.5.2"
   }
 }

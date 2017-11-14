@@ -30,9 +30,9 @@ import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleCon
 import { TitleControl, ITitleAreaControl, handleWorkspaceExternalDrop } from 'vs/workbench/browser/parts/editor/titleControl';
 import { NoTabsTitleControl } from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
 import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup, EditorOptions, TextEditorOptions, IEditorIdentifier } from 'vs/workbench/common/editor';
-import { extractResources } from 'vs/base/browser/dnd';
+import { extractResources } from 'vs/workbench/browser/editor';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
-import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
+import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Themable, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, EDITOR_GROUP_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BORDER } from 'vs/workbench/common/theme';
@@ -2038,7 +2038,9 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 		// Layout title controls
 		POSITIONS.forEach(position => {
-			this.getTitleAreaControl(position).layout();
+			const siloWidth = this.layoutVertically ? this.silosSize[position] : this.dimension.width;
+
+			this.getTitleAreaControl(position).layout(new Dimension(siloWidth, EditorGroupsControl.EDITOR_TITLE_HEIGHT));
 		});
 
 		// Update minimized state

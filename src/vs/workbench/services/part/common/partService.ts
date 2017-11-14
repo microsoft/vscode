@@ -25,6 +25,7 @@ export enum Position {
 
 export interface ILayoutOptions {
 	toggleMaximizedPanel?: boolean;
+	source?: Parts;
 }
 
 export const IPartService = createDecorator<IPartService>('partService');
@@ -51,11 +52,6 @@ export interface IPartService {
 	 * Asks the part service to if all parts have been created.
 	 */
 	isCreated(): boolean;
-
-	/**
-	 * Promise is complete when all parts have been created.
-	 */
-	joinCreation(): TPromise<boolean>;
 
 	/**
 	 * Returns whether the given part has the keyboard focus or not.

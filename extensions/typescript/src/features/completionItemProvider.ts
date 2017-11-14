@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, TextEdit, Range, SnippetString, workspace, ProviderResult, CompletionContext, commands, Uri } from 'vscode';
+import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, TextEdit, Range, SnippetString, workspace, ProviderResult, CompletionContext, Uri, MarkdownString } from 'vscode';
 
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
 import TypingsStatus from '../utils/typingsStatus';
 
 import * as PConst from '../protocol.const';
@@ -16,10 +16,12 @@ import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/conver
 import * as nls from 'vscode-nls';
 import { applyCodeAction } from '../utils/codeAction';
 import * as languageModeIds from '../utils/languageModeIds';
+import { CommandManager, Command } from '../utils/commandManager';
 
 let localize = nls.loadMessageBundle();
 
 class MyCompletionItem extends CompletionItem {
+	public readonly source: string | undefined;
 	constructor(
 		public readonly position: Position,
 		public readonly document: TextDocument,
@@ -28,6 +30,7 @@ class MyCompletionItem extends CompletionItem {
 		public readonly useCodeSnippetsOnMethodSuggest: boolean
 	) {
 		super(entry.name);
+		this.source = entry.source;
 		this.sortText = entry.sortText;
 		this.kind = MyCompletionItem.convertKind(entry.kind);
 		this.position = position;
@@ -123,6 +126,24 @@ class MyCompletionItem extends CompletionItem {
 	}
 }
 
+class ApplyCompletionCodeActionCommand implements Command {
+	public static readonly ID = '_typescript.applyCompletionCodeAction';
+	public readonly id = ApplyCompletionCodeActionCommand.ID;
+
+	public constructor(
+		private readonly client: ITypeScriptServiceClient
+	) { }
+
+	public async execute(file: string, codeActions: CodeAction[]): Promise<boolean> {
+		for (const action of codeActions) {
+			if (!(await applyCodeAction(this.client, action, file))) {
+				return false;
+			}
+		}
+		return true;
+	}
+}
+
 interface Configuration {
 	useCodeSnippetsOnMethodSuggest: boolean;
 	nameSuggestions: boolean;
@@ -139,15 +160,12 @@ namespace Configuration {
 }
 
 export default class TypeScriptCompletionItemProvider implements CompletionItemProvider {
-	private readonly commandId: string;
-
 	constructor(
-		private client: ITypescriptServiceClient,
-		mode: string,
-		private typingsStatus: TypingsStatus
+		private client: ITypeScriptServiceClient,
+		private readonly typingsStatus: TypingsStatus,
+		commandManager: CommandManager
 	) {
-		this.commandId = `_typescript.applyCompletionCodeAction.${mode}`;
-		commands.registerCommand(this.commandId, this.applyCompletionCodeAction, this);
+		commandManager.register(new ApplyCompletionCodeActionCommand(this.client));
 	}
 
 	public async provideCompletionItems(
@@ -193,7 +211,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 
 			// make sure we are in something that looks like an import path
 			const line = document.lineAt(position.line).text.slice(0, position.character);
-			if (!line.match(/\bfrom\s*["'][^'"]*$/) && !line.match(/\b(import|require)\(['"][^'"]*$/)) {
+			if (!line.match(/\b(from|import)\s*["'][^'"]*$/) && !line.match(/\b(import|require)\(['"][^'"]*$/)) {
 				return [];
 			}
 		}
@@ -207,7 +225,10 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		}
 
 		try {
-			const args: CompletionsRequestArgs = vsPositionToTsFileLocation(file, position);
+			const args = {
+				...vsPositionToTsFileLocation(file, position),
+				includeExternalModuleExports: config.autoImportSuggestions
+			} as CompletionsRequestArgs;
 			const msg = await this.client.execute('completions', args, token);
 			// This info has to come from the tsserver. See https://github.com/Microsoft/TypeScript/issues/2831
 			// let isMemberCompletion = false;
@@ -270,7 +291,9 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		}
 		const args: CompletionDetailsRequestArgs = {
 			...vsPositionToTsFileLocation(filepath, item.position),
-			entryNames: [item.label]
+			entryNames: [
+				item.source ? { name: item.label, source: item.source } : item.label
+			]
 		};
 		return this.client.execute('completionEntryDetails', args, token).then((response) => {
 			const details = response.body;
@@ -279,12 +302,32 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			}
 			const detail = details[0];
 			item.detail = Previewer.plain(detail.displayParts);
-			item.documentation = Previewer.markdownDocumentation(detail.documentation, detail.tags);
+			const documentation = new MarkdownString();
+			if (item.source) {
+				let importPath = `'${item.source}'`;
+				// Try to resolve the real import name that will be added
+				if (detail.codeActions && detail.codeActions[0]) {
+					const action = detail.codeActions[0];
+					if (action.changes[0] && action.changes[0].textChanges[0]) {
+						const textChange = action.changes[0].textChanges[0];
+						const matchedImport = textChange.newText.match(/(['"])(.+?)\1/);
+						if (matchedImport) {
+							importPath = matchedImport[0];
+							item.detail += ` — from ${matchedImport[0]}`;
+						}
+					}
+				}
+				documentation.appendMarkdown(localize('autoImportLabel', 'Auto import from {0}', importPath));
+				documentation.appendMarkdown('\n\n');
+			}
+
+			Previewer.addmarkdownDocumentation(documentation, detail.documentation, detail.tags);
+			item.documentation = documentation;
 
 			if (detail.codeActions && detail.codeActions.length) {
 				item.command = {
 					title: '',
-					command: this.commandId,
+					command: ApplyCompletionCodeActionCommand.ID,
 					arguments: [filepath, detail.codeActions]
 				};
 			}
@@ -350,16 +393,6 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 
 		return new SnippetString(codeSnippet);
 	}
-
-	private async applyCompletionCodeAction(file: string, codeActions: CodeAction[]): Promise<boolean> {
-		for (const action of codeActions) {
-			if (!(await applyCodeAction(this.client, action, file))) {
-				return false;
-			}
-		}
-		return true;
-	}
-
 
 	private getConfiguration(resource: Uri): Configuration {
 		// Use shared setting for js and ts

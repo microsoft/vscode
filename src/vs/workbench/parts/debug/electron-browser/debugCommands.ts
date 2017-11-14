@@ -9,7 +9,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import severity from 'vs/base/common/severity';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import * as errors from 'vs/base/common/errors';
-import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IListService } from 'vs/platform/list/browser/listService';
@@ -19,6 +18,7 @@ import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_
 import { Expression, Variable, Breakpoint, FunctionBreakpoint } from 'vs/workbench/parts/debug/common/debugModel';
 import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export function registerCommands(): void {
 
@@ -172,7 +172,7 @@ export function registerCommands(): void {
 
 			return launch.openConfigFile(false).done(editor => {
 				if (editor) {
-					const codeEditor = <ICommonCodeEditor>editor.getControl();
+					const codeEditor = <ICodeEditor>editor.getControl();
 					if (codeEditor) {
 						return codeEditor.getContribution<IDebugEditorContribution>(EDITOR_CONTRIBUTION_ID).addLaunchConfiguration();
 					}

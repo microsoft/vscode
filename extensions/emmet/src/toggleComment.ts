@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { getNodesInBetween, getNode, parseDocument, sameNodes } from './util';
+import { getNodesInBetween, getNode, parseDocument, sameNodes, isStyleSheet, validate } from './util';
 import { Node, Stylesheet, Rule, HtmlNode } from 'EmmetNode';
-import { isStyleSheet } from 'vscode-emmet-helper';
 import parseStylesheet from '@emmetio/css-parser';
 import { DocumentStreamReader } from './bufferStream';
 
@@ -15,14 +14,12 @@ const endCommentStylesheet = '*/';
 const startCommentHTML = '<!--';
 const endCommentHTML = '-->';
 
-export function toggleComment(): Thenable<boolean> {
-	let editor = vscode.window.activeTextEditor;
-	if (!editor) {
-		vscode.window.showInformationMessage('No editor is active');
+export function toggleComment(): Thenable<boolean> | undefined {
+	if (!validate() || !vscode.window.activeTextEditor) {
 		return;
 	}
-
-	let toggleCommentInternal;
+	const editor = vscode.window.activeTextEditor;
+	let toggleCommentInternal: (document: vscode.TextDocument, selection: vscode.Selection, rootNode: Node) => vscode.TextEdit[];
 
 	if (isStyleSheet(editor.document.languageId)) {
 		toggleCommentInternal = toggleCommentStylesheet;

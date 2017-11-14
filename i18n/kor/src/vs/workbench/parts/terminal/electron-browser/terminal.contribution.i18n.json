@@ -17,6 +17,7 @@
 	"terminal.integrated.fontFamily": "터미널의 글꼴 패밀리를 제어하며, 기본값은 editor.fontFamily의 값입니다.",
 	"terminal.integrated.fontSize": "터미널의 글꼴 크기(픽셀)를 제어합니다.",
 	"terminal.integrated.lineHeight": "터미널의 줄 높이를 제어하며, 이 숫자는 터미널 글꼴 크기를 곱하여 실제 줄 높이(픽셀)를 얻습니다.",
+	"terminal.integrated.enableBold": "터미널 내에서 굵은 텍스트를 사용하도록 설정할지 여부이며, 터미널 셸의 지원이 필요합니다.",
 	"terminal.integrated.cursorBlinking": "터미널 커서 깜박임 여부를 제어합니다.",
 	"terminal.integrated.cursorStyle": "터미널 커서의 스타일을 제어합니다.",
 	"terminal.integrated.scrollback": "터미널에서 버퍼에 유지하는 최대 줄 수를 제어합니다.",

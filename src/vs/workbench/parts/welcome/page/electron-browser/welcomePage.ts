@@ -10,7 +10,6 @@ import * as path from 'path';
 import * as arrays from 'vs/base/common/arrays';
 import { WalkThroughInput } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughInput';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Position } from 'vs/platform/editor/common/editor';
@@ -22,7 +21,6 @@ import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configur
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExperimentService } from 'vs/platform/telemetry/common/experiments';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Schemas } from 'vs/base/common/network';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -33,7 +31,7 @@ import { used } from 'vs/workbench/parts/welcome/page/electron-browser/vs_code_w
 import { ILifecycleService, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { tildify } from 'vs/base/common/labels';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor, focusBorder, textLinkForeground, textLinkActiveForeground, foreground, descriptionForeground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughUtils';
 import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
@@ -50,7 +48,6 @@ const telemetryFrom = 'welcomePage';
 export class WelcomePageContribution implements IWorkbenchContribution {
 
 	constructor(
-		@IPartService partService: IPartService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
@@ -61,10 +58,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 	) {
 		const enabled = isWelcomePageEnabled(configurationService);
 		if (enabled && lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
-			TPromise.join([
-				backupFileService.hasBackups(),
-				partService.joinCreation()
-			]).then(([hasBackups]) => {
+			backupFileService.hasBackups().then(hasBackups => {
 				const activeInput = editorService.getActiveEditorInput();
 				if (!activeInput && !hasBackups) {
 					return instantiationService.createInstance(WelcomePage)
@@ -122,7 +116,7 @@ interface ExtensionSuggestion {
 const extensionPacks: ExtensionSuggestion[] = [
 	{ name: localize('welcomePage.javaScript', "JavaScript"), id: 'dbaeumer.vscode-eslint' },
 	{ name: localize('welcomePage.typeScript', "TypeScript"), id: 'eg2.tslint' },
-	{ name: localize('welcomePage.python', "Python"), id: 'donjayamanne.python' },
+	{ name: localize('welcomePage.python', "Python"), id: 'ms-python.python' },
 	// { name: localize('welcomePage.go', "Go"), id: 'lukehoban.go' },
 	{ name: localize('welcomePage.php', "PHP"), id: 'felixfbecker.php-pack' },
 	{ name: localize('welcomePage.azure', "Azure"), title: localize('welcomePage.showAzureExtensions', "Show Azure extensions"), id: 'workbench.extensions.action.showAzureExtensions', isCommand: true },
@@ -243,8 +237,6 @@ class WelcomePage {
 		@IExtensionTipsService private tipsService: IExtensionTipsService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IThemeService private themeService: IThemeService,
-		@IExperimentService private experimentService: IExperimentService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		this.disposables.push(lifecycleService.onShutdown(() => this.dispose()));
@@ -358,7 +350,7 @@ class WelcomePage {
 					this.updateInstalledExtensions(container, installedExtensions);
 					break;
 				}
-			};
+			}
 		}));
 	}
 

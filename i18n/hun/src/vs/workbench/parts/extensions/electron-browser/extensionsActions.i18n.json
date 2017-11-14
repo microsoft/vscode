@@ -6,6 +6,8 @@
 {
 	"openExtensionsFolder": "Kiegészítők mappájának megnyitása",
 	"installVSIX": "Telepítés VSIX-ből...",
+	"installFromVSIX": "Telepítés VSIX-ből",
+	"installButton": "&&Telepítés",
 	"InstallVSIXAction.success": "A kiegészítő sikeresen fel lett telepítve. Indítsa újra az engedélyezéshez.",
 	"InstallVSIXAction.reloadNow": "Újratöltés most"
 }

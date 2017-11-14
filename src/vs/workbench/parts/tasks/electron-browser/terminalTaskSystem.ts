@@ -27,7 +27,6 @@ import { ProblemMatcher, ProblemMatcherRegistry /*, ProblemPattern, getResource 
 
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { ITerminalService, ITerminalInstance, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { IOutputService, IOutputChannel } from 'vs/workbench/parts/output/common/output';
@@ -37,11 +36,6 @@ import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, ITaskResolver,
 	TelemetryEvent, Triggers, TaskSystemEvents, TaskEvent, TaskType, TaskTerminateResponse
 } from 'vs/workbench/parts/tasks/common/taskSystem';
-
-interface PrimaryTerminal {
-	terminal: ITerminalInstance;
-	busy: boolean;
-}
 
 interface TerminalData {
 	terminal: ITerminalInstance;
@@ -68,7 +62,6 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		private markerService: IMarkerService, private modelService: IModelService,
 		private configurationResolverService: IConfigurationResolverService,
 		private telemetryService: ITelemetryService,
-		private workbenchEditorService: IWorkbenchEditorService,
 		private contextService: IWorkspaceContextService,
 		outputChannelId: string) {
 		super();
@@ -152,7 +145,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		let activeTerminal = this.activeTasks[Task.getMapKey(task)];
 		if (!activeTerminal) {
 			return TPromise.as<TaskTerminateResponse>({ success: false, task: undefined });
-		};
+		}
 		return new TPromise<TaskTerminateResponse>((resolve, reject) => {
 			let terminal = activeTerminal.terminal;
 			const onExit = terminal.onExit(() => {
@@ -396,8 +389,12 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 		let terminalName = nls.localize('TerminalTaskSystem.terminalName', 'Task - {0}', needsFolderQualification ? Task.getQualifiedLabel(task) : task.name);
 		let waitOnExit: boolean | string = false;
 		if (task.command.presentation.reveal !== RevealKind.Never || !task.isBackground) {
-			waitOnExit = nls.localize('reuseTerminal', 'Terminal will be reused by tasks, press any key to close it.');
-		};
+			if (task.command.presentation.panel === PanelKind.New) {
+				waitOnExit = nls.localize('closeTerminal', 'Press any key to close the terminal.');
+			} else {
+				waitOnExit = nls.localize('reuseTerminal', 'Terminal will be reused by tasks, press any key to close it.');
+			}
+		}
 		let shellLaunchConfig: IShellLaunchConfig = undefined;
 		let isShellCommand = task.command.runtime === RuntimeType.Shell;
 		if (isShellCommand) {
@@ -408,10 +405,10 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			let shellSpecified: boolean = false;
 			let shellOptions: ShellConfiguration = task.command.options && task.command.options.shell;
 			if (shellOptions && shellOptions.executable) {
-				shellLaunchConfig.executable = shellOptions.executable;
+				shellLaunchConfig.executable = this.resolveVariable(task, shellOptions.executable);
 				shellSpecified = true;
 				if (shellOptions.args) {
-					shellLaunchConfig.args = shellOptions.args.slice();
+					shellLaunchConfig.args = this.resolveVariables(task, shellOptions.args.slice());
 				} else {
 					shellLaunchConfig.args = [];
 				}
@@ -487,7 +484,15 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			}
 		}
 		if (options.cwd) {
-			shellLaunchConfig.cwd = options.cwd;
+			let cwd = options.cwd;
+			if (!path.isAbsolute(cwd)) {
+				let workspaceFolder = Task.getWorkspaceFolder(task);
+				if (workspaceFolder.uri.scheme === 'file') {
+					cwd = path.join(workspaceFolder.uri.fsPath, cwd);
+				}
+			}
+			// This must be normalized to the OS
+			shellLaunchConfig.cwd = path.normalize(cwd);
 		}
 		if (options.env) {
 			shellLaunchConfig.env = options.env;
@@ -602,7 +607,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			if (!matcher.filePrefix) {
 				result.push(matcher);
 			} else {
-				let copy = Objects.clone(matcher);
+				let copy = Objects.deepClone(matcher);
 				copy.filePrefix = this.resolveVariable(task, copy.filePrefix);
 				result.push(copy);
 			}

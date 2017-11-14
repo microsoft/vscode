@@ -1715,6 +1715,14 @@ declare module 'vscode' {
 	/**
 	 * A file glob pattern to match file paths against. This can either be a glob pattern string
 	 * (like `**∕*.{ts,js}` or `*.{ts,js}`) or a [relative pattern](#RelativePattern).
+	 *
+	 * Glob patterns can have the following syntax:
+	 * * `*` to match one or more characters in a path segment
+	 * * `?` to match on one character in a path segment
+	 * * `**` to match any number of path segments, including none
+	 * * `{}` to group conditions (e.g. `**∕*.{ts,js}` matches all TypeScript and JavaScript files)
+	 * * `[]` to declare a range of characters to match in a path segment (e.g., `example.[0-9]` to match on `example.0`, `example.1`, …)
+	 * * `[!...]` to negate a range of characters to match in a path segment (e.g., `example.[!0-9]` to match on `example.a`, `example.b`, but not `example.0`)
 	 */
 	export type GlobPattern = string | RelativePattern;
 
@@ -1791,7 +1799,6 @@ declare module 'vscode' {
 	 * a [code action](#CodeActionProvider.provideCodeActions) is run.
 	 */
 	export interface CodeActionContext {
-
 		/**
 		 * An array of diagnostics.
 		 */
@@ -5211,34 +5218,6 @@ declare module 'vscode' {
 		export const onDidChangeWorkspaceFolders: Event<WorkspaceFoldersChangeEvent>;
 
 		/**
-		 * Adds a workspace folder to the currently opened workspace.
-		 *
-		 * This method will be a no-op if the folder is already part of the workspace.
-		 *
-		 * Note: if this workspace had no folder opened, all extensions will be restarted
-		 * so that the (deprecated) `rootPath` property is updated to point to the first workspace
-		 * folder.
-		 *
-		 * @param folder a workspace folder to add.
-		 * @return A thenable that resolves when the workspace folder was added successfully.
-		 */
-		export function addWorkspaceFolder(uri: Uri, name?: string): Thenable<boolean>;
-
-		/**
-		 * Remove a workspace folder from the currently opened workspace.
-		 *
-		 * This method will be a no-op when called while not having a workspace opened.
-		 *
-		 * Note: if the first workspace folder is removed, all extensions will be restarted
-		 * so that the (deprecated) `rootPath` property is updated to point to the first workspace
-		 * folder.
-		 *
-		 * @param folder a [workspace folder](#WorkspaceFolder) to remove.
-		 * @return A thenable that resolves when the workspace folder was removed successfully
-		 */
-		export function removeWorkspaceFolder(folder: WorkspaceFolder): Thenable<boolean>;
-
-		/**
 		 * Returns the [workspace folder](#WorkspaceFolder) that contains a given uri.
 		 * * returns `undefined` when the given uri doesn't match any workspace folder
 		 * * returns the *input* when the given uri is a workspace folder itself
@@ -5445,11 +5424,11 @@ declare module 'vscode' {
 	export interface ConfigurationChangeEvent {
 
 		/**
-		 * Returns `true` if the given section for the given resource (if provided) has affected.
+		 * Returns `true` if the given section for the given resource (if provided) is affected.
 		 *
 		 * @param section Configuration name, supports _dotted_ names.
 		 * @param resource A resource Uri.
-		 * @return `true` if the given section for the given resource (if provided) has affected.
+		 * @return `true` if the given section for the given resource (if provided) is affected.
 		 */
 		affectsConfiguration(section: string, resource?: Uri): boolean;
 	}
@@ -5799,6 +5778,11 @@ declare module 'vscode' {
 		 * Setter and getter for the contents of the input box.
 		 */
 		value: string;
+
+		/**
+		 * A string to show as place holder in the input box to guide the user.
+		 */
+		placeholder: string;
 	}
 
 	interface QuickDiffProvider {

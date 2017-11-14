@@ -5,7 +5,7 @@
 
 import { Position, CompletionItemProvider, CompletionItemKind, TextDocument, CancellationToken, CompletionItem, ProviderResult, Range } from 'vscode';
 
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
 
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
@@ -36,7 +36,7 @@ const directives: Directive[] = [
 
 export default class DirectiveCommentCompletionProvider implements CompletionItemProvider {
 	constructor(
-		private client: ITypescriptServiceClient,
+		private client: ITypeScriptServiceClient,
 	) { }
 
 	public provideCompletionItems(document: TextDocument, position: Position, _token: CancellationToken): ProviderResult<CompletionItem[]> {

@@ -6,14 +6,14 @@
 import { HoverProvider, Hover, TextDocument, Position, CancellationToken } from 'vscode';
 
 import * as Proto from '../protocol';
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
 import { tagsMarkdownPreview } from './previewer';
 import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
 
 export default class TypeScriptHoverProvider implements HoverProvider {
 
 	public constructor(
-		private client: ITypescriptServiceClient) { }
+		private client: ITypeScriptServiceClient) { }
 
 	public async provideHover(document: TextDocument, position: Position, token: CancellationToken): Promise<Hover | undefined> {
 		const filepath = this.client.normalizePath(document.uri);

@@ -20,7 +20,7 @@
 	"editorGroupBorder": "A szerkesztőcsoportokat elválasztó vonal színe. A szerkesztőcsoportok szerkesztőablakokat tartalmaznak.",
 	"editorDragAndDropBackground": "A szerkesztőablakok mozgatásánál használt háttérszín. Érdemes átlátszó színt választani, hogy a szerkesztőablak tartalma továbbra is látszódjon.",
 	"panelBackground": "A panelek háttérszíne. A panelek a szerkesztőterület alatt jelennek meg, és pl. itt található a kimenet és az integrált terminál.",
-	"panelBorder": "A panelek keretszíne, ami elválasztja őket a szerkesztőablakoktól. A panelek a szerkesztőterület alatt jelennek meg, és pl. itt található a kimenet és az integrált terminál.",
+	"panelBorder": "A panelek keretszíne, ami elválasztja őket a szerkesztőablakoktól. A panelek a szerkesztőterület alatt jelennek meg, és pl. itt található a kimenetet és az integrált terminál.",
 	"panelActiveTitleForeground": "Az aktív panel címsorának színe. A panelek a szerkesztőterület alatt jelennek meg, és pl. itt található a kimenet és az integrált terminál.",
 	"panelInactiveTitleForeground": "Az inaktív panelek címsorának színe. A panelek a szerkesztőterület alatt jelennek meg, és pl. itt található a kimenet és az integrált terminál.",
 	"panelActiveTitleBorder": "Az aktív panel címsorának keretszíne. A panelek a szerkesztőterület alatt jelennek meg, és pl. itt található a kimenet és az integrált terminál.",

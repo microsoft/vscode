@@ -41,7 +41,7 @@ export class ReplExpressionsDataSource implements IDataSource {
 			return TPromise.as(element.getReplElements());
 		}
 		if (element instanceof RawObjectReplElement) {
-			return TPromise.as(element.getChildren());
+			return element.getChildren();
 		}
 		if (element instanceof SimpleReplElement) {
 			return TPromise.as(null);

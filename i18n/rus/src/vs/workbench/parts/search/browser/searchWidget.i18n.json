@@ -11,5 +11,6 @@
 	"search.placeHolder": "Поиск",
 	"label.Replace": "Замена: введите термин для замены и нажмите ВВОД для просмотра или ESC для отмены",
 	"search.replace.placeHolder": "Заменить",
-	"regexp.validationFailure": "Выражение соответствует чему угодно"
+	"regexp.validationFailure": "Выражение соответствует чему угодно",
+	"regexp.backreferenceValidationFailure": "Обратные ссылки не поддерживаются"
 }

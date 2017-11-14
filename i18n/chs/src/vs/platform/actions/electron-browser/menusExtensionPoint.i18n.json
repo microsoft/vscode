@@ -41,5 +41,5 @@
 	"missing.command": "菜单项引用未在“命令”部分进行定义的命令“{0}”。",
 	"missing.altCommand": "菜单项引用未在“命令”部分进行定义的 alt 命令“{0}”。",
 	"dupe.command": "菜单项引用与默认和 alt 命令相同的命令",
-	"nosupport.altCommand": "抱歉，目前仅有“editor/title”菜单的“navigation”组支持 alt 命令"
+	"nosupport.altCommand": "抱歉，目前仅有 \"editor/title\" 菜单的 \"navigation\" 组支持替代命令"
 }

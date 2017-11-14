@@ -240,7 +240,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	 */
 	public revert(soft?: boolean): TPromise<void> {
 		if (!this.isResolved()) {
-			return TPromise.as<void>(null);
+			return TPromise.wrap<void>(null);
 		}
 
 		// Cancel any running auto-save
@@ -604,7 +604,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	 */
 	public save(options: ISaveOptions = Object.create(null)): TPromise<void> {
 		if (!this.isResolved()) {
-			return TPromise.as<void>(null);
+			return TPromise.wrap<void>(null);
 		}
 
 		diag('save() - enter', this.resource, new Date());
@@ -643,7 +643,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		if ((!options.force && !this.dirty) || versionId !== this.versionId) {
 			diag(`doSave(${versionId}) - exit - because not dirty and/or versionId is different (this.isDirty: ${this.dirty}, this.versionId: ${this.versionId})`, this.resource, new Date());
 
-			return TPromise.as<void>(null);
+			return TPromise.wrap<void>(null);
 		}
 
 		// Return if currently saving by storing this save request as the next save that should happen.

@@ -143,7 +143,7 @@ async function provideNpmScriptsForFolder(folder: vscode.WorkspaceFolder): Promi
 		// result.push(createTask('install', 'install', rootPath, folder, []));
 		return result;
 	} catch (e) {
-		let localizedParseError = localize('npm.parseerror', 'Npm task detection: failed to parse the file {0}', packageJson);
+		let localizedParseError = localize('npm.parseError', 'Npm task detection: failed to parse the file {0}', packageJson);
 		throw new Error(localizedParseError);
 	}
 }

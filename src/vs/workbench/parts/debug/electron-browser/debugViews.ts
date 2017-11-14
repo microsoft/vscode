@@ -24,7 +24,6 @@ import { AddWatchExpressionAction, RemoveAllWatchExpressionsAction, AddFunctionB
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MenuId } from 'vs/platform/actions/common/actions';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IListService } from 'vs/platform/list/browser/listService';
@@ -50,9 +49,8 @@ export class VariablesView extends ViewsViewletPanel {
 	private expandedElements: any[];
 
 	constructor(
-		private options: IViewletViewOptions,
+		options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@ITelemetryService private telemetryService: ITelemetryService,
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -162,7 +160,7 @@ export class WatchExpressionsView extends ViewsViewletPanel {
 	private settings: any;
 
 	constructor(
-		private options: IViewletViewOptions,
+		options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -196,7 +194,7 @@ export class WatchExpressionsView extends ViewsViewletPanel {
 		const actionProvider = new viewer.WatchExpressionsActionProvider(this.instantiationService);
 		this.tree = new Tree(this.treeContainer, {
 			dataSource: new viewer.WatchExpressionsDataSource(),
-			renderer: this.instantiationService.createInstance(viewer.WatchExpressionsRenderer, actionProvider, this.actionRunner),
+			renderer: this.instantiationService.createInstance(viewer.WatchExpressionsRenderer),
 			accessibilityProvider: new viewer.WatchExpressionsAccessibilityProvider(),
 			controller: this.instantiationService.createInstance(viewer.WatchExpressionsController, actionProvider, MenuId.DebugWatchContext),
 			dnd: this.instantiationService.createInstance(viewer.WatchExpressionsDragAndDrop)
@@ -256,7 +254,6 @@ export class CallStackView extends ViewsViewletPanel {
 	constructor(
 		private options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@ITelemetryService private telemetryService: ITelemetryService,
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -390,7 +387,7 @@ export class BreakpointsView extends ViewsViewletPanel {
 	private settings: any;
 
 	constructor(
-		private options: IViewletViewOptions,
+		options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -418,7 +415,7 @@ export class BreakpointsView extends ViewsViewletPanel {
 
 		this.tree = new Tree(this.treeContainer, {
 			dataSource: new viewer.BreakpointsDataSource(),
-			renderer: this.instantiationService.createInstance(viewer.BreakpointsRenderer, actionProvider, this.actionRunner),
+			renderer: this.instantiationService.createInstance(viewer.BreakpointsRenderer),
 			accessibilityProvider: this.instantiationService.createInstance(viewer.BreakpointsAccessibilityProvider),
 			controller,
 			sorter: {

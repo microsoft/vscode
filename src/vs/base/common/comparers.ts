@@ -36,14 +36,8 @@ export function compareFileNames(one: string, other: string): number {
 const FileNameMatch = /^(.*?)(\.([^.]*))?$/;
 
 export function noIntlCompareFileNames(one: string, other: string): number {
-	let oneMatch = FileNameMatch.exec(one.toLowerCase());
-	let otherMatch = FileNameMatch.exec(other.toLowerCase());
-
-	let oneName = oneMatch[1] || '';
-	let oneExtension = oneMatch[3] || '';
-
-	let otherName = otherMatch[1] || '';
-	let otherExtension = otherMatch[3] || '';
+	const [oneName, oneExtension] = extractNameAndExtension(one, true);
+	const [otherName, otherExtension] = extractNameAndExtension(other, true);
 
 	if (oneName !== otherName) {
 		return oneName < otherName ? -1 : 1;
@@ -58,14 +52,8 @@ export function noIntlCompareFileNames(one: string, other: string): number {
 
 export function compareFileExtensions(one: string, other: string): number {
 	if (intlFileNameCollator) {
-		const oneMatch = one ? FileNameMatch.exec(one) : [] as RegExpExecArray;
-		const otherMatch = other ? FileNameMatch.exec(other) : [] as RegExpExecArray;
-
-		const oneName = oneMatch[1] || '';
-		const oneExtension = oneMatch[3] || '';
-
-		const otherName = otherMatch[1] || '';
-		const otherExtension = otherMatch[3] || '';
+		const [oneName, oneExtension] = extractNameAndExtension(one);
+		const [otherName, otherExtension] = extractNameAndExtension(other);
 
 		let result = intlFileNameCollator.compare(oneExtension, otherExtension);
 
@@ -91,14 +79,8 @@ export function compareFileExtensions(one: string, other: string): number {
 }
 
 function noIntlCompareFileExtensions(one: string, other: string): number {
-	const oneMatch = one ? FileNameMatch.exec(one.toLowerCase()) : [] as RegExpExecArray;
-	const otherMatch = other ? FileNameMatch.exec(other.toLowerCase()) : [] as RegExpExecArray;
-
-	const oneName = oneMatch[1] || '';
-	const oneExtension = oneMatch[3] || '';
-
-	const otherName = otherMatch[1] || '';
-	const otherExtension = otherMatch[3] || '';
+	const [oneName, oneExtension] = extractNameAndExtension(one, true);
+	const [otherName, otherExtension] = extractNameAndExtension(other, true);
 
 	if (oneExtension !== otherExtension) {
 		return oneExtension < otherExtension ? -1 : 1;
@@ -109,6 +91,12 @@ function noIntlCompareFileExtensions(one: string, other: string): number {
 	}
 
 	return oneName < otherName ? -1 : 1;
+}
+
+function extractNameAndExtension(str?: string, lowercase?: boolean): [string, string] {
+	const match = str ? FileNameMatch.exec(lowercase ? str.toLowerCase() : str) : [] as RegExpExecArray;
+
+	return [(match && match[1]) || '', (match && match[3]) || ''];
 }
 
 export function comparePaths(one: string, other: string): number {

@@ -48,5 +48,7 @@
 	"typescript.problemMatchers.tsc.label": "TypeScript-problémák",
 	"typescript.problemMatchers.tscWatch.label": "TypeScript-problémák (figyelő módban)",
 	"typescript.quickSuggestionsForPaths": "Kiegészítési javaslatok engedélyezése importált elérési utak beírásakor.",
-	"typescript.locale": "Meghatározza a TypeScript-hibák jelentésénél használt lokalizációt. TypeScript >= 2.6.0-t igényel. Az alapértelmezett 'null' érték esetén a VS Code-ban beállított nyelven jelennek meg a TypeScript-hibák."
+	"typescript.locale": "Meghatározza a TypeScript-hibák jelentésénél használt lokalizációt. TypeScript >= 2.6.0-t igényel. Az alapértelmezett 'null' érték esetén a VS Code-ban beállított nyelven jelennek meg a TypeScript-hibák.",
+	"javascript.implicitProjectConfig.experimentalDecorators": " 'experimentalDecorators' beállítás engedélyezése azon JavaScript-fájlok esetében, amelyek nem részei a projektnek. A meglévő jsconfig.json vagy tsconfig.json fájlok felülírják ezt a beállítást. TypeScript >= 2.3.1-et igényel.",
+	"typescript.autoImportSuggestions.enabled": "Automatikus importálási ajánlatok engedélyezése vagy letiltása. TypeScript >= 2.6.1-t igényel."
 }

@@ -304,7 +304,7 @@ export interface IModel extends ITreeElement {
 	onDidChangeCallStack: Event<void>;
 	onDidChangeWatchExpressions: Event<IExpression>;
 	onDidChangeReplElements: Event<void>;
-};
+}
 
 // Debug enums
 
@@ -319,6 +319,7 @@ export enum State {
 
 export interface IDebugConfiguration {
 	allowBreakpointsEverywhere: boolean;
+	openDebug: string;
 	openExplorerOnEnd: boolean;
 	inlineValues: boolean;
 	hideActionBar: boolean;
@@ -510,6 +511,11 @@ export interface IDebugService {
 	addBreakpoints(uri: uri, rawBreakpoints: IRawBreakpoint[]): TPromise<void>;
 
 	/**
+	 * Updates the breakpoints and notifies the debug adapter of breakpoint changes.
+	 */
+	updateBreakpoints(uri: uri, data: { [id: string]: DebugProtocol.Breakpoint }): TPromise<void>;
+
+	/**
 	 * Enables or disables all breakpoints. If breakpoint is passed only enables or disables the passed breakpoint.
 	 * Notifies debug adapter of breakpoint changes.
 	 */
@@ -525,7 +531,7 @@ export interface IDebugService {
 	 * Removes all breakpoints. If id is passed only removes the breakpoint associated with that id.
 	 * Notifies debug adapter of breakpoint changes.
 	 */
-	removeBreakpoints(id?: string): TPromise<any>;
+	removeBreakpoints(id?: string, skipEmit?: boolean): TPromise<any>;
 
 	/**
 	 * Adds a new no name function breakpoint. The function breakpoint should be renamed once user enters the name.

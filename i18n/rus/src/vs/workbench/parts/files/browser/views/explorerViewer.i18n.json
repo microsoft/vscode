@@ -10,6 +10,9 @@
 	"dropFolder": "Вы хотите добавить папку в рабочую область?",
 	"addFolders": "&&Добавить папки",
 	"addFolder": "&&Добавить папку",
+	"confirmMove": "Вы действительно хотите переместить '{0}'?",
+	"doNotAskAgain": "Больше не спрашивать",
+	"moveButtonLabel": "&&Переместить",
 	"confirmOverwriteMessage": "{0} уже существует в целевой папке. Заменить его?",
 	"irreversible": "Это действие необратимо!",
 	"replaceButtonLabel": "&&Заменить"

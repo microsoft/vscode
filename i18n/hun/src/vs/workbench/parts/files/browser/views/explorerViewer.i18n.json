@@ -12,6 +12,7 @@
 	"addFolder": "Mappa hozzá&&adása",
 	"confirmMove": "Biztosan át szeretné helyezni a következőt: '{0}'?",
 	"doNotAskAgain": "Ne kérdezze meg újra",
+	"moveButtonLabel": "&&Áthelyezés",
 	"confirmOverwriteMessage": "A célmappában már létezik '{0}' nevű elem. Le szeretné cserélni?",
 	"irreversible": "A művelet nem vonható vissza!",
 	"replaceButtonLabel": "&&Csere"

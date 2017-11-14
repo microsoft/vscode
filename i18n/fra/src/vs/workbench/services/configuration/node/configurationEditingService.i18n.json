@@ -12,6 +12,7 @@
 	"errorUnknownKey": "Impossible d’écrire dans {0} car {1} n’est pas une configuration recommandée.",
 	"errorInvalidFolderConfiguration": "Impossible d’écrire dans les paramètres de dossier parce que {0} ne supporte pas la portée de ressource de dossier.",
 	"errorInvalidUserTarget": "Impossible d’écrire dans les paramètres utilisateur parce que {0} ne supporte pas de portée globale.",
+	"errorInvalidWorkspaceTarget": "Impossible d’écrire dans les paramètres de l’espace de travail car {0} ne supporte pas de portée d’espace de travail dans un espace de travail multi dossiers.",
 	"errorInvalidFolderTarget": "Impossible d’écrire dans les paramètres de dossier car aucune ressource n’est fournie.",
 	"errorNoWorkspaceOpened": "Impossible d’écrire dans {0} car aucun espace de travail n’est ouvert. Veuillez ouvrir un espace de travail et essayer à nouveau.",
 	"errorInvalidTaskConfiguration": "Impossible d’écrire dans le fichier de tâches. Veuillez s’il vous plaît ouvrir le fichier **Tasks** pour corriger les erreurs/avertissements à l'intérieur et essayez à nouveau.",

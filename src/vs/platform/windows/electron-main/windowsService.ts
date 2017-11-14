@@ -12,8 +12,7 @@ import URI from 'vs/base/common/uri';
 import { IWindowsService, OpenContext, INativeOpenDialogOptions, IEnterWorkspaceResult } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { shell, crashReporter, app, Menu } from 'electron';
-import Event, { chain } from 'vs/base/common/event';
-import { fromEventEmitter } from 'vs/base/node/event';
+import Event, { chain, fromNodeEventEmitter } from 'vs/base/common/event';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IWindowsMainService, ISharedProcess } from 'vs/platform/windows/electron-main/windows';
@@ -27,9 +26,9 @@ export class WindowsService implements IWindowsService, IDisposable {
 
 	private disposables: IDisposable[] = [];
 
-	readonly onWindowOpen: Event<number> = fromEventEmitter(app, 'browser-window-created', (_, w: Electron.BrowserWindow) => w.id);
-	readonly onWindowFocus: Event<number> = fromEventEmitter(app, 'browser-window-focus', (_, w: Electron.BrowserWindow) => w.id);
-	readonly onWindowBlur: Event<number> = fromEventEmitter(app, 'browser-window-blur', (_, w: Electron.BrowserWindow) => w.id);
+	readonly onWindowOpen: Event<number> = fromNodeEventEmitter(app, 'browser-window-created', (_, w: Electron.BrowserWindow) => w.id);
+	readonly onWindowFocus: Event<number> = fromNodeEventEmitter(app, 'browser-window-focus', (_, w: Electron.BrowserWindow) => w.id);
+	readonly onWindowBlur: Event<number> = fromNodeEventEmitter(app, 'browser-window-blur', (_, w: Electron.BrowserWindow) => w.id);
 
 	constructor(
 		private sharedProcess: ISharedProcess,

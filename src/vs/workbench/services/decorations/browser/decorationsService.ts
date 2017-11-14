@@ -16,6 +16,7 @@ import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IIterator } from 'vs/base/common/iterator';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
+import { localize } from 'vs/nls';
 
 class DecorationRule {
 
@@ -31,13 +32,15 @@ class DecorationRule {
 	private static readonly _classNames = new IdGenerator('monaco-decorations-style-');
 
 	readonly data: IDecorationData | IDecorationData[];
-	readonly labelClassName: string;
-	readonly badgeClassName: string;
+	readonly itemColorClassName: string;
+	readonly itemBadgeClassName: string;
+	readonly bubbleBadgeClassName: string;
 
 	constructor(data: IDecorationData | IDecorationData[]) {
 		this.data = data;
-		this.labelClassName = DecorationRule._classNames.nextId();
-		this.badgeClassName = DecorationRule._classNames.nextId();
+		this.itemColorClassName = DecorationRule._classNames.nextId();
+		this.itemBadgeClassName = DecorationRule._classNames.nextId();
+		this.bubbleBadgeClassName = DecorationRule._classNames.nextId();
 	}
 
 	appendCSSRules(element: HTMLStyleElement, theme: ITheme): void {
@@ -51,28 +54,42 @@ class DecorationRule {
 	private _appendForOne(data: IDecorationData, element: HTMLStyleElement, theme: ITheme): void {
 		const { color, letter } = data;
 		// label
-		createCSSRule(`.${this.labelClassName}`, `color: ${theme.getColor(color) || 'inherit'};`, element);
+		createCSSRule(`.${this.itemColorClassName}`, `color: ${theme.getColor(color) || 'inherit'};`, element);
 		// letter
 		if (letter) {
-			createCSSRule(`.${this.badgeClassName}::after`, `content: "${letter}"; color: ${theme.getColor(color) || 'inherit'};`, element);
+			createCSSRule(`.${this.itemBadgeClassName}::after`, `content: "${letter}"; color: ${theme.getColor(color) || 'inherit'};`, element);
 		}
 	}
 
 	private _appendForMany(data: IDecorationData[], element: HTMLStyleElement, theme: ITheme): void {
 		// label
 		const { color } = data[0];
-		createCSSRule(`.${this.labelClassName}`, `color: ${theme.getColor(color) || 'inherit'};`, element);
+		createCSSRule(`.${this.itemColorClassName}`, `color: ${theme.getColor(color) || 'inherit'};`, element);
 
 		// badge
 		const letters = data.filter(d => !isFalsyOrWhitespace(d.letter)).map(d => d.letter);
 		if (letters.length) {
-			createCSSRule(`.${this.badgeClassName}::after`, `content: "${letters.join(', ')}"; color: ${theme.getColor(color) || 'inherit'};`, element);
+			createCSSRule(`.${this.itemBadgeClassName}::after`, `content: "${letters.join(', ')}"; color: ${theme.getColor(color) || 'inherit'};`, element);
 		}
+
+		// bubble badge
+		createCSSRule(
+			`.${this.bubbleBadgeClassName}::after`,
+			`content: "\uf052"; color: ${theme.getColor(color) || 'inherit'}; font-family: octicons; font-size: 14px; padding-right: 14px; opacity: 0.4;`,
+			element
+		);
 	}
 
 	removeCSSRules(element: HTMLStyleElement): void {
-		removeCSSRulesContainingSelector(this.labelClassName, element);
-		removeCSSRulesContainingSelector(this.badgeClassName, element);
+		removeCSSRulesContainingSelector(this.itemColorClassName, element);
+		removeCSSRulesContainingSelector(this.itemBadgeClassName, element);
+		removeCSSRulesContainingSelector(this.bubbleBadgeClassName, element);
+	}
+
+	isUnused(): boolean {
+		return !document.querySelector(`.${this.itemColorClassName}`)
+			&& !document.querySelector(`.${this.itemBadgeClassName}`)
+			&& !document.querySelector(`.${this.bubbleBadgeClassName}`);
 	}
 }
 
@@ -85,9 +102,7 @@ class DecorationStyles {
 	constructor(
 		private _themeService: IThemeService,
 	) {
-		this._disposables = [
-			this._themeService.onThemeChange(this._onThemeChange, this),
-		];
+		this._disposables = [this._themeService.onThemeChange(this._onThemeChange, this)];
 	}
 
 	dispose(): void {
@@ -110,10 +125,20 @@ class DecorationStyles {
 			rule.appendCSSRules(this._styleElement, this._themeService.getTheme());
 		}
 
+		let labelClassName = rule.itemColorClassName;
+		let badgeClassName = rule.itemBadgeClassName;
+		let tooltip = data.filter(d => !isFalsyOrWhitespace(d.tooltip)).map(d => d.tooltip).join(' • ');
+
+		if (onlyChildren) {
+			// show items from its children only
+			badgeClassName = rule.bubbleBadgeClassName;
+			tooltip = localize('bubbleTitle', "Contains emphasized items");
+		}
+
 		return {
-			labelClassName: rule.labelClassName,
-			badgeClassName: !onlyChildren ? rule.badgeClassName : '',
-			tooltip: !onlyChildren ? data.filter(d => !isFalsyOrWhitespace(d.tooltip)).map(d => d.tooltip).join(', ') : '',
+			labelClassName,
+			badgeClassName,
+			tooltip,
 			update: (source, insert) => {
 				let newData = data.slice();
 				if (!source) {
@@ -160,15 +185,17 @@ class DecorationStyles {
 		}
 		this._decorationRules.forEach((value, index) => {
 			const { data } = value;
-			let remove: boolean;
-			if (Array.isArray(data)) {
-				remove = data.some(data => !usedDecorations.has(DecorationRule.keyOf(data)));
-			} else if (!usedDecorations.has(DecorationRule.keyOf(data))) {
-				remove = true;
-			}
-			if (remove) {
-				value.removeCSSRules(this._styleElement);
-				this._decorationRules.delete(index);
+			if (value.isUnused()) {
+				let remove: boolean;
+				if (Array.isArray(data)) {
+					remove = data.some(data => !usedDecorations.has(DecorationRule.keyOf(data)));
+				} else if (!usedDecorations.has(DecorationRule.keyOf(data))) {
+					remove = true;
+				}
+				if (remove) {
+					value.removeCSSRules(this._styleElement);
+					this._decorationRules.delete(index);
+				}
 			}
 		});
 	}
@@ -287,8 +314,11 @@ class DecorationProviderWrapper {
 
 	private _keepItem(uri: URI, data: IDecorationData): IDecorationData {
 		let deco = data ? data : null;
-		this.data.set(uri.toString(), deco);
-		this._uriEmitter.fire(uri);
+		let old = this.data.set(uri.toString(), deco);
+		if (deco || old) {
+			// only fire event when something changed
+			this._uriEmitter.fire(uri);
+		}
 		return deco;
 	}
 }

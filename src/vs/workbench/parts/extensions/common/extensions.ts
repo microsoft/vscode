@@ -36,6 +36,7 @@ export interface IExtension {
 	latestVersion: string;
 	description: string;
 	url: string;
+	repository: string;
 	iconUrl: string;
 	iconUrlFallback: string;
 	licenseUrl: string;
@@ -47,6 +48,7 @@ export interface IExtension {
 	disabledForWorkspace: boolean;
 	dependencies: string[];
 	telemetryData: any;
+	preview: boolean;
 	getManifest(): TPromise<IExtensionManifest>;
 	getReadme(): TPromise<string>;
 	getChangelog(): TPromise<string>;

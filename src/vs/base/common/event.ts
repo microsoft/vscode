@@ -546,3 +546,17 @@ export class Relay<T> implements IDisposable {
 		this.emitter.dispose();
 	}
 }
+
+export interface NodeEventEmitter {
+	on(event: string | symbol, listener: Function): this;
+	removeListener(event: string | symbol, listener: Function): this;
+}
+
+export function fromNodeEventEmitter<T>(emitter: NodeEventEmitter, eventName: string, map: (...args: any[]) => T = id => id): Event<T> {
+	const fn = (...args: any[]) => result.fire(map(...args));
+	const onFirstListenerAdd = () => emitter.on(eventName, fn);
+	const onLastListenerRemove = () => emitter.removeListener(eventName, fn);
+	const result = new Emitter<T>({ onFirstListenerAdd, onLastListenerRemove });
+
+	return result.event;
+}

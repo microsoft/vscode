@@ -206,8 +206,6 @@ export class Item extends Events.EventEmitter {
 	public firstChild: Item;
 	public lastChild: Item;
 
-	private userContent: HTMLElement;
-
 	private height: number;
 	private depth: number;
 
@@ -238,7 +236,6 @@ export class Item extends Events.EventEmitter {
 		this.firstChild = null;
 		this.lastChild = null;
 
-		this.userContent = null;
 		this.traits = {};
 		this.depth = 0;
 		this.expanded = this.context.dataSource.shouldAutoexpand && this.context.dataSource.shouldAutoexpand(this.context.tree, element);
@@ -486,6 +483,17 @@ export class Item extends Events.EventEmitter {
 		return result;
 	}
 
+	public getChildren(): Item[] {
+		var child = this.firstChild;
+		var results = [];
+		while (child) {
+			results.push(child);
+			child = child.next;
+		}
+
+		return results;
+	}
+
 	private isAncestorOf(item: Item): boolean {
 		while (item) {
 			if (item.id === this.id) {
@@ -647,13 +655,21 @@ export class TreeNavigator implements INavigator<Item> {
 	static lastDescendantOf(item: Item): Item {
 		if (!item) {
 			return null;
-		} else {
-			if (!(item instanceof RootItem) && (!item.isVisible() || !item.isExpanded() || item.lastChild === null)) {
-				return item;
-			} else {
-				return TreeNavigator.lastDescendantOf(item.lastChild);
-			}
 		}
+
+		if (item instanceof RootItem) {
+			return TreeNavigator.lastDescendantOf(item.lastChild);
+		}
+
+		if (!item.isVisible()) {
+			return TreeNavigator.lastDescendantOf(item.previous);
+		}
+
+		if (!item.isExpanded() || item.lastChild === null) {
+			return item;
+		}
+
+		return TreeNavigator.lastDescendantOf(item.lastChild);
 	}
 
 	constructor(item: Item, subTreeOnly: boolean = true) {
@@ -894,6 +910,27 @@ export class TreeModel extends Events.EventEmitter {
 		return WinJS.Promise.join(promises);
 	}
 
+	public collapseDeepestExpandedLevel(): WinJS.Promise {
+		var levelToCollapse = this.findDeepestExpandedLevel(this.input, 0);
+
+		var items = [this.input];
+		for (var i = 0; i < levelToCollapse; i++) {
+			items = arrays.flatten(items.map(node => node.getChildren()));
+		}
+
+		var promises = items.map(child => this.collapse(child, false));
+		return WinJS.Promise.join(promises);
+	}
+
+	private findDeepestExpandedLevel(item: Item, currentLevel: number): number {
+		var expandedChildren = item.getChildren().filter(child => child.isExpanded());
+		if (!expandedChildren.length) {
+			return currentLevel;
+		}
+
+		return Math.max(...expandedChildren.map(child => this.findDeepestExpandedLevel(child, currentLevel + 1)));
+	}
+
 	public toggleExpansion(element: any, recursive: boolean = false): WinJS.Promise {
 		return this.isExpanded(element) ? this.collapse(element, recursive) : this.expand(element);
 	}
@@ -1077,7 +1114,7 @@ export class TreeModel extends Events.EventEmitter {
 			previousItem: Item = null;
 
 		if (selection.length === 0) {
-			var nav = this.getNavigator(this.input);
+			let nav = this.getNavigator(this.input);
 
 			while (item = nav.next()) {
 				previousItem = item;
@@ -1087,7 +1124,7 @@ export class TreeModel extends Events.EventEmitter {
 
 		} else {
 			item = selection[0];
-			var nav = this.getNavigator(item, false);
+			let nav = this.getNavigator(item, false);
 
 			for (var i = 0; i < count; i++) {
 				previousItem = nav.previous();
@@ -1320,7 +1357,7 @@ export class TreeModel extends Events.EventEmitter {
 			var items: { [id: string]: Item; } = {};
 			var item: Item;
 
-			for (var i = 0, len = elements.length; i < len; i++) {
+			for (let i = 0, len = elements.length; i < len; i++) {
 				item = this.getItem(elements[i]);
 
 				if (item) {
@@ -1342,7 +1379,7 @@ export class TreeModel extends Events.EventEmitter {
 				}
 			}
 
-			for (var i = 0, len = itemsToRemoveTrait.length; i < len; i++) {
+			for (let i = 0, len = itemsToRemoveTrait.length; i < len; i++) {
 				item = itemsToRemoveTrait[i];
 				item.removeTrait(trait);
 				delete traitItems[item.id];

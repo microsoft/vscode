@@ -24,13 +24,12 @@ import { once, debounceEvent } from 'vs/base/common/event';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
+import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { getExcludes, ISearchConfiguration } from 'vs/platform/search/common/search';
 import { IExpression } from 'vs/base/common/glob';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
-import { IEditorRegistry, Extensions } from 'vs/workbench/browser/editor';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -189,7 +188,6 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	private history: (IEditorInput | IResourceInput)[];
 	private recentlyClosedFiles: IRecentlyClosedFile[];
 	private loaded: boolean;
-	private registry: IEditorRegistry;
 	private resourceFilter: ResourceGlobMatcher;
 
 	constructor(
@@ -210,7 +208,6 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.stack = [];
 		this.recentlyClosedFiles = [];
 		this.loaded = false;
-		this.registry = Registry.as<IEditorRegistry>(Extensions.Editors);
 		this.resourceFilter = instantiationService.createInstance(
 			ResourceGlobMatcher,
 			(root: URI) => this.getExcludes(root),
@@ -228,7 +225,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	private getExcludes(root?: URI): IExpression {
 		const scope = root ? { resource: root } : void 0;
 
-		return getExcludes(this.configurationService.getConfiguration<ISearchConfiguration>(scope));
+		return getExcludes(this.configurationService.getValue<ISearchConfiguration>(scope));
 	}
 
 	private registerListeners(): void {
@@ -247,8 +244,8 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 	private onEditorClosed(event: IEditorCloseEvent): void {
 
-		// Track closing of pinned editor to support to reopen closed editors
-		if (event.pinned) {
+		// Track closing of editor to support to reopen closed editors (unless editor was replaced)
+		if (!event.replaced) {
 			const resource = event.editor ? event.editor.getResource() : void 0;
 			const supportsReopen = resource && this.fileService.canHandleResource(resource); // we only support file'ish things to reopen
 			if (supportsReopen) {

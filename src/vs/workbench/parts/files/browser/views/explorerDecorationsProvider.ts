@@ -34,7 +34,7 @@ export class ExplorerDecorationsProvider implements IDecorationsProvider {
 		const fileStat = this.model.roots.filter(r => r.resource.toString() === resource.toString()).pop();
 		if (fileStat && fileStat.nonexistentRoot) {
 			return {
-				tooltip: localize('canNotResolve', "Can not resolve folder"),
+				tooltip: localize('canNotResolve', "Can not resolve workspace folder"),
 				letter: '!',
 				color: listInvalidItemForeground,
 			};

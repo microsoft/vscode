@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { validate, parseDocument } from './util';
+import { validate, parseDocument, isStyleSheet } from './util';
 import { nextItemHTML, prevItemHTML } from './selectItemHTML';
 import { nextItemStylesheet, prevItemStylesheet } from './selectItemStylesheet';
-import { isStyleSheet } from 'vscode-emmet-helper';
-
 
 export function fetchSelectItem(direction: string): void {
 	let editor = vscode.window.activeTextEditor;
