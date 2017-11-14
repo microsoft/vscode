@@ -160,12 +160,7 @@ export interface IEditorOptions {
 	 * Otherwise, line numbers will not be rendered.
 	 * Defaults to true.
 	 */
-	lineNumbers?: 'on' | 'off' | 'relative' | ((lineNumber: number) => string);
-	/**
-	 * Controls the interval at which line numbers are rendered.
-	 * Defaults to 1.
-	 */
-	lineNumberInterval?: { interval: number, showCurrentLineNumber: boolean };
+	lineNumbers?: 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
 	/**
 	 * Should the corresponding line be selected when clicking on the line number?
 	 * Defaults to true.
@@ -762,7 +757,8 @@ export const enum RenderLineNumbersType {
 	Off = 0,
 	On = 1,
 	Relative = 2,
-	Custom = 3
+	Interval = 3,
+	Custom = 4
 }
 
 export interface InternalEditorViewOptions {
@@ -773,7 +769,6 @@ export interface InternalEditorViewOptions {
 	readonly renderLineNumbers: RenderLineNumbersType;
 	readonly renderCustomLineNumbers: (lineNumber: number) => string;
 	readonly selectOnLineNumbers: boolean;
-	readonly lineNumberInterval: { interval: number, showCurrentLineNumber: boolean };
 	readonly glyphMargin: boolean;
 	readonly revealHorizontalRightPadding: number;
 	readonly roundedSelection: boolean;
@@ -1042,7 +1037,6 @@ export class InternalEditorOptions {
 			&& a.renderLineNumbers === b.renderLineNumbers
 			&& a.renderCustomLineNumbers === b.renderCustomLineNumbers
 			&& a.selectOnLineNumbers === b.selectOnLineNumbers
-			&& this._equalsLineNumberInterval(a.lineNumberInterval, b.lineNumberInterval)
 			&& a.glyphMargin === b.glyphMargin
 			&& a.revealHorizontalRightPadding === b.revealHorizontalRightPadding
 			&& a.roundedSelection === b.roundedSelection
@@ -1186,13 +1180,6 @@ export class InternalEditorOptions {
 			a.comments === b.comments
 			&& a.other === b.other
 			&& a.strings === b.strings
-		);
-	}
-
-	private static _equalsLineNumberInterval(a: { interval: number, showCurrentLineNumber: boolean }, b: { interval: number, showCurrentLineNumber: boolean }): boolean {
-		return (
-			a.interval === b.interval
-			&& a.showCurrentLineNumber === b.showCurrentLineNumber
 		);
 	}
 }
@@ -1593,6 +1580,8 @@ export class EditorOptionsValidator {
 			if (typeof lineNumbers === 'function') {
 				renderLineNumbers = RenderLineNumbersType.Custom;
 				renderCustomLineNumbers = lineNumbers;
+			} else if (lineNumbers === 'interval') {
+				renderLineNumbers = RenderLineNumbersType.Interval;
 			} else if (lineNumbers === 'relative') {
 				renderLineNumbers = RenderLineNumbersType.Relative;
 			} else if (lineNumbers === 'on') {
@@ -1627,11 +1616,6 @@ export class EditorOptionsValidator {
 			renderLineHighlight = _stringSet<'none' | 'gutter' | 'line' | 'all'>(opts.renderLineHighlight, defaults.renderLineHighlight, ['none', 'gutter', 'line', 'all']);
 		}
 
-		let lineNumberInterval = {
-			interval: _clampedInt(opts.lineNumberInterval, 1, 1, Constants.MAX_UINT_32),
-			...opts.lineNumberInterval
-		};
-
 		const mouseWheelScrollSensitivity = _float(opts.mouseWheelScrollSensitivity, defaults.scrollbar.mouseWheelScrollSensitivity);
 		const scrollbar = this._sanitizeScrollbarOpts(opts.scrollbar, defaults.scrollbar, mouseWheelScrollSensitivity);
 		const minimap = this._sanitizeMinimapOpts(opts.minimap, defaults.minimap);
@@ -1644,7 +1628,6 @@ export class EditorOptionsValidator {
 			renderLineNumbers: renderLineNumbers,
 			renderCustomLineNumbers: renderCustomLineNumbers,
 			selectOnLineNumbers: _boolean(opts.selectOnLineNumbers, defaults.selectOnLineNumbers),
-			lineNumberInterval: lineNumberInterval,
 			glyphMargin: _boolean(opts.glyphMargin, defaults.glyphMargin),
 			revealHorizontalRightPadding: _clampedInt(opts.revealHorizontalRightPadding, defaults.revealHorizontalRightPadding, 0, 1000),
 			roundedSelection: _boolean(opts.roundedSelection, defaults.roundedSelection),
@@ -1747,7 +1730,6 @@ export class InternalEditorOptionsFactory {
 				renderLineNumbers: opts.viewInfo.renderLineNumbers,
 				renderCustomLineNumbers: opts.viewInfo.renderCustomLineNumbers,
 				selectOnLineNumbers: opts.viewInfo.selectOnLineNumbers,
-				lineNumberInterval: opts.viewInfo.lineNumberInterval,
 				glyphMargin: opts.viewInfo.glyphMargin,
 				revealHorizontalRightPadding: opts.viewInfo.revealHorizontalRightPadding,
 				roundedSelection: (accessibilityIsOn ? false : opts.viewInfo.roundedSelection), // DISABLED WHEN SCREEN READER IS ATTACHED
@@ -2171,7 +2153,6 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		renderLineNumbers: RenderLineNumbersType.On,
 		renderCustomLineNumbers: null,
 		selectOnLineNumbers: true,
-		lineNumberInterval: { interval: 1, showCurrentLineNumber: false },
 		glyphMargin: true,
 		revealHorizontalRightPadding: 30,
 		roundedSelection: true,

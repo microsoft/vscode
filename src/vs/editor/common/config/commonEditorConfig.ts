@@ -203,32 +203,15 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.lineNumbers': {
 			'type': 'string',
-			'enum': ['off', 'on', 'relative'],
+			'enum': ['off', 'on', 'relative', 'interval'],
 			'enumDescriptions': [
 				nls.localize('lineNumbers.off', "Line numbers are not rendered."),
 				nls.localize('lineNumbers.on', "Line numbers are rendered as absolute number."),
-				nls.localize('lineNumbers.relative', "Line numbers are rendered as distance in lines to cursor position.")
+				nls.localize('lineNumbers.relative', "Line numbers are rendered as distance in lines to cursor position."),
+				nls.localize('lineNumbers.interval', "Line numbers are rendered every 10 lines.")
 			],
 			'default': 'on',
 			'description': nls.localize('lineNumbers', "Controls the display of line numbers. Possible values are 'on', 'off', and 'relative'.")
-		},
-		'editor.lineNumberInterval': {
-			'type': 'object',
-			properties: {
-				interval: {
-					type: 'number',
-					'minimum': 1,
-					default: EDITOR_DEFAULTS.viewInfo.lineNumberInterval,
-					description: nls.localize('lineNumberInterval.interval', "Controls the interval at which line numbers are shown.")
-				},
-				showCurrentLineNumber: {
-					type: 'boolean',
-					default: false,
-					description: nls.localize('lineNumberInterval.showCurrentLineNumber', "Display the line number for the current cursor position.")
-				}
-			},
-			'default': EDITOR_DEFAULTS.viewInfo.lineNumberInterval,
-			'description': nls.localize('lineNumberInterval', "Controls the interval at which line numbers are shown..")
 		},
 		'editor.rulers': {
 			'type': 'array',

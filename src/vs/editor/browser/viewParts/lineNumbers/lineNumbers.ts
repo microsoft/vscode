@@ -27,7 +27,6 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 	private _renderCustomLineNumbers: (lineNumber: number) => string;
 	private _lineNumbersLeft: number;
 	private _lineNumbersWidth: number;
-	private _lineNumberInterval: { interval: number, showCurrentLineNumber: boolean };
 	private _lastCursorModelPosition: Position;
 	private _renderResult: string[];
 
@@ -49,7 +48,6 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		this._renderCustomLineNumbers = config.viewInfo.renderCustomLineNumbers;
 		this._lineNumbersLeft = config.layoutInfo.lineNumbersLeft;
 		this._lineNumbersWidth = config.layoutInfo.lineNumbersWidth;
-		this._lineNumberInterval = config.viewInfo.lineNumberInterval;
 	}
 
 	public dispose(): void {
@@ -68,7 +66,11 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		const primaryViewPosition = e.selections[0].getPosition();
 		this._lastCursorModelPosition = this._context.model.coordinatesConverter.convertViewPositionToModelPosition(primaryViewPosition);
-		return true;
+
+		if (this._renderLineNumbers === RenderLineNumbersType.Relative || this._renderLineNumbers === RenderLineNumbersType.Interval) {
+			return true;
+		}
+		return false;
 	}
 	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		return true;
@@ -110,6 +112,16 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 			return String(diff);
 		}
 
+		if (this._renderLineNumbers === RenderLineNumbersType.Interval) {
+			if (this._lastCursorModelPosition.lineNumber === modelLineNumber) {
+				return String(modelLineNumber);
+			}
+			if (modelLineNumber % 10 === 0) {
+				return String(modelLineNumber);
+			}
+			return '';
+		}
+
 		return String(modelLineNumber);
 	}
 
@@ -130,7 +142,7 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 
 			let renderLineNumber = this._getLineRenderLineNumber(lineNumber);
 
-			if (renderLineNumber && this._inInterval(lineNumber)) {
+			if (renderLineNumber) {
 				output[lineIndex] = (
 					common
 					+ renderLineNumber
@@ -142,11 +154,6 @@ export class LineNumbersOverlay extends DynamicViewOverlay {
 		}
 
 		this._renderResult = output;
-	}
-
-	private _inInterval(lineNumber: number): boolean {
-		return lineNumber % this._lineNumberInterval.interval === 0
-			|| (this._lineNumberInterval.showCurrentLineNumber && this._lastCursorModelPosition.lineNumber === lineNumber);
 	}
 
 	public render(startLineNumber: number, lineNumber: number): string {
