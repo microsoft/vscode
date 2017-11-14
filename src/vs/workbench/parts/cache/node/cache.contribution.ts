@@ -11,4 +11,4 @@ import { NodeCachedDataManager } from 'vs/workbench/parts/cache/node/nodeCachedD
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 // Register NodeCachedDataManager Contribution
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NodeCachedDataManager, LifecyclePhase.RunningForABit);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NodeCachedDataManager, LifecyclePhase.Eventually);
