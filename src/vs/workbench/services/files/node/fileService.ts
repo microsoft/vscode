@@ -70,6 +70,33 @@ function etag(arg1: any, arg2?: any): string {
 	return `"${crypto.createHash('sha1').update(String(size) + String(mtime)).digest('hex')}"`;
 }
 
+class BufferPool {
+
+	static _64K = new BufferPool(64 * 1024, 5);
+
+	constructor(
+		readonly bufferSize: number,
+		private readonly _capacity: number,
+		private readonly _free: Buffer[] = [],
+	) {
+		//
+	}
+
+	acquire(): Buffer {
+		if (this._free.length === 0) {
+			return Buffer.allocUnsafe(this.bufferSize);
+		} else {
+			return this._free.shift();
+		}
+	}
+
+	release(buf: Buffer): void {
+		if (this._free.length <= this._capacity) {
+			this._free.push(buf);
+		}
+	}
+}
+
 export class FileService implements IFileService {
 
 	public _serviceBrand: any;
@@ -324,10 +351,11 @@ export class FileService implements IFileService {
 
 	//#region data stream
 
-	private static chunkSize = 64 * 1024;
-	private static chunkBuffer = Buffer.allocUnsafe(FileService.chunkSize);
 
 	private resolveFileData(resource: uri, options: IResolveContentOptions, token: CancellationToken): Thenable<IContentData> {
+
+		const chunkBuffer = BufferPool._64K.acquire();
+
 		const result: IContentData = {
 			encoding: undefined,
 			stream: undefined,
@@ -371,6 +399,10 @@ export class FileService implements IFileService {
 					if (decoder) {
 						decoder.end();
 					}
+
+					// return the shared buffer
+					BufferPool._64K.release(chunkBuffer);
+
 					if (fd) {
 						fs.close(fd, err => {
 							if (err) {
@@ -385,18 +417,18 @@ export class FileService implements IFileService {
 						// cancellation
 						finish(new Error('cancelled'));
 
-					} else if (bytesRead < FileService.chunkSize) {
+					} else if (bytesRead < chunkBuffer.length) {
 						// done, write rest, end
-						decoder.write(FileService.chunkBuffer.slice(0, bytesRead), finish);
+						decoder.write(chunkBuffer.slice(0, bytesRead), finish);
 
 					} else {
 						// read, write, repeat
-						decoder.write(FileService.chunkBuffer, readChunk);
+						decoder.write(chunkBuffer, readChunk);
 					}
 				};
 
 				const readChunk = () => {
-					fs.read(fd, FileService.chunkBuffer, 0, FileService.chunkSize, null, (err, bytesRead) => {
+					fs.read(fd, chunkBuffer, 0, chunkBuffer.length, null, (err, bytesRead) => {
 						totalBytesRead += bytesRead;
 
 						if (totalBytesRead > MAX_FILE_SIZE) {
@@ -417,7 +449,7 @@ export class FileService implements IFileService {
 							// when receiving the first chunk of data we need to create the
 							// decoding stream which is then used to drive the string stream.
 							Promise.resolve(detectMimeAndEncodingFromBuffer(
-								{ buffer: FileService.chunkBuffer, bytesRead },
+								{ buffer: chunkBuffer, bytesRead },
 								options && options.autoGuessEncoding || this.configuredAutoGuessEncoding(resource)
 							)).then(value => {
 
