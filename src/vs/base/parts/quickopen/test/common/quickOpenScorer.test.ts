@@ -210,7 +210,7 @@ suite('Quick Open Scorer', () => {
 	});
 
 	test('scoreItem - avoid match scattering (bug #36119)', function () {
-		const resource = URI.file('projects/ui/cula/ats/target.mk');;
+		const resource = URI.file('projects/ui/cula/ats/target.mk');
 
 		const pathRes = scoreItem(resource, 'tcltarget.mk', true, ResourceAccessor, cache);
 		assert.ok(pathRes.score);
@@ -235,6 +235,13 @@ suite('Quick Open Scorer', () => {
 		assert.equal(res.descriptionMatch[0].end, 12);
 		assert.equal(res.descriptionMatch[1].start, 13);
 		assert.equal(res.descriptionMatch[1].end, 14);
+	});
+
+	test('scoreItem - proper target offset', function () {
+		const resource = URI.file('etem');
+
+		const res = scoreItem(resource, 'teem', true, ResourceAccessor, cache);
+		assert.ok(!res.score);
 	});
 
 	test('compareItemsByScore - identity', function () {
@@ -661,6 +668,84 @@ suite('Quick Open Scorer', () => {
 		assert.equal(res[0], resourceA);
 		assert.equal(res[1], resourceC);
 		assert.equal(res[2], resourceB);
+	});
+
+	test('compareFilesByScore - avoid match scattering (bug #14879)', function () {
+		const resourceA = URI.file('pkg/search/gradient/testdata/constraint_attrMatchString.yml');
+		const resourceB = URI.file('cmd/gradient/main.go');
+
+		let query = 'gradientmain';
+
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+	});
+
+	test('compareFilesByScore - avoid match scattering (bug #14727 1)', function () {
+		const resourceA = URI.file('alpha-beta-cappa.txt');
+		const resourceB = URI.file('abc.txt');
+
+		let query = 'abc';
+
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+	});
+
+	test('compareFilesByScore - avoid match scattering (bug #14727 2)', function () {
+		const resourceA = URI.file('xerxes-yak-zubba/index.js');
+		const resourceB = URI.file('xyz/index.js');
+
+		let query = 'xyz';
+
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+	});
+
+	test('compareFilesByScore - avoid match scattering (bug #18381)', function () {
+		const resourceA = URI.file('AssymblyInfo.cs');
+		const resourceB = URI.file('IAsynchronousTask.java');
+
+		let query = 'async';
+
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+	});
+
+	test('compareFilesByScore - avoid match scattering (bug #35572)', function () {
+		const resourceA = URI.file('static/app/source/angluar/-admin/-organization/-settings/layout/layout.js');
+		const resourceB = URI.file('static/app/source/angular/-admin/-project/-settings/_settings/settings.js');
+
+		let query = 'partisettings';
+
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+	});
+
+	test('compareFilesByScore - avoid match scattering (bug #36810)', function () {
+		const resourceA = URI.file('Trilby.TrilbyTV.Web.Portal/Views/Systems/Index.cshtml');
+		const resourceB = URI.file('Trilby.TrilbyTV.Web.Portal/Areas/Admins/Views/Tips/Index.cshtml');
+
+		let query = 'tipsindex.cshtml';
+
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
 	});
 
 	test('compareFilesByScore - prefer shorter hit (bug #20546)', function () {

@@ -13,5 +13,6 @@
 	"settingsFound": "{0} 个设置匹配",
 	"fileEditorWithInputAriaLabel": "{0}。文本文件编辑器。",
 	"fileEditorAriaLabel": "文本文件编辑器。",
+	"defaultEditorReadonly": "在右侧编辑器中编辑以覆盖默认值。",
 	"preferencesAriaLabel": "默认首选项。只读文本编辑器。"
 }

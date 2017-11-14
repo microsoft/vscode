@@ -121,11 +121,11 @@ export class TextModel implements editorCommon.ITextModel {
 		this._isDisposing = false;
 	}
 
-	protected _createModelLine(text: string, tabSize: number): IModelLine {
+	protected _createModelLine(text: string): IModelLine {
 		if (this._isTooLargeForTokenization) {
-			return new MinimalModelLine(text, tabSize);
+			return new MinimalModelLine(text);
 		}
-		return new ModelLine(text, tabSize);
+		return new ModelLine(text);
 	}
 
 	protected _assertNotDisposed(): void {
@@ -166,13 +166,6 @@ export class TextModel implements editorCommon.ITextModel {
 
 		let e = this._options.createChangeEvent(newOpts);
 		this._options = newOpts;
-
-		if (e.tabSize) {
-			let newTabSize = this._options.tabSize;
-			for (let i = 0, len = this._lines.length; i < len; i++) {
-				this._lines[i].updateTabSize(newTabSize);
-			}
-		}
 
 		this._eventEmitter.emit(textModelEvents.TextModelEventType.ModelOptionsChanged, e);
 	}
@@ -487,15 +480,6 @@ export class TextModel implements editorCommon.ITextModel {
 		return this._lines[lineNumber - 1].text;
 	}
 
-	public getIndentLevel(lineNumber: number): number {
-		this._assertNotDisposed();
-		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
-			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
-		}
-
-		return this._lines[lineNumber - 1].getIndentLevel();
-	}
-
 	public getLinesContent(): string[] {
 		this._assertNotDisposed();
 		var r: string[] = [];
@@ -775,12 +759,11 @@ export class TextModel implements editorCommon.ITextModel {
 	}
 
 	private _constructLines(textSource: ITextSource): void {
-		const tabSize = this._options.tabSize;
 		let rawLines = textSource.lines;
 		let modelLines: IModelLine[] = new Array<IModelLine>(rawLines.length);
 
 		for (let i = 0, len = rawLines.length; i < len; i++) {
-			modelLines[i] = this._createModelLine(rawLines[i], tabSize);
+			modelLines[i] = this._createModelLine(rawLines[i]);
 		}
 		this._BOM = textSource.BOM;
 		this._mightContainRTL = textSource.containsRTL;

@@ -25,17 +25,17 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { generateRandomPipeName, Protocol } from 'vs/base/parts/ipc/node/ipc.net';
 import { createServer, Server, Socket } from 'net';
-import Event, { Emitter, debounceEvent, mapEvent, any } from 'vs/base/common/event';
-import { fromEventEmitter } from 'vs/base/node/event';
-import { IInitData, IWorkspaceData } from 'vs/workbench/api/node/extHost.protocol';
+import Event, { Emitter, debounceEvent, mapEvent, anyEvent, fromNodeEventEmitter } from 'vs/base/common/event';
+import { IInitData, IWorkspaceData, IConfigurationInitData } from 'vs/workbench/api/node/extHost.protocol';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { ICrashReporterService } from 'vs/workbench/services/crashReporter/common/crashReporterService';
+import { ICrashReporterService } from 'vs/workbench/services/crashReporter/electron-browser/crashReporterService';
 import { IBroadcastService, IBroadcast } from 'vs/platform/broadcast/electron-browser/broadcastService';
 import { isEqual } from 'vs/base/common/paths';
 import { EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL, EXTENSION_RELOAD_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL } from 'vs/platform/extensions/common/extensionHost';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IRemoteConsoleLog, log, parse } from 'vs/base/node/console';
+import { getScopes } from 'vs/platform/configuration/common/configurationRegistry';
 
 export class ExtensionHostProcessWorker {
 
@@ -136,7 +136,7 @@ export class ExtensionHostProcessWorker {
 				const port = data[1];
 
 				const opts = {
-					env: objects.mixin(objects.clone(process.env), {
+					env: objects.mixin(objects.deepClone(process.env), {
 						AMD_ENTRYPOINT: 'vs/workbench/node/extensionHostProcess',
 						PIPE_LOGGING: 'true',
 						VERBOSE_LOGGING: true,
@@ -169,9 +169,9 @@ export class ExtensionHostProcessWorker {
 				type Output = { data: string, format: string[] };
 				this._extensionHostProcess.stdout.setEncoding('utf8');
 				this._extensionHostProcess.stderr.setEncoding('utf8');
-				const onStdout = fromEventEmitter<string>(this._extensionHostProcess.stdout, 'data');
-				const onStderr = fromEventEmitter<string>(this._extensionHostProcess.stderr, 'data');
-				const onOutput = any(
+				const onStdout = fromNodeEventEmitter<string>(this._extensionHostProcess.stdout, 'data');
+				const onStderr = fromNodeEventEmitter<string>(this._extensionHostProcess.stderr, 'data');
+				const onOutput = anyEvent(
 					mapEvent(onStdout, o => ({ data: `%c${o}`, format: [''] })),
 					mapEvent(onStderr, o => ({ data: `%c${o}`, format: ['color: red'] }))
 				);
@@ -344,6 +344,7 @@ export class ExtensionHostProcessWorker {
 
 	private _createExtHostInitData(): TPromise<IInitData> {
 		return TPromise.join<any>([this._telemetryService.getTelemetryInfo(), this._extensionService.getExtensions()]).then(([telemetryInfo, extensionDescriptions]) => {
+			const configurationData: IConfigurationInitData = { ...this._configurationService.getConfigurationData(), configurationScopes: [] };
 			const r: IInitData = {
 				parentPid: process.pid,
 				environment: {
@@ -360,7 +361,8 @@ export class ExtensionHostProcessWorker {
 				},
 				workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : <IWorkspaceData>this._contextService.getWorkspace(),
 				extensions: extensionDescriptions,
-				configuration: this._configurationService.getConfigurationData(),
+				// Send configurations scopes only in development mode.
+				configuration: !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment ? { ...configurationData, configurationScopes: getScopes(this._configurationService.keys().default) } : configurationData,
 				telemetryInfo
 			};
 			return r;

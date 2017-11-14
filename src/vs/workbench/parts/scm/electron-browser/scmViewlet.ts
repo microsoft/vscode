@@ -47,12 +47,13 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import * as platform from 'vs/base/common/platform';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Command } from 'vs/editor/common/modes';
 import { render as renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import * as platform from 'vs/base/common/platform';
+import { format } from 'vs/base/common/strings';
 
 // TODO@Joao
 // Need to subclass MenuItemActionItem in order to respect
@@ -429,7 +430,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 		const element = append(container, $('.resource'));
 		const name = append(element, $('.name'));
 		const fileLabel = this.instantiationService.createInstance(FileLabel, name, void 0);
-		const actionsContainer = append(element, $('.actions'));
+		const actionsContainer = append(fileLabel.element, $('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
 			actionItemProvider: this.actionItemProvider,
 			actionRunner: new MultipleSelectionActionRunner(this.getSelectedResources)
@@ -446,20 +447,23 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 	}
 
 	renderElement(resource: ISCMResource, index: number, template: ResourceTemplate): void {
-		template.fileLabel.setFile(resource.sourceUri);
+
+		const theme = this.themeService.getTheme();
+		const icon = theme.type === LIGHT ? resource.decorations.icon : resource.decorations.iconDark;
+
+		template.fileLabel.setFile(resource.sourceUri, { fileDecorations: { colors: false, badges: !icon, data: resource.decorations } });
 		template.actionBar.clear();
 		template.actionBar.context = resource;
 		template.actionBar.push(this.scmMenus.getResourceActions(resource), { icon: true, label: false });
 		toggleClass(template.name, 'strike-through', resource.decorations.strikeThrough);
 		toggleClass(template.element, 'faded', resource.decorations.faded);
 
-		const theme = this.themeService.getTheme();
-		const icon = theme.type === LIGHT ? resource.decorations.icon : resource.decorations.iconDark;
-
 		if (icon) {
+			template.decorationIcon.style.display = '';
 			template.decorationIcon.style.backgroundImage = `url('${icon}')`;
 			template.decorationIcon.title = resource.decorations.tooltip;
 		} else {
+			template.decorationIcon.style.display = 'none';
 			template.decorationIcon.style.backgroundImage = '';
 		}
 	}
@@ -563,16 +567,22 @@ export class RepositoryPanel extends ViewletPanel {
 		// Input
 		this.inputBoxContainer = append(container, $('.scm-editor'));
 
-		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, {
-			placeholder: localize('commitMessage', "Message (press {0} to commit)", platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter'),
-			flexibleHeight: true
-		});
+		const updatePlaceholder = () => {
+			const placeholder = format(this.repository.input.placeholder, platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter');
+			this.inputBox.setPlaceHolder(placeholder);
+		};
+
+		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, { flexibleHeight: true });
 		this.disposables.push(attachInputBoxStyler(this.inputBox, this.themeService));
 		this.disposables.push(this.inputBox);
 
 		this.inputBox.value = this.repository.input.value;
 		this.inputBox.onDidChange(value => this.repository.input.value = value, null, this.disposables);
 		this.repository.input.onDidChange(value => this.inputBox.value = value, null, this.disposables);
+
+		updatePlaceholder();
+		this.repository.input.onDidChangePlaceholder(updatePlaceholder, null, this.disposables);
+
 		this.disposables.push(this.inputBox.onDidHeightChange(() => this.layoutBody()));
 
 		chain(domEvent(this.inputBox.inputElement, 'keydown'))
@@ -933,10 +943,9 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 	}
 
 	private onSelectionChange(repositories: ISCMRepository[]): void {
-		// Remove unselected panels
-		this.repositoryPanels
-			.filter(p => repositories.every(r => p.repository !== r))
-			.forEach(panel => this.removePanel(panel));
+		// Collect unselected panels
+		const panelsToRemove = this.repositoryPanels
+			.filter(p => repositories.every(r => p.repository !== r));
 
 		// Collect panels still selected
 		const repositoryPanels = this.repositoryPanels
@@ -954,9 +963,12 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 			panel.repository.focus();
 		});
 
+		// Remove unselected panels
+		panelsToRemove.forEach(panel => this.removePanel(panel));
+
 		// Resize all panels equally
 		const height = typeof this.height === 'number' ? this.height : 1000;
-		const mainPanelHeight = this.mainPanel ? this.mainPanel.minimumSize : 0;
+		const mainPanelHeight = this.getPanelSize(this.mainPanel);
 		const size = (height - mainPanelHeight) / repositories.length;
 
 		for (const panel of this.repositoryPanels) {

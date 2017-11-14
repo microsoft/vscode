@@ -28,7 +28,7 @@ export class ToggleMultiCursorModifierAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const editorConf = this.configurationService.getConfiguration<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
+		const editorConf = this.configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
 		const newValue: 'ctrlCmd' | 'alt' = (editorConf.multiCursorModifier === 'ctrlCmd' ? 'alt' : 'ctrlCmd');
 
 		return this.configurationService.updateValue(ToggleMultiCursorModifierAction.multiCursorModifierConfigurationKey, newValue, ConfigurationTarget.USER);

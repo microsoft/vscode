@@ -41,7 +41,7 @@ export class TreeView extends ViewsViewletPanel {
 	private dataProviderElementChangeListener: IDisposable;
 
 	constructor(
-		private options: IViewletViewOptions,
+		options: IViewletViewOptions,
 		@IMessageService private messageService: IMessageService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,

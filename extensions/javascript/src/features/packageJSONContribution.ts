@@ -13,7 +13,7 @@ import { textToMarkedString } from './markedTextUtil';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-let LIMIT = 40;
+const LIMIT = 40;
 
 export class PackageJSONContribution implements IJSONContribution {
 
@@ -31,8 +31,8 @@ export class PackageJSONContribution implements IJSONContribution {
 	public constructor(private xhr: XHRRequest) {
 	}
 
-	public collectDefaultSuggestions(fileName: string, result: ISuggestionsCollector): Thenable<any> {
-		let defaultValue = {
+	public collectDefaultSuggestions(_fileName: string, result: ISuggestionsCollector): Thenable<any> {
+		const defaultValue = {
 			'name': '${1:name}',
 			'description': '${2:description}',
 			'authors': '${3:author}',
@@ -40,14 +40,21 @@ export class PackageJSONContribution implements IJSONContribution {
 			'main': '${5:pathToMain}',
 			'dependencies': {}
 		};
-		let proposal = new CompletionItem(localize('json.package.default', 'Default package.json'));
+		const proposal = new CompletionItem(localize('json.package.default', 'Default package.json'));
 		proposal.kind = CompletionItemKind.Module;
 		proposal.insertText = new SnippetString(JSON.stringify(defaultValue, null, '\t'));
 		result.add(proposal);
 		return Promise.resolve(null);
 	}
 
-	public collectPropertySuggestions(resource: string, location: Location, currentWord: string, addValue: boolean, isLast: boolean, collector: ISuggestionsCollector): Thenable<any> {
+	public collectPropertySuggestions(
+		_resource: string,
+		location: Location,
+		currentWord: string,
+		addValue: boolean,
+		isLast: boolean,
+		collector: ISuggestionsCollector
+	): Thenable<any> | null {
 		if ((location.matches(['dependencies']) || location.matches(['devDependencies']) || location.matches(['optionalDependencies']) || location.matches(['peerDependencies']))) {
 			let queryUrl: string;
 			if (currentWord.length > 0) {
@@ -58,21 +65,21 @@ export class PackageJSONContribution implements IJSONContribution {
 				}).then((success) => {
 					if (success.status === 200) {
 						try {
-							let obj = JSON.parse(success.responseText);
+							const obj = JSON.parse(success.responseText);
 							if (obj && Array.isArray(obj.rows)) {
-								let results = <{ key: string[]; }[]>obj.rows;
+								const results = <{ key: string[]; }[]>obj.rows;
 								for (let i = 0; i < results.length; i++) {
-									let keys = results[i].key;
+									const keys = results[i].key;
 									if (Array.isArray(keys) && keys.length > 0) {
-										let name = keys[0];
-										let insertText = new SnippetString().appendText(JSON.stringify(name));
+										const name = keys[0];
+										const insertText = new SnippetString().appendText(JSON.stringify(name));
 										if (addValue) {
 											insertText.appendText(': "').appendTabstop().appendText('"');
 											if (!isLast) {
 												insertText.appendText(',');
 											}
 										}
-										let proposal = new CompletionItem(name);
+										const proposal = new CompletionItem(name);
 										proposal.kind = CompletionItemKind.Property;
 										proposal.insertText = insertText;
 										proposal.filterText = JSON.stringify(name);
@@ -91,20 +98,21 @@ export class PackageJSONContribution implements IJSONContribution {
 						collector.error(localize('json.npm.error.repoaccess', 'Request to the NPM repository failed: {0}', success.responseText));
 						return 0;
 					}
+					return undefined;
 				}, (error) => {
 					collector.error(localize('json.npm.error.repoaccess', 'Request to the NPM repository failed: {0}', error.responseText));
 					return 0;
 				});
 			} else {
 				this.mostDependedOn.forEach((name) => {
-					let insertText = new SnippetString().appendText(JSON.stringify(name));
+					const insertText = new SnippetString().appendText(JSON.stringify(name));
 					if (addValue) {
 						insertText.appendText(': "').appendTabstop().appendText('"');
 						if (!isLast) {
 							insertText.appendText(',');
 						}
 					}
-					let proposal = new CompletionItem(name);
+					const proposal = new CompletionItem(name);
 					proposal.kind = CompletionItemKind.Property;
 					proposal.insertText = insertText;
 					proposal.filterText = JSON.stringify(name);
@@ -118,17 +126,21 @@ export class PackageJSONContribution implements IJSONContribution {
 		return null;
 	}
 
-	public collectValueSuggestions(fileName: string, location: Location, result: ISuggestionsCollector): Thenable<any> {
+	public collectValueSuggestions(
+		_fileName: string,
+		location: Location,
+		result: ISuggestionsCollector
+	): Thenable<any> | null {
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']))) {
-			let currentKey = location.path[location.path.length - 1];
+			const currentKey = location.path[location.path.length - 1];
 			if (typeof currentKey === 'string') {
-				let queryUrl = 'http://registry.npmjs.org/' + encodeURIComponent(currentKey).replace('%40', '@');
+				const queryUrl = 'http://registry.npmjs.org/' + encodeURIComponent(currentKey).replace('%40', '@');
 				return this.xhr({
 					url: queryUrl
 				}).then((success) => {
 					try {
-						let obj = JSON.parse(success.responseText);
-						let latest = obj && obj['dist-tags'] && obj['dist-tags']['latest'];
+						const obj = JSON.parse(success.responseText);
+						const latest = obj && obj['dist-tags'] && obj['dist-tags']['latest'];
 						if (latest) {
 							let name = JSON.stringify(latest);
 							let proposal = new CompletionItem(name);
@@ -155,7 +167,7 @@ export class PackageJSONContribution implements IJSONContribution {
 						// ignore
 					}
 					return 0;
-				}, (error) => {
+				}, () => {
 					return 0;
 				});
 			}
@@ -163,7 +175,7 @@ export class PackageJSONContribution implements IJSONContribution {
 		return null;
 	}
 
-	public resolveSuggestion(item: CompletionItem): Thenable<CompletionItem> {
+	public resolveSuggestion(item: CompletionItem): Thenable<CompletionItem | null> | null {
 		if (item.kind === CompletionItemKind.Property && item.documentation === '') {
 			return this.getInfo(item.label).then(infos => {
 				if (infos.length > 0) {
@@ -175,24 +187,24 @@ export class PackageJSONContribution implements IJSONContribution {
 				}
 				return null;
 			});
-		};
+		}
 		return null;
 	}
 
 	private getInfo(pack: string): Thenable<string[]> {
 
-		let queryUrl = 'http://registry.npmjs.org/' + encodeURIComponent(pack).replace('%40', '@');
+		const queryUrl = 'http://registry.npmjs.org/' + encodeURIComponent(pack).replace('%40', '@');
 		return this.xhr({
 			url: queryUrl
 		}).then((success) => {
 			try {
-				let obj = JSON.parse(success.responseText);
+				const obj = JSON.parse(success.responseText);
 				if (obj) {
-					let result: string[] = [];
+					const result: string[] = [];
 					if (obj.description) {
 						result.push(obj.description);
 					}
-					let latest = obj && obj['dist-tags'] && obj['dist-tags']['latest'];
+					const latest = obj && obj['dist-tags'] && obj['dist-tags']['latest'];
 					if (latest) {
 						result.push(localize('json.npm.version.hover', 'Latest version: {0}', latest));
 					}
@@ -202,14 +214,14 @@ export class PackageJSONContribution implements IJSONContribution {
 				// ignore
 			}
 			return [];
-		}, (error) => {
+		}, () => {
 			return [];
 		});
 	}
 
-	public getInfoContribution(fileName: string, location: Location): Thenable<MarkedString[]> {
+	public getInfoContribution(_fileName: string, location: Location): Thenable<MarkedString[] | null> | null {
 		if ((location.matches(['dependencies', '*']) || location.matches(['devDependencies', '*']) || location.matches(['optionalDependencies', '*']) || location.matches(['peerDependencies', '*']))) {
-			let pack = location.path[location.path.length - 1];
+			const pack = location.path[location.path.length - 1];
 			if (typeof pack === 'string') {
 				return this.getInfo(pack).then(infos => {
 					if (infos.length) {

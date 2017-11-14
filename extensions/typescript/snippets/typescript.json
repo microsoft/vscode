@@ -70,6 +70,22 @@
 		],
 		"description": "Log to the console"
 	},
+	"Log warning to console": {
+		"prefix": "warn",
+		"body": [
+			"console.warn($1);",
+			"$0"
+		],
+		"description": "Log warning to the console"
+	},
+	"Log error to console": {
+		"prefix": "error",
+		"body": [
+			"console.error($1);",
+			"$0"
+		],
+		"description": "Log error to the console"
+	},
 	"Define a full property": {
 		"prefix": "prop",
 		"body": [
@@ -136,8 +152,8 @@
 	"For Loop": {
 		"prefix": "for",
 		"body": [
-			"for (var ${1:index} = 0; ${1:index} < ${2:array}.length; ${1:index}++) {",
-			"\tvar ${3:element} = ${2:array}[${1:index}];",
+			"for (let ${1:index} = 0; ${1:index} < ${2:array}.length; ${1:index}++) {",
+			"\tconst ${3:element} = ${2:array}[${1:index}];",
 			"\t$0",
 			"}"
 		],
@@ -155,14 +171,23 @@
 	"For-In Loop": {
 		"prefix": "forin",
 		"body": [
-			"for (var ${1:key} in ${2:object}) {",
+			"for (const ${1:key} in ${2:object}) {",
 			"\tif (${2:object}.hasOwnProperty(${1:key})) {",
-			"\t\tvar ${3:element} = ${2:object}[${1:key}];",
+			"\t\tconst ${3:element} = ${2:object}[${1:key}];",
 			"\t\t$0",
 			"\t}",
 			"}"
 		],
 		"description": "For-In Loop"
+	},
+	"For-Of Loop": {
+		"prefix": "forof",
+		"body": [
+			"for (const ${1:iterator} of ${2:object}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "For-Of Loop"
 	},
 	"Function Statement": {
 		"prefix": "function",
@@ -196,7 +221,7 @@
 	"New Statement": {
 		"prefix": "new",
 		"body": [
-			"var ${1:name} = new ${2:type}(${3:arguments});$0"
+			"const ${1:name} = new ${2:type}(${3:arguments});$0"
 		],
 		"description": "New Statement"
 	},
@@ -246,7 +271,7 @@
 	"Set Timeout Function": {
 		"prefix": "settimeout",
 		"body": [
-			"setTimeout(function() {",
+			"setTimeout(() => {",
 			"\t$0",
 			"}, ${1:timeout});"
 		],

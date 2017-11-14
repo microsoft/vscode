@@ -16,7 +16,7 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { IEditorInputFactory, EditorInput, IFileEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
 import { AutoSaveConfiguration, HotExitConfiguration, SUPPORTED_ENCODINGS } from 'vs/platform/files/common/files';
 import { FILE_EDITOR_INPUT_ID, VIEWLET_ID, SortOrderConfiguration } from 'vs/workbench/parts/files/common/files';
-import { FileEditorTracker } from 'vs/workbench/parts/files/common/editors/fileEditorTracker';
+import { FileEditorTracker } from 'vs/workbench/parts/files/browser/editors/fileEditorTracker';
 import { SaveErrorHandler } from 'vs/workbench/parts/files/browser/saveErrorHandler';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { TextFileEditor } from 'vs/workbench/parts/files/browser/editors/textFileEditor';
@@ -29,9 +29,10 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import { DirtyFilesTracker } from 'vs/workbench/parts/files/common/dirtyFilesTracker';
-import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/browser/explorerViewlet';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
+import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInput';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ToggleViewletAction {
@@ -90,7 +91,8 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 		nls.localize('binaryFileEditor', "Binary File Editor")
 	),
 	[
-		new SyncDescriptor<EditorInput>(FileEditorInput)
+		new SyncDescriptor<EditorInput>(FileEditorInput),
+		new SyncDescriptor<EditorInput>(DataUriEditorInput)
 	]
 );
 
@@ -110,10 +112,7 @@ interface ISerializedFileInput {
 // Register Editor Input Factory
 class FileEditorInputFactory implements IEditorInputFactory {
 
-	constructor(
-		@ITextResourceConfigurationService private configurationService: ITextResourceConfigurationService
-	) {
-	}
+	constructor() { }
 
 	public serialize(editorInput: EditorInput): string {
 		const fileEditorInput = <FileEditorInput>editorInput;
@@ -141,19 +140,13 @@ class FileEditorInputFactory implements IEditorInputFactory {
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(FILE_EDITOR_INPUT_ID, FileEditorInputFactory);
 
 // Register File Editor Tracker
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
-	FileEditorTracker
-);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(FileEditorTracker, LifecyclePhase.Starting);
 
 // Register Save Error Handler
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
-	SaveErrorHandler
-);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SaveErrorHandler, LifecyclePhase.Starting);
 
 // Register Dirty Files Tracker
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
-	DirtyFilesTracker
-);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DirtyFilesTracker, LifecyclePhase.Starting);
 
 // Configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -276,7 +269,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'files.useExperimentalFileWatcher': {
 			'type': 'boolean',
-			'default': true,
+			'default': false,
 			'description': nls.localize('useExperimentalFileWatcher', "Use the new experimental file watcher.")
 		},
 		'files.defaultLanguage': {
@@ -330,7 +323,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.confirmDragAndDrop': {
 			'type': 'boolean',
-			'description': nls.localize('confirmDragAndDrop', "Controls if the explorer should ask for confirmation when moving files or folders around via drag and drop."),
+			'description': nls.localize('confirmDragAndDrop', "Controls if the explorer should ask for confirmation to move files and folders via drag and drop."),
 			'default': true
 		},
 		'explorer.confirmDelete': {

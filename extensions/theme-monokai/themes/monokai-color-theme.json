@@ -19,7 +19,7 @@
 		"editor.foreground": "#f8f8f2",
 		"selection.background": "#ccccc7",
 		"editor.selectionHighlightBackground": "#665044cc",
-        "editor.selectionBackground": "#334444cc",
+		"editor.selectionBackground": "#334444cc",
 		"editor.lineHighlightBackground": "#3e3d32",
 		"editorCursor.foreground": "#f8f8f0",
 		"editorWhitespace.foreground": "#464741",
@@ -73,22 +73,22 @@
 		"peekViewResult.selectionBackground": "#414339",
 		"peekViewResult.matchHighlightBackground": "#75715E",
 		"peekViewEditor.matchHighlightBackground": "#75715E",
-        "terminal.ansiBlack": "#333333",
-        "terminal.ansiRed": "#C4265E", // the bright color with ~75% transparent on the background
-        "terminal.ansiGreen": "#86B42B",
-        "terminal.ansiYellow": "#B3B42B",
-        "terminal.ansiBlue": "#6A7EC8",
-        "terminal.ansiMagenta": "#8C6BC8",
-        "terminal.ansiCyan": "#56ADBC",
-        "terminal.ansiWhite": "#e3e3dd",
-        "terminal.ansiBrightBlack": "#666666",
-        "terminal.ansiBrightRed": "#f92672",
-        "terminal.ansiBrightGreen": "#A6E22E",
-        "terminal.ansiBrightYellow": "#e2e22e", // hue shifted #A6E22E
-        "terminal.ansiBrightBlue": "#819aff", // hue shifted #AE81FF
-        "terminal.ansiBrightMagenta": "#AE81FF",
-        "terminal.ansiBrightCyan": "#66D9EF",
-        "terminal.ansiBrightWhite": "#f8f8f2"
+		"terminal.ansiBlack": "#333333",
+		"terminal.ansiRed": "#C4265E", // the bright color with ~75% transparent on the background
+		"terminal.ansiGreen": "#86B42B",
+		"terminal.ansiYellow": "#B3B42B",
+		"terminal.ansiBlue": "#6A7EC8",
+		"terminal.ansiMagenta": "#8C6BC8",
+		"terminal.ansiCyan": "#56ADBC",
+		"terminal.ansiWhite": "#e3e3dd",
+		"terminal.ansiBrightBlack": "#666666",
+		"terminal.ansiBrightRed": "#f92672",
+		"terminal.ansiBrightGreen": "#A6E22E",
+		"terminal.ansiBrightYellow": "#e2e22e", // hue shifted #A6E22E
+		"terminal.ansiBrightBlue": "#819aff", // hue shifted #AE81FF
+		"terminal.ansiBrightMagenta": "#AE81FF",
+		"terminal.ansiBrightCyan": "#66D9EF",
+		"terminal.ansiBrightWhite": "#f8f8f2"
 	},
 	"tokenColors": [
 		{
@@ -98,7 +98,10 @@
 			}
 		},
 		{
-			"scope": ["meta.embedded", "source.groovy.embedded"],
+			"scope": [
+				"meta.embedded",
+				"source.groovy.embedded"
+			],
 			"settings": {
 				"background": "#272822",
 				"foreground": "#F8F8F2"

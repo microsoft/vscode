@@ -237,7 +237,7 @@ export class ExecutableParser extends Parser {
 			result.cwd = json.cwd;
 		}
 		if (!Types.isUndefined(json.env)) {
-			result.env = Objects.clone(json.env);
+			result.env = Objects.deepClone(json.env);
 		}
 		return result;
 	}

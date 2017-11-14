@@ -12,13 +12,12 @@ import URI from 'vs/base/common/uri';
 import { IWindowsService, OpenContext, INativeOpenDialogOptions, IEnterWorkspaceResult } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { shell, crashReporter, app, Menu } from 'electron';
-import Event, { chain } from 'vs/base/common/event';
-import { fromEventEmitter } from 'vs/base/node/event';
+import Event, { chain, fromNodeEventEmitter } from 'vs/base/common/event';
 import { IURLService } from 'vs/platform/url/common/url';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IWindowsMainService, ISharedProcess } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService, IRecentlyOpened } from 'vs/platform/history/common/history';
-import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
 
 export class WindowsService implements IWindowsService, IDisposable {
@@ -27,9 +26,9 @@ export class WindowsService implements IWindowsService, IDisposable {
 
 	private disposables: IDisposable[] = [];
 
-	readonly onWindowOpen: Event<number> = fromEventEmitter(app, 'browser-window-created', (_, w: Electron.BrowserWindow) => w.id);
-	readonly onWindowFocus: Event<number> = fromEventEmitter(app, 'browser-window-focus', (_, w: Electron.BrowserWindow) => w.id);
-	readonly onWindowBlur: Event<number> = fromEventEmitter(app, 'browser-window-blur', (_, w: Electron.BrowserWindow) => w.id);
+	readonly onWindowOpen: Event<number> = fromNodeEventEmitter(app, 'browser-window-created', (_, w: Electron.BrowserWindow) => w.id);
+	readonly onWindowFocus: Event<number> = fromNodeEventEmitter(app, 'browser-window-focus', (_, w: Electron.BrowserWindow) => w.id);
+	readonly onWindowBlur: Event<number> = fromNodeEventEmitter(app, 'browser-window-blur', (_, w: Electron.BrowserWindow) => w.id);
 
 	constructor(
 		private sharedProcess: ISharedProcess,
@@ -66,6 +65,12 @@ export class WindowsService implements IWindowsService, IDisposable {
 
 	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
 		this.windowsMainService.pickFolderAndOpen(options);
+
+		return TPromise.as(null);
+	}
+
+	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
+		this.windowsMainService.pickWorkspaceAndOpen(options);
 
 		return TPromise.as(null);
 	}
@@ -125,21 +130,11 @@ export class WindowsService implements IWindowsService, IDisposable {
 		return TPromise.as(null);
 	}
 
-	openWorkspace(windowId: number): TPromise<void> {
+	createAndEnterWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
 		if (codeWindow) {
-			this.windowsMainService.openWorkspace(codeWindow);
-		}
-
-		return TPromise.as(null);
-	}
-
-	createAndEnterWorkspace(windowId: number, folderPaths?: string[], path?: string): TPromise<IEnterWorkspaceResult> {
-		const codeWindow = this.windowsMainService.getWindowById(windowId);
-
-		if (codeWindow) {
-			return this.windowsMainService.createAndEnterWorkspace(codeWindow, folderPaths, path);
+			return this.windowsMainService.createAndEnterWorkspace(codeWindow, folders, path);
 		}
 
 		return TPromise.as(null);

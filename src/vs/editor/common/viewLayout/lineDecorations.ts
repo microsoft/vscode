@@ -6,6 +6,7 @@
 
 import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
 import { Constants } from 'vs/editor/common/core/uint';
+import * as strings from 'vs/base/common/strings';
 
 export class LineDecoration {
 	_lineDecorationBrand: void;
@@ -172,7 +173,7 @@ export class LineDecorationsNormalizer {
 	/**
 	 * Normalize line decorations. Overlapping decorations will generate multiple segments
 	 */
-	public static normalize(lineDecorations: LineDecoration[]): DecorationSegment[] {
+	public static normalize(lineContent: string, lineDecorations: LineDecoration[]): DecorationSegment[] {
 		if (lineDecorations.length === 0) {
 			return [];
 		}
@@ -184,16 +185,34 @@ export class LineDecorationsNormalizer {
 
 		for (let i = 0, len = lineDecorations.length; i < len; i++) {
 			let d = lineDecorations[i];
+			let startColumn = d.startColumn;
+			let endColumn = d.endColumn;
+			let className = d.className;
 
-			let currentStartOffset = d.startColumn - 1;
-			let currentEndOffset = d.endColumn - 2;
+			// If the position would end up in the middle of a high-low surrogate pair, we move it to before the pair
+			if (startColumn > 1) {
+				const charCodeBefore = lineContent.charCodeAt(startColumn - 2);
+				if (strings.isHighSurrogate(charCodeBefore)) {
+					startColumn--;
+				}
+			}
+
+			if (endColumn > 1) {
+				const charCodeBefore = lineContent.charCodeAt(endColumn - 2);
+				if (strings.isHighSurrogate(charCodeBefore)) {
+					endColumn--;
+				}
+			}
+
+			let currentStartOffset = startColumn - 1;
+			let currentEndOffset = endColumn - 2;
 
 			nextStartOffset = stack.consumeLowerThan(currentStartOffset, nextStartOffset, result);
 
 			if (stack.count === 0) {
 				nextStartOffset = currentStartOffset;
 			}
-			stack.insert(currentEndOffset, d.className);
+			stack.insert(currentEndOffset, className);
 		}
 
 		stack.consumeLowerThan(Constants.MAX_SAFE_SMALL_INTEGER, nextStartOffset, result);

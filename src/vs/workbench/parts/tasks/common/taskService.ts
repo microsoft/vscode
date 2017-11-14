@@ -37,6 +37,7 @@ export interface RunOptions {
 export interface CustomizationProperties {
 	group?: string | { kind?: string; isDefault?: boolean; };
 	problemMatcher?: string | string[];
+	isBackground?: boolean;
 }
 
 export interface ITaskService extends IEventEmitter {

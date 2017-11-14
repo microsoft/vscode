@@ -45,7 +45,7 @@
 		</dict>
 		<dict>
 			<key>begin</key>
-			<string>(?&lt;![\\-])#</string>
+			<string>(?&lt;![`\\-])#</string>
 			<key>end</key>
 			<string>$</string>
 			<key>name</key>

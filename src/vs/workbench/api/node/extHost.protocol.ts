@@ -49,6 +49,7 @@ import { SerializedError } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { IWorkspaceFolderData } from 'vs/platform/workspace/common/workspace';
 import { IStat, IFileChange } from 'vs/platform/files/common/files';
+import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -73,8 +74,12 @@ export interface IInitData {
 	environment: IEnvironment;
 	workspace: IWorkspaceData;
 	extensions: IExtensionDescription[];
-	configuration: IConfigurationData;
+	configuration: IConfigurationInitData;
 	telemetryInfo: ITelemetryInfo;
+}
+
+export interface IConfigurationInitData extends IConfigurationData {
+	configurationScopes: ConfigurationScope[];
 }
 
 export interface IWorkspaceConfigurationChangeEventData {
@@ -291,7 +296,7 @@ export interface MainThreadProgressShape extends IDisposable {
 }
 
 export interface MainThreadTerminalServiceShape extends IDisposable {
-	$createTerminal(name?: string, shellPath?: string, shellArgs?: string[], waitOnExit?: boolean): TPromise<number>;
+	$createTerminal(name?: string, shellPath?: string, shellArgs?: string[], env?: { [key: string]: string }, waitOnExit?: boolean): TPromise<number>;
 	$dispose(terminalId: number): void;
 	$hide(terminalId: number): void;
 	$sendText(terminalId: number, text: string, addNewLine: boolean): void;
@@ -368,7 +373,11 @@ export type SCMRawResource = [
 	string[] /*icons: light, dark*/,
 	string /*tooltip*/,
 	boolean /*strike through*/,
-	boolean /*faded*/
+	boolean /*faded*/,
+
+	string | undefined /*source*/,
+	string | undefined /*letter*/,
+	ThemeColor | null /*color*/
 ];
 
 export type SCMRawResourceSplice = [
@@ -395,6 +404,7 @@ export interface MainThreadSCMShape extends IDisposable {
 	$spliceResourceStates(sourceControlHandle: number, splices: SCMRawResourceSplices[]): void;
 
 	$setInputBoxValue(sourceControlHandle: number, value: string): void;
+	$setInputBoxPlaceholder(sourceControlHandle: number, placeholder: string): void;
 }
 
 export type DebugSessionUUID = string;
@@ -404,12 +414,7 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$unregisterDebugConfigurationProvider(handle: number): TPromise<any>;
 	$startDebugging(folder: URI | undefined, nameOrConfig: string | vscode.DebugConfiguration): TPromise<boolean>;
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): TPromise<any>;
-}
-
-export interface MainThreadCredentialsShape extends IDisposable {
-	$readSecret(service: string, account: string): Thenable<string | undefined>;
-	$writeSecret(service: string, account: string, secret: string): Thenable<void>;
-	$deleteSecret(service: string, account: string): Thenable<boolean>;
+	$appendDebugConsole(value: string): TPromise<any>;
 }
 
 export interface MainThreadWindowShape extends IDisposable {
@@ -551,6 +556,21 @@ export interface IExtHostSuggestResult {
 	incomplete?: boolean;
 }
 
+export interface IdObject {
+	_id: number;
+}
+
+export namespace IdObject {
+	let n = 0;
+	export function mixin<T extends object>(object: T): T & IdObject {
+		(<any>object)._id = n++;
+		return <any>object;
+	}
+}
+
+export type IWorkspaceSymbol = IdObject & modes.SymbolInformation;
+export interface IWorkspaceSymbols extends IdObject { symbols: IWorkspaceSymbol[]; }
+
 export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentSymbols(handle: number, resource: URI): TPromise<modes.SymbolInformation[]>;
 	$provideCodeLenses(handle: number, resource: URI): TPromise<modes.ICodeLensSymbol[]>;
@@ -561,12 +581,13 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideHover(handle: number, resource: URI, position: IPosition): TPromise<modes.Hover>;
 	$provideDocumentHighlights(handle: number, resource: URI, position: IPosition): TPromise<modes.DocumentHighlight[]>;
 	$provideReferences(handle: number, resource: URI, position: IPosition, context: modes.ReferenceContext): TPromise<modes.Location[]>;
-	$provideCodeActions(handle: number, resource: URI, range: IRange): TPromise<modes.Command[]>;
+	$provideCodeActions(handle: number, resource: URI, range: IRange): TPromise<(modes.Command | modes.CodeAction)[]>;
 	$provideDocumentFormattingEdits(handle: number, resource: URI, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]>;
 	$provideDocumentRangeFormattingEdits(handle: number, resource: URI, range: IRange, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]>;
 	$provideOnTypeFormattingEdits(handle: number, resource: URI, position: IPosition, ch: string, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]>;
-	$provideWorkspaceSymbols(handle: number, search: string): TPromise<modes.SymbolInformation[]>;
-	$resolveWorkspaceSymbol(handle: number, symbol: modes.SymbolInformation): TPromise<modes.SymbolInformation>;
+	$provideWorkspaceSymbols(handle: number, search: string): TPromise<IWorkspaceSymbols>;
+	$resolveWorkspaceSymbol(handle: number, symbol: modes.SymbolInformation): TPromise<IWorkspaceSymbol>;
+	$releaseWorkspaceSymbols(handle: number, id: number): void;
 	$provideRenameEdits(handle: number, resource: URI, position: IPosition, newName: string): TPromise<modes.WorkspaceEdit>;
 	$provideCompletionItems(handle: number, resource: URI, position: IPosition, context: modes.SuggestContext): TPromise<IExtHostSuggestResult>;
 	$resolveCompletionItem(handle: number, resource: URI, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion>;
@@ -608,13 +629,10 @@ export interface ExtHostDebugServiceShape {
 }
 
 
-export type DecorationData = [number, boolean, string, string, ThemeColor];
+export type DecorationData = [number, boolean, string, string, ThemeColor, string];
 
 export interface ExtHostDecorationsShape {
 	$providerDecorations(handle: number, uri: URI): TPromise<DecorationData>;
-}
-
-export interface ExtHostCredentialsShape {
 }
 
 export interface ExtHostWindowShape {
@@ -650,7 +668,6 @@ export const MainContext = {
 	MainThreadExtensionService: createMainId<MainThreadExtensionServiceShape>('MainThreadExtensionService'),
 	MainThreadSCM: createMainId<MainThreadSCMShape>('MainThreadSCM'),
 	MainThreadTask: createMainId<MainThreadTaskShape>('MainThreadTask'),
-	MainThreadCredentials: createMainId<MainThreadCredentialsShape>('MainThreadCredentials'),
 	MainThreadWindow: createMainId<MainThreadWindowShape>('MainThreadWindow'),
 };
 
@@ -676,6 +693,5 @@ export const ExtHostContext = {
 	ExtHostSCM: createExtId<ExtHostSCMShape>('ExtHostSCM'),
 	ExtHostTask: createExtId<ExtHostTaskShape>('ExtHostTask'),
 	ExtHostWorkspace: createExtId<ExtHostWorkspaceShape>('ExtHostWorkspace'),
-	ExtHostCredentials: createExtId<ExtHostCredentialsShape>('ExtHostCredentials'),
 	ExtHostWindow: createExtId<ExtHostWindowShape>('ExtHostWindow'),
 };

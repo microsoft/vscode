@@ -14,13 +14,8 @@ const BackslashN: number = new Buffer('\n', 'utf8')[0];
 
 class ProtocolBuffer {
 
-	private index: number;
-	private buffer: Buffer;
-
-	constructor() {
-		this.index = 0;
-		this.buffer = new Buffer(DefaultSize);
-	}
+	private index: number = 0;
+	private buffer: Buffer = new Buffer(DefaultSize);
 
 	public append(data: string | Buffer): void {
 		let toAppend: Buffer | null = null;
@@ -89,20 +84,14 @@ export interface ICallback<T> {
 
 export class Reader<T> {
 
-	private readonly readable: stream.Readable;
-	private readonly callback: ICallback<T>;
-	private readonly buffer: ProtocolBuffer;
-	private nextMessageLength: number;
+	private readonly buffer: ProtocolBuffer = new ProtocolBuffer();
+	private nextMessageLength: number = -1;
 
 	public constructor(
-		readable: stream.Readable,
-		callback: ICallback<T>,
+		private readonly readable: stream.Readable,
+		private readonly callback: ICallback<T>,
 		private readonly onError: (error: any) => void = () => ({})
 	) {
-		this.readable = readable;
-		this.buffer = new ProtocolBuffer();
-		this.callback = callback;
-		this.nextMessageLength = -1;
 		this.readable.on('data', (data: Buffer) => {
 			this.onLengthData(data);
 		});

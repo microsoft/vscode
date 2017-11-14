@@ -220,6 +220,11 @@
         "category": "Git"
       },
       {
+        "command": "git.renameBranch",
+        "title": "%command.renameBranch%",
+        "category": "Git"
+      },
+      {
         "command": "git.merge",
         "title": "%command.merge%",
         "category": "Git"
@@ -265,6 +270,11 @@
         "category": "Git"
       },
       {
+        "command": "git.syncRebase",
+        "title": "%command.syncRebase%",
+        "category": "Git"
+      },
+      {
         "command": "git.publish",
         "title": "%command.publish%",
         "category": "Git"
@@ -277,6 +287,11 @@
       {
         "command": "git.ignore",
         "title": "%command.ignore%",
+        "category": "Git"
+      },
+      {
+        "command": "git.stashIncludeUntracked",
+        "title": "%command.stashIncludeUntracked%",
         "category": "Git"
       },
       {
@@ -334,8 +349,16 @@
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.stageChange",
+          "when": "false"
+        },
+        {
           "command": "git.revertSelectedRanges",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.revertChange",
+          "when": "false"
         },
         {
           "command": "git.unstage",
@@ -402,6 +425,10 @@
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.renameBranch",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
           "command": "git.pull",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
@@ -439,6 +466,10 @@
         },
         {
           "command": "git.sync",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.syncRebase",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
@@ -486,6 +517,11 @@
           "command": "git.sync",
           "group": "1_sync",
           "when": "config.git.enabled && scmProvider == git"
+        },
+        {
+          "command": "git.syncRebase",
+          "group": "1_sync",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
           "command": "git.pull",
@@ -565,6 +601,11 @@
         {
           "command": "git.cleanAll",
           "group": "4_stage",
+          "when": "config.git.enabled && scmProvider == git"
+        },
+        {
+          "command": "git.stashIncludeUntracked",
+          "group": "5_stash",
           "when": "config.git.enabled && scmProvider == git"
         },
         {
@@ -829,46 +870,72 @@
           "type": "boolean",
           "description": "%config.enableCommitSigning%",
           "default": false
+        },
+        "git.decorations.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.decorations.enabled%"
         }
       }
     },
     "colors": [
       {
-        "id": "git.color.modified",
-        "description": "Color for modified resources",
+        "id": "gitDecoration.modifiedResourceForeground",
+        "description": "%colors.modified%",
         "defaults": {
-          "light": "#D58809",
+          "light": "#a76e12",
           "dark": "#E2C08D",
           "highContrast": "#E2C08D"
         }
       },
       {
-        "id": "git.color.untracked",
-        "description": "Color for untracked resources",
+        "id": "gitDecoration.deletedResourceForeground",
+        "description": "%colors.deleted%",
         "defaults": {
-          "light": "#00B333",
+          "light": "#ad0707",
+          "dark": "#c74e39",
+          "highContrast": "#c74e39"
+        }
+      },
+      {
+        "id": "gitDecoration.untrackedResourceForeground",
+        "description": "%colors.untracked%",
+        "defaults": {
+          "light": "#019001",
           "dark": "#73C991",
           "highContrast": "#73C991"
         }
       },
       {
-        "id": "git.color.ignored",
-        "description": "Color for ignored resources",
+        "id": "gitDecoration.ignoredResourceForeground",
+        "description": "%colors.ignored%",
         "defaults": {
           "light": "#8E8E90",
           "dark": "#A7A8A9",
           "highContrast": "#A7A8A9"
+        }
+      },
+      {
+        "id": "gitDecoration.conflictingResourceForeground",
+        "description": "%colors.conflict%",
+        "defaults": {
+          "light": "#6c6cc4",
+          "dark": "#6c6cc4",
+          "highContrast": "#6c6cc4"
         }
       }
     ]
   },
   "dependencies": {
     "byline": "^5.0.0",
-    "iconv-lite": "0.4.15",
+    "file-type": "^7.2.0",
+    "iconv-lite": "0.4.19",
     "vscode-extension-telemetry": "0.0.8",
     "vscode-nls": "2.0.2"
   },
   "devDependencies": {
+    "@types/byline": "4.2.31",
+    "@types/file-type": "^5.2.1",
     "@types/mocha": "2.2.43",
     "@types/node": "7.0.43",
     "mocha": "^3.2.0"

@@ -29,11 +29,12 @@ import { IWindowsMainService, IOpenConfiguration, IWindowsCountChangedEvent } fr
 import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IWorkspacesMainService, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, WORKSPACE_FILTER, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesMainService, IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, WORKSPACE_FILTER, isSingleFolderWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
 import { normalizeNFC } from 'vs/base/common/strings';
+import URI from 'vs/base/common/uri';
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -142,7 +143,7 @@ export class WindowsManager implements IWindowsMainService {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IBackupMainService private backupService: IBackupMainService,
-		@ITelemetryService private telemetryService: ITelemetryService,
+		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IHistoryMainService private historyService: IHistoryMainService,
 		@IWorkspacesMainService private workspacesService: IWorkspacesMainService,
@@ -151,7 +152,7 @@ export class WindowsManager implements IWindowsMainService {
 		this.windowsState = this.storageService.getItem<IWindowsState>(WindowsManager.windowsStateStorageKey) || { openedWindows: [] };
 
 		this.fileDialog = new FileDialog(environmentService, telemetryService, storageService, this);
-		this.workspacesManager = new WorkspacesManager(workspacesService, lifecycleService, backupService, environmentService, this);
+		this.workspacesManager = new WorkspacesManager(workspacesService, backupService, environmentService, this);
 
 		this.migrateLegacyWindowState();
 	}
@@ -200,7 +201,7 @@ export class WindowsManager implements IWindowsMainService {
 		});
 
 		// React to workbench loaded events from windows
-		ipc.on('vscode:workbenchLoaded', (event, windowId: number) => {
+		ipc.on('vscode:workbenchLoaded', (_event: any, windowId: number) => {
 			this.logService.log('IPC#vscode-workbenchLoaded');
 
 			const win = this.getWindowById(windowId);
@@ -795,7 +796,7 @@ export class WindowsManager implements IWindowsMainService {
 		if (!openConfig.addMode && isCommandLineOrAPICall) {
 			const foldersToOpen = windowsToOpen.filter(path => !!path.folderPath);
 			if (foldersToOpen.length > 1) {
-				const workspace = this.workspacesService.createWorkspaceSync(foldersToOpen.map(folder => folder.folderPath));
+				const workspace = this.workspacesService.createWorkspaceSync(foldersToOpen.map(folder => ({ uri: URI.file(folder.folderPath) })));
 
 				// Add workspace and remove folders thereby
 				windowsToOpen.push({ workspace });
@@ -933,7 +934,7 @@ export class WindowsManager implements IWindowsMainService {
 		if (this.lifecycleService.wasRestarted) {
 			restoreWindows = 'all'; // always reopen all windows when an update was applied
 		} else {
-			const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 			restoreWindows = ((windowConfig && windowConfig.restoreWindows) || 'one') as RestoreWindowsSetting;
 
 			if (restoreWindows === 'one' /* default */ && windowConfig && windowConfig.reopenFolders) {
@@ -1002,7 +1003,7 @@ export class WindowsManager implements IWindowsMainService {
 	private shouldOpenNewWindow(openConfig: IOpenConfiguration): { openFolderInNewWindow: boolean; openFilesInNewWindow: boolean; } {
 
 		// let the user settings override how folders are open in a new window or same window unless we are forced
-		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 		const openFolderInNewWindowConfig = (windowConfig && windowConfig.openFoldersInNewWindow) || 'default' /* default */;
 		const openFilesInNewWindowConfig = (windowConfig && windowConfig.openFilesInNewWindow) || 'off' /* default */;
 
@@ -1093,7 +1094,7 @@ export class WindowsManager implements IWindowsMainService {
 
 		// New window
 		if (!window) {
-			const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 			const state = this.getNewWindowState(configuration);
 
 			// Window state is not from a previous session: only allow fullscreen if we inherit it or user wants fullscreen
@@ -1256,7 +1257,7 @@ export class WindowsManager implements IWindowsMainService {
 		state.y = displayToUse.bounds.y + (displayToUse.bounds.height / 2) - (state.height / 2);
 
 		// Check for newWindowDimensions setting and adjust accordingly
-		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 		let ensureNoOverlap = true;
 		if (windowConfig && windowConfig.newWindowDimensions) {
 			if (windowConfig.newWindowDimensions === 'maximized') {
@@ -1324,8 +1325,8 @@ export class WindowsManager implements IWindowsMainService {
 		return this.workspacesManager.saveAndEnterWorkspace(win, path).then(result => this.doEnterWorkspace(win, result));
 	}
 
-	public createAndEnterWorkspace(win: CodeWindow, folderPaths?: string[], path?: string): TPromise<IEnterWorkspaceResult> {
-		return this.workspacesManager.createAndEnterWorkspace(win, folderPaths, path).then(result => this.doEnterWorkspace(win, result));
+	public createAndEnterWorkspace(win: CodeWindow, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
+		return this.workspacesManager.createAndEnterWorkspace(win, folders, path).then(result => this.doEnterWorkspace(win, result));
 	}
 
 	private doEnterWorkspace(win: CodeWindow, result: IEnterWorkspaceResult): IEnterWorkspaceResult {
@@ -1339,8 +1340,8 @@ export class WindowsManager implements IWindowsMainService {
 		return result;
 	}
 
-	public openWorkspace(win?: CodeWindow): void {
-		this.workspacesManager.openWorkspace(win);
+	public pickWorkspaceAndOpen(options: INativeOpenDialogOptions): void {
+		this.workspacesManager.pickWorkspaceAndOpen(options);
 	}
 
 	private onBeforeWindowUnload(e: IWindowUnloadEvent): void {
@@ -1455,7 +1456,7 @@ export class WindowsManager implements IWindowsMainService {
 			dialog.showMessageBox(window.win, {
 				title: product.nameLong,
 				type: 'warning',
-				buttons: [localize('reopen', "Reopen"), localize('wait', "Keep Waiting"), localize('close', "Close")],
+				buttons: [mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")), mnemonicButtonLabel(localize({ key: 'wait', comment: ['&& denotes a mnemonic'] }, "&&Keep Waiting")), mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
 				message: localize('appStalled', "The window is no longer responding"),
 				detail: localize('appStalledDetail', "You can reopen or close the window or keep waiting."),
 				noLink: true
@@ -1478,7 +1479,7 @@ export class WindowsManager implements IWindowsMainService {
 			dialog.showMessageBox(window.win, {
 				title: product.nameLong,
 				type: 'warning',
-				buttons: [localize('reopen', "Reopen"), localize('close', "Close")],
+				buttons: [mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")), mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
 				message: localize('appCrashed', "The window has crashed"),
 				detail: localize('appCrashedDetail', "We are sorry for the inconvenience! You can reopen the window to continue where you left off."),
 				noLink: true
@@ -1618,7 +1619,7 @@ class FileDialog {
 		});
 	}
 
-	public getFileOrFolderPaths(options: IInternalNativeOpenDialogOptions, clb: (paths: string[]) => void): void {
+	private getFileOrFolderPaths(options: IInternalNativeOpenDialogOptions, clb: (paths: string[]) => void): void {
 
 		// Ensure dialog options
 		if (!options.dialogOptions) {
@@ -1671,7 +1672,6 @@ class WorkspacesManager {
 
 	constructor(
 		private workspacesService: IWorkspacesMainService,
-		private lifecycleService: ILifecycleService,
 		private backupService: IBackupMainService,
 		private environmentService: IEnvironmentService,
 		private windowsMainService: IWindowsMainService
@@ -1686,12 +1686,12 @@ class WorkspacesManager {
 		return this.doSaveAndOpenWorkspace(window, window.openedWorkspace, path);
 	}
 
-	public createAndEnterWorkspace(window: CodeWindow, folderPaths?: string[], path?: string): TPromise<IEnterWorkspaceResult> {
+	public createAndEnterWorkspace(window: CodeWindow, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
 		if (!window || !window.win || window.readyState !== ReadyState.READY || !this.isValidTargetWorkspacePath(window, path)) {
 			return TPromise.as(null); // return early if the window is not ready or disposed
 		}
 
-		return this.workspacesService.createWorkspace(folderPaths).then(workspace => {
+		return this.workspacesService.createWorkspace(folders).then(workspace => {
 			return this.doSaveAndOpenWorkspace(window, workspace, path);
 		});
 	}
@@ -1755,13 +1755,8 @@ class WorkspacesManager {
 		});
 	}
 
-	public openWorkspace(window = this.windowsMainService.getLastActiveWindow()): void {
-		let defaultPath: string;
-		if (window && window.openedWorkspace && !this.workspacesService.isUntitledWorkspace(window.openedWorkspace)) {
-			defaultPath = dirname(window.openedWorkspace.configPath);
-		} else {
-			defaultPath = this.getWorkspaceDialogDefaultPath(window ? (window.openedWorkspace || window.openedFolderPath) : void 0);
-		}
+	public pickWorkspaceAndOpen(options: INativeOpenDialogOptions): void {
+		const window = this.windowsMainService.getWindowById(options.windowId) || this.windowsMainService.getFocusedWindow() || this.windowsMainService.getLastActiveWindow();
 
 		this.windowsMainService.pickFileAndOpen({
 			windowId: window ? window.id : void 0,
@@ -1770,8 +1765,11 @@ class WorkspacesManager {
 				title: localize('openWorkspaceTitle', "Open Workspace"),
 				filters: WORKSPACE_FILTER,
 				properties: ['openFile'],
-				defaultPath
-			}
+				defaultPath: options.dialogOptions && options.dialogOptions.defaultPath
+			},
+			forceNewWindow: options.forceNewWindow,
+			telemetryEventName: options.telemetryEventName,
+			telemetryExtraData: options.telemetryExtraData
 		});
 	}
 
@@ -1830,7 +1828,7 @@ class WorkspacesManager {
 					buttonLabel: mnemonicButtonLabel(localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")),
 					title: localize('saveWorkspace', "Save Workspace"),
 					filters: WORKSPACE_FILTER,
-					defaultPath: this.getWorkspaceDialogDefaultPath(workspace)
+					defaultPath: this.getUntitledWorkspaceSaveDialogDefaultPath(workspace)
 				});
 
 				if (target) {
@@ -1846,7 +1844,7 @@ class WorkspacesManager {
 		}
 	}
 
-	private getWorkspaceDialogDefaultPath(workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): string {
+	private getUntitledWorkspaceSaveDialogDefaultPath(workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier): string {
 		if (workspace) {
 			if (isSingleFolderWorkspaceIdentifier(workspace)) {
 				return dirname(workspace);
@@ -1861,6 +1859,7 @@ class WorkspacesManager {
 				}
 			}
 		}
+
 		return void 0;
 	}
 }

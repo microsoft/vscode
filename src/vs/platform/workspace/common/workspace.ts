@@ -13,7 +13,6 @@ import Event from 'vs/base/common/event';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, IStoredWorkspaceFolder, isRawFileWorkspaceFolder, isRawUriWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { coalesce, distinct } from 'vs/base/common/arrays';
 import { isLinux } from 'vs/base/common/platform';
-import { TPromise } from 'vs/base/common/winjs.base';
 
 export const IWorkspaceContextService = createDecorator<IWorkspaceContextService>('contextService');
 
@@ -48,20 +47,9 @@ export interface IWorkspaceContextService {
 	onDidChangeWorkspaceFolders: Event<IWorkspaceFoldersChangeEvent>;
 
 	/**
-	 * Provides access to the workspace object the platform is running with. This may be null if the workbench was opened
-	 * without workspace (empty);
+	 * Provides access to the workspace object the platform is running with.
 	 */
 	getWorkspace(): IWorkspace;
-
-	/**
-	 * add folders to the existing workspace
-	 */
-	addFolders(folders: URI[]): TPromise<void>;
-
-	/**
-	 * remove folders from the existing workspace
-	 */
-	removeFolders(folders: URI[]): TPromise<void>;
 
 	/**
 	 * Return the state of the workbench.

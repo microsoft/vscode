@@ -10,10 +10,10 @@ import errors = require('vs/base/common/errors');
 import URI from 'vs/base/common/uri';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { IEditor as IBaseEditor, IEditorInput, ITextEditorOptions, IResourceInput, ITextEditorSelection, Position as GroupPosition } from 'vs/platform/editor/common/editor';
-import { Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, IEditorGroup, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import { Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, IEditorGroup, IEditorInputFactoryRegistry, toResource } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { FileChangesEvent, IFileService, FileChangeType } from 'vs/platform/files/common/files';
+import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG } from 'vs/platform/files/common/files';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -21,16 +21,15 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { once, debounceEvent } from 'vs/base/common/event';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
+import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { getExcludes, ISearchConfiguration } from 'vs/platform/search/common/search';
-import { parse, IExpression } from 'vs/base/common/glob';
+import { IExpression } from 'vs/base/common/glob';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
-import { IEditorRegistry, Extensions } from 'vs/workbench/browser/editor';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -189,7 +188,6 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	private history: (IEditorInput | IResourceInput)[];
 	private recentlyClosedFiles: IRecentlyClosedFile[];
 	private loaded: boolean;
-	private registry: IEditorRegistry;
 	private resourceFilter: ResourceGlobMatcher;
 
 	constructor(
@@ -210,8 +208,11 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		this.stack = [];
 		this.recentlyClosedFiles = [];
 		this.loaded = false;
-		this.registry = Registry.as<IEditorRegistry>(Extensions.Editors);
-		this.resourceFilter = instantiationService.createInstance(ResourceGlobMatcher, (root: URI) => this.getExcludes(root), (expression: IExpression) => parse(expression));
+		this.resourceFilter = instantiationService.createInstance(
+			ResourceGlobMatcher,
+			(root: URI) => this.getExcludes(root),
+			(event: IConfigurationChangeEvent) => event.affectsConfiguration(FILES_EXCLUDE_CONFIG) || event.affectsConfiguration('search.exclude')
+		);
 
 		this.registerListeners();
 	}
@@ -224,7 +225,7 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 	private getExcludes(root?: URI): IExpression {
 		const scope = root ? { resource: root } : void 0;
 
-		return getExcludes(this.configurationService.getConfiguration<ISearchConfiguration>(scope));
+		return getExcludes(this.configurationService.getValue<ISearchConfiguration>(scope));
 	}
 
 	private registerListeners(): void {
@@ -243,8 +244,8 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 	private onEditorClosed(event: IEditorCloseEvent): void {
 
-		// Track closing of pinned editor to support to reopen closed editors
-		if (event.pinned) {
+		// Track closing of editor to support to reopen closed editors (unless editor was replaced)
+		if (!event.replaced) {
 			const resource = event.editor ? event.editor.getResource() : void 0;
 			const supportsReopen = resource && this.fileService.canHandleResource(resource); // we only support file'ish things to reopen
 			if (supportsReopen) {
@@ -772,12 +773,25 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 		}).filter(input => !!input);
 	}
 
-	public getLastActiveWorkspaceRoot(): URI {
+	public getLastActiveWorkspaceRoot(schemeFilter?: string): URI {
+
+		// No Folder: return early
 		const folders = this.contextService.getWorkspace().folders;
 		if (folders.length === 0) {
 			return void 0;
 		}
 
+		// Single Folder: return early
+		if (folders.length === 1) {
+			const resource = folders[0].uri;
+			if (!schemeFilter || resource.scheme === schemeFilter) {
+				return resource;
+			}
+
+			return void 0;
+		}
+
+		// Multiple folders: find the last active one
 		const history = this.getHistory();
 		for (let i = 0; i < history.length; i++) {
 			const input = history[i];
@@ -786,13 +800,44 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 			}
 
 			const resourceInput = input as IResourceInput;
+			if (schemeFilter && resourceInput.resource.scheme !== schemeFilter) {
+				continue;
+			}
+
 			const resourceWorkspace = this.contextService.getWorkspaceFolder(resourceInput.resource);
 			if (resourceWorkspace) {
 				return resourceWorkspace.uri;
 			}
 		}
 
-		// fallback to first workspace
-		return folders[0].uri;
+		// fallback to first workspace matching scheme filter if any
+		for (let i = 0; i < folders.length; i++) {
+			const resource = folders[i].uri;
+			if (!schemeFilter || resource.scheme === schemeFilter) {
+				return resource;
+			}
+		}
+
+		return void 0;
+	}
+
+	public getLastActiveFile(): URI {
+		const history = this.getHistory();
+		for (let i = 0; i < history.length; i++) {
+			let resource: URI;
+
+			const input = history[i];
+			if (input instanceof EditorInput) {
+				resource = toResource(input, { filter: 'file' });
+			} else {
+				resource = (input as IResourceInput).resource;
+			}
+
+			if (resource && resource.scheme === 'file') {
+				return resource;
+			}
+		}
+
+		return void 0;
 	}
 }

@@ -14,7 +14,7 @@ import * as platform from 'vs/base/common/platform';
 import { EventType as TouchEventType } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import Event, { Emitter, EventBufferer, chain, mapEvent, fromCallback, any } from 'vs/base/common/event';
+import Event, { Emitter, EventBufferer, chain, mapEvent, fromCallback, anyEvent } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IDelegate, IRenderer, IListEvent, IListMouseEvent, IListContextMenuEvent } from './list';
 import { ListView, IListViewOptions } from './listView';
@@ -52,7 +52,7 @@ interface IRenderedElement {
 	index: number;
 }
 
-class TraitRenderer<T, D> implements IRenderer<T, ITraitTemplateData>
+class TraitRenderer<T> implements IRenderer<T, ITraitTemplateData>
 {
 	private rendered: IRenderedElement[] = [];
 
@@ -107,8 +107,8 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 	get trait(): string { return this._trait; }
 
 	@memoize
-	get renderer(): TraitRenderer<T, any> {
-		return new TraitRenderer<T, any>(this);
+	get renderer(): TraitRenderer<T> {
+		return new TraitRenderer<T>(this);
 	}
 
 	constructor(private _trait: string) {
@@ -323,6 +323,7 @@ function isSelectionChangeEvent(event: IListMouseEvent<any>): boolean {
 
 export interface IMouseControllerOptions {
 	selectOnMouseDown?: boolean;
+	focusOnMouseDown?: boolean;
 }
 
 class MouseController<T> implements IDisposable {
@@ -347,7 +348,7 @@ class MouseController<T> implements IDisposable {
 			.map(({ element, index, clientX, clientY }) => ({ element, index, anchor: { x: clientX + 1, y: clientY } }))
 			.event;
 
-		return any<IListContextMenuEvent<T>>(fromKeyboard, fromMouse);
+		return anyEvent<IListContextMenuEvent<T>>(fromKeyboard, fromMouse);
 	}
 
 	constructor(
@@ -364,7 +365,12 @@ class MouseController<T> implements IDisposable {
 	}
 
 	private onMouseDown(e: IListMouseEvent<T>): void {
-		this.view.domNode.focus();
+		if (this.options.focusOnMouseDown === false) {
+			e.preventDefault();
+			e.stopPropagation();
+		} else {
+			this.view.domNode.focus();
+		}
 
 		let reference = this.list.getFocus()[0];
 		reference = reference === undefined ? this.list.getSelection()[0] : reference;

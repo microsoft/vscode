@@ -350,7 +350,7 @@ suite('window namespace tests', () => {
 	});
 
 	test('showWorkspaceFolderPick', function () {
-		const p = (<any>window).showWorkspaceFolderPick(undefined);
+		const p = window.showWorkspaceFolderPick(undefined);
 
 		return commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem').then(() => {
 			return p.then(workspace => {

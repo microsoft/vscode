@@ -28,6 +28,7 @@ import 'vs/workbench/browser/actions/toggleSidebarVisibility';
 import 'vs/workbench/browser/actions/toggleSidebarPosition';
 import 'vs/workbench/browser/actions/toggleEditorLayout';
 import 'vs/workbench/browser/actions/toggleZenMode';
+import 'vs/workbench/browser/actions/toggleTabsVisibility';
 import 'vs/workbench/parts/preferences/browser/preferences.contribution';
 import 'vs/workbench/parts/preferences/browser/keybindingsEditorContribution';
 
@@ -40,6 +41,9 @@ import 'vs/workbench/parts/files/browser/fileActions.contribution';
 import 'vs/workbench/parts/files/browser/files.contribution';
 
 import 'vs/workbench/parts/backup/common/backup.contribution';
+
+import 'vs/workbench/parts/stats/node/stats.contribution';
+import 'vs/workbench/parts/cache/node/cache.contribution';
 
 import 'vs/workbench/parts/search/browser/search.contribution';
 import 'vs/workbench/parts/search/browser/searchViewlet'; // can be packaged separately
@@ -75,7 +79,6 @@ import 'vs/workbench/parts/terminal/browser/terminalQuickOpen';
 import 'vs/workbench/parts/terminal/electron-browser/terminalPanel'; // can be packaged separately
 
 import 'vs/workbench/electron-browser/workbench';
-import 'vs/workbench/electron-browser/configureLocale';
 
 import 'vs/workbench/parts/trust/electron-browser/unsupportedWorkspaceSettings.contribution';
 

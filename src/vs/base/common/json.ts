@@ -786,7 +786,7 @@ export function getLocation(text: string, position: number): Location {
 		path: segments,
 		previousNode,
 		isAtPropertyKey,
-		matches: (pattern: string[]) => {
+		matches: (pattern: JSONPath) => {
 			let k = 0;
 			for (let i = 0; k < pattern.length && i < segments.length; i++) {
 				if (pattern[k] === segments[i] || pattern[k] === '*') {

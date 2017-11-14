@@ -58,6 +58,13 @@ export interface IHistoryService {
 	/**
 	 * Looking at the editor history, returns the workspace root of the last file that was
 	 * inside the workspace and part of the editor history.
+	 *
+	 * @param schemeFilter optional filter to restrict roots by scheme.
 	 */
-	getLastActiveWorkspaceRoot(): URI;
+	getLastActiveWorkspaceRoot(schemeFilter?: string): URI;
+
+	/**
+	 * Looking at the editor history, returns the resource of the last file tht was opened.
+	 */
+	getLastActiveFile(): URI;
 }

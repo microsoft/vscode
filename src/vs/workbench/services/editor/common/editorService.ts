@@ -23,6 +23,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { once } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
+import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInput';
 
 export const IWorkbenchEditorService = createDecorator<IWorkbenchEditorService>('editorService');
 
@@ -121,7 +122,7 @@ export interface IEditorPart {
 	getActiveEditorInput(): IEditorInput;
 }
 
-type ICachedEditorInput = ResourceEditorInput | IFileEditorInput;
+type ICachedEditorInput = ResourceEditorInput | IFileEditorInput | DataUriEditorInput;
 
 export class WorkbenchEditorService implements IWorkbenchEditorService {
 
@@ -185,7 +186,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	public openEditor(input: IResourceInputType, sideBySide?: boolean): TPromise<IEditor>;
 	public openEditor(input: any, arg2?: any, arg3?: any): TPromise<IEditor> {
 		if (!input) {
-			return TPromise.as<IEditor>(null);
+			return TPromise.wrap<IEditor>(null);
 		}
 
 		// Workbench Input Support
@@ -200,7 +201,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 			if (schema === network.Schemas.http || schema === network.Schemas.https) {
 				window.open(resourceInput.resource.toString(true));
 
-				return TPromise.as<IEditor>(null);
+				return TPromise.wrap<IEditor>(null);
 			}
 		}
 
@@ -211,7 +212,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 			return this.doOpenEditor(typedInput, TextEditorOptions.from(textInput), arg2);
 		}
 
-		return TPromise.as<IEditor>(null);
+		return TPromise.wrap<IEditor>(null);
 	}
 
 	private toOptions(options?: IEditorOptions | EditorOptions): EditorOptions {
@@ -323,8 +324,8 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 		const resourceInput = <IResourceInput>input;
 
-		// Files support
-		if (resourceInput.resource instanceof URI && resourceInput.resource.scheme === network.Schemas.file) {
+		// Files / Data URI support
+		if (resourceInput.resource instanceof URI && (resourceInput.resource.scheme === network.Schemas.file || resourceInput.resource.scheme === network.Schemas.data)) {
 			return this.createOrGet(resourceInput.resource, this.instantiationService, resourceInput.label, resourceInput.description, resourceInput.encoding);
 		}
 
@@ -350,7 +351,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 			if (input instanceof ResourceEditorInput) {
 				input.setName(label);
 				input.setDescription(description);
-			} else {
+			} else if (!(input instanceof DataUriEditorInput)) {
 				input.setPreferredEncoding(encoding);
 			}
 
@@ -358,9 +359,19 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		}
 
 		let input: ICachedEditorInput;
-		if (resource.scheme === network.Schemas.file || this.fileService.canHandleResource && this.fileService.canHandleResource(resource)) {
+
+		// File
+		if (resource.scheme === network.Schemas.file || this.fileService.canHandleResource(resource)) {
 			input = this.fileInputFactory.createFileInput(resource, encoding, instantiationService);
-		} else {
+		}
+
+		// Data URI
+		else if (resource.scheme === network.Schemas.data) {
+			input = instantiationService.createInstance(DataUriEditorInput, label, description, resource);
+		}
+
+		// Resource
+		else {
 			input = instantiationService.createInstance(ResourceEditorInput, label, description, resource);
 		}
 

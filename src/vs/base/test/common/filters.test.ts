@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyScore, nextTypoPermutation, fuzzyScoreGraceful } from 'vs/base/common/filters';
+import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyScore, nextTypoPermutation, fuzzyScoreGraceful, IMatch } from 'vs/base/common/filters';
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number; }[]) {
 	let r = filter(word, wordToMatchAgainst);
@@ -15,15 +15,16 @@ function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, hig
 	}
 }
 
-function filterNotOk(filter, word, suggestion) {
+function filterNotOk(filter: IFilter, word: string, suggestion: string) {
 	assert(!filter(word, suggestion));
 }
 
 suite('Filters', () => {
 	test('or', function () {
-		let filter, counters;
-		let newFilter = function (i, r) {
-			return function () { counters[i]++; return r; };
+		let filter: IFilter;
+		let counters: number[];
+		let newFilter = function (i: number, r: boolean): IFilter {
+			return function (): IMatch[] { counters[i]++; return r as any; };
 		};
 
 		counters = [0, 0];

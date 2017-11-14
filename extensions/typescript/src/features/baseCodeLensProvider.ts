@@ -6,7 +6,7 @@
 import { CodeLensProvider, CodeLens, CancellationToken, TextDocument, Range, Uri, Position, Event, EventEmitter, ProviderResult, } from 'vscode';
 import * as Proto from '../protocol';
 
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
 import { tsTextSpanToVsRange } from '../utils/convert';
 
 export class ReferencesCodeLens extends CodeLens {
@@ -24,7 +24,7 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 	private onDidChangeCodeLensesEmitter = new EventEmitter<void>();
 
 	public constructor(
-		protected client: ITypescriptServiceClient
+		protected client: ITypeScriptServiceClient
 	) { }
 
 	public get onDidChangeCodeLenses(): Event<void> {

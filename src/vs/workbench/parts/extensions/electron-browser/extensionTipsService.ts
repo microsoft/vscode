@@ -17,7 +17,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import product from 'vs/platform/node/product';
 import { IChoiceService, IMessageService } from 'vs/platform/message/common/message';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ShowRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { ShowRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction, InstallRecommendedExtensionAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import Severity from 'vs/base/common/severity';
 import { IWorkspaceContextService, IWorkspaceFolder, IWorkspace, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
@@ -41,14 +41,14 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	_serviceBrand: any;
 
 	private _fileBasedRecommendations: { [id: string]: number; } = Object.create(null);
-	private _exeBasedRecommendations: string[] = [];
+	private _exeBasedRecommendations: { [id: string]: string; } = Object.create(null);
 	private _availableRecommendations: { [pattern: string]: string[] } = Object.create(null);
 	private importantRecommendations: { [id: string]: { name: string; pattern: string; } } = Object.create(null);
 	private importantRecommendationsIgnoreList: string[];
-	private _allRecommendations: string[];
+	private _allRecommendations: string[] = [];
 	private _disposables: IDisposable[] = [];
 
-	private _suggestedWorkspaceRecommendedExtensions: string[] = [];
+	private _allWorkspaceRecommendedExtensions: string[] = [];
 
 	constructor(
 		@IExtensionGalleryService private _galleryService: IExtensionGalleryService,
@@ -79,10 +79,21 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		this._register(this.contextService.onDidChangeWorkspaceFolders(e => this.onWorkspaceFoldersChanged(e)));
 	}
 
+	getAllRecommendationsWithReason(): { [id: string]: string; } {
+		let output: { [id: string]: string; } = Object.create(null);
+		Object.keys(this._fileBasedRecommendations).forEach(x => output[x.toLowerCase()] = localize('fileBasedRecommendation', "This extension is recommended based on the files you recently opened."));
+		this._allWorkspaceRecommendedExtensions.forEach(x => output[x.toLowerCase()] = localize('workspaceRecommendation', "This extension is recommended by users of the current workspace."));
+		forEach(this._exeBasedRecommendations, entry => output[entry.key.toLowerCase()] = localize('exeBasedRecommendation', "This extension is recommended because you have {0} installed.", entry.value));
+		return output;
+	}
+
 	getWorkspaceRecommendations(): TPromise<string[]> {
 		const workspace = this.contextService.getWorkspace();
 		return TPromise.join([this.resolveWorkspaceRecommendations(workspace), ...workspace.folders.map(workspaceFolder => this.resolveWorkspaceFolderRecommendations(workspaceFolder))])
-			.then(recommendations => distinct(flatten(recommendations)));
+			.then(recommendations => {
+				this._allWorkspaceRecommendedExtensions = distinct(flatten(recommendations));
+				return this._allWorkspaceRecommendedExtensions;
+			});
 	}
 
 	private resolveWorkspaceRecommendations(workspace: IWorkspace): TPromise<string[]> {
@@ -114,63 +125,37 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				.then(result => {
 					const newRecommendations = flatten(result);
 					// Suggest only if atleast one of the newly added recommendtations was not suggested before
-					if (newRecommendations.some(e => this._suggestedWorkspaceRecommendedExtensions.indexOf(e) === -1)) {
+					if (newRecommendations.some(e => this._allWorkspaceRecommendedExtensions.indexOf(e) === -1)) {
 						this._suggestWorkspaceRecommendations();
 					}
 				});
 		}
 	}
 
-	getRecommendations(installedExtensions: string[], searchText: string): string[] {
-		const allRecomendations = this._getAllRecommendationsInProduct();
+	getFileBasedRecommendations(): string[] {
 		const fileBased = Object.keys(this._fileBasedRecommendations)
-			.filter(recommendation => {
-				return allRecomendations.indexOf(recommendation) > -1
-					&& installedExtensions.indexOf(recommendation) === -1
-					&& recommendation.toLowerCase().indexOf(searchText) > -1;
-			}).sort((a, b) => {
+			.sort((a, b) => {
+				if (this._fileBasedRecommendations[a] === this._fileBasedRecommendations[b]) {
+					if (product.extensionImportantTips[a]) {
+						return -1;
+					}
+					if (product.extensionImportantTips[b]) {
+						return 1;
+					}
+				}
 				return this._fileBasedRecommendations[a] > this._fileBasedRecommendations[b] ? -1 : 1;
 			});
-
-		const exeBased = this._exeBasedRecommendations
-			.filter((recommendation, index) => {
-				return this._exeBasedRecommendations.indexOf(recommendation) === index
-					&& installedExtensions.indexOf(recommendation) === -1
-					&& fileBased.indexOf(recommendation) === -1
-					&& recommendation.toLowerCase().indexOf(searchText) > -1;
-			});
-
-		// Sort recommendations such that few of the exeBased ones show up earliar
-		const x = Math.min(6, fileBased.length);
-		const y = Math.min(4, exeBased.length);
-		const sortedRecommendations = fileBased.slice(0, x);
-		sortedRecommendations.push(...exeBased.slice(0, y));
-		sortedRecommendations.push(...fileBased.slice(x));
-		sortedRecommendations.push(...exeBased.slice(y));
-
-		/* __GDPR__
-			"extensionRecommendations:unfiltered" : {
-				"fileBased" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"exeBased": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		this.telemetryService.publicLog('extensionRecommendations:unfiltered', { fileBased, exeBased });
-
-		return sortedRecommendations;
+		return fileBased;
 	}
+
+	getOtherRecommendations(): string[] {
+		return Object.keys(this._exeBasedRecommendations);
+	}
+
+
 
 	getKeymapRecommendations(): string[] {
 		return product.keymapExtensionTips || [];
-	}
-
-	private _getAllRecommendationsInProduct(): string[] {
-		if (!this._allRecommendations) {
-			this._allRecommendations = [...Object.keys(this.importantRecommendations)];
-			forEach(this._availableRecommendations, ({ value: ids }) => {
-				this._allRecommendations.push(...ids);
-			});
-		}
-		return this._allRecommendations;
 	}
 
 	private _suggestTips() {
@@ -180,26 +165,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		}
 		this.importantRecommendations = product.extensionImportantTips || Object.create(null);
 		this.importantRecommendationsIgnoreList = <string[]>JSON.parse(this.storageService.get('extensionsAssistant/importantRecommendationsIgnore', StorageScope.GLOBAL, '[]'));
-
-		// retrieve ids of previous recommendations
-		const storedRecommendationsJson = JSON.parse(this.storageService.get('extensionsAssistant/recommendations', StorageScope.GLOBAL, '[]'));
-		if (Array.isArray<string>(storedRecommendationsJson)) {
-			for (let id of <string[]>storedRecommendationsJson) {
-				this._fileBasedRecommendations[id] = Date.now();
-			}
-		} else {
-			const now = Date.now();
-			forEach(storedRecommendationsJson, entry => {
-				if (typeof entry.value === 'number') {
-					const diff = (now - entry.value) / milliSecondsInADay;
-					if (diff > 7) {
-						delete this._fileBasedRecommendations[entry.value];
-					} else {
-						this._fileBasedRecommendations[entry.key] = entry.value;
-					}
-				}
-			});
-		}
 
 		// group ids by pattern, like {**/*.md} -> [ext.foo1, ext.bar2]
 		this._availableRecommendations = Object.create(null);
@@ -223,6 +188,31 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				ids.push(id);
 			}
 		});
+
+		forEach(this._availableRecommendations, ({ value: ids }) => {
+			this._allRecommendations.push(...ids);
+		});
+
+		// retrieve ids of previous recommendations
+		const storedRecommendationsJson = JSON.parse(this.storageService.get('extensionsAssistant/recommendations', StorageScope.GLOBAL, '[]'));
+
+		if (Array.isArray<string>(storedRecommendationsJson)) {
+			for (let id of <string[]>storedRecommendationsJson) {
+				if (this._allRecommendations.indexOf(id) > -1) {
+					this._fileBasedRecommendations[id] = Date.now();
+				}
+			}
+		} else {
+			const now = Date.now();
+			forEach(storedRecommendationsJson, entry => {
+				if (typeof entry.value === 'number') {
+					const diff = (now - entry.value) / milliSecondsInADay;
+					if (diff <= 7 && this._allRecommendations.indexOf(entry.key) > -1) {
+						this._fileBasedRecommendations[entry.key] = entry.value;
+					}
+				}
+			});
+		}
 
 		this._modelService.onModelAdded(this._suggest, this, this._disposables);
 		this._modelService.getModels().forEach(model => this._suggest(model));
@@ -259,7 +249,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				StorageScope.GLOBAL
 			);
 
-			const config = this.configurationService.getConfiguration<IExtensionsConfiguration>(ConfigurationKey);
+			const config = this.configurationService.getValue<IExtensionsConfiguration>(ConfigurationKey);
 
 			if (config.ignoreRecommendations) {
 				return;
@@ -283,13 +273,15 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 						}
 
 						const recommendationsAction = this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
+						const installAction = this.instantiationService.createInstance(InstallRecommendedExtensionAction, id);
 						const options = [
+							localize('install', 'Install'),
 							recommendationsAction.label,
 							localize('neverShowAgain', "Don't show again"),
 							localize('close', "Close")
 						];
 
-						this.choiceService.choose(Severity.Info, message, options, 2).done(choice => {
+						this.choiceService.choose(Severity.Info, message, options, 3).done(choice => {
 							switch (choice) {
 								case 0:
 									/* __GDPR__
@@ -298,9 +290,18 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 											"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
 										}
 									*/
+									this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'install', extensionId: name });
+									return installAction.run();
+								case 1:
+									/* __GDPR__
+										"extensionRecommendations:popup" : {
+											"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+											"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+										}
+									*/
 									this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'show', extensionId: name });
 									return recommendationsAction.run();
-								case 1: this.importantRecommendationsIgnoreList.push(id);
+								case 2: this.importantRecommendationsIgnoreList.push(id);
 									this.storageService.store(
 										'extensionsAssistant/importantRecommendationsIgnore',
 										JSON.stringify(this.importantRecommendationsIgnoreList),
@@ -314,7 +315,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 									*/
 									this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'neverShowAgain', extensionId: name });
 									return this.ignoreExtensionRecommendations();
-								case 2:
+								case 3:
 									/* __GDPR__
 										"extensionRecommendations:popup" : {
 											"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -344,7 +345,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			return;
 		}
 
-		const config = this.configurationService.getConfiguration<IExtensionsConfiguration>(ConfigurationKey);
+		const config = this.configurationService.getValue<IExtensionsConfiguration>(ConfigurationKey);
 
 		if (config.ignoreRecommendations) {
 			return;
@@ -363,15 +364,17 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				}
 
 				const message = localize('workspaceRecommended', "This workspace has extension recommendations.");
-				const action = this.instantiationService.createInstance(ShowWorkspaceRecommendedExtensionsAction, ShowWorkspaceRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
+				const showAction = this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
+				const installAllAction = this.instantiationService.createInstance(InstallWorkspaceRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction.ID, localize('installAll', "Install All"));
 
 				const options = [
-					action.label,
+					installAllAction.label,
+					showAction.label,
 					localize('neverShowAgain', "Don't show again"),
 					localize('close', "Close")
 				];
 
-				this.choiceService.choose(Severity.Info, message, options, 2).done(choice => {
+				this.choiceService.choose(Severity.Info, message, options, 3).done(choice => {
 					switch (choice) {
 						case 0:
 							/* __GDPR__
@@ -379,10 +382,17 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 								}
 							*/
-							this._suggestedWorkspaceRecommendedExtensions = allRecommendations;
-							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'show' });
-							return action.run();
+							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'install' });
+							return installAllAction.run();
 						case 1:
+							/* __GDPR__
+								"extensionRecommendations:popup" : {
+									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+								}
+							*/
+							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'show' });
+							return showAction.run();
+						case 2:
 							/* __GDPR__
 								"extensionRecommendations:popup" : {
 									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
@@ -390,7 +400,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							*/
 							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'neverShowAgain' });
 							return this.storageService.store(storageKey, true, StorageScope.WORKSPACE);
-						case 2:
+						case 3:
 							/* __GDPR__
 								"extensionRecommendations:popup" : {
 									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
@@ -429,7 +439,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		});
 	}
 
-	private _suggestBasedOnExecutables(recommendations: string[]): void {
+	private _suggestBasedOnExecutables(recommendations: { [id: string]: string; }): void {
 		const homeDir = os.homedir();
 		let foundExecutables: Set<string> = new Set<string>();
 
@@ -437,7 +447,12 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			return pfs.fileExists(path).then(exists => {
 				if (exists && !foundExecutables.has(exeName)) {
 					foundExecutables.add(exeName);
-					recommendations.push(...product.exeBasedExtensionTips[exeName]['recommendations']);
+					(product.exeBasedExtensionTips[exeName]['recommendations'] || [])
+						.forEach(x => {
+							if (product.exeBasedExtensionTips[exeName]['friendlyName']) {
+								recommendations[x] = product.exeBasedExtensionTips[exeName]['friendlyName'];
+							}
+						});
 				}
 			});
 		};

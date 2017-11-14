@@ -6,10 +6,11 @@
 		"no-string-throw": true,
 		"no-unused-expression": true,
 		"no-duplicate-variable": true,
-		"no-unused-variable": true,
+		// "no-unused-variable": true, // requires type information in tslint > v4
 		"curly": true,
 		"class-name": true,
 		"semicolon": [
+			true,
 			"always"
 		],
 		"triple-equals": true,
@@ -288,7 +289,7 @@
 					"**/vs/base/parts/*/{common,browser}/**",
 					"**/vs/platform/*/{common,browser}/**",
 					"**/vs/editor/{common,browser}/**",
-					"**/vs/editor/contrib/*/{common,browser}/**",
+					"**/vs/editor/contrib/**", // editor/contrib is equivalent to /browser/ by convention
 					"**/vs/workbench/{common,browser}/**",
 					"**/vs/workbench/services/*/{common,browser}/**",
 					"assert"
@@ -310,7 +311,7 @@
 					"**/vs/platform/node/**",
 					"**/vs/platform/*/{common,browser,node,electron-browser}/**",
 					"**/vs/editor/{common,browser,node,electron-browser}/**",
-					"**/vs/editor/contrib/*/{common,browser,node,electron-browser}/**",
+					"**/vs/editor/contrib/**", // editor/contrib is equivalent to /browser/ by convention
 					"**/vs/workbench/{common,browser,node,electron-browser,api}/**",
 					"**/vs/workbench/services/*/{common,browser,node,electron-browser}/**",
 					"*" // node modules
@@ -391,7 +392,7 @@
 					"vs/css!./**/*",
 					"**/vs/base/**/{common,browser,node,electron-browser}/**",
 					"**/vs/platform/**/{common,browser,node,electron-browser}/**",
-					"**/vs/editor/**/{common,browser,node,electron-browser}/**",
+					"**/vs/editor/**",
 					"**/vs/workbench/{common,browser,node,electron-browser,api}/**",
 					"**/vs/workbench/services/**/{common,browser,node,electron-browser}/**",
 					"*" // node modules
@@ -420,7 +421,7 @@
 			},
 			{
 				"target": "{**/**.test.ts,**/test/**}",
-				"restrictions": "{**/vs/**,assert,sinon}"
+				"restrictions": "{**/vs/**,assert,sinon,crypto}"
 			},
 			{
 				"target": "**/{common,browser,workbench}/**",
@@ -429,5 +430,6 @@
 		],
 		"duplicate-imports": true,
 		"translation-remind": true
-	}
+	},
+	"defaultSeverity": "warning"
 }

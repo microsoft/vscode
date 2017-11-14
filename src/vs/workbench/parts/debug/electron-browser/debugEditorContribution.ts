@@ -18,9 +18,9 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { StandardTokenType } from 'vs/editor/common/modes';
 import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/model/wordHelper';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
+import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IDecorationOptions, IModelDecorationOptions, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/editorCommon';
-import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -37,7 +37,7 @@ import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/pref
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
-import { CoreEditingCommands } from 'vs/editor/common/controller/coreCommands';
+import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { first } from 'vs/base/common/arrays';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 
@@ -49,7 +49,6 @@ const MAX_NUM_INLINE_VALUES = 100; // JS Global scope can have 700+ entries. We 
 const MAX_INLINE_DECORATOR_LENGTH = 150; // Max string length of each inline decorator when debugging. If exceeded ... is added
 const MAX_TOKENIZATION_LINE_LEN = 500; // If line is too long, then inline values for the line are skipped
 
-@editorContribution
 export class DebugEditorContribution implements IDebugEditorContribution {
 
 	private toDispose: lifecycle.IDisposable[];
@@ -389,7 +388,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.exceptionWidget.dispose();
 		}
 
-		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, exceptionInfo, lineNumber);
+		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, exceptionInfo);
 		this.exceptionWidget.show({ lineNumber, column }, 0);
 	}
 
@@ -469,7 +468,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	// Inline Decorations
 	private updateInlineDecorations(stackFrame: IStackFrame): void {
 		const model = this.editor.getModel();
-		if (!this.configurationService.getConfiguration<IDebugConfiguration>('debug').inlineValues ||
+		if (!this.configurationService.getValue<IDebugConfiguration>('debug').inlineValues ||
 			!model || !stackFrame || model.uri.toString() !== stackFrame.source.uri.toString()) {
 			if (!this.removeInlineValuesScheduler.isScheduled()) {
 				this.removeInlineValuesScheduler.schedule();
@@ -623,3 +622,5 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.toDispose = lifecycle.dispose(this.toDispose);
 	}
 }
+
+registerEditorContribution(DebugEditorContribution);

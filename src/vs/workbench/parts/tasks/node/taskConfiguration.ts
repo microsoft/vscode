@@ -14,7 +14,7 @@ import * as Platform from 'vs/base/common/platform';
 import * as Types from 'vs/base/common/types';
 import * as UUID from 'vs/base/common/uuid';
 
-import { ValidationStatus, IProblemReporter as IProblemReporterBase, NullProblemReporter as NullProblemReporterBase } from 'vs/base/common/parsers';
+import { ValidationStatus, IProblemReporter as IProblemReporterBase } from 'vs/base/common/parsers';
 import {
 	NamedProblemMatcher, ProblemMatcher, ProblemMatcherParser, Config as ProblemMatcherConfig,
 	isNamedProblemMatcher, ProblemMatcherRegistry
@@ -631,7 +631,7 @@ namespace CommandOptions {
 			}
 		}
 		if (options.env !== void 0) {
-			result.env = Objects.clone(options.env);
+			result.env = Objects.deepClone(options.env);
 		}
 		result.shell = ShellConfiguration.from(options.shell, context);
 		return isEmpty(result) ? undefined : result;
@@ -983,11 +983,11 @@ namespace ProblemMatcherConverter {
 				variableName = variableName.substring(1);
 				let global = ProblemMatcherRegistry.get(variableName);
 				if (global) {
-					return Objects.clone(global);
+					return Objects.deepClone(global);
 				}
 				let localProblemMatcher = context.namedProblemMatchers[variableName];
 				if (localProblemMatcher) {
-					localProblemMatcher = Objects.clone(localProblemMatcher);
+					localProblemMatcher = Objects.deepClone(localProblemMatcher);
 					// remove the name
 					delete localProblemMatcher.name;
 					return localProblemMatcher;
@@ -1246,6 +1246,9 @@ namespace CustomTask {
 			return undefined;
 		}
 		let taskName = external.taskName;
+		if (Types.isString(external.label) && context.schemaVersion === Tasks.JsonSchemaVersion.V2_0_0) {
+			taskName = external.label;
+		}
 		if (!taskName) {
 			context.problemReporter.error(nls.localize('ConfigurationParser.noTaskName', 'Error: tasks must provide a taskName property. The task will be ignored.\n{0}\n', JSON.stringify(external, null, 4)));
 			return undefined;
@@ -1382,11 +1385,11 @@ namespace TaskParser {
 					CustomTask.fillGlobals(customTask, globals);
 					CustomTask.fillDefaults(customTask, context);
 					if (context.engine === Tasks.ExecutionEngine.Terminal && customTask.command && customTask.command.name && customTask.command.runtime === Tasks.RuntimeType.Shell && customTask.command.args && customTask.command.args.length > 0) {
-						if (hasUnescapedSpaces(customTask.command.name) || customTask.command.args.some(hasUnescapedSpaces)) {
+						if (customTask.command.args.some(hasUnescapedSpaces)) {
 							context.problemReporter.warn(
 								nls.localize(
 									'taskConfiguration.shellArgs',
-									'Warning: the task \'{0}\' is a shell command and either the command name or one of its arguments has unescaped spaces. To ensure correct command line quoting please merge args into the command.',
+									'Warning: the task \'{0}\' is a shell command and one of its arguments might have unescaped spaces. To ensure correct command line quoting please merge args into the command.',
 									customTask.name
 								)
 							);
@@ -1472,25 +1475,20 @@ namespace TaskParser {
 	}
 
 	function hasUnescapedSpaces(this: void, value: string): boolean {
-		if (Platform.isWindows) {
-			if (value.length >= 2 && value.charAt(0) === '"' && value.charAt(value.length - 1) === '"') {
-				return false;
-			}
-			return value.indexOf(' ') !== -1;
-		} else {
-			if (value.length >= 2 && ((value.charAt(0) === '"' && value.charAt(value.length - 1) === '"') || (value.charAt(0) === '\'' && value.charAt(value.length - 1) === '\''))) {
-				return false;
-			}
-			for (let i = 0; i < value.length; i++) {
-				let ch = value.charAt(i);
-				if (ch === ' ') {
-					if (i === 0 || value.charAt(i - 1) !== '\\') {
-						return true;
-					}
-				}
-			}
+		let escapeChar = Platform.isWindows ? '`' : '\\';
+
+		if (value.length >= 2 && ((value.charAt(0) === '"' && value.charAt(value.length - 1) === '"') || (value.charAt(0) === '\'' && value.charAt(value.length - 1) === '\''))) {
 			return false;
 		}
+		for (let i = 0; i < value.length; i++) {
+			let ch = value.charAt(i);
+			if (ch === ' ') {
+				if (i === 0 || value.charAt(i - 1) !== escapeChar) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	export function quickParse(this: void, externals: (CustomTask | ConfiguringTask)[], context: ParseContext): (Tasks.CustomTask | Tasks.ConfiguringTask)[] {
@@ -1643,10 +1641,6 @@ export interface ParseResult {
 
 export interface IProblemReporter extends IProblemReporterBase {
 	clearOutput(): void;
-}
-
-class NullProblemReporter extends NullProblemReporterBase implements IProblemReporter {
-	clearOutput(): void { };
 }
 
 class UUIDMap {

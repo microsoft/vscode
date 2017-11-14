@@ -50,7 +50,7 @@ export class BackupModelTracker implements IWorkbenchContribution {
 		this.toDispose.push(this.untitledEditorService.onDidDisposeModel((e) => this.discardBackup(e)));
 
 		// Listen to config changes
-		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(this.configurationService.getConfiguration<IFilesConfiguration>())));
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(this.configurationService.getValue<IFilesConfiguration>())));
 	}
 
 	private onConfigurationChange(configuration: IFilesConfiguration): void {

@@ -9,7 +9,6 @@
 	"welcomePage.start": "Avvia",
 	"welcomePage.newFile": "Nuovo file",
 	"welcomePage.openFolder": "Apri cartella...",
-	"welcomePage.cloneGitRepository": "Clona repository GIT...",
 	"welcomePage.addWorkspaceFolder": "Aggiungi cartella dell'area di lavoro...",
 	"welcomePage.recent": "Recenti",
 	"welcomePage.moreRecent": "Altro...",

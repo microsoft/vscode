@@ -27,6 +27,20 @@
 	height: calc(100% - 38px);
 }
 
+.extensions-viewlet > .extensions .extensions-list > .monaco-list {
+	height: auto;
+}
+
+.extensions-viewlet > .extensions .list-actionbar-container .monaco-action-bar .action-item > .octicon {
+	font-size: 12px;
+	line-height: 1;
+	margin-right: 10px;
+}
+
+.extensions-viewlet > .extensions .list-actionbar-container .monaco-action-bar .action-item.disabled  {
+	display: none;
+}
+
 .extensions-viewlet > .extensions .extensions-list.hidden,
 .extensions-viewlet > .extensions .message.hidden {
 	display: none;
@@ -46,6 +60,27 @@
 	cursor: default;
 }
 
+.extensions-viewlet > .extensions .monaco-list-row > .bookmark {
+	display: none;
+}
+
+.extensions-viewlet > .extensions .monaco-list-row.recommended > .bookmark {
+	display: inline-block;
+	height: 20px;
+	width: 20px;
+	border-right: 20px solid transparent;
+	border-top: 20px solid;
+	box-sizing: border-box;
+}
+
+.extensions-viewlet > .extensions .monaco-list-row > .bookmark > .octicon {
+	position: absolute;
+	top: 1px;
+	left: 1px;
+	color: white;
+	font-size: 90%;
+}
+
 .extensions-viewlet > .extensions .extension {
 	box-sizing: border-box;
 	width: 100%;
@@ -53,6 +88,8 @@
 	padding: 0 11px 0 16px;
 	overflow: hidden;
 	display: flex;
+	position: absolute;
+	top: 0;
 }
 
 .extensions-viewlet > .extensions .extension.loading {

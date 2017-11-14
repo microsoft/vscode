@@ -454,11 +454,14 @@ function normalizePath(path: string): string {
 export function watch(path: string, onChange: (type: string, path: string) => void): fs.FSWatcher {
 	const watcher = fs.watch(path);
 	watcher.on('change', (type, raw) => {
-		let file = raw.toString();
-		if (platform.isMacintosh) {
-			// Mac: uses NFD unicode form on disk, but we want NFC
-			// See also https://github.com/nodejs/node/issues/2165
-			file = strings.normalizeNFC(file);
+		let file: string = null;
+		if (raw) { // https://github.com/Microsoft/vscode/issues/38191
+			file = raw.toString();
+			if (platform.isMacintosh) {
+				// Mac: uses NFD unicode form on disk, but we want NFC
+				// See also https://github.com/nodejs/node/issues/2165
+				file = strings.normalizeNFC(file);
+			}
 		}
 
 		onChange(type, file);

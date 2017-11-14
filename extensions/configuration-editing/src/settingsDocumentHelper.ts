@@ -149,7 +149,7 @@ export class SettingsDocument {
 		return Promise.resolve(completions);
 	}
 
-	private provideLanguageCompletionItems(location: Location, range: vscode.Range, formatFunc: (string) => string = (l) => JSON.stringify(l)): vscode.ProviderResult<vscode.CompletionItem[]> {
+	private provideLanguageCompletionItems(location: Location, range: vscode.Range, formatFunc: (string: string) => string = (l) => JSON.stringify(l)): vscode.ProviderResult<vscode.CompletionItem[]> {
 		return vscode.languages.getLanguages().then(languages => {
 			return languages.map(l => {
 				return this.newSimpleCompletionItem(formatFunc(l), range);

@@ -304,7 +304,7 @@ export function once<T>(event: Event<T>): Event<T> {
 	};
 }
 
-export function any<T>(...events: Event<T>[]): Event<T> {
+export function anyEvent<T>(...events: Event<T>[]): Event<T> {
 	return (listener, thisArgs = null, disposables?) => combinedDisposable(events.map(event => event(e => listener.call(thisArgs, e), null, disposables)));
 }
 
@@ -313,17 +313,17 @@ export function debounceEvent<I, O>(event: Event<I>, merger: (last: O, event: I)
 export function debounceEvent<I, O>(event: Event<I>, merger: (last: O, event: I) => O, delay: number = 100, leading = false): Event<O> {
 
 	let subscription: IDisposable;
-	let output: O;
-	let handle: number;
+	let output: O = undefined;
+	let handle: number = undefined;
 	let numDebouncedCalls = 0;
 
 	const emitter = new Emitter<O>({
 		onFirstListenerAdd() {
 			subscription = event(cur => {
 				numDebouncedCalls++;
-
 				output = merger(output, cur);
-				if (!handle && leading) {
+
+				if (leading && !handle) {
 					emitter.fire(output);
 				}
 
@@ -331,11 +331,11 @@ export function debounceEvent<I, O>(event: Event<I>, merger: (last: O, event: I)
 				handle = setTimeout(() => {
 					let _output = output;
 					output = undefined;
+					handle = undefined;
 					if (!leading || numDebouncedCalls > 1) {
 						emitter.fire(_output);
 					}
 
-					handle = null;
 					numDebouncedCalls = 0;
 				}, delay);
 			});
@@ -545,4 +545,18 @@ export class Relay<T> implements IDisposable {
 		this.disposable.dispose();
 		this.emitter.dispose();
 	}
+}
+
+export interface NodeEventEmitter {
+	on(event: string | symbol, listener: Function): this;
+	removeListener(event: string | symbol, listener: Function): this;
+}
+
+export function fromNodeEventEmitter<T>(emitter: NodeEventEmitter, eventName: string, map: (...args: any[]) => T = id => id): Event<T> {
+	const fn = (...args: any[]) => result.fire(map(...args));
+	const onFirstListenerAdd = () => emitter.on(eventName, fn);
+	const onLastListenerRemove = () => emitter.removeListener(eventName, fn);
+	const result = new Emitter<T>({ onFirstListenerAdd, onLastListenerRemove });
+
+	return result.event;
 }

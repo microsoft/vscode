@@ -20,12 +20,8 @@ export abstract class Panel extends Composite implements IPanel { }
  */
 export class PanelDescriptor extends CompositeDescriptor<Panel> {
 
-	constructor(ctor: IConstructorSignature0<Panel>, id: string, name: string, cssClass?: string, order?: number, private _commandId?: string) {
-		super(ctor, id, name, cssClass, order);
-	}
-
-	public get commandId(): string {
-		return this._commandId;
+	constructor(ctor: IConstructorSignature0<Panel>, id: string, name: string, cssClass?: string, order?: number, _commandId?: string) {
+		super(ctor, id, name, cssClass, order, _commandId);
 	}
 }
 

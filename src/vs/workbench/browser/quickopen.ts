@@ -15,18 +15,17 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { KeyMod } from 'vs/base/common/keyCodes';
 import { Mode, IEntryRunContext, IAutoFocus, IModel, IQuickNavigateConfiguration } from 'vs/base/parts/quickopen/common/quickOpen';
-import { QuickOpenEntry, IHighlight, QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { QuickOpenEntry, QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
 import { IResourceInput, IEditorInput, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IConstructorSignature0, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
+export const CLOSE_ON_FOCUS_LOST_CONFIG = 'workbench.quickOpen.closeOnFocusLost';
+
 export interface IWorkbenchQuickOpenConfiguration {
 	workbench: {
-		quickOpen: {
-			closeOnFocusLost: boolean;
-		},
 		commandPalette: {
 			history: number;
 			preserveInput: boolean;
@@ -322,35 +321,6 @@ export interface ICommand {
 	getResults(input: string): TPromise<QuickOpenEntry[]>;
 	getEmptyLabel(input: string): string;
 	icon?: string;
-}
-
-class CommandEntry extends QuickOpenEntry {
-
-	constructor(private quickOpenService: IQuickOpenService, private prefix: string, private command: ICommand, highlights: IHighlight[]) {
-		super(highlights);
-		this.command = command;
-	}
-
-	public getIcon(): string {
-		return this.command.icon || null;
-	}
-
-	public getLabel(): string {
-		return this.command.aliases[0];
-	}
-
-	public getAriaLabel(): string {
-		return nls.localize('entryAriaLabel', "{0}, command", this.getLabel());
-	}
-
-	public run(mode: Mode, context: IEntryRunContext): boolean {
-		if (mode === Mode.PREVIEW) {
-			return false;
-		}
-
-		this.quickOpenService.show(`${this.prefix} ${this.command.aliases[0]} `);
-		return false;
-	}
 }
 
 export interface ICommandQuickOpenHandlerOptions {

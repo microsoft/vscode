@@ -11,7 +11,7 @@ import {
 	IDecorationRenderOptions, IModelDecorationOptions, IModelDecorationOverviewRulerOptions, IThemeDecorationRenderOptions,
 	IContentDecorationRenderOptions, OverviewRulerLane, TrackedRangeStickiness, isThemeColor
 } from 'vs/editor/common/editorCommon';
-import { AbstractCodeEditorService } from 'vs/editor/common/services/abstractCodeEditorService';
+import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCodeEditorService';
 import { IDisposable, dispose as disposeAll } from 'vs/base/common/lifecycle';
 import { IThemeService, ITheme, ThemeColor } from 'vs/platform/theme/common/themeService';
 
