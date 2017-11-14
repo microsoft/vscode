@@ -75,7 +75,7 @@ function readManifest(extensionPath: string): TPromise<{ manifest: IExtensionMan
 interface InstallableExtension {
 	zipPath: string;
 	id: string;
-	metadata: IGalleryMetadata;
+	metadata?: IGalleryMetadata;
 	current?: ILocalExtension;
 }
 
@@ -123,17 +123,14 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 				this._onInstallExtension.fire({ identifier, zipPath });
 
-				return this.galleryService.query({ names: [getGalleryExtensionId(manifest.publisher, manifest.name)], pageSize: 1 })
-					.then(galleryResult => {
-						const galleryExtension = galleryResult.firstPage[0];
-						const metadata = galleryExtension ? <IGalleryMetadata>{ id: galleryExtension.identifier.uuid, publisherDisplayName: galleryExtension.publisherDisplayName, publisherId: galleryExtension.publisherId } : null;
-						return this.installExtension({ zipPath, id: identifier.id, metadata })
-							.then(
-							local => this._onDidInstallExtension.fire({ identifier, zipPath, local }),
-							error => { this._onDidInstallExtension.fire({ identifier, zipPath, error }); return TPromise.wrapError(error); }
-							);
-					});
-
+				return this.getMetadata(getGalleryExtensionId(manifest.publisher, manifest.name))
+					.then(
+					metadata => this.installExtension({ zipPath, id: identifier.id, metadata }),
+					error => this.installExtension({ zipPath, id: identifier.id }))
+					.then(
+					local => this._onDidInstallExtension.fire({ identifier, zipPath, local }),
+					error => { this._onDidInstallExtension.fire({ identifier, zipPath, error }); return TPromise.wrapError(error); }
+					);
 			});
 		});
 	}
@@ -296,6 +293,14 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			.then(({ manifest }) => assign(manifest, { __metadata: local.metadata }))
 			.then(manifest => pfs.writeFile(manifestPath, JSON.stringify(manifest, null, '\t')))
 			.then(() => local);
+	}
+
+	private getMetadata(extensionName: string): TPromise<IGalleryMetadata> {
+		return this.galleryService.query({ names: [extensionName], pageSize: 1 })
+			.then(galleryResult => {
+				const galleryExtension = galleryResult.firstPage[0];
+				return galleryExtension ? <IGalleryMetadata>{ id: galleryExtension.identifier.uuid, publisherDisplayName: galleryExtension.publisherDisplayName, publisherId: galleryExtension.publisherId } : null;
+			});
 	}
 
 	private checkForRename(currentExtension: ILocalExtension, newExtension: ILocalExtension): TPromise<void> {
