@@ -14,6 +14,7 @@ import { ArrayNavigator, INavigator } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { SideBySideEditorInput, EditorOptions, EditorInput } from 'vs/workbench/common/editor';
+import { Scope } from 'vs/workbench/common/memento';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { IEditorControl, Position, Verbosity } from 'vs/platform/editor/common/editor';
@@ -113,6 +114,7 @@ export class PreferencesEditor extends BaseEditor {
 
 	private latestEmptyFilters: string[] = [];
 	private lastFocusedWidget: SearchWidget | SideBySidePreferencesWidget = null;
+	private memento: any;
 
 	constructor(
 		@IPreferencesService private preferencesService: IPreferencesService,
@@ -122,6 +124,7 @@ export class PreferencesEditor extends BaseEditor {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
+		@IStorageService storageService: IStorageService,
 	) {
 		super(PreferencesEditor.ID, telemetryService, themeService);
 		this.defaultSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(this.contextKeyService);
@@ -129,6 +132,7 @@ export class PreferencesEditor extends BaseEditor {
 		this.delayedFilterLogging = new Delayer<void>(1000);
 		this.searchProvider = this.instantiationService.createInstance(PreferencesSearchProvider);
 		this.filterThrottle = new ThrottledDelayer(200);
+		this.memento = this.getMemento(storageService, Scope.WORKSPACE);
 	}
 
 	public createEditor(parent: Builder): void {
@@ -143,6 +147,7 @@ export class PreferencesEditor extends BaseEditor {
 			focusKey: this.focusSettingsContextKey
 		}));
 		this.searchWidget.setFuzzyToggleVisible(this.searchProvider.remoteSearchEnabled);
+		this.searchWidget.fuzzyEnabled = this.memento['fuzzyEnabled'];
 		this._register(this.searchProvider.onRemoteSearchEnablementChanged(enabled => this.searchWidget.setFuzzyToggleVisible(enabled)));
 		this._register(this.searchWidget.onDidChange(value => this.onInputChanged()));
 		this._register(this.searchWidget.onFocus(() => this.lastFocusedWidget = this.searchWidget));
@@ -323,6 +328,7 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	private filterPreferences(): TPromise<void> {
+		this.memento['fuzzyEnabled'] = this.searchWidget.fuzzyEnabled;
 		const filter = this.searchWidget.getValue().trim();
 		return this.preferencesRenderers.filterPreferences(filter, this.searchProvider, this.searchWidget.fuzzyEnabled).then(result => {
 			const count = result.count;
