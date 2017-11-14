@@ -62,6 +62,14 @@
 	white-space: nowrap;
 }
 
+.extension-editor > .header > .details > .title > .preview {
+	background: rgb(214, 63, 38);
+	font-size: 14px;
+	margin-left: 10px;
+	padding: 0px 4px;
+	border-radius: 4px;
+}
+
 .extension-editor > .header > .details > .subtitle {
 	padding-top: 6px;
 	white-space: nowrap;
