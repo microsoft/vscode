@@ -24,7 +24,7 @@ import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import {
 	IPreferencesService, ISettingsGroup, ISetting, IFilterResult,
-	CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, SETTINGS_EDITOR_COMMAND_SEARCH, SETTINGS_EDITOR_COMMAND_FOCUS_FILE, ISettingsEditorModel, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING
+	CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, SETTINGS_EDITOR_COMMAND_SEARCH, SETTINGS_EDITOR_COMMAND_FOCUS_FILE, ISettingsEditorModel, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING, IFilterMetadata
 } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -324,13 +324,15 @@ export class PreferencesEditor extends BaseEditor {
 
 	private filterPreferences(): TPromise<void> {
 		const filter = this.searchWidget.getValue().trim();
-		return this.preferencesRenderers.filterPreferences(filter, this.searchProvider, this.searchWidget.fuzzyEnabled).then(count => {
+		return this.preferencesRenderers.filterPreferences(filter, this.searchProvider, this.searchWidget.fuzzyEnabled).then(result => {
+			const count = result.count;
 			const message = filter ? this.showSearchResultsMessage(count) : nls.localize('totalSettingsMessage', "Total {0} Settings", count);
 			this.searchWidget.showMessage(message, count);
 			if (count === 0) {
 				this.latestEmptyFilters.push(filter);
 			}
-			this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(filter));
+
+			this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(filter, result.metadata));
 		}, onUnexpectedError);
 	}
 
@@ -340,17 +342,22 @@ export class PreferencesEditor extends BaseEditor {
 				nls.localize('settingsFound', "{0} Settings matched", count);
 	}
 
-	private reportFilteringUsed(filter: string): void {
+	private reportFilteringUsed(filter: string, metadata?: IFilterMetadata): void {
 		if (filter) {
 			let data = {
 				filter,
-				emptyFilters: this.getLatestEmptyFiltersForTelemetry()
+				emptyFilters: this.getLatestEmptyFiltersForTelemetry(),
+				fuzzy: !!metadata,
+				duration: metadata ? metadata.duration : undefined
 			};
+
 			this.latestEmptyFilters = [];
 			/* __GDPR__
 				"defaultSettings.filter" : {
 					"filter": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"emptyFilters" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					"emptyFilters" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					"fuzzy" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/
 			this.telemetryService.publicLog('defaultSettings.filter', data);
@@ -423,7 +430,7 @@ class PreferencesRenderers extends Disposable {
 			this._disposables = dispose(this._disposables);
 
 			if (this._defaultPreferencesRenderer) {
-				this._defaultPreferencesRenderer.onUpdatePreference(({ key, value, source }) => this._updatePreference(key, value, source, this._editablePreferencesRenderer), this, this._disposables);
+				this._defaultPreferencesRenderer.onUpdatePreference(({ key, value, source, index }) => this._updatePreference(key, value, source, index, this._editablePreferencesRenderer), this, this._disposables);
 				this._defaultPreferencesRenderer.onFocusPreference(preference => this._focusPreference(preference, this._editablePreferencesRenderer), this, this._disposables);
 				this._defaultPreferencesRenderer.onClearFocusPreference(preference => this._clearFocus(preference, this._editablePreferencesRenderer), this, this._disposables);
 				if (this._defaultPreferencesRenderer.onTriggeredFuzzy) {
@@ -437,7 +444,7 @@ class PreferencesRenderers extends Disposable {
 		this._editablePreferencesRenderer = editableSettingsRenderer;
 	}
 
-	public filterPreferences(filter: string, searchProvider: PreferencesSearchProvider, fuzzy: boolean): TPromise<number> {
+	public filterPreferences(filter: string, searchProvider: PreferencesSearchProvider, fuzzy: boolean): TPromise<{ count: number, metadata: IFilterMetadata }> {
 		if (this._filtersInProgress) {
 			// Resolved/rejected promises have no .cancel()
 			this._filtersInProgress.forEach(p => p.cancel && p.cancel());
@@ -459,7 +466,7 @@ class PreferencesRenderers extends Disposable {
 
 			this._settingsNavigator = new SettingsNavigator(filter ? consolidatedSettings : []);
 
-			return consolidatedSettings.length;
+			return { count: consolidatedSettings.length, metadata: defaultPreferencesFilterResult && defaultPreferencesFilterResult.metadata };
 		});
 	}
 
@@ -502,9 +509,9 @@ class PreferencesRenderers extends Disposable {
 		}
 	}
 
-	private _updatePreference(key: string, value: any, source: ISetting, preferencesRenderer: IPreferencesRenderer<ISetting>): void {
+	private _updatePreference(key: string, value: any, source: ISetting, index: number, preferencesRenderer: IPreferencesRenderer<ISetting>): void {
 		if (preferencesRenderer) {
-			preferencesRenderer.updatePreference(key, value, source);
+			preferencesRenderer.updatePreference(key, value, source, index);
 		}
 	}
 

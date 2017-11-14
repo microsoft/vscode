@@ -40,11 +40,11 @@ export interface IPreferencesRenderer<T> extends IDisposable {
 
 	onFocusPreference: Event<T>;
 	onClearFocusPreference: Event<T>;
-	onUpdatePreference: Event<{ key: string, value: any, source: T }>;
+	onUpdatePreference?: Event<{ key: string, value: any, source: T, index: number }>;
 	onTriggeredFuzzy?: Event<void>;
 
 	render(): void;
-	updatePreference(key: string, value: any, source: T): void;
+	updatePreference(key: string, value: any, source: T, index: number): void;
 	filterPreferences(filterResult: IFilterResult, fuzzySearchAvailable: boolean): void;
 	focusPreference(setting: T): void;
 	clearFocus(setting: T): void;
@@ -61,9 +61,6 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 	private _onFocusPreference: Emitter<ISetting> = new Emitter<ISetting>();
 	public readonly onFocusPreference: Event<ISetting> = this._onFocusPreference.event;
 
-	private _onUpdatePreference: Emitter<{ key: string, value: any, source: ISetting }> = new Emitter<{ key: string, value: any, source: ISetting }>();
-	public readonly onUpdatePreference: Event<{ key: string, value: any, source: ISetting }> = this._onUpdatePreference.event;
-
 	private _onClearFocusPreference: Emitter<ISetting> = new Emitter<ISetting>();
 	public readonly onClearFocusPreference: Event<ISetting> = this._onClearFocusPreference.event;
 
@@ -79,7 +76,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 		this.settingHighlighter = this._register(instantiationService.createInstance(SettingHighlighter, editor, this._onFocusPreference, this._onClearFocusPreference));
 		this.highlightMatchesRenderer = this._register(instantiationService.createInstance(HighlightMatchesRenderer, editor));
 		this.editSettingActionRenderer = this._register(this.instantiationService.createInstance(EditSettingRenderer, this.editor, this.preferencesModel, this.settingHighlighter));
-		this._register(this.editSettingActionRenderer.onUpdateSetting(({ key, value, source }) => this.updatePreference(key, value, source)));
+		this._register(this.editSettingActionRenderer.onUpdateSetting(({ key, value, source, index }) => this.updatePreference(key, value, source, index, true)));
 		this._register(this.editor.getModel().onDidChangeContent(() => this.modelChangeDelayer.trigger(() => this.onModelChanged())));
 
 		this.createHeader();
@@ -105,13 +102,30 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 		}
 	}
 
-	public updatePreference(key: string, value: any, source: ISetting): void {
+	public updatePreference(key: string, value: any, source: ISetting, index: number, fromEditableSettings?: boolean): void {
+		const data = {
+			userConfigurationKeys: [key]
+		};
+
+		if (this.filterResult) {
+			data['query'] = this.filterResult.query;
+			data['fuzzy'] = !!this.filterResult.metadata;
+			data['duration'] = this.filterResult.metadata && this.filterResult.metadata.duration;
+			data['index'] = index;
+			data['editableSide'] = !!fromEditableSettings;
+		}
+
 		/* __GDPR__
 			"defaultSettingsActions.copySetting" : {
 				"userConfigurationKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"query" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"fuzzy" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"index" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"editableSide" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
-		this.telemetryService.publicLog('defaultSettingsActions.copySetting', { userConfigurationKeys: [key] });
+		this.telemetryService.publicLog('defaultSettingsActions.copySetting', data);
 		const overrideIdentifier = source.overrideOf ? overrideIdentifierFromKey(source.overrideOf.key) : null;
 		const resource = this.preferencesModel.uri;
 		this.configurationService.updateValue(key, value, { overrideIdentifier, resource }, this.preferencesModel.configurationTarget)
@@ -232,8 +246,8 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	private editSettingActionRenderer: EditSettingRenderer;
 	private feedbackWidgetRenderer: FeedbackWidgetRenderer;
 
-	private _onUpdatePreference: Emitter<{ key: string, value: any, source: ISetting }> = new Emitter<{ key: string, value: any, source: ISetting }>();
-	public readonly onUpdatePreference: Event<{ key: string, value: any, source: ISetting }> = this._onUpdatePreference.event;
+	private _onUpdatePreference: Emitter<{ key: string, value: any, source: ISetting, index: number }> = new Emitter<{ key: string, value: any, source: ISetting, index: number }>();
+	public readonly onUpdatePreference: Event<{ key: string, value: any, source: ISetting, index: number }> = this._onUpdatePreference.event;
 
 	private _onFocusPreference: Emitter<ISetting> = new Emitter<ISetting>();
 	public readonly onFocusPreference: Event<ISetting> = this._onFocusPreference.event;
@@ -849,17 +863,21 @@ export class HighlightMatchesRenderer extends Disposable {
 	}
 }
 
+interface IIndexedSetting extends ISetting {
+	index: number;
+}
+
 class EditSettingRenderer extends Disposable {
 
-	private editPreferenceWidgetForCusorPosition: EditPreferenceWidget<ISetting>;
-	private editPreferenceWidgetForMouseMove: EditPreferenceWidget<ISetting>;
+	private editPreferenceWidgetForCusorPosition: EditPreferenceWidget<IIndexedSetting>;
+	private editPreferenceWidgetForMouseMove: EditPreferenceWidget<IIndexedSetting>;
 
 	private settingsGroups: ISettingsGroup[];
 	public associatedPreferencesModel: IPreferencesEditorModel<ISetting>;
 	private toggleEditPreferencesForMouseMoveDelayer: Delayer<void>;
 
-	private _onUpdateSetting: Emitter<{ key: string, value: any, source: ISetting }> = new Emitter<{ key: string, value: any, source: ISetting }>();
-	public readonly onUpdateSetting: Event<{ key: string, value: any, source: ISetting }> = this._onUpdateSetting.event;
+	private _onUpdateSetting: Emitter<{ key: string, value: any, source: ISetting, index: number }> = new Emitter<{ key: string, value: any, source: ISetting, index: number }>();
+	public readonly onUpdateSetting: Event<{ key: string, value: any, source: ISetting, index: number }> = this._onUpdateSetting.event;
 
 	constructor(private editor: ICodeEditor, private masterSettingsModel: ISettingsEditorModel,
 		private settingHighlighter: SettingHighlighter,
@@ -920,7 +938,7 @@ class EditSettingRenderer extends Disposable {
 			return;
 		}
 		this.settingHighlighter.clear();
-		this.toggleEditPreferencesForMouseMoveDelayer.trigger(() => this.toggleEidtPreferenceWidgetForMouseMove(mouseMoveEvent));
+		this.toggleEditPreferencesForMouseMoveDelayer.trigger(() => this.toggleEditPreferenceWidgetForMouseMove(mouseMoveEvent));
 	}
 
 	private getEditPreferenceWidgetUnderMouse(mouseMoveEvent: IEditorMouseEvent): EditPreferenceWidget<ISetting> {
@@ -936,7 +954,7 @@ class EditSettingRenderer extends Disposable {
 		return null;
 	}
 
-	private toggleEidtPreferenceWidgetForMouseMove(mouseMoveEvent: IEditorMouseEvent): void {
+	private toggleEditPreferenceWidgetForMouseMove(mouseMoveEvent: IEditorMouseEvent): void {
 		const settings = mouseMoveEvent.target.position ? this.getSettings(mouseMoveEvent.target.position.lineNumber) : null;
 		if (settings && settings.length) {
 			this.showEditPreferencesWidget(this.editPreferenceWidgetForMouseMove, settings);
@@ -945,7 +963,7 @@ class EditSettingRenderer extends Disposable {
 		}
 	}
 
-	private showEditPreferencesWidget(editPreferencesWidget: EditPreferenceWidget<ISetting>, settings: ISetting[]) {
+	private showEditPreferencesWidget(editPreferencesWidget: EditPreferenceWidget<ISetting>, settings: IIndexedSetting[]) {
 		const line = settings[0].valueRange.startLineNumber;
 		if (this.editor.getConfiguration().viewInfo.glyphMargin && this.marginFreeFromOtherDecorations(line)) {
 			editPreferencesWidget.show(line, nls.localize('editTtile', "Edit"), settings);
@@ -966,7 +984,7 @@ class EditSettingRenderer extends Disposable {
 		return true;
 	}
 
-	private getSettings(lineNumber: number): ISetting[] {
+	private getSettings(lineNumber: number): IIndexedSetting[] {
 		const configurationMap = this.getConfigurationsMap();
 		return this.getSettingsAtLineNumber(lineNumber).filter(setting => {
 			let configurationNode = configurationMap[setting.key];
@@ -991,7 +1009,10 @@ class EditSettingRenderer extends Disposable {
 		});
 	}
 
-	private getSettingsAtLineNumber(lineNumber: number): ISetting[] {
+	private getSettingsAtLineNumber(lineNumber: number): IIndexedSetting[] {
+		// index of setting, across all groups/sections
+		let index = 0;
+
 		const settings = [];
 		for (const group of this.settingsGroups) {
 			if (group.range.startLineNumber > lineNumber) {
@@ -1008,13 +1029,15 @@ class EditSettingRenderer extends Disposable {
 								// Only one level because override settings cannot have override settings
 								for (const overrideSetting of setting.overrides) {
 									if (lineNumber >= overrideSetting.range.startLineNumber && lineNumber <= overrideSetting.range.endLineNumber) {
-										settings.push(overrideSetting);
+										settings.push({ ...overrideSetting, index });
 									}
 								}
 							} else {
-								settings.push(setting);
+								settings.push({ ...setting, index });
 							}
 						}
+
+						index++;
 					}
 				}
 			}
@@ -1026,7 +1049,7 @@ class EditSettingRenderer extends Disposable {
 		this.settingHighlighter.highlight(editPreferenceWidget.preferences[0]);
 	}
 
-	private onEditSettingClicked(editPreferenceWidget: EditPreferenceWidget<ISetting>, e: IEditorMouseEvent): void {
+	private onEditSettingClicked(editPreferenceWidget: EditPreferenceWidget<IIndexedSetting>, e: IEditorMouseEvent): void {
 		const anchor = { x: e.event.posx, y: e.event.posy + 10 };
 		const actions = this.getSettings(editPreferenceWidget.getLine()).length === 1 ? this.getActions(editPreferenceWidget.preferences[0], this.getConfigurationsMap()[editPreferenceWidget.preferences[0].key])
 			: editPreferenceWidget.preferences.map(setting => new ContextSubMenu(setting.key, this.getActions(setting, this.getConfigurationsMap()[setting.key])));
@@ -1040,7 +1063,7 @@ class EditSettingRenderer extends Disposable {
 		return Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 	}
 
-	private getActions(setting: ISetting, jsonSchema: IJSONSchema): IAction[] {
+	private getActions(setting: IIndexedSetting, jsonSchema: IJSONSchema): IAction[] {
 		if (jsonSchema.type === 'boolean') {
 			return [<IAction>{
 				id: 'truthyValue',
@@ -1067,7 +1090,7 @@ class EditSettingRenderer extends Disposable {
 		return this.getDefaultActions(setting);
 	}
 
-	private getDefaultActions(setting: ISetting): IAction[] {
+	private getDefaultActions(setting: IIndexedSetting): IAction[] {
 		if (this.isDefaultSettings()) {
 			const settingInOtherModel = this.associatedPreferencesModel.getPreference(setting.key);
 			return [<IAction>{
@@ -1080,8 +1103,8 @@ class EditSettingRenderer extends Disposable {
 		return [];
 	}
 
-	private updateSetting(key: string, value: any, source: ISetting): void {
-		this._onUpdateSetting.fire({ key, value, source });
+	private updateSetting(key: string, value: any, source: IIndexedSetting): void {
+		this._onUpdateSetting.fire({ key, value, source, index: source.index });
 	}
 }
 
