@@ -8,6 +8,7 @@
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 // --- other interested parties
 import { JSONValidationExtensionPoint } from 'vs/platform/jsonschemas/common/jsonValidationExtensionPoint';
@@ -64,6 +65,4 @@ export class ExtensionPoints implements IWorkbenchContribution {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
-	ExtensionPoints
-);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ExtensionPoints, LifecyclePhase.Starting);

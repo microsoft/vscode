@@ -482,7 +482,7 @@ export function parse(arg1: string | IExpression | IRelativePattern, options: IG
 	return parsedExpression(<IExpression>arg1, options);
 }
 
-function isRelativePattern(obj: any): obj is IRelativePattern {
+export function isRelativePattern(obj: any): obj is IRelativePattern {
 	const rp = obj as IRelativePattern;
 
 	return typeof rp.base === 'string' && typeof rp.pattern === 'string';

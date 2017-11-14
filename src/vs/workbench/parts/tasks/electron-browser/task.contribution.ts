@@ -2384,8 +2384,6 @@ statusbarRegistry.registerStatusbarItem(new StatusbarItemDescriptor(TaskStatusBa
 let outputChannelRegistry = <IOutputChannelRegistry>Registry.as(OutputExt.OutputChannels);
 outputChannelRegistry.registerChannel(TaskService.OutputChannelId, TaskService.OutputChannelLabel);
 
-// (<IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench)).registerWorkbenchContribution(TaskServiceParticipant);
-
 // tasks.json validation
 let schemaId = 'vscode://schemas/tasks';
 let schema: IJSONSchema = {

@@ -35,7 +35,7 @@ export interface IWorkbenchContributionsRegistry {
 	 *
 	 * @param phase the lifecycle phase when to instantiate the contribution.
 	 */
-	registerWorkbenchContribution(contribution: IWorkbenchContributionSignature, phase?: LifecyclePhase): void;
+	registerWorkbenchContribution(contribution: IWorkbenchContributionSignature, phase: LifecyclePhase): void;
 
 	/**
 	 * Starts the registry by providing the required services.

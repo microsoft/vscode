@@ -52,7 +52,6 @@
     "@types/keytar": "4.0.1",
     "@types/minimist": "1.2.0",
     "@types/mocha": "2.2.39",
-    "@types/semver": "5.3.30",
     "@types/sinon": "1.16.34",
     "azure-storage": "^0.3.1",
     "clean-css": "3.4.6",

@@ -314,8 +314,11 @@ class DecorationProviderWrapper {
 
 	private _keepItem(uri: URI, data: IDecorationData): IDecorationData {
 		let deco = data ? data : null;
-		this.data.set(uri.toString(), deco);
-		this._uriEmitter.fire(uri);
+		let old = this.data.set(uri.toString(), deco);
+		if (deco || old) {
+			// only fire event when something changed
+			this._uriEmitter.fire(uri);
+		}
 		return deco;
 	}
 }

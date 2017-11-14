@@ -130,7 +130,12 @@ class RemoteSearchProvider {
 			};
 
 			if (remoteResult) {
-				const sortedNames = Object.keys(remoteResult.scoredResults).sort((a, b) => remoteResult.scoredResults[b] - remoteResult.scoredResults[a]);
+				let sortedNames = Object.keys(remoteResult.scoredResults).sort((a, b) => remoteResult.scoredResults[b] - remoteResult.scoredResults[a]);
+				if (sortedNames.length) {
+					const highScore = remoteResult.scoredResults[sortedNames[0]];
+					sortedNames = sortedNames.filter(name => remoteResult.scoredResults[name] >= highScore / 2);
+				}
+
 				const result = preferencesModel.filterSettings(this._filter, group => null, settingFilter, sortedNames);
 				result.metadata = remoteResult;
 				return result;
