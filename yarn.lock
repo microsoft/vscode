@@ -2361,9 +2361,9 @@ gulp-symdest@^1.0.0:
     queue "^3.1.0"
     vinyl-fs "^2.4.3"
 
-gulp-tsb@2.0.4:
+"gulp-tsb@https://github.com/joaomoreno/gulp-tsb.git#d9036dcc3777da1fff1f33de4531b61e66a5137b":
   version "2.0.4"
-  resolved "https://registry.yarnpkg.com/gulp-tsb/-/gulp-tsb-2.0.4.tgz#0b298092d4dfd4e5cfd80679ed4c1d93bfdba64a"
+  resolved "https://github.com/joaomoreno/gulp-tsb.git#d9036dcc3777da1fff1f33de4531b61e66a5137b"
   dependencies:
     gulp-util "^3.0.1"
     through "^2.3.6"
