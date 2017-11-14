@@ -635,6 +635,23 @@ suite('FileService', () => {
 		}, error => onError(error, done));
 	});
 
+	test('Files are intermingled #38331', function () {
+		let resource1 = uri.file(path.join(testDir, 'lorem.txt'));
+		let resource2 = uri.file(path.join(testDir, 'some_utf16le.css'));
+		let value1: string;
+		let value2: string;
+		// load in sequence and keep data
+		return service.resolveContent(resource1).then(c => value1 = c.value).then(() => {
+			return service.resolveContent(resource2).then(c => value2 = c.value);
+		}).then(() => {
+			// load in parallel in expect the same result
+			return TPromise.join([
+				service.resolveContent(resource1).then(c => assert.equal(c.value, value1)),
+				service.resolveContent(resource2).then(c => assert.equal(c.value, value2))
+			]);
+		});
+	});
+
 	test('resolveContent - FILE_IS_BINARY', function (done: () => void) {
 		const resource = uri.file(path.join(testDir, 'binary.txt'));
 

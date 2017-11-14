@@ -270,14 +270,12 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.filteredMatchesRenderer = this._register(instantiationService.createInstance(FilteredMatchesRenderer, editor));
 		this.editSettingActionRenderer = this._register(instantiationService.createInstance(EditSettingRenderer, editor, preferencesModel, this.settingHighlighter));
 		this.feedbackWidgetRenderer = this._register(instantiationService.createInstance(FeedbackWidgetRenderer, editor));
+		const parenthesisHidingRenderer = this._register(instantiationService.createInstance(StaticContentHidingRenderer, editor, preferencesModel));
+		this.hiddenAreasRenderer = this._register(instantiationService.createInstance(HiddenAreasRenderer, editor, [this.settingsGroupTitleRenderer, this.filteredMatchesRenderer, parenthesisHidingRenderer]));
 
 		this._register(this.editSettingActionRenderer.onUpdateSetting(e => this._onUpdatePreference.fire(e)));
-		const parenthesisHidingRenderer = this._register(instantiationService.createInstance(StaticContentHidingRenderer, editor, preferencesModel.settingsGroups));
-
-		const hiddenAreasProviders = [this.settingsGroupTitleRenderer, this.filteredMatchesRenderer, parenthesisHidingRenderer];
-		this.hiddenAreasRenderer = this._register(instantiationService.createInstance(HiddenAreasRenderer, editor, hiddenAreasProviders));
-
 		this._register(this.settingsGroupTitleRenderer.onHiddenAreasChanged(() => this.hiddenAreasRenderer.render()));
+		this._register(preferencesModel.onDidChangeGroups(() => this.render()));
 
 		this.onTriggeredFuzzy = this.settingsHeaderRenderer.onClick;
 	}
@@ -295,7 +293,6 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.settingsGroupTitleRenderer.render(this.preferencesModel.settingsGroups);
 		this.editSettingActionRenderer.render(this.preferencesModel.settingsGroups, this._associatedPreferencesModel);
 		this.feedbackWidgetRenderer.render(null);
-		this.hiddenAreasRenderer.render();
 		this.settingHighlighter.clear(true);
 		this.settingsGroupTitleRenderer.showGroup(0);
 		this.hiddenAreasRenderer.render();
@@ -379,7 +376,7 @@ export interface HiddenAreasProvider {
 
 export class StaticContentHidingRenderer extends Disposable implements HiddenAreasProvider {
 
-	constructor(private editor: ICodeEditor, private settingsGroups: ISettingsGroup[]
+	constructor(private editor: ICodeEditor, private settingsEditorModel: ISettingsEditorModel
 	) {
 		super();
 	}
@@ -388,7 +385,8 @@ export class StaticContentHidingRenderer extends Disposable implements HiddenAre
 		const model = this.editor.getModel();
 
 		// Hide extra chars for "search results" and "commonly used" groups
-		const lastGroup = tail(this.settingsGroups);
+		const settingsGroups = this.settingsEditorModel.settingsGroups;
+		const lastGroup = tail(settingsGroups);
 		return [
 			{
 				startLineNumber: 1,
@@ -397,10 +395,10 @@ export class StaticContentHidingRenderer extends Disposable implements HiddenAre
 				endColumn: model.getLineMaxColumn(2)
 			},
 			{
-				startLineNumber: this.settingsGroups[0].range.endLineNumber + 1,
-				startColumn: model.getLineMinColumn(this.settingsGroups[0].range.endLineNumber + 1),
-				endLineNumber: this.settingsGroups[0].range.endLineNumber + 4,
-				endColumn: model.getLineMaxColumn(this.settingsGroups[0].range.endLineNumber + 4)
+				startLineNumber: settingsGroups[0].range.endLineNumber + 1,
+				startColumn: model.getLineMinColumn(settingsGroups[0].range.endLineNumber + 1),
+				endLineNumber: settingsGroups[0].range.endLineNumber + 4,
+				endColumn: model.getLineMaxColumn(settingsGroups[0].range.endLineNumber + 4)
 			},
 			{
 				startLineNumber: lastGroup.range.endLineNumber + 1,

@@ -14,7 +14,6 @@
     "postinstall": "node build/npm/postinstall.js",
     "compile": "gulp compile --max_old_space_size=4096",
     "watch": "gulp watch --max_old_space_size=4096",
-    "monaco-editor-setup": "node scripts/monaco-editor-setup.js",
     "monaco-editor-test": "mocha --only-monaco-editor",
     "precommit": "node build/gulpfile.hygiene.js",
     "gulp": "gulp --max_old_space_size=4096",
