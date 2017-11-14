@@ -189,6 +189,7 @@ class Extension implements IExtension {
 				return this.galleryService.getManifest(this.gallery);
 			}
 			this.telemetryService.publicLog('extensions:NotFoundManifest', this.telemetryData);
+			return TPromise.wrapError<IExtensionManifest>(new Error('not available'));
 		}
 
 		return TPromise.as(this.local.manifest);
