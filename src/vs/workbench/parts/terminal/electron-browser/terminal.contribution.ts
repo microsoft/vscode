@@ -120,6 +120,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': TERMINAL_DEFAULT_RIGHT_CLICK_COPY_PASTE
 		},
+		'terminal.integrated.copyOnSelection': {
+			'description': nls.localize('terminal.integrated.copyOnSelection', "When set, text selected in the terminal will be copied to the clipboard."),
+			'type': 'boolean',
+			'default': false
+		},
 		'terminal.integrated.fontFamily': {
 			'description': nls.localize('terminal.integrated.fontFamily', "Controls the font family of the terminal, this defaults to editor.fontFamily's value."),
 			'type': 'string'
