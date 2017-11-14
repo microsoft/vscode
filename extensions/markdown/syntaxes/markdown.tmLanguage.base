@@ -756,6 +756,7 @@
 					<string>(?x:
 						(\!\[)((?&lt;square&gt;[^\[\]\\]|\\.|\[\g&lt;square&gt;*+\])*+)(\])
 													# Match the link text.
+						([ ])?						# Space not allowed
 						(\()						# Opening paren for url
 							(&lt;?)(\S+?)(&gt;?)			# The url
 							[ \t]*					# Optional whitespace
@@ -1067,6 +1068,7 @@
 					<string>(?x:
 						(\[)((?&lt;square&gt;[^\[\]\\]|\\.|\[\g&lt;square&gt;*+\])*+)(\])
 													# Match the link text.
+						([ ])?						# Space not allowed
 						(\()						# Opening paren for url
 							(&lt;?)(.*?)(&gt;?)			# The url
 							[ \t]*					# Optional whitespace
