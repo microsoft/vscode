@@ -70,7 +70,7 @@ export default class JsDocCompletionProvider implements CompletionItemProvider {
 		const line = document.lineAt(position.line).text;
 		const prefix = line.slice(0, position.character);
 		if (prefix.match(/^\s*$|\/\*\*\s*$|^\s*\/\*\*+\s*$/)) {
-			const enableJsDocCompletions = workspace.getConfiguration(configurationNamespace).get<boolean>(Configuration.enabled, true);
+			const enableJsDocCompletions = workspace.getConfiguration(configurationNamespace, document.uri).get<boolean>(Configuration.enabled, true);
 			return [new JsDocCompletionItem(document, position, enableJsDocCompletions)];
 		}
 		return [];
