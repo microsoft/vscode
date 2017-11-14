@@ -349,7 +349,8 @@ enum RenderLineNumbersType {
 	Off = 0,
 	On = 1,
 	Relative = 2,
-	Custom = 3
+	Interval = 3,
+	Custom = 4
 }
 
 /**

@@ -160,7 +160,7 @@ export interface IEditorOptions {
 	 * Otherwise, line numbers will not be rendered.
 	 * Defaults to true.
 	 */
-	lineNumbers?: 'on' | 'off' | 'relative' | ((lineNumber: number) => string);
+	lineNumbers?: 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
 	/**
 	 * Should the corresponding line be selected when clicking on the line number?
 	 * Defaults to true.
@@ -757,7 +757,8 @@ export const enum RenderLineNumbersType {
 	Off = 0,
 	On = 1,
 	Relative = 2,
-	Custom = 3
+	Interval = 3,
+	Custom = 4
 }
 
 export interface InternalEditorViewOptions {
@@ -1579,6 +1580,8 @@ export class EditorOptionsValidator {
 			if (typeof lineNumbers === 'function') {
 				renderLineNumbers = RenderLineNumbersType.Custom;
 				renderCustomLineNumbers = lineNumbers;
+			} else if (lineNumbers === 'interval') {
+				renderLineNumbers = RenderLineNumbersType.Interval;
 			} else if (lineNumbers === 'relative') {
 				renderLineNumbers = RenderLineNumbersType.Relative;
 			} else if (lineNumbers === 'on') {
