@@ -6,7 +6,7 @@
         accessibility: [],
         api: [],
         css-less-sass: [],
-        debug: [ isidorn ],
+        debug: [ weinand ],
         editor: [],
         editor-brackets: [],
         editor-clipboard: [],
@@ -23,7 +23,6 @@
         editor-wrapping: [],
         emmet: [ ramya-rao-a ],
         error-list: [],
-        extensions: [],
         git: [ joaomoreno ],
         hot-exit: [ Tyriar ],
         html: [ aeschli ],
@@ -41,6 +40,6 @@
         snippets: [ jrieken ],
         tasks: [ dbaeumer ],
         typescript: [ mjbvz ],
-        workbench: [ bpasero, isidorn, sandy081]
+        workbench: [ bpasero ]
     }
 }

@@ -210,7 +210,7 @@ suite('Quick Open Scorer', () => {
 	});
 
 	test('scoreItem - avoid match scattering (bug #36119)', function () {
-		const resource = URI.file('projects/ui/cula/ats/target.mk');;
+		const resource = URI.file('projects/ui/cula/ats/target.mk');
 
 		const pathRes = scoreItem(resource, 'tcltarget.mk', true, ResourceAccessor, cache);
 		assert.ok(pathRes.score);
@@ -235,6 +235,13 @@ suite('Quick Open Scorer', () => {
 		assert.equal(res.descriptionMatch[0].end, 12);
 		assert.equal(res.descriptionMatch[1].start, 13);
 		assert.equal(res.descriptionMatch[1].end, 14);
+	});
+
+	test('scoreItem - proper target offset', function () {
+		const resource = URI.file('etem');
+
+		const res = scoreItem(resource, 'teem', true, ResourceAccessor, cache);
+		assert.ok(!res.score);
 	});
 
 	test('compareItemsByScore - identity', function () {
@@ -720,6 +727,19 @@ suite('Quick Open Scorer', () => {
 		const resourceB = URI.file('static/app/source/angular/-admin/-project/-settings/_settings/settings.js');
 
 		let query = 'partisettings';
+
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
+		assert.equal(res[0], resourceB);
+	});
+
+	test('compareFilesByScore - avoid match scattering (bug #36810)', function () {
+		const resourceA = URI.file('Trilby.TrilbyTV.Web.Portal/Views/Systems/Index.cshtml');
+		const resourceB = URI.file('Trilby.TrilbyTV.Web.Portal/Areas/Admins/Views/Tips/Index.cshtml');
+
+		let query = 'tipsindex.cshtml';
 
 		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor, cache));
 		assert.equal(res[0], resourceB);

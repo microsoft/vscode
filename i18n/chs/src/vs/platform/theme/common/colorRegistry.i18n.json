@@ -44,6 +44,7 @@
 	"listHoverForeground": "鼠标在项目上悬停时，列表或树的前景颜色。",
 	"listDropBackground": "使用鼠标移动项目时，列表或树进行拖放的背景颜色。",
 	"highlight": "在列表或树中搜索时，其中匹配内容的高亮颜色。",
+	"invalidItemForeground": "列表或树中无效项的前景色，例如资源管理器中没有解析的根目录。",
 	"pickerGroupForeground": "快速选取器分组标签的颜色。",
 	"pickerGroupBorder": "快速选取器分组边框的颜色。",
 	"buttonForeground": "按钮前景色。",

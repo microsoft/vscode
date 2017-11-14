@@ -202,7 +202,7 @@ suite('Arrays', () => {
 	});
 
 	test('top', function () {
-		const cmp = (a, b) => {
+		const cmp = (a: number, b: number) => {
 			assert.strictEqual(typeof a, 'number', 'typeof a');
 			assert.strictEqual(typeof b, 'number', 'typeof b');
 			return a - b;
@@ -218,7 +218,7 @@ suite('Arrays', () => {
 	});
 
 	test('topAsync', function (done) {
-		const cmp = (a, b) => {
+		const cmp = (a: number, b: number) => {
 			assert.strictEqual(typeof a, 'number', 'typeof a');
 			assert.strictEqual(typeof b, 'number', 'typeof b');
 			return a - b;

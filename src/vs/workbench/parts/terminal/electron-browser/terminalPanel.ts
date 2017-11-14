@@ -12,10 +12,10 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ITerminalService, ITerminalFont, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { TerminalFindWidget } from './terminalFindWidget';
 import { editorHoverBackground, editorHoverBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -33,7 +33,6 @@ export class TerminalPanel extends Panel {
 	private _copyContextMenuAction: IAction;
 	private _contextMenuActions: IAction[];
 	private _cancelContextMenu: boolean = false;
-	private _font: ITerminalFont;
 	private _fontStyleElement: HTMLElement;
 	private _parentDomElement: HTMLElement;
 	private _terminalContainer: HTMLElement;
@@ -43,7 +42,6 @@ export class TerminalPanel extends Panel {
 	constructor(
 		@IConfigurationService private _configurationService: IConfigurationService,
 		@IContextMenuService private _contextMenuService: IContextMenuService,
-		@IContextViewService private _contextViewService: IContextViewService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@ITerminalService private _terminalService: ITerminalService,
 		@IThemeService protected themeService: IThemeService,
@@ -103,11 +101,16 @@ export class TerminalPanel extends Panel {
 				this._updateTheme();
 			} else {
 				return super.setVisible(visible).then(() => {
-					const instance = this._terminalService.createInstance();
-					if (instance) {
-						this._updateFont();
-						this._updateTheme();
-					}
+					// Allow time for the panel to display if it is being shown
+					// for the first time. If there is not wait here the initial
+					// dimensions of the pty could be wrong.
+					setTimeout(() => {
+						const instance = this._terminalService.createInstance();
+						if (instance) {
+							this._updateFont();
+							this._updateTheme();
+						}
+					}, 0);
 					return TPromise.as(void 0);
 				});
 			}
@@ -303,7 +306,6 @@ export class TerminalPanel extends Panel {
 		if (this._terminalService.terminalInstances.length === 0) {
 			return;
 		}
-		this._font = this._terminalService.configHelper.getFont();
 		// TODO: Can we support ligatures?
 		// dom.toggleClass(this._parentDomElement, 'enable-ligatures', this._terminalService.configHelper.config.fontLigatures);
 		this.layout(new Dimension(this._parentDomElement.offsetWidth, this._parentDomElement.offsetHeight));

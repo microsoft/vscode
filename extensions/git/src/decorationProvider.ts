@@ -40,7 +40,7 @@ class GitIgnoreDecorationProvider implements DecorationProvider {
 			if (ignored) {
 				return <DecorationData>{
 					priority: 3,
-					color: new ThemeColor('git.color.ignored')
+					color: new ThemeColor('gitDecoration.ignoredResourceForeground')
 				};
 			}
 		});
@@ -82,6 +82,7 @@ class GitDecorationProvider implements DecorationProvider {
 		let newDecorations = new Map<string, DecorationData>();
 		this.collectDecorationData(this.repository.indexGroup, newDecorations);
 		this.collectDecorationData(this.repository.workingTreeGroup, newDecorations);
+		this.collectDecorationData(this.repository.mergeGroup, newDecorations);
 
 		let uris: Uri[] = [];
 		newDecorations.forEach((value, uriString) => {
@@ -118,15 +119,35 @@ class GitDecorationProvider implements DecorationProvider {
 
 export class GitDecorations {
 
-	private disposables: Disposable[] = [];
+	private configListener: Disposable;
+	private modelListener: Disposable[] = [];
 	private providers = new Map<Repository, Disposable>();
 
 	constructor(private model: Model) {
-		this.disposables.push(
-			model.onDidOpenRepository(this.onDidOpenRepository, this),
-			model.onDidCloseRepository(this.onDidCloseRepository, this)
-		);
-		model.repositories.forEach(this.onDidOpenRepository, this);
+		this.configListener = workspace.onDidChangeConfiguration(e => e.affectsConfiguration('git.decorations.enabled') && this.update());
+		this.update();
+	}
+
+	private update(): void {
+		const enabled = workspace.getConfiguration('git').get('decorations.enabled');
+		if (enabled) {
+			this.enable();
+		} else {
+			this.disable();
+		}
+	}
+
+	private enable(): void {
+		this.modelListener = [];
+		this.model.onDidOpenRepository(this.onDidOpenRepository, this, this.modelListener);
+		this.model.onDidCloseRepository(this.onDidCloseRepository, this, this.modelListener);
+		this.model.repositories.forEach(this.onDidOpenRepository, this);
+	}
+
+	private disable(): void {
+		this.modelListener.forEach(d => d.dispose());
+		this.providers.forEach(value => value.dispose());
+		this.providers.clear();
 	}
 
 	private onDidOpenRepository(repository: Repository): void {
@@ -144,7 +165,8 @@ export class GitDecorations {
 	}
 
 	dispose(): void {
-		this.disposables.forEach(d => d.dispose());
+		this.configListener.dispose();
+		this.modelListener.forEach(d => d.dispose());
 		this.providers.forEach(value => value.dispose);
 		this.providers.clear();
 	}

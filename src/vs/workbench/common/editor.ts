@@ -791,7 +791,7 @@ export interface IEditorContext extends IEditorIdentifier {
 }
 
 export interface IEditorCloseEvent extends IEditorIdentifier {
-	pinned: boolean;
+	replaced: boolean;
 	index: number;
 }
 

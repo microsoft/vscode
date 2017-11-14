@@ -101,7 +101,7 @@ class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 								this.taskTypes[type.taskType] = type;
 							}
 						}
-					};
+					}
 				} catch (error) {
 				}
 				resolve(undefined);

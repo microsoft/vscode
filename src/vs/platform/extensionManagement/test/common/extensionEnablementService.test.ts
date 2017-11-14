@@ -33,7 +33,7 @@ function storageService(instantiationService: TestInstantiationService): IStorag
 export class TestExtensionEnablementService extends ExtensionEnablementService {
 	constructor(instantiationService: TestInstantiationService) {
 		super(storageService(instantiationService), instantiationService.get(IWorkspaceContextService),
-			instantiationService.get(IEnvironmentService) || instantiationService.stub(IEnvironmentService, <IEnvironmentService>{}),
+			instantiationService.get(IEnvironmentService) || instantiationService.stub(IEnvironmentService, {} as IEnvironmentService),
 			instantiationService.get(IExtensionManagementService) || instantiationService.stub(IExtensionManagementService, { onDidUninstallExtension: new Emitter() }));
 	}
 
@@ -271,5 +271,21 @@ suite('ExtensionEnablementService Test', () => {
 				assert.deepEqual([], testObject.getGloballyDisabledExtensions());
 			})
 			.then(done, done);
+	});
+
+	test('test isEnabled return false extension is disabled globally', () => {
+		return testObject.setEnablement({ id: 'pub.a' }, false, false)
+			.then(() => assert.ok(!testObject.isEnabled({ id: 'pub.a' })));
+	});
+
+	test('test isEnabled return false extension is disabled in workspace', () => {
+		return testObject.setEnablement({ id: 'pub.a' }, false, true)
+			.then(() => assert.ok(!testObject.isEnabled({ id: 'pub.a' })));
+	});
+
+	test('test isEnabled return true extension is not disabled', () => {
+		return testObject.setEnablement({ id: 'pub.a' }, false, true)
+			.then(() => testObject.setEnablement({ id: 'pub.c' }, false, false))
+			.then(() => assert.ok(testObject.isEnabled({ id: 'pub.b' })));
 	});
 });

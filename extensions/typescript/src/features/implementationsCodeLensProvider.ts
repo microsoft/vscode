@@ -8,7 +8,7 @@ import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 
 import { TypeScriptBaseCodeLensProvider, ReferencesCodeLens } from './baseCodeLensProvider';
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
 import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
 
 import * as nls from 'vscode-nls';
@@ -16,7 +16,7 @@ const localize = nls.loadMessageBundle();
 
 export default class TypeScriptImplementationsCodeLensProvider extends TypeScriptBaseCodeLensProvider {
 	public constructor(
-		client: ITypescriptServiceClient,
+		client: ITypeScriptServiceClient,
 		private readonly language: string
 	) {
 		super(client);

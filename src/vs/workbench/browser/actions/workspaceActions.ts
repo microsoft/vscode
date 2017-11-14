@@ -8,18 +8,18 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import nls = require('vs/nls');
-import { distinct } from 'vs/base/common/arrays';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import URI from 'vs/base/common/uri';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { WORKSPACE_FILTER, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isLinux } from 'vs/base/common/platform';
 import { dirname } from 'vs/base/common/paths';
+import * as resources from 'vs/base/common/resources';
 import { mnemonicButtonLabel, getPathLabel } from 'vs/base/common/labels';
 import { isParent, FileKind } from 'vs/platform/files/common/files';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -204,7 +204,6 @@ export class AddRootFolderAction extends BaseWorkspacesAction {
 		@IWindowService windowService: IWindowService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
 		@IViewletService private viewletService: IViewletService,
 		@IHistoryService historyService: IHistoryService
@@ -213,25 +212,13 @@ export class AddRootFolderAction extends BaseWorkspacesAction {
 	}
 
 	public run(): TPromise<any> {
-		let addFoldersPromise: TPromise<void>;
-
-		// Workspace
-		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-			const folders = super.pickFolders(mnemonicButtonLabel(nls.localize({ key: 'add', comment: ['&& denotes a mnemonic'] }, "&&Add")), nls.localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"));
-			if (!folders || !folders.length) {
-				return TPromise.as(null);
-			}
-
-			addFoldersPromise = this.workspaceEditingService.addFolders(folders.map(folder => URI.file(folder)));
-		}
-
-		// Empty or Folder
-		else {
-			addFoldersPromise = this.instantiationService.createInstance(NewWorkspaceAction, NewWorkspaceAction.ID, NewWorkspaceAction.LABEL, this.contextService.getWorkspace().folders.map(folder => folder.uri)).run();
+		const folders = super.pickFolders(mnemonicButtonLabel(nls.localize({ key: 'add', comment: ['&& denotes a mnemonic'] }, "&&Add")), nls.localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"));
+		if (!folders || !folders.length) {
+			return TPromise.as(null);
 		}
 
 		// Add and show Files Explorer viewlet
-		return addFoldersPromise.then(() => this.viewletService.openViewlet(this.viewletService.getDefaultViewletId(), true));
+		return this.workspaceEditingService.addFolders(folders.map(folder => ({ uri: URI.file(folder) }))).then(() => this.viewletService.openViewlet(this.viewletService.getDefaultViewletId(), true));
 	}
 }
 
@@ -260,13 +247,6 @@ export class GlobalRemoveRootFolderAction extends BaseWorkspacesAction {
 		if (state === WorkbenchState.WORKSPACE || state === WorkbenchState.FOLDER) {
 			return this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND).then(folder => {
 				if (folder) {
-
-					// Folder: close workspace
-					if (state === WorkbenchState.FOLDER) {
-						return this.windowService.closeWorkspace().then(() => true);
-					}
-
-					// Workspace: remove folder
 					return this.workspaceEditingService.removeFolders([folder.uri]).then(() => true);
 				}
 
@@ -275,40 +255,6 @@ export class GlobalRemoveRootFolderAction extends BaseWorkspacesAction {
 		}
 
 		return TPromise.as(true);
-	}
-}
-
-class NewWorkspaceAction extends BaseWorkspacesAction {
-
-	static ID = 'workbench.action.newWorkspace';
-	static LABEL = nls.localize('newWorkspace', "New Workspace...");
-
-	constructor(
-		id: string,
-		label: string,
-		private presetRoots: URI[],
-		@IWindowService windowService: IWindowService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
-		@IHistoryService historyService: IHistoryService
-	) {
-		super(id, label, windowService, environmentService, contextService, historyService);
-	}
-
-	public run(): TPromise<any> {
-		const folders = super.pickFolders(mnemonicButtonLabel(nls.localize({ key: 'select', comment: ['&& denotes a mnemonic'] }, "&&Select")), nls.localize('selectWorkspace', "Select Folders for Workspace"));
-		if (folders && folders.length) {
-			return this.createWorkspace([...this.presetRoots, ...folders.map(folder => URI.file(folder))]);
-		}
-
-		return TPromise.as(null);
-	}
-
-	private createWorkspace(folders: URI[]): TPromise<void> {
-		const workspaceFolders = distinct(folders.map(folder => folder.fsPath), folder => isLinux ? folder : folder.toLowerCase());
-
-		return this.workspaceEditingService.createAndEnterWorkspace(workspaceFolders);
 	}
 }
 
@@ -376,8 +322,8 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 			switch (this.contextService.getWorkbenchState()) {
 				case WorkbenchState.EMPTY:
 				case WorkbenchState.FOLDER:
-					const workspaceFolders = this.contextService.getWorkspace().folders.map(root => root.uri.fsPath);
-					return this.workspaceEditingService.createAndEnterWorkspace(workspaceFolders, configPath);
+					const folders = this.contextService.getWorkspace().folders.map(folder => ({ uri: folder.uri }));
+					return this.workspaceEditingService.createAndEnterWorkspace(folders, configPath);
 
 				case WorkbenchState.WORKSPACE:
 					return this.workspaceEditingService.saveAndEnterWorkspace(configPath);
@@ -473,7 +419,7 @@ export class OpenFolderAsWorkspaceInNewWindowAction extends Action {
 				return void 0; // need at least one folder
 			}
 
-			return this.workspacesService.createWorkspace([folder.uri]).then(newWorkspace => {
+			return this.workspacesService.createWorkspace([{ uri: folder.uri }]).then(newWorkspace => {
 				return this.workspaceEditingService.copyWorkspaceSettings(newWorkspace).then(() => {
 					return this.windowsService.openWindow([newWorkspace.configPath], { forceNewWindow: true });
 				});
@@ -497,7 +443,7 @@ CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND, function (access
 	const folderPicks = folders.map(folder => {
 		return {
 			label: folder.name,
-			description: getPathLabel(dirname(folder.uri.fsPath), void 0, environmentService),
+			description: getPathLabel(resources.dirname(folder.uri), void 0, environmentService),
 			folder,
 			resource: folder.uri,
 			fileKind: FileKind.ROOT_FOLDER

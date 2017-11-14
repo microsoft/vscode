@@ -77,6 +77,11 @@ export interface IWorkspaceSavedEvent {
 	oldConfigPath: string;
 }
 
+export interface IWorkspaceFolderCreationData {
+	uri: URI;
+	name?: string;
+}
+
 export interface IWorkspacesMainService extends IWorkspacesService {
 	_serviceBrand: any;
 
@@ -85,8 +90,7 @@ export interface IWorkspacesMainService extends IWorkspacesService {
 
 	saveWorkspace(workspace: IWorkspaceIdentifier, target: string): TPromise<IWorkspaceIdentifier>;
 
-	createWorkspaceSync(folderPaths?: string[]): IWorkspaceIdentifier;
-	createWorkspaceSync(folderResources?: URI[]): IWorkspaceIdentifier;
+	createWorkspaceSync(folders?: IWorkspaceFolderCreationData[]): IWorkspaceIdentifier;
 
 	resolveWorkspace(path: string): TPromise<IResolvedWorkspace>;
 	resolveWorkspaceSync(path: string): IResolvedWorkspace;
@@ -103,8 +107,7 @@ export interface IWorkspacesMainService extends IWorkspacesService {
 export interface IWorkspacesService {
 	_serviceBrand: any;
 
-	createWorkspace(folderPaths?: string[]): TPromise<IWorkspaceIdentifier>;
-	createWorkspace(folderResources?: URI[]): TPromise<IWorkspaceIdentifier>;
+	createWorkspace(folders?: IWorkspaceFolderCreationData[]): TPromise<IWorkspaceIdentifier>;
 }
 
 export function getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier), environmentService: IEnvironmentService, options?: { verbose: boolean }): string {

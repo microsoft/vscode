@@ -366,8 +366,8 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		this.lines.warmUpLookupCache(startLineNumber, endLineNumber);
 	}
 
-	public getLineIndentGuide(lineNumber: number): number {
-		return this.lines.getViewLineIndentGuide(lineNumber);
+	public getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[] {
+		return this.lines.getViewLinesIndentGuides(startLineNumber, endLineNumber);
 	}
 
 	public getLineContent(lineNumber: number): string {

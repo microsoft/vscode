@@ -151,8 +151,8 @@ export class QuickOpenWidget implements IModelProvider {
 		this.builder = $().div((div: Builder) => {
 
 			// Eventing
-			div.on(DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-				const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
+			div.on(DOM.EventType.KEY_DOWN, (e) => {
+				const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e as KeyboardEvent);
 				if (keyboardEvent.keyCode === KeyCode.Escape) {
 					DOM.EventHelper.stop(e, true);
 
@@ -261,8 +261,8 @@ export class QuickOpenWidget implements IModelProvider {
 					}
 				}));
 			}).
-				on(DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-					const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
+				on(DOM.EventType.KEY_DOWN, (e) => {
+					const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e as KeyboardEvent);
 
 					// Only handle when in quick navigation mode
 					if (!this.quickNavigateConfiguration) {
@@ -276,8 +276,8 @@ export class QuickOpenWidget implements IModelProvider {
 						this.navigateInTree(keyboardEvent.keyCode);
 					}
 				}).
-				on(DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
-					const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e);
+				on(DOM.EventType.KEY_UP, (e) => {
+					const keyboardEvent: StandardKeyboardEvent = new StandardKeyboardEvent(e as KeyboardEvent);
 					const keyCode = keyboardEvent.keyCode;
 
 					// Only handle when in quick navigation mode

@@ -114,7 +114,6 @@ export class OpenFolderSettingsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPreferencesService private preferencesService: IPreferencesService,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 		@ICommandService private commandService: ICommandService
 	) {

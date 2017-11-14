@@ -16,7 +16,7 @@ import arrays = require('vs/base/common/arrays');
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
 import * as objects from 'vs/base/common/objects';
-import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
+import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Scope as MementoScope } from 'vs/workbench/common/memento';
 import { Part } from 'vs/workbench/browser/part';
@@ -44,8 +44,9 @@ import { EDITOR_GROUP_BACKGROUND } from 'vs/workbench/common/theme';
 import { createCSSRule } from 'vs/base/browser/dom';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { join } from 'vs/base/common/paths';
-import { isCommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IEditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
+import { ThrottledEmitter } from 'vs/base/common/async';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 
 class ProgressMonitor {
 
@@ -98,7 +99,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	private doNotFireTabOptionsChanged: boolean;
 	private revealIfOpen: boolean;
 
-	private _onEditorsChanged: Emitter<void>;
+	private _onEditorsChanged: ThrottledEmitter<void>;
 	private _onEditorOpening: Emitter<IEditorOpeningEvent>;
 	private _onEditorGroupMoved: Emitter<void>;
 	private _onEditorOpenFail: Emitter<EditorInput>;
@@ -132,7 +133,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
-		this._onEditorsChanged = new Emitter<void>();
+		this._onEditorsChanged = new ThrottledEmitter<void>();
 		this._onEditorOpening = new Emitter<IEditorOpeningEvent>();
 		this._onEditorGroupMoved = new Emitter<void>();
 		this._onEditorOpenFail = new Emitter<EditorInput>();
@@ -152,7 +153,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		this.textCompareEditorVisible = TextCompareEditorVisible.bindTo(contextKeyService);
 
-		const config = configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
+		const config = configurationService.getValue<IWorkbenchEditorConfiguration>();
 		if (config && config.workbench && config.workbench.editor) {
 			const editorConfig = config.workbench.editor;
 
@@ -173,7 +174,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 					]
 				}
 			*/
-			this.telemetryService.publicLog('workbenchEditorConfiguration', editorConfig);
+			this.telemetryService.publicLog('workbenchEditorConfiguration', objects.deepClone(editorConfig)); // Clone because telemetry service will modify the passed data by adding more details.
 		} else {
 			this.tabOptions = {
 				previewEditors: true,
@@ -214,7 +215,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	private onConfigurationUpdated(event: IConfigurationChangeEvent): void {
 		if (event.affectsConfiguration('workbench.editor')) {
-			const configuration = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
+			const configuration = this.configurationService.getValue<IWorkbenchEditorConfiguration>();
 			if (configuration && configuration.workbench && configuration.workbench.editor) {
 				const editorConfig = configuration.workbench.editor;
 
@@ -228,7 +229,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 					});
 				}
 
-				const oldTabOptions = objects.clone(this.tabOptions);
+				const oldTabOptions = objects.deepClone(this.tabOptions);
 				this.tabOptions = {
 					previewEditors: newPreviewEditors,
 					showIcons: editorConfig.showIcons,
@@ -281,7 +282,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	public hideTabs(forceHide: boolean): void {
 		this.forceHideTabs = forceHide;
-		const config = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
+		const config = this.configurationService.getValue<IWorkbenchEditorConfiguration>();
 		this.tabOptions.showTabs = forceHide ? false : config && config.workbench && config.workbench.editor && config.workbench.editor.showTabs;
 		this._onTabOptionsChanged.fire(this.tabOptions);
 	}
@@ -335,7 +336,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			!this.editorGroupsControl ||			// too early
 			this.editorGroupsControl.isDragging()	// pending editor DND
 		) {
-			return TPromise.as<BaseEditor>(null);
+			return TPromise.wrap<BaseEditor>(null);
 		}
 
 		// Editor opening event (can be prevented and overridden)
@@ -383,7 +384,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Return early if the editor is to be open inactive and there are other editors in this group to show
 		if (!active) {
-			return TPromise.as<BaseEditor>(null);
+			return TPromise.wrap<BaseEditor>(null);
 		}
 
 		// Progress Monitor & Ref Counting
@@ -400,7 +401,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// Show editor
 		const editor = this.doShowEditor(group, descriptor, input, options, ratio, monitor);
 		if (!editor) {
-			return TPromise.as<BaseEditor>(null); // canceled or other error
+			return TPromise.wrap<BaseEditor>(null); // canceled or other error
 		}
 
 		// Set input to editor
@@ -581,7 +582,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	public closeEditor(position: Position, input: EditorInput): TPromise<void> {
 		const group = this.stacks.groupAt(position);
 		if (!group) {
-			return TPromise.as<void>(null);
+			return TPromise.wrap<void>(null);
 		}
 
 		// Check for dirty and veto
@@ -718,7 +719,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	public closeEditors(position: Position, filter: { except?: EditorInput, direction?: Direction, unmodifiedOnly?: boolean } = Object.create(null)): TPromise<void> {
 		const group = this.stacks.groupAt(position);
 		if (!group) {
-			return TPromise.as<void>(null);
+			return TPromise.wrap<void>(null);
 		}
 
 		let editors = group.getEditors();
@@ -1137,7 +1138,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		const editorState: IEditorPartUIState = this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
 
-		return this.doOpenEditors(editors, activePosition, editorState && editorState.ratio);
+		// Open editors (throttle editor change events)
+		return this._onEditorsChanged.throttle(this.doOpenEditors(editors, activePosition, editorState && editorState.ratio));
 	}
 
 	private doOpenEditors(editors: { input: EditorInput, position: Position, options?: EditorOptions }[], activePosition?: number, ratio?: number[]): TPromise<IEditor[]> {
@@ -1326,7 +1328,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		const activeEditor = this.getActiveEditor();
 		if (activeEditor) {
 			const activeEditorControl = activeEditor.getControl();
-			if (isCommonCodeEditor(activeEditorControl)) {
+			if (isCodeEditor(activeEditorControl)) {
 				return activeEditorControl.invokeWithinContext(fn);
 			}
 

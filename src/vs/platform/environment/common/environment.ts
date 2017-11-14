@@ -45,6 +45,7 @@ export interface ParsedArgs {
 	'export-default-configuration'?: string;
 	'install-source'?: string;
 	'disable-updates'?: string;
+	'disable-crash-reporter'?: string;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
@@ -75,6 +76,7 @@ export interface IEnvironmentService {
 	appSettingsPath: string;
 	appKeybindingsPath: string;
 	machineUUID: string;
+	settingsSearchBuildId: number;
 
 	backupHome: string;
 	backupWorkspacesPath: string;
@@ -108,4 +110,5 @@ export interface IEnvironmentService {
 
 	installSource: string;
 	disableUpdates: boolean;
+	disableCrashReporter: boolean;
 }

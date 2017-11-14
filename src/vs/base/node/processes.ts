@@ -212,7 +212,7 @@ export abstract class AbstractProcess<TProgressData> {
 					cc(result);
 				};
 				if (this.shell && Platform.isWindows) {
-					let options: any = Objects.clone(this.options);
+					let options: any = Objects.deepClone(this.options);
 					options.windowsVerbatimArguments = true;
 					options.detached = false;
 					let quotedCommand: boolean = false;

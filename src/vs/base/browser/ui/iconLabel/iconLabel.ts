@@ -93,13 +93,15 @@ export class IconLabel {
 	constructor(container: HTMLElement, options?: IIconLabelCreationOptions) {
 		this.domNode = new FastLabelNode(dom.append(container, dom.$('.monaco-icon-label')));
 
+		const labelDescriptionContainer = new FastLabelNode(dom.append(this.domNode.element, dom.$('.monaco-icon-label-description-container')));
+
 		if (options && options.supportHighlights) {
-			this.labelNode = new HighlightedLabel(dom.append(this.domNode.element, dom.$('a.label-name')));
+			this.labelNode = new HighlightedLabel(dom.append(labelDescriptionContainer.element, dom.$('a.label-name')));
 		} else {
-			this.labelNode = new FastLabelNode(dom.append(this.domNode.element, dom.$('a.label-name')));
+			this.labelNode = new FastLabelNode(dom.append(labelDescriptionContainer.element, dom.$('a.label-name')));
 		}
 
-		this.descriptionNode = new FastLabelNode(dom.append(this.domNode.element, dom.$('span.label-description')));
+		this.descriptionNode = new FastLabelNode(dom.append(labelDescriptionContainer.element, dom.$('span.label-description')));
 	}
 
 	public get element(): HTMLElement {

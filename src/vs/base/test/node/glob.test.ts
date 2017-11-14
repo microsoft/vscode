@@ -416,7 +416,7 @@ suite('Glob', () => {
 
 		assert.strictEqual(glob.match(expression, 'test.js', () => siblings), null);
 
-		expression = <any>{
+		expression = {
 			'**/*.js': {
 			}
 		};
@@ -460,6 +460,46 @@ suite('Glob', () => {
 		assert(!glob.match(p, 'foo.8'));
 		assert(!glob.match(p, 'bar.5'));
 		assert(glob.match(p, 'foo.f'));
+
+		p = 'foo.[!0-9]';
+
+		assert(!glob.match(p, 'foo.5'));
+		assert(!glob.match(p, 'foo.8'));
+		assert(!glob.match(p, 'bar.5'));
+		assert(glob.match(p, 'foo.f'));
+
+		p = 'foo.[0!^*?]';
+
+		assert(!glob.match(p, 'foo.5'));
+		assert(!glob.match(p, 'foo.8'));
+		assert(glob.match(p, 'foo.0'));
+		assert(glob.match(p, 'foo.!'));
+		assert(glob.match(p, 'foo.^'));
+		assert(glob.match(p, 'foo.*'));
+		assert(glob.match(p, 'foo.?'));
+
+		p = 'foo[/]bar';
+
+		assert(!glob.match(p, 'foo/bar'));
+
+		p = 'foo.[[]';
+
+		assert(glob.match(p, 'foo.['));
+
+		p = 'foo.[]]';
+
+		assert(glob.match(p, 'foo.]'));
+
+		p = 'foo.[][!]';
+
+		assert(glob.match(p, 'foo.]'));
+		assert(glob.match(p, 'foo.['));
+		assert(glob.match(p, 'foo.!'));
+
+		p = 'foo.[]-]';
+
+		assert(glob.match(p, 'foo.]'));
+		assert(glob.match(p, 'foo.-'));
 	});
 
 	test('full path', function () {

@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import nls = require('vs/nls');
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { assign, clone } from 'vs/base/common/objects';
+import { assign, deepClone } from 'vs/base/common/objects';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -13,8 +14,43 @@ import { crashReporter } from 'electron';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
 import * as os from 'os';
-import { ICrashReporterService, TELEMETRY_SECTION_ID, ICrashReporterConfig } from 'vs/workbench/services/crashReporter/common/crashReporterService';
 import { isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { Registry } from 'vs/platform/registry/common/platform';
+
+export const ICrashReporterService = createDecorator<ICrashReporterService>('crashReporterService');
+
+export const TELEMETRY_SECTION_ID = 'telemetry';
+
+export interface ICrashReporterConfig {
+	enableCrashReporter: boolean;
+}
+
+const configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
+configurationRegistry.registerConfiguration({
+	'id': TELEMETRY_SECTION_ID,
+	'order': 110,
+	title: nls.localize('telemetryConfigurationTitle', "Telemetry"),
+	'type': 'object',
+	'properties': {
+		'telemetry.enableCrashReporter': {
+			'type': 'boolean',
+			'description': nls.localize('telemetry.enableCrashReporting', "Enable crash reports to be sent to Microsoft.\nThis option requires restart to take effect."),
+			'default': true
+		}
+	}
+});
+
+export interface ICrashReporterService {
+	_serviceBrand: any;
+	getChildProcessStartOptions(processName: string): Electron.CrashReporterStartOptions; // TODO
+}
+
+export const NullCrashReporterService: ICrashReporterService = {
+	_serviceBrand: undefined,
+	getChildProcessStartOptions(processName: string) { return undefined; }
+};
 
 export class CrashReporterService implements ICrashReporterService {
 
@@ -28,7 +64,7 @@ export class CrashReporterService implements ICrashReporterService {
 		@IWindowsService private windowsService: IWindowsService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		const config = configurationService.getConfiguration<ICrashReporterConfig>(TELEMETRY_SECTION_ID);
+		const config = configurationService.getValue<ICrashReporterConfig>(TELEMETRY_SECTION_ID);
 		this.isEnabled = !!config.enableCrashReporter;
 
 		if (this.isEnabled) {
@@ -58,7 +94,7 @@ export class CrashReporterService implements ICrashReporterService {
 				});
 
 				// start crash reporter right here
-				crashReporter.start(clone(this.options));
+				crashReporter.start(deepClone(this.options));
 
 				// start crash reporter in the main process
 				return this.windowsService.startCrashReporter(this.options);
@@ -83,7 +119,7 @@ export class CrashReporterService implements ICrashReporterService {
 
 		// Experimental crash reporting support for child processes on Mac only for now
 		if (this.isEnabled && isMacintosh) {
-			const childProcessOptions = clone(this.options);
+			const childProcessOptions = deepClone(this.options);
 			childProcessOptions.extra.processName = name;
 			childProcessOptions.crashesDirectory = os.tmpdir();
 

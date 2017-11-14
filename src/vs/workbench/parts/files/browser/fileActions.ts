@@ -9,7 +9,7 @@ import 'vs/css!./media/fileactions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
-import { sequence, ITask } from 'vs/base/common/async';
+import { sequence, ITask, always } from 'vs/base/common/async';
 import paths = require('vs/base/common/paths');
 import resources = require('vs/base/common/resources');
 import URI from 'vs/base/common/uri';
@@ -41,15 +41,18 @@ import { Position, IResourceInput, IUntitledResourceInput } from 'vs/platform/ed
 import { IInstantiationService, IConstructorSignature2, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction, IConfirmationResult } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
-import { IEditorViewState } from 'vs/editor/common/editorCommon';
+import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
+import { IEditorViewState, IModel } from 'vs/editor/common/editorCommon';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { withFocusedFilesExplorer, revealInOSCommand, revealInExplorerCommand, copyPathCommand } from 'vs/workbench/parts/files/browser/fileCommands';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { once } from 'vs/base/common/event';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 export interface IEditableData {
 	action: IAction;
@@ -742,7 +745,7 @@ export class BaseDeleteFileAction extends BaseFileAction {
 
 				// Check for confirmation checkbox
 				let updateConfirmSettingsPromise: TPromise<void> = TPromise.as(void 0);
-				if (confirmation.checkboxChecked === true) {
+				if (confirmation.confirmed && confirmation.checkboxChecked === true) {
 					updateConfirmSettingsPromise = this.configurationService.updateValue(BaseDeleteFileAction.CONFIRM_DELETE_SETTING_KEY, false, ConfigurationTarget.USER);
 				}
 
@@ -880,7 +883,7 @@ export class ImportFileAction extends BaseFileAction {
 							// if the target exists and is dirty, make sure to revert it. otherwise the dirty contents
 							// of the target file would replace the contents of the imported file. since we already
 							// confirmed the overwrite before, this is OK.
-							let revertPromise = TPromise.as<any>(null);
+							let revertPromise = TPromise.wrap(null);
 							if (this.textFileService.isDirty(targetFile)) {
 								revertPromise = this.textFileService.revertAll([targetFile], { soft: true });
 							}
@@ -1256,8 +1259,8 @@ export class CompareResourcesAction extends Action {
 			// If the file names are identical, add more context by looking at the parent folder
 			if (leftResourceName === rightResourceName) {
 				const folderPaths = labels.shorten([
-					labels.getPathLabel(paths.dirname(globalResourceToCompare.fsPath), contextService, environmentService),
-					labels.getPathLabel(paths.dirname(resource.fsPath), contextService, environmentService)
+					labels.getPathLabel(resources.dirname(globalResourceToCompare), contextService, environmentService),
+					labels.getPathLabel(resources.dirname(resource), contextService, environmentService)
 				]);
 
 				leftResourceName = paths.join(folderPaths[0], leftResourceName);
@@ -1878,9 +1881,7 @@ export class GlobalRevealInOSAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IMessageService private messageService: IMessageService
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(id, label);
 	}
@@ -1920,9 +1921,6 @@ export class GlobalCopyPathAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IMessageService private messageService: IMessageService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super(id, label);
@@ -2051,6 +2049,70 @@ export class CompareWithSavedAction extends Action {
 		super.dispose();
 
 		this.toDispose = dispose(this.toDispose);
+	}
+}
+
+export class CompareWithClipboardAction extends Action {
+
+	public static ID = 'workbench.files.action.compareWithClipboard';
+	public static LABEL = nls.localize('compareWithClipboard', "Compare Active File with Clipboard");
+
+	private static SCHEME = 'clipboardCompare';
+
+	private registrationDisposal: IDisposable;
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@ITextModelService private textModelService: ITextModelService,
+	) {
+		super(id, label);
+
+		this.enabled = true;
+	}
+
+	public run(): TPromise<any> {
+		const resource: URI = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
+		const provider = this.instantiationService.createInstance(ClipboardContentProvider);
+
+		if (resource) {
+			if (!this.registrationDisposal) {
+				this.registrationDisposal = this.textModelService.registerTextModelContentProvider(CompareWithClipboardAction.SCHEME, provider);
+			}
+
+			const name = paths.basename(resource.fsPath);
+			const editorLabel = nls.localize('clipboardComparisonLabel', "Clipboard ↔ {0}", name);
+
+			const cleanUp = () => {
+				this.registrationDisposal = dispose(this.registrationDisposal);
+			};
+
+			return always(this.editorService.openEditor({ leftResource: URI.from({ scheme: CompareWithClipboardAction.SCHEME, path: resource.fsPath }), rightResource: resource, label: editorLabel }), cleanUp);
+		}
+
+		return TPromise.as(true);
+	}
+
+	public dispose(): void {
+		super.dispose();
+
+		this.registrationDisposal = dispose(this.registrationDisposal);
+	}
+}
+
+class ClipboardContentProvider implements ITextModelContentProvider {
+	constructor(
+		@IClipboardService private clipboardService: IClipboardService,
+		@IModeService private modeService: IModeService,
+		@IModelService private modelService: IModelService
+	) { }
+
+	provideTextContent(resource: URI): TPromise<IModel> {
+		const model = this.modelService.createModel(this.clipboardService.readText(), this.modeService.getOrCreateMode('text/plain'), resource);
+
+		return TPromise.as(model);
 	}
 }
 

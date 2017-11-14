@@ -54,6 +54,7 @@ export class ResourceContextKey implements IContextKey<URI> {
 		this._schemeKey.reset();
 		this._langIdKey.reset();
 		this._resourceKey.reset();
+		this._langIdKey.reset();
 		this._extensionKey.reset();
 	}
 
@@ -113,7 +114,7 @@ export class ResourceGlobMatcher {
 				changed = true;
 
 				this.mapRootToParsedExpression.set(folder.uri.toString(), parse(rootExcludes));
-				this.mapRootToExpressionConfig.set(folder.uri.toString(), objects.clone(rootExcludes));
+				this.mapRootToExpressionConfig.set(folder.uri.toString(), objects.deepClone(rootExcludes));
 			}
 		});
 
@@ -137,7 +138,7 @@ export class ResourceGlobMatcher {
 			changed = true;
 
 			this.mapRootToParsedExpression.set(ResourceGlobMatcher.NO_ROOT, parse(globalExcludes));
-			this.mapRootToExpressionConfig.set(ResourceGlobMatcher.NO_ROOT, objects.clone(globalExcludes));
+			this.mapRootToExpressionConfig.set(ResourceGlobMatcher.NO_ROOT, objects.deepClone(globalExcludes));
 		}
 
 		if (fromEvent && changed) {
@@ -171,5 +172,39 @@ export class ResourceGlobMatcher {
 
 	public dispose(): void {
 		this.toUnbind = dispose(this.toUnbind);
+	}
+}
+
+/**
+ * Data URI related helpers.
+ */
+export namespace DataUri {
+
+	export const META_DATA_LABEL = 'label';
+	export const META_DATA_DESCRIPTION = 'description';
+	export const META_DATA_SIZE = 'size';
+	export const META_DATA_MIME = 'mime';
+
+	export function parseMetaData(dataUri: URI): Map<string, string> {
+		const metadata = new Map<string, string>();
+
+		// Given a URI of:  data:image/png;size:2313;label:SomeLabel;description:SomeDescription;base64,77+9UE5...
+		// the metadata is: size:2313;label:SomeLabel;description:SomeDescription
+		const meta = dataUri.path.substring(dataUri.path.indexOf(';') + 1, dataUri.path.lastIndexOf(';'));
+		meta.split(';').forEach(property => {
+			const [key, value] = property.split(':');
+			if (key && value) {
+				metadata.set(key, value);
+			}
+		});
+
+		// Given a URI of:  data:image/png;size:2313;label:SomeLabel;description:SomeDescription;base64,77+9UE5...
+		// the mime is: image/png
+		const mime = dataUri.path.substring(0, dataUri.path.indexOf(';'));
+		if (mime) {
+			metadata.set(META_DATA_MIME, mime);
+		}
+
+		return metadata;
 	}
 }

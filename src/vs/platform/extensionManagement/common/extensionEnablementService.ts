@@ -29,7 +29,7 @@ export class ExtensionEnablementService implements IExtensionEnablementService {
 		@IStorageService private storageService: IStorageService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IExtensionManagementService private extensionManagementService: IExtensionManagementService
+		@IExtensionManagementService extensionManagementService: IExtensionManagementService
 	) {
 		extensionManagementService.onDidUninstallExtension(this.onDidUninstallExtension, this, this.disposables);
 	}
@@ -50,13 +50,20 @@ export class ExtensionEnablementService implements IExtensionEnablementService {
 		if (this.environmentService.disableExtensions) {
 			return false;
 		}
+		return !this.isEnabled(identifier);
+	}
+
+	isEnabled(identifier: IExtensionIdentifier): boolean {
+		if (this.environmentService.disableExtensions) {
+			return false;
+		}
 		if (this.getGloballyDisabledExtensions().some(d => areSameExtensions(d, identifier))) {
-			return true;
+			return false;
 		}
 		if (this.getWorkspaceDisabledExtensions().some(d => areSameExtensions(d, identifier))) {
-			return true;
+			return false;
 		}
-		return false;
+		return true;
 	}
 
 	setEnablement(identifier: IExtensionIdentifier, enable: boolean, workspace: boolean = false): TPromise<boolean> {

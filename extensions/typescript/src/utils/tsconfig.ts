@@ -5,37 +5,53 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
+import { TypeScriptServiceConfiguration } from './configuration';
 
 export function isImplicitProjectConfigFile(configFileName: string) {
 	return configFileName.indexOf('/dev/null/') === 0;
 }
 
-const emptyConfig = new vscode.SnippetString(`{
+function getEmptyConfig(
+	isTypeScriptProject: boolean,
+	config: TypeScriptServiceConfiguration
+) {
+	const compilerOptions = [
+		'"target": "ES6"',
+		'"module": "commonjs"'
+	];
+	if (!isTypeScriptProject && config.checkJs) {
+		compilerOptions.push('"checkJs": true');
+	}
+	if (!isTypeScriptProject && config.experimentalDecorators) {
+		compilerOptions.push('"experimentalDecorators": true');
+	}
+	return new vscode.SnippetString(`{
 	"compilerOptions": {
-		"target": "ES6"$0
+		${compilerOptions.join(',\n\t\t')}$0
 	},
 	"exclude": [
 		"node_modules",
 		"**/node_modules/*"
 	]
 }`);
+}
 
-export function openOrCreateConfigFile(
+export async function openOrCreateConfigFile(
 	isTypeScriptProject: boolean,
-	rootPath: string
-): Thenable<vscode.TextEditor | null> {
+	rootPath: string,
+	config: TypeScriptServiceConfiguration
+): Promise<vscode.TextEditor | null> {
 	const configFile = vscode.Uri.file(path.join(rootPath, isTypeScriptProject ? 'tsconfig.json' : 'jsconfig.json'));
 	const col = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined;
-	return vscode.workspace.openTextDocument(configFile)
-		.then(doc => {
-			return vscode.window.showTextDocument(doc, col);
-		}, async () => {
-			const doc = await vscode.workspace.openTextDocument(configFile.with({ scheme: 'untitled' }));
-			const editor = await vscode.window.showTextDocument(doc, col);
-			if (editor.document.getText().length === 0) {
-				await editor.insertSnippet(emptyConfig);
-				return editor;
-			}
-			return editor;
-		});
+	try {
+		const doc = await vscode.workspace.openTextDocument(configFile);
+		return vscode.window.showTextDocument(doc, col);
+	} catch {
+		const doc = await vscode.workspace.openTextDocument(configFile.with({ scheme: 'untitled' }));
+		const editor = await vscode.window.showTextDocument(doc, col);
+		if (editor.document.getText().length === 0) {
+			await editor.insertSnippet(getEmptyConfig(isTypeScriptProject, config));
+		}
+		return editor;
+	}
 }

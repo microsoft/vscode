@@ -39,19 +39,19 @@ suite('SnippetsService', function () {
 
 	setup(function () {
 		modeService = new ModeServiceImpl();
-		snippetService = new SimpleSnippetService([{
-			prefix: 'bar',
-			codeSnippet: 'barCodeSnippet',
-			name: 'barTest',
-			description: '',
-			source: ''
-		}, {
-			prefix: 'bazz',
-			codeSnippet: 'bazzCodeSnippet',
-			name: 'bazzTest',
-			description: '',
-			source: ''
-		}]);
+		snippetService = new SimpleSnippetService([new Snippet(
+			'barTest',
+			'bar',
+			'',
+			'barCodeSnippet',
+			''
+		), new Snippet(
+			'bazzTest',
+			'bazz',
+			'',
+			'bazzCodeSnippet',
+			''
+		)]);
 	});
 
 
@@ -80,13 +80,13 @@ suite('SnippetsService', function () {
 	});
 
 	test('Cannot use "<?php" as user snippet prefix anymore, #26275', function () {
-		snippetService = new SimpleSnippetService([{
-			prefix: '<?php',
-			codeSnippet: 'insert me',
-			name: '',
-			description: '',
-			source: ''
-		}]);
+		snippetService = new SimpleSnippetService([new Snippet(
+			'',
+			'<?php',
+			'',
+			'insert me',
+			''
+		)]);
 
 		const provider = new SnippetSuggestProvider(modeService, snippetService);
 
@@ -112,13 +112,13 @@ suite('SnippetsService', function () {
 
 	test('No user snippets in suggestions, when inside the code, #30508', function () {
 
-		snippetService = new SimpleSnippetService([{
-			prefix: 'foo',
-			codeSnippet: '<foo>$0</foo>',
-			name: '',
-			description: '',
-			source: ''
-		}]);
+		snippetService = new SimpleSnippetService([new Snippet(
+			'',
+			'foo',
+			'',
+			'<foo>$0</foo>',
+			''
+		)]);
 
 		const provider = new SnippetSuggestProvider(modeService, snippetService);
 
@@ -132,21 +132,21 @@ suite('SnippetsService', function () {
 	});
 
 	test('SnippetSuggest - ensure extension snippets come last ', function () {
-		snippetService = new SimpleSnippetService([{
-			prefix: 'second',
-			codeSnippet: 'second',
-			name: 'second',
-			description: '',
-			source: '',
-			isFromExtension: true
-		}, {
-			prefix: 'first',
-			codeSnippet: 'first',
-			name: 'first',
-			description: '',
-			source: '',
-			isFromExtension: false
-		}]);
+		snippetService = new SimpleSnippetService([new Snippet(
+			'second',
+			'second',
+			'',
+			'second',
+			'',
+			true
+		), new Snippet(
+			'first',
+			'first',
+			'',
+			'first',
+			'',
+			false
+		)]);
 
 		const provider = new SnippetSuggestProvider(modeService, snippetService);
 

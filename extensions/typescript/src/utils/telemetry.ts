@@ -5,8 +5,6 @@
 
 import * as path from 'path';
 import VsCodeTelemetryReporter from 'vscode-extension-telemetry';
-import { Disposable } from 'vscode';
-
 
 interface IPackageInfo {
 	name: string;
@@ -14,15 +12,9 @@ interface IPackageInfo {
 	aiKey: string;
 }
 
-
-export default class TelemetryReporter extends Disposable {
+export default class TelemetryReporter {
 	private _packageInfo: IPackageInfo | null;
-
 	private _reporter: VsCodeTelemetryReporter | null;
-
-	constructor() {
-		super(() => this.dispose());
-	}
 
 	dispose() {
 		if (this._reporter) {
@@ -31,8 +23,17 @@ export default class TelemetryReporter extends Disposable {
 		}
 	}
 
+	constructor(
+		private readonly clientVersionDelegate: () => string
+	) { }
+
 	public logTelemetry(eventName: string, properties?: { [prop: string]: string }) {
 		if (this.reporter) {
+			if (!properties) {
+				properties = {};
+			}
+			properties['version'] = this.clientVersionDelegate();
+
 			this.reporter.sendTelemetryEvent(eventName, properties);
 		}
 	}
@@ -57,8 +58,8 @@ export default class TelemetryReporter extends Disposable {
 		if (this._packageInfo !== undefined) {
 			return this._packageInfo;
 		}
-		let packagePath = path.join(__dirname, '..', '..', 'package.json');
-		let extensionPackage = require(packagePath);
+		const packagePath = path.join(__dirname, '..', '..', 'package.json');
+		const extensionPackage = require(packagePath);
 		if (extensionPackage) {
 			this._packageInfo = {
 				name: extensionPackage.name,

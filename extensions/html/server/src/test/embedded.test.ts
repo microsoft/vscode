@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import 'mocha';
 import * as assert from 'assert';
 import * as embeddedSupport from '../modes/embeddedSupport';
 import { TextDocument } from 'vscode-languageserver-types';
@@ -13,7 +14,7 @@ suite('HTML Embedded Support', () => {
 
 	var htmlLanguageService = getLanguageService();
 
-	function assertLanguageId(value: string, expectedLanguageId: string): void {
+	function assertLanguageId(value: string, expectedLanguageId: string | undefined): void {
 		let offset = value.indexOf('|');
 		value = value.substr(0, offset) + value.substr(offset + 1);
 

@@ -133,6 +133,7 @@ export interface IGalleryExtensionAssets {
 	download: IGalleryExtensionAsset;
 	icon: IGalleryExtensionAsset;
 	license: IGalleryExtensionAsset;
+	repository: IGalleryExtensionAsset;
 }
 
 export interface IExtensionIdentifier {
@@ -156,6 +157,7 @@ export interface IGalleryExtension {
 	assets: IGalleryExtensionAssets;
 	properties: IGalleryExtensionProperties;
 	telemetryData: any;
+	preview: boolean;
 }
 
 export interface IGalleryMetadata {
@@ -257,6 +259,8 @@ export interface IExtensionManagementService {
 	installFromGallery(extension: IGalleryExtension): TPromise<void>;
 	uninstall(extension: ILocalExtension, force?: boolean): TPromise<void>;
 	getInstalled(type?: LocalExtensionType): TPromise<ILocalExtension[]>;
+
+	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): TPromise<ILocalExtension>;
 }
 
 export const IExtensionEnablementService = createDecorator<IExtensionEnablementService>('extensionEnablementService');
@@ -288,6 +292,11 @@ export interface IExtensionEnablementService {
 	canEnable(identifier: IExtensionIdentifier): boolean;
 
 	/**
+	 * Returns `true` if the given extension identifier is enabled.
+	 */
+	isEnabled(identifier: IExtensionIdentifier): boolean;
+
+	/**
 	 * Enable or disable the given extension.
 	 * if `workspace` is `true` then enablement is done for workspace, otherwise globally.
 	 *
@@ -305,7 +314,9 @@ export const IExtensionTipsService = createDecorator<IExtensionTipsService>('ext
 
 export interface IExtensionTipsService {
 	_serviceBrand: any;
-	getRecommendations(installedExtensions: string[], searchText: string): string[];
+	getAllRecommendationsWithReason(): { [id: string]: string; };
+	getFileBasedRecommendations(): string[];
+	getOtherRecommendations(): string[];
 	getWorkspaceRecommendations(): TPromise<string[]>;
 	getKeymapRecommendations(): string[];
 	getKeywordsForExtension(extension: string): string[];

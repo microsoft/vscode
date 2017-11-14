@@ -56,7 +56,7 @@ suite('Keybindings Editing', () => {
 	let instantiationService: TestInstantiationService;
 	let testObject: KeybindingsEditingService;
 	let testDir: string;
-	let keybindingsFile;
+	let keybindingsFile: string;
 
 	setup(() => {
 		return setUpWorkspace().then(() => {
@@ -66,17 +66,18 @@ suite('Keybindings Editing', () => {
 
 			instantiationService.stub(IEnvironmentService, { appKeybindingsPath: keybindingsFile });
 			instantiationService.stub(IConfigurationService, ConfigurationService);
-			instantiationService.stub(IConfigurationService, 'getConfiguration', { 'eol': '\n' });
+			instantiationService.stub(IConfigurationService, 'getValue', { 'eol': '\n' });
 			instantiationService.stub(IConfigurationService, 'onDidUpdateConfiguration', () => { });
 			instantiationService.stub(IConfigurationService, 'onDidChangeConfiguration', () => { });
 			instantiationService.stub(IWorkspaceContextService, new TestContextService());
-			instantiationService.stub(ILifecycleService, new TestLifecycleService());
+			const lifecycleService = new TestLifecycleService();
+			instantiationService.stub(ILifecycleService, lifecycleService);
 			instantiationService.stub(IHashService, new TestHashService());
 			instantiationService.stub(IEditorGroupService, new TestEditorGroupService());
 			instantiationService.stub(ITelemetryService, NullTelemetryService);
 			instantiationService.stub(IModeService, ModeServiceImpl);
 			instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
-			instantiationService.stub(IFileService, new FileService(new TestContextService(new Workspace(testDir, testDir, toWorkspaceFolders([{ path: testDir }]))), new TestTextResourceConfigurationService(), new TestConfigurationService(), { disableWatcher: true }));
+			instantiationService.stub(IFileService, new FileService(new TestContextService(new Workspace(testDir, testDir, toWorkspaceFolders([{ path: testDir }]))), new TestTextResourceConfigurationService(), new TestConfigurationService(), lifecycleService, { disableWatcher: true }));
 			instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
 			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 			instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));

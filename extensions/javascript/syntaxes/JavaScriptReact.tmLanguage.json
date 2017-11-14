@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/824f47ea6e98590ac2e75db5bebdf6eff71421ad",
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/8361b1a232501c67911c81a4664a9460d7922c6b",
 	"name": "JavaScript (with React support)",
 	"scopeName": "source.js.jsx",
 	"fileTypes": [
@@ -278,7 +278,7 @@
 			"patterns": [
 				{
 					"name": "meta.var-single-variable.expr.js.jsx",
-					"begin": "(?x)([_$[:alpha:]][_$[:alnum:]]*)(?=\\s*\n# function assignment |\n(=\\s*(\n  ((async\\s+)?(\n    (function\\s*[(<*]) |\n    (function\\s+) |\n    ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)\n  )) |\n  ((async\\s*)?(\n    # sure shot arrow functions even if => is on new line\n(\n  [(]\\s*\n  (\n    ([)]\\s*:) |                                                                 # ():\n    ((\\.\\.\\.\\s*)?[_$[:alpha:]][_$[:alnum:]]*\\s*:)                                            # [(]param: | [(]...param:\n  )\n) |\n(\n  [<]\\s*[_$[:alpha:]][_$[:alnum:]]*\\s+extends\\s*[^=>]                                        # < typeparam extends\n) |\n# arrow function possible to detect only with => on same line\n(\n  (<\\s*[_$[:alpha:]\\{\\(\\[]([^<>=]|=[^<]|\\<\\s*[_$[:alpha:]\\{\\(\\[]([^=<>]|=[^<])+\\>)+>\\s*)?                                                           # typeparameters\n  \\((\\s*[_$[:alpha:]\\{\\(]([^()]|\\((\\s*[_$[:alpha:]\\{\\(]\\{\\(][^()]*)?\\))*)?\\)    # parameteres\n  (\\s*:\\s*([^<>\\(\\)]|\\<[^<>]+\\>|\\([^\\(\\)]+\\))+)?                                # return type\n  \\s*=>                                                                         # arrow operator\n)\n  ))\n)) |\n# typeannotation is fn type: < | () | (... | (param: | (param, | (param? | (param= | (param) =>\n(:\\s*(\n  (<) |\n  ([(]\\s*(\n    ([)]) |\n    (\\.\\.\\.) |\n    ([_$[:alnum:]]+\\s*(\n      ([:,?=])|\n      ([)]\\s*=>)\n    ))\n  ))\n)))",
+					"begin": "(?x)([_$[:alpha:]][_$[:alnum:]]*)(?=\\s*\n# function assignment |\n(=\\s*(\n  ((async\\s+)?(\n    (function\\s*[(<*]) |\n    (function\\s+) |\n    ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)\n  )) |\n  ((async\\s*)?(\n    # sure shot arrow functions even if => is on new line\n(\n  [(]\\s*\n  (\n    ([)]\\s*:) |                                                                 # ():\n    ((\\.\\.\\.\\s*)?[_$[:alpha:]][_$[:alnum:]]*\\s*:)                                            # [(]param: | [(]...param:\n  )\n) |\n(\n  [<]\\s*[_$[:alpha:]][_$[:alnum:]]*\\s+extends\\s*[^=>]                                        # < typeparam extends\n) |\n# arrow function possible to detect only with => on same line\n(\n  (<\\s*[_$[:alpha:]\\{\\(\\[]([^<>=]|=[^<]|\\<\\s*[_$[:alpha:]\\{\\(\\[]([^=<>]|=[^<])+\\>)+>\\s*)?                                                           # typeparameters\n  \\(\\s*([_$[:alpha:]\\{\\[]([^()]|\\((\\s*[^()]*)?\\))*)?\\)                          # parameteres\n  (\\s*:\\s*([^<>\\(\\)]|\\<[^<>]+\\>|\\([^\\(\\)]+\\))+)?                                # return type\n  \\s*=>                                                                         # arrow operator\n)\n  ))\n)) |\n# typeannotation is fn type: < | () | (... | (param: | (param, | (param? | (param= | (param) =>\n(:\\s*(\n  (<) |\n  ([(]\\s*(\n    ([)]) |\n    (\\.\\.\\.) |\n    ([_$[:alnum:]]+\\s*(\n      ([:,?=])|\n      ([)]\\s*=>)\n    ))\n  ))\n)))",
 					"beginCaptures": {
 						"1": {
 							"name": "meta.definition.variable.js.jsx entity.name.function.js.jsx"
@@ -512,7 +512,7 @@
 					}
 				},
 				{
-					"match": "(?x)(?:\\s*\\b(public|private|protected|readonly)\\s+)?(\\.\\.\\.)?\\s*(?<!=|:)(?:(this)|([_$[:alpha:]][_$[:alnum:]]*))\\s*(\\??)(?=\\s*\n# function assignment |\n(=\\s*(\n  ((async\\s+)?(\n    (function\\s*[(<*]) |\n    (function\\s+) |\n    ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)\n  )) |\n  ((async\\s*)?(\n    # sure shot arrow functions even if => is on new line\n(\n  [(]\\s*\n  (\n    ([)]\\s*:) |                                                                 # ():\n    ((\\.\\.\\.\\s*)?[_$[:alpha:]][_$[:alnum:]]*\\s*:)                                            # [(]param: | [(]...param:\n  )\n) |\n(\n  [<]\\s*[_$[:alpha:]][_$[:alnum:]]*\\s+extends\\s*[^=>]                                        # < typeparam extends\n) |\n# arrow function possible to detect only with => on same line\n(\n  (<\\s*[_$[:alpha:]\\{\\(\\[]([^<>=]|=[^<]|\\<\\s*[_$[:alpha:]\\{\\(\\[]([^=<>]|=[^<])+\\>)+>\\s*)?                                                           # typeparameters\n  \\((\\s*[_$[:alpha:]\\{\\(]([^()]|\\((\\s*[_$[:alpha:]\\{\\(]\\{\\(][^()]*)?\\))*)?\\)    # parameteres\n  (\\s*:\\s*([^<>\\(\\)]|\\<[^<>]+\\>|\\([^\\(\\)]+\\))+)?                                # return type\n  \\s*=>                                                                         # arrow operator\n)\n  ))\n)) |\n# typeannotation is fn type: < | () | (... | (param: | (param, | (param? | (param= | (param) =>\n(:\\s*(\n  (<) |\n  ([(]\\s*(\n    ([)]) |\n    (\\.\\.\\.) |\n    ([_$[:alnum:]]+\\s*(\n      ([:,?=])|\n      ([)]\\s*=>)\n    ))\n  ))\n)))",
+					"match": "(?x)(?:\\s*\\b(public|private|protected|readonly)\\s+)?(\\.\\.\\.)?\\s*(?<!=|:)(?:(this)|([_$[:alpha:]][_$[:alnum:]]*))\\s*(\\??)(?=\\s*\n# function assignment |\n(=\\s*(\n  ((async\\s+)?(\n    (function\\s*[(<*]) |\n    (function\\s+) |\n    ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)\n  )) |\n  ((async\\s*)?(\n    # sure shot arrow functions even if => is on new line\n(\n  [(]\\s*\n  (\n    ([)]\\s*:) |                                                                 # ():\n    ((\\.\\.\\.\\s*)?[_$[:alpha:]][_$[:alnum:]]*\\s*:)                                            # [(]param: | [(]...param:\n  )\n) |\n(\n  [<]\\s*[_$[:alpha:]][_$[:alnum:]]*\\s+extends\\s*[^=>]                                        # < typeparam extends\n) |\n# arrow function possible to detect only with => on same line\n(\n  (<\\s*[_$[:alpha:]\\{\\(\\[]([^<>=]|=[^<]|\\<\\s*[_$[:alpha:]\\{\\(\\[]([^=<>]|=[^<])+\\>)+>\\s*)?                                                           # typeparameters\n  \\(\\s*([_$[:alpha:]\\{\\[]([^()]|\\((\\s*[^()]*)?\\))*)?\\)                          # parameteres\n  (\\s*:\\s*([^<>\\(\\)]|\\<[^<>]+\\>|\\([^\\(\\)]+\\))+)?                                # return type\n  \\s*=>                                                                         # arrow operator\n)\n  ))\n)) |\n# typeannotation is fn type: < | () | (... | (param: | (param, | (param? | (param= | (param) =>\n(:\\s*(\n  (<) |\n  ([(]\\s*(\n    ([)]) |\n    (\\.\\.\\.) |\n    ([_$[:alnum:]]+\\s*(\n      ([:,?=])|\n      ([)]\\s*=>)\n    ))\n  ))\n)))",
 					"captures": {
 						"1": {
 							"name": "storage.modifier.js.jsx"
@@ -739,7 +739,7 @@
 						},
 						{
 							"name": "meta.definition.property.js.jsx entity.name.function.js.jsx",
-							"match": "(?x)([_$[:alpha:]][_$[:alnum:]]*)(?=(\\?\\s*)?\\s*\n# function assignment |\n(=\\s*(\n  ((async\\s+)?(\n    (function\\s*[(<*]) |\n    (function\\s+) |\n    ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)\n  )) |\n  ((async\\s*)?(\n    # sure shot arrow functions even if => is on new line\n(\n  [(]\\s*\n  (\n    ([)]\\s*:) |                                                                 # ():\n    ((\\.\\.\\.\\s*)?[_$[:alpha:]][_$[:alnum:]]*\\s*:)                                            # [(]param: | [(]...param:\n  )\n) |\n(\n  [<]\\s*[_$[:alpha:]][_$[:alnum:]]*\\s+extends\\s*[^=>]                                        # < typeparam extends\n) |\n# arrow function possible to detect only with => on same line\n(\n  (<\\s*[_$[:alpha:]\\{\\(\\[]([^<>=]|=[^<]|\\<\\s*[_$[:alpha:]\\{\\(\\[]([^=<>]|=[^<])+\\>)+>\\s*)?                                                           # typeparameters\n  \\((\\s*[_$[:alpha:]\\{\\(]([^()]|\\((\\s*[_$[:alpha:]\\{\\(]\\{\\(][^()]*)?\\))*)?\\)    # parameteres\n  (\\s*:\\s*([^<>\\(\\)]|\\<[^<>]+\\>|\\([^\\(\\)]+\\))+)?                                # return type\n  \\s*=>                                                                         # arrow operator\n)\n  ))\n)) |\n# typeannotation is fn type: < | () | (... | (param: | (param, | (param? | (param= | (param) =>\n(:\\s*(\n  (<) |\n  ([(]\\s*(\n    ([)]) |\n    (\\.\\.\\.) |\n    ([_$[:alnum:]]+\\s*(\n      ([:,?=])|\n      ([)]\\s*=>)\n    ))\n  ))\n)))"
+							"match": "(?x)([_$[:alpha:]][_$[:alnum:]]*)(?=(\\?\\s*)?\\s*\n# function assignment |\n(=\\s*(\n  ((async\\s+)?(\n    (function\\s*[(<*]) |\n    (function\\s+) |\n    ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)\n  )) |\n  ((async\\s*)?(\n    # sure shot arrow functions even if => is on new line\n(\n  [(]\\s*\n  (\n    ([)]\\s*:) |                                                                 # ():\n    ((\\.\\.\\.\\s*)?[_$[:alpha:]][_$[:alnum:]]*\\s*:)                                            # [(]param: | [(]...param:\n  )\n) |\n(\n  [<]\\s*[_$[:alpha:]][_$[:alnum:]]*\\s+extends\\s*[^=>]                                        # < typeparam extends\n) |\n# arrow function possible to detect only with => on same line\n(\n  (<\\s*[_$[:alpha:]\\{\\(\\[]([^<>=]|=[^<]|\\<\\s*[_$[:alpha:]\\{\\(\\[]([^=<>]|=[^<])+\\>)+>\\s*)?                                                           # typeparameters\n  \\(\\s*([_$[:alpha:]\\{\\[]([^()]|\\((\\s*[^()]*)?\\))*)?\\)                          # parameteres\n  (\\s*:\\s*([^<>\\(\\)]|\\<[^<>]+\\>|\\([^\\(\\)]+\\))+)?                                # return type\n  \\s*=>                                                                         # arrow operator\n)\n  ))\n)) |\n# typeannotation is fn type: < | () | (... | (param: | (param, | (param? | (param= | (param) =>\n(:\\s*(\n  (<) |\n  ([(]\\s*(\n    ([)]) |\n    (\\.\\.\\.) |\n    ([_$[:alnum:]]+\\s*(\n      ([:,?=])|\n      ([)]\\s*=>)\n    ))\n  ))\n)))"
 						},
 						{
 							"name": "meta.definition.property.js.jsx variable.object.property.js.jsx",
@@ -1002,7 +1002,7 @@
 				},
 				{
 					"name": "meta.arrow.js.jsx",
-					"begin": "(?x) (?:\n  (?<!\\.|\\$)(\\basync)\n)? ((?<![})!\\]])\\s*\n  (?=\n    # sure shot arrow functions even if => is on new line\n(\n  [(]\\s*\n  (\n    ([)]\\s*:) |                                                                 # ():\n    ((\\.\\.\\.\\s*)?[_$[:alpha:]][_$[:alnum:]]*\\s*:)                                            # [(]param: | [(]...param:\n  )\n) |\n(\n  [<]\\s*[_$[:alpha:]][_$[:alnum:]]*\\s+extends\\s*[^=>]                                        # < typeparam extends\n) |\n# arrow function possible to detect only with => on same line\n(\n  (<\\s*[_$[:alpha:]\\{\\(\\[]([^<>=]|=[^<]|\\<\\s*[_$[:alpha:]\\{\\(\\[]([^=<>]|=[^<])+\\>)+>\\s*)?                                                           # typeparameters\n  \\((\\s*[_$[:alpha:]\\{\\(]([^()]|\\((\\s*[_$[:alpha:]\\{\\(]\\{\\(][^()]*)?\\))*)?\\)    # parameteres\n  (\\s*:\\s*([^<>\\(\\)]|\\<[^<>]+\\>|\\([^\\(\\)]+\\))+)?                                # return type\n  \\s*=>                                                                         # arrow operator\n)\n  )\n)",
+					"begin": "(?x) (?:\n  (?<!\\.|\\$)(\\basync)\n)? ((?<![})!\\]])\\s*\n  (?=\n    # sure shot arrow functions even if => is on new line\n(\n  [(]\\s*\n  (\n    ([)]\\s*:) |                                                                 # ():\n    ((\\.\\.\\.\\s*)?[_$[:alpha:]][_$[:alnum:]]*\\s*:)                                            # [(]param: | [(]...param:\n  )\n) |\n(\n  [<]\\s*[_$[:alpha:]][_$[:alnum:]]*\\s+extends\\s*[^=>]                                        # < typeparam extends\n) |\n# arrow function possible to detect only with => on same line\n(\n  (<\\s*[_$[:alpha:]\\{\\(\\[]([^<>=]|=[^<]|\\<\\s*[_$[:alpha:]\\{\\(\\[]([^=<>]|=[^<])+\\>)+>\\s*)?                                                           # typeparameters\n  \\(\\s*([_$[:alpha:]\\{\\[]([^()]|\\((\\s*[^()]*)?\\))*)?\\)                          # parameteres\n  (\\s*:\\s*([^<>\\(\\)]|\\<[^<>]+\\>|\\([^\\(\\)]+\\))+)?                                # return type\n  \\s*=>                                                                         # arrow operator\n)\n  )\n)",
 					"beginCaptures": {
 						"1": {
 							"name": "storage.modifier.async.js.jsx"
@@ -1946,7 +1946,7 @@
 				},
 				{
 					"name": "meta.object.member.js.jsx",
-					"match": "(?x)(?:([_$[:alpha:]][_$[:alnum:]]*)\\s*(?=:\\s*(\n  ((async\\s+)?(\n    (function\\s*[(<*]) |\n    (function\\s+) |\n    ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)\n  )) |\n  ((async\\s*)?(\n    # sure shot arrow functions even if => is on new line\n(\n  [(]\\s*\n  (\n    ([)]\\s*:) |                                                                 # ():\n    ((\\.\\.\\.\\s*)?[_$[:alpha:]][_$[:alnum:]]*\\s*:)                                            # [(]param: | [(]...param:\n  )\n) |\n(\n  [<]\\s*[_$[:alpha:]][_$[:alnum:]]*\\s+extends\\s*[^=>]                                        # < typeparam extends\n) |\n# arrow function possible to detect only with => on same line\n(\n  (<\\s*[_$[:alpha:]\\{\\(\\[]([^<>=]|=[^<]|\\<\\s*[_$[:alpha:]\\{\\(\\[]([^=<>]|=[^<])+\\>)+>\\s*)?                                                           # typeparameters\n  \\((\\s*[_$[:alpha:]\\{\\(]([^()]|\\((\\s*[_$[:alpha:]\\{\\(]\\{\\(][^()]*)?\\))*)?\\)    # parameteres\n  (\\s*:\\s*([^<>\\(\\)]|\\<[^<>]+\\>|\\([^\\(\\)]+\\))+)?                                # return type\n  \\s*=>                                                                         # arrow operator\n)\n  ))\n)))",
+					"match": "(?x)(?:([_$[:alpha:]][_$[:alnum:]]*)\\s*(?=:\\s*(\n  ((async\\s+)?(\n    (function\\s*[(<*]) |\n    (function\\s+) |\n    ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)\n  )) |\n  ((async\\s*)?(\n    # sure shot arrow functions even if => is on new line\n(\n  [(]\\s*\n  (\n    ([)]\\s*:) |                                                                 # ():\n    ((\\.\\.\\.\\s*)?[_$[:alpha:]][_$[:alnum:]]*\\s*:)                                            # [(]param: | [(]...param:\n  )\n) |\n(\n  [<]\\s*[_$[:alpha:]][_$[:alnum:]]*\\s+extends\\s*[^=>]                                        # < typeparam extends\n) |\n# arrow function possible to detect only with => on same line\n(\n  (<\\s*[_$[:alpha:]\\{\\(\\[]([^<>=]|=[^<]|\\<\\s*[_$[:alpha:]\\{\\(\\[]([^=<>]|=[^<])+\\>)+>\\s*)?                                                           # typeparameters\n  \\(\\s*([_$[:alpha:]\\{\\[]([^()]|\\((\\s*[^()]*)?\\))*)?\\)                          # parameteres\n  (\\s*:\\s*([^<>\\(\\)]|\\<[^<>]+\\>|\\([^\\(\\)]+\\))+)?                                # return type\n  \\s*=>                                                                         # arrow operator\n)\n  ))\n)))",
 					"captures": {
 						"0": {
 							"name": "meta.object-literal.key.js.jsx"
@@ -2039,13 +2039,13 @@
 			]
 		},
 		"function-call": {
-			"begin": "(?=(([_$[:alpha:]][_$[:alnum:]]*\\s*\\.\\s*)*|(\\.\\s*)?)([_$[:alpha:]][_$[:alnum:]]*)\\s*(<\\s*[_$[:alpha:]\\{\\(\\[]([^<>=]|=[^<]|\\<\\s*[_$[:alpha:]\\{\\(\\[]([^=<>]|=[^<])+\\>)+>\\s*)?\\()",
-			"end": "(?<=\\))(?!(([_$[:alpha:]][_$[:alnum:]]*\\s*\\.\\s*)*|(\\.\\s*)?)([_$[:alpha:]][_$[:alnum:]]*)\\s*(<\\s*[_$[:alpha:]\\{\\(\\[]([^<>=]|=[^<]|\\<\\s*[_$[:alpha:]\\{\\(\\[]([^=<>]|=[^<])+\\>)+>\\s*)?\\()",
+			"begin": "(?=(([_$[:alpha:]][_$[:alnum:]]*\\s*\\.\\s*)*|(\\.\\s*)?)([_$[:alpha:]][_$[:alnum:]]*)\\s*(<\\s*[_$[:alpha:]\\{\\(\\[\\\"\\'\\`]([^<>]|\\<\\s*[_$[:alpha:]\\{\\(\\[\\\"\\'\\`][^<>]+\\>)+>\\s*)?\\()",
+			"end": "(?<=\\))(?!(([_$[:alpha:]][_$[:alnum:]]*\\s*\\.\\s*)*|(\\.\\s*)?)([_$[:alpha:]][_$[:alnum:]]*)\\s*(<\\s*[_$[:alpha:]\\{\\(\\[\\\"\\'\\`]([^<>]|\\<\\s*[_$[:alpha:]\\{\\(\\[\\\"\\'\\`][^<>]+\\>)+>\\s*)?\\()",
 			"patterns": [
 				{
 					"name": "meta.function-call.js.jsx",
 					"begin": "(?=(([_$[:alpha:]][_$[:alnum:]]*\\s*\\.\\s*)*|(\\.\\s*)?)([_$[:alpha:]][_$[:alnum:]]*))",
-					"end": "(?=\\s*(<\\s*[_$[:alpha:]\\{\\(\\[]([^<>=]|=[^<]|\\<\\s*[_$[:alpha:]\\{\\(\\[]([^=<>]|=[^<])+\\>)+>\\s*)?\\()",
+					"end": "(?=\\s*(<\\s*[_$[:alpha:]\\{\\(\\[\\\"\\'\\`]([^<>]|\\<\\s*[_$[:alpha:]\\{\\(\\[\\\"\\'\\`][^<>]+\\>)+>\\s*)?\\()",
 					"patterns": [
 						{
 							"include": "#literal"
@@ -2572,7 +2572,7 @@
 					"include": "#object-identifiers"
 				},
 				{
-					"match": "(?x)(?:(\\.)\\s*)?([_$[:alpha:]][_$[:alnum:]]*)(?=\\s*=\\s*(\n  ((async\\s+)?(\n    (function\\s*[(<*]) |\n    (function\\s+) |\n    ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)\n  )) |\n  ((async\\s*)?(\n    # sure shot arrow functions even if => is on new line\n(\n  [(]\\s*\n  (\n    ([)]\\s*:) |                                                                 # ():\n    ((\\.\\.\\.\\s*)?[_$[:alpha:]][_$[:alnum:]]*\\s*:)                                            # [(]param: | [(]...param:\n  )\n) |\n(\n  [<]\\s*[_$[:alpha:]][_$[:alnum:]]*\\s+extends\\s*[^=>]                                        # < typeparam extends\n) |\n# arrow function possible to detect only with => on same line\n(\n  (<\\s*[_$[:alpha:]\\{\\(\\[]([^<>=]|=[^<]|\\<\\s*[_$[:alpha:]\\{\\(\\[]([^=<>]|=[^<])+\\>)+>\\s*)?                                                           # typeparameters\n  \\((\\s*[_$[:alpha:]\\{\\(]([^()]|\\((\\s*[_$[:alpha:]\\{\\(]\\{\\(][^()]*)?\\))*)?\\)    # parameteres\n  (\\s*:\\s*([^<>\\(\\)]|\\<[^<>]+\\>|\\([^\\(\\)]+\\))+)?                                # return type\n  \\s*=>                                                                         # arrow operator\n)\n  ))\n))",
+					"match": "(?x)(?:(\\.)\\s*)?([_$[:alpha:]][_$[:alnum:]]*)(?=\\s*=\\s*(\n  ((async\\s+)?(\n    (function\\s*[(<*]) |\n    (function\\s+) |\n    ([_$[:alpha:]][_$[:alnum:]]*\\s*=>)\n  )) |\n  ((async\\s*)?(\n    # sure shot arrow functions even if => is on new line\n(\n  [(]\\s*\n  (\n    ([)]\\s*:) |                                                                 # ():\n    ((\\.\\.\\.\\s*)?[_$[:alpha:]][_$[:alnum:]]*\\s*:)                                            # [(]param: | [(]...param:\n  )\n) |\n(\n  [<]\\s*[_$[:alpha:]][_$[:alnum:]]*\\s+extends\\s*[^=>]                                        # < typeparam extends\n) |\n# arrow function possible to detect only with => on same line\n(\n  (<\\s*[_$[:alpha:]\\{\\(\\[]([^<>=]|=[^<]|\\<\\s*[_$[:alpha:]\\{\\(\\[]([^=<>]|=[^<])+\\>)+>\\s*)?                                                           # typeparameters\n  \\(\\s*([_$[:alpha:]\\{\\[]([^()]|\\((\\s*[^()]*)?\\))*)?\\)                          # parameteres\n  (\\s*:\\s*([^<>\\(\\)]|\\<[^<>]+\\>|\\([^\\(\\)]+\\))+)?                                # return type\n  \\s*=>                                                                         # arrow operator\n)\n  ))\n))",
 					"captures": {
 						"1": {
 							"name": "punctuation.accessor.js.jsx"
@@ -3969,15 +3969,12 @@
 				},
 				{
 					"include": "#jsx-tag-in-expression"
-				},
-				{
-					"include": "#jsx-tag-invalid"
 				}
 			]
 		},
 		"jsx-tag-without-attributes-in-expression": {
-			"begin": "(?x)\n  (?<=[({\\[,?=>:*]|&&|\\|\\||\\?|\\Wreturn|^return|\\Wdefault|^)\\s*\n  (?=(<)\\s*((?:[a-z][a-z0-9]*|([_$a-zA-Z][-$\\w.]*))(?<!\\.|-))\\s*(>))",
-			"end": "(?!\\s*(<)\\s*((?:[a-z][a-z0-9]*|([_$a-zA-Z][-$\\w.]*))(?<!\\.|-))\\s*(>))",
+			"begin": "(?x)\n  (?<=[({\\[,?=>:*]|&&|\\|\\||\\?|\\Wreturn|^return|\\Wdefault|^)\\s*\n  (?=(<)\\s*((?:[a-z][a-z0-9]*|([_$a-zA-Z][-$\\w.]*))(?<!\\.|-))?\\s*(>))",
+			"end": "(?!\\s*(<)\\s*((?:[a-z][a-z0-9]*|([_$a-zA-Z][-$\\w.]*))(?<!\\.|-))?\\s*(>))",
 			"patterns": [
 				{
 					"include": "#jsx-tag-without-attributes"
@@ -3986,8 +3983,8 @@
 		},
 		"jsx-tag-without-attributes": {
 			"name": "meta.tag.without-attributes.js.jsx",
-			"begin": "(<)\\s*((?:[a-z][a-z0-9]*|([_$a-zA-Z][-$\\w.]*))(?<!\\.|-))\\s*(>)",
-			"end": "(</)\\s*((?:[a-z][a-z0-9]*|([_$a-zA-Z][-$\\w.]*))(?<!\\.|-))\\s*(>)",
+			"begin": "(<)\\s*((?:[a-z][a-z0-9]*|([_$a-zA-Z][-$\\w.]*))(?<!\\.|-))?\\s*(>)",
+			"end": "(</)\\s*((?:[a-z][a-z0-9]*|([_$a-zA-Z][-$\\w.]*))(?<!\\.|-))?\\s*(>)",
 			"beginCaptures": {
 				"1": {
 					"name": "punctuation.definition.tag.begin.js.jsx"
@@ -4130,10 +4127,6 @@
 				}
 			]
 		},
-		"jsx-tag-invalid": {
-			"name": "invalid.illegal.tag.incomplete.js.jsx",
-			"match": "<\\s*>"
-		},
 		"jsx-children": {
 			"patterns": [
 				{
@@ -4141,9 +4134,6 @@
 				},
 				{
 					"include": "#jsx-child-tag"
-				},
-				{
-					"include": "#jsx-tag-invalid"
 				},
 				{
 					"include": "#jsx-evaluated-code"

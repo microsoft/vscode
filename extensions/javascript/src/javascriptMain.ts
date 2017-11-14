@@ -16,12 +16,12 @@ export function activate(context: ExtensionContext): any {
 	nls.config({ locale: env.language });
 
 	configureHttpRequest();
-	workspace.onDidChangeConfiguration(e => configureHttpRequest());
+	workspace.onDidChangeConfiguration(() => configureHttpRequest());
 
 	context.subscriptions.push(addJSONProviders(httpRequest.xhr));
 }
 
 function configureHttpRequest() {
-	let httpSettings = workspace.getConfiguration('http');
-	httpRequest.configure(httpSettings.get<string>('proxy'), httpSettings.get<boolean>('proxyStrictSSL'));
+	const httpSettings = workspace.getConfiguration('http');
+	httpRequest.configure(httpSettings.get<string>('proxy', ''), httpSettings.get<boolean>('proxyStrictSSL', true));
 }

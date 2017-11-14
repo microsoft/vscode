@@ -8,6 +8,8 @@
 	"installedExtensions": "Installées",
 	"searchInstalledExtensions": "Installées",
 	"recommendedExtensions": "Recommandées",
+	"otherRecommendedExtensions": "Autres recommandations",
+	"workspaceRecommendedExtensions": "Recommandations de l’espace de travail",
 	"searchExtensions": "Rechercher des extensions dans Marketplace",
 	"sort by installs": "Trier par : nombre d'installations",
 	"sort by rating": "Trier par : évaluation",

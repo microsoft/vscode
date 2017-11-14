@@ -17,6 +17,7 @@
 	"terminal.integrated.fontFamily": "Определяет семейство шрифтов терминала, значение по умолчанию — editor.fontFamily.",
 	"terminal.integrated.fontSize": "Определяет размер шрифта (в пикселях) для терминала.",
 	"terminal.integrated.lineHeight": "Определяет высоту строки терминала; это число умножается на размер шрифта терминала, что дает фактическую высоту строки в пикселях.",
+	"terminal.integrated.enableBold": "Следует ли разрешить полужирный текст в терминале. Эта функция должна поддерживаться оболочкой терминала.",
 	"terminal.integrated.cursorBlinking": "Управляет миганием курсора терминала.",
 	"terminal.integrated.cursorStyle": "Определяет стиль курсора терминала.",
 	"terminal.integrated.scrollback": "Определяет предельное число строк в буфере терминала.",

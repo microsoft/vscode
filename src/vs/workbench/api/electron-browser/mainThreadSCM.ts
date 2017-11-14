@@ -11,8 +11,6 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, ISCMResourceCollection, ISCMResourceSplice } from 'vs/workbench/services/scm/common/scm';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { Command } from 'vs/editor/common/modes';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
@@ -120,8 +118,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 		private _contextValue: string,
 		private _label: string,
 		private _rootUri: URI | undefined,
-		@ISCMService scmService: ISCMService,
-		@ICommandService private commandService: ICommandService
+		@ISCMService scmService: ISCMService
 	) { }
 
 	$updateSourceControl(features: SCMProviderFeatures): void {
@@ -174,7 +171,8 @@ class MainThreadSCMProvider implements ISCMProvider {
 			const group = this._groupsByHandle[groupHandle];
 
 			if (!group) {
-				return;
+				console.warn(`SCM group ${groupHandle} not found in provider ${this.label}`);
+				continue;
 			}
 
 			// reverse the splices sequence in order to apply them correctly
@@ -182,7 +180,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 
 			for (const [start, deleteCount, rawResources] of groupSlices) {
 				const resources = rawResources.map(rawResource => {
-					const [handle, sourceUri, icons, tooltip, strikeThrough, faded] = rawResource;
+					const [handle, sourceUri, icons, tooltip, strikeThrough, faded, source, letter, color] = rawResource;
 					const icon = icons[0];
 					const iconDark = icons[1] || icon;
 					const decorations = {
@@ -190,7 +188,10 @@ class MainThreadSCMProvider implements ISCMProvider {
 						iconDark: iconDark && URI.parse(iconDark),
 						tooltip,
 						strikeThrough,
-						faded
+						faded,
+						source,
+						letter,
+						color: color && color.id
 					};
 
 					return new MainThreadSCMResource(
@@ -252,9 +253,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ISCMService private scmService: ISCMService,
-		@ICommandService private commandService: ICommandService
+		@ISCMService private scmService: ISCMService
 	) {
 		this._proxy = extHostContext.get(ExtHostContext.ExtHostSCM);
 	}
@@ -272,7 +271,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	}
 
 	$registerSourceControl(handle: number, id: string, label: string, rootUri: string | undefined): void {
-		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri && URI.parse(rootUri), this.scmService, this.commandService);
+		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri && URI.parse(rootUri), this.scmService);
 		const repository = this.scmService.registerSCMProvider(provider);
 		this._repositories[handle] = repository;
 
@@ -368,5 +367,15 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		}
 
 		repository.input.value = value;
+	}
+
+	$setInputBoxPlaceholder(sourceControlHandle: number, placeholder: string): void {
+		const repository = this._repositories[sourceControlHandle];
+
+		if (!repository) {
+			return;
+		}
+
+		repository.input.placeholder = placeholder;
 	}
 }

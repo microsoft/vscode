@@ -7,7 +7,7 @@
 
 import { isObject, isUndefinedOrNull, isArray } from 'vs/base/common/types';
 
-export function clone<T>(obj: T): T {
+export function deepClone<T>(obj: T): T {
 	if (!obj || typeof obj !== 'object') {
 		return obj;
 	}
@@ -15,23 +15,8 @@ export function clone<T>(obj: T): T {
 		// See https://github.com/Microsoft/TypeScript/issues/10990
 		return obj as any;
 	}
-	const result = (Array.isArray(obj)) ? <any>[] : <any>{};
-	Object.keys(obj).forEach(key => {
-		if (obj[key] && typeof obj[key] === 'object') {
-			result[key] = clone(obj[key]);
-		} else {
-			result[key] = obj[key];
-		}
-	});
-	return result;
-}
-
-export function deepClone<T>(obj: T): T {
-	if (!obj || typeof obj !== 'object') {
-		return obj;
-	}
-	const result = (Array.isArray(obj)) ? <any>[] : <any>{};
-	Object.getOwnPropertyNames(obj).forEach(key => {
+	const result: any = Array.isArray(obj) ? [] : {};
+	Object.keys(obj).forEach((key: keyof T) => {
 		if (obj[key] && typeof obj[key] === 'object') {
 			result[key] = deepClone(obj[key]);
 		} else {
@@ -41,7 +26,27 @@ export function deepClone<T>(obj: T): T {
 	return result;
 }
 
-const hasOwnProperty = Object.prototype.hasOwnProperty;
+export function deepFreeze<T>(obj: T): T {
+	if (!obj || typeof obj !== 'object') {
+		return obj;
+	}
+	const stack: any[] = [obj];
+	while (stack.length > 0) {
+		let obj = stack.shift();
+		Object.freeze(obj);
+		for (const key in obj) {
+			if (_hasOwnProperty.call(obj, key)) {
+				let prop = obj[key];
+				if (typeof prop === 'object' && !Object.isFrozen(prop)) {
+					stack.push(prop);
+				}
+			}
+		}
+	}
+	return obj;
+}
+
+const _hasOwnProperty = Object.prototype.hasOwnProperty;
 
 export function cloneAndChange(obj: any, changer: (orig: any) => any): any {
 	return _cloneAndChange(obj, changer, []);
@@ -72,8 +77,8 @@ function _cloneAndChange(obj: any, changer: (orig: any) => any, encounteredObjec
 		encounteredObjects.push(obj);
 		const r2 = {};
 		for (let i2 in obj) {
-			if (hasOwnProperty.call(obj, i2)) {
-				r2[i2] = _cloneAndChange(obj[i2], changer, encounteredObjects);
+			if (_hasOwnProperty.call(obj, i2)) {
+				(r2 as any)[i2] = _cloneAndChange(obj[i2], changer, encounteredObjects);
 			}
 		}
 		encounteredObjects.pop();
@@ -172,12 +177,6 @@ export function equals(one: any, other: any): boolean {
 	return true;
 }
 
-export function ensureProperty(obj: any, property: string, defaultValue: any) {
-	if (typeof obj[property] === 'undefined') {
-		obj[property] = defaultValue;
-	}
-}
-
 export function arrayToHash(array: any[]) {
 	const result: any = {};
 	for (let i = 0; i < array.length; ++i) {
@@ -231,7 +230,7 @@ export function derive(baseClass: any, derivedClass: any): void {
 	}
 
 	// Cast to any due to Bug 16188:PropertyDescriptor set and get function should be optional.
-	Object.defineProperty(derivedClass.prototype, 'constructor', <any>{ value: derivedClass, writable: true, configurable: true, enumerable: true });
+	Object.defineProperty(derivedClass.prototype, 'constructor', { value: derivedClass, writable: true, configurable: true, enumerable: true });
 }
 
 /**

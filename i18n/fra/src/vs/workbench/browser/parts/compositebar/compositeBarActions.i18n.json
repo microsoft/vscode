@@ -9,5 +9,7 @@
 	"numberBadge": "{0} ({1})",
 	"manageExtension": "Gérer l'extension",
 	"titleKeybinding": "{0} ({1})",
+	"hide": "Masquer",
+	"keep": "Garder",
 	"toggle": "Afficher/masquer la vue épinglée"
 }

@@ -20,7 +20,7 @@ import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions, IExtensionManifest,
-	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionTipsService, IExtensionIdentifier
+	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionIdentifier
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionIdFromLocal, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -141,6 +141,10 @@ class Extension implements IExtension {
 		return require.toUrl('../browser/media/defaultIcon.png');
 	}
 
+	get repository(): string {
+		return this.gallery && this.gallery.assets.repository.uri;
+	}
+
 	get licenseUrl(): string {
 		return this.gallery && this.gallery.assets.license && this.gallery.assets.license.uri;
 	}
@@ -175,9 +179,16 @@ class Extension implements IExtension {
 		}
 	}
 
+	get preview(): boolean {
+		return this.gallery ? this.gallery.preview : false;
+	}
+
 	getManifest(): TPromise<IExtensionManifest> {
 		if (this.gallery) {
-			return this.galleryService.getManifest(this.gallery);
+			if (this.gallery.assets.manifest) {
+				return this.galleryService.getManifest(this.gallery);
+			}
+			this.telemetryService.publicLog('extensions:NotFoundManifest', this.telemetryData);
 		}
 
 		return TPromise.as(this.local.manifest);
@@ -188,7 +199,7 @@ class Extension implements IExtension {
 			if (this.gallery.assets.readme) {
 				return this.galleryService.getReadme(this.gallery);
 			}
-			this.telemetryService.publicLog('extensions:NotFoundReadMe', this.telemetryData); // TODO: Sandy - check for such extensions
+			this.telemetryService.publicLog('extensions:NotFoundReadMe', this.telemetryData);
 		}
 
 		if (this.local && this.local.readmeUrl) {
@@ -329,7 +340,6 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		@IChoiceService private choiceService: IChoiceService,
 		@IURLService urlService: IURLService,
 		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
-		@IExtensionTipsService private tipsService: IExtensionTipsService,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 		@IWindowService private windowService: IWindowService
 	) {
@@ -459,9 +469,14 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	private syncLocalWithGalleryExtension(local: Extension, gallery: IGalleryExtension) {
-		local.gallery = gallery;
-		this._onChange.fire();
-		this.eventuallyAutoUpdateExtensions();
+		// Sync the local extension with gallery extension if local extension doesnot has metadata
+		(local.local.metadata ? TPromise.as(local.local) : this.extensionService.updateMetadata(local.local, { id: gallery.identifier.uuid, publisherDisplayName: gallery.publisherDisplayName, publisherId: gallery.publisherId }))
+			.then(localExtension => {
+				local.local = localExtension;
+				local.gallery = gallery;
+				this._onChange.fire();
+				this.eventuallyAutoUpdateExtensions();
+			});
 	}
 
 	checkForUpdates(): TPromise<void> {

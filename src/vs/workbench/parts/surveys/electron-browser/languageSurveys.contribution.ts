@@ -19,6 +19,7 @@ import { FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import pkg from 'vs/platform/node/package';
 import product, { ISurveyData } from 'vs/platform/node/product';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 class LanguageSurvey {
 
@@ -122,6 +123,7 @@ class LanguageSurvey {
 
 class LanguageSurveysContribution implements IWorkbenchContribution {
 
+	// @ts-ignore unused property
 	private surveys: LanguageSurvey[];
 
 	constructor(
@@ -143,5 +145,5 @@ class LanguageSurveysContribution implements IWorkbenchContribution {
 
 if (language === 'en' && product.surveys && product.surveys.length) {
 	const workbenchRegistry = <IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench);
-	workbenchRegistry.registerWorkbenchContribution(LanguageSurveysContribution);
+	workbenchRegistry.registerWorkbenchContribution(LanguageSurveysContribution, LifecyclePhase.Running);
 }

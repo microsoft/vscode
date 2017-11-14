@@ -38,5 +38,9 @@ export namespace Schemas {
 
 	export const file: string = 'file';
 
+	export const mailto: string = 'mailto';
+
 	export const untitled: string = 'untitled';
+
+	export const data: string = 'data';
 }

@@ -44,6 +44,7 @@
 	"listHoverForeground": "A lista/fa előtérszíne, amikor az egérkurzor egy adott elem fölé kerül.",
 	"listDropBackground": "A lista/fa háttérszíne, amikor az elemek az egérkurzorral vannak mozgatva egyik helyről a másikra.",
 	"highlight": "Kiemelt találatok előtérszíne a listában/fában való keresés esetén.",
+	"invalidItemForeground": "A lista/fa előtérszíne érvénytelen elemek esetén, például még nem feloldott gyökérelemek esetében a fájlkezelőben.",
 	"pickerGroupForeground": "Csoportcímkék színe a gyorsválasztóban.",
 	"pickerGroupBorder": "Csoportok keretszíne a gyorsválasztóban.",
 	"buttonForeground": "A gombok előtérszíne.",

@@ -13,5 +13,6 @@
 	"settingsFound": "{0} Einstellungen zugeordnet",
 	"fileEditorWithInputAriaLabel": "{0}. Textdatei-Editor.",
 	"fileEditorAriaLabel": "Textdatei-Editor",
+	"defaultEditorReadonly": "Nehmen Sie im Editor auf der rechten Seite Änderungen vor, um Standardwerte zu überschreiben.",
 	"preferencesAriaLabel": "Standardeinstellungen. Schreibgeschützter Text-Editor."
 }

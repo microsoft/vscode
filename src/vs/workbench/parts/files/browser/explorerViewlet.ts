@@ -157,7 +157,11 @@ export class ExplorerViewlet extends PersistentViewsViewlet {
 	}
 
 	private updateOpenEditorsVisibility(): void {
-		this.openEditorsVisibleContextKey.set(this.contextService.getWorkbenchState() === WorkbenchState.EMPTY || this.configurationService.getValue('explorer.openEditors.visible') !== 0);
+		this.openEditorsVisibleContextKey.set(this.isOpenEditorsVisible());
+	}
+
+	private isOpenEditorsVisible(): boolean {
+		return this.contextService.getWorkbenchState() === WorkbenchState.EMPTY || this.configurationService.getValue('explorer.openEditors.visible') !== 0;
 	}
 
 	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewsViewletPanel {
@@ -173,7 +177,7 @@ export class ExplorerViewlet extends PersistentViewsViewlet {
 				if (openEditorsView) {
 					let delay = 0;
 
-					const config = this.configurationService.getConfiguration<IFilesConfiguration>();
+					const config = this.configurationService.getValue<IFilesConfiguration>();
 					// No need to delay if preview is disabled
 					const delayEditorOpeningInOpenedEditors = !!config.workbench.editor.enablePreview;
 
@@ -289,5 +293,14 @@ export class ExplorerViewlet extends PersistentViewsViewlet {
 
 	public getViewletState(): FileViewletState {
 		return this.viewletState;
+	}
+
+	protected loadViewsStates(): void {
+		super.loadViewsStates();
+
+		// Remove the open editors view state if it is removed globally
+		if (!this.isOpenEditorsVisible()) {
+			this.viewsStates.delete(OpenEditorsView.ID);
+		}
 	}
 }

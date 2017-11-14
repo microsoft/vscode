@@ -9,6 +9,7 @@ import objects = require('vs/base/common/objects');
 import types = require('vs/base/common/types');
 import arrays = require('vs/base/common/arrays');
 import strings = require('vs/base/common/strings');
+import { isUndefinedOrNull } from 'vs/base/common/types';
 
 export interface IXHRResponse {
 	responseText: string;
@@ -77,7 +78,7 @@ export class ConnectionError implements Error {
 		let errorCode = error.errorCode;
 		let errorMessage = error.errorMessage;
 
-		if (errorCode !== null && errorMessage !== null) {
+		if (!isUndefinedOrNull(errorCode) && typeof errorMessage === 'string') {
 			return nls.localize(
 				{
 					key: 'message',
@@ -90,11 +91,11 @@ export class ConnectionError implements Error {
 				strings.rtrim(errorMessage, '.'), errorCode);
 		}
 
-		if (errorMessage !== null) {
+		if (typeof errorMessage === 'string') {
 			return errorMessage;
 		}
 
-		if (verbose && error.responseText !== null) {
+		if (verbose && typeof error.responseText === 'string') {
 			return error.responseText;
 		}
 
@@ -106,7 +107,7 @@ export class ConnectionError implements Error {
 
 		// Status Code based Error
 		if (error.status === 401) {
-			if (details !== null) {
+			if (typeof details === 'string') {
 				return nls.localize(
 					{
 						key: 'error.permission.verbose',
@@ -127,8 +128,8 @@ export class ConnectionError implements Error {
 		}
 
 		// Fallback to HTTP Status and Code
-		if (error.status > 0 && error.statusText !== null) {
-			if (verbose && error.responseText !== null && error.responseText.length > 0) {
+		if (error.status > 0 && typeof error.statusText === 'string') {
+			if (verbose && typeof error.responseText === 'string' && error.responseText.length > 0) {
 				return nls.localize('error.http.verbose', "{0} (HTTP {1}: {2})", error.statusText, error.status, error.responseText);
 			}
 
@@ -136,7 +137,7 @@ export class ConnectionError implements Error {
 		}
 
 		// Finally its an Unknown Connection Error
-		if (verbose && error.responseText !== null && error.responseText.length > 0) {
+		if (verbose && typeof error.responseText === 'string' && error.responseText.length > 0) {
 			return nls.localize('error.connection.unknown.verbose', "Unknown Connection Error ({0})", error.responseText);
 		}
 

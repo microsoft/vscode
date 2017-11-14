@@ -13,5 +13,6 @@
 	"settingsFound": "{0} ayar eşleşti",
 	"fileEditorWithInputAriaLabel": "{0}. Metin dosyası düzenleyici.",
 	"fileEditorAriaLabel": "Metin dosyası düzenleyici.",
+	"defaultEditorReadonly": "Varsayılan ayarları geçersiz kılmak için sağ taraftaki düzeyicide düzenleme yapın.",
 	"preferencesAriaLabel": "Varsayılan tercihler. Salt okunabilir metin editörü."
 }

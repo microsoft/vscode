@@ -12,7 +12,7 @@ import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/n
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 const hasOwnProperty = Object.hasOwnProperty;
-const NO_OP_VOID_PROMISE = TPromise.as<void>(void 0);
+const NO_OP_VOID_PROMISE = TPromise.wrap<void>(void 0);
 
 export interface IExtensionMemento {
 	get<T>(key: string, defaultValue: T): T;

@@ -84,12 +84,7 @@
 	overflow: hidden;
 }
 
-.scm-viewlet .monaco-list-row > .resource > .name > .monaco-icon-label > a.label-name {
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-.scm-viewlet .monaco-list-row > .resource > .name.strike-through > .monaco-icon-label > .label-name {
+.scm-viewlet .monaco-list-row > .resource > .name.strike-through > .monaco-icon-label > .monaco-icon-label-description-container > .label-name {
 	text-decoration: line-through;
 }
 

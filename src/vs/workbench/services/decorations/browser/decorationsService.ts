@@ -15,6 +15,8 @@ import { createStyleSheet, createCSSRule, removeCSSRulesContainingSelector } fro
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IIterator } from 'vs/base/common/iterator';
+import { isFalsyOrWhitespace } from 'vs/base/common/strings';
+import { localize } from 'vs/nls';
 
 class DecorationRule {
 
@@ -30,13 +32,15 @@ class DecorationRule {
 	private static readonly _classNames = new IdGenerator('monaco-decorations-style-');
 
 	readonly data: IDecorationData | IDecorationData[];
-	readonly labelClassName: string;
-	readonly badgeClassName: string;
+	readonly itemColorClassName: string;
+	readonly itemBadgeClassName: string;
+	readonly bubbleBadgeClassName: string;
 
 	constructor(data: IDecorationData | IDecorationData[]) {
 		this.data = data;
-		this.labelClassName = DecorationRule._classNames.nextId();
-		this.badgeClassName = DecorationRule._classNames.nextId();
+		this.itemColorClassName = DecorationRule._classNames.nextId();
+		this.itemBadgeClassName = DecorationRule._classNames.nextId();
+		this.bubbleBadgeClassName = DecorationRule._classNames.nextId();
 	}
 
 	appendCSSRules(element: HTMLStyleElement, theme: ITheme): void {
@@ -50,57 +54,42 @@ class DecorationRule {
 	private _appendForOne(data: IDecorationData, element: HTMLStyleElement, theme: ITheme): void {
 		const { color, letter } = data;
 		// label
-		createCSSRule(`.${this.labelClassName}`, `color: ${theme.getColor(color) || 'inherit'};`, element);
-		createCSSRule(`.focused .selected .${this.labelClassName}`, `color: inherit;`, element);
+		createCSSRule(`.${this.itemColorClassName}`, `color: ${theme.getColor(color) || 'inherit'};`, element);
 		// letter
 		if (letter) {
-			createCSSRule(`.${this.badgeClassName}::after`, `content: "${letter}"; color: ${theme.getColor(color) || 'inherit'};`, element);
-			createCSSRule(`.focused .selected .${this.badgeClassName}::after`, `color: inherit;`, element);
+			createCSSRule(`.${this.itemBadgeClassName}::after`, `content: "${letter}"; color: ${theme.getColor(color) || 'inherit'};`, element);
 		}
 	}
 
 	private _appendForMany(data: IDecorationData[], element: HTMLStyleElement, theme: ITheme): void {
 		// label
 		const { color } = data[0];
-		createCSSRule(`.${this.labelClassName}`, `color: ${theme.getColor(color) || 'inherit'};`, element);
-		createCSSRule(`.focused .selected .${this.labelClassName}`, `color: inherit;`, element);
+		createCSSRule(`.${this.itemColorClassName}`, `color: ${theme.getColor(color) || 'inherit'};`, element);
 
 		// badge
-		let content = data.map(d => d.letter).join(', ');
-		createCSSRule(`.${this.badgeClassName}::after`, `content: "${content}"; color: ${theme.getColor(color) || 'inherit'};`, element);
-		createCSSRule(`.focused .selected .${this.badgeClassName}::after`, `color: inherit;`, element);
+		const letters = data.filter(d => !isFalsyOrWhitespace(d.letter)).map(d => d.letter);
+		if (letters.length) {
+			createCSSRule(`.${this.itemBadgeClassName}::after`, `content: "${letters.join(', ')}"; color: ${theme.getColor(color) || 'inherit'};`, element);
+		}
+
+		// bubble badge
+		createCSSRule(
+			`.${this.bubbleBadgeClassName}::after`,
+			`content: "\uf052"; color: ${theme.getColor(color) || 'inherit'}; font-family: octicons; font-size: 14px; padding-right: 14px; opacity: 0.4;`,
+			element
+		);
 	}
 
 	removeCSSRules(element: HTMLStyleElement): void {
-		removeCSSRulesContainingSelector(this.labelClassName, element);
-		removeCSSRulesContainingSelector(this.badgeClassName, element);
-	}
-}
-
-class ResourceDecoration implements IDecoration {
-
-	static from(data: IDecorationData | IDecorationData[]): ResourceDecoration {
-		let result = new ResourceDecoration(data);
-		if (Array.isArray(data)) {
-			result.weight = data[0].weight;
-			result.title = data.map(d => d.title).join(', ');
-		} else {
-			result.weight = data.weight;
-			result.title = data.title;
-		}
-		return result;
+		removeCSSRulesContainingSelector(this.itemColorClassName, element);
+		removeCSSRulesContainingSelector(this.itemBadgeClassName, element);
+		removeCSSRulesContainingSelector(this.bubbleBadgeClassName, element);
 	}
 
-	_decoBrand: undefined;
-	_data: IDecorationData | IDecorationData[];
-
-	weight?: number;
-	title?: string;
-	labelClassName?: string;
-	badgeClassName?: string;
-
-	private constructor(data: IDecorationData | IDecorationData[]) {
-		this._data = data;
+	isUnused(): boolean {
+		return !document.querySelector(`.${this.itemColorClassName}`)
+			&& !document.querySelector(`.${this.itemBadgeClassName}`)
+			&& !document.querySelector(`.${this.bubbleBadgeClassName}`);
 	}
 }
 
@@ -113,9 +102,7 @@ class DecorationStyles {
 	constructor(
 		private _themeService: IThemeService,
 	) {
-		this._disposables = [
-			this._themeService.onThemeChange(this._onThemeChange, this),
-		];
+		this._disposables = [this._themeService.onThemeChange(this._onThemeChange, this)];
 	}
 
 	dispose(): void {
@@ -123,10 +110,13 @@ class DecorationStyles {
 		this._styleElement.parentElement.removeChild(this._styleElement);
 	}
 
-	asDecoration(data: IDecorationData | IDecorationData[]): ResourceDecoration {
+	asDecoration(data: IDecorationData[], onlyChildren: boolean): IDecoration {
+
+		// sort by weight
+		data.sort((a, b) => b.weight - a.weight);
+
 		let key = DecorationRule.keyOf(data);
 		let rule = this._decorationRules.get(key);
-		let result = ResourceDecoration.from(data);
 
 		if (!rule) {
 			// new css rule
@@ -135,9 +125,44 @@ class DecorationStyles {
 			rule.appendCSSRules(this._styleElement, this._themeService.getTheme());
 		}
 
-		result.labelClassName = rule.labelClassName;
-		result.badgeClassName = rule.badgeClassName;
-		return result;
+		let labelClassName = rule.itemColorClassName;
+		let badgeClassName = rule.itemBadgeClassName;
+		let tooltip = data.filter(d => !isFalsyOrWhitespace(d.tooltip)).map(d => d.tooltip).join(' • ');
+
+		if (onlyChildren) {
+			// show items from its children only
+			badgeClassName = rule.bubbleBadgeClassName;
+			tooltip = localize('bubbleTitle', "Contains emphasized items");
+		}
+
+		return {
+			labelClassName,
+			badgeClassName,
+			tooltip,
+			update: (source, insert) => {
+				let newData = data.slice();
+				if (!source) {
+					// add -> just append
+					newData.push(insert);
+
+				} else {
+					// remove/replace -> require a walk
+					for (let i = 0; i < newData.length; i++) {
+						if (newData[i].source === source) {
+							if (!insert) {
+								// remove
+								newData.splice(i, 1);
+								i--;
+							} else {
+								// replace
+								newData[i] = insert;
+							}
+						}
+					}
+				}
+				return this.asDecoration(newData, onlyChildren);
+			}
+		};
 	}
 
 	private _onThemeChange(): void {
@@ -150,22 +175,29 @@ class DecorationStyles {
 	cleanUp(iter: IIterator<DecorationProviderWrapper>): void {
 		// remove every rule for which no more
 		// decoration (data) is kept. this isn't cheap
-
-		// let usedDecorations = new Set<string>();
-		// for (let e = iter.next(); !e.done; e = iter.next()) {
-		// 	e.value.data.forEach(value => {
-		// 		if (value instanceof ResourceDecoration) {
-		// 			const key = DecorationRule.keyOf(value._data);
-		// 			usedDecorations.add(key);
-		// 		}
-		// 	});
-		// }
-		// this._decorationRules.forEach((value, index) => {
-		// 	if (!usedDecorations.has(index)) {
-		// 		value.removeCSSRules(this._styleElement);
-		// 		this._decorationRules.delete(index);
-		// 	}
-		// });
+		let usedDecorations = new Set<string>();
+		for (let e = iter.next(); !e.done; e = iter.next()) {
+			e.value.data.forEach((value, key) => {
+				if (!isThenable<any>(value) && value) {
+					usedDecorations.add(DecorationRule.keyOf(value));
+				}
+			});
+		}
+		this._decorationRules.forEach((value, index) => {
+			const { data } = value;
+			if (value.isUnused()) {
+				let remove: boolean;
+				if (Array.isArray(data)) {
+					remove = data.some(data => !usedDecorations.has(DecorationRule.keyOf(data)));
+				} else if (!usedDecorations.has(DecorationRule.keyOf(data))) {
+					remove = true;
+				}
+				if (remove) {
+					value.removeCSSRules(this._styleElement);
+					this._decorationRules.delete(index);
+				}
+			}
+		});
 	}
 }
 
@@ -282,8 +314,11 @@ class DecorationProviderWrapper {
 
 	private _keepItem(uri: URI, data: IDecorationData): IDecorationData {
 		let deco = data ? data : null;
-		this.data.set(uri.toString(), deco);
-		this._uriEmitter.fire(uri);
+		let old = this.data.set(uri.toString(), deco);
+		if (deco || old) {
+			// only fire event when something changed
+			this._uriEmitter.fire(uri);
+		}
 		return deco;
 	}
 }
@@ -356,29 +391,33 @@ export class FileDecorationsService implements IDecorationsService {
 		};
 	}
 
-	getDecoration(uri: URI, includeChildren: boolean): IDecoration {
+	getDecoration(uri: URI, includeChildren: boolean, overwrite?: IDecorationData): IDecoration {
 		let data: IDecorationData[] = [];
-		let onlyChildren = true;
+		let containsChildren: boolean;
 		for (let iter = this._data.iterator(), next = iter.next(); !next.done; next = iter.next()) {
 			next.value.getOrRetrieve(uri, includeChildren, (deco, isChild) => {
 				if (!isChild || deco.bubble) {
 					data.push(deco);
-					onlyChildren = onlyChildren && isChild;
+					containsChildren = isChild || containsChildren;
 				}
 			});
 		}
 
 		if (data.length === 0) {
-			return undefined;
-		} else if (onlyChildren) {
-			let result = this._decorationStyles.asDecoration(data.sort((a, b) => b.weight - a.weight)[0]);
-			result.badgeClassName = '';
-			result.title = '';
-			return result;
-		} else if (data.length === 1) {
-			return this._decorationStyles.asDecoration(data[0]);
+			// nothing, maybe overwrite data
+			if (overwrite) {
+				return this._decorationStyles.asDecoration([overwrite], containsChildren);
+			} else {
+				return undefined;
+			}
 		} else {
-			return this._decorationStyles.asDecoration(data.sort((a, b) => b.weight - a.weight));
+			// result, maybe overwrite
+			let result = this._decorationStyles.asDecoration(data, containsChildren);
+			if (overwrite) {
+				return result.update(overwrite.source, overwrite);
+			} else {
+				return result;
+			}
 		}
 	}
 }

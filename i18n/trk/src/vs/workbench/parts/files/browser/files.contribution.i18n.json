@@ -40,10 +40,14 @@
 	"dynamicHeight": "Açık düzenleyiciler bölümü yüksekliğinin öge sayısına göre dinamik olarak uyarlanıp uyarlanmayacağını denetler.",
 	"autoReveal": "Gezginin dosyaları açarken, onları otomatik olarak ortaya çıkartmasını ve seçmesini denetler.",
 	"enableDragAndDrop": "Gezgeinin sürükle bırak ile dosyaları ve klasörleri taşımaya izin verip vermeyeceğini denetler.",
+	"confirmDragAndDrop": "Gezginin, sürükle bırak ile dosyalar ve klasörlerin taşındığı zaman onay isteyip istemeyeceğini denetler.",
+	"confirmDelete": "Gezginin, geri dönüşüm kutusu ile dosya silineceği zaman onay isteyip istemeyeceğini denetler.",
 	"sortOrder.default": "Dosya ve klasörler adlarına göre, alfabetik olarak sıralanırlar. Klasörler dosyalardan önce görüntülenir.",
 	"sortOrder.mixed": "Dosya ve klasörler adlarına göre, alfabetik olarak sıralanırlar. Dosyalar ve klasörler iç içe bulunur.",
 	"sortOrder.filesFirst": "Dosya ve klasörler adlarına göre, alfabetik olarak sıralanırlar. Dosyalar klasörlerden önce görüntülenir.",
 	"sortOrder.type": "Dosya ve klasörler uzantılarına göre, alfabetik olarak sıralanırlar. Klasörler dosyalardan önce görüntülenir.",
 	"sortOrder.modified": "Dosya ve klasörler son değiştirilme tarihine göre, azalan düzende sıralanırlar. Klasörler dosyalardan önce görüntülenir.",
-	"sortOrder": "Gezginde dosya ve klasörlerin sıralamasını denetler. Varsayılan sıralamaya ek olarak, sıralamayı; 'mixed' (dosya ve klasörler karışık olarak sıralanır), 'type' (dosya türüne göre), 'modified' (son düzenlenme tarihine göre) veya 'filesFirst' (dosyaları klasörlerden önce sırala) olarak ayarlayabilirsiniz."
+	"sortOrder": "Gezginde dosya ve klasörlerin sıralamasını denetler. Varsayılan sıralamaya ek olarak, sıralamayı; 'mixed' (dosya ve klasörler karışık olarak sıralanır), 'type' (dosya türüne göre), 'modified' (son düzenlenme tarihine göre) veya 'filesFirst' (dosyaları klasörlerden önce sırala) olarak ayarlayabilirsiniz.",
+	"explorer.decorations.colors": "Dosya süslemelerinin renkleri kullanıp kullanmayacağını denetler.",
+	"explorer.decorations.badges": "Dosya süslemelerinin göstergeleri kullanıp kullanmayacağını denetler."
 }

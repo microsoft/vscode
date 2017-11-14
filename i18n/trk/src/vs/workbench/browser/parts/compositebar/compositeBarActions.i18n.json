@@ -9,5 +9,7 @@
 	"numberBadge": "{0} ({1})",
 	"manageExtension": "Eklentiyi Yönet",
 	"titleKeybinding": "{0} ({1})",
+	"hide": "Gizle",
+	"keep": "Yerinde Tut",
 	"toggle": "Görünüm Sabitlemeyi Aç/Kapat"
 }

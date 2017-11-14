@@ -162,7 +162,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 
 	public registerCommandAndKeybindingRule(desc: ICommandAndKeybindingRule): void {
 		this.registerKeybindingRule(desc);
-		CommandsRegistry.registerCommand({ id: desc.id, handler: desc.handler });
+		CommandsRegistry.registerCommand(desc);
 	}
 
 	private static _mightProduceChar(keyCode: KeyCode): boolean {

@@ -41,12 +41,15 @@ before_install:
       sh -e /etc/init.d/xvfb start;
       sleep 3;
     fi
+  # Make npm logs less verbose
+  - npm config set depth 0
+  - npm config set loglevel warn
 
 install:
   - ./scripts/npm.sh install
 
 script:
-  - node_modules/.bin/gulp hygiene --silent
+  - node_modules/.bin/gulp hygiene
   - node_modules/.bin/gulp electron --silent
   - node_modules/.bin/gulp compile --silent --max_old_space_size=4096
   - node_modules/.bin/gulp optimize-vscode --silent --max_old_space_size=4096

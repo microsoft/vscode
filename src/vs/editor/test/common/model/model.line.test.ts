@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
-import { ModelLine, ILineEdit } from 'vs/editor/common/model/modelLine';
+import { ModelLine, ILineEdit, computeIndentLevel } from 'vs/editor/common/model/modelLine';
 import { MetadataConsts } from 'vs/editor/common/modes';
 import { ViewLineToken, ViewLineTokenFactory } from 'vs/editor/common/core/viewLineToken';
 
@@ -22,12 +22,9 @@ function assertLineTokens(_actual: LineTokens, _expected: TestToken[]): void {
 	assert.deepEqual(actual.map(decode), expected.map(decode));
 }
 
-const NO_TAB_SIZE = 0;
-
 suite('ModelLine - getIndentLevel', () => {
 	function assertIndentLevel(text: string, expected: number, tabSize: number = 4): void {
-		let modelLine = new ModelLine(text, tabSize);
-		let actual = modelLine.getIndentLevel();
+		let actual = computeIndentLevel(text, tabSize);
 		assert.equal(actual, expected, text);
 	}
 
@@ -52,8 +49,8 @@ suite('ModelLine - getIndentLevel', () => {
 suite('Editor Model - modelLine.applyEdits text', () => {
 
 	function testEdits(initial: string, edits: ILineEdit[], expected: string): void {
-		var line = new ModelLine(initial, NO_TAB_SIZE);
-		line.applyEdits(edits, NO_TAB_SIZE);
+		var line = new ModelLine(initial);
+		line.applyEdits(edits);
 		assert.equal(line.text, expected);
 	}
 
@@ -198,8 +195,8 @@ suite('Editor Model - modelLine.applyEdits text', () => {
 suite('Editor Model - modelLine.split text', () => {
 
 	function testLineSplit(initial: string, splitColumn: number, expected1: string, expected2: string): void {
-		var line = new ModelLine(initial, NO_TAB_SIZE);
-		var newLine = line.split(splitColumn, NO_TAB_SIZE);
+		var line = new ModelLine(initial);
+		var newLine = line.split(splitColumn);
 		assert.equal(line.text, expected1);
 		assert.equal(newLine.text, expected2);
 	}
@@ -235,9 +232,9 @@ suite('Editor Model - modelLine.split text', () => {
 suite('Editor Model - modelLine.append text', () => {
 
 	function testLineAppend(a: string, b: string, expected: string): void {
-		var line1 = new ModelLine(a, NO_TAB_SIZE);
-		var line2 = new ModelLine(b, NO_TAB_SIZE);
-		line1.append(line2, NO_TAB_SIZE);
+		var line1 = new ModelLine(a);
+		var line2 = new ModelLine(b);
+		line1.append(line2);
 		assert.equal(line1.text, expected);
 	}
 
@@ -296,23 +293,23 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 
 
 	function testLineEditTokens(initialText: string, initialTokens: TestToken[], edits: ILineEdit[], expectedText: string, expectedTokens: TestToken[]): void {
-		let line = new ModelLine(initialText, NO_TAB_SIZE);
+		let line = new ModelLine(initialText);
 		line.setTokens(0, TestToken.toTokens(initialTokens));
 
-		line.applyEdits(edits, NO_TAB_SIZE);
+		line.applyEdits(edits);
 
 		assert.equal(line.text, expectedText);
 		assertLineTokens(line.getTokens(0), expectedTokens);
 	}
 
 	test('insertion on empty line', () => {
-		let line = new ModelLine('some text', NO_TAB_SIZE);
+		let line = new ModelLine('some text');
 		line.setTokens(0, TestToken.toTokens([new TestToken(0, 1)]));
 
-		line.applyEdits([{ startColumn: 1, endColumn: 10, text: '' }], NO_TAB_SIZE);
+		line.applyEdits([{ startColumn: 1, endColumn: 10, text: '' }]);
 		line.setTokens(0, new Uint32Array(0));
 
-		line.applyEdits([{ startColumn: 1, endColumn: 1, text: 'a' }], NO_TAB_SIZE);
+		line.applyEdits([{ startColumn: 1, endColumn: 1, text: 'a' }]);
 		assertLineTokens(line.getTokens(0), [new TestToken(0, 1)]);
 	});
 
@@ -843,10 +840,10 @@ suite('Editor Model - modelLine.applyEdits text & tokens', () => {
 
 suite('Editor Model - modelLine.split text & tokens', () => {
 	function testLineSplitTokens(initialText: string, initialTokens: TestToken[], splitColumn: number, expectedText1: string, expectedText2: string, expectedTokens: TestToken[]): void {
-		let line = new ModelLine(initialText, NO_TAB_SIZE);
+		let line = new ModelLine(initialText);
 		line.setTokens(0, TestToken.toTokens(initialTokens));
 
-		let other = line.split(splitColumn, NO_TAB_SIZE);
+		let other = line.split(splitColumn);
 
 		assert.equal(line.text, expectedText1);
 		assert.equal(other.text, expectedText2);
@@ -927,13 +924,13 @@ suite('Editor Model - modelLine.split text & tokens', () => {
 
 suite('Editor Model - modelLine.append text & tokens', () => {
 	function testLineAppendTokens(aText: string, aTokens: TestToken[], bText: string, bTokens: TestToken[], expectedText: string, expectedTokens: TestToken[]): void {
-		let a = new ModelLine(aText, NO_TAB_SIZE);
+		let a = new ModelLine(aText);
 		a.setTokens(0, TestToken.toTokens(aTokens));
 
-		let b = new ModelLine(bText, NO_TAB_SIZE);
+		let b = new ModelLine(bText);
 		b.setTokens(0, TestToken.toTokens(bTokens));
 
-		a.append(b, NO_TAB_SIZE);
+		a.append(b);
 
 		assert.equal(a.text, expectedText);
 		assertLineTokens(a.getTokens(0), expectedTokens);
@@ -1047,9 +1044,9 @@ suite('Editor Model - modelLine.append text & tokens', () => {
 suite('Editor Model - modelLine.applyEdits', () => {
 
 	function testLineEdit(initialText: string, edits: ILineEdit[], expectedText: string): void {
-		let line = new ModelLine(initialText, NO_TAB_SIZE);
+		let line = new ModelLine(initialText);
 
-		line.applyEdits(edits, NO_TAB_SIZE);
+		line.applyEdits(edits);
 
 		assert.equal(line.text, expectedText, 'text');
 	}
@@ -1402,9 +1399,9 @@ suite('Editor Model - modelLine.applyEdits', () => {
 suite('Editor Model - modelLine.split', () => {
 
 	function testLineSplit(initialText: string, splitColumn: number, forceMoveMarkers: boolean, expectedText1: string, expectedText2: string): void {
-		let line = new ModelLine(initialText, NO_TAB_SIZE);
+		let line = new ModelLine(initialText);
 
-		let otherLine = line.split(splitColumn, NO_TAB_SIZE);
+		let otherLine = line.split(splitColumn);
 
 		assert.equal(line.text, expectedText1, 'text');
 		assert.equal(otherLine.text, expectedText2, 'text');
@@ -1484,10 +1481,10 @@ suite('Editor Model - modelLine.split', () => {
 suite('Editor Model - modelLine.append', () => {
 
 	function testLinePrependMarkers(aText: string, bText: string, expectedText: string): void {
-		let a = new ModelLine(aText, NO_TAB_SIZE);
-		let b = new ModelLine(bText, NO_TAB_SIZE);
+		let a = new ModelLine(aText);
+		let b = new ModelLine(bText);
 
-		a.append(b, NO_TAB_SIZE);
+		a.append(b);
 
 		assert.equal(a.text, expectedText, 'text');
 	}

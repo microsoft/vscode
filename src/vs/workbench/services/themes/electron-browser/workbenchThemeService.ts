@@ -92,7 +92,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 	constructor(
 		container: HTMLElement,
-		@IExtensionService private extensionService: IExtensionService,
+		@IExtensionService extensionService: IExtensionService,
 		@IStorageService private storageService: IStorageService,
 		@IBroadcastService private broadcastService: IBroadcastService,
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -178,7 +178,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		}, err => {
 			if (err && err.code === 'ENOENT') {
 				return TPromise.as<string>(null); // ignore, user config file doesn't exist yet
-			};
+			}
 			return TPromise.wrapError<string>(err);
 		});
 	}
@@ -346,7 +346,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		this.storageService.store(PERSISTED_THEME_STORAGE_KEY, newTheme.toStorageData());
 
 		return this.writeColorThemeConfiguration(settingsTarget);
-	};
+	}
 
 	private writeColorThemeConfiguration(settingsTarget: ConfigurationTarget): TPromise<IColorTheme> {
 		if (!types.isUndefinedOrNull(settingsTarget)) {
@@ -374,10 +374,10 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 
 	private updateColorCustomizations(notify = true): void {
-		let newColorCustomizations = this.configurationService.getValue<IColorCustomizations>(CUSTOM_WORKBENCH_COLORS_SETTING) || {};
+		let newColorCustomizations = objects.deepClone(this.configurationService.getValue<IColorCustomizations>(CUSTOM_WORKBENCH_COLORS_SETTING)) || {};
 		let newColorIds = Object.keys(newColorCustomizations);
 
-		let newTokenColorCustomizations = this.configurationService.getValue<ITokenColorCustomizations>(CUSTOM_EDITOR_COLORS_SETTING) || {};
+		let newTokenColorCustomizations = objects.deepClone(this.configurationService.getValue<ITokenColorCustomizations>(CUSTOM_EDITOR_COLORS_SETTING)) || {};
 
 		if (this.hasCustomizationChanged(newColorCustomizations, newColorIds, newTokenColorCustomizations)) {
 			this.colorCustomizations = newColorCustomizations;
@@ -464,7 +464,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		if (!types.isUndefinedOrNull(settingsTarget)) {
 			return this.configurationWriter.writeConfiguration(ICON_THEME_SETTING, this.currentIconTheme.settingsId, settingsTarget).then(_ => this.currentIconTheme);
 		}
-		return TPromise.as(this.currentIconTheme);
+		return TPromise.wrap(this.currentIconTheme);
 	}
 
 	private get configurationWriter(): ConfigurationWriter {
@@ -476,10 +476,10 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 }
 
-function _applyIconTheme(data: FileIconThemeData, onApply: (theme: FileIconThemeData) => TPromise<IFileIconTheme>): TPromise<IFileIconTheme> {
+function _applyIconTheme(this: any, data: FileIconThemeData, onApply: (theme: FileIconThemeData) => TPromise<IFileIconTheme>): TPromise<IFileIconTheme> {
 	if (!data) {
 		_applyRules('', iconThemeRulesClassName);
-		return TPromise.as(onApply(data));
+		return onApply(data);
 	}
 	return data.ensureLoaded(this).then(styleSheetContent => {
 		_applyRules(styleSheetContent, iconThemeRulesClassName);
@@ -588,7 +588,7 @@ function tokenGroupSettings(description: string) {
 			colorThemeSchema.tokenColorizationSettingSchema
 		]
 	};
-};
+}
 
 configurationRegistry.registerConfiguration({
 	id: 'editor',

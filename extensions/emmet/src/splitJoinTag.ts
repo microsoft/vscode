@@ -8,11 +8,11 @@ import { HtmlNode } from 'EmmetNode';
 import { getNode, parseDocument, validate } from './util';
 
 export function splitJoinTag() {
-	let editor = vscode.window.activeTextEditor;
-	if (!validate(false)) {
+	if (!validate(false) || !vscode.window.activeTextEditor) {
 		return;
 	}
 
+	const editor = vscode.window.activeTextEditor;
 	let rootNode = <HtmlNode>parseDocument(editor.document);
 	if (!rootNode) {
 		return;
@@ -20,22 +20,18 @@ export function splitJoinTag() {
 
 	return editor.edit(editBuilder => {
 		editor.selections.reverse().forEach(selection => {
-			let textEdit = getRangesToReplace(editor.document, selection, rootNode);
-			if (textEdit) {
+			let nodeToUpdate = <HtmlNode>getNode(rootNode, selection.start);
+			if (nodeToUpdate) {
+				let textEdit = getRangesToReplace(editor.document, nodeToUpdate);
 				editBuilder.replace(textEdit.range, textEdit.newText);
 			}
 		});
 	});
 }
 
-function getRangesToReplace(document: vscode.TextDocument, selection: vscode.Selection, rootNode: HtmlNode): vscode.TextEdit {
-	let nodeToUpdate = <HtmlNode>getNode(rootNode, selection.start);
+function getRangesToReplace(document: vscode.TextDocument, nodeToUpdate: HtmlNode): vscode.TextEdit {
 	let rangeToReplace: vscode.Range;
 	let textToReplaceWith: string;
-
-	if (!nodeToUpdate) {
-		return;
-	}
 
 	if (!nodeToUpdate.close) {
 		// Split Tag

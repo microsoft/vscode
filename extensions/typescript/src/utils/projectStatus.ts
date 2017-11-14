@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
 import { loadMessageBundle } from 'vscode-nls';
 import { dirname } from 'path';
 import { openOrCreateConfigFile, isImplicitProjectConfigFile } from './tsconfig';
+import * as languageModeIds from '../utils/languageModeIds';
+import TelemetryReporter from './telemetry';
 
 const localize = loadMessageBundle();
-const selector = ['javascript', 'javascriptreact'];
+const selector = [languageModeIds.javascript, languageModeIds.javascriptreact];
 
 
 interface Hint {
@@ -26,11 +28,11 @@ const fileLimit = 500;
 class ExcludeHintItem {
 	public configFileName?: string;
 	private _item: vscode.StatusBarItem;
-	private _client: ITypescriptServiceClient;
 	private _currentHint: Hint;
 
-	constructor(client: ITypescriptServiceClient) {
-		this._client = client;
+	constructor(
+		private readonly telemetryReporter: TelemetryReporter
+	) {
 		this._item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, Number.MIN_VALUE);
 		this._item.command = 'js.projectStatus.command';
 	}
@@ -57,11 +59,11 @@ class ExcludeHintItem {
 		/* __GDPR__
 			"js.hintProjectExcludes" : {}
 		*/
-		this._client.logTelemetry('js.hintProjectExcludes');
+		this.telemetryReporter.logTelemetry('js.hintProjectExcludes');
 	}
 }
 
-function createLargeProjectMonitorForProject(item: ExcludeHintItem, client: ITypescriptServiceClient, isOpen: (path: string) => Promise<boolean>, memento: vscode.Memento): vscode.Disposable[] {
+function createLargeProjectMonitorForProject(item: ExcludeHintItem, client: ITypeScriptServiceClient, isOpen: (path: string) => Promise<boolean>, memento: vscode.Memento): vscode.Disposable[] {
 	const toDispose: vscode.Disposable[] = [];
 	const projectHinted: ProjectHintedMap = Object.create(null);
 
@@ -110,7 +112,7 @@ function createLargeProjectMonitorForProject(item: ExcludeHintItem, client: ITyp
 				}
 			});
 		}).catch(err => {
-			client.warn(err);
+			client.logger.warn(err);
 		});
 	}
 
@@ -124,7 +126,7 @@ function createLargeProjectMonitorForProject(item: ExcludeHintItem, client: ITyp
 	return toDispose;
 }
 
-function createLargeProjectMonitorFromTypeScript(item: ExcludeHintItem, client: ITypescriptServiceClient): vscode.Disposable {
+function createLargeProjectMonitorFromTypeScript(item: ExcludeHintItem, client: ITypeScriptServiceClient): vscode.Disposable {
 
 	interface LargeProjectMessageItem extends vscode.MessageItem {
 		index: number;
@@ -152,7 +154,10 @@ function createLargeProjectMonitorFromTypeScript(item: ExcludeHintItem, client: 
 	});
 }
 
-function onConfigureExcludesSelected(client: ITypescriptServiceClient, configFileName: string) {
+function onConfigureExcludesSelected(
+	client: ITypeScriptServiceClient,
+	configFileName: string
+) {
 	if (!isImplicitProjectConfigFile(configFileName)) {
 		vscode.workspace.openTextDocument(configFileName)
 			.then(vscode.window.showTextDocument);
@@ -161,15 +166,21 @@ function onConfigureExcludesSelected(client: ITypescriptServiceClient, configFil
 		if (root) {
 			openOrCreateConfigFile(
 				configFileName.match(/tsconfig\.?.*\.json/) !== null,
-				root);
+				root,
+				client.configuration);
 		}
 	}
 }
 
-export function create(client: ITypescriptServiceClient, isOpen: (path: string) => Promise<boolean>, memento: vscode.Memento) {
+export function create(
+	client: ITypeScriptServiceClient,
+	telemetryReporter: TelemetryReporter,
+	isOpen: (path: string) => Promise<boolean>,
+	memento: vscode.Memento
+) {
 	const toDispose: vscode.Disposable[] = [];
 
-	const item = new ExcludeHintItem(client);
+	const item = new ExcludeHintItem(telemetryReporter);
 	toDispose.push(vscode.commands.registerCommand('js.projectStatus.command', () => {
 		if (item.configFileName) {
 			onConfigureExcludesSelected(client, item.configFileName);
