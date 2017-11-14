@@ -78,14 +78,27 @@ export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRe
 	}
 
 	private instantiateByPhase(instantiationService: IInstantiationService, lifecycleService: ILifecycleService, phase: LifecyclePhase): void {
-		lifecycleService.when(phase).then(() => {
-			const toBeInstantiated = this.toBeInstantiated.get(phase);
-			if (toBeInstantiated) {
-				while (toBeInstantiated.length > 0) {
-					instantiationService.createInstance(toBeInstantiated.shift());
-				}
+
+		// Instantiate contributions directly when phase is already reached
+		if (lifecycleService.phase >= phase) {
+			this.doInstantiateByPhase(instantiationService, phase);
+		}
+
+		// Otherwise wait for phase to be reached
+		else {
+			lifecycleService.when(phase).then(() => {
+				this.doInstantiateByPhase(instantiationService, phase);
+			});
+		}
+	}
+
+	private doInstantiateByPhase(instantiationService: IInstantiationService, phase: LifecyclePhase): void {
+		const toBeInstantiated = this.toBeInstantiated.get(phase);
+		if (toBeInstantiated) {
+			while (toBeInstantiated.length > 0) {
+				instantiationService.createInstance(toBeInstantiated.shift());
 			}
-		});
+		}
 	}
 }
 
