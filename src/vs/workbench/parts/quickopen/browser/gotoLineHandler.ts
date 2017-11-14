@@ -20,7 +20,7 @@ import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { IRange } from 'vs/editor/common/core/range';
 import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 
 export const GOTO_LINE_PREFIX = ':';
 
@@ -43,7 +43,7 @@ export class GotoLineAction extends QuickOpenAction {
 
 		if (editor) {
 			const config = editor.getConfiguration();
-			if (config.viewInfo.renderLineNumbers && config.viewInfo.renderRelativeLineNumbers) {
+			if (config.viewInfo.renderLineNumbers === RenderLineNumbersType.Relative) {
 				editor.updateOptions({
 					lineNumbers: 'on'
 				});

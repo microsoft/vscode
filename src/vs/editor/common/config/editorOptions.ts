@@ -753,14 +753,20 @@ export interface EditorWrappingInfo {
 	readonly wordWrapBreakObtrusiveCharacters: string;
 }
 
+export const enum RenderLineNumbersType {
+	Off = 0,
+	On = 1,
+	Relative = 2,
+	Custom = 3
+}
+
 export interface InternalEditorViewOptions {
 	readonly extraEditorClassName: string;
 	readonly disableMonospaceOptimizations: boolean;
 	readonly rulers: number[];
 	readonly ariaLabel: string;
-	readonly renderLineNumbers: boolean;
+	readonly renderLineNumbers: RenderLineNumbersType;
 	readonly renderCustomLineNumbers: (lineNumber: number) => string;
-	readonly renderRelativeLineNumbers: boolean;
 	readonly selectOnLineNumbers: boolean;
 	readonly glyphMargin: boolean;
 	readonly revealHorizontalRightPadding: number;
@@ -1029,7 +1035,6 @@ export class InternalEditorOptions {
 			&& a.ariaLabel === b.ariaLabel
 			&& a.renderLineNumbers === b.renderLineNumbers
 			&& a.renderCustomLineNumbers === b.renderCustomLineNumbers
-			&& a.renderRelativeLineNumbers === b.renderRelativeLineNumbers
 			&& a.selectOnLineNumbers === b.selectOnLineNumbers
 			&& a.glyphMargin === b.glyphMargin
 			&& a.revealHorizontalRightPadding === b.revealHorizontalRightPadding
@@ -1558,9 +1563,8 @@ export class EditorOptionsValidator {
 			rulers.sort();
 		}
 
-		let renderLineNumbers: boolean = defaults.renderLineNumbers;
+		let renderLineNumbers: RenderLineNumbersType = defaults.renderLineNumbers;
 		let renderCustomLineNumbers: (lineNumber: number) => string = defaults.renderCustomLineNumbers;
-		let renderRelativeLineNumbers: boolean = defaults.renderRelativeLineNumbers;
 
 		if (typeof opts.lineNumbers !== 'undefined') {
 			let lineNumbers = opts.lineNumbers;
@@ -1573,21 +1577,14 @@ export class EditorOptionsValidator {
 			}
 
 			if (typeof lineNumbers === 'function') {
-				renderLineNumbers = true;
+				renderLineNumbers = RenderLineNumbersType.Custom;
 				renderCustomLineNumbers = lineNumbers;
-				renderRelativeLineNumbers = false;
 			} else if (lineNumbers === 'relative') {
-				renderLineNumbers = true;
-				renderCustomLineNumbers = null;
-				renderRelativeLineNumbers = true;
+				renderLineNumbers = RenderLineNumbersType.Relative;
 			} else if (lineNumbers === 'on') {
-				renderLineNumbers = true;
-				renderCustomLineNumbers = null;
-				renderRelativeLineNumbers = false;
+				renderLineNumbers = RenderLineNumbersType.On;
 			} else {
-				renderLineNumbers = false;
-				renderCustomLineNumbers = null;
-				renderRelativeLineNumbers = false;
+				renderLineNumbers = RenderLineNumbersType.Off;
 			}
 		}
 
@@ -1627,7 +1624,6 @@ export class EditorOptionsValidator {
 			ariaLabel: _string(opts.ariaLabel, defaults.ariaLabel),
 			renderLineNumbers: renderLineNumbers,
 			renderCustomLineNumbers: renderCustomLineNumbers,
-			renderRelativeLineNumbers: renderRelativeLineNumbers,
 			selectOnLineNumbers: _boolean(opts.selectOnLineNumbers, defaults.selectOnLineNumbers),
 			glyphMargin: _boolean(opts.glyphMargin, defaults.glyphMargin),
 			revealHorizontalRightPadding: _clampedInt(opts.revealHorizontalRightPadding, defaults.revealHorizontalRightPadding, 0, 1000),
@@ -1730,7 +1726,6 @@ export class InternalEditorOptionsFactory {
 				ariaLabel: (accessibilityIsOff ? nls.localize('accessibilityOffAriaLabel', "The editor is not accessible at this time. Press Alt+F1 for options.") : opts.viewInfo.ariaLabel),
 				renderLineNumbers: opts.viewInfo.renderLineNumbers,
 				renderCustomLineNumbers: opts.viewInfo.renderCustomLineNumbers,
-				renderRelativeLineNumbers: opts.viewInfo.renderRelativeLineNumbers,
 				selectOnLineNumbers: opts.viewInfo.selectOnLineNumbers,
 				glyphMargin: opts.viewInfo.glyphMargin,
 				revealHorizontalRightPadding: opts.viewInfo.revealHorizontalRightPadding,
@@ -1822,7 +1817,7 @@ export class InternalEditorOptionsFactory {
 			outerHeight: env.outerHeight,
 			showGlyphMargin: opts.viewInfo.glyphMargin,
 			lineHeight: env.fontInfo.lineHeight,
-			showLineNumbers: opts.viewInfo.renderLineNumbers,
+			showLineNumbers: (opts.viewInfo.renderLineNumbers !== RenderLineNumbersType.Off),
 			lineNumbersMinChars: opts.lineNumbersMinChars,
 			lineNumbersDigitCount: env.lineNumbersDigitCount,
 			lineDecorationsWidth: lineDecorationsWidth,
@@ -2152,9 +2147,8 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		disableMonospaceOptimizations: false,
 		rulers: [],
 		ariaLabel: nls.localize('editorViewAccessibleLabel', "Editor content"),
-		renderLineNumbers: true,
+		renderLineNumbers: RenderLineNumbersType.On,
 		renderCustomLineNumbers: null,
-		renderRelativeLineNumbers: false,
 		selectOnLineNumbers: true,
 		glyphMargin: true,
 		revealHorizontalRightPadding: 30,

@@ -340,6 +340,20 @@ enum ScrollType {
 
 /**
  * @internal
+ * --------------------------------------------
+ * This is repeated here so it can be exported
+ * because TS inlines const enums
+ * --------------------------------------------
+ */
+enum RenderLineNumbersType {
+	Off = 0,
+	On = 1,
+	Relative = 2,
+	Custom = 3
+}
+
+/**
+ * @internal
  */
 export function createMonacoEditorAPI(): typeof monaco.editor {
 	return {
@@ -384,6 +398,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		OverlayWidgetPositionPreference: OverlayWidgetPositionPreference,
 		RenderMinimap: editorOptions.RenderMinimap,
 		ScrollType: <any>ScrollType,
+		RenderLineNumbersType: <any>RenderLineNumbersType,
 
 		// classes
 		InternalEditorOptions: <any>editorOptions.InternalEditorOptions,

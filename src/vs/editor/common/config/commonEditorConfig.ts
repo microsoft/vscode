@@ -204,8 +204,13 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.lineNumbers': {
 			'type': 'string',
 			'enum': ['off', 'on', 'relative'],
+			'enumDescriptions': [
+				nls.localize('lineNumbers.off', "Line numbers are not rendered."),
+				nls.localize('lineNumbers.on', "Line numbers are rendered as absolute number."),
+				nls.localize('lineNumbers.relative', "Line numbers are rendered as distance in lines to cursor position.")
+			],
 			'default': 'on',
-			'description': nls.localize('lineNumbers', "Controls the display of line numbers. Possible values are 'on', 'off', and 'relative'. 'relative' shows the line count from the current cursor position.")
+			'description': nls.localize('lineNumbers', "Controls the display of line numbers. Possible values are 'on', 'off', and 'relative'.")
 		},
 		'editor.rulers': {
 			'type': 'array',
