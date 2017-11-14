@@ -165,13 +165,13 @@ function validateTextDocument(textDocument: TextDocument): void {
 connection.onCompletion(textDocumentPosition => {
 	let document = documents.get(textDocumentPosition.textDocument.uri);
 	let stylesheet = stylesheets.get(document);
-	return getLanguageService(document).doComplete(document, textDocumentPosition.position, stylesheet);
+	return getLanguageService(document).doComplete(document, textDocumentPosition.position, stylesheet)!; /* TODO: remove ! once LS has null annotations */
 });
 
 connection.onHover(textDocumentPosition => {
 	let document = documents.get(textDocumentPosition.textDocument.uri);
 	let styleSheet = stylesheets.get(document);
-	return getLanguageService(document).doHover(document, textDocumentPosition.position, styleSheet);
+	return getLanguageService(document).doHover(document, textDocumentPosition.position, styleSheet)!; /* TODO: remove ! once LS has null annotations */
 });
 
 connection.onDocumentSymbol(documentSymbolParams => {

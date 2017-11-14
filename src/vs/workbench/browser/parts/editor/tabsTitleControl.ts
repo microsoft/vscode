@@ -64,7 +64,6 @@ export class TabsTitleControl extends TitleControl {
 	private tabDisposeables: IDisposable[];
 	private blockRevealActiveTab: boolean;
 	private dimension: Dimension;
-	private editorToolbarWidth: number;
 
 	constructor(
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -87,7 +86,6 @@ export class TabsTitleControl extends TitleControl {
 
 		this.tabDisposeables = [];
 		this.editorLabels = [];
-		this.editorToolbarWidth = 0;
 	}
 
 	protected initActions(services: IInstantiationService): void {
@@ -541,25 +539,6 @@ export class TabsTitleControl extends TitleControl {
 		return tabContainer;
 	}
 
-	public updateEditorActionsToolbar(): void {
-		super.updateEditorActionsToolbar();
-
-		this.editorToolbarWidth = this.getElementWidth(this.editorToolbarContainer);
-	}
-
-	protected clearEditorActionsToolbar(): void {
-		super.clearEditorActionsToolbar();
-
-		this.editorToolbarWidth = this.getElementWidth(this.editorToolbarContainer);
-	}
-
-	private getElementWidth(element: HTMLElement): number {
-		// We are using getBoundingClientRect() over offsetWidth for a reason: only the former will return subpixel sizes
-		// whereas the other (offsetWidth) will round the value to the nearest number. For our layout code we really need
-		// the sizes with their fractions to not cause rounding issues.
-		return element.getBoundingClientRect().width;
-	}
-
 	public layout(dimension: Dimension): void {
 		if (!this.activeTab || !dimension) {
 			return;
@@ -567,7 +546,7 @@ export class TabsTitleControl extends TitleControl {
 
 		this.dimension = dimension;
 
-		const visibleContainerWidth = this.dimension.width - this.editorToolbarWidth;
+		const visibleContainerWidth = this.tabsContainer.offsetWidth;
 		const totalContainerWidth = this.tabsContainer.scrollWidth;
 
 		// Update scrollbar

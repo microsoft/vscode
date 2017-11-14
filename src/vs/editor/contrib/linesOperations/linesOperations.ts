@@ -154,10 +154,15 @@ abstract class AbstractSortLinesAction extends EditorAction {
 			return;
 		}
 
-		var command = new SortLinesCommand(editor.getSelection(), this.descending);
+		var commands: ICommand[] = [];
+		var selections = editor.getSelections();
+
+		for (var i = 0; i < selections.length; i++) {
+			commands.push(new SortLinesCommand(selections[i], this.descending));
+		}
 
 		editor.pushUndoStop();
-		editor.executeCommands(this.id, [command]);
+		editor.executeCommands(this.id, commands);
 		editor.pushUndoStop();
 	}
 }

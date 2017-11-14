@@ -31,7 +31,7 @@ class OpenSCMViewletAction extends ToggleViewletAction {
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(DirtyDiffWorkbenchController, LifecyclePhase.Starting);
+	.registerWorkbenchContribution(DirtyDiffWorkbenchController, LifecyclePhase.Running);
 
 const viewletDescriptor = new ViewletDescriptor(
 	SCMViewlet,
@@ -45,10 +45,10 @@ Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets)
 	.registerViewlet(viewletDescriptor);
 
 Registry.as(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(StatusUpdater, LifecyclePhase.Starting);
+	.registerWorkbenchContribution(StatusUpdater, LifecyclePhase.Running);
 
 Registry.as(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(StatusBarController, LifecyclePhase.Starting);
+	.registerWorkbenchContribution(StatusBarController, LifecyclePhase.Running);
 
 // Register Action to Open Viewlet
 Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions).registerWorkbenchAction(

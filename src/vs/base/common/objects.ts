@@ -206,34 +206,6 @@ export function createKeywordMatcher(arr: string[], caseInsensitive: boolean = f
 }
 
 /**
- * Started from TypeScript's __extends function to make a type a subclass of a specific class.
- * Modified to work with properties already defined on the derivedClass, since we can't get TS
- * to call this method before the constructor definition.
- */
-export function derive(baseClass: any, derivedClass: any): void {
-	for (let prop in baseClass) {
-		if (baseClass.hasOwnProperty(prop)) {
-			derivedClass[prop] = baseClass[prop];
-		}
-	}
-
-	derivedClass = derivedClass || function () { };
-	const basePrototype = baseClass.prototype;
-	const derivedPrototype = derivedClass.prototype;
-	derivedClass.prototype = Object.create(basePrototype);
-
-	for (let prop in derivedPrototype) {
-		if (derivedPrototype.hasOwnProperty(prop)) {
-			// handle getters and setters properly
-			Object.defineProperty(derivedClass.prototype, prop, Object.getOwnPropertyDescriptor(derivedPrototype, prop));
-		}
-	}
-
-	// Cast to any due to Bug 16188:PropertyDescriptor set and get function should be optional.
-	Object.defineProperty(derivedClass.prototype, 'constructor', { value: derivedClass, writable: true, configurable: true, enumerable: true });
-}
-
-/**
  * Calls JSON.Stringify with a replacer to break apart any circular references.
  * This prevents JSON.stringify from throwing the exception
  *  "Uncaught TypeError: Converting circular structure to JSON"
