@@ -5708,9 +5708,9 @@ vinyl@~2.0.1:
     remove-trailing-separator "^1.0.1"
     replace-ext "^1.0.0"
 
-vsce@^1.33.0:
-  version "1.33.0"
-  resolved "https://registry.yarnpkg.com/vsce/-/vsce-1.33.0.tgz#bee4025dcf1c8365f6da439aaff450a823407814"
+vsce@1.33.1:
+  version "1.33.1"
+  resolved "https://registry.yarnpkg.com/vsce/-/vsce-1.33.1.tgz#0c49422e2f5bed7a1947a442a4566595af08a810"
   dependencies:
     cheerio "^1.0.0-rc.1"
     commander "^2.8.1"
