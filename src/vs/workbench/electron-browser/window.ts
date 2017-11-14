@@ -242,8 +242,13 @@ export class ElectronWindow extends Themable {
 			browser.setAccessibilitySupport(accessibilitySupportEnabled ? platform.AccessibilitySupport.Enabled : platform.AccessibilitySupport.Disabled);
 		});
 
-		// Configuration changes
-		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.onDidUpdateConfiguration(e)));
+		// Zoom level changes
+		this.updateWindowZoomLevel();
+		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('window.zoomLevel')) {
+				this.updateWindowZoomLevel();
+			}
+		}));
 
 		// Context menu support in input/textarea
 		window.document.addEventListener('contextmenu', e => this.onContextMenu(e));
@@ -264,10 +269,7 @@ export class ElectronWindow extends Themable {
 		}
 	}
 
-	private onDidUpdateConfiguration(event: IConfigurationChangeEvent): void {
-		if (!event.affectsConfiguration('window.zoomLevel')) {
-			return;
-		}
+	private updateWindowZoomLevel(): void {
 
 		const windowConfig: IWindowsConfiguration = this.configurationService.getValue<IWindowsConfiguration>();
 
