@@ -957,12 +957,15 @@ export class DebugService implements debug.IDebugService {
 				return TPromise.wrapError(errors.create(nls.localize('DebugTaskNotFound', "Could not find the preLaunchTask \'{0}\'.", taskName)));
 			}
 
+			// If a task is missing the problem matcher the promise will never complete, so we need to have a workaround #35340
+			let taskStarted = false;
 			const promise = this.taskService.getActiveTasks().then(tasks => {
 				if (tasks.filter(t => t._id === task._id).length) {
 					// task is already running - nothing to do.
 					return TPromise.as(null);
 				}
 
+				this.toDispose.push(this.taskService.addOneTimeListener(TaskServiceEvents.Active, () => taskStarted = true));
 				const taskPromise = this.taskService.run(task);
 				if (task.isBackground) {
 					return new TPromise((c, e) => this.toDispose.push(this.taskService.addOneTimeListener(TaskServiceEvents.Inactive, () => c(null))));
@@ -972,14 +975,11 @@ export class DebugService implements debug.IDebugService {
 			});
 
 			return new TPromise((c, e) => {
-				// If a task is missing the problem matcher the promise will never complete, so we need to have a workaround #35340
-				let taskStarted = false;
 				promise.then(result => {
 					taskStarted = true;
 					c(result);
 				}, error => e(error));
 
-				this.toDispose.push(this.taskService.addOneTimeListener(TaskServiceEvents.Active, () => taskStarted = true));
 				setTimeout(() => {
 					if (!taskStarted) {
 						e({ severity: severity.Error, message: nls.localize('taskNotTracked', "The preLaunchTask '{0}' cannot be tracked.", taskName) });
