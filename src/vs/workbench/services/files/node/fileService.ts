@@ -11,13 +11,12 @@ import os = require('os');
 import crypto = require('crypto');
 import assert = require('assert');
 
-import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, MAX_FILE_SIZE, FileChangesEvent, ICreateFileOptions } from 'vs/platform/files/common/files';
+import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, MAX_FILE_SIZE, FileChangesEvent, ICreateFileOptions, IContentData } from 'vs/platform/files/common/files';
 import { isEqualOrParent } from 'vs/base/common/paths';
 import { ResourceMap } from 'vs/base/common/map';
 import arrays = require('vs/base/common/arrays');
 import baseMime = require('vs/base/common/mime');
 import { TPromise } from 'vs/base/common/winjs.base';
-import types = require('vs/base/common/types');
 import objects = require('vs/base/common/objects');
 import extfs = require('vs/base/node/extfs');
 import { nfcall, ThrottledDelayer } from 'vs/base/common/async';
@@ -26,10 +25,9 @@ import nls = require('vs/nls');
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-
 import pfs = require('vs/base/node/pfs');
 import encoding = require('vs/base/node/encoding');
-import { detectMimesFromFile } from 'vs/base/node/mime';
+import { detectMimeAndEncodingFromBuffer, IMimeAndEncoding } from 'vs/base/node/mime';
 import flow = require('vs/base/node/flow');
 import { FileWatcher as UnixWatcherService } from 'vs/workbench/services/files/node/watcher/unix/watcherService';
 import { FileWatcher as WindowsWatcherService } from 'vs/workbench/services/files/node/watcher/win32/watcherService';
@@ -38,6 +36,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { FileWatcher as NsfwWatcherService } from 'vs/workbench/services/files/node/watcher/nsfw/watcherService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 export interface IEncodingOverride {
@@ -200,15 +199,28 @@ export class FileService implements IFileService {
 	}
 
 	public resolveContent(resource: uri, options?: IResolveContentOptions): TPromise<IContent> {
-		return this.doResolveContent(resource, options, (stat, enc) => this.resolveFileContent(stat, enc));
+		return this.resolveStreamContent(resource, options).then(streamContent => {
+			return new TPromise<IContent>((resolve, reject) => {
+
+				const result: IContent = {
+					resource: streamContent.resource,
+					name: streamContent.name,
+					mtime: streamContent.mtime,
+					etag: streamContent.etag,
+					encoding: streamContent.encoding,
+					value: ''
+				};
+
+				streamContent.value.on('data', chunk => result.value += chunk);
+				streamContent.value.on('error', err => reject(err));
+				streamContent.value.on('end', _ => resolve(result));
+
+				return result;
+			});
+		});
 	}
 
 	public resolveStreamContent(resource: uri, options?: IResolveContentOptions): TPromise<IStreamContent> {
-		return this.doResolveContent(resource, options, (stat, enc) => this.resolveFileStreamContent(stat, enc));
-	}
-
-	private doResolveContent<IStreamContent>(resource: uri, options: IResolveContentOptions, contentResolver: (stat: IFileStat, enc?: string) => TPromise<IStreamContent>): TPromise<IStreamContent> {
-		const absolutePath = this.toAbsolutePath(resource);
 
 		// Guard early against attempts to resolve an invalid file path
 		if (resource.scheme !== 'file' || !resource.fsPath) {
@@ -218,83 +230,222 @@ export class FileService implements IFileService {
 			));
 		}
 
-		// 1.) resolve resource
-		return this.resolve(resource).then((model): TPromise<IStreamContent> => {
+		const result: IStreamContent = {
+			resource: undefined,
+			name: undefined,
+			mtime: undefined,
+			etag: undefined,
+			encoding: undefined,
+			value: undefined
+		};
+
+		const contentResolverToken = new CancellationTokenSource();
+
+		const onStatError = error => {
+
+			// error: stop reading the file the stat and content resolve call
+			// usually race, mostly likely the stat call will win and cancel
+			// the content call
+			contentResolverToken.cancel();
+
+			// forward error
+			return TPromise.wrapError(error);
+		};
+
+		const statsPromise = this.resolveFile(resource).then(stat => {
+			result.resource = stat.resource;
+			result.name = stat.name;
+			result.mtime = stat.mtime;
+			result.etag = stat.etag;
 
 			// Return early if resource is a directory
-			if (model.isDirectory) {
-				return TPromise.wrapError<IStreamContent>(new FileOperationError(
+			if (stat.isDirectory) {
+				return onStatError(new FileOperationError(
 					nls.localize('fileIsDirectoryError', "File is directory"),
 					FileOperationResult.FILE_IS_DIRECTORY
 				));
 			}
 
 			// Return early if file not modified since
-			if (options && options.etag && options.etag === model.etag) {
-				return TPromise.wrapError<IStreamContent>(new FileOperationError(nls.localize('fileNotModifiedError', "File not modified since"), FileOperationResult.FILE_NOT_MODIFIED_SINCE));
+			if (options && options.etag && options.etag === stat.etag) {
+				return onStatError(new FileOperationError(
+					nls.localize('fileNotModifiedError', "File not modified since"),
+					FileOperationResult.FILE_NOT_MODIFIED_SINCE
+				));
 			}
 
 			// Return early if file is too large to load
-			if (types.isNumber(model.size) && model.size > MAX_FILE_SIZE) {
-				return TPromise.wrapError<IStreamContent>(new FileOperationError(nls.localize('fileTooLargeError', "File too large to open"), FileOperationResult.FILE_TOO_LARGE));
+			if (typeof stat.size === 'number' && stat.size > MAX_FILE_SIZE) {
+				return onStatError(new FileOperationError(
+					nls.localize('fileTooLargeError', "File too large to open"),
+					FileOperationResult.FILE_TOO_LARGE
+				));
 			}
 
-			// 2.) detect mimes
-			const autoGuessEncoding = (options && options.autoGuessEncoding) || this.configuredAutoGuessEncoding(resource);
-			return detectMimesFromFile(absolutePath, { autoGuessEncoding }).then(detected => {
-				const isText = detected.mimes.indexOf(baseMime.MIME_BINARY) === -1;
+			return undefined;
+		}, err => {
 
-				// Return error early if client only accepts text and this is not text
-				if (options && options.acceptTextOnly && !isText) {
-					return TPromise.wrapError<IStreamContent>(new FileOperationError(
-						nls.localize('fileBinaryError', "File seems to be binary and cannot be opened as text"),
-						FileOperationResult.FILE_IS_BINARY
-					));
-				}
+			// Wrap file not found errors
+			if (err.code === 'ENOENT') {
+				return onStatError(new FileOperationError(
+					nls.localize('fileNotFoundError', "File not found ({0})", resource.toString(true)),
+					FileOperationResult.FILE_NOT_FOUND
+				));
+			}
 
-				let preferredEncoding: string;
-				if (options && options.encoding) {
-					if (detected.encoding === encoding.UTF8 && options.encoding === encoding.UTF8) {
-						preferredEncoding = encoding.UTF8_with_bom; // indicate the file has BOM if we are to resolve with UTF 8
-					} else {
-						preferredEncoding = options.encoding; // give passed in encoding highest priority
-					}
-				} else if (detected.encoding) {
-					if (detected.encoding === encoding.UTF8) {
-						preferredEncoding = encoding.UTF8_with_bom; // if we detected UTF-8, it can only be because of a BOM
-					} else {
-						preferredEncoding = detected.encoding;
-					}
-				} else if (this.configuredEncoding(resource) === encoding.UTF8_with_bom) {
-					preferredEncoding = encoding.UTF8; // if we did not detect UTF 8 BOM before, this can only be UTF 8 then
-				}
+			return onStatError(err);
+		});
 
-				// 3.) get content
-				return contentResolver(model, preferredEncoding);
+		let completePromise: Thenable<any>;
+
+		// await the stat iff we already have an etag so that we compare the
+		// etag from the stat before we actually read the file again.
+		if (options && options.etag) {
+			completePromise = statsPromise.then(() => {
+				return this.fillInContents(result, resource, options, contentResolverToken.token); // Waterfall -> only now resolve the contents
 			});
-		}, error => {
+		}
 
-			// bubble up existing file operation results
-			if (!types.isUndefinedOrNull((<FileOperationError>error).fileOperationResult)) {
-				return TPromise.wrapError<IStreamContent>(error);
-			}
+		// a fresh load without a previous etag which means we can resolve the file stat
+		// and the content at the same time, avoiding the waterfall.
+		else {
+			completePromise = Promise.all([statsPromise, this.fillInContents(result, resource, options, contentResolverToken.token)]);
+		}
 
-			// check if the file does not exist
-			return pfs.exists(absolutePath).then(exists => {
+		return TPromise.wrap(completePromise).then(() => result);
+	}
 
-				// Return if file not found
-				if (!exists) {
-					return TPromise.wrapError<IStreamContent>(new FileOperationError(
-						nls.localize('fileNotFoundError', "File not found ({0})", resource.toString(true)),
-						FileOperationResult.FILE_NOT_FOUND
-					));
+	private fillInContents(content: IStreamContent, resource: uri, options: IResolveContentOptions, token: CancellationToken): Thenable<any> {
+		return this.resolveFileData(resource, options, token).then(data => {
+			content.encoding = data.encoding;
+			content.value = data.stream;
+		});
+	}
+
+	//#region data stream
+
+	private static chunkSize = 64 * 1024;
+	private static chunkBuffer = Buffer.allocUnsafe(FileService.chunkSize);
+
+	private resolveFileData(resource: uri, options: IResolveContentOptions, token: CancellationToken): Thenable<IContentData> {
+		const result: IContentData = {
+			encoding: undefined,
+			stream: undefined,
+		};
+
+		return new Promise<IContentData>((resolve, reject) => {
+			fs.open(this.toAbsolutePath(resource), 'r', (err, fd) => {
+				if (err) {
+					if (err.code === 'ENOENT') {
+						// Wrap file not found errors
+						err = new FileOperationError(
+							nls.localize('fileNotFoundError', "File not found ({0})", resource.toString(true)),
+							FileOperationResult.FILE_NOT_FOUND
+						);
+					}
+
+					return reject(err);
 				}
 
-				// otherwise just give up
-				return TPromise.wrapError<IStreamContent>(error);
+				let decoder: NodeJS.ReadWriteStream;
+				let totalBytesRead = 0;
+
+				const finish = (err?: any) => {
+
+					if (err) {
+						if (err.code === 'EISDIR') {
+							// Wrap EISDIR errors (fs.open on a directory works, but you cannot read from it)
+							err = new FileOperationError(
+								nls.localize('fileIsDirectoryError', "File is directory"),
+								FileOperationResult.FILE_IS_DIRECTORY
+							);
+						}
+						if (decoder) {
+							// If the decoder already started, we have to emit the error through it as
+							// event because the promise is already resolved!
+							decoder.emit('error', err);
+						} else {
+							reject(err);
+						}
+					}
+					if (decoder) {
+						decoder.end();
+					}
+					if (fd) {
+						fs.close(fd, err => { });
+					}
+				};
+
+				const handleChunk = (bytesRead) => {
+					if (token.isCancellationRequested) {
+						// cancellation
+						finish(new Error('cancelled'));
+
+					} else if (bytesRead < FileService.chunkSize) {
+						// done, write rest, end
+						decoder.write(FileService.chunkBuffer.slice(0, bytesRead), finish);
+
+					} else {
+						// read, write, repeat
+						decoder.write(FileService.chunkBuffer, readChunk);
+					}
+				};
+
+				const readChunk = () => {
+					fs.read(fd, FileService.chunkBuffer, 0, FileService.chunkSize, null, (err, bytesRead) => {
+						totalBytesRead += bytesRead;
+
+						if (totalBytesRead > MAX_FILE_SIZE) {
+							// stop when reading too much
+							finish(new FileOperationError(
+								nls.localize('fileTooLargeError', "File too large to open"),
+								FileOperationResult.FILE_TOO_LARGE
+							));
+						} else if (err) {
+							// some error happened
+							finish(err);
+
+						} else if (decoder) {
+							// pass on to decoder
+							handleChunk(bytesRead);
+
+						} else {
+							// when receiving the first chunk of data we need to create the
+							// decoding stream which is then used to drive the string stream.
+							Promise.resolve(detectMimeAndEncodingFromBuffer(
+								{ buffer: FileService.chunkBuffer, bytesRead },
+								options && options.autoGuessEncoding || this.configuredAutoGuessEncoding(resource)
+							)).then(value => {
+
+								if (options && options.acceptTextOnly && value.mimes.indexOf(baseMime.MIME_BINARY) >= 0) {
+									// Return error early if client only accepts text and this is not text
+									finish(new FileOperationError(
+										nls.localize('fileBinaryError', "File seems to be binary and cannot be opened as text"),
+										FileOperationResult.FILE_IS_BINARY
+									));
+
+								} else {
+									result.encoding = this.getEncoding(resource, this.getPeferredEncoding(resource, options, value));
+									result.stream = decoder = encoding.decodeStream(result.encoding);
+									resolve(result);
+									handleChunk(bytesRead);
+								}
+
+							}).catch(err => {
+								// failed to get encoding
+								finish(err);
+							});
+						}
+					});
+				};
+
+				// start reading
+				readChunk();
 			});
 		});
 	}
+
+	//#endregion
 
 	public updateContent(resource: uri, value: string, options: IUpdateContentOptions = Object.create(null)): TPromise<IFileStat> {
 		const absolutePath = this.toAbsolutePath(resource);
@@ -582,53 +733,24 @@ export class FileService implements IFileService {
 		});
 	}
 
-	private resolveFileStreamContent(model: IFileStat, enc?: string): TPromise<IStreamContent> {
-
-		// Return early if file is too large to load
-		if (types.isNumber(model.size) && model.size > MAX_FILE_SIZE) {
-			return TPromise.wrapError<IStreamContent>(new FileOperationError(nls.localize('fileTooLargeError', "File too large to open"), FileOperationResult.FILE_TOO_LARGE));
+	private getPeferredEncoding(resource: uri, options: IResolveContentOptions, detected: IMimeAndEncoding): string {
+		let preferredEncoding: string;
+		if (options && options.encoding) {
+			if (detected.encoding === encoding.UTF8 && options.encoding === encoding.UTF8) {
+				preferredEncoding = encoding.UTF8_with_bom; // indicate the file has BOM if we are to resolve with UTF 8
+			} else {
+				preferredEncoding = options.encoding; // give passed in encoding highest priority
+			}
+		} else if (detected.encoding) {
+			if (detected.encoding === encoding.UTF8) {
+				preferredEncoding = encoding.UTF8_with_bom; // if we detected UTF-8, it can only be because of a BOM
+			} else {
+				preferredEncoding = detected.encoding;
+			}
+		} else if (this.configuredEncoding(resource) === encoding.UTF8_with_bom) {
+			preferredEncoding = encoding.UTF8; // if we did not detect UTF 8 BOM before, this can only be UTF 8 then
 		}
-
-		const absolutePath = this.toAbsolutePath(model);
-		const fileEncoding = this.getEncoding(model.resource, enc);
-
-		const reader = fs.createReadStream(absolutePath).pipe(encoding.decodeStream(fileEncoding)); // decode takes care of stripping any BOMs from the file content
-
-		const content = model as IFileStat & IStreamContent;
-		content.value = reader;
-		content.encoding = fileEncoding; // make sure to store the encoding in the model to restore it later when writing
-
-		return TPromise.as(content);
-	}
-
-	private resolveFileContent(model: IFileStat, enc?: string): TPromise<IContent> {
-		return this.resolveFileStreamContent(model, enc).then(streamContent => {
-			return new TPromise<IContent>((c, e) => {
-				let done = false;
-				const chunks: string[] = [];
-
-				streamContent.value.on('data', buf => {
-					chunks.push(buf);
-				});
-
-				streamContent.value.on('error', error => {
-					if (!done) {
-						done = true;
-						e(error);
-					}
-				});
-
-				streamContent.value.on('end', () => {
-					const content: IContent = <any>streamContent;
-					content.value = chunks.join('');
-
-					if (!done) {
-						done = true;
-						c(content);
-					}
-				});
-			});
-		});
+		return preferredEncoding;
 	}
 
 	public getEncoding(resource: uri, preferredEncoding?: string): string {
