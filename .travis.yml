@@ -47,6 +47,8 @@ before_install:
 
 install:
   - ./scripts/npm.sh install
+  # Fail the build early if dependencies aren't shrinkwrapped correctly
+  - ./scripts/npm.sh ls --depth=Infinity
 
 script:
   - node_modules/.bin/gulp hygiene
