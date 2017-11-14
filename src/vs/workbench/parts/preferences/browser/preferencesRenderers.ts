@@ -560,7 +560,6 @@ export class HiddenAreasRenderer extends Disposable {
 
 export class FeedbackWidgetRenderer extends Disposable {
 	private static DEFAULT_COMMENT_TEXT = 'Replace this comment with any text feedback.';
-	private static DEFAULT_ALTS = ['alt 1', 'alt 2'];
 	private static INSTRUCTION_TEXT = [
 		'// Modify the "resultScores" section to contain only your expected results. Assign scores to indicate their relevance.',
 		'// Results present in "resultScores" will be automatically "boosted" for this query, if they are not already at the top of the result set.',
@@ -614,7 +613,7 @@ export class FeedbackWidgetRenderer extends Disposable {
 		actualResultNames.forEach(settingKey => {
 			feedbackQuery['resultScores'][settingKey] = 10;
 		});
-		feedbackQuery['alts'] = [FeedbackWidgetRenderer.DEFAULT_ALTS];
+		feedbackQuery['alts'] = [];
 
 		const contents = FeedbackWidgetRenderer.INSTRUCTION_TEXT + '\n' + JSON.stringify(feedbackQuery, undefined, '    ');
 		this.editorService.openEditor({ contents, language: 'json' }, /*sideBySide=*/true).then(feedbackEditor => {
@@ -652,7 +651,7 @@ export class FeedbackWidgetRenderer extends Disposable {
 			return TPromise.wrapError(new Error('alts must be an array of 2-element string arrays'));
 		}
 
-		const altsAdded = expectedQuery.alts && expectedQuery.alts[0] && (expectedQuery.alts[0][0] !== FeedbackWidgetRenderer.DEFAULT_ALTS[0] || expectedQuery.alts[0][1] !== FeedbackWidgetRenderer.DEFAULT_ALTS[1]);
+		const altsAdded = expectedQuery.alts && expectedQuery.alts.length;
 		const alts = altsAdded ? expectedQuery.alts : undefined;
 		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
 		const autoIngest = workbenchSettings.experimentalFuzzySearchAutoIngestFeedback;
