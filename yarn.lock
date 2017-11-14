@@ -29,10 +29,6 @@
   version "8.0.51"
   resolved "https://registry.yarnpkg.com/@types/node/-/node-8.0.51.tgz#b31d716fb8d58eeb95c068a039b9b6292817d5fb"
 
-"@types/semver@5.3.30":
-  version "5.3.30"
-  resolved "https://registry.yarnpkg.com/@types/semver/-/semver-5.3.30.tgz#b55a3bd07b6b8b35f9d4472e1fc3318b68a493b2"
-
 "@types/sinon@1.16.34":
   version "1.16.34"
   resolved "https://registry.yarnpkg.com/@types/sinon/-/sinon-1.16.34.tgz#a9761fff33d0f7b3fe61875b577778a2576a9a03"
