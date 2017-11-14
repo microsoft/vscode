@@ -6,9 +6,9 @@
 
 import Event from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { isCommonCodeEditor, isCommonDiffEditor, IDecorationRenderOptions, IModelDecorationOptions, IModel } from 'vs/editor/common/editorCommon';
+import { IDecorationRenderOptions, IModelDecorationOptions, IModel } from 'vs/editor/common/editorCommon';
 import { IEditor } from 'vs/platform/editor/common/editor';
-import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IDiffEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 
 export const ICodeEditorService = createDecorator<ICodeEditorService>('codeEditorService');
 
@@ -51,16 +51,16 @@ export function getCodeOrDiffEditor(editor: IEditor): { codeEditor: ICodeEditor;
 	if (editor) {
 		let control = editor.getControl();
 		if (control) {
-			if (isCommonCodeEditor(control)) {
+			if (isCodeEditor(control)) {
 				return {
-					codeEditor: <ICodeEditor>control,
+					codeEditor: control,
 					diffEditor: null
 				};
 			}
-			if (isCommonDiffEditor(control)) {
+			if (isDiffEditor(control)) {
 				return {
 					codeEditor: null,
-					diffEditor: <IDiffEditor>control
+					diffEditor: control
 				};
 			}
 		}

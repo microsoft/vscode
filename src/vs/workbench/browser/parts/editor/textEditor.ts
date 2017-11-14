@@ -16,7 +16,7 @@ import DOM = require('vs/base/browser/dom');
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorViewState, IEditor, isCommonCodeEditor, isCommonDiffEditor } from 'vs/editor/common/editorCommon';
+import { IEditorViewState, IEditor } from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/platform/editor/common/editor';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -28,6 +28,7 @@ import { ITextFileService, SaveReason, AutoSaveMode } from 'vs/workbench/service
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { isDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 
 const TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
 
@@ -58,7 +59,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 	) {
 		super(id, telemetryService, themeService);
 
-		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.handleConfigurationChangeEvent(this.configurationService.getConfiguration<IEditorConfiguration>(this.getResource()))));
+		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.handleConfigurationChangeEvent(this.configurationService.getValue<IEditorConfiguration>(this.getResource()))));
 	}
 
 	protected get instantiationService(): IInstantiationService {
@@ -91,7 +92,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 	protected computeConfiguration(configuration: IEditorConfiguration): IEditorOptions {
 
 		// Specific editor options always overwrite user configuration
-		const editorConfiguration: IEditorOptions = types.isObject(configuration.editor) ? objects.clone(configuration.editor) : Object.create(null);
+		const editorConfiguration: IEditorOptions = types.isObject(configuration.editor) ? objects.deepClone(configuration.editor) : Object.create(null);
 		objects.assign(editorConfiguration, this.getConfigurationOverrides());
 
 		// ARIA label
@@ -126,7 +127,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 		// Editor for Text
 		this._editorContainer = parent;
-		this.editorControl = this.createEditorControl(parent, this.computeConfiguration(this.configurationService.getConfiguration<IEditorConfiguration>(this.getResource())));
+		this.editorControl = this.createEditorControl(parent, this.computeConfiguration(this.configurationService.getValue<IEditorConfiguration>(this.getResource())));
 
 		// Model & Language changes
 		const codeEditor = getCodeEditor(this);
@@ -136,9 +137,9 @@ export abstract class BaseTextEditor extends BaseEditor {
 		}
 
 		// Application & Editor focus change to respect auto save settings
-		if (isCommonCodeEditor(this.editorControl)) {
+		if (isCodeEditor(this.editorControl)) {
 			this.toUnbind.push(this.editorControl.onDidBlurEditor(() => this.onEditorFocusLost()));
-		} else if (isCommonDiffEditor(this.editorControl)) {
+		} else if (isDiffEditor(this.editorControl)) {
 			this.toUnbind.push(this.editorControl.getOriginalEditor().onDidBlurEditor(() => this.onEditorFocusLost()));
 			this.toUnbind.push(this.editorControl.getModifiedEditor().onDidBlurEditor(() => this.onEditorFocusLost()));
 		}
@@ -279,7 +280,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		return null;
 	}
 
-	private updateEditorConfiguration(configuration = this.configurationService.getConfiguration<IEditorConfiguration>(this.getResource())): void {
+	private updateEditorConfiguration(configuration = this.configurationService.getValue<IEditorConfiguration>(this.getResource())): void {
 		if (!this.editorControl) {
 			return;
 		}

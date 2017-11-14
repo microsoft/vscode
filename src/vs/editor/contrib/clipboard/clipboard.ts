@@ -12,10 +12,10 @@ import * as browser from 'vs/base/browser/browser';
 import * as platform from 'vs/base/common/platform';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import * as editorCommon from 'vs/editor/common/editorCommon';
 import { registerEditorAction, IActionOptions, EditorAction, ICommandKeybindingsOptions } from 'vs/editor/browser/editorExtensions';
 import { CopyOptions } from 'vs/editor/browser/controller/textAreaInput';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopypaste';
 
@@ -50,7 +50,7 @@ abstract class ExecCommandAction extends EditorAction {
 		document.execCommand(this.browserCommand);
 	}
 
-	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		editor.focus();
 		document.execCommand(this.browserCommand);
 	}
@@ -82,7 +82,7 @@ class ExecCommandCutAction extends ExecCommandAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const emptySelectionClipboard = editor.getConfiguration().emptySelectionClipboard;
 
 		if (!emptySelectionClipboard && editor.getSelection().isEmpty()) {
@@ -120,7 +120,7 @@ class ExecCommandCopyAction extends ExecCommandAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const emptySelectionClipboard = editor.getConfiguration().emptySelectionClipboard;
 
 		if (!emptySelectionClipboard && editor.getSelection().isEmpty()) {
@@ -174,7 +174,7 @@ class ExecCommandCopyWithSyntaxHighlightingAction extends ExecCommandAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const emptySelectionClipboard = editor.getConfiguration().emptySelectionClipboard;
 
 		if (!emptySelectionClipboard && editor.getSelection().isEmpty()) {

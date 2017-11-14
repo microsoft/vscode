@@ -28,8 +28,8 @@ export class RequestService implements IRequestService {
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		this.configure(configurationService.getConfiguration<IHTTPConfiguration>());
-		configurationService.onDidChangeConfiguration(() => this.configure(configurationService.getConfiguration()), this, this.disposables);
+		this.configure(configurationService.getValue<IHTTPConfiguration>());
+		configurationService.onDidChangeConfiguration(() => this.configure(configurationService.getValue()), this, this.disposables);
 	}
 
 	private configure(config: IHTTPConfiguration) {

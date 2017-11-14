@@ -9,10 +9,11 @@ import { Range } from 'vs/editor/common/core/range';
 import { TextEdit } from 'vs/editor/common/modes';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Selection } from 'vs/editor/common/core/selection';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class EditOperationsCommand implements editorCommon.ICommand {
 
-	static execute(editor: editorCommon.ICommonCodeEditor, edits: TextEdit[]) {
+	static execute(editor: ICodeEditor, edits: TextEdit[]) {
 		const cmd = new EditOperationsCommand(edits, editor.getSelection());
 		if (typeof cmd._newEol === 'number') {
 			editor.getModel().setEOL(cmd._newEol);

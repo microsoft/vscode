@@ -8,8 +8,8 @@
     "node": "*"
   },
   "dependencies": {
-    "vscode-css-languageservice": "3.0.0",
-    "vscode-languageserver": "3.5.0-next.6"
+    "vscode-css-languageservice": "^3.0.1",
+    "vscode-languageserver": "^3.5.0"
   },
   "devDependencies": {
     "@types/node": "7.0.43"

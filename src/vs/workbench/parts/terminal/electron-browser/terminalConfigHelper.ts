@@ -15,6 +15,7 @@ import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShellLau
 import { TPromise } from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
 import { isFedora } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { deepClone } from 'vs/base/common/objects';
 
 interface IEditorConfiguration {
 	editor: IEditorOptions;
@@ -49,7 +50,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	}
 
 	public get config(): ITerminalConfiguration {
-		return this._configurationService.getConfiguration<IFullTerminalConfiguration>().terminal.integrated;
+		return deepClone(this._configurationService.getValue<IFullTerminalConfiguration>().terminal.integrated);
 	}
 
 	private _measureFont(fontFamily: string, fontSize: number, lineHeight: number): ITerminalFont {
@@ -88,7 +89,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	 * terminal.integrated.fontSize, terminal.integrated.lineHeight configuration properties
 	 */
 	public getFont(excludeDimensions?: boolean): ITerminalFont {
-		const config = this._configurationService.getConfiguration();
+		const config = this._configurationService.getValue();
 		const editorConfig = (<IEditorConfiguration>config).editor;
 		const terminalConfig = this.config;
 

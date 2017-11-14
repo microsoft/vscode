@@ -49,7 +49,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 
 	private _referenceSearchVisible: IContextKey<boolean>;
 
-	public static get(editor: editorCommon.ICommonCodeEditor): ReferencesController {
+	public static get(editor: ICodeEditor): ReferencesController {
 		return editor.getContribution<ReferencesController>(ReferencesController.ID);
 	}
 

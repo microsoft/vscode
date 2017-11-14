@@ -82,7 +82,7 @@ export abstract class TextFileService implements ITextFileService {
 
 		this._models = this.instantiationService.createInstance(TextFileEditorModelManager);
 
-		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
+		const configuration = this.configurationService.getValue<IFilesConfiguration>();
 		this.currentFilesAssociationConfig = configuration && configuration.files && configuration.files.associations;
 
 		this.onFilesConfigurationChange(configuration);
@@ -126,7 +126,7 @@ export abstract class TextFileService implements ITextFileService {
 		// Files configuration changes
 		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('files')) {
-				this.onFilesConfigurationChange(this.configurationService.getConfiguration<IFilesConfiguration>());
+				this.onFilesConfigurationChange(this.configurationService.getValue<IFilesConfiguration>());
 			}
 		}));
 	}
@@ -162,7 +162,7 @@ export abstract class TextFileService implements ITextFileService {
 							return this.confirmBeforeShutdown();
 						}, errors => {
 							const firstError = errors[0];
-							this.messageService.show(Severity.Error, nls.localize('files.backup.failSave', "Files could not be backed up (Error: {0}), try saving your files to exit.", firstError.message));
+							this.messageService.show(Severity.Error, nls.localize('files.backup.failSave', "Files that are dirty could not be written to the backup location (Error: {0}). Try saving your files first and then exit.", firstError.message));
 
 							return true; // veto, the backups failed
 						});

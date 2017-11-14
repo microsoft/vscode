@@ -44,9 +44,9 @@ import { EDITOR_GROUP_BACKGROUND } from 'vs/workbench/common/theme';
 import { createCSSRule } from 'vs/base/browser/dom';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { join } from 'vs/base/common/paths';
-import { isCommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IEditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { ThrottledEmitter } from 'vs/base/common/async';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 
 class ProgressMonitor {
 
@@ -153,7 +153,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		this.textCompareEditorVisible = TextCompareEditorVisible.bindTo(contextKeyService);
 
-		const config = configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
+		const config = configurationService.getValue<IWorkbenchEditorConfiguration>();
 		if (config && config.workbench && config.workbench.editor) {
 			const editorConfig = config.workbench.editor;
 
@@ -174,7 +174,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 					]
 				}
 			*/
-			this.telemetryService.publicLog('workbenchEditorConfiguration', editorConfig);
+			this.telemetryService.publicLog('workbenchEditorConfiguration', objects.deepClone(editorConfig)); // Clone because telemetry service will modify the passed data by adding more details.
 		} else {
 			this.tabOptions = {
 				previewEditors: true,
@@ -215,7 +215,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	private onConfigurationUpdated(event: IConfigurationChangeEvent): void {
 		if (event.affectsConfiguration('workbench.editor')) {
-			const configuration = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
+			const configuration = this.configurationService.getValue<IWorkbenchEditorConfiguration>();
 			if (configuration && configuration.workbench && configuration.workbench.editor) {
 				const editorConfig = configuration.workbench.editor;
 
@@ -229,7 +229,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 					});
 				}
 
-				const oldTabOptions = objects.clone(this.tabOptions);
+				const oldTabOptions = objects.deepClone(this.tabOptions);
 				this.tabOptions = {
 					previewEditors: newPreviewEditors,
 					showIcons: editorConfig.showIcons,
@@ -282,7 +282,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	public hideTabs(forceHide: boolean): void {
 		this.forceHideTabs = forceHide;
-		const config = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
+		const config = this.configurationService.getValue<IWorkbenchEditorConfiguration>();
 		this.tabOptions.showTabs = forceHide ? false : config && config.workbench && config.workbench.editor && config.workbench.editor.showTabs;
 		this._onTabOptionsChanged.fire(this.tabOptions);
 	}
@@ -1328,7 +1328,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		const activeEditor = this.getActiveEditor();
 		if (activeEditor) {
 			const activeEditorControl = activeEditor.getControl();
-			if (isCommonCodeEditor(activeEditorControl)) {
+			if (isCodeEditor(activeEditorControl)) {
 				return activeEditorControl.invokeWithinContext(fn);
 			}
 

@@ -27,6 +27,7 @@ import { Action } from 'vs/base/common/actions';
 import { registerEditorAction, EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 const DIFF_LINES_PADDING = 3;
 
@@ -777,7 +778,7 @@ class DiffReviewNext extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const diffEditor = findFocusedDiffEditor(accessor);
 		if (diffEditor) {
 			diffEditor.diffReviewNext();
@@ -799,7 +800,7 @@ class DiffReviewPrev extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const diffEditor = findFocusedDiffEditor(accessor);
 		if (diffEditor) {
 			diffEditor.diffReviewPrev();

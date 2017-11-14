@@ -13,7 +13,8 @@ import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { IWindowConfiguration, IWindowService } from 'vs/platform/windows/common/windows';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 
 const SshProtocolMatcher = /^([^@:]+@)?([^:]+):/;
 const SshUrlMatcher = /^([^@:]+@)?([^:]+):(.+)$/;
@@ -131,13 +132,20 @@ export function getHashedRemotes(text: string): string[] {
 	});
 }
 
-export class WorkspaceStats {
+export class WorkspaceStats implements IWorkbenchContribution {
 	constructor(
 		@IFileService private fileService: IFileService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IWindowService windowService: IWindowService
 	) {
+		this.reportWorkspaceTags(windowService.getConfiguration());
+		this.reportCloudStats();
+	}
+
+	public getId(): string {
+		return 'vs.stats.workspaceStatsReporter';
 	}
 
 	private searchArray(arr: string[], regEx: RegExp): boolean {

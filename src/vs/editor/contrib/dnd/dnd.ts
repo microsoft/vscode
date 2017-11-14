@@ -32,7 +32,7 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 	static TRIGGER_MODIFIER = isMacintosh ? 'altKey' : 'ctrlKey';
 	static TRIGGER_KEY_VALUE = isMacintosh ? KeyCode.Alt : KeyCode.Ctrl;
 
-	static get(editor: editorCommon.ICommonCodeEditor): DragAndDropController {
+	static get(editor: ICodeEditor): DragAndDropController {
 		return editor.getContribution<DragAndDropController>(DragAndDropController.ID);
 	}
 

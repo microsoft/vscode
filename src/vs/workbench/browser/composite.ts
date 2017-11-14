@@ -234,7 +234,7 @@ export abstract class CompositeDescriptor<T extends Composite> {
 	public name: string;
 	public cssClass: string;
 	public order: number;
-	public keybindingId;
+	public keybindingId: string;
 
 	private ctor: IConstructorSignature0<T>;
 

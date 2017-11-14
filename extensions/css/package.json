@@ -44,12 +44,6 @@
         "path": "./syntaxes/css.tmLanguage.json"
       }
     ],
-    "snippets": [
-      {
-        "language": "css",
-        "path": "./snippets/css.json"
-      }
-    ],
     "configuration": [
       {
         "order": 22,
@@ -720,7 +714,7 @@
     ]
   },
   "dependencies": {
-    "vscode-languageclient": "3.5.0-next.4",
+    "vscode-languageclient": "^3.5.0",
     "vscode-nls": "^2.0.2"
   },
   "devDependencies": {

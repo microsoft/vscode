@@ -7,7 +7,6 @@
 import * as assert from 'assert';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import {
 	CursorWordLeft, CursorWordLeftSelect, CursorWordStartLeft,
@@ -18,6 +17,7 @@ import {
 	DeleteWordRight, DeleteWordStartRight, DeleteWordEndRight
 } from 'vs/editor/contrib/wordOperations/wordOperations';
 import { EditorCommand } from 'vs/editor/browser/editorExtensions';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 suite('WordOperations', () => {
 
@@ -40,43 +40,43 @@ suite('WordOperations', () => {
 	const _deleteWordStartRight = new DeleteWordStartRight();
 	const _deleteWordEndRight = new DeleteWordEndRight();
 
-	function runEditorCommand(editor: ICommonCodeEditor, command: EditorCommand): void {
+	function runEditorCommand(editor: ICodeEditor, command: EditorCommand): void {
 		command.runEditorCommand(null, editor, null);
 	}
-	function moveWordLeft(editor: ICommonCodeEditor, inSelectionMode: boolean = false): void {
+	function moveWordLeft(editor: ICodeEditor, inSelectionMode: boolean = false): void {
 		runEditorCommand(editor, inSelectionMode ? _cursorWordLeftSelect : _cursorWordLeft);
 	}
-	function moveWordStartLeft(editor: ICommonCodeEditor, inSelectionMode: boolean = false): void {
+	function moveWordStartLeft(editor: ICodeEditor, inSelectionMode: boolean = false): void {
 		runEditorCommand(editor, inSelectionMode ? _cursorWordStartLeftSelect : _cursorWordStartLeft);
 	}
-	function moveWordEndLeft(editor: ICommonCodeEditor, inSelectionMode: boolean = false): void {
+	function moveWordEndLeft(editor: ICodeEditor, inSelectionMode: boolean = false): void {
 		runEditorCommand(editor, inSelectionMode ? _cursorWordEndLeftSelect : _cursorWordEndLeft);
 	}
-	function moveWordRight(editor: ICommonCodeEditor, inSelectionMode: boolean = false): void {
+	function moveWordRight(editor: ICodeEditor, inSelectionMode: boolean = false): void {
 		runEditorCommand(editor, inSelectionMode ? _cursorWordRightSelect : _cursorWordRight);
 	}
-	function moveWordEndRight(editor: ICommonCodeEditor, inSelectionMode: boolean = false): void {
+	function moveWordEndRight(editor: ICodeEditor, inSelectionMode: boolean = false): void {
 		runEditorCommand(editor, inSelectionMode ? _cursorWordEndRightSelect : _cursorWordEndRight);
 	}
-	function moveWordStartRight(editor: ICommonCodeEditor, inSelectionMode: boolean = false): void {
+	function moveWordStartRight(editor: ICodeEditor, inSelectionMode: boolean = false): void {
 		runEditorCommand(editor, inSelectionMode ? _cursorWordStartRightSelect : _cursorWordStartRight);
 	}
-	function deleteWordLeft(editor: ICommonCodeEditor): void {
+	function deleteWordLeft(editor: ICodeEditor): void {
 		runEditorCommand(editor, _deleteWordLeft);
 	}
-	function deleteWordStartLeft(editor: ICommonCodeEditor): void {
+	function deleteWordStartLeft(editor: ICodeEditor): void {
 		runEditorCommand(editor, _deleteWordStartLeft);
 	}
-	function deleteWordEndLeft(editor: ICommonCodeEditor): void {
+	function deleteWordEndLeft(editor: ICodeEditor): void {
 		runEditorCommand(editor, _deleteWordEndLeft);
 	}
-	function deleteWordRight(editor: ICommonCodeEditor): void {
+	function deleteWordRight(editor: ICodeEditor): void {
 		runEditorCommand(editor, _deleteWordRight);
 	}
-	function deleteWordStartRight(editor: ICommonCodeEditor): void {
+	function deleteWordStartRight(editor: ICodeEditor): void {
 		runEditorCommand(editor, _deleteWordStartRight);
 	}
-	function deleteWordEndRight(editor: ICommonCodeEditor): void {
+	function deleteWordEndRight(editor: ICodeEditor): void {
 		runEditorCommand(editor, _deleteWordEndRight);
 	}
 

@@ -99,7 +99,7 @@ export class FileWatcher {
 
 		this.service.setRoots(this.contextService.getWorkspace().folders.map(folder => {
 			// Fetch the root's watcherExclude setting and return it
-			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>({
+			const configuration = this.configurationService.getValue<IFilesConfiguration>({
 				resource: folder.uri
 			});
 			let ignored: string[] = [];

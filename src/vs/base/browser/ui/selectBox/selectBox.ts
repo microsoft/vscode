@@ -12,7 +12,7 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
-import { clone } from 'vs/base/common/objects';
+import { deepClone } from 'vs/base/common/objects';
 
 export interface ISelectBoxStyles {
 	selectBackground?: Color;
@@ -42,7 +42,7 @@ export class SelectBox extends Widget {
 	private selectForeground: Color;
 	private selectBorder: Color;
 
-	constructor(options: string[], selected: number, styles: ISelectBoxStyles = clone(defaultStyles)) {
+	constructor(options: string[], selected: number, styles: ISelectBoxStyles = deepClone(defaultStyles)) {
 		super();
 
 		this.selectElement = document.createElement('select');

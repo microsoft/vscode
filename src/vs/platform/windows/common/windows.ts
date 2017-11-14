@@ -169,6 +169,7 @@ export interface IWindowService {
 
 	onDidChangeFocus: Event<boolean>;
 
+	getConfiguration(): IWindowConfiguration;
 	getCurrentWindowId(): number;
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void>;

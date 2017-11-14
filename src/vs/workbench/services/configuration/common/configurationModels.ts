@@ -144,15 +144,11 @@ export class Configuration extends BaseConfiguration {
 		super(defaults, user, workspaceConfiguration, folders, memoryConfiguration, memoryConfigurationByResource);
 	}
 
-	getSection<C>(section: string = '', overrides: IConfigurationOverrides = {}): C {
-		return super.getSection(section, overrides, this._workspace);
-	}
-
 	getValue(key: string, overrides: IConfigurationOverrides = {}): any {
 		return super.getValue(key, overrides, this._workspace);
 	}
 
-	lookup<C>(key: string, overrides: IConfigurationOverrides = {}): {
+	inspect<C>(key: string, overrides: IConfigurationOverrides = {}): {
 		default: C,
 		user: C,
 		workspace: C,
@@ -160,7 +156,7 @@ export class Configuration extends BaseConfiguration {
 		memory?: C
 		value: C,
 	} {
-		return super.lookup(key, overrides, this._workspace);
+		return super.inspect(key, overrides, this._workspace);
 	}
 
 	keys(): {
@@ -222,22 +218,14 @@ export class Configuration extends BaseConfiguration {
 	}
 
 	compare(other: Configuration): string[] {
-		let from = other.allKeys();
-		let to = this.allKeys();
-
-		const added = to.filter(key => from.indexOf(key) === -1);
-		const removed = from.filter(key => to.indexOf(key) === -1);
-		const updated = [];
-
-		for (const key of from) {
-			const value1 = this.getValue(key);
-			const value2 = other.getValue(key);
-			if (!equals(value1, value2)) {
-				updated.push(key);
+		const result = [];
+		for (const key of this.allKeys()) {
+			if (!equals(this.getValue(key), other.getValue(key))
+				|| (this._workspace && this._workspace.folders.some(folder => !equals(this.getValue(key, { resource: folder.uri }), other.getValue(key, { resource: folder.uri }))))) {
+				result.push(key);
 			}
 		}
-
-		return [...added, ...removed, ...updated];
+		return result;
 	}
 
 	allKeys(): string[] {

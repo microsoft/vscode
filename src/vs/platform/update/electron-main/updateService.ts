@@ -224,9 +224,7 @@ export class UpdateService implements IUpdateService {
 	}
 
 	private getUpdateChannel(): string {
-		const config = this.configurationService.getConfiguration<{ channel: string; }>('update');
-		const channel = config && config.channel;
-
+		const channel = this.configurationService.getValue<string>('update.channel');
 		return channel === 'none' ? null : product.quality;
 	}
 

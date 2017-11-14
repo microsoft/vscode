@@ -14,6 +14,7 @@ import { ArrayNavigator, INavigator } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { SideBySideEditorInput, EditorOptions, EditorInput } from 'vs/workbench/common/editor';
+import { Scope } from 'vs/workbench/common/memento';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { IEditorControl, Position, Verbosity } from 'vs/platform/editor/common/editor';
@@ -24,7 +25,7 @@ import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import {
 	IPreferencesService, ISettingsGroup, ISetting, IFilterResult,
-	CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, SETTINGS_EDITOR_COMMAND_SEARCH, SETTINGS_EDITOR_COMMAND_FOCUS_FILE, ISettingsEditorModel, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING
+	CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, SETTINGS_EDITOR_COMMAND_SEARCH, SETTINGS_EDITOR_COMMAND_FOCUS_FILE, ISettingsEditorModel, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING, IFilterMetadata
 } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -34,12 +35,10 @@ import { ContextKeyExpr, IContextKeyService, IContextKey } from 'vs/platform/con
 import { registerEditorContribution, Command, IEditorContributionCtor } from 'vs/editor/browser/editorExtensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IModelService } from 'vs/editor/common/services/modelService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { VSash } from 'vs/base/browser/ui/sash/sash';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IPreferencesRenderer, DefaultSettingsRenderer, UserSettingsRenderer, WorkspaceSettingsRenderer, FolderSettingsRenderer } from 'vs/workbench/parts/preferences/browser/preferencesRenderers';
@@ -115,17 +114,17 @@ export class PreferencesEditor extends BaseEditor {
 
 	private latestEmptyFilters: string[] = [];
 	private lastFocusedWidget: SearchWidget | SideBySidePreferencesWidget = null;
+	private memento: any;
 
 	constructor(
 		@IPreferencesService private preferencesService: IPreferencesService,
-		// @ts-ignore unused injected service
-		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
+		@IStorageService storageService: IStorageService,
 	) {
 		super(PreferencesEditor.ID, telemetryService, themeService);
 		this.defaultSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(this.contextKeyService);
@@ -133,6 +132,7 @@ export class PreferencesEditor extends BaseEditor {
 		this.delayedFilterLogging = new Delayer<void>(1000);
 		this.searchProvider = this.instantiationService.createInstance(PreferencesSearchProvider);
 		this.filterThrottle = new ThrottledDelayer(200);
+		this.memento = this.getMemento(storageService, Scope.WORKSPACE);
 	}
 
 	public createEditor(parent: Builder): void {
@@ -147,6 +147,7 @@ export class PreferencesEditor extends BaseEditor {
 			focusKey: this.focusSettingsContextKey
 		}));
 		this.searchWidget.setFuzzyToggleVisible(this.searchProvider.remoteSearchEnabled);
+		this.searchWidget.fuzzyEnabled = this.memento['fuzzyEnabled'];
 		this._register(this.searchProvider.onRemoteSearchEnablementChanged(enabled => this.searchWidget.setFuzzyToggleVisible(enabled)));
 		this._register(this.searchWidget.onDidChange(value => this.onInputChanged()));
 		this._register(this.searchWidget.onFocus(() => this.lastFocusedWidget = this.searchWidget));
@@ -327,14 +328,17 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	private filterPreferences(): TPromise<void> {
+		this.memento['fuzzyEnabled'] = this.searchWidget.fuzzyEnabled;
 		const filter = this.searchWidget.getValue().trim();
-		return this.preferencesRenderers.filterPreferences(filter, this.searchProvider, this.searchWidget.fuzzyEnabled).then(count => {
+		return this.preferencesRenderers.filterPreferences(filter, this.searchProvider, this.searchWidget.fuzzyEnabled).then(result => {
+			const count = result.count;
 			const message = filter ? this.showSearchResultsMessage(count) : nls.localize('totalSettingsMessage', "Total {0} Settings", count);
 			this.searchWidget.showMessage(message, count);
 			if (count === 0) {
 				this.latestEmptyFilters.push(filter);
 			}
-			this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(filter));
+
+			this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(filter, result.metadata));
 		}, onUnexpectedError);
 	}
 
@@ -344,17 +348,22 @@ export class PreferencesEditor extends BaseEditor {
 				nls.localize('settingsFound', "{0} Settings matched", count);
 	}
 
-	private reportFilteringUsed(filter: string): void {
+	private reportFilteringUsed(filter: string, metadata?: IFilterMetadata): void {
 		if (filter) {
 			let data = {
 				filter,
-				emptyFilters: this.getLatestEmptyFiltersForTelemetry()
+				emptyFilters: this.getLatestEmptyFiltersForTelemetry(),
+				fuzzy: !!metadata,
+				duration: metadata ? metadata.duration : undefined
 			};
+
 			this.latestEmptyFilters = [];
 			/* __GDPR__
 				"defaultSettings.filter" : {
 					"filter": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"emptyFilters" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					"emptyFilters" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					"fuzzy" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/
 			this.telemetryService.publicLog('defaultSettings.filter', data);
@@ -427,7 +436,7 @@ class PreferencesRenderers extends Disposable {
 			this._disposables = dispose(this._disposables);
 
 			if (this._defaultPreferencesRenderer) {
-				this._defaultPreferencesRenderer.onUpdatePreference(({ key, value, source }) => this._updatePreference(key, value, source, this._editablePreferencesRenderer), this, this._disposables);
+				this._defaultPreferencesRenderer.onUpdatePreference(({ key, value, source, index }) => this._updatePreference(key, value, source, index, this._editablePreferencesRenderer), this, this._disposables);
 				this._defaultPreferencesRenderer.onFocusPreference(preference => this._focusPreference(preference, this._editablePreferencesRenderer), this, this._disposables);
 				this._defaultPreferencesRenderer.onClearFocusPreference(preference => this._clearFocus(preference, this._editablePreferencesRenderer), this, this._disposables);
 				if (this._defaultPreferencesRenderer.onTriggeredFuzzy) {
@@ -441,7 +450,7 @@ class PreferencesRenderers extends Disposable {
 		this._editablePreferencesRenderer = editableSettingsRenderer;
 	}
 
-	public filterPreferences(filter: string, searchProvider: PreferencesSearchProvider, fuzzy: boolean): TPromise<number> {
+	public filterPreferences(filter: string, searchProvider: PreferencesSearchProvider, fuzzy: boolean): TPromise<{ count: number, metadata: IFilterMetadata }> {
 		if (this._filtersInProgress) {
 			// Resolved/rejected promises have no .cancel()
 			this._filtersInProgress.forEach(p => p.cancel && p.cancel());
@@ -463,7 +472,7 @@ class PreferencesRenderers extends Disposable {
 
 			this._settingsNavigator = new SettingsNavigator(filter ? consolidatedSettings : []);
 
-			return consolidatedSettings.length;
+			return { count: consolidatedSettings.length, metadata: defaultPreferencesFilterResult && defaultPreferencesFilterResult.metadata };
 		});
 	}
 
@@ -506,9 +515,9 @@ class PreferencesRenderers extends Disposable {
 		}
 	}
 
-	private _updatePreference(key: string, value: any, source: ISetting, preferencesRenderer: IPreferencesRenderer<ISetting>): void {
+	private _updatePreference(key: string, value: any, source: ISetting, index: number, preferencesRenderer: IPreferencesRenderer<ISetting>): void {
 		if (preferencesRenderer) {
-			preferencesRenderer.updatePreference(key, value, source);
+			preferencesRenderer.updatePreference(key, value, source, index);
 		}
 	}
 
@@ -697,15 +706,11 @@ export class EditableSettingsEditor extends BaseTextEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		// @ts-ignore unused injected service
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IPreferencesService private preferencesService: IPreferencesService,
-		// @ts-ignore unused injected service
-		@IModelService private modelService: IModelService,
 		@ITextFileService textFileService: ITextFileService,
 		@IEditorGroupService editorGroupService: IEditorGroupService
 	) {
@@ -769,16 +774,10 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		// @ts-ignore unused injected service
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
-		// @ts-ignore unused injected service
-		@IPreferencesService private preferencesService: IPreferencesService,
-		// @ts-ignore unused injected service
-		@IModelService private modelService: IModelService,
 		@ITextFileService textFileService: ITextFileService,
 		@IEditorGroupService editorGroupService: IEditorGroupService
 	) {
@@ -795,7 +794,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		return editor;
 	}
 
-	private showReadonlyHint(editor: editorCommon.ICommonCodeEditor): void {
+	private showReadonlyHint(editor: ICodeEditor): void {
 		const messageController = MessageController.get(editor);
 		if (!messageController.isVisible()) {
 			messageController.showMessage(nls.localize('defaultEditorReadonly', "Edit in the right hand side editor to override defaults."), editor.getSelection().getPosition());

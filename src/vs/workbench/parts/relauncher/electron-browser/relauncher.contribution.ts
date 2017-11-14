@@ -19,6 +19,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import URI from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
 import { isLinux } from 'vs/base/common/platform';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 interface IConfiguration extends IWindowsConfiguration {
 	update: { channel: string; };
@@ -52,14 +53,14 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		this.firstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : void 0;
 		this.extensionHostRestarter = new RunOnceScheduler(() => this.extensionService.restartExtensionHost(), 10);
 
-		this.onConfigurationChange(configurationService.getConfiguration<IConfiguration>(), false);
+		this.onConfigurationChange(configurationService.getValue<IConfiguration>(), false);
 		this.handleWorkbenchState();
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(this.configurationService.getConfiguration<IConfiguration>(), true)));
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(this.configurationService.getValue<IConfiguration>(), true)));
 		this.toDispose.push(this.contextService.onDidChangeWorkbenchState(() => setTimeout(() => this.handleWorkbenchState())));
 	}
 
@@ -161,4 +162,4 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 }
 
 const workbenchRegistry = <IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(SettingsChangeRelauncher);
+workbenchRegistry.registerWorkbenchContribution(SettingsChangeRelauncher, LifecyclePhase.Running);

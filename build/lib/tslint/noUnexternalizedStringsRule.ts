@@ -45,7 +45,7 @@ interface KeyMessagePair {
 
 class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 
-	private static ImportFailureMessage = 'Do not use double qoutes for imports.';
+	private static ImportFailureMessage = 'Do not use double quotes for imports.';
 
 	private static DOUBLE_QUOTE: string = '"';
 
@@ -156,10 +156,10 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 				}
 			}
 		}
-		let messageArg: ts.Expression = callInfo.argIndex === this.messageIndex
-			? callInfo.callExpression.arguments[this.messageIndex]
-			: null;
-		if (messageArg && messageArg !== node) {
+
+		const messageArg = callInfo.callExpression.arguments[this.messageIndex];
+
+		if (messageArg && messageArg.kind !== ts.SyntaxKind.StringLiteral) {
 			this.addFailure(this.createFailure(
 				messageArg.getStart(), messageArg.getWidth(),
 				`Message argument to '${callInfo.callExpression.expression.getText()}' must be a string literal.`));

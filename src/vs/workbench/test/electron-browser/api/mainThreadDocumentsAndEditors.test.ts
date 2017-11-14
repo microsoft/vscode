@@ -51,6 +51,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 			onEditorGroupMoved = Event.None;
 		};
 
+		/* tslint:disable */
 		new MainThreadDocumentsAndEditors(
 			OneGetThreadService(new class extends mock<ExtHostDocumentsAndEditorsShape>() {
 				$acceptDocumentsAndEditorsDelta(delta) { deltas.push(delta); }
@@ -66,6 +67,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 			editorGroupService,
 			null
 		);
+		/* tslint:enable */
 	});
 
 

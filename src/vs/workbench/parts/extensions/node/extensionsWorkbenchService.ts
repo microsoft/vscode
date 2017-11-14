@@ -141,6 +141,10 @@ class Extension implements IExtension {
 		return require.toUrl('../browser/media/defaultIcon.png');
 	}
 
+	get repository(): string {
+		return this.gallery && this.gallery.assets.repository.uri;
+	}
+
 	get licenseUrl(): string {
 		return this.gallery && this.gallery.assets.license && this.gallery.assets.license.uri;
 	}
@@ -173,6 +177,10 @@ class Extension implements IExtension {
 		} else {
 			return getLocalExtensionTelemetryData(local);
 		}
+	}
+
+	get preview(): boolean {
+		return this.gallery ? this.gallery.preview : false;
 	}
 
 	getManifest(): TPromise<IExtensionManifest> {

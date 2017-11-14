@@ -25,7 +25,7 @@ export class QuickOpenController implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.controller.quickOpenController';
 
-	public static get(editor: editorCommon.ICommonCodeEditor): QuickOpenController {
+	public static get(editor: ICodeEditor): QuickOpenController {
 		return editor.getContribution<QuickOpenController>(QuickOpenController.ID);
 	}
 
@@ -152,7 +152,7 @@ export abstract class BaseEditorQuickOpenAction extends EditorAction {
 		this._inputAriaLabel = inputAriaLabel;
 	}
 
-	protected getController(editor: editorCommon.ICommonCodeEditor): QuickOpenController {
+	protected getController(editor: ICodeEditor): QuickOpenController {
 		return QuickOpenController.get(editor);
 	}
 

@@ -133,6 +133,7 @@ export interface IGalleryExtensionAssets {
 	download: IGalleryExtensionAsset;
 	icon: IGalleryExtensionAsset;
 	license: IGalleryExtensionAsset;
+	repository: IGalleryExtensionAsset;
 }
 
 export interface IExtensionIdentifier {
@@ -156,6 +157,7 @@ export interface IGalleryExtension {
 	assets: IGalleryExtensionAssets;
 	properties: IGalleryExtensionProperties;
 	telemetryData: any;
+	preview: boolean;
 }
 
 export interface IGalleryMetadata {

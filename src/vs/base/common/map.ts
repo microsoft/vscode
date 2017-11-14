@@ -370,7 +370,7 @@ export class TernarySearchTree<E> {
 		this._root = undefined;
 	}
 
-	set(key: string, element: E): void {
+	set(key: string, element: E): E {
 		let iter = this._iter.reset(key);
 		let node: TernarySearchTreeNode<E>;
 
@@ -410,7 +410,9 @@ export class TernarySearchTree<E> {
 				break;
 			}
 		}
+		const oldElement = node.element;
 		node.element = element;
+		return oldElement;
 	}
 
 	get(key: string): E {

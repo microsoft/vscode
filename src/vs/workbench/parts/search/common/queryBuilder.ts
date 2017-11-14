@@ -55,12 +55,18 @@ export class QueryBuilder {
 			}
 		}
 
+		// TODO@rob - see #37998
+		const useIgnoreFiles = !folderResources || folderResources.every(folder => {
+			const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
+			return folderConfig.search.useIgnoreFiles;
+		});
+
 		const useRipgrep = !folderResources || folderResources.every(folder => {
-			const folderConfig = this.configurationService.getConfiguration<ISearchConfiguration>({ resource: folder });
+			const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
 			return folderConfig.search.useRipgrep;
 		});
 
-		const ignoreSymlinks = !this.configurationService.getConfiguration<ISearchConfiguration>().search.followSymlinks;
+		const ignoreSymlinks = !this.configurationService.getValue<ISearchConfiguration>().search.followSymlinks;
 
 		const query = <ISearchQuery>{
 			type,
@@ -75,7 +81,7 @@ export class QueryBuilder {
 			cacheKey: options.cacheKey,
 			contentPattern: contentPattern,
 			useRipgrep,
-			disregardIgnoreFiles: options.disregardIgnoreFiles,
+			disregardIgnoreFiles: options.disregardIgnoreFiles || !useIgnoreFiles,
 			disregardExcludeSettings: options.disregardExcludeSettings,
 			ignoreSymlinks
 		};
@@ -247,7 +253,7 @@ export class QueryBuilder {
 
 	private getFolderQueryForSearchPath(searchPath: ISearchPathPattern): IFolderQuery {
 		const folder = searchPath.searchPath;
-		const folderConfig = this.configurationService.getConfiguration<ISearchConfiguration>({ resource: folder });
+		const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
 		return <IFolderQuery>{
 			folder,
 			includePattern: searchPath.pattern && patternListToIExpression([searchPath.pattern]),
@@ -256,7 +262,7 @@ export class QueryBuilder {
 	}
 
 	private getFolderQueryForRoot(folder: uri, perFolderUseIgnoreFiles: boolean, options?: IQueryOptions): IFolderQuery {
-		const folderConfig = this.configurationService.getConfiguration<ISearchConfiguration>({ resource: folder });
+		const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
 		return <IFolderQuery>{
 			folder,
 			excludePattern: this.getExcludesForFolder(folderConfig, options),

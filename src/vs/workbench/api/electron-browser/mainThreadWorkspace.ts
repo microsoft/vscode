@@ -14,7 +14,7 @@ import { MainThreadWorkspaceShape, ExtHostWorkspaceShape, ExtHostContext, MainCo
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IRelativePattern } from 'vs/base/common/glob';
+import { IRelativePattern, isRelativePattern } from 'vs/base/common/glob';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -61,17 +61,21 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		let folderQueries: IFolderQuery[];
 		if (typeof include === 'string' || !include) {
 			folderQueries = workspace.folders.map(folder => ({ folder: folder.uri })); // absolute pattern: search across all folders
-		} else {
+		} else if (isRelativePattern(include)) {
 			folderQueries = [{ folder: URI.file(include.base) }]; // relative pattern: search only in base folder
 		}
 
+		if (!folderQueries) {
+			return undefined; // invalid query parameters
+		}
+
 		const useRipgrep = folderQueries.every(folderQuery => {
-			const folderConfig = this._configurationService.getConfiguration<ISearchConfiguration>({ resource: folderQuery.folder });
+			const folderConfig = this._configurationService.getValue<ISearchConfiguration>({ resource: folderQuery.folder });
 			return folderConfig.search.useRipgrep;
 		});
 
 		const ignoreSymlinks = folderQueries.every(folderQuery => {
-			const folderConfig = this._configurationService.getConfiguration<ISearchConfiguration>({ resource: folderQuery.folder });
+			const folderConfig = this._configurationService.getValue<ISearchConfiguration>({ resource: folderQuery.folder });
 			return !folderConfig.search.followSymlinks;
 		});
 

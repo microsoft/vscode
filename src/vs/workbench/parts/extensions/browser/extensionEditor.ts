@@ -153,10 +153,12 @@ export class ExtensionEditor extends BaseEditor {
 	private icon: HTMLImageElement;
 	private name: HTMLElement;
 	private identifier: HTMLElement;
+	private preview: HTMLElement;
 	private license: HTMLElement;
 	private publisher: HTMLElement;
 	private installCount: HTMLElement;
 	private rating: HTMLElement;
+	private repository: HTMLElement;
 	private description: HTMLElement;
 	private extensionActionBar: ActionBar;
 	private navbar: NavBar;
@@ -214,6 +216,7 @@ export class ExtensionEditor extends BaseEditor {
 		const title = append(details, $('.title'));
 		this.name = append(title, $('span.name.clickable', { title: localize('name', "Extension name") }));
 		this.identifier = append(title, $('span.identifier', { title: localize('extension id', "Extension identifier") }));
+		this.preview = append(title, $('span.preview', { title: localize('preview', "Preview") }));
 
 		const subtitle = append(details, $('.subtitle'));
 		this.publisher = append(subtitle, $('span.publisher.clickable', { title: localize('publisher', "Publisher name") }));
@@ -221,6 +224,10 @@ export class ExtensionEditor extends BaseEditor {
 		this.installCount = append(subtitle, $('span.install', { title: localize('install count', "Install count") }));
 
 		this.rating = append(subtitle, $('span.rating.clickable', { title: localize('rating', "Rating") }));
+
+		this.repository = append(subtitle, $('span.repository.clickable'));
+		this.repository.textContent = localize('repository', 'Repository');
+		this.repository.style.display = 'none';
 
 		this.license = append(subtitle, $('span.license.clickable'));
 		this.license.textContent = localize('license', 'License');
@@ -281,6 +288,11 @@ export class ExtensionEditor extends BaseEditor {
 
 		this.name.textContent = extension.displayName;
 		this.identifier.textContent = extension.id;
+		if (extension.preview) {
+			this.preview.textContent = localize('preview', "Preview");
+		} else {
+			this.preview.textContent = null;
+		}
 
 		this.publisher.textContent = extension.publisherDisplayName;
 		this.description.textContent = extension.description;
@@ -309,6 +321,15 @@ export class ExtensionEditor extends BaseEditor {
 				this.license.onclick = null;
 				this.license.style.display = 'none';
 			}
+		}
+
+		if (extension.repository) {
+			this.repository.onclick = finalHandler(() => window.open(extension.repository));
+			this.repository.style.display = 'initial';
+		}
+		else {
+			this.repository.onclick = null;
+			this.repository.style.display = 'none';
 		}
 
 		const install = this.instantiationService.createInstance(InstallWidget, this.installCount, { extension });

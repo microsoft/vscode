@@ -57,12 +57,18 @@ export interface IConfigurationService {
 
 	getConfigurationData(): IConfigurationData;
 
-	getConfiguration<T>(): T;
-	getConfiguration<T>(section: string): T;
-	getConfiguration<T>(overrides: IConfigurationOverrides): T;
-	getConfiguration<T>(section: string, overrides: IConfigurationOverrides): T;
-
-	getValue<T>(key: string, overrides?: IConfigurationOverrides): T;
+	/**
+	 * Fetches the value of the section for the given overrides.
+	 * Value can be of native type or an object keyed off the section name.
+	 *
+	 * @param section - Section of the configuraion. Can be `null` or `undefined`.
+	 * @param overrides - Overrides that has to be applied while fetching
+	 *
+	 */
+	getValue<T>(): T;
+	getValue<T>(section: string): T;
+	getValue<T>(overrides: IConfigurationOverrides): T;
+	getValue<T>(section: string, overrides: IConfigurationOverrides): T;
 
 	updateValue(key: string, value: any): TPromise<void>;
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides): TPromise<void>;
@@ -72,7 +78,7 @@ export interface IConfigurationService {
 	reloadConfiguration(): TPromise<void>;
 	reloadConfiguration(folder: IWorkspaceFolder): TPromise<void>;
 
-	inspect<T>(key: string): {
+	inspect<T>(key: string, overrides?: IConfigurationOverrides): {
 		default: T,
 		user: T,
 		workspace: T,
