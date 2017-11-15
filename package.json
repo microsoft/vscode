@@ -82,7 +82,7 @@
     "gulp-replace": "^0.5.4",
     "gulp-shell": "^0.5.2",
     "gulp-sourcemaps": "^1.11.0",
-    "gulp-tsb": "https://github.com/joaomoreno/gulp-tsb.git#829ac722c1cff8d45bf85833c6e3012410de44c4",
+    "gulp-tsb": "2.0.5",
     "gulp-tslint": "^8.1.2",
     "gulp-uglify": "^3.0.0",
     "gulp-util": "^3.0.6",
