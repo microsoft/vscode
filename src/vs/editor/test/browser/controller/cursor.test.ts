@@ -3261,6 +3261,67 @@ suite('Editor Controller - Indentation Rules', () => {
 		model.dispose();
 		mode.dispose();
 	});
+
+	test('issue #38261: TAB key results in bizarre indentation in C++ mode ', () => {
+		class CppMode extends MockMode {
+			private static _id = new LanguageIdentifier('indentRulesMode', 4);
+			constructor() {
+				super(CppMode._id);
+				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+					brackets: [
+						['{', '}'],
+						['[', ']'],
+						['(', ')']
+					],
+					indentationRules: {
+						increaseIndentPattern: new RegExp('^.*\\{[^}\"\\\']*$|^.*\\([^\\)\"\\\']*$|^\\s*(public|private|protected):\\s*$|^\\s*@(public|private|protected)\\s*$|^\\s*\\{\\}$'),
+						decreaseIndentPattern: new RegExp('^\\s*(\\s*/[*].*[*]/\\s*)*\\}|^\\s*(\\s*/[*].*[*]/\\s*)*\\)|^\\s*(public|private|protected):\\s*$|^\\s*@(public|private|protected)\\s*$'),
+					}
+				}));
+			}
+		}
+
+		let mode = new CppMode();
+		let model = Model.createFromString(
+			[
+				'int main() {',
+				'  return 0;',
+				'}',
+				'',
+				'bool Foo::bar(const string &a,',
+				'              const string &b) {',
+				'  foo();',
+				'',
+				')',
+			].join('\n'),
+			{ insertSpaces: true, detectIndentation: false, tabSize: 2, trimAutoWhitespace: false, defaultEOL: DefaultEndOfLine.LF },
+			mode.getLanguageIdentifier()
+		);
+
+		withTestCodeEditor(null, { model: model, autoIndent: false }, (editor, cursor) => {
+			moveTo(cursor, 8, 1, false);
+			assertCursor(cursor, new Selection(8, 1, 8, 1));
+
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
+			assert.equal(model.getValue(),
+				[
+					'int main() {',
+					'  return 0;',
+					'}',
+					'',
+					'bool Foo::bar(const string &a,',
+					'              const string &b) {',
+					'  foo();',
+					'  ',
+					')',
+				].join('\n')
+			);
+			assert.deepEqual(cursor.getSelection(), new Selection(8, 3, 8, 3));
+		});
+
+		model.dispose();
+		mode.dispose();
+	});
 });
 
 interface ICursorOpts {
