@@ -16,7 +16,7 @@ Param(
 $env:npm_config_arch="$arch"
 
 step "Install dependencies" {
-  exec { & npm install }
+  exec { & yarn }
 }
 
 step "Hygiene" {
