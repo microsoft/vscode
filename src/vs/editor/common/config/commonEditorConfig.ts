@@ -31,7 +31,7 @@ export interface ITabFocus {
 	setTabFocusMode(tabFocusMode: boolean): void;
 }
 
-export const TabFocus: ITabFocus = new class {
+export const TabFocus: ITabFocus = new class implements ITabFocus {
 	private _tabFocus: boolean = false;
 
 	private _onDidChangeTabFocus: Emitter<boolean> = new Emitter<boolean>();

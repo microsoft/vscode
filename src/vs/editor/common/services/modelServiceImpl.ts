@@ -56,10 +56,6 @@ class ModelData implements IDisposable {
 		this.model = null;
 	}
 
-	public getModelId(): string {
-		return MODEL_ID(this.model.uri);
-	}
-
 	public acceptMarkerDecorations(newDecorations: editorCommon.IModelDeltaDecoration[]): void {
 		this._markerDecorations = this.model.deltaDecorations(this._markerDecorations, newDecorations);
 	}

@@ -20,7 +20,7 @@ import { registerThemingParticipant, HIGH_CONTRAST } from 'vs/platform/theme/com
 import { inputValidationInfoBorder, inputValidationInfoBackground } from 'vs/platform/theme/common/colorRegistry';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
-export class MessageController {
+export class MessageController implements editorCommon.IEditorContribution {
 
 	private static _id = 'editor.contrib.messageController';
 

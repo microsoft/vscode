@@ -190,7 +190,6 @@ class BulkEditModel implements IDisposable {
 
 	private _textModelResolverService: ITextModelService;
 	private _numberOfResourcesToModify: number = 0;
-	private _numberOfChanges: number = 0;
 	private _edits: IStringDictionary<IResourceEdit[]> = Object.create(null);
 	private _tasks: EditTask[];
 	private _sourceModel: URI;
@@ -208,21 +207,12 @@ class BulkEditModel implements IDisposable {
 		}
 	}
 
-	public resourcesCount(): number {
-		return this._numberOfResourcesToModify;
-	}
-
-	public changeCount(): number {
-		return this._numberOfChanges;
-	}
-
 	private _addEdit(edit: IResourceEdit): void {
 		let array = this._edits[edit.resource.toString()];
 		if (!array) {
 			this._edits[edit.resource.toString()] = array = [];
 			this._numberOfResourcesToModify += 1;
 		}
-		this._numberOfChanges += 1;
 		array.push(edit);
 	}
 

@@ -5,7 +5,7 @@
 'use strict';
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IMarkdownString, markedStringsEquals } from 'vs/base/common/htmlContent';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import * as strings from 'vs/base/common/strings';
 import { CharCode } from 'vs/base/common/charCode';
 import { Range, IRange } from 'vs/editor/common/core/range';
@@ -559,15 +559,6 @@ export class ModelDecorationOverviewRulerOptions implements editorCommon.IModelD
 			this.position = options.position;
 		}
 	}
-
-	public equals(other: ModelDecorationOverviewRulerOptions): boolean {
-		return (
-			this.color === other.color
-			&& this.darkColor === other.darkColor
-			&& this.hcColor === other.hcColor
-			&& this.position === other.position
-		);
-	}
 }
 
 let lastStaticId = 0;
@@ -614,28 +605,6 @@ export class ModelDecorationOptions implements editorCommon.IModelDecorationOpti
 		this.inlineClassName = options.inlineClassName ? cleanClassName(options.inlineClassName) : strings.empty;
 		this.beforeContentClassName = options.beforeContentClassName ? cleanClassName(options.beforeContentClassName) : strings.empty;
 		this.afterContentClassName = options.afterContentClassName ? cleanClassName(options.afterContentClassName) : strings.empty;
-	}
-
-	public equals(other: ModelDecorationOptions): boolean {
-		if (this.staticId > 0 || other.staticId > 0) {
-			return this.staticId === other.staticId;
-		}
-
-		return (
-			this.stickiness === other.stickiness
-			&& this.className === other.className
-			&& this.isWholeLine === other.isWholeLine
-			&& this.showIfCollapsed === other.showIfCollapsed
-			&& this.glyphMarginClassName === other.glyphMarginClassName
-			&& this.linesDecorationsClassName === other.linesDecorationsClassName
-			&& this.marginClassName === other.marginClassName
-			&& this.inlineClassName === other.inlineClassName
-			&& this.beforeContentClassName === other.beforeContentClassName
-			&& this.afterContentClassName === other.afterContentClassName
-			&& markedStringsEquals(this.hoverMessage, other.hoverMessage)
-			&& markedStringsEquals(this.glyphMarginHoverMessage, other.glyphMarginHoverMessage)
-			&& this.overviewRuler.equals(other.overviewRuler)
-		);
 	}
 }
 ModelDecorationOptions.EMPTY = ModelDecorationOptions.register({});

@@ -28,7 +28,6 @@ export interface ICodeEditorService {
 
 	addDiffEditor(editor: IDiffEditor): void;
 	removeDiffEditor(editor: IDiffEditor): void;
-	getDiffEditor(editorId: string): IDiffEditor;
 	listDiffEditors(): IDiffEditor[];
 
 	/**

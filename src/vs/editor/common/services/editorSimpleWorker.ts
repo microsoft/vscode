@@ -517,7 +517,7 @@ export abstract class BaseEditorSimpleWorker {
  * @internal
  */
 export class EditorSimpleWorkerImpl extends BaseEditorSimpleWorker implements IRequestHandler, IDisposable {
-	_requestHandlerTrait: any;
+	_requestHandlerBrand: any;
 
 	private _models: { [uri: string]: MirrorModel; };
 
