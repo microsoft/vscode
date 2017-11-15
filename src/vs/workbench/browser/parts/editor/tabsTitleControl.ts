@@ -45,6 +45,7 @@ import { activeContrastBorder, contrastBorder } from 'vs/platform/theme/common/c
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { Dimension } from 'vs/base/browser/builder';
+import { scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 
 interface IEditorInputLabel {
 	name: string;
@@ -64,6 +65,7 @@ export class TabsTitleControl extends TitleControl {
 	private tabDisposeables: IDisposable[];
 	private blockRevealActiveTab: boolean;
 	private dimension: Dimension;
+	private layoutScheduled: IDisposable;
 
 	constructor(
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -546,6 +548,18 @@ export class TabsTitleControl extends TitleControl {
 
 		this.dimension = dimension;
 
+		// The layout of tabs can be an expensive operation because we access DOM properties
+		// that can result in the browser doing a full page layout to validate them. To buffer
+		// this a little bit we try at least to schedule this work on the next animation frame.
+		if (!this.layoutScheduled) {
+			this.layoutScheduled = scheduleAtNextAnimationFrame(() => {
+				this.doLayout(this.dimension);
+				this.layoutScheduled = void 0;
+			});
+		}
+	}
+
+	private doLayout(dimension: Dimension): void {
 		const visibleContainerWidth = this.tabsContainer.offsetWidth;
 		const totalContainerWidth = this.tabsContainer.scrollWidth;
 
@@ -863,6 +877,12 @@ export class TabsTitleControl extends TitleControl {
 		const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
 
 		return !isCopy || source.id === target.id;
+	}
+
+	public dispose(): void {
+		super.dispose();
+
+		this.layoutScheduled = dispose(this.layoutScheduled);
 	}
 }
 
