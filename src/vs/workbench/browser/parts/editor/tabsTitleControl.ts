@@ -549,6 +549,14 @@ export class TabsTitleControl extends TitleControl {
 		const visibleContainerWidth = this.tabsContainer.offsetWidth;
 		const totalContainerWidth = this.tabsContainer.scrollWidth;
 
+		let activeTabPosX: number;
+		let activeTabWidth: number;
+
+		if (!this.blockRevealActiveTab) {
+			activeTabPosX = this.activeTab.offsetLeft;
+			activeTabWidth = this.activeTab.offsetWidth;
+		}
+
 		// Update scrollbar
 		this.scrollbar.setScrollDimensions({
 			width: visibleContainerWidth,
@@ -563,8 +571,6 @@ export class TabsTitleControl extends TitleControl {
 
 		// Reveal the active one
 		const containerScrollPosX = this.scrollbar.getScrollPosition().scrollLeft;
-		const activeTabPosX = this.activeTab.offsetLeft;
-		const activeTabWidth = this.activeTab.offsetWidth;
 		const activeTabFits = activeTabWidth <= visibleContainerWidth;
 
 		// Tab is overflowing to the right: Scroll minimally until the element is fully visible to the right
