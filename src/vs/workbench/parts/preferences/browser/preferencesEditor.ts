@@ -338,7 +338,7 @@ export class PreferencesEditor extends BaseEditor {
 			if (result.count === 0) {
 				this.latestEmptyFilters.push(filter);
 			}
-
+			this.preferencesRenderers.focusFirst();
 			this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(filter, result.metadata));
 		}, onUnexpectedError);
 	}
@@ -507,6 +507,12 @@ class PreferencesRenderers extends Disposable {
 		});
 	}
 
+	focusFirst(): void {
+		const setting = this._settingsNavigator.first() || this._getFirstSetting(this._defaultPreferencesRenderer);
+		this._focusPreference(setting, this._defaultPreferencesRenderer);
+		this._focusPreference(setting, this._editablePreferencesRenderer);
+	}
+
 	focusNextPreference(forward: boolean = true) {
 		if (!this._settingsNavigator) {
 			return;
@@ -531,6 +537,16 @@ class PreferencesRenderers extends Disposable {
 				.then(filterResult => { this._editablePreferencesFilterResult = filterResult; });
 		}
 		return TPromise.wrap(null);
+	}
+
+	private _getFirstSetting(preferencesRenderer: IPreferencesRenderer<ISetting>): ISetting {
+		const allGroups = this._getAllPreferences(preferencesRenderer);
+		if (allGroups.length) {
+			if (allGroups[0].sections.length) {
+				return allGroups[0].sections[0].settings[0];
+			}
+		}
+		return null;
 	}
 
 	private _getAllPreferences(preferencesRenderer: IPreferencesRenderer<ISetting>): ISettingsGroup[] {
@@ -580,7 +596,7 @@ class PreferencesRenderers extends Disposable {
 	private _consolidateSettings(editableSettingsGroups: ISettingsGroup[], defaultSettingsGroups: ISettingsGroup[]): ISetting[] {
 		const editableSettings = this._flatten(editableSettingsGroups);
 		const defaultSettings = this._flatten(defaultSettingsGroups).filter(secondarySetting => !editableSettings.some(primarySetting => primarySetting.key === secondarySetting.key));
-		return [...editableSettings, ...defaultSettings];
+		return [...defaultSettings, ...editableSettings];
 	}
 
 	private _flatten(settingsGroups: ISettingsGroup[]): ISetting[] {
