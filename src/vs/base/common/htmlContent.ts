@@ -27,6 +27,11 @@ export class MarkdownString implements IMarkdownString {
 		return this;
 	}
 
+	appendMarkdown(value: string): MarkdownString {
+		this.value += value;
+		return this;
+	}
+
 	appendCodeblock(langId: string, code: string): MarkdownString {
 		this.value += '\n```';
 		this.value += langId;
