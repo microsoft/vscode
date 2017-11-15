@@ -37,6 +37,7 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
+import { render as renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 
 export class SettingsHeaderWidget extends Widget implements IViewZone {
 
@@ -475,6 +476,7 @@ export class SearchWidget extends Widget {
 				},
 				title: localize('enableFuzzySearch', 'Enable experimental fuzzy search')
 			}));
+			this.fuzzyToggle.domNode.innerHTML = renderOcticons('$(light-bulb)');
 			DOM.append(this.controlsDiv, this.fuzzyToggle.domNode);
 			this._register(attachCheckboxStyler(this.fuzzyToggle, this.themeService));
 		}
