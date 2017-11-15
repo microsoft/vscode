@@ -12,8 +12,7 @@ import * as builder from 'vs/base/browser/builder';
 import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IAction } from 'vs/base/common/actions';
-import { EventType } from 'vs/base/common/events';
+import { IAction, IRunEvent } from 'vs/base/common/actions';
 import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -94,7 +93,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 	private registerListeners(): void {
 		this.toUnbind.push(this.debugService.onDidChangeState(state => this.update(state)));
 		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.onDidConfigurationChange(e)));
-		this.toUnbind.push(this.actionBar.actionRunner.addListener(EventType.RUN, (e: any) => {
+		this.toUnbind.push(this.actionBar.actionRunner.onDidRun((e: IRunEvent) => {
 			// check for error
 			if (e.error && !errors.isPromiseCanceledError(e.error)) {
 				this.messageService.show(severity.Error, e.error);

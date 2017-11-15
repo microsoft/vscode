@@ -11,16 +11,15 @@ import lifecycle = require('vs/base/common/lifecycle');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
-import { IAction, IActionRunner, Action, IActionChangeEvent, ActionRunner } from 'vs/base/common/actions';
+import { IAction, IActionRunner, Action, IActionChangeEvent, ActionRunner, IRunEvent } from 'vs/base/common/actions';
 import DOM = require('vs/base/browser/dom');
-import { EventType as CommonEventType } from 'vs/base/common/events';
 import types = require('vs/base/common/types');
-import { IEventEmitter, EventEmitter } from 'vs/base/common/eventEmitter';
 import { Gesture, EventType } from 'vs/base/browser/touch';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import Event, { Emitter } from 'vs/base/common/event';
 
-export interface IActionItem extends IEventEmitter {
+export interface IActionItem {
 	actionRunner: IActionRunner;
 	setActionContext(context: any): void;
 	render(element: HTMLElement): void;
@@ -35,7 +34,7 @@ export interface IBaseActionItemOptions {
 	isMenu?: boolean;
 }
 
-export class BaseActionItem extends EventEmitter implements IActionItem {
+export class BaseActionItem implements IActionItem {
 
 	public builder: Builder;
 	public _callOnDispose: lifecycle.IDisposable[];
@@ -46,8 +45,6 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 	private _actionRunner: IActionRunner;
 
 	constructor(context: any, action: IAction, protected options?: IBaseActionItemOptions) {
-		super();
-
 		this._callOnDispose = [];
 		this._context = context || this;
 		this._action = action;
@@ -152,7 +149,7 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 		});
 	}
 
-	public onClick(event: Event): void {
+	public onClick(event: DOM.EventLike): void {
 		DOM.EventHelper.stop(event, true);
 
 		let context: any;
@@ -199,8 +196,6 @@ export class BaseActionItem extends EventEmitter implements IActionItem {
 	}
 
 	public dispose(): void {
-		super.dispose();
-
 		if (this.builder) {
 			this.builder.destroy();
 			this.builder = null;
@@ -380,7 +375,7 @@ export interface IActionOptions extends IActionItemOptions {
 	index?: number;
 }
 
-export class ActionBar extends EventEmitter implements IActionRunner {
+export class ActionBar implements IActionRunner {
 
 	public options: IActionBarOptions;
 
@@ -399,8 +394,12 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 
 	private toDispose: lifecycle.IDisposable[];
 
+	private _onDidBlur = new Emitter<void>();
+	private _onDidCancel = new Emitter<void>();
+	private _onDidRun = new Emitter<IRunEvent>();
+	private _onDidBeforeRun = new Emitter<IRunEvent>();
+
 	constructor(container: HTMLElement | Builder, options: IActionBarOptions = defaultOptions) {
-		super();
 		this.options = options;
 		this._context = options.context;
 		this.toDispose = [];
@@ -411,7 +410,8 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 			this.toDispose.push(this._actionRunner);
 		}
 
-		this.toDispose.push(this.addEmitter(this._actionRunner));
+		this.toDispose.push(this._actionRunner.onDidRun(e => this._onDidRun.fire(e)));
+		this.toDispose.push(this._actionRunner.onDidBeforeRun(e => this._onDidBeforeRun.fire(e)));
 
 		this.items = [];
 		this.focusedItem = undefined;
@@ -489,7 +489,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 		this.focusTracker = DOM.trackFocus(this.domNode);
 		this.focusTracker.addBlurListener(() => {
 			if (document.activeElement === this.domNode || !DOM.isAncestor(document.activeElement, this.domNode)) {
-				this.emit(DOM.EventType.BLUR, {});
+				this._onDidBlur.fire();
 				this.focusedItem = undefined;
 			}
 		});
@@ -510,6 +510,22 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 		this.domNode.appendChild(this.actionsList);
 
 		((container instanceof Builder) ? container.getHTMLElement() : container).appendChild(this.domNode);
+	}
+
+	public get onDidBlur(): Event<void> {
+		return this._onDidBlur.event;
+	}
+
+	public get onDidCancel(): Event<void> {
+		return this._onDidCancel.event;
+	}
+
+	public get onDidRun(): Event<IRunEvent> {
+		return this._onDidRun.event;
+	}
+
+	public get onDidBeforeRun(): Event<IRunEvent> {
+		return this._onDidBeforeRun.event;
 	}
 
 	public setAriaLabel(label: string): void {
@@ -566,7 +582,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 			actionItemElement.setAttribute('role', 'presentation');
 
 			// Prevent native context menu on actions
-			$(actionItemElement).on(DOM.EventType.CONTEXT_MENU, (e: Event) => {
+			$(actionItemElement).on(DOM.EventType.CONTEXT_MENU, (e: DOM.EventLike) => {
 				e.preventDefault();
 				e.stopPropagation();
 			});
@@ -583,7 +599,6 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 
 			item.actionRunner = this._actionRunner;
 			item.setActionContext(this.context);
-			this.addEmitter(item);
 			item.render(actionItemElement);
 
 			if (index === null || index < 0 || index >= this.actionsList.children.length) {
@@ -726,7 +741,7 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 			(<HTMLElement>document.activeElement).blur(); // remove focus from focused action
 		}
 
-		this.emit(CommonEventType.CANCEL);
+		this._onDidCancel.fire();
 	}
 
 	public run(action: IAction, context?: any): TPromise<void> {
@@ -747,8 +762,6 @@ export class ActionBar extends EventEmitter implements IActionRunner {
 		this.toDispose = lifecycle.dispose(this.toDispose);
 
 		this.getContainer().destroy();
-
-		super.dispose();
 	}
 }
 
