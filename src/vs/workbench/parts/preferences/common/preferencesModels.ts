@@ -122,11 +122,17 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 	protected settingsModel: IModel;
 	private queue: Queue<void>;
 
+	private _onDidChangeGroups: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidChangeGroups: Event<void> = this._onDidChangeGroups.event;
+
 	constructor(reference: IReference<ITextEditorModel>, private _configurationTarget: ConfigurationTarget, @ITextFileService protected textFileService: ITextFileService) {
 		super();
 		this.settingsModel = reference.object.textEditorModel;
 		this._register(this.onDispose(() => reference.dispose()));
-		this._register(this.settingsModel.onDidChangeContent(() => this._settingsGroups = null));
+		this._register(this.settingsModel.onDidChangeContent(() => {
+			this._settingsGroups = null;
+			this._onDidChangeGroups.fire();
+		}));
 		this.queue = new Queue<void>();
 	}
 
