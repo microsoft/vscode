@@ -15,7 +15,7 @@
   "main": "./client/out/cssMain",
   "scripts": {
     "compile": "gulp compile-extension:css-client && gulp compile-extension:css-server",
-    "postinstall": "cd server && npm install",
+    "postinstall": "cd server && yarn install",
     "install-client-next": "npm install vscode-languageclient@next -f -S",
     "install-client-local": "npm install ../../../vscode-languageserver-node/client -f -S",
     "update-grammar": "node ../../build/npm/update-grammar.js atom/language-css grammars/css.cson ./syntaxes/css.tmLanguage.json"
