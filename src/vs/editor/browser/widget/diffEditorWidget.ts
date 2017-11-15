@@ -1516,10 +1516,10 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 			this._sash.disable();
 		}
 
-		this._sash.addListener('start', () => this.onSashDragStart());
-		this._sash.addListener('change', (e: ISashEvent) => this.onSashDrag(e));
-		this._sash.addListener('end', () => this.onSashDragEnd());
-		this._sash.addListener('reset', () => this.onSashReset());
+		this._sash.onDidStart(() => this.onSashDragStart());
+		this._sash.onDidChange((e: ISashEvent) => this.onSashDrag(e));
+		this._sash.onDidEnd(() => this.onSashDragEnd());
+		this._sash.onDidReset(() => this.onSashReset());
 	}
 
 	public dispose(): void {

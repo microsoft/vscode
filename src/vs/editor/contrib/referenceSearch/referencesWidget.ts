@@ -493,11 +493,11 @@ class VSash {
 		// compute the current widget clientX postion since
 		// the sash works with clientX when dragging
 		let clientX: number;
-		this._disposables.push(this._sash.addListener('start', (e: ISashEvent) => {
+		this._disposables.push(this._sash.onDidStart((e: ISashEvent) => {
 			clientX = e.startX - (this._width * this.ratio);
 		}));
 
-		this._disposables.push(this._sash.addListener('change', (e: ISashEvent) => {
+		this._disposables.push(this._sash.onDidChange((e: ISashEvent) => {
 			// compute the new position of the sash and from that
 			// compute the new ratio that we are using
 			let newLeft = e.currentX - clientX;

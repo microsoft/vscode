@@ -863,11 +863,11 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._resizeSash = new Sash(this._domNode, this, { orientation: Orientation.VERTICAL });
 		let originalWidth = FIND_WIDGET_INITIAL_WIDTH;
 
-		this._register(this._resizeSash.addListener('start', (e: ISashEvent) => {
+		this._register(this._resizeSash.onDidStart((e: ISashEvent) => {
 			originalWidth = dom.getTotalWidth(this._domNode);
 		}));
 
-		this._register(this._resizeSash.addListener('change', (evt: ISashEvent) => {
+		this._register(this._resizeSash.onDidChange((evt: ISashEvent) => {
 			let width = originalWidth + evt.startX - evt.currentX;
 
 			if (width < FIND_WIDGET_INITIAL_WIDTH) {
