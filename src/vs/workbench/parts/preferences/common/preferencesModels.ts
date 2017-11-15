@@ -511,7 +511,7 @@ export class DefaultSettings extends Disposable {
 	private _content: string;
 	private _settingsByName: Map<string, ISetting>;
 
-	private _onDidChange: Emitter<void> = this._register(new Emitter<void>());
+	readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	constructor(
@@ -536,16 +536,12 @@ export class DefaultSettings extends Disposable {
 	}
 
 	parse(): string {
-		const currentContent = this._content;
 		const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations().slice();
 		const settingsGroups = this.removeEmptySettingsGroups(configurations.sort(this.compareConfigurationNodes).reduce((result, config, index, array) => this.parseConfig(config, result, array), []));
 		this.initAllSettingsMap(settingsGroups);
 		const mostCommonlyUsed = this.getMostCommonlyUsedSettings(settingsGroups);
 		this._allSettingsGroups = [mostCommonlyUsed, ...settingsGroups];
 		this._content = this.toContent(mostCommonlyUsed, settingsGroups);
-		if (this._content !== currentContent) {
-			this._onDidChange.fire();
-		}
 		return this._content;
 	}
 
