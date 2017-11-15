@@ -82,7 +82,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 		this._currentHistoryNavigator = new HistoryNavigator<string>();
 		this._state = this._register(new FindReplaceState());
 		this.loadQueryState();
-		this._register(this._state.addChangeListener((e) => this._onStateChanged(e)));
+		this._register(this._state.onFindReplaceStateChange((e) => this._onStateChanged(e)));
 
 		this._model = null;
 

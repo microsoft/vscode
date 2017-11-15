@@ -88,7 +88,7 @@ export class FindOptionsWidget extends Widget implements IOverlayWidget {
 
 		this._editor.addOverlayWidget(this);
 
-		this._register(this._state.addChangeListener((e) => {
+		this._register(this._state.onFindReplaceStateChange((e) => {
 			let somethingChanged = false;
 			if (e.isRegex) {
 				this.regex.checked = this._state.isRegex;

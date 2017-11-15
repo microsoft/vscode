@@ -129,7 +129,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._isVisible = false;
 		this._isReplaceVisible = false;
 
-		this._register(this._state.addChangeListener((e) => this._onStateChanged(e)));
+		this._register(this._state.onFindReplaceStateChange((e) => this._onStateChanged(e)));
 		this._buildDomNode();
 		this._updateButtons();
 
