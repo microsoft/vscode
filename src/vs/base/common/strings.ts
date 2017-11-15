@@ -619,44 +619,6 @@ export function isFullWidthCharacter(charCode: number): boolean {
 }
 
 /**
- * Computes the difference score for two strings. More similar strings have a higher score.
- * We use largest common subsequence dynamic programming approach but penalize in the end for length differences.
- * Strings that have a large length difference will get a bad default score 0.
- * Complexity - both time and space O(first.length * second.length)
- * Dynamic programming LCS computation http://en.wikipedia.org/wiki/Longest_common_subsequence_problem
- *
- * @param first a string
- * @param second a string
- */
-export function difference(first: string, second: string, maxLenDelta: number = 4): number {
-	let lengthDifference = Math.abs(first.length - second.length);
-	// We only compute score if length of the currentWord and length of entry.name are similar.
-	if (lengthDifference > maxLenDelta) {
-		return 0;
-	}
-	// Initialize LCS (largest common subsequence) matrix.
-	let LCS: number[][] = [];
-	let zeroArray: number[] = [];
-	let i: number, j: number;
-	for (i = 0; i < second.length + 1; ++i) {
-		zeroArray.push(0);
-	}
-	for (i = 0; i < first.length + 1; ++i) {
-		LCS.push(zeroArray);
-	}
-	for (i = 1; i < first.length + 1; ++i) {
-		for (j = 1; j < second.length + 1; ++j) {
-			if (first[i - 1] === second[j - 1]) {
-				LCS[i][j] = LCS[i - 1][j - 1] + 1;
-			} else {
-				LCS[i][j] = Math.max(LCS[i - 1][j], LCS[i][j - 1]);
-			}
-		}
-	}
-	return LCS[first.length][second.length] - Math.sqrt(lengthDifference);
-}
-
-/**
  * Returns an array in which every entry is the offset of a
  * line. There is always one entry which is zero.
  */
