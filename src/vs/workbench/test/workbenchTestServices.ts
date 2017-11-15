@@ -9,7 +9,6 @@ import 'vs/workbench/parts/files/browser/files.contribution'; // load our contri
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { EventEmitter } from 'vs/base/common/eventEmitter';
 import * as paths from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -425,14 +424,12 @@ export class TestPartService implements IPartService {
 	public resizePart(part: Parts, sizeChange: number): void { }
 }
 
-export class TestStorageService extends EventEmitter implements IStorageService {
+export class TestStorageService implements IStorageService {
 	public _serviceBrand: any;
 
 	private storage: StorageService;
 
 	constructor() {
-		super();
-
 		let context = new TestContextService();
 		this.storage = new StorageService(new InMemoryLocalStorage(), null, context.getWorkspace().id);
 	}
