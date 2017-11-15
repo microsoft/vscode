@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { assign } from 'vs/base/common/objects';
 import { tail } from 'vs/base/common/arrays';
 import URI from 'vs/base/common/uri';
-import { IReference } from 'vs/base/common/lifecycle';
+import { IReference, Disposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { visit, JSONVisitor } from 'vs/base/common/json';
@@ -122,11 +122,17 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 	protected settingsModel: IModel;
 	private queue: Queue<void>;
 
+	private _onDidChangeGroups: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidChangeGroups: Event<void> = this._onDidChangeGroups.event;
+
 	constructor(reference: IReference<ITextEditorModel>, private _configurationTarget: ConfigurationTarget, @ITextFileService protected textFileService: ITextFileService) {
 		super();
 		this.settingsModel = reference.object.textEditorModel;
 		this._register(this.onDispose(() => reference.dispose()));
-		this._register(this.settingsModel.onDidChangeContent(() => this._settingsGroups = null));
+		this._register(this.settingsModel.onDidChangeContent(() => {
+			this._settingsGroups = null;
+			this._onDidChangeGroups.fire();
+		}));
 		this.queue = new Queue<void>();
 	}
 
@@ -499,17 +505,20 @@ export class WorkspaceConfigModel extends SettingsEditorModel implements ISettin
 	}
 }
 
-export class DefaultSettings {
-
+export class DefaultSettings extends Disposable {
 
 	private _allSettingsGroups: ISettingsGroup[];
 	private _content: string;
 	private _settingsByName: Map<string, ISetting>;
 
+	readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidChange: Event<void> = this._onDidChange.event;
+
 	constructor(
 		private _mostCommonlyUsedSettingsKeys: string[],
 		readonly configurationScope: ConfigurationScope,
 	) {
+		super();
 	}
 
 	public get content(): string {
@@ -678,9 +687,6 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 
 	private _model: IModel;
 	private _settingsByName: Map<string, ISetting>;
-	private _mostRelevantLineOffset: number;
-
-	private _settingsGroups: ISettingsGroup[];
 
 	private _onDidChangeGroups: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeGroups: Event<void> = this._onDidChangeGroups.event;
@@ -689,20 +695,15 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		private _uri: URI,
 		reference: IReference<ITextEditorModel>,
 		readonly configurationScope: ConfigurationScope,
-		defaultSettings: DefaultSettings
+		private readonly defaultSettings: DefaultSettings
 	) {
 		super();
-		this._settingsGroups = defaultSettings.settingsGroups;
 
+		this._register(defaultSettings.onDidChange(() => this._onDidChangeGroups.fire()));
 		this._model = reference.object.textEditorModel;
 		this._register(this.onDispose(() => reference.dispose()));
-		this._register(this._model.onDidChangeContent(() => {
-			this._settingsGroups = defaultSettings.settingsGroups;
-			this._onDidChangeGroups.fire();
-		}));
 
 		this.initAllSettingsMap();
-		this._mostRelevantLineOffset = tail(this.settingsGroups).range.endLineNumber + 2;
 	}
 
 	public get uri(): URI {
@@ -710,7 +711,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	}
 
 	public get settingsGroups(): ISettingsGroup[] {
-		return this._settingsGroups;
+		return this.defaultSettings.settingsGroups;
 	}
 
 	public filterSettings(filter: string, groupFilter: IGroupFilter, settingFilter: ISettingFilter, mostRelevantSettings?: string[]): IFilterResult {
@@ -733,7 +734,8 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	}
 
 	private renderMostRelevantSettings(mostRelevantSettings: string[]): ISettingsGroup {
-		const builder = new SettingsContentBuilder(this._mostRelevantLineOffset - 1);
+		const mostRelevantLineOffset = tail(this.settingsGroups).range.endLineNumber + 2;
+		const builder = new SettingsContentBuilder(mostRelevantLineOffset - 1);
 		builder.pushLine(',');
 		const mostRelevantGroup = this.getMostRelevantSettings(mostRelevantSettings);
 		builder.pushGroups([mostRelevantGroup]);
@@ -746,7 +748,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			{
 				text: mostRelevantContent,
 				forceMoveMarkers: false,
-				range: new Range(this._mostRelevantLineOffset, 1, mostRelevantEndLine, 1),
+				range: new Range(mostRelevantLineOffset, 1, mostRelevantEndLine, 1),
 				identifier: { major: 1, minor: 0 }
 			}
 		]);

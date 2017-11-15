@@ -15,6 +15,7 @@ import { IRange } from 'vs/editor/common/core/range';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { join } from 'vs/base/common/paths';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import Event from 'vs/base/common/event';
 
 export interface IWorkbenchSettingsConfiguration {
 	workbench: {
@@ -84,6 +85,7 @@ export type IGroupFilter = (group: ISettingsGroup) => boolean;
 export type ISettingFilter = (setting: ISetting) => IRange[];
 
 export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> {
+	readonly onDidChangeGroups: Event<void>;
 	settingsGroups: ISettingsGroup[];
 	groupsTerms: string[];
 	filterSettings(filter: string, groupFilter: IGroupFilter, settingFilter: ISettingFilter, mostRelevantSettings?: string[]): IFilterResult;

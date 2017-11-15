@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as objects from 'vs/base/common/objects';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { Constants } from 'vs/editor/common/core/uint';
@@ -197,7 +196,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 				return;
 			}
 			const newBreakpointRange = modelData.model.getDecorationRange(breakpointDecoration.decorationId);
-			if (newBreakpointRange && (breakpointDecoration.range.startColumn !== newBreakpointRange.startColumn || breakpointDecoration.range.endLineNumber !== newBreakpointRange.endLineNumber)) {
+			if (newBreakpointRange && (!breakpointDecoration.range.equalsRange(newBreakpointRange))) {
 				somethingChanged = true;
 			}
 		});
@@ -209,12 +208,11 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		const data: { [id: string]: DebugProtocol.Breakpoint } = Object.create(null);
 		const breakpoints = this.debugService.getModel().getBreakpoints();
 		const modelUri = modelData.model.uri;
-		const toRemove: string[] = [];
 		for (let i = 0, len = modelData.breakpointDecorations.length; i < len; i++) {
 			const breakpointDecoration = modelData.breakpointDecorations[i];
 			const decorationRange = modelData.model.getDecorationRange(breakpointDecoration.decorationId);
 			// check if the line got deleted.
-			if (decorationRange && decorationRange.endColumn > decorationRange.startColumn) {
+			if (decorationRange) {
 				const breakpoint = breakpoints.filter(bp => bp.getId() === breakpointDecoration.modelId).pop();
 				// since we know it is collapsed, it cannot grow to multiple lines
 				if (breakpoint) {
@@ -224,15 +222,11 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 						verified: breakpoint.verified
 					};
 				}
-			} else {
-				toRemove.push(breakpointDecoration.modelId);
 			}
 		}
 		modelData.dirty = this.debugService.state !== State.Inactive;
 
-		TPromise.join(toRemove.map(id => this.debugService.removeBreakpoints(id, true))).then(() => {
-			this.debugService.updateBreakpoints(modelUri, data);
-		});
+		this.debugService.updateBreakpoints(modelUri, data);
 	}
 
 	private onBreakpointsChange(): void {
@@ -274,9 +268,10 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 
 	private createBreakpointDecorations(model: IModel, breakpoints: IBreakpoint[]): { range: Range; options: IModelDecorationOptions; }[] {
 		return breakpoints.map((breakpoint) => {
+			const column = model.getLineFirstNonWhitespaceColumn(breakpoint.lineNumber);
 			const range = model.validateRange(
 				breakpoint.column ? new Range(breakpoint.lineNumber, breakpoint.column, breakpoint.lineNumber, breakpoint.column + 1)
-					: new Range(breakpoint.lineNumber, 1, breakpoint.lineNumber, Constants.MAX_SAFE_SMALL_INTEGER) // Decoration has to have a width #20688
+					: new Range(breakpoint.lineNumber, column, breakpoint.lineNumber, column + 1) // Decoration has to have a width #20688
 			);
 			return {
 				options: this.getBreakpointDecorationOptions(breakpoint),

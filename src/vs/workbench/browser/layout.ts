@@ -52,6 +52,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	private static sashXOneWidthSettingsKey = 'workbench.sidebar.width';
 	private static sashXTwoWidthSettingsKey = 'workbench.panel.width';
 	private static sashYHeightSettingsKey = 'workbench.panel.height';
+	private static panelSizeBeforeMaximizedKey = 'workbench.panel.sizeBeforeMaximized';
 
 	private parent: Builder;
 	private workbenchContainer: Builder;
@@ -108,7 +109,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.statusbar = parts.statusbar;
 		this.quickopen = quickopen;
 		this.toUnbind = [];
-		this.panelSizeBeforeMaximized = 0;
+		this.panelSizeBeforeMaximized = this.storageService.getInteger(WorkbenchLayout.panelSizeBeforeMaximizedKey, StorageScope.GLOBAL, 0);
 		this.panelMaximized = false;
 
 		this.sashXOne = new Sash(this.workbenchContainer.getHTMLElement(), this, {
@@ -501,6 +502,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 				this.panelSizeBeforeMaximized = panelWidth;
 			}
 		}
+		this.storageService.store(WorkbenchLayout.panelSizeBeforeMaximizedKey, this.panelSizeBeforeMaximized, StorageScope.GLOBAL);
 		const panelDimension = new Dimension(panelWidth, panelHeight);
 
 		// Editor

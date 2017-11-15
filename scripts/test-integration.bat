@@ -8,11 +8,16 @@ if not "%APPVEYOR%" == "" (
 )
 set VSCODEUSERDATADIR=%TMP%\vscodeuserfolder-%RANDOM%-%TIME:~6,5%
 
-:: Integration Tests
+:: Tests in the extension host
 .\scripts\code.bat %~dp0\..\extensions\vscode-api-tests\testWorkspace --extensionDevelopmentPath=%~dp0\..\extensions\vscode-api-tests --extensionTestsPath=%~dp0\..\extensions\vscode-api-tests\out --disableExtensions --user-data-dir=%VSCODEUSERDATADIR%
 .\scripts\code.bat %~dp0\..\extensions\vscode-colorize-tests\test --extensionDevelopmentPath=%~dp0\..\extensions\vscode-colorize-tests --extensionTestsPath=%~dp0\..\extensions\vscode-colorize-tests\out --user-data-dir=%VSCODEUSERDATADIR%
-.\scripts\test-int-mocha.bat
 .\scripts\code.bat $%~dp0\..\extensions\emmet\test-fixtures --extensionDevelopmentPath=%~dp0\..\extensions\emmet --extensionTestsPath=%~dp0\..\extensions\emmet\out\test --disableExtensions --user-data-dir=%VSCODEUSERDATADIR%
+
+:: Integration & performance tests in AMD
+.\scripts\test.bat --runGlob **\*.integrationTest.js %*
+
+:: Tests in commonJS (language servers tests...)
+.\scripts\mocha-electron.bat .\extensions\html\server\out\test\
 
 rmdir /s /q %VSCODEUSERDATADIR%
 
