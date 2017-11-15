@@ -787,7 +787,6 @@ declare module monaco.editor {
 	export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneDiffEditor;
 
 	export interface IDiffNavigator {
-		revealFirst: boolean;
 		canNavigate(): boolean;
 		next(): void;
 		previous(): void;
