@@ -10,15 +10,8 @@ set NAMESHORT=%NAMESHORT: "=%
 set NAMESHORT=%NAMESHORT:"=%.exe
 set CODE=".build\electron\%NAMESHORT%"
 
-rem TFS Builds
-if not "%BUILD_BUILDID%" == "" (
-	%CODE% .\node_modules\mocha\bin\_mocha %*
-)
+%CODE% %*
 
-rem Otherwise
-if "%BUILD_BUILDID%" == "" (
-	%CODE% .\node_modules\mocha\bin\_mocha --reporter dot %*
-)
 popd
 
 endlocal
