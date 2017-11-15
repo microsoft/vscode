@@ -5,14 +5,9 @@ os:
   - linux
   - osx
 
-# cache:
-#   directories:
-#     - $HOME/.npm
-
 cache:
   directories:
     - $HOME/.cache/yarn
-  apt: true
 
 notifications:
   email: false
