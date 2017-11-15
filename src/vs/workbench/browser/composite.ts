@@ -275,10 +275,6 @@ export abstract class CompositeRegistry<T extends Composite> {
 		return this.composites.slice(0);
 	}
 
-	protected setComposites(compositesToSet: CompositeDescriptor<T>[]): void {
-		this.composites = compositesToSet;
-	}
-
 	private compositeById(id: string): CompositeDescriptor<T> {
 		for (let i = 0; i < this.composites.length; i++) {
 			if (this.composites[i].id === id) {

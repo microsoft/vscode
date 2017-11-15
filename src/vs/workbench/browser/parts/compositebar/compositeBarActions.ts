@@ -198,10 +198,6 @@ export class ActivityActionItem extends BaseActionItem {
 		this.updateStyles();
 	}
 
-	public setBadge(badge: IBadge): void {
-		this.updateBadge(badge);
-	}
-
 	protected updateBadge(badge: IBadge): void {
 		this.$badgeContent.empty();
 		this.$badge.hide();
