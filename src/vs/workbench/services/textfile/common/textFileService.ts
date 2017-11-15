@@ -138,9 +138,10 @@ export abstract class TextFileService implements ITextFileService {
 		if (dirty.length) {
 
 			// If auto save is enabled, save all files and then check again for dirty files
+			// We DO NOT run any save participant if we are in the shutdown phase for performance reasons
 			let handleAutoSave: TPromise<URI[] /* remaining dirty resources */>;
 			if (this.getAutoSaveMode() !== AutoSaveMode.OFF) {
-				handleAutoSave = this.saveAll(false /* files only */).then(() => this.getDirty());
+				handleAutoSave = this.saveAll(false /* files only */, { skipSaveParticipants: true }).then(() => this.getDirty());
 			} else {
 				handleAutoSave = TPromise.as(dirty);
 			}
@@ -277,7 +278,7 @@ export abstract class TextFileService implements ITextFileService {
 
 		// Save
 		if (confirm === ConfirmResult.SAVE) {
-			return this.saveAll(true /* includeUntitled */).then(result => {
+			return this.saveAll(true /* includeUntitled */, { skipSaveParticipants: true }).then(result => {
 				if (result.results.some(r => !r.success)) {
 					return true; // veto if some saves failed
 				}
