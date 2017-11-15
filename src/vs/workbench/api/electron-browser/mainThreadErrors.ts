@@ -4,13 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as errors from 'vs/base/common/errors';
-import { MainThreadErrorsShape } from '../node/extHost.protocol';
+import { SerializedError, onUnexpectedError } from 'vs/base/common/errors';
+import { MainThreadErrorsShape, MainContext } from '../node/extHost.protocol';
+import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
-export class MainThreadErrors extends MainThreadErrorsShape {
+@extHostNamedCustomer(MainContext.MainThreadErrors)
+export class MainThreadErrors implements MainThreadErrorsShape {
 
-	public onUnexpectedExtHostError(err: any): void {
-		errors.onUnexpectedError(err);
+	dispose(): void {
+		//
 	}
 
+	$onUnexpectedError(err: any | SerializedError, extensionId: string | undefined): void {
+		if (err.$isError) {
+			const { name, message, stack } = err;
+			err = new Error();
+			err.message = extensionId ? `[${extensionId}] ${message}` : message;
+			err.name = name;
+			err.stack = stack;
+		}
+		onUnexpectedError(err);
+	}
 }

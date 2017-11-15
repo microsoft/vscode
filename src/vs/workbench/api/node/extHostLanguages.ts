@@ -5,17 +5,16 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
-import { MainContext, MainThreadLanguagesShape } from './extHost.protocol';
+import { MainContext, MainThreadLanguagesShape, IMainContext } from './extHost.protocol';
 
 export class ExtHostLanguages {
 
 	private _proxy: MainThreadLanguagesShape;
 
 	constructor(
-		threadService: IThreadService
+		mainContext: IMainContext
 	) {
-		this._proxy = threadService.get(MainContext.MainThreadLanguages);
+		this._proxy = mainContext.get(MainContext.MainThreadLanguages);
 	}
 
 	getLanguages(): TPromise<string[]> {

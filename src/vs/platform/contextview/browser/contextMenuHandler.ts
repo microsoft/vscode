@@ -44,6 +44,12 @@ export class ContextMenuHandler {
 
 		this.toDispose.push(this.actionRunner.addListener(EventType.BEFORE_RUN, (e: any) => {
 			if (this.telemetryService) {
+				/* __GDPR__
+					"workbenchActionExecuted" : {
+						"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
 				this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: 'contextMenu' });
 			}
 
@@ -74,7 +80,7 @@ export class ContextMenuHandler {
 		}
 		if (container) {
 			this.$el = $(container);
-			this.$el.on('mousedown', (e: MouseEvent) => this.onMouseDown(e));
+			this.$el.on('mousedown', (e: Event) => this.onMouseDown(e as MouseEvent));
 		}
 	}
 

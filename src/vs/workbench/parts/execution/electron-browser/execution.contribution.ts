@@ -11,8 +11,9 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import paths = require('vs/base/common/paths');
+import resources = require('vs/base/common/resources');
 import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor } from 'vs/workbench/browser/actions';
 import uri from 'vs/base/common/uri';
 import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
@@ -102,7 +103,7 @@ export abstract class AbstractOpenInTerminalAction extends Action {
 		let pathToOpen: string;
 
 		// Try workspace path first
-		const root = this.historyService.getLastActiveWorkspaceRoot();
+		const root = this.historyService.getLastActiveWorkspaceRoot('file');
 		pathToOpen = this.resource ? this.resource.fsPath : (root && root.fsPath);
 
 		// Otherwise check if we have an active file open
@@ -163,7 +164,7 @@ export class OpenIntegratedTerminalAction extends AbstractOpenInTerminalAction {
 	public run(event?: any): TPromise<any> {
 		let pathToOpen = this.getPathToOpen();
 
-		var instance = this.integratedTerminalService.createInstance({ cwd: pathToOpen }, true);
+		const instance = this.integratedTerminalService.createInstance({ cwd: pathToOpen }, true);
 		if (instance) {
 			this.integratedTerminalService.setActiveInstance(instance);
 			this.integratedTerminalService.showPanel(true);
@@ -182,7 +183,8 @@ export class ExplorerViewerActionContributor extends ActionBarContributor {
 	}
 
 	public hasSecondaryActions(context: any): boolean {
-		return !!explorerItemToFileResource(context.element);
+		const fileResource = explorerItemToFileResource(context.element);
+		return fileResource && fileResource.resource.scheme === 'file';
 	}
 
 	public getSecondaryActions(context: any): IAction[] {
@@ -191,10 +193,10 @@ export class ExplorerViewerActionContributor extends ActionBarContributor {
 
 		// We want the parent unless this resource is a directory
 		if (!fileResource.isDirectory) {
-			resource = uri.file(paths.dirname(resource.fsPath));
+			resource = resources.dirname(resource);
 		}
 
-		const configuration = this.configurationService.getConfiguration<ITerminalConfiguration>();
+		const configuration = this.configurationService.getValue<ITerminalConfiguration>();
 		const explorerKind = configuration.terminal.explorerKind;
 
 		if (explorerKind === 'integrated') {

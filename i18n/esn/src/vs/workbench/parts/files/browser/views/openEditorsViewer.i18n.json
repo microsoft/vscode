@@ -9,6 +9,7 @@
 	"saveAll": "Guardar todos",
 	"closeAllUnmodified": "Cerrar los que no se han modificado",
 	"closeAll": "Cerrar todo",
+	"compareWithSaved": "Comparar con el guardado",
 	"close": "Cerrar",
 	"closeOthers": "Cerrar otros"
 }

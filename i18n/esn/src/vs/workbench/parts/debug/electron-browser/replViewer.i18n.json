@@ -8,5 +8,5 @@
 	"replVariableAriaLabel": "La variable {0} tiene el valor {1}, read–eval–print loop, depuración",
 	"replExpressionAriaLabel": "La expresión {0} tiene el valor {1}, read–eval–print loop, depuración",
 	"replValueOutputAriaLabel": "{0}, read–eval–print loop, depuración",
-	"replKeyValueOutputAriaLabel": "La variable de salida {0} tiene el valor {1}, read–eval–print loop, depuración"
+	"replRawObjectAriaLabel": "La variable {0} tiene el valor {1}, read–eval–print loop, debug"
 }

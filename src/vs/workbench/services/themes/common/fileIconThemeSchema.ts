@@ -167,6 +167,7 @@ const schema: IJSONSchema = {
 					},
 					fontColor: {
 						type: 'string',
+						format: 'color-hex',
 						description: nls.localize('schema.fontColor', 'When using a glyph font: The color to use.')
 					},
 					fontSize: {
@@ -208,6 +209,10 @@ const schema: IJSONSchema = {
 		highContrast: {
 			$ref: '#/definitions/associations',
 			description: nls.localize('schema.highContrast', 'Optional associations for file icons in high contrast color themes.')
+		},
+		hidesExplorerArrows: {
+			type: 'boolean',
+			description: nls.localize('schema.hidesExplorerArrows', 'Configures whether the file explorer\'s arrows should be hidden when this theme is active.')
 		}
 	}
 };

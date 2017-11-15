@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SimpleFindWidget } from 'vs/editor/contrib/find/browser/simpleFindWidget';
+import { SimpleFindWidget } from 'vs/editor/contrib/find/simpleFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import Webview from './webview';
 
@@ -20,12 +20,12 @@ export class WebviewFindWidget extends SimpleFindWidget {
 		this.onInputChanged = this.onInputChanged.bind(this);
 	}
 
-	public find(previous) {
+	public find(previous: boolean) {
 		let val = this.inputValue;
 		if (this.webview !== null && val) {
 			this.webview.find(val, { findNext: true, forward: !previous });
 		}
-	};
+	}
 
 	public hide() {
 		super.hide();
@@ -54,4 +54,11 @@ export class WebviewFindWidget extends SimpleFindWidget {
 		this.webview.notifyFindWidgetFocusChanged(false);
 	}
 
+	protected onFindInputFocusTrackerFocus() {
+		this.webview.notifyFindWidgetInputFocusChanged(true);
+	}
+
+	protected onFindInputFocusTrackerBlur() {
+		this.webview.notifyFindWidgetInputFocusChanged(false);
+	}
 }

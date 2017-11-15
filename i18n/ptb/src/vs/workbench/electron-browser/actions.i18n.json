@@ -42,5 +42,10 @@
 	"navigateUp": "Navegar para a Visualização Acima",
 	"navigateDown": "Navegar para a Visualização Abaixo",
 	"increaseViewSize": "Aumentar o Tamanho da Visualização Atual",
-	"decreaseViewSize": "Diminuir o Tamanho da Visualização Atual"
+	"decreaseViewSize": "Diminuir o Tamanho da Visualização Atual",
+	"showPreviousTab": "Mostrar a guia da janela anterior",
+	"showNextWindowTab": "Mostrar guia da próxima janela",
+	"moveWindowTabToNewWindow": "Mover a guia da janela para a nova janela",
+	"mergeAllWindowTabs": "Mesclar todas as janelas",
+	"toggleWindowTabsBar": "Alternar a Barra de Guias da Janela"
 }

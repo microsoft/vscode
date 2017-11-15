@@ -7,6 +7,7 @@
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import { createStringBuilder, IStringBuilder } from 'vs/editor/common/core/stringBuilder';
 
 /**
  * Represents a visible line
@@ -22,7 +23,7 @@ export interface IVisibleLine {
 	 * Return null if the HTML should not be touched.
 	 * Return the new HTML otherwise.
 	 */
-	renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData): string;
+	renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData, sb: IStringBuilder): boolean;
 
 	/**
 	 * Layout the line.
@@ -503,12 +504,12 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 		ctx.lines.splice(removeIndex, removeCount);
 	}
 
-	private _finishRenderingNewLines(ctx: IRendererContext<T>, domNodeIsEmpty: boolean, newLinesHTML: string[], wasNew: boolean[]): void {
+	private _finishRenderingNewLines(ctx: IRendererContext<T>, domNodeIsEmpty: boolean, newLinesHTML: string, wasNew: boolean[]): void {
 		let lastChild = <HTMLElement>this.domNode.lastChild;
 		if (domNodeIsEmpty || !lastChild) {
-			this.domNode.innerHTML = newLinesHTML.join('');
+			this.domNode.innerHTML = newLinesHTML;
 		} else {
-			lastChild.insertAdjacentHTML('afterend', newLinesHTML.join(''));
+			lastChild.insertAdjacentHTML('afterend', newLinesHTML);
 		}
 
 		let currChild = <HTMLElement>this.domNode.lastChild;
@@ -521,10 +522,10 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 		}
 	}
 
-	private _finishRenderingInvalidLines(ctx: IRendererContext<T>, invalidLinesHTML: string[], wasInvalid: boolean[]): void {
+	private _finishRenderingInvalidLines(ctx: IRendererContext<T>, invalidLinesHTML: string, wasInvalid: boolean[]): void {
 		let hugeDomNode = document.createElement('div');
 
-		hugeDomNode.innerHTML = invalidLinesHTML.join('');
+		hugeDomNode.innerHTML = invalidLinesHTML;
 
 		for (let i = 0; i < ctx.linesLength; i++) {
 			let line = ctx.lines[i];
@@ -537,47 +538,73 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 		}
 	}
 
+	private static _sb = createStringBuilder(100000);
+
 	private _finishRendering(ctx: IRendererContext<T>, domNodeIsEmpty: boolean, deltaTop: number[]): void {
 
-		let hadNewLine = false;
+		const sb = ViewLayerRenderer._sb;
+		const linesLength = ctx.linesLength;
+		const lines = ctx.lines;
+		const rendLineNumberStart = ctx.rendLineNumberStart;
+
 		let wasNew: boolean[] = [];
-		let newLinesHTML: string[] = [];
-		let hadInvalidLine = false;
-		let wasInvalid: boolean[] = [];
-		let invalidLinesHTML: string[] = [];
+		{
+			sb.reset();
+			let hadNewLine = false;
 
-		for (let i = 0, len = ctx.linesLength; i < len; i++) {
-			let line = ctx.lines[i];
-			let lineNumber = i + ctx.rendLineNumberStart;
+			for (let i = 0; i < linesLength; i++) {
+				const line = lines[i];
+				wasNew[i] = false;
 
-			wasNew[i] = false;
-			wasInvalid[i] = false;
-
-			let renderResult = line.renderLine(lineNumber, deltaTop[i], this.viewportData);
-
-			if (renderResult !== null) {
-				// Line needs rendering
-				let lineDomNode = line.getDomNode();
-				if (!lineDomNode) {
-					// Line is new
-					newLinesHTML.push(renderResult);
-					wasNew[i] = true;
-					hadNewLine = true;
-				} else {
-					// Line is invalid
-					invalidLinesHTML.push(renderResult);
-					wasInvalid[i] = true;
-					hadInvalidLine = true;
+				const lineDomNode = line.getDomNode();
+				if (lineDomNode) {
+					// line is not new
+					continue;
 				}
+
+				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], this.viewportData, sb);
+				if (!renderResult) {
+					// line does not need rendering
+					continue;
+				}
+
+				wasNew[i] = true;
+				hadNewLine = true;
+			}
+
+			if (hadNewLine) {
+				this._finishRenderingNewLines(ctx, domNodeIsEmpty, sb.build(), wasNew);
 			}
 		}
 
-		if (hadNewLine) {
-			this._finishRenderingNewLines(ctx, domNodeIsEmpty, newLinesHTML, wasNew);
-		}
+		{
+			sb.reset();
 
-		if (hadInvalidLine) {
-			this._finishRenderingInvalidLines(ctx, invalidLinesHTML, wasInvalid);
+			let hadInvalidLine = false;
+			let wasInvalid: boolean[] = [];
+
+			for (let i = 0; i < linesLength; i++) {
+				let line = lines[i];
+				wasInvalid[i] = false;
+
+				if (wasNew[i]) {
+					// line was new
+					continue;
+				}
+
+				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], this.viewportData, sb);
+				if (!renderResult) {
+					// line does not need rendering
+					continue;
+				}
+
+				wasInvalid[i] = true;
+				hadInvalidLine = true;
+			}
+
+			if (hadInvalidLine) {
+				this._finishRenderingInvalidLines(ctx, sb.build(), wasInvalid);
+			}
 		}
 	}
 }

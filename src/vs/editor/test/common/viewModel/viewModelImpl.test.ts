@@ -41,4 +41,148 @@ suite('ViewModel', () => {
 			assert.equal(viewModel.getLineCount(), 10);
 		});
 	});
+
+	function assertGetPlainTextToCopy(text: string[], ranges: Range[], emptySelectionClipboard: boolean, expected: string): void {
+		testViewModel(text, {}, (viewModel, model) => {
+			let actual = viewModel.getPlainTextToCopy(ranges, emptySelectionClipboard);
+			assert.equal(actual, expected);
+		});
+	}
+
+	const USUAL_TEXT = [
+		'',
+		'line2',
+		'line3',
+		'line4',
+		''
+	];
+
+	test('getPlainTextToCopy 0/1', () => {
+		assertGetPlainTextToCopy(
+			USUAL_TEXT,
+			[
+				new Range(2, 2, 2, 2)
+			],
+			false,
+			''
+		);
+	});
+
+	test('getPlainTextToCopy 0/1 - emptySelectionClipboard', () => {
+		assertGetPlainTextToCopy(
+			USUAL_TEXT,
+			[
+				new Range(2, 2, 2, 2)
+			],
+			true,
+			'line2\n'
+		);
+	});
+
+	test('getPlainTextToCopy 1/1', () => {
+		assertGetPlainTextToCopy(
+			USUAL_TEXT,
+			[
+				new Range(2, 2, 2, 6)
+			],
+			false,
+			'ine2'
+		);
+	});
+
+	test('getPlainTextToCopy 1/1 - emptySelectionClipboard', () => {
+		assertGetPlainTextToCopy(
+			USUAL_TEXT,
+			[
+				new Range(2, 2, 2, 6)
+			],
+			true,
+			'ine2'
+		);
+	});
+
+	test('getPlainTextToCopy 0/2', () => {
+		assertGetPlainTextToCopy(
+			USUAL_TEXT,
+			[
+				new Range(2, 2, 2, 2),
+				new Range(3, 2, 3, 2),
+			],
+			false,
+			''
+		);
+	});
+
+	test('getPlainTextToCopy 0/2 - emptySelectionClipboard', () => {
+		assertGetPlainTextToCopy(
+			USUAL_TEXT,
+			[
+				new Range(2, 2, 2, 2),
+				new Range(3, 2, 3, 2),
+			],
+			true,
+			'line2\nline3\n'
+		);
+	});
+
+	test('getPlainTextToCopy 1/2', () => {
+		assertGetPlainTextToCopy(
+			USUAL_TEXT,
+			[
+				new Range(2, 2, 2, 6),
+				new Range(3, 2, 3, 2),
+			],
+			false,
+			'ine2'
+		);
+	});
+
+	test('getPlainTextToCopy 1/2 - emptySelectionClipboard', () => {
+		assertGetPlainTextToCopy(
+			USUAL_TEXT,
+			[
+				new Range(2, 2, 2, 6),
+				new Range(3, 2, 3, 2),
+			],
+			true,
+			'ine2'
+		);
+	});
+
+	test('getPlainTextToCopy 2/2', () => {
+		assertGetPlainTextToCopy(
+			USUAL_TEXT,
+			[
+				new Range(2, 2, 2, 6),
+				new Range(3, 2, 3, 6),
+			],
+			false,
+			'ine2\nine3'
+		);
+	});
+
+	test('getPlainTextToCopy 2/2 reversed', () => {
+		assertGetPlainTextToCopy(
+			USUAL_TEXT,
+			[
+				new Range(3, 2, 3, 6),
+				new Range(2, 2, 2, 6),
+			],
+			false,
+			'ine2\nine3'
+		);
+	});
+
+	test('getPlainTextToCopy 0/3 - emptySelectionClipboard', () => {
+		assertGetPlainTextToCopy(
+			USUAL_TEXT,
+			[
+				new Range(2, 2, 2, 2),
+				new Range(2, 3, 2, 3),
+				new Range(3, 2, 3, 2),
+			],
+			true,
+			'line2\nline3\n'
+		);
+	});
 });

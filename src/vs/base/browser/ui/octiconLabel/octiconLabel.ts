@@ -8,10 +8,14 @@ import 'vs/css!./octicons/octicons';
 import 'vs/css!./octicons/octicons-animations';
 import { escape } from 'vs/base/common/strings';
 
-export function expand(text: string): string {
+function expand(text: string): string {
 	return text.replace(/\$\(((.+?)(~(.*?))?)\)/g, (match, g1, name, g3, animation) => {
 		return `<span class="octicon octicon-${name} ${animation ? `octicon-animation-${animation}` : ''}"></span>`;
 	});
+}
+
+export function render(label: string): string {
+	return expand(escape(label));
 }
 
 export class OcticonLabel {
@@ -23,10 +27,7 @@ export class OcticonLabel {
 	}
 
 	set text(text: string) {
-		let innerHTML = text || '';
-		innerHTML = escape(innerHTML);
-		innerHTML = expand(innerHTML);
-		this._container.innerHTML = innerHTML;
+		this._container.innerHTML = render(text || '');
 	}
 
 	set title(title: string) {

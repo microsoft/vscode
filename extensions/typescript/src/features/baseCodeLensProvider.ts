@@ -6,7 +6,8 @@
 import { CodeLensProvider, CodeLens, CancellationToken, TextDocument, Range, Uri, Position, Event, EventEmitter, ProviderResult, } from 'vscode';
 import * as Proto from '../protocol';
 
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
+import { tsTextSpanToVsRange } from '../utils/convert';
 
 export class ReferencesCodeLens extends CodeLens {
 	constructor(
@@ -23,7 +24,7 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 	private onDidChangeCodeLensesEmitter = new EventEmitter<void>();
 
 	public constructor(
-		protected client: ITypescriptServiceClient
+		protected client: ITypeScriptServiceClient
 	) { }
 
 	public get onDidChangeCodeLenses(): Event<void> {
@@ -99,10 +100,7 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 			return null;
 		}
 
-		const range = new Range(
-			span.start.line - 1, span.start.offset - 1,
-			span.end.line - 1, span.end.offset - 1);
-
+		const range = tsTextSpanToVsRange(span);
 		const text = document.getText(range);
 
 		const identifierMatch = new RegExp(`^(.*?(\\b|\\W))${(item.text || '').replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')}(\\b|\\W)`, 'gm');

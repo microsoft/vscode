@@ -12,7 +12,7 @@ import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import Event, { Emitter, once } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
-import { TPromise } from "vs/base/common/winjs.base";
+import { TPromise } from 'vs/base/common/winjs.base';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { Schemas } from 'vs/base/common/network';
 
@@ -62,7 +62,7 @@ export interface IUntitledEditorService {
 	getDirty(resources?: URI[]): URI[];
 
 	/**
-	 * Returns true iff the provided resource is dirty.
+	 * Returns true if the provided resource is dirty.
 	 */
 	isDirty(resource: URI): boolean;
 
@@ -233,7 +233,7 @@ export class UntitledEditorService implements IUntitledEditorService {
 
 		// Look up default language from settings if any
 		if (!modeId && !hasAssociatedFilePath) {
-			const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
+			const configuration = this.configurationService.getValue<IFilesConfiguration>();
 			if (configuration.files && configuration.files.defaultLanguage) {
 				modeId = configuration.files.defaultLanguage;
 			}

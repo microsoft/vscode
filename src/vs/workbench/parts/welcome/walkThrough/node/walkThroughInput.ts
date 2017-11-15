@@ -15,6 +15,7 @@ import { marked } from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
+import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 
 export class WalkThroughModel extends EditorModel {
 
@@ -63,7 +64,8 @@ export class WalkThroughInput extends EditorInput {
 		private options: WalkThroughInputOptions,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@ITextModelService private textModelResolverService: ITextModelService
+		@ITextModelService private textModelResolverService: ITextModelService,
+		@IHashService private hashService: IHashService
 	) {
 		super();
 		this.disposables.push(lifecycleService.onShutdown(e => this.disposeTelemetry(e)));
@@ -92,7 +94,13 @@ export class WalkThroughInput extends EditorInput {
 	getTelemetryDescriptor(): object {
 		const descriptor = super.getTelemetryDescriptor();
 		descriptor['target'] = this.getTelemetryFrom();
-		descriptor['resource'] = telemetryURIDescriptor(this.options.resource);
+		descriptor['resource'] = telemetryURIDescriptor(this.options.resource, path => this.hashService.createSHA1(path));
+		/* __GDPR__FRAGMENT__
+			"EditorTelemetryDescriptor" : {
+				"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"resource": { "${inline}": [ "${URIDescriptor}" ] }
+			}
+		*/
 		return descriptor;
 	}
 
@@ -165,6 +173,11 @@ export class WalkThroughInput extends EditorInput {
 	private resolveTelemetry() {
 		if (!this.resolveTime) {
 			this.resolveTime = Date.now();
+			/* __GDPR__
+				"resolvingInput" : {
+					"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
 			this.telemetryService.publicLog('resolvingInput', {
 				target: this.getTelemetryFrom(),
 			});
@@ -173,6 +186,15 @@ export class WalkThroughInput extends EditorInput {
 
 	private disposeTelemetry(reason?: ShutdownReason) {
 		if (this.resolveTime) {
+			/* __GDPR__
+				"disposingInput" : {
+					"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"timeSpent": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+					"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"maxTopScroll": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"maxBottomScroll": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
 			this.telemetryService.publicLog('disposingInput', {
 				target: this.getTelemetryFrom(),
 				timeSpent: (Date.now() - this.resolveTime) / 60,

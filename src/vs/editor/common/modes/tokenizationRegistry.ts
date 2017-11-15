@@ -8,7 +8,6 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { ColorId, ITokenizationRegistry, ITokenizationSupport, ITokenizationSupportChangedEvent } from 'vs/editor/common/modes';
 import { Color } from 'vs/base/common/color';
-import * as objects from 'vs/base/common/objects';
 
 export class TokenizationRegistryImpl implements ITokenizationRegistry {
 
@@ -50,13 +49,11 @@ export class TokenizationRegistryImpl implements ITokenizationRegistry {
 	}
 
 	public setColorMap(colorMap: Color[]): void {
-		if (!objects.equals(colorMap, this._colorMap)) {
-			this._colorMap = colorMap;
-			this._onDidChange.fire({
-				changedLanguages: Object.keys(this._map),
-				changedColorMap: true
-			});
-		}
+		this._colorMap = colorMap;
+		this._onDidChange.fire({
+			changedLanguages: Object.keys(this._map),
+			changedColorMap: true
+		});
 	}
 
 	public getColorMap(): Color[] {

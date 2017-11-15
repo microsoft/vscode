@@ -112,28 +112,30 @@ export class ShiftCommand implements ICommand {
 					if (contentStartVisibleColumn % tabSize !== 0) {
 						// The current line is "miss-aligned", so let's see if this is expected...
 						// This can only happen when it has trailing commas in the indent
-						let enterAction = LanguageConfigurationRegistry.getRawEnterActionAtPosition(model, lineNumber - 1, model.getLineMaxColumn(lineNumber - 1));
-						if (enterAction) {
-							extraSpaces = previousLineExtraSpaces;
-							if (enterAction.appendText) {
-								for (let j = 0, lenJ = enterAction.appendText.length; j < lenJ && extraSpaces < tabSize; j++) {
-									if (enterAction.appendText.charCodeAt(j) === CharCode.Space) {
-										extraSpaces++;
-									} else {
-										break;
+						if (model.isCheapToTokenize(lineNumber - 1)) {
+							let enterAction = LanguageConfigurationRegistry.getRawEnterActionAtPosition(model, lineNumber - 1, model.getLineMaxColumn(lineNumber - 1));
+							if (enterAction) {
+								extraSpaces = previousLineExtraSpaces;
+								if (enterAction.appendText) {
+									for (let j = 0, lenJ = enterAction.appendText.length; j < lenJ && extraSpaces < tabSize; j++) {
+										if (enterAction.appendText.charCodeAt(j) === CharCode.Space) {
+											extraSpaces++;
+										} else {
+											break;
+										}
 									}
 								}
-							}
-							if (enterAction.removeText) {
-								extraSpaces = Math.max(0, extraSpaces - enterAction.removeText);
-							}
-
-							// Act as if `prefixSpaces` is not part of the indentation
-							for (let j = 0; j < extraSpaces; j++) {
-								if (indentationEndIndex === 0 || lineText.charCodeAt(indentationEndIndex - 1) !== CharCode.Space) {
-									break;
+								if (enterAction.removeText) {
+									extraSpaces = Math.max(0, extraSpaces - enterAction.removeText);
 								}
-								indentationEndIndex--;
+
+								// Act as if `prefixSpaces` is not part of the indentation
+								for (let j = 0; j < extraSpaces; j++) {
+									if (indentationEndIndex === 0 || lineText.charCodeAt(indentationEndIndex - 1) !== CharCode.Space) {
+										break;
+									}
+									indentationEndIndex--;
+								}
 							}
 						}
 					}

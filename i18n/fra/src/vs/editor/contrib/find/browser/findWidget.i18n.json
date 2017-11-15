@@ -15,7 +15,7 @@
 	"label.replaceButton": "Remplacer",
 	"label.replaceAllButton": "Tout remplacer",
 	"label.toggleReplaceButton": "Changer le mode de remplacement",
-	"title.matchesCountLimit": "Seuls les 999 premiers résultats sont mis en surbrillance. Cependant, toutes les opérations de recherche sont appliquées à l'ensemble du texte.",
+	"title.matchesCountLimit": "Seuls les {0} premiers résultats sont mis en évidence, mais toutes les opérations de recherche fonctionnent sur l’ensemble du texte.",
 	"label.matchesLocation": "{0} sur {1}",
 	"label.noResults": "Aucun résultat"
 }

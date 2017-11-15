@@ -49,6 +49,7 @@ suite('ExtHostTextEditorOptions', () => {
 	setup(() => {
 		calls = [];
 		let mockProxy: MainThreadEditorsShape = {
+			dispose: undefined,
 			$trySetOptions: (id: string, options: ITextEditorConfigurationUpdate) => {
 				assert.equal(id, '1');
 				calls.push(options);
@@ -60,9 +61,11 @@ suite('ExtHostTextEditorOptions', () => {
 			$tryShowEditor: undefined,
 			$tryHideEditor: undefined,
 			$trySetDecorations: undefined,
+			$trySetDecorationsFast: undefined,
 			$tryRevealRange: undefined,
 			$trySetSelections: undefined,
 			$tryApplyEdits: undefined,
+			$tryApplyWorkspaceEdit: undefined,
 			$tryInsertSnippet: undefined,
 			$getDiffInformation: undefined
 		};

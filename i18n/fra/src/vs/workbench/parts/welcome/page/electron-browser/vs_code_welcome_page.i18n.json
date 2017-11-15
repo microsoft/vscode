@@ -9,7 +9,7 @@
 	"welcomePage.start": "Démarrer",
 	"welcomePage.newFile": "Nouveau fichier",
 	"welcomePage.openFolder": "Ouvrir un dossier...",
-	"welcomePage.cloneGitRepository": "Cloner le dépôt Git...",
+	"welcomePage.addWorkspaceFolder": "Ajouter un dossier d’espace de travail...",
 	"welcomePage.recent": "Récent",
 	"welcomePage.moreRecent": "Plus...",
 	"welcomePage.noRecentFolders": "Aucun dossier récent",

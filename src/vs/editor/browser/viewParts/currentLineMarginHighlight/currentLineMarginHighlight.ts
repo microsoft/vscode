@@ -17,6 +17,7 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 	private _context: ViewContext;
 	private _lineHeight: number;
 	private _renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
+	private _selectionIsEmpty: boolean;
 	private _primaryCursorIsInEditableRange: boolean;
 	private _primaryCursorLineNumber: number;
 	private _contentLeft: number;
@@ -27,6 +28,7 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._renderLineHighlight = this._context.configuration.editor.viewInfo.renderLineHighlight;
 
+		this._selectionIsEmpty = true;
 		this._primaryCursorIsInEditableRange = true;
 		this._primaryCursorLineNumber = 1;
 		this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
@@ -68,6 +70,13 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 			hasChanged = true;
 		}
 
+		const selectionIsEmpty = e.selections[0].isEmpty();
+		if (this._selectionIsEmpty !== selectionIsEmpty) {
+			this._selectionIsEmpty = selectionIsEmpty;
+			hasChanged = true;
+			return true;
+		}
+
 		return hasChanged;
 	}
 	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
@@ -90,8 +99,12 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 	public render(startLineNumber: number, lineNumber: number): string {
 		if (lineNumber === this._primaryCursorLineNumber) {
 			if (this._shouldShowCurrentLine()) {
+				const paintedInContent = this._willRenderContentCurrentLine();
+				const className = 'current-line-margin' + (paintedInContent ? ' current-line-margin-both' : '');
 				return (
-					'<div class="current-line-margin" style="width:'
+					'<div class="'
+					+ className
+					+ '" style="width:'
 					+ String(this._contentLeft)
 					+ 'px; height:'
 					+ String(this._lineHeight)
@@ -105,7 +118,18 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 	}
 
 	private _shouldShowCurrentLine(): boolean {
-		return (this._renderLineHighlight === 'gutter' || this._renderLineHighlight === 'all') && this._primaryCursorIsInEditableRange;
+		return (
+			(this._renderLineHighlight === 'gutter' || this._renderLineHighlight === 'all')
+			&& this._primaryCursorIsInEditableRange
+		);
+	}
+
+	private _willRenderContentCurrentLine(): boolean {
+		return (
+			(this._renderLineHighlight === 'line' || this._renderLineHighlight === 'all')
+			&& this._selectionIsEmpty
+			&& this._primaryCursorIsInEditableRange
+		);
 	}
 }
 

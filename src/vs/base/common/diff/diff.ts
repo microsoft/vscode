@@ -860,7 +860,7 @@ export class LcsDiff {
 				let originalStart = change.originalStart - delta;
 				let modifiedStart = change.modifiedStart - delta;
 
-				if (originalStart < originalStop || modifiedStart < modifiedStart) {
+				if (originalStart < originalStop || modifiedStart < modifiedStop) {
 					break;
 				}
 

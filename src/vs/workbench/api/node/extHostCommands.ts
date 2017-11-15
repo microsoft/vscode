@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { validateConstraint } from 'vs/base/common/types';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
 import * as extHostTypeConverter from 'vs/workbench/api/node/extHostTypeConverters';
 import { cloneAndChange } from 'vs/base/common/objects';
-import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ObjectIdentifier } from './extHost.protocol';
+import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ObjectIdentifier, IMainContext } from './extHost.protocol';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import * as modes from 'vs/editor/common/modes';
@@ -27,7 +26,7 @@ export interface ArgumentProcessor {
 	processArgument(arg: any): any;
 }
 
-export class ExtHostCommands extends ExtHostCommandsShape {
+export class ExtHostCommands implements ExtHostCommandsShape {
 
 	private _commands = new Map<string, CommandHandler>();
 	private _proxy: MainThreadCommandsShape;
@@ -35,11 +34,10 @@ export class ExtHostCommands extends ExtHostCommandsShape {
 	private _argumentProcessors: ArgumentProcessor[] = [];
 
 	constructor(
-		threadService: IThreadService,
+		mainContext: IMainContext,
 		heapService: ExtHostHeapService
 	) {
-		super();
-		this._proxy = threadService.get(MainContext.MainThreadCommands);
+		this._proxy = mainContext.get(MainContext.MainThreadCommands);
 		this._converter = new CommandsConverter(this, heapService);
 	}
 
@@ -58,7 +56,7 @@ export class ExtHostCommands extends ExtHostCommandsShape {
 		}
 
 		if (this._commands.has(id)) {
-			throw new Error('command with id already exists');
+			throw new Error(`command '${id}' already exists`);
 		}
 
 		this._commands.set(id, { callback, thisArg, description });

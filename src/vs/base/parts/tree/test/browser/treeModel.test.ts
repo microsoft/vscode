@@ -7,7 +7,6 @@
 
 import assert = require('assert');
 import lifecycle = require('vs/base/common/lifecycle');
-import ee = require('vs/base/common/eventEmitter');
 import _ = require('vs/base/parts/tree/browser/tree');
 import WinJS = require('vs/base/common/winjs.base');
 import Events = require('vs/base/common/eventEmitter');
@@ -75,7 +74,7 @@ class EventCounter {
 		this._count = 0;
 	}
 
-	public listen(emitter: ee.IEventEmitter, event: string, fn: (e) => void = null): () => void {
+	public listen(emitter: Events.IEventEmitter, event: string, fn: (e) => void = null): () => void {
 		let r = emitter.addListener(event, (e) => {
 			this._count++;
 			if (fn) {
@@ -630,6 +629,24 @@ suite('TreeModel - Expansion', () => {
 							assert(!model.isExpanded(SAMPLE.DEEP2.children[0].children[0]));
 							done();
 						});
+					});
+				});
+			});
+		});
+	});
+
+	test('collapseDeepestExpandedLevel', (done) => {
+		model.setInput(SAMPLE.DEEP2).done(() => {
+			model.expand(SAMPLE.DEEP2.children[0]).done(() => {
+				model.expand(SAMPLE.DEEP2.children[0].children[0]).done(() => {
+
+					assert(model.isExpanded(SAMPLE.DEEP2.children[0]));
+					assert(model.isExpanded(SAMPLE.DEEP2.children[0].children[0]));
+
+					model.collapseDeepestExpandedLevel().done(() => {
+						assert(model.isExpanded(SAMPLE.DEEP2.children[0]));
+						assert(!model.isExpanded(SAMPLE.DEEP2.children[0].children[0]));
+						done();
 					});
 				});
 			});
@@ -1423,12 +1440,10 @@ suite('TreeModel - Dynamic data model', () => {
 			var gotTimes = 0;
 			var gotListener = dataModel.addListener('gotChildren', (element) => { gotTimes++; });
 
-			var p1, p2;
-
 			var p1Completes = [];
 			dataModel.promiseFactory = () => { return new WinJS.TPromise((c) => { p1Completes.push(c); }); };
 
-			p1 = model.refresh('grandfather');
+			model.refresh('grandfather');
 
 			// just a single get
 			assert.equal(refreshTimes, 1); // (+1) grandfather
@@ -1445,7 +1460,7 @@ suite('TreeModel - Dynamic data model', () => {
 
 			var p2Complete;
 			dataModel.promiseFactory = () => { return new WinJS.TPromise((c) => { p2Complete = c; }); };
-			p2 = model.refresh('father');
+			var p2 = model.refresh('father');
 
 			// same situation still
 			assert.equal(refreshTimes, 3); // (+1) second father refresh
@@ -1500,13 +1515,12 @@ suite('TreeModel - Dynamic data model', () => {
 			var gotTimes = 0;
 			var getListener = dataModel.addListener('getChildren', (element) => { getTimes++; });
 			var gotListener = dataModel.addListener('gotChildren', (element) => { gotTimes++; });
-
-			var p1, p2;
+			var p2;
 
 			var p1Complete;
 			dataModel.promiseFactory = () => { return new WinJS.TPromise((c) => { p1Complete = c; }); };
 
-			p1 = model.refresh('father');
+			model.refresh('father');
 
 			assert.equal(getTimes, 1);
 			assert.equal(gotTimes, 0);
@@ -1724,7 +1738,7 @@ suite('TreeModel - bugs', () => {
 		}).done(() => {
 
 			// teardown
-			while (listeners.length > 0) { listeners.pop()(); };
+			while (listeners.length > 0) { listeners.pop()(); }
 			listeners = null;
 			model.dispose();
 			model = null;

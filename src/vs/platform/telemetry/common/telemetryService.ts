@@ -64,13 +64,18 @@ export class TelemetryService implements ITelemetryService {
 
 		if (this._configurationService) {
 			this._updateUserOptIn();
-			this._configurationService.onDidUpdateConfiguration(this._updateUserOptIn, this, this._disposables);
+			this._configurationService.onDidChangeConfiguration(this._updateUserOptIn, this, this._disposables);
+			/* __GDPR__
+				"optInStatus" : {
+					"optIn" : { "classification": "SystemMetaData", "purpose": "BusinessInsight" }
+				}
+			*/
 			this.publicLog('optInStatus', { optIn: this._userOptIn });
 		}
 	}
 
 	private _updateUserOptIn(): void {
-		const config = this._configurationService.getConfiguration<any>(TELEMETRY_SECTION_ID);
+		const config = this._configurationService.getValue<any>(TELEMETRY_SECTION_ID);
 		this._userOptIn = config ? config.enableTelemetry : this._userOptIn;
 	}
 

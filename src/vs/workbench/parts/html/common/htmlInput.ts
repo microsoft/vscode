@@ -7,11 +7,13 @@
 import URI from 'vs/base/common/uri';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 
 
 export interface HtmlInputOptions {
 	allowScripts?: boolean;
 	allowSvgs?: boolean;
+	svgWhiteList?: string[];
 }
 
 export function areHtmlInputOptionsEqual(left: HtmlInputOptions, right: HtmlInputOptions) {
@@ -24,16 +26,9 @@ export class HtmlInput extends ResourceEditorInput {
 		description: string,
 		resource: URI,
 		public readonly options: HtmlInputOptions,
-		@ITextModelService textModelResolverService: ITextModelService
+		@ITextModelService textModelResolverService: ITextModelService,
+		@IHashService hashService: IHashService
 	) {
-		super(name, description, resource, textModelResolverService);
-	}
-
-	public matches(otherInput: any): boolean {
-		if (!super.matches(otherInput)) {
-			return false;
-		}
-
-		return otherInput instanceof HtmlInput && areHtmlInputOptionsEqual(this.options, otherInput.options);
+		super(name, description, resource, textModelResolverService, hashService);
 	}
 }

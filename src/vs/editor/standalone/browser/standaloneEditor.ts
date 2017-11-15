@@ -27,7 +27,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { NULL_STATE, nullTokenize } from 'vs/editor/common/modes/nullMode';
@@ -36,7 +36,7 @@ import { Token } from 'vs/editor/common/core/token';
 import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
-import { IMessageService } from "vs/platform/message/common/message";
+import { IMessageService } from 'vs/platform/message/common/message';
 
 /**
  * @internal
@@ -135,8 +135,6 @@ export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorC
 }
 
 export interface IDiffNavigator {
-	revealFirst: boolean;
-
 	canNavigate(): boolean;
 	next(): void;
 	previous(): void;
@@ -195,8 +193,8 @@ export function setModelMarkers(model: editorCommon.IModel, owner: string, marke
 }
 
 /**
- * Get markers for owner ant/or resource
- * @returns {IMarkerData[]} list of markers
+ * Get markers for owner and/or resource
+ * @returns {IMarker[]} list of markers
  * @param filter
  */
 export function getModelMarkers(filter: { owner?: string, resource?: URI, take?: number }): IMarker[] {
@@ -328,6 +326,33 @@ export function setTheme(themeName: string): void {
 
 /**
  * @internal
+ * --------------------------------------------
+ * This is repeated here so it can be exported
+ * because TS inlines const enums
+ * --------------------------------------------
+ */
+enum ScrollType {
+	Smooth = 0,
+	Immediate = 1,
+}
+
+/**
+ * @internal
+ * --------------------------------------------
+ * This is repeated here so it can be exported
+ * because TS inlines const enums
+ * --------------------------------------------
+ */
+enum RenderLineNumbersType {
+	Off = 0,
+	On = 1,
+	Relative = 2,
+	Interval = 3,
+	Custom = 4
+}
+
+/**
+ * @internal
  */
 export function createMonacoEditorAPI(): typeof monaco.editor {
 	return {
@@ -371,6 +396,8 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		ContentWidgetPositionPreference: ContentWidgetPositionPreference,
 		OverlayWidgetPositionPreference: OverlayWidgetPositionPreference,
 		RenderMinimap: editorOptions.RenderMinimap,
+		ScrollType: <any>ScrollType,
+		RenderLineNumbersType: <any>RenderLineNumbersType,
 
 		// classes
 		InternalEditorOptions: <any>editorOptions.InternalEditorOptions,

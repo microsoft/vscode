@@ -11,8 +11,9 @@ import { Promise, TPromise, ValueCallback, ErrorCallback, ProgressCallback } fro
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
+import URI from 'vs/base/common/uri';
 
-function isThenable<T>(obj: any): obj is Thenable<T> {
+export function isThenable<T>(obj: any): obj is Thenable<T> {
 	return obj && typeof (<Thenable<any>>obj).then === 'function';
 }
 
@@ -145,7 +146,7 @@ export class Throttler {
 // TODO@Joao: can the previous throttler be replaced with this?
 export class SimpleThrottler {
 
-	private current = TPromise.as<any>(null);
+	private current = TPromise.wrap<any>(null);
 
 	queue<T>(promiseTask: ITask<TPromise<T>>): TPromise<T> {
 		return this.current = this.current.then(() => promiseTask());
@@ -451,6 +452,10 @@ export class Limiter<T> {
 		return this._onFinished.event;
 	}
 
+	public get size(): number {
+		return this.runningPromises + this.outstandingPromises.length;
+	}
+
 	queue(promiseFactory: ITask<Promise>): Promise;
 	queue(promiseFactory: ITask<TPromise<T>>): TPromise<T> {
 		return new TPromise<T>((c, e, p) => {
@@ -498,6 +503,33 @@ export class Queue<T> extends Limiter<T> {
 
 	constructor() {
 		super(1);
+	}
+}
+
+/**
+ * A helper to organize queues per resource. The ResourceQueue makes sure to manage queues per resource
+ * by disposing them once the queue is empty.
+ */
+export class ResourceQueue {
+	private queues: { [path: string]: Queue<void> };
+
+	constructor() {
+		this.queues = Object.create(null);
+	}
+
+	public queueFor(resource: URI): Queue<void> {
+		const key = resource.toString();
+		if (!this.queues[key]) {
+			const queue = new Queue<void>();
+			queue.onFinished(() => {
+				queue.dispose();
+				delete this.queues[key];
+			});
+
+			this.queues[key] = queue;
+		}
+
+		return this.queues[key];
 	}
 }
 
@@ -640,11 +672,53 @@ export class RunOnceScheduler {
 export function nfcall(fn: Function, ...args: any[]): Promise;
 export function nfcall<T>(fn: Function, ...args: any[]): TPromise<T>;
 export function nfcall(fn: Function, ...args: any[]): any {
-	return new TPromise((c, e) => fn(...args, (err, result) => err ? e(err) : c(result)), () => null);
+	return new TPromise((c, e) => fn(...args, (err: any, result: any) => err ? e(err) : c(result)), () => null);
 }
 
 export function ninvoke(thisArg: any, fn: Function, ...args: any[]): Promise;
 export function ninvoke<T>(thisArg: any, fn: Function, ...args: any[]): TPromise<T>;
 export function ninvoke(thisArg: any, fn: Function, ...args: any[]): any {
-	return new TPromise((c, e) => fn.call(thisArg, ...args, (err, result) => err ? e(err) : c(result)), () => null);
+	return new TPromise((c, e) => fn.call(thisArg, ...args, (err: any, result: any) => err ? e(err) : c(result)), () => null);
+}
+
+/**
+ * An emitter that will ignore any events that occur during a specific code
+ * execution triggered via throttle() until the promise has finished (either
+ * successfully or with an error). Only after the promise has finished, the
+ * last event that was fired during the operation will get emitted.
+ *
+ */
+export class ThrottledEmitter<T> extends Emitter<T> {
+	private suspended: boolean;
+
+	private lastEvent: T;
+	private hasLastEvent: boolean;
+
+	public throttle<C>(promise: TPromise<C>): TPromise<C> {
+		this.suspended = true;
+
+		return always(promise, () => this.resume());
+	}
+
+	public fire(event?: T): any {
+		if (this.suspended) {
+			this.lastEvent = event;
+			this.hasLastEvent = true;
+
+			return;
+		}
+
+		return super.fire(event);
+	}
+
+	private resume(): void {
+		this.suspended = false;
+
+		if (this.hasLastEvent) {
+			this.fire(this.lastEvent);
+		}
+
+		this.hasLastEvent = false;
+		this.lastEvent = void 0;
+	}
 }

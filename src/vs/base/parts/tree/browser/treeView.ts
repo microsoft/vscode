@@ -392,8 +392,6 @@ export class TreeView extends HeightMap {
 
 	private isRefreshing = false;
 	private refreshingPreviousChildrenIds: { [id: string]: string[] } = {};
-
-	private dragAndDropListeners: { (): void; }[];
 	private currentDragAndDropData: _.IDragAndDropData;
 	private currentDropElement: any;
 	private currentDropElementReaction: _.IDragOverReaction;
@@ -437,14 +435,14 @@ export class TreeView extends HeightMap {
 
 		this.modelListeners = [];
 		this.viewListeners = [];
-		this.dragAndDropListeners = [];
 
 		this.model = null;
 		this.items = {};
 
 		this.domNode = document.createElement('div');
 		this.domNode.className = `monaco-tree no-focused-item monaco-tree-instance-${this.instance}`;
-		this.domNode.tabIndex = 0;
+		// to allow direct tabbing into the tree instead of first focusing the tree
+		this.domNode.tabIndex = context.options.preventRootFocus ? -1 : 0;
 
 		this.styleElement = DOM.createStyleSheet(this.domNode);
 
@@ -846,26 +844,28 @@ export class TreeView extends HeightMap {
 	}
 
 	public get viewHeight() {
-		const scrollState = this.scrollableElement.getScrollState();
-		return scrollState.height;
+		const scrollDimensions = this.scrollableElement.getScrollDimensions();
+		return scrollDimensions.height;
 	}
 
 	public set viewHeight(viewHeight: number) {
-		this.scrollableElement.updateState({
+		this.scrollableElement.setScrollDimensions({
 			height: viewHeight,
 			scrollHeight: this.getTotalHeight()
 		});
 	}
 
 	public get scrollTop(): number {
-		const scrollState = this.scrollableElement.getScrollState();
-		return scrollState.scrollTop;
+		const scrollPosition = this.scrollableElement.getScrollPosition();
+		return scrollPosition.scrollTop;
 	}
 
 	public set scrollTop(scrollTop: number) {
-		this.scrollableElement.updateState({
-			scrollTop: scrollTop,
+		this.scrollableElement.setScrollDimensions({
 			scrollHeight: this.getTotalHeight()
+		});
+		this.scrollableElement.setScrollPosition({
+			scrollTop: scrollTop
 		});
 	}
 

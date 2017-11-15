@@ -32,15 +32,18 @@ suite('Files - TextFileEditorModel', () => {
 
 	let instantiationService: IInstantiationService;
 	let accessor: ServiceAccessor;
+	let content: string;
 
 	setup(() => {
 		instantiationService = workbenchInstantiationService();
 		accessor = instantiationService.createInstance(ServiceAccessor);
+		content = accessor.fileService.getContent();
 	});
 
 	teardown(() => {
 		(<TextFileEditorModelManager>accessor.textFileService.models).clear();
 		TextFileEditorModel.setSaveParticipant(null); // reset any set participant
+		accessor.fileService.setContent(content);
 	});
 
 	test('Save', function (done) {
@@ -184,6 +187,20 @@ suite('Files - TextFileEditorModel', () => {
 				assert.equal(eventCounter, 1);
 
 				model.dispose();
+
+				done();
+			});
+		}, error => onError(error, done));
+	});
+
+	test('Load and undo turns model dirty', function (done) {
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8');
+		model.load().done(() => {
+			accessor.fileService.setContent('Hello Change');
+			model.load().done(() => {
+				model.textEditorModel.undo();
+
+				assert.ok(model.isDirty());
 
 				done();
 			});

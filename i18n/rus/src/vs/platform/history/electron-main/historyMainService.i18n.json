@@ -6,5 +6,7 @@
 {
 	"newWindow": "Новое окно",
 	"newWindowDesc": "Открывает новое окно",
-	"folderDesc": "{0} {1}"
+	"recentFolders": "Последние рабочие области",
+	"folderDesc": "{0} {1}",
+	"codeWorkspace": "Рабочая область кода"
 }

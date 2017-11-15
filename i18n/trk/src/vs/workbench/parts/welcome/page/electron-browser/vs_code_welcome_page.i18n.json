@@ -9,7 +9,7 @@
 	"welcomePage.start": "Başlangıç",
 	"welcomePage.newFile": "Yeni dosya",
 	"welcomePage.openFolder": "Klasör aç...",
-	"welcomePage.cloneGitRepository": "Git deposu kopyala...",
+	"welcomePage.addWorkspaceFolder": "Çalışma alanı klasörü ekle...",
 	"welcomePage.recent": "Son Kullanılanlar",
 	"welcomePage.moreRecent": "Diğerleri...",
 	"welcomePage.noRecentFolders": "Son kullanılan klasör yok",

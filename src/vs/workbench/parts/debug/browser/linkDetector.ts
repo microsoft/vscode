@@ -3,14 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import strings = require('vs/base/common/strings');
 import uri from 'vs/base/common/uri';
 import { isMacintosh } from 'vs/base/common/platform';
 import * as errors from 'vs/base/common/errors';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import * as nls from 'vs/nls';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export class LinkDetector {
 	private static FILE_LOCATION_PATTERNS: RegExp[] = [
@@ -24,8 +22,7 @@ export class LinkDetector {
 	];
 
 	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		// noop
 	}
@@ -46,11 +43,6 @@ export class LinkDetector {
 			let match = pattern.exec(text);
 			while (match !== null) {
 				let resource: uri = null;
-				try {
-					resource = (match && !strings.startsWith(match[0], 'http'))
-						&& (match[2] || strings.startsWith(match[1], '/') ? uri.file(match[1]) : this.contextService.toResource(match[1])); // TODO@Michel TODO@Isidor (https://github.com/Microsoft/vscode/issues/29190)
-				} catch (e) { }
-
 				if (!resource) {
 					match = pattern.exec(text);
 					continue;

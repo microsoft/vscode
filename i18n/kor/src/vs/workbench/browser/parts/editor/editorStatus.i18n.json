@@ -11,7 +11,7 @@
 	"endOfLineLineFeed": "LF",
 	"endOfLineCarriageReturnLineFeed": "CRLF",
 	"tabFocusModeEnabled": "Tab으로 포커스 이동",
-	"screenReaderDetected": "화면 읽기 프로그램 검색됨",
+	"screenReaderDetected": "화면 읽기 프로그램이 최적화됨",
 	"screenReaderDetectedExtra": "화면 읽기 프로그램을 사용하지 않는 경우 `editor.accessibilitySupport` 설정을 \"off\"로 변경하세요.",
 	"disableTabMode": "접근성 모드 사용 안 함",
 	"gotoLine": "줄 이동",
@@ -47,5 +47,11 @@
 	"reopenWithEncoding": "인코딩하여 다시 열기",
 	"guessedEncoding": "콘텐츠에서 추측함",
 	"pickEncodingForReopen": "파일을 다시 열 파일 인코딩 선택",
-	"pickEncodingForSave": "파일을 저장할 파일 인코딩 선택"
+	"pickEncodingForSave": "파일을 저장할 파일 인코딩 선택",
+	"screenReaderDetectedExplanation.title": "화면 읽기 프로그램이 최적화됨",
+	"screenReaderDetectedExplanation.question": "VS Code를 작동하기 위해 화면 읽기 프로그램을 사용하십니까?",
+	"screenReaderDetectedExplanation.answerYes": "예",
+	"screenReaderDetectedExplanation.answerNo": "아니요",
+	"screenReaderDetectedExplanation.body1": "VS Code가 이제 화면 읽기 프로그램과 사용하는 데 최적화되었습니다.",
+	"screenReaderDetectedExplanation.body2": "일부 편집기 기능에는 자동 줄바꿈, 접기, 자동 닫는 대괄호 등 여러 가지 동작이 있습니다. "
 }

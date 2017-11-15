@@ -32,7 +32,7 @@ export function checksum(path: string, sha1hash: string): TPromise<void> {
 		input.once('error', done);
 		input.once('end', done);
 		hashStream.once('error', done);
-		hashStream.once('data', data => done(null, data.toString('hex')));
+		hashStream.once('data', (data: NodeBuffer) => done(null, data.toString('hex')));
 	});
 
 	return promise.then(hash => {

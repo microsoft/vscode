@@ -3,20 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SimpleFindWidget } from 'vs/editor/contrib/find/browser/simpleFindWidget';
+import { SimpleFindWidget } from 'vs/editor/contrib/find/simpleFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED } from 'vs/workbench/parts/terminal/common/terminal';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export class TerminalFindWidget extends SimpleFindWidget {
+	protected _findInputFocused: IContextKey<boolean>;
 
 	constructor(
 		@IContextViewService _contextViewService: IContextViewService,
+		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@ITerminalService private _terminalService: ITerminalService
 	) {
 		super(_contextViewService);
+		this._findInputFocused = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED.bindTo(this._contextKeyService);
 	}
 
-	public find(previous) {
+	public find(previous: boolean) {
 		let val = this.inputValue;
 		let instance = this._terminalService.getActiveInstance();
 		if (instance !== null) {
@@ -26,7 +30,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 				instance.findNext(val);
 			}
 		}
-	};
+	}
 
 	public hide() {
 		super.hide();
@@ -43,5 +47,13 @@ export class TerminalFindWidget extends SimpleFindWidget {
 
 	protected onFocusTrackerBlur() {
 		this._terminalService.getActiveInstance().notifyFindWidgetFocusChanged(false);
+	}
+
+	protected onFindInputFocusTrackerFocus() {
+		this._findInputFocused.set(true);
+	}
+
+	protected onFindInputFocusTrackerBlur() {
+		this._findInputFocused.reset();
 	}
 }

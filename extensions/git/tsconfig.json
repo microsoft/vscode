@@ -6,7 +6,10 @@
 		],
 		"module": "commonjs",
 		"outDir": "./out",
-		"strictNullChecks": true,
+		"typeRoots": [
+			"./node_modules/@types"
+		],
+		"strict": true,
 		"experimentalDecorators": true
 	},
 	"include": [

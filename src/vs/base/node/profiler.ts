@@ -62,14 +62,14 @@ export function removePiiPaths(profile: Profile) {
 }
 
 declare interface Profiler {
-	startProfiling(name: string);
+	startProfiling(name: string): void;
 	stopProfiling(): Profile;
 }
 
 export declare interface Profile {
 	title: string;
-	export(callback: (err, data) => void);
-	delete();
+	export(callback: (err, data) => void): void;
+	delete(): void;
 	head: ProfileSample;
 }
 

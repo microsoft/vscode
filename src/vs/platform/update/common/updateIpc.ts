@@ -63,7 +63,7 @@ export class UpdateChannelClient implements IUpdateService {
 	get onStateChange(): Event<State> { return this._onStateChange.event; }
 
 	private _state: State = State.Uninitialized;
-	get state(): State { return this._state; };
+	get state(): State { return this._state; }
 
 	constructor(private channel: IUpdateChannel) {
 		// always set this._state as the state changes

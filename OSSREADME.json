@@ -1,12 +1,6 @@
 // Listing in here platform dependencies that come in at build time
 
 [{
-	"name": "atom-brightray",
-	"repositoryURL": "https://github.com/electron/brightray",
-	"license": "MIT",
-	"isProd": true
-},
-{
 	"isLicense": true,
 	"name": "async-each",
 	"repositoryURL": "https://github.com/paulmillr/async-each",
@@ -68,7 +62,7 @@
 },
 {
 	"name": "chromium",
-	"version": "56.0.2924.87",
+	"version": "58.0.3029.110",
 	"repositoryURL": "http://www.chromium.org/Home",
 	"licenseDetail": [
 		"BSD License",
@@ -104,20 +98,20 @@
 },
 {
 	"name": "libchromiumcontent",
-	"version": "56.0.2924.87",
+	"version": "58.0.3029.110",
 	"license": "MIT",
 	"repositoryURL": "https://github.com/electron/libchromiumcontent",
 	"isProd": true
 },
 {
 	"name": "nodejs",
-	"version": "7.4.0",
+	"version": "7.9.0",
 	"repositoryURL": "https://github.com/nodejs/node",
 	"isProd": true
 },
 {
 	"name": "electron",
-	"version": "1.6.6",
+	"version": "1.7.3",
 	"license": "MIT",
 	"repositoryURL": "https://github.com/electron/electron",
 	"isProd": true

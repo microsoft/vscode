@@ -11,5 +11,6 @@
 	"json.schemas.schema.desc": "指定 URL 的結構描述定義。只須提供結構描述以避免存取結構描述 URL。",
 	"json.format.enable.desc": "啟用/停用預設 JSON 格式器 (需要重新啟動)",
 	"json.tracing.desc": "追蹤 VS Code 與 JSON 語言伺服器之間的通訊。",
-	"json.colorDecorators.enable.desc": "啟用或停用彩色裝飾項目"
+	"json.colorDecorators.enable.desc": "啟用或停用彩色裝飾項目",
+	"json.colorDecorators.enable.deprecationMessage": "設定 `json.colorDecorators.enable` 已淘汰，將改為 `editor.colorDecorators`。"
 }

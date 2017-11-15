@@ -51,7 +51,7 @@ export const xhrRequest: IRequestFunction = (options: IRequestOptions): TPromise
 		setRequestHeaders(xhr, options);
 
 		xhr.responseType = 'arraybuffer';
-		xhr.onerror = reject;
+		xhr.onerror = e => reject(new Error('XHR failed: ' + xhr.statusText));
 		xhr.onload = (e) => {
 			resolve({
 				res: {

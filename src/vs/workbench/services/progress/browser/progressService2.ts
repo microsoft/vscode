@@ -7,8 +7,7 @@
 import 'vs/css!./media/progressService2';
 import * as dom from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
-import { IActivityBarService, ProgressBadge } from 'vs/workbench/services/activity/common/activityBarService';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { IProgressService2, IProgressOptions, ProgressLocation, IProgress, IProgressStep, Progress, emptyProgress } from 'vs/platform/progress/common/progress';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
@@ -61,7 +60,6 @@ export class ProgressService2 implements IProgressService2 {
 	private _stack: [IProgressOptions, Progress<IProgressStep>][] = [];
 
 	constructor(
-		@IActivityBarService private _activityBar: IActivityBarService,
 		@IViewletService private _viewletService: IViewletService
 	) {
 		//
@@ -117,11 +115,7 @@ export class ProgressService2 implements IProgressService2 {
 
 			let text = options.title;
 			if (progress.value && progress.value.message) {
-				if (options.title) {
-					text = localize('progress.text', "{0} - {1}", progress.value.message, options.title);
-				} else {
-					text = progress.value.message;
-				}
+				text = progress.value.message;
 			}
 
 			if (!text) {
@@ -131,8 +125,11 @@ export class ProgressService2 implements IProgressService2 {
 			}
 
 			let title = text;
+			if (options.title && options.title !== title) {
+				title = localize('progress.subtitle', "{0} - {1}", options.title, title);
+			}
 			if (options.tooltip) {
-				title = localize('progress.title', "{0}: {1}", options.tooltip, text);
+				title = localize('progress.title', "{0}: {1}", options.tooltip, title);
 			}
 
 			WindowProgressItem.Instance.text = text;
@@ -152,34 +149,34 @@ export class ProgressService2 implements IProgressService2 {
 		}
 
 		// show activity bar
-		let activityProgress: IDisposable;
-		let delayHandle = setTimeout(() => {
-			delayHandle = undefined;
-			const handle = this._activityBar.showActivity(
-				viewletId,
-				new ProgressBadge(() => ''),
-				'progress-badge'
-			);
-			const startTimeVisible = Date.now();
-			const minTimeVisible = 150;
-			activityProgress = {
-				dispose() {
-					const d = Date.now() - startTimeVisible;
-					if (d < minTimeVisible) {
-						// should at least show for Nms
-						setTimeout(() => handle.dispose(), minTimeVisible - d);
-					} else {
-						// shown long enough
-						handle.dispose();
-					}
-				}
-			};
-		}, 150);
+		// let activityProgress: IDisposable;
+		// let delayHandle = setTimeout(() => {
+		// 	delayHandle = undefined;
+		// 	const handle = this._activityBar.showActivity(
+		// 		viewletId,
+		// 		new ProgressBadge(() => ''),
+		// 		'progress-badge'
+		// 	);
+		// 	const startTimeVisible = Date.now();
+		// 	const minTimeVisible = 300;
+		// 	activityProgress = {
+		// 		dispose() {
+		// 			const d = Date.now() - startTimeVisible;
+		// 			if (d < minTimeVisible) {
+		// 				// should at least show for Nms
+		// 				setTimeout(() => handle.dispose(), minTimeVisible - d);
+		// 			} else {
+		// 				// shown long enough
+		// 				handle.dispose();
+		// 			}
+		// 		}
+		// 	};
+		// }, 300);
 
-		always(promise, () => {
-			clearTimeout(delayHandle);
-			dispose(activityProgress);
-		});
+		// always(promise, () => {
+		// 	clearTimeout(delayHandle);
+		// 	dispose(activityProgress);
+		// });
 	}
 }
 

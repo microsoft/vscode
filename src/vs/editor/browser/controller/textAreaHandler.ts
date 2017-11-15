@@ -7,6 +7,7 @@
 import 'vs/css!./textAreaHandler';
 import * as platform from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
+import * as strings from 'vs/base/common/strings';
 import { TextAreaInput, ITextAreaInputHost, IPasteData, ICompositionData } from 'vs/editor/browser/controller/textAreaInput';
 import { ISimpleModel, ITypeData, TextAreaState, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/textAreaState';
 import { Range } from 'vs/editor/common/core/range';
@@ -18,12 +19,13 @@ import { HorizontalRange, RenderingContext, RestrictedRenderingContext } from 'v
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { ViewController } from 'vs/editor/browser/view/viewController';
-import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
+import { EndOfLinePreference, ScrollType } from 'vs/editor/common/editorCommon';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { PartFingerprints, PartFingerprint, ViewPart } from 'vs/editor/browser/view/viewPart';
 import { Margin } from 'vs/editor/browser/viewParts/margin/margin';
 import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
+import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 
 export interface ITextAreaHandlerHelper {
 	visibleRangeForPositionRelativeToEditor(lineNumber: number, column: number): HorizontalRange;
@@ -53,8 +55,6 @@ export class TextAreaHandler extends ViewPart {
 
 	private readonly _viewController: ViewController;
 	private readonly _viewHelper: ITextAreaHandlerHelper;
-
-	private _pixelRatio: number;
 	private _accessibilitySupport: platform.AccessibilitySupport;
 	private _contentLeft: number;
 	private _contentWidth: number;
@@ -85,7 +85,6 @@ export class TextAreaHandler extends ViewPart {
 
 		const conf = this._context.configuration.editor;
 
-		this._pixelRatio = conf.pixelRatio;
 		this._accessibilitySupport = conf.accessibilitySupport;
 		this._contentLeft = conf.layoutInfo.contentLeft;
 		this._contentWidth = conf.layoutInfo.contentWidth;
@@ -164,10 +163,28 @@ export class TextAreaHandler extends ViewPart {
 
 				if (this._accessibilitySupport === platform.AccessibilitySupport.Disabled) {
 					// We know for a fact that a screen reader is not attached
+					// On OSX, we write the character before the cursor to allow for "long-press" composition
+					if (platform.isMacintosh) {
+						const selection = this._selections[0];
+						if (selection.isEmpty()) {
+							const position = selection.getStartPosition();
+							if (position.column > 1) {
+								const lineContent = this._context.model.getLineContent(position.lineNumber);
+								const charBefore = lineContent.charAt(position.column - 2);
+								if (!strings.isHighSurrogate(charBefore.charCodeAt(0))) {
+									return new TextAreaState(charBefore, 1, 1, position, position);
+								}
+							}
+						}
+					}
 					return TextAreaState.EMPTY;
 				}
 
-				return PagedScreenReaderStrategy.fromEditorSelection(currentState, simpleModel, this._selections[0]);
+				return PagedScreenReaderStrategy.fromEditorSelection(currentState, simpleModel, this._selections[0], this._accessibilitySupport === platform.AccessibilitySupport.Unknown);
+			},
+
+			deduceModelPosition: (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position => {
+				return this._context.model.deduceModelPositionRelativeToViewPosition(viewAnchorPosition, deltaOffset, lineFeedCnt);
 			}
 		};
 
@@ -201,6 +218,10 @@ export class TextAreaHandler extends ViewPart {
 			}
 		}));
 
+		this._register(this._textAreaInput.onSelectionChangeRequest((modelSelection: Selection) => {
+			this._viewController.setSelection('keyboard', modelSelection);
+		}));
+
 		this._register(this._textAreaInput.onCompositionStart(() => {
 			const lineNumber = this._selections[0].startLineNumber;
 			const column = this._selections[0].startColumn;
@@ -208,7 +229,8 @@ export class TextAreaHandler extends ViewPart {
 			this._context.privateViewEventBus.emit(new viewEvents.ViewRevealRangeRequestEvent(
 				new Range(lineNumber, column, lineNumber, column),
 				viewEvents.VerticalRevealType.Simple,
-				true
+				true,
+				ScrollType.Immediate
 			));
 
 			// Find range pixel position
@@ -281,9 +303,6 @@ export class TextAreaHandler extends ViewPart {
 		}
 		if (e.lineHeight) {
 			this._lineHeight = conf.lineHeight;
-		}
-		if (e.pixelRatio) {
-			this._pixelRatio = conf.pixelRatio;
 		}
 		if (e.accessibilitySupport) {
 			this._accessibilitySupport = conf.accessibilitySupport;
@@ -463,7 +482,7 @@ export class TextAreaHandler extends ViewPart {
 		if (this._context.configuration.editor.viewInfo.glyphMargin) {
 			tac.setClassName('monaco-editor-background textAreaCover ' + Margin.CLASS_NAME);
 		} else {
-			if (this._context.configuration.editor.viewInfo.renderLineNumbers) {
+			if (this._context.configuration.editor.viewInfo.renderLineNumbers !== RenderLineNumbersType.Off) {
 				tac.setClassName('monaco-editor-background textAreaCover ' + LineNumbersOverlay.CLASS_NAME);
 			} else {
 				tac.setClassName('monaco-editor-background textAreaCover');

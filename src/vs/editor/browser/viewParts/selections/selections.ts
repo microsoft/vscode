@@ -368,12 +368,12 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		for (let i = 0, len = this._selections.length; i < len; i++) {
 			let selection = this._selections[i];
 			if (selection.isEmpty()) {
-				thisFrameVisibleRangesWithStyle.push(null);
+				thisFrameVisibleRangesWithStyle[i] = null;
 				continue;
 			}
 
 			let visibleRangesWithStyle = this._getVisibleRangesWithStyle(selection, ctx, this._previousFrameVisibleRangesWithStyle[i]);
-			thisFrameVisibleRangesWithStyle.push(visibleRangesWithStyle);
+			thisFrameVisibleRangesWithStyle[i] = visibleRangesWithStyle;
 			this._actualRenderOneSelection(output, visibleStartLineNumber, this._selections.length > 1, visibleRangesWithStyle);
 		}
 

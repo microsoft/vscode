@@ -6,12 +6,12 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import { match as matchGlobPattern } from 'vs/base/common/glob'; // TODO@Alex
+import { match as matchGlobPattern, IRelativePattern } from 'vs/base/common/glob'; // TODO@Alex
 
 export interface LanguageFilter {
 	language?: string;
 	scheme?: string;
-	pattern?: string;
+	pattern?: string | IRelativePattern;
 }
 
 export type LanguageSelector = string | LanguageFilter | (string | LanguageFilter)[];

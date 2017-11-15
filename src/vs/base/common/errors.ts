@@ -132,26 +132,35 @@ export function setUnexpectedErrorHandler(newUnexpectedErrorHandler: (e: any) =>
 	errorHandler.setUnexpectedErrorHandler(newUnexpectedErrorHandler);
 }
 
-export function onUnexpectedError(e: any): void {
-
+export function onUnexpectedError(e: any): undefined {
 	// ignore errors from cancelled promises
 	if (!isPromiseCanceledError(e)) {
 		errorHandler.onUnexpectedError(e);
 	}
+	return undefined;
 }
 
-export function onUnexpectedExternalError(e: any): void {
-
+export function onUnexpectedExternalError(e: any): undefined {
 	// ignore errors from cancelled promises
 	if (!isPromiseCanceledError(e)) {
 		errorHandler.onUnexpectedExternalError(e);
 	}
+	return undefined;
 }
 
-export function onUnexpectedPromiseError<T>(promise: TPromise<T>): TPromise<T> {
-	return promise.then<T>(null, onUnexpectedError);
+export function onUnexpectedPromiseError<T>(promise: TPromise<T>): TPromise<T | void> {
+	return promise.then(null, onUnexpectedError);
 }
 
+export interface SerializedError {
+	readonly $isError: true;
+	readonly name: string;
+	readonly message: string;
+	readonly stack: string;
+}
+
+export function transformErrorForSerialization(error: Error): SerializedError;
+export function transformErrorForSerialization(error: any): any;
 export function transformErrorForSerialization(error: any): any {
 	if (error instanceof Error) {
 		let { name, message } = error;
@@ -166,6 +175,24 @@ export function transformErrorForSerialization(error: any): any {
 
 	// return as is
 	return error;
+}
+
+// see https://github.com/v8/v8/wiki/Stack%20Trace%20API#basic-stack-traces
+export interface V8CallSite {
+	getThis(): any;
+	getTypeName(): string;
+	getFunction(): string;
+	getFunctionName(): string;
+	getMethodName(): string;
+	getFileName(): string;
+	getLineNumber(): number;
+	getColumnNumber(): number;
+	getEvalOrigin(): string;
+	isToplevel(): boolean;
+	isEval(): boolean;
+	isNative(): boolean;
+	isConstructor(): boolean;
+	toString(): string;
 }
 
 const canceledName = 'Canceled';
@@ -213,6 +240,12 @@ export function readonly(name?: string): Error {
 	return name
 		? new Error(`readonly property '${name} cannot be changed'`)
 		: new Error('readonly property cannot be changed');
+}
+
+export function disposed(what: string): Error {
+	const result = new Error(`${what} has been disposed`);
+	result.name = 'DISPOSED';
+	return result;
 }
 
 export interface IErrorOptions {

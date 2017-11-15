@@ -28,7 +28,7 @@ function gestureChangeEventMerger(lastEvent: IThrottledGestureEvent, currentEven
 		r.translationX += lastEvent.translationX;
 	}
 	return r;
-};
+}
 
 /**
  * Basically IE10 and IE11
@@ -99,11 +99,7 @@ class MsPointerHandler extends MouseHandler implements IDisposable {
 	}
 
 	private _onGestureChange(e: IThrottledGestureEvent): void {
-		const viewLayout = this._context.viewLayout;
-		viewLayout.setScrollPosition({
-			scrollLeft: viewLayout.getScrollLeft() - e.translationX,
-			scrollTop: viewLayout.getScrollTop() - e.translationY,
-		});
+		this._context.viewLayout.deltaScrollNow(-e.translationX, -e.translationY);
 	}
 
 	public dispose(): void {
@@ -181,11 +177,7 @@ class StandardPointerHandler extends MouseHandler implements IDisposable {
 	}
 
 	private _onGestureChange(e: IThrottledGestureEvent): void {
-		const viewLayout = this._context.viewLayout;
-		viewLayout.setScrollPosition({
-			scrollLeft: viewLayout.getScrollLeft() - e.translationX,
-			scrollTop: viewLayout.getScrollTop() - e.translationY,
-		});
+		this._context.viewLayout.deltaScrollNow(-e.translationX, -e.translationY);
 	}
 
 	public dispose(): void {
@@ -227,11 +219,7 @@ class TouchHandler extends MouseHandler {
 	}
 
 	private onChange(e: GestureEvent): void {
-		const viewLayout = this._context.viewLayout;
-		viewLayout.setScrollPosition({
-			scrollLeft: viewLayout.getScrollLeft() - e.translationX,
-			scrollTop: viewLayout.getScrollTop() - e.translationY,
-		});
+		this._context.viewLayout.deltaScrollNow(-e.translationX, -e.translationY);
 	}
 }
 

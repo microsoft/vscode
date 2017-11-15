@@ -240,6 +240,7 @@ export class FindInput extends Widget {
 	public setRegex(value: boolean): void {
 		this.regex.checked = value;
 		this.setInputWidth();
+		this.validate();
 	}
 
 	public focusOnCaseSensitive(): void {
@@ -267,8 +268,7 @@ export class FindInput extends Widget {
 			placeholder: this.placeholder || '',
 			ariaLabel: this.label || '',
 			validationOptions: {
-				validation: this.validation || null,
-				showMessage: true
+				validation: this.validation || null
 			},
 			inputBackground: this.inputBackground,
 			inputForeground: this.inputForeground,

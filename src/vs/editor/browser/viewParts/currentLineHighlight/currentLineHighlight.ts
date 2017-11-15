@@ -16,7 +16,6 @@ import { editorLineHighlight, editorLineHighlightBorder } from 'vs/editor/common
 export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 	private _context: ViewContext;
 	private _lineHeight: number;
-	private _readOnly: boolean;
 	private _renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
 	private _selectionIsEmpty: boolean;
 	private _primaryCursorIsInEditableRange: boolean;
@@ -28,7 +27,6 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 		super();
 		this._context = context;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
-		this._readOnly = this._context.configuration.editor.readOnly;
 		this._renderLineHighlight = this._context.configuration.editor.viewInfo.renderLineHighlight;
 
 		this._selectionIsEmpty = true;
@@ -51,9 +49,6 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
-		}
-		if (e.readOnly) {
-			this._readOnly = this._context.configuration.editor.readOnly;
 		}
 		if (e.viewInfo) {
 			this._renderLineHighlight = this._context.configuration.editor.viewInfo.renderLineHighlight;
@@ -110,8 +105,12 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 	public render(startLineNumber: number, lineNumber: number): string {
 		if (lineNumber === this._primaryCursorLineNumber) {
 			if (this._shouldShowCurrentLine()) {
+				const paintedInMargin = this._willRenderMarginCurrentLine();
+				const className = 'current-line' + (paintedInMargin ? ' current-line-both' : '');
 				return (
-					'<div class="current-line" style="width:'
+					'<div class="'
+					+ className
+					+ '" style="width:'
 					+ String(Math.max(this._scrollWidth, this._contentWidth))
 					+ 'px; height:'
 					+ String(this._lineHeight)
@@ -125,9 +124,18 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 	}
 
 	private _shouldShowCurrentLine(): boolean {
-		return (this._renderLineHighlight === 'line' || this._renderLineHighlight === 'all') &&
-			this._selectionIsEmpty &&
-			this._primaryCursorIsInEditableRange;
+		return (
+			(this._renderLineHighlight === 'line' || this._renderLineHighlight === 'all')
+			&& this._selectionIsEmpty
+			&& this._primaryCursorIsInEditableRange
+		);
+	}
+
+	private _willRenderMarginCurrentLine(): boolean {
+		return (
+			(this._renderLineHighlight === 'gutter' || this._renderLineHighlight === 'all')
+			&& this._primaryCursorIsInEditableRange
+		);
 	}
 }
 

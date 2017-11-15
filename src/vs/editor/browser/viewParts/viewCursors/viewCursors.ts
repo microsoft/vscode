@@ -330,14 +330,21 @@ export class ViewCursors extends ViewPart {
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
-		this._renderData = [];
-		this._renderData.push(this._primaryCursor.render(ctx));
-		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
-			this._renderData.push(this._secondaryCursors[i].render(ctx));
+		let renderData: IViewCursorRenderData[] = [], renderDataLen = 0;
+
+		const primaryRenderData = this._primaryCursor.render(ctx);
+		if (primaryRenderData) {
+			renderData[renderDataLen++] = primaryRenderData;
 		}
 
-		// Keep only data of cursors that are visible
-		this._renderData = this._renderData.filter(d => !!d);
+		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
+			const secondaryRenderData = this._secondaryCursors[i].render(ctx);
+			if (secondaryRenderData) {
+				renderData[renderDataLen++] = secondaryRenderData;
+			}
+		}
+
+		this._renderData = renderData;
 	}
 
 	public getLastRenderData(): IViewCursorRenderData[] {

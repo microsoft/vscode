@@ -14,9 +14,13 @@ import pkg from 'vs/platform/node/package';
 import * as fs from 'fs';
 import * as paths from 'path';
 import * as os from 'os';
+import { whenDeleted } from 'vs/base/node/pfs';
 
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
-	return argv['list-extensions'] || !!argv['install-extension'] || !!argv['uninstall-extension'];
+	return !!argv['install-source']
+		|| !!argv['list-extensions']
+		|| !!argv['install-extension']
+		|| !!argv['uninstall-extension'];
 }
 
 interface IMainCli {
@@ -36,7 +40,7 @@ export function main(argv: string[]): TPromise<void> {
 	if (args.help) {
 		console.log(buildHelpMessage(product.nameLong, product.applicationName, pkg.version));
 	} else if (args.version) {
-		console.log(`${pkg.version}\n${product.commit}`);
+		console.log(`${pkg.version}\n${product.commit}\n${process.arch}`);
 	} else if (shouldSpawnCliProcess(args)) {
 		const mainCli = new TPromise<IMainCli>(c => require(['vs/code/node/cliProcessMain'], c));
 		return mainCli.then(cli => cli.main(args));
@@ -105,14 +109,7 @@ export function main(argv: string[]): TPromise<void> {
 				child.once('exit', () => c(null));
 
 				// Complete when wait marker file is deleted
-				const interval = setInterval(() => {
-					fs.exists(waitMarkerFilePath, exists => {
-						if (!exists) {
-							clearInterval(interval);
-							c(null);
-						}
-					});
-				}, 1000);
+				whenDeleted(waitMarkerFilePath).done(c, c);
 			});
 		}
 	}

@@ -32,11 +32,11 @@ import { RequestService } from 'vs/platform/request/electron-main/requestService
 import { IURLService } from 'vs/platform/url/common/url';
 import { URLService } from 'vs/platform/url/electron-main/urlService';
 import * as fs from 'original-fs';
-import { CodeApplication } from "vs/code/electron-main/app";
-import { HistoryMainService } from "vs/platform/history/electron-main/historyMainService";
-import { IHistoryMainService } from "vs/platform/history/common/history";
-import { WorkspacesMainService } from "vs/platform/workspaces/electron-main/workspacesMainService";
-import { IWorkspacesMainService } from "vs/platform/workspaces/common/workspaces";
+import { CodeApplication } from 'vs/code/electron-main/app';
+import { HistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
+import { IHistoryMainService } from 'vs/platform/history/common/history';
+import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
+import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 
 function createServices(args: ParsedArgs): IInstantiationService {
 	const services = new ServiceCollection();
@@ -73,7 +73,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	const environmentService = accessor.get(IEnvironmentService);
 
 	function allowSetForegroundWindow(service: LaunchChannelClient): TPromise<void> {
-		let promise = TPromise.as<void>(void 0);
+		let promise = TPromise.wrap<void>(void 0);
 		if (platform.isWindows) {
 			promise = service.getMainProcessId()
 				.then(processId => {
@@ -138,7 +138,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 
 					// it happens on Linux and OS X that the pipe is left behind
 					// let's delete it, since we can't connect to it
-					// and the retry the whole thing
+					// and then retry the whole thing
 					try {
 						fs.unlinkSync(environmentService.mainIPCHandle);
 					} catch (e) {

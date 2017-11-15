@@ -7,17 +7,131 @@
 
 declare module 'vscode' {
 
+	// export enum FileErrorCodes {
+	// 	/**
+	// 	 * Not owner.
+	// 	 */
+	// 	EPERM = 1,
+	// 	/**
+	// 	 * No such file or directory.
+	// 	 */
+	// 	ENOENT = 2,
+	// 	/**
+	// 	 * I/O error.
+	// 	 */
+	// 	EIO = 5,
+	// 	/**
+	// 	 * Permission denied.
+	// 	 */
+	// 	EACCES = 13,
+	// 	/**
+	// 	 * File exists.
+	// 	 */
+	// 	EEXIST = 17,
+	// 	/**
+	// 	 * Not a directory.
+	// 	 */
+	// 	ENOTDIR = 20,
+	// 	/**
+	// 	 * Is a directory.
+	// 	 */
+	// 	EISDIR = 21,
+	// 	/**
+	// 	 *  File too large.
+	// 	 */
+	// 	EFBIG = 27,
+	// 	/**
+	// 	 * No space left on device.
+	// 	 */
+	// 	ENOSPC = 28,
+	// 	/**
+	// 	 * Directory is not empty.
+	// 	 */
+	// 	ENOTEMPTY = 66,
+	// 	/**
+	// 	 * Invalid file handle.
+	// 	 */
+	// 	ESTALE = 70,
+	// 	/**
+	// 	 * Illegal NFS file handle.
+	// 	 */
+	// 	EBADHANDLE = 10001,
+	// }
+
+	export enum FileChangeType {
+		Updated = 0,
+		Added = 1,
+		Deleted = 2
+	}
+
+	export interface FileChange {
+		type: FileChangeType;
+		resource: Uri;
+	}
+
+	export enum FileType {
+		File = 0,
+		Dir = 1,
+		Symlink = 2
+	}
+
+	export interface FileStat {
+		id: number | string;
+		mtime: number;
+		// atime: number;
+		size: number;
+		type: FileType;
+	}
+
 	// todo@joh discover files etc
 	export interface FileSystemProvider {
-		// todo@joh -> added, deleted, renamed, changed
-		onDidChange: Event<Uri>;
 
-		resolveContents(resource: Uri): string | Thenable<string>;
-		writeContents(resource: Uri, contents: string): void | Thenable<void>;
+		onDidChange?: Event<FileChange[]>;
+
+		root: Uri;
+
+		// more...
+		//
+		utimes(resource: Uri, mtime: number, atime: number): Thenable<FileStat>;
+
+		stat(resource: Uri): Thenable<FileStat>;
+
+		read(resource: Uri, offset: number, length: number, progress: Progress<Uint8Array>): Thenable<number>;
+
+		// todo@remote
+		// offset - byte offset to start
+		// count - number of bytes to write
+		// Thenable<number> - number of bytes actually written
+		write(resource: Uri, content: Uint8Array): Thenable<void>;
+
+		// todo@remote
+		// Thenable<FileStat>
+		move(resource: Uri, target: Uri): Thenable<FileStat>;
+
+		// todo@remote
+		// helps with performance bigly
+		// copy?(from: Uri, to: Uri): Thenable<void>;
+
+		// todo@remote
+		// Thenable<FileStat>
+		mkdir(resource: Uri): Thenable<FileStat>;
+
+		readdir(resource: Uri): Thenable<[Uri, FileStat][]>;
+
+		// todo@remote
+		// ? merge both
+		// ? recursive del
+		rmdir(resource: Uri): Thenable<void>;
+		unlink(resource: Uri): Thenable<void>;
+
+		// todo@remote
+		// create(resource: Uri): Thenable<FileStat>;
+
+		// find files by names
+		findFiles?(query: string, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
 	}
 
 	export namespace workspace {
-
 		export function registerFileSystemProvider(authority: string, provider: FileSystemProvider): Disposable;
 	}
 
@@ -55,72 +169,109 @@ declare module 'vscode' {
 		export function registerDiffInformationCommand(command: string, callback: (diff: LineChange[], ...args: any[]) => any, thisArg?: any): Disposable;
 	}
 
+	//#region decorations
+
+	//todo@joh -> make class
+	export interface DecorationData {
+		priority?: number;
+		title?: string;
+		bubble?: boolean;
+		abbreviation?: string;
+		color?: ThemeColor;
+		source?: string;
+	}
+
+	export interface SourceControlResourceDecorations {
+		source?: string;
+		letter?: string;
+		color?: ThemeColor;
+	}
+
+	export interface DecorationProvider {
+		onDidChangeDecorations: Event<undefined | Uri | Uri[]>;
+		provideDecoration(uri: Uri, token: CancellationToken): ProviderResult<DecorationData>;
+	}
+
+	export namespace window {
+		export function registerDecorationProvider(provider: DecorationProvider): Disposable;
+	}
+
+	//#endregion
+
 	/**
-	 * Namespace for handling credentials.
+	 * Represents the debug console.
 	 */
-	export namespace credentials {
+	export interface DebugConsole {
+		/**
+		 * Append the given value to the debug console.
+		 *
+		 * @param value A string, falsy values will not be printed.
+		 */
+		append(value: string): void;
 
 		/**
-		 * Read a previously stored secret from the credential store.
+		 * Append the given value and a line feed character
+		 * to the debug console.
 		 *
-		 * @param service The service of the credential.
-		 * @param account The account of the credential.
-		 * @return A promise for the secret of the credential.
+		 * @param value A string, falsy values will be printed.
 		 */
-		export function readSecret(service: string, account: string): Thenable<string | undefined>;
+		appendLine(value: string): void;
+	}
+
+	export namespace debug {
+		/**
+		 * The [debug console](#DebugConsole) singleton.
+		 */
+		export let console: DebugConsole;
+	}
+
+	/**
+	 * Represents an action that can be performed in code.
+	 *
+	 * Shown using the [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action)
+	 */
+	export class CodeAction {
+		/**
+		 * Label used to identify the code action in UI.
+		 */
+		title: string;
 
 		/**
-		 * Write a secret to the credential store.
+		 * Optional command that performs the code action.
 		 *
-		 * @param service The service of the credential.
-		 * @param account The account of the credential.
-		 * @param secret The secret of the credential to write to the credential store.
-		 * @return A promise indicating completion of the operation.
+		 * Executed after `edits` if any edits are provided. Either `command` or `edits` must be provided for a `CodeAction`.
 		 */
-		export function writeSecret(service: string, account: string, secret: string): Thenable<void>;
+		command?: Command;
 
 		/**
-		 * Delete a previously stored secret from the credential store.
+		 * Optional edit that performs the code action.
 		 *
-		 * @param service The service of the credential.
-		 * @param account The account of the credential.
-		 * @return A promise resolving to true if there was a secret for that service and account.
+		 * Either `command` or `edits` must be provided for a `CodeAction`.
 		 */
-		export function deleteSecret(service: string, account: string): Thenable<boolean>;
+		edits?: TextEdit[] | WorkspaceEdit;
+
+		/**
+		 * Diagnostics that this code action resolves.
+		 */
+		diagnostics?: Diagnostic[];
+
+		constructor(title: string, edits?: TextEdit[] | WorkspaceEdit);
 	}
 
-	export class Color {
-		readonly red: number;
-		readonly green: number;
-		readonly blue: number;
-		readonly alpha?: number;
+	export interface CodeActionProvider {
 
-		constructor(red: number, green: number, blue: number, alpha?: number);
-
-		static fromHSLA(hue: number, saturation: number, luminosity: number, alpha?: number): Color;
-		static fromHex(hex: string): Color;
-	}
-
-	export type ColorFormat = string | { opaque: string, transparent: string };
-
-	// TODO@Michel
-	export class ColorInfo {
-		range: Range;
-
-		color: Color;
-
-		format: ColorFormat;
-
-		availableFormats: ColorFormat[];
-
-		constructor(range: Range, color: Color, format: ColorFormat, availableFormats: ColorFormat[]);
-	}
-
-	export interface DocumentColorProvider {
-		provideDocumentColors(document: TextDocument, token: CancellationToken): ProviderResult<ColorInfo[]>;
-	}
-
-	export namespace languages {
-		export function registerColorProvider(selector: DocumentSelector, provider: DocumentColorProvider): Disposable;
+		/**
+		 * Provide commands for the given document and range.
+		 *
+		 * If implemented, overrides `provideCodeActions`
+		 *
+		 * @param document The document in which the command was invoked.
+		 * @param range The range for which the command was invoked.
+		 * @param context Context carrying additional information.
+		 * @param token A cancellation token.
+		 * @return An array of commands, quick fixes, or refactorings or a thenable of such. The lack of a result can be
+		 * signaled by returning `undefined`, `null`, or an empty array.
+		 */
+		provideCodeActions2?(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): ProviderResult<(Command | CodeAction)[]>;
 	}
 }

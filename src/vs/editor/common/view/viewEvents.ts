@@ -10,6 +10,7 @@ import { ScrollEvent } from 'vs/base/common/scrollable';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import * as errors from 'vs/base/common/errors';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 
 export const enum ViewEventType {
 	ViewConfigurationChanged = 1,
@@ -26,7 +27,8 @@ export const enum ViewEventType {
 	ViewTokensChanged = 12,
 	ViewTokensColorsChanged = 13,
 	ViewZonesChanged = 14,
-	ViewThemeChanged = 15
+	ViewThemeChanged = 15,
+	ViewLanguageConfigurationChanged = 16
 }
 
 export class ViewConfigurationChangedEvent {
@@ -72,15 +74,10 @@ export class ViewCursorStateChangedEvent {
 	 * Is the primary cursor in the editable range?
 	 */
 	public readonly isInEditableRange: boolean;
-	/**
-	 * A message that can be presented to screen readers.
-	 */
-	public readonly screenReaderMessage: string;
 
-	constructor(selections: Selection[], isInEditableRange: boolean, screenReaderMessage: string) {
+	constructor(selections: Selection[], isInEditableRange: boolean) {
 		this.selections = selections;
 		this.isInEditableRange = isInEditableRange;
-		this.screenReaderMessage = screenReaderMessage;
 	}
 }
 
@@ -203,10 +200,13 @@ export class ViewRevealRangeRequestEvent {
 	 */
 	public readonly revealHorizontal: boolean;
 
-	constructor(range: Range, verticalType: VerticalRevealType, revealHorizontal: boolean) {
+	public readonly scrollType: ScrollType;
+
+	constructor(range: Range, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: ScrollType) {
 		this.range = range;
 		this.verticalType = verticalType;
 		this.revealHorizontal = revealHorizontal;
+		this.scrollType = scrollType;
 	}
 }
 
@@ -283,6 +283,14 @@ export class ViewZonesChangedEvent {
 	}
 }
 
+export class ViewLanguageConfigurationEvent {
+
+	public readonly type = ViewEventType.ViewLanguageConfigurationChanged;
+
+	constructor() {
+	}
+}
+
 export type ViewEvent = (
 	ViewConfigurationChangedEvent
 	| ViewCursorStateChangedEvent
@@ -299,6 +307,7 @@ export type ViewEvent = (
 	| ViewTokensColorsChangedEvent
 	| ViewZonesChangedEvent
 	| ViewThemeChangedEvent
+	| ViewLanguageConfigurationEvent
 );
 
 export interface IViewEventListener {

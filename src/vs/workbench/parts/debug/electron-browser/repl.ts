@@ -9,7 +9,6 @@ import uri from 'vs/base/common/uri';
 import { wireCancellationToken } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
-import * as lifecycle from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 import * as dom from 'vs/base/browser/dom';
@@ -18,13 +17,13 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ITree, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
-import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { IReadOnlyModel, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
+import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
+import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Position } from 'vs/editor/common/core/position';
 import * as modes from 'vs/editor/common/modes';
-import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -44,6 +43,7 @@ import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { clipboard } from 'electron';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 const $ = dom.$;
 
@@ -73,7 +73,6 @@ export class Repl extends Panel implements IPrivateReplService {
 	private static REPL_INPUT_INITIAL_HEIGHT = 19;
 	private static REPL_INPUT_MAX_HEIGHT = 170;
 
-	private toDispose: lifecycle.IDisposable[];
 	private tree: ITree;
 	private renderer: ReplExpressionsRenderer;
 	private characterWidthSurveyor: HTMLElement;
@@ -99,15 +98,14 @@ export class Repl extends Panel implements IPrivateReplService {
 		super(debug.REPL_ID, telemetryService, themeService);
 
 		this.replInputHeight = Repl.REPL_INPUT_INITIAL_HEIGHT;
-		this.toDispose = [];
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.debugService.getModel().onDidChangeReplElements(() => {
+		this.toUnbind.push(this.debugService.getModel().onDidChangeReplElements(() => {
 			this.refreshReplElements(this.debugService.getModel().getReplElements().length === 0);
 		}));
-		this.toDispose.push(this.panelService.onDidPanelOpen(panel => this.refreshReplElements(true)));
+		this.toUnbind.push(this.panelService.onDidPanelOpen(panel => this.refreshReplElements(true)));
 	}
 
 	private refreshReplElements(noDelay: boolean): void {
@@ -154,8 +152,8 @@ export class Repl extends Panel implements IPrivateReplService {
 			controller
 		}, replTreeOptions);
 
-		this.toDispose.push(attachListStyler(this.tree, this.themeService));
-		this.toDispose.push(this.listService.register(this.tree));
+		this.toUnbind.push(attachListStyler(this.tree, this.themeService));
+		this.toUnbind.push(this.listService.register(this.tree));
 
 		if (!Repl.HISTORY) {
 			Repl.HISTORY = new ReplHistory(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')));
@@ -168,7 +166,7 @@ export class Repl extends Panel implements IPrivateReplService {
 		this.replInputContainer = dom.append(container, $('.repl-input-wrapper'));
 
 		const scopedContextKeyService = this.contextKeyService.createScoped(this.replInputContainer);
-		this.toDispose.push(scopedContextKeyService);
+		this.toUnbind.push(scopedContextKeyService);
 		debug.CONTEXT_IN_DEBUG_REPL.bindTo(scopedContextKeyService).set(true);
 		const onFirstReplLine = debug.CONTEXT_ON_FIRST_DEBUG_REPL_LINE.bindTo(scopedContextKeyService);
 		onFirstReplLine.set(true);
@@ -183,7 +181,7 @@ export class Repl extends Panel implements IPrivateReplService {
 
 		modes.SuggestRegistry.register({ scheme: debug.DEBUG_SCHEME }, {
 			triggerCharacters: ['.'],
-			provideCompletionItems: (model: IReadOnlyModel, position: Position, token: CancellationToken): Thenable<modes.ISuggestResult> => {
+			provideCompletionItems: (model: IReadOnlyModel, position: Position, _context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> => {
 				const word = this.replInput.getModel().getWordAtPosition(position);
 				const overwriteBefore = word ? word.word.length : 0;
 				const text = this.replInput.getModel().getLineContent(position.lineNumber);
@@ -197,20 +195,20 @@ export class Repl extends Panel implements IPrivateReplService {
 			}
 		});
 
-		this.toDispose.push(this.replInput.onDidScrollChange(e => {
+		this.toUnbind.push(this.replInput.onDidScrollChange(e => {
 			if (!e.scrollHeightChanged) {
 				return;
 			}
 			this.replInputHeight = Math.max(Repl.REPL_INPUT_INITIAL_HEIGHT, Math.min(Repl.REPL_INPUT_MAX_HEIGHT, e.scrollHeight, this.dimension.height));
 			this.layout(this.dimension);
 		}));
-		this.toDispose.push(this.replInput.onDidChangeCursorPosition(e => {
+		this.toUnbind.push(this.replInput.onDidChangeCursorPosition(e => {
 			onFirstReplLine.set(e.position.lineNumber === 1);
 			onLastReplLine.set(e.position.lineNumber === this.replInput.getModel().getLineCount());
 		}));
 
-		this.toDispose.push(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.FOCUS, () => dom.addClass(this.replInputContainer, 'synthetic-focus')));
-		this.toDispose.push(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.BLUR, () => dom.removeClass(this.replInputContainer, 'synthetic-focus')));
+		this.toUnbind.push(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.FOCUS, () => dom.addClass(this.replInputContainer, 'synthetic-focus')));
+		this.toUnbind.push(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.BLUR, () => dom.removeClass(this.replInputContainer, 'synthetic-focus')));
 	}
 
 	public navigateHistory(previous: boolean): void {
@@ -270,7 +268,7 @@ export class Repl extends Panel implements IPrivateReplService {
 			];
 
 			this.actions.forEach(a => {
-				this.toDispose.push(a);
+				this.toUnbind.push(a);
 			});
 		}
 
@@ -311,12 +309,10 @@ export class Repl extends Panel implements IPrivateReplService {
 
 	public dispose(): void {
 		this.replInput.dispose();
-		this.toDispose = lifecycle.dispose(this.toDispose);
 		super.dispose();
 	}
 }
 
-@editorAction
 class ReplHistoryPreviousAction extends EditorAction {
 
 	constructor() {
@@ -336,12 +332,11 @@ class ReplHistoryPreviousAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void | TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void | TPromise<void> {
 		accessor.get(IPrivateReplService).navigateHistory(true);
 	}
 }
 
-@editorAction
 class ReplHistoryNextAction extends EditorAction {
 
 	constructor() {
@@ -361,12 +356,11 @@ class ReplHistoryNextAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void | TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void | TPromise<void> {
 		accessor.get(IPrivateReplService).navigateHistory(false);
 	}
 }
 
-@editorAction
 class AcceptReplInputAction extends EditorAction {
 
 	constructor() {
@@ -382,25 +376,12 @@ class AcceptReplInputAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void | TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void | TPromise<void> {
 		SuggestController.get(editor).acceptSelectedSuggestion();
 		accessor.get(IPrivateReplService).acceptReplInput();
 	}
 }
 
-const SuggestCommand = EditorCommand.bindToContribution<SuggestController>(SuggestController.get);
-CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
-	id: 'repl.action.acceptSuggestion',
-	precondition: ContextKeyExpr.and(debug.CONTEXT_IN_DEBUG_REPL, SuggestContext.Visible),
-	handler: x => x.acceptSelectedSuggestion(),
-	kbOpts: {
-		weight: 50,
-		kbExpr: EditorContextKeys.textFocus,
-		primary: KeyCode.RightArrow
-	}
-}));
-
-@editorAction
 export class ReplCopyAllAction extends EditorAction {
 
 	constructor() {
@@ -412,7 +393,24 @@ export class ReplCopyAllAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void | TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void | TPromise<void> {
 		clipboard.writeText(accessor.get(IPrivateReplService).getVisibleContent());
 	}
 }
+
+registerEditorAction(ReplHistoryPreviousAction);
+registerEditorAction(ReplHistoryNextAction);
+registerEditorAction(AcceptReplInputAction);
+registerEditorAction(ReplCopyAllAction);
+
+const SuggestCommand = EditorCommand.bindToContribution<SuggestController>(SuggestController.get);
+registerEditorCommand(new SuggestCommand({
+	id: 'repl.action.acceptSuggestion',
+	precondition: ContextKeyExpr.and(debug.CONTEXT_IN_DEBUG_REPL, SuggestContext.Visible),
+	handler: x => x.acceptSelectedSuggestion(),
+	kbOpts: {
+		weight: 50,
+		kbExpr: EditorContextKeys.textFocus,
+		primary: KeyCode.RightArrow
+	}
+}));

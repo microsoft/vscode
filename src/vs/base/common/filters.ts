@@ -38,25 +38,6 @@ export function or(...filter: IFilter[]): IFilter {
 	};
 }
 
-/**
- * @returns A filter which combines the provided set
- * of filters with an and. The combines matches are
- * returned if *all* filters match.
- */
-export function and(...filter: IFilter[]): IFilter {
-	return function (word: string, wordToMatchAgainst: string): IMatch[] {
-		let result: IMatch[] = [];
-		for (let i = 0, len = filter.length; i < len; i++) {
-			let match = filter[i](word, wordToMatchAgainst);
-			if (!match) {
-				return null;
-			}
-			result = result.concat(match);
-		}
-		return result;
-	};
-}
-
 // Prefix
 
 export const matchesStrictPrefix: IFilter = _matchesPrefix.bind(undefined, false);
@@ -109,6 +90,7 @@ function _matchesSubString(word: string, wordToMatchAgainst: string, i: number, 
 			if (result = _matchesSubString(word, wordToMatchAgainst, i + 1, j + 1)) {
 				return join({ start: j, end: j + 1 }, result);
 			}
+			return null;
 		}
 
 		return _matchesSubString(word, wordToMatchAgainst, i, j + 1);
@@ -121,7 +103,7 @@ function isLower(code: number): boolean {
 	return CharCode.a <= code && code <= CharCode.z;
 }
 
-function isUpper(code: number): boolean {
+export function isUpper(code: number): boolean {
 	return CharCode.A <= code && code <= CharCode.Z;
 }
 
@@ -242,7 +224,13 @@ function isCamelCasePattern(word: string): boolean {
 }
 
 export function matchesCamelCase(word: string, camelCaseWord: string): IMatch[] {
-	if (!camelCaseWord || camelCaseWord.length === 0) {
+	if (!camelCaseWord) {
+		return null;
+	}
+
+	camelCaseWord = camelCaseWord.trim();
+
+	if (camelCaseWord.length === 0) {
 		return null;
 	}
 
@@ -327,11 +315,6 @@ function nextWord(word: string, start: number): number {
 
 // Fuzzy
 
-export enum SubstringMatching {
-	Contiguous,
-	Separate
-}
-
 export const fuzzyContiguousFilter = or(matchesPrefix, matchesCamelCase, matchesContiguousSubString);
 const fuzzySeparateFilter = or(matchesPrefix, matchesCamelCase, matchesSubString);
 const fuzzyRegExpCache = new BoundedMap<RegExp>(10000); // bounded to 10000 elements
@@ -414,20 +397,40 @@ function printTable(table: number[][], pattern: string, patternLen: number, word
 	return ret;
 }
 
-const _seps: { [ch: string]: boolean } = Object.create(null);
-_seps['_'] = true;
-_seps['-'] = true;
-_seps['.'] = true;
-_seps[' '] = true;
-_seps['/'] = true;
-_seps['\\'] = true;
-_seps['\''] = true;
-_seps['"'] = true;
-_seps[':'] = true;
+function isSeparatorAtPos(value: string, index: number): boolean {
+	if (index < 0 || index >= value.length) {
+		return false;
+	}
+	const code = value.charCodeAt(index);
+	switch (code) {
+		case CharCode.Underline:
+		case CharCode.Dash:
+		case CharCode.Period:
+		case CharCode.Space:
+		case CharCode.Slash:
+		case CharCode.Backslash:
+		case CharCode.SingleQuote:
+		case CharCode.DoubleQuote:
+		case CharCode.Colon:
+			return true;
+		default:
+			return false;
+	}
+}
 
-const _ws: { [ch: string]: boolean } = Object.create(null);
-_ws[' '] = true;
-_ws['\t'] = true;
+function isWhitespaceAtPos(value: string, index: number): boolean {
+	if (index < 0 || index >= value.length) {
+		return false;
+	}
+	const code = value.charCodeAt(index);
+	switch (code) {
+		case CharCode.Space:
+		case CharCode.Tab:
+			return true;
+		default:
+			return false;
+	}
+}
 
 const enum Arrow { Top = 0b1, Diag = 0b10, Left = 0b100 }
 
@@ -445,7 +448,7 @@ export function fuzzyScore(pattern: string, word: string, patternMaxWhitespaceIg
 		patternMaxWhitespaceIgnore = patternLen;
 	}
 	while (patternStartPos < patternMaxWhitespaceIgnore) {
-		if (_ws[pattern[patternStartPos]]) {
+		if (isWhitespaceAtPos(pattern, patternStartPos)) {
 			patternStartPos += 1;
 		} else {
 			break;
@@ -481,8 +484,6 @@ export function fuzzyScore(pattern: string, word: string, patternMaxWhitespaceIg
 	// There will be a mach, fill in tables
 	for (patternPos = patternStartPos + 1; patternPos <= patternLen; patternPos++) {
 
-		let lastLowWordChar = '';
-
 		for (wordPos = 1; wordPos <= wordLen; wordPos++) {
 
 			let score = -1;
@@ -502,7 +503,7 @@ export function fuzzyScore(pattern: string, word: string, patternMaxWhitespaceIg
 					} else {
 						score = 5;
 					}
-				} else if (_seps[lastLowWordChar]) {
+				} else if (isSeparatorAtPos(lowWord, wordPos - 2)) {
 					// post separator: `foo <-> bar_foo`
 					score = 5;
 
@@ -542,8 +543,6 @@ export function fuzzyScore(pattern: string, word: string, patternMaxWhitespaceIg
 					_arrows[patternPos][wordPos] = Arrow.Diag;
 				}
 			}
-
-			lastLowWordChar = lowWordChar;
 		}
 	}
 
@@ -556,25 +555,26 @@ export function fuzzyScore(pattern: string, word: string, patternMaxWhitespaceIg
 	// _bucket is an array of [PrefixArray] we use to keep
 	// track of scores and matches. After calling `_findAllMatches`
 	// the best match (if available) is the first item in the array
-	_bucket.length = 0;
+	_matchesCount = 0;
 	_topScore = -100;
 	_patternStartPos = patternStartPos;
 	_findAllMatches(patternLen, wordLen, 0, new LazyArray(), false);
 
-	if (_bucket.length === 0) {
+	if (_matchesCount === 0) {
 		return undefined;
 	}
 
-	return [_topScore, _bucket[0].toArray()];
+	return [_topScore, _topMatch.toArray()];
 }
 
-let _bucket: LazyArray[] = [];
+let _matchesCount: number = 0;
+let _topMatch: LazyArray;
 let _topScore: number = 0;
 let _patternStartPos: number = 0;
 
 function _findAllMatches(patternPos: number, wordPos: number, total: number, matches: LazyArray, lastMatched: boolean): void {
 
-	if (_bucket.length >= 10 || total < -25) {
+	if (_matchesCount >= 10 || total < -25) {
 		// stop when having already 10 results, or
 		// when a potential alignment as already 5 gaps
 		return;
@@ -645,11 +645,10 @@ function _findAllMatches(patternPos: number, wordPos: number, total: number, mat
 
 	// dynamically keep track of the current top score
 	// and insert the current best score at head, the rest at tail
+	_matchesCount += 1;
 	if (total > _topScore) {
 		_topScore = total;
-		_bucket.unshift(matches);
-	} else {
-		_bucket.push(matches);
+		_topMatch = matches;
 	}
 }
 

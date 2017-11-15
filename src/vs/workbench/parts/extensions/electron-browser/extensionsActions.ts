@@ -13,12 +13,10 @@ import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/commo
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { remote } from 'electron';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { IFileService } from 'vs/platform/files/common/files';
 import URI from 'vs/base/common/uri';
-
-const dialog = remote.dialog;
+import { mnemonicButtonLabel } from 'vs/base/common/labels';
 
 export class OpenExtensionsFolderAction extends Action {
 
@@ -65,15 +63,18 @@ export class InstallVSIXAction extends Action {
 		label = InstallVSIXAction.LABEL,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IMessageService private messageService: IMessageService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IWindowService private windowsService: IWindowService
 	) {
 		super(id, label, 'extension-action install-vsix', true);
 	}
 
 	run(): TPromise<any> {
-		const result = dialog.showOpenDialog(remote.getCurrentWindow(), {
+		const result = this.windowsService.showOpenDialog({
+			title: localize('installFromVSIX', "Install from VSIX"),
 			filters: [{ name: 'VSIX Extensions', extensions: ['vsix'] }],
-			properties: ['openFile']
+			properties: ['openFile'],
+			buttonLabel: mnemonicButtonLabel(localize({ key: 'installButton', comment: ['&& denotes a mnemonic'] }, "&&Install"))
 		});
 
 		if (!result) {

@@ -14,23 +14,22 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { CommonCodeEditor } from 'vs/editor/common/commonCodeEditor';
 import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { Range, IRange } from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { EditorAction } from 'vs/editor/common/editorCommonExtensions';
-import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { EditorAction, EditorExtensionsRegistry, IEditorContributionCtor } from 'vs/editor/browser/editorExtensions';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { View, IOverlayWidgetData, IContentWidgetData } from 'vs/editor/browser/view/viewImpl';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
-import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
-import { CoreEditorCommand } from 'vs/editor/common/controller/coreCommands';
+import { CoreEditorCommand } from 'vs/editor/browser/controller/coreCommands';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder } from 'vs/editor/common/view/editorColorRegistry';
+import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoBorder, editorInfoForeground } from 'vs/editor/common/view/editorColorRegistry';
 import { Color } from 'vs/base/common/color';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 
@@ -141,7 +140,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		this._codeEditorService.addCodeEditor(this);
 	}
 
-	protected abstract _getContributions(): editorBrowser.IEditorContributionCtor[];
+	protected abstract _getContributions(): IEditorContributionCtor[];
 	protected abstract _getActions(): EditorAction[];
 
 	protected _createConfiguration(options: IEditorOptions): CommonEditorConfiguration {
@@ -292,36 +291,6 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		}
 	}
 
-	public getWhitespaces(): IEditorWhitespace[] {
-		if (!this.hasView) {
-			return [];
-		}
-		return this.viewModel.viewLayout.getWhitespaces();
-	}
-
-	private _getVerticalOffsetForPosition(modelLineNumber: number, modelColumn: number): number {
-		let modelPosition = this.model.validatePosition({
-			lineNumber: modelLineNumber,
-			column: modelColumn
-		});
-		let viewPosition = this.viewModel.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
-		return this.viewModel.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
-	}
-
-	public getTopForLineNumber(lineNumber: number): number {
-		if (!this.hasView) {
-			return -1;
-		}
-		return this._getVerticalOffsetForPosition(lineNumber, 1);
-	}
-
-	public getTopForPosition(lineNumber: number, column: number): number {
-		if (!this.hasView) {
-			return -1;
-		}
-		return this._getVerticalOffsetForPosition(lineNumber, column);
-	}
-
 	public getTargetAtClientPoint(clientX: number, clientY: number): editorBrowser.IMouseTarget {
 		if (!this.hasView) {
 			return null;
@@ -361,12 +330,6 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		this._view.render(true, false);
 	}
 
-	public setHiddenAreas(ranges: IRange[]): void {
-		if (this.viewModel) {
-			this.viewModel.setHiddenAreas(ranges.map(r => Range.lift(r)));
-		}
-	}
-
 	public setAriaActiveDescendant(id: string): void {
 		if (!this.hasView) {
 			return;
@@ -400,7 +363,12 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 
 			this._view.render(false, true);
 			this.hasView = true;
+			this._view.domNode.domNode.setAttribute('data-uri', model.uri.toString());
 		}
+	}
+
+	protected _scheduleAtNextAnimationFrame(callback: () => void): IDisposable {
+		return dom.scheduleAtNextAnimationFrame(callback);
 	}
 
 	protected _createView(): void {
@@ -420,55 +388,23 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 
 		const viewEventBus = this._view.getInternalEventBus();
 
-		this.listenersToRemove.push(viewEventBus.onDidGainFocus(() => {
+		viewEventBus.onDidGainFocus = () => {
 			this._onDidFocusEditorText.fire();
 			// In IE, the focus is not synchronous, so we give it a little help
 			this._onDidFocusEditor.fire();
-		}));
+		};
 
-		this.listenersToRemove.push(viewEventBus.onDidScroll((e) => {
-			this._onDidScrollChange.fire(e);
-		}));
-
-		this.listenersToRemove.push(viewEventBus.onDidLoseFocus(() => {
-			this._onDidBlurEditorText.fire();
-		}));
-
-		this.listenersToRemove.push(viewEventBus.onContextMenu((e) => {
-			this._onContextMenu.fire(e);
-		}));
-
-		this.listenersToRemove.push(viewEventBus.onMouseDown((e) => {
-			this._onMouseDown.fire(e);
-		}));
-
-		this.listenersToRemove.push(viewEventBus.onMouseUp((e) => {
-			this._onMouseUp.fire(e);
-		}));
-
-		this.listenersToRemove.push(viewEventBus.onMouseDrag((e) => {
-			this._onMouseDrag.fire(e);
-		}));
-
-		this.listenersToRemove.push(viewEventBus.onMouseDrop((e) => {
-			this._onMouseDrop.fire(e);
-		}));
-
-		this.listenersToRemove.push(viewEventBus.onKeyUp((e) => {
-			this._onKeyUp.fire(e);
-		}));
-
-		this.listenersToRemove.push(viewEventBus.onMouseMove((e) => {
-			this._onMouseMove.fire(e);
-		}));
-
-		this.listenersToRemove.push(viewEventBus.onMouseLeave((e) => {
-			this._onMouseLeave.fire(e);
-		}));
-
-		this.listenersToRemove.push(viewEventBus.onKeyDown((e) => {
-			this._onKeyDown.fire(e);
-		}));
+		viewEventBus.onDidScroll = (e) => this._onDidScrollChange.fire(e);
+		viewEventBus.onDidLoseFocus = () => this._onDidBlurEditorText.fire();
+		viewEventBus.onContextMenu = (e) => this._onContextMenu.fire(e);
+		viewEventBus.onMouseDown = (e) => this._onMouseDown.fire(e);
+		viewEventBus.onMouseUp = (e) => this._onMouseUp.fire(e);
+		viewEventBus.onMouseDrag = (e) => this._onMouseDrag.fire(e);
+		viewEventBus.onMouseDrop = (e) => this._onMouseDrop.fire(e);
+		viewEventBus.onKeyUp = (e) => this._onKeyUp.fire(e);
+		viewEventBus.onMouseMove = (e) => this._onMouseMove.fire(e);
+		viewEventBus.onMouseLeave = (e) => this._onMouseLeave.fire(e);
+		viewEventBus.onKeyDown = (e) => this._onKeyDown.fire(e);
 	}
 
 	protected _detachModel(): editorCommon.IModel {
@@ -504,6 +440,18 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 	}
 
 	// END decorations
+
+	protected _triggerEditorCommand(source: string, handlerId: string, payload: any): boolean {
+		const command = EditorExtensionsRegistry.getEditorCommand(handlerId);
+		if (command) {
+			payload = payload || {};
+			payload.source = source;
+			TPromise.as(command.runEditorCommand(null, this, payload)).done(null, onUnexpectedError);
+			return true;
+		}
+
+		return false;
+	}
 }
 
 class CodeEditorWidgetFocusTracker extends Disposable {
@@ -545,19 +493,28 @@ function getSquigglySVGData(color: Color) {
 registerThemingParticipant((theme, collector) => {
 	let errorBorderColor = theme.getColor(editorErrorBorder);
 	if (errorBorderColor) {
-		collector.addRule(`.monaco-editor .redsquiggly { border-bottom: 4px double ${errorBorderColor}; }`);
+		collector.addRule(`.monaco-editor .errorsquiggly { border-bottom: 4px double ${errorBorderColor}; }`);
 	}
 	let errorForeground = theme.getColor(editorErrorForeground);
 	if (errorForeground) {
-		collector.addRule(`.monaco-editor .redsquiggly { background: url("data:image/svg+xml,${getSquigglySVGData(errorForeground)}") repeat-x bottom left; }`);
+		collector.addRule(`.monaco-editor .errorsquiggly { background: url("data:image/svg+xml,${getSquigglySVGData(errorForeground)}") repeat-x bottom left; }`);
 	}
 
 	let warningBorderColor = theme.getColor(editorWarningBorder);
 	if (warningBorderColor) {
-		collector.addRule(`.monaco-editor .greensquiggly { border-bottom: 4px double ${warningBorderColor}; }`);
+		collector.addRule(`.monaco-editor .warningsquiggly { border-bottom: 4px double ${warningBorderColor}; }`);
 	}
 	let warningForeground = theme.getColor(editorWarningForeground);
 	if (warningForeground) {
-		collector.addRule(`.monaco-editor .greensquiggly { background: url("data:image/svg+xml;utf8,${getSquigglySVGData(warningForeground)}") repeat-x bottom left; }`);
+		collector.addRule(`.monaco-editor .warningsquiggly { background: url("data:image/svg+xml;utf8,${getSquigglySVGData(warningForeground)}") repeat-x bottom left; }`);
+	}
+
+	let infoBorderColor = theme.getColor(editorInfoBorder);
+	if (warningBorderColor) {
+		collector.addRule(`.monaco-editor .infosquiggly { border-bottom: 4px double ${infoBorderColor}; }`);
+	}
+	let infoForeground = theme.getColor(editorInfoForeground);
+	if (warningForeground) {
+		collector.addRule(`.monaco-editor .infosquiggly { background: url("data:image/svg+xml;utf8,${getSquigglySVGData(infoForeground)}") repeat-x bottom left; }`);
 	}
 });

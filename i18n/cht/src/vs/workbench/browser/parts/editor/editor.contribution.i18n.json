@@ -12,5 +12,6 @@
 	"groupTwoPicker": "在第二個群組顯示編輯器",
 	"groupThreePicker": "在第三個群組顯示編輯器",
 	"allEditorsPicker": "顯示所有開啟的編輯器",
-	"view": "檢視"
+	"view": "檢視",
+	"file": "檔案"
 }

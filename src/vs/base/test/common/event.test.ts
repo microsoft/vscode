@@ -179,6 +179,29 @@ suite('Event', function () {
 		}
 	});
 
+	test('reusing event function and context', function () {
+		let counter = 0;
+		function listener() {
+			counter += 1;
+		}
+		const context = {};
+
+		let emitter = new Emitter();
+		let reg1 = emitter.event(listener, context);
+		let reg2 = emitter.event(listener, context);
+
+		emitter.fire();
+		assert.equal(counter, 2);
+
+		reg1.dispose();
+		emitter.fire();
+		assert.equal(counter, 3);
+
+		reg2.dispose();
+		emitter.fire();
+		assert.equal(counter, 3);
+	});
+
 	test('Debounce Event', function (done: () => void) {
 		let doc = new Samples.Document3();
 
@@ -338,34 +361,16 @@ suite('Event utils', () => {
 			});
 		});
 
-		test('should emit when done - setTimeout', () => {
+		test('should emit when done - setTimeout', async () => {
 			let count = 0;
 
-			const event = fromPromise(TPromise.timeout(5));
+			const promise = TPromise.timeout(5);
+			const event = fromPromise(promise);
 			event(() => count++);
 
 			assert.equal(count, 0);
-
-			return TPromise.timeout(10).then(() => {
-				assert.equal(count, 1);
-			});
-		});
-
-		test('should emit when done - setTimeout (#2)', () => {
-			let count = 0;
-
-			const event = fromPromise(TPromise.timeout(30));
-			event(() => count++);
-
-			assert.equal(count, 0);
-
-			return TPromise.timeout(0).then(() => {
-				assert.equal(count, 0);
-
-				return TPromise.timeout(35).then(() => {
-					assert.equal(count, 1);
-				});
-			});
+			await promise;
+			assert.equal(count, 1);
 		});
 	});
 
@@ -394,7 +399,7 @@ suite('Event utils', () => {
 	suite('buffer', () => {
 
 		test('should buffer events', () => {
-			const result = [];
+			const result: number[] = [];
 			const emitter = new Emitter<number>();
 			const event = emitter.event;
 			const bufferedEvent = buffer(event);
@@ -416,7 +421,7 @@ suite('Event utils', () => {
 		});
 
 		test('should buffer events on next tick', () => {
-			const result = [];
+			const result: number[] = [];
 			const emitter = new Emitter<number>();
 			const event = emitter.event;
 			const bufferedEvent = buffer(event, true);
@@ -440,7 +445,7 @@ suite('Event utils', () => {
 		});
 
 		test('should fire initial buffer events', () => {
-			const result = [];
+			const result: number[] = [];
 			const emitter = new Emitter<number>();
 			const event = emitter.event;
 			const bufferedEvent = buffer(event, false, [-2, -1, 0]);
@@ -458,7 +463,7 @@ suite('Event utils', () => {
 	suite('echo', () => {
 
 		test('should echo events', () => {
-			const result = [];
+			const result: number[] = [];
 			const emitter = new Emitter<number>();
 			const event = emitter.event;
 			const echoEvent = echo(event);
@@ -480,8 +485,8 @@ suite('Event utils', () => {
 		});
 
 		test('should echo events for every listener', () => {
-			const result1 = [];
-			const result2 = [];
+			const result1: number[] = [];
+			const result2: number[] = [];
 			const emitter = new Emitter<number>();
 			const event = emitter.event;
 			const echoEvent = echo(event);
@@ -519,7 +524,7 @@ suite('Event utils', () => {
 	suite('EventMultiplexer', () => {
 
 		test('works', () => {
-			const result = [];
+			const result: number[] = [];
 			const m = new EventMultiplexer<number>();
 			m.event(r => result.push(r));
 
@@ -533,7 +538,7 @@ suite('Event utils', () => {
 		});
 
 		test('multiplexer dispose works', () => {
-			const result = [];
+			const result: number[] = [];
 			const m = new EventMultiplexer<number>();
 			m.event(r => result.push(r));
 
@@ -553,7 +558,7 @@ suite('Event utils', () => {
 		});
 
 		test('event dispose works', () => {
-			const result = [];
+			const result: number[] = [];
 			const m = new EventMultiplexer<number>();
 			m.event(r => result.push(r));
 
@@ -573,7 +578,7 @@ suite('Event utils', () => {
 		});
 
 		test('mutliplexer event dispose works', () => {
-			const result = [];
+			const result: number[] = [];
 			const m = new EventMultiplexer<number>();
 			m.event(r => result.push(r));
 
@@ -593,7 +598,7 @@ suite('Event utils', () => {
 		});
 
 		test('hot start works', () => {
-			const result = [];
+			const result: number[] = [];
 			const m = new EventMultiplexer<number>();
 			m.event(r => result.push(r));
 
@@ -611,7 +616,7 @@ suite('Event utils', () => {
 		});
 
 		test('cold start works', () => {
-			const result = [];
+			const result: number[] = [];
 			const m = new EventMultiplexer<number>();
 
 			const e1 = new Emitter<number>();
@@ -630,7 +635,7 @@ suite('Event utils', () => {
 		});
 
 		test('late add works', () => {
-			const result = [];
+			const result: number[] = [];
 			const m = new EventMultiplexer<number>();
 
 			const e1 = new Emitter<number>();
@@ -651,7 +656,7 @@ suite('Event utils', () => {
 		});
 
 		test('add dispose works', () => {
-			const result = [];
+			const result: number[] = [];
 			const m = new EventMultiplexer<number>();
 
 			const e1 = new Emitter<number>();

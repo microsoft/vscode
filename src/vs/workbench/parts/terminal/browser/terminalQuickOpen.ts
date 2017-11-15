@@ -5,22 +5,21 @@
 'use strict';
 
 import nls = require('vs/nls');
-import errors = require('vs/base/common/errors');
-import strings = require('vs/base/common/strings');
-import scorer = require('vs/base/common/scorer');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
-import { QuickOpenModel, QuickOpenEntryGroup, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { QuickOpenModel, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ContributableActionProvider } from 'vs/workbench/browser/actions';
+import { stripWildcards } from 'vs/base/common/strings';
+import { matchesFuzzy } from 'vs/base/common/filters';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
-export class TerminalEntry extends QuickOpenEntryGroup {
+export class TerminalEntry extends QuickOpenEntry {
 
 	constructor(
 		private label: string,
-		private open: () => void
+		private terminalService: ITerminalService
 	) {
 		super();
 	}
@@ -30,52 +29,78 @@ export class TerminalEntry extends QuickOpenEntryGroup {
 	}
 
 	public getAriaLabel(): string {
-		return nls.localize('entryAriaLabel', "{0}, terminal picker", this.getLabel());
+		return nls.localize('termEntryAriaLabel', "{0}, terminal picker", this.getLabel());
 	}
 
 	public run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
-			return this.runOpen(context);
+			setTimeout(() => {
+				this.terminalService.setActiveInstanceByIndex(parseInt(this.label.split(':')[0], 10) - 1);
+				this.terminalService.showPanel(true);
+			}, 0);
+			return true;
 		}
 
 		return super.run(mode, context);
 	}
+}
 
-	private runOpen(context: IEntryRunContext): boolean {
-		setTimeout(() => {
-			this.open();
-		}, 0);
+export class CreateTerminal extends QuickOpenEntry {
 
-		return true;
+	constructor(
+		private label: string,
+		private commandService: ICommandService
+	) {
+		super();
+	}
+
+	public getLabel(): string {
+		return this.label;
+	}
+
+	public getAriaLabel(): string {
+		return nls.localize('termCreateEntryAriaLabel', "{0}, create new terminal", this.getLabel());
+	}
+
+	public run(mode: Mode, context: IEntryRunContext): boolean {
+		if (mode === Mode.OPEN) {
+			setTimeout(() => this.commandService.executeCommand('workbench.action.terminal.new'), 0);
+			return true;
+		}
+
+		return super.run(mode, context);
 	}
 }
 
 export class TerminalPickerHandler extends QuickOpenHandler {
 
+	public static readonly ID = 'workbench.picker.terminals';
+
 	constructor(
 		@ITerminalService private terminalService: ITerminalService,
-		@IPanelService private panelService: IPanelService
+		@ICommandService private commandService: ICommandService,
 	) {
 		super();
 	}
 
 	public getResults(searchValue: string): TPromise<QuickOpenModel> {
 		searchValue = searchValue.trim();
-		const normalizedSearchValueLowercase = strings.stripWildcards(searchValue).toLowerCase();
+		const normalizedSearchValueLowercase = stripWildcards(searchValue).toLowerCase();
 
-		const terminalEntries = this.getTerminals();
+		const terminalEntries: QuickOpenEntry[] = this.getTerminals();
+		terminalEntries.push(new CreateTerminal(nls.localize("'workbench.action.terminal.newplus", "$(plus) Create New Integrated Terminal"), this.commandService));
 
 		const entries = terminalEntries.filter(e => {
 			if (!searchValue) {
 				return true;
 			}
 
-			if (!scorer.matches(e.getLabel(), normalizedSearchValueLowercase)) {
+			const highlights = matchesFuzzy(normalizedSearchValueLowercase, e.getLabel(), true);
+			if (!highlights) {
 				return false;
 			}
 
-			const { labelHighlights, descriptionHighlights } = QuickOpenEntry.highlight(e, searchValue);
-			e.setHighlights(labelHighlights, descriptionHighlights);
+			e.setHighlights(highlights);
 
 			return true;
 		});
@@ -86,11 +111,7 @@ export class TerminalPickerHandler extends QuickOpenHandler {
 	private getTerminals(): TerminalEntry[] {
 		const terminals = this.terminalService.getInstanceLabels();
 		const terminalEntries = terminals.map(terminal => {
-			return new TerminalEntry(terminal, () => {
-				this.terminalService.showPanel(true).done(() => {
-					this.terminalService.setActiveInstanceByIndex(parseInt(terminal.split(':')[0], 10) - 1);
-				}, errors.onUnexpectedError);
-			});
+			return new TerminalEntry(terminal, this.terminalService);
 		});
 		return terminalEntries;
 	}

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/tgjones/shaders-tmLanguage/commit/a6ee9f41e4b99812c6698462cae4868c80f82a3b",
+	"version": "https://github.com/tgjones/shaders-tmLanguage/commit/c72c8b39380ba5a86c58ceed053b5d965ebf38b3",
 	"scopeName": "source.shaderlab",
 	"name": "ShaderLab",
 	"fileTypes": [
@@ -151,7 +151,7 @@
 				},
 				{
 					"name": "support.variable.transformations.shaderlab",
-					"match": "\\b(UNITY_MATRIX_MVP|UNITY_MATRIX_MV|UNITY_MATRIX_V|UNITY_MATRIX_P|UNITY_MATRIX_VP|UNITY_MATRIX_T_MV|UNITY_MATRIX_IT_MV|_Object2World|_World2Object)\\b"
+					"match": "\\b(UNITY_MATRIX_MVP|UNITY_MATRIX_MV|UNITY_MATRIX_M|UNITY_MATRIX_V|UNITY_MATRIX_P|UNITY_MATRIX_VP|UNITY_MATRIX_T_MV|UNITY_MATRIX_I_V|UNITY_MATRIX_IT_MV|_Object2World|_World2Object|unity_ObjectToWorld|unity_WorldToObject)\\b"
 				},
 				{
 					"name": "support.variable.camera.shaderlab",

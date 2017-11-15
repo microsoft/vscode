@@ -10,7 +10,7 @@ import nls = require('vs/nls');
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
+import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { IEditorGroupService, GroupOrientation } from 'vs/workbench/services/group/common/groupService';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';

@@ -7,7 +7,7 @@
 import { Constants, MinimapCharRenderer } from 'vs/editor/common/view/minimapCharRenderer';
 import { MinimapCharRendererFactory } from 'vs/editor/test/common/view/minimapCharRendererFactory';
 import { getOrCreateMinimapCharRenderer } from 'vs/editor/common/view/runtimeMinimapCharRenderer';
-import { RGBA } from 'vs/base/common/color';
+import { RGBA8 } from 'vs/editor/common/core/rgba';
 
 let canvas = <HTMLCanvasElement>document.getElementById('my-canvas');
 let ctx = canvas.getContext('2d');
@@ -41,8 +41,8 @@ function createFakeImageData(width: number, height: number): ImageData {
 
 function renderMinimapCharRenderer(minimapCharRenderer: MinimapCharRenderer, y: number): void {
 
-	let background = new RGBA(0, 0, 0, 255);
-	let color = new RGBA(255, 255, 255, 255);
+	let background = new RGBA8(0, 0, 0, 255);
+	let color = new RGBA8(255, 255, 255, 255);
 
 	{
 		let x2 = createFakeImageData(Constants.x2_CHAR_WIDTH * Constants.CHAR_COUNT, Constants.x2_CHAR_HEIGHT);

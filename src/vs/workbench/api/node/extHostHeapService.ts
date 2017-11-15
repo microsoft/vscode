@@ -6,7 +6,7 @@
 
 import { ExtHostHeapServiceShape } from './extHost.protocol';
 
-export class ExtHostHeapService extends ExtHostHeapServiceShape {
+export class ExtHostHeapService implements ExtHostHeapServiceShape {
 
 	private static _idPool = 0;
 

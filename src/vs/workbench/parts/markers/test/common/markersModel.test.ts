@@ -121,10 +121,12 @@ suite('MarkersModel Test', () => {
 	});
 
 	test('toString()', function () {
-		assert.equal(`file: 'file:///a/res1'\nseverity: 'Error'\nmessage: 'some message'\nat: '10,5'\nsource: 'tslint'`, new Marker('', aMarker('a/res1')).toString());
-		assert.equal(`file: 'file:///a/res2'\nseverity: 'Warning'\nmessage: 'some message'\nat: '10,5'\nsource: 'tslint'`, new Marker('', aMarker('a/res2', Severity.Warning)).toString());
-		assert.equal(`file: 'file:///a/res2'\nseverity: 'Info'\nmessage: 'Info'\nat: '1,2'\nsource: ''`, new Marker('', aMarker('a/res2', Severity.Info, 1, 2, 1, 8, 'Info', '')).toString());
-		assert.equal(`file: 'file:///a/res2'\nseverity: ''\nmessage: 'Ignore message'\nat: '1,2'\nsource: 'Ignore'`, new Marker('', aMarker('a/res2', Severity.Ignore, 1, 2, 1, 8, 'Ignore message', 'Ignore')).toString());
+		const res1Marker = aMarker('a/res1');
+		res1Marker.code = '1234';
+		assert.equal(`file: 'file:///a/res1'\nseverity: 'Error'\nmessage: 'some message'\nat: '10,5'\nsource: 'tslint'\ncode: '1234'`, new Marker('', res1Marker).toString());
+		assert.equal(`file: 'file:///a/res2'\nseverity: 'Warning'\nmessage: 'some message'\nat: '10,5'\nsource: 'tslint'\ncode: ''`, new Marker('', aMarker('a/res2', Severity.Warning)).toString());
+		assert.equal(`file: 'file:///a/res2'\nseverity: 'Info'\nmessage: 'Info'\nat: '1,2'\nsource: ''\ncode: ''`, new Marker('', aMarker('a/res2', Severity.Info, 1, 2, 1, 8, 'Info', '')).toString());
+		assert.equal(`file: 'file:///a/res2'\nseverity: ''\nmessage: 'Ignore message'\nat: '1,2'\nsource: 'Ignore'\ncode: ''`, new Marker('', aMarker('a/res2', Severity.Ignore, 1, 2, 1, 8, 'Ignore message', 'Ignore')).toString());
 	});
 
 	function hasMarker(markers: Marker[], marker: IMarker): boolean {

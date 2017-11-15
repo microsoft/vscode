@@ -84,6 +84,11 @@ const presentation: IJSONSchema = {
 		reveal: {
 			type: 'string',
 			enum: ['always', 'silent', 'never'],
+			enumDescriptions: [
+				nls.localize('JsonSchema.tasks.presentation.reveal.always', 'Always reveals the terminal when this task is executed.'),
+				nls.localize('JsonSchema.tasks.presentation.reveal.silent', 'Only reveals the terminal if no problem matcher is associated with the task and an errors occurs executing it.'),
+				nls.localize('JsonSchema.tasks.presentation.reveal.never', 'Never reveals the terminal when this task is executed.'),
+			],
 			default: 'always',
 			description: nls.localize('JsonSchema.tasks.presentation.reveals', 'Controls whether the panel running the task is revealed or not. Default is \"always\".')
 		},
@@ -140,8 +145,13 @@ const group: IJSONSchema = {
 const taskType: IJSONSchema = {
 	type: 'string',
 	enum: ['shell', 'process'],
-	default: 'process',
-	description: nls.localize('JsonSchema.tasks.type', 'Defines whether the task is run as a process or as a command inside a shell. Default is process.')
+	default: 'shell',
+	description: nls.localize('JsonSchema.tasks.type', 'Defines whether the task is run as a process or as a command inside a shell.')
+};
+
+const label: IJSONSchema = {
+	type: 'string',
+	description: nls.localize('JsonSchema.tasks.label', "The task's user interface label")
 };
 
 const version: IJSONSchema = {
@@ -219,6 +229,8 @@ taskDefinitions.push(customize);
 
 let definitions = Objects.deepClone(commonSchema.definitions);
 let taskDescription: IJSONSchema = definitions.taskDescription;
+taskDescription.required = ['label'];
+taskDescription.properties.label = Objects.deepClone(label);
 taskDescription.properties.isShellCommand = Objects.deepClone(shellCommand);
 taskDescription.properties.dependsOn = dependsOn;
 taskDescription.properties.identifier = Objects.deepClone(identifier);
@@ -226,6 +238,16 @@ taskDescription.properties.type = Objects.deepClone(taskType);
 taskDescription.properties.presentation = Objects.deepClone(presentation);
 taskDescription.properties.terminal = terminal;
 taskDescription.properties.group = Objects.deepClone(group);
+taskDescription.properties.taskName.deprecationMessage = nls.localize(
+	'JsonSchema.tasks.taskName.deprecated',
+	'The task\'s name property is deprecated. Use the label property instead.'
+);
+taskDescription.default = {
+	label: 'My Task',
+	type: 'shell',
+	command: 'echo Hello',
+	problemMatcher: []
+};
 definitions.showOutputType.deprecationMessage = nls.localize(
 	'JsonSchema.tasks.showOputput.deprecated',
 	'The property showOutput is deprecated. Use the reveal property inside the presentation property instead. See also the 1.14 release notes.'

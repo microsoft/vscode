@@ -19,11 +19,13 @@ export enum Parts {
 
 export enum Position {
 	LEFT,
-	RIGHT
+	RIGHT,
+	BOTTOM
 }
 
 export interface ILayoutOptions {
 	toggleMaximizedPanel?: boolean;
+	source?: Parts;
 }
 
 export const IPartService = createDecorator<IPartService>('partService');
@@ -52,11 +54,6 @@ export interface IPartService {
 	isCreated(): boolean;
 
 	/**
-	 * Promise is complete when all parts have been created.
-	 */
-	joinCreation(): TPromise<boolean>;
-
-	/**
 	 * Returns whether the given part has the keyboard focus or not.
 	 */
 	hasFocus(part: Parts): boolean;
@@ -67,7 +64,7 @@ export interface IPartService {
 	getContainer(part: Parts): HTMLElement;
 
 	/**
-	 * Returns iff the part is visible.
+	 * Returns if the part is visible.
 	 */
 	isVisible(part: Parts): boolean;
 
@@ -106,6 +103,11 @@ export interface IPartService {
 	 * Gets the current side bar position. Note that the sidebar can be hidden too.
 	 */
 	getSideBarPosition(): Position;
+
+	/**
+	 * Gets the current panel position. Note that the panel can be hidden too.
+	 */
+	getPanelPosition(): Position;
 
 	/**
 	 * Returns the identifier of the element that contains the workbench.

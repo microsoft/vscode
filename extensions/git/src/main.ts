@@ -10,11 +10,9 @@ const localize = nls.config(process.env.VSCODE_NLS_CONFIG)();
 import { ExtensionContext, workspace, window, Disposable, commands, Uri } from 'vscode';
 import { findGit, Git, IGit } from './git';
 import { Model } from './model';
-import { GitSCMProvider } from './scmProvider';
 import { CommandCenter } from './commands';
-import { StatusBarCommands } from './statusbar';
 import { GitContentProvider } from './contentProvider';
-import { AutoFetcher } from './autofetch';
+import { GitDecorations } from './decorationProvider';
 import { Askpass } from './askpass';
 import { toDisposable } from './util';
 import TelemetryReporter from 'vscode-extension-telemetry';
@@ -29,40 +27,35 @@ async function init(context: ExtensionContext, disposables: Disposable[]): Promi
 
 	const config = workspace.getConfiguration('git');
 	const enabled = config.get<boolean>('enabled') === true;
-	const workspaceRootPath = workspace.rootPath;
-
 	const pathHint = workspace.getConfiguration('git').get<string>('path');
-	const info = await findGit(pathHint);
+	const info = await findGit(pathHint, path => outputChannel.appendLine(localize('looking', "Looking for git in: {0}", path)));
 	const askpass = new Askpass();
 	const env = await askpass.getEnv();
 	const git = new Git({ gitPath: info.path, version: info.version, env });
+	const model = new Model(git);
+	disposables.push(model);
 
-	if (!workspaceRootPath || !enabled) {
-		const commandCenter = new CommandCenter(git, undefined, outputChannel, telemetryReporter);
+	const onRepository = () => commands.executeCommand('setContext', 'gitOpenRepositoryCount', `${model.repositories.length}`);
+	model.onDidOpenRepository(onRepository, null, disposables);
+	model.onDidCloseRepository(onRepository, null, disposables);
+	onRepository();
+
+	if (!enabled) {
+		const commandCenter = new CommandCenter(git, model, outputChannel, telemetryReporter);
 		disposables.push(commandCenter);
 		return;
 	}
 
-	const model = new Model(git, workspaceRootPath);
-
 	outputChannel.appendLine(localize('using git', "Using git {0} from {1}", info.version, info.path));
 
-	const onOutput = str => outputChannel.append(str);
+	const onOutput = (str: string) => outputChannel.append(str);
 	git.onOutput.addListener('log', onOutput);
 	disposables.push(toDisposable(() => git.onOutput.removeListener('log', onOutput)));
 
-	const commandCenter = new CommandCenter(git, model, outputChannel, telemetryReporter);
-	const statusBarCommands = new StatusBarCommands(model);
-	const provider = new GitSCMProvider(model, commandCenter, statusBarCommands);
-	const contentProvider = new GitContentProvider(model);
-	const autoFetcher = new AutoFetcher(model);
-
 	disposables.push(
-		commandCenter,
-		provider,
-		contentProvider,
-		autoFetcher,
-		model
+		new CommandCenter(git, model, outputChannel, telemetryReporter),
+		new GitContentProvider(model),
+		new GitDecorations(model)
 	);
 
 	await checkGitVersion(info);
@@ -73,7 +66,13 @@ export function activate(context: ExtensionContext): any {
 	context.subscriptions.push(new Disposable(() => Disposable.from(...disposables).dispose()));
 
 	init(context, disposables)
-		.catch(err => console.error(err));
+		.catch(err => {
+			if (/Git installation not found/.test(err.message || '')) {
+				console.warn(localize('notfound', "Git not found. You can configure its location with the `git.path` configuration setting."));
+			} else {
+				console.error(err);
+			}
+		});
 }
 
 async function checkGitVersion(info: IGit): Promise<void> {

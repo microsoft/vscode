@@ -35,6 +35,7 @@
 	"openPreviousEditorInGroup": "Gruptaki Önceki Düzenleyiciyi Aç",
 	"navigateNext": "İleri Git",
 	"navigatePrevious": "Geri Dön",
+	"navigateLast": "Bir Öncekine Git",
 	"reopenClosedEditor": "Kapatılan Düzenleyiciyi Yeniden Aç",
 	"clearRecentFiles": "Son Açılanları Temizle",
 	"showEditorsInFirstGroup": "İlk Gruptaki Düzenleyicileri Göster",

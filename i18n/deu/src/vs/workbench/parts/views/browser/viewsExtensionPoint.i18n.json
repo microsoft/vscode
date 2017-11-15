@@ -12,5 +12,6 @@
 	"vscode.extension.contributes.view.when": "Bedingung, die zum Anzeigen dieser Ansicht erfüllt sein muss",
 	"vscode.extension.contributes.views": "Trägt Ansichten zum Editor bei.",
 	"views.explorer": "Explorer-Ansicht",
+	"views.debug": "Debugansicht",
 	"locationId.invalid": "{0}\" ist kein gültiger Ansichtenspeicherort"
 }

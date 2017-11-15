@@ -127,10 +127,19 @@
 	padding-left: 4px;
 }
 
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .command .monaco-highlighted-label,
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .source .monaco-highlighted-label,
+.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row .when .monaco-highlighted-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column > .code {
 	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
 	font-size: 90%;
 	opacity: 0.8;
+	display: flex;
+	overflow: hidden;
 }
 
 .keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column > .code.strong {

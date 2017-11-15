@@ -59,11 +59,6 @@ export class ActionBarContributor {
 export const Scope = {
 
 	/**
-	 * Actions inside the global activity bar (DEPRECATED)
-	 */
-	GLOBAL: 'global',
-
-	/**
 	 * Actions inside viewlets.
 	 */
 	VIEWLET: 'viewlet',

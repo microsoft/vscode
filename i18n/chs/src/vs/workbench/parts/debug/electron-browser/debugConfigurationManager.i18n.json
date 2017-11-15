@@ -15,7 +15,6 @@
 	"vscode.extension.contributes.debuggers.initialConfigurations": "用于生成初始 \"launch.json\" 的配置。",
 	"vscode.extension.contributes.debuggers.languages": "可能被视为“默认调试程序”的调试扩展的语言列表。",
 	"vscode.extension.contributes.debuggers.adapterExecutableCommand": "如果指定的 VS Code 将调用此命令以确定调试适配器的可执行路径和要传递的参数。",
-	"vscode.extension.contributes.debuggers.startSessionCommand": "如果指定的 VS Code 将为针对此扩展的“调试”或“运行”操作调用此命令。",
 	"vscode.extension.contributes.debuggers.configurationSnippets": "用于在 \"launch.json\" 中添加新配置的代码段。",
 	"vscode.extension.contributes.debuggers.configurationAttributes": "用于验证 \"launch.json\" 的 JSON 架构配置。",
 	"vscode.extension.contributes.debuggers.windows": "Windows 特定的设置。",

@@ -8,5 +8,6 @@
 	"terminal.foreground": "Terminalin ön plan rengi.",
 	"terminalCursor.foreground": "Terminal imlecinin ön plan rengi.",
 	"terminalCursor.background": "Terminal imlecinin arka plan rengi. Bir blok imlecinin kapladığı bir karakterin rengini özelleştirmeyi sağlar.",
+	"terminal.selectionBackground": "Terminalin seçim arkaplanı rengi.",
 	"terminal.ansiColor": "Terminalde '{0}' ANSI rengi."
 }

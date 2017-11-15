@@ -25,7 +25,7 @@ suite('PFS', () => {
 		const newDir = path.join(parentDir, 'pfs', id);
 		const testFile = path.join(newDir, 'writefile.txt');
 
-		extfs.mkdirp(newDir, 493, (error) => {
+		const onMkdirp = error => {
 			if (error) {
 				return onError(error, done);
 			}
@@ -37,7 +37,9 @@ suite('PFS', () => {
 
 				extfs.del(parentDir, os.tmpdir(), () => { }, done);
 			}, error => onError(error, done));
-		});
+		};
+
+		pfs.mkdirp(newDir, 493).done(() => onMkdirp(null), error => onMkdirp(error));
 	});
 
 	test('writeFile - parallel write on different files works', function (done: () => void) {
@@ -50,7 +52,7 @@ suite('PFS', () => {
 		const testFile4 = path.join(newDir, 'writefile4.txt');
 		const testFile5 = path.join(newDir, 'writefile5.txt');
 
-		extfs.mkdirp(newDir, 493, (error) => {
+		const onMkdirp = error => {
 			if (error) {
 				return onError(error, done);
 			}
@@ -72,7 +74,9 @@ suite('PFS', () => {
 
 				extfs.del(parentDir, os.tmpdir(), () => { }, done);
 			}, error => onError(error, done));
-		});
+		};
+
+		pfs.mkdirp(newDir, 493).done(() => onMkdirp(null), error => onMkdirp(error));
 	});
 
 	test('writeFile - parallel write on same files works and is sequentalized', function (done: () => void) {
@@ -81,7 +85,7 @@ suite('PFS', () => {
 		const newDir = path.join(parentDir, 'pfs', id);
 		const testFile = path.join(newDir, 'writefile.txt');
 
-		extfs.mkdirp(newDir, 493, (error) => {
+		const onMkdirp = error => {
 			if (error) {
 				return onError(error, done);
 			}
@@ -99,7 +103,9 @@ suite('PFS', () => {
 
 				extfs.del(parentDir, os.tmpdir(), () => { }, done);
 			}, error => onError(error, done));
-		});
+		};
+
+		pfs.mkdirp(newDir, 493).done(() => onMkdirp(null), error => onMkdirp(error));
 	});
 
 	test('rimraf - simple', function (done: () => void) {
@@ -107,7 +113,7 @@ suite('PFS', () => {
 		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const newDir = path.join(parentDir, 'extfs', id);
 
-		extfs.mkdirp(newDir, 493, (error) => {
+		const onMkdirp = error => {
 			if (error) {
 				return onError(error, done);
 			}
@@ -119,7 +125,9 @@ suite('PFS', () => {
 				assert.ok(!fs.existsSync(newDir));
 				done();
 			}, error => onError(error, done));
-		}); // 493 = 0755
+		};
+
+		pfs.mkdirp(newDir, 493).done(() => onMkdirp(null), error => onMkdirp(error));
 	});
 
 	test('rimraf - recursive folder structure', function (done: () => void) {
@@ -127,7 +135,7 @@ suite('PFS', () => {
 		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const newDir = path.join(parentDir, 'extfs', id);
 
-		extfs.mkdirp(newDir, 493, (error) => {
+		const onMkdirp = error => {
 			if (error) {
 				return onError(error, done);
 			}
@@ -142,6 +150,8 @@ suite('PFS', () => {
 				assert.ok(!fs.existsSync(newDir));
 				done();
 			}, error => onError(error, done));
-		}); // 493 = 0755
+		};
+
+		pfs.mkdirp(newDir, 493).done(() => onMkdirp(null), error => onMkdirp(error));
 	});
 });

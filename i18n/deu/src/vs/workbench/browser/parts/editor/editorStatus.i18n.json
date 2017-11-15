@@ -11,7 +11,7 @@
 	"endOfLineLineFeed": "LF",
 	"endOfLineCarriageReturnLineFeed": "CRLF",
 	"tabFocusModeEnabled": "TAB-TASTE verschiebt Fokus",
-	"screenReaderDetected": "Sprachausgabe erkannt",
+	"screenReaderDetected": "Für Sprachausgabe optimiert",
 	"screenReaderDetectedExtra": "Wenn Sie keine Sprachausgabe verwenden, ändern Sie die Einstellung \"editor.accessibilitySupport\" in \"Aus\".",
 	"disableTabMode": "Barrierefreiheitsmodus deaktivieren",
 	"gotoLine": "Gehe zu Zeile",
@@ -47,5 +47,11 @@
 	"reopenWithEncoding": "Mit Codierung erneut öffnen",
 	"guessedEncoding": "Vom Inhalt abgeleitet",
 	"pickEncodingForReopen": "Dateicodierung zum erneuten Öffnen der Datei auswählen",
-	"pickEncodingForSave": "Dateicodierung auswählen, mit der gespeichert werden soll"
+	"pickEncodingForSave": "Dateicodierung auswählen, mit der gespeichert werden soll",
+	"screenReaderDetectedExplanation.title": "Für Sprachausgabe optimiert",
+	"screenReaderDetectedExplanation.question": "Verwenden Sie eine Sprachausgabe zum Bedienen von VS Code?",
+	"screenReaderDetectedExplanation.answerYes": "Ja",
+	"screenReaderDetectedExplanation.answerNo": "Nein",
+	"screenReaderDetectedExplanation.body1": "VS Code ist jetzt für die Verwendung mit einer Sprachausgabe optimiert. ",
+	"screenReaderDetectedExplanation.body2": "Einige Editorfunktionen weisen ein anderes Verhalten auf, z. B. in Bezug auf den Zeilenumbruch, Faltung, automatisches Schließen von Klammern usw."
 }

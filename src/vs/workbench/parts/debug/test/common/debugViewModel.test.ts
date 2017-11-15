@@ -42,7 +42,6 @@ suite('Debug - View Model', () => {
 	});
 
 	test('multi process view and changed workbench state', () => {
-		assert.equal(model.changedWorkbenchViewState, false);
 		assert.equal(model.isMultiProcessView(), false);
 		model.setMultiProcessView(true);
 		assert.equal(model.isMultiProcessView(), true);

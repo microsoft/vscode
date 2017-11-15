@@ -14,6 +14,7 @@ import extfs = require('vs/base/node/extfs');
 import uuid = require('vs/base/common/uuid');
 import { ConfigWatcher } from 'vs/base/node/config';
 import { onError } from 'vs/base/test/common/utils';
+import { mkdirp } from 'vs/base/node/pfs';
 
 suite('Config', () => {
 
@@ -23,9 +24,9 @@ suite('Config', () => {
 		const newDir = path.join(parentDir, 'config', id);
 		const testFile = path.join(newDir, 'config.json');
 
-		extfs.mkdirp(newDir, 493, error => {
-			callback(error, testFile, (callback) => extfs.del(parentDir, os.tmpdir(), () => { }, callback));
-		});
+		const onMkdirp = error => callback(error, testFile, (callback) => extfs.del(parentDir, os.tmpdir(), () => { }, callback));
+
+		mkdirp(newDir, 493).done(() => onMkdirp(null), error => onMkdirp(error));
 	}
 
 	test('defaults', function () {
