@@ -110,6 +110,11 @@ export interface IPartService {
 	getPanelPosition(): Position;
 
 	/**
+	 * Sets the panel position.
+	 */
+	setPanelPosition(position: Position): TPromise<void>;
+
+	/**
 	 * Returns the identifier of the element that contains the workbench.
 	 */
 	getWorkbenchElementId(): string;

@@ -16,7 +16,6 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService, Parts, Position } from 'vs/workbench/services/part/common/partService';
 import { ActivityAction } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
 import { IActivity } from 'vs/workbench/common/activity';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 export class ClosePanelAction extends Action {
 	static ID = 'workbench.action.closePanel';
@@ -88,14 +87,12 @@ export class TogglePanelPositionAction extends Action {
 	public static LABEL = nls.localize('toggledPanelPosition', "Toggle Panel Position");
 	private static MOVE_TO_RIGHT_LABEL = nls.localize('moveToRight', "Move to Right");
 	private static MOVE_TO_BOTTOM_LABEL = nls.localize('moveToBottom', "Move to Bottom");
-	private static panelPositionConfigurationKey = 'workbench.panel.location';
 	private toDispose: IDisposable[];
 
 	constructor(
 		id: string,
 		label: string,
 		@IPartService private partService: IPartService,
-		@IConfigurationService private configurationService: IConfigurationService
 
 	) {
 		super(id, label, partService.getPanelPosition() === Position.RIGHT ? 'move-panel-to-bottom' : 'move-panel-to-right');
@@ -111,9 +108,7 @@ export class TogglePanelPositionAction extends Action {
 
 	public run(): TPromise<any> {
 		const position = this.partService.getPanelPosition();
-		const newPositionValue = (position === Position.BOTTOM) ? 'right' : 'bottom';
-
-		return this.configurationService.updateValue(TogglePanelPositionAction.panelPositionConfigurationKey, newPositionValue, ConfigurationTarget.USER);
+		return this.partService.setPanelPosition(position === Position.BOTTOM ? Position.RIGHT : Position.BOTTOM);
 	}
 
 	public dispose(): void {
