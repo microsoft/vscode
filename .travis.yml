@@ -9,6 +9,9 @@ os:
 #   directories:
 #     - $HOME/.npm
 
+cache:
+  apt: true
+
 notifications:
   email: false
   webhooks:
