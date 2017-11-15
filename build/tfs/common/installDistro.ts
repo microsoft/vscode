@@ -6,7 +6,7 @@
 const cp = require('child_process');
 
 function yarnInstall(package: string): void {
-	cp.execSync(`yarn install --no-lockfile ${package}`);
+	cp.execSync(`yarn add --no-lockfile ${package}`);
 }
 
 const product = require('../../../product.json');
