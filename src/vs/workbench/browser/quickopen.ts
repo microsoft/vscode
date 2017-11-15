@@ -131,7 +131,6 @@ export class QuickOpenHandlerDescriptor {
 	public prefix: string;
 	public description: string;
 	public contextKey: string;
-	public isDefault: boolean;
 	public helpEntries: QuickOpenHandlerHelpEntry[];
 	public instantProgress: boolean;
 
@@ -321,12 +320,6 @@ export interface ICommand {
 	getResults(input: string): TPromise<QuickOpenEntry[]>;
 	getEmptyLabel(input: string): string;
 	icon?: string;
-}
-
-export interface ICommandQuickOpenHandlerOptions {
-	prefix: string;
-	commands: ICommand[];
-	defaultCommand?: ICommand;
 }
 
 export class QuickOpenAction extends Action {

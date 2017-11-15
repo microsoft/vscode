@@ -275,7 +275,7 @@ export interface IEditorOpeningEvent {
 	prevent(callback: () => TPromise<IBaseEditor>): void;
 }
 
-export class EditorOpeningEvent {
+export class EditorOpeningEvent implements IEditorOpeningEvent {
 	private override: () => TPromise<IBaseEditor>;
 
 	constructor(private _input: IEditorInput, private _options: IEditorOptions, private _position: Position) {

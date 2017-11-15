@@ -825,10 +825,6 @@ export class ImportFileAction extends BaseFileAction {
 		this._updateEnablement();
 	}
 
-	public getViewer(): ITree {
-		return this.tree;
-	}
-
 	public run(resources: URI[]): TPromise<any> {
 		const importPromise = TPromise.as(null).then(() => {
 			if (resources && resources.length > 0) {
