@@ -449,7 +449,7 @@ export class FileService implements IFileService {
 						} else {
 							// when receiving the first chunk of data we need to create the
 							// decoding stream which is then used to drive the string stream.
-							Promise.resolve(detectMimeAndEncodingFromBuffer(
+							TPromise.as(detectMimeAndEncodingFromBuffer(
 								{ buffer: chunkBuffer, bytesRead },
 								options && options.autoGuessEncoding || this.configuredAutoGuessEncoding(resource)
 							)).then(value => {
@@ -468,7 +468,7 @@ export class FileService implements IFileService {
 									handleChunk(bytesRead);
 								}
 
-							}).catch(err => {
+							}).then(undefined, err => {
 								// failed to get encoding
 								finish(err);
 							});
