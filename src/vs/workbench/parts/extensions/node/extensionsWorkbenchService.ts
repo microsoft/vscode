@@ -141,6 +141,10 @@ class Extension implements IExtension {
 		return require.toUrl('../browser/media/defaultIcon.png');
 	}
 
+	get repository(): string {
+		return this.gallery && this.gallery.assets.repository.uri;
+	}
+
 	get licenseUrl(): string {
 		return this.gallery && this.gallery.assets.license && this.gallery.assets.license.uri;
 	}
@@ -175,12 +179,17 @@ class Extension implements IExtension {
 		}
 	}
 
+	get preview(): boolean {
+		return this.gallery ? this.gallery.preview : false;
+	}
+
 	getManifest(): TPromise<IExtensionManifest> {
 		if (this.gallery) {
 			if (this.gallery.assets.manifest) {
 				return this.galleryService.getManifest(this.gallery);
 			}
 			this.telemetryService.publicLog('extensions:NotFoundManifest', this.telemetryData);
+			return TPromise.wrapError<IExtensionManifest>(new Error('not available'));
 		}
 
 		return TPromise.as(this.local.manifest);

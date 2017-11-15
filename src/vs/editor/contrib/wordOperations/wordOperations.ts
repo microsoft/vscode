@@ -6,7 +6,7 @@
 'use strict';
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ICommonCodeEditor, IModel, ScrollType } from 'vs/editor/common/editorCommon';
+import { IModel, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Selection } from 'vs/editor/common/core/selection';
 import { registerEditorCommand, ServicesAccessor, EditorCommand, ICommandOptions } from 'vs/editor/browser/editorExtensions';
@@ -17,6 +17,7 @@ import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
 import { getMapForWordSeparators, WordCharacterClassifier } from 'vs/editor/common/controller/wordCharacterClassifier';
 import { CursorState } from 'vs/editor/common/controller/cursorCommon';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export interface MoveWordOptions extends ICommandOptions {
 	inSelectionMode: boolean;
@@ -34,7 +35,7 @@ export abstract class MoveWordCommand extends EditorCommand {
 		this._wordNavigationType = opts.wordNavigationType;
 	}
 
-	public runEditorCommand(accessor: ServicesAccessor, editor: ICommonCodeEditor, args: any): void {
+	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 		const config = editor.getConfiguration();
 		const wordSeparators = getMapForWordSeparators(config.wordSeparators);
 		const model = editor.getModel();
@@ -255,7 +256,7 @@ export abstract class DeleteWordCommand extends EditorCommand {
 		this._wordNavigationType = opts.wordNavigationType;
 	}
 
-	public runEditorCommand(accessor: ServicesAccessor, editor: ICommonCodeEditor, args: any): void {
+	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 		const config = editor.getConfiguration();
 		const wordSeparators = getMapForWordSeparators(config.wordSeparators);
 		const model = editor.getModel();

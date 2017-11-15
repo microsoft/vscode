@@ -10,7 +10,6 @@ import resources = require('vs/base/common/resources');
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
-import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { INavigator } from 'vs/base/common/iterator';
@@ -221,32 +220,6 @@ export class FocusPreviousInputAction extends Action {
 	}
 }
 
-export class OpenSearchViewletAction extends ToggleViewletAction {
-
-	public static LABEL = nls.localize('showSearchViewlet', "Show Search");
-
-	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
-		super(id, label, Constants.VIEWLET_ID, viewletService, editorService);
-	}
-
-	public run(): TPromise<any> {
-		const activeViewlet = this.viewletService.getActiveViewlet();
-		const searchViewletWasOpen = activeViewlet && activeViewlet.getId() === Constants.VIEWLET_ID;
-
-		return super.run().then(() => {
-			if (!searchViewletWasOpen) {
-				// Get the search viewlet and ensure that 'replace' is collapsed
-				const searchViewlet = this.viewletService.getActiveViewlet();
-				if (searchViewlet && searchViewlet.getId() === Constants.VIEWLET_ID) {
-					const searchAndReplaceWidget = (<SearchViewlet>searchViewlet).searchAndReplaceWidget;
-					searchAndReplaceWidget.toggleReplace(false);
-				}
-			}
-		});
-	}
-
-}
-
 export const FocusActiveEditorCommand = (accessor: ServicesAccessor) => {
 	const editorService = accessor.get(IWorkbenchEditorService);
 	const editor = editorService.getActiveEditor();
@@ -288,6 +261,8 @@ export abstract class FindOrReplaceInFilesAction extends Action {
 		});
 	}
 }
+
+export const SHOW_SEARCH_LABEL = nls.localize('showSearchViewlet', "Show Search");
 
 export class FindInFilesAction extends FindOrReplaceInFilesAction {
 
@@ -583,8 +558,6 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 
 	constructor(private viewer: ITree, private fileMatch: FileMatch, private viewlet: SearchViewlet,
-		// @ts-ignore unused injected service
-		@IReplaceService private replaceService: IReplaceService,
 		@IKeybindingService keyBindingService: IKeybindingService,
 		@ITelemetryService private telemetryService: ITelemetryService) {
 		super(Constants.ReplaceAllInFileActionId, appendKeyBindingLabel(nls.localize('file.replaceAll.label', "Replace All"), keyBindingService.lookupKeybinding(Constants.ReplaceAllInFileActionId), keyBindingService), 'action-replace-all');
@@ -603,6 +576,30 @@ export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 			this.viewer.DOMFocus();
 			this.viewlet.open(this.fileMatch, true);
 		});
+	}
+}
+
+export class ReplaceAllInFolderAction extends AbstractSearchAndReplaceAction {
+
+	constructor(private viewer: ITree, private folderMatch: FolderMatch,
+		@IKeybindingService keyBindingService: IKeybindingService,
+		@ITelemetryService private telemetryService: ITelemetryService
+	) {
+		super(Constants.ReplaceAllInFolderActionId, nls.localize('file.replaceAll.label', "Replace All"), 'action-replace-all');
+	}
+
+	public async run(): TPromise<any> {
+		/* __GDPR__
+			"replaceAllInFolder.action.selected" : {}
+		*/
+		this.telemetryService.publicLog('replaceAllInFolder.action.selected');
+		let nextFocusElement = this.getElementToFocusAfterRemoved(this.viewer, this.folderMatch);
+		await this.folderMatch.replaceAll();
+
+		if (nextFocusElement) {
+			this.viewer.setFocus(nextFocusElement);
+		}
+		this.viewer.DOMFocus();
 	}
 }
 

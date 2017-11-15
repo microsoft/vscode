@@ -7,10 +7,11 @@
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Range } from 'vs/editor/common/core/range';
-import { ICommand, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { ICommand } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerEditorAction, EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ReplaceCommand } from 'vs/editor/common/commands/replaceCommand';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 class TransposeLettersAction extends EditorAction {
 
@@ -30,7 +31,7 @@ class TransposeLettersAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let model = editor.getModel();
 		let commands: ICommand[] = [];
 		let selections = editor.getSelections();

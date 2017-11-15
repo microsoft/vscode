@@ -26,7 +26,7 @@ export class MessageController {
 
 	static CONTEXT_SNIPPET_MODE = new RawContextKey<boolean>('messageVisible', false);
 
-	static get(editor: editorCommon.ICommonCodeEditor): MessageController {
+	static get(editor: ICodeEditor): MessageController {
 		return editor.getContribution<MessageController>(MessageController._id);
 	}
 

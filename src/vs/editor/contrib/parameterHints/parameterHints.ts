@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { dispose } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICommonCodeEditor, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
@@ -21,7 +21,7 @@ class ParameterHintsController implements IEditorContribution {
 
 	private static ID = 'editor.controller.parameterHints';
 
-	public static get(editor: ICommonCodeEditor): ParameterHintsController {
+	public static get(editor: ICodeEditor): ParameterHintsController {
 		return editor.getContribution<ParameterHintsController>(ParameterHintsController.ID);
 	}
 
@@ -73,7 +73,7 @@ export class TriggerParameterHintsAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let controller = ParameterHintsController.get(editor);
 		if (controller) {
 			controller.trigger();

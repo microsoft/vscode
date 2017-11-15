@@ -7,7 +7,7 @@
 
 import Event, { filterEvent, mapEvent, anyEvent } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IWindowService, IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { remote } from 'electron';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
@@ -23,6 +23,7 @@ export class WindowService implements IWindowService {
 
 	constructor(
 		private windowId: number,
+		private configuration: IWindowConfiguration,
 		@IWindowsService private windowsService: IWindowsService
 	) {
 		const onThisWindowFocus = mapEvent(filterEvent(windowsService.onWindowFocus, id => id === windowId), _ => true);
@@ -32,6 +33,10 @@ export class WindowService implements IWindowService {
 
 	getCurrentWindowId(): number {
 		return this.windowId;
+	}
+
+	getConfiguration(): IWindowConfiguration {
+		return this.configuration;
 	}
 
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {

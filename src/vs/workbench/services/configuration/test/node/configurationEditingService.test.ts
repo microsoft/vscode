@@ -18,7 +18,7 @@ import { parseArgs } from 'vs/platform/environment/node/argv';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import extfs = require('vs/base/node/extfs');
-import { TestTextFileService, TestTextResourceConfigurationService, workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
+import { TestTextFileService, TestTextResourceConfigurationService, workbenchInstantiationService, TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
 import uuid = require('vs/base/common/uuid');
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
@@ -34,6 +34,7 @@ import { TextModelResolverService } from 'vs/workbench/services/textmodelResolve
 import { IChoiceService } from 'vs/platform/message/common/message';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { mkdirp } from 'vs/base/node/pfs';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -80,21 +81,14 @@ suite('ConfigurationEditingService', () => {
 			.then(() => setUpServices());
 	});
 
-	function setUpWorkspace(): TPromise<void> {
-		return new TPromise<void>((c, e) => {
-			const id = uuid.generateUuid();
-			parentDir = path.join(os.tmpdir(), 'vsctests', id);
-			workspaceDir = path.join(parentDir, 'workspaceconfig', id);
-			globalSettingsFile = path.join(workspaceDir, 'config.json');
-			workspaceSettingsDir = path.join(workspaceDir, '.vscode');
-			extfs.mkdirp(workspaceSettingsDir, 493, (error) => {
-				if (error) {
-					e(error);
-				} else {
-					c(null);
-				}
-			});
-		});
+	function setUpWorkspace(): TPromise<boolean> {
+		const id = uuid.generateUuid();
+		parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		workspaceDir = path.join(parentDir, 'workspaceconfig', id);
+		globalSettingsFile = path.join(workspaceDir, 'config.json');
+		workspaceSettingsDir = path.join(workspaceDir, '.vscode');
+
+		return mkdirp(workspaceSettingsDir, 493);
 	}
 
 	function setUpServices(noWorkspace: boolean = false): TPromise<void> {
@@ -108,7 +102,7 @@ suite('ConfigurationEditingService', () => {
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
 		return workspaceService.initialize(noWorkspace ? {} as IWindowConfiguration : workspaceDir).then(() => {
 			instantiationService.stub(IConfigurationService, workspaceService);
-			instantiationService.stub(IFileService, new FileService(workspaceService, new TestTextResourceConfigurationService(), new TestConfigurationService(), { disableWatcher: true }));
+			instantiationService.stub(IFileService, new FileService(workspaceService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), { disableWatcher: true }));
 			instantiationService.stub(ITextFileService, instantiationService.createInstance(TestTextFileService));
 			instantiationService.stub(ITextModelService, <ITextModelService>instantiationService.createInstance(TextModelResolverService));
 			testObject = instantiationService.createInstance(ConfigurationEditingService);

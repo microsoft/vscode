@@ -48,18 +48,14 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 		return this.configuration.toData();
 	}
 
-	getConfiguration<T>(): T;
-	getConfiguration<T>(section: string): T;
-	getConfiguration<T>(overrides: IConfigurationOverrides): T;
-	getConfiguration<T>(section: string, overrides: IConfigurationOverrides): T;
-	getConfiguration(arg1?: any, arg2?: any): any {
+	getValue<T>(): T;
+	getValue<T>(section: string): T;
+	getValue<T>(overrides: IConfigurationOverrides): T;
+	getValue<T>(section: string, overrides: IConfigurationOverrides): T;
+	getValue(arg1?: any, arg2?: any): any {
 		const section = typeof arg1 === 'string' ? arg1 : void 0;
 		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : {};
-		return this.configuration.getSection(section, overrides, null);
-	}
-
-	getValue(key: string, overrides: IConfigurationOverrides = {}): any {
-		return this.configuration.getValue(key, overrides, null);
+		return this.configuration.getValue(section, overrides, null);
 	}
 
 	updateValue(key: string, value: any): TPromise<void>;
@@ -77,7 +73,7 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 		workspaceFolder: T
 		value: T
 	} {
-		return this.configuration.lookup<T>(key, {}, null);
+		return this.configuration.inspect<T>(key, {}, null);
 	}
 
 	keys(): {

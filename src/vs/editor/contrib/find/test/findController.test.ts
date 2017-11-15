@@ -11,7 +11,6 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
-import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { CommonFindController, FindStartFocusAction, IFindStartOptions, NextMatchFindAction, StartFindAction } from 'vs/editor/contrib/find/findController';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { HistoryNavigator } from 'vs/base/common/history';
@@ -19,6 +18,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { Delayer } from 'vs/base/common/async';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class TestFindController extends CommonFindController {
 
@@ -28,7 +28,7 @@ export class TestFindController extends CommonFindController {
 
 	private _delayedUpdateHistoryEvent: Emitter<void> = new Emitter<void>();
 
-	constructor(editor: ICommonCodeEditor, @IContextKeyService contextKeyService: IContextKeyService, @IStorageService storageService: IStorageService) {
+	constructor(editor: ICodeEditor, @IContextKeyService contextKeyService: IContextKeyService, @IStorageService storageService: IStorageService) {
 		super(editor, contextKeyService, storageService);
 		this._updateHistoryDelayer = new Delayer<void>(50);
 	}

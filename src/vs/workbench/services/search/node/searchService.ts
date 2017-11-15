@@ -54,7 +54,7 @@ export class SearchService implements ISearchService {
 	}
 
 	public extendQuery(query: ISearchQuery): void {
-		const configuration = this.configurationService.getConfiguration<ISearchConfiguration>();
+		const configuration = this.configurationService.getValue<ISearchConfiguration>();
 
 		// Configuration: Encoding
 		if (!query.fileEncoding) {
@@ -64,7 +64,7 @@ export class SearchService implements ISearchService {
 
 		// Configuration: File Excludes
 		if (!query.disregardExcludeSettings) {
-			const fileExcludes = configuration && configuration.files && configuration.files.exclude;
+			const fileExcludes = objects.deepClone(configuration && configuration.files && configuration.files.exclude);
 			if (fileExcludes) {
 				if (!query.excludePattern) {
 					query.excludePattern = fileExcludes;

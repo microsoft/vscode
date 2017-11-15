@@ -15,7 +15,6 @@ import Event, { Emitter } from 'vs/base/common/event';
 import * as dom from 'vs/base/browser/dom';
 import { ActionBar, IActionBarOptions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IOptions, ZoneWidget, IStyles } from 'vs/editor/contrib/zoneWidget/zoneWidget';
@@ -28,7 +27,7 @@ export namespace PeekContext {
 	export const notInPeekEditor: ContextKeyExpr = inPeekEditor.toNegated();
 }
 
-export function getOuterEditor(accessor: ServicesAccessor): ICommonCodeEditor {
+export function getOuterEditor(accessor: ServicesAccessor): ICodeEditor {
 	let editor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 	if (editor instanceof EmbeddedCodeEditorWidget) {
 		return editor.getParentEditor();

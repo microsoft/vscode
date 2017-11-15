@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Diagnostic, DiagnosticCollection, languages } from 'vscode';
+import { Diagnostic, DiagnosticCollection, languages, Uri } from 'vscode';
 import { ITypeScriptServiceClient } from '../typescriptService';
 
 export default class DiagnosticsManager {
@@ -32,41 +32,45 @@ export default class DiagnosticsManager {
 		this.semanticDiagnostics = Object.create(null);
 	}
 
-	public updateValidate(value: boolean) {
+	public set validate(value: boolean) {
 		if (this._validate === value) {
 			return;
 		}
 		this._validate = value;
 		if (!value) {
-			this.syntaxDiagnostics = Object.create(null);
-			this.semanticDiagnostics = Object.create(null);
 			this.currentDiagnostics.clear();
 		}
 	}
 
-	public syntaxDiagnosticsReceived(file: string, syntaxDiagnostics: Diagnostic[]): void {
-		if (!this._validate) {
-			return;
-		}
-		this.syntaxDiagnostics[file] = syntaxDiagnostics;
-		const semanticDianostics = this.semanticDiagnostics[file] || [];
-		this.currentDiagnostics.set(this.client.asUrl(file), semanticDianostics.concat(syntaxDiagnostics));
+	public syntaxDiagnosticsReceived(file: Uri, syntaxDiagnostics: Diagnostic[]): void {
+		this.syntaxDiagnostics[this.key(file)] = syntaxDiagnostics;
+		this.updateCurrentDiagnostics(file);
 	}
 
-	public semanticDiagnosticsReceived(file: string, semanticDiagnostics: Diagnostic[]): void {
-		if (!this._validate) {
-			return;
-		}
-		this.semanticDiagnostics[file] = semanticDiagnostics;
-		const syntaxDiagnostics = this.syntaxDiagnostics[file] || [];
-		this.currentDiagnostics.set(this.client.asUrl(file), semanticDiagnostics.concat(syntaxDiagnostics));
+	public semanticDiagnosticsReceived(file: Uri, semanticDiagnostics: Diagnostic[]): void {
+		this.semanticDiagnostics[this.key(file)] = semanticDiagnostics;
+		this.updateCurrentDiagnostics(file);
 	}
 
-	public configFileDiagnosticsReceived(file: string, diagnostics: Diagnostic[]): void {
-		this.currentDiagnostics.set(this.client.asUrl(file), diagnostics);
+	public configFileDiagnosticsReceived(file: Uri, diagnostics: Diagnostic[]): void {
+		this.currentDiagnostics.set(file, diagnostics);
 	}
 
-	public delete(file: string) {
+	public delete(file: string): void {
 		this.currentDiagnostics.delete(this.client.asUrl(file));
+	}
+
+	private key(file: Uri): string {
+		return file.toString(true);
+	}
+
+	private updateCurrentDiagnostics(file: Uri) {
+		if (!this._validate) {
+			return;
+		}
+
+		const semanticDiagnostics = this.semanticDiagnostics[this.key(file)] || [];
+		const syntaxDiagnostics = this.syntaxDiagnostics[this.key(file)] || [];
+		this.currentDiagnostics.set(file, semanticDiagnostics.concat(syntaxDiagnostics));
 	}
 }

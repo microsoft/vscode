@@ -484,7 +484,15 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			}
 		}
 		if (options.cwd) {
-			shellLaunchConfig.cwd = options.cwd;
+			let cwd = options.cwd;
+			if (!path.isAbsolute(cwd)) {
+				let workspaceFolder = Task.getWorkspaceFolder(task);
+				if (workspaceFolder.uri.scheme === 'file') {
+					cwd = path.join(workspaceFolder.uri.fsPath, cwd);
+				}
+			}
+			// This must be normalized to the OS
+			shellLaunchConfig.cwd = path.normalize(cwd);
 		}
 		if (options.env) {
 			shellLaunchConfig.env = options.env;
@@ -599,7 +607,7 @@ export class TerminalTaskSystem extends EventEmitter implements ITaskSystem {
 			if (!matcher.filePrefix) {
 				result.push(matcher);
 			} else {
-				let copy = Objects.clone(matcher);
+				let copy = Objects.deepClone(matcher);
 				copy.filePrefix = this.resolveVariable(task, copy.filePrefix);
 				result.push(copy);
 			}

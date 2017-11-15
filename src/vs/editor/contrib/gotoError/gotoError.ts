@@ -397,7 +397,7 @@ class MarkerNavigationAction extends EditorAction {
 		this._isNext = next;
 	}
 
-	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const telemetryService = accessor.get(ITelemetryService);
 
 		const controller = MarkerController.get(editor);
@@ -430,7 +430,7 @@ class MarkerController implements editorCommon.IEditorContribution {
 
 	private static ID = 'editor.contrib.markerController';
 
-	public static get(editor: editorCommon.ICommonCodeEditor): MarkerController {
+	public static get(editor: ICodeEditor): MarkerController {
 		return editor.getContribution<MarkerController>(MarkerController.ID);
 	}
 

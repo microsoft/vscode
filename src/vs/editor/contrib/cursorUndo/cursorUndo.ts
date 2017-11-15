@@ -8,7 +8,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { registerEditorCommand, ServicesAccessor, EditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ICommonCodeEditor, IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
@@ -38,7 +38,7 @@ export class CursorUndoController extends Disposable implements IEditorContribut
 
 	private static ID = 'editor.contrib.cursorUndoController';
 
-	public static get(editor: ICommonCodeEditor): CursorUndoController {
+	public static get(editor: ICodeEditor): CursorUndoController {
 		return editor.getContribution<CursorUndoController>(CursorUndoController.ID);
 	}
 
@@ -120,7 +120,7 @@ export class CursorUndo extends EditorCommand {
 		});
 	}
 
-	public runEditorCommand(accessor: ServicesAccessor, editor: ICommonCodeEditor, args: any): void {
+	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 		CursorUndoController.get(editor).cursorUndo();
 	}
 }

@@ -10,7 +10,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Range } from 'vs/editor/common/core/range';
-import { ICommonCodeEditor, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { registerEditorAction, ServicesAccessor, IActionOptions, EditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { TokenSelectionSupport, ILogicalSelectionEntry } from './tokenSelectionSupport';
@@ -21,12 +21,12 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 class State {
 
-	public editor: ICommonCodeEditor;
+	public editor: ICodeEditor;
 	public next: State;
 	public previous: State;
 	public selection: Range;
 
-	constructor(editor: ICommonCodeEditor) {
+	constructor(editor: ICodeEditor) {
 		this.editor = editor;
 		this.next = null;
 		this.previous = null;
@@ -44,7 +44,7 @@ class SmartSelectController implements IEditorContribution {
 
 	private static ID = 'editor.contrib.smartSelectController';
 
-	public static get(editor: ICommonCodeEditor): SmartSelectController {
+	public static get(editor: ICodeEditor): SmartSelectController {
 		return editor.getContribution<SmartSelectController>(SmartSelectController.ID);
 	}
 
@@ -154,7 +154,7 @@ abstract class AbstractSmartSelect extends EditorAction {
 		this._forward = forward;
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
 		let controller = SmartSelectController.get(editor);
 		if (controller) {
 			return controller.run(this._forward);

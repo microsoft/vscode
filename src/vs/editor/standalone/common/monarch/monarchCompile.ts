@@ -155,7 +155,7 @@ function createGuard(lexer: monarchCommon.ILexerMin, ruleName: string, tkey: str
 
 	// special case a regexp that matches just words
 	if ((op === '~' || op === '!~') && /^(\w|\|)*$/.test(pat)) {
-		var inWords = objects.createKeywordMatcher(pat.split('|'), lexer.ignoreCase);
+		let inWords = objects.createKeywordMatcher(pat.split('|'), lexer.ignoreCase);
 		tester = function (s) { return (op === '~' ? inWords(s) : !inWords(s)); };
 	}
 	else if (op === '@' || op === '!@') {
@@ -166,7 +166,7 @@ function createGuard(lexer: monarchCommon.ILexerMin, ruleName: string, tkey: str
 		if (!(isArrayOf(function (elem) { return (typeof (elem) === 'string'); }, words))) {
 			monarchCommon.throwError(lexer, 'the @ match target \'' + pat + '\' must be an array of strings, in rule: ' + ruleName);
 		}
-		var inWords = objects.createKeywordMatcher(words, lexer.ignoreCase);
+		let inWords = objects.createKeywordMatcher(words, lexer.ignoreCase);
 		tester = function (s) { return (op === '@' ? inWords(s) : !inWords(s)); };
 	}
 	else if (op === '~' || op === '!~') {
@@ -188,7 +188,7 @@ function createGuard(lexer: monarchCommon.ILexerMin, ruleName: string, tkey: str
 			tester = function (s) { return (op === '==' ? s === patx : s !== patx); };
 		}
 		else {
-			var patx = monarchCommon.fixCase(lexer, pat);
+			let patx = monarchCommon.fixCase(lexer, pat);
 			tester = function (s, id, matches, state, eos) {
 				var patexp = monarchCommon.substituteMatches(lexer, patx, id, matches, state);
 				return (op === '==' ? s === patexp : s !== patexp);

@@ -631,7 +631,7 @@ namespace CommandOptions {
 			}
 		}
 		if (options.env !== void 0) {
-			result.env = Objects.clone(options.env);
+			result.env = Objects.deepClone(options.env);
 		}
 		result.shell = ShellConfiguration.from(options.shell, context);
 		return isEmpty(result) ? undefined : result;
@@ -983,11 +983,11 @@ namespace ProblemMatcherConverter {
 				variableName = variableName.substring(1);
 				let global = ProblemMatcherRegistry.get(variableName);
 				if (global) {
-					return Objects.clone(global);
+					return Objects.deepClone(global);
 				}
 				let localProblemMatcher = context.namedProblemMatchers[variableName];
 				if (localProblemMatcher) {
-					localProblemMatcher = Objects.clone(localProblemMatcher);
+					localProblemMatcher = Objects.deepClone(localProblemMatcher);
 					// remove the name
 					delete localProblemMatcher.name;
 					return localProblemMatcher;

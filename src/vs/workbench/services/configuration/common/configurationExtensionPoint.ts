@@ -71,7 +71,7 @@ defaultConfigurationExtPoint.setHandler(extensions => {
 	registeredDefaultConfigurations = extensions.map(extension => {
 		const id = extension.description.id;
 		const name = extension.description.name;
-		const defaults = objects.clone(extension.value);
+		const defaults = objects.deepClone(extension.value);
 		return <IDefaultConfigurationExtension>{
 			id, name, defaults
 		};
@@ -95,7 +95,7 @@ configurationExtPoint.setHandler(extensions => {
 	const configurations: IConfigurationNode[] = [];
 
 	function handleConfiguration(node: IConfigurationNode, id: string, extension: IExtensionPointUser<any>) {
-		let configuration = objects.clone(node);
+		let configuration = objects.deepClone(node);
 
 		if (configuration.title && (typeof configuration.title !== 'string')) {
 			extension.collector.error(nls.localize('invalid.title', "'configuration.title' must be a string"));

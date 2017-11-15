@@ -258,6 +258,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 		for (let i = 0, len = e.selections.length; i < len; i++) {
 			this._cursorPositions[i] = e.selections[i].getPosition();
 		}
+		this._cursorPositions.sort(Position.compare);
 		return true;
 	}
 	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
@@ -418,4 +419,3 @@ export class DecorationsOverviewRuler extends ViewPart {
 		}
 	}
 }
-

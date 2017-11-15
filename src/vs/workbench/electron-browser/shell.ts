@@ -30,7 +30,6 @@ import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
 import { ElectronWindow } from 'vs/workbench/electron-browser/window';
 import { resolveWorkbenchCommonProperties, getOrCreateMachineId } from 'vs/platform/telemetry/node/workbenchCommonProperties';
 import { machineIdIpcChannel } from 'vs/platform/telemetry/node/commonProperties';
-import { WorkspaceStats } from 'vs/workbench/services/telemetry/node/workspaceStats';
 import { IWindowsService, IWindowService, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
 import { MessageService } from 'vs/workbench/services/message/electron-browser/messageService';
@@ -68,7 +67,6 @@ import { WorkbenchModeServiceImpl } from 'vs/workbench/services/mode/common/work
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { ICrashReporterService, NullCrashReporterService, CrashReporterService } from 'vs/workbench/services/crashReporter/electron-browser/crashReporterService';
-import { NodeCachedDataManager } from 'vs/workbench/electron-browser/nodeCachedDataManager';
 import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { IExtensionManagementChannel, ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
@@ -166,9 +164,7 @@ export class WorkbenchShell {
 		// Workbench
 		this.workbench = instantiationService.createInstance(Workbench, parent.getHTMLElement(), workbenchContainer.getHTMLElement(), this.configuration, serviceCollection, this.lifecycleService);
 		try {
-			this.workbench.startup({
-				onWorkbenchStarted: (info: IWorkbenchStartedInfo) => this.onWorkbenchStarted(info, instantiationService)
-			});
+			this.workbench.startup().done(startupInfos => this.onWorkbenchStarted(startupInfos, instantiationService));
 		} catch (error) {
 
 			// Print out error
@@ -195,7 +191,32 @@ export class WorkbenchShell {
 
 	private onWorkbenchStarted(info: IWorkbenchStartedInfo, instantiationService: IInstantiationService): void {
 
-		// Telemetry: workspace info
+		// Startup Telemetry
+		this.logStartupTelemetry(info);
+
+		// Root Warning
+		if ((platform.isLinux || platform.isMacintosh) && process.getuid() === 0) {
+			this.messageService.show(Severity.Warning, nls.localize('runningAsRoot', "It is recommended not to run Code as 'root'."));
+		}
+
+		// Set lifecycle phase to `Runnning` so that other contributions can now do something
+		this.lifecycleService.phase = LifecyclePhase.Running;
+
+		// Set lifecycle phase to `Runnning For A Bit` after a short delay
+		let timeoutHandle = setTimeout(() => {
+			timeoutHandle = void 0;
+			this.lifecycleService.phase = LifecyclePhase.Eventually;
+		}, 3000);
+		this.toUnbind.push({
+			dispose: () => {
+				if (timeoutHandle) {
+					clearTimeout(timeoutHandle);
+				}
+			}
+		});
+	}
+
+	private logStartupTelemetry(info: IWorkbenchStartedInfo): void {
 		const { filesToOpen, filesToCreate, filesToDiff } = this.configuration;
 		/* __GDPR__
 			"workspaceLoad" : {
@@ -250,23 +271,6 @@ export class WorkbenchShell {
 			*/
 			this.telemetryService.publicLog('startupTime', this.timerService.startupMetrics);
 		});
-
-		// Telemetry: workspace tags
-		const workspaceStats: WorkspaceStats = <WorkspaceStats>this.workbench.getInstantiationService().createInstance(WorkspaceStats);
-		workspaceStats.reportWorkspaceTags(this.configuration);
-		workspaceStats.reportCloudStats();
-
-		// Root Warning
-		if ((platform.isLinux || platform.isMacintosh) && process.getuid() === 0) {
-			this.messageService.show(Severity.Warning, nls.localize('runningAsRoot', "It is recommended not to run Code as 'root'."));
-		}
-
-		// Start cached data manager
-		instantiationService.createInstance(NodeCachedDataManager);
-
-		// Set lifecycle phase to `Runnning` so that other contributions
-		// can now do something
-		this.lifecycleService.phase = LifecyclePhase.Running;
 	}
 
 	private initServiceCollection(container: HTMLElement): [IInstantiationService, ServiceCollection] {
@@ -287,7 +291,7 @@ export class WorkbenchShell {
 		this.broadcastService = new BroadcastService(currentWindow.id);
 		serviceCollection.set(IBroadcastService, this.broadcastService);
 
-		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, currentWindow.id));
+		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, currentWindow.id, this.configuration));
 
 		const sharedProcess = (<IWindowsService>serviceCollection.get(IWindowsService)).whenSharedProcessReady()
 			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${currentWindow.id}`));
@@ -297,7 +301,7 @@ export class WorkbenchShell {
 
 		// Warm up font cache information before building up too many dom elements
 		restoreFontInfo(this.storageService);
-		readFontInfo(BareFontInfo.createFromRawSettings(this.configurationService.getConfiguration('editor'), browser.getZoomLevel()));
+		readFontInfo(BareFontInfo.createFromRawSettings(this.configurationService.getValue('editor'), browser.getZoomLevel()));
 
 		// Hash
 		serviceCollection.set(IHashService, new SyncDescriptor(HashService));

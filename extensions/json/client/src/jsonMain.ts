@@ -50,11 +50,6 @@ interface Settings {
 	};
 }
 
-// @ts-ignore unused type
-interface JSONSettings {
-	schemas: JSONSchemaSettings[];
-}
-
 interface JSONSchemaSettings {
 	fileMatch?: string[];
 	url?: string;

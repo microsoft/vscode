@@ -23,6 +23,7 @@ import { SwitchOutputAction, SwitchOutputActionItem, ClearOutputAction, ToggleOu
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class OutputPanel extends TextResourceEditor {
 	private actions: IAction[];
@@ -32,14 +33,15 @@ export class OutputPanel extends TextResourceEditor {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
-		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
+		@IConfigurationService private baseConfigurationService: IConfigurationService,
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IOutputService private outputService: IOutputService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		super(telemetryService, instantiationService, storageService, configurationService, themeService, editorGroupService, textFileService);
+		super(telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService);
 
 		this.scopedInstantiationService = instantiationService;
 	}
@@ -84,7 +86,7 @@ export class OutputPanel extends TextResourceEditor {
 		options.renderLineHighlight = 'none';
 		options.minimap = { enabled: false };
 
-		const outputConfig = this.configurationService.getConfiguration(null, '[Log]');
+		const outputConfig = this.baseConfigurationService.getValue('[Log]');
 		if (outputConfig && outputConfig['editor.minimap.enabled']) {
 			options.minimap = { enabled: true };
 		}

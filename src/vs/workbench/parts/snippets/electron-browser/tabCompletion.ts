@@ -29,7 +29,7 @@ export class TabCompletionController implements editorCommon.IEditorContribution
 	private static ID = 'editor.tabCompletionController';
 	static ContextKey = new RawContextKey<boolean>('hasSnippetCompletions', undefined);
 
-	public static get(editor: editorCommon.ICommonCodeEditor): TabCompletionController {
+	public static get(editor: ICodeEditor): TabCompletionController {
 		return editor.getContribution<TabCompletionController>(TabCompletionController.ID);
 	}
 

@@ -3,6 +3,9 @@
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js mmims/language-batchfile grammars/batchfile.cson ./syntaxes/batchfile.tmLanguage.json"
+	},
 	"contributes": {
 		"languages": [{
 			"id": "bat",
@@ -12,8 +15,8 @@
 		}],
 		"grammars": [{
 			"language": "bat",
-			"scopeName": "source.dosbatch",
-			"path": "./syntaxes/Batch File.tmLanguage"
+			"scopeName": "source.batchfile",
+			"path": "./syntaxes/batchfile.tmLanguage.json"
 		}]
 	}
 }

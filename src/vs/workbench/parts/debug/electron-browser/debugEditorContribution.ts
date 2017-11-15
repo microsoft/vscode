@@ -468,7 +468,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	// Inline Decorations
 	private updateInlineDecorations(stackFrame: IStackFrame): void {
 		const model = this.editor.getModel();
-		if (!this.configurationService.getConfiguration<IDebugConfiguration>('debug').inlineValues ||
+		if (!this.configurationService.getValue<IDebugConfiguration>('debug').inlineValues ||
 			!model || !stackFrame || model.uri.toString() !== stackFrame.source.uri.toString()) {
 			if (!this.removeInlineValuesScheduler.isScheduled()) {
 				this.removeInlineValuesScheduler.schedule();

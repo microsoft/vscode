@@ -9,7 +9,7 @@ import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { SortLinesCommand } from 'vs/editor/contrib/linesOperations/sortLinesCommand';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { TrimTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
-import { ICommand, ICommonCodeEditor, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
+import { ICommand, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
 import { Range } from 'vs/editor/common/core/range';
@@ -21,6 +21,7 @@ import { DeleteLinesCommand } from './deleteLinesCommand';
 import { MoveLinesCommand } from './moveLinesCommand';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 // copy lines
 
@@ -33,7 +34,7 @@ abstract class AbstractCopyLinesAction extends EditorAction {
 		this.down = down;
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 
 		var commands: ICommand[] = [];
 		var selections = editor.getSelections();
@@ -91,7 +92,7 @@ abstract class AbstractMoveLinesAction extends EditorAction {
 		this.down = down;
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 
 		var commands: ICommand[] = [];
 		var selections = editor.getSelections();
@@ -139,7 +140,7 @@ class MoveLinesDownAction extends AbstractMoveLinesAction {
 	}
 }
 
-abstract class AbstractSortLinesAction extends EditorAction {
+export abstract class AbstractSortLinesAction extends EditorAction {
 	private descending: boolean;
 
 	constructor(descending: boolean, opts: IActionOptions) {
@@ -147,21 +148,28 @@ abstract class AbstractSortLinesAction extends EditorAction {
 		this.descending = descending;
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const selections = editor.getSelections();
 
-		if (!SortLinesCommand.canRun(editor.getModel(), editor.getSelection(), this.descending)) {
-			return;
+		for (let i = 0, len = selections.length; i < len; i++) {
+			const selection = selections[i];
+			if (!SortLinesCommand.canRun(editor.getModel(), selection, this.descending)) {
+				return;
+			}
 		}
 
-		var command = new SortLinesCommand(editor.getSelection(), this.descending);
+		let commands: ICommand[] = [];
+		for (let i = 0, len = selections.length; i < len; i++) {
+			commands[i] = new SortLinesCommand(selections[i], this.descending);
+		}
 
 		editor.pushUndoStop();
-		editor.executeCommands(this.id, [command]);
+		editor.executeCommands(this.id, commands);
 		editor.pushUndoStop();
 	}
 }
 
-class SortLinesAscendingAction extends AbstractSortLinesAction {
+export class SortLinesAscendingAction extends AbstractSortLinesAction {
 	constructor() {
 		super(false, {
 			id: 'editor.action.sortLinesAscending',
@@ -172,7 +180,7 @@ class SortLinesAscendingAction extends AbstractSortLinesAction {
 	}
 }
 
-class SortLinesDescendingAction extends AbstractSortLinesAction {
+export class SortLinesDescendingAction extends AbstractSortLinesAction {
 	constructor() {
 		super(true, {
 			id: 'editor.action.sortLinesDescending',
@@ -200,7 +208,7 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor, args: any): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 
 		let cursors: Position[] = [];
 		if (args.reason === 'auto-save') {
@@ -227,7 +235,7 @@ interface IDeleteLinesOperation {
 }
 
 abstract class AbstractRemoveLinesAction extends EditorAction {
-	_getLinesToRemove(editor: ICommonCodeEditor): IDeleteLinesOperation[] {
+	_getLinesToRemove(editor: ICodeEditor): IDeleteLinesOperation[] {
 		// Construct delete operations
 		var operations: IDeleteLinesOperation[] = editor.getSelections().map((s) => {
 
@@ -283,7 +291,7 @@ class DeleteLinesAction extends AbstractRemoveLinesAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 
 		var ops = this._getLinesToRemove(editor);
 
@@ -312,7 +320,7 @@ export class IndentLinesAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		editor.pushUndoStop();
 		editor.executeCommands(this.id, TypeOperations.indent(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
 		editor.pushUndoStop();
@@ -333,7 +341,7 @@ class OutdentLinesAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		CoreEditingCommands.Outdent.runEditorCommand(null, editor, null);
 	}
 }
@@ -352,7 +360,7 @@ export class InsertLineBeforeAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		editor.pushUndoStop();
 		editor.executeCommands(this.id, TypeOperations.lineInsertBefore(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
 	}
@@ -372,14 +380,14 @@ export class InsertLineAfterAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		editor.pushUndoStop();
 		editor.executeCommands(this.id, TypeOperations.lineInsertAfter(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
 	}
 }
 
 export abstract class AbstractDeleteAllToBoundaryAction extends EditorAction {
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const primaryCursor = editor.getSelection();
 		let rangesToDelete = this._getRangesToDelete(editor);
 		// merge overlapping selections
@@ -414,7 +422,7 @@ export abstract class AbstractDeleteAllToBoundaryAction extends EditorAction {
 	 */
 	protected abstract _getEndCursorState(primaryCursor: Range, rangesToDelete: Range[]): Selection[];
 
-	protected abstract _getRangesToDelete(editor: ICommonCodeEditor): Range[];
+	protected abstract _getRangesToDelete(editor: ICodeEditor): Range[];
 }
 
 export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
@@ -454,7 +462,7 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 		return endCursorState;
 	}
 
-	_getRangesToDelete(editor: ICommonCodeEditor): Range[] {
+	_getRangesToDelete(editor: ICodeEditor): Range[] {
 		let rangesToDelete: Range[] = editor.getSelections();
 
 		rangesToDelete.sort(Range.compareRangesUsingStarts);
@@ -506,7 +514,7 @@ export class DeleteAllRightAction extends AbstractDeleteAllToBoundaryAction {
 		return endCursorState;
 	}
 
-	_getRangesToDelete(editor: ICommonCodeEditor): Range[] {
+	_getRangesToDelete(editor: ICodeEditor): Range[] {
 		let model = editor.getModel();
 
 		let rangesToDelete: Range[] = editor.getSelections().map((sel) => {
@@ -542,7 +550,7 @@ export class JoinLinesAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let selections = editor.getSelections();
 		let primaryCursor = editor.getSelection();
 
@@ -685,7 +693,7 @@ export class TransposeAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let selections = editor.getSelections();
 		let model = editor.getModel();
 		let commands: ICommand[] = [];
@@ -726,7 +734,7 @@ export class TransposeAction extends EditorAction {
 }
 
 export abstract class AbstractCaseAction extends EditorAction {
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let selections = editor.getSelections();
 		let model = editor.getModel();
 		let commands: ICommand[] = [];

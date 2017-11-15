@@ -26,7 +26,7 @@ import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
-import { mark, getEntries } from 'vs/base/common/performance';
+import { mark, exportEntries } from 'vs/base/common/performance';
 
 export interface IWindowState {
 	width?: number;
@@ -161,7 +161,7 @@ export class CodeWindow implements ICodeWindow {
 			options.icon = path.join(this.environmentService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
 		}
 
-		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 
 		let useNativeTabs = false;
 		if (windowConfig && windowConfig.nativeTabs) {
@@ -339,7 +339,7 @@ export class CodeWindow implements ICodeWindow {
 			'X-Market-User-Id': this.environmentService.machineUUID
 		};
 
-		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, (details, cb) => {
+		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, (details: any, cb: any) => {
 			cb({ cancel: false, requestHeaders: objects.assign(details.requestHeaders, headers) });
 		});
 
@@ -355,7 +355,7 @@ export class CodeWindow implements ICodeWindow {
 			return callback({});
 		});
 
-		this._win.webContents.session.webRequest.onHeadersReceived(null, (details, callback) => {
+		this._win.webContents.session.webRequest.onHeadersReceived(null, (details: any, callback: any) => {
 			const contentType: string[] = (details.responseHeaders['content-type'] || details.responseHeaders['Content-Type']) as any;
 			if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
 				return callback({ cancel: true });
@@ -451,7 +451,7 @@ export class CodeWindow implements ICodeWindow {
 
 		// Swipe command support (macOS)
 		if (isMacintosh) {
-			const config = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
+			const config = this.configurationService.getValue<IWorkbenchEditorConfiguration>();
 			if (config && config.workbench && config.workbench.editor && config.workbench.editor.swipeToNavigate) {
 				this.registerNavigationListenerOn('swipe', 'left', 'right', true);
 			} else {
@@ -562,7 +562,7 @@ export class CodeWindow implements ICodeWindow {
 	private getUrl(windowConfiguration: IWindowConfiguration): string {
 
 		// Set zoomlevel
-		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 		const zoomLevel = windowConfig && windowConfig.zoomLevel;
 		if (typeof zoomLevel === 'number') {
 			windowConfiguration.zoomLevel = zoomLevel;
@@ -580,7 +580,7 @@ export class CodeWindow implements ICodeWindow {
 		windowConfiguration.backgroundColor = this.getBackgroundColor();
 
 		// Perf Counters
-		windowConfiguration.perfEntries = getEntries();
+		windowConfiguration.perfEntries = exportEntries();
 		windowConfiguration.perfStartTime = global.perfStartTime;
 		windowConfiguration.perfAppReady = global.perfAppReady;
 		windowConfiguration.perfWindowLoadTime = Date.now();
@@ -796,7 +796,7 @@ export class CodeWindow implements ICodeWindow {
 	}
 
 	private getMenuBarVisibility(): MenuBarVisibility {
-		const windowConfig = this.configurationService.getConfiguration<IWindowSettings>('window');
+		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 		if (!windowConfig || !windowConfig.menuBarVisibility) {
 			return 'default';
 		}

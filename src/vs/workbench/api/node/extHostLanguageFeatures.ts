@@ -408,6 +408,14 @@ class NavigateTypeAdapter {
 		return asWinJsPromise(token => this._provider.provideWorkspaceSymbols(search, token)).then(value => {
 			if (!isFalsyOrEmpty(value)) {
 				for (const item of value) {
+					if (!item) {
+						// drop
+						continue;
+					}
+					if (!item.name) {
+						console.warn('INVALID SymbolInformation, lacks name', item);
+						continue;
+					}
 					const symbol = IdObject.mixin(TypeConverters.fromSymbolInformation(item));
 					this._symbolCache[symbol._id] = item;
 					result.symbols.push(symbol);

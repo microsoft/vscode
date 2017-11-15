@@ -21,7 +21,7 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerServ
 import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
 import { Range } from 'vs/editor/common/core/range';
 import { alert } from 'vs/base/browser/ui/aria/aria';
-import { EditorState, CodeEditorStateFlag } from 'vs/editor/common/core/editorState';
+import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -260,7 +260,7 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 
 export abstract class AbstractFormatAction extends EditorAction {
 
-	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
 
 		const workerService = accessor.get(IEditorWorkerService);
 		const messageService = accessor.get(IMessageService);
@@ -294,7 +294,7 @@ export abstract class AbstractFormatAction extends EditorAction {
 		});
 	}
 
-	protected abstract _getFormattingEdits(editor: editorCommon.ICommonCodeEditor): TPromise<editorCommon.ISingleEditOperation[]>;
+	protected abstract _getFormattingEdits(editor: ICodeEditor): TPromise<editorCommon.ISingleEditOperation[]>;
 }
 
 export class FormatDocumentAction extends AbstractFormatAction {
@@ -319,7 +319,7 @@ export class FormatDocumentAction extends AbstractFormatAction {
 		});
 	}
 
-	protected _getFormattingEdits(editor: editorCommon.ICommonCodeEditor): TPromise<editorCommon.ISingleEditOperation[]> {
+	protected _getFormattingEdits(editor: ICodeEditor): TPromise<editorCommon.ISingleEditOperation[]> {
 		const model = editor.getModel();
 		const { tabSize, insertSpaces } = model.getOptions();
 		return getDocumentFormattingEdits(model, { tabSize, insertSpaces });
@@ -346,7 +346,7 @@ export class FormatSelectionAction extends AbstractFormatAction {
 		});
 	}
 
-	protected _getFormattingEdits(editor: editorCommon.ICommonCodeEditor): TPromise<editorCommon.ISingleEditOperation[]> {
+	protected _getFormattingEdits(editor: ICodeEditor): TPromise<editorCommon.ISingleEditOperation[]> {
 		const model = editor.getModel();
 		const { tabSize, insertSpaces } = model.getOptions();
 		return getDocumentRangeFormattingEdits(model, editor.getSelection(), { tabSize, insertSpaces });
@@ -367,7 +367,7 @@ CommandsRegistry.registerCommand('editor.action.format', accessor => {
 			constructor() {
 				super({} as IActionOptions);
 			}
-			_getFormattingEdits(editor: editorCommon.ICommonCodeEditor): TPromise<editorCommon.ISingleEditOperation[]> {
+			_getFormattingEdits(editor: ICodeEditor): TPromise<editorCommon.ISingleEditOperation[]> {
 				const model = editor.getModel();
 				const editorSelection = editor.getSelection();
 				const { tabSize, insertSpaces } = model.getOptions();

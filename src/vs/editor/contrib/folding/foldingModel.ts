@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IModel, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
+import { IModel, IModelDecorationOptions, IModelDeltaDecoration, IModelDecorationsChangeAccessor } from 'vs/editor/common/editorCommon';
 import Event, { Emitter } from 'vs/base/common/event';
 import { FoldingRanges, ILineRange } from './foldingRanges';
 
 export interface IDecorationProvider {
 	getDecorationOption(isCollapsed: boolean): IModelDecorationOptions;
+	deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
+	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T;
 }
 
 export interface FoldingModelChangeEvent {
@@ -35,6 +37,7 @@ export class FoldingModel {
 		this._textModel = textModel;
 		this._decorationProvider = decorationProvider;
 		this._ranges = new FoldingRanges(new Uint32Array(0), new Uint32Array(0));
+		this._editorDecorationIds = [];
 	}
 
 	public toggleCollapseState(regions: FoldingRegion[]) {
@@ -42,7 +45,7 @@ export class FoldingModel {
 			return;
 		}
 		let processed = {};
-		this._textModel.changeDecorations(accessor => {
+		this._decorationProvider.changeDecorations(accessor => {
 			for (let region of regions) {
 				let index = region.regionIndex;
 				let editorDecorationId = this._editorDecorationIds[index];
@@ -109,7 +112,7 @@ export class FoldingModel {
 			k++;
 		}
 
-		this._editorDecorationIds = this._textModel.deltaDecorations(this._editorDecorationIds, newEditorDecorations);
+		this._editorDecorationIds = this._decorationProvider.deltaDecorations(this._editorDecorationIds, newEditorDecorations);
 		this._ranges = newRanges;
 		this._updateEventEmitter.fire({ model: this });
 	}
@@ -153,7 +156,7 @@ export class FoldingModel {
 	}
 
 	public dispose() {
-		this._textModel.deltaDecorations(this._editorDecorationIds, []);
+		this._decorationProvider.deltaDecorations(this._editorDecorationIds, []);
 	}
 
 	getAllRegionsAtLine(lineNumber: number, filter?: (r: FoldingRegion, level: number) => boolean): FoldingRegion[] {

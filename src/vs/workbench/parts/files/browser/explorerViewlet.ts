@@ -177,7 +177,7 @@ export class ExplorerViewlet extends PersistentViewsViewlet {
 				if (openEditorsView) {
 					let delay = 0;
 
-					const config = this.configurationService.getConfiguration<IFilesConfiguration>();
+					const config = this.configurationService.getValue<IFilesConfiguration>();
 					// No need to delay if preview is disabled
 					const delayEditorOpeningInOpenedEditors = !!config.workbench.editor.enablePreview;
 

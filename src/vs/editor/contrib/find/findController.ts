@@ -25,7 +25,7 @@ import { FindOptionsWidget } from 'vs/editor/contrib/find/findOptionsWidget';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
-export function getSelectionSearchString(editor: editorCommon.ICommonCodeEditor): string {
+export function getSelectionSearchString(editor: ICodeEditor): string {
 	let selection = editor.getSelection();
 
 	// if selection spans multiple lines, default search string to empty
@@ -60,7 +60,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 
 	private static ID = 'editor.contrib.findController';
 
-	private _editor: editorCommon.ICommonCodeEditor;
+	private _editor: ICodeEditor;
 	private _findWidgetVisible: IContextKey<boolean>;
 	protected _state: FindReplaceState;
 	private _currentHistoryNavigator: HistoryNavigator<string>;
@@ -68,11 +68,11 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	private _model: FindModelBoundToEditorModel;
 	private _storageService: IStorageService;
 
-	public static get(editor: editorCommon.ICommonCodeEditor): CommonFindController {
+	public static get(editor: ICodeEditor): CommonFindController {
 		return editor.getContribution<CommonFindController>(CommonFindController.ID);
 	}
 
-	constructor(editor: editorCommon.ICommonCodeEditor, @IContextKeyService contextKeyService: IContextKeyService, @IStorageService storageService: IStorageService) {
+	constructor(editor: ICodeEditor, @IContextKeyService contextKeyService: IContextKeyService, @IStorageService storageService: IStorageService) {
 		super();
 		this._editor = editor;
 		this._findWidgetVisible = CONTEXT_FIND_WIDGET_VISIBLE.bindTo(contextKeyService);
@@ -379,7 +379,7 @@ export class StartFindAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let controller = CommonFindController.get(editor);
 		if (controller) {
 			controller.start({
@@ -393,7 +393,7 @@ export class StartFindAction extends EditorAction {
 }
 
 export abstract class MatchFindAction extends EditorAction {
-	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let controller = CommonFindController.get(editor);
 		if (controller && !this._run(controller)) {
 			controller.start({
@@ -452,7 +452,7 @@ export class PreviousMatchFindAction extends MatchFindAction {
 }
 
 export abstract class SelectionMatchFindAction extends EditorAction {
-	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let controller = CommonFindController.get(editor);
 		if (!controller) {
 			return;
@@ -531,7 +531,7 @@ export class StartFindReplaceAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		if (editor.getConfiguration().readOnly) {
 			return;
 		}

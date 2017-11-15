@@ -2038,7 +2038,9 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 		// Layout title controls
 		POSITIONS.forEach(position => {
-			this.getTitleAreaControl(position).layout();
+			const siloWidth = this.layoutVertically ? this.silosSize[position] : this.dimension.width;
+
+			this.getTitleAreaControl(position).layout(new Dimension(siloWidth, EditorGroupsControl.EDITOR_TITLE_HEIGHT));
 		});
 
 		// Update minimized state

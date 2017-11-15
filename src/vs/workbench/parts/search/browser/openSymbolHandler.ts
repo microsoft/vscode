@@ -96,7 +96,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 		let input: IResourceInput = {
 			resource: this._bearing.location.uri,
 			options: {
-				pinned: !this._configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen
+				pinned: !this._configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen
 			}
 		};
 

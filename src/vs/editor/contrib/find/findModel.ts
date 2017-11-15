@@ -21,6 +21,7 @@ import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export const CONTEXT_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('findWidgetVisible', false);
 export const CONTEXT_FIND_WIDGET_NOT_VISIBLE: ContextKeyExpr = CONTEXT_FIND_WIDGET_VISIBLE.toNegated();
@@ -73,7 +74,7 @@ export const MATCHES_LIMIT = 19999;
 
 export class FindModelBoundToEditorModel {
 
-	private _editor: editorCommon.ICommonCodeEditor;
+	private _editor: ICodeEditor;
 	private _state: FindReplaceState;
 	private _toDispose: IDisposable[];
 	private _decorations: FindDecorations;
@@ -82,7 +83,7 @@ export class FindModelBoundToEditorModel {
 	private _updateDecorationsScheduler: RunOnceScheduler;
 	private _isDisposed: boolean;
 
-	constructor(editor: editorCommon.ICommonCodeEditor, state: FindReplaceState) {
+	constructor(editor: ICodeEditor, state: FindReplaceState) {
 		this._editor = editor;
 		this._state = state;
 		this._toDispose = [];

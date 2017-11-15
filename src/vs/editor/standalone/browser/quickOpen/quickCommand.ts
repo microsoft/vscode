@@ -11,12 +11,13 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IContext, IHighlight, QuickOpenEntryGroup, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IAutoFocus, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IEditorAction, ICommonCodeEditor, IEditor } from 'vs/editor/common/editorCommon';
+import { IEditorAction, IEditor } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { BaseEditorQuickOpenAction } from './editorQuickOpen';
 import { registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as browser from 'vs/base/browser/browser';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class EditorActionCommandEntry extends QuickOpenEntryGroup {
 	private key: string;
@@ -85,7 +86,7 @@ export class QuickCommandAction extends BaseEditorQuickOpenAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const keybindingService = accessor.get(IKeybindingService);
 
 		this._show(this.getController(editor), {
@@ -109,7 +110,7 @@ export class QuickCommandAction extends BaseEditorQuickOpenAction {
 		return elementAName.localeCompare(elementBName);
 	}
 
-	private _editorActionsToEntries(keybindingService: IKeybindingService, editor: ICommonCodeEditor, searchValue: string): EditorActionCommandEntry[] {
+	private _editorActionsToEntries(keybindingService: IKeybindingService, editor: ICodeEditor, searchValue: string): EditorActionCommandEntry[] {
 		let actions: IEditorAction[] = editor.getSupportedActions();
 		let entries: EditorActionCommandEntry[] = [];
 

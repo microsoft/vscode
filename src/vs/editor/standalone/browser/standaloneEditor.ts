@@ -135,8 +135,6 @@ export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorC
 }
 
 export interface IDiffNavigator {
-	revealFirst: boolean;
-
 	canNavigate(): boolean;
 	next(): void;
 	previous(): void;
@@ -340,6 +338,21 @@ enum ScrollType {
 
 /**
  * @internal
+ * --------------------------------------------
+ * This is repeated here so it can be exported
+ * because TS inlines const enums
+ * --------------------------------------------
+ */
+enum RenderLineNumbersType {
+	Off = 0,
+	On = 1,
+	Relative = 2,
+	Interval = 3,
+	Custom = 4
+}
+
+/**
+ * @internal
  */
 export function createMonacoEditorAPI(): typeof monaco.editor {
 	return {
@@ -384,6 +397,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		OverlayWidgetPositionPreference: OverlayWidgetPositionPreference,
 		RenderMinimap: editorOptions.RenderMinimap,
 		ScrollType: <any>ScrollType,
+		RenderLineNumbersType: <any>RenderLineNumbersType,
 
 		// classes
 		InternalEditorOptions: <any>editorOptions.InternalEditorOptions,

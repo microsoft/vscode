@@ -220,6 +220,11 @@
         "category": "Git"
       },
       {
+        "command": "git.renameBranch",
+        "title": "%command.renameBranch%",
+        "category": "Git"
+      },
+      {
         "command": "git.merge",
         "title": "%command.merge%",
         "category": "Git"
@@ -282,6 +287,11 @@
       {
         "command": "git.ignore",
         "title": "%command.ignore%",
+        "category": "Git"
+      },
+      {
+        "command": "git.stashIncludeUntracked",
+        "title": "%command.stashIncludeUntracked%",
         "category": "Git"
       },
       {
@@ -412,6 +422,10 @@
         },
         {
           "command": "git.deleteBranch",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.renameBranch",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
@@ -587,6 +601,11 @@
         {
           "command": "git.cleanAll",
           "group": "4_stage",
+          "when": "config.git.enabled && scmProvider == git"
+        },
+        {
+          "command": "git.stashIncludeUntracked",
+          "group": "5_stash",
           "when": "config.git.enabled && scmProvider == git"
         },
         {

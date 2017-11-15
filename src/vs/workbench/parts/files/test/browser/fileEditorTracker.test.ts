@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { FileEditorTracker } from 'vs/workbench/parts/files/common/editors/fileEditorTracker';
+import { FileEditorTracker } from 'vs/workbench/parts/files/browser/editors/fileEditorTracker';
 import URI from 'vs/base/common/uri';
 import { join } from 'vs/base/common/paths';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
