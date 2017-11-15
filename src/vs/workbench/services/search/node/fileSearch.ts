@@ -12,7 +12,7 @@ import fs = require('fs');
 import path = require('path');
 import { isEqualOrParent } from 'vs/base/common/paths';
 import { Readable } from 'stream';
-import { TPromise } from 'vs/base/common/winjs.base';
+import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 
 import objects = require('vs/base/common/objects');
 import arrays = require('vs/base/common/arrays');
@@ -24,7 +24,7 @@ import { IProgress, IUncachedSearchStats } from 'vs/platform/search/common/searc
 
 import extfs = require('vs/base/node/extfs');
 import flow = require('vs/base/node/flow');
-import { IRawFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine, IFolderSearch } from './search';
+import { IRawFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine, IFolderSearch, ISearchProgress } from './search';
 import { spawnRipgrepCmd } from './ripgrepFileSearch';
 
 enum Traversal {
@@ -115,6 +115,89 @@ export class FileWalker {
 
 	public cancel(): void {
 		this.isCanceled = true;
+	}
+
+	public walkP(folderQueries: IFolderSearch[], extraFiles: string[]): PPromise<boolean, IRawFileMatch> {
+		this.fileWalkStartTime = Date.now();
+
+		return new PPromise((onComplete, onError, onResult) => {
+			// Support that the file pattern is a full path to a file that exists
+			this.checkFilePatternAbsoluteMatch((exists, size) => {
+				if (this.isCanceled) {
+					return onComplete(this.isLimitHit);
+				}
+
+				// Report result from file pattern if matching
+				if (exists) {
+					this.resultCount++;
+					onResult({
+						relativePath: this.filePattern,
+						basename: path.basename(this.filePattern),
+						size
+					});
+
+					// Optimization: a match on an absolute path is a good result and we do not
+					// continue walking the entire root paths array for other matches because
+					// it is very unlikely that another file would match on the full absolute path
+					return onComplete(this.isLimitHit);
+				}
+
+				// For each extra file
+				if (extraFiles) {
+					extraFiles.forEach(extraFilePath => {
+						const basename = path.basename(extraFilePath);
+						if (this.globalExcludePattern && this.globalExcludePattern(extraFilePath, basename)) {
+							return; // excluded
+						}
+
+						// File: Check for match on file pattern and include pattern
+						this.matchFile(onResult, { relativePath: extraFilePath /* no workspace relative path */, basename });
+					});
+				}
+
+				let traverse = this.nodeJSTraversal;
+				if (!this.maxFilesize) {
+					if (this.useRipgrep) {
+						this.traversal = Traversal.Ripgrep;
+						traverse = this.cmdTraversal;
+					} else if (platform.isMacintosh) {
+						this.traversal = Traversal.MacFind;
+						traverse = this.cmdTraversal;
+						// Disable 'dir' for now (#11181, #11179, #11183, #11182).
+					} /* else if (platform.isWindows) {
+						this.traversal = Traversal.WindowsDir;
+						traverse = this.windowsDirTraversal;
+					} */ else if (platform.isLinux) {
+						this.traversal = Traversal.LinuxFind;
+						traverse = this.cmdTraversal;
+					}
+				}
+
+				const isNodeTraversal = traverse === this.nodeJSTraversal;
+				if (!isNodeTraversal) {
+					this.cmdForkStartTime = Date.now();
+				}
+
+				// For each root folder
+				flow.parallel<IFolderSearch, void>(folderQueries, (folderQuery: IFolderSearch, rootFolderDone: (err: Error, result: void) => void) => {
+					this.call(traverse, this, folderQuery, onResult, (err?: Error) => {
+						if (err) {
+							const errorMessage = toErrorMessage(err);
+							console.error(errorMessage);
+							this.errors.push(errorMessage);
+							rootFolderDone(err, undefined);
+						} else {
+							rootFolderDone(undefined, undefined);
+						}
+					});
+				}, (err, result) => {
+					if (err) {
+						onError(err);
+					}
+					return onComplete(this.isLimitHit);
+				});
+			});
+		});
 	}
 
 	public walk(folderQueries: IFolderSearch[], extraFiles: string[], onResult: (result: IRawFileMatch) => void, done: (error: Error, isLimitHit: boolean) => void): void {
@@ -721,6 +804,23 @@ export class Engine implements ISearchEngine<IRawFileMatch> {
 		this.extraFiles = config.extraFiles;
 
 		this.walker = new FileWalker(config);
+	}
+
+	public searchP(): PPromise<ISerializedSearchComplete, ISearchProgress<IRawFileMatch>> {
+		return new PPromise((sComplete, sError, sProgress) => {
+			return this.walker.walkP(this.folderQueries, this.extraFiles).then(
+				walkComplete => {
+					sComplete({
+						limitHit: walkComplete,
+						stats: this.walker.getStats()
+					});
+				},
+				sError,
+				walkProgress => {
+					sProgress({ results: walkProgress });
+				}
+			);
+		});
 	}
 
 	public search(onResult: (result: IRawFileMatch) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {

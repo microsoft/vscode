@@ -103,7 +103,7 @@ export class SearchService implements IRawSearchService {
 
 			return new PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>((c, e, p) => {
 				process.nextTick(() => { // allow caller to register progress callback first
-					sortedSearch.then(([result, rawMatches]) => {
+					return sortedSearch.then(([result, rawMatches]) => {
 						const serializedMatches = rawMatches.map(rawMatch => this.rawMatchToSearchItem(rawMatch));
 						this.sendProgress(serializedMatches, p, batchSize);
 						c(result);
@@ -332,20 +332,21 @@ export class SearchService implements IRawSearchService {
 		return new PPromise<ISerializedSearchComplete, ISerializedSearchProgressItem>((c, e, p) => {
 			// Use BatchedCollector to get new results to the frontend every 2s at least, until 50 results have been returned
 			const collector = new BatchedCollector<ISerializedFileMatch>(batchSize, p);
-			engine.search((matches) => {
-				const totalMatches = matches.reduce((acc, m) => acc + m.numMatches, 0);
-				collector.addItems(matches, totalMatches);
-			}, (progress) => {
-				p(progress);
-			}, (error, stats) => {
-				collector.flush();
-
-				if (error) {
+			return engine.searchP().then(
+				complete => {
+					collector.flush();
+					c(complete);
+				},
+				error => {
+					collector.flush();
 					e(error);
-				} else {
-					c(stats);
+				},
+				progress => {
+					const matches = progress.results;
+					const totalMatches = matches.reduce((acc, m) => acc + m.numMatches, 0);
+					collector.addItems(matches, totalMatches);
 				}
-			});
+			);
 		}, () => {
 			engine.cancel();
 		});
@@ -354,30 +355,26 @@ export class SearchService implements IRawSearchService {
 	private doSearch(engine: ISearchEngine<IRawFileMatch>, batchSize?: number): PPromise<ISerializedSearchComplete, IFileSearchProgressItem> {
 		return new PPromise<ISerializedSearchComplete, IFileSearchProgressItem>((c, e, p) => {
 			let batch: IRawFileMatch[] = [];
-			engine.search((match) => {
-				if (match) {
-					if (batchSize) {
-						batch.push(match);
-						if (batchSize > 0 && batch.length >= batchSize) {
-							p(batch);
-							batch = [];
+			return engine.searchP().then(
+				complete => {
+					p(batch);
+					c(complete);
+				},
+				e,
+				match => {
+					if (match && match.results) {
+						if (batchSize) {
+							batch.push(match.results);
+							if (batchSize > 0 && batch.length >= batchSize) {
+								p(batch);
+								batch = [];
+							}
+						} else {
+							p(match.results);
 						}
-					} else {
-						p(match);
 					}
 				}
-			}, (progress) => {
-				p(progress);
-			}, (error, stats) => {
-				if (batch.length) {
-					p(batch);
-				}
-				if (error) {
-					e(error);
-				} else {
-					c(stats);
-				}
-			});
+			);
 		}, () => {
 			engine.cancel();
 		});

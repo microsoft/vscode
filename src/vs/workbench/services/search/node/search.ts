@@ -55,6 +55,7 @@ export interface IRawFileMatch {
 }
 
 export interface ISearchEngine<T> {
+	searchP(): PPromise<ISerializedSearchComplete, ISearchProgress<T>>;
 	search: (onResult: (matches: T) => void, onProgress: (progress: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void) => void;
 	cancel: () => void;
 }
@@ -68,6 +69,11 @@ export interface ISerializedFileMatch {
 	path: string;
 	lineMatches?: ILineMatch[];
 	numMatches?: number;
+}
+
+export interface ISearchProgress<T> {
+	results?: T;
+	progress?: IProgress;
 }
 
 // Type of the possible values for progress calls from the engine

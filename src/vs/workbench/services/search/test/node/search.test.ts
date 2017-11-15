@@ -43,15 +43,18 @@ suite('FileSearchEngine', () => {
 		});
 
 		let count = 0;
-		engine.search((result) => {
-			if (result) {
-				count++;
+		engine.searchP().then(
+			complete => {
+				assert.equal(count, 4);
+				done();
+			},
+			error => { assert.ok(!error); },
+			({ results }) => {
+				if (results) {
+					count++;
+				}
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(count, 4);
-			done();
-		});
+		);
 	});
 
 	test('Files: maxResults', function (done: () => void) {
@@ -62,15 +65,18 @@ suite('FileSearchEngine', () => {
 		});
 
 		let count = 0;
-		engine.search((result) => {
-			if (result) {
-				count++;
+		engine.searchP().then(
+			complete => {
+				assert.equal(count, 1);
+				done();
+			},
+			error => { assert.ok(!error); },
+			({ results }) => {
+				if (results) {
+					count++;
+				}
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(count, 1);
-			done();
-		});
+		);
 	});
 
 	test('Files: maxResults without Ripgrep', function (done: () => void) {
@@ -82,15 +88,18 @@ suite('FileSearchEngine', () => {
 		});
 
 		let count = 0;
-		engine.search((result) => {
-			if (result) {
-				count++;
+		engine.searchP().then(
+			complete => {
+				assert.equal(count, 1);
+				done();
+			},
+			error => { assert.ok(!error); },
+			({ results }) => {
+				if (results) {
+					count++;
+				}
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(count, 1);
-			done();
-		});
+		);
 	});
 
 	test('Files: exists', function (done: () => void) {
@@ -102,16 +111,19 @@ suite('FileSearchEngine', () => {
 		});
 
 		let count = 0;
-		engine.search((result) => {
-			if (result) {
-				count++;
+		engine.searchP().then(
+			complete => {
+				assert.equal(count, 0);
+				assert.ok(complete.limitHit);
+				done();
+			},
+			error => { assert.ok(!error); },
+			({ results }) => {
+				if (results) {
+					count++;
+				}
 			}
-		}, () => { }, (error, complete) => {
-			assert.ok(!error);
-			assert.equal(count, 0);
-			assert.ok(complete.limitHit);
-			done();
-		});
+		);
 	});
 
 	test('Files: not exists', function (done: () => void) {
@@ -123,16 +135,19 @@ suite('FileSearchEngine', () => {
 		});
 
 		let count = 0;
-		engine.search((result) => {
-			if (result) {
-				count++;
+		engine.searchP().then(
+			complete => {
+				assert.equal(count, 0);
+				assert.ok(!complete.limitHit);
+				done();
+			},
+			error => { assert.ok(!error); },
+			({ results }) => {
+				if (results) {
+					count++;
+				}
 			}
-		}, () => { }, (error, complete) => {
-			assert.ok(!error);
-			assert.equal(count, 0);
-			assert.ok(!complete.limitHit);
-			done();
-		});
+		);
 	});
 
 	test('Files: exists without Ripgrep', function (done: () => void) {
@@ -145,16 +160,19 @@ suite('FileSearchEngine', () => {
 		});
 
 		let count = 0;
-		engine.search((result) => {
-			if (result) {
-				count++;
+		engine.searchP().then(
+			complete => {
+				assert.equal(count, 0);
+				assert.ok(complete.limitHit);
+				done();
+			},
+			error => { assert.ok(!error); },
+			({ results }) => {
+				if (results) {
+					count++;
+				}
 			}
-		}, () => { }, (error, complete) => {
-			assert.ok(!error);
-			assert.equal(count, 0);
-			assert.ok(complete.limitHit);
-			done();
-		});
+		);
 	});
 
 	test('Files: not exists without Ripgrep', function (done: () => void) {
@@ -167,16 +185,19 @@ suite('FileSearchEngine', () => {
 		});
 
 		let count = 0;
-		engine.search((result) => {
-			if (result) {
-				count++;
+		engine.searchP().then(
+			complete => {
+				assert.equal(count, 0);
+				assert.ok(!complete.limitHit);
+				done();
+			},
+			error => { assert.ok(!error); },
+			({ results }) => {
+				if (results) {
+					count++;
+				}
 			}
-		}, () => { }, (error, complete) => {
-			assert.ok(!error);
-			assert.equal(count, 0);
-			assert.ok(!complete.limitHit);
-			done();
-		});
+		);
 	});
 
 	test('Files: examples/com*', function (done: () => void) {
@@ -187,15 +208,18 @@ suite('FileSearchEngine', () => {
 		});
 
 		let count = 0;
-		engine.search((result) => {
-			if (result) {
-				count++;
+		engine.searchP().then(
+			complete => {
+				assert.equal(count, 1);
+				done();
+			},
+			error => { assert.ok(!error); },
+			({ results }) => {
+				if (results) {
+					count++;
+				}
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(count, 1);
-			done();
-		});
+		);
 	});
 
 	test('Files: examples (fuzzy)', function (done: () => void) {
@@ -206,15 +230,18 @@ suite('FileSearchEngine', () => {
 		});
 
 		let count = 0;
-		engine.search((result) => {
-			if (result) {
-				count++;
+		engine.searchP().then(
+			complete => {
+				assert.equal(count, 7);
+				done();
+			},
+			error => { assert.ok(!error); },
+			({ results }) => {
+				if (results) {
+					count++;
+				}
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(count, 7);
-			done();
-		});
+		);
 	});
 
 	test('Files: multiroot', function (done: () => void) {
@@ -225,15 +252,18 @@ suite('FileSearchEngine', () => {
 		});
 
 		let count = 0;
-		engine.search((result) => {
-			if (result) {
-				count++;
+		engine.searchP().then(
+			complete => {
+				assert.equal(count, 3);
+				done();
+			},
+			error => { assert.ok(!error); },
+			({ results }) => {
+				if (results) {
+					count++;
+				}
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(count, 3);
-			done();
-		});
+		);
 	});
 
 	test('Files: multiroot with includePattern and maxResults', function (done: () => void) {
@@ -249,15 +279,18 @@ suite('FileSearchEngine', () => {
 		});
 
 		let count = 0;
-		engine.search((result) => {
-			if (result) {
-				count++;
+		engine.searchP().then(
+			complete => {
+				assert.equal(count, 1);
+				done();
+			},
+			error => { assert.ok(!error); },
+			({ results }) => {
+				if (results) {
+					count++;
+				}
 			}
-		}, () => { }, (error, complete) => {
-			assert.ok(!error);
-			assert.equal(count, 1);
-			done();
-		});
+		);
 	});
 
 	test('Files: multiroot with includePattern and exists', function (done: () => void) {
@@ -273,16 +306,19 @@ suite('FileSearchEngine', () => {
 		});
 
 		let count = 0;
-		engine.search((result) => {
-			if (result) {
-				count++;
+		engine.searchP().then(
+			complete => {
+				assert.equal(count, 0);
+				assert.ok(complete.limitHit);
+				done();
+			},
+			error => { assert.ok(!error); },
+			({ results }) => {
+				if (results) {
+					count++;
+				}
 			}
-		}, () => { }, (error, complete) => {
-			assert.ok(!error);
-			assert.equal(count, 0);
-			assert.ok(complete.limitHit);
-			done();
-		});
+		);
 	});
 
 	test('Files: NPE (CamelCase)', function (done: () => void) {
@@ -293,15 +329,18 @@ suite('FileSearchEngine', () => {
 		});
 
 		let count = 0;
-		engine.search((result) => {
-			if (result) {
-				count++;
+		engine.searchP().then(
+			complete => {
+				assert.equal(count, 1);
+				done();
+			},
+			error => { assert.ok(!error); },
+			({ results }) => {
+				if (results) {
+					count++;
+				}
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(count, 1);
-			done();
-		});
+		);
 	});
 
 	test('Files: *.*', function (done: () => void) {
@@ -312,15 +351,18 @@ suite('FileSearchEngine', () => {
 		});
 
 		let count = 0;
-		engine.search((result) => {
-			if (result) {
-				count++;
+		engine.searchP().then(
+			complete => {
+				assert.equal(count, 14);
+				done();
+			},
+			error => { assert.ok(!error); },
+			({ results }) => {
+				if (results) {
+					count++;
+				}
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(count, 14);
-			done();
-		});
+		);
 	});
 
 	test('Files: *.as', function (done: () => void) {
@@ -331,15 +373,18 @@ suite('FileSearchEngine', () => {
 		});
 
 		let count = 0;
-		engine.search((result) => {
-			if (result) {
-				count++;
+		engine.searchP().then(
+			complete => {
+				assert.equal(count, 0);
+				done();
+			},
+			error => { assert.ok(!error); },
+			({ results }) => {
+				if (results) {
+					count++;
+				}
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(count, 0);
-			done();
-		});
+		);
 	});
 
 	test('Files: *.* without derived', function (done: () => void) {
@@ -352,17 +397,20 @@ suite('FileSearchEngine', () => {
 
 		let count = 0;
 		let res: IRawFileMatch;
-		engine.search((result) => {
-			if (result) {
-				count++;
+		engine.searchP().then(
+			complete => {
+				assert.equal(count, 1);
+				assert.strictEqual(path.basename(res.relativePath), 'site.less');
+				done();
+			},
+			error => { assert.ok(!error); },
+			({ results }) => {
+				if (results) {
+					count++;
+				}
+				res = results;
 			}
-			res = result;
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(count, 1);
-			assert.strictEqual(path.basename(res.relativePath), 'site.less');
-			done();
-		});
+		);
 	});
 
 	test('Files: *.* exclude folder without wildcard', function (done: () => void) {
@@ -374,15 +422,18 @@ suite('FileSearchEngine', () => {
 		});
 
 		let count = 0;
-		engine.search((result) => {
-			if (result) {
-				count++;
+		engine.searchP().then(
+			complete => {
+				assert.equal(count, 8);
+				done();
+			},
+			error => { assert.ok(!error); },
+			({ results }) => {
+				if (results) {
+					count++;
+				}
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(count, 8);
-			done();
-		});
+		);
 	});
 
 	test('Files: exclude folder without wildcard #36438', function (done: () => void) {
@@ -393,15 +444,18 @@ suite('FileSearchEngine', () => {
 		});
 
 		let count = 0;
-		engine.search((result) => {
-			if (result) {
-				count++;
+		engine.searchP().then(
+			complete => {
+				assert.equal(count, 1);
+				done();
+			},
+			error => { assert.ok(!error); },
+			({ results }) => {
+				if (results) {
+					count++;
+				}
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(count, 1);
-			done();
-		});
+		);
 	});
 
 	test('Files: include folder without wildcard #36438', function (done: () => void) {
@@ -412,15 +466,18 @@ suite('FileSearchEngine', () => {
 		});
 
 		let count = 0;
-		engine.search((result) => {
-			if (result) {
-				count++;
+		engine.searchP().then(
+			complete => {
+				assert.equal(count, 1);
+				done();
+			},
+			error => { assert.ok(!error); },
+			({ results }) => {
+				if (results) {
+					count++;
+				}
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(count, 1);
-			done();
-		});
+		);
 	});
 
 	test('Files: *.* exclude folder with leading wildcard', function (done: () => void) {
@@ -432,15 +489,18 @@ suite('FileSearchEngine', () => {
 		});
 
 		let count = 0;
-		engine.search((result) => {
-			if (result) {
-				count++;
+		engine.searchP().then(
+			complete => {
+				assert.equal(count, 8);
+				done();
+			},
+			error => { assert.ok(!error); },
+			({ results }) => {
+				if (results) {
+					count++;
+				}
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(count, 8);
-			done();
-		});
+		);
 	});
 
 	test('Files: *.* exclude folder with trailing wildcard', function (done: () => void) {
@@ -452,15 +512,18 @@ suite('FileSearchEngine', () => {
 		});
 
 		let count = 0;
-		engine.search((result) => {
-			if (result) {
-				count++;
+		engine.searchP().then(
+			complete => {
+				assert.equal(count, 8);
+				done();
+			},
+			error => { assert.ok(!error); },
+			({ results }) => {
+				if (results) {
+					count++;
+				}
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(count, 8);
-			done();
-		});
+		);
 	});
 
 	test('Files: *.* exclude with unicode', function (done: () => void) {
@@ -472,15 +535,18 @@ suite('FileSearchEngine', () => {
 		});
 
 		let count = 0;
-		engine.search((result) => {
-			if (result) {
-				count++;
+		engine.searchP().then(
+			complete => {
+				assert.equal(count, 13);
+				done();
+			},
+			error => { assert.ok(!error); },
+			({ results }) => {
+				if (results) {
+					count++;
+				}
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(count, 13);
-			done();
-		});
+		);
 	});
 
 	test('Files: multiroot with exclude', function (done: () => void) {
@@ -506,15 +572,18 @@ suite('FileSearchEngine', () => {
 		});
 
 		let count = 0;
-		engine.search((result) => {
-			if (result) {
-				count++;
+		engine.searchP().then(
+			complete => {
+				assert.equal(count, 5);
+				done();
+			},
+			error => { assert.ok(!error); },
+			({ results }) => {
+				if (results) {
+					count++;
+				}
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(count, 5);
-			done();
-		});
+		);
 	});
 
 	test('Files: Unicode and Spaces', function (done: () => void) {
@@ -526,17 +595,20 @@ suite('FileSearchEngine', () => {
 
 		let count = 0;
 		let res: IRawFileMatch;
-		engine.search((result) => {
-			if (result) {
-				count++;
+		engine.searchP().then(
+			complete => {
+				assert.equal(count, 1);
+				assert.equal(path.basename(res.relativePath), '汉语.txt');
+				done();
+			},
+			error => { assert.ok(!error); },
+			({ results }) => {
+				if (results) {
+					count++;
+				}
+				res = results;
 			}
-			res = result;
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(count, 1);
-			assert.equal(path.basename(res.relativePath), '汉语.txt');
-			done();
-		});
+		);
 	});
 
 	test('Files: no results', function (done: () => void) {
@@ -547,15 +619,18 @@ suite('FileSearchEngine', () => {
 		});
 
 		let count = 0;
-		engine.search((result) => {
-			if (result) {
-				count++;
+		engine.searchP().then(
+			complete => {
+				assert.equal(count, 0);
+				done();
+			},
+			error => { assert.ok(!error); },
+			({ results }) => {
+				if (results) {
+					count++;
+				}
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(count, 0);
-			done();
-		});
+		);
 	});
 
 	test('Files: absolute path to file ignores excludes', function (done: () => void) {
@@ -568,17 +643,20 @@ suite('FileSearchEngine', () => {
 
 		let count = 0;
 		let res: IRawFileMatch;
-		engine.search((result) => {
-			if (result) {
-				count++;
+		engine.searchP().then(
+			complete => {
+				assert.equal(count, 1);
+				assert.equal(path.basename(res.relativePath), 'site.css');
+				done();
+			},
+			error => { assert.ok(!error); },
+			({ results }) => {
+				if (results) {
+					count++;
+				}
+				res = results;
 			}
-			res = result;
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(count, 1);
-			assert.equal(path.basename(res.relativePath), 'site.css');
-			done();
-		});
+		);
 	});
 
 	test('Files: relative path matched once', function (done: () => void) {
@@ -590,17 +668,20 @@ suite('FileSearchEngine', () => {
 
 		let count = 0;
 		let res: IRawFileMatch;
-		engine.search((result) => {
-			if (result) {
-				count++;
+		engine.searchP().then(
+			complete => {
+				assert.equal(count, 1);
+				assert.equal(path.basename(res.relativePath), 'company.js');
+				done();
+			},
+			error => { assert.ok(!error); },
+			({ results }) => {
+				if (results) {
+					count++;
+				}
+				res = results;
 			}
-			res = result;
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(count, 1);
-			assert.equal(path.basename(res.relativePath), 'company.js');
-			done();
-		});
+		);
 	});
 
 	test('Files: relative path to file ignores excludes', function (done: () => void) {
@@ -613,17 +694,20 @@ suite('FileSearchEngine', () => {
 
 		let count = 0;
 		let res: IRawFileMatch;
-		engine.search((result) => {
-			if (result) {
-				count++;
+		engine.searchP().then(
+			complete => {
+				assert.equal(count, 1);
+				assert.equal(path.basename(res.relativePath), 'company.js');
+				done();
+			},
+			error => { assert.ok(!error); },
+			({ results }) => {
+				if (results) {
+					count++;
+				}
+				res = results;
 			}
-			res = result;
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(count, 1);
-			assert.equal(path.basename(res.relativePath), 'company.js');
-			done();
-		});
+		);
 	});
 
 	test('Files: Include pattern, single files', function (done: () => void) {
@@ -638,16 +722,19 @@ suite('FileSearchEngine', () => {
 		});
 
 		let res: IRawFileMatch[] = [];
-		engine.search((result) => {
-			res.push(result);
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			const basenames = res.map(r => path.basename(r.relativePath));
-			assert.ok(basenames.indexOf('site.css') !== -1, `site.css missing in ${JSON.stringify(basenames)}`);
-			assert.ok(basenames.indexOf('company.js') !== -1, `company.js missing in ${JSON.stringify(basenames)}`);
-			assert.ok(basenames.indexOf('subfile.txt') !== -1, `subfile.txt missing in ${JSON.stringify(basenames)}`);
-			done();
-		});
+		engine.searchP().then(
+			complete => {
+				const basenames = res.map(r => path.basename(r.relativePath));
+				assert.ok(basenames.indexOf('site.css') !== -1, `site.css missing in ${JSON.stringify(basenames)}`);
+				assert.ok(basenames.indexOf('company.js') !== -1, `company.js missing in ${JSON.stringify(basenames)}`);
+				assert.ok(basenames.indexOf('subfile.txt') !== -1, `subfile.txt missing in ${JSON.stringify(basenames)}`);
+				done();
+			},
+			error => { assert.ok(!error); },
+			({ results }) => {
+				res.push(results);
+			}
+		);
 	});
 
 	test('Files: extraFiles only', function (done: () => void) {
@@ -664,17 +751,20 @@ suite('FileSearchEngine', () => {
 
 		let count = 0;
 		let res: IRawFileMatch;
-		engine.search((result) => {
-			if (result) {
-				count++;
+		engine.searchP().then(
+			complete => {
+				assert.equal(count, 1);
+				assert.equal(path.basename(res.relativePath), 'company.js');
+				done();
+			},
+			error => { assert.ok(!error); },
+			({ results }) => {
+				if (results) {
+					count++;
+				}
+				res = results;
 			}
-			res = result;
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(count, 1);
-			assert.equal(path.basename(res.relativePath), 'company.js');
-			done();
-		});
+		);
 	});
 
 	test('Files: extraFiles only (with include)', function (done: () => void) {
@@ -692,17 +782,20 @@ suite('FileSearchEngine', () => {
 
 		let count = 0;
 		let res: IRawFileMatch;
-		engine.search((result) => {
-			if (result) {
-				count++;
+		engine.searchP().then(
+			complete => {
+				assert.equal(count, 1);
+				assert.equal(path.basename(res.relativePath), 'site.css');
+				done();
+			},
+			error => { assert.ok(!error); },
+			({ results }) => {
+				if (results) {
+					count++;
+				}
+				res = results;
 			}
-			res = result;
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(count, 1);
-			assert.equal(path.basename(res.relativePath), 'site.css');
-			done();
-		});
+		);
 	});
 
 	test('Files: extraFiles only (with exclude)', function (done: () => void) {
@@ -719,15 +812,18 @@ suite('FileSearchEngine', () => {
 		});
 
 		let count = 0;
-		engine.search((result) => {
-			if (result) {
-				count++;
+		engine.searchP().then(
+			complete => {
+				assert.equal(count, 2);
+				done();
+			},
+			error => { assert.ok(!error); },
+			({ results }) => {
+				if (results) {
+					count++;
+				}
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(count, 2);
-			done();
-		});
+		);
 	});
 
 	test('Files: no dupes in nested folders', function (done: () => void) {
@@ -741,15 +837,18 @@ suite('FileSearchEngine', () => {
 		});
 
 		let count = 0;
-		engine.search((result) => {
-			if (result) {
-				count++;
+		engine.searchP().then(
+			complete => {
+				assert.equal(count, 1);
+				done();
+			},
+			error => { assert.ok(!error); },
+			({ results }) => {
+				if (results) {
+					count++;
+				}
 			}
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(count, 1);
-			done();
-		});
+		);
 	});
 });
 
