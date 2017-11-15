@@ -1232,18 +1232,6 @@ export class Workbench implements IPartService {
 		this.statusbarPart.create(statusbarContainer);
 	}
 
-	public getEditorPart(): EditorPart {
-		return this.editorPart;
-	}
-
-	public getSidebarPart(): SidebarPart {
-		return this.sidebarPart;
-	}
-
-	public getPanelPart(): PanelPart {
-		return this.panelPart;
-	}
-
 	public getInstantiationService(): IInstantiationService {
 		return this.instantiationService;
 	}
