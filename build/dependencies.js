@@ -6,41 +6,44 @@
 'use strict';
 
 const path = require('path');
-const semver = require('semver');
+const parseSemver = require('parse-semver');
 const cp = require('child_process');
+const _ = require('underscore');
 
-// { name, version, path }[]
-function flattenDependencies(node_modules, tree) {
-	const result = [];
-	const name = tree.name.replace(/@[^@]+$/, '');
+function asYarnDependency(prefix, tree) {
+	let parseResult;
 
-	if (tree.name !== 'root' && !/@[\^~]/.test(tree.name)) {
-		const dependencyPath = path.join(node_modules, name);
-		const version = tree.name.replace(/^[^@]+@/, '');
+	try {
+		parseResult = parseSemver(tree.name);
+	} catch (err) {
+		err.message += `: ${tree.name}`;
+		console.warn(`Could not parse semver: ${tree.name}`);
+		return null;
+	}
 
-		if (semver.valid(version)) {
-			result.push({ name, version, path: dependencyPath });
+	// not an actual dependency in disk
+	if (parseResult.version !== parseResult.range) {
+		return null;
+	}
+
+	const name = parseResult.name;
+	const version = parseResult.version;
+	const dependencyPath = path.join(prefix, name);
+	const children = [];
+
+	for (const child of (tree.children || [])) {
+		const dep = asYarnDependency(path.join(prefix, name, 'node_modules'), child);
+
+		if (dep) {
+			children.push(dep);
 		}
 	}
 
-	for (const child of (tree.children || [])) {
-		const subNodeModulesPath = name === 'root'
-			? node_modules
-			: path.join(node_modules, name, 'node_modules');
-
-		result.push(...flattenDependencies(subNodeModulesPath, child));
-	}
-
-	return result;
+	return { name, version, path: dependencyPath, children };
 }
 
-function getProductionDependencies(cwd) {
-	const raw = cp.execSync('yarn list --json', {
-		cwd,
-		encoding: 'utf8',
-		env: { ...process.env, NODE_ENV: 'production' }
-	});
-
+function getYarnProductionDependencies(cwd) {
+	const raw = cp.execSync('yarn list --json', { cwd, encoding: 'utf8', env: { ...process.env, NODE_ENV: 'production' } });
 	const match = /^{"type":"tree".*$/m.exec(raw);
 
 	if (!match || match.length !== 1) {
@@ -48,11 +51,19 @@ function getProductionDependencies(cwd) {
 	}
 
 	const trees = JSON.parse(match[0]).data.trees;
-	const root = { name: 'root', children: trees };
-	const list = flattenDependencies(path.join(cwd, 'node_modules'), root);
 
-	list.sort((a, b) => a.name < b.name ? -1 : 1);
-	return list;
+	return trees
+		.map(tree => asYarnDependency(path.join(cwd, 'node_modules'), tree))
+		.filter(dep => !!dep);
+}
+
+function getProductionDependencies(cwd) {
+	const result = [];
+	const deps = getYarnProductionDependencies(cwd);
+	const flatten = dep => { result.push({ name: dep.name, version: dep.version, path: dep.path }); dep.children.forEach(flatten); };
+	deps.forEach(flatten);
+
+	return _.uniq(result);
 }
 
 module.exports.getProductionDependencies = getProductionDependencies;
