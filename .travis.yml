@@ -10,6 +10,8 @@ os:
 #     - $HOME/.npm
 
 cache:
+  directories:
+    - $HOME/.cache/yarn
   apt: true
 
 notifications:
