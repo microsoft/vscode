@@ -4054,6 +4054,12 @@ parse-passwd@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/parse-passwd/-/parse-passwd-1.0.0.tgz#6d5b934a456993b23d37f40a382d6f1666a8e5c6"
 
+parse-semver@^1.1.1:
+  version "1.1.1"
+  resolved "https://registry.yarnpkg.com/parse-semver/-/parse-semver-1.1.1.tgz#9a4afd6df063dc4826f93fba4a99cf223f666cb8"
+  dependencies:
+    semver "^5.1.0"
+
 "parse5@>= 1.3.1 < 2.0.0":
   version "1.5.1"
   resolved "https://registry.yarnpkg.com/parse5/-/parse5-1.5.1.tgz#9b7f3b0de32be78dc2401b17573ccaf0f6f59d94"
@@ -5708,9 +5714,9 @@ vinyl@~2.0.1:
     remove-trailing-separator "^1.0.1"
     replace-ext "^1.0.0"
 
-vsce@1.33.1:
-  version "1.33.1"
-  resolved "https://registry.yarnpkg.com/vsce/-/vsce-1.33.1.tgz#0c49422e2f5bed7a1947a442a4566595af08a810"
+vsce@1.33.2:
+  version "1.33.2"
+  resolved "https://registry.yarnpkg.com/vsce/-/vsce-1.33.2.tgz#3645f69aaf984e22f74ea49d35f38dd18d66ff5f"
   dependencies:
     cheerio "^1.0.0-rc.1"
     commander "^2.8.1"
@@ -5721,6 +5727,7 @@ vsce@1.33.1:
     mime "^1.3.4"
     minimatch "^3.0.3"
     osenv "^0.1.3"
+    parse-semver "^1.1.1"
     read "^1.0.7"
     semver "^5.1.0"
     tmp "0.0.29"
