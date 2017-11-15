@@ -24,7 +24,7 @@ export declare interface WebviewElement extends HTMLElement {
 	getWebContents(): any;
 	findInPage(value: string, options?: WebviewElementFindInPageOptions);
 	stopFindInPage(action: string);
-	selectAll ();
+	selectAll();
 }
 
 export class StopFindInPageActions {
@@ -465,7 +465,7 @@ export default class Webview {
 		this._webviewFindWidget.showPreviousFindTerm();
 	}
 
-	public selectAll () {
+	public selectAll() {
 		this._webview.selectAll();
 	}
 }

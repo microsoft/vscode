@@ -1692,7 +1692,7 @@ class EditorOrNativeTextInputCommand extends Command {
 			return;
 		}
 
-		let editorService : any = accessor.get(IEditorService);
+		let editorService: any = accessor.get(IEditorService);
 		let activeEditor = editorService.getActiveEditor && editorService.getActiveEditor();
 
 		if (activeEditor.isWebviewEditor && activeEditor.webview) {
