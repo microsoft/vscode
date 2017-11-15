@@ -141,11 +141,11 @@ ansi-styles@^3.1.0:
     color-convert "^1.9.0"
 
 anymatch@^1.3.0:
-  version "1.3.0"
-  resolved "https://registry.yarnpkg.com/anymatch/-/anymatch-1.3.0.tgz#a3e52fa39168c825ff57b0248126ce5a8ff95507"
+  version "1.3.2"
+  resolved "https://registry.yarnpkg.com/anymatch/-/anymatch-1.3.2.tgz#553dcb8f91e3c889845dfdba34c77721b90b9d7a"
   dependencies:
-    arrify "^1.0.0"
     micromatch "^2.1.5"
+    normalize-path "^2.0.0"
 
 applicationinsights@0.17.1:
   version "0.17.1"
@@ -372,8 +372,8 @@ big-integer@^1.6.25:
   resolved "https://registry.yarnpkg.com/big-integer/-/big-integer-1.6.25.tgz#1de45a9f57542ac20121c682f8d642220a34e823"
 
 binary-extensions@^1.0.0:
-  version "1.6.0"
-  resolved "https://registry.yarnpkg.com/binary-extensions/-/binary-extensions-1.6.0.tgz#aa2184cbc434d29862c66a69bf81cc0a3383ee79"
+  version "1.10.0"
+  resolved "https://registry.yarnpkg.com/binary-extensions/-/binary-extensions-1.10.0.tgz#9aeb9a6c5e88638aad171e167f5900abe24835d0"
 
 binary-search-bounds@2.0.3:
   version "2.0.3"
@@ -579,21 +579,6 @@ cheerio@^1.0.0-rc.1:
     htmlparser2 "^3.9.1"
     lodash "^4.15.0"
     parse5 "^3.0.1"
-
-chokidar@bpasero/chokidar#vscode:
-  version "1.6.0"
-  resolved "https://codeload.github.com/bpasero/chokidar/tar.gz/8b64fda5a22cc9850f1346d12302051c5ba65b10"
-  dependencies:
-    anymatch "^1.3.0"
-    async-each "^1.0.0"
-    glob-parent "^2.0.0"
-    inherits "^2.0.1"
-    is-binary-path "^1.0.0"
-    is-glob "^2.0.0"
-    path-is-absolute "^1.0.0"
-    readdirp "^2.0.0"
-  optionalDependencies:
-    fsevents bpasero/fsevents#vscode
 
 ci-info@^1.0.0:
   version "1.1.1"
@@ -1846,12 +1831,6 @@ fs-extra@^2.0.0:
 fs.realpath@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/fs.realpath/-/fs.realpath-1.0.0.tgz#1504ad2523158caa40db4a2787cb01411994ea4f"
-
-fsevents@0.3.8, fsevents@bpasero/fsevents#vscode:
-  version "0.3.8"
-  resolved "https://codeload.github.com/bpasero/fsevents/tar.gz/fe2aaccaaffbd69a23374cf46a8c6bafe8e51b01"
-  dependencies:
-    nan "^2.3.0"
 
 function-bind@^1.0.2:
   version "1.1.1"
@@ -3815,6 +3794,12 @@ normalize-path@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/normalize-path/-/normalize-path-1.0.0.tgz#32d0e472f91ff345701c15a8311018d3b0a90379"
 
+normalize-path@^2.0.0:
+  version "2.1.1"
+  resolved "https://registry.yarnpkg.com/normalize-path/-/normalize-path-2.1.1.tgz#1ab28b556e198363a8c1a6f7e6fa20137fe6aed9"
+  dependencies:
+    remove-trailing-separator "^1.0.1"
+
 normalize-path@^2.0.1:
   version "2.0.1"
   resolved "https://registry.yarnpkg.com/normalize-path/-/normalize-path-2.0.1.tgz#47886ac1662760d4261b7d979d241709d3ce3f7a"
@@ -5736,9 +5721,30 @@ vsce@1.33.2:
     yauzl "^2.3.1"
     yazl "^2.2.2"
 
+vscode-chokidar@1.6.2:
+  version "1.6.2"
+  resolved "https://registry.yarnpkg.com/vscode-chokidar/-/vscode-chokidar-1.6.2.tgz#4db06e2d963befe42dd44434212f5b8606b53831"
+  dependencies:
+    anymatch "^1.3.0"
+    async-each "^1.0.0"
+    glob-parent "^2.0.0"
+    inherits "^2.0.1"
+    is-binary-path "^1.0.0"
+    is-glob "^2.0.0"
+    path-is-absolute "^1.0.0"
+    readdirp "^2.0.0"
+  optionalDependencies:
+    vscode-fsevents "0.3.8"
+
 vscode-debugprotocol@1.24.0:
   version "1.24.0"
   resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.24.0.tgz#dbc10e8d7d95b102727a19af3f0fcef7e252b08e"
+
+vscode-fsevents@0.3.8:
+  version "0.3.8"
+  resolved "https://registry.yarnpkg.com/vscode-fsevents/-/vscode-fsevents-0.3.8.tgz#389647fa2f6daffedf1b40132a5bb96ac6501521"
+  dependencies:
+    nan "^2.3.0"
 
 vscode-nls-dev@^2.0.1:
   version "2.1.5"

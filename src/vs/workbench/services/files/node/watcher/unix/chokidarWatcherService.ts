@@ -5,7 +5,7 @@
 
 'use strict';
 
-import chokidar = require('chokidar');
+import chokidar = require('vscode-chokidar');
 import fs = require('fs');
 
 import gracefulFs = require('graceful-fs');
