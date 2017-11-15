@@ -16,7 +16,7 @@ import objects = require('vs/base/common/objects');
 import strings = require('vs/base/common/strings');
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import { FileWalker, Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fileSearch';
-import { MAX_FILE_SIZE } from 'vs/platform/files/common/files';
+import { MAX_FILE_SIZE } from 'vs/platform/files/node/files';
 import { RipgrepEngine } from 'vs/workbench/services/search/node/ripgrepTextSearch';
 import { Engine as TextSearchEngine } from 'vs/workbench/services/search/node/textSearch';
 import { TextSearchWorkerProvider } from 'vs/workbench/services/search/node/textSearchWorkerProvider';
