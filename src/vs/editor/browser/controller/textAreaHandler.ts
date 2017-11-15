@@ -25,6 +25,7 @@ import { PartFingerprints, PartFingerprint, ViewPart } from 'vs/editor/browser/v
 import { Margin } from 'vs/editor/browser/viewParts/margin/margin';
 import { LineNumbersOverlay } from 'vs/editor/browser/viewParts/lineNumbers/lineNumbers';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
+import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 
 export interface ITextAreaHandlerHelper {
 	visibleRangeForPositionRelativeToEditor(lineNumber: number, column: number): HorizontalRange;
@@ -481,7 +482,7 @@ export class TextAreaHandler extends ViewPart {
 		if (this._context.configuration.editor.viewInfo.glyphMargin) {
 			tac.setClassName('monaco-editor-background textAreaCover ' + Margin.CLASS_NAME);
 		} else {
-			if (this._context.configuration.editor.viewInfo.renderLineNumbers) {
+			if (this._context.configuration.editor.viewInfo.renderLineNumbers !== RenderLineNumbersType.Off) {
 				tac.setClassName('monaco-editor-background textAreaCover ' + LineNumbersOverlay.CLASS_NAME);
 			} else {
 				tac.setClassName('monaco-editor-background textAreaCover');

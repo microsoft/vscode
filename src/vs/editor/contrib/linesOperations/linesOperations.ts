@@ -140,7 +140,7 @@ class MoveLinesDownAction extends AbstractMoveLinesAction {
 	}
 }
 
-abstract class AbstractSortLinesAction extends EditorAction {
+export abstract class AbstractSortLinesAction extends EditorAction {
 	private descending: boolean;
 
 	constructor(descending: boolean, opts: IActionOptions) {
@@ -149,20 +149,27 @@ abstract class AbstractSortLinesAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const selections = editor.getSelections();
 
-		if (!SortLinesCommand.canRun(editor.getModel(), editor.getSelection(), this.descending)) {
-			return;
+		for (let i = 0, len = selections.length; i < len; i++) {
+			const selection = selections[i];
+			if (!SortLinesCommand.canRun(editor.getModel(), selection, this.descending)) {
+				return;
+			}
 		}
 
-		var command = new SortLinesCommand(editor.getSelection(), this.descending);
+		let commands: ICommand[] = [];
+		for (let i = 0, len = selections.length; i < len; i++) {
+			commands[i] = new SortLinesCommand(selections[i], this.descending);
+		}
 
 		editor.pushUndoStop();
-		editor.executeCommands(this.id, [command]);
+		editor.executeCommands(this.id, commands);
 		editor.pushUndoStop();
 	}
 }
 
-class SortLinesAscendingAction extends AbstractSortLinesAction {
+export class SortLinesAscendingAction extends AbstractSortLinesAction {
 	constructor() {
 		super(false, {
 			id: 'editor.action.sortLinesAscending',
@@ -173,7 +180,7 @@ class SortLinesAscendingAction extends AbstractSortLinesAction {
 	}
 }
 
-class SortLinesDescendingAction extends AbstractSortLinesAction {
+export class SortLinesDescendingAction extends AbstractSortLinesAction {
 	constructor() {
 		super(true, {
 			id: 'editor.action.sortLinesDescending',

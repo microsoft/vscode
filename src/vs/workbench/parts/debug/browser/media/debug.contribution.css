@@ -109,9 +109,13 @@
 	padding: 0 5px 0 5px;
 }
 
+.monaco-workbench .part.statusbar .debug-statusbar-item.hidden {
+	display: none;
+}
+
 .monaco-workbench .part.statusbar .debug-statusbar-item .icon {
 	-webkit-mask: url('continue.svg') no-repeat 50% 50%;
-	-webkit-mask-size: 18px;
+	-webkit-mask-size: 16px;
 	display: inline-block;
 	padding-right: 2px;
 	width: 16px;

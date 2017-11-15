@@ -97,12 +97,11 @@
 	display: none;
 }
 
-.vs .settings-header-widget > .settings-search-controls > .prefs-fuzzy-search-toggle {
-	background: url('regex.svg') center center no-repeat;
-}
-
-.vs-dark .settings-header-widget > .settings-search-controls > .prefs-fuzzy-search-toggle {
-	background: url('regex-dark.svg') center center no-repeat;
+.settings-header-widget > .settings-search-controls > .prefs-fuzzy-search-toggle > .octicon {
+	text-align: center;
+	vertical-align: top;
+	font-size: 16px;
+	width: 100%;
 }
 
 .settings-header-widget > .settings-search-container {

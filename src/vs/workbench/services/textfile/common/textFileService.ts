@@ -162,7 +162,7 @@ export abstract class TextFileService implements ITextFileService {
 							return this.confirmBeforeShutdown();
 						}, errors => {
 							const firstError = errors[0];
-							this.messageService.show(Severity.Error, nls.localize('files.backup.failSave', "Files could not be backed up (Error: {0}), try saving your files to exit.", firstError.message));
+							this.messageService.show(Severity.Error, nls.localize('files.backup.failSave', "Files that are dirty could not be written to the backup location (Error: {0}). Try saving your files first and then exit.", firstError.message));
 
 							return true; // veto, the backups failed
 						});

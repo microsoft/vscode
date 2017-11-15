@@ -479,6 +479,8 @@ export class ExtensionEditor extends BaseEditor {
 					append(this.content, scrollableContent.getDomNode());
 					this.contentDisposables.push(scrollableContent);
 				}
+			}, () => {
+				append(this.content, $('p.nocontent')).textContent = localize('noContributions', "No Contributions");
 			}));
 	}
 

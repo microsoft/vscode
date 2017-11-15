@@ -49,7 +49,7 @@ export enum LifecyclePhase {
 	Starting = 1,
 	Restoring = 2,
 	Running = 3,
-	RunningForABit = 4,
+	Eventually = 4,
 	ShuttingDown = 5
 }
 

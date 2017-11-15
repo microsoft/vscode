@@ -205,7 +205,7 @@ export class WorkbenchShell {
 		// Set lifecycle phase to `Runnning For A Bit` after a short delay
 		let timeoutHandle = setTimeout(() => {
 			timeoutHandle = void 0;
-			this.lifecycleService.phase = LifecyclePhase.RunningForABit;
+			this.lifecycleService.phase = LifecyclePhase.Eventually;
 		}, 3000);
 		this.toUnbind.push({
 			dispose: () => {

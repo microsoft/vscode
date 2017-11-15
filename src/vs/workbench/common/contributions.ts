@@ -72,7 +72,7 @@ export class WorkbenchContributionsRegistry implements IWorkbenchContributionsRe
 		this.instantiationService = instantiationService;
 		this.lifecycleService = lifecycleService;
 
-		[LifecyclePhase.Starting, LifecyclePhase.Restoring, LifecyclePhase.Running, LifecyclePhase.RunningForABit, LifecyclePhase.ShuttingDown].forEach(phase => {
+		[LifecyclePhase.Starting, LifecyclePhase.Restoring, LifecyclePhase.Running, LifecyclePhase.Eventually, LifecyclePhase.ShuttingDown].forEach(phase => {
 			this.instantiateByPhase(instantiationService, lifecycleService, phase);
 		});
 	}

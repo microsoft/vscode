@@ -43,8 +43,9 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ConfigurationTarget, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { LifecyclePhase, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), null, true, () => document.execCommand('undo') && TPromise.as(true)),
@@ -67,6 +68,9 @@ export class ElectronWindow extends Themable {
 	private lastInstalledTouchedBar: ICommandAction[][];
 
 	private previousConfiguredZoomLevel: number;
+
+	private addFoldersScheduler: RunOnceScheduler;
+	private pendingFoldersToAdd: IAddFoldersRequest[];
 
 	constructor(
 		shellContainer: HTMLElement,
@@ -95,6 +99,10 @@ export class ElectronWindow extends Themable {
 
 		this.touchBarUpdater = new RunOnceScheduler(() => this.doSetupTouchbar(), 300);
 		this.toUnbind.push(this.touchBarUpdater);
+
+		this.pendingFoldersToAdd = [];
+		this.addFoldersScheduler = new RunOnceScheduler(() => this.doAddFolders(), 100);
+		this.toUnbind.push(this.addFoldersScheduler);
 
 		this.registerListeners();
 		this.create();
@@ -180,7 +188,7 @@ export class ElectronWindow extends Themable {
 		ipc.on('vscode:openFiles', (_event: any, request: IOpenFileRequest) => this.onOpenFiles(request));
 
 		// Support addFolders event if we have a workspace opened
-		ipc.on('vscode:addFolders', (_event: any, request: IAddFoldersRequest) => this.onAddFolders(request));
+		ipc.on('vscode:addFolders', (_event: any, request: IAddFoldersRequest) => this.onAddFoldersRequest(request));
 
 		// Message support
 		ipc.on('vscode:showInfoMessage', (_event: any, message: string) => {
@@ -234,8 +242,13 @@ export class ElectronWindow extends Themable {
 			browser.setAccessibilitySupport(accessibilitySupportEnabled ? platform.AccessibilitySupport.Enabled : platform.AccessibilitySupport.Disabled);
 		});
 
-		// Configuration changes
-		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.onDidUpdateConfiguration(e)));
+		// Zoom level changes
+		this.updateWindowZoomLevel();
+		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('window.zoomLevel')) {
+				this.updateWindowZoomLevel();
+			}
+		}));
 
 		// Context menu support in input/textarea
 		window.document.addEventListener('contextmenu', e => this.onContextMenu(e));
@@ -256,10 +269,7 @@ export class ElectronWindow extends Themable {
 		}
 	}
 
-	private onDidUpdateConfiguration(event: IConfigurationChangeEvent): void {
-		if (!event.affectsConfiguration('window.zoomLevel')) {
-			return;
-		}
+	private updateWindowZoomLevel(): void {
 
 		const windowConfig: IWindowsConfiguration = this.configurationService.getValue<IWindowsConfiguration>();
 
@@ -394,8 +404,25 @@ export class ElectronWindow extends Themable {
 		});
 	}
 
-	private onAddFolders(request: IAddFoldersRequest): void {
-		const foldersToAdd = request.foldersToAdd.map(folderToAdd => ({ uri: URI.file(folderToAdd.filePath) }));
+	private onAddFoldersRequest(request: IAddFoldersRequest): void {
+
+		// Buffer all pending requests
+		this.pendingFoldersToAdd.push(request);
+
+		// Delay the adding of folders a bit to buffer in case more requests are coming
+		if (!this.addFoldersScheduler.isScheduled()) {
+			this.addFoldersScheduler.schedule();
+		}
+	}
+
+	private doAddFolders(): void {
+		const foldersToAdd: IWorkspaceFolderCreationData[] = [];
+
+		this.pendingFoldersToAdd.forEach(request => {
+			foldersToAdd.push(...request.foldersToAdd.map(folderToAdd => ({ uri: URI.file(folderToAdd.filePath) })));
+		});
+
+		this.pendingFoldersToAdd = [];
 
 		this.workspaceEditingService.addFolders(foldersToAdd).done(null, errors.onUnexpectedError);
 	}
