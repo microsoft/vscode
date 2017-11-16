@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyScore, nextTypoPermutation, fuzzyScoreGraceful, IMatch } from 'vs/base/common/filters';
+import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyScore, nextTypoPermutation, IMatch } from 'vs/base/common/filters';
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number; }[]) {
 	let r = filter(word, wordToMatchAgainst);
@@ -437,13 +437,5 @@ suite('Filters', () => {
 
 		assertTypos('abc', 'acb');
 		assertTypos('foboar', 'fbooar', 'foobar', 'fobaor', 'fobora');
-	});
-
-	test('fuzzyScoreGraceful', function () {
-
-		assertMatches('tkb', 'the_black_knight', '^the_^black_^knight', fuzzyScoreGraceful);
-		assertMatches('tkbk', 'the_black_knight', '^the_^blac^k_^knight', fuzzyScoreGraceful);
-		assertMatches('tkkb', 'the_black_knight', undefined, fuzzyScoreGraceful);
-		assertMatches('tkb', 'no_match', undefined, fuzzyScoreGraceful);
 	});
 });

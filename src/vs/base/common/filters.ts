@@ -704,12 +704,3 @@ export function nextTypoPermutation(pattern: string, patternPos: number) {
 		+ pattern[patternPos]
 		+ pattern.slice(patternPos + 2);
 }
-
-export function fuzzyScoreGraceful(pattern: string, word: string): [number, number[]] {
-	let ret = fuzzyScore(pattern, word);
-	for (let patternPos = 1; patternPos < pattern.length - 1 && !ret; patternPos++) {
-		let pattern2 = nextTypoPermutation(pattern, patternPos);
-		ret = fuzzyScore(pattern2, word);
-	}
-	return ret;
-}

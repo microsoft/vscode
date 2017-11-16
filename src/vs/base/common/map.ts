@@ -7,10 +7,6 @@
 
 import URI from 'vs/base/common/uri';
 
-export interface Key {
-	toString(): string;
-}
-
 export interface Entry<K, T> {
 	key: K;
 	value: T;

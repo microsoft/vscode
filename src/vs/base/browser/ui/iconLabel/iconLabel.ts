@@ -18,11 +18,6 @@ export interface IIconLabelCreationOptions {
 	supportHighlights?: boolean;
 }
 
-export interface ILabelBadgeOptions {
-	title: string;
-	className: string;
-}
-
 export interface IIconLabelOptions {
 	title?: string;
 	extraClasses?: string[];
