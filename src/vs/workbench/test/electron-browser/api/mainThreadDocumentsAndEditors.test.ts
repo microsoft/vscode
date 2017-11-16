@@ -157,12 +157,19 @@ suite('MainThreadDocumentsAndEditors', () => {
 		deltas.length = 0;
 
 		modelService.destroyModel(model.uri);
-		assert.equal(deltas.length, 1);
-		const [first] = deltas;
+		assert.equal(deltas.length, 2);
+		const [first, second] = deltas;
+
 		assert.equal(first.newActiveEditor, null);
 		assert.equal(first.removedEditors.length, 1);
-		assert.equal(first.removedDocuments.length, 1);
+		assert.equal(first.removedDocuments, undefined);
 		assert.equal(first.addedDocuments, undefined);
 		assert.equal(first.addedEditors, undefined);
+
+		assert.equal(second.newActiveEditor, null);
+		assert.equal(second.removedEditors, undefined);
+		assert.equal(second.removedDocuments.length, 1);
+		assert.equal(second.addedDocuments, undefined);
+		assert.equal(second.addedEditors, undefined);
 	});
 });
