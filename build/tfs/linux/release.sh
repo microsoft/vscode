@@ -12,10 +12,6 @@ step "Build RPM package" \
 # step "Build snap package" \
 # 	npm run gulp -- "vscode-linux-$ARCH-build-snap"
 
-(cd $BUILD_SOURCESDIRECTORY/build/tfs/common && \
-	step "Install build dependencies" \
-	npm install --unsafe-perm)
-
 # Variables
 PLATFORM_LINUX="linux-$ARCH"
 PLATFORM_DEB="linux-deb-$ARCH"
