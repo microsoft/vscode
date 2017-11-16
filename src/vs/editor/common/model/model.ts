@@ -37,6 +37,9 @@ export class Model extends EditableTextModel implements IModel {
 	public onDidChangeLanguageConfiguration(listener: (e: textModelEvents.IModelLanguageConfigurationChangedEvent) => void): IDisposable {
 		return this._eventEmitter.addListener(textModelEvents.TextModelEventType.ModelLanguageConfigurationChanged, listener);
 	}
+	public onDidChangeTokens(listener: (e: textModelEvents.IModelTokensChangedEvent) => void): IDisposable {
+		return this._eventEmitter.addListener(textModelEvents.TextModelEventType.ModelTokensChanged, listener);
+	}
 	public static createFromString(text: string, options: ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS, languageIdentifier: LanguageIdentifier = null, uri: URI = null): Model {
 		return new Model(RawTextSource.fromString(text), options, languageIdentifier, uri);
 	}

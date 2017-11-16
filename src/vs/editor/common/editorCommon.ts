@@ -17,7 +17,7 @@ import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import { ITextSource } from 'vs/editor/common/model/textSource';
 import {
 	ModelRawContentChangedEvent, IModelContentChangedEvent, IModelDecorationsChangedEvent,
-	IModelLanguageChangedEvent, IModelOptionsChangedEvent, IModelLanguageConfigurationChangedEvent
+	IModelLanguageChangedEvent, IModelOptionsChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent
 } from 'vs/editor/common/model/textModelEvents';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
@@ -1128,6 +1128,12 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITokenizedMo
 	 * @event
 	 */
 	onDidChangeLanguageConfiguration(listener: (e: IModelLanguageConfigurationChangedEvent) => void): IDisposable;
+	/**
+	 * An event emitted when the tokens associated with the model have changed.
+	 * @event
+	 * @internal
+	 */
+	onDidChangeTokens(listener: (e: IModelTokensChangedEvent) => void): IDisposable;
 	/**
 	 * An event emitted right before disposing the model.
 	 * @event
