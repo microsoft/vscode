@@ -18,6 +18,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 class TwitterFeedbackService implements IFeedbackService {
 
 	private static TWITTER_URL: string = 'https://twitter.com/intent/tweet';
+	private static TWITTER_MESSAGE_SIZE: number = 280;
 	private static VIA_NAME: string = 'code';
 	private static HASHTAGS: string[] = ['HappyCoding'];
 
@@ -44,7 +45,7 @@ class TwitterFeedbackService implements IFeedbackService {
 			length += ` via @${TwitterFeedbackService.VIA_NAME}`.length;
 		}
 
-		return 140 - length;
+		return TWITTER_MESSAGE_SIZE - length;
 	}
 }
 
