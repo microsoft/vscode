@@ -15,7 +15,6 @@ import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/v
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { ISimplifiedMouseEvent } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
 
 export class EditorScrollbar extends ViewPart {
 
@@ -114,10 +113,6 @@ export class EditorScrollbar extends ViewPart {
 
 	public delegateVerticalScrollbarMouseDown(browserEvent: IMouseEvent): void {
 		this.scrollbar.delegateVerticalScrollbarMouseDown(browserEvent);
-	}
-
-	public delegateSliderMouseDown(e: ISimplifiedMouseEvent, onDragFinished: () => void): void {
-		this.scrollbar.delegateSliderMouseDown(e, onDragFinished);
 	}
 
 	// --- begin event handlers

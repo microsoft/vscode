@@ -714,23 +714,6 @@ export function createCSSRule(selector: string, cssText: string, style: HTMLStyl
 	(<CSSStyleSheet>style.sheet).insertRule(selector + '{' + cssText + '}', 0);
 }
 
-export function getCSSRule(selector: string, style: HTMLStyleElement = sharedStyle): any {
-	if (!style) {
-		return null;
-	}
-
-	let rules = getDynamicStyleSheetRules(style);
-	for (let i = 0; i < rules.length; i++) {
-		let rule = rules[i];
-		let normalizedSelectorText = rule.selectorText.replace(/::/gi, ':');
-		if (normalizedSelectorText === selector) {
-			return rule;
-		}
-	}
-
-	return null;
-}
-
 export function removeCSSRulesContainingSelector(ruleName: string, style = sharedStyle): void {
 	if (!style) {
 		return;

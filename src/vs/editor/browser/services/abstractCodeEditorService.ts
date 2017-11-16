@@ -76,10 +76,6 @@ export abstract class AbstractCodeEditorService implements ICodeEditorService {
 		return this._onDiffEditorRemove.event;
 	}
 
-	getDiffEditor(editorId: string): IDiffEditor {
-		return this._diffEditors[editorId] || null;
-	}
-
 	listDiffEditors(): IDiffEditor[] {
 		return Object.keys(this._diffEditors).map(id => this._diffEditors[id]);
 	}

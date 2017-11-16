@@ -573,17 +573,6 @@ export class TextModel implements editorCommon.ITextModel {
 		return result + 2;
 	}
 
-	public validateLineNumber(lineNumber: number): number {
-		this._assertNotDisposed();
-		if (lineNumber < 1) {
-			lineNumber = 1;
-		}
-		if (lineNumber > this._lines.length) {
-			lineNumber = this._lines.length;
-		}
-		return lineNumber;
-	}
-
 	/**
 	 * Validates `range` is within buffer bounds, but allows it to sit in between surrogate pairs, etc.
 	 * Will try to not allocate if possible.

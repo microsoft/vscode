@@ -203,10 +203,6 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		return LinkDetector.ID;
 	}
 
-	public isComputing(): boolean {
-		return TPromise.is(this.computePromise);
-	}
-
 	private onModelChanged(): void {
 		this.currentOccurrences = {};
 		this.activeLinkDecorationId = null;

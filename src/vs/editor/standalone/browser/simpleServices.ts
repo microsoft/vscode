@@ -21,7 +21,6 @@ import { IConfirmation, IMessageService, IConfirmationResult } from 'vs/platform
 import { IWorkspaceContextService, IWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Selection } from 'vs/editor/common/core/selection';
 import Event, { Emitter } from 'vs/base/common/event';
 import { Configuration, DefaultConfigurationModel, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -54,7 +53,6 @@ export class SimpleEditor implements IEditor {
 
 	public getId(): string { return 'editor'; }
 	public getControl(): editorCommon.IEditor { return this._widget; }
-	public getSelection(): Selection { return this._widget.getSelection(); }
 	public focus(): void { this._widget.focus(); }
 	public isVisible(): boolean { return true; }
 
@@ -585,10 +583,6 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 
 	public isInsideWorkspace(resource: URI): boolean {
 		return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME;
-	}
-
-	public toResource(workspaceRelativePath: string, workspaceFolder: IWorkspaceFolder): URI {
-		return URI.file(workspaceRelativePath);
 	}
 
 	public isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {

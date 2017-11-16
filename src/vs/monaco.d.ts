@@ -587,10 +587,6 @@ declare module monaco {
 		 */
 		getStartPosition(): Position;
 		/**
-		 * Clone this range.
-		 */
-		cloneRange(): Range;
-		/**
 		 * Transform to a user presentable string representation.
 		 */
 		toString(): string;

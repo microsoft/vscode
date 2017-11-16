@@ -292,7 +292,7 @@ export class SimpleWorkerClient<T> extends Disposable {
 }
 
 export interface IRequestHandler {
-	_requestHandlerTrait: any;
+	_requestHandlerBrand: any;
 }
 
 /**

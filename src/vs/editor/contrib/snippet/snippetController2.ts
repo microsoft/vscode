@@ -18,8 +18,9 @@ import { Choice } from 'vs/editor/contrib/snippet/snippetParser';
 import { repeat } from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 
-export class SnippetController2 {
+export class SnippetController2 implements IEditorContribution {
 
 	static get(editor: ICodeEditor): SnippetController2 {
 		return editor.getContribution<SnippetController2>('snippetController2');
