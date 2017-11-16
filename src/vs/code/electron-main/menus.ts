@@ -1141,7 +1141,13 @@ export class CodeMenu {
 	}
 
 	private runActionInRenderer(id: string): void {
-		this.windowsService.sendToFocused('vscode:runAction', { id, from: 'menu' } as IRunActionInWindowRequest);
+		// We make sure to not run actions when the window has no focus, this helps
+		// for https://github.com/Microsoft/vscode/issues/25907 and specifically for
+		// https://github.com/Microsoft/vscode/issues/11928
+		const activeWindow = this.windowsService.getFocusedWindow();
+		if (activeWindow) {
+			this.windowsService.sendToFocused('vscode:runAction', { id, from: 'menu' } as IRunActionInWindowRequest);
+		}
 	}
 
 	private withKeybinding(commandId: string, options: Electron.MenuItemConstructorOptions): Electron.MenuItemConstructorOptions {
