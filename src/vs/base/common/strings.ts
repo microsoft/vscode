@@ -619,20 +619,6 @@ export function isFullWidthCharacter(charCode: number): boolean {
 }
 
 /**
- * Returns an array in which every entry is the offset of a
- * line. There is always one entry which is zero.
- */
-export function computeLineStarts(text: string): number[] {
-	let regexp = /\r\n|\r|\n/g,
-		ret: number[] = [0],
-		match: RegExpExecArray;
-	while ((match = regexp.exec(text))) {
-		ret.push(regexp.lastIndex);
-	}
-	return ret;
-}
-
-/**
  * Given a string and a max length returns a shorted version. Shorting
  * happens at favorable positions - such as whitespace or punctuation characters.
  */
@@ -682,25 +668,6 @@ export function startsWithUTF8BOM(str: string): boolean {
 export function stripUTF8BOM(str: string): string {
 	return startsWithUTF8BOM(str) ? str.substr(1) : str;
 }
-
-/**
- * Appends two strings. If the appended result is longer than maxLength,
- * trims the start of the result and replaces it with '...'.
- */
-export function appendWithLimit(first: string, second: string, maxLength: number): string {
-	const newLength = first.length + second.length;
-	if (newLength > maxLength) {
-		first = '...' + first.substr(newLength - maxLength);
-	}
-	if (second.length > maxLength) {
-		first += second.substr(second.length - maxLength);
-	} else {
-		first += second;
-	}
-
-	return first;
-}
-
 
 export function safeBtoa(str: string): string {
 	return btoa(encodeURIComponent(str)); // we use encodeURIComponent because btoa fails for non Latin 1 values
