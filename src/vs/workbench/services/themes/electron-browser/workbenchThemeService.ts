@@ -9,16 +9,13 @@ import nls = require('vs/nls');
 import * as types from 'vs/base/common/types';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IWorkbenchThemeService, IColorTheme, ITokenColorCustomizations, IFileIconTheme, ExtensionData, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME, COLOR_THEME_SETTING, ICON_THEME_SETTING, CUSTOM_WORKBENCH_COLORS_SETTING, CUSTOM_EDITOR_COLORS_SETTING, CUSTOM_EDITOR_SCOPE_COLORS_SETTING } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import errors = require('vs/base/common/errors');
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import Severity from 'vs/base/common/severity';
 import { ColorThemeData } from './colorThemeData';
 import { ITheme, Extensions as ThemingExtensions, IThemingRegistry } from 'vs/platform/theme/common/themeService';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
@@ -26,8 +23,6 @@ import { Color } from 'vs/base/common/color';
 
 import { $ } from 'vs/base/browser/builder';
 import Event, { Emitter } from 'vs/base/common/event';
-
-import pfs = require('vs/base/node/pfs');
 
 import colorThemeSchema = require('vs/workbench/services/themes/common/colorThemeSchema');
 import fileIconThemeSchema = require('vs/workbench/services/themes/common/fileIconThemeSchema');
@@ -100,8 +95,6 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		@IStorageService private storageService: IStorageService,
 		@IBroadcastService private broadcastService: IBroadcastService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IInstantiationService private instantiationService: IInstantiationService) {
 
@@ -139,10 +132,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		this.updateDynamicCSSRules(themeData);
 		this.applyTheme(themeData, null, true);
 
-		this.migrate().then(_ => {
-			this.initialize().then(null, errors.onUnexpectedError).then(_ => {
-				this.installConfigurationListener();
-			});
+		this.initialize().then(null, errors.onUnexpectedError).then(_ => {
+			this.installConfigurationListener();
 		});
 
 		// update settings schema setting
@@ -168,53 +159,6 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 	public get onThemeChange(): Event<ITheme> {
 		return this.onColorThemeChange.event;
-	}
-
-	private backupSettings(): TPromise<string> {
-		let resource = this.environmentService.appSettingsPath;
-		let backupFileLocation = resource + '-' + new Date().getTime() + '.backup';
-		return pfs.readFile(resource).then(content => {
-			return pfs.writeFile(backupFileLocation, content).then(_ => backupFileLocation);
-		}, err => {
-			if (err && err.code === 'ENOENT') {
-				return TPromise.as<string>(null); // ignore, user config file doesn't exist yet
-			}
-			return TPromise.wrapError<string>(err);
-		});
-	}
-
-	private migrate(): TPromise<void> {
-		let legacyColorThemeId = this.storageService.get('workbench.theme', StorageScope.GLOBAL, void 0);
-		let legacyIconThemeId = this.storageService.get('workbench.iconTheme', StorageScope.GLOBAL, void 0);
-		if (types.isUndefined(legacyColorThemeId) && types.isUndefined(legacyIconThemeId)) {
-			return TPromise.as(null);
-		}
-		return this.backupSettings().then(backupLocation => {
-			let promise = TPromise.as(null);
-			if (!types.isUndefined(legacyColorThemeId)) {
-				this.storageService.remove('workbench.theme', StorageScope.GLOBAL);
-				promise = this.colorThemeStore.findThemeData(legacyColorThemeId, DEFAULT_THEME_ID).then(theme => {
-					let value = theme ? theme.settingsId : DEFAULT_THEME_SETTING_VALUE;
-					return this.configurationWriter.writeConfiguration(COLOR_THEME_SETTING, value, ConfigurationTarget.USER).then(null, error => null);
-				});
-			}
-			if (!types.isUndefined(legacyIconThemeId)) {
-				this.storageService.remove('workbench.iconTheme', StorageScope.GLOBAL);
-				promise = promise.then(_ => {
-					return this.iconThemeStore.findThemeData(legacyIconThemeId).then(theme => {
-						let value = theme ? theme.settingsId : null;
-						return this.configurationWriter.writeConfiguration(ICON_THEME_SETTING, value, ConfigurationTarget.USER).then(null, error => null);
-					});
-				});
-			}
-			return promise.then(_ => {
-				if (backupLocation) {
-					let message = nls.localize('migration.completed', 'New theme settings have been added to the user settings. Backup available at {0}.', backupLocation);
-					this.messageService.show(Severity.Info, message);
-					console.log(message);
-				}
-			});
-		});
 	}
 
 	private initialize(): TPromise<[IColorTheme, IFileIconTheme]> {
