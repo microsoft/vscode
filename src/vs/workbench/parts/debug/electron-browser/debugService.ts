@@ -38,7 +38,7 @@ import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
 import * as debugactions from 'vs/workbench/parts/debug/browser/debugActions';
 import { ConfigurationManager } from 'vs/workbench/parts/debug/electron-browser/debugConfigurationManager';
 import { ToggleMarkersPanelAction } from 'vs/workbench/parts/markers/browser/markersPanelActions';
-import { ITaskService, TaskServiceEvents, ITaskSummary } from 'vs/workbench/parts/tasks/common/taskService';
+import { ITaskService, ITaskSummary } from 'vs/workbench/parts/tasks/common/taskService';
 import { TaskError } from 'vs/workbench/parts/tasks/common/taskSystem';
 import { VIEWLET_ID as EXPLORER_VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -52,6 +52,7 @@ import { EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EX
 import { IBroadcastService, IBroadcast } from 'vs/platform/broadcast/electron-browser/broadcastService';
 import { IRemoteConsoleLog, parse, getFirstFrame } from 'vs/base/node/console';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
+import { TaskEvent, TaskEventKind } from 'vs/workbench/parts/tasks/common/tasks';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
 const DEBUG_BREAKPOINTS_ACTIVATED_KEY = 'debug.breakpointactivated';
@@ -954,6 +955,17 @@ export class DebugService implements debug.IDebugService {
 				return TPromise.wrapError(errors.create(nls.localize('DebugTaskNotFound', "Could not find the preLaunchTask \'{0}\'.", taskName)));
 			}
 
+			function once(kind: TaskEventKind, event: Event<TaskEvent>): Event<TaskEvent> {
+				return (listener, thisArgs = null, disposables?) => {
+					const result = event(e => {
+						if (e.kind === kind) {
+							result.dispose();
+							return listener.call(thisArgs, e);
+						}
+					}, null, disposables);
+					return result;
+				};
+			}
 			// If a task is missing the problem matcher the promise will never complete, so we need to have a workaround #35340
 			let taskStarted = false;
 			const promise = this.taskService.getActiveTasks().then(tasks => {
@@ -961,11 +973,16 @@ export class DebugService implements debug.IDebugService {
 					// task is already running - nothing to do.
 					return TPromise.as(null);
 				}
-
-				this.toDisposeOnSessionEnd.get(sessionId).push(this.taskService.addOneTimeListener(TaskServiceEvents.Active, () => taskStarted = true));
+				this.toDisposeOnSessionEnd.get(sessionId).push(
+					once(TaskEventKind.Active, this.taskService.onDidStateChange)(() => {
+						taskStarted = true;
+					})
+				);
 				const taskPromise = this.taskService.run(task);
 				if (task.isBackground) {
-					return new TPromise((c, e) => this.toDisposeOnSessionEnd.get(sessionId).push(this.taskService.addOneTimeListener(TaskServiceEvents.Inactive, () => c(null))));
+					return new TPromise((c, e) => this.toDisposeOnSessionEnd.get(sessionId).push(
+						once(TaskEventKind.Inactive, this.taskService.onDidStateChange)(() => c(null)))
+					);
 				}
 
 				return taskPromise;

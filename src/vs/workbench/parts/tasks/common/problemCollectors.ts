@@ -6,7 +6,7 @@
 
 import { IStringDictionary, INumberDictionary } from 'vs/base/common/collections';
 import URI from 'vs/base/common/uri';
-import { EventEmitter } from 'vs/base/common/eventEmitter';
+import Event, { Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -14,16 +14,26 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILineMatcher, createLineMatcher, ProblemMatcher, ProblemMatch, ApplyToKind, WatchingPattern, getResource } from 'vs/platform/markers/common/problemMatcher';
 import { IMarkerService, IMarkerData } from 'vs/platform/markers/common/markers';
 
-export namespace ProblemCollectorEvents {
-	export let WatchingBeginDetected: string = 'watchingBeginDetected';
-	export let WatchingEndDetected: string = 'watchingEndDetected';
+export enum ProblemCollectorEventKind {
+	BackgroundProcessingBegins = 'backgroundProcessingBegins',
+	BackgroundProcessingEnds = 'backgroundProcessingEnds'
+}
+
+export interface ProblemCollectorEvent {
+	kind: ProblemCollectorEventKind;
+}
+
+namespace ProblemCollectorEvent {
+	export function create(kind: ProblemCollectorEventKind) {
+		return Object.freeze({ kind });
+	}
 }
 
 export interface IProblemMatcher {
 	processLine(line: string): void;
 }
 
-export class AbstractProblemCollector extends EventEmitter implements IDisposable {
+export class AbstractProblemCollector implements IDisposable {
 
 	private matchers: INumberDictionary<ILineMatcher[]>;
 	private activeMatcher: ILineMatcher;
@@ -42,8 +52,9 @@ export class AbstractProblemCollector extends EventEmitter implements IDisposabl
 	// [owner] -> [resource] -> number;
 	private deliveredMarkers: Map<string, Map<string, number>>;
 
+	protected _onDidStateChange: Emitter<ProblemCollectorEvent>;
+
 	constructor(problemMatchers: ProblemMatcher[], protected markerService: IMarkerService, private modelService: IModelService) {
-		super();
 		this.matchers = Object.create(null);
 		this.bufferLength = 1;
 		problemMatchers.map(elem => createLineMatcher(elem)).forEach((matcher) => {
@@ -82,6 +93,12 @@ export class AbstractProblemCollector extends EventEmitter implements IDisposabl
 			delete this.openModels[model.uri.toString()];
 		}, this, this.modelListeners);
 		this.modelService.getModels().forEach(model => this.openModels[model.uri.toString()] = true);
+
+		this._onDidStateChange = new Emitter();
+	}
+
+	public get onDidStateChange(): Event<ProblemCollectorEvent> {
+		return this._onDidStateChange.event;
 	}
 
 	public dispose() {
@@ -368,7 +385,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 	public aboutToStart(): void {
 		this.problemMatchers.forEach(matcher => {
 			if (matcher.watching && matcher.watching.activeOnStart) {
-				this.emit(ProblemCollectorEvents.WatchingBeginDetected, {});
+				this._onDidStateChange.fire(ProblemCollectorEvent.create(ProblemCollectorEventKind.BackgroundProcessingBegins));
 				this.recordResourcesToClean(matcher.owner);
 			}
 		});
@@ -408,7 +425,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 			let matches = beginMatcher.pattern.regexp.exec(line);
 			if (matches) {
 				result = true;
-				this.emit(ProblemCollectorEvents.WatchingBeginDetected, {});
+				this._onDidStateChange.fire(ProblemCollectorEvent.create(ProblemCollectorEventKind.BackgroundProcessingBegins));
 				this.cleanMarkerCaches();
 				this.resetCurrentResource();
 				let owner = beginMatcher.problemMatcher.owner;
@@ -430,7 +447,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 			let endMatcher = this.watchingEndsPatterns[i];
 			let matches = endMatcher.pattern.regexp.exec(line);
 			if (matches) {
-				this.emit(ProblemCollectorEvents.WatchingEndDetected, {});
+				this._onDidStateChange.fire(ProblemCollectorEvent.create(ProblemCollectorEventKind.BackgroundProcessingEnds));
 				result = true;
 				let owner = endMatcher.problemMatcher.owner;
 				this.resetCurrentResource();
