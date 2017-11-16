@@ -26,6 +26,7 @@ namespace Event {
 export default Event;
 
 export interface EmitterOptions {
+	guaranteeEventOrder?: boolean;
 	onFirstListenerAdd?: Function;
 	onFirstListenerDidAdd?: Function;
 	onListenerDidAdd?: Function;
@@ -123,11 +124,15 @@ export class Emitter<T> {
 		if (!this._callbacks) {
 			return;
 		}
-		// enqueue event object and kick off
-		// event deliver when this is the first
-		// object in the queue
-		if (this._deliveryQueue.push(event) === 1) {
-			this._inOrderDelivery();
+		if (this._options && this._options.guaranteeEventOrder) {
+			// enqueue event object and kick off
+			// event deliver when this is the first
+			// object in the queue
+			if (this._deliveryQueue.push(event) === 1) {
+				this._inOrderDelivery();
+			}
+		} else {
+			this._callbacks.invoke.call(this._callbacks, event);
 		}
 	}
 

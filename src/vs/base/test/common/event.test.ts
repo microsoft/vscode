@@ -270,7 +270,7 @@ suite('Event', function () {
 	});
 
 	test('Emitter - In Order Delivery', function () {
-		const a = new Emitter<string>();
+		const a = new Emitter<string>({ guaranteeEventOrder: true });
 		a.event(function listener1(event) {
 			if (event === 'e1') {
 				a.fire('e2');
@@ -283,6 +283,22 @@ suite('Event', function () {
 		a.fire('e1');
 
 		assert.deepEqual(listener2Events, ['e1', 'e2']);
+	});
+
+	test('Emitter - ANY Order Delivery', function () {
+		const a = new Emitter<string>();
+		a.event(function listener1(event) {
+			if (event === 'e1') {
+				a.fire('e2');
+			}
+		});
+		const listener2Events: string[] = [];
+		a.event(function listener2(event) {
+			listener2Events.push(event);
+		});
+		a.fire('e1');
+
+		assert.deepEqual(listener2Events, ['e2', 'e1']);
 	});
 });
 
