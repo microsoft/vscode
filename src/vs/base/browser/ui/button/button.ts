@@ -166,5 +166,7 @@ export class Button {
 			this.$el.dispose();
 			this.$el = null;
 		}
+
+		this._onDidClick.dispose();
 	}
 }
