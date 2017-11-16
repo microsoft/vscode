@@ -241,12 +241,8 @@ export class SearchWidget extends Widget {
 		}));
 
 		this.searchInputFocusTracker = this._register(dom.trackFocus(this.searchInput.inputBox.inputElement));
-		this._register(this.searchInputFocusTracker.addFocusListener(() => {
-			this.searchInputBoxFocused.set(true);
-		}));
-		this._register(this.searchInputFocusTracker.addBlurListener(() => {
-			this.searchInputBoxFocused.set(false);
-		}));
+		this._register(this.searchInputFocusTracker.onDidFocus(() => this.searchInputBoxFocused.set(true)));
+		this._register(this.searchInputFocusTracker.onDidBlur(() => this.searchInputBoxFocused.set(false)));
 	}
 
 	private renderReplaceInput(parent: HTMLElement): void {
@@ -268,12 +264,8 @@ export class SearchWidget extends Widget {
 		this.replaceActionBar.push([this.replaceAllAction], { icon: true, label: false });
 
 		this.replaceInputFocusTracker = this._register(dom.trackFocus(this.replaceInput.inputElement));
-		this._register(this.replaceInputFocusTracker.addFocusListener(() => {
-			this.replaceInputBoxFocused.set(true);
-		}));
-		this._register(this.replaceInputFocusTracker.addBlurListener(() => {
-			this.replaceInputBoxFocused.set(false);
-		}));
+		this._register(this.replaceInputFocusTracker.onDidFocus(() => this.replaceInputBoxFocused.set(true)));
+		this._register(this.replaceInputFocusTracker.onDidBlur(() => this.replaceInputBoxFocused.set(false)));
 	}
 
 	triggerReplaceAll(): TPromise<any> {

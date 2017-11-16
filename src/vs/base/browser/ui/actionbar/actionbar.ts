@@ -487,14 +487,14 @@ export class ActionBar implements IActionRunner {
 		});
 
 		this.focusTracker = DOM.trackFocus(this.domNode);
-		this.focusTracker.addBlurListener(() => {
+		this.toDispose.push(this.focusTracker.onDidBlur(() => {
 			if (document.activeElement === this.domNode || !DOM.isAncestor(document.activeElement, this.domNode)) {
 				this._onDidBlur.fire();
 				this.focusedItem = undefined;
 			}
-		});
+		}));
 
-		this.focusTracker.addFocusListener(() => this.updateFocusedItem());
+		this.toDispose.push(this.focusTracker.onDidFocus(() => this.updateFocusedItem()));
 
 		this.actionsList = document.createElement('ul');
 		this.actionsList.className = 'actions-container';

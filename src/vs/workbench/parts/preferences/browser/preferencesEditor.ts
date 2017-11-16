@@ -662,7 +662,7 @@ class SideBySidePreferencesWidget extends Widget {
 		}));
 
 		const focusTracker = this._register(DOM.trackFocus(parentElement));
-		this._register(focusTracker.addFocusListener(() => this._onFocus.fire()));
+		this._register(focusTracker.onDidFocus(() => this._onFocus.fire()));
 	}
 
 	public setInput(defaultPreferencesEditorInput: DefaultPreferencesEditorInput, editablePreferencesEditorInput: EditorInput, options?: EditorOptions): TPromise<{ defaultPreferencesRenderer: IPreferencesRenderer<ISetting>, editablePreferencesRenderer: IPreferencesRenderer<ISetting> }> {

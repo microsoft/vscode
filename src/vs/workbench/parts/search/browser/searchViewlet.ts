@@ -317,13 +317,13 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	private trackInputBox(inputFocusTracker: dom.IFocusTracker, contextKey?: IContextKey<boolean>): void {
-		this.toUnbind.push(inputFocusTracker.addFocusListener(() => {
+		this.toUnbind.push(inputFocusTracker.onDidFocus(() => {
 			this.inputBoxFocused.set(true);
 			if (contextKey) {
 				contextKey.set(true);
 			}
 		}));
-		this.toUnbind.push(inputFocusTracker.addBlurListener(() => {
+		this.toUnbind.push(inputFocusTracker.onDidBlur(() => {
 			this.inputBoxFocused.set(this.searchWidget.searchInputHasFocus()
 				|| this.searchWidget.replaceInputHasFocus()
 				|| this.inputPatternIncludes.inputHasFocus()

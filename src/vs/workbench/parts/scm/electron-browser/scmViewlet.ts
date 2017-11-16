@@ -561,7 +561,7 @@ export class RepositoryPanel extends ViewletPanel {
 
 	protected renderBody(container: HTMLElement): void {
 		const focusTracker = trackFocus(container);
-		this.disposables.push(focusTracker.addFocusListener(() => this.repository.focus()));
+		this.disposables.push(focusTracker.onDidFocus(() => this.repository.focus()));
 		this.disposables.push(focusTracker);
 
 		// Input

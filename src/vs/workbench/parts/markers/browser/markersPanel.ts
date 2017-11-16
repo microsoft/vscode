@@ -227,9 +227,8 @@ export class MarkersPanel extends Panel {
 		}));
 
 		const focusTracker = this._register(dom.trackFocus(this.tree.getHTMLElement()));
-		focusTracker.addBlurListener(() => {
-			this.markerFocusContextKey.set(false);
-		});
+		this._register(focusTracker.onDidBlur(() => this.markerFocusContextKey.set(false)));
+		this._register(focusTracker);
 
 		this.toUnbind.push(this.listService.register(this.tree));
 	}

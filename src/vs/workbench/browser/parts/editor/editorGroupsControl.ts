@@ -424,7 +424,9 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 		// Track focus on editor container
 		this.visibleEditorFocusTrackers[position] = DOM.trackFocus(editor.getContainer().getHTMLElement());
-		this.visibleEditorFocusTrackers[position].addFocusListener(() => {
+
+		// TODO@ben: when is this listener disposed?
+		this.visibleEditorFocusTrackers[position].onDidFocus(() => {
 			this.onFocusGained(editor);
 		});
 	}

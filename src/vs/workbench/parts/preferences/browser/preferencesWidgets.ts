@@ -179,8 +179,9 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 		this.onclick(this.titleContainer, () => this.toggle());
 		this.onkeydown(this.titleContainer, (e) => this.onKeyDown(e));
 		const focusTracker = this._register(DOM.trackFocus(this.titleContainer));
-		focusTracker.addFocusListener(() => this.toggleFocus(true));
-		focusTracker.addBlurListener(() => this.toggleFocus(false));
+
+		this._register(focusTracker.onDidFocus(() => this.toggleFocus(true)));
+		this._register(focusTracker.onDidBlur(() => this.toggleFocus(false)));
 
 		this.icon = DOM.append(this.titleContainer, DOM.$('.expand-collapse-icon'));
 		this.title = DOM.append(this.titleContainer, DOM.$('.title'));
@@ -499,11 +500,11 @@ export class SearchWidget extends Widget {
 
 		this.inputBox.inputElement.setAttribute('aria-live', 'assertive');
 		const focusTracker = this._register(DOM.trackFocus(this.inputBox.inputElement));
-		this._register(focusTracker.addFocusListener(() => this._onFocus.fire()));
+		this._register(focusTracker.onDidFocus(() => this._onFocus.fire()));
 
 		if (this.options.focusKey) {
-			this._register(focusTracker.addFocusListener(() => this.options.focusKey.set(true)));
-			this._register(focusTracker.addBlurListener(() => this.options.focusKey.set(false)));
+			this._register(focusTracker.onDidFocus(() => this.options.focusKey.set(true)));
+			this._register(focusTracker.onDidBlur(() => this.options.focusKey.set(false)));
 		}
 	}
 

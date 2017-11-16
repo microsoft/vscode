@@ -468,14 +468,14 @@ class CodeEditorWidgetFocusTracker extends Disposable {
 		this._hasFocus = false;
 		this._domFocusTracker = this._register(dom.trackFocus(domElement));
 
-		this._domFocusTracker.addFocusListener(() => {
+		this._register(this._domFocusTracker.onDidFocus(() => {
 			this._hasFocus = true;
 			this._onChange.fire(void 0);
-		});
-		this._domFocusTracker.addBlurListener(() => {
+		}));
+		this._register(this._domFocusTracker.onDidBlur(() => {
 			this._hasFocus = false;
 			this._onChange.fire(void 0);
-		});
+		}));
 	}
 
 	public hasFocus(): boolean {

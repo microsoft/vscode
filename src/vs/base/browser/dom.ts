@@ -8,13 +8,14 @@ import * as platform from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { EventEmitter } from 'vs/base/common/eventEmitter';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isObject } from 'vs/base/common/types';
 import * as browser from 'vs/base/browser/browser';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { CharCode } from 'vs/base/common/charCode';
+import Event, { Emitter } from 'vs/base/common/event';
+import { domEvent } from 'vs/base/browser/event';
 
 export function clearNode(node: HTMLElement) {
 	while (node.firstChild) {
@@ -417,12 +418,17 @@ export interface IEventMerger<R, E> {
 	(lastEvent: R, currentEvent: E): R;
 }
 
+export interface DOMEvent {
+	preventDefault(): void;
+	stopPropagation(): void;
+}
+
 const MINIMUM_TIME_MS = 16;
-const DEFAULT_EVENT_MERGER: IEventMerger<Event, Event> = function (lastEvent: Event, currentEvent: Event) {
+const DEFAULT_EVENT_MERGER: IEventMerger<DOMEvent, DOMEvent> = function (lastEvent: DOMEvent, currentEvent: DOMEvent) {
 	return currentEvent;
 };
 
-class TimeoutThrottledDomListener<R, E extends Event> extends Disposable {
+class TimeoutThrottledDomListener<R, E extends DOMEvent> extends Disposable {
 
 	constructor(node: any, type: string, handler: (event: R) => void, eventMerger: IEventMerger<R, E> = <any>DEFAULT_EVENT_MERGER, minimumTimeMs: number = MINIMUM_TIME_MS) {
 		super();
@@ -452,7 +458,7 @@ class TimeoutThrottledDomListener<R, E extends Event> extends Disposable {
 	}
 }
 
-export function addDisposableThrottledListener<R, E extends Event = Event>(node: any, type: string, handler: (event: R) => void, eventMerger?: IEventMerger<R, E>, minimumTimeMs?: number): IDisposable {
+export function addDisposableThrottledListener<R, E extends DOMEvent = DOMEvent>(node: any, type: string, handler: (event: R) => void, eventMerger?: IEventMerger<R, E>, minimumTimeMs?: number): IDisposable {
 	return new TimeoutThrottledDomListener<R, E>(node, type, handler, eventMerger, minimumTimeMs);
 }
 
@@ -813,8 +819,8 @@ export const EventHelper = {
 };
 
 export interface IFocusTracker {
-	addBlurListener(fn: () => void): IDisposable;
-	addFocusListener(fn: () => void): IDisposable;
+	onDidFocus: Event<void>;
+	onDidBlur: Event<void>;
 	dispose(): void;
 }
 
@@ -836,49 +842,49 @@ export function restoreParentsScrollTop(node: Element, state: number[]): void {
 	}
 }
 
-class FocusTracker extends Disposable implements IFocusTracker {
+class FocusTracker implements IFocusTracker {
 
-	private _eventEmitter: EventEmitter;
+	private _onDidFocus = new Emitter<void>();
+	readonly onDidFocus: Event<void> = this._onDidFocus.event;
+
+	private _onDidBlur = new Emitter<void>();
+	readonly onDidBlur: Event<void> = this._onDidBlur.event;
+
+	private disposables: IDisposable[] = [];
 
 	constructor(element: HTMLElement | Window) {
-		super();
-
 		let hasFocus = false;
 		let loosingFocus = false;
 
-		this._eventEmitter = this._register(new EventEmitter());
-
-		let onFocus = (event: Event) => {
+		let onFocus = () => {
 			loosingFocus = false;
 			if (!hasFocus) {
 				hasFocus = true;
-				this._eventEmitter.emit('focus', {});
+				this._onDidFocus.fire();
 			}
 		};
 
-		let onBlur = (event: Event) => {
+		let onBlur = () => {
 			if (hasFocus) {
 				loosingFocus = true;
 				window.setTimeout(() => {
 					if (loosingFocus) {
 						loosingFocus = false;
 						hasFocus = false;
-						this._eventEmitter.emit('blur', {});
+						this._onDidBlur.fire();
 					}
 				}, 0);
 			}
 		};
 
-		this._register(addDisposableListener(element, EventType.FOCUS, onFocus, true));
-		this._register(addDisposableListener(element, EventType.BLUR, onBlur, true));
+		domEvent(element, EventType.FOCUS, true)(onFocus, null, this.disposables);
+		domEvent(element, EventType.BLUR, true)(onBlur, null, this.disposables);
 	}
 
-	public addFocusListener(fn: () => void): IDisposable {
-		return this._eventEmitter.addListener('focus', fn);
-	}
-
-	public addBlurListener(fn: () => void): IDisposable {
-		return this._eventEmitter.addListener('blur', fn);
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
+		this._onDidFocus.dispose();
+		this._onDidBlur.dispose();
 	}
 }
 
@@ -1007,7 +1013,7 @@ export function getElementsByTagName(tag: string): HTMLElement[] {
 	return Array.prototype.slice.call(document.getElementsByTagName(tag), 0);
 }
 
-export function finalHandler<T extends Event>(fn: (event: T) => any): (event: T) => any {
+export function finalHandler<T extends DOMEvent>(fn: (event: T) => any): (event: T) => any {
 	return e => {
 		e.preventDefault();
 		e.stopPropagation();

@@ -132,8 +132,8 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.createBody(keybindingsEditorElement);
 
 		const focusTracker = this._register(DOM.trackFocus(parentElement));
-		this._register(focusTracker.addFocusListener(() => this.keybindingsEditorContextKey.set(true)));
-		this._register(focusTracker.addBlurListener(() => this.keybindingsEditorContextKey.reset()));
+		this._register(focusTracker.onDidFocus(() => this.keybindingsEditorContextKey.set(true)));
+		this._register(focusTracker.onDidBlur(() => this.keybindingsEditorContextKey.reset()));
 	}
 
 	setInput(input: KeybindingsEditorInput): TPromise<void> {
