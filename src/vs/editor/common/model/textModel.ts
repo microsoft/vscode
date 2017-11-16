@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { OrderGuaranteeEventEmitter, BulkListenerCallback } from 'vs/base/common/eventEmitter';
+import { OrderGuaranteeEventEmitter } from 'vs/base/common/eventEmitter';
 import * as strings from 'vs/base/common/strings';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
@@ -16,7 +16,6 @@ import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { TextSource, ITextSource, IRawTextSource, RawTextSource } from 'vs/editor/common/model/textSource';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 
 const LIMIT_FIND_COUNT = 999;
@@ -69,10 +68,6 @@ export class TextModel implements editorCommon.ITextModel {
 			text: textSource,
 			options: resolvedOpts
 		};
-	}
-
-	public addBulkListener(listener: BulkListenerCallback): IDisposable {
-		return this._eventEmitter.addBulkListener(listener);
 	}
 
 	protected readonly _eventEmitter: OrderGuaranteeEventEmitter;

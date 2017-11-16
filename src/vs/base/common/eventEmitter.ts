@@ -22,18 +22,9 @@ export interface ListenerCallback {
 	(value: any): void;
 }
 
-export interface BulkListenerCallback {
-	(value: EmitterEvent[]): void;
-}
-
-export interface IBaseEventEmitter {
-	addBulkListener(listener: BulkListenerCallback): IDisposable;
-}
-
-export interface IEventEmitter extends IBaseEventEmitter, IDisposable {
+export interface IEventEmitter extends IDisposable {
 	addListener(eventType: string, listener: ListenerCallback): IDisposable;
 	addOneTimeListener(eventType: string, listener: ListenerCallback): IDisposable;
-	addEmitter(eventEmitter: IEventEmitter): IDisposable;
 }
 
 export interface IListenersMap {
@@ -43,14 +34,12 @@ export interface IListenersMap {
 export class EventEmitter implements IEventEmitter {
 
 	protected _listeners: IListenersMap;
-	protected _bulkListeners: ListenerCallback[];
 	private _collectedEvents: EmitterEvent[];
 	private _deferredCnt: number;
 	private _allowedEventTypes: { [eventType: string]: boolean; };
 
 	constructor(allowedEventTypes: string[] = null) {
 		this._listeners = {};
-		this._bulkListeners = [];
 		this._collectedEvents = [];
 		this._deferredCnt = 0;
 		if (allowedEventTypes) {
@@ -65,7 +54,6 @@ export class EventEmitter implements IEventEmitter {
 
 	public dispose(): void {
 		this._listeners = {};
-		this._bulkListeners = [];
 		this._collectedEvents = [];
 		this._deferredCnt = 0;
 		this._allowedEventTypes = null;
@@ -112,28 +100,6 @@ export class EventEmitter implements IEventEmitter {
 		return disposable;
 	}
 
-	public addBulkListener(listener: BulkListenerCallback): IDisposable {
-
-		this._bulkListeners.push(listener);
-
-		return {
-			dispose: () => {
-				this._removeBulkListener(listener);
-			}
-		};
-	}
-
-	public addEmitter(eventEmitter: IBaseEventEmitter): IDisposable {
-		return eventEmitter.addBulkListener((events: EmitterEvent[]): void => {
-			if (this._deferredCnt === 0) {
-				this._emitEvents(events);
-			} else {
-				// Collect for later
-				this._collectedEvents.push.apply(this._collectedEvents, events);
-			}
-		});
-	}
-
 	private _removeListener(eventType: string, listener: ListenerCallback): void {
 		if (this._listeners.hasOwnProperty(eventType)) {
 			let listeners = this._listeners[eventType];
@@ -142,15 +108,6 @@ export class EventEmitter implements IEventEmitter {
 					listeners.splice(i, 1);
 					break;
 				}
-			}
-		}
-	}
-
-	private _removeBulkListener(listener: BulkListenerCallback): void {
-		for (let i = 0, len = this._bulkListeners.length; i < len; i++) {
-			if (this._bulkListeners[i] === listener) {
-				this._bulkListeners.splice(i, 1);
-				break;
 			}
 		}
 	}
@@ -164,17 +121,7 @@ export class EventEmitter implements IEventEmitter {
 		}
 	}
 
-	protected _emitToBulkListeners(events: EmitterEvent[]): void {
-		const bulkListeners = this._bulkListeners.slice(0);
-		for (let i = 0, len = bulkListeners.length; i < len; i++) {
-			safeInvoke1Arg(bulkListeners[i], events);
-		}
-	}
-
 	protected _emitEvents(events: EmitterEvent[]): void {
-		if (this._bulkListeners.length > 0) {
-			this._emitToBulkListeners(events);
-		}
 		for (let i = 0, len = events.length; i < len; i++) {
 			const e = events[i];
 
@@ -187,7 +134,7 @@ export class EventEmitter implements IEventEmitter {
 			throw new Error('Cannot emit this event type because it wasn\'t listed!');
 		}
 		// Early return if no listeners would get this
-		if (!this._listeners.hasOwnProperty(eventType) && this._bulkListeners.length === 0) {
+		if (!this._listeners.hasOwnProperty(eventType)) {
 			return;
 		}
 		const emitterEvent = new EmitterEvent(eventType, data);
@@ -261,13 +208,6 @@ export class OrderGuaranteeEventEmitter extends EventEmitter {
 			for (let i = 0, len = listeners.length; i < len; i++) {
 				this._emitQueue.push(new EmitQueueElement(listeners[i], data));
 			}
-		}
-	}
-
-	protected _emitToBulkListeners(events: EmitterEvent[]): void {
-		let bulkListeners = this._bulkListeners;
-		for (let i = 0, len = bulkListeners.length; i < len; i++) {
-			this._emitQueue.push(new EmitQueueElement(bulkListeners[i], events));
 		}
 	}
 

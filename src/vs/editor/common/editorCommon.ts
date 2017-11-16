@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { BulkListenerCallback } from 'vs/base/common/eventEmitter';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -1139,11 +1138,6 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITokenizedMo
 	 * @event
 	 */
 	onWillDispose(listener: () => void): IDisposable;
-
-	/**
-	 * @internal
-	 */
-	addBulkListener(listener: BulkListenerCallback): IDisposable;
 
 	/**
 	 * A unique identifier associated with this model.

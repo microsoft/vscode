@@ -1506,7 +1506,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 
 		}, (model) => {
 			var isFirstTime = true;
-			model.addBulkListener((events) => {
+			model.onDidChangeRawContent(() => {
 				if (!isFirstTime) {
 					return;
 				}
