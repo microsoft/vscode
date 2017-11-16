@@ -12,10 +12,10 @@ export default class TypeScriptReferenceSupport implements ReferenceProvider {
 	public constructor(
 		private client: ITypeScriptServiceClient) { }
 
-	public provideReferences(document: TextDocument, position: Position, options: { includeDeclaration: boolean }, token: CancellationToken): Promise<Location[]> {
+	public async provideReferences(document: TextDocument, position: Position, options: { includeDeclaration: boolean }, token: CancellationToken): Promise<Location[]> {
 		const filepath = this.client.normalizePath(document.uri);
 		if (!filepath) {
-			return Promise.resolve<Location[]>([]);
+			return [];
 		}
 		const args = vsPositionToTsFileLocation(filepath, position);
 		const apiVersion = this.client.apiVersion;
