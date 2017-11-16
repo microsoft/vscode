@@ -148,10 +148,6 @@ export function onUnexpectedExternalError(e: any): undefined {
 	return undefined;
 }
 
-export function onUnexpectedPromiseError<T>(promise: TPromise<T>): TPromise<T | void> {
-	return promise.then(null, onUnexpectedError);
-}
-
 export interface SerializedError {
 	readonly $isError: true;
 	readonly name: string;
