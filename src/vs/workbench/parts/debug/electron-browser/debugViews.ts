@@ -10,7 +10,6 @@ import * as dom from 'vs/base/browser/dom';
 import * as builder from 'vs/base/browser/builder';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
-import { EventType } from 'vs/base/common/events';
 import { IAction } from 'vs/base/common/actions';
 import { prepareActions } from 'vs/workbench/browser/actions';
 import { IHighlightEvent, ITree } from 'vs/base/parts/tree/browser/tree';
@@ -29,6 +28,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { IListService } from 'vs/platform/list/browser/listService';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { once } from 'vs/base/common/event';
 
 function renderViewTree(container: HTMLElement): HTMLElement {
 	const treeContainer = document.createElement('div');
@@ -136,7 +136,7 @@ export class VariablesView extends ViewsViewletPanel {
 
 			this.tree.refresh(expression, false).then(() => {
 				this.tree.setHighlight(expression);
-				this.tree.addOneTimeListener(EventType.HIGHLIGHT, (e: IHighlightEvent) => {
+				once(this.tree.onDidChangeHighlight)((e: IHighlightEvent) => {
 					if (!e.highlight) {
 						this.debugService.getViewModel().setSelectedExpression(null);
 					}
@@ -228,7 +228,7 @@ export class WatchExpressionsView extends ViewsViewletPanel {
 
 			this.tree.refresh(expression, false).then(() => {
 				this.tree.setHighlight(expression);
-				this.tree.addOneTimeListener(EventType.HIGHLIGHT, (e: IHighlightEvent) => {
+				once(this.tree.onDidChangeHighlight)((e: IHighlightEvent) => {
 					if (!e.highlight) {
 						this.debugService.getViewModel().setSelectedExpression(null);
 					}
@@ -319,7 +319,7 @@ export class CallStackView extends ViewsViewletPanel {
 		this.disposables.push(attachListStyler(this.tree, this.themeService));
 		this.disposables.push(this.listService.register(this.tree));
 
-		this.disposables.push(this.tree.addListener('selection', event => {
+		this.disposables.push(this.tree.onDidChangeSelection(event => {
 			if (event && event.payload && event.payload.origin === 'keyboard') {
 				const element = this.tree.getFocus();
 				if (element instanceof ThreadAndProcessIds) {
@@ -454,7 +454,7 @@ export class BreakpointsView extends ViewsViewletPanel {
 		this.disposables.push(attachListStyler(this.tree, this.themeService));
 		this.disposables.push(this.listService.register(this.tree, [this.breakpointsFocusedContext]));
 
-		this.disposables.push(this.tree.addListener('selection', event => {
+		this.disposables.push(this.tree.onDidChangeSelection(event => {
 			if (event && event.payload && event.payload.origin === 'keyboard') {
 				const element = this.tree.getFocus();
 				if (element instanceof Breakpoint) {
@@ -474,7 +474,7 @@ export class BreakpointsView extends ViewsViewletPanel {
 
 			this.tree.refresh(fbp, false).then(() => {
 				this.tree.setHighlight(fbp);
-				this.tree.addOneTimeListener(EventType.HIGHLIGHT, (e: IHighlightEvent) => {
+				once(this.tree.onDidChangeHighlight)((e: IHighlightEvent) => {
 					if (!e.highlight) {
 						this.debugService.getViewModel().setSelectedFunctionBreakpoint(null);
 					}

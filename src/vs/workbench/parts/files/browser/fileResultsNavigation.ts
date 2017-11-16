@@ -22,8 +22,8 @@ export default class FileResultsNavigation extends Disposable {
 
 	constructor(private tree: ITree) {
 		super();
-		this._register(this.tree.addListener('focus', e => this.onFocus(e)));
-		this._register(this.tree.addListener('selection', e => this.onSelection(e)));
+		this._register(this.tree.onDidChangeFocus(e => this.onFocus(e)));
+		this._register(this.tree.onDidChangeSelection(e => this.onSelection(e)));
 	}
 
 	private onFocus(event: any): void {

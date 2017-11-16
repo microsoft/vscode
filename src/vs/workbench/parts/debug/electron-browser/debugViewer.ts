@@ -299,7 +299,7 @@ export class CallStackController extends BaseDebugController {
 		return true;
 	}
 
-	public focusStackFrame(stackFrame: debug.IStackFrame, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
+	public focusStackFrame(stackFrame: debug.IStackFrame, event: any, preserveFocus: boolean): void {
 		this.debugService.focusStackFrameAndEvaluate(stackFrame, undefined, true).then(() => {
 			const sideBySide = (event && (event.ctrlKey || event.metaKey));
 			return stackFrame.openInEditor(this.editorService, preserveFocus, sideBySide);
@@ -1290,7 +1290,7 @@ export class BreakpointsController extends BaseDebugController {
 		return super.onLeftClick(tree, element, event);
 	}
 
-	public openBreakpointSource(breakpoint: Breakpoint, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
+	public openBreakpointSource(breakpoint: Breakpoint, event: any, preserveFocus: boolean): void {
 		if (breakpoint.uri.scheme === debug.DEBUG_SCHEME && this.debugService.state === debug.State.Inactive) {
 			return;
 		}

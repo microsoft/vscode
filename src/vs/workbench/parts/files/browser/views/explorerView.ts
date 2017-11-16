@@ -443,13 +443,13 @@ export class ExplorerView extends ViewsViewletPanel {
 		this.disposables.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 
 		// Update resource context based on focused element
-		this.disposables.push(this.explorerViewer.addListener('focus', (e: { focus: FileStat }) => {
+		this.disposables.push(this.explorerViewer.onDidChangeFocus((e: { focus: FileStat }) => {
 			this.resourceContext.set(e.focus && e.focus.resource);
 			this.folderContext.set(e.focus && e.focus.isDirectory);
 		}));
 
 		// Open when selecting via keyboard
-		this.disposables.push(this.explorerViewer.addListener('selection', event => {
+		this.disposables.push(this.explorerViewer.onDidChangeSelection(event => {
 			if (event && event.payload && event.payload.origin === 'keyboard') {
 				const element = this.tree.getSelection();
 

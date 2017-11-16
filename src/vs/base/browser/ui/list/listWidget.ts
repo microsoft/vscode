@@ -631,11 +631,11 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return mapEvent(this._onPin.event, indexes => this.toListEvent({ indexes }));
 	}
 
-	readonly onDOMFocus: Event<void>;
-	readonly onDOMBlur: Event<void>;
+	readonly onDidFocus: Event<void>;
+	readonly onDidBlur: Event<void>;
 
-	private _onDispose = new Emitter<void>();
-	get onDispose(): Event<void> { return this._onDispose.event; }
+	private _onDidDispose = new Emitter<void>();
+	get onDidDispose(): Event<void> { return this._onDidDispose.event; }
 
 	constructor(
 		container: HTMLElement,
@@ -666,10 +666,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 			this.view
 		]);
 
-		this.disposables = [this.focus, this.selection, this.view, this._onDispose];
+		this.disposables = [this.focus, this.selection, this.view, this._onDidDispose];
 
-		this.onDOMFocus = mapEvent(domEvent(this.view.domNode, 'focus', true), () => null);
-		this.onDOMBlur = mapEvent(domEvent(this.view.domNode, 'blur', true), () => null);
+		this.onDidFocus = mapEvent(domEvent(this.view.domNode, 'focus', true), () => null);
+		this.onDidBlur = mapEvent(domEvent(this.view.domNode, 'blur', true), () => null);
 
 		if (typeof options.keyboardSupport !== 'boolean' || options.keyboardSupport) {
 			const controller = new KeyboardController(this, this.view);
@@ -972,7 +972,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	dispose(): void {
-		this._onDispose.fire();
+		this._onDidDispose.fire();
 		this.disposables = dispose(this.disposables);
 	}
 }

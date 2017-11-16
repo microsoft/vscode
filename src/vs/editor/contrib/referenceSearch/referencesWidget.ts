@@ -218,11 +218,14 @@ class DataSource implements tree.IDataSource {
 
 class Controller extends DefaultController {
 
-	static Events = {
-		FOCUSED: 'events/custom/focused',
-		SELECTED: 'events/custom/selected',
-		OPEN_TO_SIDE: 'events/custom/opentoside'
-	};
+	private _onDidFocus = new Emitter<any>();
+	readonly onDidFocus: Event<any> = this._onDidFocus.event;
+
+	private _onDidSelect = new Emitter<any>();
+	readonly onDidSelect: Event<any> = this._onDidSelect.event;
+
+	private _onDidOpenToSide = new Emitter<any>();
+	readonly onDidOpenToSide: Event<any> = this._onDidOpenToSide.event;
 
 	public onTap(tree: tree.ITree, element: any, event: GestureEvent): boolean {
 		if (element instanceof FileReferences) {
@@ -232,7 +235,8 @@ class Controller extends DefaultController {
 		}
 
 		var result = super.onTap(tree, element, event);
-		tree.emit(Controller.Events.FOCUSED, element);
+
+		this._onDidFocus.fire(element);
 		return result;
 	}
 
@@ -246,11 +250,11 @@ class Controller extends DefaultController {
 
 			var result = super.onClick(tree, element, event);
 			if (event.ctrlKey || event.metaKey) {
-				tree.emit(Controller.Events.OPEN_TO_SIDE, element);
+				this._onDidOpenToSide.fire(element);
 			} else if (event.detail === 2) {
-				tree.emit(Controller.Events.SELECTED, element);
+				this._onDidSelect.fire(element);
 			} else {
-				tree.emit(Controller.Events.FOCUSED, element);
+				this._onDidFocus.fire(element);
 			}
 			return result;
 		}
@@ -288,9 +292,9 @@ class Controller extends DefaultController {
 
 		var result = super.onEnter(tree, event);
 		if (event.ctrlKey || event.metaKey) {
-			tree.emit(Controller.Events.OPEN_TO_SIDE, element);
+			this._onDidOpenToSide.fire(element);
 		} else {
-			tree.emit(Controller.Events.SELECTED, element);
+			this._onDidSelect.fire(element);
 		}
 		return result;
 	}
@@ -336,7 +340,13 @@ class Controller extends DefaultController {
 		var focus = tree.getFocus();
 		tree.setSelection([focus]);
 		// send out event
-		tree.emit(Controller.Events.FOCUSED, focus);
+		this._onDidFocus.fire(focus);
+	}
+
+	dispose(): void {
+		this._onDidFocus.dispose();
+		this._onDidSelect.dispose();
+		this._onDidOpenToSide.dispose();
 	}
 }
 
@@ -676,12 +686,32 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		// tree
 		container.div({ 'class': 'ref-tree inline' }, (div: Builder) => {
+			const controller = new Controller();
 			var config = <tree.ITreeConfiguration>{
 				dataSource: this._instantiationService.createInstance(DataSource),
 				renderer: this._instantiationService.createInstance(Renderer),
-				controller: new Controller(),
+				controller,
 				accessibilityProvider: new AriaProvider()
 			};
+
+			// listen on selection and focus
+			this._disposables.push(controller.onDidFocus((element) => {
+				if (element instanceof OneReference) {
+					this._revealReference(element);
+					this._onDidSelectReference.fire({ element, kind: 'show', source: 'tree' });
+				}
+			}));
+
+			this._disposables.push(controller.onDidSelect((element: any) => {
+				if (element instanceof OneReference) {
+					this._onDidSelectReference.fire({ element, kind: 'goto', source: 'tree' });
+				}
+			}));
+			this._disposables.push(controller.onDidOpenToSide((element: any) => {
+				if (element instanceof OneReference) {
+					this._onDidSelectReference.fire({ element, kind: 'side', source: 'tree' });
+				}
+			}));
 
 			var options = {
 				allowHorizontalScroll: false,
@@ -751,25 +781,6 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		// listen on model changes
 		this._disposeOnNewModel.push(this._model.onDidChangeReferenceRange(reference => this._tree.refresh(reference)));
-
-		// listen on selection and focus
-		this._disposeOnNewModel.push(this._tree.addListener(Controller.Events.FOCUSED, (element) => {
-			if (element instanceof OneReference) {
-				this._revealReference(element);
-				this._onDidSelectReference.fire({ element, kind: 'show', source: 'tree' });
-			}
-		}));
-
-		this._disposeOnNewModel.push(this._tree.addListener(Controller.Events.SELECTED, (element: any) => {
-			if (element instanceof OneReference) {
-				this._onDidSelectReference.fire({ element, kind: 'goto', source: 'tree' });
-			}
-		}));
-		this._disposeOnNewModel.push(this._tree.addListener(Controller.Events.OPEN_TO_SIDE, (element: any) => {
-			if (element instanceof OneReference) {
-				this._onDidSelectReference.fire({ element, kind: 'side', source: 'tree' });
-			}
-		}));
 
 		// listen on editor
 		this._disposeOnNewModel.push(this._preview.onMouseDown((e) => {

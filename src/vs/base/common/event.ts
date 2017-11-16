@@ -552,7 +552,7 @@ export function echo<T>(event: Event<T>, nextTick = false, buffer: T[] = []): Ev
 export class Relay<T> implements IDisposable {
 
 	private emitter = new Emitter<T>();
-	readonly output: Event<T> = this.emitter.event;
+	readonly event: Event<T> = this.emitter.event;
 
 	private disposable: IDisposable = EmptyDisposable;
 
