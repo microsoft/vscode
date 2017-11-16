@@ -175,6 +175,7 @@ export class ItemRegistry {
 			this._onDidRefreshItem.add(item.onDidRefresh),
 			this._onRefreshItemChildren.add(item.onRefreshChildren),
 			this._onDidRefreshItemChildren.add(item.onDidRefreshChildren),
+			this._onDidDisposeItem.add(item.onDidDispose)
 		]);
 
 		this.items[item.id] = { item, disposable };
