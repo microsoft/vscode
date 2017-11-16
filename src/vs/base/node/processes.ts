@@ -27,17 +27,6 @@ export interface LineData {
 	source: Source;
 }
 
-export interface BufferData {
-	data: Buffer;
-	source: Source;
-}
-
-export interface StreamData {
-	stdin: NodeJS.WritableStream;
-	stdout: NodeJS.ReadableStream;
-	stderr: NodeJS.ReadableStream;
-}
-
 function getWindowsCode(status: number): TerminateResponseCode {
 	switch (status) {
 		case 0:
@@ -299,10 +288,6 @@ export abstract class AbstractProcess<TProgressData> {
 				quoted: value.length > 0 && value[0] === '"' && value[value.length - 1] === '"'
 			};
 		}
-	}
-
-	public isRunning(): boolean {
-		return this.childProcessPromise !== null;
 	}
 
 	public get pid(): TPromise<number> {

@@ -120,10 +120,6 @@ export class AbstractProblemCollector extends EventEmitter implements IDisposabl
 		return result;
 	}
 
-	protected isOpen(resource: URI): boolean {
-		return !!this.openModels[resource.toString()];
-	}
-
 	protected shouldApplyMatch(result: ProblemMatch): boolean {
 		switch (result.description.applyTo) {
 			case ApplyToKind.allDocuments:
@@ -289,6 +285,11 @@ export class AbstractProblemCollector extends EventEmitter implements IDisposabl
 		this.markers.clear();
 		this.deliveredMarkers.clear();
 	}
+
+	public done(): void {
+		this.reportMarkers();
+		this.cleanAllMarkers();
+	}
 }
 
 export enum ProblemHandlingStrategy {
@@ -332,11 +333,6 @@ export class StartStopProblemCollector extends AbstractProblemCollector implemen
 				this.currentResource = resourceAsString;
 			}
 		}
-	}
-
-	public done(): void {
-		this.reportMarkers();
-		this.cleanAllMarkers();
 	}
 }
 
@@ -443,11 +439,6 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 			}
 		}
 		return result;
-	}
-
-	public done(): void {
-		this.reportMarkers();
-		this.cleanAllMarkers();
 	}
 
 	private resetCurrentResource(): void {

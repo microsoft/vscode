@@ -231,6 +231,7 @@ export class ProcessTaskSystem extends EventEmitter implements ITaskSystem {
 			this.activeTask = task;
 			this.activeTaskPromise = this.childProcess.start().then((success): ITaskSummary => {
 				this.childProcessEnded();
+				watchingProblemMatcher.done();
 				watchingProblemMatcher.dispose();
 				toUnbind = dispose(toUnbind);
 				toUnbind = null;

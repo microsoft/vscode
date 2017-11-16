@@ -379,10 +379,6 @@ class ProblemReporter implements TaskConfig.IProblemReporter {
 	public get status(): ValidationStatus {
 		return this._validationStatus;
 	}
-
-	public clearOutput(): void {
-		this._outputChannel.clear();
-	}
 }
 
 interface WorkspaceTaskResult {
@@ -426,10 +422,6 @@ class TaskMap {
 		return result;
 	}
 
-	public has(workspaceFolder: IWorkspaceFolder): boolean {
-		return this._store.has(workspaceFolder.uri.toString());
-	}
-
 	public add(workspaceFolder: IWorkspaceFolder | string, ...task: Task[]): void {
 		let values = Types.isString(workspaceFolder) ? this._store.get(workspaceFolder) : this._store.get(workspaceFolder.uri.toString());
 		if (!values) {
@@ -461,7 +453,6 @@ class TaskService extends EventEmitter implements ITaskService {
 	public static TemplateTelemetryEventName: string = 'taskService.template';
 
 	public _serviceBrand: any;
-	public static SERVICE_ID: string = 'taskService';
 	public static OutputChannelId: string = 'tasks';
 	public static OutputChannelLabel: string = nls.localize('tasks', "Tasks");
 
@@ -798,14 +789,6 @@ class TaskService extends EventEmitter implements ITaskService {
 			this.handleError(error);
 			return TPromise.wrapError(error);
 		});
-	}
-
-	public rebuild(): TPromise<ITaskSummary> {
-		return TPromise.wrapError<ITaskSummary>(new Error('Not implemented'));
-	}
-
-	public clean(): TPromise<ITaskSummary> {
-		return TPromise.wrapError<ITaskSummary>(new Error('Not implemented'));
 	}
 
 	public runTest(): TPromise<ITaskSummary> {
@@ -2172,6 +2155,8 @@ class TaskService extends EventEmitter implements ITaskService {
 				this.customize(task, undefined, true);
 			} else if (CustomTask.is(task)) {
 				this.openConfig(task);
+			} else if (ConfiguringTask.is(task)) {
+				// Do nothing.
 			}
 		};
 

@@ -24,13 +24,6 @@ export interface ShellConfiguration {
 	args?: string[];
 }
 
-export namespace ShellConfiguration {
-	export function is(value: any): value is ShellConfiguration {
-		let candidate: ShellConfiguration = value;
-		return candidate && Types.isString(candidate.executable) && (candidate.args === void 0 || Types.isStringArray(candidate.args));
-	}
-}
-
 export interface CommandOptions {
 
 	/**

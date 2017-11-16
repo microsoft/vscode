@@ -44,8 +44,6 @@ export interface ITaskService extends IEventEmitter {
 	_serviceBrand: any;
 	configureAction(): Action;
 	build(): TPromise<ITaskSummary>;
-	rebuild(): TPromise<ITaskSummary>;
-	clean(): TPromise<ITaskSummary>;
 	runTest(): TPromise<ITaskSummary>;
 	run(task: Task, options?: RunOptions): TPromise<ITaskSummary>;
 	inTerminal(): boolean;

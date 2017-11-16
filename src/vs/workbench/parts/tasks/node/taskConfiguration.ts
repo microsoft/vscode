@@ -25,17 +25,6 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import * as Tasks from '../common/tasks';
 import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry';
 
-/**
- * Defines the problem handling strategy
- */
-export class ProblemHandling {
-	/**
-	 * Cleans all problems for the owner defined in the
-	 * error pattern.
-	 */
-	public static clean: string = 'cleanMatcherMatchers';
-}
-
 export interface ShellConfiguration {
 	executable: string;
 	args?: string[];
@@ -825,12 +814,6 @@ namespace CommandConfiguration {
 		return _isEmpty(value, properties);
 	}
 
-	export function onlyTerminalBehaviour(value: Tasks.CommandConfiguration): boolean {
-		return value &&
-			value.presentation && (value.presentation.echo !== void 0 || value.presentation.reveal !== void 0) &&
-			value.name === void 0 && value.runtime === void 0 && value.args === void 0 && CommandOptions.isEmpty(value.options);
-	}
-
 	export function assignProperties(target: Tasks.CommandConfiguration, source: Tasks.CommandConfiguration): Tasks.CommandConfiguration {
 		if (isEmpty(source)) {
 			return target;
@@ -1490,22 +1473,6 @@ namespace TaskParser {
 		}
 		return false;
 	}
-
-	export function quickParse(this: void, externals: (CustomTask | ConfiguringTask)[], context: ParseContext): (Tasks.CustomTask | Tasks.ConfiguringTask)[] {
-		if (!externals) {
-			return undefined;
-		}
-		let result: (Tasks.CustomTask | Tasks.ConfiguringTask)[] = [];
-		for (let index = 0; index < externals.length; index++) {
-			let external = externals[index];
-			if (isCustomTask(external)) {
-				result.push(CustomTask.from(external, context, index));
-			} else {
-				result.push(ConfiguringTask.from(external, context, index));
-			}
-		}
-		return result;
-	}
 }
 
 interface Globals {
@@ -1640,7 +1607,6 @@ export interface ParseResult {
 }
 
 export interface IProblemReporter extends IProblemReporterBase {
-	clearOutput(): void;
 }
 
 class UUIDMap {
