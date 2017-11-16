@@ -414,7 +414,7 @@
         },
         "typescript.autoImportSuggestions.enabled": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "%typescript.autoImportSuggestions.enabled%",
           "scope": "resource"
         },
