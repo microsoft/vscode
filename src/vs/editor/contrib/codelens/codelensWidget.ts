@@ -65,8 +65,6 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 	private readonly _disposables: IDisposable[] = [];
 	private readonly _editor: editorBrowser.ICodeEditor;
 
-	// @ts-ignore TODO@Joh unused property
-	private _symbolRange: Range;
 	private _widgetPosition: editorBrowser.IContentWidgetPosition;
 	private _commands: { [id: string]: Command } = Object.create(null);
 
@@ -108,7 +106,6 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 
 	dispose(): void {
 		dispose(this._disposables);
-		this._symbolRange = null;
 	}
 
 	private _updateHeight(): void {
@@ -160,8 +157,6 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 	}
 
 	setSymbolRange(range: Range): void {
-		this._symbolRange = range;
-
 		const lineNumber = range.startLineNumber;
 		const column = this._editor.getModel().getLineFirstNonWhitespaceColumn(lineNumber);
 		this._widgetPosition = {

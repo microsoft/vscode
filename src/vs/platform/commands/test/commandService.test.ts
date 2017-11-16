@@ -95,17 +95,16 @@ suite('CommandService', function () {
 		let callCounter = 0;
 		let reg = CommandsRegistry.registerCommand('bar', () => callCounter += 1);
 
-		// @ts-ignore unused local
-		let resolve: Function;
 		let service = new CommandService(new InstantiationService(), new class extends SimpleExtensionService {
 			onReady() {
-				return new TPromise<boolean>(_resolve => { resolve = _resolve; });
+				return new TPromise<boolean>(_resolve => { /*ignore*/ });
 			}
 		}, new ContextKeyService(new SimpleConfigurationService()));
 
 		return service.executeCommand('bar').then(() => {
 			reg.dispose();
 			assert.equal(callCounter, 1);
+
 		});
 	});
 
