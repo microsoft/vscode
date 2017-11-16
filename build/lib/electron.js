@@ -21,9 +21,8 @@ module.exports.getElectronVersion = getElectronVersion;
 // returns 0 if the right version of electron is in .build/electron
 if (require.main === module) {
 	const version = getElectronVersion();
-	console.log(version);
-
 	const versionFile = path.join(root, '.build', 'electron', 'version');
 	const isUpToDate = fs.existsSync(versionFile) && fs.readFileSync(versionFile, 'utf8') === `v${version}`;
+
 	process.exit(isUpToDate ? 0 : 1);
 }

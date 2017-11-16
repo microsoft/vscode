@@ -33,6 +33,7 @@ const crypto = require('crypto');
 const i18n = require('./lib/i18n');
 const glob = require('glob');
 const deps = require('./dependencies');
+const getElectronVersion = require('./lib/electron').getElectronVersion;
 
 const productionDependencies = deps.getProductionDependencies(path.dirname(__dirname));
 const baseModules = Object.keys(process.binding('natives')).filter(n => !/^_|\//.test(n));
@@ -123,7 +124,7 @@ gulp.task('minify-vscode', ['clean-minified-vscode', 'optimize-index-js'], commo
 const darwinCreditsTemplate = product.darwinCredits && _.template(fs.readFileSync(path.join(root, product.darwinCredits), 'utf8'));
 
 const config = {
-	version: packageJson.electronVersion,
+	version: getElectronVersion(),
 	productAppName: product.nameLong,
 	companyName: 'Microsoft Corporation',
 	copyright: 'Copyright (C) 2017 Microsoft. All rights reserved',

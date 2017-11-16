@@ -12,13 +12,8 @@ set NAMESHORT=%NAMESHORT:"=%.exe
 set CODE=".build\electron\%NAMESHORT%"
 
 :: Download Electron if needed
-for /f "tokens=2 delims=:," %%a in ('findstr /R /C:"\"electronVersion\":.*" package.json') do set DESIREDVERSION=%%~a
-set DESIREDVERSION=%DESIREDVERSION: "=%
-set DESIREDVERSION=v%DESIREDVERSION:"=%
-if exist .\.build\electron\version (set /p INSTALLEDVERSION=<.\.build\electron\version) else (set INSTALLEDVERSION="")
-
-if not exist %CODE% node .\node_modules\gulp\bin\gulp.js electron
-if not "%INSTALLEDVERSION%" == "%DESIREDVERSION%" node .\node_modules\gulp\bin\gulp.js electron
+node build\lib\electron.js
+if %errorlevel% neq 0 node .\node_modules\gulp\bin\gulp.js electron
 
 :: Run tests
 %CODE% .\test\electron\index.js %*
