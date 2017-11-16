@@ -226,33 +226,6 @@ export class FileStat implements IFileStat {
 	}
 
 	/**
-	 * Returns true if this stat is a directory that contains a child with the given name.
-	 *
-	 * @param ignoreCase if true, will check for the name ignoring case.
-	 * @param type the type of stat to check for.
-	 */
-	public hasChild(name: string, ignoreCase?: boolean, type: StatType = StatType.ANY): boolean {
-		for (let i = 0; i < this.children.length; i++) {
-			const child = this.children[i];
-			if ((type === StatType.FILE && child.isDirectory) || (type === StatType.FOLDER && !child.isDirectory)) {
-				continue;
-			}
-
-			// Check for Identity
-			if (child.name === name) {
-				return true;
-			}
-
-			// Also consider comparing without case
-			if (ignoreCase && child.name.toLowerCase() === name.toLowerCase()) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	/**
 	 * Removes a child element from this folder.
 	 */
 	public removeChild(child: FileStat): void {
@@ -381,10 +354,6 @@ export class NewStatPlaceholder extends FileStat {
 
 	public addChild(child: NewStatPlaceholder): void {
 		throw new Error('Can\'t perform operations in NewStatPlaceholder.');
-	}
-
-	public hasChild(name: string, ignoreCase?: boolean): boolean {
-		return false;
 	}
 
 	public removeChild(child: NewStatPlaceholder): void {
