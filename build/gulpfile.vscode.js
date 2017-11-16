@@ -29,17 +29,16 @@ const root = path.dirname(__dirname);
 const commit = util.getVersion(root);
 const packageJson = require('../package.json');
 const product = require('../product.json');
-const shrinkwrap = require('../npm-shrinkwrap.json');
 const crypto = require('crypto');
 const i18n = require('./lib/i18n');
 const glob = require('glob');
+const deps = require('./dependencies');
 
-const productDependencies = Object.keys(product.dependencies || {});
-const dependencies = Object.keys(shrinkwrap.dependencies)
-	.concat(productDependencies); // additional dependencies from our product configuration
+const productionDependencies = deps.getProductionDependencies(path.dirname(__dirname));
 const baseModules = Object.keys(process.binding('natives')).filter(n => !/^_|\//.test(n));
 const nodeModules = ['electron', 'original-fs']
-	.concat(dependencies)
+	.concat(Object.keys(product.dependencies || {}))
+	.concat(_.uniq(productionDependencies.map(d => d.name)))
 	.concat(baseModules);
 
 // Build
@@ -286,8 +285,10 @@ function packageTask(platform, arch, opts) {
 		// TODO the API should be copied to `out` during compile, not here
 		const api = gulp.src('src/vs/vscode.d.ts').pipe(rename('out/vs/vscode.d.ts'));
 
-		const depsSrc = _.flatten(dependencies
-			.map(function (d) { return ['node_modules/' + d + '/**', '!node_modules/' + d + '/**/{test,tests}/**']; }));
+		const depsSrc = [
+			..._.flatten(productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`])),
+			..._.flatten(Object.keys(product.dependencies || {}).map(d => [`node_modules/${d}/**`, `!node_modules/${d}/**/{test,tests}/**`]))
+		];
 
 		const deps = gulp.src(depsSrc, { base: '.', dot: true })
 			.pipe(filter(['**', '!**/package-lock.json']))

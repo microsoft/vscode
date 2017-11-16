@@ -5,6 +5,7 @@
 . ./build/tfs/common/common.sh
 
 export ARCH="$1"
+export npm_config_arch="$ARCH"
 export VSCODE_MIXIN_PASSWORD="$2"
 export AZURE_STORAGE_ACCESS_KEY="$3"
 export AZURE_STORAGE_ACCESS_KEY_2="$4"
@@ -16,7 +17,7 @@ VSO_PAT="$8"
 echo "machine monacotools.visualstudio.com password $VSO_PAT" > ~/.netrc
 
 step "Install dependencies" \
-	npm install --arch=$ARCH --unsafe-perm
+	yarn
 
 step "Hygiene" \
 	npm run gulp -- hygiene
@@ -28,7 +29,7 @@ step "Get Electron" \
 	npm run gulp -- "electron-$ARCH"
 
 step "Install distro dependencies" \
-	node build/tfs/common/installDistro.js --arch=$ARCH
+	node build/tfs/common/installDistro.js
 
 step "Build minified" \
 	npm run gulp -- "vscode-linux-$ARCH-min"

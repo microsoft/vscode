@@ -23,7 +23,6 @@
   },
   "dependencies": {
     "applicationinsights": "0.17.1",
-    "chokidar": "bpasero/chokidar#vscode",
     "fast-plist": "0.1.2",
     "gc-signals": "^0.0.1",
     "getmac": "1.0.7",
@@ -40,6 +39,7 @@
     "nsfw": "1.0.16",
     "semver": "4.3.6",
     "v8-profiler": "jrieken/v8-profiler#vscode",
+    "vscode-chokidar": "1.6.2",
     "vscode-debugprotocol": "1.24.0",
     "vscode-ripgrep": "0.6.0-patch.0.2",
     "vscode-textmate": "^3.2.0",
@@ -82,7 +82,7 @@
     "gulp-replace": "^0.5.4",
     "gulp-shell": "^0.5.2",
     "gulp-sourcemaps": "^1.11.0",
-    "gulp-tsb": "2.0.4",
+    "gulp-tsb": "2.0.5",
     "gulp-tslint": "^8.1.2",
     "gulp-uglify": "^3.0.0",
     "gulp-util": "^3.0.6",
@@ -112,7 +112,7 @@
     "underscore": "^1.8.2",
     "vinyl": "^0.4.5",
     "vinyl-fs": "^2.4.3",
-    "vsce": "^1.25.1",
+    "vsce": "1.33.2",
     "vscode-nls-dev": "^2.0.1"
   },
   "repository": {
@@ -123,9 +123,8 @@
     "url": "https://github.com/Microsoft/vscode/issues"
   },
   "optionalDependencies": {
-    "windows-process-tree": "0.1.6",
     "windows-foreground-love": "0.1.0",
     "windows-mutex": "^0.2.0",
-    "fsevents": "0.3.8"
+    "windows-process-tree": "0.1.6"
   }
 }
