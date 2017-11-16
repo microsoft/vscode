@@ -58,6 +58,7 @@ export class Emitter<T> {
 	private static _noop = function () { };
 
 	private _event: Event<T>;
+	private _deliveryQueue: T[] = [];
 	private _callbacks: CallbackList;
 	private _disposed: boolean;
 
@@ -119,13 +120,27 @@ export class Emitter<T> {
 	 * subscribers
 	 */
 	fire(event?: T): any {
-		if (this._callbacks) {
-			this._callbacks.invoke.call(this._callbacks, event);
+		if (!this._callbacks) {
+			return;
 		}
+		// enqueue event object and kick off
+		// event deliver when this is the first
+		// object in the queue
+		if (this._deliveryQueue.push(event) === 1) {
+			this._inOrderDelivery();
+		}
+	}
+
+	private _inOrderDelivery(): any {
+		for (let i = 0; !this._disposed && i < this._deliveryQueue.length; i++) {
+			this._callbacks.invoke.call(this._callbacks, this._deliveryQueue[i]);
+		}
+		this._deliveryQueue.length = 0;
 	}
 
 	dispose() {
 		if (this._callbacks) {
+			this._deliveryQueue.length = 0;
 			this._callbacks.dispose();
 			this._callbacks = undefined;
 			this._disposed = true;

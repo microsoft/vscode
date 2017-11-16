@@ -268,6 +268,22 @@ suite('Event', function () {
 			done();
 		});
 	});
+
+	test('Emitter - In Order Delivery', function () {
+		const a = new Emitter<string>();
+		a.event(function listener1(event) {
+			if (event === 'e1') {
+				a.fire('e2');
+			}
+		});
+		const listener2Events: string[] = [];
+		a.event(function listener2(event) {
+			listener2Events.push(event);
+		});
+		a.fire('e1');
+
+		assert.deepEqual(listener2Events, ['e1', 'e2']);
+	});
 });
 
 suite('Event utils', () => {
