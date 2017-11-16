@@ -6,7 +6,6 @@
 
 import { IDisposable, toDisposable, combinedDisposable, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
 import CallbackList from 'vs/base/common/callbackList';
-import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { once as onceFn } from 'vs/base/common/functional';
 
@@ -212,40 +211,6 @@ export class EventMultiplexer<T> implements IDisposable {
 	dispose(): void {
 		this.emitter.dispose();
 	}
-}
-
-/**
- * Creates an Event which is backed-up by the event emitter. This allows
- * to use the existing eventing pattern and is likely using less memory.
- * Sample:
- *
- * 	class Document {
- *
- *		private _eventbus = new EventEmitter();
- *
- *		public onDidChange = fromEventEmitter(this._eventbus, 'changed');
- *
- *		// getter-style
- *		// get onDidChange(): Event<(value:string)=>any> {
- *		// 	cache fromEventEmitter result and return
- *		// }
- *
- *		private _doIt() {
- *			// ...
- *			this._eventbus.emit('changed', value)
- *		}
- *	}
- */
-export function fromEventEmitter<T>(emitter: EventEmitter, eventType: string): Event<T> {
-	return function (listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable {
-		const result = emitter.addListener(eventType, function () {
-			listener.apply(thisArgs, arguments);
-		});
-		if (Array.isArray(disposables)) {
-			disposables.push(result);
-		}
-		return result;
-	};
 }
 
 export function fromCallback<T>(fn: (handler: (e: T) => void) => IDisposable): Event<T> {

@@ -5,9 +5,8 @@
 'use strict';
 
 import * as assert from 'assert';
-import Event, { Emitter, fromEventEmitter, debounceEvent, EventBufferer, once, fromPromise, stopwatch, buffer, echo, EventMultiplexer } from 'vs/base/common/event';
+import Event, { Emitter, debounceEvent, EventBufferer, once, fromPromise, stopwatch, buffer, echo, EventMultiplexer } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { EventEmitter } from 'vs/base/common/eventEmitter';
 import Errors = require('vs/base/common/errors');
 import { TPromise } from 'vs/base/common/winjs.base';
 
@@ -38,21 +37,6 @@ namespace Samples {
 		}
 
 	}
-
-	// what: like before but expose an existing event emitter as typed events
-	export class Document3b /*extends EventEmitter*/ {
-
-		private static _didChange = 'this_is_hidden_from_consumers';
-
-		private _eventBus = new EventEmitter();
-
-		onDidChange = fromEventEmitter<string>(this._eventBus, Document3b._didChange);
-
-		setText(value: string) {
-			//...
-			this._eventBus.emit(Document3b._didChange, value);
-		}
-	}
 }
 
 suite('Event', function () {
@@ -78,44 +62,10 @@ suite('Event', function () {
 	});
 
 
-	test('wrap legacy EventEmitter', function () {
-
-		let doc = new Samples.Document3b();
-		let subscription = doc.onDidChange(counter.onEvent, counter);
-		doc.setText('far');
-		doc.setText('boo');
-
-		// unhook listener
-		subscription.dispose();
-		doc.setText('boo');
-		assert.equal(counter.count, 2);
-	});
-
 	test('Emitter, bucket', function () {
 
 		let bucket: IDisposable[] = [];
 		let doc = new Samples.Document3();
-		let subscription = doc.onDidChange(counter.onEvent, counter, bucket);
-
-		doc.setText('far');
-		doc.setText('boo');
-
-		// unhook listener
-		while (bucket.length) {
-			bucket.pop().dispose();
-		}
-
-		// noop
-		subscription.dispose();
-
-		doc.setText('boo');
-		assert.equal(counter.count, 2);
-	});
-
-	test('wrapEventEmitter, bucket', function () {
-
-		let bucket: IDisposable[] = [];
-		let doc = new Samples.Document3b();
 		let subscription = doc.onDidChange(counter.onEvent, counter, bucket);
 
 		doc.setText('far');
