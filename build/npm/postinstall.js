@@ -5,6 +5,7 @@
 
 const cp = require('child_process');
 const path = require('path');
+const fs = require('fs');
 const yarn = process.platform === 'win32' ? 'yarn.cmd' : 'yarn';
 
 function yarnInstall(location, opts) {
@@ -46,15 +47,22 @@ const extensions = [
 extensions.forEach(extension => yarnInstall(`extensions/${extension}`));
 
 function yarnInstallBuildDependencies() {
-	// make sure we install gulp watch for the system installed
+	// make sure we install the deps of build/lib/watch for the system installed
 	// node, since that is the driver of gulp
 	const env = Object.assign({}, process.env);
+	const watchPath = path.join(path.dirname(__dirname), 'lib', 'watch');
+	const yarnrcPath = path.join(watchPath, '.yarnrc');
 
-	delete env['npm_config_disturl'];
-	delete env['npm_config_target'];
-	delete env['npm_config_runtime'];
+	const disturl = 'https://nodejs.org/download/release';
+	const target = process.versions.node;
+	const runtime = 'node';
 
-	yarnInstall(path.join(path.dirname(__dirname), 'lib', 'watch'), { env });
+	const yarnrc = `disturl "${disturl}"
+target "${target}"
+runtime "${runtime}"`;
+
+	fs.writeFileSync(yarnrcPath, yarnrc, 'utf8');
+	yarnInstall(watchPath, { env });
 }
 
 yarnInstall(`build`); // node modules required for build
