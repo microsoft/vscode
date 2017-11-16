@@ -475,7 +475,7 @@ class Launch implements ILaunch {
 	}
 
 	public getConfiguration(name: string): IConfig {
-		const config = this.configurationService.getValue<IGlobalConfig>('launch', { resource: this.workspace.uri });
+		const config = objects.deepClone(this.configurationService.getValue<IGlobalConfig>('launch', { resource: this.workspace.uri }));
 		if (!config || !config.configurations) {
 			return null;
 		}
