@@ -43,6 +43,7 @@ import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybindin
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
+import { mkdirp } from 'vs/base/node/pfs';
 
 interface Modifiers {
 	metaKey?: boolean;
@@ -87,17 +88,9 @@ suite('Keybindings Editing', () => {
 		});
 	});
 
-	function setUpWorkspace(): TPromise<void> {
-		return new TPromise<void>((c, e) => {
-			testDir = path.join(os.tmpdir(), 'vsctests', uuid.generateUuid());
-			extfs.mkdirp(testDir, 493, (error) => {
-				if (error) {
-					e(error);
-				} else {
-					c(null);
-				}
-			});
-		});
+	function setUpWorkspace(): TPromise<boolean> {
+		testDir = path.join(os.tmpdir(), 'vsctests', uuid.generateUuid());
+		return mkdirp(testDir, 493);
 	}
 
 	teardown(() => {

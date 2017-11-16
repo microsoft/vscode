@@ -2192,12 +2192,19 @@ class TaskService extends EventEmitter implements ITaskService {
 				let entries: EntryType[] = [];
 				if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 					let tasks = taskMap.all();
+					let needsCreateOrOpen: boolean = true;
 					if (tasks.length > 0) {
 						tasks = tasks.sort((a, b) => a._label.localeCompare(b._label));
-						entries = tasks.map(task => { return { label: task._label, task }; });
-					} else {
+						for (let task of tasks) {
+							entries.push({ label: task._label, task });
+							if (!ContributedTask.is(task)) {
+								needsCreateOrOpen = false;
+							}
+						}
+					}
+					if (needsCreateOrOpen) {
 						let label = stats[0] !== void 0 ? openLabel : createLabel;
-						entries.push({ label, folder: this.contextService.getWorkspace().folders[0] });
+						entries.push({ label, folder: this.contextService.getWorkspace().folders[0], separator: entries.length > 0 ? { border: true } : undefined });
 					}
 				} else {
 					let folders = this.contextService.getWorkspace().folders;

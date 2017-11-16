@@ -5,9 +5,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IEventEmitter, EventEmitter } from 'vs/base/common/eventEmitter';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import * as Events from 'vs/base/common/events';
 import Event, { Emitter } from 'vs/base/common/event';
 
 export interface ITelemetryData {
@@ -27,11 +25,13 @@ export interface IAction extends IDisposable {
 	run(event?: any): TPromise<any>;
 }
 
-export interface IActionRunner extends IEventEmitter {
+export interface IActionRunner extends IDisposable {
 	run(action: IAction, context?: any): TPromise<any>;
+	onDidRun: Event<IRunEvent>;
+	onDidBeforeRun: Event<IRunEvent>;
 }
 
-export interface IActionItem extends IEventEmitter {
+export interface IActionItem {
 	actionRunner: IActionRunner;
 	setActionContext(context: any): void;
 	render(element: any /* HTMLElement */): void;
@@ -222,19 +222,30 @@ export interface IRunEvent {
 	error?: any;
 }
 
-export class ActionRunner extends EventEmitter implements IActionRunner {
+export class ActionRunner implements IActionRunner {
+
+	private _onDidBeforeRun = new Emitter<IRunEvent>();
+	private _onDidRun = new Emitter<IRunEvent>();
+
+	public get onDidRun(): Event<IRunEvent> {
+		return this._onDidRun.event;
+	}
+
+	public get onDidBeforeRun(): Event<IRunEvent> {
+		return this._onDidBeforeRun.event;
+	}
 
 	public run(action: IAction, context?: any): TPromise<any> {
 		if (!action.enabled) {
 			return TPromise.as(null);
 		}
 
-		this.emit(Events.EventType.BEFORE_RUN, { action: action });
+		this._onDidBeforeRun.fire({ action: action });
 
 		return this.runAction(action, context).then((result: any) => {
-			this.emit(Events.EventType.RUN, <IRunEvent>{ action: action, result: result });
+			this._onDidRun.fire({ action: action, result: result });
 		}, (error: any) => {
-			this.emit(Events.EventType.RUN, <IRunEvent>{ action: action, error: error });
+			this._onDidRun.fire({ action: action, error: error });
 		});
 	}
 
@@ -246,5 +257,9 @@ export class ActionRunner extends EventEmitter implements IActionRunner {
 		}
 
 		return TPromise.wrap(res);
+	}
+
+	public dispose(): void {
+		// noop
 	}
 }

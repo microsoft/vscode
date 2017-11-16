@@ -955,10 +955,10 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 		// Sash One
 		this.sashOne = new Sash(this.parent.getHTMLElement(), this, { baseSize: 5, orientation: this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL });
-		this.toUnbind.push(this.sashOne.addListener('start', () => this.onSashOneDragStart()));
-		this.toUnbind.push(this.sashOne.addListener('change', (e: ISashEvent) => this.onSashOneDrag(e)));
-		this.toUnbind.push(this.sashOne.addListener('end', () => this.onSashOneDragEnd()));
-		this.toUnbind.push(this.sashOne.addListener('reset', () => this.onSashOneReset()));
+		this.toUnbind.push(this.sashOne.onDidStart(() => this.onSashOneDragStart()));
+		this.toUnbind.push(this.sashOne.onDidChange((e: ISashEvent) => this.onSashOneDrag(e)));
+		this.toUnbind.push(this.sashOne.onDidEnd(() => this.onSashOneDragEnd()));
+		this.toUnbind.push(this.sashOne.onDidReset(() => this.onSashOneReset()));
 		this.sashOne.hide();
 
 		// Silo Two
@@ -966,10 +966,10 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 		// Sash Two
 		this.sashTwo = new Sash(this.parent.getHTMLElement(), this, { baseSize: 5, orientation: this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL });
-		this.toUnbind.push(this.sashTwo.addListener('start', () => this.onSashTwoDragStart()));
-		this.toUnbind.push(this.sashTwo.addListener('change', (e: ISashEvent) => this.onSashTwoDrag(e)));
-		this.toUnbind.push(this.sashTwo.addListener('end', () => this.onSashTwoDragEnd()));
-		this.toUnbind.push(this.sashTwo.addListener('reset', () => this.onSashTwoReset()));
+		this.toUnbind.push(this.sashTwo.onDidStart(() => this.onSashTwoDragStart()));
+		this.toUnbind.push(this.sashTwo.onDidChange((e: ISashEvent) => this.onSashTwoDrag(e)));
+		this.toUnbind.push(this.sashTwo.onDidEnd(() => this.onSashTwoDragEnd()));
+		this.toUnbind.push(this.sashTwo.onDidReset(() => this.onSashTwoReset()));
 		this.sashTwo.hide();
 
 		// Silo Three

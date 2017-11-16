@@ -38,25 +38,6 @@ export function or(...filter: IFilter[]): IFilter {
 	};
 }
 
-/**
- * @returns A filter which combines the provided set
- * of filters with an and. The combines matches are
- * returned if *all* filters match.
- */
-export function and(...filter: IFilter[]): IFilter {
-	return function (word: string, wordToMatchAgainst: string): IMatch[] {
-		let result: IMatch[] = [];
-		for (let i = 0, len = filter.length; i < len; i++) {
-			let match = filter[i](word, wordToMatchAgainst);
-			if (!match) {
-				return null;
-			}
-			result = result.concat(match);
-		}
-		return result;
-	};
-}
-
 // Prefix
 
 export const matchesStrictPrefix: IFilter = _matchesPrefix.bind(undefined, false);
@@ -333,11 +314,6 @@ function nextWord(word: string, start: number): number {
 }
 
 // Fuzzy
-
-export enum SubstringMatching {
-	Contiguous,
-	Separate
-}
 
 export const fuzzyContiguousFilter = or(matchesPrefix, matchesCamelCase, matchesContiguousSubString);
 const fuzzySeparateFilter = or(matchesPrefix, matchesCamelCase, matchesSubString);

@@ -9,7 +9,6 @@ import 'vs/workbench/parts/files/browser/files.contribution'; // load our contri
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { EventEmitter } from 'vs/base/common/eventEmitter';
 import * as paths from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -21,7 +20,7 @@ import Severity from 'vs/base/common/severity';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Parts, Position as PartPosition } from 'vs/workbench/services/part/common/partService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IEditorInput, IEditorOptions, Position, Direction, IEditor, IResourceInput } from 'vs/platform/editor/common/editor';
@@ -416,6 +415,10 @@ export class TestPartService implements IPartService {
 		return 0;
 	}
 
+	public setPanelPosition(position: PartPosition): TPromise<void> {
+		return TPromise.as(null);
+	}
+
 	public addClass(clazz: string): void { }
 	public removeClass(clazz: string): void { }
 	public getWorkbenchElementId(): string { return ''; }
@@ -425,14 +428,12 @@ export class TestPartService implements IPartService {
 	public resizePart(part: Parts, sizeChange: number): void { }
 }
 
-export class TestStorageService extends EventEmitter implements IStorageService {
+export class TestStorageService implements IStorageService {
 	public _serviceBrand: any;
 
 	private storage: StorageService;
 
 	constructor() {
-		super();
-
 		let context = new TestContextService();
 		this.storage = new StorageService(new InMemoryLocalStorage(), null, context.getWorkspace().id);
 	}

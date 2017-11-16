@@ -11,7 +11,8 @@ import os = require('os');
 import crypto = require('crypto');
 import assert = require('assert');
 
-import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, MAX_FILE_SIZE, FileChangesEvent, ICreateFileOptions, IContentData } from 'vs/platform/files/common/files';
+import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, FileChangesEvent, ICreateFileOptions, IContentData } from 'vs/platform/files/common/files';
+import { MAX_FILE_SIZE } from 'vs/platform/files/node/files';
 import { isEqualOrParent } from 'vs/base/common/paths';
 import { ResourceMap } from 'vs/base/common/map';
 import arrays = require('vs/base/common/arrays');
@@ -449,7 +450,7 @@ export class FileService implements IFileService {
 						} else {
 							// when receiving the first chunk of data we need to create the
 							// decoding stream which is then used to drive the string stream.
-							Promise.resolve(detectMimeAndEncodingFromBuffer(
+							TPromise.as(detectMimeAndEncodingFromBuffer(
 								{ buffer: chunkBuffer, bytesRead },
 								options && options.autoGuessEncoding || this.configuredAutoGuessEncoding(resource)
 							)).then(value => {
@@ -468,7 +469,7 @@ export class FileService implements IFileService {
 									handleChunk(bytesRead);
 								}
 
-							}).catch(err => {
+							}).then(undefined, err => {
 								// failed to get encoding
 								finish(err);
 							});

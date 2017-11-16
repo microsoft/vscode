@@ -13,7 +13,6 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 export interface IStorage {
 	length: number;
 	key(index: number): string;
-	clear(): void;
 	setItem(key: string, value: any): void;
 	getItem(key: string): string;
 	removeItem(key: string): void;
@@ -120,11 +119,6 @@ export class StorageService implements IStorageService {
 		if (workspaceUid !== id) {
 			this.store(StorageService.WORKSPACE_IDENTIFIER, workspaceUid, StorageScope.WORKSPACE);
 		}
-	}
-
-	public clear(): void {
-		this._globalStorage.clear();
-		this._workspaceStorage.clear();
 	}
 
 	public store(key: string, value: any, scope = StorageScope.GLOBAL): void {

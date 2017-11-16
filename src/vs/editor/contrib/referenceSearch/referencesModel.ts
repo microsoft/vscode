@@ -5,8 +5,7 @@
 'use strict';
 
 import { localize } from 'vs/nls';
-import { EventEmitter } from 'vs/base/common/eventEmitter';
-import Event, { fromEventEmitter } from 'vs/base/common/event';
+import Event, { Emitter } from 'vs/base/common/event';
 import { basename, dirname } from 'vs/base/common/paths';
 import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
@@ -19,13 +18,14 @@ import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/r
 import { Position } from 'vs/editor/common/core/position';
 
 export class OneReference {
-
 	private _id: string;
+	private _onRefChanged = new Emitter<this>();
+
+	readonly onRefChanged: Event<this> = this._onRefChanged.event;
 
 	constructor(
 		private _parent: FileReferences,
-		private _range: IRange,
-		private _eventBus: EventEmitter
+		private _range: IRange
 	) {
 		this._id = defaultGenerator.nextId();
 	}
@@ -60,7 +60,7 @@ export class OneReference {
 
 	public set range(value: IRange) {
 		this._range = value;
-		this._eventBus.emit('ref/changed', this);
+		this._onRefChanged.fire(this);
 	}
 
 	public getAriaMessage(): string {
@@ -197,14 +197,15 @@ export class FileReferences implements IDisposable {
 
 export class ReferencesModel implements IDisposable {
 
+	private readonly _disposables: IDisposable[];
 	private _groups: FileReferences[] = [];
 	private _references: OneReference[] = [];
-	private _eventBus = new EventEmitter();
+	private _onDidChangeReferenceRange = new Emitter<OneReference>();
 
-	onDidChangeReferenceRange: Event<OneReference> = fromEventEmitter<OneReference>(this._eventBus, 'ref/changed');
+	onDidChangeReferenceRange: Event<OneReference> = this._onDidChangeReferenceRange.event;
 
 	constructor(references: Location[]) {
-
+		this._disposables = [];
 		// grouping and sorting
 		references.sort(ReferencesModel._compareReferences);
 
@@ -220,7 +221,8 @@ export class ReferencesModel implements IDisposable {
 			if (current.children.length === 0
 				|| !Range.equalsRange(ref.range, current.children[current.children.length - 1].range)) {
 
-				let oneRef = new OneReference(current, ref.range, this._eventBus);
+				let oneRef = new OneReference(current, ref.range);
+				this._disposables.push(oneRef.onRefChanged((e) => this._onDidChangeReferenceRange.fire(e)));
 				this._references.push(oneRef);
 				current.children.push(oneRef);
 			}
@@ -297,6 +299,8 @@ export class ReferencesModel implements IDisposable {
 
 	dispose(): void {
 		this._groups = dispose(this._groups);
+		dispose(this._disposables);
+		this._disposables.length = 0;
 	}
 
 	private static _compareReferences(a: Location, b: Location): number {

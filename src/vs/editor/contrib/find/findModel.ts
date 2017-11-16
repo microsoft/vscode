@@ -118,7 +118,7 @@ export class FindModelBoundToEditorModel {
 			this._updateDecorationsScheduler.schedule();
 		}));
 
-		this._toDispose.push(this._state.addChangeListener((e) => this._onStateChanged(e)));
+		this._toDispose.push(this._state.onFindReplaceStateChange((e) => this._onStateChanged(e)));
 
 		this.research(false, this._state.searchScope);
 	}

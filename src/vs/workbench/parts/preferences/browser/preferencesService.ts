@@ -123,6 +123,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 					}
 					defaultSettings = this.getDefaultSettings(scope);
 					this.modelService.updateModel(model, defaultSettings.parse());
+					defaultSettings._onDidChange.fire();
 				}
 			});
 

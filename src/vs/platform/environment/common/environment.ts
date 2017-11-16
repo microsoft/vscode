@@ -111,4 +111,6 @@ export interface IEnvironmentService {
 	installSource: string;
 	disableUpdates: boolean;
 	disableCrashReporter: boolean;
+
+	settingsSearchUrl: string;
 }

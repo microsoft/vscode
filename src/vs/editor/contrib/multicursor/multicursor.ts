@@ -359,7 +359,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 				this._editor.onDidBlurEditorText(() => {
 					this._endSession();
 				}),
-				findController.getState().addChangeListener((e) => {
+				findController.getState().onFindReplaceStateChange((e) => {
 					if (e.matchCase || e.wholeWord) {
 						this._endSession();
 					}
@@ -699,7 +699,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		this._register(editor.onDidChangeModel((e) => {
 			this._setState(null);
 		}));
-		this._register(CommonFindController.get(editor).getState().addChangeListener((e) => {
+		this._register(CommonFindController.get(editor).getState().onFindReplaceStateChange((e) => {
 			this._update();
 		}));
 	}

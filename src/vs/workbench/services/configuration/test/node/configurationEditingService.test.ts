@@ -34,6 +34,7 @@ import { TextModelResolverService } from 'vs/workbench/services/textmodelResolve
 import { IChoiceService } from 'vs/platform/message/common/message';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { mkdirp } from 'vs/base/node/pfs';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -80,21 +81,14 @@ suite('ConfigurationEditingService', () => {
 			.then(() => setUpServices());
 	});
 
-	function setUpWorkspace(): TPromise<void> {
-		return new TPromise<void>((c, e) => {
-			const id = uuid.generateUuid();
-			parentDir = path.join(os.tmpdir(), 'vsctests', id);
-			workspaceDir = path.join(parentDir, 'workspaceconfig', id);
-			globalSettingsFile = path.join(workspaceDir, 'config.json');
-			workspaceSettingsDir = path.join(workspaceDir, '.vscode');
-			extfs.mkdirp(workspaceSettingsDir, 493, (error) => {
-				if (error) {
-					e(error);
-				} else {
-					c(null);
-				}
-			});
-		});
+	function setUpWorkspace(): TPromise<boolean> {
+		const id = uuid.generateUuid();
+		parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		workspaceDir = path.join(parentDir, 'workspaceconfig', id);
+		globalSettingsFile = path.join(workspaceDir, 'config.json');
+		workspaceSettingsDir = path.join(workspaceDir, '.vscode');
+
+		return mkdirp(workspaceSettingsDir, 493);
 	}
 
 	function setUpServices(noWorkspace: boolean = false): TPromise<void> {

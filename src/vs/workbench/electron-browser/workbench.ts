@@ -140,13 +140,13 @@ const Identifiers = {
  */
 export class Workbench implements IPartService {
 
-	private static sidebarHiddenSettingKey = 'workbench.sidebar.hidden';
-	private static sidebarRestoreSettingKey = 'workbench.sidebar.restore';
-	private static panelHiddenSettingKey = 'workbench.panel.hidden';
-	private static zenModeActiveSettingKey = 'workbench.zenmode.active';
+	private static sidebarHiddenStorageKey = 'workbench.sidebar.hidden';
+	private static sidebarRestoreStorageKey = 'workbench.sidebar.restore';
+	private static panelHiddenStorageKey = 'workbench.panel.hidden';
+	private static zenModeActiveStorageKey = 'workbench.zenmode.active';
+	private static panelPositionStorageKey = 'workbench.panel.location';
 
 	private static sidebarPositionConfigurationKey = 'workbench.sideBar.location';
-	private static panelPositionConfigurationKey = 'workbench.panel.location';
 	private static statusbarVisibleConfigurationKey = 'workbench.statusBar.visible';
 	private static activityBarVisibleConfigurationKey = 'workbench.activityBar.visible';
 
@@ -362,7 +362,7 @@ export class Workbench implements IPartService {
 		}
 
 		// Restore Zen Mode if active
-		if (this.storageService.getBoolean(Workbench.zenModeActiveSettingKey, StorageScope.WORKSPACE, false)) {
+		if (this.storageService.getBoolean(Workbench.zenModeActiveStorageKey, StorageScope.WORKSPACE, false)) {
 			this.toggleZenMode(true);
 		}
 
@@ -620,11 +620,11 @@ export class Workbench implements IPartService {
 	private initSettings(): void {
 
 		// Sidebar visibility
-		this.sideBarHidden = this.storageService.getBoolean(Workbench.sidebarHiddenSettingKey, StorageScope.WORKSPACE, this.contextService.getWorkbenchState() === WorkbenchState.EMPTY);
+		this.sideBarHidden = this.storageService.getBoolean(Workbench.sidebarHiddenStorageKey, StorageScope.WORKSPACE, this.contextService.getWorkbenchState() === WorkbenchState.EMPTY);
 
 		// Panel part visibility
 		const panelRegistry = Registry.as<PanelRegistry>(PanelExtensions.Panels);
-		this.panelHidden = this.storageService.getBoolean(Workbench.panelHiddenSettingKey, StorageScope.WORKSPACE, true);
+		this.panelHidden = this.storageService.getBoolean(Workbench.panelHiddenStorageKey, StorageScope.WORKSPACE, true);
 		if (!panelRegistry.getDefaultPanelId()) {
 			this.panelHidden = true; // we hide panel part if there is no default panel
 		}
@@ -634,7 +634,7 @@ export class Workbench implements IPartService {
 		this.sideBarPosition = (sideBarPosition === 'right') ? Position.RIGHT : Position.LEFT;
 
 		// Panel position
-		const panelPosition = this.configurationService.getValue<string>(Workbench.panelPositionConfigurationKey);
+		const panelPosition = this.storageService.get(Workbench.panelPositionStorageKey, StorageScope.WORKSPACE, 'bottom');
 		this.panelPosition = (panelPosition === 'right') ? Position.RIGHT : Position.BOTTOM;
 
 		// Statusbar visibility
@@ -818,9 +818,9 @@ export class Workbench implements IPartService {
 			// Remember in settings
 			const defaultHidden = this.contextService.getWorkbenchState() === WorkbenchState.EMPTY;
 			if (hidden !== defaultHidden) {
-				this.storageService.store(Workbench.sidebarHiddenSettingKey, hidden ? 'true' : 'false', StorageScope.WORKSPACE);
+				this.storageService.store(Workbench.sidebarHiddenStorageKey, hidden ? 'true' : 'false', StorageScope.WORKSPACE);
 			} else {
-				this.storageService.remove(Workbench.sidebarHiddenSettingKey, StorageScope.WORKSPACE);
+				this.storageService.remove(Workbench.sidebarHiddenStorageKey, StorageScope.WORKSPACE);
 			}
 
 			// Layout
@@ -864,9 +864,9 @@ export class Workbench implements IPartService {
 
 			// Remember in settings
 			if (!hidden) {
-				this.storageService.store(Workbench.panelHiddenSettingKey, 'false', StorageScope.WORKSPACE);
+				this.storageService.store(Workbench.panelHiddenStorageKey, 'false', StorageScope.WORKSPACE);
 			} else {
-				this.storageService.remove(Workbench.panelHiddenSettingKey, StorageScope.WORKSPACE);
+				this.storageService.remove(Workbench.panelHiddenStorageKey, StorageScope.WORKSPACE);
 			}
 
 			// Layout
@@ -888,7 +888,7 @@ export class Workbench implements IPartService {
 		return this.sideBarPosition;
 	}
 
-	private setSideBarPosition(position: Position): void {
+	public setSideBarPosition(position: Position): void {
 		if (this.sideBarHidden) {
 			this.setSideBarHidden(false, true /* Skip Layout */).done(void 0, errors.onUnexpectedError);
 		}
@@ -915,24 +915,23 @@ export class Workbench implements IPartService {
 		return this.panelPosition;
 	}
 
-	private setPanelPosition(position: Position): void {
-		if (this.panelHidden) {
-			this.setPanelHidden(false, true /* Skip Layout */).done(void 0, errors.onUnexpectedError);
-		}
+	public setPanelPosition(position: Position): TPromise<void> {
+		return (this.panelHidden ? this.setPanelHidden(false, true /* Skip Layout */) : TPromise.as(undefined)).then(() => {
+			const newPositionValue = (position === Position.BOTTOM) ? 'bottom' : 'right';
+			const oldPositionValue = (this.panelPosition === Position.BOTTOM) ? 'bottom' : 'right';
+			this.panelPosition = position;
+			this.storageService.store(Workbench.panelPositionStorageKey, Position[this.panelPosition].toLowerCase(), StorageScope.WORKSPACE);
 
-		const newPositionValue = (position === Position.BOTTOM) ? 'bottom' : 'right';
-		const oldPositionValue = (this.panelPosition === Position.BOTTOM) ? 'bottom' : 'right';
-		this.panelPosition = position;
+			// Adjust CSS
+			this.panelPart.getContainer().removeClass(oldPositionValue);
+			this.panelPart.getContainer().addClass(newPositionValue);
 
-		// Adjust CSS
-		this.panelPart.getContainer().removeClass(oldPositionValue);
-		this.panelPart.getContainer().addClass(newPositionValue);
+			// Update Styles
+			this.panelPart.updateStyles();
 
-		// Update Styles
-		this.panelPart.updateStyles();
-
-		// Layout
-		this.workbenchLayout.layout();
+			// Layout
+			this.workbenchLayout.layout();
+		});
 	}
 
 	private setFontAliasing(aliasing: string) {
@@ -964,16 +963,16 @@ export class Workbench implements IPartService {
 
 		// Restore sidebar if we are being shutdown as a matter of a reload
 		if (reason === ShutdownReason.RELOAD) {
-			this.storageService.store(Workbench.sidebarRestoreSettingKey, 'true', StorageScope.WORKSPACE);
+			this.storageService.store(Workbench.sidebarRestoreStorageKey, 'true', StorageScope.WORKSPACE);
 		}
 
 		// Preserve zen mode only on reload. Real quit gets out of zen mode so novice users do not get stuck in zen mode.
 		const zenConfig = this.configurationService.getValue<IZenModeSettings>('zenMode');
 		const zenModeActive = (zenConfig.restore || reason === ShutdownReason.RELOAD) && this.zenMode.active;
 		if (zenModeActive) {
-			this.storageService.store(Workbench.zenModeActiveSettingKey, true, StorageScope.WORKSPACE);
+			this.storageService.store(Workbench.zenModeActiveStorageKey, true, StorageScope.WORKSPACE);
 		} else {
-			this.storageService.remove(Workbench.zenModeActiveSettingKey, StorageScope.WORKSPACE);
+			this.storageService.remove(Workbench.zenModeActiveStorageKey, StorageScope.WORKSPACE);
 		}
 
 		// Pass shutdown on to each participant
@@ -1088,12 +1087,6 @@ export class Workbench implements IPartService {
 		const newSidebarPosition = (newSidebarPositionValue === 'right') ? Position.RIGHT : Position.LEFT;
 		if (newSidebarPosition !== this.getSideBarPosition()) {
 			this.setSideBarPosition(newSidebarPosition);
-		}
-
-		const newPanelPositionValue = this.configurationService.getValue<string>(Workbench.panelPositionConfigurationKey);
-		const newPanelPosition = (newPanelPositionValue === 'right') ? Position.RIGHT : Position.BOTTOM;
-		if (newPanelPosition !== this.getPanelPosition()) {
-			this.setPanelPosition(newPanelPosition);
 		}
 
 		const fontAliasing = this.configurationService.getValue<string>(Workbench.fontAliasingConfigurationKey);
@@ -1232,18 +1225,6 @@ export class Workbench implements IPartService {
 		this.statusbarPart.create(statusbarContainer);
 	}
 
-	public getEditorPart(): EditorPart {
-		return this.editorPart;
-	}
-
-	public getSidebarPart(): SidebarPart {
-		return this.sidebarPart;
-	}
-
-	public getPanelPart(): PanelPart {
-		return this.panelPart;
-	}
-
 	public getInstantiationService(): IInstantiationService {
 		return this.instantiationService;
 	}
@@ -1340,9 +1321,9 @@ export class Workbench implements IPartService {
 			return true; // always restore sidebar when we are in development mode
 		}
 
-		const restore = this.storageService.getBoolean(Workbench.sidebarRestoreSettingKey, StorageScope.WORKSPACE);
+		const restore = this.storageService.getBoolean(Workbench.sidebarRestoreStorageKey, StorageScope.WORKSPACE);
 		if (restore) {
-			this.storageService.remove(Workbench.sidebarRestoreSettingKey, StorageScope.WORKSPACE); // only support once
+			this.storageService.remove(Workbench.sidebarRestoreStorageKey, StorageScope.WORKSPACE); // only support once
 		}
 
 		return restore;

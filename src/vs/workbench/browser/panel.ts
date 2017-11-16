@@ -36,13 +36,6 @@ export class PanelRegistry extends CompositeRegistry<Panel> {
 	}
 
 	/**
-	 * Returns the panel descriptor for the given id or null if none.
-	 */
-	public getPanel(id: string): PanelDescriptor {
-		return this.getComposite(id) as PanelDescriptor;
-	}
-
-	/**
 	 * Returns an array of registered panels known to the platform.
 	 */
 	public getPanels(): PanelDescriptor[] {

@@ -36,7 +36,6 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { EventType } from 'vs/base/common/events';
 import { InstallWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 
 export class ExtensionsListView extends ViewsViewletPanel {
@@ -553,7 +552,7 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
 		const actionbar = new ActionBar(listActionBar, {
 			animated: false
 		});
-		actionbar.addListener(EventType.RUN, ({ error }) => error && this.messageService.show(Severity.Error, error));
+		actionbar.onDidRun(({ error }) => error && this.messageService.show(Severity.Error, error));
 		const installAllAction = this.instantiationService.createInstance(InstallWorkspaceRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction.ID, InstallWorkspaceRecommendedExtensionsAction.LABEL);
 		const configureWorkspaceFolderAction = this.instantiationService.createInstance(ConfigureWorkspaceFolderRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction.ID, ConfigureWorkspaceFolderRecommendedExtensionsAction.LABEL);
 

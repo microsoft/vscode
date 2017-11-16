@@ -229,10 +229,7 @@ export class FoldingController {
 		this.mouseDownInfo = null;
 
 		let range = e.target.range;
-		if (!range) {
-			return;
-		}
-		if (!e.event.leftButton) {
+		if (!this.hiddenRangeModel || !range || !e.event.leftButton) {
 			return;
 		}
 		let iconClicked = false;
@@ -260,7 +257,7 @@ export class FoldingController {
 			case MouseTargetType.CONTENT_TEXT: {
 				if (this.hiddenRangeModel.hasRanges()) {
 					let model = this.editor.getModel();
-					if (range.startColumn === model.getLineMaxColumn(range.startLineNumber)) {
+					if (model && range.startColumn === model.getLineMaxColumn(range.startLineNumber)) {
 						break;
 					}
 				}

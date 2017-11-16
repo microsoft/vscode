@@ -97,14 +97,12 @@ export class LifecycleService implements ILifecycleService {
 
 		// Main side indicates that window is about to unload, check for vetos
 		ipc.on('vscode:beforeUnload', (event, reply: { okChannel: string, cancelChannel: string, reason: ShutdownReason, payload: object }) => {
-			this.phase = LifecyclePhase.ShuttingDown;
 			this._storageService.store(LifecycleService._lastShutdownReasonKey, JSON.stringify(reply.reason), StorageScope.WORKSPACE);
 
 			// trigger onWillShutdown events and veto collecting
 			this.onBeforeUnload(reply.reason, reply.payload).done(veto => {
 				if (veto) {
 					this._storageService.remove(LifecycleService._lastShutdownReasonKey, StorageScope.WORKSPACE);
-					this.phase = LifecyclePhase.Running; // reset this flag since the shutdown has been vetoed!
 					ipc.send(reply.cancelChannel, windowId);
 				} else {
 					this._onShutdown.fire(reply.reason);

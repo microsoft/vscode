@@ -148,17 +148,6 @@ export class ColorThemeData implements IColorTheme {
 		this.themeTokenColors = updatedTokenColors;
 	}
 
-	toThemeFile() {
-		if (!this.isLoaded) {
-			return '';
-		}
-		let content = { name: this.label, colors: {}, tokenColors: this.tokenColors };
-		for (let key in this.colorMap) {
-			content.colors[key] = Color.Format.CSS.formatHexA(this.colorMap[key], true);
-		}
-		return JSON.stringify(content, null, '\t');
-	}
-
 	toStorageData() {
 		let colorMapData = {};
 		for (let key in this.colorMap) {

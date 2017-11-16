@@ -209,12 +209,6 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 		'default': 'left',
 		'description': nls.localize('sideBarLocation', "Controls the location of the sidebar. It can either show on the left or right of the workbench.")
 	},
-	'workbench.panel.location': {
-		'type': 'string',
-		'enum': ['bottom', 'right'],
-		'default': 'bottom',
-		'description': nls.localize('panelLocation', "Controls the location of the panel. It can either show on the bottom or right of the workbench.")
-	},
 	'workbench.statusBar.visible': {
 		'type': 'boolean',
 		'default': true,
@@ -233,28 +227,10 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 };
 
 if (product.quality !== 'stable') {
-	workbenchProperties['workbench.settings.experimentalFuzzySearchEndpoint'] = {
-		'type': 'string',
-		'description': nls.localize('experimentalFuzzySearchEndpoint', "Indicates the endpoint to use for the experimental settings search."),
-		'default': ''
-	};
-
-	workbenchProperties['workbench.settings.experimentalFuzzySearchKey'] = {
-		'type': 'string',
-		'description': nls.localize('experimentalFuzzySearchKey', "Indicates the key to use for the experimental settings search."),
-		'default': ''
-	};
-
-	workbenchProperties['workbench.settings.experimentalFuzzySearchBoost'] = {
-		'type': 'number',
-		'description': 'Indicates the amount to boost the "literal" component of the query. Temporary.',
-		'default': 10
-	};
-
-	workbenchProperties['workbench.settings.experimentalFuzzySearchAutoIngestFeedback'] = {
+	workbenchProperties['workbench.settings.enableNaturalLanguageSearch'] = {
 		'type': 'boolean',
-		'description': 'Indicates whether feedback from this client should be automatically ingested.',
-		'default': false
+		'description': nls.localize('enableNaturalLanguageSettingsSearch', "Controls whether to enable the natural language search mode for settings."),
+		'default': true
 	};
 }
 
