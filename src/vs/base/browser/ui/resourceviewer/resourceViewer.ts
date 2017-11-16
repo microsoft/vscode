@@ -15,6 +15,7 @@ import DOM = require('vs/base/browser/dom');
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { LRUCache } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
+import { clamp } from 'vs/base/common/numbers';
 
 interface MapExtToMediaMimes {
 	[index: string]: string;
@@ -117,6 +118,11 @@ export class ResourceViewer {
 
 	private static readonly MAX_IMAGE_SIZE = ResourceViewer.MB; // showing images inline is memory intense, so we have a limit
 
+	private static MAX_IMAGE_SCALE = 20;
+	private static MIN_IMAGE_SCALE = 1;
+	private static IMAGE_SCALE_FACTOR = 0.5;
+	private static PIXELATION_THRESHOLD = 256; // enable image-rendering: pixelated for images less than this
+
 	public static show(
 		descriptor: IResourceDescriptor,
 		container: Builder,
@@ -158,6 +164,25 @@ export class ResourceViewer {
 
 								scrollbar.scanDomNode();
 							});
+						} else {
+							// enable zooming for naturally small images
+							$(container).on(DOM.EventType.WHEEL, (() => {
+								let imageScale = 1;
+								return (e: WheelEvent) => {
+									// pinching is reported as scroll wheel + ctrl
+									if (e.ctrlKey) {
+										// scrolling up, pinching out should increase the scale
+										const delta = -e.deltaY;
+										imageScale += delta * ResourceViewer.IMAGE_SCALE_FACTOR;
+										imageScale = clamp(imageScale, ResourceViewer.MIN_IMAGE_SCALE, ResourceViewer.MAX_IMAGE_SCALE);
+										img.style('transform', `scale(${imageScale})`);
+									}
+								};
+							})());
+						}
+
+						if (imgElement.naturalWidth < ResourceViewer.PIXELATION_THRESHOLD) {
+							img.addClass('pixelated');
 						}
 
 						if (metadataClb) {

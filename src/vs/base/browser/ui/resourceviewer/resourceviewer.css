@@ -37,6 +37,11 @@
 .monaco-resource-viewer img {
 	max-width: 100%;
 	max-height: calc(100% - 10px); /* somehow this prevents scrollbars from showing up */
+	transform-origin: left top;
+}
+
+.monaco-resource-viewer img.pixelated {
+	image-rendering: pixelated;
 }
 
 .monaco-resource-viewer.oversized img {
