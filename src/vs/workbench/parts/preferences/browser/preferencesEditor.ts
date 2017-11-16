@@ -147,7 +147,7 @@ export class PreferencesEditor extends BaseEditor {
 			showFuzzyToggle: true,
 			showResultCount: true
 		}));
-		this.searchWidget.setFuzzyToggleVisible(this.searchProvider.remoteSearchEnabled);
+		this.searchWidget.setFuzzyToggleVisible(this.searchProvider.remoteSearchAllowed);
 		this.searchWidget.fuzzyEnabled = this.memento['fuzzyEnabled'];
 		this._register(this.searchProvider.onRemoteSearchEnablementChanged(enabled => this.searchWidget.setFuzzyToggleVisible(enabled)));
 		this._register(this.searchWidget.onDidChange(value => this.onInputChanged()));
@@ -559,7 +559,7 @@ class PreferencesRenderers extends Disposable {
 			const prefSearchP = searchModel.filterPreferences(<ISettingsEditorModel>preferencesRenderer.preferencesModel);
 
 			return prefSearchP.then(filterResult => {
-				preferencesRenderer.filterPreferences(filterResult, this.searchProvider.remoteSearchEnabled);
+				preferencesRenderer.filterPreferences(filterResult, this.searchProvider.remoteSearchAllowed);
 				return filterResult;
 			});
 		}

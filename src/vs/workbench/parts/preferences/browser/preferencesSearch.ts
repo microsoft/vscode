@@ -18,8 +18,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 
 export interface IEndpointDetails {
 	urlBase: string;
-	key: string;
-	boost: number;
+	key?: string;
 }
 
 export class PreferencesSearchProvider {
@@ -30,25 +29,34 @@ export class PreferencesSearchProvider {
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
-		configurationService.onDidChangeConfiguration(() => this._onRemoteSearchEnablementChanged.fire(this.remoteSearchEnabled));
+		configurationService.onDidChangeConfiguration(() => this._onRemoteSearchEnablementChanged.fire(this.remoteSearchAllowed));
 	}
 
-	get remoteSearchEnabled(): boolean {
+	get remoteSearchAllowed(): boolean {
 		if (this.environmentService.appQuality === 'stable') {
 			return false;
 		}
 
-		const endpoint = this.endpoint;
-		return !!endpoint.urlBase && !!endpoint.key;
+		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
+		if (!workbenchSettings.enableNaturalLanguageSearch) {
+			return false;
+		}
+
+		return !!this.endpoint.urlBase;
 	}
 
 	get endpoint(): IEndpointDetails {
 		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
-		return {
-			urlBase: workbenchSettings.experimentalFuzzySearchEndpoint,
-			key: workbenchSettings.experimentalFuzzySearchKey,
-			boost: workbenchSettings.experimentalFuzzySearchBoost
-		};
+		if (workbenchSettings.experimentalFuzzySearchEndpoint) {
+			return {
+				urlBase: workbenchSettings.experimentalFuzzySearchEndpoint,
+				key: workbenchSettings.experimentalFuzzySearchKey
+			};
+		} else {
+			return {
+				urlBase: this.environmentService.settingsSearchUrl
+			};
+		}
 	}
 
 	startSearch(filter: string, remote: boolean): PreferencesSearchModel {
@@ -147,7 +155,6 @@ class RemoteSearchProvider {
 
 	private getSettingsFromBing(filter: string, endpoint: IEndpointDetails): TPromise<IFilterMetadata> {
 		const url = prepareUrl(filter, endpoint, this.environmentService.settingsSearchBuildId);
-		console.log('fetching: ' + url);
 		const start = Date.now();
 		const p = fetch(url, {
 			headers: new Headers({
@@ -160,7 +167,6 @@ class RemoteSearchProvider {
 			.then(result => {
 				const timestamp = Date.now();
 				const duration = timestamp - start;
-				console.log('time: ' + duration / 1000);
 				const suggestions = (result.value || [])
 					.map(r => ({
 						name: r.setting || r.Setting,
@@ -200,18 +206,21 @@ function escapeSpecialChars(query: string): string {
 
 function prepareUrl(query: string, endpoint: IEndpointDetails, buildNumber: number): string {
 	query = escapeSpecialChars(query);
-	const boost = endpoint.boost || 1;
+	const boost = 10;
 	const userQuery = `(${query})^${boost}`;
 
 	// Appending Fuzzy after each word.
 	query = query.replace(/\ +/g, '~ ') + '~';
 
-	let url = `${endpoint.urlBase}?${API_VERSION}&search=${encodeURIComponent(userQuery + ' || ' + query)}&${QUERY_TYPE}&${SCORING_PROFILE}`;
+	let url = `${endpoint.urlBase}?search=${encodeURIComponent(userQuery + ' || ' + query)}`;
+	if (endpoint.key) {
+		url += `&${API_VERSION}&${QUERY_TYPE}&${SCORING_PROFILE}`;
+	}
 	if (buildNumber) {
 		url += `&$filter startbuildno le ${buildNumber} and endbuildno ge ${buildNumber}`;
 	}
 
-	return url;
+	return url + `&$filter=startbuildno le 119000227 and endbuildno ge 119000227`;
 }
 
 class SettingMatches {

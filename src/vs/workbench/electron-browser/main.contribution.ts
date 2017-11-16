@@ -227,28 +227,10 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 };
 
 if (product.quality !== 'stable') {
-	workbenchProperties['workbench.settings.experimentalFuzzySearchEndpoint'] = {
-		'type': 'string',
-		'description': nls.localize('experimentalFuzzySearchEndpoint', "Indicates the endpoint to use for the experimental settings search."),
-		'default': ''
-	};
-
-	workbenchProperties['workbench.settings.experimentalFuzzySearchKey'] = {
-		'type': 'string',
-		'description': nls.localize('experimentalFuzzySearchKey', "Indicates the key to use for the experimental settings search."),
-		'default': ''
-	};
-
-	workbenchProperties['workbench.settings.experimentalFuzzySearchBoost'] = {
-		'type': 'number',
-		'description': 'Indicates the amount to boost the "literal" component of the query. Temporary.',
-		'default': 10
-	};
-
-	workbenchProperties['workbench.settings.experimentalFuzzySearchAutoIngestFeedback'] = {
+	workbenchProperties['workbench.settings.enableNaturalLanguageSearch'] = {
 		'type': 'boolean',
-		'description': 'Indicates whether feedback from this client should be automatically ingested.',
-		'default': false
+		'description': nls.localize('enableNaturalLanguageSettingsSearch', "Controls whether to enable the natural language search mode for settings."),
+		'default': true
 	};
 }
 
