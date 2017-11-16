@@ -323,62 +323,6 @@ suite('Builder', () => {
 		assert(multiClone);
 	});
 
-	test('Builder.and() with 2 Builders', function () {
-		let b = Build.withElementById(fixtureId);
-
-		let otherB = Build.withElementById(fixtureId);
-
-		let bAndB = b.and(otherB);
-
-		assert.strictEqual(bAndB.length, 2);
-
-		assert.deepEqual(bAndB.attr('id'), [fixtureId, fixtureId]);
-	});
-
-	test('Builder.and() with HTMLElement', function () {
-		let b = Build.withElementById(fixtureId);
-
-		let otherB = Build.withElementById(fixtureId);
-
-		let bAndB = b.and(otherB.getHTMLElement());
-
-		assert.strictEqual(bAndB.length, 2);
-
-		assert.deepEqual(bAndB.attr('id'), [fixtureId, fixtureId]);
-	});
-
-	test('Builder.and() with MultiBuilder', function () {
-		let b = Build.withElementById(fixtureId);
-
-		let allDivs = withElementsBySelector('div');
-
-		let bAndB = b.and(allDivs);
-
-		assert.strictEqual(bAndB.length, 1 + allDivs.length);
-	});
-
-	test('Builder.and() with two MultiBuilders', function () {
-		let allDivs = withElementsBySelector('div');
-		let allDivsCount = allDivs.length;
-
-		let otherAllDivs = withElementsBySelector('div');
-
-		let allDivsAndAllDivs = allDivs.and(otherAllDivs);
-
-		assert.strictEqual(allDivsAndAllDivs.length, allDivsCount * 2);
-		assert.strictEqual(allDivs.length, allDivsCount * 2);
-	});
-
-	test('Builder.and() with MultiBuilder and HTMLElement', function () {
-		let allDivs = withElementsBySelector('div');
-		let len = allDivs.length;
-
-		let allDivsFixture = allDivs.and(Build.withElementById(fixtureId).getHTMLElement());
-
-		assert.strictEqual(allDivsFixture.length, len + 1);
-		assert.strictEqual(allDivs.length, len + 1);
-	});
-
 	test('Builder Multibuilder fn call that returns Multibuilder', function () {
 		let b = Build.withElementById(fixtureId);
 		b.div(function (div: Builder) {
@@ -794,10 +738,10 @@ suite('Builder', () => {
 		b.show();
 		assert(!b.hasClass('builder-hidden'));
 		assert(!b.isHidden());
-		b.toggleVisibility();
-		assert(!b.isHidden());
-		assert(b.hasClass('builder-visible'));
-		b.toggleVisibility();
+		b.hide();
+		assert(b.isHidden());
+		assert(!b.hasClass('builder-visible'));
+		b.show();
 		b.hide();
 		assert(b.hasClass('builder-hidden'));
 		assert(b.isHidden());

@@ -170,32 +170,6 @@ export class Builder implements IDisposable {
 	}
 
 	/**
-	 *  Creates a new Builder that performs all operations on the current element of the builder and
-	 *  the builder or element being passed in.
-	 */
-	public and(element: HTMLElement): MultiBuilder;
-	public and(builder: Builder): MultiBuilder;
-	public and(obj: any): MultiBuilder {
-
-		// Convert HTMLElement to Builder as necessary
-		if (!(obj instanceof Builder) && !(obj instanceof MultiBuilder)) {
-			obj = new Builder((<HTMLElement>obj), this.offdom);
-		}
-
-		// Wrap Builders into MultiBuilder
-		let builders: Builder[] = [this];
-		if (obj instanceof MultiBuilder) {
-			for (let i = 0; i < (<MultiBuilder>obj).length; i++) {
-				builders.push((<MultiBuilder>obj).item(i));
-			}
-		} else {
-			builders.push(obj);
-		}
-
-		return new MultiBuilder(builders);
-	}
-
-	/**
 	 *  Inserts all created elements of this builder as children to the given container. If the
 	 *  container is not provided, the element that was passed into the Builder at construction
 	 *  time is being used. The caller can provide the index of insertion, or omit it to append
@@ -1340,26 +1314,6 @@ export class Builder implements IDisposable {
 	 */
 	public isHidden(): boolean {
 		return this.hasClass('builder-hidden') || this.currentElement.style.display === 'none';
-	}
-
-	/**
-	 *  Toggles visibility of the current element of the builder.
-	 */
-	public toggleVisibility(): Builder {
-
-		// Cancel any pending showDelayed() invocation
-		this.cancelVisibilityPromise();
-
-		this.swapClass('builder-visible', 'builder-hidden');
-
-		if (this.isHidden()) {
-			this.attr('aria-hidden', 'true');
-		}
-		else {
-			this.attr('aria-hidden', 'false');
-		}
-
-		return this;
 	}
 
 	private cancelVisibilityPromise(): void {

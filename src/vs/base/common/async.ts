@@ -260,34 +260,6 @@ export class ThrottledDelayer<T> extends Delayer<TPromise<T>> {
 	}
 }
 
-/**
- * Similar to the ThrottledDelayer, except it also guarantees that the promise
- * factory doesn't get called more often than every `minimumPeriod` milliseconds.
- */
-export class PeriodThrottledDelayer<T> extends ThrottledDelayer<T> {
-
-	private minimumPeriod: number;
-	private periodThrottler: Throttler;
-
-	constructor(defaultDelay: number, minimumPeriod: number = 0) {
-		super(defaultDelay);
-
-		this.minimumPeriod = minimumPeriod;
-		this.periodThrottler = new Throttler();
-	}
-
-	trigger(promiseFactory: ITask<TPromise<T>>, delay?: number): Promise {
-		return super.trigger(() => {
-			return this.periodThrottler.queue(() => {
-				return Promise.join([
-					TPromise.timeout(this.minimumPeriod),
-					promiseFactory()
-				]).then(r => r[1]);
-			});
-		}, delay);
-	}
-}
-
 export class PromiseSource<T> {
 
 	private _value: TPromise<T>;

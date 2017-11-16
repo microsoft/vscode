@@ -560,11 +560,6 @@ export class TestEditorGroupService implements IEditorGroupService {
 	public pinEditor(arg1: any, input: IEditorInput): void {
 	}
 
-	public unpinEditor(group: IEditorGroup, input: IEditorInput): void;
-	public unpinEditor(position: Position, input: IEditorInput): void;
-	public unpinEditor(arg1: any, input: IEditorInput): void {
-	}
-
 	public moveEditor(input: IEditorInput, from: IEditorGroup, to: IEditorGroup, moveOptions?: IMoveOptions): void;
 	public moveEditor(input: IEditorInput, from: Position, to: Position, moveOptions?: IMoveOptions): void;
 	public moveEditor(input: IEditorInput, from: any, to: any, moveOptions?: IMoveOptions): void {
@@ -612,10 +607,6 @@ export class TestEditorService implements IWorkbenchEditorService {
 
 	public closeAllEditors(except?: Position): TPromise<void> {
 		return TPromise.as(null);
-	}
-
-	public isVisible(input: IEditorInput, includeDiff: boolean): boolean {
-		return false;
 	}
 
 	public getActiveEditor(): IEditor {

@@ -1287,43 +1287,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 	}
 
-	public unpinEditor(group: EditorGroup, input: EditorInput): void;
-	public unpinEditor(position: Position, input: EditorInput): void;
-	public unpinEditor(arg1: any, input: EditorInput): void {
-		if (input.isDirty()) {
-			return; // we do not allow to unpin dirty editors
-		}
-
-		const group = (typeof arg1 === 'number') ? this.stacks.groupAt(arg1) : arg1;
-		if (group) {
-			if (group.isPreview(input)) {
-				return;
-			}
-
-			// Unpinning an editor closes the preview editor if we have any
-			let handlePreviewEditor: TPromise<boolean> = TPromise.as(false);
-			if (group.previewEditor) {
-				handlePreviewEditor = this.handleDirty([{ group, editor: group.previewEditor }], true /* ignore if opened in other group */);
-			}
-
-			handlePreviewEditor.done(veto => {
-				if (veto) {
-					return;
-				}
-
-				// The active editor is the preview editor and we are asked to make
-				// another editor the preview editor. So we need to take care of closing
-				// the active editor first
-				if (group.isPreview(group.activeEditor) && !group.activeEditor.matches(input)) {
-					this.doCloseActiveEditor(group);
-				}
-
-				// Update stacks model
-				group.unpin(input);
-			});
-		}
-	}
-
 	public invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T {
 		const activeEditor = this.getActiveEditor();
 		if (activeEditor) {

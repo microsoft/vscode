@@ -5,7 +5,6 @@
 'use strict';
 
 import paths = require('vs/base/common/paths');
-import types = require('vs/base/common/types');
 import strings = require('vs/base/common/strings');
 import { match } from 'vs/base/common/glob';
 
@@ -212,23 +211,6 @@ function guessMimeTypeByFirstline(firstLine: string): string {
 	}
 
 	return null;
-}
-
-export function isBinaryMime(mimes: string): boolean;
-export function isBinaryMime(mimes: string[]): boolean;
-export function isBinaryMime(mimes: any): boolean {
-	if (!mimes) {
-		return false;
-	}
-
-	let mimeVals: string[];
-	if (types.isArray(mimes)) {
-		mimeVals = (<string[]>mimes);
-	} else {
-		mimeVals = (<string>mimes).split(',').map((mime) => mime.trim());
-	}
-
-	return mimeVals.indexOf(MIME_BINARY) >= 0;
 }
 
 export function isUnspecific(mime: string[] | string): boolean {

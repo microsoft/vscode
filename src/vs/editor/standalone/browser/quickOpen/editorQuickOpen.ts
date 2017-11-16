@@ -21,7 +21,7 @@ export interface IQuickOpenControllerOpts {
 	getAutoFocus(searchValue: string): IAutoFocus;
 }
 
-export class QuickOpenController implements editorCommon.IEditorContribution {
+export class QuickOpenController implements editorCommon.IEditorContribution, IDecorator {
 
 	private static ID = 'editor.controller.quickOpenController';
 
