@@ -213,7 +213,8 @@ export class SearchWidget extends Widget {
 			buttonHoverBackground: SIDE_BAR_BACKGROUND
 		});
 		this.toggleReplaceButton.icon = 'toggle-replace-button collapse';
-		this.toggleReplaceButton.addListener('click', () => this.onToggleReplaceButton());
+		// TODO@joh need to dispose this listener eventually
+		this.toggleReplaceButton.onDidClick(() => this.onToggleReplaceButton());
 		this.toggleReplaceButton.getElement().title = nls.localize('search.replace.toggle.button.title', "Toggle Replace");
 	}
 
