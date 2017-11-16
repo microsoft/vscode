@@ -38,7 +38,6 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 	private readonly decorations: ViewModelDecorations;
 
-	private _isDisposing: boolean;
 	private _centeredViewLine: number;
 
 	constructor(editorId: number, configuration: editorCommon.IConfiguration, model: editorCommon.IModel, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable) {
@@ -79,17 +78,11 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			this._emit([new viewEvents.ViewScrollChangedEvent(e)]);
 		}));
 
-		this._isDisposing = false;
 		this._centeredViewLine = -1;
 
 		this.decorations = new ViewModelDecorations(this.editorId, this.model, this.configuration, this.lines, this.coordinatesConverter);
 
 		this._register(this.model.addBulkListener((events: EmitterEvent[]) => {
-			if (this._isDisposing) {
-				// Disposing the lines might end up sending model decoration changed events
-				// ...we no longer care about them...
-				return;
-			}
 			let eventsCollector = new ViewEventsCollector();
 			this._onModelEvents(eventsCollector, events);
 			this._emit(eventsCollector.finalize());
@@ -107,10 +100,11 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	}
 
 	public dispose(): void {
-		this._isDisposing = true;
+		// First remove listeners, as disposing the lines might end up sending
+		// model decoration changed events ... and we no longer care about them ...
+		super.dispose();
 		this.decorations.dispose();
 		this.lines.dispose();
-		super.dispose();
 	}
 
 	private _onConfigurationChanged(eventsCollector: ViewEventsCollector, e: IConfigurationChangedEvent): void {
