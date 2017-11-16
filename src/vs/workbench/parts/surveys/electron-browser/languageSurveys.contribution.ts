@@ -123,9 +123,6 @@ class LanguageSurvey {
 
 class LanguageSurveysContribution implements IWorkbenchContribution {
 
-	// @ts-ignore unused property
-	private surveys: LanguageSurvey[];
-
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
@@ -134,7 +131,7 @@ class LanguageSurveysContribution implements IWorkbenchContribution {
 		@IFileService fileService: IFileService,
 		@IModelService modelService: IModelService
 	) {
-		this.surveys = product.surveys.filter(surveyData => surveyData.surveyId && surveyData.editCount && surveyData.languageId && surveyData.surveyUrl && surveyData.userProbability).map(surveyData =>
+		product.surveys.filter(surveyData => surveyData.surveyId && surveyData.editCount && surveyData.languageId && surveyData.surveyUrl && surveyData.userProbability).map(surveyData =>
 			new LanguageSurvey(surveyData, instantiationService, storageService, messageService, telemetryService, fileService, modelService));
 	}
 
