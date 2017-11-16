@@ -469,7 +469,6 @@ export class TreeView extends HeightMap {
 		});
 		this.scrollableElement.onScroll((e) => {
 			this.render(e.scrollTop, e.height);
-			this.emit('scroll', e); // TODO@Joao: is anyone interested in this event?
 		});
 
 		if (Browser.isIE) {
@@ -847,7 +846,6 @@ export class TreeView extends HeightMap {
 	private onSetInput(e: Model.IInputEvent): void {
 		this.context.cache.garbageCollect();
 		this.inputItem = new RootViewItem(this.context, <Model.Item>e.item, this.wrapper);
-		this.emit('viewItem:create', { item: this.inputItem.model });
 	}
 
 	private onItemChildrenRefreshing(e: Model.IItemChildrenRefreshEvent): void {
@@ -1102,10 +1100,7 @@ export class TreeView extends HeightMap {
 
 	public onRemoveItem(item: ViewItem): void {
 		this.removeItemFromDOM(item);
-
 		item.dispose();
-		this.emit('viewItem:dispose', { item: this.inputItem.model });
-
 		delete this.items[item.id];
 	}
 
