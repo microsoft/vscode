@@ -29,7 +29,7 @@
             type: 'comment',
             name: 'duplicate',
             action: 'updateLabels',
-            addLabel: 'duplicate'
+            addLabel: '*duplicate'
         },
         {
             type: 'label',
