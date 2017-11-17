@@ -25,13 +25,26 @@ export function registerContributions(): void {
 		},
 		menu: {
 			menuId: MenuId.ProblemsPanelContext,
-			when: Constants.MarkerFocusContextKey
+			when: Constants.MarkerFocusContextKey,
+			group: 'navigation'
 		},
 		keybinding: {
 			keys: {
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_C
 			},
 			when: Constants.MarkerFocusContextKey
+		}
+	});
+	registerAction({
+		id: Constants.MARKER_COPY_MESSAGE_ACTION_ID,
+		title: localize('copyMarkerMessage', "Copy Message"),
+		handler(accessor) {
+			copyMessage(accessor.get(IPanelService));
+		},
+		menu: {
+			menuId: MenuId.ProblemsPanelContext,
+			when: Constants.MarkerFocusContextKey,
+			group: 'navigation'
 		}
 	});
 }
@@ -42,6 +55,16 @@ function copyMarker(panelService: IPanelService) {
 		const element = (<MarkersPanel>activePanel).getFocusElement();
 		if (element instanceof Marker) {
 			clipboard.writeText(`${element}`);
+		}
+	}
+}
+
+function copyMessage(panelService: IPanelService) {
+	const activePanel = panelService.getActivePanel();
+	if (activePanel instanceof MarkersPanel) {
+		const element = (<MarkersPanel>activePanel).getFocusElement();
+		if (element instanceof Marker) {
+			clipboard.writeText(element.marker.message);
 		}
 	}
 }

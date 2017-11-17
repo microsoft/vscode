@@ -10,6 +10,9 @@
 	"dropFolder": "¿Quiere agregar la carpeta al área de trabajo?",
 	"addFolders": "&&Agregar carpetas",
 	"addFolder": "&&Agregar carpeta",
+	"confirmMove": "¿Está seguro de que desea mover '{0}'?",
+	"doNotAskAgain": "No volver a preguntarme",
+	"moveButtonLabel": "&&Mover",
 	"confirmOverwriteMessage": "'{0}' ya existe en la carpeta de destino. ¿Desea reemplazarlo?",
 	"irreversible": "Esta acción es irreversible.",
 	"replaceButtonLabel": "Reemplazar"

@@ -38,7 +38,11 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		@IWorkspaceContextService private workspaceService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		this.settingsListener = this.configurationService.onDidUpdateConfiguration(() => this.handleSettingsEditorOverride());
+		this.settingsListener = this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(DEFAULT_SETTINGS_EDITOR_SETTING)) {
+				this.handleSettingsEditorOverride();
+			}
+		});
 		this.handleSettingsEditorOverride();
 
 		this.start();
@@ -50,7 +54,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		this.editorOpeningListener = dispose(this.editorOpeningListener);
 
 		// install editor opening listener unless user has disabled this
-		if (!!this.configurationService.lookup(DEFAULT_SETTINGS_EDITOR_SETTING).value) {
+		if (!!this.configurationService.getValue(DEFAULT_SETTINGS_EDITOR_SETTING)) {
 			this.editorOpeningListener = this.editorGroupService.onEditorOpening(e => this.onEditorOpening(e));
 		}
 	}
@@ -60,8 +64,17 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		if (
 			!resource || resource.scheme !== 'file' ||									// require a file path opening
 			!endsWith(resource.fsPath, 'settings.json') ||								// file must end in settings.json
-			!this.configurationService.lookup(DEFAULT_SETTINGS_EDITOR_SETTING).value	// user has not disabled default settings editor
+			!this.configurationService.getValue(DEFAULT_SETTINGS_EDITOR_SETTING)	// user has not disabled default settings editor
 		) {
+			return;
+		}
+
+		// If the file resource was already opened before in the group, do not prevent
+		// the opening of that resource. Otherwise we would have the same settings
+		// opened twice (https://github.com/Microsoft/vscode/issues/36447)
+		const stacks = this.editorGroupService.getStacksModel();
+		const group = stacks.groupAt(event.position);
+		if (group && group.contains(event.input)) {
 			return;
 		}
 
@@ -107,15 +120,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 						return TPromise.as(schemaModel);
 					}
 				}
-				return this.preferencesService.resolveContent(uri)
-					.then(content => {
-						if (content !== null && content !== void 0) {
-							let mode = this.modeService.getOrCreateMode('json');
-							const model = this.modelService.createModel(content, mode, uri);
-							return TPromise.as(model);
-						}
-						return null;
-					});
+				return this.preferencesService.resolveModel(uri);
 			}
 		});
 	}

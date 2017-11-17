@@ -29,6 +29,15 @@ CommandsRegistry.registerCommand(QUICKOPEN_ACTION_ID, function (accessor: Servic
 	});
 });
 
+export const QUICKOPEN_FOCUS_SECONDARY_ACTION_ID = 'workbench.action.quickOpenPreviousEditor';
+CommandsRegistry.registerCommand(QUICKOPEN_FOCUS_SECONDARY_ACTION_ID, function (accessor: ServicesAccessor, prefix: string = null) {
+	const quickOpenService = accessor.get(IQuickOpenService);
+
+	return quickOpenService.show(null, { autoFocus: { autoFocusSecondEntry: true } }).then(() => {
+		return void 0;
+	});
+});
+
 export class BaseQuickOpenNavigateAction extends Action {
 
 	constructor(

@@ -14,7 +14,7 @@ VSO_PAT="$6"
 echo "machine monacotools.visualstudio.com password $VSO_PAT" > ~/.netrc
 
 step "Install dependencies" \
-	npm install
+	yarn
 
 step "Hygiene" \
 	npm run gulp -- hygiene
@@ -36,6 +36,17 @@ step "Run unit tests" \
 
 step "Run integration tests" \
 	./scripts/test-integration.sh
+
+# function smoketest {
+# 	ARTIFACTS="$AGENT_BUILDDIRECTORY/smoketest-artifacts"
+# 	rm -rf $ARTIFACTS
+
+# 	[[ "$VSCODE_QUALITY" == "insider" ]] && VSCODE_APPNAME="Visual Studio Code - Insiders" || VSCODE_APPNAME="Visual Studio Code"
+# 	npm run smoketest -- --build "$AGENT_BUILDDIRECTORY/VSCode-darwin/$VSCODE_APPNAME.app" --log $ARTIFACTS
+# }
+
+# step "Run smoke test" \
+# 	smoketest
 
 step "Publish release" \
 	./build/tfs/darwin/release.sh

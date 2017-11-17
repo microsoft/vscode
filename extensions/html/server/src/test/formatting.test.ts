@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import 'mocha';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -18,7 +19,7 @@ suite('HTML Embedded Formatting', () => {
 	function assertFormat(value: string, expected: string, options?: any, formatOptions?: FormattingOptions, message?: string): void {
 		var languageModes = getLanguageModes({ css: true, javascript: true });
 		if (options) {
-			languageModes.getAllModes().forEach(m => m.configure(options));
+			languageModes.getAllModes().forEach(m => m.configure!(options));
 		}
 
 		let rangeStartOffset = value.indexOf('|');
@@ -104,6 +105,10 @@ suite('HTML Embedded Formatting', () => {
 
 	test('Range after new line', function (): any {
 		assertFormat('<html><head>\n  |<script>\nvar x=6;\n</script>\n|</head></html>', '<html><head>\n  <script>\n    var x = 6;\n  </script>\n</head></html>');
+	});
+
+	test('bug 36574', function (): any {
+		assertFormat('<script src="/js/main.js"> </script>', '<script src="/js/main.js"> </script>');
 	});
 
 });

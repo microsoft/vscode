@@ -5,15 +5,14 @@
 
 import * as vscode from 'vscode';
 import { HtmlNode } from 'EmmetNode';
-import { doComplete, isStyleSheet, getEmmetMode, extractAbbreviation } from 'vscode-emmet-helper';
 import { isValidLocationForEmmetAbbreviation } from './abbreviationActions';
-import { getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, getEmmetConfiguration } from './util';
+import { getEmmetHelper, getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, getEmmetConfiguration, getEmmetMode, isStyleSheet } from './util';
 
-const allowedMimeTypesInScriptTag = ['text/html', 'text/plain', 'text/x-template'];
+const allowedMimeTypesInScriptTag = ['text/html', 'text/plain', 'text/x-template', 'text/template'];
 
 export class DefaultCompletionItemProvider implements vscode.CompletionItemProvider {
 
-	public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Thenable<vscode.CompletionList> {
+	public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Thenable<vscode.CompletionList | undefined> | undefined {
 		const mappedLanguages = getMappingForIncludedLanguages();
 		const emmetConfig = vscode.workspace.getConfiguration('emmet');
 
@@ -33,20 +32,21 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 			return;
 		}
 
+		const helper = getEmmetHelper();
 		let noiseCheckPromise: Thenable<any> = Promise.resolve();
 
 		// Fix for https://github.com/Microsoft/vscode/issues/32647
 		// Check for document symbols in js/ts/jsx/tsx and avoid triggering emmet for abbreviations of the form symbolName.sometext
 		// Presence of > or * or + in the abbreviation denotes valid abbreviation that should trigger emmet
 		if (!isStyleSheet(syntax) && (document.languageId === 'javascript' || document.languageId === 'javascriptreact' || document.languageId === 'typescript' || document.languageId === 'typescriptreact')) {
-			let extractAbbreviationResults = extractAbbreviation(document, position);
+			let extractAbbreviationResults = helper.extractAbbreviation(document, position);
 			if (extractAbbreviationResults) {
 				let abbreviation: string = extractAbbreviationResults.abbreviation;
 				if (abbreviation.startsWith('this.')) {
 					noiseCheckPromise = Promise.resolve(true);
 				} else {
-					noiseCheckPromise = vscode.commands.executeCommand('vscode.executeDocumentSymbolProvider', document.uri).then((symbols: vscode.SymbolInformation[]) => {
-						return symbols.find(x => abbreviation === x.name || (abbreviation.startsWith(x.name + '.') && !/>|\*|\+/.test(abbreviation)));
+					noiseCheckPromise = vscode.commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeDocumentSymbolProvider', document.uri).then((symbols: vscode.SymbolInformation[] | undefined) => {
+						return symbols && symbols.find(x => abbreviation === x.name || (abbreviation.startsWith(x.name + '.') && !/>|\*|\+/.test(abbreviation)));
 					});
 				}
 			}
@@ -57,7 +57,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 				return;
 			}
 
-			let result = doComplete(document, position, syntax, getEmmetConfiguration(syntax));
+			let result = helper.doComplete(document, position, syntax, getEmmetConfiguration(syntax));
 			let newItems: vscode.CompletionItem[] = [];
 			if (result && result.items) {
 				result.items.forEach(item => {
@@ -88,7 +88,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 	 * @param document vscode.Textdocument
 	 * @param position vscode.Position position of the abbreviation that needs to be expanded
 	 */
-	private syntaxHelper(syntax: string, document: vscode.TextDocument, position: vscode.Position): string {
+	private syntaxHelper(syntax: string | undefined, document: vscode.TextDocument, position: vscode.Position): string | undefined {
 		if (!syntax) {
 			return syntax;
 		}

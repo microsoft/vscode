@@ -66,18 +66,6 @@ export class OverviewRulerZone {
 		return this._color;
 	}
 
-	public equals(other: OverviewRulerZone): boolean {
-		return (
-			this.startLineNumber === other.startLineNumber
-			&& this.endLineNumber === other.endLineNumber
-			&& this.position === other.position
-			&& this.forceHeight === other.forceHeight
-			&& this._color === other._color
-			&& this._darkColor === other._darkColor
-			&& this._hcColor === other._hcColor
-		);
-	}
-
 	public compareTo(other: OverviewRulerZone): number {
 		if (this.startLineNumber === other.startLineNumber) {
 			if (this.endLineNumber === other.endLineNumber) {

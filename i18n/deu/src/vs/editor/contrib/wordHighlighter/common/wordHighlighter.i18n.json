@@ -7,5 +7,7 @@
 	"wordHighlight": "Hintergrundfarbe eines Symbols beim Lesezugriff (beispielsweise beim Lesen einer Variablen).",
 	"wordHighlightStrong": "Hintergrundfarbe eines Symbols beim Schreibzugriff (beispielsweise beim Schreiben in eine Variable).",
 	"overviewRulerWordHighlightForeground": "Übersichtslineal-Markierungsfarbe für Symbolhervorhebungen.",
-	"overviewRulerWordHighlightStrongForeground": "Übersichtslineal-Markierungsfarbe für Schreibzugriffs-Symbolhervorhebungen."
+	"overviewRulerWordHighlightStrongForeground": "Übersichtslineal-Markierungsfarbe für Schreibzugriffs-Symbolhervorhebungen.",
+	"wordHighlight.next.label": "Gehe zur nächsten Symbolhervorhebungen",
+	"wordHighlight.previous.label": "Gehe zur vorherigen Symbolhervorhebungen"
 }

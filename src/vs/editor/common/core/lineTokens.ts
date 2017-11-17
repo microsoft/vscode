@@ -93,10 +93,6 @@ export class LineTokens {
 		return this._text;
 	}
 
-	public getLineLength(): number {
-		return this._textLength;
-	}
-
 	public getTokenStartOffset(tokenIndex: number): number {
 		return this._tokens[(tokenIndex << 1)];
 	}

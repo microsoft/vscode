@@ -92,7 +92,7 @@ suite('Files - TextFileEditorModel', () => {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8');
 
 		model.load().done(() => {
-			model.textEditorModel.destroy();
+			model.textEditorModel.dispose();
 
 			assert.ok(model.isDisposed());
 

@@ -8,5 +8,5 @@
 	"replVariableAriaLabel": "變數 {0} 具有值 {1}，「讀取、求值、輸出」迴圈，偵錯",
 	"replExpressionAriaLabel": "運算式 {0} 具有值 {1}，「讀取、求值、輸出」迴圈，偵錯",
 	"replValueOutputAriaLabel": "{0}，「讀取、求值、輸出」迴圈，偵錯",
-	"replKeyValueOutputAriaLabel": "輸出變數 {0} 具有值 {1}，「讀取、求值、輸出」迴圈，偵錯"
+	"replRawObjectAriaLabel": "REPL 變數 {0} 具有值 {1}，「讀取、求值、輸出」迴圈 ，偵錯"
 }

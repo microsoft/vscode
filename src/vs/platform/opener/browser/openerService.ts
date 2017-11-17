@@ -5,6 +5,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
+import * as dom from 'vs/base/browser/dom';
 import { parse } from 'vs/base/common/marshalling';
 import { Schemas } from 'vs/base/common/network';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -38,11 +39,11 @@ export class OpenerService implements IOpenerService {
 		this._telemetryService.publicLog('openerService', { scheme: resource.scheme });
 
 		const { scheme, path, query, fragment } = resource;
-		let promise: TPromise<any>;
-		if (scheme === Schemas.http || scheme === Schemas.https) {
-			// open http
-			window.open(resource.toString(true));
+		let promise: TPromise<any> = TPromise.wrap(void 0);
 
+		if (scheme === Schemas.http || scheme === Schemas.https || scheme === Schemas.mailto) {
+			// open http or default mail application
+			dom.windowOpenNoOpener(resource.toString(true));
 		} else if (scheme === 'command' && CommandsRegistry.getCommand(path)) {
 			// execute as command
 			let args: any = [];
@@ -83,6 +84,6 @@ export class OpenerService implements IOpenerService {
 			promise = this._editorService.openEditor({ resource, options: { selection, } }, options && options.openToSide);
 		}
 
-		return TPromise.as(promise);
+		return promise;
 	}
 }

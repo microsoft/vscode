@@ -9,16 +9,14 @@ import 'vs/css!./media/titlecontrol';
 import nls = require('vs/nls');
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Scope, IActionBarRegistry, Extensions, prepareActions } from 'vs/workbench/browser/actions';
-import { IAction, Action } from 'vs/base/common/actions';
+import { IAction, Action, IRunEvent } from 'vs/base/common/actions';
 import errors = require('vs/base/common/errors');
 import DOM = require('vs/base/browser/dom');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { isCommonCodeEditor, isCommonDiffEditor } from 'vs/editor/common/editorCommon';
 import arrays = require('vs/base/common/arrays');
 import { IEditorStacksModel, IEditorGroup, IEditorIdentifier, EditorInput, IStacksModelChangeEvent, toResource } from 'vs/workbench/common/editor';
-import { EventType as BaseEventType } from 'vs/base/common/events';
 import { IActionItem, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -39,12 +37,14 @@ import { IMenuService, MenuId, IMenu, ExecuteCommandAction } from 'vs/platform/a
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Themable } from 'vs/workbench/common/theme';
-import { IDraggedResource } from 'vs/base/browser/dnd';
+import { IDraggedResource } from 'vs/workbench/browser/editor';
 import { WORKSPACE_EXTENSION, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { extname } from 'vs/base/common/paths';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import URI from 'vs/base/common/uri';
+import { isDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { Dimension } from 'vs/base/browser/builder';
 
 export interface IToolbarActions {
 	primary: IAction[];
@@ -61,7 +61,7 @@ export interface ITitleAreaControl {
 	refresh(instant?: boolean): void;
 	update(instant?: boolean): void;
 	updateEditorActionsToolbar(): void;
-	layout(): void;
+	layout(dimension: Dimension): void;
 	dispose(): void;
 }
 
@@ -223,7 +223,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 		this.doRefresh();
 	}
 
-	public layout(): void {
+	public layout(dimension: Dimension): void {
 		// Subclasses can opt in to react on layout
 	}
 
@@ -251,7 +251,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 		});
 
 		// Action Run Handling
-		this.toUnbind.push(this.editorActionsToolbar.actionRunner.addListener(BaseEventType.RUN, (e: any) => {
+		this.toUnbind.push(this.editorActionsToolbar.actionRunner.onDidRun((e: IRunEvent) => {
 
 			// Check for Error
 			if (e.error && !errors.isPromiseCanceledError(e.error)) {
@@ -330,7 +330,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 			// take this code as sample of how to work with menus
 			this.disposeOnEditorActions = dispose(this.disposeOnEditorActions);
 			const widget = control.getControl();
-			const codeEditor = isCommonCodeEditor(widget) && widget || isCommonDiffEditor(widget) && widget.getModifiedEditor();
+			const codeEditor = isCodeEditor(widget) && widget || isDiffEditor(widget) && widget.getModifiedEditor();
 			const scopedContextKeyService = codeEditor && codeEditor.invokeWithinContext(accessor => accessor.get(IContextKeyService)) || this.contextKeyService;
 			const titleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, scopedContextKeyService);
 			this.disposeOnEditorActions.push(titleBarMenu, titleBarMenu.onDidChange(_ => this.update()));
@@ -550,7 +550,7 @@ export function handleWorkspaceExternalDrop(
 
 		// Multiple folders: Create new workspace with folders and open
 		else if (folders.length > 1) {
-			workspacesToOpen = workspacesService.createWorkspace([...folders].map(folder => folder.fsPath)).then(workspace => [workspace.configPath]);
+			workspacesToOpen = workspacesService.createWorkspace(folders.map(folder => ({ uri: folder }))).then(workspace => [workspace.configPath]);
 		}
 
 		// Open

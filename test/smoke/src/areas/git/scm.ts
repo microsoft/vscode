@@ -30,7 +30,7 @@ export class SCM extends Viewlet {
 	}
 
 	async openSCMViewlet(): Promise<any> {
-		await this.spectron.command('workbench.view.scm');
+		await this.spectron.runCommand('workbench.view.scm');
 		await this.spectron.client.waitForElement(SCM_INPUT);
 	}
 
@@ -49,7 +49,7 @@ export class SCM extends Viewlet {
 		const result = await this.spectron.webclient.selectorExecute(SCM_RESOURCE,
 			div => (Array.isArray(div) ? div : [div]).map(element => {
 				const name = element.querySelector('.label-name') as HTMLElement;
-				const icon = element.querySelector('.decoration-icon') as HTMLElement;
+				const icon = element.querySelector('.monaco-icon-label') as HTMLElement;
 				const actionElementList = element.querySelectorAll('.actions .action-label');
 				const actionElements: any[] = [];
 
@@ -60,7 +60,7 @@ export class SCM extends Viewlet {
 
 				return {
 					name: name.textContent,
-					type: icon.title,
+					type: (icon.title || '').replace(/^([^,]+),.*$/, '$1'),
 					element,
 					actionElements
 				};
@@ -95,8 +95,9 @@ export class SCM extends Viewlet {
 	}
 
 	async commit(message: string): Promise<void> {
-		await this.spectron.client.click(SCM_INPUT);
-		await this.spectron.client.type(message);
-		await this.spectron.client.click(COMMIT_COMMAND);
+		await this.spectron.client.waitAndClick(SCM_INPUT);
+		await this.spectron.client.waitForActiveElement(SCM_INPUT);
+		await this.spectron.client.setValue(SCM_INPUT, message);
+		await this.spectron.client.waitAndClick(COMMIT_COMMAND);
 	}
 }

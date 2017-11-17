@@ -12,7 +12,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
-import events = require('vs/base/common/events');
 import strings = require('vs/base/common/strings');
 import { Emitter } from 'vs/base/common/event';
 import types = require('vs/base/common/types');
@@ -23,7 +22,7 @@ import { CONTEXT as ToolBarContext, ToolBar } from 'vs/base/browser/ui/toolbar/t
 import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { IActionBarRegistry, Extensions, prepareActions } from 'vs/workbench/browser/actions';
-import { Action, IAction } from 'vs/base/common/actions';
+import { Action, IAction, IRunEvent } from 'vs/base/common/actions';
 import { Part, IPartOptions } from 'vs/workbench/browser/part';
 import { Composite, CompositeRegistry } from 'vs/workbench/browser/composite';
 import { IComposite } from 'vs/workbench/common/composite';
@@ -62,7 +61,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	private lastActiveCompositeId: string;
 	private instantiatedComposites: Composite[];
 	private titleLabel: ICompositeTitleLabel;
-	private toolBar: ToolBar;
+	protected toolBar: ToolBar;
 	private progressBar: ProgressBar;
 	private contentAreaSize: Dimension;
 	private telemetryActionsListener: IDisposable;
@@ -74,7 +73,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		private messageService: IMessageService,
 		private storageService: IStorageService,
 		private telemetryService: ITelemetryService,
-		private contextMenuService: IContextMenuService,
+		protected contextMenuService: IContextMenuService,
 		protected partService: IPartService,
 		private keybindingService: IKeybindingService,
 		protected instantiationService: IInstantiationService,
@@ -282,7 +281,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			}
 
 			// Action Run Handling
-			this.telemetryActionsListener = this.toolBar.actionRunner.addListener(events.EventType.RUN, (e: any) => {
+			this.telemetryActionsListener = this.toolBar.actionRunner.onDidRun((e: IRunEvent) => {
 
 				// Check for Error
 				if (e.error && !errors.isPromiseCanceledError(e.error)) {

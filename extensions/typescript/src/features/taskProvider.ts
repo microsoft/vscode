@@ -10,7 +10,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 
 import * as Proto from '../protocol';
-import TypeScriptServiceClient from '../typescriptServiceClient';
+import { ITypeScriptServiceClient } from '../typescriptService';
 import TsConfigProvider, { TSConfig } from '../utils/tsconfigProvider';
 import { isImplicitProjectConfigFile } from '../utils/tsconfig';
 
@@ -42,7 +42,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 	private readonly disposables: vscode.Disposable[] = [];
 
 	public constructor(
-		private readonly lazyClient: () => TypeScriptServiceClient
+		private readonly lazyClient: () => ITypeScriptServiceClient
 	) {
 		this.tsconfigProvider = new TsConfigProvider();
 
@@ -228,7 +228,7 @@ export default class TypeScriptTaskProviderManager {
 	private readonly disposables: vscode.Disposable[] = [];
 
 	constructor(
-		private readonly lazyClient: () => TypeScriptServiceClient
+		private readonly lazyClient: () => ITypeScriptServiceClient
 	) {
 		vscode.workspace.onDidChangeConfiguration(this.onConfigurationChanged, this, this.disposables);
 		this.onConfigurationChanged();

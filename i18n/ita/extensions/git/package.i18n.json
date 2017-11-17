@@ -15,6 +15,8 @@
 	"command.stageAll": "Prepara tutte le modifiche per commit",
 	"command.stageSelectedRanges": "Prepara per il commit intervalli selezionati",
 	"command.revertSelectedRanges": "Ripristina intervalli selezionati",
+	"command.stageChange": "Prepara modifica per commit",
+	"command.revertChange": "Annulla modifica",
 	"command.unstage": "Annulla preparazione modifiche per commit",
 	"command.unstageAll": "Annulla preparazione di tutte le modifiche per commit",
 	"command.unstageSelectedRanges": "Annulla preparazione per il commit di intervalli selezionati",
@@ -59,5 +61,11 @@
 	"config.defaultCloneDirectory": "Il percorso predefinito dove clonare un repository GIT",
 	"config.enableSmartCommit": "Eseguire il commit di tutte le modifiche quando non ci sono modifiche preparate.",
 	"config.enableCommitSigning": "Abilita la firma del commit con GPG.",
-	"config.discardAllScope": "Controlla quali modifiche vengono rimosse tramite il comando `Rimuovi tutte le modifiche`. Con `all` vengono rimosse tutte le modifiche. Con `tracked` vengono rimossi solo i file di cui viene tenuta traccia. Con `prompt` viene visualizzata una finestra di dialogo ogni volta che si esegue l'azione."
+	"config.discardAllScope": "Controlla quali modifiche vengono rimosse tramite il comando `Rimuovi tutte le modifiche`. Con `all` vengono rimosse tutte le modifiche. Con `tracked` vengono rimossi solo i file di cui viene tenuta traccia. Con `prompt` viene visualizzata una finestra di dialogo ogni volta che si esegue l'azione.",
+	"config.decorations.enabled": "Controlla se Git fornisce colori e distintivi alle visualizzazioni Esplora risorse e Editor aperti.",
+	"colors.modified": "Colore delle risorse modificate.",
+	"colors.deleted": "Colore delle risorse eliminate.",
+	"colors.untracked": "Colore delle risorse non tracciate.",
+	"colors.ignored": "Colore delle risorse ignorate.",
+	"colors.conflict": "Colore delle risorse con conflitti."
 }

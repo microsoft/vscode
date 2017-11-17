@@ -418,7 +418,19 @@ export class CursorMoveCommands {
 		let result: CursorState[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
-			result[i] = CursorState.fromViewState(MoveOperations.moveLeft(context.config, context.viewModel, cursor.viewState, inSelectionMode, noOfColumns));
+
+			let newViewState = MoveOperations.moveLeft(context.config, context.viewModel, cursor.viewState, inSelectionMode, noOfColumns);
+
+			if (noOfColumns === 1 && newViewState.position.lineNumber !== cursor.viewState.position.lineNumber) {
+				// moved over to the previous view line
+				const newViewModelPosition = context.viewModel.coordinatesConverter.convertViewPositionToModelPosition(newViewState.position);
+				if (newViewModelPosition.lineNumber === cursor.modelState.position.lineNumber) {
+					// stayed on the same model line => pass wrapping point where 2 view positions map to a single model position
+					newViewState = MoveOperations.moveLeft(context.config, context.viewModel, newViewState, inSelectionMode, 1);
+				}
+			}
+
+			result[i] = CursorState.fromViewState(newViewState);
 		}
 		return result;
 	}
@@ -438,7 +450,18 @@ export class CursorMoveCommands {
 		let result: CursorState[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
-			result[i] = CursorState.fromViewState(MoveOperations.moveRight(context.config, context.viewModel, cursor.viewState, inSelectionMode, noOfColumns));
+			let newViewState = MoveOperations.moveRight(context.config, context.viewModel, cursor.viewState, inSelectionMode, noOfColumns);
+
+			if (noOfColumns === 1 && newViewState.position.lineNumber !== cursor.viewState.position.lineNumber) {
+				// moved over to the next view line
+				const newViewModelPosition = context.viewModel.coordinatesConverter.convertViewPositionToModelPosition(newViewState.position);
+				if (newViewModelPosition.lineNumber === cursor.modelState.position.lineNumber) {
+					// stayed on the same model line => pass wrapping point where 2 view positions map to a single model position
+					newViewState = MoveOperations.moveRight(context.config, context.viewModel, newViewState, inSelectionMode, 1);
+				}
+			}
+
+			result[i] = CursorState.fromViewState(newViewState);
 		}
 		return result;
 	}
@@ -647,7 +670,7 @@ export namespace CursorMove {
 		select?: boolean;
 		by?: string;
 		value?: number;
-	};
+	}
 
 	export function parse(args: RawArguments): ParsedArguments {
 		if (!args.to) {
@@ -730,7 +753,7 @@ export namespace CursorMove {
 		unit: Unit;
 		select: boolean;
 		value: number;
-	};
+	}
 
 	export const enum Direction {
 		Left,
@@ -749,7 +772,7 @@ export namespace CursorMove {
 		ViewPortBottom,
 
 		ViewPortIfOutside,
-	};
+	}
 
 	export const enum Unit {
 		None,
@@ -757,6 +780,6 @@ export namespace CursorMove {
 		WrappedLine,
 		Character,
 		HalfLine,
-	};
+	}
 
 }

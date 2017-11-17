@@ -38,25 +38,6 @@ export function or(...filter: IFilter[]): IFilter {
 	};
 }
 
-/**
- * @returns A filter which combines the provided set
- * of filters with an and. The combines matches are
- * returned if *all* filters match.
- */
-export function and(...filter: IFilter[]): IFilter {
-	return function (word: string, wordToMatchAgainst: string): IMatch[] {
-		let result: IMatch[] = [];
-		for (let i = 0, len = filter.length; i < len; i++) {
-			let match = filter[i](word, wordToMatchAgainst);
-			if (!match) {
-				return null;
-			}
-			result = result.concat(match);
-		}
-		return result;
-	};
-}
-
 // Prefix
 
 export const matchesStrictPrefix: IFilter = _matchesPrefix.bind(undefined, false);
@@ -334,11 +315,6 @@ function nextWord(word: string, start: number): number {
 
 // Fuzzy
 
-export enum SubstringMatching {
-	Contiguous,
-	Separate
-}
-
 export const fuzzyContiguousFilter = or(matchesPrefix, matchesCamelCase, matchesContiguousSubString);
 const fuzzySeparateFilter = or(matchesPrefix, matchesCamelCase, matchesSubString);
 const fuzzyRegExpCache = new BoundedMap<RegExp>(10000); // bounded to 10000 elements
@@ -421,7 +397,7 @@ function printTable(table: number[][], pattern: string, patternLen: number, word
 	return ret;
 }
 
-export function isSeparatorAtPos(value: string, index: number): boolean {
+function isSeparatorAtPos(value: string, index: number): boolean {
 	if (index < 0 || index >= value.length) {
 		return false;
 	}
@@ -727,13 +703,4 @@ export function nextTypoPermutation(pattern: string, patternPos: number) {
 		+ pattern[patternPos + 1]
 		+ pattern[patternPos]
 		+ pattern.slice(patternPos + 2);
-}
-
-export function fuzzyScoreGraceful(pattern: string, word: string): [number, number[]] {
-	let ret = fuzzyScore(pattern, word);
-	for (let patternPos = 1; patternPos < pattern.length - 1 && !ret; patternPos++) {
-		let pattern2 = nextTypoPermutation(pattern, patternPos);
-		ret = fuzzyScore(pattern2, word);
-	}
-	return ret;
 }

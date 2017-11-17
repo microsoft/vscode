@@ -44,7 +44,11 @@
 	"typescript.npm": "Otomatik Tür Kazanımı için kullanılacak NPM yürütülebilir dosyasının yolunu belirtir. TypeScript >= 2.3.4 gerektirir.",
 	"typescript.check.npmIsInstalled": "Otomatik Tür Kazanımı için NPM'in yüklü olup olmadığını kontrol et.",
 	"javascript.nameSuggestions": "JavaScript öneri listelerindeki dosyadan benzersiz adları eklemeyi etkinleştir veya devre dışı bırak.",
-	"typescript.tsc.autoDetect": "Tsc görevlerinin otomatik olarak algılanıp algılanmayacağını denetler. Varsayılan olarak açıktır.",
+	"typescript.tsc.autoDetect": "tsc görevlerinin otomatik algılanmasını denetler. 'off' bu özelliği devre dışı bırakır. 'build' sadece bir kez çalışan derleme görevleri oluşturur. 'watch' sadece derleme ve izleme görevleri oluşturur. 'on' derleme ve izleme görevlerinin her ikisini de oluşturur. Varsayılan 'on'dur. ",
 	"typescript.problemMatchers.tsc.label": "TypeScript sorunları",
-	"typescript.problemMatchers.tscWatch.label": "TypeScript sorunları (izleme modu)"
+	"typescript.problemMatchers.tscWatch.label": "TypeScript sorunları (izleme modu)",
+	"typescript.quickSuggestionsForPaths": "Bir içe aktarım yolu girerken hızlı önerileri etkinleştir/devre dışı bırak.",
+	"typescript.locale": "TypeScript hatalarını bildirirken kullanılarak dili(bölgeyi) ayarlar. TypeScript >= 2.6.0 gerektirir. 'null' varsayılanı, TypeScript hataları için VS Code'un dil(bölge) ayarlarını kullanır.",
+	"javascript.implicitProjectConfig.experimentalDecorators": "Bir projenin parçası olmayan JavaScript dosyaları için deneysel dekoratörler ('experimentalDecorators') özelliğini etkinleştir veya devre dışı bırak. Mevcut jsconfig.json veya tsconfig.json dosyaları bu ayarı geçersiz kılar. TypeScript >= 2.3.1 gerektirir.",
+	"typescript.autoImportSuggestions.enabled": "Otomatik içe aktarım önerilerini etkinleştir/devre dışı bırak. TypeScript >= 2.6.1 gerektirir."
 }

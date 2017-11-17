@@ -39,7 +39,7 @@ function deserializeSuite(suite) {
 		retries: () => suite.retries,
 		enableTimeouts: () => suite.enableTimeouts,
 		slow: () => suite.slow,
-		bail: () => suite.bail,
+		bail: () => suite.bail
 	};
 }
 

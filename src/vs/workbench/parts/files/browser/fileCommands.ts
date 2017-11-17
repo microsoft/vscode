@@ -12,7 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource } from 'vs/workbench/common/editor';
-import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -24,6 +24,7 @@ import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IMessageService } from 'vs/platform/message/common/message';
+import { getPathLabel } from 'vs/base/common/labels';
 
 // Commands
 
@@ -43,31 +44,16 @@ export const copyPathCommand = (accessor: ServicesAccessor, resource?: URI) => {
 
 	if (resource) {
 		const clipboardService = accessor.get(IClipboardService);
-		clipboardService.writeText(resource.scheme === 'file' ? resource.fsPath : resource.toString());
+		clipboardService.writeText(resource.scheme === 'file' ? getPathLabel(resource) : resource.toString());
 	} else {
 		const messageService = accessor.get(IMessageService);
 		messageService.show(severity.Info, nls.localize('openFileToCopy', "Open a file first to copy its path"));
 	}
 };
 
-export const openFolderPickerCommand = (accessor: ServicesAccessor, forceNewWindow: boolean) => {
-	const windowService = accessor.get(IWindowService);
-
-	windowService.pickFolderAndOpen({ forceNewWindow });
-};
-
 export const openWindowCommand = (accessor: ServicesAccessor, paths: string[], forceNewWindow: boolean) => {
 	const windowsService = accessor.get(IWindowsService);
 	windowsService.openWindow(paths, { forceNewWindow });
-};
-
-export const openFileInNewWindowCommand = (accessor: ServicesAccessor) => {
-	const windowService = accessor.get(IWindowService);
-	const editorService = accessor.get(IWorkbenchEditorService);
-
-	const fileResource = toResource(editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
-
-	windowService.pickFileAndOpen({ forceNewWindow: true, dialogOptions: { defaultPath: fileResource ? paths.dirname(fileResource.fsPath) : void 0 } });
 };
 
 export const revealInOSCommand = (accessor: ServicesAccessor, resource?: URI) => {
@@ -154,7 +140,7 @@ function withVisibleExplorer(accessor: ServicesAccessor): TPromise<ExplorerViewl
 	}
 
 	return viewletService.openViewlet(VIEWLET_ID, false) as TPromise<ExplorerViewlet>;
-};
+}
 
 export function withFocusedFilesExplorerViewItem(accessor: ServicesAccessor): TPromise<{ explorer: ExplorerViewlet, tree: ITree, item: FileStat }> {
 	return withFocusedFilesExplorer(accessor).then(res => {
@@ -169,7 +155,7 @@ export function withFocusedFilesExplorerViewItem(accessor: ServicesAccessor): TP
 
 		return { explorer, tree, item: tree.getFocus() };
 	});
-};
+}
 
 export function withFocusedFilesExplorer(accessor: ServicesAccessor): TPromise<{ explorer: ExplorerViewlet, tree: ITree }> {
 	return withVisibleExplorer(accessor).then(explorer => {
@@ -186,7 +172,7 @@ export function withFocusedFilesExplorer(accessor: ServicesAccessor): TPromise<{
 
 		return { explorer, tree };
 	});
-};
+}
 
 function withFocusedOpenEditorsViewItem(accessor: ServicesAccessor): TPromise<{ explorer: ExplorerViewlet, tree: ITree, item: OpenEditor }> {
 	return withVisibleExplorer(accessor).then(explorer => {
@@ -204,7 +190,7 @@ function withFocusedOpenEditorsViewItem(accessor: ServicesAccessor): TPromise<{ 
 
 		return { explorer, tree, item: focus };
 	});
-};
+}
 
 function withFocusedExplorerItem(accessor: ServicesAccessor): TPromise<FileStat | OpenEditor> {
 	return withFocusedFilesExplorerViewItem(accessor).then(res => {
@@ -220,7 +206,7 @@ function withFocusedExplorerItem(accessor: ServicesAccessor): TPromise<FileStat 
 			return void 0;
 		});
 	});
-};
+}
 
 export const renameFocusedFilesExplorerViewItemCommand = (accessor: ServicesAccessor) => {
 	runActionOnFocusedFilesExplorerViewItem(accessor, 'renameFile');

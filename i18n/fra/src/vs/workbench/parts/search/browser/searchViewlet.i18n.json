@@ -10,7 +10,7 @@
 	"searchScope.excludes": "fichiers à exclure",
 	"label.excludes": "Modèles d'exclusion de recherche",
 	"replaceAll.confirmation.title": "Tout remplacer",
-	"replaceAll.confirm.button": "Remplacer",
+	"replaceAll.confirm.button": "&&Remplacer",
 	"replaceAll.occurrence.file.message": "{0} occurrence remplacée dans {1} fichier par '{2}'.",
 	"removeAll.occurrence.file.message": "{0} occurrence remplacée dans {1} fichier.",
 	"replaceAll.occurrence.files.message": "{0} occurrence remplacée dans {1} fichiers par '{2}'.",

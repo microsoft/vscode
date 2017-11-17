@@ -46,7 +46,7 @@ export class QueryBuilder {
 		let excludePattern = this.parseExcludePattern(options.excludePattern);
 
 		// Build folderQueries from searchPaths, if given, otherwise folderResources
-		let folderQueries = folderResources && folderResources.map(uri => this.getFolderQueryForRoot(uri, options));
+		let folderQueries = folderResources && folderResources.map(uri => this.getFolderQueryForRoot(uri, type === QueryType.File, options));
 		if (searchPaths && searchPaths.length) {
 			const allRootExcludes = folderQueries && this.mergeExcludesFromFolderQueries(folderQueries);
 			folderQueries = searchPaths.map(searchPath => this.getFolderQueryForSearchPath(searchPath));
@@ -55,10 +55,18 @@ export class QueryBuilder {
 			}
 		}
 
+		// TODO@rob - see #37998
+		const useIgnoreFiles = !folderResources || folderResources.every(folder => {
+			const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
+			return folderConfig.search.useIgnoreFiles;
+		});
+
 		const useRipgrep = !folderResources || folderResources.every(folder => {
-			const folderConfig = this.configurationService.getConfiguration<ISearchConfiguration>(undefined, { resource: folder });
+			const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
 			return folderConfig.search.useRipgrep;
 		});
+
+		const ignoreSymlinks = !this.configurationService.getValue<ISearchConfiguration>().search.followSymlinks;
 
 		const query = <ISearchQuery>{
 			type,
@@ -73,8 +81,9 @@ export class QueryBuilder {
 			cacheKey: options.cacheKey,
 			contentPattern: contentPattern,
 			useRipgrep,
-			disregardIgnoreFiles: options.disregardIgnoreFiles,
-			disregardExcludeSettings: options.disregardExcludeSettings
+			disregardIgnoreFiles: options.disregardIgnoreFiles || !useIgnoreFiles,
+			disregardExcludeSettings: options.disregardExcludeSettings,
+			ignoreSymlinks
 		};
 
 		// Filter extraFileResources against global include/exclude patterns - they are already expected to not belong to a workspace
@@ -244,7 +253,7 @@ export class QueryBuilder {
 
 	private getFolderQueryForSearchPath(searchPath: ISearchPathPattern): IFolderQuery {
 		const folder = searchPath.searchPath;
-		const folderConfig = this.configurationService.getConfiguration<ISearchConfiguration>(undefined, { resource: folder });
+		const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
 		return <IFolderQuery>{
 			folder,
 			includePattern: searchPath.pattern && patternListToIExpression([searchPath.pattern]),
@@ -252,12 +261,13 @@ export class QueryBuilder {
 		};
 	}
 
-	private getFolderQueryForRoot(folder: uri, options?: IQueryOptions): IFolderQuery {
-		const folderConfig = this.configurationService.getConfiguration<ISearchConfiguration>(undefined, { resource: folder });
+	private getFolderQueryForRoot(folder: uri, perFolderUseIgnoreFiles: boolean, options?: IQueryOptions): IFolderQuery {
+		const folderConfig = this.configurationService.getValue<ISearchConfiguration>({ resource: folder });
 		return <IFolderQuery>{
 			folder,
 			excludePattern: this.getExcludesForFolder(folderConfig, options),
-			fileEncoding: folderConfig.files && folderConfig.files.encoding
+			fileEncoding: folderConfig.files && folderConfig.files.encoding,
+			disregardIgnoreFiles: perFolderUseIgnoreFiles ? !folderConfig.search.useIgnoreFiles : undefined
 		};
 	}
 }

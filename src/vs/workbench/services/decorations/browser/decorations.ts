@@ -10,41 +10,41 @@ import Event from 'vs/base/common/event';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
-export const IResourceDecorationsService = createDecorator<IResourceDecorationsService>('IFileDecorationsService');
+export const IDecorationsService = createDecorator<IDecorationsService>('IFileDecorationsService');
 
-export interface IResourceDecorationData {
+export interface IDecorationData {
 	readonly weight?: number;
 	readonly color?: ColorIdentifier;
-	readonly opacity?: number;
 	readonly letter?: string;
 	readonly tooltip?: string;
+	readonly bubble?: boolean;
+	readonly source?: string;
 }
 
-export interface IResourceDecoration {
-	readonly _decoBrand: undefined;
-	readonly weight?: number;
-	readonly tooltip?: string;
-	readonly labelClassName?: string;
-	readonly badgeClassName?: string;
+export interface IDecoration {
+	readonly tooltip: string;
+	readonly labelClassName: string;
+	readonly badgeClassName: string;
+	update(source?: string, data?: IDecorationData): IDecoration;
 }
 
 export interface IDecorationsProvider {
 	readonly label: string;
 	readonly onDidChange: Event<URI[]>;
-	provideDecorations(uri: URI): IResourceDecorationData | Thenable<IResourceDecorationData>;
+	provideDecorations(uri: URI): IDecorationData | Thenable<IDecorationData>;
 }
 
 export interface IResourceDecorationChangeEvent {
 	affectsResource(uri: URI): boolean;
 }
 
-export interface IResourceDecorationsService {
+export interface IDecorationsService {
 
 	readonly _serviceBrand: any;
 
 	readonly onDidChangeDecorations: Event<IResourceDecorationChangeEvent>;
 
-	registerDecortionsProvider(provider: IDecorationsProvider): IDisposable;
+	registerDecorationsProvider(provider: IDecorationsProvider): IDisposable;
 
-	getTopDecoration(uri: URI, includeChildren: boolean): IResourceDecoration;
+	getDecoration(uri: URI, includeChildren: boolean, overwrite?: IDecorationData): IDecoration;
 }

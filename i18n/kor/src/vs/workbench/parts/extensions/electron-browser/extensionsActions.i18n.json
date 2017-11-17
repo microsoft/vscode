@@ -6,6 +6,8 @@
 {
 	"openExtensionsFolder": "Extensions 폴더 열기",
 	"installVSIX": "VSIX에서 설치...",
+	"installFromVSIX": "VSIX에서 설치",
+	"installButton": "설치(&&I)",
 	"InstallVSIXAction.success": "확장이 설치되었습니다. 사용하도록 설정하려면 다시 시작하세요.",
 	"InstallVSIXAction.reloadNow": "지금 다시 로드"
 }

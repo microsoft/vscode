@@ -6,6 +6,7 @@
 {
 	"schema.token.settings": "Belirteç renkleri ve stilleri.",
 	"schema.token.foreground": "Belirteç ön plan rengi.",
+	"schema.token.background.warning": "Belirteç arka plan renkleri şu anda desteklenmiyor.",
 	"schema.token.fontStyle": "Kuralın yazı tipi stili: 'italic', 'bold' ve 'underline' kombinasyonu veya bunlardan bir tanesi",
 	"schema.fontStyle.error": "Yazı tipi stili; 'italic', 'bold' ve 'underline' kombinasyonu olmalıdır",
 	"schema.properties.name": "Kural açıklaması.",

@@ -49,10 +49,6 @@ class CSSBasedConfigurationCache {
 		delete this._values[itemId];
 	}
 
-	public getKeys(): BareFontInfo[] {
-		return Object.keys(this._keys).map(id => this._keys[id]);
-	}
-
 	public getValues(): FontInfo[] {
 		return Object.keys(this._keys).map(id => this._values[id]);
 	}

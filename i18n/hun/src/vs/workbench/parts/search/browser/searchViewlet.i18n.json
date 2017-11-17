@@ -10,7 +10,7 @@
 	"searchScope.excludes": "kizárt fájlok",
 	"label.excludes": "Keresésből kizárt fájlok",
 	"replaceAll.confirmation.title": "Minden előfordulás cseréje",
-	"replaceAll.confirm.button": "Csere",
+	"replaceAll.confirm.button": "&&Csere",
 	"replaceAll.occurrence.file.message": "{0} előfordulás cserélve {1} fájlban a következőre: '{2}'.",
 	"removeAll.occurrence.file.message": "{0} előfordulás cserélve {1} fájlban.",
 	"replaceAll.occurrence.files.message": "{0} előfordulás cserélve {1} fájlban a következőre: '{2}'.",

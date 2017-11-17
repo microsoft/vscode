@@ -100,7 +100,7 @@ export class GitContentProvider {
 		if (ref === '~') {
 			const fileUri = Uri.file(path);
 			const uriString = fileUri.toString();
-			const [indexStatus] = repository.indexGroup.resourceStates.filter(r => r.original.toString() === uriString);
+			const [indexStatus] = repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
 			ref = indexStatus ? '' : 'HEAD';
 		}
 

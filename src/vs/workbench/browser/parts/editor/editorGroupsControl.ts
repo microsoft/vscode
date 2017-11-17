@@ -30,9 +30,9 @@ import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleCon
 import { TitleControl, ITitleAreaControl, handleWorkspaceExternalDrop } from 'vs/workbench/browser/parts/editor/titleControl';
 import { NoTabsTitleControl } from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
 import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup, EditorOptions, TextEditorOptions, IEditorIdentifier } from 'vs/workbench/common/editor';
-import { extractResources } from 'vs/base/browser/dnd';
+import { extractResources } from 'vs/workbench/browser/editor';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
-import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
+import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Themable, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, EDITOR_GROUP_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BORDER } from 'vs/workbench/common/theme';
@@ -73,6 +73,7 @@ export interface IEditorGroupsControl {
 	getInstantiationService(position: Position): IInstantiationService;
 	getProgressBar(position: Position): ProgressBar;
 	updateProgress(position: Position, state: ProgressState): void;
+	updateTitleAreas(refreshActive?: boolean): void;
 
 	layout(dimension: Dimension): void;
 	layout(position: Position): void;
@@ -321,7 +322,6 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 	public show(editor: BaseEditor, position: Position, preserveActive: boolean, ratio?: number[]): void {
 		const visibleEditorCount = this.getVisibleEditorCount();
-		const currentActivePosition = this.getActivePosition();
 
 		// Store into editor bucket
 		this.visibleEditors[position] = editor;
@@ -392,7 +392,6 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			this.sashOne.layout();
 
 			this.layoutContainers();
-			this.updateInactiveEditorGroupActions(currentActivePosition); // prevent some ugly flickering when opening a group
 		}
 
 		// Adjust layout: []|[] -> []|[]|[!]
@@ -406,7 +405,6 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			this.sashTwo.layout();
 
 			this.layoutContainers();
-			this.updateInactiveEditorGroupActions(currentActivePosition); // prevent some ugly flickering when opening a group
 		}
 
 		// Show editor container
@@ -426,7 +424,9 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 		// Track focus on editor container
 		this.visibleEditorFocusTrackers[position] = DOM.trackFocus(editor.getContainer().getHTMLElement());
-		this.visibleEditorFocusTrackers[position].addFocusListener(() => {
+
+		// TODO@ben: when is this listener disposed?
+		this.visibleEditorFocusTrackers[position].onDidFocus(() => {
 			this.onFocusGained(editor);
 		});
 	}
@@ -957,10 +957,10 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 		// Sash One
 		this.sashOne = new Sash(this.parent.getHTMLElement(), this, { baseSize: 5, orientation: this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL });
-		this.toUnbind.push(this.sashOne.addListener('start', () => this.onSashOneDragStart()));
-		this.toUnbind.push(this.sashOne.addListener('change', (e: ISashEvent) => this.onSashOneDrag(e)));
-		this.toUnbind.push(this.sashOne.addListener('end', () => this.onSashOneDragEnd()));
-		this.toUnbind.push(this.sashOne.addListener('reset', () => this.onSashOneReset()));
+		this.toUnbind.push(this.sashOne.onDidStart(() => this.onSashOneDragStart()));
+		this.toUnbind.push(this.sashOne.onDidChange((e: ISashEvent) => this.onSashOneDrag(e)));
+		this.toUnbind.push(this.sashOne.onDidEnd(() => this.onSashOneDragEnd()));
+		this.toUnbind.push(this.sashOne.onDidReset(() => this.onSashOneReset()));
 		this.sashOne.hide();
 
 		// Silo Two
@@ -968,10 +968,10 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 		// Sash Two
 		this.sashTwo = new Sash(this.parent.getHTMLElement(), this, { baseSize: 5, orientation: this.layoutVertically ? Orientation.VERTICAL : Orientation.HORIZONTAL });
-		this.toUnbind.push(this.sashTwo.addListener('start', () => this.onSashTwoDragStart()));
-		this.toUnbind.push(this.sashTwo.addListener('change', (e: ISashEvent) => this.onSashTwoDrag(e)));
-		this.toUnbind.push(this.sashTwo.addListener('end', () => this.onSashTwoDragEnd()));
-		this.toUnbind.push(this.sashTwo.addListener('reset', () => this.onSashTwoReset()));
+		this.toUnbind.push(this.sashTwo.onDidStart(() => this.onSashTwoDragStart()));
+		this.toUnbind.push(this.sashTwo.onDidChange((e: ISashEvent) => this.onSashTwoDrag(e)));
+		this.toUnbind.push(this.sashTwo.onDidEnd(() => this.onSashTwoDragEnd()));
+		this.toUnbind.push(this.sashTwo.onDidReset(() => this.onSashTwoReset()));
 		this.sashTwo.hide();
 
 		// Silo Three
@@ -2040,7 +2040,9 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 		// Layout title controls
 		POSITIONS.forEach(position => {
-			this.getTitleAreaControl(position).layout();
+			const siloWidth = this.layoutVertically ? this.silosSize[position] : this.dimension.width;
+
+			this.getTitleAreaControl(position).layout(new Dimension(siloWidth, EditorGroupsControl.EDITOR_TITLE_HEIGHT));
 		});
 
 		// Update minimized state
@@ -2065,18 +2067,6 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		}
 	}
 
-	private updateInactiveEditorGroupActions(position: Position): void {
-		const activePosition = this.getActivePosition();
-		if (activePosition === position) {
-			return; // this position is actually active
-		}
-
-		const titleArea = this.getTitleAreaControl(position);
-		if (titleArea) {
-			titleArea.updateEditorActionsToolbar();
-		}
-	}
-
 	public getInstantiationService(position: Position): IInstantiationService {
 		return this.getFromContainer(position, EditorGroupsControl.INSTANTIATION_SERVICE_KEY);
 	}
@@ -2093,6 +2083,32 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		const silo = this.silos[position];
 
 		return silo ? silo.child().getProperty(key) : void 0;
+	}
+
+	public updateTitleAreas(refreshActive?: boolean): void {
+		POSITIONS.forEach(position => {
+			const group = this.stacks.groupAt(position);
+			if (!group) {
+				return;
+			}
+
+			const titleControl = this.getTitleAreaControl(position);
+			if (!titleControl) {
+				return;
+			}
+
+			// Make sure the active group is shown in the title
+			// and refresh it if we are instructed to refresh it
+			if (refreshActive && group.isActive) {
+				titleControl.setContext(group);
+				titleControl.refresh(true);
+			}
+
+			// Otherwise, just refresh the toolbar
+			else {
+				titleControl.updateEditorActionsToolbar();
+			}
+		});
 	}
 
 	public updateProgress(position: Position, state: ProgressState): void {

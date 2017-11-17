@@ -6,6 +6,8 @@
 {
 	"entryAriaLabel": "{0}，调试",
 	"debugAriaLabel": "键入启动配置的名称以运行。",
+	"addConfigTo": "添加配置 ({0})...",
+	"addConfiguration": "添加配置...",
 	"noConfigurationsMatching": "无任何调试配置匹配",
 	"noConfigurationsFound": "找不到任何调试配置。请创建一个 \"launch.json\" 文件。"
 }

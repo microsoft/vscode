@@ -7,7 +7,7 @@
 
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IMarkerService, IMarker } from 'vs/platform/markers/common/markers';
-import { IResourceDecorationsService, IDecorationsProvider, IResourceDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
+import { IDecorationsService, IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import Event from 'vs/base/common/event';
@@ -17,6 +17,7 @@ import Severity from 'vs/base/common/severity';
 import { editorErrorForeground, editorWarningForeground } from 'vs/editor/common/view/editorColorRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 class MarkersDecorationsProvider implements IDecorationsProvider {
 
@@ -29,7 +30,7 @@ class MarkersDecorationsProvider implements IDecorationsProvider {
 		this.onDidChange = _markerService.onMarkerChanged;
 	}
 
-	provideDecorations(resource: URI): IResourceDecorationData {
+	provideDecorations(resource: URI): IDecorationData {
 		let markers = this._markerService.read({ resource });
 		let first: IMarker;
 		for (const marker of markers) {
@@ -44,8 +45,9 @@ class MarkersDecorationsProvider implements IDecorationsProvider {
 
 		return {
 			weight: 100 * first.severity,
+			bubble: true,
 			tooltip: markers.length === 1 ? localize('tooltip.1', "1 problem in this file") : localize('tooltip.N', "{0} problems in this file", markers.length),
-			letter: markers.length.toString(),
+			letter: markers.length < 10 ? markers.length.toString() : '+9',
 			color: first.severity === Severity.Error ? editorErrorForeground : editorWarningForeground,
 		};
 	}
@@ -59,12 +61,12 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 
 	constructor(
 		@IMarkerService private _markerService: IMarkerService,
-		@IResourceDecorationsService private _decorationsService: IResourceDecorationsService,
+		@IDecorationsService private _decorationsService: IDecorationsService,
 		@IConfigurationService private _configurationService: IConfigurationService
 	) {
 		//
 		this._disposables = [
-			this._configurationService.onDidUpdateConfiguration(this._updateEnablement, this),
+			this._configurationService.onDidChangeConfiguration(this._updateEnablement, this),
 		];
 		this._updateEnablement();
 	}
@@ -79,14 +81,14 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 	}
 
 	private _updateEnablement(): void {
-		let value = this._configurationService.getConfiguration<{ decorations: { enabled: boolean } }>('problems');
+		let value = this._configurationService.getValue<{ decorations: { enabled: boolean } }>('problems');
 		if (value.decorations.enabled === this._enabled) {
 			return;
 		}
 		this._enabled = value.decorations.enabled;
 		if (this._enabled) {
 			const provider = new MarkersDecorationsProvider(this._markerService);
-			this._provider = this._decorationsService.registerDecortionsProvider(provider);
+			this._provider = this._decorationsService.registerDecorationsProvider(provider);
 		} else if (this._provider) {
 			this._enabled = value.decorations.enabled;
 			this._provider.dispose();
@@ -94,7 +96,7 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(MarkersFileDecorations);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(MarkersFileDecorations, LifecyclePhase.Running);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	'id': 'problems',

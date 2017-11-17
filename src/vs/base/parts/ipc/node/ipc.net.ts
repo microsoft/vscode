@@ -7,8 +7,7 @@
 
 import { Socket, Server as NetServer, createConnection, createServer } from 'net';
 import { TPromise } from 'vs/base/common/winjs.base';
-import Event, { Emitter, once, mapEvent } from 'vs/base/common/event';
-import { fromEventEmitter } from 'vs/base/node/event';
+import Event, { Emitter, once, mapEvent, fromNodeEventEmitter } from 'vs/base/common/event';
 import { IMessagePassingProtocol, ClientConnectionEvent, IPCServer, IPCClient } from 'vs/base/parts/ipc/common/ipc';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -156,11 +155,11 @@ export class Protocol implements IMessagePassingProtocol {
 export class Server extends IPCServer {
 
 	private static toClientConnectionEvent(server: NetServer): Event<ClientConnectionEvent> {
-		const onConnection = fromEventEmitter<Socket>(server, 'connection');
+		const onConnection = fromNodeEventEmitter<Socket>(server, 'connection');
 
 		return mapEvent(onConnection, socket => ({
 			protocol: new Protocol(socket),
-			onDidClientDisconnect: once(fromEventEmitter<void>(socket, 'close'))
+			onDidClientDisconnect: once(fromNodeEventEmitter<void>(socket, 'close'))
 		}));
 	}
 

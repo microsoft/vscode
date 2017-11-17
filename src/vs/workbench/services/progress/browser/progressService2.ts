@@ -7,7 +7,6 @@
 import 'vs/css!./media/progressService2';
 import * as dom from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
-import { IActivityBarService } from 'vs/workbench/services/activity/common/activityBarService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IProgressService2, IProgressOptions, ProgressLocation, IProgress, IProgressStep, Progress, emptyProgress } from 'vs/platform/progress/common/progress';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -61,7 +60,6 @@ export class ProgressService2 implements IProgressService2 {
 	private _stack: [IProgressOptions, Progress<IProgressStep>][] = [];
 
 	constructor(
-		@IActivityBarService private _activityBar: IActivityBarService,
 		@IViewletService private _viewletService: IViewletService
 	) {
 		//

@@ -397,21 +397,6 @@ export function range(arg: number, to?: number): number[] {
 	return result;
 }
 
-export function weave<T>(a: T[], b: T[]): T[] {
-	const result: T[] = [];
-	let ai = 0, bi = 0;
-
-	for (let i = 0, length = a.length + b.length; i < length; i++) {
-		if ((i % 2 === 0 && ai < a.length) || bi >= b.length) {
-			result.push(a[ai++]);
-		} else {
-			result.push(b[bi++]);
-		}
-	}
-
-	return result;
-}
-
 export function fill<T>(num: number, valueFn: () => T, arr: T[] = []): T[] {
 	for (let i = 0; i < num; i++) {
 		arr[i] = valueFn();

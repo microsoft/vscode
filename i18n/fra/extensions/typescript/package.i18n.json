@@ -44,7 +44,11 @@
 	"typescript.npm": "Spécifie le chemin de l'exécutable NPM utilisé pour l'acquisition de type automatique. Nécessite TypeScript >= 2.3.4.",
 	"typescript.check.npmIsInstalled": "Vérifie si NPM est installé pour l'acquisition de type automatique.",
 	"javascript.nameSuggestions": "Activez/désactivez l'inclusion de noms uniques à partir du fichier dans les listes de suggestions JavaScript.",
-	"typescript.tsc.autoDetect": "Contrôle si la détection automatique des tâches tsc est activée ou désactivée.",
+	"typescript.tsc.autoDetect": "Contrôle la détection automatique des tâches tsc. 'off' désactive cette fonctionnalité. 'build' crée uniquement des tâches de compilation à exécution unique. 'watch' crée uniquement des tâches de compilation et de watch. 'on' crée les deux les tâches build et watch. La valeur par défaut est 'on'.",
 	"typescript.problemMatchers.tsc.label": "Problèmes liés à TypeScript",
-	"typescript.problemMatchers.tscWatch.label": "Problèmes liés à TypeScript (mode espion)"
+	"typescript.problemMatchers.tscWatch.label": "Problèmes liés à TypeScript (mode espion)",
+	"typescript.quickSuggestionsForPaths": "Activer/désactiver les suggestions rapides lorsque vous saisissez un chemin d’import.",
+	"typescript.locale": "Définit les paramètres locaux utilisés pour signaler les erreurs TypeScript . Nécessite TypeScript >= 2.6.0. Par défaut 'null' utilise les paramètres locaux de VS Code pour les erreurs TypeScript.",
+	"javascript.implicitProjectConfig.experimentalDecorators": "Activer/désactiver 'experimentalDecorators' pour les fichiers JavaScript qui ne font pas partie d'un projet. Les fichiers jsconfig.json ou tsconfig.json existants remplacent ce paramètre. Nécessite TypeScript >=2.3.1.",
+	"typescript.autoImportSuggestions.enabled": "Activer/désactiver les suggestions d'import automatiques. Nécessite TypeScript >= 2.6.1."
 }

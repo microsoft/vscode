@@ -11,22 +11,8 @@ import { Workbench } from '../areas/workbench/workbench';
 import * as fs from 'fs';
 import * as cp from 'child_process';
 import * as path from 'path';
-
-export const LATEST_PATH = process.env.VSCODE_PATH as string;
-export const STABLE_PATH = process.env.VSCODE_STABLE_PATH || '';
-export const WORKSPACE_PATH = process.env.SMOKETEST_REPO as string;
-export const CODE_WORKSPACE_PATH = process.env.VSCODE_WORKSPACE_PATH as string;
-export const USER_DIR = process.env.VSCODE_USER_DIR as string;
-export const EXTENSIONS_DIR = process.env.VSCODE_EXTENSIONS_DIR as string;
-export const VSCODE_EDITION = process.env.VSCODE_EDITION as string;
-export const SCREENSHOTS_DIR = process.env.SCREENSHOTS_DIR as string;
-export const WAIT_TIME = parseInt(process.env.WAIT_TIME as string);
-
-export enum VSCODE_BUILD {
-	DEV,
-	INSIDERS,
-	STABLE
-}
+import * as mkdirp from 'mkdirp';
+import { sanitize } from '../helpers/utilities';
 
 // Just hope random helps us here, cross your fingers!
 export async function findFreePort(): Promise<number> {
@@ -41,6 +27,23 @@ export async function findFreePort(): Promise<number> {
 	throw new Error('Could not find free port!');
 }
 
+export enum Quality {
+	Dev,
+	Insiders,
+	Stable
+}
+
+export interface SpectronApplicationOptions {
+	quality: Quality;
+	electronPath: string;
+	workspacePath: string;
+	userDataDir: string;
+	extensionsPath: string;
+	artifactsPath: string;
+	workspaceFilePath: string;
+	waitTime: number;
+}
+
 /**
  * Wraps Spectron's Application instance with its used methods.
  */
@@ -51,66 +54,98 @@ export class SpectronApplication {
 	private _client: SpectronClient;
 	private _workbench: Workbench;
 	private _screenCapturer: ScreenCapturer;
-	private spectron: Application;
-	private keybindings: any[];
+	private spectron: Application | undefined;
+	private keybindings: any[]; private stopLogCollection: (() => Promise<void>) | undefined;
 
-	constructor(private _electronPath: string = LATEST_PATH, private _workspace: string = WORKSPACE_PATH, private _userDir: string = USER_DIR) {
+	constructor(
+		private options: SpectronApplicationOptions
+	) { }
+
+	get quality(): Quality {
+		return this.options.quality;
 	}
 
-	public get build(): VSCODE_BUILD {
-		switch (VSCODE_EDITION) {
-			case 'dev':
-				return VSCODE_BUILD.DEV;
-			case 'insiders':
-				return VSCODE_BUILD.INSIDERS;
-		}
-		return VSCODE_BUILD.STABLE;
-	}
-
-	public get app(): Application {
-		return this.spectron;
-	}
-
-	public get client(): SpectronClient {
+	get client(): SpectronClient {
 		return this._client;
 	}
 
-	public get webclient(): WebClient {
+	get webclient(): WebClient {
+		if (!this.spectron) {
+			throw new Error('Application not started');
+		}
+
 		return this.spectron.client;
 	}
 
-	public get screenCapturer(): ScreenCapturer {
+	get screenCapturer(): ScreenCapturer {
 		return this._screenCapturer;
 	}
 
-	public get workbench(): Workbench {
+	get workbench(): Workbench {
 		return this._workbench;
 	}
 
-	public async start(testSuiteName: string, codeArgs: string[] = [], env = process.env): Promise<any> {
-		await this.retrieveKeybindings();
-		cp.execSync('git checkout .', { cwd: WORKSPACE_PATH });
-		await this.startApplication(testSuiteName, codeArgs, env);
-		await this.checkWindowReady();
-		await this.waitForWelcome();
-		await this.screenCapturer.capture('Application started');
+	get workspacePath(): string {
+		return this.options.workspacePath;
 	}
 
-	public async reload(): Promise<any> {
+	get extensionsPath(): string {
+		return this.options.extensionsPath;
+	}
+
+	get userDataPath(): string {
+		return this.options.userDataDir;
+	}
+
+	get workspaceFilePath(): string {
+		return this.options.workspaceFilePath;
+	}
+
+	private _suiteName: string = 'Init';
+
+	set suiteName(suiteName: string) {
+		this._suiteName = suiteName;
+		this._screenCapturer.suiteName = suiteName;
+	}
+
+	async start(): Promise<any> {
+		await this._start();
+		await this.waitForWelcome();
+	}
+
+	async restart(codeArgs: string[] = []): Promise<any> {
+		await this.stop();
+		await new Promise(c => setTimeout(c, 1000));
+		await this._start(codeArgs);
+	}
+
+	private async _start(codeArgs: string[] = []): Promise<any> {
+		await this.retrieveKeybindings();
+		cp.execSync('git checkout .', { cwd: this.options.workspacePath });
+		await this.startApplication(codeArgs);
+		await this.checkWindowReady();
+	}
+
+	async reload(): Promise<any> {
 		await this.workbench.quickopen.runCommand('Reload Window');
 		// TODO @sandy: Find a proper condition to wait for reload
 		await new Promise(c => setTimeout(c, 500));
 		await this.checkWindowReady();
 	}
 
-	public async stop(): Promise<any> {
+	async stop(): Promise<any> {
+		if (this.stopLogCollection) {
+			await this.stopLogCollection();
+			this.stopLogCollection = undefined;
+		}
+
 		if (this.spectron && this.spectron.isRunning()) {
-			await this.screenCapturer.capture('Stopping application');
-			return await this.spectron.stop();
+			await this.spectron.stop();
+			this.spectron = undefined;
 		}
 	}
 
-	private async startApplication(testSuiteName: string, codeArgs: string[] = [], env = process.env): Promise<any> {
+	private async startApplication(codeArgs: string[] = []): Promise<any> {
 
 		let args: string[] = [];
 		let chromeDriverArgs: string[] = [];
@@ -119,7 +154,7 @@ export class SpectronApplication {
 			args.push(process.env.VSCODE_REPOSITORY as string);
 		}
 
-		args.push(this._workspace);
+		args.push(this.options.workspacePath);
 
 		// Prevent 'Getting Started' web page from opening on clean user-data-dir
 		args.push('--skip-getting-started');
@@ -127,15 +162,23 @@ export class SpectronApplication {
 		// Prevent Quick Open from closing when focus is stolen, this allows concurrent smoketest suite running
 		args.push('--sticky-quickopen');
 
-		// Disable telemetry for smoke tests
+		// Disable telemetry
 		args.push('--disable-telemetry');
 
+		// Disable updates
+		args.push('--disable-updates');
+
+		// Disable crash reporter
+		// This seems to be the fix for the strange hangups in which Code stays unresponsive
+		// and tests finish badly with timeouts, leaving Code running in the background forever
+		args.push('--disable-crash-reporter');
+
 		// Ensure that running over custom extensions directory, rather than picking up the one that was used by a tester previously
-		args.push(`--extensions-dir=${EXTENSIONS_DIR}`);
+		args.push(`--extensions-dir=${this.options.extensionsPath}`);
 
 		args.push(...codeArgs);
 
-		chromeDriverArgs.push(`--user-data-dir=${path.join(this._userDir, String(SpectronApplication.count++))}`);
+		chromeDriverArgs.push(`--user-data-dir=${this.options.userDataDir}`);
 
 		// Spectron always uses the same port number for the chrome driver
 		// and it handles gracefully when two instances use the same port number
@@ -143,19 +186,84 @@ export class SpectronApplication {
 		// chrome driver with it, leaving the other instance in DISPAIR!!! :(
 		const port = await findFreePort();
 
-		this.spectron = new Application({
-			path: this._electronPath,
+		// We must get a different port for debugging the smoketest express app
+		// otherwise concurrent test runs will clash on those ports
+		const env = { PORT: String(await findFreePort()), ...process.env };
+
+		const opts: any = {
+			path: this.options.electronPath,
 			port,
 			args,
 			env,
 			chromeDriverArgs,
 			startTimeout: 10000,
 			requireName: 'nodeRequire'
-		});
+		};
+
+		const runName = String(SpectronApplication.count++);
+		let testsuiteRootPath: string | undefined = undefined;
+		let screenshotsDirPath: string | undefined = undefined;
+
+		if (this.options.artifactsPath) {
+			testsuiteRootPath = path.join(this.options.artifactsPath, sanitize(runName));
+			mkdirp.sync(testsuiteRootPath);
+
+			// Collect screenshots
+			screenshotsDirPath = path.join(testsuiteRootPath, 'screenshots');
+			mkdirp.sync(screenshotsDirPath);
+
+			// Collect chromedriver logs
+			const chromedriverLogPath = path.join(testsuiteRootPath, 'chromedriver.log');
+			opts.chromeDriverLogPath = chromedriverLogPath;
+
+			// Collect webdriver logs
+			const webdriverLogsPath = path.join(testsuiteRootPath, 'webdriver');
+			mkdirp.sync(webdriverLogsPath);
+			opts.webdriverLogPath = webdriverLogsPath;
+		}
+
+		this.spectron = new Application(opts);
 		await this.spectron.start();
 
-		this._screenCapturer = new ScreenCapturer(this.spectron, testSuiteName);
-		this._client = new SpectronClient(this.spectron, this);
+		if (testsuiteRootPath) {
+			// Collect logs
+			const mainProcessLogPath = path.join(testsuiteRootPath, 'main.log');
+			const rendererProcessLogPath = path.join(testsuiteRootPath, 'renderer.log');
+
+			const flush = async () => {
+				if (!this.spectron) {
+					return;
+				}
+
+				const mainLogs = await this.spectron.client.getMainProcessLogs();
+				await new Promise((c, e) => fs.appendFile(mainProcessLogPath, mainLogs.join('\n'), { encoding: 'utf8' }, err => err ? e(err) : c()));
+
+				const rendererLogs = (await this.spectron.client.getRenderProcessLogs()).map(m => `${m.timestamp} - ${m.level} - ${m.message}`);
+				await new Promise((c, e) => fs.appendFile(rendererProcessLogPath, rendererLogs.join('\n'), { encoding: 'utf8' }, err => err ? e(err) : c()));
+			};
+
+			let running = true;
+			const loopFlush = async () => {
+				while (true) {
+					await flush();
+
+					if (!running) {
+						return;
+					}
+
+					await new Promise(c => setTimeout(c, 1000));
+				}
+			};
+
+			const loopPromise = loopFlush();
+			this.stopLogCollection = () => {
+				running = false;
+				return loopPromise;
+			};
+		}
+
+		this._screenCapturer = new ScreenCapturer(this.spectron, this._suiteName, screenshotsDirPath);
+		this._client = new SpectronClient(this.spectron, this, this.options.waitTime);
 		this._workbench = new Workbench(this);
 	}
 
@@ -193,7 +301,7 @@ export class SpectronApplication {
 	 * Retrieves the command from keybindings file and executes it with WebdriverIO client API
 	 * @param command command (e.g. 'workbench.action.files.newUntitledFile')
 	 */
-	public command(command: string, capture?: boolean): Promise<any> {
+	runCommand(command: string): Promise<any> {
 		const binding = this.keybindings.find(x => x['command'] === command);
 		if (!binding) {
 			return this.workbench.quickopen.runCommand(command);
@@ -209,7 +317,7 @@ export class SpectronApplication {
 			keysToPress.push('NULL');
 		});
 
-		return this.client.keys(keysToPress, capture);
+		return this.client.keys(keysToPress);
 	}
 
 	/**
@@ -224,6 +332,6 @@ export class SpectronApplication {
 				return 'Meta';
 			default:
 				return key.length === 1 ? key : key.charAt(0).toUpperCase() + key.slice(1);
-		};
+		}
 	}
 }

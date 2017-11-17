@@ -44,7 +44,7 @@ const nullEvent = new class {
 suite('SearchModel', () => {
 
 	let instantiationService: TestInstantiationService;
-	let restoreStubs;
+	let restoreStubs: sinon.SinonStub[];
 
 	const testSearchStats: IUncachedSearchStats = {
 		fromCache: false,
@@ -306,7 +306,7 @@ suite('SearchModel', () => {
 		return { preview, lineNumber, offsetAndLengths };
 	}
 
-	function stub(arg1, arg2, arg3): sinon.SinonStub {
+	function stub(arg1: any, arg2: any, arg3: any): sinon.SinonStub {
 		const stub = sinon.stub(arg1, arg2, arg3);
 		restoreStubs.push(stub);
 		return stub;

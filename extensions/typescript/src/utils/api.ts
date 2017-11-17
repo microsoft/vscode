@@ -16,7 +16,7 @@ export default class API {
 			return new API(localize('invalidVersion', 'invalid version'), '1.0.0');
 		}
 
-		// Cut of any prerelease tag since we sometimes consume those on purpose.
+		// Cut off any prerelease tag since we sometimes consume those on purpose.
 		const index = versionString.indexOf('-');
 		if (index >= 0) {
 			version = version.substr(0, index);
@@ -28,7 +28,6 @@ export default class API {
 		public readonly versionString: string,
 		private readonly version: string
 	) { }
-
 
 	public has203Features(): boolean {
 		return semver.gte(this.version, '2.0.3');
@@ -68,5 +67,9 @@ export default class API {
 
 	public has250Features(): boolean {
 		return semver.gte(this.version, '2.5.0');
+	}
+
+	public has260Features(): boolean {
+		return semver.gte(this.version, '2.6.0');
 	}
 }

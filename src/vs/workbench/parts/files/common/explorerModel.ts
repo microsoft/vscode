@@ -15,12 +15,6 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
-export enum StatType {
-	FILE,
-	FOLDER,
-	ANY
-}
-
 export class Model {
 
 	private _roots: FileStat[];
@@ -77,7 +71,7 @@ export class FileStat implements IFileStat {
 	public name: string;
 	public mtime: number;
 	public etag: string;
-	public isDirectory: boolean;
+	private _isDirectory: boolean;
 	public hasChildren: boolean;
 	public children: FileStat[];
 	public parent: FileStat;
@@ -92,10 +86,6 @@ export class FileStat implements IFileStat {
 		this.etag = etag;
 		this.mtime = mtime;
 
-		// Prepare child stat array
-		if (this.isDirectory) {
-			this.children = [];
-		}
 		if (!this.root) {
 			this.root = this;
 		}
@@ -103,8 +93,24 @@ export class FileStat implements IFileStat {
 		this.isDirectoryResolved = false;
 	}
 
+	public get isDirectory(): boolean {
+		return this._isDirectory;
+	}
+
+	public set isDirectory(value: boolean) {
+		if (value !== this._isDirectory) {
+			this._isDirectory = value;
+			if (this._isDirectory) {
+				this.children = [];
+			} else {
+				this.children = undefined;
+			}
+		}
+
+	}
+
 	public get nonexistentRoot(): boolean {
-		return this.isRoot && !this.isDirectoryResolved;
+		return this.isRoot && !this.isDirectoryResolved && this.isDirectory;
 	}
 
 	public getId(): string {
@@ -211,33 +217,6 @@ export class FileStat implements IFileStat {
 
 		this.children.push(child);
 		this.hasChildren = this.children.length > 0;
-	}
-
-	/**
-	 * Returns true if this stat is a directory that contains a child with the given name.
-	 *
-	 * @param ignoreCase if true, will check for the name ignoring case.
-	 * @param type the type of stat to check for.
-	 */
-	public hasChild(name: string, ignoreCase?: boolean, type: StatType = StatType.ANY): boolean {
-		for (let i = 0; i < this.children.length; i++) {
-			const child = this.children[i];
-			if ((type === StatType.FILE && child.isDirectory) || (type === StatType.FOLDER && !child.isDirectory)) {
-				continue;
-			}
-
-			// Check for Identity
-			if (child.name === name) {
-				return true;
-			}
-
-			// Also consider comparing without case
-			if (ignoreCase && child.name.toLowerCase() === name.toLowerCase()) {
-				return true;
-			}
-		}
-
-		return false;
 	}
 
 	/**
@@ -369,10 +348,6 @@ export class NewStatPlaceholder extends FileStat {
 
 	public addChild(child: NewStatPlaceholder): void {
 		throw new Error('Can\'t perform operations in NewStatPlaceholder.');
-	}
-
-	public hasChild(name: string, ignoreCase?: boolean): boolean {
-		return false;
 	}
 
 	public removeChild(child: NewStatPlaceholder): void {

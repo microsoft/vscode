@@ -14,7 +14,9 @@
 		"**/node_modules": true,
 		"**/bower_components": true,
 		".build/**": true,
-		"out*/**": true,
+		"out/**": true,
+		"out-build/**": true,
+		"out-vscode/**": true,
 		"i18n/**": true,
 		"extensions/**/out/**": true,
 		"test/smoke/out/**": true

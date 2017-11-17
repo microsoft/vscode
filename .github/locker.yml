@@ -1,0 +1,4 @@
+{
+    daysAfterClose: 45,
+    perform: true
+}

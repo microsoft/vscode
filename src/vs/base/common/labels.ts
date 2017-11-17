@@ -9,14 +9,6 @@ import platform = require('vs/base/common/platform');
 import { nativeSep, normalize, isEqualOrParent, isEqual, basename, join } from 'vs/base/common/paths';
 import { endsWith, ltrim } from 'vs/base/common/strings';
 
-export interface ILabelProvider {
-
-	/**
-	 * Given an element returns a label for it to display in the UI.
-	 */
-	getLabel(element: any): string;
-}
-
 export interface IWorkspaceFolderProvider {
 	getWorkspaceFolder(resource: URI): { uri: URI };
 	getWorkspace(): {
@@ -36,6 +28,7 @@ export function getPathLabel(resource: URI | string, rootProvider?: IWorkspaceFo
 	if (typeof resource === 'string') {
 		resource = URI.file(resource);
 	}
+
 	if (resource.scheme !== 'file' && resource.scheme !== 'untitled') {
 		return resource.authority + resource.path;
 	}

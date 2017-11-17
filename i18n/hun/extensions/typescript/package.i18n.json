@@ -44,7 +44,11 @@
 	"typescript.npm": "Az automatikus típusdefiníció-letöltéshez használt NPM végrehajtható fájl elérési útja. TypeScript 2.3.4-et igényel.",
 	"typescript.check.npmIsInstalled": "Ellenőrizze, hogy az NPM telepítve van-e az automatikus típusdefiníció-letöltéshez.",
 	"javascript.nameSuggestions": "Egyedi nevek listázásának engedélyezése a javascriptes javaslati listákban.",
-	"typescript.tsc.autoDetect": "Meghatározza, hogy a tsc-feladatok automatikus felderítése be van-e kapcsolva.",
+	"typescript.tsc.autoDetect": "Meghatározza a tsc-s feladatok automatikus felderítésének működését. 'off' érték esetén a funkció ki van kapcsolva. 'build' esetén egyszer lefutó, fordítást végző feladatok jönnek létre. 'watch' esetén csak fordítást és figyelést végző feladatok jönnek létre. 'on' esetén buildelési és figyelési feladatok is keletkeznek. Az alapértelmezett érték: 'on'.",
 	"typescript.problemMatchers.tsc.label": "TypeScript-problémák",
-	"typescript.problemMatchers.tscWatch.label": "TypeScript-problémák (figyelő módban)"
+	"typescript.problemMatchers.tscWatch.label": "TypeScript-problémák (figyelő módban)",
+	"typescript.quickSuggestionsForPaths": "Kiegészítési javaslatok engedélyezése importált elérési utak beírásakor.",
+	"typescript.locale": "Meghatározza a TypeScript-hibák jelentésénél használt lokalizációt. TypeScript >= 2.6.0-t igényel. Az alapértelmezett 'null' érték esetén a VS Code-ban beállított nyelven jelennek meg a TypeScript-hibák.",
+	"javascript.implicitProjectConfig.experimentalDecorators": " 'experimentalDecorators' beállítás engedélyezése azon JavaScript-fájlok esetében, amelyek nem részei a projektnek. A meglévő jsconfig.json vagy tsconfig.json fájlok felülírják ezt a beállítást. TypeScript >= 2.3.1-et igényel.",
+	"typescript.autoImportSuggestions.enabled": "Automatikus importálási ajánlatok engedélyezése vagy letiltása. TypeScript >= 2.6.1-t igényel."
 }

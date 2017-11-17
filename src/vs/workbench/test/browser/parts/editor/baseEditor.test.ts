@@ -70,12 +70,12 @@ class MyInputFactory implements IEditorInputFactory {
 	}
 
 	deserialize(instantiationService: IInstantiationService, raw: string): EditorInput {
-		return <EditorInput>{};
+		return {} as EditorInput;
 	}
 }
 
 class MyInput extends EditorInput {
-	getPreferredEditorId(ids) {
+	getPreferredEditorId(ids: string[]) {
 		return ids[1];
 	}
 

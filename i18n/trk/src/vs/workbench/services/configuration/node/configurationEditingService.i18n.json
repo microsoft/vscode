@@ -12,6 +12,7 @@
 	"errorUnknownKey": "{0} dosyasına, {1} kayıtlı bir yapılandırma olmadığı için yazılamıyor.",
 	"errorInvalidFolderConfiguration": "{0}, klasör kaynak kapsamını desteklemediği için klasör ayarlarına yazılamıyor.",
 	"errorInvalidUserTarget": "{0}, global kapsamı desteklemediği için kullanıcı ayarlarına yazılamıyor.",
+	"errorInvalidWorkspaceTarget": "{0}, birden çok klasörlü çalışma alanında çalışma alanı kapsamını desteklemediği için Çalışma Alanı Ayarları'na yazılamıyor.",
 	"errorInvalidFolderTarget": "Hiçbir kaynak belirtilmediği için klasör ayarlarına yazılamıyor.",
 	"errorNoWorkspaceOpened": "Hiçbir çalışma alanı açık olmadığı için {0}'a yazılamıyor. Lütfen ilk olarak bir çalışma alanı açın ve tekrar deneyin.",
 	"errorInvalidTaskConfiguration": "Görevler dosyasına yazılamıyor. Lütfen dosyadaki hata/uyarıları düzeltmek için **Görevler** dosyasını açın ve tekrar deneyin.",

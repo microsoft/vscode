@@ -5,8 +5,8 @@
 			"es2016"
 		],
 		"module": "commonjs",
-		"outDir": "./out"
-
+		"outDir": "./out",
+		"noUnusedLocals": true
 	},
 	"exclude": [
 		"node_modules",

@@ -9,7 +9,7 @@
 	"meta.title": " – {0} définitions",
 	"actions.goToDecl.label": "Atteindre la définition",
 	"actions.goToDeclToSide.label": "Ouvrir la définition sur le côté",
-	"actions.previewDecl.label": "Apercu de définition",
+	"actions.previewDecl.label": "Aperçu de définition",
 	"goToImplementation.noResultWord": "Implémentation introuvable pour '{0}'",
 	"goToImplementation.generic.noResults": "Implémentation introuvable",
 	"meta.implementations.title": "– Implémentations {0}",

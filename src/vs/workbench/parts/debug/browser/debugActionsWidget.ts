@@ -12,8 +12,7 @@ import * as builder from 'vs/base/browser/builder';
 import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IAction } from 'vs/base/common/actions';
-import { EventType } from 'vs/base/common/events';
+import { IAction, IRunEvent } from 'vs/base/common/actions';
 import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -21,7 +20,7 @@ import { IDebugConfiguration, IDebugService, State } from 'vs/workbench/parts/de
 import { AbstractDebugAction, PauseAction, ContinueAction, StepBackAction, ReverseContinueAction, StopAction, DisconnectAction, StepOverAction, StepIntoAction, StepOutAction, RestartAction, FocusProcessAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { FocusProcessActionItem } from 'vs/workbench/parts/debug/browser/debugActionItems';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -93,8 +92,8 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 
 	private registerListeners(): void {
 		this.toUnbind.push(this.debugService.onDidChangeState(state => this.update(state)));
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(() => this.update(this.debugService.state)));
-		this.toUnbind.push(this.actionBar.actionRunner.addListener(EventType.RUN, (e: any) => {
+		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.onDidConfigurationChange(e)));
+		this.toUnbind.push(this.actionBar.actionRunner.onDidRun((e: IRunEvent) => {
 			// check for error
 			if (e.error && !errors.isPromiseCanceledError(e.error)) {
 				this.messageService.show(severity.Error, e.error);
@@ -195,8 +194,14 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		return DebugActionsWidget.ID;
 	}
 
+	private onDidConfigurationChange(event: IConfigurationChangeEvent): void {
+		if (event.affectsConfiguration('debug.hideActionBar')) {
+			this.update(this.debugService.state);
+		}
+	}
+
 	private update(state: State): void {
-		if (state === State.Inactive || state === State.Initializing || this.configurationService.getConfiguration<IDebugConfiguration>('debug').hideActionBar) {
+		if (state === State.Inactive || state === State.Initializing || this.configurationService.getValue<IDebugConfiguration>('debug').hideActionBar) {
 			return this.hide();
 		}
 
