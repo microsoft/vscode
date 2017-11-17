@@ -308,7 +308,7 @@ export class PreferencesEditor extends BaseEditor {
 				emptyFilters: this.getLatestEmptyFiltersForTelemetry(),
 				fuzzy: !!metadata,
 				duration: metadata ? metadata.duration : undefined,
-				context: metadata.context
+				context: metadata ? metadata.context : undefined
 			};
 
 			this.latestEmptyFilters = [];
