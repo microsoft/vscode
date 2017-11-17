@@ -1404,11 +1404,6 @@ export class CommandCenter {
 		await repository.pushTo(choice, branchName, true);
 	}
 
-	@command('git.showOutput')
-	showOutput(): void {
-		this.outputChannel.show();
-	}
-
 	@command('git.ignore')
 	async ignore(...resourceStates: SourceControlResourceState[]): Promise<void> {
 		if (resourceStates.length === 0 || !(resourceStates[0].resourceUri instanceof Uri)) {
