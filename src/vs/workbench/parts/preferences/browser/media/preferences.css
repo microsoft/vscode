@@ -89,15 +89,15 @@
 	display: none;
 }
 
-.settings-header-widget > .settings-search-controls > .prefs-fuzzy-search-toggle {
+.settings-header-widget > .settings-search-controls > .prefs-natural-language-search-toggle {
 	margin: 5px 3px 5px 0px;
 }
 
-.settings-header-widget > .settings-search-controls > .prefs-fuzzy-search-toggle.hidden {
+.settings-header-widget > .settings-search-controls > .prefs-natural-language-search-toggle.hidden {
 	display: none;
 }
 
-.settings-header-widget > .settings-search-controls > .prefs-fuzzy-search-toggle > .octicon {
+.settings-header-widget > .settings-search-controls > .prefs-natural-language-search-toggle > .octicon {
 	text-align: center;
 	vertical-align: top;
 	font-size: 16px;
@@ -154,13 +154,13 @@
 	white-space: nowrap;
 }
 
-.monaco-editor .settings-header-widget .title-container .settings-header-fuzzy-link {
+.monaco-editor .settings-header-widget .title-container .settings-header-natural-language-link {
 	margin-left: 4px;
 	text-decoration: underline;
 	cursor: pointer;
 }
 
-.monaco-editor .settings-header-widget .title-container .settings-header-fuzzy-link.hidden {
+.monaco-editor .settings-header-widget .title-container .settings-header-natural-language-link.hidden {
 	display: none;
 }
 

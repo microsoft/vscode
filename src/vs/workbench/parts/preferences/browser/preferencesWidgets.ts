@@ -113,8 +113,8 @@ export class DefaultSettingsHeaderWidget extends SettingsHeaderWidget {
 	protected create() {
 		super.create();
 
-		this.linkElement = DOM.append(this.titleContainer, DOM.$('a.settings-header-fuzzy-link'));
-		this.linkElement.textContent = localize('defaultSettingsFuzzyPrompt', "Try fuzzy search!");
+		this.linkElement = DOM.append(this.titleContainer, DOM.$('a.settings-header-natural-language-link'));
+		this.linkElement.textContent = localize('defaultSettingsFuzzyPrompt', "Try natural language search!");
 
 		this.onclick(this.linkElement, e => this._onClick.fire());
 		this.toggleMessage(true);
@@ -469,13 +469,13 @@ export class SearchWidget extends Widget {
 		this.controlsDiv = DOM.append(this.domNode, DOM.$('div.settings-search-controls'));
 		if (this.options.showFuzzyToggle) {
 			this.fuzzyToggle = this._register(new Checkbox({
-				actionClassName: 'prefs-fuzzy-search-toggle',
+				actionClassName: 'prefs-natural-language-search-toggle',
 				isChecked: false,
 				onChange: () => {
 					this.inputBox.focus();
 					this._onDidChange.fire();
 				},
-				title: localize('enableFuzzySearch', 'Enable experimental fuzzy search')
+				title: localize('enableFuzzySearch', 'Enable natural language search')
 			}));
 			this.fuzzyToggle.domNode.innerHTML = renderOcticons('$(light-bulb)');
 			DOM.append(this.controlsDiv, this.fuzzyToggle.domNode);

@@ -47,10 +47,10 @@ export class PreferencesSearchProvider {
 
 	get endpoint(): IEndpointDetails {
 		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
-		if (workbenchSettings.experimentalFuzzySearchEndpoint) {
+		if (workbenchSettings.naturalLanguageSearchEndpoint) {
 			return {
-				urlBase: workbenchSettings.experimentalFuzzySearchEndpoint,
-				key: workbenchSettings.experimentalFuzzySearchKey
+				urlBase: workbenchSettings.naturalLanguageSearchEndpoint,
+				key: workbenchSettings.naturalLanguageSearchKey
 			};
 		} else {
 			return {

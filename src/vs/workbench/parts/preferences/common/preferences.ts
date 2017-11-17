@@ -21,10 +21,11 @@ export interface IWorkbenchSettingsConfiguration {
 	workbench: {
 		settings: {
 			openDefaultSettings: boolean;
-			experimentalFuzzySearchEndpoint: string;
-			experimentalFuzzySearchKey: string;
-			experimentalFuzzySearchAutoIngestFeedback: boolean;
+			naturalLanguageSearchEndpoint: string;
+			naturalLanguageSearchKey: string;
+			naturalLanguageSearchAutoIngestFeedback: boolean;
 			enableNaturalLanguageSearch: boolean;
+			enableNaturalLanguageSearchFeedback: boolean;
 		}
 	};
 }

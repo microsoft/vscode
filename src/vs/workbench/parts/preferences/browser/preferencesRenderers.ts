@@ -656,7 +656,7 @@ export class FeedbackWidgetRenderer extends Disposable {
 		const altsAdded = expectedQuery.alts && expectedQuery.alts.length;
 		const alts = altsAdded ? expectedQuery.alts : undefined;
 		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
-		const autoIngest = workbenchSettings.experimentalFuzzySearchAutoIngestFeedback;
+		const autoIngest = workbenchSettings.naturalLanguageSearchAutoIngestFeedback;
 
 		/* __GDPR__
 			"settingsSearchResultFeedback" : {
