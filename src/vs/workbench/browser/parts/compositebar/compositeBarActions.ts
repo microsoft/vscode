@@ -209,7 +209,7 @@ export class ActivityActionItem extends BaseActionItem {
 				if (badge.number) {
 					let number = badge.number.toString();
 					if (badge.number > 9999) {
-						number = '10k+';
+						number = nls.localize('largeNumberBadge', '10k+');
 					} else if (badge.number > 999) {
 						number = number.charAt(0) + 'k';
 					}
