@@ -16,17 +16,13 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import Event, { Emitter, EventBufferer, chain, mapEvent, fromCallback, anyEvent } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { IDelegate, IRenderer, IListEvent, IListMouseEvent, IListContextMenuEvent } from './list';
+import { IDelegate, IRenderer, IListEvent, IListMouseEvent, IListContextMenuEvent, ISpliceable } from './list';
 import { ListView, IListViewOptions } from './listView';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
 
 export interface IIdentityProvider<T> {
 	(element: T): string;
-}
-
-export interface ISpliceable<T> {
-	splice(start: number, deleteCount: number, elements: T[]): void;
 }
 
 class CombinedSpliceable<T> implements ISpliceable<T> {
