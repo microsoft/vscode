@@ -60,7 +60,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 
 	private static ID = 'editor.contrib.findController';
 
-	private _editor: ICodeEditor;
+	protected _editor: ICodeEditor;
 	private _findWidgetVisible: IContextKey<boolean>;
 	protected _state: FindReplaceState;
 	private _currentHistoryNavigator: HistoryNavigator<string>;
@@ -329,19 +329,20 @@ export class FindController extends CommonFindController implements IFindControl
 
 	constructor(
 		editor: ICodeEditor,
-		@IContextViewService contextViewService: IContextViewService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IThemeService themeService: IThemeService,
+		@IContextViewService private _contextViewService: IContextViewService,
+		@IContextKeyService private _contextKeyService: IContextKeyService,
+		@IKeybindingService private _keybindingService: IKeybindingService,
+		@IThemeService private _themeService: IThemeService,
 		@IStorageService storageService: IStorageService
 	) {
-		super(editor, contextKeyService, storageService);
-
-		this._widget = this._register(new FindWidget(editor, this, this._state, contextViewService, keybindingService, contextKeyService, themeService));
-		this._findOptionsWidget = this._register(new FindOptionsWidget(editor, this._state, keybindingService, themeService));
+		super(editor, _contextKeyService, storageService);
 	}
 
 	protected _start(opts: IFindStartOptions): void {
+		if (!this._widget) {
+			this._createFindWidget();
+		}
+
 		super._start(opts);
 
 		if (opts.shouldFocus === FindStartFocusAction.FocusReplaceInput) {
@@ -352,11 +353,19 @@ export class FindController extends CommonFindController implements IFindControl
 	}
 
 	public highlightFindOptions(): void {
+		if (!this._widget) {
+			this._createFindWidget();
+		}
 		if (this._state.isRevealed) {
 			this._widget.highlightFindOptions();
 		} else {
 			this._findOptionsWidget.highlightFindOptions();
 		}
+	}
+
+	private _createFindWidget() {
+		this._widget = this._register(new FindWidget(this._editor, this, this._state, this._contextViewService, this._keybindingService, this._contextKeyService, this._themeService));
+		this._findOptionsWidget = this._register(new FindOptionsWidget(this._editor, this._state, this._keybindingService, this._themeService));
 	}
 }
 
