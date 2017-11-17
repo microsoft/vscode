@@ -5,9 +5,10 @@
 'use strict';
 
 import { IDisposable, toDisposable, combinedDisposable, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
-import CallbackList from 'vs/base/common/callbackList';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { once as onceFn } from 'vs/base/common/functional';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { LinkedList } from 'vs/base/common/linkedList';
 
 /**
  * To an event a function with one or zero parameters
@@ -24,8 +25,9 @@ namespace Event {
 
 export default Event;
 
+type Listener = [Function, any] | Function;
+
 export interface EmitterOptions {
-	guaranteeEventOrder?: boolean;
 	onFirstListenerAdd?: Function;
 	onFirstListenerDidAdd?: Function;
 	onListenerDidAdd?: Function;
@@ -58,8 +60,8 @@ export class Emitter<T> {
 	private static _noop = function () { };
 
 	private _event: Event<T>;
-	private _deliveryQueue: T[] = [];
-	private _callbacks: CallbackList;
+	private _listeners: LinkedList<Listener>;
+	private _deliveryQueue: [Listener, T][];
 	private _disposed: boolean;
 
 	constructor(private _options?: EmitterOptions) {
@@ -73,17 +75,17 @@ export class Emitter<T> {
 	get event(): Event<T> {
 		if (!this._event) {
 			this._event = (listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]) => {
-				if (!this._callbacks) {
-					this._callbacks = new CallbackList();
+				if (!this._listeners) {
+					this._listeners = new LinkedList();
 				}
 
-				const firstListener = this._callbacks.isEmpty();
+				const firstListener = this._listeners.isEmpty();
 
 				if (firstListener && this._options && this._options.onFirstListenerAdd) {
 					this._options.onFirstListenerAdd(this);
 				}
 
-				const remove = this._callbacks.add(listener, thisArgs);
+				const remove = this._listeners.push(!thisArgs ? listener : [listener, thisArgs]);
 
 				if (firstListener && this._options && this._options.onFirstListenerDidAdd) {
 					this._options.onFirstListenerDidAdd(this);
@@ -99,7 +101,7 @@ export class Emitter<T> {
 						result.dispose = Emitter._noop;
 						if (!this._disposed) {
 							remove();
-							if (this._options && this._options.onLastListenerRemove && this._callbacks.isEmpty()) {
+							if (this._options && this._options.onLastListenerRemove && this._listeners.isEmpty()) {
 								this._options.onLastListenerRemove(this);
 							}
 						}
@@ -120,35 +122,42 @@ export class Emitter<T> {
 	 * subscribers
 	 */
 	fire(event?: T): any {
-		if (!this._callbacks) {
-			return;
-		}
-		if (this._options && this._options.guaranteeEventOrder) {
-			// enqueue event object and kick off
-			// event deliver when this is the first
-			// object in the queue
-			if (this._deliveryQueue.push(event) === 1) {
-				this._inOrderDelivery();
-			}
-		} else {
-			this._callbacks.invoke.call(this._callbacks, event);
-		}
-	}
+		if (this._listeners) {
+			// put all [listener,event]-pairs into delivery queue
+			// then emit all event. an inner/nested event might be
+			// the driver of this
 
-	private _inOrderDelivery(): any {
-		for (let i = 0; !this._disposed && i < this._deliveryQueue.length; i++) {
-			this._callbacks.invoke.call(this._callbacks, this._deliveryQueue[i]);
+			if (!this._deliveryQueue) {
+				this._deliveryQueue = [];
+			}
+
+			for (let iter = this._listeners.iterator(), e = iter.next(); !e.done; e = iter.next()) {
+				this._deliveryQueue.push([e.value, event]);
+			}
+
+			while (this._deliveryQueue.length > 0) {
+				const [listener, event] = this._deliveryQueue.shift();
+				try {
+					if (typeof listener === 'function') {
+						listener.call(undefined, event);
+					} else {
+						listener[0].call(listener[1], event);
+					}
+				} catch (e) {
+					onUnexpectedError(e);
+				}
+			}
 		}
-		this._deliveryQueue.length = 0;
 	}
 
 	dispose() {
-		if (this._callbacks) {
-			this._deliveryQueue.length = 0;
-			this._callbacks.dispose();
-			this._callbacks = undefined;
-			this._disposed = true;
+		if (this._listeners) {
+			this._listeners = undefined;
 		}
+		if (this._deliveryQueue) {
+			this._deliveryQueue.length = 0;
+		}
+		this._disposed = true;
 	}
 }
 
