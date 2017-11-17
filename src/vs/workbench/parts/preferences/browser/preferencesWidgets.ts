@@ -333,8 +333,7 @@ export class FolderSettingsActionItem extends BaseActionItem {
 		this.anchorElement = DOM.$('a.action-label', {
 			role: 'button',
 			'aria-haspopup': 'true',
-			// 'tabindex': '0',
-			title: this._action.label || ''
+			// 'tabindex': '0'
 		}, this.labelElement, this.detailsElement, this.dropDownElement);
 		this.disposables.push(DOM.addDisposableListener(this.anchorElement, DOM.EventType.CLICK, e => this.onClick(e)));
 
@@ -383,13 +382,13 @@ export class FolderSettingsActionItem extends BaseActionItem {
 		const workspace = this.contextService.getWorkspace();
 		if (this._folder) {
 			this.labelElement.textContent = this._folder.name;
-			this.labelElement.title = this._folder.name;
+			this.anchorElement.title = this._folder.name;
 			this.detailsElement.textContent = this._action.label;
 			DOM.toggleClass(this.dropDownElement, 'hide', workspace.folders.length === 1 || !this._action.checked);
 		} else {
 			this.labelElement.textContent = this._action.label;
-			this.labelElement.textContent = this._action.label;
 			this.detailsElement.textContent = '';
+			this.anchorElement.title = this._action.label;
 			DOM.removeClass(this.dropDownElement, 'hide');
 		}
 		DOM.toggleClass(this.anchorElement, 'checked', this._action.checked);
