@@ -579,8 +579,9 @@ export class FeedbackWidgetRenderer extends Disposable {
 	}
 
 	public render(result: IFilterResult): void {
+		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
 		this._currentResult = result;
-		if (result && result.metadata) {
+		if (result && result.metadata && workbenchSettings.enableNaturalLanguageSearchFeedback) {
 			this.showWidget();
 		} else if (this._feedbackWidget) {
 			this.disposeWidget();
