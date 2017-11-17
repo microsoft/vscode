@@ -95,13 +95,15 @@ export class FoldingModel {
 			let decRange = this._textModel.getDecorationRange(this._editorDecorationIds[collapsedIndex]);
 			if (decRange) {
 				let collapsedStartLineNumber = decRange.startLineNumber;
-				while (k < newRanges.length) {
-					let startLineNumber = newRanges.getStartLineNumber(k);
-					if (collapsedStartLineNumber >= startLineNumber) {
-						initRange(k, collapsedStartLineNumber === startLineNumber);
-						k++;
-					} else {
-						break;
+				if (this._textModel.getLineMaxColumn(collapsedStartLineNumber) === decRange.startColumn) { // test that the decoration is still at the end otherwise it got deleted
+					while (k < newRanges.length) {
+						let startLineNumber = newRanges.getStartLineNumber(k);
+						if (collapsedStartLineNumber >= startLineNumber) {
+							initRange(k, collapsedStartLineNumber === startLineNumber);
+							k++;
+						} else {
+							break;
+						}
 					}
 				}
 			}
