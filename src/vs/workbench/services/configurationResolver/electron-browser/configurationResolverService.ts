@@ -17,6 +17,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { toResource } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { relative } from 'path';
 
 export class ConfigurationResolverService implements IConfigurationResolverService {
 	_serviceBrand: any;
@@ -69,7 +70,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 	}
 
 	private get relativeFile(): string {
-		return (this.workspaceRoot) ? paths.relative(this.workspaceRoot, this.file) : this.file;
+		return (this.workspaceRoot) ? relative(this.workspaceRoot, this.file) : this.file;
 	}
 
 	private get fileBasename(): string {

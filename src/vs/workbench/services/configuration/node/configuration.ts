@@ -23,6 +23,7 @@ import * as extfs from 'vs/base/node/extfs';
 import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
 import { WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { relative } from 'path';
 
 // node.hs helper functions
 
@@ -332,7 +333,7 @@ export class FolderConfiguration extends Disposable {
 
 	private toFolderRelativePath(resource: URI, toOSPath?: boolean): string {
 		if (this.contains(resource)) {
-			return paths.normalize(paths.relative(this.folder.fsPath, resource.fsPath), toOSPath);
+			return paths.normalize(relative(this.folder.fsPath, resource.fsPath), toOSPath);
 		}
 
 		return null;
