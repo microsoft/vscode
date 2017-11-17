@@ -35,6 +35,10 @@
           ".webmanifest",
           ".code-workspace"
         ],
+        "filenames": [
+          ".watchmanconfig",
+          ".ember-cli"
+        ],
         "mimetypes": [
           "application/json",
           "application/manifest+json"
