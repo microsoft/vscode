@@ -213,7 +213,9 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		this.disposables.push(this.model.onCancel(() => {
 			this.hide();
 		}));
+	}
 
+	private createParamaterHintDOMNodes() {
 		this.element = $('.editor-widget.parameter-hints-widget');
 		const wrapper = dom.append(this.element, $('.wrapper'));
 
@@ -269,6 +271,10 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 			return;
 		}
 
+		if (!this.element) {
+			this.createParamaterHintDOMNodes();
+		}
+
 		this.keyVisible.set(true);
 		this.visible = true;
 		TPromise.timeout(100).done(() => dom.addClass(this.element, 'visible'));
@@ -278,6 +284,10 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	private hide(): void {
 		if (!this.model || !this.visible) {
 			return;
+		}
+
+		if (!this.element) {
+			this.createParamaterHintDOMNodes();
 		}
 
 		this.keyVisible.reset();
