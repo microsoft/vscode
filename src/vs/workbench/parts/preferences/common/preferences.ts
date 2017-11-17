@@ -74,6 +74,9 @@ export interface IFilterMetadata {
 	timestamp: number;
 	duration: number;
 	scoredResults: IScoredResults;
+
+	/** The name of the server that actually served the request */
+	context: string;
 }
 
 export interface IPreferencesEditorModel<T> {

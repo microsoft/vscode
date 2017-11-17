@@ -117,11 +117,11 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 
 		/* __GDPR__
 			"defaultSettingsActions.copySetting" : {
-				"userConfigurationKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				"query" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				"fuzzy" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				"index" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"userConfigurationKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"query" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"fuzzy" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"index" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"editableSide" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/

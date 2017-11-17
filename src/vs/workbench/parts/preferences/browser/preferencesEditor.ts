@@ -363,7 +363,8 @@ export class PreferencesEditor extends BaseEditor {
 				filter,
 				emptyFilters: this.getLatestEmptyFiltersForTelemetry(),
 				fuzzy: !!metadata,
-				duration: metadata ? metadata.duration : undefined
+				duration: metadata ? metadata.duration : undefined,
+				context: metadata.context
 			};
 
 			this.latestEmptyFilters = [];
@@ -371,8 +372,9 @@ export class PreferencesEditor extends BaseEditor {
 				"defaultSettings.filter" : {
 					"filter": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"emptyFilters" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					"fuzzy" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					"fuzzy" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"context" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/
 			this.telemetryService.publicLog('defaultSettings.filter', data);

@@ -185,7 +185,8 @@ class RemoteSearchProvider {
 					remoteUrl: url,
 					duration,
 					timestamp,
-					scoredResults
+					scoredResults,
+					context: result['@odata.context']
 				};
 			});
 
