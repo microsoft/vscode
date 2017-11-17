@@ -779,7 +779,8 @@ export class VariablesController extends BaseDebugController {
 
 	protected onLeftClick(tree: ITree, element: any, event: IMouseEvent): boolean {
 		// double click on primitive value: open input box to be able to set the value
-		if (element instanceof Variable && event.detail === 2) {
+		const process = this.debugService.getViewModel().focusedProcess;
+		if (element instanceof Variable && event.detail === 2 && process && process.session.capabilities.supportsSetVariable) {
 			const expression = <debug.IExpression>element;
 			this.debugService.getViewModel().setSelectedExpression(expression);
 			return true;
