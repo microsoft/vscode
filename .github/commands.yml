@@ -1,0 +1,42 @@
+{
+    perform: true,
+    commands: [
+        {
+            type: 'label',
+            name: '*question',
+            action: 'close',
+            comment: "This issue has been closed because it represents a question. Questions are better addressed on [StackOverflow](https://aka.ms/vscodestackoverflow). See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
+        },
+        {
+            type: 'label',
+            name: '*extension-candidate',
+            action: 'close',
+            comment: "This issue has been closed because it is not within the scope of the core product, but could be addressed by an extension. The [VS Code Marketplace](https://aka.ms/vscodemarketplace) shows all existing extensions and you can get started [writing your own extension](https://aka.ms/vscodewritingextensions) in a few simple steps. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
+        },
+        {
+            type: 'label',
+            name: '*not-reproducible',
+            action: 'close',
+            comment: "This issue has been closed because the problem could not be reproduced either because it is already fixed in later versions of the product or because it requires additional details on how to reproduce it. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
+        },
+        {
+            type: 'label',
+            name: '*out-of-scope',
+            action: 'close',
+            comment: "This issue has been closed because the feature it requests is not within the scope of the product. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
+        },
+        {
+            type: 'comment',
+            name: 'duplicate',
+            action: 'updateLabels',
+            addLabel: 'duplicate'
+        },
+        {
+            type: 'label',
+            name: '*duplicate',
+            allowTriggerByBot: true,
+            action: 'close',
+            comment: "This issue has been closed because it is already tracked by another issue. See also our [GitHub issues](https://aka.ms/vscodeissuesearch) to search for existing issues and our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
+        },
+    ]
+}
