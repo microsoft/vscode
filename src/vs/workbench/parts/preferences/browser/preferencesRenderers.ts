@@ -424,8 +424,7 @@ class DefaultSettingsHeaderRenderer extends Disposable {
 
 	constructor(editor: ICodeEditor, scope: ConfigurationScope) {
 		super();
-		const title = scope === ConfigurationScope.RESOURCE ? nls.localize('defaultFolderSettingsTitle', "Default Folder Settings") : nls.localize('defaultSettingsTitle', "Default Settings");
-		this.settingsHeaderWidget = this._register(new DefaultSettingsHeaderWidget(editor, title));
+		this.settingsHeaderWidget = this._register(new DefaultSettingsHeaderWidget(editor, ''));
 		this.onClick = this.settingsHeaderWidget.onClick;
 	}
 

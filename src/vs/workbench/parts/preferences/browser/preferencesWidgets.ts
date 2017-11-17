@@ -5,10 +5,10 @@
 
 import { localize } from 'vs/nls';
 import URI from 'vs/base/common/uri';
-import { Dimension } from 'vs/base/browser/builder';
+import { Dimension, $ } from 'vs/base/browser/builder';
 import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -19,21 +19,17 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { InputBox, IInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ISettingsGroup, IPreferencesService, getSettingsTargetName } from 'vs/workbench/parts/preferences/common/preferences';
+import { ISettingsGroup } from 'vs/workbench/parts/preferences/common/preferences';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IAction, IActionRunner } from 'vs/base/common/actions';
-import { attachInputBoxStyler, attachStylerCallback, attachSelectBoxStyler, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
+import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IAction, Action } from 'vs/base/common/actions';
+import { attachInputBoxStyler, attachStylerCallback, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { buttonBackground, buttonForeground, badgeForeground, badgeBackground, contrastBorder, errorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ISelectBoxStyles, defaultStyles } from 'vs/base/browser/ui/selectBox/selectBox';
-import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Color } from 'vs/base/common/color';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { Separator, ActionBar, ActionsOrientation, BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
@@ -92,7 +88,7 @@ export class SettingsHeaderWidget extends Widget implements IViewZone {
 		const configuration = this.editor.getConfiguration();
 		this.titleContainer.style.fontSize = configuration.fontInfo.fontSize + 'px';
 		if (!configuration.contribInfo.folding) {
-			this.titleContainer.style.paddingLeft = '12px';
+			this.titleContainer.style.paddingLeft = '6px';
 		}
 	}
 
@@ -295,133 +291,230 @@ export class SettingsGroupTitleWidget extends Widget implements IViewZone {
 	}
 }
 
-export class SettingsTargetsWidget extends Widget {
+export class FolderSettingsActionItem extends BaseActionItem {
 
-	public actionRunner: IActionRunner;
-	private settingsTargetsContainer: HTMLSelectElement;
-	private targetLabel: HTMLSelectElement;
-	private targetDetails: HTMLSelectElement;
+	private _folder: IWorkspaceFolder;
 
-	private _onDidTargetChange: Emitter<URI> = new Emitter<URI>();
-	public readonly onDidTargetChange: Event<URI> = this._onDidTargetChange.event;
+	private container: HTMLElement;
+	private anchorElement: HTMLElement;
+	private labelElement: HTMLElement;
+	private detailsElement: HTMLElement;
+	private dropDownElement: HTMLElement;
 
-	private borderColor: Color;
+	private disposables: IDisposable[] = [];
 
-	constructor(parent: HTMLElement, private _uri: URI, private _configuartionTarget: ConfigurationTarget,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
-		@IPreferencesService private preferencesService: IPreferencesService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IThemeService themeService: IThemeService) {
-		super();
-
-		this.borderColor = defaultStyles.selectBorder;
-		this.create(parent);
-		this._register(attachSelectBoxStyler(this, themeService, {
-			selectBackground: SIDE_BAR_BACKGROUND
-		}));
+	constructor(
+		action: IAction,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IContextMenuService private contextMenuService: IContextMenuService
+	) {
+		super(null, action);
+		const workspace = this.contextService.getWorkspace();
+		this._folder = workspace.folders.length === 1 ? workspace.folders[0] : null;
+		this.disposables.push(this.contextService.onDidChangeWorkspaceFolders(() => this.onWorkspaceFoldersChanged()));
 	}
 
-	get configurationTarget(): ConfigurationTarget {
-		return this._configuartionTarget;
+	get folder(): IWorkspaceFolder {
+		return this._folder;
 	}
 
-	public updateTargets(uri: URI, configuartionTarget: ConfigurationTarget): void {
-		this._uri = uri;
-		this._configuartionTarget = configuartionTarget;
-		this.updateLabel();
+	set folder(folder: IWorkspaceFolder) {
+		this._folder = folder;
+		this.update();
 	}
 
-	private create(parent: HTMLElement): void {
-		this.settingsTargetsContainer = DOM.append(parent, DOM.$('.settings-targets-widget'));
-		this.settingsTargetsContainer.style.width = this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? '200px' : '150px';
+	public render(container: HTMLElement): void {
+		this.builder = $(container);
 
-		const targetElement = DOM.append(this.settingsTargetsContainer, DOM.$('.settings-target'));
-		this.targetLabel = DOM.append(targetElement, DOM.$('.settings-target-label'));
-		this.targetDetails = DOM.append(targetElement, DOM.$('.settings-target-details'));
-		this.updateLabel();
+		this.container = container;
+		this.labelElement = DOM.$('.action-title');
+		this.detailsElement = DOM.$('.action-details');
+		this.dropDownElement = DOM.$('.dropdown-icon.octicon.octicon-triangle-down.hide');
+		this.anchorElement = DOM.$('a.action-label', {
+			role: 'button',
+			'aria-haspopup': 'true',
+			// 'tabindex': '0',
+			title: this._action.label || ''
+		}, this.labelElement, this.detailsElement, this.dropDownElement);
+		this.disposables.push(DOM.addDisposableListener(this.anchorElement, DOM.EventType.CLICK, e => this.onClick(e)));
 
-		this.onclick(this.settingsTargetsContainer, e => this.showContextMenu(e));
+		DOM.append(this.container, this.anchorElement);
 
-		DOM.append(this.settingsTargetsContainer, DOM.$('.settings-target-dropdown-icon.octicon.octicon-triangle-down'));
-
-		this.applyStyles();
+		this.update();
 	}
 
-	private updateLabel(): void {
-		this.targetLabel.textContent = getSettingsTargetName(this._configuartionTarget, this._uri, this.workspaceContextService);
-		const details = ConfigurationTarget.WORKSPACE_FOLDER === this._configuartionTarget ? localize('folderSettingsDetails', "Folder Settings") : '';
-		this.targetDetails.textContent = details;
-		DOM.toggleClass(this.targetDetails, 'empty', !details);
-	}
-
-	private showContextMenu(event: IMouseEvent): void {
-		const actions = this.getSettingsTargetsActions();
-		let elementPosition = DOM.getDomNodePagePosition(this.settingsTargetsContainer);
-		const anchor = { x: elementPosition.left, y: elementPosition.top + elementPosition.height + 5 };
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => anchor,
-			getActions: () => TPromise.wrap(actions)
-		});
-		event.stopPropagation();
-		event.preventDefault();
-	}
-
-	private getSettingsTargetsActions(): IAction[] {
-		const actions: IAction[] = [];
-		const userSettingsResource = this.preferencesService.userSettingsResource;
-		actions.push(<IAction>{
-			id: 'userSettingsTarget',
-			label: getSettingsTargetName(ConfigurationTarget.USER, userSettingsResource, this.workspaceContextService),
-			checked: this._uri.toString() === userSettingsResource.toString(),
-			enabled: true,
-			run: () => this.onTargetClicked(userSettingsResource)
-		});
-
-		if (this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
-			const workspaceSettingsResource = this.preferencesService.workspaceSettingsResource;
-			actions.push(<IAction>{
-				id: 'workspaceSettingsTarget',
-				label: getSettingsTargetName(ConfigurationTarget.WORKSPACE, workspaceSettingsResource, this.workspaceContextService),
-				checked: this._uri.toString() === workspaceSettingsResource.toString(),
-				enabled: true,
-				run: () => this.onTargetClicked(workspaceSettingsResource)
-			});
+	public onClick(event: DOM.EventLike): void {
+		DOM.EventHelper.stop(event, true);
+		if (!this.folder || this._action.checked) {
+			this.showMenu();
+		} else {
+			this._action.run(this._folder);
 		}
+	}
 
-		const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
-		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE && workspaceFolders.length > 0) {
+	protected _updateEnabled(): void {
+		this.update();
+	}
+
+	protected _updateChecked(): void {
+		this.update();
+	}
+
+	private onWorkspaceFoldersChanged(): void {
+		const oldFolder = this._folder;
+		const workspace = this.contextService.getWorkspace();
+		if (this._folder) {
+			this._folder = workspace.folders.filter(folder => folder.uri.toString() === this._folder.uri.toString())[0] || workspace.folders[0];
+		}
+		this._folder = this._folder ? this._folder : workspace.folders.length === 1 ? workspace.folders[0] : null;
+
+		this.update();
+
+		if (this._action.checked) {
+			if ((oldFolder || !this._folder)
+				|| (!oldFolder || this._folder)
+				|| (oldFolder && this._folder && oldFolder.uri.toString() === this._folder.uri.toString())) {
+				this._action.run(this._folder);
+			}
+		}
+	}
+
+	private update(): void {
+		const workspace = this.contextService.getWorkspace();
+		if (this._folder) {
+			this.labelElement.textContent = this._folder.name;
+			this.labelElement.title = this._folder.name;
+			this.detailsElement.textContent = this._action.label;
+			DOM.toggleClass(this.dropDownElement, 'hide', workspace.folders.length === 1 || !this._action.checked);
+		} else {
+			this.labelElement.textContent = this._action.label;
+			this.labelElement.textContent = this._action.label;
+			this.detailsElement.textContent = '';
+			DOM.removeClass(this.dropDownElement, 'hide');
+		}
+		DOM.toggleClass(this.anchorElement, 'checked', this._action.checked);
+		DOM.toggleClass(this.container, 'disabled', !this._action.enabled);
+	}
+
+	private showMenu(): void {
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => this.container,
+			getActions: () => TPromise.as(this.getDropdownMenuActions()),
+			getActionItem: (action) => null
+		});
+	}
+
+	private getDropdownMenuActions(): IAction[] {
+		const actions: IAction[] = [];
+		const workspaceFolders = this.contextService.getWorkspace().folders;
+		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && workspaceFolders.length > 0) {
 			actions.push(new Separator());
 			actions.push(...workspaceFolders.map((folder, index) => {
 				return <IAction>{
 					id: 'folderSettingsTarget' + index,
-					label: getSettingsTargetName(ConfigurationTarget.WORKSPACE_FOLDER, folder.uri, this.workspaceContextService),
-					checked: this._uri.toString() === folder.uri.toString(),
+					label: folder.name,
+					checked: this.folder && this.folder.uri.toString() === folder.uri.toString(),
 					enabled: true,
-					run: () => this.onTargetClicked(folder.uri)
+					run: () => this._action.run(folder)
 				};
 			}));
 		}
-
 		return actions;
 	}
 
-	private onTargetClicked(target: URI): void {
-		if (this._uri.toString() === target.toString()) {
-			return;
-		}
-		this._onDidTargetChange.fire(target);
+	public dispose(): void {
+		dispose(this.disposables);
+		super.dispose();
+	}
+}
+
+export type SettingsTarget = ConfigurationTarget.USER | ConfigurationTarget.WORKSPACE | URI;
+
+export class SettingsTargetsWidget extends Widget {
+
+	private settingsSwitcherBar: ActionBar;
+	private userSettings: Action;
+	private workspaceSettings: Action;
+	private folderSettings: FolderSettingsActionItem;
+
+	private _settingsTarget: SettingsTarget;
+
+	private _onDidTargetChange: Emitter<SettingsTarget> = new Emitter<SettingsTarget>();
+	public readonly onDidTargetChange: Event<SettingsTarget> = this._onDidTargetChange.event;
+
+	constructor(
+		parent: HTMLElement,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IInstantiationService private instantiationService: IInstantiationService
+	) {
+		super();
+		this.create(parent);
+		this._register(this.contextService.onDidChangeWorkbenchState(() => this.onWorkbenchStateChanged()));
+		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.update()));
 	}
 
-	style(styles: ISelectBoxStyles): void {
-		this.borderColor = styles.selectBorder;
-		this.applyStyles();
+	private create(parent: HTMLElement): void {
+		const settingsTabsWidget = DOM.append(parent, DOM.$('.settings-tabs-widget'));
+		this.settingsSwitcherBar = this._register(new ActionBar(settingsTabsWidget, {
+			orientation: ActionsOrientation.HORIZONTAL_REVERSE,
+			ariaLabel: localize('settingsSwitcherBarAriaLabel', "Settings Switcher"),
+			animated: false,
+			actionItemProvider: (action: Action) => action.id === 'folderSettings' ? this.folderSettings : null
+		}));
+
+		this.userSettings = new Action('userSettings', localize('userSettings', "User Settings"), '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER));
+		this.userSettings.tooltip = this.userSettings.label;
+
+		this.workspaceSettings = new Action('workspaceSettings', localize('workspaceSettings', "Workspace Settings"), '.settings-tab', false, () => this.updateTarget(ConfigurationTarget.WORKSPACE));
+		this.workspaceSettings.tooltip = this.workspaceSettings.label;
+
+		const folderSettingsAction = new Action('folderSettings', localize('folderSettings', "Folder Settings"), '.settings-tab', false, (folder: IWorkspaceFolder) => this.updateTarget(folder ? folder.uri : ConfigurationTarget.USER));
+		this.folderSettings = this.instantiationService.createInstance(FolderSettingsActionItem, folderSettingsAction);
+
+		this.update();
+
+		this.settingsSwitcherBar.push([folderSettingsAction, this.workspaceSettings, this.userSettings]);
 	}
 
-	private applyStyles(): void {
-		if (this.settingsTargetsContainer) {
-			this.settingsTargetsContainer.style.border = this.borderColor ? `1px solid ${this.borderColor}` : null;
+	public get settingsTarget(): SettingsTarget {
+		return this._settingsTarget;
+	}
+
+	public set settingsTarget(settingsTarget: SettingsTarget) {
+		this._settingsTarget = settingsTarget;
+		this.userSettings.checked = ConfigurationTarget.USER === this.settingsTarget;
+		this.workspaceSettings.checked = ConfigurationTarget.WORKSPACE === this.settingsTarget;
+		if (this.settingsTarget instanceof URI) {
+			this.folderSettings.getAction().checked = true;
+			this.folderSettings.folder = this.contextService.getWorkspaceFolder(this.settingsTarget as URI);
+		} else {
+			this.folderSettings.getAction().checked = false;
 		}
 	}
+
+	private onWorkbenchStateChanged(): void {
+		this.folderSettings.folder = null;
+		this.update();
+		if (this.settingsTarget === ConfigurationTarget.WORKSPACE && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+			this.updateTarget(ConfigurationTarget.USER);
+		}
+	}
+
+	private updateTarget(settingsTarget: SettingsTarget): TPromise<void> {
+		const isSameTarget = this.settingsTarget === settingsTarget || settingsTarget instanceof URI && this.settingsTarget instanceof URI && this.settingsTarget.toString() === settingsTarget.toString();
+		if (!isSameTarget) {
+			this.settingsTarget = settingsTarget;
+			this._onDidTargetChange.fire(this.settingsTarget);
+		}
+		return TPromise.as(null);
+	}
+
+	private update(): void {
+		DOM.toggleClass(this.settingsSwitcherBar.domNode, 'empty-workbench', this.contextService.getWorkbenchState() === WorkbenchState.EMPTY);
+		this.workspaceSettings.enabled = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY;
+		this.folderSettings.getAction().enabled = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && this.contextService.getWorkspace().folders.length > 0;
+	}
+
 }
 
 export interface SearchOptions extends IInputOptions {
