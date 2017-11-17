@@ -12,10 +12,13 @@ import { IModelDecoration } from 'vs/editor/common/editorCommon';
 // The red-black tree is based on the "Introduction to Algorithms" by Cormen, Leiserson and Rivest.
 //
 
+/**
+ * The class name sort order must match the severity order. Highest severity last.
+ */
 export const ClassName = {
-	EditorInfoDecoration: 'infosquiggly',
-	EditorWarningDecoration: 'warningsquiggly',
-	EditorErrorDecoration: 'errorsquiggly'
+	EditorInfoDecoration: 'squiggly-a-info',
+	EditorWarningDecoration: 'squiggly-b-warning',
+	EditorErrorDecoration: 'squiggly-c-error'
 };
 
 /**
@@ -185,9 +188,11 @@ export class IntervalNode implements IModelDecoration {
 
 	public setOptions(options: ModelDecorationOptions) {
 		this.options = options;
+		let className = this.options.className;
 		setNodeIsForValidation(this, (
-			this.options.className === ClassName.EditorErrorDecoration
-			|| this.options.className === ClassName.EditorWarningDecoration
+			className === ClassName.EditorErrorDecoration
+			|| className === ClassName.EditorWarningDecoration
+			|| className === ClassName.EditorInfoDecoration
 		));
 		setNodeStickiness(this, <number>this.options.stickiness);
 		setNodeIsInOverviewRuler(this, this.options.overviewRuler.color ? true : false);
