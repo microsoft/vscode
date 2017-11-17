@@ -202,22 +202,23 @@ function getVersionAsset(version: IRawGalleryExtensionVersion, type: string): IG
 	const result = version.files.filter(f => f.assetType === type)[0];
 
 	if (type === AssetType.Repository) {
-		const results = version.properties.filter(p => p.key === type);
-		const gitRegExp = new RegExp('((git|ssh|http(s)?)|(git@[\w\.]+))(:(//)?)([\w\.@\:/\-~]+)(\.git)(/)?');
+		if (version.properties) {
+			const results = version.properties.filter(p => p.key === type);
+			const gitRegExp = new RegExp('((git|ssh|http(s)?)|(git@[\w\.]+))(:(//)?)([\w\.@\:/\-~]+)(\.git)(/)?');
 
-		const uri = results.filter(r => gitRegExp.test(r.value))[0];
-		if (!uri) {
+			const uri = results.filter(r => gitRegExp.test(r.value))[0];
+			if (!uri) {
+				return {
+					uri: null,
+					fallbackUri: null
+				};
+			}
+
 			return {
-				uri: null,
-				fallbackUri: null
+				uri: uri.value,
+				fallbackUri: uri.value,
 			};
 		}
-
-		return {
-			uri: uri.value,
-			fallbackUri: uri.value,
-		};
-
 	}
 
 	if (!result) {
