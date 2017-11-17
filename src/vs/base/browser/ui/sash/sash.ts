@@ -342,7 +342,7 @@ export class VSash extends Disposable implements IVerticalSashLayoutProvider {
 	}
 
 	private onSashReset(): void {
-		this.ratio = 0.5;
+		this.compute(0.5);
 		this._onPositionChange.fire(this.position);
 		this.sash.layout();
 	}
