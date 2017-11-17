@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { OrderGuaranteeEventEmitter } from 'vs/base/common/eventEmitter';
 import * as strings from 'vs/base/common/strings';
 import Event, { Emitter } from 'vs/base/common/event';
 import { Position, IPosition } from 'vs/editor/common/core/position';
@@ -27,8 +26,6 @@ export interface ITextModelCreationData {
 	readonly text: ITextSource;
 	readonly options: editorCommon.TextModelResolvedOptions;
 }
-
-const ContentChangeEventName: string = 'contentChange';
 
 export class TextModel extends Disposable implements editorCommon.ITextModel {
 	private static MODEL_SYNC_LIMIT = 50 * 1024 * 1024; // 50 MB
@@ -77,16 +74,13 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 	private readonly _onDidChangeOptions: Emitter<IModelOptionsChangedEvent> = this._register(new Emitter<IModelOptionsChangedEvent>());
 	public readonly onDidChangeOptions: Event<IModelOptionsChangedEvent> = this._onDidChangeOptions.event;
 
-	protected readonly _eventEmitter: OrderGuaranteeEventEmitter = this._register(new OrderGuaranteeEventEmitter());
-	// protected readonly _eventEmitter: DidChangeContentEmitter = this._register(new DidChangeContentEmitter());
+	protected readonly _eventEmitter: DidChangeContentEmitter = this._register(new DidChangeContentEmitter());
 
 	public onDidChangeRawContent(listener: (e: ModelRawContentChangedEvent) => void): IDisposable {
-		return this._eventEmitter.addListener(ContentChangeEventName, (e: InternalModelContentChangeEvent) => listener(e.rawContentChangedEvent));
-		// return this._eventEmitter.event((e: InternalModelContentChangeEvent) => listener(e.rawContentChangedEvent));
+		return this._eventEmitter.event((e: InternalModelContentChangeEvent) => listener(e.rawContentChangedEvent));
 	}
 	public onDidChangeContent(listener: (e: IModelContentChangedEvent) => void): IDisposable {
-		return this._eventEmitter.addListener(ContentChangeEventName, (e: InternalModelContentChangeEvent) => listener(e.contentChangedEvent));
-		// return this._eventEmitter.event((e: InternalModelContentChangeEvent) => listener(e.contentChangedEvent));
+		return this._eventEmitter.event((e: InternalModelContentChangeEvent) => listener(e.contentChangedEvent));
 	}
 
 	/*protected*/ _lines: IModelLine[];
@@ -751,8 +745,7 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 			// Do not confuse listeners by emitting any event after disposing
 			return;
 		}
-		this._eventEmitter.emit(ContentChangeEventName, new InternalModelContentChangeEvent(rawChange, change));
-		// this._eventEmitter.fire(new InternalModelContentChangeEvent(rawChange, change));
+		this._eventEmitter.fire(new InternalModelContentChangeEvent(rawChange, change));
 	}
 
 	private _constructLines(textSource: ITextSource): void {
@@ -820,7 +813,7 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 
 export class DidChangeContentEmitter extends Disposable {
 
-	private readonly _actual: Emitter<InternalModelContentChangeEvent> = this._register(new Emitter<InternalModelContentChangeEvent>({ guaranteeEventOrder: true }));
+	private readonly _actual: Emitter<InternalModelContentChangeEvent> = this._register(new Emitter<InternalModelContentChangeEvent>());
 	public readonly event: Event<InternalModelContentChangeEvent> = this._actual.event;
 
 	private _deferredCnt: number;
