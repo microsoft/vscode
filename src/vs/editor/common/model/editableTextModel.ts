@@ -12,11 +12,10 @@ import { TextModelWithDecorations, ModelDecorationOptions } from 'vs/editor/comm
 import * as strings from 'vs/base/common/strings';
 import * as arrays from 'vs/base/common/arrays';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { ITextSource, IRawTextSource, RawTextSource } from 'vs/editor/common/model/textSource';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { ModelRawContentChangedEvent, TextModelEventType, IModelContentChangedEvent, ModelRawChange, IModelContentChange, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
+import { ModelRawContentChangedEvent, ModelRawChange, IModelContentChange, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
 
 export interface IValidatedEditOperation {
 	sortIndex: number;
@@ -37,13 +36,6 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 	public static createFromString(text: string, options: editorCommon.ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS, languageIdentifier: LanguageIdentifier = null): EditableTextModel {
 		return new EditableTextModel(RawTextSource.fromString(text), options, languageIdentifier);
-	}
-
-	public onDidChangeRawContent(listener: (e: ModelRawContentChangedEvent) => void): IDisposable {
-		return this._eventEmitter.addListener(TextModelEventType.ModelRawContentChanged2, listener);
-	}
-	public onDidChangeContent(listener: (e: IModelContentChangedEvent) => void): IDisposable {
-		return this._eventEmitter.addListener(TextModelEventType.ModelContentChanged, listener);
 	}
 
 	private _commandManager: EditStack;
@@ -649,22 +641,22 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		if (rawContentChanges.length !== 0 || contentChanges.length !== 0) {
 			this._increaseVersionId();
 
-			this._emitModelRawContentChangedEvent(new ModelRawContentChangedEvent(
-				rawContentChanges,
-				this.getVersionId(),
-				this._isUndoing,
-				this._isRedoing
-			));
-
-			const e: IModelContentChangedEvent = {
-				changes: contentChanges,
-				eol: this._EOL,
-				versionId: this.getVersionId(),
-				isUndoing: this._isUndoing,
-				isRedoing: this._isRedoing,
-				isFlush: false
-			};
-			this._eventEmitter.emit(TextModelEventType.ModelContentChanged, e);
+			this._emitContentChangedEvent(
+				new ModelRawContentChangedEvent(
+					rawContentChanges,
+					this.getVersionId(),
+					this._isUndoing,
+					this._isRedoing
+				),
+				{
+					changes: contentChanges,
+					eol: this._EOL,
+					versionId: this.getVersionId(),
+					isUndoing: this._isUndoing,
+					isRedoing: this._isRedoing,
+					isFlush: false
+				}
+			);
 		}
 	}
 
