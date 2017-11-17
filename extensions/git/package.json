@@ -866,6 +866,11 @@
           "description": "%config.enableSmartCommit%",
           "default": false
         },
+        "git.enableUnsavedResourceCheck": {
+          "type": "boolean",
+          "description": "%config.enableUnsavedResourceCheck%",
+          "default": true
+        },
         "git.enableCommitSigning": {
           "type": "boolean",
           "description": "%config.enableCommitSigning%",
