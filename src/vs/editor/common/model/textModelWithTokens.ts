@@ -8,6 +8,7 @@ import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import Event, { Emitter } from 'vs/base/common/event';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
@@ -21,7 +22,7 @@ import { LineTokens, LineToken } from 'vs/editor/common/core/lineTokens';
 import { getWordAtText } from 'vs/editor/common/model/wordHelper';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { ITextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
-import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
+import { IModelTokensChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { computeIndentLevel } from 'vs/editor/common/model/modelLine';
 
 class ModelTokensChangedEventBuilder {
@@ -49,7 +50,7 @@ class ModelTokensChangedEventBuilder {
 		}
 	}
 
-	public build(): textModelEvents.IModelTokensChangedEvent {
+	public build(): IModelTokensChangedEvent {
 		if (this._ranges.length === 0) {
 			return null;
 		}
@@ -62,6 +63,15 @@ class ModelTokensChangedEventBuilder {
 export class TextModelWithTokens extends TextModel implements editorCommon.ITokenizedModel {
 
 	private static MODE_TOKENIZATION_FAILED_MSG = nls.localize('mode.tokenizationSupportFailed', "The mode has failed while tokenizing the input.");
+
+	private readonly _onDidChangeLanguage: Emitter<IModelLanguageChangedEvent> = this._register(new Emitter<IModelLanguageChangedEvent>());
+	public readonly onDidChangeLanguage: Event<IModelLanguageChangedEvent> = this._onDidChangeLanguage.event;
+
+	private readonly _onDidChangeLanguageConfiguration: Emitter<IModelLanguageConfigurationChangedEvent> = this._register(new Emitter<IModelLanguageConfigurationChangedEvent>());
+	public readonly onDidChangeLanguageConfiguration: Event<IModelLanguageConfigurationChangedEvent> = this._onDidChangeLanguageConfiguration.event;
+
+	private readonly _onDidChangeTokens: Emitter<IModelTokensChangedEvent> = this._register(new Emitter<IModelTokensChangedEvent>());
+	public readonly onDidChangeTokens: Event<IModelTokensChangedEvent> = this._onDidChangeTokens.event;
 
 	private _languageIdentifier: LanguageIdentifier;
 	private _tokenizationListener: IDisposable;
@@ -100,7 +110,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 		this._languageRegistryListener = LanguageConfigurationRegistry.onDidChange((e) => {
 			if (e.languageIdentifier.id === this._languageIdentifier.id) {
-				this._emitModelLanguageConfigurationEvent({});
+				this._onDidChangeLanguageConfiguration.fire({});
 			}
 		});
 
@@ -164,29 +174,19 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		}
 	}
 
-	private _withModelTokensChangedEventBuilder<T>(callback: (eventBuilder: ModelTokensChangedEventBuilder) => T): T {
-		let eventBuilder = new ModelTokensChangedEventBuilder();
-
-		let result = callback(eventBuilder);
-
-		if (!this._isDisposing) {
-			let e = eventBuilder.build();
-			if (e) {
-				this._eventEmitter.emit(textModelEvents.TextModelEventType.ModelTokensChanged, e);
-			}
-		}
-
-		return result;
-	}
-
 	public forceTokenization(lineNumber: number): void {
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
 		}
 
-		this._withModelTokensChangedEventBuilder((eventBuilder) => {
-			this._updateTokensUntilLine(eventBuilder, lineNumber);
-		});
+		const eventBuilder = new ModelTokensChangedEventBuilder();
+
+		this._updateTokensUntilLine(eventBuilder, lineNumber);
+
+		const e = eventBuilder.build();
+		if (e) {
+			this._onDidChangeTokens.fire(e);
+		}
 	}
 
 	public isCheapToTokenize(lineNumber: number): boolean {
@@ -226,7 +226,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			return;
 		}
 
-		let e: textModelEvents.IModelLanguageChangedEvent = {
+		let e: IModelLanguageChangedEvent = {
 			oldLanguage: this._languageIdentifier.language,
 			newLanguage: languageIdentifier.language
 		};
@@ -242,8 +242,8 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 				toLineNumber: this.getLineCount()
 			}]
 		});
-		this._emitModelModeChangedEvent(e);
-		this._emitModelLanguageConfigurationEvent({});
+		this._onDidChangeLanguage.fire(e);
+		this._onDidChangeLanguageConfiguration.fire({});
 	}
 
 	public getLanguageIdAtPosition(_lineNumber: number, _column: number): LanguageId {
@@ -289,56 +289,60 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 	private _revalidateTokensNow(toLineNumber: number = this._invalidLineStartIndex + 1000000): void {
 
-		this._withModelTokensChangedEventBuilder((eventBuilder) => {
+		const eventBuilder = new ModelTokensChangedEventBuilder();
 
-			toLineNumber = Math.min(this._lines.length, toLineNumber);
+		toLineNumber = Math.min(this._lines.length, toLineNumber);
 
-			var MAX_ALLOWED_TIME = 20,
-				fromLineNumber = this._invalidLineStartIndex + 1,
-				tokenizedChars = 0,
-				currentCharsToTokenize = 0,
-				currentEstimatedTimeToTokenize = 0,
-				sw = StopWatch.create(false),
-				elapsedTime: number;
+		var MAX_ALLOWED_TIME = 20,
+			fromLineNumber = this._invalidLineStartIndex + 1,
+			tokenizedChars = 0,
+			currentCharsToTokenize = 0,
+			currentEstimatedTimeToTokenize = 0,
+			sw = StopWatch.create(false),
+			elapsedTime: number;
 
-			// Tokenize at most 1000 lines. Estimate the tokenization speed per character and stop when:
-			// - MAX_ALLOWED_TIME is reached
-			// - tokenizing the next line would go above MAX_ALLOWED_TIME
+		// Tokenize at most 1000 lines. Estimate the tokenization speed per character and stop when:
+		// - MAX_ALLOWED_TIME is reached
+		// - tokenizing the next line would go above MAX_ALLOWED_TIME
 
-			for (var lineNumber = fromLineNumber; lineNumber <= toLineNumber; lineNumber++) {
-				elapsedTime = sw.elapsed();
-				if (elapsedTime > MAX_ALLOWED_TIME) {
-					// Stop if MAX_ALLOWED_TIME is reached
+		for (var lineNumber = fromLineNumber; lineNumber <= toLineNumber; lineNumber++) {
+			elapsedTime = sw.elapsed();
+			if (elapsedTime > MAX_ALLOWED_TIME) {
+				// Stop if MAX_ALLOWED_TIME is reached
+				toLineNumber = lineNumber - 1;
+				break;
+			}
+
+			// Compute how many characters will be tokenized for this line
+			currentCharsToTokenize = this._lines[lineNumber - 1].text.length;
+
+			if (tokenizedChars > 0) {
+				// If we have enough history, estimate how long tokenizing this line would take
+				currentEstimatedTimeToTokenize = (elapsedTime / tokenizedChars) * currentCharsToTokenize;
+				if (elapsedTime + currentEstimatedTimeToTokenize > MAX_ALLOWED_TIME) {
+					// Tokenizing this line will go above MAX_ALLOWED_TIME
 					toLineNumber = lineNumber - 1;
 					break;
 				}
-
-				// Compute how many characters will be tokenized for this line
-				currentCharsToTokenize = this._lines[lineNumber - 1].text.length;
-
-				if (tokenizedChars > 0) {
-					// If we have enough history, estimate how long tokenizing this line would take
-					currentEstimatedTimeToTokenize = (elapsedTime / tokenizedChars) * currentCharsToTokenize;
-					if (elapsedTime + currentEstimatedTimeToTokenize > MAX_ALLOWED_TIME) {
-						// Tokenizing this line will go above MAX_ALLOWED_TIME
-						toLineNumber = lineNumber - 1;
-						break;
-					}
-				}
-
-				this._updateTokensUntilLine(eventBuilder, lineNumber);
-				tokenizedChars += currentCharsToTokenize;
-
-				// Skip the lines that got tokenized
-				lineNumber = Math.max(lineNumber, this._invalidLineStartIndex + 1);
 			}
 
-			elapsedTime = sw.elapsed();
+			this._updateTokensUntilLine(eventBuilder, lineNumber);
+			tokenizedChars += currentCharsToTokenize;
 
-			if (this._invalidLineStartIndex < this._lines.length) {
-				this._beginBackgroundTokenization();
-			}
-		});
+			// Skip the lines that got tokenized
+			lineNumber = Math.max(lineNumber, this._invalidLineStartIndex + 1);
+		}
+
+		elapsedTime = sw.elapsed();
+
+		if (this._invalidLineStartIndex < this._lines.length) {
+			this._beginBackgroundTokenization();
+		}
+
+		const e = eventBuilder.build();
+		if (e) {
+			this._onDidChangeTokens.fire(e);
+		}
 	}
 
 	private _updateTokensUntilLine(eventBuilder: ModelTokensChangedEventBuilder, lineNumber: number): void {
@@ -403,21 +407,9 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		this._invalidLineStartIndex = Math.max(this._invalidLineStartIndex, endLineIndex + 1);
 	}
 
-	private emitModelTokensChangedEvent(e: textModelEvents.IModelTokensChangedEvent): void {
+	private emitModelTokensChangedEvent(e: IModelTokensChangedEvent): void {
 		if (!this._isDisposing) {
-			this._eventEmitter.emit(textModelEvents.TextModelEventType.ModelTokensChanged, e);
-		}
-	}
-
-	private _emitModelLanguageConfigurationEvent(e: textModelEvents.IModelLanguageConfigurationChangedEvent): void {
-		if (!this._isDisposing) {
-			this._eventEmitter.emit(textModelEvents.TextModelEventType.ModelLanguageConfigurationChanged, e);
-		}
-	}
-
-	private _emitModelModeChangedEvent(e: textModelEvents.IModelLanguageChangedEvent): void {
-		if (!this._isDisposing) {
-			this._eventEmitter.emit(textModelEvents.TextModelEventType.ModelLanguageChanged, e);
+			this._onDidChangeTokens.fire(e);
 		}
 	}
 

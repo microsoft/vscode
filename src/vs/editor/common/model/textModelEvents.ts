@@ -11,14 +11,8 @@ import { IRange } from 'vs/editor/common/core/range';
  * @internal
  */
 export const TextModelEventType = {
-	ModelDispose: 'modelDispose',
-	ModelTokensChanged: 'modelTokensChanged',
-	ModelLanguageChanged: 'modelLanguageChanged',
-	ModelOptionsChanged: 'modelOptionsChanged',
 	ModelContentChanged: 'contentChanged',
 	ModelRawContentChanged2: 'rawContentChanged2',
-	ModelDecorationsChanged: 'decorationsChanged',
-	ModelLanguageConfigurationChanged: 'modelLanguageConfigurationChanged'
 };
 
 /**

@@ -22,50 +22,31 @@ export interface ListenerCallback {
 	(value: any): void;
 }
 
-export interface IEventEmitter extends IDisposable {
-	addListener(eventType: string, listener: ListenerCallback): IDisposable;
-	addOneTimeListener(eventType: string, listener: ListenerCallback): IDisposable;
-}
-
 export interface IListenersMap {
 	[key: string]: ListenerCallback[];
 }
 
-export class EventEmitter implements IEventEmitter {
+export class EventEmitter implements IDisposable {
 
 	protected _listeners: IListenersMap;
 	private _collectedEvents: EmitterEvent[];
 	private _deferredCnt: number;
-	private _allowedEventTypes: { [eventType: string]: boolean; };
 
-	constructor(allowedEventTypes: string[] = null) {
+	constructor() {
 		this._listeners = {};
 		this._collectedEvents = [];
 		this._deferredCnt = 0;
-		if (allowedEventTypes) {
-			this._allowedEventTypes = {};
-			for (let i = 0; i < allowedEventTypes.length; i++) {
-				this._allowedEventTypes[allowedEventTypes[i]] = true;
-			}
-		} else {
-			this._allowedEventTypes = null;
-		}
 	}
 
 	public dispose(): void {
 		this._listeners = {};
 		this._collectedEvents = [];
 		this._deferredCnt = 0;
-		this._allowedEventTypes = null;
 	}
 
 	public addListener(eventType: string, listener: ListenerCallback): IDisposable {
 		if (eventType === '*') {
 			throw new Error('Use addBulkListener(listener) to register your listener!');
-		}
-
-		if (this._allowedEventTypes && !this._allowedEventTypes.hasOwnProperty(eventType)) {
-			throw new Error('This object will never emit this event type!');
 		}
 
 		if (this._listeners.hasOwnProperty(eventType)) {
@@ -130,9 +111,6 @@ export class EventEmitter implements IEventEmitter {
 	}
 
 	public emit(eventType: string, data: any = {}): void {
-		if (this._allowedEventTypes && !this._allowedEventTypes.hasOwnProperty(eventType)) {
-			throw new Error('Cannot emit this event type because it wasn\'t listed!');
-		}
 		// Early return if no listeners would get this
 		if (!this._listeners.hasOwnProperty(eventType)) {
 			return;
@@ -157,16 +135,6 @@ export class EventEmitter implements IEventEmitter {
 		if (this._deferredCnt === 0) {
 			this._emitCollected();
 		}
-	}
-
-	public deferredEmit<T>(callback: () => T): T {
-		this.beginDeferredEmit();
-
-		let result: T = safeInvokeNoArg<T>(callback);
-
-		this.endDeferredEmit();
-
-		return result;
 	}
 
 	private _emitCollected(): void {
@@ -198,7 +166,7 @@ export class OrderGuaranteeEventEmitter extends EventEmitter {
 	private _emitQueue: EmitQueueElement[];
 
 	constructor() {
-		super(null);
+		super();
 		this._emitQueue = [];
 	}
 
@@ -219,15 +187,6 @@ export class OrderGuaranteeEventEmitter extends EventEmitter {
 			safeInvoke1Arg(queueElement.target, queueElement.arg);
 		}
 	}
-}
-
-function safeInvokeNoArg<T>(func: Function): T {
-	try {
-		return func();
-	} catch (e) {
-		Errors.onUnexpectedError(e);
-	}
-	return undefined;
 }
 
 function safeInvoke1Arg(func: Function, arg1: any): any {
