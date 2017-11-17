@@ -6,6 +6,23 @@
 import * as Proto from '../protocol';
 import { MarkdownString } from 'vscode';
 
+function getTagText(tag: Proto.JSDocTagInfo): string | undefined {
+	if (!tag.text) {
+		return undefined;
+	}
+
+	switch (tag.name) {
+		case 'example':
+			// Convert to markdown code block
+			if (tag.text.match(/^\s*[~`]{3}/g)) {
+				return tag.text;
+			}
+			return '```\n' + tag.text + '\n```';
+	}
+
+	return tag.text;
+}
+
 export function plain(parts: Proto.SymbolDisplayPart[]): string {
 	if (!parts) {
 		return '';
@@ -17,10 +34,11 @@ export function tagsMarkdownPreview(tags: Proto.JSDocTagInfo[]): string {
 	return (tags || [])
 		.map(tag => {
 			const label = `*@${tag.name}*`;
-			if (!tag.text) {
+			const text = getTagText(tag);
+			if (!text) {
 				return label;
 			}
-			return label + (tag.text.match(/\r\n|\n/g) ? '  \n' + tag.text : ` — ${tag.text}`);
+			return label + (text.match(/\r\n|\n/g) ? '  \n' + text : ` — ${text}`);
 		})
 		.join('  \n\n');
 }
