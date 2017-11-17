@@ -454,9 +454,11 @@ class PreferencesRenderers extends Disposable {
 	}
 
 	focusFirst(): void {
-		const setting = this._settingsNavigator.first() || this._getFirstSetting(this._defaultPreferencesRenderer);
-		this._focusPreference(setting, this._defaultPreferencesRenderer);
-		this._focusPreference(setting, this._editablePreferencesRenderer);
+		// Focus first match in both renderers
+		this._focusPreference(this._getFirstSettingFromTheGroups(this._defaultPreferencesFilterResult ? this._defaultPreferencesFilterResult.filteredGroups : []), this._defaultPreferencesRenderer);
+		this._focusPreference(this._getFirstSettingFromTheGroups(this._editablePreferencesFilterResult ? this._editablePreferencesFilterResult.filteredGroups : []), this._editablePreferencesRenderer);
+
+		this._settingsNavigator.first(); // Move to first
 	}
 
 	focusNextPreference(forward: boolean = true) {
@@ -485,8 +487,7 @@ class PreferencesRenderers extends Disposable {
 		return TPromise.wrap(null);
 	}
 
-	private _getFirstSetting(preferencesRenderer: IPreferencesRenderer<ISetting>): ISetting {
-		const allGroups = this._getAllPreferences(preferencesRenderer);
+	private _getFirstSettingFromTheGroups(allGroups: ISettingsGroup[]): ISetting {
 		if (allGroups.length) {
 			if (allGroups[0].sections.length) {
 				return allGroups[0].sections[0].settings[0];
