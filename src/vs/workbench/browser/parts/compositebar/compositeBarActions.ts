@@ -207,7 +207,13 @@ export class ActivityActionItem extends BaseActionItem {
 			// Number
 			if (badge instanceof NumberBadge) {
 				if (badge.number) {
-					this.$badgeContent.text(badge.number > 99 ? '99+' : badge.number.toString());
+					let number = badge.number.toString();
+					if (badge.number > 9999) {
+						number = nls.localize('largeNumberBadge', '10k+');
+					} else if (badge.number > 999) {
+						number = number.charAt(0) + 'k';
+					}
+					this.$badgeContent.text(number);
 					this.$badge.show();
 				}
 			}
