@@ -158,10 +158,6 @@ export abstract class CommonCodeEditor extends Disposable {
 		return editorCommon.EditorType.ICodeEditor;
 	}
 
-	public destroy(): void {
-		this.dispose();
-	}
-
 	public dispose(): void {
 		let keys = Object.keys(this._contributions);
 		for (let i = 0, len = keys.length; i < len; i++) {

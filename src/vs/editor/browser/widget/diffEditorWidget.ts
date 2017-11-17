@@ -462,10 +462,6 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		return instantiationService.createInstance(CodeEditor, container, options);
 	}
 
-	public destroy(): void {
-		this.dispose();
-	}
-
 	public dispose(): void {
 		this._codeEditorService.removeDiffEditor(this);
 
@@ -565,10 +561,6 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 			// Update class name
 			this._containerDomElement.className = DiffEditorWidget._getClassName(this._themeService.getTheme(), this._renderSideBySide);
 		}
-	}
-
-	public getValue(options: { preserveBOM: boolean; lineEnding: string; } = null): string {
-		return this.modifiedEditor.getValue(options);
 	}
 
 	public getModel(): editorCommon.IDiffEditorModel {
@@ -701,16 +693,8 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this.modifiedEditor.revealRangeAtTop(range, scrollType);
 	}
 
-	public getActions(): editorCommon.IEditorAction[] {
-		return this.modifiedEditor.getActions();
-	}
-
 	public getSupportedActions(): editorCommon.IEditorAction[] {
 		return this.modifiedEditor.getSupportedActions();
-	}
-
-	public getAction(id: string): editorCommon.IEditorAction {
-		return this.modifiedEditor.getAction(id);
 	}
 
 	public saveViewState(): editorCommon.IDiffEditorViewState {

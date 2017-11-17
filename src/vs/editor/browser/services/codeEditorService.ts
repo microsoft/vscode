@@ -23,7 +23,6 @@ export interface ICodeEditorService {
 
 	addCodeEditor(editor: ICodeEditor): void;
 	removeCodeEditor(editor: ICodeEditor): void;
-	getCodeEditor(editorId: string): ICodeEditor;
 	listCodeEditors(): ICodeEditor[];
 
 	addDiffEditor(editor: IDiffEditor): void;

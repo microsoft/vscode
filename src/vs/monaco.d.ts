@@ -2017,10 +2017,6 @@ declare module monaco.editor {
 		/**
 		 * Returns all actions associated with this editor.
 		 */
-		getActions(): IEditorAction[];
-		/**
-		 * Returns all actions associated with this editor.
-		 */
 		getSupportedActions(): IEditorAction[];
 		/**
 		 * Saves current view state of the editor in a serializable object.
@@ -3885,13 +3881,6 @@ declare module monaco.editor {
 		 * If the diff computation is not finished or the model is missing, will return null.
 		 */
 		getDiffLineInformationForModified(lineNumber: number): IDiffLineInformation;
-		/**
-		 * @see ICodeEditor.getValue
-		 */
-		getValue(options?: {
-			preserveBOM: boolean;
-			lineEnding: string;
-		}): string;
 	}
 
 	export class FontInfo extends BareFontInfo {

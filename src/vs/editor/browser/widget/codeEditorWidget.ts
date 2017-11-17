@@ -14,7 +14,6 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { CommonCodeEditor } from 'vs/editor/common/commonCodeEditor';
 import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditorAction, EditorExtensionsRegistry, IEditorContributionCtor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -166,14 +165,6 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 			return null;
 		}
 		return this._view.domNode.domNode;
-	}
-
-	public getCompletelyVisibleLinesRangeInViewport(): Range {
-		if (!this.hasView) {
-			return null;
-		}
-		const viewRange = this.viewModel.getCompletelyVisibleViewRange();
-		return this.viewModel.coordinatesConverter.convertViewRangeToModelRange(viewRange);
 	}
 
 	public delegateVerticalScrollbarMouseDown(browserEvent: IMouseEvent): void {
@@ -328,13 +319,6 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 			return;
 		}
 		this._view.render(true, false);
-	}
-
-	public setAriaActiveDescendant(id: string): void {
-		if (!this.hasView) {
-			return;
-		}
-		this._view.setAriaActiveDescendant(id);
 	}
 
 	public applyFontInfo(target: HTMLElement): void {

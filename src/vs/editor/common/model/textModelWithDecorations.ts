@@ -74,10 +74,6 @@ export class TextModelWithDecorations extends TextModelWithTokens implements edi
 		this._decorationsTree = new DecorationsTrees();
 	}
 
-	_getTrackedRangesCount(): number {
-		return this._decorationsTree.count();
-	}
-
 	// --- END TrackedRanges
 
 	protected _adjustDecorationsForEdit(offset: number, length: number, textLength: number, forceMoveMarkers: boolean): void {
@@ -451,12 +447,6 @@ class DecorationsTrees {
 			const r1 = this._decorationsTree1.search(filterOwnerId, filterOutValidation, cachedVersionId);
 			return r0.concat(r1);
 		}
-	}
-
-	public count(): number {
-		const c0 = this._decorationsTree0.count();
-		const c1 = this._decorationsTree1.count();
-		return c0 + c1;
 	}
 
 	public collectNodesFromOwner(ownerId: number): IntervalNode[] {

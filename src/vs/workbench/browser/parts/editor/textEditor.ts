@@ -321,7 +321,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 	public dispose(): void {
 		this.lastAppliedEditorOptions = void 0;
-		this.editorControl.destroy();
+		this.editorControl.dispose();
 
 		super.dispose();
 	}

@@ -328,10 +328,6 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		super.dispose();
 	}
 
-	public destroy(): void {
-		this.dispose();
-	}
-
 	_attachModel(model: IModel): void {
 		super._attachModel(model);
 		if (this._view) {
@@ -381,10 +377,6 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 
 	public dispose(): void {
 		super.dispose();
-	}
-
-	public destroy(): void {
-		this.dispose();
 	}
 
 	protected _createInnerEditor(instantiationService: IInstantiationService, container: HTMLElement, options: IEditorOptions): CodeEditor {

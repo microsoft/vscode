@@ -9,7 +9,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { isObject } from 'vs/base/common/types';
 import * as browser from 'vs/base/browser/browser';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -23,31 +22,6 @@ export function clearNode(node: HTMLElement) {
 	}
 }
 
-/**
- * Calls JSON.Stringify with a replacer to break apart any circular references.
- * This prevents JSON.stringify from throwing the exception
- *  "Uncaught TypeError: Converting circular structure to JSON"
- */
-export function safeStringifyDOMAware(obj: any): string {
-	let seen: any[] = [];
-	return JSON.stringify(obj, (key, value) => {
-
-		// HTML elements are never going to serialize nicely
-		if (value instanceof Element) {
-			return '[Element]';
-		}
-
-		if (isObject(value) || Array.isArray(value)) {
-			if (seen.indexOf(value) !== -1) {
-				return '[Circular]';
-			} else {
-				seen.push(value);
-			}
-		}
-		return value;
-	});
-}
-
 export function isInDOM(node: Node): boolean {
 	while (node) {
 		if (node === document.body) {
@@ -58,7 +32,14 @@ export function isInDOM(node: Node): boolean {
 	return false;
 }
 
-const _manualClassList = new class {
+interface IDomClassList {
+	hasClass(node: HTMLElement, className: string): boolean;
+	addClass(node: HTMLElement, className: string): void;
+	removeClass(node: HTMLElement, className: string): void;
+	toggleClass(node: HTMLElement, className: string, shouldHaveIt?: boolean): void;
+}
+
+const _manualClassList = new class implements IDomClassList {
 
 	private _lastStart: number;
 	private _lastEnd: number;
@@ -160,7 +141,7 @@ const _manualClassList = new class {
 	}
 };
 
-const _nativeClassList = new class {
+const _nativeClassList = new class implements IDomClassList {
 	hasClass(node: HTMLElement, className: string): boolean {
 		return className && node.classList && node.classList.contains(className);
 	}
@@ -186,7 +167,7 @@ const _nativeClassList = new class {
 
 // In IE11 there is only partial support for `classList` which makes us keep our
 // custom implementation. Otherwise use the native implementation, see: http://caniuse.com/#search=classlist
-const _classList = browser.isIE ? _manualClassList : _nativeClassList;
+const _classList: IDomClassList = browser.isIE ? _manualClassList : _nativeClassList;
 export const hasClass: (node: HTMLElement, className: string) => boolean = _classList.hasClass.bind(_classList);
 export const addClass: (node: HTMLElement, className: string) => void = _classList.addClass.bind(_classList);
 export const removeClass: (node: HTMLElement, className: string) => void = _classList.removeClass.bind(_classList);

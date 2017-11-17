@@ -13,8 +13,7 @@ import * as strings from 'vs/base/common/strings';
 import * as arrays from 'vs/base/common/arrays';
 import { Selection } from 'vs/editor/common/core/selection';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
-import { ITextSource, IRawTextSource, RawTextSource } from 'vs/editor/common/model/textSource';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { ITextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 import { ModelRawContentChangedEvent, ModelRawChange, IModelContentChange, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
 
 export interface IValidatedEditOperation {
@@ -33,10 +32,6 @@ interface IIdentifiedLineEdit extends ILineEdit {
 }
 
 export class EditableTextModel extends TextModelWithDecorations implements editorCommon.IEditableTextModel {
-
-	public static createFromString(text: string, options: editorCommon.ITextModelCreationOptions = TextModel.DEFAULT_CREATION_OPTIONS, languageIdentifier: LanguageIdentifier = null): EditableTextModel {
-		return new EditableTextModel(RawTextSource.fromString(text), options, languageIdentifier);
-	}
 
 	private _commandManager: EditStack;
 

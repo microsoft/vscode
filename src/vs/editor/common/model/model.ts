@@ -47,10 +47,6 @@ export class Model extends EditableTextModel implements IModel {
 		this._attachedEditorCount = 0;
 	}
 
-	public destroy(): void {
-		this.dispose();
-	}
-
 	public dispose(): void {
 		this._isDisposing = true;
 		this._onWillDispose.fire();

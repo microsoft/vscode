@@ -1147,13 +1147,6 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITokenizedMo
 	/**
 	 * Destroy this model. This will unbind the model from the mode
 	 * and make all necessary clean-up to release this object to the GC.
-	 * @internal
-	 */
-	destroy(): void;
-
-	/**
-	 * Destroy this model. This will unbind the model from the mode
-	 * and make all necessary clean-up to release this object to the GC.
 	 */
 	dispose(): void;
 
@@ -1340,12 +1333,6 @@ export interface IEditor {
 	getEditorType(): string;
 
 	/**
-	 * Destroy the editor.
-	 * @internal
-	 */
-	destroy(): void;
-
-	/**
 	 * Update the editor's options after the editor has been created.
 	 */
 	updateOptions(newOptions: editorOptions.IEditorOptions): void;
@@ -1377,11 +1364,6 @@ export interface IEditor {
 	 * Returns true if this editor has keyboard focus (e.g. cursor is blinking).
 	 */
 	isFocused(): boolean;
-
-	/**
-	 * Returns all actions associated with this editor.
-	 */
-	getActions(): IEditorAction[];
 
 	/**
 	 * Returns all actions associated with this editor.

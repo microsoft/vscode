@@ -49,10 +49,6 @@ export abstract class AbstractCodeEditorService implements ICodeEditorService {
 		return this._onCodeEditorRemove.event;
 	}
 
-	getCodeEditor(editorId: string): ICodeEditor {
-		return this._codeEditors[editorId] || null;
-	}
-
 	listCodeEditors(): ICodeEditor[] {
 		return Object.keys(this._codeEditors).map(id => this._codeEditors[id]);
 	}
