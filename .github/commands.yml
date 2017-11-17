@@ -23,7 +23,7 @@
             type: 'label',
             name: '*out-of-scope',
             action: 'close',
-            comment: "This issue has been closed because the feature it requests is not within the scope of the product. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
+            comment: "This feature request will not be considered in the next [6-12 months roadmap](https://aka.ms/vscoderoadmap) and has been closed to keep the number of issues we have to maintain manageable. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nThanks for your understanding and happy coding!"
         },
         {
             type: 'comment',
