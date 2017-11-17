@@ -93,6 +93,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	readonly defaultKeybindingsResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/keybindings.json' });
+	private readonly defaultSettingsRawResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/defaultSettings.json' });
 
 	get userSettingsResource(): URI {
 		return this.getEditableSettingsURI(ConfigurationTarget.USER);
@@ -136,6 +137,13 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return TPromise.as(model);
 		}
 
+		if (this.defaultSettingsRawResource.toString() === uri.toString()) {
+			let defaultSettings: DefaultSettings = this.getDefaultSettings(ConfigurationScope.WINDOW);
+			const mode = this.modeService.getOrCreateMode('json');
+			const model = this._register(this.modelService.createModel(defaultSettings.raw, mode, uri));
+			return TPromise.as(model);
+		}
+
 		if (this.defaultKeybindingsResource.toString() === uri.toString()) {
 			const defaultKeybindingsEditorModel = this.instantiationService.createInstance(DefaultKeybindingsEditorModel, uri);
 			const mode = this.modeService.getOrCreateMode('json');
@@ -165,6 +173,10 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		}
 
 		return TPromise.wrap<IPreferencesEditorModel<any>>(null);
+	}
+
+	openRawDefaultSettings(): TPromise<void> {
+		return this.editorService.openEditor({ resource: this.defaultSettingsRawResource }, EditorPosition.ONE) as TPromise<any>;
 	}
 
 	openGlobalSettings(options?: IEditorOptions, position?: EditorPosition): TPromise<IEditor> {

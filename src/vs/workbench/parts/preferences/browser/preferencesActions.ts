@@ -16,6 +16,24 @@ import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/p
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { PICK_WORKSPACE_FOLDER_COMMAND } from 'vs/workbench/browser/actions/workspaceActions';
 
+export class OpenRawDefaultSettingsAction extends Action {
+
+	public static ID = 'workbench.action.openRawDefaultSettings';
+	public static LABEL = nls.localize('openRawDefaultSettings', "Open Raw Default Settings");
+
+	constructor(
+		id: string,
+		label: string,
+		@IPreferencesService private preferencesService: IPreferencesService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		return this.preferencesService.openRawDefaultSettings();
+	}
+}
+
 export class OpenGlobalSettingsAction extends Action {
 
 	public static ID = 'workbench.action.openGlobalSettings';
