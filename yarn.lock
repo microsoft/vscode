@@ -5762,9 +5762,9 @@ vscode-nls-dev@^2.0.1:
     xml2js "^0.4.17"
     yargs "^3.32.0"
 
-vscode-ripgrep@^0.6.0-patch.0.3:
-  version "0.6.0-patch.0.3"
-  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-0.6.0-patch.0.3.tgz#e1a1368608a0b925c106feaaca746c813cd425ad"
+vscode-ripgrep@^0.6.0-patch.0.5:
+  version "0.6.0-patch.0.5"
+  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-0.6.0-patch.0.5.tgz#afd62ed290481c4cca6bf8e376fdf5d1e3f8afcd"
 
 vscode-textmate@^3.2.0:
   version "3.2.0"
