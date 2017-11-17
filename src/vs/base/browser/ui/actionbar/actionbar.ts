@@ -335,14 +335,6 @@ export class ActionItem extends BaseActionItem {
 			this.$e.removeClass('checked');
 		}
 	}
-
-	public _updateRadio(): void {
-		if (this.getAction().radio) {
-			this.$e.addClass('radio');
-		} else {
-			this.$e.removeClass('radio');
-		}
-	}
 }
 
 export enum ActionsOrientation {

@@ -103,10 +103,6 @@ export class Sash {
 		return this._onDidEnd.event;
 	}
 
-	public getHTMLElement(): HTMLElement {
-		return this.$e.getHTMLElement();
-	}
-
 	public setOrientation(orientation: Orientation): void {
 		this.orientation = orientation;
 

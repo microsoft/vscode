@@ -15,12 +15,6 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
-export enum StatType {
-	FILE,
-	FOLDER,
-	ANY
-}
-
 export class Model {
 
 	private _roots: FileStat[];
