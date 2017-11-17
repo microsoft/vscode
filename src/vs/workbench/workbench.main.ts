@@ -29,7 +29,7 @@ import 'vs/workbench/browser/actions/toggleSidebarPosition';
 import 'vs/workbench/browser/actions/toggleEditorLayout';
 import 'vs/workbench/browser/actions/toggleZenMode';
 import 'vs/workbench/browser/actions/toggleTabsVisibility';
-import 'vs/workbench/parts/preferences/browser/preferences.contribution';
+import 'vs/workbench/parts/preferences/electron-browser/preferences.contribution';
 import 'vs/workbench/parts/preferences/browser/keybindingsEditorContribution';
 
 import 'vs/workbench/browser/parts/quickopen/quickopen.contribution';

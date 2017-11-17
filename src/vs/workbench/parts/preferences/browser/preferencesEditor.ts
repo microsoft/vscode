@@ -24,13 +24,12 @@ import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import {
-	IPreferencesService, ISettingsGroup, ISetting, IFilterResult,
+	IPreferencesService, ISettingsGroup, ISetting, IFilterResult, IPreferencesSearchService,
 	CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, SETTINGS_EDITOR_COMMAND_SEARCH, SETTINGS_EDITOR_COMMAND_FOCUS_FILE, ISettingsEditorModel, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING, IFilterMetadata
 } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { SearchWidget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
-import { PreferencesSearchProvider } from 'vs/workbench/parts/preferences/browser/preferencesSearch';
 import { ContextKeyExpr, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { registerEditorContribution, Command, IEditorContributionCtor } from 'vs/editor/browser/editorExtensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -106,7 +105,6 @@ export class PreferencesEditor extends BaseEditor {
 	private settingsTargetsWidget: SettingsTargetsWidget;
 	private sideBySidePreferencesWidget: SideBySidePreferencesWidget;
 	private preferencesRenderers: PreferencesRenderers;
-	private searchProvider: PreferencesSearchProvider;
 
 	private delayedFilterLogging: Delayer<void>;
 	private filterThrottle: ThrottledDelayer<void>;
@@ -117,6 +115,7 @@ export class PreferencesEditor extends BaseEditor {
 
 	constructor(
 		@IPreferencesService private preferencesService: IPreferencesService,
+		@IPreferencesSearchService private preferencesSearchService: IPreferencesSearchService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
@@ -129,7 +128,6 @@ export class PreferencesEditor extends BaseEditor {
 		this.defaultSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(this.contextKeyService);
 		this.focusSettingsContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(this.contextKeyService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
-		this.searchProvider = this.instantiationService.createInstance(PreferencesSearchProvider);
 		this.filterThrottle = new ThrottledDelayer(200);
 		this.memento = this.getMemento(storageService, Scope.WORKSPACE);
 	}
@@ -147,9 +145,9 @@ export class PreferencesEditor extends BaseEditor {
 			showFuzzyToggle: true,
 			showResultCount: true
 		}));
-		this.searchWidget.setFuzzyToggleVisible(this.searchProvider.remoteSearchAllowed);
+		this.searchWidget.setFuzzyToggleVisible(this.preferencesSearchService.remoteSearchAllowed);
 		this.searchWidget.fuzzyEnabled = this.memento['fuzzyEnabled'];
-		this._register(this.searchProvider.onRemoteSearchEnablementChanged(enabled => this.searchWidget.setFuzzyToggleVisible(enabled)));
+		this._register(this.preferencesSearchService.onRemoteSearchEnablementChanged(enabled => this.searchWidget.setFuzzyToggleVisible(enabled)));
 		this._register(this.searchWidget.onDidChange(value => this.onInputChanged()));
 		this._register(this.searchWidget.onFocus(() => this.lastFocusedWidget = this.searchWidget));
 		this.lastFocusedWidget = this.searchWidget;
@@ -161,7 +159,7 @@ export class PreferencesEditor extends BaseEditor {
 		this.sideBySidePreferencesWidget = this._register(this.instantiationService.createInstance(SideBySidePreferencesWidget, editorsContainer));
 		this._register(this.sideBySidePreferencesWidget.onFocus(() => this.lastFocusedWidget = this.sideBySidePreferencesWidget));
 
-		this.preferencesRenderers = this._register(new PreferencesRenderers(this.searchProvider));
+		this.preferencesRenderers = this._register(new PreferencesRenderers(this.preferencesSearchService));
 		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this.onWorkspaceFoldersChanged()));
 		this._register(this.workspaceContextService.onDidChangeWorkbenchState(() => this.onWorkbenchStateChanged()));
 
@@ -451,7 +449,7 @@ class PreferencesRenderers extends Disposable {
 	public onDidFilterResultsCountChange: Event<number> = this._onDidFilterResultsCountChange.event;
 
 	constructor(
-		private searchProvider: PreferencesSearchProvider
+		private preferencesSearchService: IPreferencesSearchService
 	) {
 		super();
 	}
@@ -557,11 +555,11 @@ class PreferencesRenderers extends Disposable {
 
 	private _filterPreferences(searchCriteria: ISearchCriteria, preferencesRenderer: IPreferencesRenderer<ISetting>): TPromise<IFilterResult> {
 		if (preferencesRenderer) {
-			const searchModel = this.searchProvider.startSearch(searchCriteria.filter, searchCriteria.fuzzy);
+			const searchModel = this.preferencesSearchService.startSearch(searchCriteria.filter, searchCriteria.fuzzy);
 			const prefSearchP = searchModel.filterPreferences(<ISettingsEditorModel>preferencesRenderer.preferencesModel);
 
 			return prefSearchP.then(filterResult => {
-				preferencesRenderer.filterPreferences(filterResult, this.searchProvider.remoteSearchAllowed);
+				preferencesRenderer.filterPreferences(filterResult, this.preferencesSearchService.remoteSearchAllowed);
 				return filterResult;
 			});
 		}

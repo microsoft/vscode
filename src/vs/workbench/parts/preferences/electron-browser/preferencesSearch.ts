@@ -5,7 +5,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
-import { ISettingsEditorModel, IFilterResult, ISetting, ISettingsGroup, IWorkbenchSettingsConfiguration, IFilterMetadata } from 'vs/workbench/parts/preferences/common/preferences';
+import { ISettingsEditorModel, IFilterResult, ISetting, ISettingsGroup, IWorkbenchSettingsConfiguration, IFilterMetadata, IPreferencesSearchService } from 'vs/workbench/parts/preferences/common/preferences';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { distinct } from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
@@ -15,21 +15,29 @@ import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/co
 import { IMatch, or, matchesContiguousSubString, matchesPrefix, matchesCamelCase, matchesWords } from 'vs/base/common/filters';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IRequestService } from 'vs/platform/request/node/request';
+import { asJson } from 'vs/base/node/request';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 export interface IEndpointDetails {
 	urlBase: string;
 	key?: string;
 }
 
-export class PreferencesSearchProvider {
+export class PreferencesSearchService extends Disposable implements IPreferencesSearchService {
+	_serviceBrand: any;
+
 	private _onRemoteSearchEnablementChanged = new Emitter<boolean>();
 	public onRemoteSearchEnablementChanged: Event<boolean> = this._onRemoteSearchEnablementChanged.event;
 
 	constructor(
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		configurationService.onDidChangeConfiguration(() => this._onRemoteSearchEnablementChanged.fire(this.remoteSearchAllowed));
+		super();
+		this._register(configurationService.onDidChangeConfiguration(() => this._onRemoteSearchEnablementChanged.fire(this.remoteSearchAllowed)));
 	}
 
 	get remoteSearchAllowed(): boolean {
@@ -60,7 +68,7 @@ export class PreferencesSearchProvider {
 	}
 
 	startSearch(filter: string, remote: boolean): PreferencesSearchModel {
-		return new PreferencesSearchModel(this, filter, remote, this.environmentService);
+		return this.instantiationService.createInstance(PreferencesSearchModel, this, filter, remote);
 	}
 }
 
@@ -68,11 +76,14 @@ export class PreferencesSearchModel {
 	private _localProvider: LocalSearchProvider;
 	private _remoteProvider: RemoteSearchProvider;
 
-	constructor(private provider: PreferencesSearchProvider, private filter: string, remote: boolean, environmentService: IEnvironmentService) {
+	constructor(
+		private provider: IPreferencesSearchService, private filter: string, remote: boolean,
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
 		this._localProvider = new LocalSearchProvider(filter);
 
 		if (remote && filter) {
-			this._remoteProvider = new RemoteSearchProvider(filter, this.provider.endpoint, environmentService);
+			this._remoteProvider = instantiationService.createInstance(RemoteSearchProvider, filter, this.provider.endpoint);
 		}
 	}
 
@@ -117,7 +128,10 @@ class RemoteSearchProvider {
 	private _filter: string;
 	private _remoteSearchP: TPromise<IFilterMetadata>;
 
-	constructor(filter: string, endpoint: IEndpointDetails, private environmentService: IEnvironmentService) {
+	constructor(filter: string, endpoint: IEndpointDetails,
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IRequestService private requestService: IRequestService
+	) {
 		this._filter = filter;
 		this._remoteSearchP = filter ? this.getSettingsFromBing(filter, endpoint) : TPromise.wrap(null);
 	}
@@ -156,15 +170,22 @@ class RemoteSearchProvider {
 	private getSettingsFromBing(filter: string, endpoint: IEndpointDetails): TPromise<IFilterMetadata> {
 		const url = prepareUrl(filter, endpoint, this.environmentService.settingsSearchBuildId);
 		const start = Date.now();
-		const p = fetch(url, {
-			headers: new Headers({
+		const p = this.requestService.request({
+			url,
+			headers: {
 				'User-Agent': 'request',
 				'Content-Type': 'application/json; charset=utf-8',
 				'api-key': endpoint.key
-			})
+			}
 		})
-			.then(r => r.json())
-			.then(result => {
+			.then(context => {
+				if (context.res.statusCode >= 300) {
+					throw new Error(`${url} returned status code: ${context.res.statusCode}`);
+				}
+
+				return asJson(context);
+			})
+			.then((result: any) => {
 				const timestamp = Date.now();
 				const duration = timestamp - start;
 				const suggestions = (result.value || [])
@@ -221,7 +242,7 @@ function prepareUrl(query: string, endpoint: IEndpointDetails, buildNumber: numb
 		url += `&$filter startbuildno le ${buildNumber} and endbuildno ge ${buildNumber}`;
 	}
 
-	return url + `&$filter=startbuildno le 119000227 and endbuildno ge 119000227`;
+	return url;
 }
 
 class SettingMatches {

@@ -148,6 +148,27 @@ export function getSettingsTargetName(target: ConfigurationTarget, resource: URI
 	return '';
 }
 
+export interface IEndpointDetails {
+	urlBase: string;
+	key?: string;
+}
+
+export const IPreferencesSearchService = createDecorator<IPreferencesSearchService>('preferencesSearchService');
+
+export interface IPreferencesSearchService {
+	_serviceBrand: any;
+
+	remoteSearchAllowed: boolean;
+	endpoint: IEndpointDetails;
+	onRemoteSearchEnablementChanged: Event<boolean>;
+
+	startSearch(filter: string, remote: boolean): IPreferencesSearchModel;
+}
+
+export interface IPreferencesSearchModel {
+	filterPreferences(preferencesModel: ISettingsEditorModel): TPromise<IFilterResult>;
+}
+
 export const CONTEXT_SETTINGS_EDITOR = new RawContextKey<boolean>('inSettingsEditor', false);
 export const CONTEXT_SETTINGS_SEARCH_FOCUS = new RawContextKey<boolean>('inSettingsSearch', false);
 export const CONTEXT_KEYBINDINGS_EDITOR = new RawContextKey<boolean>('inKeybindings', false);
