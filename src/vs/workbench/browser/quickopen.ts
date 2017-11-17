@@ -313,15 +313,6 @@ export class EditorQuickOpenEntryGroup extends QuickOpenEntryGroup implements IE
 	}
 }
 
-// Infrastructure for quick open commands
-
-export interface ICommand {
-	aliases: string[];
-	getResults(input: string): TPromise<QuickOpenEntry[]>;
-	getEmptyLabel(input: string): string;
-	icon?: string;
-}
-
 export class QuickOpenAction extends Action {
 	private prefix: string;
 

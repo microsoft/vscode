@@ -209,13 +209,6 @@ export function canceled(): Error {
 	return error;
 }
 
-/**
- * Returns an error that signals something is not implemented.
- */
-export function notImplemented(): Error {
-	return new Error('Not Implemented');
-}
-
 export function illegalArgument(name?: string): Error {
 	if (name) {
 		return new Error(`Illegal argument: ${name}`);

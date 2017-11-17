@@ -211,10 +211,6 @@ export class InMemoryLocalStorage implements IStorage {
 		return null;
 	}
 
-	public clear(): void {
-		this.store = {};
-	}
-
 	public setItem(key: string, value: any): void {
 		this.store[key] = value.toString();
 	}

@@ -954,18 +954,6 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
-	isMaximized(): TPromise<boolean> {
-		return TPromise.as(void 0);
-	}
-
-	maximizeWindow(): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-
-	unmaximizeWindow(): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-
 	onWindowTitleDoubleClick(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
