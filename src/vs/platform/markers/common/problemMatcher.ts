@@ -1492,7 +1492,6 @@ let problemMatchersExtPoint = ExtensionsRegistry.registerExtensionPoint<Config.N
 export interface IProblemMatcherRegistry {
 	onReady(): TPromise<void>;
 	get(name: string): NamedProblemMatcher;
-	values(): NamedProblemMatcher[];
 	keys(): string[];
 }
 
@@ -1543,10 +1542,6 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 
 	public keys(): string[] {
 		return Object.keys(this.matchers);
-	}
-
-	public values(): NamedProblemMatcher[] {
-		return Object.keys(this.matchers).map(key => this.matchers[key]);
 	}
 
 	private fillDefaults(): void {

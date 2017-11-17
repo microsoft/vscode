@@ -80,28 +80,6 @@ export abstract class Parser {
 		this._problemReporter.fatal(message);
 	}
 
-	protected is(value: any, func: (value: any) => boolean, wrongTypeState?: ValidationState, wrongTypeMessage?: string, undefinedState?: ValidationState, undefinedMessage?: string): boolean {
-		if (Types.isUndefined(value)) {
-			if (undefinedState) {
-				this._problemReporter.status.state = undefinedState;
-			}
-			if (undefinedMessage) {
-				this._problemReporter.info(undefinedMessage);
-			}
-			return false;
-		}
-		if (!func(value)) {
-			if (wrongTypeState) {
-				this._problemReporter.status.state = wrongTypeState;
-			}
-			if (wrongTypeMessage) {
-				this.info(wrongTypeMessage);
-			}
-			return false;
-		}
-		return true;
-	}
-
 	protected static merge<T>(destination: T, source: T, overwrite: boolean): void {
 		Object.keys(source).forEach((key: keyof T) => {
 			let destValue = destination[key];
