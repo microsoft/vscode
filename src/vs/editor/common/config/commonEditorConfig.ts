@@ -230,13 +230,13 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'number',
 			'default': EDITOR_MODEL_DEFAULTS.tabSize,
 			'minimum': 1,
-			'description': nls.localize('tabSize', "The number of spaces a tab is equal to. This setting is overriden based on the file contents when `editor.detectIndentation` is on."),
+			'description': nls.localize('tabSize', "The number of spaces a tab is equal to. This setting is overridden based on the file contents when `editor.detectIndentation` is on."),
 			'errorMessage': nls.localize('tabSize.errorMessage', "Expected 'number'. Note that the value \"auto\" has been replaced by the `editor.detectIndentation` setting.")
 		},
 		'editor.insertSpaces': {
 			'type': 'boolean',
 			'default': EDITOR_MODEL_DEFAULTS.insertSpaces,
-			'description': nls.localize('insertSpaces', "Insert spaces when pressing Tab. This setting is overriden based on the file contents when `editor.detectIndentation` is on."),
+			'description': nls.localize('insertSpaces', "Insert spaces when pressing Tab. This setting is overridden based on the file contents when `editor.detectIndentation` is on."),
 			'errorMessage': nls.localize('insertSpaces.errorMessage', "Expected 'boolean'. Note that the value \"auto\" has been replaced by the `editor.detectIndentation` setting.")
 		},
 		'editor.detectIndentation': {
