@@ -32,7 +32,8 @@ import { ExtHostCustomersRegistry } from 'vs/workbench/api/electron-browser/extH
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { Action } from 'vs/base/common/actions';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { startTimer } from 'vs/base/node/startupTimers';
+import { mark, time } from 'vs/base/common/performance';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
 
@@ -48,7 +49,7 @@ function messageWithSource2(source: string, message: string): string {
 }
 
 const hasOwnProperty = Object.hasOwnProperty;
-const NO_OP_VOID_PROMISE = TPromise.as<void>(void 0);
+const NO_OP_VOID_PROMISE = TPromise.wrap<void>(void 0);
 
 export class ExtensionService implements IExtensionService {
 	public _serviceBrand: any;
@@ -82,7 +83,8 @@ export class ExtensionService implements IExtensionService {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IExtensionEnablementService private readonly _extensionEnablementService: IExtensionEnablementService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IWindowService private readonly _windowService: IWindowService
+		@IWindowService private readonly _windowService: IWindowService,
+		@ILifecycleService lifecycleService: ILifecycleService
 	) {
 		this._registry = null;
 		this._barrier = new Barrier();
@@ -97,8 +99,12 @@ export class ExtensionService implements IExtensionService {
 		this._extensionHostProcessCustomers = [];
 		this._extensionHostProcessProxy = null;
 
-		this._startExtensionHostProcess([]);
-		this._scanAndHandleExtensions();
+		lifecycleService.when(LifecyclePhase.Restoring).then(() => {
+			// delay extension host creation and extension scanning
+			// until after the editors/panels are restored
+			this._startExtensionHostProcess([]);
+			this._scanAndHandleExtensions();
+		});
 	}
 
 	public restartExtensionHost(): void {
@@ -295,6 +301,10 @@ export class ExtensionService implements IExtensionService {
 		});
 
 		ExtensionService._scanInstalledExtensions(this._environmentService, log).then((installedExtensions) => {
+
+			// Migrate enablement service to use identifiers
+			this._extensionEnablementService.migrateToIdentifiers(installedExtensions);
+
 			const disabledExtensions = [
 				...getGloballyDisabledExtensions(this._extensionEnablementService, this._storageService, installedExtensions),
 				...this._extensionEnablementService.getWorkspaceDisabledExtensions()
@@ -314,7 +324,7 @@ export class ExtensionService implements IExtensionService {
 			if (disabledExtensions.length === 0) {
 				return installedExtensions;
 			}
-			return installedExtensions.filter(e => disabledExtensions.every(id => !areSameExtensions({ id }, e)));
+			return installedExtensions.filter(e => disabledExtensions.every(disabled => !areSameExtensions(disabled, e)));
 
 		}).then((extensionDescriptions) => {
 			this._registry = new ExtensionDescriptionRegistry(extensionDescriptions);
@@ -325,14 +335,14 @@ export class ExtensionService implements IExtensionService {
 			let messageHandler = (msg: IMessage) => this._handleExtensionPointMessage(msg);
 
 			for (let i = 0, len = extensionPoints.length; i < len; i++) {
-				const clock = startTimer(`handleExtensionPoint:${extensionPoints[i].name}`);
+				const clock = time(`handleExtensionPoint:${extensionPoints[i].name}`);
 				try {
 					ExtensionService._handleExtensionPoint(extensionPoints[i], availableExtensions, messageHandler);
 				} finally {
 					clock.stop();
 				}
 			}
-
+			mark('extensionHostReady');
 			this._barrier.open();
 		});
 	}

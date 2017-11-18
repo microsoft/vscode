@@ -192,7 +192,7 @@ export class CompositeBar implements ICompositeBar {
 	}
 
 	private updateCompositeSwitcher(): void {
-		if (!this.compositeSwitcherBar) {
+		if (!this.compositeSwitcherBar || !this.dimension) {
 			return; // We have not been rendered yet so there is nothing to update.
 		}
 
@@ -208,30 +208,28 @@ export class CompositeBar implements ICompositeBar {
 
 		// Ensure we are not showing more composites than we have height for
 		let overflows = false;
-		if (this.dimension) {
-			let maxVisible = compositesToShow.length;
-			let size = 0;
-			const limit = this.options.orientation === ActionsOrientation.VERTICAL ? this.dimension.height : this.dimension.width;
-			for (let i = 0; i < compositesToShow.length && size <= limit; i++) {
-				size += this.compositeSizeInBar.get(compositesToShow[i]);
-				if (size > limit) {
-					maxVisible = i;
-				}
+		let maxVisible = compositesToShow.length;
+		let size = 0;
+		const limit = this.options.orientation === ActionsOrientation.VERTICAL ? this.dimension.height : this.dimension.width;
+		for (let i = 0; i < compositesToShow.length && size <= limit; i++) {
+			size += this.compositeSizeInBar.get(compositesToShow[i]);
+			if (size > limit) {
+				maxVisible = i;
 			}
-			overflows = compositesToShow.length > maxVisible;
+		}
+		overflows = compositesToShow.length > maxVisible;
 
-			if (overflows) {
-				size -= this.compositeSizeInBar.get(compositesToShow[maxVisible]);
-				compositesToShow = compositesToShow.slice(0, maxVisible);
-			}
-			// Check if we need to make extra room for the overflow action
-			if (overflows && (size + this.options.overflowActionSize > limit)) {
-				compositesToShow.pop();
-			}
-			if (this.activeCompositeId && compositesToShow.length && compositesToShow.indexOf(this.activeCompositeId) === -1) {
-				compositesToShow.pop();
-				compositesToShow.push(this.activeCompositeId);
-			}
+		if (overflows) {
+			size -= this.compositeSizeInBar.get(compositesToShow[maxVisible]);
+			compositesToShow = compositesToShow.slice(0, maxVisible);
+		}
+		// Check if we need to make extra room for the overflow action
+		if (overflows && (size + this.options.overflowActionSize > limit)) {
+			compositesToShow.pop();
+		}
+		if (this.activeCompositeId && compositesToShow.length && compositesToShow.indexOf(this.activeCompositeId) === -1) {
+			compositesToShow.pop();
+			compositesToShow.push(this.activeCompositeId);
 		}
 
 		const visibleComposites = Object.keys(this.compositeIdToActions);
@@ -281,7 +279,7 @@ export class CompositeBar implements ICompositeBar {
 		}
 
 		// Add overflow action as needed
-		if (visibleCompositesChange && overflows) {
+		if ((visibleCompositesChange && overflows) || this.compositeSwitcherBar.length() === 0) {
 			this.compositeOverflowAction = this.instantiationService.createInstance(CompositeOverflowActivityAction, () => this.compositeOverflowActionItem.showMenu());
 			this.compositeOverflowActionItem = this.instantiationService.createInstance(
 				CompositeOverflowActivityActionItem,
@@ -403,6 +401,10 @@ export class CompositeBar implements ICompositeBar {
 	}
 
 	public move(compositeId: string, toCompositeId: string): void {
+		// Make sure both composites are known to this composite bar
+		if (this.options.composites.filter(c => c.id === compositeId || c.id === toCompositeId).length !== 2) {
+			return;
+		}
 		// Make sure a moved composite gets pinned
 		if (!this.isPinned(compositeId)) {
 			this.pin(compositeId, false /* defer update, we take care of it */);

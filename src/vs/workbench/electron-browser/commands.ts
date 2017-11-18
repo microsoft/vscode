@@ -10,7 +10,6 @@ import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
 import { NoEditorsVisibleContext, InZenModeContext } from 'vs/workbench/electron-browser/workbench';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { IListService, ListFocusContext } from 'vs/platform/list/browser/listService';
@@ -20,6 +19,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import URI from 'vs/base/common/uri';
 import { IEditorOptions, Position as EditorPosition } from 'vs/platform/editor/common/editor';
+import { openFolderCommand, openFileInNewWindowCommand, openFileFolderInNewWindowCommand, openFolderInNewWindowCommand, openWorkspaceInNewWindowCommand } from 'vs/workbench/browser/actions/workspaceActions';
 
 // --- List Commands
 
@@ -372,7 +372,7 @@ export function registerCommands(): void {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'workbench.action.exitZenMode',
-		weight: CommonEditorRegistry.commandWeight(-1000),
+		weight: KeybindingsRegistry.WEIGHT.editorContrib(-1000),
 		handler(accessor: ServicesAccessor, configurationOrName: any) {
 			const partService = accessor.get(IPartService);
 			partService.toggleZenMode();
@@ -412,12 +412,19 @@ export function registerCommands(): void {
 		});
 	});
 
-	CommandsRegistry.registerCommand('_workbench.open', function (accessor: ServicesAccessor, args: [URI, number]) {
+	CommandsRegistry.registerCommand('_workbench.open', function (accessor: ServicesAccessor, args: [URI, IEditorOptions, EditorPosition]) {
 		const editorService = accessor.get(IWorkbenchEditorService);
-		const [resource, column] = args;
+		const [resource, options, column] = args;
 
-		return editorService.openEditor({ resource }, column).then(() => {
+		return editorService.openEditor({ resource, options }, column).then(() => {
 			return void 0;
 		});
 	});
+
+	CommandsRegistry.registerCommand('_files.pickFolderAndOpen', openFolderCommand);
+
+	CommandsRegistry.registerCommand('workbench.action.files.openFileInNewWindow', openFileInNewWindowCommand);
+	CommandsRegistry.registerCommand('workbench.action.files.openFolderInNewWindow', openFolderInNewWindowCommand);
+	CommandsRegistry.registerCommand('workbench.action.files.openFileFolderInNewWindow', openFileFolderInNewWindowCommand);
+	CommandsRegistry.registerCommand('workbench.action.openWorkspaceInNewWindow', openWorkspaceInNewWindowCommand);
 }

@@ -7,7 +7,7 @@
 import Severity from 'vs/base/common/severity';
 import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
-import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
+import { Position as EditorPosition, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IDecorationOptions, EndOfLineSequence } from 'vs/editor/common/editorCommon';
 import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
@@ -180,6 +180,13 @@ export namespace MarkdownString {
 		ret.isTrusted = value.isTrusted;
 		return ret;
 	}
+
+	export function fromStrict(value: string | types.MarkdownString): undefined | string | htmlContent.IMarkdownString {
+		if (!value) {
+			return undefined;
+		}
+		return typeof value === 'string' ? value : MarkdownString.from(value);
+	}
 }
 
 export function fromRangeOrRangeWithMessage(ranges: vscode.Range[] | vscode.DecorationOptions[]): IDecorationOptions[] {
@@ -215,6 +222,35 @@ export const TextEdit = {
 		return result;
 	}
 };
+
+export namespace WorkspaceEdit {
+	export function from(value: vscode.WorkspaceEdit): modes.WorkspaceEdit {
+		const result: modes.WorkspaceEdit = { edits: [] };
+		for (let entry of value.entries()) {
+			let [uri, textEdits] = entry;
+			for (let textEdit of textEdits) {
+				result.edits.push({
+					resource: uri,
+					newText: textEdit.newText,
+					range: fromRange(textEdit.range)
+				});
+			}
+		}
+		return result;
+	}
+
+	export function fromTextEdits(uri: vscode.Uri, textEdits: vscode.TextEdit[]): modes.WorkspaceEdit {
+		const result: modes.WorkspaceEdit = { edits: [] };
+		for (let textEdit of textEdits) {
+			result.edits.push({
+				resource: uri,
+				newText: textEdit.newText,
+				range: fromRange(textEdit.range)
+			});
+		}
+		return result;
+	}
+}
 
 
 export namespace SymbolKind {
@@ -403,13 +439,13 @@ export namespace Suggest {
 
 		return result;
 	}
-};
+}
 
 export namespace ParameterInformation {
 	export function from(info: types.ParameterInformation): modes.ParameterInformation {
 		return {
 			label: info.label,
-			documentation: info.documentation && MarkdownString.from(info.documentation)
+			documentation: MarkdownString.fromStrict(info.documentation)
 		};
 	}
 	export function to(info: modes.ParameterInformation): types.ParameterInformation {
@@ -425,7 +461,7 @@ export namespace SignatureInformation {
 	export function from(info: types.SignatureInformation): modes.SignatureInformation {
 		return {
 			label: info.label,
-			documentation: info.documentation && MarkdownString.from(info.documentation),
+			documentation: MarkdownString.fromStrict(info.documentation),
 			parameters: info.parameters && info.parameters.map(ParameterInformation.from)
 		};
 	}
@@ -535,4 +571,16 @@ export namespace ProgressLocation {
 		}
 		return undefined;
 	}
+}
+
+export function toTextEditorOptions(options?: vscode.TextDocumentShowOptions): ITextEditorOptions {
+	if (options) {
+		return {
+			pinned: typeof options.preview === 'boolean' ? !options.preview : undefined,
+			preserveFocus: options.preserveFocus,
+			selection: typeof options.selection === 'object' ? fromRange(options.selection) : undefined
+		} as ITextEditorOptions;
+	}
+
+	return undefined;
 }

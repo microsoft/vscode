@@ -365,9 +365,11 @@ suite('TextModel.getLineIndentGuide', () => {
 		let text = lines.map(l => l[1]).join('\n');
 		let model = Model.createFromString(text);
 
+		let actualIndents = model.getLinesIndentGuides(1, model.getLineCount());
+
 		let actual: [number, string][] = [];
 		for (let line = 1; line <= model.getLineCount(); line++) {
-			actual[line - 1] = [model.getLineIndentGuide(line), model.getLineContent(line)];
+			actual[line - 1] = [actualIndents[line - 1], model.getLineContent(line)];
 		}
 
 		// let expected = lines.map(l => l[0]);
@@ -408,8 +410,8 @@ suite('TextModel.getLineIndentGuide', () => {
 
 	test('getLineIndentGuide decreasing indent', () => {
 		assertIndentGuides([
-			[0, '    A'],
-			[0, '  A'],
+			[1, '    A'],
+			[1, '  A'],
 			[0, 'A'],
 		]);
 	});
@@ -450,7 +452,7 @@ suite('TextModel.getLineIndentGuide', () => {
 			[1, ''],
 			[1, '  void foo() {'],
 			[1, '     '],
-			[1, '     return 1;'],
+			[2, '     return 1;'],
 			[1, '  }'],
 			[1, '      '],
 			[0, '}'],

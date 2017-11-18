@@ -76,7 +76,7 @@ export function getFirstFrame(arg0: IRemoteConsoleLog | string): IStackFrame {
 		// (?:.+) => simple pattern for the path, only works because of the line/col pattern after
 		// :(?:\d+):(?:\d+) => :line:column data
 		const matches = /at [^\/]*((?:(?:[a-zA-Z]+:)|(?:[\/])|(?:\\\\))(?:.+)):(\d+):(\d+)/.exec(topFrame);
-		if (matches.length === 4) {
+		if (matches && matches.length === 4) {
 			return {
 				uri: URI.file(matches[1]),
 				line: Number(matches[2]),

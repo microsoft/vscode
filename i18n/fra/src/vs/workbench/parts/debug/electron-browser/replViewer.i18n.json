@@ -8,5 +8,5 @@
 	"replVariableAriaLabel": "La variable {0} a la valeur {1}, boucle REPL (Read Eval Print Loop), débogage",
 	"replExpressionAriaLabel": "L'expression {0} a la valeur {1}, boucle REPL (Read Eval Print Loop), débogage",
 	"replValueOutputAriaLabel": "{0}, boucle REPL (Read Eval Print Loop), débogage",
-	"replKeyValueOutputAriaLabel": "La variable de sortie {0} a la valeur {1}, boucle REPL (Read Eval Print Loop), débogage"
+	"replRawObjectAriaLabel": "La variable Repl {0} a la valeur {1}, read eval print loop, débogage"
 }

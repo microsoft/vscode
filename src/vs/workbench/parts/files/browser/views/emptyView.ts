@@ -56,7 +56,8 @@ export class EmptyView extends ViewsViewletPanel {
 
 		this.button = new Button(section);
 		attachButtonStyler(this.button, this.themeService);
-		this.button.addListener('click', () => {
+
+		this.disposables.push(this.button.onDidClick(() => {
 			const actionClass = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? AddRootFolderAction : env.isMacintosh ? OpenFileFolderAction : OpenFolderAction;
 			const action = this.instantiationService.createInstance<string, string, IAction>(actionClass, actionClass.ID, actionClass.LABEL);
 			this.actionRunner.run(action).done(() => {
@@ -65,7 +66,7 @@ export class EmptyView extends ViewsViewletPanel {
 				action.dispose();
 				errors.onUnexpectedError(err);
 			});
-		});
+		}));
 		this.setLabels();
 	}
 

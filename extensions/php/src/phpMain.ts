@@ -19,7 +19,7 @@ export function activate(context: vscode.ExtensionContext): any {
 	validator.activate(context.subscriptions);
 
 	// add providers
-	context.subscriptions.push(vscode.languages.registerCompletionItemProvider('php', new PHPCompletionItemProvider(), '.', '$'));
+	context.subscriptions.push(vscode.languages.registerCompletionItemProvider('php', new PHPCompletionItemProvider(), '>', '$'));
 	context.subscriptions.push(vscode.languages.registerHoverProvider('php', new PHPHoverProvider()));
 	context.subscriptions.push(vscode.languages.registerSignatureHelpProvider('php', new PHPSignatureHelpProvider(), '(', ','));
 

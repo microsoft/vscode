@@ -40,7 +40,6 @@ export class ProgressBar {
 	private toUnbind: IDisposable[];
 	private workedVal: number;
 	private element: Builder;
-	private animationRunning: boolean;
 	private bit: HTMLElement;
 	private totalWork: number;
 	private animationStopToken: ValueCallback;
@@ -64,11 +63,6 @@ export class ProgressBar {
 
 			builder.div({ 'class': css_progress_bit }).on([DOM.EventType.ANIMATION_START, DOM.EventType.ANIMATION_END, DOM.EventType.ANIMATION_ITERATION], (e: Event) => {
 				switch (e.type) {
-					case DOM.EventType.ANIMATION_START:
-					case DOM.EventType.ANIMATION_END:
-						this.animationRunning = e.type === DOM.EventType.ANIMATION_START;
-						break;
-
 					case DOM.EventType.ANIMATION_ITERATION:
 						if (this.animationStopToken) {
 							this.animationStopToken(null);

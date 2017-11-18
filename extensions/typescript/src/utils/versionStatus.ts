@@ -4,17 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { TypeScriptVersion } from './versionProvider';
+import * as languageModeIds from './languageModeIds';
 
-
-export default class VersionStatus extends vscode.Disposable {
-	onChangeEditorSub: any;
+export default class VersionStatus {
+	private onChangeEditorSub: vscode.Disposable;
 	private versionBarEntry: vscode.StatusBarItem;
 
 	constructor() {
-		super(() => this.dispose());
-
 		this.versionBarEntry = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, Number.MIN_VALUE);
-
 		this.onChangeEditorSub = vscode.window.onDidChangeActiveTextEditor(this.showHideStatus, this);
 	}
 
@@ -23,7 +21,14 @@ export default class VersionStatus extends vscode.Disposable {
 		this.onChangeEditorSub.dispose();
 	}
 
-	showHideStatus() {
+	public onDidChangeTypeScriptVersion(version: TypeScriptVersion) {
+		this.showHideStatus();
+		this.versionBarEntry.text = version.versionString;
+		this.versionBarEntry.tooltip = version.path;
+		this.versionBarEntry.command = 'typescript.selectTypeScriptVersion';
+	}
+
+	private showHideStatus() {
 		if (!this.versionBarEntry) {
 			return;
 		}
@@ -32,8 +37,8 @@ export default class VersionStatus extends vscode.Disposable {
 			return;
 		}
 
-		let doc = vscode.window.activeTextEditor.document;
-		if (vscode.languages.match('typescript', doc) || vscode.languages.match('typescriptreact', doc)) {
+		const doc = vscode.window.activeTextEditor.document;
+		if (vscode.languages.match([languageModeIds.typescript, languageModeIds.typescriptreact], doc)) {
 			this.versionBarEntry.show();
 			return;
 		}
@@ -45,11 +50,5 @@ export default class VersionStatus extends vscode.Disposable {
 		}
 
 		this.versionBarEntry.hide();
-	}
-
-	public setInfo(message: string, tooltip: string) {
-		this.versionBarEntry.text = message;
-		this.versionBarEntry.tooltip = tooltip;
-		this.versionBarEntry.command = 'typescript.selectTypeScriptVersion';
 	}
 }

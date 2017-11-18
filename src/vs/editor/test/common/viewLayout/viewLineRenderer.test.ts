@@ -1110,6 +1110,33 @@ suite('viewLineRenderer.renderLine 2', () => {
 		assert.deepEqual(actual.html, expected);
 	});
 
+	test('issue #37208: Collapsing bullet point containing emoji in Markdown document results in [??] character', () => {
+
+		let actual = renderViewLine(new RenderLineInput(
+			true,
+			'  1. 🙏',
+			false,
+			0,
+			[createPart(7, 3)],
+			[new LineDecoration(7, 8, 'inline-folded', true)],
+			2,
+			10,
+			10000,
+			'none',
+			false,
+			false
+		));
+
+		let expected = [
+			'<span>',
+			'<span class="mtk3">\u00a0\u00a01.\u00a0</span>',
+			'<span class="mtk3 inline-folded">🙏</span>',
+			'</span>'
+		].join('');
+
+		assert.deepEqual(actual.html, expected);
+	});
+
 	function createTestGetColumnOfLinePartOffset(lineContent: string, tabSize: number, parts: ViewLineToken[], expectedPartLengths: number[]): (partIndex: number, partLength: number, offset: number, expected: number) => void {
 		let renderLineOutput = renderViewLine(new RenderLineInput(
 			false,

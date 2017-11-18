@@ -6,7 +6,6 @@
 'use strict';
 
 import assert = require('assert');
-import fs = require('fs');
 
 import stream = require('vs/base/node/stream');
 
@@ -25,25 +24,6 @@ suite('Stream', () => {
 		const file = require.toUrl('./fixtures/empty.txt');
 
 		stream.readExactlyByFile(file, 10).then(({ bytesRead }) => {
-			assert.equal(bytesRead, 0);
-			done();
-		}, done);
-	});
-
-	test('readExactlyByStream - ANSI', function (done: (err?: any) => void) {
-		const file = require.toUrl('./fixtures/file.css');
-
-		stream.readExactlyByStream(fs.createReadStream(file), 10).then(({ buffer, bytesRead }) => {
-			assert.equal(bytesRead, 10);
-			assert.equal(buffer.toString(), '/*--------');
-			done();
-		}, done);
-	});
-
-	test('readExactlyByStream - empty', function (done: (err?: any) => void) {
-		const file = require.toUrl('./fixtures/empty.txt');
-
-		stream.readExactlyByStream(fs.createReadStream(file), 10).then(({ bytesRead }) => {
 			assert.equal(bytesRead, 0);
 			done();
 		}, done);

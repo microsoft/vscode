@@ -10,7 +10,7 @@
 	"searchScope.excludes": "要排除的檔案",
 	"label.excludes": "搜尋排除模式",
 	"replaceAll.confirmation.title": "全部取代",
-	"replaceAll.confirm.button": "取代",
+	"replaceAll.confirm.button": "取代(&&R)",
 	"replaceAll.occurrence.file.message": "已將 {1} 個檔案中的 {0} 個相符項目取代為 '{2}'。",
 	"removeAll.occurrence.file.message": "已取代 {1} 個檔案中的 {0} 個相符項目。",
 	"replaceAll.occurrence.files.message": "已將 {1} 個檔案中的 {0} 個相符項目取代為 '{2}'。",

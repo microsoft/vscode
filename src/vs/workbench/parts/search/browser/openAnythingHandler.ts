@@ -142,13 +142,13 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 		this.openSymbolHandler = instantiationService.createInstance(OpenSymbolHandler);
 		this.openFileHandler = instantiationService.createInstance(OpenFileHandler);
 
-		this.updateHandlers(this.configurationService.getConfiguration<IWorkbenchSearchConfiguration>());
+		this.updateHandlers(this.configurationService.getValue<IWorkbenchSearchConfiguration>());
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		this.configurationService.onDidChangeConfiguration(e => this.updateHandlers(this.configurationService.getConfiguration<IWorkbenchSearchConfiguration>()));
+		this.configurationService.onDidChangeConfiguration(e => this.updateHandlers(this.configurationService.getValue<IWorkbenchSearchConfiguration>()));
 	}
 
 	private updateHandlers(configuration: IWorkbenchSearchConfiguration): void {

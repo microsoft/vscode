@@ -31,7 +31,7 @@ suite('ExtHostConfiguration', function () {
 		$refresh(viewId: string, itemHandles: number[]): void {
 			this.onRefresh.fire(itemHandles);
 		}
-	};
+	}
 
 	let testObject: ExtHostTreeViews;
 	let target: RecordingShape;
@@ -119,7 +119,7 @@ suite('ExtHostConfiguration', function () {
 	});
 
 	function aTreeDataProvider(): TreeDataProvider<string> {
-		return <TreeDataProvider<string>>{
+		return {
 			getChildren: (element: string): string[] => {
 				if (!element) {
 					return ['a', 'b'];
@@ -133,7 +133,7 @@ suite('ExtHostConfiguration', function () {
 				return [];
 			},
 			getTreeItem: (element: string): TreeItem => {
-				return <TreeItem>{
+				return {
 					label: element
 				};
 			},

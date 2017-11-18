@@ -20,6 +20,7 @@ import { IWorkspaceIdentifier, IWorkspacesMainService, getWorkspaceLabel, ISingl
 import { IHistoryMainService, IRecentlyOpened } from 'vs/platform/history/common/history';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isEqual } from 'vs/base/common/paths';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 export interface ILegacyRecentlyOpened extends IRecentlyOpened {
 	folders: string[]; // TODO@Ben migration
@@ -28,6 +29,7 @@ export interface ILegacyRecentlyOpened extends IRecentlyOpened {
 export class HistoryMainService implements IHistoryMainService {
 
 	private static MAX_TOTAL_RECENT_ENTRIES = 100;
+	private static MAX_MACOS_DOCK_RECENT_ENTRIES = 10;
 
 	private static recentlyOpenedStorageKey = 'openedPathsList';
 
@@ -36,12 +38,16 @@ export class HistoryMainService implements IHistoryMainService {
 	private _onRecentlyOpenedChange = new Emitter<void>();
 	onRecentlyOpenedChange: CommonEvent<void> = this._onRecentlyOpenedChange.event;
 
+	private macOSRecentDocumentsUpdater: RunOnceScheduler;
+
 	constructor(
 		@IStorageService private storageService: IStorageService,
 		@ILogService private logService: ILogService,
 		@IWorkspacesMainService private workspacesService: IWorkspacesMainService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 	) {
+		this.macOSRecentDocumentsUpdater = new RunOnceScheduler(() => this.updateMacOSRecentDocuments(), 800);
+
 		this.registerListeners();
 	}
 
@@ -69,10 +75,8 @@ export class HistoryMainService implements IHistoryMainService {
 				mru.workspaces.unshift(workspace);
 				mru.workspaces = arrays.distinct(mru.workspaces, workspace => this.distinctFn(workspace));
 
-				// Add to recent documents (macOS only, Windows can show workspaces separately)
-				if (isMacintosh) {
-					app.addRecentDocument(isSingleFolderWorkspaceIdentifier(workspace) ? workspace : workspace.configPath);
-				}
+				// We do not add to recent documents here because on Windows we do this from a custom
+				// JumpList and on macOS we fill the recent documents in one go from all our data later.
 			});
 
 			// Files
@@ -80,8 +84,8 @@ export class HistoryMainService implements IHistoryMainService {
 				mru.files.unshift(path);
 				mru.files = arrays.distinct(mru.files, file => this.distinctFn(file));
 
-				// Add to recent documents (Windows/macOS only)
-				if (isMacintosh || isWindows) {
+				// Add to recent documents (Windows only, macOS later)
+				if (isWindows) {
 					app.addRecentDocument(path);
 				}
 			});
@@ -92,6 +96,11 @@ export class HistoryMainService implements IHistoryMainService {
 
 			this.saveRecentlyOpened(mru);
 			this._onRecentlyOpenedChange.fire();
+
+			// Schedule update to recent documents on macOS dock
+			if (isMacintosh) {
+				this.macOSRecentDocumentsUpdater.schedule();
+			}
 		}
 	}
 
@@ -119,6 +128,41 @@ export class HistoryMainService implements IHistoryMainService {
 		if (update) {
 			this.saveRecentlyOpened(mru);
 			this._onRecentlyOpenedChange.fire();
+
+			// Schedule update to recent documents on macOS dock
+			if (isMacintosh) {
+				this.macOSRecentDocumentsUpdater.schedule();
+			}
+		}
+	}
+
+	private updateMacOSRecentDocuments(): void {
+		if (!isMacintosh) {
+			return;
+		}
+
+		// macOS recent documents in the dock are behaving strangely. the entries seem to get
+		// out of sync quickly over time. the attempted fix is to always set the list fresh
+		// from our MRU history data. So we clear the documents first and then set the documents
+		// again.
+
+		app.clearRecentDocuments();
+
+		const mru = this.getRecentlyOpened();
+
+		let maxEntries = HistoryMainService.MAX_MACOS_DOCK_RECENT_ENTRIES;
+
+		// Take up to maxEntries/2 workspaces
+		for (let i = 0; i < mru.workspaces.length && i < HistoryMainService.MAX_MACOS_DOCK_RECENT_ENTRIES / 2; i++) {
+			const workspace = mru.workspaces[i];
+			app.addRecentDocument(isSingleFolderWorkspaceIdentifier(workspace) ? workspace : workspace.configPath);
+			maxEntries--;
+		}
+
+		// Take up to maxEntries files
+		for (let i = 0; i < mru.files.length && i < maxEntries; i++) {
+			const file = mru.files[i];
+			app.addRecentDocument(file);
 		}
 	}
 

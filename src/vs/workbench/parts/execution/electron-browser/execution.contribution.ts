@@ -103,7 +103,7 @@ export abstract class AbstractOpenInTerminalAction extends Action {
 		let pathToOpen: string;
 
 		// Try workspace path first
-		const root = this.historyService.getLastActiveWorkspaceRoot();
+		const root = this.historyService.getLastActiveWorkspaceRoot('file');
 		pathToOpen = this.resource ? this.resource.fsPath : (root && root.fsPath);
 
 		// Otherwise check if we have an active file open
@@ -196,7 +196,7 @@ export class ExplorerViewerActionContributor extends ActionBarContributor {
 			resource = resources.dirname(resource);
 		}
 
-		const configuration = this.configurationService.getConfiguration<ITerminalConfiguration>();
+		const configuration = this.configurationService.getValue<ITerminalConfiguration>();
 		const explorerKind = configuration.terminal.explorerKind;
 
 		if (explorerKind === 'integrated') {

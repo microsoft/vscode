@@ -6,5 +6,5 @@
 {
 	"relaunchSettingMessage": "È necessario riavviare per rendere effettiva un'impostazione modificata.",
 	"relaunchSettingDetail": "Fare clic sul pulsante di riavvio per riavviare {0} e abilitare l'impostazione.",
-	"restart": "Riavvia"
+	"restart": "&&Riavvia"
 }

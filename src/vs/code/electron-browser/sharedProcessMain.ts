@@ -177,7 +177,7 @@ function setupIPC(hook: string): TPromise<Server> {
 
 function startHandshake(): TPromise<ISharedProcessInitData> {
 	return new TPromise<ISharedProcessInitData>((c, e) => {
-		ipcRenderer.once('handshake:hey there', (_, r) => c(r));
+		ipcRenderer.once('handshake:hey there', (_: any, r: ISharedProcessInitData) => c(r));
 		ipcRenderer.send('handshake:hello');
 	});
 }

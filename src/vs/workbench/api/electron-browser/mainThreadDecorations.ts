@@ -9,7 +9,7 @@ import { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ExtHostContext, MainContext, IExtHostContext, MainThreadDecorationsShape, ExtHostDecorationsShape } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
-import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
+import { IDecorationsService, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
 
 @extHostNamedCustomer(MainContext.MainThreadDecorations)
 export class MainThreadDecorations implements MainThreadDecorationsShape {
@@ -29,23 +29,24 @@ export class MainThreadDecorations implements MainThreadDecorationsShape {
 		this._provider.clear();
 	}
 
-	$registerDecorationProvider(handle: number): void {
+	$registerDecorationProvider(handle: number, label: string): void {
 		let emitter = new Emitter<URI[]>();
 		let registration = this._decorationsService.registerDecorationsProvider({
-			label: 'extension-provider',
+			label,
 			onDidChange: emitter.event,
 			provideDecorations: (uri) => {
 				return this._proxy.$providerDecorations(handle, uri).then(data => {
 					if (!data) {
 						return undefined;
 					}
-					const [weight, bubble, title, letter, themeColor] = data;
-					return {
+					const [weight, bubble, tooltip, letter, themeColor, source] = data;
+					return <IDecorationData>{
 						weight: weight || 0,
 						bubble: bubble || false,
-						title,
+						color: themeColor && themeColor.id,
+						tooltip,
 						letter,
-						color: themeColor && themeColor.id
+						source,
 					};
 				});
 			}

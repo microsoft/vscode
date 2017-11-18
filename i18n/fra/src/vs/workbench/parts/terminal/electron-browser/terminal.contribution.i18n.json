@@ -17,6 +17,7 @@
 	"terminal.integrated.fontFamily": "Contrôle la famille de polices du terminal. La valeur par défaut est la valeur associée à editor.fontFamily.",
 	"terminal.integrated.fontSize": "Contrôle la taille de police en pixels du terminal.",
 	"terminal.integrated.lineHeight": "Contrôle la hauteur de ligne du terminal. La multiplication de ce nombre par la taille de police du terminal permet d'obtenir la hauteur de ligne réelle en pixels.",
+	"terminal.integrated.enableBold": "Indique s'il faut activer le texte en gras dans le terminal, notez que cela nécessite la prise en charge du terminal Shell.",
 	"terminal.integrated.cursorBlinking": "Contrôle si le curseur du terminal clignote.",
 	"terminal.integrated.cursorStyle": "Contrôle le style du curseur du terminal.",
 	"terminal.integrated.scrollback": "Contrôle la quantité maximale de lignes que le terminal conserve dans sa mémoire tampon.",

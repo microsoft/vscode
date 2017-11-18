@@ -103,29 +103,17 @@ suite('Strings', () => {
 		assert.equal(strings.overlap('full', 'full'), 4);
 		assert.equal(strings.overlap('full', 'fulloverlap'), 4);
 	});
+	test('lcut', () => {
+		assert.strictEqual(strings.lcut('foo bar', 0), '');
+		assert.strictEqual(strings.lcut('foo bar', 1), 'bar');
+		assert.strictEqual(strings.lcut('foo bar', 3), 'bar');
+		assert.strictEqual(strings.lcut('foo bar', 4), 'bar'); // Leading whitespace trimmed
+		assert.strictEqual(strings.lcut('foo bar', 5), 'foo bar');
+		assert.strictEqual(strings.lcut('test string 0.1.2.3', 3), '2.3');
 
-	test('computeLineStarts', function () {
-		function assertLineStart(text: string, ...offsets: number[]): void {
-			const actual = strings.computeLineStarts(text);
-			assert.equal(actual.length, offsets.length);
-			if (actual.length !== offsets.length) {
-				return;
-			}
-			while (offsets.length > 0) {
-				assert.equal(actual.pop(), offsets.pop());
-			}
-		}
-
-		assertLineStart('', 0);
-		assertLineStart('farboo', 0);
-		assertLineStart('far\nboo', 0, 4);
-		assertLineStart('far\rboo', 0, 4);
-		assertLineStart('far\r\nboo', 0, 5);
-		assertLineStart('far\n\rboo', 0, 4, 5);
-		assertLineStart('far\n \rboo', 0, 4, 6);
-		assertLineStart('far\nboo\nfar', 0, 4, 8);
+		assert.strictEqual(strings.lcut('', 10), '');
+		assert.strictEqual(strings.lcut('a', 10), 'a');
 	});
-
 
 	test('pad', function () {
 		assert.strictEqual(strings.pad(1, 0), '1');
@@ -205,13 +193,6 @@ suite('Strings', () => {
 		assert.strictEqual('bar  '.trim(), 'bar');
 		assert.strictEqual('   '.trim(), '');
 		assert.strictEqual(' 	  '.trim(), '');
-	});
-
-	test('appendWithLimit', function () {
-		assert.strictEqual(strings.appendWithLimit('ab', 'cd', 100), 'abcd');
-		assert.strictEqual(strings.appendWithLimit('ab', 'cd', 2), '...cd');
-		assert.strictEqual(strings.appendWithLimit('ab', 'cdefgh', 4), '...efgh');
-		assert.strictEqual(strings.appendWithLimit('abcdef', 'ghijk', 7), '...efghijk');
 	});
 
 	test('repeat', () => {
@@ -310,6 +291,22 @@ suite('Strings', () => {
 		assert(regExpWithFlags.global);
 		assert(!regExpWithFlags.ignoreCase);
 		assert(regExpWithFlags.multiline);
+	});
+
+	test('regExpContainsBackreference', () => {
+		assert(strings.regExpContainsBackreference('foo \\5 bar'));
+		assert(strings.regExpContainsBackreference('\\2'));
+		assert(strings.regExpContainsBackreference('(\\d)(\\n)(\\1)'));
+		assert(strings.regExpContainsBackreference('(A).*?\\1'));
+		assert(strings.regExpContainsBackreference('\\\\\\1'));
+		assert(strings.regExpContainsBackreference('foo \\\\\\1'));
+
+		assert(!strings.regExpContainsBackreference(''));
+		assert(!strings.regExpContainsBackreference('\\\\1'));
+		assert(!strings.regExpContainsBackreference('foo \\\\1'));
+		assert(!strings.regExpContainsBackreference('(A).*?\\\\1'));
+		assert(!strings.regExpContainsBackreference('foo \\d1 bar'));
+		assert(!strings.regExpContainsBackreference('123'));
 	});
 
 	test('getLeadingWhitespace', () => {

@@ -83,6 +83,15 @@ Don't feel bad if the developers can't reproduce the issue right away. They will
 
 Once submitted, your report will go into the [issue tracking](https://github.com/Microsoft/vscode/wiki/Issue-Tracking) work flow. Be sure to understand what will happen next, so you know what to expect, and how to continue to assist throughout the process.
 
+## Automated Issue Management
+
+We use a bot to help us manage issues. This bot currently:
+
+* Automatically closes any issue marked `needs-more-info` if there has been no response in past 7 days.
+* Automatically locks 45 days after they are closed.
+
+If you believe the bot got something wrong, please open a new issue and let us know.
+
 ## Contributing Fixes
 
 If you are interested in writing code to fix issues,
@@ -91,3 +100,4 @@ please see [How to Contribute](https://github.com/Microsoft/vscode/wiki/How-to-C
 # Thank You!
 
 Your contributions to open source, large or small, make great projects like this possible. Thank you for taking the time to contribute.
+

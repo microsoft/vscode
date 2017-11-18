@@ -6,14 +6,12 @@
 import { WorkspaceEdit, workspace } from 'vscode';
 import * as Proto from '../protocol';
 import { tsTextSpanToVsRange } from './convert';
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
 
-
-export async function applyCodeAction(
-	client: ITypescriptServiceClient,
-	action: Proto.CodeAction,
-	file: string
-): Promise<boolean> {
+export function getEditForCodeAction(
+	client: ITypeScriptServiceClient,
+	action: Proto.CodeAction
+): WorkspaceEdit | undefined {
 	if (action.changes && action.changes.length) {
 		const workspaceEdit = new WorkspaceEdit();
 		for (const change of action.changes) {
@@ -24,11 +22,30 @@ export async function applyCodeAction(
 			}
 		}
 
+		return workspaceEdit;
+	}
+	return undefined;
+}
+
+export async function applyCodeAction(
+	client: ITypeScriptServiceClient,
+	action: Proto.CodeAction,
+	file: string
+): Promise<boolean> {
+	const workspaceEdit = getEditForCodeAction(client, action);
+	if (workspaceEdit) {
 		if (!(await workspace.applyEdit(workspaceEdit))) {
 			return false;
 		}
 	}
+	return applyCodeActionCommands(client, action, file);
+}
 
+export async function applyCodeActionCommands(
+	client: ITypeScriptServiceClient,
+	action: Proto.CodeAction,
+	file: string
+): Promise<boolean> {
 	if (action.commands && action.commands.length) {
 		for (const command of action.commands) {
 			const response = await client.execute('applyCodeActionCommand', { file, command });

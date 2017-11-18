@@ -10,7 +10,6 @@ import * as dom from 'vs/base/browser/dom';
 import * as builder from 'vs/base/browser/builder';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
-import { EventType } from 'vs/base/common/events';
 import { IAction } from 'vs/base/common/actions';
 import { prepareActions } from 'vs/workbench/browser/actions';
 import { IHighlightEvent, ITree } from 'vs/base/parts/tree/browser/tree';
@@ -24,12 +23,12 @@ import { AddWatchExpressionAction, RemoveAllWatchExpressionsAction, AddFunctionB
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MenuId } from 'vs/platform/actions/common/actions';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { once } from 'vs/base/common/event';
 
 function renderViewTree(container: HTMLElement): HTMLElement {
 	const treeContainer = document.createElement('div');
@@ -47,11 +46,11 @@ export class VariablesView extends ViewsViewletPanel {
 	private onFocusStackFrameScheduler: RunOnceScheduler;
 	private variablesFocusedContext: IContextKey<boolean>;
 	private settings: any;
+	private expandedElements: any[];
 
 	constructor(
-		private options: IViewletViewOptions,
+		options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@ITelemetryService private telemetryService: ITelemetryService,
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -63,14 +62,20 @@ export class VariablesView extends ViewsViewletPanel {
 
 		this.settings = options.viewletSettings;
 		this.variablesFocusedContext = CONTEXT_VARIABLES_FOCUSED.bindTo(contextKeyService);
+		this.expandedElements = [];
 		// Use scheduler to prevent unnecessary flashing
 		this.onFocusStackFrameScheduler = new RunOnceScheduler(() => {
+			// Remember expanded elements when there are some (otherwise don't override/erase the previous ones)
+			const expanded = this.tree.getExpandedElements();
+			if (expanded.length > 0) {
+				this.expandedElements = expanded;
+			}
+
 			// Always clear tree highlight to avoid ending up in a broken state #12203
 			this.tree.clearHighlight();
-			const expanded = this.tree.getExpandedElements();
 			this.tree.refresh().then(() => {
 				const stackFrame = this.debugService.getViewModel().focusedStackFrame;
-				return sequence(expanded.map(e => () => this.tree.expand(e))).then(() => {
+				return sequence(this.expandedElements.map(e => () => this.tree.expand(e))).then(() => {
 					// If there is no preserved expansion state simply expand the first scope
 					if (stackFrame && this.tree.getExpandedElements().length === 0) {
 						return stackFrame.getScopes().then(scopes => {
@@ -131,7 +136,7 @@ export class VariablesView extends ViewsViewletPanel {
 
 			this.tree.refresh(expression, false).then(() => {
 				this.tree.setHighlight(expression);
-				this.tree.addOneTimeListener(EventType.HIGHLIGHT, (e: IHighlightEvent) => {
+				once(this.tree.onDidChangeHighlight)((e: IHighlightEvent) => {
 					if (!e.highlight) {
 						this.debugService.getViewModel().setSelectedExpression(null);
 					}
@@ -155,7 +160,7 @@ export class WatchExpressionsView extends ViewsViewletPanel {
 	private settings: any;
 
 	constructor(
-		private options: IViewletViewOptions,
+		options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -189,7 +194,7 @@ export class WatchExpressionsView extends ViewsViewletPanel {
 		const actionProvider = new viewer.WatchExpressionsActionProvider(this.instantiationService);
 		this.tree = new Tree(this.treeContainer, {
 			dataSource: new viewer.WatchExpressionsDataSource(),
-			renderer: this.instantiationService.createInstance(viewer.WatchExpressionsRenderer, actionProvider, this.actionRunner),
+			renderer: this.instantiationService.createInstance(viewer.WatchExpressionsRenderer),
 			accessibilityProvider: new viewer.WatchExpressionsAccessibilityProvider(),
 			controller: this.instantiationService.createInstance(viewer.WatchExpressionsController, actionProvider, MenuId.DebugWatchContext),
 			dnd: this.instantiationService.createInstance(viewer.WatchExpressionsDragAndDrop)
@@ -223,7 +228,7 @@ export class WatchExpressionsView extends ViewsViewletPanel {
 
 			this.tree.refresh(expression, false).then(() => {
 				this.tree.setHighlight(expression);
-				this.tree.addOneTimeListener(EventType.HIGHLIGHT, (e: IHighlightEvent) => {
+				once(this.tree.onDidChangeHighlight)((e: IHighlightEvent) => {
 					if (!e.highlight) {
 						this.debugService.getViewModel().setSelectedExpression(null);
 					}
@@ -249,7 +254,6 @@ export class CallStackView extends ViewsViewletPanel {
 	constructor(
 		private options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@ITelemetryService private telemetryService: ITelemetryService,
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -315,7 +319,7 @@ export class CallStackView extends ViewsViewletPanel {
 		this.disposables.push(attachListStyler(this.tree, this.themeService));
 		this.disposables.push(this.listService.register(this.tree));
 
-		this.disposables.push(this.tree.addListener('selection', event => {
+		this.disposables.push(this.tree.onDidChangeSelection(event => {
 			if (event && event.payload && event.payload.origin === 'keyboard') {
 				const element = this.tree.getFocus();
 				if (element instanceof ThreadAndProcessIds) {
@@ -383,7 +387,7 @@ export class BreakpointsView extends ViewsViewletPanel {
 	private settings: any;
 
 	constructor(
-		private options: IViewletViewOptions,
+		options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -411,7 +415,7 @@ export class BreakpointsView extends ViewsViewletPanel {
 
 		this.tree = new Tree(this.treeContainer, {
 			dataSource: new viewer.BreakpointsDataSource(),
-			renderer: this.instantiationService.createInstance(viewer.BreakpointsRenderer, actionProvider, this.actionRunner),
+			renderer: this.instantiationService.createInstance(viewer.BreakpointsRenderer),
 			accessibilityProvider: this.instantiationService.createInstance(viewer.BreakpointsAccessibilityProvider),
 			controller,
 			sorter: {
@@ -450,7 +454,7 @@ export class BreakpointsView extends ViewsViewletPanel {
 		this.disposables.push(attachListStyler(this.tree, this.themeService));
 		this.disposables.push(this.listService.register(this.tree, [this.breakpointsFocusedContext]));
 
-		this.disposables.push(this.tree.addListener('selection', event => {
+		this.disposables.push(this.tree.onDidChangeSelection(event => {
 			if (event && event.payload && event.payload.origin === 'keyboard') {
 				const element = this.tree.getFocus();
 				if (element instanceof Breakpoint) {
@@ -470,7 +474,7 @@ export class BreakpointsView extends ViewsViewletPanel {
 
 			this.tree.refresh(fbp, false).then(() => {
 				this.tree.setHighlight(fbp);
-				this.tree.addOneTimeListener(EventType.HIGHLIGHT, (e: IHighlightEvent) => {
+				once(this.tree.onDidChangeHighlight)((e: IHighlightEvent) => {
 					if (!e.highlight) {
 						this.debugService.getViewModel().setSelectedFunctionBreakpoint(null);
 					}

@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as os from 'os';
 import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
-import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
 import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -729,8 +729,6 @@ export class ShowPreviousFindTermTerminalFindWidgetAction extends Action {
 export class QuickOpenActionTermContributor extends ActionBarContributor {
 
 	constructor(
-		@ITerminalService private terminalService: ITerminalService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super();
@@ -774,8 +772,7 @@ export class RenameTerminalQuickOpenAction extends RenameTerminalAction {
 		id: string, label: string,
 		private terminal: TerminalEntry,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@ITerminalService terminalService: ITerminalService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@ITerminalService terminalService: ITerminalService
 	) {
 		super(id, label, quickOpenService, terminalService);
 		this.class = 'quick-open-terminal-configure';

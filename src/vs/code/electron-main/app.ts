@@ -35,9 +35,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
-import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
-import { CredentialsService } from 'vs/platform/credentials/node/credentialsService';
-import { CredentialsChannel } from 'vs/platform/credentials/node/credentialsIpc';
 import { resolveCommonProperties, machineIdStorageKey, machineIdIpcChannel } from 'vs/platform/telemetry/node/commonProperties';
 import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import product from 'vs/platform/node/product';
@@ -59,7 +56,7 @@ import { touch } from 'vs/base/node/pfs';
 
 export class CodeApplication {
 
-	private static APP_ICON_REFRESH_KEY = 'macOSAppIconRefresh2';
+	private static APP_ICON_REFRESH_KEY = 'macOSAppIconRefresh3';
 
 	private toDispose: IDisposable[];
 	private windowsMainService: IWindowsMainService;
@@ -76,7 +73,7 @@ export class CodeApplication {
 		@ILogService private logService: ILogService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IConfigurationService private configurationService: ConfigurationService,
+		@IConfigurationService configurationService: ConfigurationService,
 		@IStorageService private storageService: IStorageService,
 		@IHistoryMainService private historyService: IHistoryMainService
 	) {
@@ -133,7 +130,7 @@ export class CodeApplication {
 		const isValidWebviewSource = (source: string) =>
 			!source || (URI.parse(source.toLowerCase()).toString() as any).startsWith(URI.file(this.environmentService.appRoot.toLowerCase()).toString());
 
-		app.on('web-contents-created', (event, contents) => {
+		app.on('web-contents-created', (_event: any, contents) => {
 			contents.on('will-attach-webview', (event: Electron.Event, webPreferences, params) => {
 				delete webPreferences.preload;
 				webPreferences.nodeIntegration = false;
@@ -188,19 +185,19 @@ export class CodeApplication {
 			this.windowsMainService.openNewWindow(OpenContext.DESKTOP); //macOS native tab "+" button
 		});
 
-		ipc.on('vscode:exit', (event, code: number) => {
+		ipc.on('vscode:exit', (_event: any, code: number) => {
 			this.logService.log('IPC#vscode:exit', code);
 
 			this.dispose();
 			this.lifecycleService.kill(code);
 		});
 
-		ipc.on(machineIdIpcChannel, (event, machineId: string) => {
+		ipc.on(machineIdIpcChannel, (_event: any, machineId: string) => {
 			this.logService.log('IPC#vscode-machineId');
 			this.storageService.setItem(machineIdStorageKey, machineId);
 		});
 
-		ipc.on('vscode:fetchShellEnv', (event, windowId) => {
+		ipc.on('vscode:fetchShellEnv', (_event: any, windowId: number) => {
 			const { webContents } = BrowserWindow.fromId(windowId);
 			getShellEnvironment().then(shellEnv => {
 				if (!webContents.isDestroyed()) {
@@ -215,7 +212,7 @@ export class CodeApplication {
 			});
 		});
 
-		ipc.on('vscode:broadcast', (event, windowId: number, broadcast: { channel: string; payload: any; }) => {
+		ipc.on('vscode:broadcast', (_event: any, windowId: number, broadcast: { channel: string; payload: any; }) => {
 			if (this.windowsMainService && broadcast.channel && !isUndefinedOrNull(broadcast.payload)) {
 				this.logService.log('IPC#vscode:broadcast', broadcast.channel, broadcast.payload);
 
@@ -288,7 +285,6 @@ export class CodeApplication {
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager));
 		services.set(IWindowsService, new SyncDescriptor(WindowsService, this.sharedProcess));
 		services.set(ILaunchService, new SyncDescriptor(LaunchService));
-		services.set(ICredentialsService, new SyncDescriptor(CredentialsService));
 
 		// Telemtry
 		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
@@ -346,9 +342,6 @@ export class CodeApplication {
 		this.electronIpcServer.registerChannel('windows', windowsChannel);
 		this.sharedProcessClient.done(client => client.registerChannel('windows', windowsChannel));
 
-		const credentialsService = accessor.get(ICredentialsService);
-		const credentialsChannel = new CredentialsChannel(credentialsService);
-		this.electronIpcServer.registerChannel('credentials', credentialsChannel);
 
 		// Lifecycle
 		this.lifecycleService.ready();
@@ -371,9 +364,10 @@ export class CodeApplication {
 	private afterWindowOpen(accessor: ServicesAccessor): void {
 		const appInstantiationService = accessor.get(IInstantiationService);
 
-		// Setup Windows mutex
 		let windowsMutex: Mutex = null;
 		if (platform.isWindows) {
+
+			// Setup Windows mutex
 			try {
 				const Mutex = (require.__$__nodeRequire('windows-mutex') as any).Mutex;
 				windowsMutex = new Mutex(product.win32MutexName);
@@ -381,19 +375,27 @@ export class CodeApplication {
 			} catch (e) {
 				if (!this.environmentService.isBuilt) {
 					dialog.showMessageBox({
-						message: 'Failed to load windows-mutex',
-						detail: e.toString()
+						title: product.nameLong,
+						type: 'warning',
+						message: 'Failed to load windows-mutex!',
+						detail: e.toString(),
+						noLink: true
 					});
 				}
 			}
 
+			// Ensure Windows foreground love module
 			try {
+				// tslint:disable-next-line:no-unused-expression
 				<any>require.__$__nodeRequire('windows-foreground-love');
 			} catch (e) {
 				if (!this.environmentService.isBuilt) {
 					dialog.showMessageBox({
-						message: 'Failed to load windows-foreground-love',
-						detail: e.toString()
+						title: product.nameLong,
+						type: 'warning',
+						message: 'Failed to load windows-foreground-love!',
+						detail: e.toString(),
+						noLink: true
 					});
 				}
 			}

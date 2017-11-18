@@ -12,6 +12,7 @@
 	"errorUnknownKey": "{1}은(는) 등록된 구성이 아니므로 {0}에 쓸 수 없습니다.",
 	"errorInvalidFolderConfiguration": "{0}이(가) 폴더 리소스 범위를 지원하지 않으므로 폴더 설정에 쓸 수 없습니다.",
 	"errorInvalidUserTarget": "{0}이(가) 글로벌 범위를 지원하지 않으므로 사용자 설정에 쓸 수 없습니다.",
+	"errorInvalidWorkspaceTarget": "{0}이(가) 여러 폴더 작업 영역에서 작업 영역 범위를 지원하지 않으므로 작업 영역 설정에 쓸 수 없습니다.",
 	"errorInvalidFolderTarget": "리소스가 제공되지 않으므로 폴더 설정에 쓸 수 없습니다.",
 	"errorNoWorkspaceOpened": "작업 영역이 열려 있지 않으므로 {0}에 쓸 수 없습니다. 먼저 작업 영역을 열고 다시 시도하세요.",
 	"errorInvalidTaskConfiguration": "작업 파일에 쓸 수 없습니다.  **작업** 파일을 열어 오류/경고를 수정하고 다시 시도하세요.",

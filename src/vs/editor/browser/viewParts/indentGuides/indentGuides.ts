@@ -96,10 +96,12 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		const lineHeight = this._lineHeight;
 		const indentGuideWidth = dom.computeScreenAwareSize(1);
 
+		const indents = this._context.model.getLinesIndentGuides(visibleStartLineNumber, visibleEndLineNumber);
+
 		let output: string[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
-			let lineIndex = lineNumber - visibleStartLineNumber;
-			let indent = this._context.model.getLineIndentGuide(lineNumber);
+			const lineIndex = lineNumber - visibleStartLineNumber;
+			const indent = indents[lineIndex];
 
 			let result = '';
 			let leftMostVisiblePosition = ctx.visibleRangeForPosition(new Position(lineNumber, 1));

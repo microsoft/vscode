@@ -15,7 +15,15 @@ import { memoize } from 'vs/base/common/decorators';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
 
+// Read this before there's any chance it is overwritten
+// Related to https://github.com/Microsoft/vscode/issues/30624
+const xdgRuntimeDir = process.env['XDG_RUNTIME_DIR'];
+
 function getNixIPCHandle(userDataPath: string, type: string): string {
+	if (xdgRuntimeDir) {
+		return path.join(xdgRuntimeDir, `${pkg.name}-${pkg.version}-${type}.sock`);
+	}
+
 	return path.join(userDataPath, `${pkg.version}-${type}.sock`);
 }
 
@@ -62,6 +70,12 @@ export class EnvironmentService implements IEnvironmentService {
 
 	@memoize
 	get appSettingsPath(): string { return path.join(this.appSettingsHome, 'settings.json'); }
+
+	@memoize
+	get settingsSearchBuildId(): number { return product.settingsSearchBuildId; }
+
+	@memoize
+	get settingsSearchUrl(): string { return product.settingsSearchUrl; }
 
 	@memoize
 	get appKeybindingsPath(): string { return path.join(this.appSettingsHome, 'keybindings.json'); }
@@ -126,6 +140,7 @@ export class EnvironmentService implements IEnvironmentService {
 	get nodeCachedDataDir(): string { return this.isBuilt ? path.join(this.userDataPath, 'CachedData', product.commit || new Array(41).join('0')) : undefined; }
 
 	get disableUpdates(): boolean { return !!this._args['disable-updates']; }
+	get disableCrashReporter(): boolean { return !!this._args['disable-crash-reporter']; }
 
 	readonly machineUUID: string;
 

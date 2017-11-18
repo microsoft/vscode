@@ -42,4 +42,4 @@ export namespace EditorContextKeys {
 	export const hasDocumentFormattingProvider = new RawContextKey<boolean>('editorHasDocumentFormattingProvider', undefined);
 	export const hasDocumentSelectionFormattingProvider = new RawContextKey<boolean>('editorHasDocumentSelectionFormattingProvider', undefined);
 	export const hasSignatureHelpProvider = new RawContextKey<boolean>('editorHasSignatureHelpProvider', undefined);
-};
+}

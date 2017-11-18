@@ -15,7 +15,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as dom from 'vs/base/browser/dom';
 import { IMouseEvent, DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { getPathLabel } from 'vs/base/common/labels';
-import { IAction, IActionRunner } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITree, IAccessibilityProvider, ContextMenuEvent, IDataSource, IRenderer, DRAG_OVER_REJECT, IDragAndDropData, IDragOverReaction, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { InputBox, IInputValidationOptions } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -53,7 +53,7 @@ export interface IRenderValueOptions {
 }
 
 function replaceWhitespace(value: string): string {
-	const map = { '\n': '\\n', '\r': '\\r', '\t': '\\t' };
+	const map: { [x: string]: string } = { '\n': '\\n', '\r': '\\r', '\t': '\\t' };
 	return value.replace(/[\n\r\t]/g, char => map[char]);
 }
 
@@ -143,7 +143,7 @@ function renderRenameBox(debugService: debug.IDebugService, contextViewService: 
 	inputBox.select();
 
 	let disposed = false;
-	const toDispose: [lifecycle.IDisposable] = [inputBox, styler];
+	const toDispose: lifecycle.IDisposable[] = [inputBox, styler];
 
 	const wrapUp = once((renamed: boolean) => {
 		if (!disposed) {
@@ -299,7 +299,7 @@ export class CallStackController extends BaseDebugController {
 		return true;
 	}
 
-	public focusStackFrame(stackFrame: debug.IStackFrame, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
+	public focusStackFrame(stackFrame: debug.IStackFrame, event: any, preserveFocus: boolean): void {
 		this.debugService.focusStackFrameAndEvaluate(stackFrame, undefined, true).then(() => {
 			const sideBySide = (event && (event.ctrlKey || event.metaKey));
 			return stackFrame.openInEditor(this.editorService, preserveFocus, sideBySide);
@@ -310,7 +310,7 @@ export class CallStackController extends BaseDebugController {
 
 export class CallStackActionProvider implements IActionProvider {
 
-	constructor( @IInstantiationService private instantiationService: IInstantiationService, @debug.IDebugService private debugService: debug.IDebugService) {
+	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
 		// noop
 	}
 
@@ -779,7 +779,8 @@ export class VariablesController extends BaseDebugController {
 
 	protected onLeftClick(tree: ITree, element: any, event: IMouseEvent): boolean {
 		// double click on primitive value: open input box to be able to set the value
-		if (element instanceof Variable && event.detail === 2) {
+		const process = this.debugService.getViewModel().focusedProcess;
+		if (element instanceof Variable && event.detail === 2 && process && process.session.capabilities.supportsSetVariable) {
 			const expression = <debug.IExpression>element;
 			this.debugService.getViewModel().setSelectedExpression(expression);
 			return true;
@@ -885,17 +886,13 @@ export class WatchExpressionsRenderer implements IRenderer {
 	private static WATCH_EXPRESSION_TEMPLATE_ID = 'watchExpression';
 	private static VARIABLE_TEMPLATE_ID = 'variables';
 	private toDispose: lifecycle.IDisposable[];
-	private actionProvider: WatchExpressionsActionProvider;
 
 	constructor(
-		actionProvider: IActionProvider,
-		private actionRunner: IActionRunner,
 		@debug.IDebugService private debugService: debug.IDebugService,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IThemeService private themeService: IThemeService
 	) {
 		this.toDispose = [];
-		this.actionProvider = <WatchExpressionsActionProvider>actionProvider;
 	}
 
 	public getHeight(tree: ITree, element: any): number {
@@ -1132,8 +1129,6 @@ export class BreakpointsRenderer implements IRenderer {
 	private static BREAKPOINT_TEMPLATE_ID = 'breakpoint';
 
 	constructor(
-		private actionProvider: BreakpointsActionProvider,
-		private actionRunner: IActionRunner,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@debug.IDebugService private debugService: debug.IDebugService,
 		@IContextViewService private contextViewService: IContextViewService,
@@ -1296,7 +1291,11 @@ export class BreakpointsController extends BaseDebugController {
 		return super.onLeftClick(tree, element, event);
 	}
 
-	public openBreakpointSource(breakpoint: Breakpoint, event: IKeyboardEvent | IMouseEvent, preserveFocus: boolean): void {
+	public openBreakpointSource(breakpoint: Breakpoint, event: any, preserveFocus: boolean): void {
+		if (breakpoint.uri.scheme === debug.DEBUG_SCHEME && this.debugService.state === debug.State.Inactive) {
+			return;
+		}
+
 		const sideBySide = (event && (event.ctrlKey || event.metaKey));
 		const selection = breakpoint.endLineNumber ? {
 			startLineNumber: breakpoint.lineNumber,

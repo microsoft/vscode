@@ -44,16 +44,9 @@ suite('Files - View Model', () => {
 		const s = createStat('/path/to/stat', 'sName', true, false, 8096, d);
 
 		const child1 = createStat('/path/to/stat/foo', 'foo', true, false, 8096, d);
-		const child2 = createStat('/path/to/stat/bar.html', 'bar', false, false, 8096, d);
 		const child4 = createStat('/otherpath/to/other/otherbar.html', 'otherbar.html', false, false, 8096, d);
 
-		assert(!s.hasChild(child1.name));
-		assert(!s.hasChild(child2.name));
-
 		s.addChild(child1);
-		assert(s.hasChild(child1.name));
-		assert(!s.hasChild(child1.name.toUpperCase()));
-		assert(s.hasChild(child1.name.toUpperCase(), true));
 
 		assert(s.children.length === 1);
 		assert(s.hasChildren);

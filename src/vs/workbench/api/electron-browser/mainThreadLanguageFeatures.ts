@@ -163,7 +163,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	$registerQuickFixSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
 		this._registrations[handle] = modes.CodeActionProviderRegistry.register(selector, <modes.CodeActionProvider>{
-			provideCodeActions: (model: IReadOnlyModel, range: EditorRange, token: CancellationToken): Thenable<modes.Command[]> => {
+			provideCodeActions: (model: IReadOnlyModel, range: EditorRange, token: CancellationToken): Thenable<(modes.Command | modes.CodeAction)[]> => {
 				return this._heapService.trackRecursive(wireCancellationToken(token, this._proxy.$provideCodeActions(handle, model.uri, range)));
 			}
 		});
@@ -205,9 +205,17 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	// --- navigate type
 
 	$registerNavigateTypeSupport(handle: number): TPromise<any> {
+		let lastResultId: number;
 		this._registrations[handle] = WorkspaceSymbolProviderRegistry.register(<IWorkspaceSymbolProvider>{
 			provideWorkspaceSymbols: (search: string): TPromise<modes.SymbolInformation[]> => {
-				return this._heapService.trackRecursive(this._proxy.$provideWorkspaceSymbols(handle, search));
+
+				return this._proxy.$provideWorkspaceSymbols(handle, search).then(result => {
+					if (lastResultId !== undefined) {
+						this._proxy.$releaseWorkspaceSymbols(handle, lastResultId);
+					}
+					lastResultId = result._id;
+					return result.symbols;
+				});
 			},
 			resolveWorkspaceSymbol: (item: modes.SymbolInformation): TPromise<modes.SymbolInformation> => {
 				return this._proxy.$resolveWorkspaceSymbol(handle, item);

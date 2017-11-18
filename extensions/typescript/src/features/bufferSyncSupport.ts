@@ -7,8 +7,9 @@ import * as fs from 'fs';
 
 import { workspace, TextDocument, TextDocumentChangeEvent, TextDocumentContentChangeEvent, Disposable } from 'vscode';
 import * as Proto from '../protocol';
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
 import { Delayer } from '../utils/async';
+import * as languageModeIds from '../utils/languageModeIds';
 
 interface IDiagnosticRequestor {
 	requestDiagnostic(filepath: string): void;
@@ -16,10 +17,10 @@ interface IDiagnosticRequestor {
 
 function mode2ScriptKind(mode: string): 'TS' | 'TSX' | 'JS' | 'JSX' | undefined {
 	switch (mode) {
-		case 'typescript': return 'TS';
-		case 'typescriptreact': return 'TSX';
-		case 'javascript': return 'JS';
-		case 'javascriptreact': return 'JSX';
+		case languageModeIds.typescript: return 'TS';
+		case languageModeIds.typescriptreact: return 'TSX';
+		case languageModeIds.javascript: return 'JS';
+		case languageModeIds.javascriptreact: return 'JSX';
 	}
 	return undefined;
 }
@@ -30,7 +31,7 @@ class SyncedBuffer {
 		private readonly document: TextDocument,
 		private readonly filepath: string,
 		private readonly diagnosticRequestor: IDiagnosticRequestor,
-		private readonly client: ITypescriptServiceClient
+		private readonly client: ITypeScriptServiceClient
 	) { }
 
 	public open(): void {
@@ -105,7 +106,7 @@ export interface Diagnostics {
 
 export default class BufferSyncSupport {
 
-	private readonly client: ITypescriptServiceClient;
+	private readonly client: ITypeScriptServiceClient;
 
 	private _validate: boolean;
 	private readonly modeIds: Set<string>;
@@ -117,7 +118,7 @@ export default class BufferSyncSupport {
 	private readonly diagnosticDelayer: Delayer<any>;
 
 	constructor(
-		client: ITypescriptServiceClient,
+		client: ITypeScriptServiceClient,
 		modeIds: string[],
 		diagnostics: Diagnostics,
 		validate: boolean

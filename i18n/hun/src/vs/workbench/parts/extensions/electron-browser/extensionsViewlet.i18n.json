@@ -8,6 +8,8 @@
 	"installedExtensions": "Telepítve",
 	"searchInstalledExtensions": "Telepítve",
 	"recommendedExtensions": "Ajánlott",
+	"otherRecommendedExtensions": "További ajánlatok",
+	"workspaceRecommendedExtensions": "Ajánlott a munkaterülethez",
 	"searchExtensions": "Kiegészítők keresése a piactéren",
 	"sort by installs": "Rendezés a telepítések száma szerint",
 	"sort by rating": "Rendezés értékelés szerint",

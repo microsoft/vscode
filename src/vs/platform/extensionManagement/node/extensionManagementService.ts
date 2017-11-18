@@ -18,9 +18,10 @@ import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension,
 	IGalleryExtension, IExtensionManifest, IGalleryMetadata,
 	InstallExtensionEvent, DidInstallExtensionEvent, DidUninstallExtensionEvent, LocalExtensionType,
-	StatisticType
+	StatisticType,
+	IExtensionIdentifier
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { getLocalExtensionIdFromGallery, getLocalExtensionIdFromManifest, getGalleryExtensionIdFromLocal, getIdAndVersionFromLocalExtensionId, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getGalleryExtensionIdFromLocal, getIdAndVersionFromLocalExtensionId, adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { localizeManifest } from '../common/extensionNls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Limiter } from 'vs/base/common/async';
@@ -48,7 +49,7 @@ function parseManifest(raw: string): TPromise<{ manifest: IExtensionManifest; me
 	});
 }
 
-function validate(zipPath: string): TPromise<IExtensionManifest> {
+export function validateLocalExtension(zipPath: string): TPromise<IExtensionManifest> {
 	return buffer(zipPath, 'extension/package.json')
 		.then(buffer => parseManifest(buffer.toString('utf8')))
 		.then(({ manifest }) => TPromise.as(manifest));
@@ -74,7 +75,8 @@ function readManifest(extensionPath: string): TPromise<{ manifest: IExtensionMan
 interface InstallableExtension {
 	zipPath: string;
 	id: string;
-	metadata: IGalleryMetadata;
+	metadata?: IGalleryMetadata;
+	current?: ILocalExtension;
 }
 
 export class ExtensionManagementService implements IExtensionManagementService {
@@ -92,14 +94,14 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	private _onDidInstallExtension = new Emitter<DidInstallExtensionEvent>();
 	onDidInstallExtension: Event<DidInstallExtensionEvent> = this._onDidInstallExtension.event;
 
-	private _onUninstallExtension = new Emitter<string>();
-	onUninstallExtension: Event<string> = this._onUninstallExtension.event;
+	private _onUninstallExtension = new Emitter<IExtensionIdentifier>();
+	onUninstallExtension: Event<IExtensionIdentifier> = this._onUninstallExtension.event;
 
 	private _onDidUninstallExtension = new Emitter<DidUninstallExtensionEvent>();
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent> = this._onDidUninstallExtension.event;
 
 	constructor(
-		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 		@IChoiceService private choiceService: IChoiceService,
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService
 	) {
@@ -111,20 +113,23 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	install(zipPath: string): TPromise<void> {
 		zipPath = path.resolve(zipPath);
 
-		return validate(zipPath).then<void>(manifest => {
-			const id = getLocalExtensionIdFromManifest(manifest);
+		return validateLocalExtension(zipPath).then<void>(manifest => {
+			const identifier = { id: getLocalExtensionIdFromManifest(manifest) };
 
-			return this.isObsolete(id).then(isObsolete => {
+			return this.isObsolete(identifier.id).then(isObsolete => {
 				if (isObsolete) {
 					return TPromise.wrapError(new Error(nls.localize('restartCodeLocal', "Please restart Code before reinstalling {0}.", manifest.displayName || manifest.name)));
 				}
 
-				this._onInstallExtension.fire({ id, zipPath });
+				this._onInstallExtension.fire({ identifier, zipPath });
 
-				return this.installExtension({ zipPath, id, metadata: null })
+				return this.getMetadata(getGalleryExtensionId(manifest.publisher, manifest.name))
 					.then(
-					local => this._onDidInstallExtension.fire({ id, zipPath, local }),
-					error => { this._onDidInstallExtension.fire({ id, zipPath, error }); return TPromise.wrapError(error); }
+					metadata => this.installExtension({ zipPath, id: identifier.id, metadata }),
+					error => this.installExtension({ zipPath, id: identifier.id }))
+					.then(
+					local => this._onDidInstallExtension.fire({ identifier, zipPath, local }),
+					error => { this._onDidInstallExtension.fire({ identifier, zipPath, error }); return TPromise.wrapError(error); }
 					);
 			});
 		});
@@ -155,11 +160,12 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	private downloadAndInstallExtensions(extensions: IGalleryExtension[]): TPromise<ILocalExtension[]> {
-		return TPromise.join(extensions.map(extensionToInstall => this.downloadInstallableExtension(extensionToInstall)))
-			.then(
-			installableExtensions => TPromise.join(installableExtensions.map(installableExtension => this.installExtension(installableExtension)))
-				.then(null, error => this.rollback(extensions).then(() => this.onDidInstallExtensions(extensions, null, INSTALL_ERROR_LOCAL, error))),
-			error => this.onDidInstallExtensions(extensions, null, INSTALL_ERROR_GALLERY, error));
+		return this.getInstalled(LocalExtensionType.User)
+			.then(installed => TPromise.join(extensions.map(extensionToInstall => this.downloadInstallableExtension(extensionToInstall, installed)))
+				.then(
+				installableExtensions => TPromise.join(installableExtensions.map(installableExtension => this.installExtension(installableExtension)))
+					.then(null, error => this.rollback(extensions).then(() => this.onDidInstallExtensions(extensions, null, INSTALL_ERROR_LOCAL, error))),
+				error => this.onDidInstallExtensions(extensions, null, INSTALL_ERROR_GALLERY, error)));
 	}
 
 	private collectExtensionsToInstall(extension: IGalleryExtension): TPromise<IGalleryExtension[]> {
@@ -174,37 +180,38 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			.then(obsolete => obsolete.length ? TPromise.wrapError<IGalleryExtension[]>(new Error(nls.localize('restartCodeGallery', "Please restart Code before reinstalling."))) : extensionsToInstall);
 	}
 
-	private downloadInstallableExtension(extension: IGalleryExtension): TPromise<InstallableExtension> {
+	private downloadInstallableExtension(extension: IGalleryExtension, installed: ILocalExtension[]): TPromise<InstallableExtension> {
+		const current = installed.filter(i => i.identifier.uuid === extension.identifier.uuid)[0];
 		const id = getLocalExtensionIdFromGallery(extension, extension.version);
 		const metadata = <IGalleryMetadata>{
-			id: extension.uuid,
+			id: extension.identifier.uuid,
 			publisherId: extension.publisherId,
 			publisherDisplayName: extension.publisherDisplayName,
 		};
 		return this.galleryService.download(extension)
-			.then(zipPath => validate(zipPath).then(() => ({ zipPath, id, metadata })));
+			.then(zipPath => validateLocalExtension(zipPath).then(() => (<InstallableExtension>{ zipPath, id, metadata, current })));
 	}
 
 	private rollback(extensions: IGalleryExtension[]): TPromise<void> {
 		return this.filterOutUninstalled(extensions)
-			.then(installed => TPromise.join(installed.map(local => this.uninstallExtension(local.id))))
+			.then(installed => TPromise.join(installed.map(local => this.uninstallExtension(local.identifier))))
 			.then(() => null, () => null);
 	}
 
 	private onInstallExtensions(extensions: IGalleryExtension[]): void {
 		for (const extension of extensions) {
 			const id = getLocalExtensionIdFromGallery(extension, extension.version);
-			this._onInstallExtension.fire({ id, gallery: extension });
+			this._onInstallExtension.fire({ identifier: { id, uuid: extension.identifier.uuid }, gallery: extension });
 		}
 	}
 
 	private onDidInstallExtensions(extensions: IGalleryExtension[], local: ILocalExtension[], errorCode?: string, error?: any): TPromise<any> {
 		extensions.forEach((gallery, index) => {
-			const id = getLocalExtensionIdFromGallery(gallery, gallery.version);
+			const identifier = { id: getLocalExtensionIdFromGallery(gallery, gallery.version), uuid: gallery.identifier.uuid };
 			if (errorCode) {
-				this._onDidInstallExtension.fire({ id, gallery, error: errorCode });
+				this._onDidInstallExtension.fire({ identifier, gallery, error: errorCode });
 			} else {
-				this._onDidInstallExtension.fire({ id, gallery, local: local[index] });
+				this._onDidInstallExtension.fire({ identifier, gallery, local: local[index] });
 			}
 		});
 		return error ? TPromise.wrapError(Array.isArray(error) ? this.joinErrors(error) : error) : TPromise.as(null);
@@ -214,11 +221,11 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		return this.getInstalled()
 			.then(local => {
 				return dependencies.filter(d => {
-					if (extension.uuid === d.uuid) {
+					if (extension.identifier.uuid === d.identifier.uuid) {
 						return false;
 					}
 					const extensionId = getLocalExtensionIdFromGallery(d, d.version);
-					return local.every(local => local.id !== extensionId);
+					return local.every(({ identifier }) => identifier.id !== extensionId);
 				});
 			});
 	}
@@ -229,11 +236,11 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	private getGalleryExtensionForLocalExtension(galleryExtensions: IGalleryExtension[], localExtension: ILocalExtension): IGalleryExtension {
-		const filtered = galleryExtensions.filter(galleryExtension => getLocalExtensionIdFromGallery(galleryExtension, galleryExtension.version) === localExtension.id);
+		const filtered = galleryExtensions.filter(galleryExtension => areSameExtensions(localExtension.identifier, { id: getLocalExtensionIdFromGallery(galleryExtension, galleryExtension.version), uuid: galleryExtension.identifier.uuid }));
 		return filtered.length ? filtered[0] : null;
 	}
 
-	private installExtension({ zipPath, id, metadata }: InstallableExtension): TPromise<ILocalExtension> {
+	private installExtension({ zipPath, id, metadata, current }: InstallableExtension): TPromise<ILocalExtension> {
 		const extensionPath = path.join(this.extensionsPath, id);
 
 		return pfs.rimraf(extensionPath).then(() => {
@@ -246,14 +253,12 @@ export class ExtensionManagementService implements IExtensionManagementService {
 						const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
 						const changelogUrl = changelog ? URI.file(path.join(extensionPath, changelog)).toString() : null;
 						const type = LocalExtensionType.User;
+						const identifier = { id, uuid: metadata ? metadata.id : null };
 
-						const local: ILocalExtension = { type, id, manifest, metadata, path: extensionPath, readmeUrl, changelogUrl };
-						const manifestPath = path.join(extensionPath, 'package.json');
+						const local: ILocalExtension = { type, identifier, manifest, metadata, path: extensionPath, readmeUrl, changelogUrl };
 
-						return pfs.readFile(manifestPath, 'utf8')
-							.then(raw => parseManifest(raw))
-							.then(({ manifest }) => assign(manifest, { __metadata: metadata }))
-							.then(manifest => pfs.writeFile(manifestPath, JSON.stringify(manifest, null, '\t')))
+						return this.saveMetadataForLocalExtension(local)
+							.then(() => this.checkForRename(current, local))
 							.then(() => local);
 					});
 				});
@@ -271,6 +276,40 @@ export class ExtensionManagementService implements IExtensionManagementService {
 						return TPromise.join(promises).then(null, error => TPromise.wrapError(Array.isArray(error) ? this.joinErrors(error) : error));
 					}))
 			.then(() => { /* drop resolved value */ });
+	}
+
+	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): TPromise<ILocalExtension> {
+		local.metadata = metadata;
+		return this.saveMetadataForLocalExtension(local);
+	}
+
+	private saveMetadataForLocalExtension(local: ILocalExtension): TPromise<ILocalExtension> {
+		if (!local.metadata) {
+			return TPromise.as(local);
+		}
+		const manifestPath = path.join(this.extensionsPath, local.identifier.id, 'package.json');
+		return pfs.readFile(manifestPath, 'utf8')
+			.then(raw => parseManifest(raw))
+			.then(({ manifest }) => assign(manifest, { __metadata: local.metadata }))
+			.then(manifest => pfs.writeFile(manifestPath, JSON.stringify(manifest, null, '\t')))
+			.then(() => local);
+	}
+
+	private getMetadata(extensionName: string): TPromise<IGalleryMetadata> {
+		return this.galleryService.query({ names: [extensionName], pageSize: 1 })
+			.then(galleryResult => {
+				const galleryExtension = galleryResult.firstPage[0];
+				return galleryExtension ? <IGalleryMetadata>{ id: galleryExtension.identifier.uuid, publisherDisplayName: galleryExtension.publisherDisplayName, publisherId: galleryExtension.publisherId } : null;
+			});
+	}
+
+	private checkForRename(currentExtension: ILocalExtension, newExtension: ILocalExtension): TPromise<void> {
+		// Check if the gallery id for current and new exensions are same, if not, remove the current one.
+		if (currentExtension && getGalleryExtensionIdFromLocal(currentExtension) !== getGalleryExtensionIdFromLocal(newExtension)) {
+			// return this.uninstallExtension(currentExtension.identifier);
+			return this.setObsolete(currentExtension.identifier.id);
+		}
+		return TPromise.as(null);
 	}
 
 	private joinErrors(errors: (Error | string)[]): Error {
@@ -350,7 +389,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		if (dependents.length) {
 			return TPromise.wrapError<void>(new Error(this.getDependentsErrorMessage(extension, dependents)));
 		}
-		return TPromise.join([this.uninstallExtension(extension.id), ...dependenciesToUninstall.map(d => this.doUninstall(d))]).then(() => null);
+		return TPromise.join([this.uninstallExtension(extension.identifier), ...dependenciesToUninstall.map(d => this.doUninstall(d))]).then(() => null);
 	}
 
 	private getDependentsErrorMessage(extension: ILocalExtension, dependents: ILocalExtension[]): string {
@@ -401,7 +440,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private doUninstall(extension: ILocalExtension): TPromise<void> {
 		return this.preUninstallExtension(extension)
-			.then(() => this.uninstallExtension(extension.id))
+			.then(() => this.uninstallExtension(extension.identifier))
 			.then(() => this.postUninstallExtension(extension),
 			error => {
 				this.postUninstallExtension(extension, INSTALL_ERROR_LOCAL);
@@ -410,13 +449,13 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	private preUninstallExtension(extension: ILocalExtension): TPromise<void> {
-		const extensionPath = path.join(this.extensionsPath, extension.id);
+		const extensionPath = path.join(this.extensionsPath, extension.identifier.id);
 		return pfs.exists(extensionPath)
 			.then(exists => exists ? null : TPromise.wrapError(new Error(nls.localize('notExists', "Could not find extension"))))
-			.then(() => this._onUninstallExtension.fire(extension.id));
+			.then(() => this._onUninstallExtension.fire(extension.identifier));
 	}
 
-	private uninstallExtension(id: string): TPromise<void> {
+	private uninstallExtension({ id }: IExtensionIdentifier): TPromise<void> {
 		const extensionPath = path.join(this.extensionsPath, id);
 		return this.setObsolete(id)
 			.then(() => pfs.rimraf(extensionPath))
@@ -425,10 +464,13 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private async postUninstallExtension(extension: ILocalExtension, error?: string): TPromise<void> {
 		if (!error) {
-			await this.galleryService.reportStatistic(extension.manifest.publisher, extension.manifest.name, extension.manifest.version, StatisticType.Uninstall);
+			// only report if extension has a mapped gallery extension. UUID identifies the gallery extension.
+			if (extension.identifier.uuid) {
+				await this.galleryService.reportStatistic(extension.manifest.publisher, extension.manifest.name, extension.manifest.version, StatisticType.Uninstall);
+			}
 		}
 
-		this._onDidUninstallExtension.fire({ id: extension.id, error });
+		this._onDidUninstallExtension.fire({ identifier: extension.identifier, error });
 	}
 
 	getInstalled(type: LocalExtensionType = null): TPromise<ILocalExtension[]> {
@@ -474,7 +516,8 @@ export class ExtensionManagementService implements IExtensionManagementService {
 							if (manifest.extensionDependencies) {
 								manifest.extensionDependencies = manifest.extensionDependencies.map(id => adoptToGalleryExtensionId(id));
 							}
-							return { type, id, manifest, metadata, path: extensionPath, readmeUrl, changelogUrl };
+							const identifier = { id, uuid: metadata ? metadata.id : null };
+							return { type, identifier, manifest, metadata, path: extensionPath, readmeUrl, changelogUrl };
 						});
 				}).then(null, () => null);
 
@@ -577,4 +620,16 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	dispose() {
 		this.disposables = dispose(this.disposables);
 	}
+}
+
+export function getLocalExtensionIdFromGallery(extension: IGalleryExtension, version: string): string {
+	return getLocalExtensionId(extension.identifier.id, version);
+}
+
+export function getLocalExtensionIdFromManifest(manifest: IExtensionManifest): string {
+	return getLocalExtensionId(getGalleryExtensionId(manifest.publisher, manifest.name), manifest.version);
+}
+
+function getLocalExtensionId(id: string, version: string): string {
+	return `${id}-${version}`;
 }

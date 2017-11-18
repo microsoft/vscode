@@ -12,5 +12,6 @@
 	"groupTwoPicker": "Mostrar editores no segundo grupo",
 	"groupThreePicker": "Mostrar editores no terceiro grupo",
 	"allEditorsPicker": "Mostrar todos editores abertos",
-	"view": "Exibir"
+	"view": "Exibir",
+	"file": "Arquivo"
 }

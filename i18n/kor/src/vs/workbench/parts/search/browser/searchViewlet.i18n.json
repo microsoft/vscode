@@ -10,7 +10,7 @@
 	"searchScope.excludes": "제외할 파일",
 	"label.excludes": "패턴 제외 검색",
 	"replaceAll.confirmation.title": "모두 바꾸기",
-	"replaceAll.confirm.button": "바꾸기",
+	"replaceAll.confirm.button": "바꾸기(&&R)",
 	"replaceAll.occurrence.file.message": "{1}개 파일에서 {0}개를 '{2}'(으)로 바꿨습니다.",
 	"removeAll.occurrence.file.message": "{1}개 파일에서 {0}개를 바꿨습니다.",
 	"replaceAll.occurrence.files.message": "{1}개 파일에서 {0}개를 '{2}'(으)로 바꿨습니다.",

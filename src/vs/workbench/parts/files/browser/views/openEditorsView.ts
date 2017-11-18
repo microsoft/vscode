@@ -145,14 +145,14 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		this.disposables.push(this.listService.register(this.tree, [this.explorerFocusedContext, this.openEditorsFocusedContext]));
 
 		// Open when selecting via keyboard
-		this.disposables.push(this.tree.addListener('selection', event => {
+		this.disposables.push(this.tree.onDidChangeSelection(event => {
 			if (event && event.payload && event.payload.origin === 'keyboard') {
 				controller.openEditor(this.tree.getFocus(), { pinned: false, sideBySide: false, preserveFocus: false });
 			}
 		}));
 
 		// Prevent collapsing of editor groups
-		this.disposables.push(this.tree.addListener('item:collapsed', (event: IItemCollapseEvent) => {
+		this.disposables.push(this.tree.onDidCollapseItem((event: IItemCollapseEvent) => {
 			if (event.item && event.item.getElement() instanceof EditorGroup) {
 				setTimeout(() => this.tree.expand(event.item.getElement())); // unwind from callback
 			}

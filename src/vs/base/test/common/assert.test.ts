@@ -23,7 +23,7 @@ suite('Assert', () => {
 
 		assert.throws(function () {
 			ok(null, 'Foo Bar');
-		}, function (e) {
+		}, function (e: Error) {
 			return e.message.indexOf('Foo Bar') >= 0;
 		});
 

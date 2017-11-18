@@ -56,9 +56,9 @@ export interface IEditorGroupService {
 	onEditorOpenFail: Event<IEditorInput>;
 
 	/**
-	 * Emitted when a editors are moved to another position.
+	 * Emitted when an entire editor group is moved to another position.
 	 */
-	onEditorsMoved: Event<void>;
+	onEditorGroupMoved: Event<void>;
 
 	/**
 	 * Emitted when the editor group orientation was changed.
@@ -114,12 +114,6 @@ export interface IEditorGroupService {
 	 */
 	pinEditor(group: IEditorGroup, input: IEditorInput): void;
 	pinEditor(position: Position, input: IEditorInput): void;
-
-	/**
-	 * Removes the pinned state of an editor making it a preview editor.
-	 */
-	unpinEditor(group: IEditorGroup, input: IEditorInput): void;
-	unpinEditor(position: Position, input: IEditorInput): void;
 
 	/**
 	 * Moves an editor from one group to another. The index in the group is optional.

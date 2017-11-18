@@ -12,6 +12,9 @@ if (process.argv.indexOf('--prof-startup') >= 0) {
 	profiler.startProfiling('main', true);
 }
 
+var perf = require('./vs/base/common/performance');
+perf.mark('main:started');
+
 // Perf measurements
 global.perfStartTime = Date.now();
 
@@ -218,6 +221,7 @@ var nodeCachedDataDir = getNodeCachedDataDir().then(function (value) {
 
 // Load our code once ready
 app.once('ready', function () {
+	perf.mark('main:appReady');
 	global.perfAppReady = Date.now();
 	var nlsConfig = getNLSConfiguration();
 	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);

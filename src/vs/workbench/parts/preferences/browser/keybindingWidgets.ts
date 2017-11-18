@@ -82,11 +82,6 @@ class KeybindingInputWidget extends Widget {
 		this._chordPart = null;
 	}
 
-	public setAcceptChords(acceptChords: boolean) {
-		this._acceptChords = acceptChords;
-		this._chordPart = null;
-	}
-
 	private _onKeyDown(keyboardEvent: IKeyboardEvent): void {
 		keyboardEvent.preventDefault();
 		keyboardEvent.stopPropagation();
@@ -152,7 +147,6 @@ export class DefineKeybindingWidget extends Widget {
 
 	constructor(
 		parent: HTMLElement,
-		@IKeybindingService private keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService
 	) {

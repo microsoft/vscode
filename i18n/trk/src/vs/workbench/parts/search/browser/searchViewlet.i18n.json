@@ -10,7 +10,7 @@
 	"searchScope.excludes": "hariç tutulacak klasörler",
 	"label.excludes": "Aramada Hariç Tutulan Kalıplar",
 	"replaceAll.confirmation.title": "Tümünü Değiştir",
-	"replaceAll.confirm.button": "Değiştir",
+	"replaceAll.confirm.button": "&&Değiştir",
 	"replaceAll.occurrence.file.message": "{1} dosyadaki {0} tekrarlama '{2}' ile değiştirildi.",
 	"removeAll.occurrence.file.message": "{1} dosyadaki {0} tekrarlama değiştirildi.",
 	"replaceAll.occurrence.files.message": "{1} dosyadaki {0} tekrarlama '{2}' ile değiştirildi.",

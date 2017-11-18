@@ -21,10 +21,10 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IExtensionManagementService, LocalExtensionType, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, LocalExtensionType, ILocalExtension, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import paths = require('vs/base/common/paths');
-import { isMacintosh, isLinux } from 'vs/base/common/platform';
+import { isMacintosh, isLinux, language } from 'vs/base/common/platform';
 import { IQuickOpenService, IFilePickOpenEntry, ISeparator, IPickOpenAction, IPickOpenItem } from 'vs/platform/quickOpen/common/quickOpen';
 import { KeyMod } from 'vs/base/common/keyCodes';
 import * as browser from 'vs/base/browser/browser';
@@ -42,9 +42,11 @@ import { getPathLabel } from 'vs/base/common/labels';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IPanel } from 'vs/workbench/common/panel';
 import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { FileKind } from 'vs/platform/files/common/files';
+import { FileKind, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { getEntries } from 'vs/base/common/performance';
+import { IEditor } from 'vs/platform/editor/common/editor';
 
 // --- actions
 
@@ -155,7 +157,6 @@ export class ToggleMenuBarAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IMessageService private messageService: IMessageService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(id, label);
@@ -340,11 +341,9 @@ export class ShowStartupPerformance extends Action {
 			console.log(`Empty Workspace: ${metrics.emptyWorkbench}`);
 
 			let nodeModuleLoadTime: number;
-			let nodeModuleLoadDetails: any[];
 			if (this.environmentService.performance) {
 				const nodeModuleTimes = this.analyzeNodeModulesLoadTimes();
 				nodeModuleLoadTime = nodeModuleTimes.duration;
-				nodeModuleLoadDetails = nodeModuleTimes.table;
 			}
 
 			(<any>console).table(this.getStartupMetricsTable(nodeModuleLoadTime));
@@ -362,6 +361,16 @@ export class ShowStartupPerformance extends Action {
 
 			(<any>console).group('Extension Activation Stats');
 			(<any>console).table(this.extensionService.getExtensionsActivationTimes());
+			(<any>console).groupEnd();
+
+			(<any>console).group('Raw Startup Timers (CSV)');
+			let value = `Name\tStart\tDuration\n`;
+			const entries = getEntries('measure');
+			let offset = entries[0].startTime;
+			for (const entry of entries) {
+				value += `${entry.name}\t${entry.startTime - offset}\t${entry.duration}\n`;
+			}
+			console.log(value);
 			(<any>console).groupEnd();
 		}, 1000);
 
@@ -431,7 +440,7 @@ export class ShowStartupPerformance extends Action {
 	}
 
 	private analyzeLoaderStats(): { [type: string]: any[] } {
-		const stats = <ILoaderEvent[]>(<any>require).getStats().slice(0).sort((a, b) => {
+		const stats = <ILoaderEvent[]>(<any>require).getStats().slice(0).sort((a: ILoaderEvent, b: ILoaderEvent) => {
 			if (a.detail < b.detail) {
 				return -1;
 			} else if (a.detail > b.detail) {
@@ -876,6 +885,7 @@ export class ReportIssueAction extends Action {
 		label: string,
 		@IIntegrityService private integrityService: IIntegrityService,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
+		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super(id, label);
@@ -895,6 +905,7 @@ export class ReportIssueAction extends Action {
 	public run(): TPromise<boolean> {
 		return this._optimisticIsPure().then(isPure => {
 			return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
+				extensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension.identifier));
 				const issueUrl = this.generateNewIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date, isPure, extensions, this.environmentService.disableExtensions);
 
 				window.open(issueUrl);
@@ -1621,5 +1632,47 @@ export class ToggleWindowTabsBar extends Action {
 
 	public run(): TPromise<boolean> {
 		return this.windowsService.toggleWindowTabsBar().then(() => true);
+	}
+}
+
+export class ConfigureLocaleAction extends Action {
+	public static ID = 'workbench.action.configureLocale';
+	public static LABEL = nls.localize('configureLocale', "Configure Language");
+
+	private static DEFAULT_CONTENT: string = [
+		'{',
+		`\t// ${nls.localize('displayLanguage', 'Defines VSCode\'s display language.')}`,
+		`\t// ${nls.localize('doc', 'See {0} for a list of supported languages.', 'https://go.microsoft.com/fwlink/?LinkId=761051')}`,
+		`\t// ${nls.localize('restart', 'Changing the value requires restarting VSCode.')}`,
+		`\t"locale":"${language}"`,
+		'}'
+	].join('\n');
+
+	constructor(id: string, label: string,
+		@IFileService private fileService: IFileService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<IEditor> {
+		const file = URI.file(paths.join(this.environmentService.appSettingsHome, 'locale.json'));
+		return this.fileService.resolveFile(file).then(null, (error) => {
+			return this.fileService.createFile(file, ConfigureLocaleAction.DEFAULT_CONTENT);
+		}).then((stat) => {
+			if (!stat) {
+				return undefined;
+			}
+			return this.editorService.openEditor({
+				resource: stat.resource,
+				options: {
+					forceOpen: true
+				}
+			});
+		}, (error) => {
+			throw new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", getPathLabel(file, this.contextService), error));
+		});
 	}
 }

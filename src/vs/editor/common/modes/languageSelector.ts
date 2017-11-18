@@ -16,10 +16,6 @@ export interface LanguageFilter {
 
 export type LanguageSelector = string | LanguageFilter | (string | LanguageFilter)[];
 
-export default function matches(selection: LanguageSelector, uri: URI, language: string): boolean {
-	return score(selection, uri, language) > 0;
-}
-
 export function score(selector: LanguageSelector, candidateUri: URI, candidateLanguage: string): number {
 
 	if (Array.isArray(selector)) {

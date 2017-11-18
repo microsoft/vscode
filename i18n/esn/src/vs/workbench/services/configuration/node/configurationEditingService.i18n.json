@@ -12,6 +12,7 @@
 	"errorUnknownKey": "No se puede escribir en {0} porque {1} no es una configuración registrada.",
 	"errorInvalidFolderConfiguration": "No se puede escribir en Configuración de carpeta porque {0} no admite el ámbito del recurso de carpeta.",
 	"errorInvalidUserTarget": "No se puede escribir en Configuración de usuario porque {0} no admite el ámbito global.",
+	"errorInvalidWorkspaceTarget": "No se puede escribir a la configuración del espacio de trabajo porque {0} no soporta a un espacio de trabajo con multi carpetas.",
 	"errorInvalidFolderTarget": "No se puede escribir en Configuración de carpeta porque no se ha proporcionado ningún recurso.",
 	"errorNoWorkspaceOpened": "No se puede escribir en {0} porque no hay ninguna área de trabajo abierta. Abra un área de trabajo y vuelva a intentarlo.",
 	"errorInvalidTaskConfiguration": "No se puede escribir en el archivo de tareas. Por favor, abra el archivo de ** Tareas ** para corregir los errores/advertencias en él e inténtelo de nuevo.",

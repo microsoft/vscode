@@ -5,6 +5,7 @@
 		"sourceMap": true,
 		"sourceRoot": "../src",
 		"outDir": "./out",
+		"noUnusedLocals": true,
 		"lib": [
 			"es5", "es2015.promise"
 		]

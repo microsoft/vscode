@@ -16,7 +16,6 @@
 	"workbench.action.terminal.new.short": "Neues Terminal",
 	"workbench.action.terminal.focus": "Fokus im Terminal",
 	"workbench.action.terminal.focusNext": "Fokus im nächsten Terminal",
-	"workbench.action.terminal.focusAtIndex": "Terminal {0} im Fokus",
 	"workbench.action.terminal.focusPrevious": "Fokus im vorherigen Terminal",
 	"workbench.action.terminal.paste": "In aktives Terminal einfügen",
 	"workbench.action.terminal.DefaultShell": "Standardshell auswählen",

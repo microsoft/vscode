@@ -10,6 +10,9 @@
 	"dropFolder": "Klasörü çalışma alanına eklemek istiyor musunuz?",
 	"addFolders": "Klasörleri &&Ekle",
 	"addFolder": "Klasörü &&Ekle",
+	"confirmMove": "'{0}' ögesini taşımak istediğinizden emin misiniz?",
+	"doNotAskAgain": "Bir daha sorma",
+	"moveButtonLabel": "&&Taşı",
 	"confirmOverwriteMessage": "'{0}' hedef klasörde zaten mevcut. Değiştirmek istiyor musunuz?",
 	"irreversible": "Bu eylem geri döndürülemez!",
 	"replaceButtonLabel": "&&Değiştir"

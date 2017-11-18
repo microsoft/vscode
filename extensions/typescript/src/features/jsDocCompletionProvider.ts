@@ -5,19 +5,15 @@
 
 import { Position, Range, CompletionItemProvider, CompletionItemKind, TextDocument, CancellationToken, CompletionItem, window, Uri, ProviderResult, TextEditor, SnippetString, workspace } from 'vscode';
 
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
 import { DocCommandTemplateResponse } from '../protocol';
 
 import * as nls from 'vscode-nls';
 import { vsPositionToTsFileLocation } from '../utils/convert';
+import { Command, CommandManager } from '../utils/commandManager';
 const localize = nls.loadMessageBundle();
 
 const configurationNamespace = 'jsDocCompletion';
-
-
-interface Configuration {
-	enabled: boolean;
-}
 
 namespace Configuration {
 	export const enabled = 'enabled';
@@ -50,21 +46,20 @@ class JsDocCompletionItem extends CompletionItem {
 	}
 }
 
-export class JsDocCompletionProvider implements CompletionItemProvider {
-	private config: Configuration;
+export default class JsDocCompletionProvider implements CompletionItemProvider {
 
 	constructor(
-		private client: ITypescriptServiceClient,
+		private client: ITypeScriptServiceClient,
+		commandManager: CommandManager
 	) {
-		this.config = { enabled: true };
+		commandManager.register(new TryCompleteJsDocCommand(client));
 	}
 
-	public updateConfiguration(): void {
-		const jsDocCompletionConfig = workspace.getConfiguration(configurationNamespace);
-		this.config.enabled = jsDocCompletionConfig.get(Configuration.enabled, true);
-	}
-
-	public provideCompletionItems(document: TextDocument, position: Position, _token: CancellationToken): ProviderResult<CompletionItem[]> {
+	public provideCompletionItems(
+		document: TextDocument,
+		position: Position,
+		_token: CancellationToken
+	): ProviderResult<CompletionItem[]> {
 		const file = this.client.normalizePath(document.uri);
 		if (!file) {
 			return [];
@@ -75,7 +70,8 @@ export class JsDocCompletionProvider implements CompletionItemProvider {
 		const line = document.lineAt(position.line).text;
 		const prefix = line.slice(0, position.character);
 		if (prefix.match(/^\s*$|\/\*\*\s*$|^\s*\/\*\*+\s*$/)) {
-			return [new JsDocCompletionItem(document, position, this.config.enabled)];
+			const enableJsDocCompletions = workspace.getConfiguration(configurationNamespace, document.uri).get<boolean>(Configuration.enabled, true);
+			return [new JsDocCompletionItem(document, position, enableJsDocCompletions)];
 		}
 		return [];
 	}
@@ -85,19 +81,20 @@ export class JsDocCompletionProvider implements CompletionItemProvider {
 	}
 }
 
-export class TryCompleteJsDocCommand {
-	static COMMAND_NAME = '_typeScript.tryCompleteJsDoc';
+class TryCompleteJsDocCommand implements Command {
+	public static readonly COMMAND_NAME = '_typeScript.tryCompleteJsDoc';
+	public readonly id = TryCompleteJsDocCommand.COMMAND_NAME;
 
 	constructor(
-		private lazyClient: () => ITypescriptServiceClient
+		private readonly client: ITypeScriptServiceClient
 	) { }
 
 	/**
 	 * Try to insert a jsdoc comment, using a template provide by typescript
 	 * if possible, otherwise falling back to a default comment format.
 	 */
-	public async tryCompleteJsDoc(resource: Uri, start: Position, shouldGetJSDocFromTSServer: boolean): Promise<boolean> {
-		const file = this.lazyClient().normalizePath(resource);
+	public async execute(resource: Uri, start: Position, shouldGetJSDocFromTSServer: boolean): Promise<boolean> {
+		const file = this.client.normalizePath(resource);
 		if (!file) {
 			return false;
 		}
@@ -121,8 +118,8 @@ export class TryCompleteJsDocCommand {
 	private tryInsertJsDocFromTemplate(editor: TextEditor, file: string, position: Position): Promise<boolean> {
 		const args = vsPositionToTsFileLocation(file, position);
 		return Promise.race([
-			this.lazyClient().execute('docCommentTemplate', args),
-			new Promise((_, reject) => setTimeout(reject, 250))
+			this.client.execute('docCommentTemplate', args),
+			new Promise<DocCommandTemplateResponse>((_, reject) => setTimeout(reject, 250))
 		]).then((res: DocCommandTemplateResponse) => {
 			if (!res || !res.body) {
 				return false;
