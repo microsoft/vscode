@@ -970,7 +970,7 @@ suite('ExtensionsActions Test', () => {
 
 			assert.ok(testObject.enabled);
 			assert.equal('Reload to activate', testObject.tooltip);
-			assert.equal(`Reload this window to activate the extension 'a'?`, testObject.reloadMessaage);
+			assert.equal(`Reload this window to activate the extension 'a'?`, testObject.reloadMessage);
 			done();
 		});
 	});
@@ -1005,7 +1005,7 @@ suite('ExtensionsActions Test', () => {
 
 			assert.ok(testObject.enabled);
 			assert.equal('Reload to deactivate', testObject.tooltip);
-			assert.equal(`Reload this window to deactivate the uninstalled extension 'a'?`, testObject.reloadMessaage);
+			assert.equal(`Reload this window to deactivate the uninstalled extension 'a'?`, testObject.reloadMessage);
 			done();
 		});
 	});
@@ -1045,7 +1045,7 @@ suite('ExtensionsActions Test', () => {
 
 			assert.ok(testObject.enabled);
 			assert.equal('Reload to update', testObject.tooltip);
-			assert.equal(`Reload this window to activate the updated extension 'a'?`, testObject.reloadMessaage);
+			assert.equal(`Reload this window to activate the updated extension 'a'?`, testObject.reloadMessage);
 			done();
 
 		});
@@ -1082,7 +1082,7 @@ suite('ExtensionsActions Test', () => {
 
 			assert.ok(testObject.enabled);
 			assert.equal('Reload to deactivate', testObject.tooltip);
-			assert.equal(`Reload this window to deactivate the extension 'a'?`, testObject.reloadMessaage);
+			assert.equal(`Reload this window to deactivate the extension 'a'?`, testObject.reloadMessage);
 			done();
 		});
 	});
@@ -1116,7 +1116,7 @@ suite('ExtensionsActions Test', () => {
 
 			assert.ok(testObject.enabled);
 			assert.equal('Reload to activate', testObject.tooltip);
-			assert.equal(`Reload this window to activate the extension 'a'?`, testObject.reloadMessaage);
+			assert.equal(`Reload this window to activate the extension 'a'?`, testObject.reloadMessage);
 			done();
 		});
 	});
@@ -1155,7 +1155,7 @@ suite('ExtensionsActions Test', () => {
 
 			assert.ok(testObject.enabled);
 			assert.equal('Reload to activate', testObject.tooltip);
-			assert.equal(`Reload this window to activate the extension 'a'?`, testObject.reloadMessaage);
+			assert.equal(`Reload this window to activate the extension 'a'?`, testObject.reloadMessage);
 			done();
 		});
 	});
