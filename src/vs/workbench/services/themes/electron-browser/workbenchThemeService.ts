@@ -38,6 +38,7 @@ const DEFAULT_THEME_ID = 'vs-dark vscode-theme-defaults-themes-dark_plus-json';
 const DEFAULT_THEME_SETTING_VALUE = 'Default Dark+';
 
 const PERSISTED_THEME_STORAGE_KEY = 'colorThemeData';
+const PERSISTED_ICON_THEME_STORAGE_KEY = 'iconThemeData';
 
 const defaultThemeExtensionId = 'vscode-theme-defaults';
 const oldDefaultThemeExtensionId = 'vscode-theme-colorful-defaults';
@@ -131,6 +132,20 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		themeData.setCustomTokenColors(this.tokenColorCustomizations);
 		this.updateDynamicCSSRules(themeData);
 		this.applyTheme(themeData, null, true);
+
+		let iconData: FileIconThemeData = null;
+		let persistedIconThemeData = this.storageService.get(PERSISTED_ICON_THEME_STORAGE_KEY);
+		if (persistedIconThemeData) {
+			iconData = FileIconThemeData.fromStorageData(persistedIconThemeData);
+
+			if (iconData) {
+				_applyIconTheme(iconData, () => {
+					this.doSetFileIconTheme(iconData);
+
+					return TPromise.wrap(iconData);
+				});
+			}
+		}
 
 		this.initialize().then(null, errors.onUnexpectedError).then(_ => {
 			this.installConfigurationListener();
@@ -353,29 +368,42 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			return this.writeFileIconConfiguration(settingsTarget);
 		}
 		let onApply = (newIconTheme: FileIconThemeData) => {
+			this.doSetFileIconTheme(newIconTheme);
+
+			// remember theme data for a quick restore
 			if (newIconTheme) {
-				this.currentIconTheme = newIconTheme;
+				this.storageService.store(PERSISTED_ICON_THEME_STORAGE_KEY, newIconTheme.toStorageData());
 			} else {
-				this.currentIconTheme = FileIconThemeData.noIconTheme();
+				this.storageService.remove(PERSISTED_ICON_THEME_STORAGE_KEY);
 			}
 
-			if (this.container) {
-				if (newIconTheme) {
-					$(this.container).addClass(fileIconsEnabledClass);
-				} else {
-					$(this.container).removeClass(fileIconsEnabledClass);
-				}
-			}
-			if (newIconTheme) {
-				this.sendTelemetry(newIconTheme.id, newIconTheme.extensionData, 'fileIcon');
-			}
-			this.onFileIconThemeChange.fire(this.currentIconTheme);
 			return this.writeFileIconConfiguration(settingsTarget);
 		};
 
 		return this.iconThemeStore.findThemeData(iconTheme).then(iconThemeData => {
 			return _applyIconTheme(iconThemeData, onApply);
 		});
+	}
+
+	private doSetFileIconTheme(iconThemeData: FileIconThemeData): void {
+		if (iconThemeData) {
+			this.currentIconTheme = iconThemeData;
+		} else {
+			this.currentIconTheme = FileIconThemeData.noIconTheme();
+		}
+
+		if (this.container) {
+			if (iconThemeData) {
+				$(this.container).addClass(fileIconsEnabledClass);
+			} else {
+				$(this.container).removeClass(fileIconsEnabledClass);
+			}
+		}
+		if (iconThemeData) {
+			this.sendTelemetry(iconThemeData.id, iconThemeData.extensionData, 'fileIcon');
+		}
+		this.onFileIconThemeChange.fire(this.currentIconTheme);
+
 	}
 
 	private writeFileIconConfiguration(settingsTarget: ConfigurationTarget): TPromise<IFileIconTheme> {
