@@ -1656,6 +1656,12 @@ function findFocusedEditor(accessor: ServicesAccessor): ICodeEditor {
 	return accessor.get(ICodeEditorService).getFocusedCodeEditor();
 }
 
+function getWorkbenchActiveEditor(accessor: ServicesAccessor): ICodeEditor {
+	const editorService = accessor.get(IEditorService);
+	let activeEditor = (<any>editorService).getActiveEditor && (<any>editorService).getActiveEditor();
+	return getCodeEditor(activeEditor);
+}
+
 function registerCommand(command: Command) {
 	KeybindingsRegistry.registerCommandAndKeybindingRule(command.toCommandAndKeybindingRule(CORE_WEIGHT));
 }
@@ -1692,19 +1698,11 @@ class EditorOrNativeTextInputCommand extends Command {
 			return;
 		}
 
-		let editorService: any = accessor.get(IEditorService);
-		let activeEditor = editorService.getActiveEditor && editorService.getActiveEditor();
-
-		if (activeEditor.isWebviewEditor && activeEditor.webview) {
-			activeEditor.webview.selectAll();
-			return;
-		}
-
 		// Redirecting to last active editor
-		let codeEditor = getCodeEditor(activeEditor);
-		if (codeEditor) {
-			codeEditor.focus();
-			return this._runEditorHandler(codeEditor, args);
+		let activeEditor = getWorkbenchActiveEditor(accessor);
+		if (activeEditor) {
+			activeEditor.focus();
+			return this._runEditorHandler(activeEditor, args);
 		}
 	}
 
