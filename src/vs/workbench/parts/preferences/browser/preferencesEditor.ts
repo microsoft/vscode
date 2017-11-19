@@ -858,7 +858,7 @@ interface ISettingsEditorContribution extends editorCommon.IEditorContribution {
 
 }
 
-abstract class AbstractSettingsEditorContribution extends Disposable {
+abstract class AbstractSettingsEditorContribution extends Disposable implements ISettingsEditorContribution {
 
 	private preferencesRendererCreationPromise: TPromise<IPreferencesRenderer<ISetting>>;
 
@@ -934,6 +934,7 @@ abstract class AbstractSettingsEditorContribution extends Disposable {
 	}
 
 	protected abstract _createPreferencesRenderer(): TPromise<IPreferencesRenderer<ISetting>>;
+	abstract getId(): string;
 }
 
 class DefaultSettingsEditorContribution extends AbstractSettingsEditorContribution implements ISettingsEditorContribution {

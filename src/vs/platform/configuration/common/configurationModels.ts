@@ -151,15 +151,6 @@ export class ConfigurationModel implements IConfigurationModel {
 		}
 	}
 
-	public setValueInOverrides(overrideIdentifier: string, key: string, value: any): void {
-		let override = this.overrides.filter(override => override.identifiers.indexOf(overrideIdentifier) !== -1)[0];
-		if (!override) {
-			override = { identifiers: [overrideIdentifier], contents: {} };
-			this.overrides.push(override);
-		}
-		addToValueTree(override.contents, key, value, e => { throw new Error(e); });
-	}
-
 	private addKey(key: string): void {
 		let index = this.keys.length;
 		for (let i = 0; i < index; i++) {

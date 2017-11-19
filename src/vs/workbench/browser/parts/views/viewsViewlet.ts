@@ -35,10 +35,6 @@ export interface IViewOptions extends IPanelOptions {
 	actionRunner: IActionRunner;
 }
 
-export interface IViewConstructorSignature<T extends ViewsViewletPanel> {
-	new(options: IViewOptions, ...services: { _serviceBrand: any; }[]): T;
-}
-
 export abstract class ViewsViewletPanel extends ViewletPanel {
 
 	readonly id: string;
@@ -455,10 +451,6 @@ export class ViewsViewlet extends PanelViewlet {
 
 			view.order = order;
 		}
-	}
-
-	protected getDefaultViewSize(): number | undefined {
-		return undefined;
 	}
 
 	private isCurrentlyVisible(viewDescriptor: IViewDescriptor): boolean {
