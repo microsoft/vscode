@@ -789,7 +789,7 @@ export class ReloadAction extends Action {
 	get extension(): IExtension { return this._extension; }
 	set extension(extension: IExtension) { this._extension = extension; this.update(); }
 
-	reloadMessaage: string = '';
+	reloadMessage: string = '';
 	private throttler: Throttler;
 
 	constructor(
@@ -808,7 +808,7 @@ export class ReloadAction extends Action {
 		this.throttler.queue(() => {
 			this.enabled = false;
 			this.tooltip = '';
-			this.reloadMessaage = '';
+			this.reloadMessage = '';
 			if (!this.extension) {
 				return TPromise.wrap<void>(null);
 			}
@@ -837,7 +837,7 @@ export class ReloadAction extends Action {
 				// Requires reload to run the updated extension
 				this.enabled = true;
 				this.tooltip = localize('postUpdateTooltip', "Reload to update");
-				this.reloadMessaage = localize('postUpdateMessage', "Reload this window to activate the updated extension '{0}'?", this.extension.displayName);
+				this.reloadMessage = localize('postUpdateMessage', "Reload this window to activate the updated extension '{0}'?", this.extension.displayName);
 				return;
 			}
 
@@ -845,7 +845,7 @@ export class ReloadAction extends Action {
 				// Requires reload to enable the extension
 				this.enabled = true;
 				this.tooltip = localize('postEnableTooltip', "Reload to activate");
-				this.reloadMessaage = localize('postEnableMessage', "Reload this window to activate the extension '{0}'?", this.extension.displayName);
+				this.reloadMessage = localize('postEnableMessage', "Reload this window to activate the extension '{0}'?", this.extension.displayName);
 				return;
 			}
 
@@ -853,7 +853,7 @@ export class ReloadAction extends Action {
 				// Requires reload to disable the extension
 				this.enabled = true;
 				this.tooltip = localize('postDisableTooltip', "Reload to deactivate");
-				this.reloadMessaage = localize('postDisableMessage', "Reload this window to deactivate the extension '{0}'?", this.extension.displayName);
+				this.reloadMessage = localize('postDisableMessage', "Reload this window to deactivate the extension '{0}'?", this.extension.displayName);
 				return;
 			}
 			return;
@@ -863,7 +863,7 @@ export class ReloadAction extends Action {
 			// Requires reload to deactivate the extension
 			this.enabled = true;
 			this.tooltip = localize('postUninstallTooltip', "Reload to deactivate");
-			this.reloadMessaage = localize('postUninstallMessage', "Reload this window to deactivate the uninstalled extension '{0}'?", this.extension.displayName);
+			this.reloadMessage = localize('postUninstallMessage', "Reload this window to deactivate the uninstalled extension '{0}'?", this.extension.displayName);
 			return;
 		}
 	}
