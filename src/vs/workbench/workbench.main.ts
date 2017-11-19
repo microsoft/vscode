@@ -62,6 +62,7 @@ import 'vs/workbench/parts/markers/markers.contribution';
 import 'vs/workbench/parts/markers/browser/markersPanel'; // can be packaged separately
 
 import 'vs/workbench/parts/html/browser/html.contribution';
+import 'vs/workbench/parts/html/browser/webview.contribution';
 
 import 'vs/workbench/parts/welcome/walkThrough/electron-browser/walkThrough.contribution';
 
