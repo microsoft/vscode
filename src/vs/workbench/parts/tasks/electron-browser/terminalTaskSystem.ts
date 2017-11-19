@@ -280,7 +280,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 							this.sameTaskTerminals[key] = terminal.id.toString();
 							break;
 						case PanelKind.Shared:
-							this.idleTaskTerminals.set(key, terminal.id.toString(), Touch.First);
+							this.idleTaskTerminals.set(key, terminal.id.toString(), Touch.AsOld);
 							break;
 					}
 					watchingProblemMatcher.done();
@@ -322,7 +322,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 							this.sameTaskTerminals[key] = terminal.id.toString();
 							break;
 						case PanelKind.Shared:
-							this.idleTaskTerminals.set(key, terminal.id.toString(), Touch.First);
+							this.idleTaskTerminals.set(key, terminal.id.toString(), Touch.AsOld);
 							break;
 					}
 					startStopProblemMatcher.done();

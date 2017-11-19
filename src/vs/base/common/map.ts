@@ -37,6 +37,7 @@ export function getOrSet<K, V>(map: Map<K, V>, key: K, value: V): V {
 }
 
 export interface ISerializedBoundedLinkedMap<T> {
+	version?: string;
 	entries: { key: string; value: T }[];
 }
 
@@ -621,13 +622,11 @@ interface Item<K, V> {
 	value: V;
 }
 
-export namespace Touch {
-	export const None: 0 = 0;
-	export const First: 1 = 1;
-	export const Last: 2 = 2;
+export enum Touch {
+	None = 0,
+	AsOld = 1,
+	AsNew = 2
 }
-
-export type Touch = 0 | 1 | 2;
 
 export class LinkedMap<K, V> {
 
@@ -662,10 +661,13 @@ export class LinkedMap<K, V> {
 		return this._map.has(key);
 	}
 
-	public get(key: K): V | undefined {
+	public get(key: K, touch: Touch = Touch.None): V | undefined {
 		const item = this._map.get(key);
 		if (!item) {
 			return undefined;
+		}
+		if (touch !== Touch.None) {
+			this.touch(item, touch);
 		}
 		return item.value;
 	}
@@ -683,10 +685,10 @@ export class LinkedMap<K, V> {
 				case Touch.None:
 					this.addItemLast(item);
 					break;
-				case Touch.First:
+				case Touch.AsOld:
 					this.addItemFirst(item);
 					break;
-				case Touch.Last:
+				case Touch.AsNew:
 					this.addItemLast(item);
 					break;
 				default:
@@ -811,6 +813,26 @@ export class LinkedMap<K, V> {
 	}
 	*/
 
+	protected trimOld(newSize: number) {
+		if (newSize >= this.size) {
+			return;
+		}
+		if (newSize === 0) {
+			this.clear();
+			return;
+		}
+		let current = this._head;
+		let currentSize = this.size;
+		while (current && currentSize > newSize) {
+			this._map.delete(current.key);
+			current = current.next;
+			currentSize--;
+		}
+		this._head = current;
+		this._size = currentSize;
+		current.previous = void 0;
+	}
+
 	private addItemFirst(item: Item<K, V>): void {
 		// First time Insert
 		if (!this._head && !this._tail) {
@@ -839,8 +861,8 @@ export class LinkedMap<K, V> {
 
 	private removeItem(item: Item<K, V>): void {
 		if (item === this._head && item === this._tail) {
-			this._head = undefined;
-			this._tail = undefined;
+			this._head = void 0;
+			this._tail = void 0;
 		}
 		else if (item === this._head) {
 			this._head = item.next;
@@ -863,11 +885,11 @@ export class LinkedMap<K, V> {
 		if (!this._head || !this._tail) {
 			throw new Error('Invalid list');
 		}
-		if ((touch !== Touch.First && touch !== Touch.Last)) {
+		if ((touch !== Touch.AsOld && touch !== Touch.AsNew)) {
 			return;
 		}
 
-		if (touch === Touch.First) {
+		if (touch === Touch.AsOld) {
 			if (item === this._head) {
 				return;
 			}
@@ -879,7 +901,7 @@ export class LinkedMap<K, V> {
 			if (item === this._tail) {
 				// previous must be defined since item was not head but is tail
 				// So there are more than on item in the map
-				previous!.next = undefined;
+				previous!.next = void 0;
 				this._tail = previous;
 			}
 			else {
@@ -889,11 +911,11 @@ export class LinkedMap<K, V> {
 			}
 
 			// Insert the node at head
-			item.previous = undefined;
+			item.previous = void 0;
 			item.next = this._head;
 			this._head.previous = item;
 			this._head = item;
-		} else if (touch === Touch.Last) {
+		} else if (touch === Touch.AsNew) {
 			if (item === this._tail) {
 				return;
 			}
@@ -905,17 +927,62 @@ export class LinkedMap<K, V> {
 			if (item === this._head) {
 				// next must be defined since item was not tail but is head
 				// So there are more than on item in the map
-				next!.previous = undefined;
+				next!.previous = void 0;
 				this._head = next;
 			} else {
 				// Both next and previous are not undefined since item was neither head nor tail.
 				next!.previous = previous;
 				previous!.next = next;
 			}
-			item.next = undefined;
+			item.next = void 0;
 			item.previous = this._tail;
 			this._tail.next = item;
 			this._tail = item;
+		}
+	}
+}
+
+export class LRUCache<K, V> extends LinkedMap<K, V> {
+
+	private _limit: number;
+	private _ratio: number;
+
+	constructor(limit: number, ratio: number = 1) {
+		super();
+		this._limit = limit;
+		this._ratio = Math.min(Math.max(0, ratio), 1);
+	}
+
+	public get limit(): number {
+		return this._limit;
+	}
+
+	public set limit(limit: number) {
+		this._limit = limit;
+		this.checkTrim();
+	}
+
+	public get ratio(): number {
+		return this._ratio;
+	}
+
+	public set ratio(ratio: number) {
+		this._ratio = Math.min(Math.max(0, ratio), 1);
+		this.checkTrim();
+	}
+
+	public get(key: K): V | undefined {
+		return super.get(key, Touch.AsNew);
+	}
+
+	public set(key: K, value: V): void {
+		super.set(key, value, Touch.AsNew);
+		this.checkTrim();
+	}
+
+	private checkTrim() {
+		if (this.size > this._limit) {
+			this.trimOld(Math.round(this._limit * this._ratio));
 		}
 	}
 }

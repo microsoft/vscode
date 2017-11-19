@@ -6,11 +6,185 @@
 'use strict';
 
 
-import { BoundedMap, ResourceMap, TernarySearchTree, PathIterator, StringIterator } from 'vs/base/common/map';
+import { BoundedMap, ResourceMap, TernarySearchTree, PathIterator, StringIterator, LinkedMap, Touch, LRUCache } from 'vs/base/common/map';
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 
 suite('Map', () => {
+
+	test('LinkedMap - Simple', () => {
+		let map = new LinkedMap<string, string>();
+		map.set('ak', 'av');
+		map.set('bk', 'bv');
+		assert.deepStrictEqual(map.keys(), ['ak', 'bk']);
+		assert.deepStrictEqual(map.values(), ['av', 'bv']);
+	});
+
+	test('LinkedMap - Touch Old one', () => {
+		let map = new LinkedMap<string, string>();
+		map.set('ak', 'av');
+		map.set('ak', 'av', Touch.AsOld);
+		assert.deepStrictEqual(map.keys(), ['ak']);
+		assert.deepStrictEqual(map.values(), ['av']);
+	});
+
+	test('LinkedMap - Touch New one', () => {
+		let map = new LinkedMap<string, string>();
+		map.set('ak', 'av');
+		map.set('ak', 'av', Touch.AsNew);
+		assert.deepStrictEqual(map.keys(), ['ak']);
+		assert.deepStrictEqual(map.values(), ['av']);
+	});
+
+	test('LinkedMap - Touch Old two', () => {
+		let map = new LinkedMap<string, string>();
+		map.set('ak', 'av');
+		map.set('bk', 'bv');
+		map.set('bk', 'bv', Touch.AsOld);
+		assert.deepStrictEqual(map.keys(), ['bk', 'ak']);
+		assert.deepStrictEqual(map.values(), ['bv', 'av']);
+	});
+
+	test('LinkedMap - Touch New two', () => {
+		let map = new LinkedMap<string, string>();
+		map.set('ak', 'av');
+		map.set('bk', 'bv');
+		map.set('ak', 'av', Touch.AsNew);
+		assert.deepStrictEqual(map.keys(), ['bk', 'ak']);
+		assert.deepStrictEqual(map.values(), ['bv', 'av']);
+	});
+
+	test('LinkedMap - Touch Old from middle', () => {
+		let map = new LinkedMap<string, string>();
+		map.set('ak', 'av');
+		map.set('bk', 'bv');
+		map.set('ck', 'cv');
+		map.set('bk', 'bv', Touch.AsOld);
+		assert.deepStrictEqual(map.keys(), ['bk', 'ak', 'ck']);
+		assert.deepStrictEqual(map.values(), ['bv', 'av', 'cv']);
+	});
+
+	test('LinkedMap - Touch New from middle', () => {
+		let map = new LinkedMap<string, string>();
+		map.set('ak', 'av');
+		map.set('bk', 'bv');
+		map.set('ck', 'cv');
+		map.set('bk', 'bv', Touch.AsNew);
+		assert.deepStrictEqual(map.keys(), ['ak', 'ck', 'bk']);
+		assert.deepStrictEqual(map.values(), ['av', 'cv', 'bv']);
+	});
+
+	test('LinkedMap - basics', function () {
+		const map = new LinkedMap<string, any>();
+
+		assert.equal(map.size, 0);
+
+		map.set('1', 1);
+		map.set('2', '2');
+		map.set('3', true);
+
+		const obj = Object.create(null);
+		map.set('4', obj);
+
+		const date = Date.now();
+		map.set('5', date);
+
+		assert.equal(map.size, 5);
+		assert.equal(map.get('1'), 1);
+		assert.equal(map.get('2'), '2');
+		assert.equal(map.get('3'), true);
+		assert.equal(map.get('4'), obj);
+		assert.equal(map.get('5'), date);
+		assert.ok(!map.get('6'));
+
+		map.delete('6');
+		assert.equal(map.size, 5);
+		assert.equal(map.delete('1'), true);
+		assert.equal(map.delete('2'), true);
+		assert.equal(map.delete('3'), true);
+		assert.equal(map.delete('4'), true);
+		assert.equal(map.delete('5'), true);
+
+		assert.equal(map.size, 0);
+		assert.ok(!map.get('5'));
+		assert.ok(!map.get('4'));
+		assert.ok(!map.get('3'));
+		assert.ok(!map.get('2'));
+		assert.ok(!map.get('1'));
+
+		map.set('1', 1);
+		map.set('2', '2');
+		map.set('3', true);
+
+		assert.ok(map.has('1'));
+		assert.equal(map.get('1'), 1);
+		assert.equal(map.get('2'), '2');
+		assert.equal(map.get('3'), true);
+
+		map.clear();
+
+		assert.equal(map.size, 0);
+		assert.ok(!map.get('1'));
+		assert.ok(!map.get('2'));
+		assert.ok(!map.get('3'));
+		assert.ok(!map.has('1'));
+	});
+
+	test('LinkedMap - LRUCache simple', () => {
+		const cache = new LRUCache<number, number>(5);
+
+		[1, 2, 3, 4, 5].forEach(value => cache.set(value, value));
+		assert.strictEqual(cache.size, 5);
+		cache.set(6, 6);
+		assert.strictEqual(cache.size, 5);
+		assert.deepStrictEqual(cache.keys(), [2, 3, 4, 5, 6]);
+		cache.set(7, 7);
+		assert.strictEqual(cache.size, 5);
+		assert.deepStrictEqual(cache.keys(), [3, 4, 5, 6, 7]);
+		let values: number[] = [];
+		[3, 4, 5, 6, 7].forEach(key => values.push(cache.get(key)));
+		assert.deepStrictEqual(values, [3, 4, 5, 6, 7]);
+	});
+
+	test('LinkedMap - LRU Cache limit', () => {
+		const cache = new LRUCache<number, number>(10);
+
+		for (let i = 1; i <= 10; i++) {
+			cache.set(i, i);
+		}
+		assert.strictEqual(cache.size, 10);
+		cache.limit = 5;
+		assert.strictEqual(cache.size, 5);
+		assert.deepStrictEqual(cache.keys(), [6, 7, 8, 9, 10]);
+		cache.limit = 20;
+		assert.strictEqual(cache.size, 5);
+		for (let i = 11; i <= 20; i++) {
+			cache.set(i, i);
+		}
+		assert.deepEqual(cache.size, 15);
+		let values: number[] = [];
+		for (let i = 6; i <= 20; i++) {
+			values.push(cache.get(i));
+			assert.strictEqual(cache.get(i), i);
+		}
+		assert.deepStrictEqual(cache.values(), values);
+	});
+
+	test('LinkedMap - LRU Cache limit with ration', () => {
+		const cache = new LRUCache<number, number>(10, 0.5);
+
+		for (let i = 1; i <= 10; i++) {
+			cache.set(i, i);
+		}
+		assert.strictEqual(cache.size, 10);
+		cache.set(11, 11);
+		assert.strictEqual(cache.size, 5);
+		assert.deepStrictEqual(cache.keys(), [7, 8, 9, 10, 11]);
+		let values: number[] = [];
+		cache.keys().forEach(key => values.push(cache.get(key)));
+		assert.deepStrictEqual(values, [7, 8, 9, 10, 11]);
+		assert.deepStrictEqual(cache.values(), values);
+	});
 
 	test('BoundedMap - basics', function () {
 		const map = new BoundedMap<any>();

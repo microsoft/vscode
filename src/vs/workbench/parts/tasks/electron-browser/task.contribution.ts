@@ -1188,7 +1188,7 @@ class TaskService implements ITaskService {
 				let executeResult = this.getTaskSystem().run(task, resolver);
 				let key = Task.getRecentlyUsedKey(task);
 				if (key) {
-					this.getRecentlyUsedTasks().set(key, key, Touch.First);
+					this.getRecentlyUsedTasks().set(key, key, Touch.AsOld);
 				}
 				if (executeResult.kind === TaskExecuteKind.Active) {
 					let active = executeResult.active;
