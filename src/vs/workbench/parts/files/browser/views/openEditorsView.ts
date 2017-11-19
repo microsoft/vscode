@@ -20,10 +20,10 @@ import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup } from 'vs/wo
 import { SaveAllAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { ViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { VIEWLET_ID, OpenEditorsFocusedContext, ExplorerFocusedContext } from 'vs/workbench/parts/files/common/files';
-import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, AutoSaveMode, TextFileModelChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
-import { Renderer, DataSource, Controller, AccessibilityProvider, ActionProvider, DragAndDrop } from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
+import { Renderer, DataSource, Controller, AccessibilityProvider, ActionProvider, DragAndDrop, EditorSort } from 'vs/workbench/parts/files/browser/views/openEditorsViewer';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { CloseAllEditorsAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { ToggleEditorLayoutAction } from 'vs/workbench/browser/actions/toggleEditorLayout';
@@ -53,6 +53,8 @@ export class OpenEditorsView extends ViewsViewletPanel {
 	private openEditorsFocusedContext: IContextKey<boolean>;
 	private explorerFocusedContext: IContextKey<boolean>;
 
+	private editorSort: EditorSort;
+
 	constructor(
 		options: IViewletViewOptions,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -79,6 +81,9 @@ export class OpenEditorsView extends ViewsViewletPanel {
 
 		this.structuralRefreshDelay = 0;
 		this.structuralTreeRefreshScheduler = new RunOnceScheduler(() => this.structuralTreeUpdate(), this.structuralRefreshDelay);
+
+		this.editorSort = this.instantiationService.createInstance(EditorSort);
+		this.disposables.push(this.editorSort);
 	}
 
 	protected renderHeaderTitle(container: HTMLElement): void {
@@ -184,7 +189,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		// Handle dirty counter
 		this.disposables.push(this.untitledEditorService.onDidChangeDirty(e => this.updateDirtyIndicator()));
 		this.disposables.push(this.textFileService.models.onModelsDirty(e => this.updateDirtyIndicator()));
-		this.disposables.push(this.textFileService.models.onModelsSaved(e => this.updateDirtyIndicator()));
+		this.disposables.push(this.textFileService.models.onModelsSaved(e => this.onModelSave(e)));
 		this.disposables.push(this.textFileService.models.onModelsSaveError(e => this.updateDirtyIndicator()));
 		this.disposables.push(this.textFileService.models.onModelsReverted(e => this.updateDirtyIndicator()));
 
@@ -196,6 +201,13 @@ export class OpenEditorsView extends ViewsViewletPanel {
 				this.updateDirtyIndicator();
 			}
 		}));
+	}
+
+	private onModelSave(e: TextFileModelChangeEvent[]): void {
+		if (this.editorSort.orderBySavedRecently)
+			this.editorSort.moveToTop(e);
+
+		this.updateDirtyIndicator();
 	}
 
 	private onEditorStacksModelChanged(e: IStacksModelChangeEvent): void {

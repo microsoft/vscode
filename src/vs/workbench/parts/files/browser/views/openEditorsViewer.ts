@@ -25,13 +25,14 @@ import { IEditorGroup, IEditorStacksModel } from 'vs/workbench/common/editor';
 import { OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
 import { ContributableActionProvider } from 'vs/workbench/browser/actions';
 import { explorerItemToFileResource, IFilesConfiguration } from 'vs/workbench/parts/files/common/files';
-import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, AutoSaveMode, TextFileModelChangeEvent } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorStacksModel, EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
 import { SaveFileAction, RevertFileAction, SaveFileAsAction, OpenToSideAction, SelectResourceForCompareAction, CompareResourcesAction, SaveAllInGroupAction, CompareWithSavedAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { CloseOtherEditorsInGroupAction, CloseEditorAction, CloseEditorsInGroupAction, CloseUnmodifiedEditorsInGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 const $ = dom.$;
 
@@ -517,5 +518,53 @@ export class DragAndDrop extends DefaultDragAndDrop {
 				this.editorGroupService.moveGroup(model.positionOfGroup(draggedElement), positionOfTargetGroup);
 			}
 		}
+	}
+}
+
+export class EditorSort {
+	public orderBySavedRecently: boolean;
+	private toDispose: IDisposable[];
+
+	constructor(
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IConfigurationService private configurationService: IConfigurationService
+	) {
+		this.toDispose = [];
+		this.updateSettings();
+		this.registerListeners();
+	}
+
+	public moveToTop(saved: TextFileModelChangeEvent[]): void {
+		if (this.orderBySavedRecently && saved) {
+			const model = this.editorGroupService.getStacksModel();
+			const index = 0;
+
+			model.groups.forEach(group => {
+				let editors = group.getEditors();
+				if (editors && editors.length > 0) {
+					saved.forEach(s => {
+						for (var i = 0, len = editors.length; i < len; i++) {
+							if (editors[i].getResource() == s.resource) {
+								let position = model.positionOfGroup(group);
+								this.editorGroupService.moveEditor(editors[i], position, position, { index });
+								break;
+							}
+						}
+					});
+				}
+			});
+		}
+	}
+
+	private registerListeners(): void {
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.updateSettings()));
+	}
+
+	private updateSettings(): void {
+		this.orderBySavedRecently = this.configurationService.getValue('editor.recentlySavedFirst') || false;
+	}
+
+	public dispose(): void {
+		this.toDispose = dispose(this.toDispose);
 	}
 }
