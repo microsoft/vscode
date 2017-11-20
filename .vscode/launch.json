@@ -158,6 +158,7 @@
 			},
 			"stopOnEntry": false,
 			"args": [
+				"--delay",
 				"--timeout",
 				"2000"
 			],
