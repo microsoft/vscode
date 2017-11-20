@@ -340,6 +340,7 @@ interface ResourceGroupTemplate {
 	name: HTMLElement;
 	count: CountBadge;
 	actionBar: ActionBar;
+	elementDisposable: IDisposable;
 	dispose: () => void;
 }
 
@@ -362,9 +363,10 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 		const countContainer = append(element, $('.count'));
 		const count = new CountBadge(countContainer);
 		const styler = attachBadgeStyler(count, this.themeService);
+		const elementDisposable = EmptyDisposable;
 
 		return {
-			name, count, actionBar, dispose: () => {
+			name, count, actionBar, elementDisposable, dispose: () => {
 				actionBar.dispose();
 				styler.dispose();
 			}
@@ -372,11 +374,16 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 	}
 
 	renderElement(group: ISCMResourceGroup, index: number, template: ResourceGroupTemplate): void {
+		template.elementDisposable.dispose();
+
 		template.name.textContent = group.label;
-		template.count.setCount(group.elements.length);
 		template.actionBar.clear();
 		template.actionBar.context = group;
 		template.actionBar.push(this.scmMenus.getResourceGroupActions(group), { icon: true, label: false });
+
+		const updateCount = () => template.count.setCount(group.elements.length);
+		template.elementDisposable = group.onDidSplice(updateCount);
+		updateCount();
 	}
 
 	disposeTemplate(template: ResourceGroupTemplate): void {
