@@ -221,11 +221,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	private _suggest(model: IModel): void {
 		const uri = model.uri;
 
-		if (!uri) {
-			return;
-		}
-
-		if (uri.scheme === Schemas.inMemory || uri.scheme === Schemas.internal || uri.scheme === Schemas.vscode) {
+		if (!uri || uri.scheme !== Schemas.file) {
 			return;
 		}
 
