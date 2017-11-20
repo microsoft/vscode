@@ -7,13 +7,9 @@
 import * as assert from 'assert';
 import { DecorationSegment, LineDecorationsNormalizer, LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { Range } from 'vs/editor/common/core/range';
-import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
 
 suite('Editor ViewLayout - ViewLineParts', () => {
-
-	function newDecoration(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, inlineClassName: string): InlineDecoration {
-		return new InlineDecoration(new Range(startLineNumber, startColumn, endLineNumber, endColumn), inlineClassName, false);
-	}
 
 	test('Bug 9827:Overlapping inline decorations can cause wrong inline class to be applied', () => {
 
@@ -45,7 +41,7 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 	test('issue #3661: Link decoration bleeds to next line when wrapping', () => {
 
 		let result = LineDecoration.filter([
-			newDecoration(2, 12, 3, 30, 'detected-link')
+			new InlineDecoration(new Range(2, 12, 3, 30), 'detected-link', InlineDecorationType.Regular)
 		], 3, 12, 500);
 
 		assert.deepEqual(result, [

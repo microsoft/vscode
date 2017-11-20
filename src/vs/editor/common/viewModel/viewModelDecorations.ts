@@ -8,7 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { InlineDecoration, ViewModelDecoration, ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
+import { InlineDecoration, ViewModelDecoration, ICoordinatesConverter, InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
 import { IViewModelLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
 
 export interface IDecorationsViewportData {
@@ -123,7 +123,7 @@ export class ViewModelDecorations implements IDisposable {
 			decorationsInViewport[decorationsInViewportLen++] = viewModelDecoration;
 
 			if (decorationOptions.inlineClassName) {
-				let inlineDecoration = new InlineDecoration(viewRange, decorationOptions.inlineClassName, false);
+				let inlineDecoration = new InlineDecoration(viewRange, decorationOptions.inlineClassName, InlineDecorationType.Regular);
 				let intersectedStartLineNumber = Math.max(startLineNumber, viewRange.startLineNumber);
 				let intersectedEndLineNumber = Math.min(endLineNumber, viewRange.endLineNumber);
 				for (let j = intersectedStartLineNumber; j <= intersectedEndLineNumber; j++) {
@@ -136,7 +136,7 @@ export class ViewModelDecorations implements IDisposable {
 					let inlineDecoration = new InlineDecoration(
 						new Range(viewRange.startLineNumber, viewRange.startColumn, viewRange.startLineNumber, viewRange.startColumn + 1),
 						decorationOptions.beforeContentClassName,
-						true
+						InlineDecorationType.Before
 					);
 					inlineDecorations[viewRange.startLineNumber - startLineNumber].push(inlineDecoration);
 				}
@@ -146,7 +146,7 @@ export class ViewModelDecorations implements IDisposable {
 					let inlineDecoration = new InlineDecoration(
 						new Range(viewRange.endLineNumber, viewRange.endColumn - 1, viewRange.endLineNumber, viewRange.endColumn),
 						decorationOptions.afterContentClassName,
-						true
+						InlineDecorationType.After
 					);
 					inlineDecorations[viewRange.endLineNumber - startLineNumber].push(inlineDecoration);
 				}

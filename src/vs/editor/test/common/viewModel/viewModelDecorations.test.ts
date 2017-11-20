@@ -8,6 +8,7 @@ import * as assert from 'assert';
 import { Range } from 'vs/editor/common/core/range';
 import { testViewModel } from 'vs/editor/test/common/viewModel/testViewModel';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
 
 suite('ViewModelDecorations', () => {
 	test('getDecorationsViewportData', () => {
@@ -105,107 +106,107 @@ suite('ViewModelDecorations', () => {
 				{
 					range: new Range(1, 2, 2, 1),
 					inlineClassName: 'i-dec2',
-					insertsBeforeOrAfter: false
+					type: InlineDecorationType.Regular
 				},
 				{
 					range: new Range(1, 2, 2, 2),
 					inlineClassName: 'i-dec3',
-					insertsBeforeOrAfter: false
+					type: InlineDecorationType.Regular
 				},
 				{
 					range: new Range(2, 1, 2, 2),
 					inlineClassName: 'a-dec3',
-					insertsBeforeOrAfter: true
+					type: InlineDecorationType.After
 				},
 				{
 					range: new Range(1, 2, 4, 1),
 					inlineClassName: 'i-dec4',
-					insertsBeforeOrAfter: false
+					type: InlineDecorationType.Regular
 				},
 				{
 					range: new Range(1, 2, 5, 8),
 					inlineClassName: 'i-dec5',
-					insertsBeforeOrAfter: false
+					type: InlineDecorationType.Regular
 				},
 				{
 					range: new Range(2, 1, 2, 1),
 					inlineClassName: 'i-dec6',
-					insertsBeforeOrAfter: false
+					type: InlineDecorationType.Regular
 				},
 				{
 					range: new Range(2, 1, 2, 2),
 					inlineClassName: 'b-dec6',
-					insertsBeforeOrAfter: true
+					type: InlineDecorationType.Before
 				},
 				{
 					range: new Range(2, 1, 2, 3),
 					inlineClassName: 'i-dec7',
-					insertsBeforeOrAfter: false
+					type: InlineDecorationType.Regular
 				},
 				{
 					range: new Range(2, 1, 2, 2),
 					inlineClassName: 'b-dec7',
-					insertsBeforeOrAfter: true
+					type: InlineDecorationType.Before
 				},
 				{
 					range: new Range(2, 2, 2, 3),
 					inlineClassName: 'a-dec7',
-					insertsBeforeOrAfter: true
+					type: InlineDecorationType.After
 				},
 				{
 					range: new Range(2, 1, 4, 1),
 					inlineClassName: 'i-dec8',
-					insertsBeforeOrAfter: false
+					type: InlineDecorationType.Regular
 				},
 				{
 					range: new Range(2, 1, 2, 2),
 					inlineClassName: 'b-dec8',
-					insertsBeforeOrAfter: true
+					type: InlineDecorationType.Before
 				},
 				{
 					range: new Range(2, 1, 5, 8),
 					inlineClassName: 'i-dec9',
-					insertsBeforeOrAfter: false
+					type: InlineDecorationType.Regular
 				},
 				{
 					range: new Range(2, 1, 2, 2),
 					inlineClassName: 'b-dec9',
-					insertsBeforeOrAfter: true
+					type: InlineDecorationType.Before
 				},
 				{
 					range: new Range(2, 3, 2, 5),
 					inlineClassName: 'i-dec10',
-					insertsBeforeOrAfter: false
+					type: InlineDecorationType.Regular
 				},
 				{
 					range: new Range(2, 3, 2, 4),
 					inlineClassName: 'b-dec10',
-					insertsBeforeOrAfter: true
+					type: InlineDecorationType.Before
 				},
 				{
 					range: new Range(2, 4, 2, 5),
 					inlineClassName: 'a-dec10',
-					insertsBeforeOrAfter: true
+					type: InlineDecorationType.After
 				},
 				{
 					range: new Range(2, 3, 4, 1),
 					inlineClassName: 'i-dec11',
-					insertsBeforeOrAfter: false
+					type: InlineDecorationType.Regular
 				},
 				{
 					range: new Range(2, 3, 2, 4),
 					inlineClassName: 'b-dec11',
-					insertsBeforeOrAfter: true
+					type: InlineDecorationType.Before
 				},
 				{
 					range: new Range(2, 3, 5, 8),
 					inlineClassName: 'i-dec12',
-					insertsBeforeOrAfter: false
+					type: InlineDecorationType.Regular
 				},
 				{
 					range: new Range(2, 3, 2, 4),
 					inlineClassName: 'b-dec12',
-					insertsBeforeOrAfter: true
+					type: InlineDecorationType.Before
 				},
 			]);
 
@@ -219,32 +220,32 @@ suite('ViewModelDecorations', () => {
 				{
 					range: new Range(1, 2, 4, 1),
 					inlineClassName: 'i-dec4',
-					insertsBeforeOrAfter: false
+					type: InlineDecorationType.Regular
 				},
 				{
 					range: new Range(1, 2, 5, 8),
 					inlineClassName: 'i-dec5',
-					insertsBeforeOrAfter: false
+					type: InlineDecorationType.Regular
 				},
 				{
 					range: new Range(2, 1, 4, 1),
 					inlineClassName: 'i-dec8',
-					insertsBeforeOrAfter: false
+					type: InlineDecorationType.Regular
 				},
 				{
 					range: new Range(2, 1, 5, 8),
 					inlineClassName: 'i-dec9',
-					insertsBeforeOrAfter: false
+					type: InlineDecorationType.Regular
 				},
 				{
 					range: new Range(2, 3, 4, 1),
 					inlineClassName: 'i-dec11',
-					insertsBeforeOrAfter: false
+					type: InlineDecorationType.Regular
 				},
 				{
 					range: new Range(2, 3, 5, 8),
 					inlineClassName: 'i-dec12',
-					insertsBeforeOrAfter: false
+					type: InlineDecorationType.Regular
 				},
 			]);
 		});

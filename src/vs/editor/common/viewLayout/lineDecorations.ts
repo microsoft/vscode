@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { InlineDecoration } from 'vs/editor/common/viewModel/viewModel';
+import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
 import { Constants } from 'vs/editor/common/core/uint';
 import * as strings from 'vs/base/common/strings';
 
@@ -75,7 +75,7 @@ export class LineDecoration {
 				continue;
 			}
 
-			result[resultLen++] = new LineDecoration(startColumn, endColumn, d.inlineClassName, d.insertsBeforeOrAfter);
+			result[resultLen++] = new LineDecoration(startColumn, endColumn, d.inlineClassName, d.type !== InlineDecorationType.Regular);
 		}
 
 		return result;

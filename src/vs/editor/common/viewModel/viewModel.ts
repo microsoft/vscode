@@ -249,17 +249,18 @@ export class ViewLineRenderingData {
 	}
 }
 
+export const enum InlineDecorationType {
+	Regular = 0,
+	Before = 1,
+	After = 2
+}
+
 export class InlineDecoration {
-	_inlineDecorationBrand: void;
-
-	readonly range: Range;
-	readonly inlineClassName: string;
-	readonly insertsBeforeOrAfter: boolean;
-
-	constructor(range: Range, inlineClassName: string, insertsBeforeOrAfter: boolean) {
-		this.range = range;
-		this.inlineClassName = inlineClassName;
-		this.insertsBeforeOrAfter = insertsBeforeOrAfter;
+	constructor(
+		public readonly range: Range,
+		public readonly inlineClassName: string,
+		public readonly type: InlineDecorationType
+	) {
 	}
 }
 
