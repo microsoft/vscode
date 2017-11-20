@@ -49,7 +49,7 @@ export interface SpectronApplicationOptions {
  */
 export class SpectronApplication {
 
-	private static readonly count = 0;
+	private static count = 0;
 
 	private _client: SpectronClient;
 	private _workbench: Workbench;

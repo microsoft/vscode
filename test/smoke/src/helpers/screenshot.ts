@@ -11,7 +11,7 @@ import { sanitize } from './utilities';
 
 export class ScreenCapturer {
 
-	private static readonly counter = 0;
+	private static counter = 0;
 
 	constructor(
 		private application: Application,
