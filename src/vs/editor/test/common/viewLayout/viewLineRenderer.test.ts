@@ -10,6 +10,7 @@ import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { CharCode } from 'vs/base/common/charCode';
 import { MetadataConsts } from 'vs/editor/common/modes';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
+import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
 
 suite('viewLineRenderer.renderLine', () => {
 
@@ -700,7 +701,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			false,
 			0,
 			[createPart(21, 3)],
-			[new LineDecoration(1, 22, 'link', false)],
+			[new LineDecoration(1, 22, 'link', InlineDecorationType.Regular)],
 			4,
 			10,
 			-1,
@@ -735,7 +736,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 				createPart(84, 6),
 			],
 			[
-				new LineDecoration(13, 51, 'detected-link', false)
+				new LineDecoration(13, 51, 'detected-link', InlineDecorationType.Regular)
 			],
 			4,
 			10,
@@ -993,9 +994,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 			0,
 			[createPart(11, 0)],
 			[
-				new LineDecoration(5, 7, 'a', false),
-				new LineDecoration(1, 3, 'b', false),
-				new LineDecoration(2, 8, 'c', false),
+				new LineDecoration(5, 7, 'a', InlineDecorationType.Regular),
+				new LineDecoration(1, 3, 'b', InlineDecorationType.Regular),
+				new LineDecoration(2, 8, 'c', InlineDecorationType.Regular),
 			],
 			4,
 			10,
@@ -1033,7 +1034,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			false,
 			0,
 			[createPart(4, 3)],
-			[new LineDecoration(1, 2, 'before', true)],
+			[new LineDecoration(1, 2, 'before', InlineDecorationType.Before)],
 			4,
 			10,
 			-1,
@@ -1062,7 +1063,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			false,
 			0,
 			[createPart(4, 3)],
-			[new LineDecoration(2, 3, 'before', true)],
+			[new LineDecoration(2, 3, 'before', InlineDecorationType.Before)],
 			4,
 			10,
 			-1,
@@ -1092,7 +1093,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			false,
 			0,
 			[createPart(0, 3)],
-			[new LineDecoration(1, 2, 'before', true)],
+			[new LineDecoration(1, 2, 'before', InlineDecorationType.Before)],
 			4,
 			10,
 			-1,
@@ -1118,7 +1119,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			false,
 			0,
 			[createPart(7, 3)],
-			[new LineDecoration(7, 8, 'inline-folded', true)],
+			[new LineDecoration(7, 8, 'inline-folded', InlineDecorationType.After)],
 			2,
 			10,
 			10000,

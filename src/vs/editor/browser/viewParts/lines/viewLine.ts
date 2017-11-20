@@ -17,6 +17,7 @@ import { HorizontalRange } from 'vs/editor/common/view/renderingContext';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { ThemeType, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
 import { IStringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
 
 const canUseFastRenderedViewLine = (function () {
 	if (platform.isNative) {
@@ -183,7 +184,7 @@ export class ViewLine implements IVisibleLine {
 				let endColumn = (selection.endLineNumber === lineNumber ? selection.endColumn : lineData.maxColumn);
 
 				if (startColumn < endColumn) {
-					actualInlineDecorations.push(new LineDecoration(startColumn, endColumn, 'inline-selected-text', false));
+					actualInlineDecorations.push(new LineDecoration(startColumn, endColumn, 'inline-selected-text', InlineDecorationType.Regular));
 				}
 			}
 		}

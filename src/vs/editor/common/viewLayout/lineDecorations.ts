@@ -11,16 +11,12 @@ import * as strings from 'vs/base/common/strings';
 export class LineDecoration {
 	_lineDecorationBrand: void;
 
-	public readonly startColumn: number;
-	public readonly endColumn: number;
-	public readonly className: string;
-	public readonly insertsBeforeOrAfter: boolean;
-
-	constructor(startColumn: number, endColumn: number, className: string, insertsBeforeOrAfter: boolean) {
-		this.startColumn = startColumn;
-		this.endColumn = endColumn;
-		this.className = className;
-		this.insertsBeforeOrAfter = insertsBeforeOrAfter;
+	constructor(
+		public readonly startColumn: number,
+		public readonly endColumn: number,
+		public readonly className: string,
+		public readonly type: InlineDecorationType
+	) {
 	}
 
 	private static _equals(a: LineDecoration, b: LineDecoration): boolean {
@@ -28,7 +24,7 @@ export class LineDecoration {
 			a.startColumn === b.startColumn
 			&& a.endColumn === b.endColumn
 			&& a.className === b.className
-			&& a.insertsBeforeOrAfter === b.insertsBeforeOrAfter
+			&& a.type === b.type
 		);
 	}
 
@@ -75,7 +71,7 @@ export class LineDecoration {
 				continue;
 			}
 
-			result[resultLen++] = new LineDecoration(startColumn, endColumn, d.inlineClassName, d.type !== InlineDecorationType.Regular);
+			result[resultLen++] = new LineDecoration(startColumn, endColumn, d.inlineClassName, d.type);
 		}
 
 		return result;

@@ -9,6 +9,7 @@ import { CharCode } from 'vs/base/common/charCode';
 import { LineDecoration, LineDecorationsNormalizer } from 'vs/editor/common/viewLayout/lineDecorations';
 import * as strings from 'vs/base/common/strings';
 import { IStringBuilder, createStringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
 
 export const enum RenderWhitespace {
 	None = 0,
@@ -243,7 +244,7 @@ export function renderViewLine(input: RenderLineInput, sb: IStringBuilder): Rend
 			let classNames: string[] = [];
 			for (let i = 0, len = input.lineDecorations.length; i < len; i++) {
 				const lineDecoration = input.lineDecorations[i];
-				if (lineDecoration.insertsBeforeOrAfter) {
+				if (lineDecoration.type !== InlineDecorationType.Regular) {
 					classNames[i] = input.lineDecorations[i].className;
 					containsForeignElements = true;
 				}
@@ -322,7 +323,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 	if (input.lineDecorations.length > 0) {
 		for (let i = 0, len = input.lineDecorations.length; i < len; i++) {
 			const lineDecoration = input.lineDecorations[i];
-			if (lineDecoration.insertsBeforeOrAfter) {
+			if (lineDecoration.type !== InlineDecorationType.Regular) {
 				containsForeignElements = true;
 				break;
 			}

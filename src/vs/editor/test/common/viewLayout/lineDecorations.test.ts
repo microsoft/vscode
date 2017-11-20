@@ -14,8 +14,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 	test('Bug 9827:Overlapping inline decorations can cause wrong inline class to be applied', () => {
 
 		var result = LineDecorationsNormalizer.normalize('abcabcabcabcabcabcabcabcabcabc', [
-			new LineDecoration(1, 11, 'c1', false),
-			new LineDecoration(3, 4, 'c2', false)
+			new LineDecoration(1, 11, 'c1', InlineDecorationType.Regular),
+			new LineDecoration(3, 4, 'c2', InlineDecorationType.Regular)
 		]);
 
 		assert.deepEqual(result, [
@@ -28,8 +28,8 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 	test('issue #3462: no whitespace shown at the end of a decorated line', () => {
 
 		var result = LineDecorationsNormalizer.normalize('abcabcabcabcabcabcabcabcabcabc', [
-			new LineDecoration(15, 21, 'vs-whitespace', false),
-			new LineDecoration(20, 21, 'inline-folded', false),
+			new LineDecoration(15, 21, 'vs-whitespace', InlineDecorationType.Regular),
+			new LineDecoration(20, 21, 'inline-folded', InlineDecorationType.Regular),
 		]);
 
 		assert.deepEqual(result, [
@@ -45,72 +45,72 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		], 3, 12, 500);
 
 		assert.deepEqual(result, [
-			new LineDecoration(12, 30, 'detected-link', false),
+			new LineDecoration(12, 30, 'detected-link', InlineDecorationType.Regular),
 		]);
 	});
 
 	test('ViewLineParts', () => {
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize('abcabcabcabcabcabcabcabcabcabc', [
-			new LineDecoration(1, 2, 'c1', false),
-			new LineDecoration(3, 4, 'c2', false)
+			new LineDecoration(1, 2, 'c1', InlineDecorationType.Regular),
+			new LineDecoration(3, 4, 'c2', InlineDecorationType.Regular)
 		]), [
 				new DecorationSegment(0, 0, 'c1'),
 				new DecorationSegment(2, 2, 'c2')
 			]);
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize('abcabcabcabcabcabcabcabcabcabc', [
-			new LineDecoration(1, 3, 'c1', false),
-			new LineDecoration(3, 4, 'c2', false)
+			new LineDecoration(1, 3, 'c1', InlineDecorationType.Regular),
+			new LineDecoration(3, 4, 'c2', InlineDecorationType.Regular)
 		]), [
 				new DecorationSegment(0, 1, 'c1'),
 				new DecorationSegment(2, 2, 'c2')
 			]);
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize('abcabcabcabcabcabcabcabcabcabc', [
-			new LineDecoration(1, 4, 'c1', false),
-			new LineDecoration(3, 4, 'c2', false)
+			new LineDecoration(1, 4, 'c1', InlineDecorationType.Regular),
+			new LineDecoration(3, 4, 'c2', InlineDecorationType.Regular)
 		]), [
 				new DecorationSegment(0, 1, 'c1'),
 				new DecorationSegment(2, 2, 'c1 c2')
 			]);
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize('abcabcabcabcabcabcabcabcabcabc', [
-			new LineDecoration(1, 4, 'c1', false),
-			new LineDecoration(1, 4, 'c1*', false),
-			new LineDecoration(3, 4, 'c2', false)
+			new LineDecoration(1, 4, 'c1', InlineDecorationType.Regular),
+			new LineDecoration(1, 4, 'c1*', InlineDecorationType.Regular),
+			new LineDecoration(3, 4, 'c2', InlineDecorationType.Regular)
 		]), [
 				new DecorationSegment(0, 1, 'c1 c1*'),
 				new DecorationSegment(2, 2, 'c1 c1* c2')
 			]);
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize('abcabcabcabcabcabcabcabcabcabc', [
-			new LineDecoration(1, 4, 'c1', false),
-			new LineDecoration(1, 4, 'c1*', false),
-			new LineDecoration(1, 4, 'c1**', false),
-			new LineDecoration(3, 4, 'c2', false)
+			new LineDecoration(1, 4, 'c1', InlineDecorationType.Regular),
+			new LineDecoration(1, 4, 'c1*', InlineDecorationType.Regular),
+			new LineDecoration(1, 4, 'c1**', InlineDecorationType.Regular),
+			new LineDecoration(3, 4, 'c2', InlineDecorationType.Regular)
 		]), [
 				new DecorationSegment(0, 1, 'c1 c1* c1**'),
 				new DecorationSegment(2, 2, 'c1 c1* c1** c2')
 			]);
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize('abcabcabcabcabcabcabcabcabcabc', [
-			new LineDecoration(1, 4, 'c1', false),
-			new LineDecoration(1, 4, 'c1*', false),
-			new LineDecoration(1, 4, 'c1**', false),
-			new LineDecoration(3, 4, 'c2', false),
-			new LineDecoration(3, 4, 'c2*', false)
+			new LineDecoration(1, 4, 'c1', InlineDecorationType.Regular),
+			new LineDecoration(1, 4, 'c1*', InlineDecorationType.Regular),
+			new LineDecoration(1, 4, 'c1**', InlineDecorationType.Regular),
+			new LineDecoration(3, 4, 'c2', InlineDecorationType.Regular),
+			new LineDecoration(3, 4, 'c2*', InlineDecorationType.Regular)
 		]), [
 				new DecorationSegment(0, 1, 'c1 c1* c1**'),
 				new DecorationSegment(2, 2, 'c1 c1* c1** c2 c2*')
 			]);
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize('abcabcabcabcabcabcabcabcabcabc', [
-			new LineDecoration(1, 4, 'c1', false),
-			new LineDecoration(1, 4, 'c1*', false),
-			new LineDecoration(1, 4, 'c1**', false),
-			new LineDecoration(3, 4, 'c2', false),
-			new LineDecoration(3, 5, 'c2*', false)
+			new LineDecoration(1, 4, 'c1', InlineDecorationType.Regular),
+			new LineDecoration(1, 4, 'c1*', InlineDecorationType.Regular),
+			new LineDecoration(1, 4, 'c1**', InlineDecorationType.Regular),
+			new LineDecoration(3, 4, 'c2', InlineDecorationType.Regular),
+			new LineDecoration(3, 5, 'c2*', InlineDecorationType.Regular)
 		]), [
 				new DecorationSegment(0, 1, 'c1 c1* c1**'),
 				new DecorationSegment(2, 2, 'c1 c1* c1** c2 c2*'),
