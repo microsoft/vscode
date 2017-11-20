@@ -898,7 +898,7 @@ export class SearchViewlet extends Viewlet {
 		}
 	}
 
-	public searchInFolder(resource: URI): void {
+	public searchInFolder(resource: URI, pathToRelative: (from: string, to: string) => string): void {
 		let folderPath = null;
 		const workspace = this.contextService.getWorkspace();
 		if (resource) {
@@ -916,7 +916,7 @@ export class SearchViewlet extends Viewlet {
 					// If this root is the only one with its basename, use a relative ./ path. If there is another, use an absolute path
 					const isUniqueFolder = workspace.folders.filter(folder => paths.basename(folder.uri.fsPath) === owningRootBasename).length === 1;
 					if (isUniqueFolder) {
-						folderPath = `./${owningRootBasename}/${paths.relative(owningFolder.uri.fsPath, resource.fsPath)}`;
+						folderPath = `./${owningRootBasename}/${paths.normalize(pathToRelative(owningFolder.uri.fsPath, resource.fsPath))}`;
 					} else {
 						folderPath = resource.fsPath;
 					}

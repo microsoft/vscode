@@ -5,10 +5,7 @@
 
 import nls = require('vs/nls');
 import DOM = require('vs/base/browser/dom');
-import errors = require('vs/base/common/errors');
-import resources = require('vs/base/common/resources');
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
@@ -21,9 +18,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ResolvedKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IListService } from 'vs/platform/list/browser/listService';
-import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { OS } from 'vs/base/common/platform';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
@@ -334,59 +329,6 @@ export class CloseReplaceAction extends Action {
 		return TPromise.as(null);
 	}
 }
-
-export class FindInWorkspaceAction extends Action {
-
-	public static ID = 'filesExplorer.findInWorkspace';
-
-	constructor( @IViewletService private viewletService: IViewletService) {
-		super(FindInWorkspaceAction.ID, nls.localize('findInWorkspace', "Find in Workspace..."));
-	}
-
-	public run(event?: any): TPromise<any> {
-		return this.viewletService.openViewlet(Constants.VIEWLET_ID, true).then(viewlet => {
-			(viewlet as SearchViewlet).searchInFolder(null);
-		});
-	}
-}
-
-export class FindInFolderAction extends Action {
-
-	public static ID = 'filesExplorer.findInFolder';
-
-	private resource: URI;
-
-	constructor(resource: URI, @IInstantiationService private instantiationService: IInstantiationService) {
-		super(FindInFolderAction.ID, nls.localize('findInFolder', "Find in Folder..."));
-
-		this.resource = resource;
-	}
-
-	public run(event?: any): TPromise<any> {
-		return this.instantiationService.invokeFunction.apply(this.instantiationService, [findInFolderCommand, this.resource]);
-	}
-}
-
-export const findInFolderCommand = (accessor: ServicesAccessor, resource?: URI) => {
-	const listService = accessor.get(IListService);
-	const viewletService = accessor.get(IViewletService);
-
-	if (!URI.isUri(resource)) {
-		const focused = listService.getFocused() ? listService.getFocused().getFocus() : void 0;
-		if (focused) {
-			const file = explorerItemToFileResource(focused);
-			if (file) {
-				resource = file.isDirectory ? file.resource : resources.dirname(file.resource);
-			}
-		}
-	}
-
-	viewletService.openViewlet(Constants.VIEWLET_ID, true).then(viewlet => {
-		if (resource) {
-			(viewlet as SearchViewlet).searchInFolder(resource);
-		}
-	}).done(null, errors.onUnexpectedError);
-};
 
 export class RefreshAction extends Action {
 

@@ -48,6 +48,7 @@ import { OpenAnythingHandler } from 'vs/workbench/parts/search/browser/openAnyth
 import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { getWorkspaceSymbols } from 'vs/workbench/parts/search/common/search';
 import { illegalArgument } from 'vs/base/common/errors';
+import { FindInFolderAction, findInFolderCommand, FindInWorkspaceAction } from 'vs/workbench/parts/search/electron-browser/searchActions';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService);
 replaceContributions();
@@ -183,7 +184,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-CommandsRegistry.registerCommand(searchActions.FindInFolderAction.ID, searchActions.findInFolderCommand);
+CommandsRegistry.registerCommand(FindInFolderAction.ID, findInFolderCommand);
 
 class ExplorerViewerActionContributor extends ActionBarContributor {
 	private _instantiationService: IInstantiationService;
@@ -216,10 +217,10 @@ class ExplorerViewerActionContributor extends ActionBarContributor {
 		if (this.hasSecondaryActions(context)) {
 			let action: Action;
 			if (context.element instanceof Model) {
-				action = this._instantiationService.createInstance(searchActions.FindInWorkspaceAction);
+				action = this._instantiationService.createInstance(FindInWorkspaceAction);
 			} else {
 				let fileResource = explorerItemToFileResource(context.element);
-				action = this._instantiationService.createInstance(searchActions.FindInFolderAction, fileResource.resource);
+				action = this._instantiationService.createInstance(FindInFolderAction, fileResource.resource);
 			}
 
 			action.order = 55;
