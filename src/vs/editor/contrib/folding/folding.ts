@@ -229,7 +229,10 @@ export class FoldingController implements IEditorContribution {
 		this.mouseDownInfo = null;
 
 		let range = e.target.range;
-		if (!this.hiddenRangeModel || !range || !e.event.leftButton) {
+		if (!this.hiddenRangeModel || !range) {
+			return;
+		}
+		if (!e.event.leftButton && !e.event.middleButton) {
 			return;
 		}
 		let iconClicked = false;
@@ -298,7 +301,11 @@ export class FoldingController implements IEditorContribution {
 				let region = foldingModel.getRegionAtLine(lineNumber);
 				if (region && region.startLineNumber === lineNumber) {
 					if (iconClicked || region.isCollapsed) {
-						foldingModel.toggleCollapseState([region]);
+						if (e.event.middleButton) {
+							setCollapseStateLevelsDown(foldingModel, !region.isCollapsed, Number.MAX_VALUE, [lineNumber]);
+						} else {
+							foldingModel.toggleCollapseState([region]);
+						}
 						this.reveal(lineNumber);
 					}
 				}
