@@ -718,8 +718,11 @@ export class DebugService implements debug.IDebugService {
 						if (config && config.type) {
 							return this.createProcess(root, config, sessionId);
 						}
+						if (launch) {
+							return launch.openConfigFile(false, type).then(editor => undefined);
+						}
 
-						return <any>launch.openConfigFile(false, type); // cast to ignore weird compile error
+						return undefined;
 					})
 				).then(() => wrapUpState(), err => {
 					wrapUpState();
@@ -729,7 +732,7 @@ export class DebugService implements debug.IDebugService {
 		)));
 	}
 
-	private createProcess(root: IWorkspaceFolder, config: debug.IConfig, sessionId: string): TPromise<debug.IProcess> {
+	private createProcess(root: IWorkspaceFolder, config: debug.IConfig, sessionId: string): TPromise<void> {
 		return this.textFileService.saveAll().then(() =>
 			(this.configurationManager.selectedLaunch ? this.configurationManager.selectedLaunch.resolveConfiguration(config) : TPromise.as(config)).then(resolvedConfig => {
 				if (!resolvedConfig) {
