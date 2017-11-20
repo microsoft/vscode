@@ -43,7 +43,7 @@ function getRangeToRemove(editor: vscode.TextEditor, rootNode: HtmlNode, selecti
 	}
 
 	let openRange = new vscode.Range(nodeToUpdate.open.start, nodeToUpdate.open.end);
-	let closeRange = null;
+	let closeRange: vscode.Range | null = null;
 	if (nodeToUpdate.close) {
 		closeRange = new vscode.Range(nodeToUpdate.close.start, nodeToUpdate.close.end);
 	}
