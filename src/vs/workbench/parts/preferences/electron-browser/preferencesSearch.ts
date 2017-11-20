@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TPromise } from 'vs/base/common/winjs.base';
+import * as errors from 'vs/base/common/errors';
 import Event, { Emitter } from 'vs/base/common/event';
 import { ISettingsEditorModel, IFilterResult, ISetting, ISettingsGroup, IWorkbenchSettingsConfiguration, IFilterMetadata, IPreferencesSearchService } from 'vs/workbench/parts/preferences/common/preferences';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -19,6 +20,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IRequestService } from 'vs/platform/request/node/request';
 import { asJson } from 'vs/base/node/request';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export interface IEndpointDetails {
 	urlBase: string;
@@ -78,7 +80,8 @@ export class PreferencesSearchModel {
 
 	constructor(
 		private provider: IPreferencesSearchService, private filter: string, remote: boolean,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		this._localProvider = new LocalSearchProvider(filter);
 
@@ -94,6 +97,15 @@ export class PreferencesSearchModel {
 
 		if (this._remoteProvider) {
 			return this._remoteProvider.filterPreferences(preferencesModel).then(null, err => {
+				const message = errors.getErrorMessage(err);
+
+				/* __GDPR__
+					"defaultSettings.searchError" : {
+						"message": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
+				this.telemetryService.publicLog('defaultSettings.searchError', { message });
+
 				return this._localProvider.filterPreferences(preferencesModel);
 			});
 		} else {
