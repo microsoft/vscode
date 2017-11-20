@@ -84,7 +84,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		doComplete(document: TextDocument, position: Position): CompletionList {
 			updateCurrentTextDocument(document);
 			let offset = currentTextDocument.offsetAt(position);
-			let completions = jsLanguageService.getCompletionsAtPosition(FILE_NAME, offset);
+			let completions = jsLanguageService.getCompletionsAtPosition(FILE_NAME, offset, { includeExternalModuleExports: false });
 			if (!completions) {
 				return { isIncomplete: false, items: [] };
 			}

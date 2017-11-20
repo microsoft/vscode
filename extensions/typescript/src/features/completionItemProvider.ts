@@ -134,13 +134,13 @@ class ApplyCompletionCodeActionCommand implements Command {
 		private readonly client: ITypeScriptServiceClient
 	) { }
 
-	public async execute(file: string, codeActions: CodeAction[]): Promise<boolean> {
+	public async execute(_file: string, codeActions: CodeAction[]): Promise<boolean> {
 		if (codeActions.length === 0) {
 			return true;
 		}
 
 		if (codeActions.length === 1) {
-			return applyCodeAction(this.client, codeActions[0], file);
+			return applyCodeAction(this.client, codeActions[0]);
 		}
 
 		interface MyQuickPickItem extends QuickPickItem {
@@ -165,7 +165,7 @@ class ApplyCompletionCodeActionCommand implements Command {
 		if (!action) {
 			return false;
 		}
-		return applyCodeAction(this.client, action, file);
+		return applyCodeAction(this.client, action);
 	}
 }
 
@@ -250,10 +250,10 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		}
 
 		try {
-			const args = {
+			const args: CompletionsRequestArgs = {
 				...vsPositionToTsFileLocation(file, position),
 				includeExternalModuleExports: config.autoImportSuggestions
-			} as CompletionsRequestArgs;
+			};
 			const msg = await this.client.execute('completions', args, token);
 			// This info has to come from the tsserver. See https://github.com/Microsoft/TypeScript/issues/2831
 			// let isMemberCompletion = false;
