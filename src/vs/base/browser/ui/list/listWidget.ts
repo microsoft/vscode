@@ -30,7 +30,9 @@ class CombinedSpliceable<T> implements ISpliceable<T> {
 	constructor(private spliceables: ISpliceable<T>[]) { }
 
 	splice(start: number, deleteCount: number, elements: T[]): void {
-		this.spliceables.forEach(s => s.splice(start, deleteCount, elements));
+		for (const spliceable of this.spliceables) {
+			spliceable.splice(start, deleteCount, elements);
+		}
 	}
 }
 
@@ -74,15 +76,19 @@ class TraitRenderer<T> implements IRenderer<T, ITraitTemplateData>
 	}
 
 	renderIndexes(indexes: number[]): void {
-		this.rendered
-			.filter(({ index }) => indexes.indexOf(index) > -1)
-			.forEach(({ index, templateData }) => this.trait.renderIndex(index, templateData.container));
+		for (const { index, templateData } of this.rendered) {
+			if (indexes.indexOf(index) > -1) {
+				this.trait.renderIndex(index, templateData.container);
+			}
+		}
 	}
 
 	splice(start: number, deleteCount: number): void {
-		this.rendered
-			.filter(({ index }) => index >= start && index < start + deleteCount)
-			.forEach(({ templateData }) => templateData.elementDisposable.dispose());
+		for (const { index, templateData } of this.rendered) {
+			if (index >= start && index < start + deleteCount) {
+				templateData.elementDisposable.dispose();
+			}
+		}
 	}
 
 	disposeTemplate(templateData: ITraitTemplateData): void {
@@ -583,11 +589,19 @@ class PipelineRenderer<T> implements IRenderer<T, any> {
 	}
 
 	renderElement(element: T, index: number, templateData: any[]): void {
-		this.renderers.forEach((r, i) => r.renderElement(element, index, templateData[i]));
+		let i = 0;
+
+		for (const renderer of this.renderers) {
+			renderer.renderElement(element, index, templateData[i++]);
+		}
 	}
 
 	disposeTemplate(templateData: any[]): void {
-		this.renderers.forEach((r, i) => r.disposeTemplate(templateData[i]));
+		let i = 0;
+
+		for (const renderer of this.renderers) {
+			renderer.disposeTemplate(templateData[i]);
+		}
 	}
 }
 
@@ -689,6 +703,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	splice(start: number, deleteCount: number, elements: T[] = []): void {
+		if (deleteCount === 0 && elements.length === 0) {
+			return;
+		}
+
 		this.eventBufferer.bufferEvents(() => this.spliceable.splice(start, deleteCount, elements));
 	}
 

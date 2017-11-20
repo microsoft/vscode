@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { toObject, assign, getOrDefault } from 'vs/base/common/objects';
+import { assign, getOrDefault } from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Gesture, EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import * as DOM from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollEvent, ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { RangeMap, IRange, relativeComplement, each } from './rangeMap';
+import { RangeMap, IRange, relativeComplement } from './rangeMap';
 import { IDelegate, IRenderer, ISpliceable } from './list';
 import { RowCache, IRow } from './rowCache';
 import { isWindows } from 'vs/base/common/platform';
@@ -72,7 +72,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private itemId: number;
 	private rangeMap: RangeMap;
 	private cache: RowCache<T>;
-	private renderers: { [templateId: string]: IRenderer<T, any>; };
+	private renderers = new Map<string, IRenderer<T, any>>();
 	private lastRenderTop: number;
 	private lastRenderHeight: number;
 	private _domNode: HTMLElement;
@@ -90,7 +90,11 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.items = [];
 		this.itemId = 0;
 		this.rangeMap = new RangeMap();
-		this.renderers = toObject<IRenderer<T, any>>(renderers, r => r.templateId);
+
+		for (const renderer of renderers) {
+			this.renderers.set(renderer.templateId, renderer);
+		}
+
 		this.cache = new RowCache(this.renderers);
 
 		this.lastRenderTop = 0;
@@ -127,7 +131,10 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	splice(start: number, deleteCount: number, elements: T[] = []): T[] {
 		const previousRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
-		each(previousRenderRange, i => this.removeItemFromDOM(this.items[i]));
+
+		for (let i = previousRenderRange.start; i < previousRenderRange.end; i++) {
+			this.removeItemFromDOM(this.items[i]);
+		}
 
 		const inserted = elements.map<IItem<T>>(element => ({
 			id: String(this.itemId++),
@@ -140,9 +147,11 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.rangeMap.splice(start, deleteCount, ...inserted);
 
 		const deleted = this.items.splice(start, deleteCount, ...inserted);
-
 		const renderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
-		each(renderRange, i => this.insertItemInDOM(this.items[i], i));
+
+		for (let i = renderRange.start; i < renderRange.end; i++) {
+			this.insertItemInDOM(this.items[i], i);
+		}
 
 		const scrollHeight = this.getContentHeight();
 		this.rowsContainer.style.height = `${scrollHeight}px`;
@@ -200,8 +209,17 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		const rangesToInsert = relativeComplement(renderRange, previousRenderRange);
 		const rangesToRemove = relativeComplement(previousRenderRange, renderRange);
 
-		rangesToInsert.forEach(range => each(range, i => this.insertItemInDOM(this.items[i], i)));
-		rangesToRemove.forEach(range => each(range, i => this.removeItemFromDOM(this.items[i])));
+		for (const range of rangesToInsert) {
+			for (let i = range.start; i < range.end; i++) {
+				this.insertItemInDOM(this.items[i], i);
+			}
+		}
+
+		for (const range of rangesToRemove) {
+			for (let i = range.start; i < range.end; i++) {
+				this.removeItemFromDOM(this.items[i], );
+			}
+		}
 
 		if (canUseTranslate3d() && !isWindows /* Windows: translate3d breaks subpixel-antialias (ClearType) unless a background is defined */) {
 			const transform = `translate3d(0px, -${renderTop}px, 0px)`;
@@ -226,7 +244,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			this.rowsContainer.appendChild(item.row.domNode);
 		}
 
-		const renderer = this.renderers[item.templateId];
+		const renderer = this.renderers.get(item.templateId);
 		item.row.domNode.style.top = `${this.elementTop(index)}px`;
 		item.row.domNode.style.height = `${item.size}px`;
 		item.row.domNode.setAttribute('data-index', `${index}`);
