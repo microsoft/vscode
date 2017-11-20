@@ -307,9 +307,11 @@ export class TitlebarPart extends Part implements ITitleService {
 
 				const path = segments.slice(0, pathOffset).join(paths.sep);
 
-				let label = paths.basename(path);
+				let label: string;
 				if (!isFile) {
-					label = paths.basename(paths.dirname(path));
+					label = labels.getBaseLabel(paths.dirname(path));
+				} else {
+					label = labels.getBaseLabel(path);
 				}
 
 				actions.push(new ShowItemInFolderAction(path, label || paths.sep, this.windowsService));

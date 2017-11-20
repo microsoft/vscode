@@ -378,7 +378,7 @@ export function realcaseSync(path: string): string {
 		return path;
 	}
 
-	const name = paths.basename(path).toLowerCase();
+	const name = (paths.basename(path) /* can be '' for windows drive letters */ || path).toLowerCase();
 	try {
 		const entries = readdirSync(dir);
 		const found = entries.filter(e => e.toLowerCase() === name);	// use a case insensitive search

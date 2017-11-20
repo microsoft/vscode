@@ -30,7 +30,7 @@ import { IExtensionEnablementService, IExtensionManagementService, IExtensionGal
 import { used } from 'vs/workbench/parts/welcome/page/electron-browser/vs_code_welcome_page';
 import { ILifecycleService, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { tildify } from 'vs/base/common/labels';
+import { tildify, getBaseLabel } from 'vs/base/common/labels';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor, focusBorder, textLinkForeground, textLinkActiveForeground, foreground, descriptionForeground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughUtils';
@@ -286,7 +286,7 @@ class WelcomePage {
 				let parent: string;
 				let wsPath: string;
 				if (isSingleFolderWorkspaceIdentifier(workspace)) {
-					label = path.basename(workspace);
+					label = getBaseLabel(workspace);
 					parent = path.dirname(workspace);
 					wsPath = workspace;
 				} else {

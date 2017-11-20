@@ -33,6 +33,7 @@ import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppen
 import { mkdirp } from 'vs/base/node/pfs';
 import { IChoiceService } from 'vs/platform/message/common/message';
 import { ChoiceCliService } from 'vs/platform/message/node/messageCli';
+import { getBaseLabel } from 'vs/base/common/labels';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = (id: string) => localize('notInstalled', "Extension '{0}' is not installed.", id);
@@ -95,7 +96,7 @@ class Main {
 				const extension = path.isAbsolute(id) ? id : path.join(process.cwd(), id);
 
 				return this.extensionManagementService.install(extension).then(() => {
-					console.log(localize('successVsixInstall', "Extension '{0}' was successfully installed!", path.basename(extension)));
+					console.log(localize('successVsixInstall', "Extension '{0}' was successfully installed!", getBaseLabel(extension)));
 				});
 			});
 

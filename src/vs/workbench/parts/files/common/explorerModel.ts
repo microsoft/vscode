@@ -14,6 +14,7 @@ import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { getPathLabel } from 'vs/base/common/labels';
 
 export class Model {
 
@@ -78,7 +79,7 @@ export class FileStat implements IFileStat {
 
 	public isDirectoryResolved: boolean;
 
-	constructor(resource: URI, public root: FileStat, isDirectory?: boolean, hasChildren?: boolean, name: string = paths.basename(resource.fsPath), mtime?: number, etag?: string) {
+	constructor(resource: URI, public root: FileStat, isDirectory?: boolean, hasChildren?: boolean, name: string = getPathLabel(resource), mtime?: number, etag?: string) {
 		this.resource = resource;
 		this.name = name;
 		this.isDirectory = !!isDirectory;

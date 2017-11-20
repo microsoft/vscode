@@ -25,7 +25,6 @@ import { QuickOpenEntry, QuickOpenModel, QuickOpenEntryGroup, compareEntries, Qu
 import { QuickOpenWidget, HideReason } from 'vs/base/parts/quickopen/browser/quickOpenWidget';
 import { ContributableActionProvider } from 'vs/workbench/browser/actions';
 import labels = require('vs/base/common/labels');
-import paths = require('vs/base/common/paths');
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
@@ -57,6 +56,7 @@ import { ITree, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { FileKind, IFileService } from 'vs/platform/files/common/files';
 import { scoreItem, ScorerCache, compareItemsByScore, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
+import { getBaseLabel } from 'vs/base/common/labels';
 
 const HELP_PREFIX = '?';
 
@@ -1272,7 +1272,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		} else {
 			const resourceInput = input as IResourceInput;
 			this.resource = resourceInput.resource;
-			this.label = paths.basename(resourceInput.resource.fsPath);
+			this.label = getBaseLabel(resourceInput.resource);
 			this.description = labels.getPathLabel(resources.dirname(this.resource), contextService, environmentService);
 			this.dirty = this.resource && this.textFileService.isDirty(this.resource);
 

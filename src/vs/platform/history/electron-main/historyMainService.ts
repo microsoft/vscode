@@ -12,7 +12,7 @@ import { trim } from 'vs/base/common/strings';
 import { IStorageService } from 'vs/platform/storage/node/storage';
 import { app } from 'electron';
 import { ILogService } from 'vs/platform/log/common/log';
-import { getPathLabel } from 'vs/base/common/labels';
+import { getPathLabel, getBaseLabel } from 'vs/base/common/labels';
 import { IPath } from 'vs/platform/windows/common/windows';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import { isWindows, isMacintosh, isLinux } from 'vs/base/common/platform';
@@ -257,8 +257,8 @@ export class HistoryMainService implements IHistoryMainService {
 				type: 'custom',
 				name: nls.localize('recentFolders', "Recent Workspaces"),
 				items: this.getRecentlyOpened().workspaces.slice(0, 7 /* limit number of entries here */).map(workspace => {
-					const title = isSingleFolderWorkspaceIdentifier(workspace) ? path.basename(workspace) : getWorkspaceLabel(workspace, this.environmentService);
-					const description = isSingleFolderWorkspaceIdentifier(workspace) ? nls.localize('folderDesc', "{0} {1}", path.basename(workspace), getPathLabel(path.dirname(workspace))) : nls.localize('codeWorkspace', "Code Workspace");
+					const title = isSingleFolderWorkspaceIdentifier(workspace) ? getBaseLabel(workspace) : getWorkspaceLabel(workspace, this.environmentService);
+					const description = isSingleFolderWorkspaceIdentifier(workspace) ? nls.localize('folderDesc', "{0} {1}", getBaseLabel(workspace), getPathLabel(path.dirname(workspace))) : nls.localize('codeWorkspace', "Code Workspace");
 
 					return <Electron.JumpListItem>{
 						type: 'task',

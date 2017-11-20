@@ -39,6 +39,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { getBaseLabel } from 'vs/base/common/labels';
 
 export interface IEncodingOverride {
 	resource: uri;
@@ -1007,7 +1008,7 @@ export class StatResolver {
 		this.resource = resource;
 		this.isDirectory = isDirectory;
 		this.mtime = mtime;
-		this.name = paths.basename(resource.fsPath);
+		this.name = getBaseLabel(resource);
 		this.etag = etag(size, mtime);
 		this.size = size;
 

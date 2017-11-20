@@ -40,6 +40,7 @@ import { Schemas } from 'vs/base/common/network';
 import { massageFolderPathForWorkspace } from 'vs/platform/workspaces/node/workspaces';
 import { distinct } from 'vs/base/common/arrays';
 import { UserConfiguration } from 'vs/platform/configuration/node/configuration';
+import { getBaseLabel } from 'vs/base/common/labels';
 
 export class WorkspaceService extends Disposable implements IWorkspaceConfigurationService, IWorkspaceContextService {
 
@@ -335,7 +336,7 @@ export class WorkspaceService extends Disposable implements IWorkspaceConfigurat
 				const ctime = isLinux ? workspaceStat.ino : workspaceStat.birthtime.getTime(); // On Linux, birthtime is ctime, so we cannot use it! We use the ino instead!
 				const id = createHash('md5').update(folderPath.fsPath).update(ctime ? String(ctime) : '').digest('hex');
 				const folder = URI.file(folderPath.fsPath);
-				return new Workspace(id, paths.basename(folderPath.fsPath), toWorkspaceFolders([{ path: folder.fsPath }]), null, ctime);
+				return new Workspace(id, getBaseLabel(folder), toWorkspaceFolders([{ path: folder.fsPath }]), null, ctime);
 			});
 	}
 

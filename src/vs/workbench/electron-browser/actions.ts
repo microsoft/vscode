@@ -38,7 +38,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import * as os from 'os';
 import { webFrame } from 'electron';
-import { getPathLabel } from 'vs/base/common/labels';
+import { getPathLabel, getBaseLabel } from 'vs/base/common/labels';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IPanel } from 'vs/workbench/common/panel';
 import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
@@ -724,7 +724,7 @@ export abstract class BaseOpenRecentAction extends Action {
 			let description: string;
 			if (isSingleFolderWorkspaceIdentifier(workspace)) {
 				path = workspace;
-				label = paths.basename(path);
+				label = getBaseLabel(path);
 				description = getPathLabel(paths.dirname(path), null, environmentService);
 			} else {
 				path = workspace.configPath;

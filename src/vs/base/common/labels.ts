@@ -6,7 +6,7 @@
 
 import URI from 'vs/base/common/uri';
 import platform = require('vs/base/common/platform');
-import { nativeSep, normalize, isEqualOrParent, isEqual, basename, join } from 'vs/base/common/paths';
+import { nativeSep, normalize, isEqualOrParent, isEqual, basename as pathsBasename, join } from 'vs/base/common/paths';
 import { endsWith, ltrim } from 'vs/base/common/strings';
 
 export interface IWorkspaceFolderProvider {
@@ -46,7 +46,7 @@ export function getPathLabel(resource: URI | string, rootProvider?: IWorkspaceFo
 		}
 
 		if (hasMultipleRoots) {
-			const rootName = basename(baseResource.uri.fsPath);
+			const rootName = pathsBasename(baseResource.uri.fsPath);
 			pathLabel = pathLabel ? join(rootName, pathLabel) : rootName; // always show root basename if there are multiple
 		}
 
@@ -65,6 +65,26 @@ export function getPathLabel(resource: URI | string, rootProvider?: IWorkspaceFo
 	}
 
 	return res;
+}
+
+export function getBaseLabel(resource: URI | string): string {
+	if (!resource) {
+		return null;
+	}
+
+	if (typeof resource === 'string') {
+		resource = URI.file(resource);
+	}
+
+	let base = pathsBasename(resource.fsPath);
+
+	// Windows: basename('C:\') returns empty string, so make sure to always
+	// return the drive letter at least in that case.
+	if (!base) {
+		base = normalize(normalizeDriveLetter(resource.fsPath), true);
+	}
+
+	return base;
 }
 
 function hasDriveLetter(path: string): boolean {

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import paths = require('vs/base/common/paths');
 import objects = require('vs/base/common/objects');
 import strings = require('vs/base/common/strings');
 import errors = require('vs/base/common/errors');
@@ -25,6 +24,7 @@ import { IProgressRunner } from 'vs/platform/progress/common/progress';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import { overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { getBaseLabel } from 'vs/base/common/labels';
 
 export class Match {
 
@@ -302,7 +302,7 @@ export class FileMatch extends Disposable {
 	}
 
 	public name(): string {
-		return paths.basename(this.resource().fsPath);
+		return getBaseLabel(this.resource());
 	}
 
 	public add(match: Match, trigger?: boolean) {
@@ -379,7 +379,7 @@ export class FolderMatch extends Disposable {
 	}
 
 	public name(): string {
-		return paths.basename(this.resource().fsPath);
+		return getBaseLabel(this.resource());
 	}
 
 	public parent(): SearchResult {
