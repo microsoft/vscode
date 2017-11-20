@@ -9,7 +9,7 @@ import * as nls from 'vs/nls';
 import { isMacintosh, isLinux, isWindows, language } from 'vs/base/common/platform';
 import * as arrays from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ipcMain as ipc, app, shell, dialog, Menu, MenuItem, BrowserWindow } from 'electron';
+import { ipcMain as ipc, app, shell, dialog, Menu, MenuItem, BrowserWindow, clipboard } from 'electron';
 import { OpenContext, IRunActionInWindowRequest } from 'vs/platform/windows/common/windows';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { AutoSaveConfiguration } from 'vs/platform/files/common/files';
@@ -600,8 +600,7 @@ export class CodeMenu {
 	private setSelectionMenu(winLinuxEditMenu: Electron.Menu): void {
 		let multiCursorModifierLabel: string;
 		if (this.currentMultiCursorModifierSetting === 'ctrlCmd') {
-			// The default has been overwritten
-			multiCursorModifierLabel = nls.localize('miMultiCursorAlt', "Switch to Alt+Click for Multi-Cursor");
+			multiCursorModifierLabel = nls.localize('miMultiCursorAlt', "Switch to Alt+Click for Multi-Cursor"); // The default has been overwritten
 		} else {
 			multiCursorModifierLabel = (
 				isMacintosh
@@ -1001,26 +1000,20 @@ export class CodeMenu {
 		const showTasks = this.createMenuItem(nls.localize({ key: 'miRunningTask', comment: ['&& denotes a mnemonic'] }, "Show Runnin&&g Tasks..."), 'workbench.action.tasks.showTasks');
 		const restartTask = this.createMenuItem(nls.localize({ key: 'miRestartTask', comment: ['&& denotes a mnemonic'] }, "R&&estart Running Task..."), 'workbench.action.tasks.restartTask');
 		const terminateTask = this.createMenuItem(nls.localize({ key: 'miTerminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task..."), 'workbench.action.tasks.terminate');
-		// const testTask = this.createMenuItem(nls.localize({ key: 'miTestTask', comment: ['&& denotes a mnemonic'] }, "Run Test T&&ask..."), 'workbench.action.tasks.test');
-		// const showTaskLog = this.createMenuItem(nls.localize({ key: 'miShowTaskLog', comment: ['&& denotes a mnemonic'] }, "&&Show Task Log"), 'workbench.action.tasks.showLog');
 		const configureTask = this.createMenuItem(nls.localize({ key: 'miConfigureTask', comment: ['&& denotes a mnemonic'] }, "&&Configure Tasks..."), 'workbench.action.tasks.configureTaskRunner');
 		const configureBuildTask = this.createMenuItem(nls.localize({ key: 'miConfigureBuildTask', comment: ['&& denotes a mnemonic'] }, "Configure De&&fault Build Task..."), 'workbench.action.tasks.configureDefaultBuildTask');
-		// const configureTestTask = this.createMenuItem(nls.localize({ key: 'miConfigureTestTask', comment: ['&& denotes a mnemonic'] }, "Configure Defau&&lt Test Task"), 'workbench.action.tasks.configureDefaultTestTask');
 
 		[
 			//__separator__(),
 			runTask,
 			buildTask,
-			// testTask,
 			__separator__(),
 			terminateTask,
 			restartTask,
 			showTasks,
 			__separator__(),
-			//showTaskLog,
 			configureTask,
 			configureBuildTask
-			// configureTestTask
 		].forEach(item => taskMenu.append(item));
 	}
 
@@ -1200,23 +1193,29 @@ export class CodeMenu {
 	private openAboutDialog(): void {
 		const lastActiveWindow = this.windowsService.getFocusedWindow() || this.windowsService.getLastActiveWindow();
 
+		const detail = nls.localize('aboutDetail',
+			"Version {0}\nCommit {1}\nDate {2}\nShell {3}\nRenderer {4}\nNode {5}\nArchitecture {6}",
+			app.getVersion(),
+			product.commit || 'Unknown',
+			product.date || 'Unknown',
+			process.versions['electron'],
+			process.versions['chrome'],
+			process.versions['node'],
+			process.arch
+		);
+
 		dialog.showMessageBox(lastActiveWindow && lastActiveWindow.win, {
 			title: product.nameLong,
 			type: 'info',
 			message: product.nameLong,
-			detail: nls.localize('aboutDetail',
-				"\nVersion {0}\nCommit {1}\nDate {2}\nShell {3}\nRenderer {4}\nNode {5}\nArchitecture {6}",
-				app.getVersion(),
-				product.commit || 'Unknown',
-				product.date || 'Unknown',
-				process.versions['electron'],
-				process.versions['chrome'],
-				process.versions['node'],
-				process.arch
-			),
-			buttons: [nls.localize('okButton', "OK")],
+			detail: `\n${detail}`,
+			buttons: [nls.localize('okButton', "OK"), nls.localize('copyButton', "Copy")],
 			noLink: true
-		}, result => null);
+		}, result => {
+			if (result === 1) {
+				clipboard.writeText(detail);
+			}
+		});
 
 		this.reportMenuActionTelemetry('showAboutDialog');
 	}
