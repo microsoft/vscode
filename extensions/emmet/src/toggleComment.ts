@@ -34,7 +34,7 @@ export function toggleComment(): Thenable<boolean> | undefined {
 
 	return editor.edit(editBuilder => {
 		editor.selections.reverse().forEach(selection => {
-			let edits = toggleCommentInternal(editor.document, selection, rootNode);
+			let edits = toggleCommentInternal(editor.document, selection, rootNode!);
 			edits.forEach(x => {
 				editBuilder.replace(x.range, x.newText);
 			});

@@ -88,9 +88,9 @@ export function wrapIndividualLinesWithAbbreviation(args: any) {
 
 }
 
-export function expandEmmetAbbreviation(args: any): Thenable<boolean> {
+export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined> | undefined {
 	const syntax = getSyntaxFromArgs(args);
-	if (!syntax || !validate()) {
+	if (!syntax || !validate() || !vscode.window.activeTextEditor) {
 		return fallbackTab();
 	}
 
@@ -108,7 +108,7 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean> {
 	let allAbbreviationsSame: boolean = true;
 	const helper = getEmmetHelper();
 
-	let getAbbreviation = (document: vscode.TextDocument, selection: vscode.Selection, position: vscode.Position, syntax: string): [vscode.Range, string, string] => {
+	let getAbbreviation = (document: vscode.TextDocument, selection: vscode.Selection, position: vscode.Position, syntax: string): [vscode.Range | null, string, string] => {
 		let rangeToReplace: vscode.Range = selection;
 		let abbr = document.getText(rangeToReplace);
 		if (!rangeToReplace.isEmpty) {

@@ -7,7 +7,13 @@ import 'mocha';
 import * as assert from 'assert';
 import { Selection, workspace } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
-import { expandEmmetAbbreviation, wrapWithAbbreviation, wrapIndividualLinesWithAbbreviation } from '../abbreviationActions';
+import { expandEmmetAbbreviation as expandEmmetAbbreviationImpl, wrapWithAbbreviation, wrapIndividualLinesWithAbbreviation } from '../abbreviationActions';
+
+function expandEmmetAbbreviation(args): Thenable<boolean | undefined> {
+	const result = expandEmmetAbbreviationImpl(args);
+	assert.ok(result);
+	return result!;
+}
 
 const cssContents = `
 .boo {

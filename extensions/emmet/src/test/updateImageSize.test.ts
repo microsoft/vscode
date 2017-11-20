@@ -54,7 +54,7 @@ suite('Tests for Emmet actions on html tags', () => {
 				new Selection(11, 50, 11, 50)
 			];
 
-			return updateImageSize().then(() => {
+			return updateImageSize()!.then(() => {
 				assert.equal(doc.getText(), expectedContents);
 				return Promise.resolve();
 			});
@@ -111,7 +111,7 @@ suite('Tests for Emmet actions on html tags', () => {
 				new Selection(13, 50, 13, 50)
 			];
 
-			return updateImageSize().then(() => {
+			return updateImageSize()!.then(() => {
 				assert.equal(doc.getText(), expectedContents);
 				return Promise.resolve();
 			});
@@ -140,7 +140,7 @@ suite('Tests for Emmet actions on html tags', () => {
 				new Selection(4, 50, 4, 50)
 			];
 
-			return updateImageSize().then(() => {
+			return updateImageSize()!.then(() => {
 				assert.equal(doc.getText(), expectedContents);
 				return Promise.resolve();
 			});
