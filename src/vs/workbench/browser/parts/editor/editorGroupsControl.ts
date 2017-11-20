@@ -40,6 +40,7 @@ import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 
 export enum Rochade {
 	NONE,
@@ -134,7 +135,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 	private lastActiveEditor: BaseEditor;
 	private lastActivePosition: Position;
 
-	private visibleEditorFocusTrackers: DOM.IFocusTracker[];
+	private visibleEditorFocusTrackerDisposable: IDisposable[];
 
 	private _onGroupFocusChanged: Emitter<void>;
 
@@ -169,7 +170,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		this.silosMinimized = [];
 
 		this.visibleEditors = [];
-		this.visibleEditorFocusTrackers = [];
+		this.visibleEditorFocusTrackerDisposable = [];
 
 		this._onGroupFocusChanged = new Emitter<void>();
 		this.toUnbind.push(this._onGroupFocusChanged);
@@ -418,17 +419,17 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 	private trackFocus(editor: BaseEditor, position: Position): void {
 
 		// In case there is a previous tracker on the position, dispose it first
-		if (this.visibleEditorFocusTrackers[position]) {
-			this.visibleEditorFocusTrackers[position].dispose();
+		if (this.visibleEditorFocusTrackerDisposable[position]) {
+			this.visibleEditorFocusTrackerDisposable[position].dispose();
 		}
 
 		// Track focus on editor container
-		this.visibleEditorFocusTrackers[position] = DOM.trackFocus(editor.getContainer().getHTMLElement());
-
-		// TODO@ben: when is this listener disposed?
-		this.visibleEditorFocusTrackers[position].onDidFocus(() => {
+		const focusTracker = DOM.trackFocus(editor.getContainer().getHTMLElement());
+		const listenerDispose = focusTracker.onDidFocus(() => {
 			this.onFocusGained(editor);
 		});
+
+		this.visibleEditorFocusTrackerDisposable[position] = combinedDisposable([focusTracker, listenerDispose]);
 	}
 
 	private onFocusGained(editor: BaseEditor): void {
@@ -629,9 +630,9 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 	private clearPosition(position: Position): void {
 
 		// Unregister Listeners
-		if (this.visibleEditorFocusTrackers[position]) {
-			this.visibleEditorFocusTrackers[position].dispose();
-			this.visibleEditorFocusTrackers[position] = null;
+		if (this.visibleEditorFocusTrackerDisposable[position]) {
+			this.visibleEditorFocusTrackerDisposable[position].dispose();
+			this.visibleEditorFocusTrackerDisposable[position] = null;
 		}
 
 		// Clear from active editors
@@ -652,9 +653,9 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		editor.changePosition(to);
 
 		// Change data structures
-		const listeners = this.visibleEditorFocusTrackers[from];
-		this.visibleEditorFocusTrackers[to] = listeners;
-		this.visibleEditorFocusTrackers[from] = null;
+		const listeners = this.visibleEditorFocusTrackerDisposable[from];
+		this.visibleEditorFocusTrackerDisposable[to] = listeners;
+		this.visibleEditorFocusTrackerDisposable[from] = null;
 
 		const minimizedState = this.silosMinimized[from];
 		this.silosMinimized[to] = minimizedState;
@@ -738,7 +739,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 		// Change data structures
 		arrays.move(this.visibleEditors, from, to);
-		arrays.move(this.visibleEditorFocusTrackers, from, to);
+		arrays.move(this.visibleEditorFocusTrackerDisposable, from, to);
 		arrays.move(this.silosSize, from, to);
 		arrays.move(this.silosMinimized, from, to);
 
