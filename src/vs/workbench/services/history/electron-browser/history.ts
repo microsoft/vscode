@@ -29,7 +29,7 @@ import { getExcludes, ISearchConfiguration } from 'vs/platform/search/common/sea
 import { IExpression } from 'vs/base/common/glob';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
+import { ResourceGlobMatcher } from 'vs/workbench/electron-browser/resources';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.

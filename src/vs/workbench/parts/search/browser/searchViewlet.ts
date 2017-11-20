@@ -904,7 +904,7 @@ export class SearchViewlet extends Viewlet {
 		if (resource) {
 			if (this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 				// Show relative path from the root for single-root mode
-				folderPath = paths.relative(workspace.folders[0].uri.fsPath, resource.fsPath);
+				folderPath = paths.normalize(pathToRelative(workspace.folders[0].uri.fsPath, resource.fsPath));
 				if (folderPath && folderPath !== '.') {
 					folderPath = './' + folderPath;
 				}

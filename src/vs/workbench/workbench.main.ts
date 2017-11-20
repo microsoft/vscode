@@ -36,9 +36,9 @@ import 'vs/workbench/browser/parts/quickopen/quickopen.contribution';
 import 'vs/workbench/parts/quickopen/browser/quickopen.contribution';
 import 'vs/workbench/browser/parts/editor/editorPicker';
 
-import 'vs/workbench/parts/files/browser/explorerViewlet';
-import 'vs/workbench/parts/files/browser/fileActions.contribution';
-import 'vs/workbench/parts/files/browser/files.contribution';
+import 'vs/workbench/parts/files/electron-browser/explorerViewlet';
+import 'vs/workbench/parts/files/electron-browser/fileActions.contribution';
+import 'vs/workbench/parts/files/electron-browser/files.contribution';
 
 import 'vs/workbench/parts/backup/common/backup.contribution';
 

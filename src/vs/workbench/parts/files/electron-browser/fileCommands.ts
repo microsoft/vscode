@@ -16,7 +16,7 @@ import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ExplorerViewlet } from 'vs/workbench/parts/files/browser/explorerViewlet';
+import { ExplorerViewlet } from 'vs/workbench/parts/files/electron-browser/explorerViewlet';
 import { VIEWLET_ID, explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
 import { FileStat, OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
 import errors = require('vs/base/common/errors');

@@ -11,13 +11,13 @@ import { IActionRunner } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
 import { Builder } from 'vs/base/browser/builder';
-import { VIEWLET_ID, ExplorerViewletVisibleContext, IFilesConfiguration, OpenEditorsVisibleContext, OpenEditorsVisibleCondition } from 'vs/workbench/parts/files/common/files';
+import { VIEWLET_ID, ExplorerViewletVisibleContext, IFilesConfiguration, OpenEditorsVisibleContext, OpenEditorsVisibleCondition, IExplorerViewlet } from 'vs/workbench/parts/files/common/files';
 import { PersistentViewsViewlet, ViewsViewletPanel, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { ActionRunner, FileViewletState } from 'vs/workbench/parts/files/browser/views/explorerViewer';
-import { ExplorerView, IExplorerViewOptions } from 'vs/workbench/parts/files/browser/views/explorerView';
-import { EmptyView } from 'vs/workbench/parts/files/browser/views/emptyView';
-import { OpenEditorsView } from 'vs/workbench/parts/files/browser/views/openEditorsView';
+import { ActionRunner, FileViewletState } from 'vs/workbench/parts/files/electron-browser/views/explorerViewer';
+import { ExplorerView, IExplorerViewOptions } from 'vs/workbench/parts/files/electron-browser/views/explorerView';
+import { EmptyView } from 'vs/workbench/parts/files/electron-browser/views/emptyView';
+import { OpenEditorsView } from 'vs/workbench/parts/files/electron-browser/views/openEditorsView';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
@@ -33,7 +33,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ViewsRegistry, ViewLocation, IViewDescriptor } from 'vs/workbench/browser/parts/views/viewsRegistry';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
-export class ExplorerViewlet extends PersistentViewsViewlet {
+export class ExplorerViewlet extends PersistentViewsViewlet implements IExplorerViewlet {
 
 	private static EXPLORER_VIEWS_STATE = 'workbench.explorer.views.state';
 
