@@ -23,7 +23,7 @@ import * as nls from 'vscode-nls';
 nls.config(process.env['VSCODE_NLS_CONFIG']);
 
 namespace TagCloseRequest {
-	export const type: RequestType<TextDocumentPositionParams, string, any, any> = new RequestType('html/tag');
+	export const type: RequestType<TextDocumentPositionParams, string | null, any, any> = new RequestType('html/tag');
 }
 
 // Create a connection for the server
