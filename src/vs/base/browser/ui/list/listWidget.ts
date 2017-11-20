@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./list';
-import { IDisposable, dispose, empty as EmptyDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
-import { range } from 'vs/base/common/arrays';
-import { once } from 'vs/base/common/functional';
+import { range, firstIndex } from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
 import * as DOM from 'vs/base/browser/dom';
 import * as platform from 'vs/base/common/platform';
@@ -41,19 +40,16 @@ interface ITraitChangeEvent {
 	indexes: number[];
 }
 
-interface ITraitTemplateData {
-	container: HTMLElement;
-	elementDisposable: IDisposable;
-}
+type ITraitTemplateData = HTMLElement;
 
-interface IRenderedElement {
+interface IRenderedContainer {
 	templateData: ITraitTemplateData;
 	index: number;
 }
 
 class TraitRenderer<T> implements IRenderer<T, ITraitTemplateData>
 {
-	private rendered: IRenderedElement[] = [];
+	private renderedElements: IRenderedContainer[] = [];
 
 	constructor(private trait: Trait<T>) { }
 
@@ -62,38 +58,59 @@ class TraitRenderer<T> implements IRenderer<T, ITraitTemplateData>
 	}
 
 	renderTemplate(container: HTMLElement): ITraitTemplateData {
-		const elementDisposable = EmptyDisposable;
-		return { container, elementDisposable };
+		return container;
 	}
 
 	renderElement(element: T, index: number, templateData: ITraitTemplateData): void {
-		templateData.elementDisposable.dispose();
+		const renderedElementIndex = firstIndex(this.renderedElements, el => el.templateData === templateData);
 
-		const rendered = { index, templateData };
-		this.rendered.push(rendered);
-		templateData.elementDisposable = toDisposable(once(() => this.rendered.splice(this.rendered.indexOf(rendered), 1)));
+		if (renderedElementIndex >= 0) {
+			const rendered = this.renderedElements[renderedElementIndex];
+			this.trait.unrender(templateData);
+			rendered.index = index;
+		} else {
+			const rendered = { index, templateData };
+			this.renderedElements.push(rendered);
+		}
 
-		this.trait.renderIndex(index, templateData.container);
+		this.trait.renderIndex(index, templateData);
+	}
+
+	splice(start: number, deleteCount: number, insertCount: number): void {
+		const rendered: IRenderedContainer[] = [];
+
+		for (let i = 0; i < this.renderedElements.length; i++) {
+			const renderedElement = this.renderedElements[i];
+
+			if (renderedElement.index < start) {
+				rendered.push(renderedElement);
+			} else if (renderedElement.index >= start + deleteCount) {
+				rendered.push({
+					index: renderedElement.index + insertCount - deleteCount,
+					templateData: renderedElement.templateData
+				});
+			}
+		}
+
+		this.renderedElements = rendered;
 	}
 
 	renderIndexes(indexes: number[]): void {
-		for (const { index, templateData } of this.rendered) {
+		for (const { index, templateData } of this.renderedElements) {
 			if (indexes.indexOf(index) > -1) {
-				this.trait.renderIndex(index, templateData.container);
-			}
-		}
-	}
-
-	splice(start: number, deleteCount: number): void {
-		for (const { index, templateData } of this.rendered) {
-			if (index >= start && index < start + deleteCount) {
-				templateData.elementDisposable.dispose();
+				this.trait.renderIndex(index, templateData);
 			}
 		}
 	}
 
 	disposeTemplate(templateData: ITraitTemplateData): void {
-		templateData.elementDisposable.dispose();
+		const index = firstIndex(this.renderedElements, el => el.templateData === templateData);
+
+		if (index < 0) {
+			return;
+		}
+
+		this.renderedElements.splice(index, 1);
 	}
 }
 
@@ -127,12 +144,16 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 			...this.indexes.filter(i => i >= end).map(i => i + diff)
 		];
 
-		this.renderer.splice(start, deleteCount);
+		this.renderer.splice(start, deleteCount, elements.length);
 		this.set(indexes);
 	}
 
 	renderIndex(index: number, container: HTMLElement): void {
 		DOM.toggleClass(container, this._trait, this.contains(index));
+	}
+
+	unrender(container: HTMLElement): void {
+		DOM.removeClass(container, this._trait);
 	}
 
 	/**
