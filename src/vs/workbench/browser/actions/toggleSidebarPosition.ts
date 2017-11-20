@@ -18,7 +18,7 @@ export class ToggleSidebarPositionAction extends Action {
 	public static readonly ID = 'workbench.action.toggleSidebarPosition';
 	public static readonly LABEL = nls.localize('toggleLocation', "Toggle Side Bar Location");
 
-	private static sidebarPositionConfigurationKey = 'workbench.sideBar.location';
+	private static readonly sidebarPositionConfigurationKey = 'workbench.sideBar.location';
 
 	constructor(
 		id: string,

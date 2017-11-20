@@ -18,7 +18,7 @@ export class ToggleActivityBarVisibilityAction extends Action {
 	public static readonly ID = 'workbench.action.toggleActivityBarVisibility';
 	public static readonly LABEL = nls.localize('toggleActivityBar', "Toggle Activity Bar Visibility");
 
-	private static activityBarVisibleKey = 'workbench.activityBar.visible';
+	private static readonly activityBarVisibleKey = 'workbench.activityBar.visible';
 
 	constructor(
 		id: string,

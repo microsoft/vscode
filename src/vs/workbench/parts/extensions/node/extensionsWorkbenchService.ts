@@ -314,7 +314,7 @@ function toTelemetryEventName(operation: Operation) {
 
 export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
-	private static SyncPeriod = 1000 * 60 * 60 * 12; // 12 hours
+	private static readonly SyncPeriod = 1000 * 60 * 60 * 12; // 12 hours
 
 	_serviceBrand: any;
 	private stateProvider: IExtensionStateProvider;

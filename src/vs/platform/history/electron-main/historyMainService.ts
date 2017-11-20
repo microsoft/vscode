@@ -28,10 +28,10 @@ export interface ILegacyRecentlyOpened extends IRecentlyOpened {
 
 export class HistoryMainService implements IHistoryMainService {
 
-	private static MAX_TOTAL_RECENT_ENTRIES = 100;
-	private static MAX_MACOS_DOCK_RECENT_ENTRIES = 10;
+	private static readonly MAX_TOTAL_RECENT_ENTRIES = 100;
+	private static readonly MAX_MACOS_DOCK_RECENT_ENTRIES = 10;
 
-	private static recentlyOpenedStorageKey = 'openedPathsList';
+	private static readonly recentlyOpenedStorageKey = 'openedPathsList';
 
 	_serviceBrand: any;
 

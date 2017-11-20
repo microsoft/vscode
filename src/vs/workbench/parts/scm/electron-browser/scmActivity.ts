@@ -18,7 +18,7 @@ import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment }
 
 export class StatusUpdater implements IWorkbenchContribution {
 
-	private static ID = 'vs.scm.statusUpdater';
+	private static readonly ID = 'vs.scm.statusUpdater';
 
 	private badgeDisposable: IDisposable = EmptyDisposable;
 	private disposables: IDisposable[] = [];
@@ -78,7 +78,7 @@ export class StatusUpdater implements IWorkbenchContribution {
 
 export class StatusBarController implements IWorkbenchContribution {
 
-	private static ID = 'vs.scm.statusBarController';
+	private static readonly ID = 'vs.scm.statusBarController';
 
 	private statusBarDisposable: IDisposable = EmptyDisposable;
 	private focusDisposable: IDisposable = EmptyDisposable;

@@ -454,7 +454,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 export class DirtyDiffController implements IEditorContribution {
 
-	private static ID = 'editor.contrib.dirtydiff';
+	private static readonly ID = 'editor.contrib.dirtydiff';
 
 	static get(editor: ICodeEditor): DirtyDiffController {
 		return editor.getContribution<DirtyDiffController>(DirtyDiffController.ID);

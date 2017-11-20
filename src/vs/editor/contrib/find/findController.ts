@@ -58,7 +58,7 @@ export interface IFindStartOptions {
 
 export class CommonFindController extends Disposable implements editorCommon.IEditorContribution {
 
-	private static ID = 'editor.contrib.findController';
+	private static readonly ID = 'editor.contrib.findController';
 
 	protected _editor: ICodeEditor;
 	private _findWidgetVisible: IContextKey<boolean>;

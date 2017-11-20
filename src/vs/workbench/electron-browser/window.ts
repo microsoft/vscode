@@ -60,7 +60,7 @@ const TextInputActions: IAction[] = [
 
 export class ElectronWindow extends Themable {
 
-	private static AUTO_SAVE_SETTING = 'files.autoSave';
+	private static readonly AUTO_SAVE_SETTING = 'files.autoSave';
 
 	private touchBarUpdater: RunOnceScheduler;
 	private touchBarMenu: IMenu;

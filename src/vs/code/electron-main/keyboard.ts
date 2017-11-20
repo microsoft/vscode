@@ -48,7 +48,7 @@ export interface IKeybinding {
 
 export class KeybindingsResolver {
 
-	private static lastKnownKeybindingsMapStorageKey = 'lastKnownKeybindings';
+	private static readonly lastKnownKeybindingsMapStorageKey = 'lastKnownKeybindings';
 
 	private commandIds: Set<string>;
 	private keybindings: { [commandId: string]: IKeybinding };

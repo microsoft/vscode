@@ -255,8 +255,8 @@ interface ITreeExplorerTemplateData {
 
 class TreeRenderer implements IRenderer {
 
-	private static ITEM_HEIGHT = 22;
-	private static TREE_TEMPLATE_ID = 'treeExplorer';
+	private static readonly ITEM_HEIGHT = 22;
+	private static readonly TREE_TEMPLATE_ID = 'treeExplorer';
 
 	constructor( @IThemeService private themeService: IThemeService) {
 	}

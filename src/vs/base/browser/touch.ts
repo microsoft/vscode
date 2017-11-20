@@ -67,8 +67,8 @@ interface TouchEvent extends Event {
 
 export class Gesture implements IDisposable {
 
-	private static HOLD_DELAY = 700;
-	private static SCROLL_FRICTION = -0.005;
+	private static readonly HOLD_DELAY = 700;
+	private static readonly SCROLL_FRICTION = -0.005;
 
 	private targetElement: HTMLElement;
 	private callOnTarget: IDisposable[];

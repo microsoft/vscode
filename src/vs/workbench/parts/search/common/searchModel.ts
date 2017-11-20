@@ -93,7 +93,7 @@ export class Match {
 
 export class FileMatch extends Disposable {
 
-	private static _CURRENT_FIND_MATCH = ModelDecorationOptions.register({
+	private static readonly _CURRENT_FIND_MATCH = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'currentFindMatch',
 		overviewRuler: {
@@ -103,7 +103,7 @@ export class FileMatch extends Disposable {
 		}
 	});
 
-	private static _FIND_MATCH = ModelDecorationOptions.register({
+	private static readonly _FIND_MATCH = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'findMatch',
 		overviewRuler: {
@@ -919,7 +919,7 @@ export class RangeHighlightDecorations implements IDisposable {
 		}
 	}
 
-	private static _RANGE_HIGHLIGHT_DECORATION = ModelDecorationOptions.register({
+	private static readonly _RANGE_HIGHLIGHT_DECORATION = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'rangeHighlight',
 		isWholeLine: true

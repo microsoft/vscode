@@ -38,7 +38,7 @@ const telemetryFrom = 'menu';
 
 export class CodeMenu {
 
-	private static MAX_MENU_RECENT_ENTRIES = 10;
+	private static readonly MAX_MENU_RECENT_ENTRIES = 10;
 
 	private keys = [
 		'files.autoSave',

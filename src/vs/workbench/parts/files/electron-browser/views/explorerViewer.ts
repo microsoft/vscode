@@ -272,8 +272,8 @@ export interface IFileTemplateData {
 // Explorer Renderer
 export class FileRenderer implements IRenderer {
 
-	private static ITEM_HEIGHT = 22;
-	private static FILE_TEMPLATE_ID = 'file';
+	private static readonly ITEM_HEIGHT = 22;
+	private static readonly FILE_TEMPLATE_ID = 'file';
 
 	private state: FileViewletState;
 	private config: IFilesConfiguration;
@@ -670,7 +670,7 @@ export class FileSorter implements ISorter {
 // Explorer Filter
 export class FileFilter implements IFilter {
 
-	private static MAX_SIBLINGS_FILTER_THRESHOLD = 2000;
+	private static readonly MAX_SIBLINGS_FILTER_THRESHOLD = 2000;
 
 	private hiddenExpressionPerRoot: Map<string, glob.IExpression>;
 	private workspaceFolderChangeListener: IDisposable;
@@ -733,7 +733,7 @@ export class FileFilter implements IFilter {
 // Explorer Drag And Drop Controller
 export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 
-	private static CONFIRM_DND_SETTING_KEY = 'explorer.confirmDragAndDrop';
+	private static readonly CONFIRM_DND_SETTING_KEY = 'explorer.confirmDragAndDrop';
 
 	private toDispose: IDisposable[];
 	private dropEnabled: boolean;

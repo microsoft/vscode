@@ -158,7 +158,7 @@ export class WorkspaceConfiguration extends Disposable {
 
 export class FolderConfiguration extends Disposable {
 
-	private static RELOAD_CONFIGURATION_DELAY = 50;
+	private static readonly RELOAD_CONFIGURATION_DELAY = 50;
 
 	private bulkFetchFromWorkspacePromise: TPromise;
 	private workspaceFilePathToConfiguration: { [relativeWorkspacePath: string]: TPromise<ConfigurationModelParser> };

@@ -13,7 +13,7 @@ import product from 'vs/platform/node/product';
 
 export class GettingStarted implements IWorkbenchContribution {
 
-	private static hideWelcomeSettingskey = 'workbench.hide.welcome';
+	private static readonly hideWelcomeSettingskey = 'workbench.hide.welcome';
 
 	private welcomePageURL: string;
 	private appName: string;

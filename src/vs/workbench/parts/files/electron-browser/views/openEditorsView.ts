@@ -38,8 +38,8 @@ const $ = dom.$;
 
 export class OpenEditorsView extends ViewsViewletPanel {
 
-	private static DEFAULT_VISIBLE_OPEN_EDITORS = 9;
-	private static DEFAULT_DYNAMIC_HEIGHT = true;
+	private static readonly DEFAULT_VISIBLE_OPEN_EDITORS = 9;
+	private static readonly DEFAULT_DYNAMIC_HEIGHT = true;
 	static ID = 'workbench.explorer.openEditorsView';
 	static NAME = nls.localize({ key: 'openEditors', comment: ['Open is an adjective'] }, "Open Editors");
 

@@ -57,7 +57,7 @@ export interface EmitterOptions {
  */
 export class Emitter<T> {
 
-	private static _noop = function () { };
+	private static readonly _noop = function () { };
 
 	private _event: Event<T>;
 	private _listeners: LinkedList<Listener>;

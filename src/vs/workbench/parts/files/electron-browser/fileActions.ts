@@ -626,7 +626,7 @@ export class CreateFolderAction extends BaseCreateAction {
 
 export class BaseDeleteFileAction extends BaseFileAction {
 
-	private static CONFIRM_DELETE_SETTING_KEY = 'explorer.confirmDelete';
+	private static readonly CONFIRM_DELETE_SETTING_KEY = 'explorer.confirmDelete';
 
 	private tree: ITree;
 	private useTrash: boolean;
@@ -1994,7 +1994,7 @@ export class CompareWithSavedAction extends Action {
 	public static readonly ID = 'workbench.files.action.compareWithSaved';
 	public static readonly LABEL = nls.localize('compareWithSaved', "Compare Active File with Saved");
 
-	private static SCHEME = 'showModifications';
+	private static readonly SCHEME = 'showModifications';
 
 	private resource: URI;
 	private toDispose: IDisposable[];
@@ -2052,7 +2052,7 @@ export class CompareWithClipboardAction extends Action {
 	public static readonly ID = 'workbench.files.action.compareWithClipboard';
 	public static readonly LABEL = nls.localize('compareWithClipboard', "Compare Active File with Clipboard");
 
-	private static SCHEME = 'clipboardCompare';
+	private static readonly SCHEME = 'clipboardCompare';
 
 	private registrationDisposal: IDisposable;
 

@@ -26,7 +26,7 @@ import { FileKind } from 'vs/platform/files/common/files';
 
 export class SearchDataSource implements IDataSource {
 
-	private static AUTOEXPAND_CHILD_LIMIT = 10;
+	private static readonly AUTOEXPAND_CHILD_LIMIT = 10;
 
 	private includeFolderMatch: boolean;
 	private listener: IDisposable;
@@ -148,9 +148,9 @@ interface IMatchTemplate {
 
 export class SearchRenderer extends Disposable implements IRenderer {
 
-	private static FOLDER_MATCH_TEMPLATE_ID = 'folderMatch';
-	private static FILE_MATCH_TEMPLATE_ID = 'fileMatch';
-	private static MATCH_TEMPLATE_ID = 'match';
+	private static readonly FOLDER_MATCH_TEMPLATE_ID = 'folderMatch';
+	private static readonly FILE_MATCH_TEMPLATE_ID = 'fileMatch';
+	private static readonly MATCH_TEMPLATE_ID = 'match';
 
 	constructor(
 		actionRunner: IActionRunner,

@@ -19,7 +19,7 @@ import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursor
 
 export class SelectionClipboard extends Disposable implements IEditorContribution {
 
-	private static ID = 'editor.contrib.selectionClipboard';
+	private static readonly ID = 'editor.contrib.selectionClipboard';
 
 	constructor(editor: ICodeEditor, @IContextKeyService contextKeyService: IContextKeyService) {
 		super();

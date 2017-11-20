@@ -78,8 +78,8 @@ export class StringIterator implements IKeyIterator {
 
 export class PathIterator implements IKeyIterator {
 
-	private static _fwd = '/'.charCodeAt(0);
-	private static _bwd = '\\'.charCodeAt(0);
+	private static readonly _fwd = '/'.charCodeAt(0);
+	private static readonly _bwd = '\\'.charCodeAt(0);
 
 	private _value: string;
 	private _from: number;

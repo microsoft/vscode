@@ -113,12 +113,12 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 
 	public static readonly ID = 'workbench.picker.anything';
 
-	private static LINE_COLON_PATTERN = /[#|:|\(](\d*)([#|:|,](\d*))?\)?$/;
+	private static readonly LINE_COLON_PATTERN = /[#|:|\(](\d*)([#|:|,](\d*))?\)?$/;
 
-	private static FILE_SEARCH_DELAY = 300;
-	private static SYMBOL_SEARCH_DELAY = 500; // go easier on those symbols!
+	private static readonly FILE_SEARCH_DELAY = 300;
+	private static readonly SYMBOL_SEARCH_DELAY = 500; // go easier on those symbols!
 
-	private static MAX_DISPLAYED_RESULTS = 512;
+	private static readonly MAX_DISPLAYED_RESULTS = 512;
 
 	private openSymbolHandler: OpenSymbolHandler;
 	private openFileHandler: OpenFileHandler;

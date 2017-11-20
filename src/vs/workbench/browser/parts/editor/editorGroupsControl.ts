@@ -97,17 +97,17 @@ export interface IEditorGroupsControl {
  */
 export class EditorGroupsControl extends Themable implements IEditorGroupsControl, IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider {
 
-	private static TITLE_AREA_CONTROL_KEY = '__titleAreaControl';
-	private static PROGRESS_BAR_CONTROL_KEY = '__progressBar';
-	private static INSTANTIATION_SERVICE_KEY = '__instantiationService';
+	private static readonly TITLE_AREA_CONTROL_KEY = '__titleAreaControl';
+	private static readonly PROGRESS_BAR_CONTROL_KEY = '__progressBar';
+	private static readonly INSTANTIATION_SERVICE_KEY = '__instantiationService';
 
-	private static MIN_EDITOR_WIDTH = 170;
-	private static MIN_EDITOR_HEIGHT = 70;
+	private static readonly MIN_EDITOR_WIDTH = 170;
+	private static readonly MIN_EDITOR_HEIGHT = 70;
 
-	private static EDITOR_TITLE_HEIGHT = 35;
+	private static readonly EDITOR_TITLE_HEIGHT = 35;
 
-	private static SNAP_TO_MINIMIZED_THRESHOLD_WIDTH = 50;
-	private static SNAP_TO_MINIMIZED_THRESHOLD_HEIGHT = 20;
+	private static readonly SNAP_TO_MINIMIZED_THRESHOLD_WIDTH = 50;
+	private static readonly SNAP_TO_MINIMIZED_THRESHOLD_HEIGHT = 20;
 
 	private stacks: IEditorStacksModel;
 

@@ -170,7 +170,7 @@ export class ParameterHintsModel extends Disposable {
 
 export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
-	private static ID = 'editor.widget.parameterHintsWidget';
+	private static readonly ID = 'editor.widget.parameterHintsWidget';
 
 	private markdownRenderer: MarkdownRenderer;
 	private model: ParameterHintsModel;

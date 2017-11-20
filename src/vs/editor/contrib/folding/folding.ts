@@ -549,7 +549,7 @@ class UnfoldAllAction extends FoldingAction<void> {
 }
 
 class FoldLevelAction extends FoldingAction<void> {
-	private static ID_PREFIX = 'editor.foldLevel';
+	private static readonly ID_PREFIX = 'editor.foldLevel';
 	public static readonly ID = (level: number) => FoldLevelAction.ID_PREFIX + level;
 
 	private getFoldingLevel() {

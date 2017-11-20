@@ -35,7 +35,7 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 
 	public _serviceBrand: any;
 
-	private static INFO_MESSAGE_KEY = 'enterWorkspace.message';
+	private static readonly INFO_MESSAGE_KEY = 'enterWorkspace.message';
 
 	constructor(
 		@IJSONEditingService private jsonEditingService: IJSONEditingService,

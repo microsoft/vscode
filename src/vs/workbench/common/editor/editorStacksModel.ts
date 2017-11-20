@@ -700,7 +700,7 @@ interface ISerializedEditorStacksModel {
 
 export class EditorStacksModel implements IEditorStacksModel {
 
-	private static STORAGE_KEY = 'editorStacks.model';
+	private static readonly STORAGE_KEY = 'editorStacks.model';
 
 	private toDispose: IDisposable[];
 	private loaded: boolean;

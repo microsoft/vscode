@@ -35,7 +35,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 
 export class ExplorerViewlet extends PersistentViewsViewlet implements IExplorerViewlet {
 
-	private static EXPLORER_VIEWS_STATE = 'workbench.explorer.views.state';
+	private static readonly EXPLORER_VIEWS_STATE = 'workbench.explorer.views.state';
 
 	private viewletState: FileViewletState;
 	private viewletVisibleContextKey: IContextKey<boolean>;

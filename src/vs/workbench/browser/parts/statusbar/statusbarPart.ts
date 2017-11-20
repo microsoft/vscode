@@ -36,8 +36,8 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 	public _serviceBrand: any;
 
-	private static PRIORITY_PROP = 'priority';
-	private static ALIGNMENT_PROP = 'alignment';
+	private static readonly PRIORITY_PROP = 'priority';
+	private static readonly ALIGNMENT_PROP = 'alignment';
 
 	private statusItemsContainer: Builder;
 	private statusMsgDispose: IDisposable;

@@ -372,7 +372,7 @@ export class AutoIndentOnPasteCommand implements ICommand {
 }
 
 export class AutoIndentOnPaste implements IEditorContribution {
-	private static ID = 'editor.contrib.autoIndentOnPaste';
+	private static readonly ID = 'editor.contrib.autoIndentOnPaste';
 
 	private editor: ICodeEditor;
 	private callOnDispose: IDisposable[];

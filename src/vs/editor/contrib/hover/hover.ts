@@ -26,7 +26,7 @@ import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 
 export class ModesHoverController implements editorCommon.IEditorContribution {
 
-	private static ID = 'editor.contrib.hover';
+	private static readonly ID = 'editor.contrib.hover';
 
 	private _editor: ICodeEditor;
 	private _toUnhook: IDisposable[];

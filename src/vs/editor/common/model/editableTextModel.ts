@@ -727,7 +727,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		});
 	}
 
-	private static _DECORATION_OPTION = ModelDecorationOptions.register({
+	private static readonly _DECORATION_OPTION = ModelDecorationOptions.register({
 		stickiness: editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
 	});
 

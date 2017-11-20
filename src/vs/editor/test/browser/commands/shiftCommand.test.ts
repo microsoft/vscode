@@ -30,7 +30,7 @@ export function createSingleEditOp(text: string, positionLineNumber: number, pos
 
 class DocBlockCommentMode extends MockMode {
 
-	private static _id = new LanguageIdentifier('commentMode', 3);
+	private static readonly _id = new LanguageIdentifier('commentMode', 3);
 
 	constructor() {
 		super(DocBlockCommentMode._id);

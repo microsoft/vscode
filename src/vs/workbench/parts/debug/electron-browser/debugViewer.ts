@@ -444,11 +444,11 @@ interface IStackFrameTemplateData {
 
 export class CallStackRenderer implements IRenderer {
 
-	private static THREAD_TEMPLATE_ID = 'thread';
-	private static STACK_FRAME_TEMPLATE_ID = 'stackFrame';
-	private static ERROR_TEMPLATE_ID = 'error';
-	private static LOAD_MORE_TEMPLATE_ID = 'loadMore';
-	private static PROCESS_TEMPLATE_ID = 'process';
+	private static readonly THREAD_TEMPLATE_ID = 'thread';
+	private static readonly STACK_FRAME_TEMPLATE_ID = 'stackFrame';
+	private static readonly ERROR_TEMPLATE_ID = 'error';
+	private static readonly LOAD_MORE_TEMPLATE_ID = 'loadMore';
+	private static readonly PROCESS_TEMPLATE_ID = 'process';
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
@@ -691,8 +691,8 @@ export interface IVariableTemplateData {
 
 export class VariablesRenderer implements IRenderer {
 
-	private static SCOPE_TEMPLATE_ID = 'scope';
-	private static VARIABLE_TEMPLATE_ID = 'variable';
+	private static readonly SCOPE_TEMPLATE_ID = 'scope';
+	private static readonly VARIABLE_TEMPLATE_ID = 'variable';
 
 	constructor(
 		@debug.IDebugService private debugService: debug.IDebugService,
@@ -883,8 +883,8 @@ interface IWatchExpressionTemplateData {
 
 export class WatchExpressionsRenderer implements IRenderer {
 
-	private static WATCH_EXPRESSION_TEMPLATE_ID = 'watchExpression';
-	private static VARIABLE_TEMPLATE_ID = 'variables';
+	private static readonly WATCH_EXPRESSION_TEMPLATE_ID = 'watchExpression';
+	private static readonly VARIABLE_TEMPLATE_ID = 'variables';
 	private toDispose: lifecycle.IDisposable[];
 
 	constructor(
@@ -1124,9 +1124,9 @@ interface IBreakpointTemplateData extends IBaseBreakpointTemplateData {
 
 export class BreakpointsRenderer implements IRenderer {
 
-	private static EXCEPTION_BREAKPOINT_TEMPLATE_ID = 'exceptionBreakpoint';
-	private static FUNCTION_BREAKPOINT_TEMPLATE_ID = 'functionBreakpoint';
-	private static BREAKPOINT_TEMPLATE_ID = 'breakpoint';
+	private static readonly EXCEPTION_BREAKPOINT_TEMPLATE_ID = 'exceptionBreakpoint';
+	private static readonly FUNCTION_BREAKPOINT_TEMPLATE_ID = 'functionBreakpoint';
+	private static readonly BREAKPOINT_TEMPLATE_ID = 'breakpoint';
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,

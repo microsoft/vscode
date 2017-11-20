@@ -81,8 +81,8 @@ interface IEditorGroupTemplateData {
 export class Renderer implements IRenderer {
 
 	public static readonly ITEM_HEIGHT = 22;
-	private static EDITOR_GROUP_TEMPLATE_ID = 'editorgroup';
-	private static OPEN_EDITOR_TEMPLATE_ID = 'openeditor';
+	private static readonly EDITOR_GROUP_TEMPLATE_ID = 'editorgroup';
+	private static readonly OPEN_EDITOR_TEMPLATE_ID = 'openeditor';
 
 	constructor(
 		private actionProvider: ActionProvider,

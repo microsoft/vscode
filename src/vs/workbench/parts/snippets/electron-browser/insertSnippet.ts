@@ -39,7 +39,7 @@ class Args {
 		return new Args(snippet, name, langId);
 	}
 
-	private static _empty = new Args(undefined, undefined, undefined);
+	private static readonly _empty = new Args(undefined, undefined, undefined);
 
 	private constructor(
 		public readonly snippet: string,

@@ -23,7 +23,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 
 class UnsupportedWorkspaceSettingsContribution implements IWorkbenchContribution {
 
-	private static storageKey = 'workspace.settings.unsupported.warning';
+	private static readonly storageKey = 'workspace.settings.unsupported.warning';
 	private toDispose: IDisposable[] = [];
 	private isUntrusted = false;
 

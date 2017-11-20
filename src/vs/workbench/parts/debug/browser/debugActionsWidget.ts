@@ -39,7 +39,7 @@ export const debugToolBarBackground = registerColor('debugToolBar.background', {
 }, localize('debugToolBarBackground', "Debug toolbar background color."));
 
 export class DebugActionsWidget extends Themable implements IWorkbenchContribution {
-	private static ID = 'debug.actionsWidget';
+	private static readonly ID = 'debug.actionsWidget';
 
 	private $el: builder.Builder;
 	private dragArea: builder.Builder;

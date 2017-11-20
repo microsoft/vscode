@@ -557,8 +557,8 @@ export class HiddenAreasRenderer extends Disposable {
 }
 
 export class FeedbackWidgetRenderer extends Disposable {
-	private static DEFAULT_COMMENT_TEXT = 'Replace this comment with any text feedback.';
-	private static INSTRUCTION_TEXT = [
+	private static readonly DEFAULT_COMMENT_TEXT = 'Replace this comment with any text feedback.';
+	private static readonly INSTRUCTION_TEXT = [
 		'// Modify the "resultScores" section to contain only your expected results. Assign scores to indicate their relevance.',
 		'// Results present in "resultScores" will be automatically "boosted" for this query, if they are not already at the top of the result set.',
 		'// Add phrase pairs to the "alts" section to have them considered to be synonyms in queries.'
@@ -843,7 +843,7 @@ export class HighlightMatchesRenderer extends Disposable {
 		}
 	}
 
-	private static _FIND_MATCH = ModelDecorationOptions.register({
+	private static readonly _FIND_MATCH = ModelDecorationOptions.register({
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'findMatch'
 	});
@@ -1233,14 +1233,14 @@ class UnsupportedSettingsRenderer extends Disposable {
 		super.dispose();
 	}
 
-	private static _DIM_CONFIGUARATION_ = ModelDecorationOptions.register({
+	private static readonly _DIM_CONFIGUARATION_ = ModelDecorationOptions.register({
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		inlineClassName: 'dim-configuration',
 		beforeContentClassName: 'unsupportedWorkbenhSettingInfo',
 		hoverMessage: new MarkdownString().appendText(nls.localize('unsupportedWorkbenchSetting', "This setting cannot be applied now. It will be applied when you open this folder directly."))
 	});
 
-	private static _DIM_CONFIGUARATION_DEV_MODE = ModelDecorationOptions.register({
+	private static readonly _DIM_CONFIGUARATION_DEV_MODE = ModelDecorationOptions.register({
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		inlineClassName: 'dim-configuration',
 		beforeContentClassName: 'unsupportedWorkbenhSettingInfo',
@@ -1283,7 +1283,7 @@ class WorkspaceConfigurationRenderer extends Disposable {
 		}
 	}
 
-	private static _DIM_CONFIGURATION_ = ModelDecorationOptions.register({
+	private static readonly _DIM_CONFIGURATION_ = ModelDecorationOptions.register({
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		inlineClassName: 'dim-configuration'
 	});

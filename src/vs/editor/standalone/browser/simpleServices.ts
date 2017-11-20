@@ -237,7 +237,7 @@ export class SimpleMessageService implements IMessageService {
 
 	public _serviceBrand: any;
 
-	private static Empty = function () { /* nothing */ };
+	private static readonly Empty = function () { /* nothing */ };
 
 	public show(sev: Severity, message: any): () => void {
 

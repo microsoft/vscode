@@ -65,8 +65,8 @@ import { isDiffEditor, isCodeEditor, ICodeEditor } from 'vs/editor/browser/edito
 
 export class SearchViewlet extends Viewlet {
 
-	private static MAX_TEXT_RESULTS = 10000;
-	private static SHOW_REPLACE_STORAGE_KEY = 'vs.search.show.replace';
+	private static readonly MAX_TEXT_RESULTS = 10000;
+	private static readonly SHOW_REPLACE_STORAGE_KEY = 'vs.search.show.replace';
 
 	private isDisposed: boolean;
 

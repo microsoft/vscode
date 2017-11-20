@@ -221,7 +221,7 @@ export class FindDecorations implements IDisposable {
 		return result;
 	}
 
-	private static _CURRENT_FIND_MATCH_DECORATION = ModelDecorationOptions.register({
+	private static readonly _CURRENT_FIND_MATCH_DECORATION = ModelDecorationOptions.register({
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'currentFindMatch',
 		showIfCollapsed: true,
@@ -232,7 +232,7 @@ export class FindDecorations implements IDisposable {
 		}
 	});
 
-	private static _FIND_MATCH_DECORATION = ModelDecorationOptions.register({
+	private static readonly _FIND_MATCH_DECORATION = ModelDecorationOptions.register({
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'findMatch',
 		showIfCollapsed: true,
@@ -243,13 +243,13 @@ export class FindDecorations implements IDisposable {
 		}
 	});
 
-	private static _FIND_MATCH_NO_OVERVIEW_DECORATION = ModelDecorationOptions.register({
+	private static readonly _FIND_MATCH_NO_OVERVIEW_DECORATION = ModelDecorationOptions.register({
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'findMatch',
 		showIfCollapsed: true
 	});
 
-	private static _FIND_MATCH_ONLY_OVERVIEW_DECORATION = ModelDecorationOptions.register({
+	private static readonly _FIND_MATCH_ONLY_OVERVIEW_DECORATION = ModelDecorationOptions.register({
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		overviewRuler: {
 			color: themeColorFromId(editorFindMatchHighlight),
@@ -258,13 +258,13 @@ export class FindDecorations implements IDisposable {
 		}
 	});
 
-	private static _RANGE_HIGHLIGHT_DECORATION = ModelDecorationOptions.register({
+	private static readonly _RANGE_HIGHLIGHT_DECORATION = ModelDecorationOptions.register({
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'rangeHighlight',
 		isWholeLine: true
 	});
 
-	private static _FIND_SCOPE_DECORATION = ModelDecorationOptions.register({
+	private static readonly _FIND_SCOPE_DECORATION = ModelDecorationOptions.register({
 		className: 'findScope',
 		isWholeLine: true
 	});

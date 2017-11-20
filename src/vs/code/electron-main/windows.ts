@@ -107,7 +107,7 @@ export class WindowsManager implements IWindowsMainService {
 
 	_serviceBrand: any;
 
-	private static windowsStateStorageKey = 'windowsState';
+	private static readonly windowsStateStorageKey = 'windowsState';
 
 	private static WINDOWS: CodeWindow[] = [];
 
@@ -1582,7 +1582,7 @@ interface IInternalNativeOpenDialogOptions extends INativeOpenDialogOptions {
 
 class FileDialog {
 
-	private static workingDirPickerStorageKey = 'pickerWorkingDir';
+	private static readonly workingDirPickerStorageKey = 'pickerWorkingDir';
 
 	constructor(
 		private environmentService: IEnvironmentService,

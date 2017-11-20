@@ -215,7 +215,7 @@ export class TextAreaState {
 }
 
 export class PagedScreenReaderStrategy {
-	private static _LINES_PER_PAGE = 10;
+	private static readonly _LINES_PER_PAGE = 10;
 
 	private static _getPageOfLine(lineNumber: number): number {
 		return Math.floor((lineNumber - 1) / PagedScreenReaderStrategy._LINES_PER_PAGE);

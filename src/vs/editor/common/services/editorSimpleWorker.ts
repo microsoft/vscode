@@ -342,7 +342,7 @@ export abstract class BaseEditorSimpleWorker {
 
 	// ---- BEGIN minimal edits ---------------------------------------------------------------
 
-	private static _diffLimit = 10000;
+	private static readonly _diffLimit = 10000;
 
 	public computeMoreMinimalEdits(modelUrl: string, edits: TextEdit[]): TPromise<TextEdit[]> {
 		const model = this._getModel(modelUrl);

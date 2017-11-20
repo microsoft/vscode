@@ -36,7 +36,7 @@ import { ResourceGlobMatcher } from 'vs/workbench/electron-browser/resources';
  */
 export class TextEditorState {
 
-	private static EDITOR_SELECTION_THRESHOLD = 10; // number of lines to move in editor to justify for new state
+	private static readonly EDITOR_SELECTION_THRESHOLD = 10; // number of lines to move in editor to justify for new state
 
 	private textEditorSelection: ITextEditorSelection;
 
@@ -174,10 +174,10 @@ export class HistoryService extends BaseHistoryService implements IHistoryServic
 
 	public _serviceBrand: any;
 
-	private static STORAGE_KEY = 'history.entries';
-	private static MAX_HISTORY_ITEMS = 200;
-	private static MAX_STACK_ITEMS = 20;
-	private static MAX_RECENTLY_CLOSED_EDITORS = 20;
+	private static readonly STORAGE_KEY = 'history.entries';
+	private static readonly MAX_HISTORY_ITEMS = 200;
+	private static readonly MAX_STACK_ITEMS = 20;
+	private static readonly MAX_RECENTLY_CLOSED_EDITORS = 20;
 
 	private stack: IStackEntry[];
 	private index: number;

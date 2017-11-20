@@ -45,7 +45,7 @@ import URI from 'vs/base/common/uri';
 
 class DecorationsManager implements IDisposable {
 
-	private static DecorationOptions = ModelDecorationOptions.register({
+	private static readonly DecorationOptions = ModelDecorationOptions.register({
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'reference-decoration'
 	});
@@ -419,7 +419,7 @@ class OneReferenceTemplate {
 
 class Renderer implements tree.IRenderer {
 
-	private static _ids = {
+	private static readonly _ids = {
 		FileReferences: 'FileReferences',
 		OneReference: 'OneReference'
 	};

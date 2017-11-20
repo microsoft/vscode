@@ -31,7 +31,7 @@ import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/comm
 
 class InspectTMScopesController extends Disposable implements IEditorContribution {
 
-	private static ID = 'editor.contrib.inspectTMScopes';
+	private static readonly ID = 'editor.contrib.inspectTMScopes';
 
 	public static get(editor: ICodeEditor): InspectTMScopesController {
 		return editor.getContribution<InspectTMScopesController>(InspectTMScopesController.ID);
@@ -170,7 +170,7 @@ function renderTokenText(tokenText: string): string {
 
 class InspectTMScopesWidget extends Disposable implements IContentWidget {
 
-	private static _ID = 'editor.contrib.inspectTMScopesWidget';
+	private static readonly _ID = 'editor.contrib.inspectTMScopesWidget';
 
 	// Editor.IContentWidget.allowEditorOverflow
 	public readonly allowEditorOverflow = true;

@@ -22,7 +22,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 
 export class MessageController implements editorCommon.IEditorContribution {
 
-	private static _id = 'editor.contrib.messageController';
+	private static readonly _id = 'editor.contrib.messageController';
 
 	static CONTEXT_SNIPPET_MODE = new RawContextKey<boolean>('messageVisible', false);
 

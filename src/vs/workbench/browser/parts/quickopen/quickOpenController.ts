@@ -77,11 +77,11 @@ interface IInternalPickOptions {
 
 export class QuickOpenController extends Component implements IQuickOpenService {
 
-	private static MAX_SHORT_RESPONSE_TIME = 500;
+	private static readonly MAX_SHORT_RESPONSE_TIME = 500;
 
 	public _serviceBrand: any;
 
-	private static ID = 'workbench.component.quickopen';
+	private static readonly ID = 'workbench.component.quickopen';
 
 	private _onShow: Emitter<void>;
 	private _onHide: Emitter<void>;

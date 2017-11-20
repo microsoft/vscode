@@ -26,7 +26,7 @@ import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/comm
 
 class InspectTokensController extends Disposable implements IEditorContribution {
 
-	private static ID = 'editor.contrib.inspectTokens';
+	private static readonly ID = 'editor.contrib.inspectTokens';
 
 	public static get(editor: ICodeEditor): InspectTokensController {
 		return editor.getContribution<InspectTokensController>(InspectTokensController.ID);
@@ -160,7 +160,7 @@ function getSafeTokenizationSupport(languageIdentifier: LanguageIdentifier): ITo
 
 class InspectTokensWidget extends Disposable implements IContentWidget {
 
-	private static _ID = 'editor.contrib.inspectTokensWidget';
+	private static readonly _ID = 'editor.contrib.inspectTokensWidget';
 
 	// Editor.IContentWidget.allowEditorOverflow
 	public allowEditorOverflow = true;

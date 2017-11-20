@@ -428,7 +428,7 @@ class MarkerNavigationAction extends EditorAction {
 
 class MarkerController implements editorCommon.IEditorContribution {
 
-	private static ID = 'editor.contrib.markerController';
+	private static readonly ID = 'editor.contrib.markerController';
 
 	public static get(editor: ICodeEditor): MarkerController {
 		return editor.getContribution<MarkerController>(MarkerController.ID);

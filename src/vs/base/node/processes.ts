@@ -275,7 +275,7 @@ export abstract class AbstractProcess<TProgressData> {
 		// Default is to do nothing.
 	}
 
-	private static regexp = /^[^"].* .*[^"]/;
+	private static readonly regexp = /^[^"].* .*[^"]/;
 	private ensureQuotes(value: string) {
 		if (AbstractProcess.regexp.test(value)) {
 			return {

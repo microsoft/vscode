@@ -42,7 +42,7 @@ const twistiePixels = 20;
 
 export class VariablesView extends ViewsViewletPanel {
 
-	private static MEMENTO = 'variablesview.memento';
+	private static readonly MEMENTO = 'variablesview.memento';
 	private onFocusStackFrameScheduler: RunOnceScheduler;
 	private variablesFocusedContext: IContextKey<boolean>;
 	private settings: any;
@@ -153,7 +153,7 @@ export class VariablesView extends ViewsViewletPanel {
 
 export class WatchExpressionsView extends ViewsViewletPanel {
 
-	private static MEMENTO = 'watchexpressionsview.memento';
+	private static readonly MEMENTO = 'watchexpressionsview.memento';
 	private onWatchExpressionsUpdatedScheduler: RunOnceScheduler;
 	private toReveal: IExpression;
 	private watchExpressionsFocusedContext: IContextKey<boolean>;
@@ -245,7 +245,7 @@ export class WatchExpressionsView extends ViewsViewletPanel {
 
 export class CallStackView extends ViewsViewletPanel {
 
-	private static MEMENTO = 'callstackview.memento';
+	private static readonly MEMENTO = 'callstackview.memento';
 	private pauseMessage: builder.Builder;
 	private pauseMessageLabel: builder.Builder;
 	private onCallStackChangeScheduler: RunOnceScheduler;
@@ -381,8 +381,8 @@ export class CallStackView extends ViewsViewletPanel {
 
 export class BreakpointsView extends ViewsViewletPanel {
 
-	private static MAX_VISIBLE_FILES = 9;
-	private static MEMENTO = 'breakopintsview.memento';
+	private static readonly MAX_VISIBLE_FILES = 9;
+	private static readonly MEMENTO = 'breakopintsview.memento';
 	private breakpointsFocusedContext: IContextKey<boolean>;
 	private settings: any;
 

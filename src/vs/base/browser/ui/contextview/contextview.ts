@@ -104,8 +104,8 @@ function layout(view: ISize, around: IView, viewport: IView, anchorPosition: Anc
 
 export class ContextView {
 
-	private static BUBBLE_UP_EVENTS = ['click', 'keydown', 'focus', 'blur'];
-	private static BUBBLE_DOWN_EVENTS = ['click'];
+	private static readonly BUBBLE_UP_EVENTS = ['click', 'keydown', 'focus', 'blur'];
+	private static readonly BUBBLE_DOWN_EVENTS = ['click'];
 
 	private $container: Builder;
 	private $view: Builder;

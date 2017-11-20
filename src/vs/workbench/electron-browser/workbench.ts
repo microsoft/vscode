@@ -140,19 +140,19 @@ const Identifiers = {
  */
 export class Workbench implements IPartService {
 
-	private static sidebarHiddenStorageKey = 'workbench.sidebar.hidden';
-	private static sidebarRestoreStorageKey = 'workbench.sidebar.restore';
-	private static panelHiddenStorageKey = 'workbench.panel.hidden';
-	private static zenModeActiveStorageKey = 'workbench.zenmode.active';
-	private static panelPositionStorageKey = 'workbench.panel.location';
+	private static readonly sidebarHiddenStorageKey = 'workbench.sidebar.hidden';
+	private static readonly sidebarRestoreStorageKey = 'workbench.sidebar.restore';
+	private static readonly panelHiddenStorageKey = 'workbench.panel.hidden';
+	private static readonly zenModeActiveStorageKey = 'workbench.zenmode.active';
+	private static readonly panelPositionStorageKey = 'workbench.panel.location';
 
-	private static sidebarPositionConfigurationKey = 'workbench.sideBar.location';
-	private static statusbarVisibleConfigurationKey = 'workbench.statusBar.visible';
-	private static activityBarVisibleConfigurationKey = 'workbench.activityBar.visible';
+	private static readonly sidebarPositionConfigurationKey = 'workbench.sideBar.location';
+	private static readonly statusbarVisibleConfigurationKey = 'workbench.statusBar.visible';
+	private static readonly activityBarVisibleConfigurationKey = 'workbench.activityBar.visible';
 
-	private static closeWhenEmptyConfigurationKey = 'window.closeWhenEmpty';
+	private static readonly closeWhenEmptyConfigurationKey = 'window.closeWhenEmpty';
 
-	private static fontAliasingConfigurationKey = 'workbench.fontAliasing';
+	private static readonly fontAliasingConfigurationKey = 'workbench.fontAliasing';
 
 	private _onTitleBarVisibilityChange: Emitter<void>;
 

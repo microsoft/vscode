@@ -17,7 +17,7 @@ export class ToggleMultiCursorModifierAction extends Action {
 	public static readonly ID = 'workbench.action.toggleMultiCursorModifier';
 	public static readonly LABEL = nls.localize('toggleLocation', "Toggle Multi-Cursor Modifier");
 
-	private static multiCursorModifierConfigurationKey = 'editor.multiCursorModifier';
+	private static readonly multiCursorModifierConfigurationKey = 'editor.multiCursorModifier';
 
 	constructor(
 		id: string,

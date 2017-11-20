@@ -152,7 +152,7 @@ export class ToggleMenuBarAction extends Action {
 	static ID = 'workbench.action.toggleMenuBar';
 	static LABEL = nls.localize('toggleMenuBar', "Toggle Menu Bar");
 
-	private static menuBarVisibilityKey = 'window.menuBarVisibility';
+	private static readonly menuBarVisibilityKey = 'window.menuBarVisibility';
 
 	constructor(
 		id: string,
@@ -196,7 +196,7 @@ export class ToggleDevToolsAction extends Action {
 }
 
 export abstract class BaseZoomAction extends Action {
-	private static SETTING_KEY = 'window.zoomLevel';
+	private static readonly SETTING_KEY = 'window.zoomLevel';
 
 	constructor(
 		id: string,
@@ -1100,7 +1100,7 @@ export class KeybindingsReferenceAction extends Action {
 	public static readonly ID = 'workbench.action.keybindingsReference';
 	public static readonly LABEL = nls.localize('keybindingsReference', "Keyboard Shortcuts Reference");
 
-	private static URL = isLinux ? product.keyboardShortcutsUrlLinux : isMacintosh ? product.keyboardShortcutsUrlMac : product.keyboardShortcutsUrlWin;
+	private static readonly URL = isLinux ? product.keyboardShortcutsUrlLinux : isMacintosh ? product.keyboardShortcutsUrlMac : product.keyboardShortcutsUrlWin;
 	public static readonly AVAILABLE = !!KeybindingsReferenceAction.URL;
 
 	constructor(
@@ -1121,7 +1121,7 @@ export class OpenDocumentationUrlAction extends Action {
 	public static readonly ID = 'workbench.action.openDocumentationUrl';
 	public static readonly LABEL = nls.localize('openDocumentationUrl', "Documentation");
 
-	private static URL = product.documentationUrl;
+	private static readonly URL = product.documentationUrl;
 	public static readonly AVAILABLE = !!OpenDocumentationUrlAction.URL;
 
 	constructor(
@@ -1142,7 +1142,7 @@ export class OpenIntroductoryVideosUrlAction extends Action {
 	public static readonly ID = 'workbench.action.openIntroductoryVideosUrl';
 	public static readonly LABEL = nls.localize('openIntroductoryVideosUrl', "Introductory Videos");
 
-	private static URL = product.introductoryVideosUrl;
+	private static readonly URL = product.introductoryVideosUrl;
 	public static readonly AVAILABLE = !!OpenIntroductoryVideosUrlAction.URL;
 
 	constructor(
@@ -1163,7 +1163,7 @@ export class OpenTipsAndTricksUrlAction extends Action {
 	public static readonly ID = 'workbench.action.openTipsAndTricksUrl';
 	public static readonly LABEL = nls.localize('openTipsAndTricksUrl', "Tips and Tricks");
 
-	private static URL = product.tipsAndTricksUrl;
+	private static readonly URL = product.tipsAndTricksUrl;
 	public static readonly AVAILABLE = !!OpenTipsAndTricksUrlAction.URL;
 
 	constructor(

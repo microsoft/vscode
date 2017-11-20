@@ -28,9 +28,9 @@ export interface ITextModelCreationData {
 }
 
 export class TextModel extends Disposable implements editorCommon.ITextModel {
-	private static MODEL_SYNC_LIMIT = 50 * 1024 * 1024; // 50 MB
-	private static MODEL_TOKENIZATION_LIMIT = 20 * 1024 * 1024; // 20 MB
-	private static MANY_MANY_LINES = 300 * 1000; // 300K lines
+	private static readonly MODEL_SYNC_LIMIT = 50 * 1024 * 1024; // 50 MB
+	private static readonly MODEL_TOKENIZATION_LIMIT = 20 * 1024 * 1024; // 20 MB
+	private static readonly MANY_MANY_LINES = 300 * 1000; // 300K lines
 
 	public static DEFAULT_CREATION_OPTIONS: editorCommon.ITextModelCreationOptions = {
 		tabSize: EDITOR_MODEL_DEFAULTS.tabSize,

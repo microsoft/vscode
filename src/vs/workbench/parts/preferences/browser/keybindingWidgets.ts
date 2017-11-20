@@ -132,8 +132,8 @@ class KeybindingInputWidget extends Widget {
 
 export class DefineKeybindingWidget extends Widget {
 
-	private static WIDTH = 400;
-	private static HEIGHT = 90;
+	private static readonly WIDTH = 400;
+	private static readonly HEIGHT = 90;
 
 	private _domNode: FastDomNode<HTMLElement>;
 	private _keybindingInputWidget: KeybindingInputWidget;
@@ -251,7 +251,7 @@ export class DefineKeybindingWidget extends Widget {
 
 export class DefineKeybindingOverlayWidget extends Disposable implements IOverlayWidget {
 
-	private static ID = 'editor.contrib.defineKeybindingWidget';
+	private static readonly ID = 'editor.contrib.defineKeybindingWidget';
 
 	private readonly _widget: DefineKeybindingWidget;
 

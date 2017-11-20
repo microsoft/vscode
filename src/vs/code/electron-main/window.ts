@@ -75,12 +75,12 @@ export class CodeWindow implements ICodeWindow {
 	public static readonly themeStorageKey = 'theme';
 	public static readonly themeBackgroundStorageKey = 'themeBackground';
 
-	private static DEFAULT_BG_LIGHT = '#FFFFFF';
-	private static DEFAULT_BG_DARK = '#1E1E1E';
-	private static DEFAULT_BG_HC_BLACK = '#000000';
+	private static readonly DEFAULT_BG_LIGHT = '#FFFFFF';
+	private static readonly DEFAULT_BG_DARK = '#1E1E1E';
+	private static readonly DEFAULT_BG_HC_BLACK = '#000000';
 
-	private static MIN_WIDTH = 200;
-	private static MIN_HEIGHT = 120;
+	private static readonly MIN_WIDTH = 200;
+	private static readonly MIN_HEIGHT = 120;
 
 	private hiddenTitleBarStyle: boolean;
 	private showTimeoutHandle: any;

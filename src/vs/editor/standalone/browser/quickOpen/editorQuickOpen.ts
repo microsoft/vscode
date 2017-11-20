@@ -23,7 +23,7 @@ export interface IQuickOpenControllerOpts {
 
 export class QuickOpenController implements editorCommon.IEditorContribution, IDecorator {
 
-	private static ID = 'editor.controller.quickOpenController';
+	private static readonly ID = 'editor.controller.quickOpenController';
 
 	public static get(editor: ICodeEditor): QuickOpenController {
 		return editor.getContribution<QuickOpenController>(QuickOpenController.ID);
@@ -93,7 +93,7 @@ export class QuickOpenController implements editorCommon.IEditorContribution, ID
 		this.widget.show('');
 	}
 
-	private static _RANGE_HIGHLIGHT_DECORATION = ModelDecorationOptions.register({
+	private static readonly _RANGE_HIGHLIGHT_DECORATION = ModelDecorationOptions.register({
 		className: 'rangeHighlight',
 		isWholeLine: true
 	});

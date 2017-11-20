@@ -18,7 +18,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export class OutputLinkProvider {
 
-	private static DISPOSE_WORKER_TIME = 3 * 60 * 1000; // dispose worker after 3 minutes of inactivity
+	private static readonly DISPOSE_WORKER_TIME = 3 * 60 * 1000; // dispose worker after 3 minutes of inactivity
 
 	private worker: MonacoWebWorker<OutputLinkComputer>;
 	private disposeWorkerScheduler: RunOnceScheduler;

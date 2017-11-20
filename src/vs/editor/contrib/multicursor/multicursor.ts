@@ -303,7 +303,7 @@ export class MultiCursorSession {
 
 export class MultiCursorSelectionController extends Disposable implements IEditorContribution {
 
-	private static ID = 'editor.contrib.multiCursorController';
+	private static readonly ID = 'editor.contrib.multiCursorController';
 
 	private readonly _editor: ICodeEditor;
 	private _ignoreSelectionChange: boolean;
@@ -654,7 +654,7 @@ class SelectionHighlighterState {
 }
 
 export class SelectionHighlighter extends Disposable implements IEditorContribution {
-	private static ID = 'editor.contrib.selectionHighlighter';
+	private static readonly ID = 'editor.contrib.selectionHighlighter';
 
 	private editor: ICodeEditor;
 	private _isEnabled: boolean;
@@ -860,7 +860,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		this.decorations = this.editor.deltaDecorations(this.decorations, decorations);
 	}
 
-	private static _SELECTION_HIGHLIGHT_OVERVIEW = ModelDecorationOptions.register({
+	private static readonly _SELECTION_HIGHLIGHT_OVERVIEW = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'selectionHighlight',
 		overviewRuler: {
@@ -870,7 +870,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		}
 	});
 
-	private static _SELECTION_HIGHLIGHT = ModelDecorationOptions.register({
+	private static readonly _SELECTION_HIGHLIGHT = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'selectionHighlight',
 	});

@@ -44,11 +44,11 @@ import { PagedModel } from 'vs/base/common/paging';
 
 export class InstallAction extends Action {
 
-	private static InstallLabel = localize('installAction', "Install");
-	private static InstallingLabel = localize('installing', "Installing");
+	private static readonly InstallLabel = localize('installAction', "Install");
+	private static readonly InstallingLabel = localize('installing', "Installing");
 
-	private static Class = 'extension-action prominent install';
-	private static InstallingClass = 'extension-action install installing';
+	private static readonly Class = 'extension-action prominent install';
+	private static readonly InstallingClass = 'extension-action install installing';
 
 	private disposables: IDisposable[] = [];
 	private _extension: IExtension;
@@ -98,11 +98,11 @@ export class InstallAction extends Action {
 
 export class UninstallAction extends Action {
 
-	private static UninstallLabel = localize('uninstallAction', "Uninstall");
-	private static UninstallingLabel = localize('Uninstalling', "Uninstalling");
+	private static readonly UninstallLabel = localize('uninstallAction', "Uninstall");
+	private static readonly UninstallingLabel = localize('Uninstalling', "Uninstalling");
 
-	private static UninstallClass = 'extension-action uninstall';
-	private static UnInstallingClass = 'extension-action uninstall uninstalling';
+	private static readonly UninstallClass = 'extension-action uninstall';
+	private static readonly UnInstallingClass = 'extension-action uninstall uninstalling';
 
 	private disposables: IDisposable[] = [];
 	private _extension: IExtension;
@@ -163,7 +163,7 @@ export class UninstallAction extends Action {
 
 export class CombinedInstallAction extends Action {
 
-	private static NoExtensionClass = 'extension-action prominent install no-extension';
+	private static readonly NoExtensionClass = 'extension-action prominent install no-extension';
 	private installAction: InstallAction;
 	private uninstallAction: UninstallAction;
 	private disposables: IDisposable[] = [];
@@ -239,9 +239,9 @@ export class CombinedInstallAction extends Action {
 
 export class UpdateAction extends Action {
 
-	private static EnabledClass = 'extension-action prominent update';
-	private static DisabledClass = `${UpdateAction.EnabledClass} disabled`;
-	private static Label = localize('updateAction', "Update");
+	private static readonly EnabledClass = 'extension-action prominent update';
+	private static readonly DisabledClass = `${UpdateAction.EnabledClass} disabled`;
+	private static readonly Label = localize('updateAction', "Update");
 
 	private disposables: IDisposable[] = [];
 	private _extension: IExtension;
@@ -349,8 +349,8 @@ export class ManageExtensionAction extends Action {
 
 	static ID = 'extensions.manage';
 
-	private static Class = 'extension-action manage';
-	private static HideManageExtensionClass = `${ManageExtensionAction.Class} hide`;
+	private static readonly Class = 'extension-action manage';
+	private static readonly HideManageExtensionClass = `${ManageExtensionAction.Class} hide`;
 
 	private _actionItem: DropDownMenuActionItem;
 	get actionItem(): IActionItem { return this._actionItem; }
@@ -489,8 +489,8 @@ export class EnableGloballyAction extends Action implements IExtensionAction {
 export class EnableAction extends Action {
 
 	static ID = 'extensions.enable';
-	private static EnabledClass = 'extension-action prominent enable';
-	private static DisabledClass = `${EnableAction.EnabledClass} disabled`;
+	private static readonly EnabledClass = 'extension-action prominent enable';
+	private static readonly DisabledClass = `${EnableAction.EnabledClass} disabled`;
 
 	private disposables: IDisposable[] = [];
 
@@ -624,8 +624,8 @@ export class DisableAction extends Action {
 
 	static ID = 'extensions.disable';
 
-	private static EnabledClass = 'extension-action disable';
-	private static DisabledClass = `${DisableAction.EnabledClass} disabled`;
+	private static readonly EnabledClass = 'extension-action disable';
+	private static readonly DisabledClass = `${DisableAction.EnabledClass} disabled`;
 
 	private disposables: IDisposable[] = [];
 	private _actionItem: DropDownMenuActionItem;
@@ -781,8 +781,8 @@ export class UpdateAllAction extends Action {
 
 export class ReloadAction extends Action {
 
-	private static EnabledClass = 'extension-action reload';
-	private static DisabledClass = `${ReloadAction.EnabledClass} disabled`;
+	private static readonly EnabledClass = 'extension-action reload';
+	private static readonly DisabledClass = `${ReloadAction.EnabledClass} disabled`;
 
 	private disposables: IDisposable[] = [];
 	private _extension: IExtension;
@@ -1508,7 +1508,7 @@ export class ConfigureWorkspaceFolderRecommendedExtensionsAction extends Abstrac
 
 export class BuiltinStatusLabelAction extends Action {
 
-	private static Class = 'extension-action built-in-status';
+	private static readonly Class = 'extension-action built-in-status';
 
 	private _extension: IExtension;
 	get extension(): IExtension { return this._extension; }
