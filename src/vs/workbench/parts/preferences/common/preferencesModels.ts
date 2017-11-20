@@ -542,13 +542,24 @@ export class DefaultSettings extends Disposable {
 		this.initAllSettingsMap(settingsGroups);
 		const mostCommonlyUsed = this.getMostCommonlyUsedSettings(settingsGroups);
 		this._allSettingsGroups = [mostCommonlyUsed, ...settingsGroups];
-		this._content = this.toContent(this._allSettingsGroups, true);
+
+		const builder = new SettingsContentBuilder();
+		builder.pushLine('[');
+		builder.pushGroups([mostCommonlyUsed]);
+		builder.pushLine(',');
+		builder.pushGroups(settingsGroups);
+		builder.pushLine(']');
+		this._content = builder.getContent();
+
 		return this._content;
 	}
 
 	get raw(): string {
 		if (!DefaultSettings._RAW) {
-			DefaultSettings._RAW = this.toContent(this.getRegisteredGroups(), false);
+			const settingsGroups = this.getRegisteredGroups();
+			const builder = new SettingsContentBuilder();
+			builder.pushGroups(settingsGroups);
+			DefaultSettings._RAW = builder.getContent();
 		}
 		return DefaultSettings._RAW;
 	}
@@ -684,18 +695,6 @@ export class DefaultSettings extends Disposable {
 			return title1.localeCompare(title2);
 		}
 		return c1.order - c2.order;
-	}
-
-	private toContent(settingsGroups: ISettingsGroup[], asArray: boolean): string {
-		const builder = new SettingsContentBuilder();
-		if (asArray) {
-			builder.pushLine('[');
-		}
-		builder.pushGroups(settingsGroups);
-		if (asArray) {
-			builder.pushLine(']');
-		}
-		return builder.getContent();
 	}
 
 }
