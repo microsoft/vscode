@@ -79,6 +79,10 @@ export interface IResourceDescriptor {
 	mime: string;
 }
 
+enum ScaleDirection {
+	IN, OUT,
+}
+
 // Chrome is caching images very aggressively and so we use the ETag information to find out if
 // we need to bypass the cache or not. We could always bypass the cache everytime we show the image
 // however that has very bad impact on memory consumption because each time the image gets shown,
@@ -118,9 +122,10 @@ export class ResourceViewer {
 
 	private static readonly MAX_IMAGE_SIZE = ResourceViewer.MB; // showing images inline is memory intense, so we have a limit
 
-	private static MAX_IMAGE_SCALE = 20;
-	private static MIN_IMAGE_SCALE = 1;
-	private static IMAGE_SCALE_FACTOR = 0.5;
+	private static SCALE_PINCH_FACTOR = 0.1;
+	private static SCALE_FACTOR = 1.5;
+	private static MAX_SCALE = 20;
+	private static MIN_SCALE = 0.1;
 	private static PIXELATION_THRESHOLD = 256; // enable image-rendering: pixelated for images less than this
 
 	public static show(
@@ -152,36 +157,83 @@ export class ResourceViewer {
 			if (ResourceViewer.inlineImage(descriptor)) {
 				$(container)
 					.empty()
-					.addClass('image')
+					.addClass('image', 'zoom-in')
 					.img({ src: imageSrc(descriptor) })
+					.addClass('untouched')
 					.on(DOM.EventType.LOAD, (e, img) => {
 						const imgElement = <HTMLImageElement>img.getHTMLElement();
-						if (imgElement.naturalWidth > imgElement.width || imgElement.naturalHeight > imgElement.height) {
-							$(container).addClass('oversized');
+						let scaleDirection = ScaleDirection.IN;
+						let scale = null;
 
-							img.on(DOM.EventType.CLICK, (e, img) => {
-								$(container).toggleClass('full-size');
-
-								scrollbar.scanDomNode();
-							});
-						} else {
-							// enable zooming for naturally small images
-							$(container).on(DOM.EventType.WHEEL, (() => {
-								let imageScale = 1;
-								return (e: WheelEvent) => {
-									// pinching is reported as scroll wheel + ctrl
-									if (e.ctrlKey) {
-										// scrolling up, pinching out should increase the scale
-										const delta = -e.deltaY;
-										imageScale += delta * ResourceViewer.IMAGE_SCALE_FACTOR;
-										imageScale = clamp(imageScale, ResourceViewer.MIN_IMAGE_SCALE, ResourceViewer.MAX_IMAGE_SCALE);
-										img.style('transform', `scale(${imageScale})`);
-									}
-								};
-							})());
+						function setImageWidth(width) {
+							img.style('width', `${width}px`);
+							img.style('height', 'auto');
 						}
 
-						if (imgElement.naturalWidth < ResourceViewer.PIXELATION_THRESHOLD) {
+						function updateScale(newScale) {
+							scale = clamp(newScale, ResourceViewer.MIN_SCALE, ResourceViewer.MAX_SCALE);
+							setImageWidth(Math.floor(imgElement.naturalWidth * scale));
+
+							scrollbar.scanDomNode();
+
+							if (metadataClb) {
+								metadataClb(nls.localize('imgMetaWPercent', '{0}% {1}x{2} {3}',
+									Math.round(scale * 10000) / 100,
+									imgElement.naturalWidth,
+									imgElement.naturalHeight,
+									ResourceViewer.formatSize(descriptor.size)));
+							}
+						}
+
+						function firstZoom() {
+							const { clientWidth, naturalWidth } = imgElement;
+							setImageWidth(clientWidth);
+							img.removeClass('untouched');
+							scale = clientWidth / naturalWidth;
+						}
+
+						$(container)
+							.on(DOM.EventType.KEY_DOWN, (e: KeyboardEvent, c) => {
+								if (e.altKey) {
+									scaleDirection = ScaleDirection.OUT;
+									c.removeClass('zoom-in').addClass('zoom-out');
+								}
+							})
+							.on(DOM.EventType.KEY_UP, (e: KeyboardEvent, c) => {
+								if (!e.altKey) {
+									scaleDirection = ScaleDirection.IN;
+									c.removeClass('zoom-out').addClass('zoom-in');
+								}
+							});
+
+						$(container).on(DOM.EventType.CLICK, (e: MouseEvent) => {
+							if (scale === null) {
+								firstZoom();
+							}
+
+							const scaleFactor = scaleDirection === ScaleDirection.IN
+								? ResourceViewer.SCALE_FACTOR
+								: 1 / ResourceViewer.SCALE_FACTOR;
+
+							updateScale(scale * scaleFactor);
+						});
+
+						$(container).on(DOM.EventType.WHEEL, (e: WheelEvent) => {
+							// pinching is reported as scroll wheel + ctrl
+							if (!e.ctrlKey) {
+								return;
+							}
+
+							if (scale === null) {
+								firstZoom();
+							}
+
+							// scrolling up, pinching out should increase the scale
+							const delta = -e.deltaY;
+							updateScale(scale + delta * ResourceViewer.SCALE_PINCH_FACTOR);
+						});
+
+						if (imgElement.naturalWidth < ResourceViewer.PIXELATION_THRESHOLD || imgElement.naturalHeight < ResourceViewer.PIXELATION_THRESHOLD) {
 							img.addClass('pixelated');
 						}
 
