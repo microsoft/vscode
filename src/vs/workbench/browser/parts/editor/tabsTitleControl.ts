@@ -746,6 +746,10 @@ export class TabsTitleControl extends TitleControl {
 					e.dataTransfer.setData('DownloadURL', [MIME_BINARY, editor.getName(), resourceStr].join(':')); // enables support to drag a tab as file to desktop
 				}
 			}
+
+			// Fixes https://github.com/Microsoft/vscode/issues/18733
+			DOM.addClass(tab, 'dragged');
+			scheduleAtNextAnimationFrame(() => DOM.removeClass(tab, 'dragged'));
 		}));
 
 		// We need to keep track of DRAG_ENTER and DRAG_LEAVE events because a tab is not just a div without children,
