@@ -11,9 +11,11 @@ import { getLanguageModes, LanguageModes, Settings } from './modes/languageModes
 
 import { ConfigurationRequest, ConfigurationParams } from 'vscode-languageserver-protocol/lib/protocol.configuration.proposed';
 import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities, ColorInformation, ColorPresentationRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
+import { DidChangeWorkspaceFoldersNotification, WorkspaceFolder } from 'vscode-languageserver-protocol/lib/protocol.workspaceFolders.proposed';
 
 import { format } from './modes/formatting';
 import { pushAll } from './utils/arrays';
+import { endsWith, startsWith } from './utils/strings';
 
 import * as url from 'url';
 import * as path from 'path';
@@ -40,11 +42,14 @@ let documents: TextDocuments = new TextDocuments();
 documents.listen(connection);
 
 let workspacePath: string | undefined | null;
+let workspaceFolders: WorkspaceFolder[] | undefined;
+
 var languageModes: LanguageModes;
 
 let clientSnippetSupport = false;
 let clientDynamicRegisterSupport = false;
 let scopedSettingsSupport = false;
+let workspaceFoldersSupport = false;
 
 var globalSettings: Settings = {};
 let documentSettings: { [key: string]: Thenable<Settings> } = {};
@@ -73,6 +78,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	let initializationOptions = params.initializationOptions;
 
 	workspacePath = params.rootPath;
+	workspaceFolders = (<any>params).workspaceFolders;
 
 	languageModes = getLanguageModes(initializationOptions ? initializationOptions.embeddedLanguages : { css: true, javascript: true });
 	documents.onDidClose(e => {
@@ -93,6 +99,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	clientSnippetSupport = hasClientCapability('textDocument', 'completion', 'completionItem', 'snippetSupport');
 	clientDynamicRegisterSupport = hasClientCapability('workspace', 'symbol', 'dynamicRegistration');
 	scopedSettingsSupport = hasClientCapability('workspace', 'configuration');
+	workspaceFoldersSupport = hasClientCapability('workspace', 'workspaceFolders');
 	let capabilities: ServerCapabilities & CPServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
 		textDocumentSync: documents.syncKind,
@@ -107,8 +114,27 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		referencesProvider: true,
 		colorProvider: true
 	};
-
 	return { capabilities };
+});
+
+connection.onInitialized((p) => {
+	if (workspaceFoldersSupport) {
+		connection.client.register(DidChangeWorkspaceFoldersNotification.type);
+
+		connection.onNotification(DidChangeWorkspaceFoldersNotification.type, e => {
+			let toAdd = e.event.added;
+			let toRemove = e.event.removed;
+			let updatedFolders = [];
+			if (workspaceFolders) {
+				for (let folder of workspaceFolders) {
+					if (!toRemove.some(r => r.uri === folder.uri) && !toAdd.some(r => r.uri === folder.uri)) {
+						updatedFolders.push(folder);
+					}
+				}
+			}
+			workspaceFolders = updatedFolders.concat(toAdd);
+		});
+	}
 });
 
 let formatterRegistration: Thenable<Disposable> | null = null;
@@ -284,8 +310,11 @@ connection.onDocumentLinks(documentLinkParam => {
 			if (base) {
 				ref = url.resolve(base, ref);
 			}
-			if (workspacePath && ref[0] === '/') {
-				return uri.file(path.join(workspacePath, ref)).toString();
+			if (ref[0] === '/') {
+				let root = getRootFolder(document.uri);
+				if (root) {
+					return uri.file(path.join(root, ref)).toString();
+				}
 			}
 			return url.resolve(document.uri, ref);
 		},
@@ -299,6 +328,22 @@ connection.onDocumentLinks(documentLinkParam => {
 	});
 	return links;
 });
+
+function getRootFolder(docUri: string): string | undefined | null {
+	if (workspaceFolders) {
+		for (let folder of workspaceFolders) {
+			let folderURI = folder.uri;
+			if (!endsWith(folderURI, '/')) {
+				folderURI = folderURI + '/';
+			}
+			if (startsWith(docUri, folderURI)) {
+				return folderURI;
+			}
+		}
+		return void 0;
+	}
+	return workspacePath;
+}
 
 connection.onDocumentSymbol(documentSymbolParms => {
 	let document = documents.get(documentSymbolParms.textDocument.uri);
