@@ -233,8 +233,8 @@ export function fromCallback<T>(fn: (handler: (e: T) => void) => IDisposable): E
 	return emitter.event;
 }
 
-export function fromPromise(promise: TPromise<any>): Event<void> {
-	const emitter = new Emitter<void>();
+export function fromPromise<T =any>(promise: TPromise<T>): Event<T> {
+	const emitter = new Emitter<T>();
 	let shouldEmit = false;
 
 	promise
@@ -258,33 +258,6 @@ export function toPromise<T>(event: Event<T>): TPromise<T> {
 			complete(e);
 		});
 	});
-}
-
-export function delayed<T>(promise: TPromise<Event<T>>): Event<T> {
-	let toCancel: TPromise<any> = null;
-	let listener: IDisposable = null;
-
-	const emitter = new Emitter<T>({
-		onFirstListenerAdd() {
-			toCancel = promise.then(
-				event => listener = event(e => emitter.fire(e)),
-				() => null
-			);
-		},
-		onLastListenerRemove() {
-			if (toCancel) {
-				toCancel.cancel();
-				toCancel = null;
-			}
-
-			if (listener) {
-				listener.dispose();
-				listener = null;
-			}
-		}
-	});
-
-	return emitter.event;
 }
 
 export function once<T>(event: Event<T>): Event<T> {

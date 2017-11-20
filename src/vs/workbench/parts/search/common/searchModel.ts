@@ -732,7 +732,7 @@ export class SearchModel extends Disposable {
 
 		const onDone = fromPromise(this.currentRequest);
 		const progressEmitter = new Emitter<void>();
-		const onFirstRender = anyEvent(onDone, progressEmitter.event);
+		const onFirstRender = anyEvent<any>(onDone, progressEmitter.event);
 		const onFirstRenderStopwatch = stopwatch(onFirstRender);
 		/* __GDPR__
 			"searchResultsFirstRender" : {
