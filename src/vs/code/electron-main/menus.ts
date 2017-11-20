@@ -18,7 +18,7 @@ import { IUpdateService, State as UpdateState } from 'vs/platform/update/common/
 import product from 'vs/platform/node/product';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { mnemonicMenuLabel as baseMnemonicLabel, unmnemonicLabel, getPathLabel } from 'vs/base/common/labels';
+import { mnemonicMenuLabel as baseMnemonicLabel, unmnemonicLabel, getPathLabel, mnemonicButtonLabel } from 'vs/base/common/labels';
 import { KeybindingsResolver } from 'vs/code/electron-main/keyboard';
 import { IWindowsMainService, IWindowsCountChangedEvent } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
@@ -1206,7 +1206,7 @@ export class CodeMenu {
 
 		const buttons = [nls.localize('okButton', "OK")];
 		if (isWindows) {
-			buttons.push(nls.localize('copyButton', "Copy")); // https://github.com/Microsoft/vscode/issues/37608
+			buttons.push(mnemonicButtonLabel(nls.localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"))); // https://github.com/Microsoft/vscode/issues/37608
 		}
 
 		dialog.showMessageBox(lastActiveWindow && lastActiveWindow.win, {
