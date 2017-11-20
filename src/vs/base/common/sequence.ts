@@ -5,12 +5,19 @@
 
 'use strict';
 
+import Event from 'vs/base/common/event';
+
 export interface ISplice<T> {
-	start: number;
-	deleteCount: number;
-	toInsert: T[];
+	readonly start: number;
+	readonly deleteCount: number;
+	readonly toInsert: T[];
 }
 
 export interface ISpliceable<T> {
 	splice(start: number, deleteCount: number, toInsert: T[]): void;
+}
+
+export interface ISequence<T> {
+	readonly elements: T[];
+	readonly onDidSplice: Event<ISplice<T>>;
 }

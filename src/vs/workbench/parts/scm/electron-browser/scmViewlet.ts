@@ -371,7 +371,7 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 
 	renderElement(group: ISCMResourceGroup, index: number, template: ResourceGroupTemplate): void {
 		template.name.textContent = group.label;
-		template.count.setCount(group.resourceCollection.resources.length);
+		template.count.setCount(group.resources.elements.length);
 		template.actionBar.clear();
 		template.actionBar.context = group;
 		template.actionBar.push(this.scmMenus.getResourceGroupActions(group), { icon: true, label: false });
@@ -681,11 +681,11 @@ export class RepositoryPanel extends ViewletPanel {
 	private updateList(): void {
 		const elements = this.repository.provider.resources
 			.reduce<(ISCMResourceGroup | ISCMResource)[]>((r, g) => {
-				if (g.resourceCollection.resources.length === 0 && g.hideWhenEmpty) {
+				if (g.resources.elements.length === 0 && g.hideWhenEmpty) {
 					return r;
 				}
 
-				return [...r, g, ...g.resourceCollection.resources];
+				return [...r, g, ...g.resources.elements];
 			}, []);
 
 		this.list.splice(0, this.list.length, elements);

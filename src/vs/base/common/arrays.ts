@@ -125,11 +125,15 @@ export function groupBy<T>(data: T[], compare: (a: T, b: T) => number): T[][] {
 	return result;
 }
 
+interface IMutableSplice<T> extends ISplice<T> {
+	deleteCount: number;
+}
+
 /**
  * Diffs two *sorted* arrays and computes the splices which apply the diff.
  */
 export function sortedDiff<T>(before: T[], after: T[], compare: (a: T, b: T) => number): ISplice<T>[] {
-	const result: ISplice<T>[] = [];
+	const result: IMutableSplice<T>[] = [];
 
 	function pushSplice(start: number, deleteCount: number, toInsert: T[]): void {
 		if (deleteCount === 0 && toInsert.length === 0) {
