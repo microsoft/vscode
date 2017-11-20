@@ -795,7 +795,8 @@ export class ReloadAction extends Action {
 	constructor(
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWindowService private windowService: IWindowService,
-		@IExtensionService private extensionService: IExtensionService
+		@IExtensionService private extensionService: IExtensionService,
+		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
 	) {
 		super('extensions.reload', localize('reloadAction', "Reload"), ReloadAction.DisabledClass, false);
 		this.throttler = new Throttler();
@@ -826,7 +827,7 @@ export class ReloadAction extends Action {
 	private computeReloadState(runningExtensions: IExtensionDescription[]): void {
 		const isInstalled = this.extensionsWorkbenchService.local.some(e => e.id === this.extension.id);
 		const isUninstalled = this.extension.state === ExtensionState.Uninstalled;
-		const isDisabled = this.extension.disabledForWorkspace || this.extension.disabledGlobally;
+		const isDisabled = !this.extensionEnablementService.isEnabled(this.extension);
 
 		const filteredExtensions = runningExtensions.filter(e => areSameExtensions(e, this.extension));
 		const isExtensionRunning = filteredExtensions.length > 0;
