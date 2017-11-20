@@ -77,6 +77,39 @@ export class FileIconThemeData implements IFileIconTheme {
 		}
 		return themeData;
 	}
+
+	static fromStorageData(input: string): FileIconThemeData {
+		try {
+			let data = JSON.parse(input);
+			let theme = new FileIconThemeData();
+			for (let key in data) {
+				switch (key) {
+					case 'id':
+					case 'label':
+					case 'description':
+					case 'settingsId':
+					case 'extensionData':
+					case 'path':
+						theme[key] = data[key];
+						break;
+				}
+			}
+			return theme;
+		} catch (e) {
+			return null;
+		}
+	}
+
+	toStorageData() {
+		return JSON.stringify({
+			id: this.id,
+			label: this.label,
+			description: this.description,
+			settingsId: this.settingsId,
+			path: this.path,
+			extensionData: this.extensionData
+		});
+	}
 }
 
 interface IconDefinition {
