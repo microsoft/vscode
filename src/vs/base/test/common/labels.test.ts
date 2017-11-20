@@ -162,8 +162,8 @@ suite('Labels', () => {
 			return;
 		}
 
-		assert.equal(getBaseLabel('c:'), 'C:\\');
-		assert.equal(getBaseLabel('c:\\'), 'C:\\');
+		assert.equal(getBaseLabel('c:'), 'C:');
+		assert.equal(getBaseLabel('c:\\'), 'C:');
 		assert.equal(getBaseLabel('c:\\some\\folder\\file.txt'), 'file.txt');
 		assert.equal(getBaseLabel('c:\\some\\folder'), 'folder');
 	});

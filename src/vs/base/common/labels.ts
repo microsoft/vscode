@@ -76,17 +76,11 @@ export function getBaseLabel(resource: URI | string): string {
 		resource = URI.file(resource);
 	}
 
-	let base = pathsBasename(resource.fsPath);
-
-	// Windows: basename('C:\') returns empty string, so make sure to always
-	// return the drive letter at least in that case.
-	if (!base) {
-		base = resource.fsPath;
-	}
+	const base = pathsBasename(resource.fsPath);
 
 	// convert c: => C:
 	if (hasDriveLetter(base)) {
-		return normalize(normalizeDriveLetter(base), true);
+		return normalizeDriveLetter(base);
 	}
 
 	return base;
