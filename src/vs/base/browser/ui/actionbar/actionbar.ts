@@ -14,7 +14,7 @@ import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IAction, IActionRunner, Action, IActionChangeEvent, ActionRunner, IRunEvent } from 'vs/base/common/actions';
 import DOM = require('vs/base/browser/dom');
 import types = require('vs/base/common/types');
-import { Gesture, EventType } from 'vs/base/browser/touch';
+import { Gesture, EventType, isTouchDevice } from 'vs/base/browser/touch';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -113,7 +113,9 @@ export class BaseActionItem implements IActionItem {
 			container.draggable = true;
 		}
 
-		this.builder.on(EventType.Tap, e => this.onClick(e));
+		if (isTouchDevice) {
+			this.builder.on(EventType.Tap, e => this.onClick(e));
+		}
 
 		this.builder.on(DOM.EventType.MOUSE_DOWN, (e) => {
 			if (!enableDragging) {

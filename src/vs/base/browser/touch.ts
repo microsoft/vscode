@@ -35,6 +35,8 @@ export interface GestureEvent extends MouseEvent {
 	pageY: number;
 }
 
+export const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0 || window.navigator.msMaxTouchPoints > 0;
+
 interface Touch {
 	identifier: number;
 	screenX: number;
