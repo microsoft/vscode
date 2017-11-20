@@ -9,7 +9,7 @@ import { Selection, workspace } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
 import { expandEmmetAbbreviation as expandEmmetAbbreviationImpl, wrapWithAbbreviation, wrapIndividualLinesWithAbbreviation } from '../abbreviationActions';
 
-function expandEmmetAbbreviation(args): Thenable<boolean | undefined> {
+function expandEmmetAbbreviation(args): Thenable<boolean> {
 	const result = expandEmmetAbbreviationImpl(args);
 	assert.ok(result);
 	return result!;
@@ -397,7 +397,7 @@ suite('Tests for jsx, xml and xsl', () => {
 function testHtmlExpandAbbreviation(selection: Selection, abbreviation: string, expandedText: string, shouldFail?: boolean): Thenable<any> {
 	return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
 		editor.selection = selection;
-		let expandPromise = expandEmmetAbbreviation(null);
+		let expandPromise = expandEmmetAbbreviationImpl(null);
 		if (!expandPromise) {
 			if (!shouldFail) {
 				assert.equal(1, 2, `Problem with expanding ${abbreviation} to ${expandedText}`);
