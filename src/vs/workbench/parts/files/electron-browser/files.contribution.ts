@@ -36,8 +36,8 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ToggleViewletAction {
-	public static ID = VIEWLET_ID;
-	public static LABEL = nls.localize('showExplorerViewlet', "Show Explorer");
+	public static readonly ID = VIEWLET_ID;
+	public static readonly LABEL = nls.localize('showExplorerViewlet', "Show Explorer");
 
 	constructor(
 		id: string,

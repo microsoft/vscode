@@ -183,7 +183,7 @@ const goToDeclarationKb = platform.isWeb
 
 export class GoToDefinitionAction extends DefinitionAction {
 
-	public static ID = 'editor.action.goToDeclaration';
+	public static readonly ID = 'editor.action.goToDeclaration';
 
 	constructor() {
 		super(new DefinitionActionConfig(), {
@@ -207,7 +207,7 @@ export class GoToDefinitionAction extends DefinitionAction {
 
 export class OpenDefinitionToSideAction extends DefinitionAction {
 
-	public static ID = 'editor.action.openDeclarationToTheSide';
+	public static readonly ID = 'editor.action.openDeclarationToTheSide';
 
 	constructor() {
 		super(new DefinitionActionConfig(true), {
@@ -266,7 +266,7 @@ export class ImplementationAction extends DefinitionAction {
 
 export class GoToImplementationAction extends ImplementationAction {
 
-	public static ID = 'editor.action.goToImplementation';
+	public static readonly ID = 'editor.action.goToImplementation';
 
 	constructor() {
 		super(new DefinitionActionConfig(), {
@@ -286,7 +286,7 @@ export class GoToImplementationAction extends ImplementationAction {
 
 export class PeekImplementationAction extends ImplementationAction {
 
-	public static ID = 'editor.action.peekImplementation';
+	public static readonly ID = 'editor.action.peekImplementation';
 
 	constructor() {
 		super(new DefinitionActionConfig(false, true, false), {
@@ -322,7 +322,7 @@ export class TypeDefinitionAction extends DefinitionAction {
 
 export class GoToTypeDefintionAction extends TypeDefinitionAction {
 
-	public static ID = 'editor.action.goToTypeDefinition';
+	public static readonly ID = 'editor.action.goToTypeDefinition';
 
 	constructor() {
 		super(new DefinitionActionConfig(), {
@@ -346,7 +346,7 @@ export class GoToTypeDefintionAction extends TypeDefinitionAction {
 
 export class PeekTypeDefinitionAction extends TypeDefinitionAction {
 
-	public static ID = 'editor.action.peekTypeDefinition';
+	public static readonly ID = 'editor.action.peekTypeDefinition';
 
 	constructor() {
 		super(new DefinitionActionConfig(false, true, false), {

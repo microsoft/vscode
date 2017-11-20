@@ -12,7 +12,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class ToggleTabFocusModeAction extends EditorAction {
 
-	public static ID = 'editor.action.toggleTabFocusMode';
+	public static readonly ID = 'editor.action.toggleTabFocusMode';
 
 	constructor() {
 		super({

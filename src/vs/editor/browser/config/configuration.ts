@@ -96,7 +96,7 @@ export interface ISerializedFontInfo {
 
 class CSSBasedConfiguration extends Disposable {
 
-	public static INSTANCE = new CSSBasedConfiguration();
+	public static readonly INSTANCE = new CSSBasedConfiguration();
 
 	private _cache: CSSBasedConfigurationCache;
 	private _evictUntrustedReadingsTimeout: number;

@@ -32,7 +32,7 @@ import { ToggleSidebarVisibilityAction } from 'vs/workbench/browser/actions/togg
 
 export class SidebarPart extends CompositePart<Viewlet> {
 
-	public static activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
+	public static readonly activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
 
 	public _serviceBrand: any;
 
@@ -150,8 +150,8 @@ export class SidebarPart extends CompositePart<Viewlet> {
 
 class FocusSideBarAction extends Action {
 
-	public static ID = 'workbench.action.focusSideBar';
-	public static LABEL = nls.localize('focusSideBar', "Focus into Side Bar");
+	public static readonly ID = 'workbench.action.focusSideBar';
+	public static readonly LABEL = nls.localize('focusSideBar', "Focus into Side Bar");
 
 	constructor(
 		id: string,

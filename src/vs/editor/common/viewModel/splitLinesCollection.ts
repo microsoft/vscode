@@ -777,7 +777,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 
 class VisibleIdentitySplitLine implements ISplitLine {
 
-	public static INSTANCE = new VisibleIdentitySplitLine();
+	public static readonly INSTANCE = new VisibleIdentitySplitLine();
 
 	private constructor() { }
 
@@ -842,7 +842,7 @@ class VisibleIdentitySplitLine implements ISplitLine {
 
 class InvisibleIdentitySplitLine implements ISplitLine {
 
-	public static INSTANCE = new InvisibleIdentitySplitLine();
+	public static readonly INSTANCE = new InvisibleIdentitySplitLine();
 
 	private constructor() { }
 

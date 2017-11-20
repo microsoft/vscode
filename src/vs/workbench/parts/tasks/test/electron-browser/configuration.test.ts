@@ -235,7 +235,7 @@ class CustomTaskBuilder {
 
 class ProblemMatcherBuilder {
 
-	public static DEFAULT_UUID = UUID.generateUuid();
+	public static readonly DEFAULT_UUID = UUID.generateUuid();
 
 	public result: ProblemMatcher;
 

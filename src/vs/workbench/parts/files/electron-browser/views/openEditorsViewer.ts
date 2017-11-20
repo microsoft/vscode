@@ -80,7 +80,7 @@ interface IEditorGroupTemplateData {
 
 export class Renderer implements IRenderer {
 
-	public static ITEM_HEIGHT = 22;
+	public static readonly ITEM_HEIGHT = 22;
 	private static EDITOR_GROUP_TEMPLATE_ID = 'editorgroup';
 	private static OPEN_EDITOR_TEMPLATE_ID = 'openeditor';
 

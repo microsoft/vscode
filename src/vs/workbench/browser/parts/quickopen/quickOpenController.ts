@@ -1344,8 +1344,8 @@ function resourceForEditorHistory(input: EditorInput, fileService: IFileService)
 
 export class RemoveFromEditorHistoryAction extends Action {
 
-	public static ID = 'workbench.action.removeFromEditorHistory';
-	public static LABEL = nls.localize('removeFromEditorHistory', "Remove From History");
+	public static readonly ID = 'workbench.action.removeFromEditorHistory';
+	public static readonly LABEL = nls.localize('removeFromEditorHistory', "Remove From History");
 
 	constructor(
 		id: string,

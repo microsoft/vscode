@@ -61,8 +61,8 @@ export const toggleRegexCommand = (accessor: ServicesAccessor) => {
 
 export class ShowNextSearchIncludeAction extends Action {
 
-	public static ID = 'search.history.showNextIncludePattern';
-	public static LABEL = nls.localize('nextSearchIncludePattern', "Show Next Search Include Pattern");
+	public static readonly ID = 'search.history.showNextIncludePattern';
+	public static readonly LABEL = nls.localize('nextSearchIncludePattern', "Show Next Search Include Pattern");
 	public static CONTEXT_KEY_EXPRESSION: ContextKeyExpr = ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.PatternIncludesFocusedKey);
 
 	constructor(id: string, label: string,
@@ -82,8 +82,8 @@ export class ShowNextSearchIncludeAction extends Action {
 
 export class ShowPreviousSearchIncludeAction extends Action {
 
-	public static ID = 'search.history.showPreviousIncludePattern';
-	public static LABEL = nls.localize('previousSearchIncludePattern', "Show Previous Search Include Pattern");
+	public static readonly ID = 'search.history.showPreviousIncludePattern';
+	public static readonly LABEL = nls.localize('previousSearchIncludePattern', "Show Previous Search Include Pattern");
 	public static CONTEXT_KEY_EXPRESSION: ContextKeyExpr = ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.PatternIncludesFocusedKey);
 
 	constructor(id: string, label: string,
@@ -103,8 +103,8 @@ export class ShowPreviousSearchIncludeAction extends Action {
 
 export class ShowNextSearchExcludeAction extends Action {
 
-	public static ID = 'search.history.showNextExcludePattern';
-	public static LABEL = nls.localize('nextSearchExcludePattern', "Show Next Search Exclude Pattern");
+	public static readonly ID = 'search.history.showNextExcludePattern';
+	public static readonly LABEL = nls.localize('nextSearchExcludePattern', "Show Next Search Exclude Pattern");
 	public static CONTEXT_KEY_EXPRESSION: ContextKeyExpr = ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.PatternExcludesFocusedKey);
 
 	constructor(id: string, label: string,
@@ -123,8 +123,8 @@ export class ShowNextSearchExcludeAction extends Action {
 
 export class ShowPreviousSearchExcludeAction extends Action {
 
-	public static ID = 'search.history.showPreviousExcludePattern';
-	public static LABEL = nls.localize('previousSearchExcludePattern', "Show Previous Search Exclude Pattern");
+	public static readonly ID = 'search.history.showPreviousExcludePattern';
+	public static readonly LABEL = nls.localize('previousSearchExcludePattern', "Show Previous Search Exclude Pattern");
 	public static CONTEXT_KEY_EXPRESSION: ContextKeyExpr = ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.PatternExcludesFocusedKey);
 
 	constructor(id: string, label: string,
@@ -144,8 +144,8 @@ export class ShowPreviousSearchExcludeAction extends Action {
 
 export class ShowNextSearchTermAction extends Action {
 
-	public static ID = 'search.history.showNext';
-	public static LABEL = nls.localize('nextSearchTerm', "Show Next Search Term");
+	public static readonly ID = 'search.history.showNext';
+	public static readonly LABEL = nls.localize('nextSearchTerm', "Show Next Search Term");
 	public static CONTEXT_KEY_EXPRESSION: ContextKeyExpr = ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.SearchInputBoxFocusedKey);
 
 	constructor(id: string, label: string,
@@ -166,8 +166,8 @@ export class ShowNextSearchTermAction extends Action {
 
 export class ShowPreviousSearchTermAction extends Action {
 
-	public static ID = 'search.history.showPrevious';
-	public static LABEL = nls.localize('previousSearchTerm', "Show Previous Search Term");
+	public static readonly ID = 'search.history.showPrevious';
+	public static readonly LABEL = nls.localize('previousSearchTerm', "Show Previous Search Term");
 	public static CONTEXT_KEY_EXPRESSION: ContextKeyExpr = ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.SearchInputBoxFocusedKey);
 
 	constructor(id: string, label: string,
@@ -187,8 +187,8 @@ export class ShowPreviousSearchTermAction extends Action {
 
 export class FocusNextInputAction extends Action {
 
-	public static ID = 'search.focus.nextInputBox';
-	public static LABEL = nls.localize('focusNextInputBox', "Focus Next Input Box");
+	public static readonly ID = 'search.focus.nextInputBox';
+	public static readonly LABEL = nls.localize('focusNextInputBox', "Focus Next Input Box");
 
 	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
 		super(id, label);
@@ -202,8 +202,8 @@ export class FocusNextInputAction extends Action {
 
 export class FocusPreviousInputAction extends Action {
 
-	public static ID = 'search.focus.previousInputBox';
-	public static LABEL = nls.localize('focusPreviousInputBox', "Focus Previous Input Box");
+	public static readonly ID = 'search.focus.previousInputBox';
+	public static readonly LABEL = nls.localize('focusPreviousInputBox', "Focus Previous Input Box");
 
 	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
 		super(id, label);
@@ -261,7 +261,7 @@ export const SHOW_SEARCH_LABEL = nls.localize('showSearchViewlet', "Show Search"
 
 export class FindInFilesAction extends FindOrReplaceInFilesAction {
 
-	public static LABEL = nls.localize('findInFiles', "Find in Files");
+	public static readonly LABEL = nls.localize('findInFiles', "Find in Files");
 
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService) {
 		super(id, label, viewletService, {
@@ -274,8 +274,8 @@ export class FindInFilesAction extends FindOrReplaceInFilesAction {
 
 export class FindInFilesWithSelectedTextAction extends FindOrReplaceInFilesAction {
 
-	public static ID = 'workbench.action.findInFilesWithSelectedText';
-	public static LABEL = nls.localize('findInFilesWithSelectedText', "Find in Files With Selected Text");
+	public static readonly ID = 'workbench.action.findInFilesWithSelectedText';
+	public static readonly LABEL = nls.localize('findInFilesWithSelectedText', "Find in Files With Selected Text");
 
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService) {
 		super(id, label, viewletService, {
@@ -289,8 +289,8 @@ export class FindInFilesWithSelectedTextAction extends FindOrReplaceInFilesActio
 
 export class ReplaceInFilesAction extends FindOrReplaceInFilesAction {
 
-	public static ID = 'workbench.action.replaceInFiles';
-	public static LABEL = nls.localize('replaceInFiles', "Replace in Files");
+	public static readonly ID = 'workbench.action.replaceInFiles';
+	public static readonly LABEL = nls.localize('replaceInFiles', "Replace in Files");
 
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService) {
 		super(id, label, viewletService, {
@@ -303,8 +303,8 @@ export class ReplaceInFilesAction extends FindOrReplaceInFilesAction {
 
 export class ReplaceInFilesWithSelectedTextAction extends FindOrReplaceInFilesAction {
 
-	public static ID = 'workbench.action.replaceInFilesWithSelectedText';
-	public static LABEL = nls.localize('replaceInFilesWithSelectedText', "Replace in Files With Selected Text");
+	public static readonly ID = 'workbench.action.replaceInFilesWithSelectedText';
+	public static readonly LABEL = nls.localize('replaceInFilesWithSelectedText', "Replace in Files With Selected Text");
 
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService) {
 		super(id, label, viewletService, {
@@ -389,8 +389,8 @@ export class ClearSearchResultsAction extends Action {
 }
 
 export class FocusNextSearchResultAction extends Action {
-	public static ID = 'search.action.focusNextSearchResult';
-	public static LABEL = nls.localize('FocusNextSearchResult.label', "Focus Next Search Result");
+	public static readonly ID = 'search.action.focusNextSearchResult';
+	public static readonly LABEL = nls.localize('FocusNextSearchResult.label', "Focus Next Search Result");
 
 	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
 		super(id, label);
@@ -404,8 +404,8 @@ export class FocusNextSearchResultAction extends Action {
 }
 
 export class FocusPreviousSearchResultAction extends Action {
-	public static ID = 'search.action.focusPreviousSearchResult';
-	public static LABEL = nls.localize('FocusPreviousSearchResult.label', "Focus Previous Search Result");
+	public static readonly ID = 'search.action.focusPreviousSearchResult';
+	public static readonly LABEL = nls.localize('FocusPreviousSearchResult.label', "Focus Previous Search Result");
 
 	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
 		super(id, label);

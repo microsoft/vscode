@@ -38,7 +38,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { onUnexpectedError } from 'vs/base/common/errors';
 
 export class KeyboardMapperFactory {
-	public static INSTANCE = new KeyboardMapperFactory();
+	public static readonly INSTANCE = new KeyboardMapperFactory();
 
 	private _layoutInfo: nativeKeymap.IKeyboardLayoutInfo;
 	private _rawMapping: nativeKeymap.IKeyboardMapping;

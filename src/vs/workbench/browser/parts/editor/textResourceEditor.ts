@@ -30,7 +30,7 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
  */
 export class TextResourceEditor extends BaseTextEditor {
 
-	public static ID = 'workbench.editors.textResourceEditor';
+	public static readonly ID = 'workbench.editors.textResourceEditor';
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,

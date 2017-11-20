@@ -163,8 +163,8 @@ export class RipgrepParser extends EventEmitter {
 	private static RESULT_REGEX = /^\u001b\[m(\d+)\u001b\[m:(.*)(\r?)/;
 	private static FILE_REGEX = /^\u001b\[m(.+)\u001b\[m$/;
 
-	public static MATCH_START_MARKER = '\u001b[m\u001b[31m';
-	public static MATCH_END_MARKER = '\u001b[m';
+	public static readonly MATCH_START_MARKER = '\u001b[m\u001b[31m';
+	public static readonly MATCH_END_MARKER = '\u001b[m';
 
 	private fileMatch: FileMatch;
 	private remainder: string;

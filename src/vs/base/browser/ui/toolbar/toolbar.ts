@@ -157,7 +157,7 @@ export class ToolBar {
 
 class ToggleMenuAction extends Action {
 
-	public static ID = 'toolbar.toggle.more';
+	public static readonly ID = 'toolbar.toggle.more';
 
 	private _menuActions: IAction[];
 	private toggleDropdownMenu: () => void;

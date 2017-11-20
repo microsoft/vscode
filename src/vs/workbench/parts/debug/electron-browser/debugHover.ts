@@ -32,7 +32,7 @@ const MAX_ELEMENTS_SHOWN = 18;
 
 export class DebugHoverWidget implements IContentWidget {
 
-	public static ID = 'debug.hoverWidget';
+	public static readonly ID = 'debug.hoverWidget';
 	// editor.IContentWidget.allowEditorOverflow
 	public allowEditorOverflow = true;
 

@@ -53,8 +53,8 @@ export class TogglePanelAction extends Action {
 
 class FocusPanelAction extends Action {
 
-	public static ID = 'workbench.action.focusPanel';
-	public static LABEL = nls.localize('focusPanel', "Focus into Panel");
+	public static readonly ID = 'workbench.action.focusPanel';
+	public static readonly LABEL = nls.localize('focusPanel', "Focus into Panel");
 
 	constructor(
 		id: string,
@@ -83,8 +83,8 @@ class FocusPanelAction extends Action {
 
 export class TogglePanelPositionAction extends Action {
 
-	public static ID = 'workbench.action.togglePanelPosition';
-	public static LABEL = nls.localize('toggledPanelPosition', "Toggle Panel Position");
+	public static readonly ID = 'workbench.action.togglePanelPosition';
+	public static readonly LABEL = nls.localize('toggledPanelPosition', "Toggle Panel Position");
 	private static MOVE_TO_RIGHT_LABEL = nls.localize('moveToRight', "Move to Right");
 	private static MOVE_TO_BOTTOM_LABEL = nls.localize('moveToBottom', "Move to Bottom");
 	private toDispose: IDisposable[];
@@ -119,8 +119,8 @@ export class TogglePanelPositionAction extends Action {
 
 export class ToggleMaximizedPanelAction extends Action {
 
-	public static ID = 'workbench.action.toggleMaximizedPanel';
-	public static LABEL = nls.localize('toggleMaximizedPanel', "Toggle Maximized Panel");
+	public static readonly ID = 'workbench.action.toggleMaximizedPanel';
+	public static readonly LABEL = nls.localize('toggleMaximizedPanel', "Toggle Maximized Panel");
 	private static MAXIMIZE_LABEL = nls.localize('maximizePanel', "Maximize Panel Size");
 	private static RESTORE_LABEL = nls.localize('minimizePanel', "Restore Panel Size");
 	private toDispose: IDisposable[];

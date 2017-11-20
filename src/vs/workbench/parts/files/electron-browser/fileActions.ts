@@ -148,7 +148,7 @@ export class BaseFileAction extends BaseErrorReportingAction {
 
 export class TriggerRenameFileAction extends BaseFileAction {
 
-	public static ID = 'renameFile';
+	public static readonly ID = 'renameFile';
 
 	private tree: ITree;
 	private renameAction: BaseRenameAction;
@@ -284,7 +284,7 @@ export abstract class BaseRenameAction extends BaseFileAction {
 
 class RenameFileAction extends BaseRenameAction {
 
-	public static ID = 'workbench.files.action.renameFile';
+	public static readonly ID = 'workbench.files.action.renameFile';
 
 	constructor(
 		element: FileStat,
@@ -523,8 +523,8 @@ export abstract class BaseGlobalNewAction extends Action {
 
 /* Create new file from anywhere: Open untitled */
 export class GlobalNewUntitledFileAction extends Action {
-	public static ID = 'workbench.action.files.newUntitledFile';
-	public static LABEL = nls.localize('newUntitledFile', "New Untitled File");
+	public static readonly ID = 'workbench.action.files.newUntitledFile';
+	public static readonly LABEL = nls.localize('newUntitledFile', "New Untitled File");
 
 	constructor(
 		id: string,
@@ -541,8 +541,8 @@ export class GlobalNewUntitledFileAction extends Action {
 
 /* Create new file from anywhere */
 export class GlobalNewFileAction extends BaseGlobalNewAction {
-	public static ID = 'explorer.newFile';
-	public static LABEL = nls.localize('newFile', "New File");
+	public static readonly ID = 'explorer.newFile';
+	public static readonly LABEL = nls.localize('newFile', "New File");
 
 	protected getAction(): IConstructorSignature2<ITree, IFileStat, Action> {
 		return NewFileAction;
@@ -551,8 +551,8 @@ export class GlobalNewFileAction extends BaseGlobalNewAction {
 
 /* Create new folder from anywhere */
 export class GlobalNewFolderAction extends BaseGlobalNewAction {
-	public static ID = 'explorer.newFolder';
-	public static LABEL = nls.localize('newFolder', "New Folder");
+	public static readonly ID = 'explorer.newFolder';
+	public static readonly LABEL = nls.localize('newFolder', "New Folder");
 
 	protected getAction(): IConstructorSignature2<ITree, IFileStat, Action> {
 		return NewFolderAction;
@@ -574,8 +574,8 @@ export abstract class BaseCreateAction extends BaseRenameAction {
 /* Create New File (only used internally by explorerViewer) */
 export class CreateFileAction extends BaseCreateAction {
 
-	public static ID = 'workbench.files.action.createFileFromExplorer';
-	public static LABEL = nls.localize('createNewFile', "New File");
+	public static readonly ID = 'workbench.files.action.createFileFromExplorer';
+	public static readonly LABEL = nls.localize('createNewFile', "New File");
 
 	constructor(
 		element: FileStat,
@@ -602,8 +602,8 @@ export class CreateFileAction extends BaseCreateAction {
 /* Create New Folder (only used internally by explorerViewer) */
 export class CreateFolderAction extends BaseCreateAction {
 
-	public static ID = 'workbench.files.action.createFolderFromExplorer';
-	public static LABEL = nls.localize('createNewFolder', "New Folder");
+	public static readonly ID = 'workbench.files.action.createFolderFromExplorer';
+	public static readonly LABEL = nls.localize('createNewFolder', "New Folder");
 
 	constructor(
 		element: FileStat,
@@ -783,7 +783,7 @@ export class BaseDeleteFileAction extends BaseFileAction {
 
 /* Move File/Folder to trash */
 export class MoveFileToTrashAction extends BaseDeleteFileAction {
-	public static ID = 'moveFileToTrash';
+	public static readonly ID = 'moveFileToTrash';
 
 	constructor(
 		tree: ITree,
@@ -800,7 +800,7 @@ export class MoveFileToTrashAction extends BaseDeleteFileAction {
 /* Import File */
 export class ImportFileAction extends BaseFileAction {
 
-	public static ID = 'workbench.files.action.importFile';
+	public static readonly ID = 'workbench.files.action.importFile';
 	private tree: ITree;
 
 	constructor(
@@ -915,7 +915,7 @@ export class ImportFileAction extends BaseFileAction {
 let fileToCopy: FileStat;
 export class CopyFileAction extends BaseFileAction {
 
-	public static ID = 'filesExplorer.copy';
+	public static readonly ID = 'filesExplorer.copy';
 
 	private tree: ITree;
 	constructor(
@@ -951,7 +951,7 @@ export class CopyFileAction extends BaseFileAction {
 // Paste File/Folder
 export class PasteFileAction extends BaseFileAction {
 
-	public static ID = 'filesExplorer.paste';
+	public static readonly ID = 'filesExplorer.paste';
 
 	private tree: ITree;
 
@@ -1111,8 +1111,8 @@ export class DuplicateFileAction extends BaseFileAction {
 // Open to the side
 export class OpenToSideAction extends Action {
 
-	public static ID = 'explorer.openToSide';
-	public static LABEL = nls.localize('openToSide', "Open to the Side");
+	public static readonly ID = 'explorer.openToSide';
+	public static readonly LABEL = nls.localize('openToSide', "Open to the Side");
 
 	private tree: ITree;
 	private resource: URI;
@@ -1184,8 +1184,8 @@ export class SelectResourceForCompareAction extends Action {
 // Global Compare with
 export class GlobalCompareResourcesAction extends Action {
 
-	public static ID = 'workbench.files.action.compareFileWith';
-	public static LABEL = nls.localize('globalCompareFile', "Compare Active File With...");
+	public static readonly ID = 'workbench.files.action.compareFileWith';
+	public static readonly LABEL = nls.localize('globalCompareFile', "Compare Active File With...");
 
 	constructor(
 		id: string,
@@ -1447,8 +1447,8 @@ export abstract class BaseSaveOneFileAction extends BaseSaveFileAction {
 
 export class SaveFileAction extends BaseSaveOneFileAction {
 
-	public static ID = 'workbench.action.files.save';
-	public static LABEL = nls.localize('save', "Save");
+	public static readonly ID = 'workbench.action.files.save';
+	public static readonly LABEL = nls.localize('save', "Save");
 
 	public isSaveAs(): boolean {
 		return false;
@@ -1457,8 +1457,8 @@ export class SaveFileAction extends BaseSaveOneFileAction {
 
 export class SaveFileAsAction extends BaseSaveOneFileAction {
 
-	public static ID = 'workbench.action.files.saveAs';
-	public static LABEL = nls.localize('saveAs', "Save As...");
+	public static readonly ID = 'workbench.action.files.saveAs';
+	public static readonly LABEL = nls.localize('saveAs', "Save As...");
 
 	public isSaveAs(): boolean {
 		return true;
@@ -1596,8 +1596,8 @@ export abstract class BaseSaveAllAction extends BaseSaveFileAction {
 
 export class SaveAllAction extends BaseSaveAllAction {
 
-	public static ID = 'workbench.action.files.saveAll';
-	public static LABEL = nls.localize('saveAll', "Save All");
+	public static readonly ID = 'workbench.action.files.saveAll';
+	public static readonly LABEL = nls.localize('saveAll', "Save All");
 
 	public get class(): string {
 		return 'explorer-action save-all';
@@ -1614,8 +1614,8 @@ export class SaveAllAction extends BaseSaveAllAction {
 
 export class SaveAllInGroupAction extends BaseSaveAllAction {
 
-	public static ID = 'workbench.files.action.saveAllInGroup';
-	public static LABEL = nls.localize('saveAllInGroup', "Save All in Group");
+	public static readonly ID = 'workbench.files.action.saveAllInGroup';
+	public static readonly LABEL = nls.localize('saveAllInGroup', "Save All in Group");
 
 	public get class(): string {
 		return 'explorer-action save-all';
@@ -1645,8 +1645,8 @@ export class SaveAllInGroupAction extends BaseSaveAllAction {
 
 export class SaveFilesAction extends BaseSaveAllAction {
 
-	public static ID = 'workbench.action.files.saveFiles';
-	public static LABEL = nls.localize('saveFiles', "Save All Files");
+	public static readonly ID = 'workbench.action.files.saveFiles';
+	public static readonly LABEL = nls.localize('saveFiles', "Save All Files");
 
 	protected getSaveAllArguments(): boolean {
 		return this.includeUntitled();
@@ -1659,8 +1659,8 @@ export class SaveFilesAction extends BaseSaveAllAction {
 
 export class RevertFileAction extends Action {
 
-	public static ID = 'workbench.action.files.revert';
-	public static LABEL = nls.localize('revert', "Revert File");
+	public static readonly ID = 'workbench.action.files.revert';
+	public static readonly LABEL = nls.localize('revert', "Revert File");
 
 	private resource: URI;
 
@@ -1697,8 +1697,8 @@ export class RevertFileAction extends Action {
 
 export class FocusOpenEditorsView extends Action {
 
-	public static ID = 'workbench.files.action.focusOpenEditorsView';
-	public static LABEL = nls.localize({ key: 'focusOpenEditors', comment: ['Open is an adjective'] }, "Focus on Open Editors View");
+	public static readonly ID = 'workbench.files.action.focusOpenEditorsView';
+	public static readonly LABEL = nls.localize({ key: 'focusOpenEditors', comment: ['Open is an adjective'] }, "Focus on Open Editors View");
 
 	constructor(
 		id: string,
@@ -1721,8 +1721,8 @@ export class FocusOpenEditorsView extends Action {
 
 export class FocusFilesExplorer extends Action {
 
-	public static ID = 'workbench.files.action.focusFilesExplorer';
-	public static LABEL = nls.localize('focusFilesExplorer', "Focus on Files Explorer");
+	public static readonly ID = 'workbench.files.action.focusFilesExplorer';
+	public static readonly LABEL = nls.localize('focusFilesExplorer', "Focus on Files Explorer");
 
 	constructor(
 		id: string,
@@ -1745,8 +1745,8 @@ export class FocusFilesExplorer extends Action {
 
 export class ShowActiveFileInExplorer extends Action {
 
-	public static ID = 'workbench.files.action.showActiveFileInExplorer';
-	public static LABEL = nls.localize('showInExplorer', "Reveal Active File in Side Bar");
+	public static readonly ID = 'workbench.files.action.showActiveFileInExplorer';
+	public static readonly LABEL = nls.localize('showInExplorer', "Reveal Active File in Side Bar");
 
 	constructor(
 		id: string,
@@ -1772,8 +1772,8 @@ export class ShowActiveFileInExplorer extends Action {
 
 export class CollapseExplorerView extends Action {
 
-	public static ID = 'workbench.files.action.collapseExplorerFolders';
-	public static LABEL = nls.localize('collapseExplorerFolders', "Collapse Folders in Explorer");
+	public static readonly ID = 'workbench.files.action.collapseExplorerFolders';
+	public static readonly LABEL = nls.localize('collapseExplorerFolders', "Collapse Folders in Explorer");
 
 	constructor(
 		id: string,
@@ -1800,8 +1800,8 @@ export class CollapseExplorerView extends Action {
 
 export class RefreshExplorerView extends Action {
 
-	public static ID = 'workbench.files.action.refreshFilesExplorer';
-	public static LABEL = nls.localize('refreshExplorer', "Refresh Explorer");
+	public static readonly ID = 'workbench.files.action.refreshFilesExplorer';
+	public static readonly LABEL = nls.localize('refreshExplorer', "Refresh Explorer");
 
 	constructor(
 		id: string,
@@ -1823,8 +1823,8 @@ export class RefreshExplorerView extends Action {
 
 export class ShowOpenedFileInNewWindow extends Action {
 
-	public static ID = 'workbench.action.files.showOpenedFileInNewWindow';
-	public static LABEL = nls.localize('openFileInNewWindow', "Open Active File in New Window");
+	public static readonly ID = 'workbench.action.files.showOpenedFileInNewWindow';
+	public static readonly LABEL = nls.localize('openFileInNewWindow', "Open Active File in New Window");
 
 	constructor(
 		id: string,
@@ -1850,7 +1850,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 
 export class RevealInOSAction extends Action {
 
-	public static LABEL = isWindows ? nls.localize('revealInWindows', "Reveal in Explorer") : isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder");
+	public static readonly LABEL = isWindows ? nls.localize('revealInWindows', "Reveal in Explorer") : isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder");
 
 	constructor(
 		private resource: URI,
@@ -1870,8 +1870,8 @@ export class RevealInOSAction extends Action {
 
 export class GlobalRevealInOSAction extends Action {
 
-	public static ID = 'workbench.action.files.revealActiveFileInWindows';
-	public static LABEL = isWindows ? nls.localize('revealActiveFileInWindows', "Reveal Active File in Windows Explorer") : (isMacintosh ? nls.localize('revealActiveFileInMac', "Reveal Active File in Finder") : nls.localize('openActiveFileContainer', "Open Containing Folder of Active File"));
+	public static readonly ID = 'workbench.action.files.revealActiveFileInWindows';
+	public static readonly LABEL = isWindows ? nls.localize('revealActiveFileInWindows', "Reveal Active File in Windows Explorer") : (isMacintosh ? nls.localize('revealActiveFileInMac', "Reveal Active File in Finder") : nls.localize('openActiveFileContainer', "Open Containing Folder of Active File"));
 
 	constructor(
 		id: string,
@@ -1890,7 +1890,7 @@ export class GlobalRevealInOSAction extends Action {
 
 export class CopyPathAction extends Action {
 
-	public static LABEL = nls.localize('copyPath', "Copy Path");
+	public static readonly LABEL = nls.localize('copyPath', "Copy Path");
 
 	constructor(
 		private resource: URI,
@@ -1910,8 +1910,8 @@ export class CopyPathAction extends Action {
 
 export class GlobalCopyPathAction extends Action {
 
-	public static ID = 'workbench.action.files.copyPathOfActiveFile';
-	public static LABEL = nls.localize('copyPathOfActive', "Copy Path of Active File");
+	public static readonly ID = 'workbench.action.files.copyPathOfActiveFile';
+	public static readonly LABEL = nls.localize('copyPathOfActive', "Copy Path of Active File");
 
 	constructor(
 		id: string,
@@ -1991,8 +1991,8 @@ export function getWellFormedFileName(filename: string): string {
 
 export class CompareWithSavedAction extends Action {
 
-	public static ID = 'workbench.files.action.compareWithSaved';
-	public static LABEL = nls.localize('compareWithSaved', "Compare Active File with Saved");
+	public static readonly ID = 'workbench.files.action.compareWithSaved';
+	public static readonly LABEL = nls.localize('compareWithSaved', "Compare Active File with Saved");
 
 	private static SCHEME = 'showModifications';
 
@@ -2049,8 +2049,8 @@ export class CompareWithSavedAction extends Action {
 
 export class CompareWithClipboardAction extends Action {
 
-	public static ID = 'workbench.files.action.compareWithClipboard';
-	public static LABEL = nls.localize('compareWithClipboard', "Compare Active File with Clipboard");
+	public static readonly ID = 'workbench.files.action.compareWithClipboard';
+	public static readonly LABEL = nls.localize('compareWithClipboard', "Compare Active File with Clipboard");
 
 	private static SCHEME = 'clipboardCompare';
 

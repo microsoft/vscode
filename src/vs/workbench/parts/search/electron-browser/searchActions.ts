@@ -19,7 +19,7 @@ import { relative } from 'path';
 
 export class FindInFolderAction extends Action {
 
-	public static ID = 'filesExplorer.findInFolder';
+	public static readonly ID = 'filesExplorer.findInFolder';
 
 	private resource: URI;
 
@@ -57,7 +57,7 @@ export const findInFolderCommand = (accessor: ServicesAccessor, resource?: URI) 
 
 export class FindInWorkspaceAction extends Action {
 
-	public static ID = 'filesExplorer.findInWorkspace';
+	public static readonly ID = 'filesExplorer.findInWorkspace';
 
 	constructor( @IViewletService private viewletService: IViewletService) {
 		super(FindInWorkspaceAction.ID, nls.localize('findInWorkspace', "Find in Workspace..."));

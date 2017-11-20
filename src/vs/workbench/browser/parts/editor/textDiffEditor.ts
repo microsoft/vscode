@@ -40,7 +40,7 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
  */
 export class TextDiffEditor extends BaseTextEditor {
 
-	public static ID = TEXT_DIFF_EDITOR_ID;
+	public static readonly ID = TEXT_DIFF_EDITOR_ID;
 
 	private diffNavigator: DiffNavigator;
 	private nextDiffAction: NavigateAction;

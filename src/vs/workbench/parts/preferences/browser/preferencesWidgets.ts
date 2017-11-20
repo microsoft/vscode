@@ -751,7 +751,7 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 
 export class EditPreferenceWidget<T> extends Disposable {
 
-	public static GLYPH_MARGIN_CLASS_NAME = 'edit-preferences-widget';
+	public static readonly GLYPH_MARGIN_CLASS_NAME = 'edit-preferences-widget';
 
 	private _line: number;
 	private _preferences: T[];

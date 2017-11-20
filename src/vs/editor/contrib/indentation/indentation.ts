@@ -149,7 +149,7 @@ export function getReindentEditOperations(model: ITokenizedModel, startLineNumbe
 }
 
 export class IndentationToSpacesAction extends EditorAction {
-	public static ID = 'editor.action.indentationToSpaces';
+	public static readonly ID = 'editor.action.indentationToSpaces';
 
 	constructor() {
 		super({
@@ -179,7 +179,7 @@ export class IndentationToSpacesAction extends EditorAction {
 }
 
 export class IndentationToTabsAction extends EditorAction {
-	public static ID = 'editor.action.indentationToTabs';
+	public static readonly ID = 'editor.action.indentationToTabs';
 
 	constructor() {
 		super({
@@ -249,7 +249,7 @@ export class ChangeIndentationSizeAction extends EditorAction {
 
 export class IndentUsingTabs extends ChangeIndentationSizeAction {
 
-	public static ID = 'editor.action.indentUsingTabs';
+	public static readonly ID = 'editor.action.indentUsingTabs';
 
 	constructor() {
 		super(false, {
@@ -263,7 +263,7 @@ export class IndentUsingTabs extends ChangeIndentationSizeAction {
 
 export class IndentUsingSpaces extends ChangeIndentationSizeAction {
 
-	public static ID = 'editor.action.indentUsingSpaces';
+	public static readonly ID = 'editor.action.indentUsingSpaces';
 
 	constructor() {
 		super(true, {
@@ -277,7 +277,7 @@ export class IndentUsingSpaces extends ChangeIndentationSizeAction {
 
 export class DetectIndentation extends EditorAction {
 
-	public static ID = 'editor.action.detectIndentation';
+	public static readonly ID = 'editor.action.detectIndentation';
 
 	constructor() {
 		super({

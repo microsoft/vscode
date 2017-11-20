@@ -72,8 +72,8 @@ interface ITouchBarSegment extends Electron.SegmentedControlSegment {
 
 export class CodeWindow implements ICodeWindow {
 
-	public static themeStorageKey = 'theme';
-	public static themeBackgroundStorageKey = 'themeBackground';
+	public static readonly themeStorageKey = 'theme';
+	public static readonly themeBackgroundStorageKey = 'themeBackground';
 
 	private static DEFAULT_BG_LIGHT = '#FFFFFF';
 	private static DEFAULT_BG_DARK = '#1E1E1E';

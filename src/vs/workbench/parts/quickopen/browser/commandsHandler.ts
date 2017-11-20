@@ -134,8 +134,8 @@ class CommandsHistory {
 
 export class ShowAllCommandsAction extends Action {
 
-	public static ID = 'workbench.action.showCommands';
-	public static LABEL = nls.localize('showTriggerActions', "Show All Commands");
+	public static readonly ID = 'workbench.action.showCommands';
+	public static readonly LABEL = nls.localize('showTriggerActions', "Show All Commands");
 
 	constructor(
 		id: string,
@@ -164,8 +164,8 @@ export class ShowAllCommandsAction extends Action {
 
 export class ClearCommandHistoryAction extends Action {
 
-	public static ID = 'workbench.action.clearCommandHistory';
-	public static LABEL = nls.localize('clearCommandHistory', "Clear Command History");
+	public static readonly ID = 'workbench.action.clearCommandHistory';
+	public static readonly LABEL = nls.localize('clearCommandHistory', "Clear Command History");
 
 	constructor(
 		id: string,

@@ -95,8 +95,8 @@ namespace ConfigureTaskAction {
 
 class CloseMessageAction extends Action {
 
-	public static ID = 'workbench.action.build.closeMessage';
-	public static TEXT = nls.localize('CloseMessageAction.label', 'Close');
+	public static readonly ID = 'workbench.action.build.closeMessage';
+	public static readonly TEXT = nls.localize('CloseMessageAction.label', 'Close');
 
 	public closeFunction: () => void;
 

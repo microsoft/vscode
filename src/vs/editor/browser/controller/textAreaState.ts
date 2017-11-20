@@ -31,7 +31,7 @@ export interface ITypeData {
 
 export class TextAreaState {
 
-	public static EMPTY = new TextAreaState('', 0, 0, null, null);
+	public static readonly EMPTY = new TextAreaState('', 0, 0, null, null);
 
 	public readonly value: string;
 	public readonly selectionStart: number;

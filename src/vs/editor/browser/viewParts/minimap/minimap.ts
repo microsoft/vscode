@@ -290,7 +290,7 @@ class MinimapLayout {
 
 class MinimapLine implements ILine {
 
-	public static INVALID = new MinimapLine(-1);
+	public static readonly INVALID = new MinimapLine(-1);
 
 	dy: number;
 

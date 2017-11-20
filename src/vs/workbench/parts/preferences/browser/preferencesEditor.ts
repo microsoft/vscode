@@ -72,7 +72,7 @@ export class PreferencesEditorInput extends SideBySideEditorInput {
 }
 
 export class DefaultPreferencesEditorInput extends ResourceEditorInput {
-	public static ID = 'workbench.editorinputs.defaultpreferences';
+	public static readonly ID = 'workbench.editorinputs.defaultpreferences';
 	constructor(defaultSettingsResource: URI,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IHashService hashService: IHashService

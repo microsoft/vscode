@@ -22,11 +22,11 @@ export class StorageService implements IStorageService {
 
 	public _serviceBrand: any;
 
-	public static COMMON_PREFIX = 'storage://';
-	public static GLOBAL_PREFIX = `${StorageService.COMMON_PREFIX}global/`;
-	public static WORKSPACE_PREFIX = `${StorageService.COMMON_PREFIX}workspace/`;
-	public static WORKSPACE_IDENTIFIER = 'workspaceidentifier';
-	public static NO_WORKSPACE_IDENTIFIER = '__$noWorkspace__';
+	public static readonly COMMON_PREFIX = 'storage://';
+	public static readonly GLOBAL_PREFIX = `${StorageService.COMMON_PREFIX}global/`;
+	public static readonly WORKSPACE_PREFIX = `${StorageService.COMMON_PREFIX}workspace/`;
+	public static readonly WORKSPACE_IDENTIFIER = 'workspaceidentifier';
+	public static readonly NO_WORKSPACE_IDENTIFIER = '__$noWorkspace__';
 
 	private _workspaceStorage: IStorage;
 	private _globalStorage: IStorage;

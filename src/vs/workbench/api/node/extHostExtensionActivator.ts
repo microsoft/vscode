@@ -45,7 +45,7 @@ export interface IExtensionAPI {
 
 export class ExtensionActivationTimes {
 
-	public static NONE = new ExtensionActivationTimes(false, -1, -1, -1);
+	public static readonly NONE = new ExtensionActivationTimes(false, -1, -1, -1);
 
 	public readonly startup: boolean;
 	public readonly codeLoadingTime: number;

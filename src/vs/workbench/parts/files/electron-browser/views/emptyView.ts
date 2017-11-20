@@ -25,7 +25,7 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 export class EmptyView extends ViewsViewletPanel {
 
 	public static ID: string = 'workbench.explorer.emptyView';
-	public static NAME = nls.localize('noWorkspace', "No Folder Opened");
+	public static readonly NAME = nls.localize('noWorkspace', "No Folder Opened");
 
 	private button: Button;
 	private messageDiv: Builder;

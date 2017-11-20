@@ -214,7 +214,7 @@ export class BaseActionItem implements IActionItem {
 
 export class Separator extends Action {
 
-	public static ID = 'vs.actions.separator';
+	public static readonly ID = 'vs.actions.separator';
 
 	constructor(label?: string, order?: number) {
 		super(Separator.ID, label, label ? 'separator text' : 'separator');

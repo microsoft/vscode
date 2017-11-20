@@ -35,7 +35,7 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
  */
 export class TextFileEditor extends BaseTextEditor {
 
-	public static ID = TEXT_FILE_EDITOR_ID;
+	public static readonly ID = TEXT_FILE_EDITOR_ID;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,

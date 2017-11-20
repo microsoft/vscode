@@ -87,8 +87,8 @@ function isWelcomePageEnabled(configurationService: IConfigurationService) {
 
 export class WelcomePageAction extends Action {
 
-	public static ID = 'workbench.action.showWelcomePage';
-	public static LABEL = localize('welcomePage', "Welcome");
+	public static readonly ID = 'workbench.action.showWelcomePage';
+	public static readonly LABEL = localize('welcomePage', "Welcome");
 
 	constructor(
 		id: string,

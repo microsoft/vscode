@@ -45,7 +45,7 @@ class MouseWheelClassifierItem {
 
 export class MouseWheelClassifier {
 
-	public static INSTANCE = new MouseWheelClassifier();
+	public static readonly INSTANCE = new MouseWheelClassifier();
 
 	private readonly _capacity: number;
 	private _memory: MouseWheelClassifierItem[];

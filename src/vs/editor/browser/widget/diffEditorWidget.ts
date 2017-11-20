@@ -138,7 +138,7 @@ let DIFF_EDITOR_ID = 0;
 export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffEditor {
 
 	private static ONE_OVERVIEW_WIDTH = 15;
-	public static ENTIRE_DIFF_OVERVIEW_WIDTH = 30;
+	public static readonly ENTIRE_DIFF_OVERVIEW_WIDTH = 30;
 	private static UPDATE_DIFF_DECORATIONS_DELAY = 200; // ms
 
 	private readonly _onDidDispose: Emitter<void> = this._register(new Emitter<void>());
