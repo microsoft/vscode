@@ -54,6 +54,8 @@ import { render as renderOcticons } from 'vs/base/browser/ui/octiconLabel/octico
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import * as platform from 'vs/base/common/platform';
 import { format } from 'vs/base/common/strings';
+import { ISpliceable, ISequence, ISplice } from 'vs/base/common/sequence';
+import { firstIndex } from 'vs/base/common/arrays';
 
 // TODO@Joao
 // Need to subclass MenuItemActionItem in order to respect
@@ -371,7 +373,7 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 
 	renderElement(group: ISCMResourceGroup, index: number, template: ResourceGroupTemplate): void {
 		template.name.textContent = group.label;
-		template.count.setCount(group.resources.elements.length);
+		template.count.setCount(group.elements.length);
 		template.actionBar.clear();
 		template.actionBar.context = group;
 		template.actionBar.push(this.scmMenus.getResourceGroupActions(group), { icon: true, label: false });
@@ -490,6 +492,142 @@ function scmResourceIdentityProvider(r: ISCMResourceGroup | ISCMResource): strin
 	} else {
 		const provider = r.provider;
 		return `${provider.contextValue}/${r.id}`;
+	}
+}
+
+function isGroupVisible(group: ISCMResourceGroup) {
+	return group.elements.length > 0 || !group.hideWhenEmpty;
+}
+
+interface IGroupItem {
+	readonly group: ISCMResourceGroup;
+	visible: boolean;
+	readonly disposable: IDisposable;
+}
+
+class ResourceGroupSplicer {
+
+	private items: IGroupItem[] = [];
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		groupSequence: ISequence<ISCMResourceGroup>,
+		private spliceable: ISpliceable<ISCMResourceGroup | ISCMResource>
+	) {
+		groupSequence.onDidSplice(this.onDidSpliceGroups, this, this.disposables);
+		this.onDidSpliceGroups({ start: 0, deleteCount: 0, toInsert: groupSequence.elements });
+	}
+
+	private onDidSpliceGroups({ start, deleteCount, toInsert }: ISplice<ISCMResourceGroup>): void {
+		let absoluteStart = 0;
+
+		for (let i = 0; i < start; i++) {
+			const item = this.items[i];
+			absoluteStart += (item.visible ? 1 : 0) + item.group.elements.length;
+		}
+
+		let absoluteDeleteCount = 0;
+
+		for (let i = 0; i < deleteCount; i++) {
+			const item = this.items[start + i];
+			absoluteDeleteCount += (item.visible ? 1 : 0) + item.group.elements.length;
+		}
+
+		const itemsToInsert: IGroupItem[] = [];
+		const absoluteToInsert: (ISCMResourceGroup | ISCMResource)[] = [];
+
+		for (const group of toInsert) {
+			const visible = isGroupVisible(group);
+
+			if (visible) {
+				absoluteToInsert.push(group);
+			}
+
+			for (const element of group.elements) {
+				absoluteToInsert.push(element);
+			}
+
+			const disposable = combinedDisposable([
+				group.onDidChange(() => this.onDidChangeGroup(group)),
+				group.onDidSplice(splice => this.onDidSpliceGroup(group, splice))
+			]);
+
+			itemsToInsert.push({ group, visible, disposable });
+		}
+
+		const itemsToDispose = this.items.splice(start, deleteCount, ...itemsToInsert);
+
+		for (const item of itemsToDispose) {
+			item.disposable.dispose();
+		}
+
+		this.spliceable.splice(absoluteStart, absoluteDeleteCount, absoluteToInsert);
+	}
+
+	private onDidChangeGroup(group: ISCMResourceGroup): void {
+		const itemIndex = firstIndex(this.items, item => item.group === group);
+
+		if (itemIndex < 0) {
+			return;
+		}
+
+		const item = this.items[itemIndex];
+		const visible = isGroupVisible(group);
+
+		if (item.visible === visible) {
+			return;
+		}
+
+		let absoluteStart = 0;
+
+		for (let i = 0; i < itemIndex; i++) {
+			const item = this.items[i];
+			absoluteStart += (item.visible ? 1 : 0) + item.group.elements.length;
+		}
+
+		if (visible) {
+			this.spliceable.splice(absoluteStart, 0, [group, ...group.elements]);
+		} else {
+			this.spliceable.splice(absoluteStart, 1 + group.elements.length, []);
+		}
+
+		item.visible = visible;
+	}
+
+	private onDidSpliceGroup(group: ISCMResourceGroup, { start, deleteCount, toInsert }: ISplice<ISCMResource>): void {
+		const itemIndex = firstIndex(this.items, item => item.group === group);
+
+		if (itemIndex < 0) {
+			return;
+		}
+
+		const item = this.items[itemIndex];
+		const visible = isGroupVisible(group);
+
+		if (!item.visible && !visible) {
+			return;
+		}
+
+		let absoluteStart = start;
+
+		for (let i = 0; i < itemIndex; i++) {
+			const item = this.items[i];
+			absoluteStart += (item.visible ? 1 : 0) + item.group.elements.length;
+		}
+
+		if (item.visible && !visible) {
+			this.spliceable.splice(absoluteStart, 1 + deleteCount, toInsert);
+		} else if (!item.visible && visible) {
+			this.spliceable.splice(absoluteStart, deleteCount, [group, ...toInsert]);
+		} else {
+			this.spliceable.splice(absoluteStart + 1, deleteCount, toInsert);
+		}
+
+		item.visible = visible;
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
 	}
 }
 
@@ -629,8 +767,8 @@ export class RepositoryPanel extends ViewletPanel {
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
 		this.disposables.push(this.list);
 
-		this.repository.provider.onDidChangeResources(this.updateList, this, this.disposables);
-		this.updateList();
+		const listSplicer = new ResourceGroupSplicer(this.repository.provider.groups, this.list);
+		this.disposables.push(listSplicer);
 	}
 
 	layoutBody(height: number = this.cachedHeight): void {
@@ -676,19 +814,6 @@ export class RepositoryPanel extends ViewletPanel {
 
 	getActionsContext(): any {
 		return this.repository.provider;
-	}
-
-	private updateList(): void {
-		const elements = this.repository.provider.resources
-			.reduce<(ISCMResourceGroup | ISCMResource)[]>((r, g) => {
-				if (g.resources.elements.length === 0 && g.hideWhenEmpty) {
-					return r;
-				}
-
-				return [...r, g, ...g.resources.elements];
-			}, []);
-
-		this.list.splice(0, this.list.length, elements);
 	}
 
 	private open(e: ISCMResource): void {

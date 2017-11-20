@@ -5,7 +5,7 @@
 
 'use strict';
 
-import Event from 'vs/base/common/event';
+import Event, { Emitter } from 'vs/base/common/event';
 
 export interface ISplice<T> {
 	readonly start: number;
@@ -20,4 +20,17 @@ export interface ISpliceable<T> {
 export interface ISequence<T> {
 	readonly elements: T[];
 	readonly onDidSplice: Event<ISplice<T>>;
+}
+
+export class Sequence<T> implements ISequence<T>, ISpliceable<T> {
+
+	readonly elements: T[] = [];
+
+	private _onDidSplice = new Emitter<ISplice<T>>();
+	readonly onDidSplice: Event<ISplice<T>> = this._onDidSplice.event;
+
+	splice(start: number, deleteCount: number, toInsert: T[] = []): void {
+		this.elements.splice(start, deleteCount, ...toInsert);
+		this._onDidSplice.fire({ start, deleteCount, toInsert });
+	}
 }

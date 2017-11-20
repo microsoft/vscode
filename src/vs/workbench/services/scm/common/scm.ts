@@ -39,12 +39,12 @@ export interface ISCMResource {
 	open(): TPromise<void>;
 }
 
-export interface ISCMResourceGroup {
+export interface ISCMResourceGroup extends ISequence<ISCMResource> {
 	readonly provider: ISCMProvider;
 	readonly label: string;
 	readonly id: string;
-	readonly resources: ISequence<ISCMResource>;
 	readonly hideWhenEmpty: boolean;
+	readonly onDidChange: Event<void>;
 }
 
 export interface ISCMProvider extends IDisposable {
@@ -52,7 +52,9 @@ export interface ISCMProvider extends IDisposable {
 	readonly id: string;
 	readonly contextValue: string;
 
-	readonly resources: ISCMResourceGroup[];
+	readonly groups: ISequence<ISCMResourceGroup>;
+
+	// TODO@Joao: remove
 	readonly onDidChangeResources: Event<void>;
 
 	readonly rootUri?: URI;
