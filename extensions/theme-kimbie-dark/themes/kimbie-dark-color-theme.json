@@ -15,7 +15,7 @@
 		"pickerGroup.border": "#e3b583",
 		"inputOption.activeBorder": "#a57a4c",
 		"selection.background": "#84613daa",
-		"editor.selectionBackground": "#84613daa",
+		"editor.selectionBackground": "#003629ee",
 		"editorWidget.background": "#131510",
 		"editorHoverWidget.background": "#221a14",
 		"editorGroupHeader.tabsBackground": "#131510",
@@ -48,7 +48,6 @@
 		"progressBar.background": "#7f5d38",
 		"editor.wordHighlightBackground": "#220b00",
 		"editor.wordHighlightStrongBackground": "#3b0e00",
-		"editor.selectionBackground": "#003629ee",
 		"activityBarBadge.background": "#00805e"
 		
 	},
