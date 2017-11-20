@@ -72,12 +72,14 @@ else
 			# Submit to apt repo
 			if [ "$DEB_ARCH" = "amd64" ]; then
 				eval echo '{ \"server\": \"azure-apt-cat.cloudapp.net\", \"protocol\": \"https\", \"port\": \"443\", \"repositoryId\": \"58a4adf642421134a1a48d1a\", \"username\": \"$LINUX_REPO_USERNAME\", \"password\": \"$LINUX_REPO_PASSWORD\" }' > apt-config.json
-				eval echo '{ \"name\": \"$PACKAGE_NAME\", \"version\": \"$PACKAGE_VERSION\", \"repositoryId\": \"58a4adf642421134a1a48d1a\", \"sourceUrl\": \"$DEB_URL\" }' > apt-addpkg.json
-				echo "Submitting apt-addpkg.json:"
-				cat apt-addpkg.json
+				# eval echo '{ \"name\": \"$PACKAGE_NAME\", \"version\": \"$PACKAGE_VERSION\", \"repositoryId\": \"58a4adf642421134a1a48d1a\", \"sourceUrl\": \"$DEB_URL\" }' > apt-addpkg.json
+				# echo "Submitting apt-addpkg.json:"
+				# cat apt-addpkg.json
 
+				# step "Publish to repositories" \
+				# 	./repoapi_client.sh -config apt-config.json -addpkg apt-addpkg.json
 				step "Publish to repositories" \
-					./repoapi_client.sh -config apt-config.json -addpkg apt-addpkg.json
+					./repoapi_client.sh -config apt-config.json -addfile $DEB_PATH
 			fi
 			# Submit to yum repo (disabled as it's manual until signing is automated)
 			# eval echo '{ \"server\": \"azure-apt-cat.cloudapp.net\", \"protocol\": \"https\", \"port\": \"443\", \"repositoryId\": \"58a4ae3542421134a1a48d1b\", \"username\": \"$LINUX_REPO_USERNAME\", \"password\": \"$LINUX_REPO_PASSWORD\" }' > yum-config.json
