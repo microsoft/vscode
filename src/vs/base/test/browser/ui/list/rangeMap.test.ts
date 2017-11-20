@@ -18,11 +18,11 @@ suite('RangeMap', () => {
 	});
 
 	test('intersection', () => {
-		assert.deepEqual(intersect({ start: 0, end: 0 }, { start: 0, end: 0 }), null);
-		assert.deepEqual(intersect({ start: 0, end: 0 }, { start: 5, end: 5 }), null);
-		assert.deepEqual(intersect({ start: 0, end: 1 }, { start: 5, end: 6 }), null);
-		assert.deepEqual(intersect({ start: 5, end: 6 }, { start: 0, end: 1 }), null);
-		assert.deepEqual(intersect({ start: 0, end: 5 }, { start: 2, end: 2 }), null);
+		assert.deepEqual(intersect({ start: 0, end: 0 }, { start: 0, end: 0 }), { start: 0, end: 0 });
+		assert.deepEqual(intersect({ start: 0, end: 0 }, { start: 5, end: 5 }), { start: 0, end: 0 });
+		assert.deepEqual(intersect({ start: 0, end: 1 }, { start: 5, end: 6 }), { start: 0, end: 0 });
+		assert.deepEqual(intersect({ start: 5, end: 6 }, { start: 0, end: 1 }), { start: 0, end: 0 });
+		assert.deepEqual(intersect({ start: 0, end: 5 }, { start: 2, end: 2 }), { start: 0, end: 0 });
 		assert.deepEqual(intersect({ start: 0, end: 1 }, { start: 0, end: 1 }), { start: 0, end: 1 });
 		assert.deepEqual(intersect({ start: 0, end: 10 }, { start: 0, end: 5 }), { start: 0, end: 5 });
 		assert.deepEqual(intersect({ start: 0, end: 5 }, { start: 0, end: 10 }), { start: 0, end: 5 });

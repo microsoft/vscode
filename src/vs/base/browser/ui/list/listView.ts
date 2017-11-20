@@ -10,7 +10,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollEvent, ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { RangeMap, IRange, relativeComplement } from './rangeMap';
+import { RangeMap, IRange, relativeComplement, intersect, shift } from './rangeMap';
 import { IDelegate, IRenderer } from './list';
 import { RowCache, IRow } from './rowCache';
 import { isWindows } from 'vs/base/common/platform';
@@ -132,10 +132,16 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	splice(start: number, deleteCount: number, elements: T[] = []): T[] {
 		const previousRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
+		const deleteRange = { start, end: start + deleteCount };
+		const removeRange = intersect(previousRenderRange, deleteRange);
 
-		for (let i = previousRenderRange.start; i < previousRenderRange.end; i++) {
+		for (let i = removeRange.start; i < removeRange.end; i++) {
 			this.removeItemFromDOM(this.items[i]);
 		}
+
+		const previousRestRange: IRange = { start: start + deleteCount, end: this.items.length };
+		const previousRenderedRestRange = intersect(previousRestRange, previousRenderRange);
+		const previousUnrenderedRestRanges = relativeComplement(previousRestRange, previousRenderRange);
 
 		const inserted = elements.map<IItem<T>>(element => ({
 			id: String(this.itemId++),
@@ -146,12 +152,37 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		}));
 
 		this.rangeMap.splice(start, deleteCount, ...inserted);
-
 		const deleted = this.items.splice(start, deleteCount, ...inserted);
-		const renderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
 
-		for (let i = renderRange.start; i < renderRange.end; i++) {
-			this.insertItemInDOM(this.items[i], i);
+		const delta = elements.length - deleteCount;
+		const renderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
+		const renderedRestRange = shift(previousRenderedRestRange, delta);
+		const updateRange = intersect(renderRange, renderedRestRange);
+
+		for (let i = updateRange.start; i < updateRange.end; i++) {
+			this.updateItemInDOM(this.items[i], i);
+		}
+
+		const removeRanges = relativeComplement(renderedRestRange, renderRange);
+
+		for (let r = 0; r < removeRanges.length; r++) {
+			const removeRange = removeRanges[r];
+
+			for (let i = removeRange.start; i < removeRange.end; i++) {
+				this.removeItemFromDOM(this.items[i]);
+			}
+		}
+
+		const unrenderedRestRanges = previousUnrenderedRestRanges.map(r => shift(r, delta));
+		const elementsRange = { start, end: start + elements.length };
+		const insertRanges = [elementsRange, ...unrenderedRestRanges].map(r => intersect(renderRange, r));
+
+		for (let r = 0; r < insertRanges.length; r++) {
+			const insertRange = insertRanges[r];
+
+			for (let i = insertRange.start; i < insertRange.end; i++) {
+				this.insertItemInDOM(this.items[i], i);
+			}
 		}
 
 		const scrollHeight = this.getContentHeight();
@@ -250,6 +281,11 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		item.row.domNode.style.height = `${item.size}px`;
 		item.row.domNode.setAttribute('data-index', `${index}`);
 		renderer.renderElement(item.element, index, item.row.templateData);
+	}
+
+	private updateItemInDOM(item: IItem<T>, index: number): void {
+		item.row.domNode.style.top = `${this.elementTop(index)}px`;
+		item.row.domNode.setAttribute('data-index', `${index}`);
 	}
 
 	private removeItemFromDOM(item: IItem<T>): void {
