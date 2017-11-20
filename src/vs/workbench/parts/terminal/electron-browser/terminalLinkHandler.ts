@@ -9,11 +9,11 @@ import * as platform from 'vs/base/common/platform';
 import * as pfs from 'vs/base/node/pfs';
 import Uri from 'vs/base/common/uri';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/browser/terminalWidgetManager';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -66,8 +66,8 @@ export class TerminalLinkHandler {
 		private _platform: platform.Platform,
 		private _initialCwd: string,
 		@IOpenerService private _openerService: IOpenerService,
-		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService,
-		@IConfigurationService private _configurationService: IConfigurationService
+		@IConfigurationService private _configurationService: IConfigurationService,
+		@ITerminalService private _terminalService: ITerminalService
 	) {
 		const baseLocalLinkClause = _platform === platform.Platform.Windows ? winLocalLinkClause : unixLocalLinkClause;
 		// Append line and column number regex
@@ -120,6 +120,9 @@ export class TerminalLinkHandler {
 			event.preventDefault();
 			// Require correct modifier on click
 			if (!this._isLinkActivationModifierDown(event)) {
+				// If the modifier is not pressed, the terminal should be
+				// focused if it's not already
+				this._terminalService.getActiveInstance().focus(true);
 				return false;
 			}
 			return handler(uri);
@@ -164,7 +167,7 @@ export class TerminalLinkHandler {
 	}
 
 	private _isLinkActivationModifierDown(event: MouseEvent): boolean {
-		const editorConf = this._configurationService.getConfiguration<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
+		const editorConf = this._configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
 		if (editorConf.multiCursorModifier === 'ctrlCmd') {
 			return !!event.altKey;
 		}
@@ -172,7 +175,7 @@ export class TerminalLinkHandler {
 	}
 
 	private _getLinkHoverString(): string {
-		const editorConf = this._configurationService.getConfiguration<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
+		const editorConf = this._configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
 		if (editorConf.multiCursorModifier === 'ctrlCmd') {
 			return nls.localize('terminalLinkHandler.followLinkAlt', 'Alt + click to follow link');
 		}
@@ -293,4 +296,4 @@ export class TerminalLinkHandler {
 export interface LineColumnInfo {
 	lineNumber?: string;
 	columnNumber?: string;
-};
+}

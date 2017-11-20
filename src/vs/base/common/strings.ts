@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { BoundedMap } from 'vs/base/common/map';
+import { LRUCache } from 'vs/base/common/map';
 import { CharCode } from 'vs/base/common/charCode';
 
 /**
@@ -231,6 +231,10 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
 	return (match && <any>regexp.lastIndex === 0);
 }
 
+export function regExpContainsBackreference(regexpValue: string): boolean {
+	return !!regexpValue.match(/([^\\]|^)(\\\\)*\\\d+/);
+}
+
 /**
  * The normalize() method returns the Unicode Normalization Form of a given string. The form will be
  * the Normalization Form Canonical Composition.
@@ -239,18 +243,18 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
  */
 export const canNormalize = typeof ((<any>'').normalize) === 'function';
 
-const nfcCache = new BoundedMap<string>(10000); // bounded to 10000 elements
+const nfcCache = new LRUCache<string, string>(10000); // bounded to 10000 elements
 export function normalizeNFC(str: string): string {
 	return normalize(str, 'NFC', nfcCache);
 }
 
-const nfdCache = new BoundedMap<string>(10000); // bounded to 10000 elements
+const nfdCache = new LRUCache<string, string>(10000); // bounded to 10000 elements
 export function normalizeNFD(str: string): string {
 	return normalize(str, 'NFD', nfdCache);
 }
 
 const nonAsciiCharactersPattern = /[^\u0000-\u0080]/;
-function normalize(str: string, form: string, normalizedCache: BoundedMap<string>): string {
+function normalize(str: string, form: string, normalizedCache: LRUCache<string, string>): string {
 	if (!canNormalize || !str) {
 		return str;
 	}
@@ -615,80 +619,26 @@ export function isFullWidthCharacter(charCode: number): boolean {
 }
 
 /**
- * Computes the difference score for two strings. More similar strings have a higher score.
- * We use largest common subsequence dynamic programming approach but penalize in the end for length differences.
- * Strings that have a large length difference will get a bad default score 0.
- * Complexity - both time and space O(first.length * second.length)
- * Dynamic programming LCS computation http://en.wikipedia.org/wiki/Longest_common_subsequence_problem
- *
- * @param first a string
- * @param second a string
- */
-export function difference(first: string, second: string, maxLenDelta: number = 4): number {
-	let lengthDifference = Math.abs(first.length - second.length);
-	// We only compute score if length of the currentWord and length of entry.name are similar.
-	if (lengthDifference > maxLenDelta) {
-		return 0;
-	}
-	// Initialize LCS (largest common subsequence) matrix.
-	let LCS: number[][] = [];
-	let zeroArray: number[] = [];
-	let i: number, j: number;
-	for (i = 0; i < second.length + 1; ++i) {
-		zeroArray.push(0);
-	}
-	for (i = 0; i < first.length + 1; ++i) {
-		LCS.push(zeroArray);
-	}
-	for (i = 1; i < first.length + 1; ++i) {
-		for (j = 1; j < second.length + 1; ++j) {
-			if (first[i - 1] === second[j - 1]) {
-				LCS[i][j] = LCS[i - 1][j - 1] + 1;
-			} else {
-				LCS[i][j] = Math.max(LCS[i - 1][j], LCS[i][j - 1]);
-			}
-		}
-	}
-	return LCS[first.length][second.length] - Math.sqrt(lengthDifference);
-}
-
-/**
- * Returns an array in which every entry is the offset of a
- * line. There is always one entry which is zero.
- */
-export function computeLineStarts(text: string): number[] {
-	let regexp = /\r\n|\r|\n/g,
-		ret: number[] = [0],
-		match: RegExpExecArray;
-	while ((match = regexp.exec(text))) {
-		ret.push(regexp.lastIndex);
-	}
-	return ret;
-}
-
-/**
  * Given a string and a max length returns a shorted version. Shorting
  * happens at favorable positions - such as whitespace or punctuation characters.
  */
-export function lcut(text: string, n: number): string {
-
+export function lcut(text: string, n: number) {
 	if (text.length < n) {
 		return text;
 	}
 
-	let segments = text.split(/\b/),
-		count = 0;
-
-	for (let i = segments.length - 1; i >= 0; i--) {
-		count += segments[i].length;
-
-		if (count > n) {
-			segments.splice(0, i);
+	const re = /\b/g;
+	let i = 0;
+	while (re.test(text)) {
+		if (text.length - re.lastIndex < n) {
 			break;
 		}
+
+		i = re.lastIndex;
+		re.lastIndex += 1;
 	}
 
-	return segments.join(empty).replace(/^\s/, empty);
+	return text.substring(i).replace(/^\s/, empty);
 }
 
 // Escape codes
@@ -718,25 +668,6 @@ export function startsWithUTF8BOM(str: string): boolean {
 export function stripUTF8BOM(str: string): string {
 	return startsWithUTF8BOM(str) ? str.substr(1) : str;
 }
-
-/**
- * Appends two strings. If the appended result is longer than maxLength,
- * trims the start of the result and replaces it with '...'.
- */
-export function appendWithLimit(first: string, second: string, maxLength: number): string {
-	const newLength = first.length + second.length;
-	if (newLength > maxLength) {
-		first = '...' + first.substr(newLength - maxLength);
-	}
-	if (second.length > maxLength) {
-		first += second.substr(second.length - maxLength);
-	} else {
-		first += second;
-	}
-
-	return first;
-}
-
 
 export function safeBtoa(str: string): string {
 	return btoa(encodeURIComponent(str)); // we use encodeURIComponent because btoa fails for non Latin 1 values

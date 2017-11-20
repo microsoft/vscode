@@ -8,21 +8,22 @@ import { SpectronApplication } from '../../spectron/application';
 import { ProblemSeverity, Problems } from '../problems/problems';
 
 describe('CSS', () => {
-	let app: SpectronApplication;
-	before(function () { app = new SpectronApplication(); return app.start('CSS'); });
-	after(() => app.stop());
-	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
+	before(function () {
+		this.app.suiteName = 'CSS';
+	});
 
-	it('verifies quick outline', async () => {
+	it('verifies quick outline', async function () {
+		const app = this.app as SpectronApplication;
 		await app.workbench.quickopen.openFile('style.css');
 
 		await app.workbench.editor.openOutline();
 		await app.workbench.quickopen.waitForQuickOpenElements(names => names.length === 2);
 	});
 
-	it('verifies warnings for the empty rule', async () => {
+	it('verifies warnings for the empty rule', async function () {
+		const app = this.app as SpectronApplication;
 		await app.workbench.quickopen.openFile('style.css');
-		await app.client.type('.foo{}');
+		await app.workbench.editor.waitForTypeInEditor('style.css', '.foo{}');
 
 		let warning = await app.client.waitForElement(Problems.getSelectorInEditor(ProblemSeverity.WARNING));
 		await app.screenCapturer.capture('CSS Warning in editor');
@@ -35,10 +36,11 @@ describe('CSS', () => {
 		await app.workbench.problems.hideProblemsView();
 	});
 
-	it('verifies that warning becomes an error once setting changed', async () => {
+	it('verifies that warning becomes an error once setting changed', async function () {
+		const app = this.app as SpectronApplication;
 		await app.workbench.settingsEditor.addUserSetting('css.lint.emptyRules', '"error"');
 		await app.workbench.quickopen.openFile('style.css');
-		await app.client.type('.foo{}');
+		await app.workbench.editor.waitForTypeInEditor('style.css', '.foo{}');
 
 		let error = await app.client.waitForElement(Problems.getSelectorInEditor(ProblemSeverity.ERROR));
 		await app.screenCapturer.capture('CSS Error in editor');

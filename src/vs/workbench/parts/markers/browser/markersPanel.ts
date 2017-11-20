@@ -19,7 +19,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { Panel } from 'vs/workbench/browser/panel';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import Constants from 'vs/workbench/parts/markers/common/constants';
-import { IProblemsConfiguration, MarkersModel, Marker, Resource, FilterOptions } from 'vs/workbench/parts/markers/common/markersModel';
+import { MarkersModel, Marker, Resource, FilterOptions } from 'vs/workbench/parts/markers/common/markersModel';
 import { Controller } from 'vs/workbench/parts/markers/browser/markersTreeController';
 import Tree = require('vs/base/parts/tree/browser/tree');
 import TreeImpl = require('vs/base/parts/tree/browser/treeImpl');
@@ -28,16 +28,15 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { CollapseAllAction, FilterAction, FilterInputBoxActionItem } from 'vs/workbench/parts/markers/browser/markersPanelActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import Messages from 'vs/workbench/parts/markers/common/messages';
-import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
-import { ContributableActionProvider } from 'vs/workbench/browser/actions';
+import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
 import FileResultsNavigation from 'vs/workbench/parts/files/browser/fileResultsNavigation';
 import { debounceEvent } from 'vs/base/common/event';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { SimpleFileResourceDragAndDrop } from 'vs/base/parts/tree/browser/treeDnd';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class MarkersPanel extends Panel {
 
@@ -47,7 +46,6 @@ export class MarkersPanel extends Panel {
 
 	private lastSelectedRelativeTop: number = 0;
 	private currentActiveResource: URI = null;
-	private hasToAutoReveal: boolean;
 
 	private tree: Tree.ITree;
 	private autoExpanded: Set<string>;
@@ -70,7 +68,7 @@ export class MarkersPanel extends Panel {
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IListService private listService: IListService,
 		@IThemeService themeService: IThemeService
@@ -89,9 +87,6 @@ export class MarkersPanel extends Panel {
 		this.toUnbind.push(this.rangeHighlightDecorations);
 
 		dom.addClass(parent.getHTMLElement(), 'markers-panel');
-
-		const conf = this.configurationService.getConfiguration<IProblemsConfiguration>();
-		this.onConfigurationsUpdated(conf);
 
 		let container = dom.append(parent.getHTMLElement(), dom.$('.markers-panel-container'));
 
@@ -163,7 +158,7 @@ export class MarkersPanel extends Panel {
 				},
 			}, sideByside).done(editor => {
 				if (editor && preserveFocus) {
-					this.rangeHighlightDecorations.highlightRange(marker, <ICommonCodeEditor>editor.getControl());
+					this.rangeHighlightDecorations.highlightRange(marker, <ICodeEditor>editor.getControl());
 				} else {
 					this.rangeHighlightDecorations.removeHighlightRange();
 				}
@@ -203,8 +198,7 @@ export class MarkersPanel extends Panel {
 	private createTree(parent: HTMLElement): void {
 		this.treeContainer = dom.append(parent, dom.$('.tree-container'));
 		dom.addClass(this.treeContainer, 'show-file-icons');
-		const actionProvider = this.instantiationService.createInstance(ContributableActionProvider);
-		const renderer = this.instantiationService.createInstance(Viewer.Renderer, this.getActionRunner(), actionProvider);
+		const renderer = this.instantiationService.createInstance(Viewer.Renderer);
 		const dnd = new SimpleFileResourceDragAndDrop(obj => obj instanceof Resource ? obj.uri : void 0);
 		let controller = this.instantiationService.createInstance(Controller);
 		this.tree = new TreeImpl.Tree(this.treeContainer, {
@@ -223,7 +217,7 @@ export class MarkersPanel extends Panel {
 
 		this._register(attachListStyler(this.tree, this.themeService));
 
-		this._register(this.tree.addListener('focus', (e: { focus: any }) => {
+		this._register(this.tree.onDidChangeFocus((e: { focus: any }) => {
 			this.markerFocusContextKey.set(e.focus instanceof Marker);
 		}));
 
@@ -233,16 +227,15 @@ export class MarkersPanel extends Panel {
 		}));
 
 		const focusTracker = this._register(dom.trackFocus(this.tree.getHTMLElement()));
-		focusTracker.addBlurListener(() => {
-			this.markerFocusContextKey.set(false);
-		});
+		this._register(focusTracker.onDidBlur(() => this.markerFocusContextKey.set(false)));
+		this._register(focusTracker);
 
 		this.toUnbind.push(this.listService.register(this.tree));
 	}
 
 	private createActions(): void {
 		this.collapseAllAction = this.instantiationService.createInstance(CollapseAllAction, this.tree, true);
-		this.filterAction = new FilterAction(this);
+		this.filterAction = new FilterAction();
 		this.actions = [
 			this.filterAction,
 			this.collapseAllAction
@@ -253,10 +246,9 @@ export class MarkersPanel extends Panel {
 	}
 
 	private createListeners(): void {
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationsUpdated(this.configurationService.getConfiguration<IProblemsConfiguration>())));
 		this.toUnbind.push(this.markerService.onMarkerChanged(this.onMarkerChanged, this));
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(this.onEditorsChanged, this));
-		this.toUnbind.push(this.tree.addListener('selection', () => this.onSelected()));
+		this.toUnbind.push(this.tree.onDidChangeSelection(() => this.onSelected()));
 	}
 
 	private onMarkerChanged(changedResources: URI[]) {
@@ -287,10 +279,6 @@ export class MarkersPanel extends Panel {
 		const activeInput = this.editorService.getActiveEditorInput();
 		this.currentActiveResource = activeInput ? activeInput.getResource() : void 0;
 		this.autoReveal();
-	}
-
-	private onConfigurationsUpdated(conf: IProblemsConfiguration): void {
-		this.hasToAutoReveal = conf && conf.problems && conf.problems.autoReveal;
 	}
 
 	private onSelected(): void {
@@ -338,8 +326,8 @@ export class MarkersPanel extends Panel {
 	}
 
 	private autoReveal(focus: boolean = false): void {
-		let conf = this.configurationService.getConfiguration<IProblemsConfiguration>();
-		if (conf && conf.problems && conf.problems.autoReveal) {
+		let autoReveal = this.configurationService.getValue<boolean>('problems.autoReveal');
+		if (typeof autoReveal === 'boolean' && autoReveal) {
 			this.revealMarkersForCurrentActiveEditor(focus);
 		}
 	}

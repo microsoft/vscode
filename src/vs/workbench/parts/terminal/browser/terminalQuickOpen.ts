@@ -10,10 +10,10 @@ import { Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel
 import { QuickOpenModel, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ContributableActionProvider } from 'vs/workbench/browser/actions';
 import { stripWildcards } from 'vs/base/common/strings';
 import { matchesFuzzy } from 'vs/base/common/filters';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export class TerminalEntry extends QuickOpenEntry {
 
@@ -49,7 +49,7 @@ export class CreateTerminal extends QuickOpenEntry {
 
 	constructor(
 		private label: string,
-		private terminalService: ITerminalService
+		private commandService: ICommandService
 	) {
 		super();
 	}
@@ -64,11 +64,7 @@ export class CreateTerminal extends QuickOpenEntry {
 
 	public run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
-			setTimeout(() => {
-				const newTerminal = this.terminalService.createInstance();
-				this.terminalService.setActiveInstance(newTerminal);
-				this.terminalService.showPanel(true);
-			}, 0);
+			setTimeout(() => this.commandService.executeCommand('workbench.action.terminal.new'), 0);
 			return true;
 		}
 
@@ -82,7 +78,7 @@ export class TerminalPickerHandler extends QuickOpenHandler {
 
 	constructor(
 		@ITerminalService private terminalService: ITerminalService,
-		@IPanelService private panelService: IPanelService
+		@ICommandService private commandService: ICommandService,
 	) {
 		super();
 	}
@@ -92,7 +88,7 @@ export class TerminalPickerHandler extends QuickOpenHandler {
 		const normalizedSearchValueLowercase = stripWildcards(searchValue).toLowerCase();
 
 		const terminalEntries: QuickOpenEntry[] = this.getTerminals();
-		terminalEntries.push(new CreateTerminal(nls.localize("'workbench.action.terminal.newplus", "$(plus) Create New Integrated Terminal"), this.terminalService));
+		terminalEntries.push(new CreateTerminal(nls.localize("'workbench.action.terminal.newplus", "$(plus) Create New Integrated Terminal"), this.commandService));
 
 		const entries = terminalEntries.filter(e => {
 			if (!searchValue) {

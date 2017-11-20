@@ -15,4 +15,8 @@ export class ClipboardService implements IClipboardService {
 	public writeText(text: string): void {
 		clipboard.writeText(text);
 	}
+
+	public readText(): string {
+		return clipboard.readText();
+	}
 }

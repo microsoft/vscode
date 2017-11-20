@@ -12,10 +12,10 @@ import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 suite('Telemetry - common properties', function () {
 
-	const commit = void 0;
-	const version = void 0;
-	const source = void 0;
-	let storageService;
+	const commit: string = void 0;
+	const version: string = void 0;
+	const source: string = void 0;
+	let storageService: StorageService;
 
 	setup(() => {
 		storageService = new StorageService(new InMemoryLocalStorage(), null, TestWorkspace.id);
@@ -47,10 +47,6 @@ suite('Telemetry - common properties', function () {
 			// machine id et al
 			assert.ok('common.instanceId' in props, 'instanceId');
 			assert.ok('common.machineId' in props, 'machineId');
-			if (process.platform === 'win32') { // SQM only on windows
-				assert.ok('common.sqm.userid' in props, 'userid');
-				assert.ok('common.sqm.machineid' in props, 'machineid');
-			}
 
 		});
 	});

@@ -21,9 +21,6 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
-import { ITerminalProcessFactory } from 'vs/workbench/parts/terminal/electron-browser/terminal';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
@@ -44,15 +41,8 @@ const LAUNCHING_DURATION = 500;
 
 // Enable search functionality in xterm.js instance
 XTermTerminal.loadAddon('search');
-
-class StandardTerminalProcessFactory implements ITerminalProcessFactory {
-	public create(env: { [key: string]: string }): cp.ChildProcess {
-		return cp.fork('./terminalProcess', [], {
-			env,
-			cwd: Uri.parse(path.dirname(require.toUrl('./terminalProcess'))).fsPath
-		});
-	}
-}
+// Enable the winpty compatibility addon which will simulate wraparound mode
+XTermTerminal.loadAddon('winptyCompat');
 
 enum ProcessState {
 	// The process has not been initialized yet.
@@ -76,7 +66,6 @@ enum ProcessState {
 export class TerminalInstance implements ITerminalInstance {
 	private static readonly EOL_REGEX = /\r?\n/g;
 
-	private static _terminalProcessFactory: ITerminalProcessFactory = new StandardTerminalProcessFactory();
 	private static _lastKnownDimensions: Dimension = null;
 	private static _idCounter = 1;
 
@@ -107,6 +96,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _preLaunchInputQueue: string;
 	private _initialCwd: string;
 	private _windowsShellHelper: WindowsShellHelper;
+	private _onLineDataListeners: ((lineData: string) => void)[];
 
 	private _widgetManager: TerminalWidgetManager;
 	private _linkHandler: TerminalLinkHandler;
@@ -130,8 +120,6 @@ export class TerminalInstance implements ITerminalInstance {
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IMessageService private _messageService: IMessageService,
 		@IPanelService private _panelService: IPanelService,
-		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
-		@IWorkbenchEditorService private _editorService: IWorkbenchEditorService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IClipboardService private _clipboardService: IClipboardService,
 		@IHistoryService private _historyService: IHistoryService,
@@ -140,6 +128,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._instanceDisposables = [];
 		this._processDisposables = [];
 		this._skipTerminalCommands = [];
+		this._onLineDataListeners = [];
 		this._isExiting = false;
 		this._hadFocusOnExit = false;
 		this._processState = ProcessState.UNINITIALIZED;
@@ -166,7 +155,7 @@ export class TerminalInstance implements ITerminalInstance {
 		if (platform.isWindows) {
 			this._processReady.then(() => {
 				if (!this._isDisposed) {
-					this._windowsShellHelper = new WindowsShellHelper(this._processId, this._shellLaunchConfig.executable, this, this._xterm);
+					this._windowsShellHelper = new WindowsShellHelper(this._processId, this, this._xterm);
 				}
 			});
 		}
@@ -266,11 +255,14 @@ export class TerminalInstance implements ITerminalInstance {
 			theme: this._getXtermTheme(),
 			fontFamily: font.fontFamily,
 			fontSize: font.fontSize,
-			lineHeight: font.lineHeight
+			lineHeight: font.lineHeight,
+			enableBold: this._configHelper.config.enableBold
 		});
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
 		}
+		this._xterm.winptyCompatInit();
+		this._xterm.on('lineFeed', () => this._onLineFeed());
 		this._process.on('message', (message) => this._sendPtyDataToXterm(message));
 		this._xterm.on('data', (data) => {
 			if (this._processId) {
@@ -370,7 +362,7 @@ export class TerminalInstance implements ITerminalInstance {
 		}));
 
 		this._wrapperElement.appendChild(this._xtermElement);
-		this._widgetManager = new TerminalWidgetManager(this._configHelper, this._wrapperElement);
+		this._widgetManager = new TerminalWidgetManager(this._wrapperElement);
 		this._linkHandler.setWidgetManager(this._widgetManager);
 		this._container.appendChild(this._wrapperElement);
 
@@ -397,7 +389,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public hasSelection(): boolean {
-		return this._xterm.hasSelection();
+		return this._xterm && this._xterm.hasSelection();
 	}
 
 	public copySelection(): void {
@@ -450,6 +442,8 @@ export class TerminalInstance implements ITerminalInstance {
 			this._wrapperElement = null;
 		}
 		if (this._xterm) {
+			const buffer = (<any>this._xterm.buffer);
+			this._sendLineData(buffer, buffer.ybase + buffer.y);
 			this._xterm.destroy();
 			this._xterm = null;
 		}
@@ -511,11 +505,21 @@ export class TerminalInstance implements ITerminalInstance {
 			// background since scrollTop changes take no effect but the terminal's position does
 			// change since the number of visible rows decreases.
 			this._xterm.emit('scroll', this._xterm.buffer.ydisp);
+			if (this._container) {
+				// Force a layout when the instance becomes invisible. This is particularly important
+				// for ensuring that terminals that are created in the background by an extension will
+				// correctly get correct character measurements in order to render to the screen (see
+				// #34554).
+				const computedStyle = window.getComputedStyle(this._container);
+				const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
+				const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
+				this.layout(new Dimension(width, height));
+			}
 		}
 	}
 
 	public scrollDownLine(): void {
-		this._xterm.scrollDisp(1);
+		this._xterm.scrollLines(1);
 	}
 
 	public scrollDownPage(): void {
@@ -527,7 +531,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public scrollUpLine(): void {
-		this._xterm.scrollDisp(-1);
+		this._xterm.scrollLines(-1);
 	}
 
 	public scrollUpPage(): void {
@@ -581,24 +585,15 @@ export class TerminalInstance implements ITerminalInstance {
 		if (!this._shellLaunchConfig.executable) {
 			this._configHelper.mergeDefaultShellPathAndArgs(this._shellLaunchConfig);
 		}
-		this._initialCwd = this._getCwd(this._shellLaunchConfig, this._historyService.getLastActiveWorkspaceRoot());
-		let envFromConfig: IStringDictionary<string>;
-		if (platform.isWindows) {
-			envFromConfig = { ...process.env };
-			for (let configKey in this._configHelper.config.env['windows']) {
-				let actualKey = configKey;
-				for (let envKey in envFromConfig) {
-					if (configKey.toLowerCase() === envKey.toLowerCase()) {
-						actualKey = envKey;
-						break;
-					}
-				}
-				envFromConfig[actualKey] = this._configHelper.config.env['windows'][configKey];
-			}
-		} else {
-			const platformKey = platform.isMacintosh ? 'osx' : 'linux';
-			envFromConfig = { ...process.env, ...this._configHelper.config.env[platformKey] };
-		}
+		this._initialCwd = this._getCwd(this._shellLaunchConfig, this._historyService.getLastActiveWorkspaceRoot('file'));
+
+		// Merge process env with the env from config
+		const envFromConfig = { ...process.env };
+		const envSettingKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
+		TerminalInstance.mergeEnvironments(envFromConfig, this._configHelper.config.env[envSettingKey]);
+
+		// Continue env initialization, merging in the env from the launch
+		// config and adding keys that are needed to create the process
 		const env = TerminalInstance.createTerminalEnv(envFromConfig, this._shellLaunchConfig, this._initialCwd, locale, this._cols, this._rows);
 		this._process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], {
 			env,
@@ -764,10 +759,49 @@ export class TerminalInstance implements ITerminalInstance {
 		this._shellLaunchConfig = shell;
 	}
 
+	public static mergeEnvironments(parent: IStringDictionary<string>, other: IStringDictionary<string>) {
+		if (!other) {
+			return;
+		}
+
+		// On Windows apply the new values ignoring case, while still retaining
+		// the case of the original key.
+		if (platform.isWindows) {
+			for (let configKey in other) {
+				let actualKey = configKey;
+				for (let envKey in parent) {
+					if (configKey.toLowerCase() === envKey.toLowerCase()) {
+						actualKey = envKey;
+						break;
+					}
+				}
+				const value = other[configKey];
+				TerminalInstance._mergeEnvironmentValue(parent, actualKey, value);
+			}
+		} else {
+			Object.keys(other).forEach((key) => {
+				const value = other[key];
+				TerminalInstance._mergeEnvironmentValue(parent, key, value);
+			});
+		}
+	}
+
+	private static _mergeEnvironmentValue(env: IStringDictionary<string>, key: string, value: string | null) {
+		if (typeof value === 'string') {
+			env[key] = value;
+		} else {
+			delete env[key];
+		}
+	}
+
 	// TODO: This should be private/protected
 	// TODO: locale should not be optional
 	public static createTerminalEnv(parentEnv: IStringDictionary<string>, shell: IShellLaunchConfig, cwd: string, locale?: string, cols?: number, rows?: number): IStringDictionary<string> {
-		const env = shell.env ? shell.env : TerminalInstance._cloneEnv(parentEnv);
+		const env = { ...parentEnv };
+		if (shell.env) {
+			TerminalInstance.mergeEnvironments(env, shell.env);
+		}
+
 		env['PTYPID'] = process.pid.toString();
 		env['PTYSHELL'] = shell.executable;
 		env['TERM_PROGRAM'] = 'vscode';
@@ -805,6 +839,37 @@ export class TerminalInstance implements ITerminalInstance {
 		};
 	}
 
+	public onLineData(listener: (lineData: string) => void): lifecycle.IDisposable {
+		this._onLineDataListeners.push(listener);
+		return {
+			dispose: () => {
+				const i = this._onLineDataListeners.indexOf(listener);
+				if (i >= 0) {
+					this._onLineDataListeners.splice(i, 1);
+				}
+			}
+		};
+	}
+
+	private _onLineFeed(): void {
+		if (this._onLineDataListeners.length === 0) {
+			return;
+		}
+		const buffer = (<any>this._xterm.buffer);
+		const newLine = buffer.lines.get(buffer.ybase + buffer.y);
+		if (!newLine.isWrapped) {
+			this._sendLineData(buffer, buffer.ybase + buffer.y - 1);
+		}
+	}
+
+	private _sendLineData(buffer: any, lineIndex: number): void {
+		let lineData = buffer.translateBufferLineToString(lineIndex, true);
+		while (lineIndex >= 0 && buffer.lines.get(lineIndex--).isWrapped) {
+			lineData = buffer.translateBufferLineToString(lineIndex, true) + lineData;
+		}
+		this._onLineDataListeners.forEach(listener => listener(lineData));
+	}
+
 	public onExit(listener: (exitCode: number) => void): lifecycle.IDisposable {
 		if (this._process) {
 			this._process.on('exit', listener);
@@ -826,14 +891,6 @@ export class TerminalInstance implements ITerminalInstance {
 		return cwd;
 	}
 
-	private static _cloneEnv(env: IStringDictionary<string>): IStringDictionary<string> {
-		const newEnv: IStringDictionary<string> = Object.create(null);
-		Object.keys(env).forEach((key) => {
-			newEnv[key] = env[key];
-		});
-		return newEnv;
-	}
-
 	private static _getLangEnvVariable(locale?: string) {
 		const parts = locale ? locale.split('-') : [];
 		const n = parts.length;
@@ -848,6 +905,7 @@ export class TerminalInstance implements ITerminalInstance {
 				de: 'DE',
 				en: 'US',
 				es: 'ES',
+				fi: 'FI',
 				fr: 'FR',
 				it: 'IT',
 				ja: 'JP',
@@ -902,21 +960,31 @@ export class TerminalInstance implements ITerminalInstance {
 		if (!terminalWidth) {
 			return;
 		}
+
 		if (this._xterm) {
 			const font = this._configHelper.getFont();
-			if (this._xterm.getOption('lineHeight') !== font.lineHeight) {
-				this._xterm.setOption('lineHeight', font.lineHeight);
-			}
-			if (this._xterm.getOption('fontSize') !== font.fontSize) {
-				this._xterm.setOption('fontSize', font.fontSize);
-			}
-			if (this._xterm.getOption('fontFamily') !== font.fontFamily) {
-				this._xterm.setOption('fontFamily', font.fontFamily);
+
+			// Only apply these settings when the terminal is visible so that
+			// the characters are measured correctly.
+			if (this._isVisible) {
+				if (this._xterm.getOption('lineHeight') !== font.lineHeight) {
+					this._xterm.setOption('lineHeight', font.lineHeight);
+				}
+				if (this._xterm.getOption('fontSize') !== font.fontSize) {
+					this._xterm.setOption('fontSize', font.fontSize);
+				}
+				if (this._xterm.getOption('fontFamily') !== font.fontFamily) {
+					this._xterm.setOption('fontFamily', font.fontFamily);
+				}
+				if (this._xterm.getOption('enableBold') !== this._configHelper.config.enableBold) {
+					this._xterm.setOption('enableBold', this._configHelper.config.enableBold);
+				}
 			}
 
 			this._xterm.resize(this._cols, this._rows);
 			this._xterm.element.style.width = terminalWidth + 'px';
 		}
+
 		this._processReady.then(() => {
 			if (this._process && this._process.connected) {
 				// The child process could aready be terminated
@@ -934,10 +1002,6 @@ export class TerminalInstance implements ITerminalInstance {
 				}
 			}
 		});
-	}
-
-	public static setTerminalProcessFactory(factory: ITerminalProcessFactory): void {
-		this._terminalProcessFactory = factory;
 	}
 
 	public setTitle(title: string, eventFromProcess: boolean): void {

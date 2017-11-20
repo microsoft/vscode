@@ -8,7 +8,7 @@ import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Builder, $ } from 'vs/base/browser/builder';
 import URI from 'vs/base/common/uri';
-import { ThrottledDelayer, sequence } from 'vs/base/common/async';
+import { ThrottledDelayer, sequence, Delayer } from 'vs/base/common/async';
 import errors = require('vs/base/common/errors');
 import paths = require('vs/base/common/paths');
 import resources = require('vs/base/common/resources');
@@ -19,7 +19,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, SortOrderConfiguration, SortOrder } from 'vs/workbench/parts/files/common/files';
-import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
+import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileService, FILES_EXCLUDE_CONFIG } from 'vs/platform/files/common/files';
 import { RefreshViewExplorerAction, NewFolderAction, NewFileAction } from 'vs/workbench/parts/files/browser/fileActions';
 import { FileDragAndDrop, FileFilter, FileSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider } from 'vs/workbench/parts/files/browser/views/explorerViewer';
 import { toResource } from 'vs/workbench/common/editor';
@@ -32,8 +32,9 @@ import { FileStat, Model } from 'vs/workbench/parts/files/common/explorerModel';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { ExplorerDecorationsProvider } from 'vs/workbench/parts/files/browser/views/explorerDecorationsProvider';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -43,8 +44,8 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { ResourceContextKey, ResourceGlobMatcher } from 'vs/workbench/common/resources';
 import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { isLinux } from 'vs/base/common/platform';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
+import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
 
 export interface IExplorerViewOptions extends IViewletViewOptions {
 	viewletState: FileViewletState;
@@ -55,7 +56,6 @@ export class ExplorerView extends ViewsViewletPanel {
 	public static ID: string = 'workbench.explorer.fileView';
 	private static EXPLORER_FILE_CHANGES_REACT_DELAY = 500; // delay in ms to react to file changes to give our internal events a chance to react first
 	private static EXPLORER_FILE_CHANGES_REFRESH_DELAY = 100; // delay in ms to refresh the explorer from disk file changes
-	private static EXPLORER_IMPORT_REFRESH_DELAY = 300; // delay in ms to refresh the explorer from imports
 
 	private static MEMENTO_LAST_ACTIVE_FILE_RESOURCE = 'explorer.memento.lastActiveFileResource';
 	private static MEMENTO_EXPANDED_FOLDER_RESOURCES = 'explorer.memento.expandedFolderResources';
@@ -67,7 +67,6 @@ export class ExplorerView extends ViewsViewletPanel {
 	private viewletState: FileViewletState;
 
 	private explorerRefreshDelayer: ThrottledDelayer<void>;
-	private explorerImportDelayer: ThrottledDelayer<void>;
 
 	private resourceContext: ResourceContextKey;
 	private folderContext: IContextKey<boolean>;
@@ -98,7 +97,7 @@ export class ExplorerView extends ViewsViewletPanel {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IDecorationsService decorationService: IDecorationsService
 	) {
 		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService);
 
@@ -107,7 +106,6 @@ export class ExplorerView extends ViewsViewletPanel {
 		this.autoReveal = true;
 
 		this.explorerRefreshDelayer = new ThrottledDelayer<void>(ExplorerView.EXPLORER_FILE_CHANGES_REFRESH_DELAY);
-		this.explorerImportDelayer = new ThrottledDelayer<void>(ExplorerView.EXPLORER_IMPORT_REFRESH_DELAY);
 
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 		this.folderContext = ExplorerFolderContext.bindTo(contextKeyService);
@@ -115,12 +113,18 @@ export class ExplorerView extends ViewsViewletPanel {
 		this.filesExplorerFocusedContext = FilesExplorerFocusedContext.bindTo(contextKeyService);
 		this.explorerFocusedContext = ExplorerFocusedContext.bindTo(contextKeyService);
 
-		this.fileEventsFilter = instantiationService.createInstance(ResourceGlobMatcher, (root: URI) => this.getFileEventsExcludes(root), (expression: glob.IExpression) => glob.parse(expression));
+		this.fileEventsFilter = instantiationService.createInstance(
+			ResourceGlobMatcher,
+			(root: URI) => this.getFileEventsExcludes(root),
+			(event: IConfigurationChangeEvent) => event.affectsConfiguration(FILES_EXCLUDE_CONFIG)
+		);
+
+		decorationService.registerDecorationsProvider(new ExplorerDecorationsProvider(this.model, contextService));
 	}
 
 	private getFileEventsExcludes(root?: URI): glob.IExpression {
 		const scope = root ? { resource: root } : void 0;
-		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(undefined, scope);
+		const configuration = this.configurationService.getValue<IFilesConfiguration>(scope);
 
 		return (configuration && configuration.files && configuration.files.exclude) || Object.create(null);
 	}
@@ -144,6 +148,14 @@ export class ExplorerView extends ViewsViewletPanel {
 		return this.contextService.getWorkspace().name;
 	}
 
+	public get title(): string {
+		return this.name;
+	}
+
+	public set title(value: string) {
+		// noop
+	}
+
 	public set name(value) {
 		// noop
 	}
@@ -161,6 +173,7 @@ export class ExplorerView extends ViewsViewletPanel {
 
 		const onFileIconThemeChange = (fileIconTheme: IFileIconTheme) => {
 			DOM.toggleClass(this.treeContainer, 'align-icons-and-twisties', fileIconTheme.hasFileIcons && !fileIconTheme.hasFolderIcons);
+			DOM.toggleClass(this.treeContainer, 'hide-arrows', fileIconTheme.hidesExplorerArrows === true);
 		};
 
 		this.disposables.push(this.themeService.onDidFileIconThemeChange(onFileIconThemeChange));
@@ -189,7 +202,7 @@ export class ExplorerView extends ViewsViewletPanel {
 	public create(): TPromise<void> {
 
 		// Update configuration
-		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
+		const configuration = this.configurationService.getValue<IFilesConfiguration>();
 		this.onConfigurationUpdated(configuration);
 
 		// Load and Fill Viewer
@@ -200,14 +213,16 @@ export class ExplorerView extends ViewsViewletPanel {
 		return this.doRefresh(targetsToExpand).then(() => {
 
 			// When the explorer viewer is loaded, listen to changes to the editor input
-			this.disposables.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+			this.disposables.push(this.editorGroupService.onEditorsChanged(() => this.revealActiveFile()));
 
 			// Also handle configuration updates
-			this.disposables.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationUpdated(this.configurationService.getConfiguration<IFilesConfiguration>(), true)));
+			this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>(), e)));
+
+			this.revealActiveFile();
 		});
 	}
 
-	private onEditorsChanged(): void {
+	private revealActiveFile(): void {
 		if (!this.autoReveal) {
 			return; // do not touch selection or focus if autoReveal === false
 		}
@@ -250,7 +265,7 @@ export class ExplorerView extends ViewsViewletPanel {
 		}
 	}
 
-	private onConfigurationUpdated(configuration: IFilesConfiguration, refresh?: boolean): void {
+	private onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): void {
 		if (this.isDisposed) {
 			return; // guard against possible race condition when config change causes recreate of views
 		}
@@ -269,8 +284,13 @@ export class ExplorerView extends ViewsViewletPanel {
 			needsRefresh = true;
 		}
 
-		// Refresh viewer as needed
-		if (refresh && needsRefresh) {
+		if (event && !needsRefresh) {
+			needsRefresh = event.affectsConfiguration('explorer.decorations.colors')
+				|| event.affectsConfiguration('explorer.decorations.badges');
+		}
+
+		// Refresh viewer as needed if this originates from a config event
+		if (event && needsRefresh) {
 			this.doRefresh().done(null, errors.onUnexpectedError);
 		}
 	}
@@ -329,7 +349,7 @@ export class ExplorerView extends ViewsViewletPanel {
 
 				// Return now if the workbench has not yet been created - in this case the workbench takes care of restoring last used editors
 				if (!this.partService.isCreated()) {
-					return TPromise.as(null);
+					return TPromise.wrap(null);
 				}
 
 				// Otherwise restore last used file: By lastActiveFileResource
@@ -423,13 +443,13 @@ export class ExplorerView extends ViewsViewletPanel {
 		this.disposables.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 
 		// Update resource context based on focused element
-		this.disposables.push(this.explorerViewer.addListener('focus', (e: { focus: FileStat }) => {
+		this.disposables.push(this.explorerViewer.onDidChangeFocus((e: { focus: FileStat }) => {
 			this.resourceContext.set(e.focus && e.focus.resource);
 			this.folderContext.set(e.focus && e.focus.isDirectory);
 		}));
 
 		// Open when selecting via keyboard
-		this.disposables.push(this.explorerViewer.addListener('selection', event => {
+		this.disposables.push(this.explorerViewer.onDidChangeSelection(event => {
 			if (event && event.payload && event.payload.origin === 'keyboard') {
 				const element = this.tree.getSelection();
 
@@ -448,7 +468,7 @@ export class ExplorerView extends ViewsViewletPanel {
 
 	public getOptimalWidth(): number {
 		const parentNode = this.explorerViewer.getHTMLElement();
-		const childNodes = [].slice.call(parentNode.querySelectorAll('.explorer-item > a'));
+		const childNodes = [].slice.call(parentNode.querySelectorAll('.explorer-item .label-name')); // select all file labels
 
 		return DOM.getLargestChildWidth(parentNode, childNodes);
 	}
@@ -764,33 +784,45 @@ export class ExplorerView extends ViewsViewletPanel {
 		}
 
 		// Load Root Stat with given target path configured
-		const promise = TPromise.join(targetsToResolve.map((target, index) => this.fileService.resolveFile(target.resource, target.options).then(result => {
-			// Convert to model
-			const modelStat = FileStat.create(result, target.root, target.options.resolveTo);
-			// Subsequent refresh: Merge stat into our local model and refresh tree
-			FileStat.mergeLocalWithDisk(modelStat, this.model.roots[index]);
+		let statsToExpand: FileStat[] = [];
+		let delayer = new Delayer(100);
+		let delayerPromise: TPromise;
 
-			const input = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.model.roots[0] : this.model;
-			let statsToExpand: FileStat[] = this.explorerViewer.getExpandedElements().concat(targetsToExpand.map(target => this.model.findClosest(target)));
-			if (input === this.explorerViewer.getInput()) {
-				return this.explorerViewer.refresh().then(() => sequence(statsToExpand.map(e => () => this.explorerViewer.expand(e))));
-			}
+		const promise = TPromise.join(targetsToResolve.map((target, index) => this.fileService.resolveFile(target.resource, target.options)
+			.then(result => FileStat.create(result, target.root, target.options.resolveTo), err => FileStat.create({
+				resource: target.resource,
+				name: resources.basenameOrAuthority(target.resource),
+				mtime: 0,
+				etag: undefined,
+				isDirectory: true,
+				hasChildren: false
+			}, target.root))
+			.then(modelStat => {
+				// Subsequent refresh: Merge stat into our local model and refresh tree
+				FileStat.mergeLocalWithDisk(modelStat, this.model.roots[index]);
 
-			// Display roots only when multi folder workspace
-			// Make sure to expand all folders that where expanded in the previous session
-			if (input === this.model) {
-				// We have transitioned into workspace view -> expand all roots
-				statsToExpand = this.model.roots.concat(statsToExpand);
-			}
-			return this.explorerViewer.setInput(input).then(() => sequence(statsToExpand.map(e => () => this.explorerViewer.expand(e))));
-		}, e => FileStat.create({
-			resource: target.resource,
-			name: resources.basenameOrAuthority(target.resource),
-			mtime: 0,
-			etag: undefined,
-			isDirectory: true,
-			hasChildren: false
-		}, target.root))));
+				const input = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.model.roots[0] : this.model;
+				let toExpand: FileStat[] = this.explorerViewer.getExpandedElements().concat(targetsToExpand.map(target => this.model.findClosest(target)));
+				if (input === this.explorerViewer.getInput()) {
+					statsToExpand = statsToExpand.concat(toExpand);
+					if (!delayer.isTriggered()) {
+						delayerPromise = delayer.trigger(() => this.explorerViewer.refresh()
+							.then(() => sequence(statsToExpand.map(e => () => this.explorerViewer.expand(e))))
+							.then(() => statsToExpand = [])
+						);
+					}
+
+					return delayerPromise;
+				}
+
+				// Display roots only when multi folder workspace
+				// Make sure to expand all folders that where expanded in the previous session
+				if (input === this.model) {
+					// We have transitioned into workspace view -> expand all roots
+					toExpand = this.model.roots.concat(toExpand);
+				}
+				return this.explorerViewer.setInput(input).then(() => sequence(toExpand.map(e => () => this.explorerViewer.expand(e))));
+			})));
 
 		this.progressService.showWhile(promise, this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
 

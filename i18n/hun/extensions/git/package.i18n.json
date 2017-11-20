@@ -15,6 +15,8 @@
 	"command.stageAll": "Összes módosítás előjegyzése beadásra",
 	"command.stageSelectedRanges": "Kijelölt területek előjegyzése beadásra",
 	"command.revertSelectedRanges": "Kijelölt területek visszaállítása",
+	"command.stageChange": "Változás előjegyzése beadásra",
+	"command.revertChange": "Változtatás visszavonása",
 	"command.unstage": "Módosítások előjegyzésének törlése",
 	"command.unstageAll": "Minden módosítás előjegyzésének törlése",
 	"command.unstageSelectedRanges": "Kijelölt területek előjegyzésének törlése",
@@ -59,5 +61,11 @@
 	"config.defaultCloneDirectory": "Git-forráskódtárak klónozásának alapértelmezett helye.",
 	"config.enableSmartCommit": "Összes módosítás beadása (commit), ha nincsenek előjegyzett módosítások.",
 	"config.enableCommitSigning": "Commit GPG-vel történő aláírásának engedélyezése.",
-	"config.discardAllScope": "Meghatározza, hogy milyen módosítások kerülnek elvetésre az \"Összes módosítás elvetése\" parancs kiadása esetén. `all` esetén minden módosítás elvetődik. `tracked` esetén csak a követett fájlok módosításai vetődnek el. `prompt` esetén a parancs minden futtatásánál felugrik egy párbeszédablak."
+	"config.discardAllScope": "Meghatározza, hogy milyen módosítások kerülnek elvetésre az \"Összes módosítás elvetése\" parancs kiadása esetén. `all` esetén minden módosítás elvetődik. `tracked` esetén csak a követett fájlok módosításai vetődnek el. `prompt` esetén a parancs minden futtatásánál felugrik egy párbeszédablak.",
+	"config.decorations.enabled": "Meghatározza, hogy a Git megjelölje-e színnel és jelvénnyekkel a fájlokat a fájlkezelőben és a nyitott szerkesztőablakok nézetben.",
+	"colors.modified": "A módosított erőforrások színe.",
+	"colors.deleted": "A törölt erőforrások színe.",
+	"colors.untracked": "A nem követett erőforrások színe.",
+	"colors.ignored": "A figyelmen kívül hagyott erőforrások színe.",
+	"colors.conflict": "A konfliktusos erőforrások színe."
 }

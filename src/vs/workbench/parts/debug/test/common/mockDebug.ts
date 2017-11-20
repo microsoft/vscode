@@ -44,6 +44,10 @@ export class MockDebugService implements debug.IDebugService {
 		return TPromise.as(null);
 	}
 
+	public updateBreakpoints(uri: uri, data: { [id: string]: DebugProtocol.Breakpoint }): TPromise<void> {
+		return TPromise.as(null);
+	}
+
 	public enableOrDisableBreakpoints(enabled: boolean): TPromise<void> {
 		return TPromise.as(null);
 	}
@@ -90,14 +94,6 @@ export class MockDebugService implements debug.IDebugService {
 
 	public startDebugging(root: IWorkspaceFolder, configOrName?: debug.IConfig | string, noDebug?: boolean): TPromise<any> {
 		return TPromise.as(null);
-	}
-
-	public createProcess(root: IWorkspaceFolder, config: debug.IConfig): TPromise<any> {
-		return TPromise.as(null);
-	}
-
-	public findProcessByUUID(uuid: string): debug.IProcess | null {
-		return null;
 	}
 
 	public restartProcess(): TPromise<any> {

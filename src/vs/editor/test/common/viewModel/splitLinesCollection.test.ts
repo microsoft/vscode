@@ -32,22 +32,22 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 		assert.equal(line1.getViewLineMaxColumn(model1, 1, 0), 14);
 		assert.equal(line1.getViewLineMaxColumn(model1, 1, 1), 15);
 		assert.equal(line1.getViewLineMaxColumn(model1, 1, 2), 16);
-		for (var col = 1; col <= 14; col++) {
+		for (let col = 1; col <= 14; col++) {
 			assert.equal(line1.getModelColumnOfViewPosition(0, col), col, 'getInputColumnOfOutputPosition(0, ' + col + ')');
 		}
-		for (var col = 1; col <= 15; col++) {
+		for (let col = 1; col <= 15; col++) {
 			assert.equal(line1.getModelColumnOfViewPosition(1, col), 13 + col, 'getInputColumnOfOutputPosition(1, ' + col + ')');
 		}
-		for (var col = 1; col <= 16; col++) {
+		for (let col = 1; col <= 16; col++) {
 			assert.equal(line1.getModelColumnOfViewPosition(2, col), 13 + 14 + col, 'getInputColumnOfOutputPosition(2, ' + col + ')');
 		}
-		for (var col = 1; col <= 13; col++) {
+		for (let col = 1; col <= 13; col++) {
 			assert.deepEqual(line1.getViewPositionOfModelPosition(0, col), pos(0, col), 'getOutputPositionOfInputPosition(' + col + ')');
 		}
-		for (var col = 1 + 13; col <= 14 + 13; col++) {
+		for (let col = 1 + 13; col <= 14 + 13; col++) {
 			assert.deepEqual(line1.getViewPositionOfModelPosition(0, col), pos(1, col - 13), 'getOutputPositionOfInputPosition(' + col + ')');
 		}
-		for (var col = 1 + 13 + 14; col <= 15 + 14 + 13; col++) {
+		for (let col = 1 + 13 + 14; col <= 15 + 14 + 13; col++) {
 			assert.deepEqual(line1.getViewPositionOfModelPosition(0, col), pos(2, col - 13 - 14), 'getOutputPositionOfInputPosition(' + col + ')');
 		}
 
@@ -61,28 +61,28 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 		assert.equal(line1.getViewLineMaxColumn(model1, 1, 0), 14);
 		assert.equal(line1.getViewLineMaxColumn(model1, 1, 1), 16);
 		assert.equal(line1.getViewLineMaxColumn(model1, 1, 2), 17);
-		for (var col = 1; col <= 14; col++) {
+		for (let col = 1; col <= 14; col++) {
 			assert.equal(line1.getModelColumnOfViewPosition(0, col), col, 'getInputColumnOfOutputPosition(0, ' + col + ')');
 		}
-		for (var col = 1; col <= 1; col++) {
+		for (let col = 1; col <= 1; col++) {
 			assert.equal(line1.getModelColumnOfViewPosition(1, 1), 13 + col, 'getInputColumnOfOutputPosition(1, ' + col + ')');
 		}
-		for (var col = 2; col <= 16; col++) {
+		for (let col = 2; col <= 16; col++) {
 			assert.equal(line1.getModelColumnOfViewPosition(1, col), 13 + col - 1, 'getInputColumnOfOutputPosition(1, ' + col + ')');
 		}
-		for (var col = 1; col <= 1; col++) {
+		for (let col = 1; col <= 1; col++) {
 			assert.equal(line1.getModelColumnOfViewPosition(2, col), 13 + 14 + col, 'getInputColumnOfOutputPosition(2, ' + col + ')');
 		}
-		for (var col = 2; col <= 17; col++) {
+		for (let col = 2; col <= 17; col++) {
 			assert.equal(line1.getModelColumnOfViewPosition(2, col), 13 + 14 + col - 1, 'getInputColumnOfOutputPosition(2, ' + col + ')');
 		}
-		for (var col = 1; col <= 13; col++) {
+		for (let col = 1; col <= 13; col++) {
 			assert.deepEqual(line1.getViewPositionOfModelPosition(0, col), pos(0, col), 'getOutputPositionOfInputPosition(' + col + ')');
 		}
-		for (var col = 1 + 13; col <= 14 + 13; col++) {
+		for (let col = 1 + 13; col <= 14 + 13; col++) {
 			assert.deepEqual(line1.getViewPositionOfModelPosition(0, col), pos(1, 1 + col - 13), 'getOutputPositionOfInputPosition(' + col + ')');
 		}
-		for (var col = 1 + 13 + 14; col <= 15 + 14 + 13; col++) {
+		for (let col = 1 + 13 + 14; col <= 15 + 14 + 13; col++) {
 			assert.deepEqual(line1.getViewPositionOfModelPosition(0, col), pos(2, 1 + col - 13 - 14), 'getOutputPositionOfInputPosition(' + col + ')');
 		}
 	});
@@ -136,15 +136,17 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 			assert.equal(linesCollection.getViewLineCount(), 6);
 
 			// getOutputIndentGuide
-			assert.equal(linesCollection.getViewLineIndentGuide(-1), 0);
-			assert.equal(linesCollection.getViewLineIndentGuide(0), 0);
-			assert.equal(linesCollection.getViewLineIndentGuide(1), 0);
-			assert.equal(linesCollection.getViewLineIndentGuide(2), 1);
-			assert.equal(linesCollection.getViewLineIndentGuide(3), 0);
-			assert.equal(linesCollection.getViewLineIndentGuide(4), 0);
-			assert.equal(linesCollection.getViewLineIndentGuide(5), 1);
-			assert.equal(linesCollection.getViewLineIndentGuide(6), 0);
-			assert.equal(linesCollection.getViewLineIndentGuide(7), 0);
+			assert.deepEqual(linesCollection.getViewLinesIndentGuides(-1, -1), [0]);
+			assert.deepEqual(linesCollection.getViewLinesIndentGuides(0, 0), [0]);
+			assert.deepEqual(linesCollection.getViewLinesIndentGuides(1, 1), [0]);
+			assert.deepEqual(linesCollection.getViewLinesIndentGuides(2, 2), [1]);
+			assert.deepEqual(linesCollection.getViewLinesIndentGuides(3, 3), [0]);
+			assert.deepEqual(linesCollection.getViewLinesIndentGuides(4, 4), [0]);
+			assert.deepEqual(linesCollection.getViewLinesIndentGuides(5, 5), [1]);
+			assert.deepEqual(linesCollection.getViewLinesIndentGuides(6, 6), [0]);
+			assert.deepEqual(linesCollection.getViewLinesIndentGuides(7, 7), [0]);
+
+			assert.deepEqual(linesCollection.getViewLinesIndentGuides(0, 7), [0, 1, 0, 0, 1, 0]);
 
 			// getOutputLineContent
 			assert.equal(linesCollection.getViewLineContent(-1), 'int main() {');

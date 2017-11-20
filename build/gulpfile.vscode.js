@@ -29,24 +29,24 @@ const root = path.dirname(__dirname);
 const commit = util.getVersion(root);
 const packageJson = require('../package.json');
 const product = require('../product.json');
-const shrinkwrap = require('../npm-shrinkwrap.json');
 const crypto = require('crypto');
 const i18n = require('./lib/i18n');
 const glob = require('glob');
+const deps = require('./dependencies');
+const getElectronVersion = require('./lib/electron').getElectronVersion;
 
-const productDependencies = Object.keys(product.dependencies || {});
-const dependencies = Object.keys(shrinkwrap.dependencies)
-	.concat(productDependencies); // additional dependencies from our product configuration
+const productionDependencies = deps.getProductionDependencies(path.dirname(__dirname));
 const baseModules = Object.keys(process.binding('natives')).filter(n => !/^_|\//.test(n));
 const nodeModules = ['electron', 'original-fs']
-	.concat(dependencies)
+	.concat(Object.keys(product.dependencies || {}))
+	.concat(_.uniq(productionDependencies.map(d => d.name)))
 	.concat(baseModules);
 
 // Build
 
 const builtInExtensions = [
-	{ name: 'ms-vscode.node-debug', version: '1.17.18' },
-	{ name: 'ms-vscode.node-debug2', version: '1.18.1' }
+	{ name: 'ms-vscode.node-debug', version: '1.19.1' },
+	{ name: 'ms-vscode.node-debug2', version: '1.19.0' }
 ];
 
 const excludedExtensions = [
@@ -68,7 +68,7 @@ const vscodeResources = [
 	'out-build/bootstrap-amd.js',
 	'out-build/paths.js',
 	'out-build/vs/**/*.{svg,png,cur,html}',
-	'out-build/vs/base/node/startupTimers.js',
+	'out-build/vs/base/common/performance.js',
 	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh}',
 	'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
 	'out-build/vs/workbench/browser/media/*-theme.css',
@@ -124,7 +124,7 @@ gulp.task('minify-vscode', ['clean-minified-vscode', 'optimize-index-js'], commo
 const darwinCreditsTemplate = product.darwinCredits && _.template(fs.readFileSync(path.join(root, product.darwinCredits), 'utf8'));
 
 const config = {
-	version: packageJson.electronVersion,
+	version: getElectronVersion(),
 	productAppName: product.nameLong,
 	companyName: 'Microsoft Corporation',
 	copyright: 'Copyright (C) 2017 Microsoft. All rights reserved',
@@ -138,6 +138,7 @@ const config = {
 		role: 'Editor',
 		ostypes: ["TEXT", "utxt", "TUTX", "****"],
 		extensions: ["ascx", "asp", "aspx", "bash", "bash_login", "bash_logout", "bash_profile", "bashrc", "bat", "bowerrc", "c", "cc", "clj", "cljs", "cljx", "clojure", "cmd", "code-workspace", "coffee", "config", "cpp", "cs", "cshtml", "csproj", "css", "csx", "ctp", "cxx", "dockerfile", "dot", "dtd", "editorconfig", "edn", "eyaml", "eyml", "fs", "fsi", "fsscript", "fsx", "gemspec", "gitattributes", "gitconfig", "gitignore", "go", "h", "handlebars", "hbs", "hh", "hpp", "htm", "html", "hxx", "ini", "jade", "jav", "java", "js", "jscsrc", "jshintrc", "jshtm", "json", "jsp", "less", "lua", "m", "makefile", "markdown", "md", "mdoc", "mdown", "mdtext", "mdtxt", "mdwn", "mkd", "mkdn", "ml", "mli", "php", "phtml", "pl", "pl6", "pm", "pm6", "pod", "pp", "profile", "properties", "ps1", "psd1", "psgi", "psm1", "py", "r", "rb", "rhistory", "rprofile", "rs", "rt", "scss", "sh", "shtml", "sql", "svg", "svgz", "t", "ts", "txt", "vb", "wxi", "wxl", "wxs", "xaml", "xcodeproj", "xcworkspace", "xml", "yaml", "yml", "zlogin", "zlogout", "zprofile", "zsh", "zshenv", "zshrc"],
+		utis: ['public.source-code'],
 		iconFile: 'resources/darwin/code_file.icns'
 	}],
 	darwinBundleURLTypes: [{
@@ -273,9 +274,10 @@ function packageTask(platform, arch, opts) {
 		const packageJsonStream = gulp.src(['package.json'], { base: '.' })
 			.pipe(json({ name, version }));
 
+		const settingsSearchBuildId = getBuildNumber();
 		const date = new Date().toISOString();
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(json({ commit, date, checksums }));
+			.pipe(json({ commit, date, checksums, settingsSearchBuildId }));
 
 		const license = gulp.src(['LICENSES.chromium.html', 'LICENSE.txt', 'ThirdPartyNotices.txt', 'licenses/**'], { base: '.' });
 
@@ -284,8 +286,10 @@ function packageTask(platform, arch, opts) {
 		// TODO the API should be copied to `out` during compile, not here
 		const api = gulp.src('src/vs/vscode.d.ts').pipe(rename('out/vs/vscode.d.ts'));
 
-		const depsSrc = _.flatten(dependencies
-			.map(function (d) { return ['node_modules/' + d + '/**', '!node_modules/' + d + '/**/{test,tests}/**']; }));
+		const depsSrc = [
+			..._.flatten(productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`])),
+			..._.flatten(Object.keys(product.dependencies || {}).map(d => [`node_modules/${d}/**`, `!node_modules/${d}/**/{test,tests}/**`]))
+		];
 
 		const deps = gulp.src(depsSrc, { base: '.', dot: true })
 			.pipe(filter(['**', '!**/package-lock.json']))
@@ -450,7 +454,7 @@ gulp.task('upload-vscode-sourcemaps', ['minify-vscode'], () => {
 const allConfigDetailsPath = path.join(os.tmpdir(), 'configuration.json');
 gulp.task('upload-vscode-configuration', ['generate-vscode-configuration'], () => {
 	const branch = process.env.BUILD_SOURCEBRANCH;
-	if (!branch.endsWith('/master') && !branch.indexOf('/release/') >= 0) {
+	if (!branch.endsWith('/master') && branch.indexOf('/release/') < 0) {
 		console.log(`Only runs on master and release branches, not ${branch}`);
 		return;
 	}
@@ -460,14 +464,80 @@ gulp.task('upload-vscode-configuration', ['generate-vscode-configuration'], () =
 		return;
 	}
 
+	const settingsSearchBuildId = getBuildNumber();
+	if (!settingsSearchBuildId) {
+		console.error('Failed to compute build number');
+		return;
+	}
+
 	return gulp.src(allConfigDetailsPath)
 		.pipe(azure.upload({
 			account: process.env.AZURE_STORAGE_ACCOUNT,
 			key: process.env.AZURE_STORAGE_ACCESS_KEY,
 			container: 'configuration',
-			prefix: `${versionStringToNumber(packageJson.version)}/${commit}/`
+			prefix: `${settingsSearchBuildId}/${commit}/`
 		}));
 });
+
+function getBuildNumber() {
+	const previous = getPreviousVersion(packageJson.version);
+	if (!previous) {
+		return 0;
+	}
+
+	try {
+		const out = cp.execSync(`git rev-list ${previous}..HEAD --count`);
+		const count = parseInt(out.toString());
+		return versionStringToNumber(packageJson.version) * 1e4 + count;
+	} catch (e) {
+		console.error('Could not determine build number: ' + e.toString());
+		return 0;
+	}
+}
+
+/**
+ * Given 1.17.2, return 1.17.1
+ * 1.18.0 => 1.17.2.
+ * 2.0.0 => 1.18.0 (or the highest 1.x)
+ */
+function getPreviousVersion(versionStr) {
+	function tagExists(tagName) {
+		try {
+			cp.execSync(`git rev-parse ${tagName}`, { stdio: 'ignore' });
+			return true;
+		} catch (e) {
+			return false;
+		}
+	}
+
+	function getLastTagFromBase(semverArr, componentToTest) {
+		const baseVersion = semverArr.join('.');
+		if (!tagExists(baseVersion)) {
+			console.error('Failed to find tag for base version, ' + baseVersion);
+			return null;
+		}
+
+		let goodTag;
+		do {
+			goodTag = semverArr.join('.');
+			semverArr[componentToTest]++;
+		} while (tagExists(semverArr.join('.')));
+
+		return goodTag;
+	}
+
+	const semverArr = versionStr.split('.');
+	if (semverArr[2] > 0) {
+		semverArr[2]--;
+		return semverArr.join('.');
+	} else if (semverArr[1] > 0) {
+		semverArr[1]--;
+		return getLastTagFromBase(semverArr, 2);
+	} else {
+		semverArr[0]--;
+		return getLastTagFromBase(semverArr, 1);
+	}
+}
 
 function versionStringToNumber(versionStr) {
 	const semverRegex = /(\d+)\.(\d+)\.(\d+)/;
@@ -476,7 +546,7 @@ function versionStringToNumber(versionStr) {
 		return 0;
 	}
 
-	return parseInt(match[1], 10) * 10000 + parseInt(match[2], 10) * 100 + parseInt(match[3], 10);
+	return parseInt(match[1], 10) * 1e4 + parseInt(match[2], 10) * 1e2 + parseInt(match[3], 10);
 }
 
 gulp.task('generate-vscode-configuration', () => {

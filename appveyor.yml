@@ -3,19 +3,17 @@ environment:
   VSCODE_BUILD_VERBOSE: true
 
 cache:
-  - '%APPDATA%\npm-cache'
+  - '%LOCALAPPDATA%\Yarn\cache'
 
 install:
-  - ps: Install-Product node 7.9.0 x64
-  - npm install -g npm@4 --silent
+  - ps: Install-Product node 8.9.1 x64
 
 build_script:
-  - .\scripts\npm.bat install
+  - yarn
   - .\node_modules\.bin\gulp electron
   - npm run compile
 
 test_script:
   - node --version
-  - npm --version
   - .\scripts\test.bat
   - .\scripts\test-integration.bat

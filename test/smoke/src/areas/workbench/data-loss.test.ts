@@ -6,12 +6,12 @@
 import { SpectronApplication } from '../../spectron/application';
 
 describe('Dataloss', () => {
-	let app: SpectronApplication;
-	before(() => { app = new SpectronApplication(); return app.start('Dataloss'); });
-	after(() => app.stop());
-	beforeEach(function () { app.screenCapturer.testName = this.currentTest.title; });
+	before(function () {
+		this.app.suiteName = 'Dataloss';
+	});
 
 	it(`verifies that 'hot exit' works for dirty files`, async function () {
+		const app = this.app as SpectronApplication;
 		await app.workbench.newUntitledFile();
 
 		const untitled = 'Untitled-1';

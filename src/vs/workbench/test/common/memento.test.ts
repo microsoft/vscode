@@ -13,8 +13,8 @@ import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 suite('Workbench Memento', () => {
-	let context;
-	let storage;
+	let context: Scope = undefined;
+	let storage: StorageService;
 
 	setup(() => {
 		storage = new StorageService(new InMemoryLocalStorage(), null, TestWorkspace.id);
@@ -70,9 +70,9 @@ suite('Workbench Memento', () => {
 		assert.deepEqual(memento, {});
 
 		// Assert the Mementos are also removed from storage
-		assert.strictEqual(storage.get('memento/memento.test', Scope.GLOBAL, null), null);
+		assert.strictEqual(storage.get('memento/memento.test', StorageScope.GLOBAL, null), null);
 
-		assert.strictEqual(storage.get('memento/memento.test', Scope.WORKSPACE, null), null);
+		assert.strictEqual(storage.get('memento/memento.test', StorageScope.WORKSPACE, null), null);
 	});
 
 	test('Save and Load', () => {

@@ -16,11 +16,11 @@ import { IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDelt
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Position, IEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
+import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { IRange } from 'vs/editor/common/core/range';
 import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 
 export const GOTO_LINE_PREFIX = ':';
 
@@ -43,7 +43,7 @@ export class GotoLineAction extends QuickOpenAction {
 
 		if (editor) {
 			const config = editor.getConfiguration();
-			if (config.viewInfo.renderLineNumbers && config.viewInfo.renderRelativeLineNumbers) {
+			if (config.viewInfo.renderLineNumbers === RenderLineNumbersType.Relative) {
 				editor.updateOptions({
 					lineNumbers: 'on'
 				});

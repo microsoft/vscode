@@ -5,19 +5,27 @@
 
 import * as assert from 'assert';
 
-import { SpectronApplication, VSCODE_BUILD } from '../../spectron/application';
+import { SpectronApplication, Quality } from '../../spectron/application';
 
 describe('Localization', () => {
-	let app: SpectronApplication = new SpectronApplication();
-	if (app.build === VSCODE_BUILD.DEV) {
-		return;
-	}
+	before(async function () {
+		const app = this.app as SpectronApplication;
+		this.app.suiteName = 'Localization';
 
-	after(() => app.stop());
+		if (app.quality === Quality.Dev) {
+			return;
+		}
+
+		await app.restart(['--locale=DE']);
+	});
 
 	it(`starts with 'DE' locale and verifies title and viewlets text is in German`, async function () {
-		await app.start('Localization', ['--locale=DE']);
-		app.screenCapturer.testName = 'DE locale test';
+		const app = this.app as SpectronApplication;
+
+		if (app.quality === Quality.Dev) {
+			this.skip();
+			return;
+		}
 
 		let text = await app.workbench.explorer.getOpenEditorsViewTitle();
 		await app.screenCapturer.capture('Open editors title');

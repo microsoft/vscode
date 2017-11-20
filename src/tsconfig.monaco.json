@@ -1,0 +1,38 @@
+{
+	"$schema": "http://json.schemastore.org/tsconfig",
+	"compilerOptions": {
+		"noEmit": true,
+		"module": "amd",
+		"moduleResolution": "classic",
+		"noImplicitAny": false,
+		"removeComments": false,
+		"preserveConstEnums": true,
+		"target": "es5",
+		"sourceMap": false,
+		"experimentalDecorators": true,
+		"declaration": true,
+		"noImplicitReturns": true,
+		"baseUrl": ".",
+		"types": []
+	},
+	"include": [
+		"typings/require.d.ts",
+		"typings/thenable.d.ts",
+		"typings/es6-promise.d.ts",
+		"typings/lib.array-ext.d.ts",
+		"typings/lib.ie11_safe_es6.d.ts",
+		"vs/css.d.ts",
+		"vs/monaco.d.ts",
+		"vs/nls.d.ts",
+		"vs/editor/*",
+		"vs/base/common/*",
+		"vs/base/browser/*",
+		"vs/base/parts/tree/*",
+		"vs/base/parts/quickopen/*",
+		"vs/platform/*/common/*",
+		"vs/platform/*/browser/*"
+	],
+	"exclude": [
+		"node_modules/*"
+	]
+}

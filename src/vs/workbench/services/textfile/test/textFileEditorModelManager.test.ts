@@ -163,7 +163,6 @@ suite('Files - TextFileEditorModelManager', () => {
 		let revertedCounter = 0;
 		let savedCounter = 0;
 		let encodingCounter = 0;
-		let orphanedCounter = 0;
 		let disposeCounter = 0;
 		let contentCounter = 0;
 
@@ -188,12 +187,6 @@ suite('Files - TextFileEditorModelManager', () => {
 		manager.onModelEncodingChanged(e => {
 			if (e.resource.toString() === resource1.toString()) {
 				encodingCounter++;
-			}
-		});
-
-		manager.onModelOrphanedChanged(e => {
-			if (e.resource.toString() === resource1.toString()) {
-				orphanedCounter++;
 			}
 		});
 
@@ -232,7 +225,6 @@ suite('Files - TextFileEditorModelManager', () => {
 							// content change event if done async
 							TPromise.timeout(10).then(() => {
 								assert.equal(contentCounter, 2);
-								assert.equal(orphanedCounter, 1);
 
 								model1.dispose();
 								model2.dispose();
@@ -330,15 +322,15 @@ suite('Files - TextFileEditorModelManager', () => {
 
 		const resource = toResource('/path/index_something.txt');
 
-		manager.loadOrCreate(resource, { encoding: 'utf8' }).done((model: TextFileEditorModel) => {
+		manager.loadOrCreate(resource, { encoding: 'utf8' }).done(model => {
 			model.textEditorModel.setValue('make dirty');
 
-			manager.disposeModel(model);
+			manager.disposeModel(model as TextFileEditorModel);
 			assert.ok(!model.isDisposed());
 
 			model.revert(true);
 
-			manager.disposeModel(model);
+			manager.disposeModel(model as TextFileEditorModel);
 			assert.ok(model.isDisposed());
 
 			manager.dispose();

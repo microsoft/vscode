@@ -17,9 +17,10 @@ Param(
 
 # Set the right architecture
 $env:npm_config_arch="$arch"
+$env:CHILD_CONCURRENCY="1"
 
 step "Install dependencies" {
-  exec { & npm install }
+  exec { & yarn }
 }
 
 step "Hygiene" {
@@ -45,6 +46,13 @@ step "Build minified" {
 
 step "Run unit tests" {
   exec { & .\scripts\test.bat --build --reporter dot }
+}
+
+step "Run smoke test" {
+	$Artifacts = "$env:AGENT_BUILDDIRECTORY\smoketest-artifacts"
+	Remove-Item -Recurse -Force -ErrorAction Ignore $Artifacts
+
+	exec { & npm run smoketest -- --build "$env:AGENT_BUILDDIRECTORY\VSCode-win32-$global:arch" --log "$Artifacts" }
 }
 
 step "Create archive and setup package" {

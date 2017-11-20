@@ -11,11 +11,6 @@ import { IMode, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 
 export var IModeService = createDecorator<IModeService>('modeService');
 
-export interface IModeLookupResult {
-	modeId: string;
-	isInstantiated: boolean;
-}
-
 export interface ILanguageExtensionPoint {
 	id: string;
 	extensions?: string[];
@@ -58,7 +53,6 @@ export interface IModeService {
 	getConfigurationFiles(modeId: string): string[];
 
 	// --- instantiation
-	lookup(commaSeparatedMimetypesOrCommaSeparatedIds: string): IModeLookupResult[];
 	getMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): IMode;
 	getOrCreateMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): TPromise<IMode>;
 	getOrCreateModeByLanguageName(languageName: string): TPromise<IMode>;

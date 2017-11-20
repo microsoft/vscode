@@ -12,22 +12,6 @@ import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { ScanCodeBinding, ScanCode, IMMUTABLE_CODE_TO_KEY_CODE } from 'vs/workbench/services/keybinding/common/scanCode';
 
-export interface IMacLinuxKeyMapping {
-	value: string;
-	withShift: string;
-	withAltGr: string;
-	withShiftAltGr: string;
-
-	valueIsDeadKey?: boolean;
-	withShiftIsDeadKey?: boolean;
-	withAltGrIsDeadKey?: boolean;
-	withShiftAltGrIsDeadKey?: boolean;
-}
-
-export interface IMacLinuxKeyboardMapping {
-	[scanCode: string]: IMacLinuxKeyMapping;
-}
-
 /**
  * A keyboard mapper to be used when reading the keymap from the OS fails.
  */

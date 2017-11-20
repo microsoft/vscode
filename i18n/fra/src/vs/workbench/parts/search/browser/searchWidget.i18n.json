@@ -11,5 +11,6 @@
 	"search.placeHolder": "Rechercher",
 	"label.Replace": "Remplacer : tapez le terme de remplacement, puis appuyez sur Entrée pour avoir un aperçu, ou sur Échap pour l'annuler",
 	"search.replace.placeHolder": "Remplacer",
-	"regexp.validationFailure": "L'expression correspond à tout"
+	"regexp.validationFailure": "L'expression correspond à tout",
+	"regexp.backreferenceValidationFailure": "Les références arrières (Backreferences) ne sont pas prises en charge"
 }

@@ -6,6 +6,8 @@
 {
 	"noWorkspace": "開いているフォルダーがありません",
 	"explorerSection": "ファイル エクスプローラー セクション",
-	"noWorkspaceHelp": "まだフォルダーを開いていません。",
+	"noWorkspaceHelp": "まだフォルダーをワークスペースに追加していません。",
+	"addFolder": "フォルダーの追加",
+	"noFolderHelp": "まだフォルダーを開いていません。",
 	"openFolder": "フォルダーを開く"
 }

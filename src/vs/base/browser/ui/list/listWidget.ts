@@ -14,9 +14,9 @@ import * as platform from 'vs/base/common/platform';
 import { EventType as TouchEventType } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import Event, { Emitter, EventBufferer, chain, mapEvent, fromCallback, any } from 'vs/base/common/event';
+import Event, { Emitter, EventBufferer, chain, mapEvent, fromCallback, anyEvent } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { IDelegate, IRenderer, IListEvent, IListMouseEvent, IListContextMenuEvent } from './list';
+import { IDelegate, IRenderer, IListEvent, IListMouseEvent, IListContextMenuEvent, ISpliceable } from './list';
 import { ListView, IListViewOptions } from './listView';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
@@ -25,16 +25,14 @@ export interface IIdentityProvider<T> {
 	(element: T): string;
 }
 
-export interface ISpliceable<T> {
-	splice(start: number, deleteCount: number, elements: T[]): void;
-}
-
 class CombinedSpliceable<T> implements ISpliceable<T> {
 
 	constructor(private spliceables: ISpliceable<T>[]) { }
 
 	splice(start: number, deleteCount: number, elements: T[]): void {
-		this.spliceables.forEach(s => s.splice(start, deleteCount, elements));
+		for (const spliceable of this.spliceables) {
+			spliceable.splice(start, deleteCount, elements);
+		}
 	}
 }
 
@@ -52,7 +50,7 @@ interface IRenderedElement {
 	index: number;
 }
 
-class TraitRenderer<T, D> implements IRenderer<T, ITraitTemplateData>
+class TraitRenderer<T> implements IRenderer<T, ITraitTemplateData>
 {
 	private rendered: IRenderedElement[] = [];
 
@@ -78,15 +76,19 @@ class TraitRenderer<T, D> implements IRenderer<T, ITraitTemplateData>
 	}
 
 	renderIndexes(indexes: number[]): void {
-		this.rendered
-			.filter(({ index }) => indexes.indexOf(index) > -1)
-			.forEach(({ index, templateData }) => this.trait.renderIndex(index, templateData.container));
+		for (const { index, templateData } of this.rendered) {
+			if (indexes.indexOf(index) > -1) {
+				this.trait.renderIndex(index, templateData.container);
+			}
+		}
 	}
 
 	splice(start: number, deleteCount: number): void {
-		this.rendered
-			.filter(({ index }) => index >= start && index < start + deleteCount)
-			.forEach(({ templateData }) => templateData.elementDisposable.dispose());
+		for (const { index, templateData } of this.rendered) {
+			if (index >= start && index < start + deleteCount) {
+				templateData.elementDisposable.dispose();
+			}
+		}
 	}
 
 	disposeTemplate(templateData: ITraitTemplateData): void {
@@ -107,8 +109,8 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 	get trait(): string { return this._trait; }
 
 	@memoize
-	get renderer(): TraitRenderer<T, any> {
-		return new TraitRenderer<T, any>(this);
+	get renderer(): TraitRenderer<T> {
+		return new TraitRenderer<T>(this);
 	}
 
 	constructor(private _trait: string) {
@@ -323,6 +325,7 @@ function isSelectionChangeEvent(event: IListMouseEvent<any>): boolean {
 
 export interface IMouseControllerOptions {
 	selectOnMouseDown?: boolean;
+	focusOnMouseDown?: boolean;
 }
 
 class MouseController<T> implements IDisposable {
@@ -347,7 +350,7 @@ class MouseController<T> implements IDisposable {
 			.map(({ element, index, clientX, clientY }) => ({ element, index, anchor: { x: clientX + 1, y: clientY } }))
 			.event;
 
-		return any<IListContextMenuEvent<T>>(fromKeyboard, fromMouse);
+		return anyEvent<IListContextMenuEvent<T>>(fromKeyboard, fromMouse);
 	}
 
 	constructor(
@@ -364,7 +367,12 @@ class MouseController<T> implements IDisposable {
 	}
 
 	private onMouseDown(e: IListMouseEvent<T>): void {
-		this.view.domNode.focus();
+		if (this.options.focusOnMouseDown === false) {
+			e.preventDefault();
+			e.stopPropagation();
+		} else {
+			this.view.domNode.focus();
+		}
 
 		let reference = this.list.getFocus()[0];
 		reference = reference === undefined ? this.list.getSelection()[0] : reference;
@@ -581,11 +589,19 @@ class PipelineRenderer<T> implements IRenderer<T, any> {
 	}
 
 	renderElement(element: T, index: number, templateData: any[]): void {
-		this.renderers.forEach((r, i) => r.renderElement(element, index, templateData[i]));
+		let i = 0;
+
+		for (const renderer of this.renderers) {
+			renderer.renderElement(element, index, templateData[i++]);
+		}
 	}
 
 	disposeTemplate(templateData: any[]): void {
-		this.renderers.forEach((r, i) => r.disposeTemplate(templateData[i]));
+		let i = 0;
+
+		for (const renderer of this.renderers) {
+			renderer.disposeTemplate(templateData[i]);
+		}
 	}
 }
 
@@ -625,11 +641,11 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return mapEvent(this._onPin.event, indexes => this.toListEvent({ indexes }));
 	}
 
-	readonly onDOMFocus: Event<void>;
-	readonly onDOMBlur: Event<void>;
+	readonly onDidFocus: Event<void>;
+	readonly onDidBlur: Event<void>;
 
-	private _onDispose = new Emitter<void>();
-	get onDispose(): Event<void> { return this._onDispose.event; }
+	private _onDidDispose = new Emitter<void>();
+	get onDidDispose(): Event<void> { return this._onDidDispose.event; }
 
 	constructor(
 		container: HTMLElement,
@@ -660,10 +676,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 			this.view
 		]);
 
-		this.disposables = [this.focus, this.selection, this.view, this._onDispose];
+		this.disposables = [this.focus, this.selection, this.view, this._onDidDispose];
 
-		this.onDOMFocus = mapEvent(domEvent(this.view.domNode, 'focus', true), () => null);
-		this.onDOMBlur = mapEvent(domEvent(this.view.domNode, 'blur', true), () => null);
+		this.onDidFocus = mapEvent(domEvent(this.view.domNode, 'focus', true), () => null);
+		this.onDidBlur = mapEvent(domEvent(this.view.domNode, 'blur', true), () => null);
 
 		if (typeof options.keyboardSupport !== 'boolean' || options.keyboardSupport) {
 			const controller = new KeyboardController(this, this.view);
@@ -687,6 +703,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	splice(start: number, deleteCount: number, elements: T[] = []): void {
+		if (deleteCount === 0 && elements.length === 0) {
+			return;
+		}
+
 		this.eventBufferer.bufferEvents(() => this.spliceable.splice(start, deleteCount, elements));
 	}
 
@@ -966,7 +986,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	dispose(): void {
-		this._onDispose.fire();
+		this._onDidDispose.fire();
 		this.disposables = dispose(this.disposables);
 	}
 }

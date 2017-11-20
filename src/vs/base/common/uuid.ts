@@ -13,8 +13,6 @@ export interface UUID {
 	 * @returns the canonical representation in sets of hexadecimal numbers separated by dashes.
 	 */
 	asHex(): string;
-
-	equals(other: UUID): boolean;
 }
 
 class ValueUUID implements UUID {
@@ -25,10 +23,6 @@ class ValueUUID implements UUID {
 
 	public asHex(): string {
 		return this._value;
-	}
-
-	public equals(other: UUID): boolean {
-		return this.asHex() === other.asHex();
 	}
 }
 

@@ -13,5 +13,6 @@
 	"settingsFound": "{0} 項相符設定",
 	"fileEditorWithInputAriaLabel": "{0}。文字檔編輯器。",
 	"fileEditorAriaLabel": "文字檔編輯器。",
+	"defaultEditorReadonly": "在右方編輯器中編輯以覆寫預設。",
 	"preferencesAriaLabel": "預設喜好設定。唯讀文字編輯器。"
 }

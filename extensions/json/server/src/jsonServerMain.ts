@@ -324,7 +324,7 @@ connection.onRequest(ColorPresentationRequest.type, params => {
 	let document = documents.get(params.textDocument.uri);
 	if (document) {
 		let jsonDocument = getJSONDocument(document);
-		return languageService.getColorPresentations(document, jsonDocument, params.colorInfo);
+		return languageService.getColorPresentations(document, jsonDocument, params.color, params.range);
 	}
 	return [];
 });

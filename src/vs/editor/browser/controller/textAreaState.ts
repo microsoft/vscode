@@ -47,19 +47,6 @@ export class TextAreaState {
 		this.selectionEndPosition = selectionEndPosition;
 	}
 
-	public equals(other: TextAreaState): boolean {
-		if (other instanceof TextAreaState) {
-			return (
-				this.value === other.value
-				&& this.selectionStart === other.selectionStart
-				&& this.selectionEnd === other.selectionEnd
-				&& Position.equals(this.selectionStartPosition, other.selectionStartPosition)
-				&& Position.equals(this.selectionEndPosition, other.selectionEndPosition)
-			);
-		}
-		return false;
-	}
-
 	public toString(): string {
 		return '[ <' + this.value + '>, selectionStart: ' + this.selectionStart + ', selectionEnd: ' + this.selectionEnd + ']';
 	}

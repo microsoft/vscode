@@ -5,10 +5,9 @@
 'use strict';
 
 import arrays = require('vs/base/common/arrays');
-import objects = require('vs/base/common/objects');
 import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
-import { BoundedMap } from 'vs/base/common/map';
+import { LRUCache } from 'vs/base/common/map';
 import { CharCode } from 'vs/base/common/charCode';
 import { TPromise } from 'vs/base/common/winjs.base';
 
@@ -23,10 +22,6 @@ export interface IRelativePattern {
 
 export function getEmptyExpression(): IExpression {
 	return Object.create(null);
-}
-
-export function mergeExpressions(...expressions: IExpression[]): IExpression {
-	return objects.assign(getEmptyExpression(), ...expressions.filter(expr => !!expr));
 }
 
 export interface SiblingClause {
@@ -152,17 +147,28 @@ function parseRegExp(pattern: string): string {
 				}
 
 				// Support brackets
-				if (char !== ']' && inBrackets) {
+				if (inBrackets && (char !== ']' || !bracketVal) /* ] is literally only allowed as first character in brackets to match it */) {
 					let res: string;
-					switch (char) {
-						case '-':		// allow the range operator
-							res = char;
-							break;
-						case '^':		// allow the negate operator
-							res = char;
-							break;
-						default:
-							res = strings.escapeRegExpCharacters(char);
+
+					// range operator
+					if (char === '-') {
+						res = char;
+					}
+
+					// negation operator (only valid on first index in bracket)
+					else if ((char === '^' || char === '!') && !bracketVal) {
+						res = '^';
+					}
+
+					// glob split matching is not allowed within character ranges
+					// see http://man7.org/linux/man-pages/man7/glob.7.html
+					else if (char === GLOB_SPLIT) {
+						res = '';
+					}
+
+					// anything else gets escaped
+					else {
+						res = strings.escapeRegExpCharacters(char);
 					}
 
 					bracketVal += res;
@@ -261,7 +267,7 @@ interface ParsedExpressionPattern {
 	allPaths?: string[];
 }
 
-const CACHE = new BoundedMap<ParsedStringPattern>(10000); // bounded to 10000 elements
+const CACHE = new LRUCache<string, ParsedStringPattern>(10000); // bounded to 10000 elements
 
 const FALSE = function () {
 	return false;
@@ -450,7 +456,7 @@ export function parse(arg1: string | IExpression | IRelativePattern, options: IG
 	}
 
 	// Glob with String
-	if (typeof arg1 === 'string' || (arg1 as IRelativePattern).base) {
+	if (typeof arg1 === 'string' || isRelativePattern(arg1)) {
 		const parsedPattern = parsePattern(arg1 as string | IRelativePattern, options);
 		if (parsedPattern === NULL) {
 			return FALSE;
@@ -471,12 +477,18 @@ export function parse(arg1: string | IExpression | IRelativePattern, options: IG
 	return parsedExpression(<IExpression>arg1, options);
 }
 
+export function isRelativePattern(obj: any): obj is IRelativePattern {
+	const rp = obj as IRelativePattern;
+
+	return typeof rp.base === 'string' && typeof rp.pattern === 'string';
+}
+
 /**
  * Same as `parse`, but the ParsedExpression is guaranteed to return a Promise
  */
 export function parseToAsync(expression: IExpression, options?: IGlobOptions): ParsedExpression {
 	const parsedExpression = parse(expression, options);
-	return (path: string, basename?: string, siblingsFn?: () => TPromise<string[]>): TPromise<string> => {
+	return (path: string, basename?: string, siblingsFn?: () => string[] | TPromise<string[]>): string | TPromise<string> => {
 		const result = parsedExpression(path, basename, siblingsFn);
 		return result instanceof TPromise ? result : TPromise.as(result);
 	};

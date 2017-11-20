@@ -11,9 +11,11 @@ import { getLanguageModes, LanguageModes, Settings } from './modes/languageModes
 
 import { ConfigurationRequest, ConfigurationParams } from 'vscode-languageserver-protocol/lib/protocol.configuration.proposed';
 import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities, ColorInformation, ColorPresentationRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
+import { DidChangeWorkspaceFoldersNotification, WorkspaceFolder } from 'vscode-languageserver-protocol/lib/protocol.workspaceFolders.proposed';
 
 import { format } from './modes/formatting';
 import { pushAll } from './utils/arrays';
+import { endsWith, startsWith } from './utils/strings';
 
 import * as url from 'url';
 import * as path from 'path';
@@ -23,7 +25,7 @@ import * as nls from 'vscode-nls';
 nls.config(process.env['VSCODE_NLS_CONFIG']);
 
 namespace TagCloseRequest {
-	export const type: RequestType<TextDocumentPositionParams, string, any, any> = new RequestType('html/tag');
+	export const type: RequestType<TextDocumentPositionParams, string | null, any, any> = new RequestType('html/tag');
 }
 
 // Create a connection for the server
@@ -39,12 +41,15 @@ let documents: TextDocuments = new TextDocuments();
 // for open, change and close text document events
 documents.listen(connection);
 
-let workspacePath: string;
+let workspacePath: string | undefined | null;
+let workspaceFolders: WorkspaceFolder[] | undefined;
+
 var languageModes: LanguageModes;
 
 let clientSnippetSupport = false;
 let clientDynamicRegisterSupport = false;
 let scopedSettingsSupport = false;
+let workspaceFoldersSupport = false;
 
 var globalSettings: Settings = {};
 let documentSettings: { [key: string]: Thenable<Settings> } = {};
@@ -53,7 +58,7 @@ documents.onDidClose(e => {
 	delete documentSettings[e.document.uri];
 });
 
-function getDocumentSettings(textDocument: TextDocument, needsDocumentSettings: () => boolean): Thenable<Settings> {
+function getDocumentSettings(textDocument: TextDocument, needsDocumentSettings: () => boolean): Thenable<Settings | undefined> {
 	if (scopedSettingsSupport && needsDocumentSettings()) {
 		let promise = documentSettings[textDocument.uri];
 		if (!promise) {
@@ -73,6 +78,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	let initializationOptions = params.initializationOptions;
 
 	workspacePath = params.rootPath;
+	workspaceFolders = (<any>params).workspaceFolders;
 
 	languageModes = getLanguageModes(initializationOptions ? initializationOptions.embeddedLanguages : { css: true, javascript: true });
 	documents.onDidClose(e => {
@@ -83,7 +89,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	});
 
 	function hasClientCapability(...keys: string[]) {
-		let c = params.capabilities;
+		let c = <any>params.capabilities;
 		for (let i = 0; c && i < keys.length; i++) {
 			c = c[keys[i]];
 		}
@@ -93,10 +99,11 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	clientSnippetSupport = hasClientCapability('textDocument', 'completion', 'completionItem', 'snippetSupport');
 	clientDynamicRegisterSupport = hasClientCapability('workspace', 'symbol', 'dynamicRegistration');
 	scopedSettingsSupport = hasClientCapability('workspace', 'configuration');
+	workspaceFoldersSupport = hasClientCapability('workspace', 'workspaceFolders');
 	let capabilities: ServerCapabilities & CPServerCapabilities = {
 		// Tell the client that the server works in FULL text document sync mode
 		textDocumentSync: documents.syncKind,
-		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['.', ':', '<', '"', '=', '/', '>'] } : null,
+		completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['.', ':', '<', '"', '=', '/', '>'] } : undefined,
 		hoverProvider: true,
 		documentHighlightProvider: true,
 		documentRangeFormattingProvider: false,
@@ -107,11 +114,30 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		referencesProvider: true,
 		colorProvider: true
 	};
-
 	return { capabilities };
 });
 
-let formatterRegistration: Thenable<Disposable> = null;
+connection.onInitialized((p) => {
+	if (workspaceFoldersSupport) {
+		connection.client.register(DidChangeWorkspaceFoldersNotification.type);
+
+		connection.onNotification(DidChangeWorkspaceFoldersNotification.type, e => {
+			let toAdd = e.event.added;
+			let toRemove = e.event.removed;
+			let updatedFolders = [];
+			if (workspaceFolders) {
+				for (let folder of workspaceFolders) {
+					if (!toRemove.some(r => r.uri === folder.uri) && !toAdd.some(r => r.uri === folder.uri)) {
+						updatedFolders.push(folder);
+					}
+				}
+			}
+			workspaceFolders = updatedFolders.concat(toAdd);
+		});
+	}
+});
+
+let formatterRegistration: Thenable<Disposable> | null = null;
 
 // The settings have changed. Is send on server activation as well.
 connection.onDidChangeConfiguration((change) => {
@@ -198,11 +224,12 @@ connection.onCompletion(async textDocumentPosition => {
 	let document = documents.get(textDocumentPosition.textDocument.uri);
 	let mode = languageModes.getModeAtPosition(document, textDocumentPosition.position);
 	if (mode && mode.doComplete) {
+		let doComplete = mode.doComplete;
 		if (mode.getId() !== 'html') {
 			connection.telemetry.logEvent({ key: 'html.embbedded.complete', value: { languageId: mode.getId() } });
 		}
-		let settings = await getDocumentSettings(document, () => mode.doComplete.length > 2);
-		return mode.doComplete(document, textDocumentPosition.position, settings);
+		let settings = await getDocumentSettings(document, () => doComplete.length > 2);
+		return doComplete(document, textDocumentPosition.position, settings);
 	}
 	return { isIncomplete: true, items: [] };
 });
@@ -283,8 +310,11 @@ connection.onDocumentLinks(documentLinkParam => {
 			if (base) {
 				ref = url.resolve(base, ref);
 			}
-			if (workspacePath && ref[0] === '/') {
-				return uri.file(path.join(workspacePath, ref)).toString();
+			if (ref[0] === '/') {
+				let root = getRootFolder(document.uri);
+				if (root) {
+					return uri.file(path.join(root, ref)).toString();
+				}
 			}
 			return url.resolve(document.uri, ref);
 		},
@@ -298,6 +328,22 @@ connection.onDocumentLinks(documentLinkParam => {
 	});
 	return links;
 });
+
+function getRootFolder(docUri: string): string | undefined | null {
+	if (workspaceFolders) {
+		for (let folder of workspaceFolders) {
+			let folderURI = folder.uri;
+			if (!endsWith(folderURI, '/')) {
+				folderURI = folderURI + '/';
+			}
+			if (startsWith(docUri, folderURI)) {
+				return folderURI;
+			}
+		}
+		return void 0;
+	}
+	return workspacePath;
+}
 
 connection.onDocumentSymbol(documentSymbolParms => {
 	let document = documents.get(documentSymbolParms.textDocument.uri);
@@ -326,9 +372,9 @@ connection.onRequest(DocumentColorRequest.type, params => {
 connection.onRequest(ColorPresentationRequest.type, params => {
 	let document = documents.get(params.textDocument.uri);
 	if (document) {
-		let mode = languageModes.getModeAtPosition(document, params.colorInfo.range.start);
+		let mode = languageModes.getModeAtPosition(document, params.range.start);
 		if (mode && mode.getColorPresentations) {
-			return mode.getColorPresentations(document, params.colorInfo);
+			return mode.getColorPresentations(document, params.color, params.range);
 		}
 	}
 	return [];

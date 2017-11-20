@@ -40,16 +40,16 @@ class TestTelemetryAppender implements ITelemetryAppender {
 }
 
 class ErrorTestingSettings {
-	public personalInfo;
-	public importantInfo;
-	public filePrefix;
-	public dangerousPathWithoutImportantInfo;
-	public dangerousPathWithImportantInfo;
-	public missingModelPrefix;
-	public missingModelMessage;
-	public noSuchFilePrefix;
-	public noSuchFileMessage;
-	public stack;
+	public personalInfo: string;
+	public importantInfo: string;
+	public filePrefix: string;
+	public dangerousPathWithoutImportantInfo: string;
+	public dangerousPathWithImportantInfo: string;
+	public missingModelPrefix: string;
+	public missingModelMessage: string;
+	public noSuchFilePrefix: string;
+	public noSuchFileMessage: string;
+	public stack: string[];
 
 	constructor() {
 		this.personalInfo = 'DANGEROUS/PATH';
@@ -203,7 +203,7 @@ suite('TelemetryService', () => {
 		});
 	}));
 
-	test('Error events', sinon.test(function () {
+	test('Error events', sinon.test(function (this: any) {
 
 		let origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
 		Errors.setUnexpectedErrorHandler(() => { });
@@ -262,7 +262,7 @@ suite('TelemetryService', () => {
 	// 		}
 	// 	}));
 
-	test('Handle global errors', sinon.test(function () {
+	test('Handle global errors', sinon.test(function (this: any) {
 		let errorStub = sinon.stub();
 		window.onerror = errorStub;
 
@@ -289,7 +289,7 @@ suite('TelemetryService', () => {
 		service.dispose();
 	}));
 
-	test('Uncaught Error Telemetry removes PII from filename', sinon.test(function () {
+	test('Uncaught Error Telemetry removes PII from filename', sinon.test(function (this: any) {
 		let errorStub = sinon.stub();
 		window.onerror = errorStub;
 		let settings = new ErrorTestingSettings();
@@ -318,7 +318,7 @@ suite('TelemetryService', () => {
 		service.dispose();
 	}));
 
-	test('Unexpected Error Telemetry removes PII', sinon.test(function () {
+	test('Unexpected Error Telemetry removes PII', sinon.test(function (this: any) {
 		let origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
 		Errors.setUnexpectedErrorHandler(() => { });
 		try {
@@ -348,7 +348,7 @@ suite('TelemetryService', () => {
 		}
 	}));
 
-	test('Uncaught Error Telemetry removes PII', sinon.test(function () {
+	test('Uncaught Error Telemetry removes PII', sinon.test(function (this: any) {
 		let errorStub = sinon.stub();
 		window.onerror = errorStub;
 		let settings = new ErrorTestingSettings();
@@ -374,7 +374,7 @@ suite('TelemetryService', () => {
 		service.dispose();
 	}));
 
-	test('Unexpected Error Telemetry removes PII but preserves Code file path', sinon.test(function () {
+	test('Unexpected Error Telemetry removes PII but preserves Code file path', sinon.test(function (this: any) {
 
 		let origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
 		Errors.setUnexpectedErrorHandler(() => { });
@@ -409,7 +409,7 @@ suite('TelemetryService', () => {
 		}
 	}));
 
-	test('Uncaught Error Telemetry removes PII but preserves Code file path', sinon.test(function () {
+	test('Uncaught Error Telemetry removes PII but preserves Code file path', sinon.test(function (this: any) {
 		let errorStub = sinon.stub();
 		window.onerror = errorStub;
 		let settings = new ErrorTestingSettings();
@@ -437,7 +437,7 @@ suite('TelemetryService', () => {
 		service.dispose();
 	}));
 
-	test('Unexpected Error Telemetry removes PII but preserves Code file path when PIIPath is configured', sinon.test(function () {
+	test('Unexpected Error Telemetry removes PII but preserves Code file path when PIIPath is configured', sinon.test(function (this: any) {
 
 		let origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
 		Errors.setUnexpectedErrorHandler(() => { });
@@ -472,7 +472,7 @@ suite('TelemetryService', () => {
 		}
 	}));
 
-	test('Uncaught Error Telemetry removes PII but preserves Code file path when PIIPath is configured', sinon.test(function () {
+	test('Uncaught Error Telemetry removes PII but preserves Code file path when PIIPath is configured', sinon.test(function (this: any) {
 		let errorStub = sinon.stub();
 		window.onerror = errorStub;
 		let settings = new ErrorTestingSettings();
@@ -500,7 +500,7 @@ suite('TelemetryService', () => {
 		service.dispose();
 	}));
 
-	test('Unexpected Error Telemetry removes PII but preserves Missing Model error message', sinon.test(function () {
+	test('Unexpected Error Telemetry removes PII but preserves Missing Model error message', sinon.test(function (this: any) {
 
 		let origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
 		Errors.setUnexpectedErrorHandler(() => { });
@@ -535,7 +535,7 @@ suite('TelemetryService', () => {
 		}
 	}));
 
-	test('Uncaught Error Telemetry removes PII but preserves Missing Model error message', sinon.test(function () {
+	test('Uncaught Error Telemetry removes PII but preserves Missing Model error message', sinon.test(function (this: any) {
 		let errorStub = sinon.stub();
 		window.onerror = errorStub;
 		let settings = new ErrorTestingSettings();
@@ -564,7 +564,7 @@ suite('TelemetryService', () => {
 		service.dispose();
 	}));
 
-	test('Unexpected Error Telemetry removes PII but preserves No Such File error message', sinon.test(function () {
+	test('Unexpected Error Telemetry removes PII but preserves No Such File error message', sinon.test(function (this: any) {
 
 		let origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
 		Errors.setUnexpectedErrorHandler(() => { });
@@ -599,7 +599,7 @@ suite('TelemetryService', () => {
 		}
 	}));
 
-	test('Uncaught Error Telemetry removes PII but preserves No Such File error message', sinon.test(function () {
+	test('Uncaught Error Telemetry removes PII but preserves No Such File error message', sinon.test(function (this: any) {
 		let origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
 		Errors.setUnexpectedErrorHandler(() => { });
 
@@ -676,29 +676,27 @@ suite('TelemetryService', () => {
 			appender: testAppender
 		}, {
 				_serviceBrand: undefined,
-				getConfiguration() {
+				getValue() {
 					return {
 						enableTelemetry: enableTelemetry
 					} as any;
 				},
-				getConfigurationData(): any {
+				updateValue(): TPromise<void> {
 					return null;
 				},
-				reloadConfiguration() {
-					return TPromise.as(this.getConfiguration());
-				},
-				lookup(key: string) {
+				inspect(key: string) {
 					return {
-						value: getConfigurationValue(this.getConfiguration(), key),
-						default: getConfigurationValue(this.getConfiguration(), key),
-						user: getConfigurationValue(this.getConfiguration(), key),
+						value: getConfigurationValue(this.getValue(), key),
+						default: getConfigurationValue(this.getValue(), key),
+						user: getConfigurationValue(this.getValue(), key),
 						workspace: null,
-						folder: null
+						workspaceFolder: null
 					};
 				},
-				keys() { return { default: [], user: [], workspace: [], folder: [] }; },
-				values() { return {}; },
-				onDidUpdateConfiguration: emitter.event
+				keys() { return { default: [], user: [], workspace: [], workspaceFolder: [] }; },
+				onDidChangeConfiguration: emitter.event,
+				reloadConfiguration(): TPromise<void> { return null; },
+				getConfigurationData() { return null; }
 			});
 
 		assert.equal(service.isOptedIn, false);

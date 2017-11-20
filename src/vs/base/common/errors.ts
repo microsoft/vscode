@@ -148,10 +148,6 @@ export function onUnexpectedExternalError(e: any): undefined {
 	return undefined;
 }
 
-export function onUnexpectedPromiseError<T>(promise: TPromise<T>): TPromise<T | void> {
-	return promise.then(null, onUnexpectedError);
-}
-
 export interface SerializedError {
 	readonly $isError: true;
 	readonly name: string;
@@ -211,13 +207,6 @@ export function canceled(): Error {
 	let error = new Error(canceledName);
 	error.name = error.message;
 	return error;
-}
-
-/**
- * Returns an error that signals something is not implemented.
- */
-export function notImplemented(): Error {
-	return new Error('Not Implemented');
 }
 
 export function illegalArgument(name?: string): Error {

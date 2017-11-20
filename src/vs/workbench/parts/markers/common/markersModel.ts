@@ -58,11 +58,14 @@ export class Marker {
 	}
 
 	public toString(): string {
-		return [`file: '${this.marker.resource}'`,
-		`severity: '${Severity.toString(this.marker.severity)}'`,
-		`message: '${this.marker.message}'`,
-		`at: '${this.marker.startLineNumber},${this.marker.startColumn}'`,
-		`source: '${this.marker.source ? this.marker.source : ''}'`].join('\n');
+		return [
+			`file: '${this.marker.resource}'`,
+			`severity: '${Severity.toString(this.marker.severity)}'`,
+			`message: '${this.marker.message}'`,
+			`at: '${this.marker.startLineNumber},${this.marker.startColumn}'`,
+			`source: '${this.marker.source ? this.marker.source : ''}'`,
+			`code: '${this.marker.code ? this.marker.code : ''}'`
+		].join('\n');
 	}
 
 }
@@ -295,11 +298,6 @@ export class MarkersModel {
 		this._nonFilteredResources = [];
 	}
 
-	public getTitle(markerStatistics: MarkerStatistics): string {
-		let title = MarkersModel.getStatisticsLabel(markerStatistics);
-		return title ? title : Messages.MARKERS_PANEL_TITLE_PROBLEMS;
-	}
-
 	public getMessage(): string {
 		if (this.hasFilteredResources()) {
 			return '';
@@ -357,10 +355,4 @@ export class MarkersModel {
 		}
 		return a.marker.severity > b.marker.severity ? -1 : 1;
 	}
-}
-
-export interface IProblemsConfiguration {
-	problems: {
-		autoReveal: boolean
-	};
 }

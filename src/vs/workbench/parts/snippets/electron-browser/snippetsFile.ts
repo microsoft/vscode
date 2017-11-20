@@ -7,9 +7,6 @@
 
 import { readFile } from 'vs/base/node/pfs';
 import { parse as jsonParse } from 'vs/base/common/json';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { SnippetParser, Variable, Placeholder, Text } from 'vs/editor/contrib/snippet/browser/snippetParser';
-import { EditorSnippetVariableResolver } from 'vs/editor/contrib/snippet/browser/snippetVariables';
 import { forEach } from 'vs/base/common/collections';
 import { Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
 
@@ -36,8 +33,8 @@ export class SnippetFile {
 		//
 	}
 
-	static fromFile(filepath: string, source: string, isFromExtension?: boolean): TPromise<SnippetFile> {
-		return readFile(filepath).then(value => {
+	static fromFile(filepath: string, source: string, isFromExtension?: boolean): Promise<SnippetFile> {
+		return Promise.resolve(readFile(filepath)).then(value => {
 			const data = <JsonSerializedSnippets>jsonParse(value.toString());
 			const snippets: Snippet[] = [];
 			if (typeof data === 'object') {
@@ -69,64 +66,13 @@ export class SnippetFile {
 			return;
 		}
 
-		let rewrite = SnippetFile._rewriteBogousVariables(body);
-		let isBogous = false;
-		if (typeof rewrite === 'string') {
-			body = rewrite;
-			isBogous = true;
-		}
-
-		bucket.push({
-			codeSnippet: body,
+		bucket.push(new Snippet(
 			name,
 			prefix,
 			description,
+			body,
 			source,
-			isFromExtension,
-			isBogous
-		});
-	}
-
-	static _rewriteBogousVariables(template: string): false | string {
-		const textmateSnippet = new SnippetParser().parse(template, false);
-
-		let placeholders = new Map<string, number>();
-		let placeholderMax = 0;
-		for (const placeholder of textmateSnippet.placeholders) {
-			placeholderMax = Math.max(placeholderMax, placeholder.index);
-		}
-
-		let didChange = false;
-		let stack = [...textmateSnippet.children];
-
-		while (stack.length > 0) {
-			let marker = stack.shift();
-
-			if (
-				marker instanceof Variable
-				&& marker.children.length === 0
-				&& !EditorSnippetVariableResolver.VariableNames[marker.name]
-			) {
-				// a 'variable' without a default value and not being one of our supported
-				// variables is automatically turned into a placeholder. This is to restore
-				// a bug we had before. So `${foo}` becomes `${N:foo}`
-				const index = placeholders.has(marker.name) ? placeholders.get(marker.name) : ++placeholderMax;
-				placeholders.set(marker.name, index);
-
-				const synthetic = new Placeholder(index).appendChild(new Text(marker.name));
-				textmateSnippet.replace(marker, [synthetic]);
-				didChange = true;
-
-			} else {
-				// recurse
-				stack.push(...marker.children);
-			}
-		}
-
-		if (!didChange) {
-			return false;
-		} else {
-			return textmateSnippet.toTextmateString();
-		}
+			isFromExtension
+		));
 	}
 }

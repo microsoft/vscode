@@ -15,16 +15,19 @@ export interface IFolderSearch {
 	excludePattern?: IExpression;
 	includePattern?: IExpression;
 	fileEncoding?: string;
+	disregardIgnoreFiles?: boolean;
 }
 
 export interface IRawSearch {
 	folderQueries: IFolderSearch[];
+	ignoreSymlinks?: boolean;
 	extraFiles?: string[];
 	filePattern?: string;
 	excludePattern?: IExpression;
 	includePattern?: IExpression;
 	contentPattern?: IPatternInfo;
 	maxResults?: number;
+	exists?: boolean;
 	sortByScore?: boolean;
 	cacheKey?: string;
 	maxFilesize?: number;
@@ -70,3 +73,60 @@ export interface ISerializedFileMatch {
 // Type of the possible values for progress calls from the engine
 export type ISerializedSearchProgressItem = ISerializedFileMatch | ISerializedFileMatch[] | IProgress | ISearchLog;
 export type IFileSearchProgressItem = IRawFileMatch | IRawFileMatch[] | IProgress;
+
+
+export class FileMatch implements ISerializedFileMatch {
+	path: string;
+	lineMatches: LineMatch[];
+
+	constructor(path: string) {
+		this.path = path;
+		this.lineMatches = [];
+	}
+
+	addMatch(lineMatch: LineMatch): void {
+		this.lineMatches.push(lineMatch);
+	}
+
+	serialize(): ISerializedFileMatch {
+		let lineMatches: ILineMatch[] = [];
+		let numMatches = 0;
+
+		for (let i = 0; i < this.lineMatches.length; i++) {
+			numMatches += this.lineMatches[i].offsetAndLengths.length;
+			lineMatches.push(this.lineMatches[i].serialize());
+		}
+
+		return {
+			path: this.path,
+			lineMatches,
+			numMatches
+		};
+	}
+}
+
+export class LineMatch implements ILineMatch {
+	preview: string;
+	lineNumber: number;
+	offsetAndLengths: number[][];
+
+	constructor(preview: string, lineNumber: number) {
+		this.preview = preview.replace(/(\r|\n)*$/, '');
+		this.lineNumber = lineNumber;
+		this.offsetAndLengths = [];
+	}
+
+	addMatch(offset: number, length: number): void {
+		this.offsetAndLengths.push([offset, length]);
+	}
+
+	serialize(): ILineMatch {
+		const result = {
+			preview: this.preview,
+			lineNumber: this.lineNumber,
+			offsetAndLengths: this.offsetAndLengths
+		};
+
+		return result;
+	}
+}

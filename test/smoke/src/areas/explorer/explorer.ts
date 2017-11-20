@@ -17,7 +17,7 @@ export class Explorer extends Viewlet {
 	}
 
 	public openExplorerView(): Promise<any> {
-		return this.spectron.command('workbench.view.explorer');
+		return this.spectron.runCommand('workbench.view.explorer');
 	}
 
 	public getOpenEditorsViewTitle(): Promise<string> {

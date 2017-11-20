@@ -13,5 +13,6 @@
 	"settingsFound": "{0}개 설정 일치함",
 	"fileEditorWithInputAriaLabel": "{0}. 텍스트 파일 편집기입니다.",
 	"fileEditorAriaLabel": "텍스트 파일 편집기입니다.",
+	"defaultEditorReadonly": "기본값을 재정의하려면 오른쪽 편집기를 편집하세요.",
 	"preferencesAriaLabel": "기본 설정. 읽기 전용 텍스트 편집기입니다."
 }

@@ -15,7 +15,7 @@
 	"label.replaceButton": "取代",
 	"label.replaceAllButton": "全部取代",
 	"label.toggleReplaceButton": "切換取代模式",
-	"title.matchesCountLimit": "只會將前 999 筆結果醒目提示，但所有尋找作業會在完整文字上執行。",
+	"title.matchesCountLimit": "僅反白顯示前 {0} 筆結果，但所有尋找作業會在完整文字上執行。",
 	"label.matchesLocation": "{0} / {1}",
 	"label.noResults": "沒有結果"
 }

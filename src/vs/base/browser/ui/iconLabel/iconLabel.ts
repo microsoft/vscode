@@ -11,9 +11,8 @@ import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlighte
 import { IMatch } from 'vs/base/common/filters';
 import uri from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import { IWorkspaceFolderProvider, getPathLabel, IUserHomeProvider } from 'vs/base/common/labels';
+import { IWorkspaceFolderProvider, getPathLabel, IUserHomeProvider, getBaseLabel } from 'vs/base/common/labels';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { Color } from 'vs/base/common/color';
 
 export interface IIconLabelCreationOptions {
 	supportHighlights?: boolean;
@@ -24,8 +23,6 @@ export interface IIconLabelOptions {
 	extraClasses?: string[];
 	italic?: boolean;
 	matches?: IMatch[];
-	color?: Color;
-	extraIcon?: uri;
 }
 
 class FastLabelNode {
@@ -91,13 +88,15 @@ export class IconLabel {
 	constructor(container: HTMLElement, options?: IIconLabelCreationOptions) {
 		this.domNode = new FastLabelNode(dom.append(container, dom.$('.monaco-icon-label')));
 
+		const labelDescriptionContainer = new FastLabelNode(dom.append(this.domNode.element, dom.$('.monaco-icon-label-description-container')));
+
 		if (options && options.supportHighlights) {
-			this.labelNode = new HighlightedLabel(dom.append(this.domNode.element, dom.$('a.label-name')));
+			this.labelNode = new HighlightedLabel(dom.append(labelDescriptionContainer.element, dom.$('a.label-name')));
 		} else {
-			this.labelNode = new FastLabelNode(dom.append(this.domNode.element, dom.$('a.label-name')));
+			this.labelNode = new FastLabelNode(dom.append(labelDescriptionContainer.element, dom.$('a.label-name')));
 		}
 
-		this.descriptionNode = new FastLabelNode(dom.append(this.domNode.element, dom.$('span.label-description')));
+		this.descriptionNode = new FastLabelNode(dom.append(labelDescriptionContainer.element, dom.$('span.label-description')));
 	}
 
 	public get element(): HTMLElement {
@@ -130,8 +129,6 @@ export class IconLabel {
 			if (options.italic) {
 				classes.push('italic');
 			}
-
-			this.element.style.color = options.color ? options.color.toString() : '';
 		}
 
 		this.domNode.className = classes.join(' ');
@@ -146,20 +143,6 @@ export class IconLabel {
 
 		this.descriptionNode.textContent = description || '';
 		this.descriptionNode.empty = !description;
-
-		if (options && options.extraIcon) {
-			this.element.style.backgroundImage = `url("${options.extraIcon.toString(true)}")`;
-			this.element.style.backgroundRepeat = 'no-repeat';
-			this.element.style.backgroundPosition = 'right center';
-			this.element.style.paddingRight = '20px';
-			this.element.style.marginRight = '14px';
-		} else {
-			this.element.style.backgroundImage = '';
-			this.element.style.backgroundRepeat = '';
-			this.element.style.backgroundPosition = '';
-			this.element.style.paddingRight = '';
-			this.element.style.marginRight = '';
-		}
 	}
 
 	public dispose(): void {
@@ -180,6 +163,6 @@ export class FileLabel extends IconLabel {
 	public setFile(file: uri, provider: IWorkspaceFolderProvider, userHome: IUserHomeProvider): void {
 		const parent = paths.dirname(file.fsPath);
 
-		this.setValue(paths.basename(file.fsPath), parent && parent !== '.' ? getPathLabel(parent, provider, userHome) : '', { title: file.fsPath });
+		this.setValue(getBaseLabel(file), parent && parent !== '.' ? getPathLabel(parent, provider, userHome) : '', { title: file.fsPath });
 	}
 }

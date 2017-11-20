@@ -12,6 +12,7 @@
 	"errorUnknownKey": "Impossibile scrivere {0} perché {1} non è una configurazione registrata.",
 	"errorInvalidFolderConfiguration": "Impossibile scrivere nella cartella impostazioni perché {0} non supporta l'ambito di risorsa della cartella.",
 	"errorInvalidUserTarget": "Impossibile scrivere le impostazioni utente perché {0} non supporta l'ambito globale.",
+	"errorInvalidWorkspaceTarget": "Impossibile scrivere nell'area di lavoro perché {0} non supporta l'ambito globale in un'area di lavoro a cartelle multiple.",
 	"errorInvalidFolderTarget": "Impossibile scrivere nella cartella impostazioni perché non viene fornita alcuna risorsa.",
 	"errorNoWorkspaceOpened": "Impossibile scrivere su {0} poiché nessuna area di lavoro è aperta. Si prega di aprire un'area di lavoro e riprovare.",
 	"errorInvalidTaskConfiguration": "Non è possibile scrivere nel file delle attività. Aprire il file **Attività** per correggere eventuali errori/avvisi, quindi riprovare.",

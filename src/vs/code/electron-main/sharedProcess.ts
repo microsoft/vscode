@@ -65,7 +65,7 @@ export class SharedProcess implements ISharedProcess {
 		}));
 
 		return new TPromise<void>((c, e) => {
-			ipcMain.once('handshake:hello', ({ sender }) => {
+			ipcMain.once('handshake:hello', ({ sender }: { sender: any }) => {
 				sender.send('handshake:hey there', {
 					sharedIPCHandle: this.environmentService.sharedIPCHandle,
 					args: this.environmentService.args

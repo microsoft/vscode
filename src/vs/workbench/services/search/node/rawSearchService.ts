@@ -16,14 +16,14 @@ import objects = require('vs/base/common/objects');
 import strings = require('vs/base/common/strings');
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import { FileWalker, Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fileSearch';
-import { MAX_FILE_SIZE } from 'vs/platform/files/common/files';
+import { MAX_FILE_SIZE } from 'vs/platform/files/node/files';
 import { RipgrepEngine } from 'vs/workbench/services/search/node/ripgrepTextSearch';
 import { Engine as TextSearchEngine } from 'vs/workbench/services/search/node/textSearch';
 import { TextSearchWorkerProvider } from 'vs/workbench/services/search/node/textSearchWorkerProvider';
 import { IRawSearchService, IRawSearch, IRawFileMatch, ISerializedFileMatch, ISerializedSearchProgressItem, ISerializedSearchComplete, ISearchEngine, IFileSearchProgressItem, ITelemetryEvent } from './search';
 import { ICachedSearchStats, IProgress } from 'vs/platform/search/common/search';
 import { fuzzyContains } from 'vs/base/common/strings';
-import { compareItemsByScore, IItemAccessor, ScorerCache } from 'vs/base/parts/quickopen/common/quickOpenScorer';
+import { compareItemsByScore, IItemAccessor, ScorerCache, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 
 export class SearchService implements IRawSearchService {
 
@@ -254,7 +254,8 @@ export class SearchService implements IRawSearchService {
 		// this is very important because we are also limiting the number of results by config.maxResults
 		// and as such we want the top items to be included in this result set if the number of items
 		// exceeds config.maxResults.
-		const compare = (matchA: IRawFileMatch, matchB: IRawFileMatch) => compareItemsByScore(matchA, matchB, strings.stripWildcards(config.filePattern), true, FileMatchItemAccessor, scorerCache);
+		const query = prepareQuery(config.filePattern);
+		const compare = (matchA: IRawFileMatch, matchB: IRawFileMatch) => compareItemsByScore(matchA, matchB, query, true, FileMatchItemAccessor, scorerCache);
 
 		return arrays.topAsync(results, compare, config.maxResults, 10000);
 	}

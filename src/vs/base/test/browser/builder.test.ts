@@ -22,7 +22,7 @@ let withElementsBySelector = function (selector: string, offdom: boolean = false
 	return new MultiBuilder(builders);
 };
 
-let withBuilder = function (builder, offdom) {
+let withBuilder = function (builder: Builder, offdom: boolean) {
 	if (builder instanceof MultiBuilder) {
 		return new MultiBuilder(builder);
 	}
@@ -107,7 +107,7 @@ suite('Builder', () => {
 		assert(allDivs instanceof MultiBuilder);
 
 		for (let key in b) {
-			if (b.hasOwnProperty(key) && Types.isFunction(b[key])) {
+			if (b.hasOwnProperty(key) && Types.isFunction((b as any)[key])) {
 				assert(allDivs.hasOwnProperty(key));
 			}
 		}
@@ -121,7 +121,7 @@ suite('Builder', () => {
 		assert(noElement instanceof MultiBuilder);
 
 		for (let key in b) {
-			if (b.hasOwnProperty(key) && Types.isFunction(b[key])) {
+			if (b.hasOwnProperty(key) && Types.isFunction((b as any)[key])) {
 				assert(noElement.hasOwnProperty(key));
 			}
 		}
@@ -323,73 +323,17 @@ suite('Builder', () => {
 		assert(multiClone);
 	});
 
-	test('Builder.and() with 2 Builders', function () {
-		let b = Build.withElementById(fixtureId);
-
-		let otherB = Build.withElementById(fixtureId);
-
-		let bAndB = b.and(otherB);
-
-		assert.strictEqual(bAndB.length, 2);
-
-		assert.deepEqual(bAndB.attr('id'), [fixtureId, fixtureId]);
-	});
-
-	test('Builder.and() with HTMLElement', function () {
-		let b = Build.withElementById(fixtureId);
-
-		let otherB = Build.withElementById(fixtureId);
-
-		let bAndB = b.and(otherB.getHTMLElement());
-
-		assert.strictEqual(bAndB.length, 2);
-
-		assert.deepEqual(bAndB.attr('id'), [fixtureId, fixtureId]);
-	});
-
-	test('Builder.and() with MultiBuilder', function () {
-		let b = Build.withElementById(fixtureId);
-
-		let allDivs = withElementsBySelector('div');
-
-		let bAndB = b.and(allDivs);
-
-		assert.strictEqual(bAndB.length, 1 + allDivs.length);
-	});
-
-	test('Builder.and() with two MultiBuilders', function () {
-		let allDivs = withElementsBySelector('div');
-		let allDivsCount = allDivs.length;
-
-		let otherAllDivs = withElementsBySelector('div');
-
-		let allDivsAndAllDivs = allDivs.and(otherAllDivs);
-
-		assert.strictEqual(allDivsAndAllDivs.length, allDivsCount * 2);
-		assert.strictEqual(allDivs.length, allDivsCount * 2);
-	});
-
-	test('Builder.and() with MultiBuilder and HTMLElement', function () {
-		let allDivs = withElementsBySelector('div');
-		let len = allDivs.length;
-
-		let allDivsFixture = allDivs.and(Build.withElementById(fixtureId).getHTMLElement());
-
-		assert.strictEqual(allDivsFixture.length, len + 1);
-		assert.strictEqual(allDivs.length, len + 1);
-	});
-
 	test('Builder Multibuilder fn call that returns Multibuilder', function () {
 		let b = Build.withElementById(fixtureId);
-		b.div(function (div) {
+		b.div(function (div: Builder) {
 			div.span();
 		});
 
-		b.div(function (div) {
+		b.div(function (div: Builder) {
 			div.span();
 		});
 
-		b.div(function (div) {
+		b.div(function (div: Builder) {
 			div.span();
 		});
 
@@ -402,13 +346,13 @@ suite('Builder', () => {
 	test('Builder.p() and other elements', function () {
 		let b = Build.withElementById(fixtureId);
 		b.empty();
-		b.div(function (div) {
+		b.div(function (div: Builder) {
 			assert(div !== b);
 			assert.strictEqual('div', div.getHTMLElement().nodeName.toLowerCase());
 
-			div.p(function (p) {
-				p.ul(function (ul) {
-					ul.li(function (li) {
+			div.p(function (p: Builder) {
+				p.ul(function (ul: Builder) {
+					ul.li(function (li: Builder) {
 						li.span({
 							id: 'builderspan',
 							innerHtml: 'Foo Bar'
@@ -485,10 +429,10 @@ suite('Builder', () => {
 
 	test('Builder.p() and other elements', function () {
 		let b = Build.withElementById(fixtureId);
-		b.element('div', function (div) {
-			div.element('p', function (p) {
-				p.element('ul', function (ul) {
-					ul.element('li', function (li) {
+		b.element('div', function (div: Builder) {
+			div.element('p', function (p: Builder) {
+				p.element('ul', function (ul: Builder) {
+					ul.element('li', function (li: Builder) {
 						li.element('span', {
 							id: 'builderspan',
 							innerHtml: 'Foo Bar'
@@ -794,10 +738,10 @@ suite('Builder', () => {
 		b.show();
 		assert(!b.hasClass('builder-hidden'));
 		assert(!b.isHidden());
-		b.toggleVisibility();
-		assert(!b.isHidden());
-		assert(b.hasClass('builder-visible'));
-		b.toggleVisibility();
+		b.hide();
+		assert(b.isHidden());
+		assert(!b.hasClass('builder-visible'));
+		b.show();
 		b.hide();
 		assert(b.hasClass('builder-hidden'));
 		assert(b.isHidden());
@@ -908,7 +852,7 @@ suite('Builder', () => {
 		assert(b.children().length === 0);
 
 		let divB;
-		b.div(function (div) {
+		b.div(function (div: Builder) {
 			divB = div.clone();
 			div.span();
 		});
@@ -1018,7 +962,7 @@ suite('Builder', () => {
 			type: 'button'
 		});
 
-		let listeners = [];
+		let listeners: Builder[] = [];
 		let counter = 0;
 		b.on(DomUtils.EventType.CLICK, function (e) {
 			counter++;
@@ -1042,7 +986,7 @@ suite('Builder', () => {
 			type: 'button'
 		});
 
-		let listeners = [];
+		let listeners: Builder[] = [];
 		let counter = 0;
 		b.on(DomUtils.EventType.CLICK, function (e) {
 			counter++;
@@ -1064,8 +1008,8 @@ suite('Builder', () => {
 	});
 
 	test('Builder.empty()', function () {
-		let inputs = [];
-		let bindings = [];
+		let inputs: Builder[] = [];
+		let bindings: Builder[] = [];
 
 		let b = Build.withElementById(fixtureId);
 		let counter1 = 0;
@@ -1076,33 +1020,33 @@ suite('Builder', () => {
 		let counter6 = 0;
 		let counter7 = 0;
 
-		b.div(function (div) {
+		b.div(function (div: Builder) {
 			div.bind('Foo Bar');
 			div.setProperty('Foo', 'Bar');
 			bindings.push(div.clone());
 
 			div.element('input', {
 				type: 'button'
-			}).on(DomUtils.EventType.CLICK, function (e) {
+			}).on(DomUtils.EventType.CLICK, function () {
 				counter1++;
 				assert(counter1 <= 1);
 			});
 			inputs.push(div.clone());
 
-			div.p(function (p) {
+			div.p(function (p: Builder) {
 				p.bind('Foo Bar');
 				p.setProperty('Foo', 'Bar');
 				bindings.push(p.clone());
 
 				p.element('input', {
 					type: 'button'
-				}).on(DomUtils.EventType.CLICK, function (e) {
+				}).on(DomUtils.EventType.CLICK, function () {
 					counter2++;
 					assert(counter2 <= 1);
 				});
 				inputs.push(p.clone());
 
-				p.ul(function (ul) {
+				p.ul(function (ul: Builder) {
 					ul.bind('Foo Bar');
 					ul.setProperty('Foo', 'Bar');
 					bindings.push(ul.clone());
@@ -1115,7 +1059,7 @@ suite('Builder', () => {
 					});
 					inputs.push(ul.clone());
 
-					ul.li(function (li) {
+					ul.li(function (li: Builder) {
 						li.bind('Foo Bar');
 						li.setProperty('Foo', 'Bar');
 						bindings.push(li.clone());
@@ -1220,7 +1164,7 @@ suite('Builder', () => {
 
 		let old = DomUtils.addDisposableListener;
 		try {
-			(DomUtils as any).addDisposableListener = function (node, type, handler) {
+			(DomUtils as any).addDisposableListener = function (node: any, type: any, handler: any) {
 				let unbind: IDisposable = old.call(null, node, type, handler);
 
 				return {
@@ -1231,13 +1175,13 @@ suite('Builder', () => {
 				};
 			};
 
-			b.div(function (div) {
-				div.p(function (p) {
+			b.div(function (div: Builder) {
+				div.p(function (p: Builder) {
 					p.span().on([DomUtils.EventType.CLICK, DomUtils.EventType.KEY_DOWN], function (e) { });
 
 					p.img().on([DomUtils.EventType.KEY_PRESS, DomUtils.EventType.MOUSE_OUT], function (e) { }, null, true); // useCapture
 
-					p.a(function (a) {
+					p.a(function (a: Builder) {
 						a.span().on([DomUtils.EventType.CLICK, DomUtils.EventType.KEY_DOWN], function (e) { });
 					}).on([DomUtils.EventType.SELECT, DomUtils.EventType.BLUR], function (e) { });
 				});
@@ -1251,8 +1195,8 @@ suite('Builder', () => {
 	});
 
 	test('Builder.destroy()', function () {
-		let inputs = [];
-		let bindings = [];
+		let inputs: Builder[] = [];
+		let bindings: Builder[] = [];
 
 		let b = Build.withElementById(fixtureId);
 		let counter1 = 0;
@@ -1263,7 +1207,7 @@ suite('Builder', () => {
 		let counter6 = 0;
 		let counter7 = 0;
 
-		b.div(function (div) {
+		b.div(function (div: Builder) {
 			div.bind('Foo Bar');
 			div.setProperty('Foo', 'Bar');
 			bindings.push(div.clone());
@@ -1276,7 +1220,7 @@ suite('Builder', () => {
 			}, null, true); // useCapture
 			inputs.push(div.clone());
 
-			div.p(function (p) {
+			div.p(function (p: Builder) {
 				p.bind('Foo Bar');
 				p.setProperty('Foo', 'Bar');
 				bindings.push(p.clone());
@@ -1289,7 +1233,7 @@ suite('Builder', () => {
 				});
 				inputs.push(p.clone());
 
-				p.ul(function (ul) {
+				p.ul(function (ul: Builder) {
 					ul.bind('Foo Bar');
 					ul.setProperty('Foo', 'Bar');
 					bindings.push(ul.clone());
@@ -1302,14 +1246,14 @@ suite('Builder', () => {
 					});
 					inputs.push(ul.clone());
 
-					ul.li(function (li) {
+					ul.li(function (li: Builder) {
 						li.bind('Foo Bar');
 						li.setProperty('Foo', 'Bar');
 						bindings.push(li.clone());
 
 						li.element('input', {
 							type: 'button'
-						}).on(DomUtils.EventType.CLICK, function (e) {
+						}).on(DomUtils.EventType.CLICK, function () {
 							counter4++;
 							assert(counter4 <= 1);
 						});
@@ -1407,7 +1351,7 @@ suite('Builder', () => {
 
 		let old = DomUtils.addDisposableListener;
 		try {
-			(DomUtils as any).addDisposableListener = function (node, type, handler) {
+			(DomUtils as any).addDisposableListener = function (node: any, type: any, handler: any) {
 				let unbind: IDisposable = old.call(null, node, type, handler);
 
 				return {
@@ -1418,13 +1362,13 @@ suite('Builder', () => {
 				};
 			};
 
-			b.div(function (div) {
-				div.p(function (p) {
+			b.div(function (div: Builder) {
+				div.p(function (p: Builder) {
 					p.span().on([DomUtils.EventType.CLICK, DomUtils.EventType.KEY_DOWN], function (e) { });
 
 					p.img().on([DomUtils.EventType.KEY_PRESS, DomUtils.EventType.MOUSE_OUT], function (e) { });
 
-					p.a(function (a) {
+					p.a(function (a: Builder) {
 						a.span().on([DomUtils.EventType.CLICK, DomUtils.EventType.KEY_DOWN], function (e) { });
 					}).on([DomUtils.EventType.SELECT, DomUtils.EventType.BLUR], function (e) { });
 				});
@@ -1441,13 +1385,13 @@ suite('Builder', () => {
 
 	test('Builder.empty() MultiBuilder', function () {
 		let b = Build.withElementById(fixtureId);
-		let inputs = [];
+		let inputs: Builder[] = [];
 
 		let firstCounter = 0;
-		b.div(function (div) {
+		b.div(function (div: Builder) {
 			div.element('input', {
 				type: 'button'
-			}).on(DomUtils.EventType.CLICK, function (e) {
+			}).on(DomUtils.EventType.CLICK, function () {
 				firstCounter++;
 			});
 
@@ -1455,10 +1399,10 @@ suite('Builder', () => {
 		});
 
 		let secondCounter = 0;
-		b.div(function (div) {
+		b.div(function (div: Builder) {
 			div.element('input', {
 				type: 'button'
-			}).on(DomUtils.EventType.CLICK, function (e) {
+			}).on(DomUtils.EventType.CLICK, function () {
 				secondCounter++;
 			});
 
@@ -1466,10 +1410,10 @@ suite('Builder', () => {
 		});
 
 		let thirdCounter = 0;
-		b.div(function (div) {
+		b.div(function (div: Builder) {
 			div.element('input', {
 				type: 'button'
-			}).on(DomUtils.EventType.CLICK, function (e) {
+			}).on(DomUtils.EventType.CLICK, function () {
 				thirdCounter++;
 			});
 

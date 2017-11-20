@@ -15,28 +15,22 @@ export class QuickOpen {
 
 	constructor(readonly spectron: SpectronApplication) { }
 
-	async openQuickOpen(): Promise<void> {
-		await this.spectron.command('workbench.action.quickOpen');
+	async openQuickOpen(value: string): Promise<void> {
+		await this.spectron.runCommand('workbench.action.quickOpen');
 		await this.waitForQuickOpenOpened();
-	}
 
-	async openCommandPallette(): Promise<void> {
-		await this.spectron.command('workbench.action.showCommands');
-		await this.waitForQuickOpenOpened();
+		if (value) {
+			await this.spectron.client.setValue(QuickOpen.QUICK_OPEN_INPUT, value);
+		}
 	}
 
 	async closeQuickOpen(): Promise<void> {
-		await this.spectron.command('workbench.action.closeQuickOpen');
+		await this.spectron.runCommand('workbench.action.closeQuickOpen');
 		await this.waitForQuickOpenClosed();
 	}
 
-	async type(text: string): Promise<void> {
-		await this.spectron.client.type(text);
-	}
-
 	async openFile(fileName: string): Promise<void> {
-		await this.openQuickOpen();
-		await this.type(fileName);
+		await this.openQuickOpen(fileName);
 
 		await this.waitForQuickOpenElements(names => names.some(n => n === fileName));
 		await this.spectron.client.keys(['Enter', 'NULL']);
@@ -45,10 +39,7 @@ export class QuickOpen {
 	}
 
 	async runCommand(commandText: string): Promise<void> {
-		await this.openCommandPallette();
-
-		// type the text
-		await this.type(commandText);
+		await this.openQuickOpen(`> ${commandText}`);
 
 		// wait for best choice to be focused
 		await this.spectron.client.waitForTextContent(QuickOpen.QUICK_OPEN_FOCUSED_ELEMENT, commandText);
@@ -69,7 +60,7 @@ export class QuickOpen {
 	}
 
 	async submit(text: string): Promise<void> {
-		await this.spectron.client.type(text);
+		await this.spectron.client.setValue(QuickOpen.QUICK_OPEN_INPUT, text);
 		await this.spectron.client.keys(['Enter', 'NULL']);
 		await this.waitForQuickOpenClosed();
 	}

@@ -15,13 +15,7 @@ import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/wor
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
-import { IEditorService } from 'vs/platform/editor/common/editor';
 import product from 'vs/platform/node/product';
-
-interface ILegacyUse {
-	file: string;
-	lineNumber: number;
-}
 
 function ignore<T>(code: string, value: T = null): (err: any) => TPromise<T> {
 	return err => err.code === code ? TPromise.as<T>(value) : TPromise.wrapError<T>(err);
@@ -42,8 +36,7 @@ class InstallAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IMessageService private messageService: IMessageService,
-		@IEditorService private editorService: IEditorService
+		@IMessageService private messageService: IMessageService
 	) {
 		super(id, label);
 	}

@@ -25,6 +25,17 @@ export interface IViewZoneData {
 	afterLineNumber: number;
 }
 
+export interface IMarginData {
+	isAfterLines: boolean;
+	glyphMarginWidth: number;
+	lineNumbersWidth: number;
+	offsetX: number;
+}
+
+export interface IEmptyContentData {
+	isAfterLines: boolean;
+}
+
 interface IETextRange {
 	boundingHeight: number;
 	boundingLeft: number;
@@ -390,6 +401,9 @@ class HitTestRequest extends BareHitTestRequest {
 	}
 }
 
+const EMPTY_CONTENT_AFTER_LINES: IEmptyContentData = { isAfterLines: true };
+const EMPTY_CONTENT_IN_LINES: IEmptyContentData = { isAfterLines: false };
+
 export class MouseTargetFactory {
 
 	private _context: ViewContext;
@@ -565,22 +579,28 @@ export class MouseTargetFactory {
 		if (request.isInMarginArea) {
 			let res = ctx.getFullLineRangeAtCoord(request.mouseVerticalOffset);
 			let pos = res.range.getStartPosition();
-
 			let offset = Math.abs(request.pos.x - request.editorPos.x);
+			const detail: IMarginData = {
+				isAfterLines: res.isAfterLines,
+				glyphMarginWidth: ctx.layoutInfo.glyphMarginWidth,
+				lineNumbersWidth: ctx.layoutInfo.lineNumbersWidth,
+				offsetX: offset
+			};
+
 			if (offset <= ctx.layoutInfo.glyphMarginWidth) {
 				// On the glyph margin
-				return request.fulfill(MouseTargetType.GUTTER_GLYPH_MARGIN, pos, res.range, res.isAfterLines);
+				return request.fulfill(MouseTargetType.GUTTER_GLYPH_MARGIN, pos, res.range, detail);
 			}
 			offset -= ctx.layoutInfo.glyphMarginWidth;
 
 			if (offset <= ctx.layoutInfo.lineNumbersWidth) {
 				// On the line numbers
-				return request.fulfill(MouseTargetType.GUTTER_LINE_NUMBERS, pos, res.range, res.isAfterLines);
+				return request.fulfill(MouseTargetType.GUTTER_LINE_NUMBERS, pos, res.range, detail);
 			}
 			offset -= ctx.layoutInfo.lineNumbersWidth;
 
 			// On the line decorations
-			return request.fulfill(MouseTargetType.GUTTER_LINE_DECORATIONS, pos, res.range, res.isAfterLines);
+			return request.fulfill(MouseTargetType.GUTTER_LINE_DECORATIONS, pos, res.range, detail);
 		}
 		return null;
 	}
@@ -595,7 +615,7 @@ export class MouseTargetFactory {
 			// This most likely indicates it happened after the last view-line
 			const lineCount = ctx.model.getLineCount();
 			const maxLineColumn = ctx.model.getLineMaxColumn(lineCount);
-			return request.fulfill(MouseTargetType.CONTENT_EMPTY, new Position(lineCount, maxLineColumn));
+			return request.fulfill(MouseTargetType.CONTENT_EMPTY, new Position(lineCount, maxLineColumn), void 0, EMPTY_CONTENT_AFTER_LINES);
 		}
 
 		if (domHitTestExecuted) {
@@ -669,9 +689,9 @@ export class MouseTargetFactory {
 		if (request.mouseContentHorizontalOffset > lineWidth) {
 			if (browser.isEdge && pos.column === 1) {
 				// See https://github.com/Microsoft/vscode/issues/10875
-				return request.fulfill(MouseTargetType.CONTENT_EMPTY, new Position(lineNumber, ctx.model.getLineMaxColumn(lineNumber)));
+				return request.fulfill(MouseTargetType.CONTENT_EMPTY, new Position(lineNumber, ctx.model.getLineMaxColumn(lineNumber)), void 0, EMPTY_CONTENT_IN_LINES);
 			}
-			return request.fulfill(MouseTargetType.CONTENT_EMPTY, pos);
+			return request.fulfill(MouseTargetType.CONTENT_EMPTY, pos, void 0, EMPTY_CONTENT_IN_LINES);
 		}
 
 		let visibleRange = ctx.visibleRangeForPosition2(lineNumber, column);

@@ -20,7 +20,7 @@
 	"error": "编辑键绑定时发生错误“{0}”。请打开 \"keybindings.json\" 文件并检查。",
 	"command": "命令",
 	"keybinding": "键绑定",
-	"source": "源",
+	"source": "来源",
 	"when": "何时",
 	"editKeybindingLabelWithKey": "更改键绑定{0}",
 	"editKeybindingLabel": "更改键绑定",

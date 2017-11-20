@@ -11,6 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import severity from 'vs/base/common/severity';
 
 @extHostNamedCustomer(MainContext.MainThreadDebugService)
 export class MainThreadDebugService implements MainThreadDebugServiceShape {
@@ -36,8 +37,10 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 		}));
 		this._toDispose.push(debugService.onDidCustomEvent(event => {
 			if (event && event.sessionId) {
-				const process = this.debugService.findProcessByUUID(event.sessionId);
-				this._proxy.$acceptDebugSessionCustomEvent(event.sessionId, process.configuration.type, process.configuration.name, event);
+				const process = this.debugService.getModel().getProcesses().filter(p => p.getId() === event.sessionId).pop();
+				if (process) {
+					this._proxy.$acceptDebugSessionCustomEvent(event.sessionId, process.configuration.type, process.configuration.name, event);
+				}
 			}
 		}));
 	}
@@ -63,12 +66,12 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 		}
 		this.debugService.getConfigurationManager().registerDebugConfigurationProvider(handle, provider);
 
-		return TPromise.as<void>(undefined);
+		return TPromise.wrap<void>(undefined);
 	}
 
 	public $unregisterDebugConfigurationProvider(handle: number): TPromise<any> {
 		this.debugService.getConfigurationManager().unregisterDebugConfigurationProvider(handle);
-		return TPromise.as<void>(undefined);
+		return TPromise.wrap<void>(undefined);
 	}
 
 	public $startDebugging(folderUri: uri | undefined, nameOrConfiguration: string | IConfig): TPromise<boolean> {
@@ -80,24 +83,8 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 		});
 	}
 
-	public $startDebugSession(folderUri: uri | undefined, configuration: IConfig): TPromise<DebugSessionUUID> {
-		if (configuration.request !== 'launch' && configuration.request !== 'attach') {
-			return TPromise.wrapError(new Error(`only 'launch' or 'attach' allowed for 'request' attribute`));
-		}
-
-		const folder = folderUri ? this.contextService.getWorkspace().folders.filter(wf => wf.uri.toString() === folderUri.toString()).pop() : undefined;
-		return this.debugService.createProcess(folder, configuration).then(process => {
-			if (process) {
-				return <DebugSessionUUID>process.getId();
-			}
-			return TPromise.wrapError<DebugSessionUUID>(new Error('cannot create debug session'));
-		}, err => {
-			return TPromise.wrapError(err && err.message ? err.message : 'cannot start debug session');
-		});
-	}
-
 	public $customDebugAdapterRequest(sessionId: DebugSessionUUID, request: string, args: any): TPromise<any> {
-		const process = this.debugService.findProcessByUUID(sessionId);
+		const process = this.debugService.getModel().getProcesses().filter(p => p.getId() === sessionId).pop();
 		if (process) {
 			return process.session.custom(request, args).then(response => {
 				if (response.success) {
@@ -108,5 +95,11 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 			});
 		}
 		return TPromise.wrapError(new Error('debug session not found'));
+	}
+
+	public $appendDebugConsole(value: string): TPromise<any> {
+		// Use warning as severity to get the orange color for messages coming from the debug extension
+		this.debugService.logToRepl(value, severity.Warning);
+		return TPromise.wrap<void>(undefined);
 	}
 }

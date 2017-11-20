@@ -9,16 +9,15 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { mixin } from 'vs/base/common/objects';
 import * as vscode from 'vscode';
 import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
-import { Range, Disposable, CompletionList, SnippetString } from 'vs/workbench/api/node/extHostTypes';
+import { Range, Disposable, CompletionList, SnippetString, Color } from 'vs/workbench/api/node/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
-import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
-import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
+import { ExtHostDiagnostics, DiagnosticCollection } from 'vs/workbench/api/node/extHostDiagnostics';
 import { asWinJsPromise } from 'vs/base/common/async';
-import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IExtHostSuggestResult, IExtHostSuggestion } from './extHost.protocol';
+import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IExtHostSuggestResult, IExtHostSuggestion, IWorkspaceSymbols, IWorkspaceSymbol, IdObject } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
@@ -270,7 +269,7 @@ class QuickFixAdapter {
 		this._provider = provider;
 	}
 
-	provideCodeActions(resource: URI, range: IRange): TPromise<modes.Command[]> {
+	provideCodeActions(resource: URI, range: IRange): TPromise<(modes.CodeAction | modes.Command)[]> {
 
 		const doc = this._documents.getDocumentData(resource).document;
 		const ran = <vscode.Range>TypeConverters.toRange(range);
@@ -286,11 +285,37 @@ class QuickFixAdapter {
 			}
 		});
 
-		return asWinJsPromise(token => this._provider.provideCodeActions(doc, ran, { diagnostics: allDiagnostics }, token)).then(commands => {
+		return asWinJsPromise(token =>
+			this._provider.provideCodeActions2
+				? this._provider.provideCodeActions2(doc, ran, { diagnostics: allDiagnostics }, token)
+				: this._provider.provideCodeActions(doc, ran, { diagnostics: allDiagnostics }, token)
+		).then(commands => {
 			if (!Array.isArray(commands)) {
 				return undefined;
 			}
-			return commands.map(command => this._commands.toInternal(command));
+			return commands.map((action): modes.CodeAction => {
+				if (!action) {
+					return undefined;
+				}
+
+				if (typeof action.command === 'string') {
+					return this._commands.toInternal(action as vscode.Command);
+				}
+
+				const codeAction = action as vscode.CodeAction;
+				return {
+					title: codeAction.title,
+					command: codeAction.command ? this._commands.toInternal(codeAction.command) : undefined,
+					edits: codeAction.edits
+						? Array.isArray(codeAction.edits)
+							? TypeConverters.WorkspaceEdit.fromTextEdits(resource, codeAction.edits)
+							: TypeConverters.WorkspaceEdit.from(codeAction.edits)
+						: undefined,
+					diagnostics: codeAction.diagnostics
+						? codeAction.diagnostics.map(DiagnosticCollection.toMarkerData)
+						: undefined
+				} as modes.CodeAction;
+			});
 		});
 	}
 }
@@ -368,44 +393,65 @@ class OnTypeFormattingAdapter {
 	}
 }
 
+class NavigateTypeAdapter {
 
-class NavigateTypeAdapter implements IWorkspaceSymbolProvider {
+	private readonly _symbolCache: { [id: number]: vscode.SymbolInformation } = Object.create(null);
+	private readonly _resultCache: { [id: number]: [number, number] } = Object.create(null);
+	private readonly _provider: vscode.WorkspaceSymbolProvider;
 
-	private _provider: vscode.WorkspaceSymbolProvider;
-	private _heapService: ExtHostHeapService;
-
-	constructor(provider: vscode.WorkspaceSymbolProvider, heapService: ExtHostHeapService) {
+	constructor(provider: vscode.WorkspaceSymbolProvider) {
 		this._provider = provider;
-		this._heapService = heapService;
 	}
 
-	provideWorkspaceSymbols(search: string): TPromise<modes.SymbolInformation[]> {
-
+	provideWorkspaceSymbols(search: string): TPromise<IWorkspaceSymbols> {
+		const result: IWorkspaceSymbols = IdObject.mixin({ symbols: [] });
 		return asWinJsPromise(token => this._provider.provideWorkspaceSymbols(search, token)).then(value => {
-			if (Array.isArray(value)) {
-				return value.map(item => {
-					const id = this._heapService.keep(item);
-					const result = TypeConverters.fromSymbolInformation(item);
-					return ObjectIdentifier.mixin(result, id);
-				});
+			if (!isFalsyOrEmpty(value)) {
+				for (const item of value) {
+					if (!item) {
+						// drop
+						continue;
+					}
+					if (!item.name) {
+						console.warn('INVALID SymbolInformation, lacks name', item);
+						continue;
+					}
+					const symbol = IdObject.mixin(TypeConverters.fromSymbolInformation(item));
+					this._symbolCache[symbol._id] = item;
+					result.symbols.push(symbol);
+				}
 			}
-			return undefined;
+		}).then(() => {
+			if (result.symbols.length > 0) {
+				this._resultCache[result._id] = [result.symbols[0]._id, result.symbols[result.symbols.length - 1]._id];
+			}
+			return result;
 		});
 	}
 
-	resolveWorkspaceSymbol(item: modes.SymbolInformation): TPromise<modes.SymbolInformation> {
+	resolveWorkspaceSymbol(symbol: IWorkspaceSymbol): TPromise<IWorkspaceSymbol> {
 
 		if (typeof this._provider.resolveWorkspaceSymbol !== 'function') {
-			return TPromise.as(item);
+			return TPromise.as(symbol);
 		}
 
-		const symbolInfo = this._heapService.get<vscode.SymbolInformation>(ObjectIdentifier.of(item));
-		if (symbolInfo) {
-			return asWinJsPromise(token => this._provider.resolveWorkspaceSymbol(symbolInfo, token)).then(value => {
-				return value && TypeConverters.fromSymbolInformation(value);
+		const item = this._symbolCache[symbol._id];
+		if (item) {
+			return asWinJsPromise(token => this._provider.resolveWorkspaceSymbol(item, token)).then(value => {
+				return value && mixin(symbol, TypeConverters.fromSymbolInformation(value), true);
 			});
 		}
 		return undefined;
+	}
+
+	releaseWorkspaceSymbols(id: number): any {
+		const range = this._resultCache[id];
+		if (range) {
+			for (let [from, to] = range; from <= to; from++) {
+				delete this._symbolCache[from];
+			}
+			delete this._resultCache[id];
+		}
 	}
 }
 
@@ -428,30 +474,22 @@ class RenameAdapter {
 			if (!value) {
 				return undefined;
 			}
-
-			let result = <modes.WorkspaceEdit>{
-				edits: []
-			};
-
-			for (let entry of value.entries()) {
-				let [uri, textEdits] = entry;
-				for (let textEdit of textEdits) {
-					result.edits.push({
-						resource: uri,
-						newText: textEdit.newText,
-						range: TypeConverters.fromRange(textEdit.range)
-					});
-				}
-			}
-			return result;
+			return TypeConverters.WorkspaceEdit.from(value);
 		}, err => {
 			if (typeof err === 'string') {
 				return <modes.WorkspaceEdit>{
 					edits: undefined,
 					rejectReason: err
 				};
+			} else if (err instanceof Error && typeof err.message === 'string') {
+				return <modes.WorkspaceEdit>{
+					edits: undefined,
+					rejectReason: err.message
+				};
+			} else {
+				// generic error
+				return TPromise.wrapError<modes.WorkspaceEdit>(err);
 			}
-			return TPromise.wrapError<modes.WorkspaceEdit>(err);
 		});
 	}
 }
@@ -697,9 +735,7 @@ class LinkProviderAdapter {
 class ColorProviderAdapter {
 
 	constructor(
-		private _proxy: MainThreadLanguageFeaturesShape,
 		private _documents: ExtHostDocuments,
-		private _colorFormatCache: Map<string, number>,
 		private _provider: vscode.DocumentColorProvider
 	) { }
 
@@ -721,19 +757,12 @@ class ColorProviderAdapter {
 		});
 	}
 
-	provideColorPresentations(resource: URI, rawColorInfo: IRawColorInfo): TPromise<modes.IColorPresentation[]> {
-		let colorInfo: vscode.ColorInformation = {
-			range: TypeConverters.toRange(rawColorInfo.range),
-			color: {
-				red: rawColorInfo.color[0],
-				green: rawColorInfo.color[1],
-				blue: rawColorInfo.color[2],
-				alpha: rawColorInfo.color[3]
-			}
-		};
-		const doc = this._documents.getDocumentData(resource).document;
-		return asWinJsPromise(token => this._provider.provideColorPresentations(doc, colorInfo, token)).then(value => {
-			return value.map(v => TypeConverters.ColorPresentation.from(v));
+	provideColorPresentations(resource: URI, raw: IRawColorInfo): TPromise<modes.IColorPresentation[]> {
+		const document = this._documents.getDocumentData(resource).document;
+		const range = TypeConverters.toRange(raw.range);
+		const color = new Color(raw.color[0], raw.color[1], raw.color[2], raw.color[3]);
+		return asWinJsPromise(token => this._provider.provideColorPresentations(color, { document, range }, token)).then(value => {
+			return value.map(TypeConverters.ColorPresentation.from);
 		});
 	}
 }
@@ -753,7 +782,6 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	private _heapService: ExtHostHeapService;
 	private _diagnostics: ExtHostDiagnostics;
 	private _adapter = new Map<number, Adapter>();
-	private _colorFormatCache = new Map<string, number>();
 
 	constructor(
 		mainContext: IMainContext,
@@ -910,7 +938,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideCodeActions(handle: number, resource: URI, range: IRange): TPromise<modes.Command[]> {
+	$provideCodeActions(handle: number, resource: URI, range: IRange): TPromise<(modes.Command | modes.CodeAction)[]> {
 		return this._withAdapter(handle, QuickFixAdapter, adapter => adapter.provideCodeActions(resource, range));
 	}
 
@@ -953,17 +981,21 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	registerWorkspaceSymbolProvider(provider: vscode.WorkspaceSymbolProvider): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter.set(handle, new NavigateTypeAdapter(provider, this._heapService));
+		this._adapter.set(handle, new NavigateTypeAdapter(provider));
 		this._proxy.$registerNavigateTypeSupport(handle);
 		return this._createDisposable(handle);
 	}
 
-	$provideWorkspaceSymbols(handle: number, search: string): TPromise<modes.SymbolInformation[]> {
+	$provideWorkspaceSymbols(handle: number, search: string): TPromise<IWorkspaceSymbols> {
 		return this._withAdapter(handle, NavigateTypeAdapter, adapter => adapter.provideWorkspaceSymbols(search));
 	}
 
-	$resolveWorkspaceSymbol(handle: number, symbol: modes.SymbolInformation): TPromise<modes.SymbolInformation> {
+	$resolveWorkspaceSymbol(handle: number, symbol: IWorkspaceSymbol): TPromise<IWorkspaceSymbol> {
 		return this._withAdapter(handle, NavigateTypeAdapter, adapter => adapter.resolveWorkspaceSymbol(symbol));
+	}
+
+	$releaseWorkspaceSymbols(handle: number, id: number) {
+		this._withAdapter(handle, NavigateTypeAdapter, adapter => adapter.releaseWorkspaceSymbols(id));
 	}
 
 	// --- rename
@@ -1032,7 +1064,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	registerColorProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentColorProvider): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter.set(handle, new ColorProviderAdapter(this._proxy, this._documents, this._colorFormatCache, provider));
+		this._adapter.set(handle, new ColorProviderAdapter(this._documents, provider));
 		this._proxy.$registerDocumentColorProvider(handle, selector);
 		return this._createDisposable(handle);
 	}
