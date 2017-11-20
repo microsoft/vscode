@@ -498,7 +498,9 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		}
 
 		const item = e.elements[0];
-		this.onDidSelectEmitter.fire(item);
+		item.resolve().then(() => {
+			this.onDidSelectEmitter.fire(item);
+		});
 
 		alert(nls.localize('suggestionAriaAccepted', "{0}, accepted", item.suggestion.label));
 
