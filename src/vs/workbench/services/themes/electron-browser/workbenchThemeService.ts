@@ -137,11 +137,9 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		let persistedIconThemeData = this.storageService.get(PERSISTED_ICON_THEME_STORAGE_KEY);
 		if (persistedIconThemeData) {
 			iconData = FileIconThemeData.fromStorageData(persistedIconThemeData);
-
 			if (iconData) {
 				_applyIconTheme(iconData, () => {
 					this.doSetFileIconTheme(iconData);
-
 					return TPromise.wrap(iconData);
 				});
 			}
@@ -371,35 +369,32 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			this.doSetFileIconTheme(newIconTheme);
 
 			// remember theme data for a quick restore
-			if (newIconTheme) {
-				this.storageService.store(PERSISTED_ICON_THEME_STORAGE_KEY, newIconTheme.toStorageData());
-			} else {
-				this.storageService.remove(PERSISTED_ICON_THEME_STORAGE_KEY);
-			}
+			this.storageService.store(PERSISTED_ICON_THEME_STORAGE_KEY, newIconTheme.toStorageData());
 
 			return this.writeFileIconConfiguration(settingsTarget);
 		};
 
 		return this.iconThemeStore.findThemeData(iconTheme).then(iconThemeData => {
-			return _applyIconTheme(iconThemeData, onApply);
+			if (!iconThemeData) {
+				iconThemeData = FileIconThemeData.noIconTheme();
+			}
+			return iconThemeData.ensureLoaded(this).then(_ => {
+				return _applyIconTheme(iconThemeData, onApply);
+			});
 		});
 	}
 
 	private doSetFileIconTheme(iconThemeData: FileIconThemeData): void {
-		if (iconThemeData) {
-			this.currentIconTheme = iconThemeData;
-		} else {
-			this.currentIconTheme = FileIconThemeData.noIconTheme();
-		}
+		this.currentIconTheme = iconThemeData;
 
 		if (this.container) {
-			if (iconThemeData) {
+			if (iconThemeData.id) {
 				$(this.container).addClass(fileIconsEnabledClass);
 			} else {
 				$(this.container).removeClass(fileIconsEnabledClass);
 			}
 		}
-		if (iconThemeData) {
+		if (iconThemeData.id) {
 			this.sendTelemetry(iconThemeData.id, iconThemeData.extensionData, 'fileIcon');
 		}
 		this.onFileIconThemeChange.fire(this.currentIconTheme);
@@ -422,17 +417,9 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 }
 
-function _applyIconTheme(this: any, data: FileIconThemeData, onApply: (theme: FileIconThemeData) => TPromise<IFileIconTheme>): TPromise<IFileIconTheme> {
-	if (!data) {
-		_applyRules('', iconThemeRulesClassName);
-		return onApply(data);
-	}
-	return data.ensureLoaded(this).then(styleSheetContent => {
-		_applyRules(styleSheetContent, iconThemeRulesClassName);
-		return onApply(data);
-	}, error => {
-		return TPromise.wrapError<IFileIconTheme>(new Error(nls.localize('error.cannotloadicontheme', "Unable to load {0}", data.path)));
-	});
+function _applyIconTheme(data: FileIconThemeData, onApply: (theme: FileIconThemeData) => TPromise<IFileIconTheme>): TPromise<IFileIconTheme> {
+	_applyRules(data.styleSheetContent, iconThemeRulesClassName);
+	return onApply(data);
 }
 
 function _applyRules(styleSheetContent: string, rulesClassName: string) {

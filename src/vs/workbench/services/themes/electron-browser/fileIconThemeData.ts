@@ -26,7 +26,7 @@ export class FileIconThemeData implements IFileIconTheme {
 	path?: string;
 	extensionData: ExtensionData;
 
-	private styleSheetContent?: string;
+	styleSheetContent?: string;
 
 	private constructor() {
 	}
@@ -90,6 +90,10 @@ export class FileIconThemeData implements IFileIconTheme {
 					case 'settingsId':
 					case 'extensionData':
 					case 'path':
+					case 'styleSheetContent':
+					case 'hasFileIcons':
+					case 'hidesExplorerArrows':
+					case 'hasFolderIcons':
 						theme[key] = data[key];
 						break;
 				}
@@ -107,7 +111,10 @@ export class FileIconThemeData implements IFileIconTheme {
 			description: this.description,
 			settingsId: this.settingsId,
 			path: this.path,
-			extensionData: this.extensionData
+			styleSheetContent: this.styleSheetContent,
+			hasFileIcons: this.hasFileIcons,
+			hasFolderIcons: this.hasFolderIcons,
+			hidesExplorerArrows: this.hidesExplorerArrows
 		});
 	}
 }
