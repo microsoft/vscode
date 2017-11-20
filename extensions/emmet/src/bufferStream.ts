@@ -20,11 +20,6 @@ export class DocumentStreamReader {
 	public pos: Position;
 	private _eol: string;
 
-	/**
-	 * @param  {TextDocument} buffer
-	 * @param  {Position}      pos
-	 * @param  {Range}        limit
-	 */
 	constructor(document: TextDocument, pos?: Position, limit?: Range) {
 
 		this.document = document;
@@ -35,9 +30,8 @@ export class DocumentStreamReader {
 
 	/**
 	 * Returns true only if the stream is at the end of the file.
-	 * @returns {Boolean}
 	 */
-	eof() {
+	eof(): boolean {
 		return this.pos.isAfterOrEqual(this._eof);
 	}
 
