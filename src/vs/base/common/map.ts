@@ -7,11 +7,6 @@
 
 import URI from 'vs/base/common/uri';
 
-export interface Entry<K, T> {
-	key: K;
-	value: T;
-}
-
 export function values<K, V>(map: Map<K, V>): V[] {
 	const result: V[] = [];
 	map.forEach(value => result.push(value));
@@ -34,187 +29,6 @@ export function getOrSet<K, V>(map: Map<K, V>, key: K, value: V): V {
 	}
 
 	return result;
-}
-
-export interface ISerializedBoundedLinkedMap<T> {
-	version?: string;
-	entries: { key: string; value: T }[];
-}
-
-interface LinkedEntry<K, T> extends Entry<K, T> {
-	next?: LinkedEntry<K, T>;
-	prev?: LinkedEntry<K, T>;
-}
-
-/**
- * A simple Map<T> that optionally allows to set a limit of entries to store. Once the limit is hit,
- * the cache will remove the entry that was last recently added. Or, if a ratio is provided below 1,
- * all elements will be removed until the ratio is full filled (e.g. 0.75 to remove 25% of old elements).
- */
-export class BoundedMap<T> {
-	private map: Map<string, LinkedEntry<string, T>>;
-
-	private head: LinkedEntry<string, T>;
-	private tail: LinkedEntry<string, T>;
-	private ratio: number;
-
-	constructor(private limit = Number.MAX_VALUE, ratio = 1, value?: ISerializedBoundedLinkedMap<T>) {
-		this.map = new Map<string, LinkedEntry<string, T>>();
-		this.ratio = limit * ratio;
-
-		if (value) {
-			value.entries.forEach(entry => {
-				this.set(entry.key, entry.value);
-			});
-		}
-	}
-
-	public setLimit(limit: number): void {
-		if (limit < 0) {
-			return; // invalid limit
-		}
-
-		this.limit = limit;
-		while (this.map.size > this.limit) {
-			this.trim();
-		}
-	}
-
-	public serialize(): ISerializedBoundedLinkedMap<T> {
-		const serialized: ISerializedBoundedLinkedMap<T> = { entries: [] };
-
-		this.map.forEach(entry => {
-			serialized.entries.push({ key: entry.key, value: entry.value });
-		});
-
-		return serialized;
-	}
-
-	public get size(): number {
-		return this.map.size;
-	}
-
-	public set(key: string, value: T): boolean {
-		if (this.map.has(key)) {
-			return false; // already present!
-		}
-
-		const entry: LinkedEntry<string, T> = { key, value };
-		this.push(entry);
-
-		if (this.size > this.limit) {
-			this.trim();
-		}
-
-		return true;
-	}
-
-	public get(key: string): T {
-		const entry = this.map.get(key);
-
-		return entry ? entry.value : null;
-	}
-
-	public getOrSet(k: string, t: T): T {
-		const res = this.get(k);
-		if (res) {
-			return res;
-		}
-
-		this.set(k, t);
-
-		return t;
-	}
-
-	public delete(key: string): T {
-		const entry = this.map.get(key);
-
-		if (entry) {
-			this.map.delete(key);
-
-			if (entry.next) {
-				entry.next.prev = entry.prev; // [A]<-[x]<-[C] = [A]<-[C]
-			} else {
-				this.head = entry.prev; // [A]-[x] = [A]
-			}
-
-			if (entry.prev) {
-				entry.prev.next = entry.next; // [A]->[x]->[C] = [A]->[C]
-			} else {
-				this.tail = entry.next; // [x]-[A] = [A]
-			}
-
-			return entry.value;
-		}
-
-		return null;
-	}
-
-	public has(key: string): boolean {
-		return this.map.has(key);
-	}
-
-	public clear(): void {
-		this.map.clear();
-		this.head = null;
-		this.tail = null;
-	}
-
-	private push(entry: LinkedEntry<string, T>): void {
-		if (this.head) {
-			// [A]-[B] = [A]-[B]->[X]
-			entry.prev = this.head;
-			this.head.next = entry;
-		}
-
-		if (!this.tail) {
-			this.tail = entry;
-		}
-
-		this.head = entry;
-
-		this.map.set(entry.key, entry);
-	}
-
-	private trim(): void {
-		if (this.tail) {
-
-			// Remove all elements until ratio is reached
-			if (this.ratio < this.limit) {
-				let index = 0;
-				let current = this.tail;
-				while (current.next) {
-
-					// Remove the entry
-					this.map.delete(current.key);
-
-					// if we reached the element that overflows our ratio condition
-					// make its next element the new tail of the Map and adjust the size
-					if (index === this.ratio) {
-						this.tail = current.next;
-						this.tail.prev = null;
-
-						break;
-					}
-
-					// Move on
-					current = current.next;
-					index++;
-				}
-			}
-
-			// Just remove the tail element
-			else {
-				this.map.delete(this.tail.key);
-
-				// [x]-[B] = [B]
-				this.tail = this.tail.next;
-				if (this.tail) {
-					this.tail.prev = null;
-				}
-			}
-		}
-	}
 }
 
 export interface IKeyIterator {
@@ -973,6 +787,10 @@ export class LRUCache<K, V> extends LinkedMap<K, V> {
 
 	public get(key: K): V | undefined {
 		return super.get(key, Touch.AsNew);
+	}
+
+	public peek(key: K): V | undefined {
+		return super.get(key, Touch.None);
 	}
 
 	public set(key: K, value: V): void {
