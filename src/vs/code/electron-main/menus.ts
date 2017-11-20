@@ -1204,15 +1204,20 @@ export class CodeMenu {
 			process.arch
 		);
 
+		const buttons = [nls.localize('okButton', "OK")];
+		if (isWindows) {
+			buttons.push(nls.localize('copyButton', "Copy")); // https://github.com/Microsoft/vscode/issues/37608
+		}
+
 		dialog.showMessageBox(lastActiveWindow && lastActiveWindow.win, {
 			title: product.nameLong,
 			type: 'info',
 			message: product.nameLong,
 			detail: `\n${detail}`,
-			buttons: [nls.localize('okButton', "OK"), nls.localize('copyButton', "Copy")],
+			buttons,
 			noLink: true
 		}, result => {
-			if (result === 1) {
+			if (isWindows && result === 1) {
 				clipboard.writeText(detail);
 			}
 		});
