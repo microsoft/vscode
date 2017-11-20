@@ -13,9 +13,10 @@ import { asWinJsPromise } from 'vs/base/common/async';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext } from './extHost.protocol';
-import { sortedDiff, Splice } from 'vs/base/common/arrays';
+import { sortedDiff } from 'vs/base/common/arrays';
 import { comparePaths } from 'vs/base/common/comparers';
 import * as vscode from 'vscode';
+import { ISplice } from 'vs/base/common/sequence';
 
 type ProviderHandle = number;
 type GroupHandle = number;
@@ -221,8 +222,8 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 		const snapshot = [...this._resourceStates].sort(compareResourceStates);
 		const diffs = sortedDiff(this._resourceSnapshot, snapshot, compareResourceStates);
 
-		const splices = diffs.map<Splice<{ rawResource: SCMRawResource, handle: number }>>(diff => {
-			const inserted = diff.inserted.map(r => {
+		const splices = diffs.map<ISplice<{ rawResource: SCMRawResource, handle: number }>>(diff => {
+			const toInsert = diff.toInsert.map(r => {
 				const handle = this._resourceHandlePool++;
 				this._resourceStatesMap.set(handle, r);
 
@@ -257,16 +258,16 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 				return { rawResource, handle };
 			});
 
-			return { start: diff.start, deleteCount: diff.deleteCount, inserted };
+			return { start: diff.start, deleteCount: diff.deleteCount, toInsert };
 		});
 
 		const rawResourceSplices = splices
-			.map(({ start, deleteCount, inserted }) => [start, deleteCount, inserted.map(i => i.rawResource)] as SCMRawResourceSplice);
+			.map(({ start, deleteCount, toInsert }) => [start, deleteCount, toInsert.map(i => i.rawResource)] as SCMRawResourceSplice);
 
 		const reverseSplices = splices.reverse();
 
-		for (const { start, deleteCount, inserted } of reverseSplices) {
-			const handles = inserted.map(i => i.handle);
+		for (const { start, deleteCount, toInsert } of reverseSplices) {
+			const handles = toInsert.map(i => i.handle);
 			const handlesToDelete = this._handlesSnapshot.splice(start, deleteCount, ...handles);
 
 			for (const handle of handlesToDelete) {

@@ -11,10 +11,11 @@ import { domEvent } from 'vs/base/browser/event';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollEvent, ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { RangeMap, IRange, relativeComplement } from './rangeMap';
-import { IDelegate, IRenderer, ISpliceable } from './list';
+import { IDelegate, IRenderer } from './list';
 import { RowCache, IRow } from './rowCache';
 import { isWindows } from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
+import { ISpliceable } from 'vs/base/common/sequence';
 
 function canUseTranslate3d(): boolean {
 	if (browser.isFirefox) {

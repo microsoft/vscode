@@ -46,9 +46,10 @@ import { basename } from 'vs/base/common/paths';
 import { MenuId, IMenuService, IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { fillInActions, MenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IChange, IEditorModel, ScrollType, IEditorContribution, OverviewRulerLane, IModel } from 'vs/editor/common/editorCommon';
-import { sortedDiff, Splice, firstIndex } from 'vs/base/common/arrays';
+import { sortedDiff, firstIndex } from 'vs/base/common/arrays';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { ISplice } from 'vs/base/common/sequence';
 
 // TODO@Joao
 // Need to subclass MenuItemActionItem in order to respect
@@ -584,14 +585,14 @@ export class DirtyDiffController implements IEditorContribution {
 		return true;
 	}
 
-	private onDidModelChange(splices: Splice<IChange>[]): void {
+	private onDidModelChange(splices: ISplice<IChange>[]): void {
 		for (const splice of splices) {
 			if (splice.start <= this.currentIndex) {
 				if (this.currentIndex < splice.start + splice.deleteCount) {
 					this.currentIndex = -1;
 					this.next();
 				} else {
-					this.currentIndex = rot(this.currentIndex + splice.inserted.length - splice.deleteCount - 1, this.model.changes.length);
+					this.currentIndex = rot(this.currentIndex + splice.toInsert.length - splice.deleteCount - 1, this.model.changes.length);
 					this.next();
 				}
 			}
@@ -849,8 +850,8 @@ export class DirtyDiffModel {
 	private repositoryDisposables = new Set<IDisposable[]>();
 	private disposables: IDisposable[] = [];
 
-	private _onDidChange = new Emitter<Splice<IChange>[]>();
-	readonly onDidChange: Event<Splice<IChange>[]> = this._onDidChange.event;
+	private _onDidChange = new Emitter<ISplice<IChange>[]>();
+	readonly onDidChange: Event<ISplice<IChange>[]> = this._onDidChange.event;
 
 	private _changes: IChange[] = [];
 	get changes(): IChange[] {

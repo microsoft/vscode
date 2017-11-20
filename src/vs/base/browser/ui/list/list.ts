@@ -36,7 +36,3 @@ export interface IListContextMenuEvent<T> {
 	index: number;
 	anchor: HTMLElement | { x: number; y: number; };
 }
-
-export interface ISpliceable<T> {
-	splice(start: number, deleteCount: number, elements: T[]): void;
-}
