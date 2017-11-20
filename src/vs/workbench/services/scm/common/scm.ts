@@ -12,6 +12,7 @@ import Event from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Command } from 'vs/editor/common/modes';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
+import { ISplice } from 'vs/base/common/sequence';
 
 export interface IBaselineResourceProvider {
 	getBaselineResource(resource: URI): TPromise<URI>;
@@ -31,15 +32,9 @@ export interface ISCMResourceDecorations {
 	color?: ColorIdentifier;
 }
 
-export interface ISCMResourceSplice {
-	start: number;
-	deleteCount: number;
-	resources: ISCMResource[];
-}
-
 export interface ISCMResourceCollection {
 	readonly resources: ISCMResource[];
-	readonly onDidSplice: Event<ISCMResourceSplice>;
+	readonly onDidSplice: Event<ISplice<ISCMResource>>;
 }
 
 export interface ISCMResource {

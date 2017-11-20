@@ -10,21 +10,22 @@ import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, ISCMResourceCollection, ISCMResourceSplice } from 'vs/workbench/services/scm/common/scm';
+import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, ISCMResourceCollection } from 'vs/workbench/services/scm/common/scm';
 import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { Command } from 'vs/editor/common/modes';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { ISplice } from 'vs/base/common/sequence';
 
 class MainThreadSCMResourceCollection implements ISCMResourceCollection {
 
 	readonly resources: ISCMResource[] = [];
 
-	private _onDidSplice = new Emitter<ISCMResourceSplice>();
+	private _onDidSplice = new Emitter<ISplice<ISCMResource>>();
 	readonly onDidSplice = this._onDidSplice.event;
 
-	splice(start: number, deleteCount: number, resources: ISCMResource[]) {
-		this.resources.splice(start, deleteCount, ...resources);
-		this._onDidSplice.fire({ start, deleteCount, resources });
+	splice(start: number, deleteCount: number, toInsert: ISCMResource[]) {
+		this.resources.splice(start, deleteCount, ...toInsert);
+		this._onDidSplice.fire({ start, deleteCount, toInsert });
 	}
 }
 
