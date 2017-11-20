@@ -2,6 +2,6 @@
 # yarn lockfile v1
 
 
-typescript@2.6.1:
-  version "2.6.1"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.6.1.tgz#ef39cdea27abac0b500242d6726ab90e0c846631"
+typescript@2.6.2-insiders.20171120:
+  version "2.6.2-insiders.20171120"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.6.2-insiders.20171120.tgz#d2f4c36831fa663639624799a62814cbdca9aaae"
