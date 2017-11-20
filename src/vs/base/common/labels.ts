@@ -81,7 +81,12 @@ export function getBaseLabel(resource: URI | string): string {
 	// Windows: basename('C:\') returns empty string, so make sure to always
 	// return the drive letter at least in that case.
 	if (!base) {
-		base = normalize(normalizeDriveLetter(resource.fsPath), true);
+		base = resource.fsPath;
+	}
+
+	// convert c: => C:
+	if (hasDriveLetter(base)) {
+		return normalize(normalizeDriveLetter(base), true);
 	}
 
 	return base;
