@@ -300,12 +300,13 @@ export class FoldingController implements IEditorContribution {
 			if (foldingModel) {
 				let region = foldingModel.getRegionAtLine(lineNumber);
 				if (region && region.startLineNumber === lineNumber) {
-					if (iconClicked || region.isCollapsed) {
-						if (e.event.middleButton) {
-							setCollapseStateLevelsDown(foldingModel, !region.isCollapsed, Number.MAX_VALUE, [lineNumber]);
-						} else {
-							foldingModel.toggleCollapseState([region]);
+					let isCollapsed = region.isCollapsed;
+					if (iconClicked || isCollapsed) {
+						let toToggle = [region];
+						if (e.event.middleButton || e.event.shiftKey) {
+							toToggle.push(...foldingModel.getRegionsInside(region, r => r.isCollapsed === isCollapsed));
 						}
+						foldingModel.toggleCollapseState(toToggle);
 						this.reveal(lineNumber);
 					}
 				}
