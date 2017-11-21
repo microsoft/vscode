@@ -104,9 +104,9 @@ export class ExtensionService implements IExtensionService {
 		this._extensionHostProcessCustomers = [];
 		this._extensionHostProcessProxy = null;
 
-		lifecycleService.when(LifecyclePhase.Restoring).then(() => {
+		lifecycleService.when(LifecyclePhase.Running).then(() => {
 			// delay extension host creation and extension scanning
-			// until after the editors/panels are restored
+			// until after workbench is running
 			this._startExtensionHostProcess([]);
 			this._scanAndHandleExtensions();
 		});
