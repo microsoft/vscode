@@ -27,13 +27,6 @@ import { isCodeEditor, isDiffEditor, ICodeEditor } from 'vs/editor/browser/edito
 
 namespace mapset {
 
-	export function newSet<E>(from: Set<E>): Set<E> {
-		return new (<any>Set)(from);
-		// let ret = new Set<E>();
-		// from.forEach(ret.add, ret);
-		// return ret;
-	}
-
 	export function setValues<T>(set: Set<T>): T[] {
 		// return Array.from(set);
 		let ret: T[] = [];
@@ -220,7 +213,7 @@ class MainThreadDocumentAndEditorStateComputer {
 		this._onDidChangeState(new DocumentAndEditorStateDelta(
 			[], [model],
 			[], [],
-			this._currentState.activeEditor, this._currentState.activeEditor
+			undefined, undefined
 		));
 	}
 
