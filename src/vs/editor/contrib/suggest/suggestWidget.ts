@@ -1100,7 +1100,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 registerThemingParticipant((theme, collector) => {
 	let matchHighlight = theme.getColor(editorSuggestWidgetHighlightForeground);
 	if (matchHighlight) {
-		collector.addRule(`.monaco-editor .suggest-widget:not(.frozen) .monaco-list .monaco-list-row .monaco-highlighted-label .highlight { color: ${matchHighlight}; }`);
+		collector.addRule(`.monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-highlighted-label .highlight { color: ${matchHighlight}; }`);
 	}
 	let foreground = theme.getColor(editorSuggestWidgetForeground);
 	if (foreground) {
