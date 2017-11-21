@@ -5,9 +5,10 @@
 
 'use strict';
 
-import { app } from 'electron';
+import { app, dialog } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
+import product from 'vs/platform/node/product';
 import { parseMainProcessArgv } from 'vs/platform/environment/node/argv';
 import { mkdirp } from 'vs/base/node/pfs';
 import { validatePaths } from 'vs/code/node/paths';
@@ -37,6 +38,8 @@ import { HistoryMainService } from 'vs/platform/history/electron-main/historyMai
 import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
+import { localize } from 'vs/nls';
+import { mnemonicButtonLabel } from 'vs/base/common/labels';
 
 function createServices(args: ParsedArgs): IInstantiationService {
 	const services = new ServiceCollection();
@@ -123,16 +126,43 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 
 					logService.log('Sending env to running instance...');
 
+					// Show a warning dialog after some timeout if it takes long to talk to the other instance
+					// Skip this if we are running with --wait where it is expected that we wait for a while
+					let startupWarningDialogHandle: number;
+					if (!environmentService.wait) {
+						startupWarningDialogHandle = setTimeout(() => {
+							showStartupWarningDialog(
+								localize('secondInstanceNoResponse', "Another instance of {0} is running but not responding", product.nameShort),
+								localize('secondInstanceNoResponseDetail', "Please close all other instances and try again.")
+							);
+						}, 10000);
+					}
+
 					const channel = client.getChannel<ILaunchChannel>('launch');
 					const service = new LaunchChannelClient(channel);
 
 					return allowSetForegroundWindow(service)
 						.then(() => service.start(environmentService.args, process.env))
 						.then(() => client.dispose())
-						.then(() => TPromise.wrapError(new ExpectedError('Sent env to running instance. Terminating...')));
+						.then(() => {
+
+							// Now that we started, make sure the warning dialog is prevented
+							if (startupWarningDialogHandle) {
+								clearTimeout(startupWarningDialogHandle);
+							}
+
+							return TPromise.wrapError(new ExpectedError('Sent env to running instance. Terminating...'));
+						});
 				},
 				err => {
 					if (!retry || platform.isWindows || err.code !== 'ECONNREFUSED') {
+						if (err.code === 'EPERM') {
+							showStartupWarningDialog(
+								localize('secondInstanceAdmin', "A second instance of {0} is already running as administrator.", product.nameShort),
+								localize('secondInstanceAdminDetail', "Please close the other instance and try again.")
+							);
+						}
+
 						return TPromise.wrapError<Server>(err);
 					}
 
@@ -153,6 +183,17 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	}
 
 	return setup(true);
+}
+
+function showStartupWarningDialog(message: string, detail: string): void {
+	dialog.showMessageBox(null, {
+		title: product.nameLong,
+		type: 'warning',
+		buttons: [mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
+		message,
+		detail,
+		noLink: true
+	});
 }
 
 function quit(accessor: ServicesAccessor, reason?: ExpectedError | Error): void {
