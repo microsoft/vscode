@@ -360,6 +360,12 @@ export class LanguageConfigurationRegistryImpl {
 
 		let precedingUnIgnoredLineContent = model.getLineContent(precedingUnIgnoredLine);
 
+		let onEnterSupport = this._getOnEnterSupport(model.getLanguageIdentifier().id);
+
+		if (onEnterSupport && onEnterSupport.onEnter('', precedingUnIgnoredLineContent, '')) {
+			return null;
+		}
+
 		if (indentRulesSupport.shouldIncrease(precedingUnIgnoredLineContent) || indentRulesSupport.shouldIndentNextLine(precedingUnIgnoredLineContent)) {
 			return {
 				indentation: strings.getLeadingWhitespace(precedingUnIgnoredLineContent),
