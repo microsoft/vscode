@@ -40,6 +40,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { first } from 'vs/base/common/arrays';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /launch\.json$/;
@@ -78,7 +79,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IListService listService: IListService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		this.breakpointHintDecoration = [];
 		this.hoverWidget = new DebugHoverWidget(this.editor, this.debugService, listService, this.instantiationService, themeService);
@@ -96,12 +98,12 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private getContextMenuActions(breakpoints: IBreakpoint[], uri: uri, lineNumber: number): TPromise<(IAction | ContextSubMenu)[]> {
 		const actions: (IAction | ContextSubMenu)[] = [];
 		if (breakpoints.length === 1) {
-			actions.push(this.instantiationService.createInstance(RemoveBreakpointAction, RemoveBreakpointAction.ID, RemoveBreakpointAction.LABEL));
-			actions.push(this.instantiationService.createInstance(EditConditionalBreakpointAction, EditConditionalBreakpointAction.ID, EditConditionalBreakpointAction.LABEL, this.editor));
+			actions.push(new RemoveBreakpointAction(RemoveBreakpointAction.ID, RemoveBreakpointAction.LABEL, this.debugService, this.keybindingService));
+			actions.push(new EditConditionalBreakpointAction(EditConditionalBreakpointAction.ID, EditConditionalBreakpointAction.LABEL, this.editor, this.debugService, this.keybindingService));
 			if (breakpoints[0].enabled) {
-				actions.push(this.instantiationService.createInstance(DisableBreakpointAction, DisableBreakpointAction.ID, DisableBreakpointAction.LABEL));
+				actions.push(new DisableBreakpointAction(DisableBreakpointAction.ID, DisableBreakpointAction.LABEL, this.debugService, this.keybindingService));
 			} else {
-				actions.push(this.instantiationService.createInstance(EnableBreakpointAction, EnableBreakpointAction.ID, EnableBreakpointAction.LABEL));
+				actions.push(new EnableBreakpointAction(EnableBreakpointAction.ID, EnableBreakpointAction.LABEL, this.debugService, this.keybindingService));
 			}
 		} else if (breakpoints.length > 1) {
 			const sorted = breakpoints.sort((first, second) => first.column - second.column);
@@ -138,7 +140,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				true,
 				() => this.debugService.addBreakpoints(uri, [{ lineNumber }])
 			));
-			actions.push(this.instantiationService.createInstance(AddConditionalBreakpointAction, AddConditionalBreakpointAction.ID, AddConditionalBreakpointAction.LABEL, this.editor, lineNumber));
+			actions.push(new AddConditionalBreakpointAction(AddConditionalBreakpointAction.ID, AddConditionalBreakpointAction.LABEL, this.editor, lineNumber, this.debugService, this.keybindingService));
 		}
 
 		return TPromise.as(actions);

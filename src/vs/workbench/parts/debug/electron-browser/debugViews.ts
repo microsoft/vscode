@@ -99,7 +99,7 @@ export class VariablesView extends ViewsViewletPanel {
 			dataSource: new viewer.VariablesDataSource(),
 			renderer: this.instantiationService.createInstance(viewer.VariablesRenderer),
 			accessibilityProvider: new viewer.VariablesAccessibilityProvider(),
-			controller: this.instantiationService.createInstance(viewer.VariablesController, new viewer.VariablesActionProvider(this.instantiationService), MenuId.DebugVariablesContext)
+			controller: this.instantiationService.createInstance(viewer.VariablesController, new viewer.VariablesActionProvider(this.debugService, this.keybindingService), MenuId.DebugVariablesContext)
 		}, {
 				ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
 				twistiePixels,
@@ -113,7 +113,7 @@ export class VariablesView extends ViewsViewletPanel {
 
 		this.tree.setInput(viewModel);
 
-		const collapseAction = this.instantiationService.createInstance(CollapseAction, this.tree, false, 'explorer-action collapse-explorer');
+		const collapseAction = new CollapseAction(this.tree, false, 'explorer-action collapse-explorer');
 		this.toolbar.setActions(prepareActions([collapseAction]))();
 
 		this.disposables.push(viewModel.onDidFocusStackFrame(sf => {
@@ -164,9 +164,9 @@ export class WatchExpressionsView extends ViewsViewletPanel {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService private listService: IListService,
+		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService
 	) {
 		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('expressionsSection', "Expressions Section") }, keybindingService, contextMenuService);
@@ -191,7 +191,7 @@ export class WatchExpressionsView extends ViewsViewletPanel {
 		dom.addClass(container, 'debug-watch');
 		this.treeContainer = renderViewTree(container);
 
-		const actionProvider = new viewer.WatchExpressionsActionProvider(this.instantiationService);
+		const actionProvider = new viewer.WatchExpressionsActionProvider(this.debugService, this.keybindingService);
 		this.tree = new Tree(this.treeContainer, {
 			dataSource: new viewer.WatchExpressionsDataSource(),
 			renderer: this.instantiationService.createInstance(viewer.WatchExpressionsRenderer),
@@ -209,9 +209,9 @@ export class WatchExpressionsView extends ViewsViewletPanel {
 
 		this.tree.setInput(this.debugService.getModel());
 
-		const addWatchExpressionAction = this.instantiationService.createInstance(AddWatchExpressionAction, AddWatchExpressionAction.ID, AddWatchExpressionAction.LABEL);
-		const collapseAction = this.instantiationService.createInstance(CollapseAction, this.tree, true, 'explorer-action collapse-explorer');
-		const removeAllWatchExpressionsAction = this.instantiationService.createInstance(RemoveAllWatchExpressionsAction, RemoveAllWatchExpressionsAction.ID, RemoveAllWatchExpressionsAction.LABEL);
+		const addWatchExpressionAction = new AddWatchExpressionAction(AddWatchExpressionAction.ID, AddWatchExpressionAction.LABEL, this.debugService, this.keybindingService);
+		const collapseAction = new CollapseAction(this.tree, true, 'explorer-action collapse-explorer');
+		const removeAllWatchExpressionsAction = new RemoveAllWatchExpressionsAction(RemoveAllWatchExpressionsAction.ID, RemoveAllWatchExpressionsAction.LABEL, this.debugService, this.keybindingService);
 		this.toolbar.setActions(prepareActions([addWatchExpressionAction, collapseAction, removeAllWatchExpressionsAction]))();
 
 		this.disposables.push(this.debugService.getModel().onDidChangeWatchExpressions(we => {
@@ -410,7 +410,7 @@ export class BreakpointsView extends ViewsViewletPanel {
 	public renderBody(container: HTMLElement): void {
 		dom.addClass(container, 'debug-breakpoints');
 		this.treeContainer = renderViewTree(container);
-		const actionProvider = new viewer.BreakpointsActionProvider(this.instantiationService, this.debugService);
+		const actionProvider = new viewer.BreakpointsActionProvider(this.debugService, this.keybindingService, );
 		const controller = this.instantiationService.createInstance(viewer.BreakpointsController, actionProvider, MenuId.DebugBreakpointsContext);
 
 		this.tree = new Tree(this.treeContainer, {
@@ -485,9 +485,9 @@ export class BreakpointsView extends ViewsViewletPanel {
 
 	public getActions(): IAction[] {
 		return [
-			this.instantiationService.createInstance(AddFunctionBreakpointAction, AddFunctionBreakpointAction.ID, AddFunctionBreakpointAction.LABEL),
-			this.instantiationService.createInstance(ToggleBreakpointsActivatedAction, ToggleBreakpointsActivatedAction.ID, ToggleBreakpointsActivatedAction.ACTIVATE_LABEL),
-			this.instantiationService.createInstance(RemoveAllBreakpointsAction, RemoveAllBreakpointsAction.ID, RemoveAllBreakpointsAction.LABEL)
+			new AddFunctionBreakpointAction(AddFunctionBreakpointAction.ID, AddFunctionBreakpointAction.LABEL, this.debugService, this.keybindingService),
+			new ToggleBreakpointsActivatedAction(ToggleBreakpointsActivatedAction.ID, ToggleBreakpointsActivatedAction.ACTIVATE_LABEL, this.debugService, this.keybindingService),
+			new RemoveAllBreakpointsAction(RemoveAllBreakpointsAction.ID, RemoveAllBreakpointsAction.LABEL, this.debugService, this.keybindingService)
 		];
 	}
 

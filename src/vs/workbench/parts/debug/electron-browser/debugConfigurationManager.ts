@@ -292,7 +292,7 @@ export class ConfigurationManager implements IConfigurationManager {
 					if (duplicate) {
 						duplicate.merge(rawAdapter, extension.description);
 					} else {
-						this.adapters.push(this.instantiationService.createInstance(Adapter, rawAdapter, extension.description));
+						this.adapters.push(new Adapter(rawAdapter, extension.description, this.configurationService, this.commandService));
 					}
 				});
 			});
