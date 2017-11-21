@@ -113,7 +113,6 @@ export class Gesture implements IDisposable {
 
 	private onTouchStart(e: TouchEvent): void {
 		let timestamp = Date.now(); // use Date.now() because on FF e.timeStamp is not epoch based.
-		e.preventDefault();
 
 		if (this.handle) {
 			this.handle.dispose();
@@ -253,7 +252,6 @@ export class Gesture implements IDisposable {
 
 	private onTouchMove(e: TouchEvent): void {
 		let timestamp = Date.now(); // use Date.now() because on FF e.timeStamp is not epoch based.
-		e.preventDefault();
 		e.stopPropagation();
 
 		for (let i = 0, len = e.changedTouches.length; i < len; i++) {
@@ -270,6 +268,7 @@ export class Gesture implements IDisposable {
 			let evt = this.newGestureEvent(EventType.Change);
 			evt.translationX = touch.pageX - arrays.tail(data.rollingPageX);
 			evt.translationY = touch.pageY - arrays.tail(data.rollingPageY);
+			evt.initialTarget = data.initialTarget;
 			evt.pageX = touch.pageX;
 			evt.pageY = touch.pageY;
 			this.dispatchEvent(evt);
