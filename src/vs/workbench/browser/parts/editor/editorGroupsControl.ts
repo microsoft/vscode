@@ -224,7 +224,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 	private registerListeners(): void {
 		this.toUnbind.push(this.stacks.onModelChanged(e => this.onStacksChanged(e)));
 		this.toUnbind.push(this.editorGroupService.onTabOptionsChanged(options => this.updateTabOptions(options, true)));
-		this.extensionService.onReady().then(() => this.onExtensionsReady());
+		this.toUnbind.push(this.extensionService.onDidRegisterExtensions(() => this.onDidRegisterExtensions()));
 	}
 
 	private updateTabOptions(tabOptions: IEditorTabOptions, refresh?: boolean): void {
@@ -276,7 +276,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		});
 	}
 
-	private onExtensionsReady(): void {
+	private onDidRegisterExtensions(): void {
 
 		// Up to date title areas
 		POSITIONS.forEach(position => this.getTitleAreaControl(position).update());

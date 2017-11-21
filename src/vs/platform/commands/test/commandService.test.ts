@@ -15,13 +15,18 @@ import { IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistr
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { SimpleConfigurationService } from 'vs/editor/standalone/browser/simpleServices';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import Event, { Emitter } from 'vs/base/common/event';
 
 class SimpleExtensionService implements IExtensionService {
 	_serviceBrand: any;
-	activateByEvent(activationEvent: string): TPromise<void> {
-		return this.onReady().then(() => { });
+	private _onDidRegisterExtensions = new Emitter<IExtensionDescription[]>();
+	get onDidRegisterExtensions(): Event<IExtensionDescription[]> {
+		return this._onDidRegisterExtensions.event;
 	}
-	onReady(): TPromise<boolean> {
+	activateByEvent(activationEvent: string): TPromise<void> {
+		return this.whenInstalledExtensionsRegistered().then(() => { });
+	}
+	whenInstalledExtensionsRegistered(): TPromise<boolean> {
 		return TPromise.as(true);
 	}
 	readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]> {
@@ -96,7 +101,7 @@ suite('CommandService', function () {
 		let reg = CommandsRegistry.registerCommand('bar', () => callCounter += 1);
 
 		let service = new CommandService(new InstantiationService(), new class extends SimpleExtensionService {
-			onReady() {
+			whenInstalledExtensionsRegistered() {
 				return new TPromise<boolean>(_resolve => { /*ignore*/ });
 			}
 		}, new ContextKeyService(new SimpleConfigurationService()));

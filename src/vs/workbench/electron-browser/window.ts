@@ -306,7 +306,7 @@ export class ElectronWindow extends Themable {
 		};
 
 		// Send over all extension viewlets when extensions are ready
-		this.extensionService.onReady().then(() => {
+		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
 			ipc.send('vscode:extensionViewlets', JSON.stringify(this.viewletService.getViewlets().filter(v => !!v.extensionId).map(v => { return { id: v.id, label: v.name }; })));
 		});
 
@@ -380,7 +380,7 @@ export class ElectronWindow extends Themable {
 	}
 
 	private resolveKeybindings(actionIds: string[]): TPromise<{ id: string; label: string, isNative: boolean; }[]> {
-		return TPromise.join([this.lifecycleService.when(LifecyclePhase.Running), this.extensionService.onReady()]).then(() => {
+		return TPromise.join([this.lifecycleService.when(LifecyclePhase.Running), this.extensionService.whenInstalledExtensionsRegistered()]).then(() => {
 			return arrays.coalesce(actionIds.map(id => {
 				const binding = this.keybindingService.lookupKeybinding(id);
 				if (!binding) {

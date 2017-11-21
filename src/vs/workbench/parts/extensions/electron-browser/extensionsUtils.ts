@@ -167,7 +167,7 @@ export class BetterMergeDisabled implements IWorkbenchContribution {
 		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		extensionService.onReady().then(() => {
+		extensionService.whenInstalledExtensionsRegistered().then(() => {
 			if (storageService.getBoolean(BetterMergeDisabledNowKey, StorageScope.GLOBAL, false)) {
 				storageService.remove(BetterMergeDisabledNowKey, StorageScope.GLOBAL);
 				/* __GDPR__

@@ -655,7 +655,7 @@ export class DebugService implements debug.IDebugService {
 
 		// make sure to save all files and that the configuration is up to date
 		return this.extensionService.activateByEvent('onDebug').then(() => this.textFileService.saveAll().then(() => this.configurationService.reloadConfiguration(root).then(() =>
-			this.extensionService.onReady().then(() => {
+			this.extensionService.whenInstalledExtensionsRegistered().then(() => {
 				if (this.model.getProcesses().length === 0) {
 					this.removeReplExpressions();
 					this.allProcesses.clear();

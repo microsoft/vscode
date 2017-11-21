@@ -13,17 +13,23 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 import { IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtensionPointContribution, IExtensionDescription, IExtensionsStatus, IExtensionService, ActivationTimes } from 'vs/platform/extensions/common/extensions';
+import Event, { Emitter } from 'vs/base/common/event';
 
 // --- service instances
 
 class MockExtensionService implements IExtensionService {
 	public _serviceBrand: any;
 
+	private _onDidRegisterExtensions = new Emitter<IExtensionDescription[]>();
+	public get onDidRegisterExtensions(): Event<IExtensionDescription[]> {
+		return this._onDidRegisterExtensions.event;
+	}
+
 	public activateByEvent(activationEvent: string): TPromise<void> {
 		throw new Error('Not implemented');
 	}
 
-	public onReady(): TPromise<boolean> {
+	public whenInstalledExtensionsRegistered(): TPromise<boolean> {
 		return TPromise.as(true);
 	}
 

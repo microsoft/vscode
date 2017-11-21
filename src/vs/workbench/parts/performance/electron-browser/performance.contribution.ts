@@ -31,7 +31,7 @@ class StartupProfiler implements IWorkbenchContribution {
 		@IExtensionService extensionService: IExtensionService,
 	) {
 		// wait for everything to be ready
-		extensionService.onReady().then(() => {
+		extensionService.whenInstalledExtensionsRegistered().then(() => {
 			this._stopProfiling();
 		});
 	}

@@ -34,6 +34,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { mark, time } from 'vs/base/common/performance';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Barrier } from 'vs/base/common/async';
+import Event, { Emitter } from 'vs/base/common/event';
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
 
@@ -54,8 +55,10 @@ const NO_OP_VOID_PROMISE = TPromise.wrap<void>(void 0);
 export class ExtensionService implements IExtensionService {
 	public _serviceBrand: any;
 
+	private _onDidRegisterExtensions: Emitter<IExtensionDescription[]>;
+
 	private _registry: ExtensionDescriptionRegistry;
-	private readonly _barrier: Barrier;
+	private readonly _installedExtensionsReady: Barrier;
 	private readonly _isDev: boolean;
 	private readonly _extensionsStatus: { [id: string]: IExtensionsStatus };
 	private _allRequestedActivateEvents: { [activationEvent: string]: boolean; };
@@ -87,10 +90,12 @@ export class ExtensionService implements IExtensionService {
 		@ILifecycleService lifecycleService: ILifecycleService
 	) {
 		this._registry = null;
-		this._barrier = new Barrier();
+		this._installedExtensionsReady = new Barrier();
 		this._isDev = !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment;
 		this._extensionsStatus = {};
 		this._allRequestedActivateEvents = Object.create(null);
+
+		this._onDidRegisterExtensions = new Emitter<IExtensionDescription[]>();
 
 		this._extensionHostProcessFinishedActivateEvents = Object.create(null);
 		this._extensionHostProcessActivationTimes = Object.create(null);
@@ -105,6 +110,10 @@ export class ExtensionService implements IExtensionService {
 			this._startExtensionHostProcess([]);
 			this._scanAndHandleExtensions();
 		});
+	}
+
+	public get onDidRegisterExtensions(): Event<IExtensionDescription[]> {
+		return this._onDidRegisterExtensions.event;
 	}
 
 	public restartExtensionHost(): void {
@@ -222,7 +231,7 @@ export class ExtensionService implements IExtensionService {
 	// ---- begin IExtensionService
 
 	public activateByEvent(activationEvent: string): TPromise<void> {
-		if (this._barrier.isOpen()) {
+		if (this._installedExtensionsReady.isOpen()) {
 			// Extensions have been scanned and interpreted
 
 			if (!this._registry.containsActivationEvent(activationEvent)) {
@@ -240,7 +249,7 @@ export class ExtensionService implements IExtensionService {
 			// Record the fact that this activationEvent was requested (in case of a restart)
 			this._allRequestedActivateEvents[activationEvent] = true;
 
-			return this._barrier.wait().then(() => this._activateByEvent(activationEvent));
+			return this._installedExtensionsReady.wait().then(() => this._activateByEvent(activationEvent));
 		}
 	}
 
@@ -255,18 +264,18 @@ export class ExtensionService implements IExtensionService {
 		});
 	}
 
-	public onReady(): TPromise<boolean> {
-		return this._barrier.wait();
+	public whenInstalledExtensionsRegistered(): TPromise<boolean> {
+		return this._installedExtensionsReady.wait();
 	}
 
 	public getExtensions(): TPromise<IExtensionDescription[]> {
-		return this.onReady().then(() => {
+		return this._installedExtensionsReady.wait().then(() => {
 			return this._registry.getAllExtensionDescriptions();
 		});
 	}
 
 	public readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]> {
-		return this.onReady().then(() => {
+		return this._installedExtensionsReady.wait().then(() => {
 			let availableExtensions = this._registry.getAllExtensionDescriptions();
 
 			let result: ExtensionPointContribution<T>[] = [], resultLen = 0;
@@ -343,7 +352,8 @@ export class ExtensionService implements IExtensionService {
 				}
 			}
 			mark('extensionHostReady');
-			this._barrier.open();
+			this._installedExtensionsReady.open();
+			this._onDidRegisterExtensions.fire(availableExtensions);
 		});
 	}
 

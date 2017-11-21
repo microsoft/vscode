@@ -703,7 +703,7 @@ export class DefaultConfigurationExportHelper {
 	}
 
 	private writeConfigModelAndQuit(targetPath: string): TPromise<void> {
-		return this.extensionService.onReady()
+		return this.extensionService.whenInstalledExtensionsRegistered()
 			.then(() => this.writeConfigModel(targetPath))
 			.then(() => this.commandService.executeCommand('workbench.action.quit'))
 			.then(() => { });

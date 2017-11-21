@@ -27,7 +27,7 @@ export class CommandService extends Disposable implements ICommandService {
 		@IContextKeyService private _contextKeyService: IContextKeyService
 	) {
 		super();
-		this._extensionService.onReady().then(value => this._extensionHostIsReady = value);
+		this._extensionService.whenInstalledExtensionsRegistered().then(value => this._extensionHostIsReady = value);
 	}
 
 	executeCommand<T>(id: string, ...args: any[]): TPromise<T> {

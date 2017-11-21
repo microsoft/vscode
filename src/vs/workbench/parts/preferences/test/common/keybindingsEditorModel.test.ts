@@ -44,7 +44,7 @@ suite('Keybindings Editor Model test', () => {
 		instantiationService = new TestInstantiationService();
 
 		instantiationService.stub(IKeybindingService, {});
-		instantiationService.stub(IExtensionService, {}, 'onReady', () => TPromise.as(null));
+		instantiationService.stub(IExtensionService, {}, 'whenInstalledExtensionsRegistered', () => TPromise.as(null));
 
 		testObject = instantiationService.createInstance(KeybindingsEditorModel, OS);
 

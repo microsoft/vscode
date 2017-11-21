@@ -45,7 +45,7 @@ export class ViewletService implements IViewletService {
 			this.extensionViewletsLoadedPromiseComplete = c;
 		});
 
-		this.extensionService.onReady().then(() => {
+		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
 			const viewlets = this.viewletRegistry.getViewlets();
 			viewlets.forEach(v => {
 				if (!!v.extensionId) {
