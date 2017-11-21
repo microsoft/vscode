@@ -30,7 +30,7 @@ const tokenGroupToScopesMap: { [setting: string]: string[] } = {
 	strings: ['string'],
 	keywords: ['keyword', 'keyword.control', 'storage', 'storage.type'],
 	numbers: ['constant.numeric'],
-	types: ['entity.name.type'],
+	types: ['entity.name.type', 'entity.name.class', 'support.type', 'support.class'],
 	functions: ['entity.name.function'],
 	variables: ['variable']
 };
