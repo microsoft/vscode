@@ -67,7 +67,7 @@ export class PackageJSONContribution implements IJSONContribution {
 					return this.collectScopedPackages(currentWord, addValue, isLast, collector);
 				}
 
-				queryUrl = 'https://skimdb.npmjs.com/registry/_design/app/_view/browseAll?group_level=1&limit=' + LIMIT + '&start_key=%5B%22' + encodeURIComponent(currentWord) + '%22%5D&end_key=%5B%22' + encodeURIComponent(currentWord + 'z') + '%22,%7B%7D%5D';
+				queryUrl = 'https://skimdb.npmjs.com/registry/_design/app/_view/browseAll?group_level=2&limit=' + LIMIT + '&start_key=%5B%22' + encodeURIComponent(currentWord) + '%22%5D&end_key=%5B%22' + encodeURIComponent(currentWord + 'z') + '%22,%7B%7D%5D';
 
 				return this.xhr({
 					url: queryUrl,
@@ -93,7 +93,7 @@ export class PackageJSONContribution implements IJSONContribution {
 										proposal.kind = CompletionItemKind.Property;
 										proposal.insertText = insertText;
 										proposal.filterText = JSON.stringify(name);
-										proposal.documentation = '';
+										proposal.documentation = keys[1];
 										collector.add(proposal);
 									}
 								}
@@ -214,7 +214,8 @@ export class PackageJSONContribution implements IJSONContribution {
 			if (typeof currentKey === 'string') {
 				const queryUrl = 'http://registry.npmjs.org/' + encodeURIComponent(currentKey).replace('%40', '@');
 				return this.xhr({
-					url: queryUrl
+					url: queryUrl,
+					agent: USER_AGENT
 				}).then((success) => {
 					try {
 						const obj = JSON.parse(success.responseText);
@@ -273,7 +274,8 @@ export class PackageJSONContribution implements IJSONContribution {
 
 		const queryUrl = 'http://registry.npmjs.org/' + encodeURIComponent(pack).replace('%40', '@');
 		return this.xhr({
-			url: queryUrl
+			url: queryUrl,
+			agent: USER_AGENT
 		}).then((success) => {
 			try {
 				const obj = JSON.parse(success.responseText);
