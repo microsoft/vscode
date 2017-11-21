@@ -810,6 +810,10 @@ namespace CommandConfiguration {
 		return isEmpty(result) ? undefined : result;
 	}
 
+	export function hasCommand(value: Tasks.CommandConfiguration): boolean {
+		return value && !!value.name;
+	}
+
 	export function isEmpty(value: Tasks.CommandConfiguration): boolean {
 		return _isEmpty(value, properties);
 	}
@@ -1278,7 +1282,8 @@ namespace CustomTask {
 
 	export function fillGlobals(task: Tasks.CustomTask, globals: Globals): void {
 		// We only merge a command from a global definition if there is no dependsOn
-		if (task.dependsOn === void 0) {
+		// or there is a dependsOn and a defined command.
+		if (CommandConfiguration.hasCommand(task.command) || task.dependsOn === void 0) {
 			task.command = CommandConfiguration.fillGlobals(task.command, globals.command, task.name);
 		}
 		// promptOnClose is inferred from isBackground if available
