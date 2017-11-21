@@ -68,10 +68,6 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 		this.registerListeners();
 	}
 
-	public getId(): string {
-		return 'vs.files.saveerrorhandler';
-	}
-
 	private registerListeners(): void {
 		this.toUnbind.push(this.textFileService.models.onModelSaved(e => this.onFileSavedOrReverted(e.resource)));
 		this.toUnbind.push(this.textFileService.models.onModelReverted(e => this.onFileSavedOrReverted(e.resource)));

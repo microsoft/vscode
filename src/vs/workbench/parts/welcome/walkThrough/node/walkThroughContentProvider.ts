@@ -50,10 +50,6 @@ export class WalkThroughContentProvider implements ITextModelContentProvider, IW
 			return codeEditorModel;
 		});
 	}
-
-	public getId(): string {
-		return 'vs.walkThroughContentProvider';
-	}
 }
 
 export class WalkThroughSnippetContentProvider implements ITextModelContentProvider, IWorkbenchContribution {
@@ -97,9 +93,5 @@ export class WalkThroughSnippetContentProvider implements ITextModelContentProvi
 
 			return codeEditorModel;
 		});
-	}
-
-	public getId(): string {
-		return 'vs.walkThroughSnippetContentProvider';
 	}
 }

@@ -1011,10 +1011,6 @@ export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution,
 		this.disposables.push(editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 	}
 
-	getId(): string {
-		return 'git.DirtyDiffModelDecorator';
-	}
-
 	private onEditorsChanged(): void {
 		// HACK: This is the best current way of figuring out whether to draw these decorations
 		// or not. Needs context from the editor, to know whether it is a diff editor, in place editor

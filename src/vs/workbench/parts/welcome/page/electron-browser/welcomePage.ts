@@ -68,10 +68,6 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 			}).then(null, onUnexpectedError);
 		}
 	}
-
-	public getId() {
-		return 'vs.welcomePage';
-	}
 }
 
 function isWelcomePageEnabled(configurationService: IConfigurationService) {

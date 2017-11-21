@@ -36,10 +36,6 @@ class StartupProfiler implements IWorkbenchContribution {
 		});
 	}
 
-	getId(): string {
-		return 'performance.StartupProfiler';
-	}
-
 	private _stopProfiling(): void {
 
 		const { profileStartup } = this._environmentService;

@@ -39,7 +39,6 @@ export const debugToolBarBackground = registerColor('debugToolBar.background', {
 }, localize('debugToolBarBackground', "Debug toolbar background color."));
 
 export class DebugActionsWidget extends Themable implements IWorkbenchContribution {
-	private static readonly ID = 'debug.actionsWidget';
 
 	private $el: builder.Builder;
 	private dragArea: builder.Builder;
@@ -188,10 +187,6 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 
 		x = Math.max(0, Math.min(x, window.innerWidth - widgetWidth)); // do not allow the widget to overflow on the right
 		this.$el.style('left', `${x}px`);
-	}
-
-	public getId(): string {
-		return DebugActionsWidget.ID;
 	}
 
 	private onDidConfigurationChange(event: IConfigurationChangeEvent): void {

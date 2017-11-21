@@ -144,10 +144,6 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		this.reportCloudStats();
 	}
 
-	public getId(): string {
-		return 'vs.stats.workspaceStatsReporter';
-	}
-
 	private searchArray(arr: string[], regEx: RegExp): boolean {
 		return arr.some(v => v.search(regEx) > -1) || undefined;
 	}

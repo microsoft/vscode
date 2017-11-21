@@ -32,10 +32,6 @@ export class GettingStarted implements IWorkbenchContribution {
 		}
 	}
 
-	getId(): string {
-		return 'vs.gettingstarted';
-	}
-
 	private getUrl(telemetryInfo: ITelemetryInfo): string {
 		return `${this.welcomePageURL}&&from=${this.appName}&&id=${telemetryInfo.machineId}`;
 	}

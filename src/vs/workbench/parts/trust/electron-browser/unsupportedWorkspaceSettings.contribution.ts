@@ -41,10 +41,6 @@ class UnsupportedWorkspaceSettingsContribution implements IWorkbenchContribution
 		this.toDispose.push(workspaceContextService.onDidChangeWorkspaceFolders(e => this.checkWorkspaceSettings()));
 	}
 
-	getId(): string {
-		return 'unsupportedWorkspaceSettings';
-	}
-
 	public dispose(): void {
 		this.toDispose = dispose(this.toDispose);
 	}

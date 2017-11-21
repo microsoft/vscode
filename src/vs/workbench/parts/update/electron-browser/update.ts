@@ -197,7 +197,6 @@ const LinkAction = (id: string, message: string, licenseUrl: string) => new Acti
 export class ProductContribution implements IWorkbenchContribution {
 
 	private static readonly KEY = 'releaseNotes/lastVersion';
-	getId() { return 'vs.product'; }
 
 	constructor(
 		@IStorageService storageService: IStorageService,
@@ -259,8 +258,6 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 	private static readonly KEY = 'update/win32-64bits';
 	private static readonly URL = 'https://code.visualstudio.com/updates/v1_15#_windows-64-bit';
 	private static readonly INSIDER_URL = 'https://github.com/Microsoft/vscode-docs/blob/vnext/release-notes/v1_15.md#windows-64-bit';
-
-	getId() { return 'vs.win32-64bit'; }
 
 	constructor(
 		@IStorageService storageService: IStorageService,

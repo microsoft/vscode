@@ -145,10 +145,6 @@ export class WatermarkContribution implements IWorkbenchContribution {
 		}));
 	}
 
-	public getId() {
-		return 'vs.watermark';
-	}
-
 	private create(): void {
 		const container = this.partService.getContainer(Parts.EDITOR_PART);
 		container.classList.add('has-watermark');

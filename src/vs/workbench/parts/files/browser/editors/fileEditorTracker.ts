@@ -55,10 +55,6 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		this.registerListeners();
 	}
 
-	public getId(): string {
-		return 'vs.files.fileEditorTracker';
-	}
-
 	private registerListeners(): void {
 
 		// Update editors from operation changes

@@ -49,10 +49,6 @@ export class KeymapExtensions implements IWorkbenchContribution {
 		);
 	}
 
-	getId(): string {
-		return 'vs.extensions.keymapExtensions';
-	}
-
 	private checkForOtherKeymaps(extensionIdentifier: IExtensionIdentifier): TPromise<void> {
 		return this.instantiationService.invokeFunction(getInstalledExtensions).then(extensions => {
 			const keymaps = extensions.filter(extension => isKeymapExtension(this.tipsService, extension));
@@ -210,9 +206,5 @@ export class BetterMergeDisabled implements IWorkbenchContribution {
 				});
 			}
 		});
-	}
-
-	getId(): string {
-		return 'vs.extensions.betterMergeDisabled';
 	}
 }

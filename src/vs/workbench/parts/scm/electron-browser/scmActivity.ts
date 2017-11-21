@@ -18,8 +18,6 @@ import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment }
 
 export class StatusUpdater implements IWorkbenchContribution {
 
-	private static readonly ID = 'vs.scm.statusUpdater';
-
 	private badgeDisposable: IDisposable = EmptyDisposable;
 	private disposables: IDisposable[] = [];
 
@@ -45,10 +43,6 @@ export class StatusUpdater implements IWorkbenchContribution {
 
 		const disposable = combinedDisposable([changeDisposable, removeDisposable]);
 		this.disposables.push(disposable);
-	}
-
-	getId(): string {
-		return StatusUpdater.ID;
 	}
 
 	private render(): void {
@@ -78,8 +72,6 @@ export class StatusUpdater implements IWorkbenchContribution {
 
 export class StatusBarController implements IWorkbenchContribution {
 
-	private static readonly ID = 'vs.scm.statusBarController';
-
 	private statusBarDisposable: IDisposable = EmptyDisposable;
 	private focusDisposable: IDisposable = EmptyDisposable;
 	private focusedRepository: ISCMRepository | undefined = undefined;
@@ -97,10 +89,6 @@ export class StatusBarController implements IWorkbenchContribution {
 		if (this.scmService.repositories.length > 0) {
 			this.onDidFocusRepository(this.scmService.repositories[0]);
 		}
-	}
-
-	getId(): string {
-		return StatusBarController.ID;
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {

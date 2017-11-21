@@ -134,10 +134,6 @@ class LanguageSurveysContribution implements IWorkbenchContribution {
 		product.surveys.filter(surveyData => surveyData.surveyId && surveyData.editCount && surveyData.languageId && surveyData.surveyUrl && surveyData.userProbability).map(surveyData =>
 			new LanguageSurvey(surveyData, instantiationService, storageService, messageService, telemetryService, fileService, modelService));
 	}
-
-	getId(): string {
-		return 'languagesurveys.contribution';
-	}
 }
 
 if (language === 'en' && product.surveys && product.surveys.length) {
