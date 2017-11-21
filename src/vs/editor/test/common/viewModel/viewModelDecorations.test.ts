@@ -109,6 +109,11 @@ suite('ViewModelDecorations', () => {
 					type: InlineDecorationType.Regular
 				},
 				{
+					range: new Range(2, 0, 2, 1),
+					inlineClassName: 'a-dec2',
+					type: InlineDecorationType.After
+				},
+				{
 					range: new Range(1, 2, 2, 2),
 					inlineClassName: 'i-dec3',
 					type: InlineDecorationType.Regular
@@ -137,6 +142,11 @@ suite('ViewModelDecorations', () => {
 					range: new Range(2, 1, 2, 2),
 					inlineClassName: 'b-dec6',
 					type: InlineDecorationType.Before
+				},
+				{
+					range: new Range(2, 0, 2, 1),
+					inlineClassName: 'a-dec6',
+					type: InlineDecorationType.After
 				},
 				{
 					range: new Range(2, 1, 2, 3),
@@ -291,6 +301,41 @@ suite('ViewModelDecorations', () => {
 				3
 			).inlineDecorations;
 			assert.deepEqual(inlineDecorations2, []);
+		});
+	});
+
+	test('issue #37401: Allow both before and after decorations on empty line', () => {
+		const text = [
+			''
+		];
+		testViewModel(text, {}, (viewModel, model) => {
+
+			model.changeDecorations((accessor) => {
+				accessor.addDecoration(
+					new Range(1, 1, 1, 1),
+					{
+						beforeContentClassName: 'before1',
+						afterContentClassName: 'after1'
+					}
+				);
+			});
+
+			let inlineDecorations = viewModel.getViewLineRenderingData(
+				new Range(1, 1, 1, 1),
+				1
+			).inlineDecorations;
+			assert.deepEqual(inlineDecorations, [
+				{
+					range: new Range(1, 1, 1, 2),
+					inlineClassName: 'before1',
+					type: InlineDecorationType.Before
+				},
+				{
+					range: new Range(1, 0, 1, 1),
+					inlineClassName: 'after1',
+					type: InlineDecorationType.After
+				}
+			]);
 		});
 	});
 });

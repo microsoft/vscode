@@ -1104,7 +1104,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		let expected = [
 			'<span>',
-			'<span class="before">\u00a0</span>',
+			'<span class="before"></span>',
 			'</span>'
 		].join('');
 
@@ -1132,6 +1132,35 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'<span>',
 			'<span class="mtk3">\u00a0\u00a01.\u00a0</span>',
 			'<span class="mtk3 inline-folded">🙏</span>',
+			'</span>'
+		].join('');
+
+		assert.deepEqual(actual.html, expected);
+	});
+
+	test('issue #37401: Allow both before and after decorations on empty line', () => {
+
+		let actual = renderViewLine(new RenderLineInput(
+			true,
+			'',
+			false,
+			0,
+			[createPart(0, 3)],
+			[
+				new LineDecoration(1, 2, 'before', InlineDecorationType.Before),
+				new LineDecoration(0, 1, 'after', InlineDecorationType.After),
+			],
+			2,
+			10,
+			10000,
+			'none',
+			false,
+			false
+		));
+
+		let expected = [
+			'<span>',
+			'<span class="before after"></span>',
 			'</span>'
 		].join('');
 

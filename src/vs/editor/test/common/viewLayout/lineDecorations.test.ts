@@ -49,6 +49,18 @@ suite('Editor ViewLayout - ViewLineParts', () => {
 		]);
 	});
 
+	test('issue #37401: Allow both before and after decorations on empty line', () => {
+		let result = LineDecoration.filter([
+			new InlineDecoration(new Range(4, 1, 4, 2), 'before', InlineDecorationType.Before),
+			new InlineDecoration(new Range(4, 0, 4, 1), 'after', InlineDecorationType.After),
+		], 4, 1, 500);
+
+		assert.deepEqual(result, [
+			new LineDecoration(1, 2, 'before', InlineDecorationType.Before),
+			new LineDecoration(0, 1, 'after', InlineDecorationType.After),
+		]);
+	});
+
 	test('ViewLineParts', () => {
 
 		assert.deepEqual(LineDecorationsNormalizer.normalize('abcabcabcabcabcabcabcabcabcabc', [

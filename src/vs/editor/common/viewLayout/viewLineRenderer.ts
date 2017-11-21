@@ -245,13 +245,13 @@ export function renderViewLine(input: RenderLineInput, sb: IStringBuilder): Rend
 			for (let i = 0, len = input.lineDecorations.length; i < len; i++) {
 				const lineDecoration = input.lineDecorations[i];
 				if (lineDecoration.type !== InlineDecorationType.Regular) {
-					classNames[i] = input.lineDecorations[i].className;
+					classNames.push(input.lineDecorations[i].className);
 					containsForeignElements = true;
 				}
 			}
 
 			if (containsForeignElements) {
-				content = `<span><span class="${classNames.join(' ')}">\u00a0</span></span>`;
+				content = `<span><span class="${classNames.join(' ')}"></span></span>`;
 			}
 		}
 

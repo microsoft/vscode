@@ -66,11 +66,6 @@ export class LineDecoration {
 			let startColumn = (range.startLineNumber === lineNumber ? range.startColumn : minLineColumn);
 			let endColumn = (range.endLineNumber === lineNumber ? range.endColumn : maxLineColumn);
 
-			if (endColumn <= 1) {
-				// An empty decoration (endColumn === 1)
-				continue;
-			}
-
 			result[resultLen++] = new LineDecoration(startColumn, endColumn, d.inlineClassName, d.type);
 		}
 
