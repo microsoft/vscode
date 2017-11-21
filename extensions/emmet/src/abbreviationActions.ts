@@ -23,12 +23,17 @@ export function wrapWithAbbreviation(args: any) {
 	}
 
 	const editor = vscode.window.activeTextEditor;
-	const abbreviationPromise = (args && args['abbreviation']) ? Promise.resolve(args['abbreviation']) : vscode.window.showInputBox({ prompt: 'Enter Abbreviation' });
+
 	const syntax = getSyntaxFromArgs({ language: editor.document.languageId });
+	if (!syntax) {
+		return;
+	}
+
+	const abbreviationPromise = (args && args['abbreviation']) ? Promise.resolve(args['abbreviation']) : vscode.window.showInputBox({ prompt: 'Enter Abbreviation' });
 	const helper = getEmmetHelper();
 
 	return abbreviationPromise.then(abbreviation => {
-		if (!abbreviation || !abbreviation.trim() || !helper.isAbbreviationValid(syntax, abbreviation)) { return; }
+		if (!abbreviation || !abbreviation.trim() || !helper.isAbbreviationValid(syntax, abbreviation)) { return false; }
 
 		let expandAbbrList: ExpandAbbreviationInput[] = [];
 
@@ -61,17 +66,21 @@ export function wrapIndividualLinesWithAbbreviation(args: any) {
 		return;
 	}
 
-	const abbreviationPromise = (args && args['abbreviation']) ? Promise.resolve(args['abbreviation']) : vscode.window.showInputBox({ prompt: 'Enter Abbreviation' });
 	const syntax = getSyntaxFromArgs({ language: editor.document.languageId });
+	if (!syntax) {
+		return;
+	}
+
+	const abbreviationPromise = (args && args['abbreviation']) ? Promise.resolve(args['abbreviation']) : vscode.window.showInputBox({ prompt: 'Enter Abbreviation' });
 	const lines = editor.document.getText(editor.selection).split('\n').map(x => x.trim());
 	const helper = getEmmetHelper();
 
 	return abbreviationPromise.then(inputAbbreviation => {
-		if (!inputAbbreviation || !inputAbbreviation.trim() || !helper.isAbbreviationValid(syntax, inputAbbreviation)) { return; }
+		if (!inputAbbreviation || !inputAbbreviation.trim() || !helper.isAbbreviationValid(syntax, inputAbbreviation)) { return false; }
 
 		let extractedResults = helper.extractAbbreviationFromText(inputAbbreviation);
 		if (!extractedResults) {
-			return;
+			return false;
 		}
 
 		let { abbreviation, filter } = extractedResults;
@@ -88,9 +97,17 @@ export function wrapIndividualLinesWithAbbreviation(args: any) {
 
 }
 
-export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined> | undefined {
+export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined> {
+	if (!validate() || !vscode.window.activeTextEditor) {
+		return fallbackTab();
+	}
+
+	args = args || {};
+	if (!args['language']) {
+		args['language'] = vscode.window.activeTextEditor.document.languageId;
+	}
 	const syntax = getSyntaxFromArgs(args);
-	if (!syntax || !validate() || !vscode.window.activeTextEditor) {
+	if (!syntax) {
 		return fallbackTab();
 	}
 
@@ -179,10 +196,11 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 	});
 }
 
-function fallbackTab(): Thenable<boolean | undefined> | undefined {
+function fallbackTab(): Thenable<boolean | undefined> {
 	if (vscode.workspace.getConfiguration('emmet')['triggerExpansionOnTab'] === true) {
 		return vscode.commands.executeCommand('tab');
 	}
+	return Promise.resolve(true);
 }
 /**
  * Checks if given position is a valid location to expand emmet abbreviation.
@@ -191,7 +209,7 @@ function fallbackTab(): Thenable<boolean | undefined> | undefined {
  * @param syntax syntax of the abbreviation
  * @param position position to validate
  */
-export function isValidLocationForEmmetAbbreviation(currentNode: Node, syntax: string, position: vscode.Position): boolean {
+export function isValidLocationForEmmetAbbreviation(currentNode: Node | null, syntax: string, position: vscode.Position): boolean {
 	// Continue validation only if the file was parse-able and the currentNode has been found
 	if (!currentNode) {
 		return true;
@@ -323,16 +341,10 @@ function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 
 }
 
-function getSyntaxFromArgs(args: any): string | undefined {
-	let editor = vscode.window.activeTextEditor;
-	if (!editor) {
-		vscode.window.showInformationMessage('No editor is active.');
-		return;
-	}
-
+function getSyntaxFromArgs(args: Object): string | undefined {
 	const mappedModes = getMappingForIncludedLanguages();
-	let language: string = (!args || typeof args !== 'object' || !args['language']) ? editor.document.languageId : args['language'];
-	let parentMode: string = (args && typeof args === 'object') ? args['parentMode'] : undefined;
+	let language: string = args['language'];
+	let parentMode: string = args['parentMode'];
 	let excludedLanguages = vscode.workspace.getConfiguration('emmet')['excludeLanguages'] ? vscode.workspace.getConfiguration('emmet')['excludeLanguages'] : [];
 	let syntax = getEmmetMode((mappedModes[language] ? mappedModes[language] : language), excludedLanguages);
 	if (!syntax) {

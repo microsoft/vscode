@@ -19,7 +19,8 @@ export function removeTag() {
 	}
 
 	let indentInSpaces = '';
-	for (let i = 0; i < editor.options.tabSize; i++) {
+	const tabSize: number = editor.options.tabSize ? +editor.options.tabSize : 0;
+	for (let i = 0; i < tabSize || 0; i++) {
 		indentInSpaces += ' ';
 	}
 
