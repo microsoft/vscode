@@ -101,10 +101,32 @@ suite('CommandService', function () {
 			}
 		}, new ContextKeyService(new SimpleConfigurationService()));
 
-		return service.executeCommand('bar').then(() => {
+		service.executeCommand('bar');
+		assert.equal(callCounter, 1);
+		reg.dispose();
+	});
+
+	test('issue #34913: !onReady, unknown command', function () {
+
+		let callCounter = 0;
+		let resolveFunc: Function;
+		// let reg = CommandsRegistry.registerCommand('bar', () => callCounter += 1);
+
+		let service = new CommandService(new InstantiationService(), new class extends SimpleExtensionService {
+			onReady() {
+				return new TPromise<boolean>(_resolve => { resolveFunc = _resolve; });
+			}
+		}, new ContextKeyService(new SimpleConfigurationService()));
+
+		let r = service.executeCommand('bar');
+		assert.equal(callCounter, 0);
+
+		let reg = CommandsRegistry.registerCommand('bar', () => callCounter += 1);
+		resolveFunc(true);
+
+		return r.then(() => {
 			reg.dispose();
 			assert.equal(callCounter, 1);
-
 		});
 	});
 
