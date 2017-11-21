@@ -13,6 +13,7 @@ function getTagText(tag: Proto.JSDocTagInfo): string | undefined {
 
 	switch (tag.name) {
 		case 'example':
+		case 'default':
 			// Convert to markdown code block
 			if (tag.text.match(/^\s*[~`]{3}/g)) {
 				return tag.text;
