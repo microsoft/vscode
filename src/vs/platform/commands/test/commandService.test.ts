@@ -118,7 +118,7 @@ suite('CommandService', function () {
 		// let reg = CommandsRegistry.registerCommand('bar', () => callCounter += 1);
 
 		let service = new CommandService(new InstantiationService(), new class extends SimpleExtensionService {
-			onReady() {
+			whenInstalledExtensionsRegistered() {
 				return new TPromise<boolean>(_resolve => { resolveFunc = _resolve; });
 			}
 		}, new ContextKeyService(new SimpleConfigurationService()));

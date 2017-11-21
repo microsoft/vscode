@@ -465,7 +465,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 	test('test one level extension dependencies without cycle', () => {
 		testObject = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', {}, { dependencies: ['pub.b', 'pub.c', 'pub.d'] })));
-		instantiationService.stubPromise(IExtensionGalleryService, 'getAllDependencies', [aGalleryExtension('b'), aGalleryExtension('c'), aGalleryExtension('d')]);
+		instantiationService.stubPromise(IExtensionGalleryService, 'loadAllDependencies', [aGalleryExtension('b'), aGalleryExtension('c'), aGalleryExtension('d')]);
 
 		return testObject.queryGallery().then(page => {
 			const extension = page.firstPage[0];
@@ -504,7 +504,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 	test('test one level extension dependencies with cycle', () => {
 		testObject = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', {}, { dependencies: ['pub.b', 'pub.a'] })));
-		instantiationService.stubPromise(IExtensionGalleryService, 'getAllDependencies', [aGalleryExtension('b'), aGalleryExtension('a')]);
+		instantiationService.stubPromise(IExtensionGalleryService, 'loadAllDependencies', [aGalleryExtension('b'), aGalleryExtension('a')]);
 
 		return testObject.queryGallery().then(page => {
 			const extension = page.firstPage[0];
@@ -536,7 +536,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 	test('test one level extension dependencies with missing dependencies', () => {
 		testObject = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', {}, { dependencies: ['pub.b', 'pub.a'] })));
-		instantiationService.stubPromise(IExtensionGalleryService, 'getAllDependencies', [aGalleryExtension('a')]);
+		instantiationService.stubPromise(IExtensionGalleryService, 'loadAllDependencies', [aGalleryExtension('a')]);
 
 		return testObject.queryGallery().then(page => {
 			const extension = page.firstPage[0];
@@ -570,7 +570,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 		testObject = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', {}, { dependencies: ['pub.inbuilt', 'pub.a'] })));
-		instantiationService.stubPromise(IExtensionGalleryService, 'getAllDependencies', [aGalleryExtension('a')]);
+		instantiationService.stubPromise(IExtensionGalleryService, 'loadAllDependencies', [aGalleryExtension('a')]);
 
 		return testObject.queryGallery().then(page => {
 			const extension = page.firstPage[0];
@@ -605,7 +605,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 		testObject = instantiationService.createInstance(ExtensionsWorkbenchService);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', {}, { dependencies: ['pub.b', 'pub.c'] })));
-		instantiationService.stubPromise(IExtensionGalleryService, 'getAllDependencies', [
+		instantiationService.stubPromise(IExtensionGalleryService, 'loadAllDependencies', [
 			aGalleryExtension('b', {}, { dependencies: ['pub.d', 'pub.e'] }),
 			aGalleryExtension('d', {}, { dependencies: ['pub.f', 'pub.c'] }),
 			aGalleryExtension('e')]);
