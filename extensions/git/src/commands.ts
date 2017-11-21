@@ -979,6 +979,7 @@ export class CommandCenter {
 			}
 
 			return await window.showInputBox({
+				value: opts && opts.defaultMsg,
 				placeHolder: localize('commit message', "Commit message"),
 				prompt: localize('provide commit message', "Please provide a commit message"),
 				ignoreFocusOut: true
@@ -1022,7 +1023,15 @@ export class CommandCenter {
 
 	@command('git.commitStagedAmend', { repository: true })
 	async commitStagedAmend(repository: Repository): Promise<void> {
-		await this.commitWithAnyInput(repository, { all: false, amend: true });
+		let msg;
+		if (repository.HEAD) {
+			if (repository.HEAD.commit) {
+				let id = repository.HEAD.commit;
+				let commit = await repository.getCommit(id);
+				msg = commit.message;
+			}
+		}
+		await this.commitWithAnyInput(repository, { all: false, amend: true, defaultMsg: msg });
 	}
 
 	@command('git.commitAll', { repository: true })
