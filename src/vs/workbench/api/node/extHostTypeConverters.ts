@@ -17,6 +17,8 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 import * as htmlContent from 'vs/base/common/htmlContent';
+import { IRelativePattern, isRelativePattern } from 'vs/base/common/glob';
+import { LanguageSelector, LanguageFilter } from 'vs/editor/common/modes/languageSelector';
 
 export interface PositionLike {
 	line: number;
@@ -583,4 +585,36 @@ export function toTextEditorOptions(options?: vscode.TextDocumentShowOptions): I
 	}
 
 	return undefined;
+}
+
+export function toGlobPattern(pattern: vscode.GlobPattern): string | IRelativePattern {
+	if (typeof pattern === 'string') {
+		return pattern;
+	}
+
+	if (!isRelativePattern(pattern)) {
+		return undefined;
+	}
+
+	return new types.RelativePattern(pattern.base, pattern.pattern);
+}
+
+export function toLanguageSelector(selector: vscode.DocumentSelector): LanguageSelector {
+	if (Array.isArray(selector)) {
+		return selector.map(sel => doToLanguageSelector(sel));
+	}
+
+	return doToLanguageSelector(selector);
+}
+
+function doToLanguageSelector(selector: string | vscode.DocumentFilter): string | LanguageFilter {
+	if (typeof selector === 'string') {
+		return selector;
+	}
+
+	return {
+		language: selector.language,
+		scheme: selector.scheme,
+		pattern: toGlobPattern(selector.pattern)
+	};
 }

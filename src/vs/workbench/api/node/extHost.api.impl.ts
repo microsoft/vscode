@@ -55,6 +55,7 @@ import { ExtHostDialogs } from 'vs/workbench/api/node/extHostDialogs';
 import { ExtHostFileSystem } from 'vs/workbench/api/node/extHostFileSystem';
 import { FileChangeType, FileType } from 'vs/platform/files/common/files';
 import { ExtHostDecorations } from 'vs/workbench/api/node/extHostDecorations';
+import { toGlobPattern, toLanguageSelector } from 'vs/workbench/api/node/extHostTypeConverters';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription): typeof vscode;
@@ -216,7 +217,7 @@ export function createApiFactory(
 				return extHostLanguages.getLanguages();
 			},
 			match(selector: vscode.DocumentSelector, document: vscode.TextDocument): number {
-				return score(selector, <any>document.uri, document.languageId);
+				return score(toLanguageSelector(selector), <any>document.uri, document.languageId);
 			},
 			registerCodeActionsProvider(selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider): vscode.Disposable {
 				return languageFeatures.registerCodeActionProvider(selector, provider);
@@ -408,7 +409,7 @@ export function createApiFactory(
 				return extHostWorkspace.getRelativePath(pathOrUri, includeWorkspace);
 			},
 			findFiles: (include, exclude, maxResults?, token?) => {
-				return extHostWorkspace.findFiles(include, exclude, maxResults, token);
+				return extHostWorkspace.findFiles(toGlobPattern(include), toGlobPattern(exclude), maxResults, token);
 			},
 			saveAll: (includeUntitled?) => {
 				return extHostWorkspace.saveAll(includeUntitled);
@@ -417,7 +418,7 @@ export function createApiFactory(
 				return extHostEditors.applyWorkspaceEdit(edit);
 			},
 			createFileSystemWatcher: (pattern, ignoreCreate, ignoreChange, ignoreDelete): vscode.FileSystemWatcher => {
-				return extHostFileSystemEvent.createFileSystemWatcher(pattern, ignoreCreate, ignoreChange, ignoreDelete);
+				return extHostFileSystemEvent.createFileSystemWatcher(toGlobPattern(pattern), ignoreCreate, ignoreChange, ignoreDelete);
 			},
 			get textDocuments() {
 				return extHostDocuments.getAllDocumentData().map(data => data.document);
