@@ -338,6 +338,10 @@ class MouseController<T> implements IDisposable {
 			.filter(e => this.list.getFocus().length > 0)
 			.filter(e => e.keyCode === KeyCode.ContextMenu || (e.shiftKey && e.keyCode === KeyCode.F10))
 			.map(e => {
+				e.stopPropagation();
+				e.preventDefault();
+			})
+			.map(e => {
 				const index = this.list.getFocus()[0];
 				const element = this.view.element(index);
 				const anchor = this.view.domElement(index);
