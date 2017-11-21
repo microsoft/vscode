@@ -569,6 +569,10 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: LineP
 		}
 	}
 
+	if (lineDecorationIndex < lineDecorationsLen && lineDecorations[lineDecorationIndex].startOffset === tokens[tokens.length - 1].endIndex) {
+		result[resultLen++] = new LinePart(lastResultEndIndex, lineDecorations[lineDecorationIndex].className);
+	}
+
 	return result;
 }
 

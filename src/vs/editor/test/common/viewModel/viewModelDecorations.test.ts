@@ -109,7 +109,7 @@ suite('ViewModelDecorations', () => {
 					type: InlineDecorationType.Regular
 				},
 				{
-					range: new Range(2, 0, 2, 1),
+					range: new Range(2, 1, 2, 1),
 					inlineClassName: 'a-dec2',
 					type: InlineDecorationType.After
 				},
@@ -119,7 +119,7 @@ suite('ViewModelDecorations', () => {
 					type: InlineDecorationType.Regular
 				},
 				{
-					range: new Range(2, 1, 2, 2),
+					range: new Range(2, 2, 2, 2),
 					inlineClassName: 'a-dec3',
 					type: InlineDecorationType.After
 				},
@@ -139,12 +139,12 @@ suite('ViewModelDecorations', () => {
 					type: InlineDecorationType.Regular
 				},
 				{
-					range: new Range(2, 1, 2, 2),
+					range: new Range(2, 1, 2, 1),
 					inlineClassName: 'b-dec6',
 					type: InlineDecorationType.Before
 				},
 				{
-					range: new Range(2, 0, 2, 1),
+					range: new Range(2, 1, 2, 1),
 					inlineClassName: 'a-dec6',
 					type: InlineDecorationType.After
 				},
@@ -154,12 +154,12 @@ suite('ViewModelDecorations', () => {
 					type: InlineDecorationType.Regular
 				},
 				{
-					range: new Range(2, 1, 2, 2),
+					range: new Range(2, 1, 2, 1),
 					inlineClassName: 'b-dec7',
 					type: InlineDecorationType.Before
 				},
 				{
-					range: new Range(2, 2, 2, 3),
+					range: new Range(2, 3, 2, 3),
 					inlineClassName: 'a-dec7',
 					type: InlineDecorationType.After
 				},
@@ -169,7 +169,7 @@ suite('ViewModelDecorations', () => {
 					type: InlineDecorationType.Regular
 				},
 				{
-					range: new Range(2, 1, 2, 2),
+					range: new Range(2, 1, 2, 1),
 					inlineClassName: 'b-dec8',
 					type: InlineDecorationType.Before
 				},
@@ -179,7 +179,7 @@ suite('ViewModelDecorations', () => {
 					type: InlineDecorationType.Regular
 				},
 				{
-					range: new Range(2, 1, 2, 2),
+					range: new Range(2, 1, 2, 1),
 					inlineClassName: 'b-dec9',
 					type: InlineDecorationType.Before
 				},
@@ -189,12 +189,12 @@ suite('ViewModelDecorations', () => {
 					type: InlineDecorationType.Regular
 				},
 				{
-					range: new Range(2, 3, 2, 4),
+					range: new Range(2, 3, 2, 3),
 					inlineClassName: 'b-dec10',
 					type: InlineDecorationType.Before
 				},
 				{
-					range: new Range(2, 4, 2, 5),
+					range: new Range(2, 5, 2, 5),
 					inlineClassName: 'a-dec10',
 					type: InlineDecorationType.After
 				},
@@ -204,7 +204,7 @@ suite('ViewModelDecorations', () => {
 					type: InlineDecorationType.Regular
 				},
 				{
-					range: new Range(2, 3, 2, 4),
+					range: new Range(2, 3, 2, 3),
 					inlineClassName: 'b-dec11',
 					type: InlineDecorationType.Before
 				},
@@ -214,7 +214,7 @@ suite('ViewModelDecorations', () => {
 					type: InlineDecorationType.Regular
 				},
 				{
-					range: new Range(2, 3, 2, 4),
+					range: new Range(2, 3, 2, 3),
 					inlineClassName: 'b-dec12',
 					type: InlineDecorationType.Before
 				},
@@ -326,12 +326,12 @@ suite('ViewModelDecorations', () => {
 			).inlineDecorations;
 			assert.deepEqual(inlineDecorations, [
 				{
-					range: new Range(1, 1, 1, 2),
+					range: new Range(1, 1, 1, 1),
 					inlineClassName: 'before1',
 					type: InlineDecorationType.Before
 				},
 				{
-					range: new Range(1, 0, 1, 1),
+					range: new Range(1, 1, 1, 1),
 					inlineClassName: 'after1',
 					type: InlineDecorationType.After
 				}
