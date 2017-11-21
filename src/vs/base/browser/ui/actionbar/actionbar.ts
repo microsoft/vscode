@@ -14,7 +14,7 @@ import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IAction, IActionRunner, Action, IActionChangeEvent, ActionRunner, IRunEvent } from 'vs/base/common/actions';
 import DOM = require('vs/base/browser/dom');
 import types = require('vs/base/common/types');
-import { EventType, SimpleGesture } from 'vs/base/browser/touch';
+import { EventType, Gesture } from 'vs/base/browser/touch';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -105,7 +105,7 @@ export class BaseActionItem implements IActionItem {
 
 	public render(container: HTMLElement): void {
 		this.builder = $(container);
-		SimpleGesture.addTarget(container);
+		Gesture.addTarget(container);
 
 		const enableDragging = this.options && this.options.draggable;
 		if (enableDragging) {

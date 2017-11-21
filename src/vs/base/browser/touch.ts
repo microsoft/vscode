@@ -7,6 +7,7 @@
 import arrays = require('vs/base/common/arrays');
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import DomUtils = require('vs/base/browser/dom');
+import { memoize } from 'vs/base/common/decorators';
 
 export namespace EventType {
 	export const Tap = '-monaco-gesturetap';
@@ -63,54 +64,50 @@ interface TouchEvent extends Event {
 	changedTouches: TouchList;
 }
 
-export const IS_TOUCH_DEVICE = 'ontouchstart' in window || navigator.maxTouchPoints > 0 || window.navigator.msMaxTouchPoints > 0;
-const HOLD_DELAY = 700;
-
-function newGestureEvent(type: string): GestureEvent {
-	let event = <GestureEvent>(<any>document.createEvent('CustomEvent'));
-	event.initEvent(type, false, true);
-	return event;
-}
 
 export class Gesture implements IDisposable {
 
 	private static readonly SCROLL_FRICTION = -0.005;
+	private static INSTANCE: Gesture;
+	private static HOLD_DELAY = 700;
 
-	private targetElement: HTMLElement;
-	private callOnTarget: IDisposable[];
+	private targets: HTMLElement[];
+	private toDispose: IDisposable[];
 	private handle: IDisposable;
 
 	private activeTouches: { [id: number]: TouchData; };
 
-	constructor(target: HTMLElement) {
-		this.callOnTarget = [];
+	private constructor() {
+		this.toDispose = [];
 		this.activeTouches = {};
-		this.target = target;
 		this.handle = null;
+		this.toDispose.push(DomUtils.addDisposableListener(document, 'touchstart', (e) => this.onTouchStart(e)));
+		this.toDispose.push(DomUtils.addDisposableListener(document, 'touchend', (e) => this.onTouchEnd(e)));
+		this.toDispose.push(DomUtils.addDisposableListener(document, 'touchmove', (e) => this.onTouchMove(e)));
+	}
+
+	public static addTarget(element: HTMLElement): void {
+		if (!Gesture.isTouchDevice()) {
+			return;
+		}
+		if (!Gesture.INSTANCE) {
+			Gesture.INSTANCE = new Gesture();
+		}
+
+		Gesture.INSTANCE.targets.push(element);
+	}
+
+	@memoize
+	private static isTouchDevice(): boolean {
+		return 'ontouchstart' in window || navigator.maxTouchPoints > 0 || window.navigator.msMaxTouchPoints > 0;
 	}
 
 	public dispose(): void {
-		this.target = null;
 		if (this.handle) {
 			this.handle.dispose();
+			dispose(this.toDispose);
 			this.handle = null;
 		}
-	}
-
-	public set target(element: HTMLElement) {
-		this.callOnTarget = dispose(this.callOnTarget);
-
-		this.activeTouches = {};
-
-		this.targetElement = element;
-
-		if (!this.targetElement || !IS_TOUCH_DEVICE) {
-			return;
-		}
-
-		this.callOnTarget.push(DomUtils.addDisposableListener(this.targetElement, 'touchstart', (e) => this.onTouchStart(e)));
-		this.callOnTarget.push(DomUtils.addDisposableListener(this.targetElement, 'touchend', (e) => this.onTouchEnd(e)));
-		this.callOnTarget.push(DomUtils.addDisposableListener(this.targetElement, 'touchmove', (e) => this.onTouchMove(e)));
 	}
 
 	private onTouchStart(e: TouchEvent): void {
@@ -136,10 +133,10 @@ export class Gesture implements IDisposable {
 				rollingPageY: [touch.pageY]
 			};
 
-			let evt = newGestureEvent(EventType.Start);
+			let evt = this.newGestureEvent(EventType.Start);
 			evt.pageX = touch.pageX;
 			evt.pageY = touch.pageY;
-			this.targetElement.dispatchEvent(evt);
+			this.dispatchEvent(evt);
 		}
 	}
 
@@ -162,25 +159,25 @@ export class Gesture implements IDisposable {
 			let data = this.activeTouches[touch.identifier],
 				holdTime = Date.now() - data.initialTimeStamp;
 
-			if (holdTime < HOLD_DELAY
+			if (holdTime < Gesture.HOLD_DELAY
 				&& Math.abs(data.initialPageX - arrays.tail(data.rollingPageX)) < 30
 				&& Math.abs(data.initialPageY - arrays.tail(data.rollingPageY)) < 30) {
 
-				let evt = newGestureEvent(EventType.Tap);
+				let evt = this.newGestureEvent(EventType.Tap);
 				evt.initialTarget = data.initialTarget;
 				evt.pageX = arrays.tail(data.rollingPageX);
 				evt.pageY = arrays.tail(data.rollingPageY);
-				this.dispatch(evt);
+				this.dispatchEvent(evt);
 
-			} else if (holdTime >= HOLD_DELAY
+			} else if (holdTime >= Gesture.HOLD_DELAY
 				&& Math.abs(data.initialPageX - arrays.tail(data.rollingPageX)) < 30
 				&& Math.abs(data.initialPageY - arrays.tail(data.rollingPageY)) < 30) {
 
-				let evt = newGestureEvent(EventType.Contextmenu);
+				let evt = this.newGestureEvent(EventType.Contextmenu);
 				evt.initialTarget = data.initialTarget;
 				evt.pageX = arrays.tail(data.rollingPageX);
 				evt.pageY = arrays.tail(data.rollingPageY);
-				this.dispatch(evt);
+				this.dispatchEvent(evt);
 
 			} else if (activeTouchCount === 1) {
 				let finalX = arrays.tail(data.rollingPageX);
@@ -205,8 +202,18 @@ export class Gesture implements IDisposable {
 		}
 	}
 
-	protected dispatch(event: GestureEvent): void {
-		this.targetElement.dispatchEvent(event);
+	private newGestureEvent(type: string): GestureEvent {
+		let event = <GestureEvent>(<any>document.createEvent('CustomEvent'));
+		event.initEvent(type, false, true);
+		return event;
+	}
+
+	private dispatchEvent(event: GestureEvent): void {
+		this.targets.forEach(target => {
+			if (event.initialTarget instanceof Node && target.contains(event.initialTarget)) {
+				target.dispatchEvent(event);
+			}
+		});
 	}
 
 	private inertia(t1: number, vX: number, dirX: number, x: number, vY: number, dirY: number, y: number): void {
@@ -232,10 +239,10 @@ export class Gesture implements IDisposable {
 			}
 
 			// dispatch translation event
-			let evt = newGestureEvent(EventType.Change);
+			let evt = this.newGestureEvent(EventType.Change);
 			evt.translationX = delta_pos_x;
 			evt.translationY = delta_pos_y;
-			this.targetElement.dispatchEvent(evt);
+			this.dispatchEvent(evt);
 
 			if (!stopped) {
 				this.inertia(now, vX, dirX, x + delta_pos_x, vY, dirY, y + delta_pos_y);
@@ -259,12 +266,12 @@ export class Gesture implements IDisposable {
 
 			let data = this.activeTouches[touch.identifier];
 
-			let evt = newGestureEvent(EventType.Change);
+			let evt = this.newGestureEvent(EventType.Change);
 			evt.translationX = touch.pageX - arrays.tail(data.rollingPageX);
 			evt.translationY = touch.pageY - arrays.tail(data.rollingPageY);
 			evt.pageX = touch.pageX;
 			evt.pageY = touch.pageY;
-			this.targetElement.dispatchEvent(evt);
+			this.dispatchEvent(evt);
 
 			// only keep a few data points, to average the final speed
 			if (data.rollingPageX.length > 3) {
@@ -277,84 +284,5 @@ export class Gesture implements IDisposable {
 			data.rollingPageY.push(touch.pageY);
 			data.rollingTimestamps.push(timestamp);
 		}
-	}
-}
-
-export class SimpleGesture implements IDisposable {
-
-	private toDispose: IDisposable[];
-	private static INSTANCE: SimpleGesture;
-	private targets: HTMLElement[];
-
-	private activeTouches: { [id: number]: TouchData; };
-
-	private constructor() {
-		this.toDispose = [];
-		this.activeTouches = {};
-		this.targets = [];
-		this.toDispose.push(DomUtils.addDisposableListener(document, 'touchend', (e) => this.onTouchEnd(e)));
-	}
-
-	public static addTarget(element: HTMLElement): void {
-		if (!SimpleGesture.INSTANCE) {
-			SimpleGesture.INSTANCE = new SimpleGesture();
-		}
-
-		if (IS_TOUCH_DEVICE) {
-			SimpleGesture.INSTANCE.targets.push(element);
-		}
-	}
-
-	public dispose(): void {
-		dispose(this.toDispose);
-	}
-
-	private onTouchEnd(e: TouchEvent): void {
-		e.preventDefault();
-		e.stopPropagation();
-
-		for (let i = 0, len = e.changedTouches.length; i < len; i++) {
-
-			let touch = e.changedTouches.item(i);
-
-			if (!this.activeTouches.hasOwnProperty(String(touch.identifier))) {
-				console.warn('move of an UNKNOWN touch', touch);
-				continue;
-			}
-
-			let data = this.activeTouches[touch.identifier],
-				holdTime = Date.now() - data.initialTimeStamp;
-
-			if (holdTime < HOLD_DELAY
-				&& Math.abs(data.initialPageX - arrays.tail(data.rollingPageX)) < 30
-				&& Math.abs(data.initialPageY - arrays.tail(data.rollingPageY)) < 30) {
-
-				let evt = newGestureEvent(EventType.Tap);
-				evt.initialTarget = data.initialTarget;
-				evt.pageX = arrays.tail(data.rollingPageX);
-				evt.pageY = arrays.tail(data.rollingPageY);
-				this.dispatch(evt);
-			} else if (holdTime >= HOLD_DELAY
-				&& Math.abs(data.initialPageX - arrays.tail(data.rollingPageX)) < 30
-				&& Math.abs(data.initialPageY - arrays.tail(data.rollingPageY)) < 30) {
-
-				let evt = newGestureEvent(EventType.Contextmenu);
-				evt.initialTarget = data.initialTarget;
-				evt.pageX = arrays.tail(data.rollingPageX);
-				evt.pageY = arrays.tail(data.rollingPageY);
-				this.dispatch(evt);
-			}
-
-			// forget about this touch
-			delete this.activeTouches[touch.identifier];
-		}
-	}
-
-	protected dispatch(event: GestureEvent): void {
-		this.targets.forEach(target => {
-			if (event.initialTarget instanceof Node && target.contains(event.initialTarget)) {
-				target.dispatchEvent(event);
-			}
-		});
 	}
 }

@@ -378,7 +378,6 @@ export class TreeView extends HeightMap {
 	private styleElement: HTMLStyleElement;
 	private rowsContainer: HTMLElement;
 	private scrollableElement: ScrollableElement;
-	private wrapperGesture: Touch.Gesture;
 	private msGesture: MSGesture;
 	private lastPointerType: string;
 	private lastClickTimeStamp: number = 0;
@@ -475,7 +474,7 @@ export class TreeView extends HeightMap {
 			this.wrapper.style.msTouchAction = 'none';
 			this.wrapper.style.msContentZooming = 'none';
 		} else {
-			this.wrapperGesture = new Touch.Gesture(this.wrapper);
+			Touch.Gesture.addTarget(this.wrapper);
 		}
 
 		this.rowsContainer = document.createElement('div');
@@ -1641,11 +1640,6 @@ export class TreeView extends HeightMap {
 			this.domNode.parentNode.removeChild(this.domNode);
 		}
 		this.domNode = null;
-
-		if (this.wrapperGesture) {
-			this.wrapperGesture.dispose();
-			this.wrapperGesture = null;
-		}
 
 		if (this.context.cache) {
 			this.context.cache.dispose();
