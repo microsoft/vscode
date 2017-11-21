@@ -23,9 +23,9 @@ export class WebviewSelectAllAction extends Action {
 	}
 
 	public run(): TPromise<boolean> {
-		const activeEditor = <any>this.editorService.getActiveEditor();
+		const activeEditor : any = this.editorService && this.editorService.getActiveEditor();
 
-		if (activeEditor.isWebviewEditor) {
+		if (activeEditor && activeEditor.isWebviewEditor) {
 			activeEditor.webview.selectAll();
 		}
 
