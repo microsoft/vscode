@@ -77,6 +77,7 @@ export function getJavascriptMode(documentRegions: LanguageModelCache<HTMLDocume
 				return {
 					range: convertRange(currentTextDocument, diag),
 					severity: DiagnosticSeverity.Error,
+					source: 'js',
 					message: ts.flattenDiagnosticMessageText(diag.messageText, '\n')
 				};
 			});
