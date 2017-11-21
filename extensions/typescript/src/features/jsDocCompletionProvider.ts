@@ -82,8 +82,11 @@ export default class JsDocCompletionProvider implements CompletionItemProvider {
 		const args: Proto.FileRequestArgs = {
 			file
 		};
-		const response = await this.client.execute('navtree', args, token);
-		if (!response.body) {
+		const response = await Promise.race([
+			this.client.execute('navtree', args, token),
+			new Promise<Proto.NavTreeResponse>((resolve) => setTimeout(resolve, 250))
+		]);
+		if (!response || !response.body) {
 			return [];
 		}
 
