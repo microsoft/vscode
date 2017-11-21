@@ -58,8 +58,8 @@ if [ -z "$VSCODE_QUALITY" ]; then
 elif [ "$IS_FROZEN" = "true" ]; then
 	echo "$VSCODE_QUALITY is frozen, skipping repo package publish"
 else
-	if [ "$BUILD_SOURCEBRANCH" = "master" ] || [ "$BUILD_SOURCEBRANCH" = "refs/heads/master" ]; then
-		if [[ $BUILD_QUEUEDBY = *"Project Collection Service Accounts"* || $BUILD_QUEUEDBY = *"Microsoft.VisualStudio.Services.TFS"* ]]; then
+	# if [ "$BUILD_SOURCEBRANCH" = "master" ] || [ "$BUILD_SOURCEBRANCH" = "refs/heads/master" ]; then
+	# 	if [[ $BUILD_QUEUEDBY = *"Project Collection Service Accounts"* || $BUILD_QUEUEDBY = *"Microsoft.VisualStudio.Services.TFS"* ]]; then
 			# Get necessary information
 			pushd $REPO && COMMIT_HASH=$(git rev-parse HEAD) && popd
 			PACKAGE_NAME="$(ls $REPO/.build/linux/deb/$DEB_ARCH/deb/ | sed -e 's/_.*//g')"
@@ -89,6 +89,6 @@ else
 			# ./repoapi_client.sh -config yum-config.json -addpkg yum-addpkg.json
 			popd
 			echo "To check repo publish status run ./repoapi_client.sh -config config.json -check <id>"
-		fi
-	fi
+	# 	fi
+	# fi
 fi
