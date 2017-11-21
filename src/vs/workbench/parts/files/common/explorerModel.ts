@@ -322,7 +322,7 @@ export class NewStatPlaceholder extends FileStat {
 	private directoryPlaceholder: boolean;
 
 	constructor(isDirectory: boolean, root: FileStat) {
-		super(URI.file(''), root);
+		super(URI.file(''), root, false, false, '');
 
 		this.id = NewStatPlaceholder.ID++;
 		this.isDirectoryResolved = isDirectory;
