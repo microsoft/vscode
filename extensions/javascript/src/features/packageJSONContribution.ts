@@ -14,6 +14,9 @@ import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 const LIMIT = 40;
+const SCOPED_LIMIT = 250;
+
+const USER_AGENT = 'Visual Studio Code';
 
 export class PackageJSONContribution implements IJSONContribution {
 
@@ -23,6 +26,8 @@ export class PackageJSONContribution implements IJSONContribution {
 		'grunt', 'connect', 'yosay', 'underscore', 'string', 'xml2js', 'ejs', 'mongoose', 'marked', 'extend', 'mocha', 'superagent', 'js-yaml', 'xtend',
 		'shelljs', 'gulp', 'yargs', 'browserify', 'minimatch', 'react', 'less', 'prompt', 'inquirer', 'ws', 'event-stream', 'inherits', 'mysql', 'esprima',
 		'jsdom', 'stylus', 'when', 'readable-stream', 'aws-sdk', 'concat-stream', 'chai', 'Thenable', 'wrench'];
+
+	private knownScopes = ['@types', '@angular'];
 
 	public getDocumentSelector(): DocumentSelector {
 		return [{ language: 'json', pattern: '**/package.json' }];
@@ -58,10 +63,15 @@ export class PackageJSONContribution implements IJSONContribution {
 		if ((location.matches(['dependencies']) || location.matches(['devDependencies']) || location.matches(['optionalDependencies']) || location.matches(['peerDependencies']))) {
 			let queryUrl: string;
 			if (currentWord.length > 0) {
+				if (currentWord[0] === '@') {
+					return this.collectScopedPackages(currentWord, addValue, isLast, collector);
+				}
+
 				queryUrl = 'https://skimdb.npmjs.com/registry/_design/app/_view/browseAll?group_level=1&limit=' + LIMIT + '&start_key=%5B%22' + encodeURIComponent(currentWord) + '%22%5D&end_key=%5B%22' + encodeURIComponent(currentWord + 'z') + '%22,%7B%7D%5D';
 
 				return this.xhr({
-					url: queryUrl
+					url: queryUrl,
+					agent: USER_AGENT
 				}).then((success) => {
 					if (success.status === 200) {
 						try {
@@ -119,11 +129,79 @@ export class PackageJSONContribution implements IJSONContribution {
 					proposal.documentation = '';
 					collector.add(proposal);
 				});
+				this.collectScopedPackages(currentWord, addValue, isLast, collector);
 				collector.setAsIncomplete();
 				return Promise.resolve(null);
 			}
 		}
 		return null;
+	}
+
+	private collectScopedPackages(currentWord: string, addValue: boolean, isLast: boolean, collector: ISuggestionsCollector): Thenable<any> {
+		let segments = currentWord.split('/');
+		if (segments.length === 1) {
+			for (let scope of this.knownScopes) {
+				const proposal = new CompletionItem(scope);
+				proposal.kind = CompletionItemKind.Property;
+				proposal.insertText = new SnippetString().appendText(`"${scope}/`).appendTabstop().appendText('"');
+				proposal.filterText = JSON.stringify(scope);
+				proposal.documentation = '';
+				proposal.command = {
+					title: '',
+					command: 'editor.action.triggerSuggest'
+				};
+				collector.add(proposal);
+			}
+		} else if (segments.length === 2 && segments[0].length > 1) {
+			let scope = segments[0].substr(1);
+			let queryUrl = `https://registry.npmjs.org/-/v1/search?text=scope:${scope}%20${segments[1]}&size=${SCOPED_LIMIT}&popularity=1.0`;
+			return this.xhr({
+				url: queryUrl,
+				agent: USER_AGENT
+			}).then((success) => {
+				if (success.status === 200) {
+					try {
+						const obj = JSON.parse(success.responseText);
+						if (obj && Array.isArray(obj.objects)) {
+							const objects = <{ package: { name: string; version: string, description: string; } }[]>obj.objects;
+							for (let object of objects) {
+								if (object.package && object.package.name) {
+									const name = object.package.name;
+									const insertText = new SnippetString().appendText(JSON.stringify(name));
+									if (addValue) {
+										insertText.appendText(': "');
+										if (object.package.version) {
+											insertText.appendVariable('version', object.package.version);
+										} else {
+											insertText.appendTabstop();
+										}
+										insertText.appendText('"');
+										if (!isLast) {
+											insertText.appendText(',');
+										}
+									}
+									const proposal = new CompletionItem(name);
+									proposal.kind = CompletionItemKind.Property;
+									proposal.insertText = insertText;
+									proposal.filterText = JSON.stringify(name);
+									proposal.documentation = object.package.description || '';
+									collector.add(proposal);
+								}
+							}
+							if (objects.length === SCOPED_LIMIT) {
+								collector.setAsIncomplete();
+							}
+						}
+					} catch (e) {
+						// ignore
+					}
+				} else {
+					collector.error(localize('json.npm.error.repoaccess', 'Request to the NPM repository failed: {0}', success.responseText));
+				}
+				return null;
+			});
+		}
+		return Promise.resolve(null);
 	}
 
 	public collectValueSuggestions(
