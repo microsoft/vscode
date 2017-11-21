@@ -6099,6 +6099,26 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents the debug console.
+	 */
+	export interface DebugConsole {
+		/**
+		 * Append the given value to the debug console.
+		 *
+		 * @param value A string, falsy values will not be printed.
+		 */
+		append(value: string): void;
+
+		/**
+		 * Append the given value and a line feed character
+		 * to the debug console.
+		 *
+		 * @param value A string, falsy values will be printed.
+		 */
+		appendLine(value: string): void;
+	}
+
+	/**
 	 * Namespace for dealing with debug sessions.
 	 */
 	export namespace debug {
@@ -6121,6 +6141,11 @@ declare module 'vscode' {
 		 * If no debug session is active, the value is `undefined`.
 		 */
 		export let activeDebugSession: DebugSession | undefined;
+
+		/**
+		 * The currently active [debug console](#DebugConsole).
+		 */
+		export let activeDebugConsole: DebugConsole;
 
 		/**
 		 * An [event](#Event) which fires when the [active debug session](#debug.activeDebugSession)

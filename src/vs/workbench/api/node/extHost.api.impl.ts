@@ -495,8 +495,8 @@ export function createApiFactory(
 			get activeDebugSession() {
 				return extHostDebugService.activeDebugSession;
 			},
-			get console() {
-				return extHostDebugService.debugConsole;
+			get activeDebugConsole() {
+				return extHostDebugService.activeDebugConsole;
 			},
 			startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration) {
 				return extHostDebugService.startDebugging(folder, nameOrConfig);
