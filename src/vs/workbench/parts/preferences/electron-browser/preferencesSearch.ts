@@ -243,16 +243,25 @@ function prepareUrl(query: string, endpoint: IEndpointDetails, buildNumber: numb
 	query = escapeSpecialChars(query);
 	const boost = 10;
 	const userQuery = `(${query})^${boost}`;
+	const encodedQuery = encodeURIComponent(userQuery + ' || ' + query);
 
 	// Appending Fuzzy after each word.
 	query = query.replace(/\ +/g, '~ ') + '~';
 
-	let url = `${endpoint.urlBase}?search=${encodeURIComponent(userQuery + ' || ' + query)}`;
+	let url = `${endpoint.urlBase}?`;
 	if (endpoint.key) {
+		url += `search=${encodedQuery}`;
 		url += `&${API_VERSION}&${QUERY_TYPE}&${SCORING_PROFILE}`;
-	}
-	if (buildNumber) {
-		url += `&$filter startbuildno le ${buildNumber} and endbuildno ge ${buildNumber}`;
+
+		if (buildNumber) {
+			url += `&$filter startbuildno le ${buildNumber} and endbuildno ge ${buildNumber}`;
+		}
+	} else {
+		url += `query=${encodedQuery}`;
+
+		if (buildNumber) {
+			url += `&build=${buildNumber}`;
+		}
 	}
 
 	return url;
