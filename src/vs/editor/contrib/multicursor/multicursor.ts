@@ -468,7 +468,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 		// - and the search widget is visible
 		// - and the search string is non-empty
 		// - and we're searching for a regex
-		if (!this._editor.isFocused() && findState.isRevealed && findState.searchString.length > 0 && findState.isRegex) {
+		if (findState.isRevealed && findState.searchString.length > 0 && findState.isRegex) {
 
 			matches = this._editor.getModel().findMatches(findState.searchString, true, findState.isRegex, findState.matchCase, findState.wholeWord ? this._editor.getConfiguration().wordSeparators : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
 
