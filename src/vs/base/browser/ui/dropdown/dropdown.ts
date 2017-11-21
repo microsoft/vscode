@@ -8,7 +8,7 @@
 import 'vs/css!./dropdown';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Gesture, EventType as GestureEventType } from 'vs/base/browser/touch';
+import { SimpleGesture, EventType as GestureEventType } from 'vs/base/browser/touch';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -67,7 +67,7 @@ export class BaseDropdown extends ActionRunner {
 			this._toDispose.push(cleanupFn);
 		}
 
-		this._toDispose.push(new Gesture(this.$label.getHTMLElement()));
+		SimpleGesture.addTarget(this.$label.getHTMLElement());
 	}
 
 	public get toDispose(): IDisposable[] {
