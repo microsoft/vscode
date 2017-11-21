@@ -612,13 +612,6 @@ export class RunOnceScheduler {
 	}
 
 	/**
-	 * Replace runner. If there is a runner already scheduled, the new runner will be called.
-	 */
-	setRunner(runner: () => void): void {
-		this.runner = runner;
-	}
-
-	/**
 	 * Cancel previous runner (if any) & schedule a new runner.
 	 */
 	schedule(delay = this.timeout): void {
