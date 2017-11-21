@@ -13,8 +13,8 @@ import * as path from 'path';
 import URI from 'vs/base/common/uri';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import { IMessage, IExtensionDescription, IExtensionsStatus, IExtensionService, ExtensionPointContribution, ActivationTimes } from 'vs/platform/extensions/common/extensions';
-import { IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions, getGloballyDisabledExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { IExtensionEnablementService, IExtensionIdentifier, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { areSameExtensions, BetterMergeId, BetterMergeDisabledNowKey } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionsRegistry, ExtensionPoint, IExtensionPointUser, ExtensionMessageCollector, IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ExtensionScanner, ILog } from 'vs/workbench/services/extensions/electron-browser/extensionPoints';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -309,52 +309,67 @@ export class ExtensionService implements IExtensionService {
 			this._logOrShowMessage(severity, this._isDev ? messageWithSource2(source, message) : message);
 		});
 
-		ExtensionService._scanInstalledExtensions(this._environmentService, log).then((installedExtensions) => {
+		ExtensionService._scanInstalledExtensions(this._environmentService, log)
+			.then((installedExtensions) => {
 
-			// Migrate enablement service to use identifiers
-			this._extensionEnablementService.migrateToIdentifiers(installedExtensions);
+				// Migrate enablement service to use identifiers
+				this._extensionEnablementService.migrateToIdentifiers(installedExtensions);
 
-			const disabledExtensions = [
-				...getGloballyDisabledExtensions(this._extensionEnablementService, this._storageService, installedExtensions),
-				...this._extensionEnablementService.getWorkspaceDisabledExtensions()
-			];
+				return this._getDisabledExtensions()
+					.then(disabledExtensions => {
+						/* __GDPR__
+							"extensionsScanned" : {
+								"totalCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+								"disabledCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+							}
+						*/
+						this._telemetryService.publicLog('extensionsScanned', {
+							totalCount: installedExtensions.length,
+							disabledCount: disabledExtensions.length
+						});
 
-			/* __GDPR__
-				"extensionsScanned" : {
-					"totalCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-					"disabledCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+						if (disabledExtensions.length === 0) {
+							return installedExtensions;
+						}
+						return installedExtensions.filter(e => disabledExtensions.every(disabled => !areSameExtensions(disabled, e)));
+					});
+
+			}).then((extensionDescriptions) => {
+				this._registry = new ExtensionDescriptionRegistry(extensionDescriptions);
+
+				let availableExtensions = this._registry.getAllExtensionDescriptions();
+				let extensionPoints = ExtensionsRegistry.getExtensionPoints();
+
+				let messageHandler = (msg: IMessage) => this._handleExtensionPointMessage(msg);
+
+				for (let i = 0, len = extensionPoints.length; i < len; i++) {
+					const clock = time(`handleExtensionPoint:${extensionPoints[i].name}`);
+					try {
+						ExtensionService._handleExtensionPoint(extensionPoints[i], availableExtensions, messageHandler);
+					} finally {
+						clock.stop();
+					}
 				}
-			*/
-			this._telemetryService.publicLog('extensionsScanned', {
-				totalCount: installedExtensions.length,
-				disabledCount: disabledExtensions.length
+
+				mark('extensionHostReady');
+				this._installedExtensionsReady.open();
+				this._onDidRegisterExtensions.fire(availableExtensions);
 			});
+	}
 
-			if (disabledExtensions.length === 0) {
-				return installedExtensions;
-			}
-			return installedExtensions.filter(e => disabledExtensions.every(disabled => !areSameExtensions(disabled, e)));
-
-		}).then((extensionDescriptions) => {
-			this._registry = new ExtensionDescriptionRegistry(extensionDescriptions);
-
-			let availableExtensions = this._registry.getAllExtensionDescriptions();
-			let extensionPoints = ExtensionsRegistry.getExtensionPoints();
-
-			let messageHandler = (msg: IMessage) => this._handleExtensionPointMessage(msg);
-
-			for (let i = 0, len = extensionPoints.length; i < len; i++) {
-				const clock = time(`handleExtensionPoint:${extensionPoints[i].name}`);
-				try {
-					ExtensionService._handleExtensionPoint(extensionPoints[i], availableExtensions, messageHandler);
-				} finally {
-					clock.stop();
+	private _getDisabledExtensions(): TPromise<IExtensionIdentifier[]> {
+		return this._extensionEnablementService.getDisabledExtensions()
+			.then(disabledExtensions => {
+				const betterMergeExtensionIdentifier: IExtensionIdentifier = { id: BetterMergeId };
+				if (disabledExtensions.some(d => d.id === betterMergeExtensionIdentifier.id)) {
+					return disabledExtensions;
 				}
-			}
-			mark('extensionHostReady');
-			this._installedExtensionsReady.open();
-			this._onDidRegisterExtensions.fire(availableExtensions);
-		});
+				return this._extensionEnablementService.setEnablement(betterMergeExtensionIdentifier, EnablementState.Disabled)
+					.then(() => {
+						this._storageService.store(BetterMergeDisabledNowKey, true);
+						return [...disabledExtensions, betterMergeExtensionIdentifier];
+					});
+			});
 	}
 
 	private _handleExtensionPointMessage(msg: IMessage) {

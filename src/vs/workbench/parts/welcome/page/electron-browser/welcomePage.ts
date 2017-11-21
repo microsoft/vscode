@@ -26,7 +26,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IMessageService, Severity, CloseAction } from 'vs/platform/message/common/message';
 import { getInstalledExtensions, IExtensionStatus, onExtensionChanged, isKeymapExtension } from 'vs/workbench/parts/extensions/electron-browser/extensionsUtils';
-import { IExtensionEnablementService, IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionEnablementService, IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { used } from 'vs/workbench/parts/welcome/page/electron-browser/vs_code_welcome_page';
 import { ILifecycleService, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -424,7 +424,7 @@ class WelcomePage {
 					return this.extensionManagementService.installFromGallery(extension)
 						.then(() => {
 							// TODO: Do this as part of the install to avoid multiple events.
-							return this.extensionEnablementService.setEnablement({ id: extensionSuggestion.id }, false);
+							return this.extensionEnablementService.setEnablement({ id: extensionSuggestion.id }, EnablementState.Disabled);
 						}).then(() => {
 							return true;
 						});
@@ -442,12 +442,12 @@ class WelcomePage {
 						});
 						TPromise.join(extensionSuggestion.isKeymap ? extensions.filter(extension => isKeymapExtension(this.tipsService, extension) && extension.globallyEnabled)
 							.map(extension => {
-								return this.extensionEnablementService.setEnablement(extension.identifier, false);
+								return this.extensionEnablementService.setEnablement(extension.identifier, EnablementState.Disabled);
 							}) : []).then(() => {
 								return foundAndInstalled.then(found => {
 									messageDelay.cancel();
 									if (found) {
-										return this.extensionEnablementService.setEnablement({ id: extensionSuggestion.id }, true)
+										return this.extensionEnablementService.setEnablement({ id: extensionSuggestion.id }, EnablementState.Enabled)
 											.then(() => {
 												/* __GDPR__FRAGMENT__
 													"WelcomePageInstalled-2" : {

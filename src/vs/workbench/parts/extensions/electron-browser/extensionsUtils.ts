@@ -12,7 +12,7 @@ import { onUnexpectedError, canceled } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionManagementService, ILocalExtension, IExtensionEnablementService, IExtensionTipsService, LocalExtensionType, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, ILocalExtension, IExtensionEnablementService, IExtensionTipsService, LocalExtensionType, IExtensionIdentifier, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -103,7 +103,7 @@ export class KeymapExtensions implements IWorkbenchContribution {
 				this.telemetryService.publicLog('disableOtherKeymaps', telemetryData);
 				if (confirmed) {
 					return TPromise.join(oldKeymaps.map(keymap => {
-						return this.extensionEnablementService.setEnablement(keymap.local.identifier, false);
+						return this.extensionEnablementService.setEnablement(keymap.local.identifier, EnablementState.Disabled);
 					}));
 				}
 				return undefined;
@@ -138,14 +138,16 @@ export function getInstalledExtensions(accessor: ServicesAccessor): TPromise<IEx
 	const extensionService = accessor.get(IExtensionManagementService);
 	const extensionEnablementService = accessor.get(IExtensionEnablementService);
 	return extensionService.getInstalled().then(extensions => {
-		const globallyDisabled = extensionEnablementService.getGloballyDisabledExtensions();
-		return extensions.map(extension => {
-			return {
-				identifier: { id: adoptToGalleryExtensionId(extension.identifier.id), uuid: extension.identifier.uuid },
-				local: extension,
-				globallyEnabled: globallyDisabled.every(disabled => !areSameExtensions(disabled, extension.identifier))
-			};
-		});
+		return extensionEnablementService.getDisabledExtensions()
+			.then(disabledExtensions => {
+				return extensions.map(extension => {
+					return {
+						identifier: { id: adoptToGalleryExtensionId(extension.identifier.id), uuid: extension.identifier.uuid },
+						local: extension,
+						globallyEnabled: disabledExtensions.every(disabled => !areSameExtensions(disabled, extension.identifier))
+					};
+				});
+			});
 	});
 }
 
