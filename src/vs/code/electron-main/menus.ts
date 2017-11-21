@@ -1232,7 +1232,7 @@ export class CodeMenu {
 
 	private reportMenuActionTelemetry(id: string): void {
 		/* __GDPR__
-			"workbencActionExecuted" : {
+			"workbenchActionExecuted" : {
 				"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
