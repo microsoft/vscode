@@ -188,7 +188,8 @@ class RemoteSearchProvider {
 				'User-Agent': 'request',
 				'Content-Type': 'application/json; charset=utf-8',
 				'api-key': endpoint.key
-			}
+			},
+			timeout: 4000
 		})
 			.then(context => {
 				if (context.res.statusCode >= 300) {
