@@ -1020,10 +1020,6 @@ export class ShowOutdatedExtensionsAction extends Action {
 				viewlet.focus();
 			});
 	}
-
-	protected isEnabled(): boolean {
-		return true;
-	}
 }
 
 export class ShowPopularExtensionsAction extends Action {
@@ -1047,10 +1043,6 @@ export class ShowPopularExtensionsAction extends Action {
 				viewlet.focus();
 			});
 	}
-
-	protected isEnabled(): boolean {
-		return true;
-	}
 }
 
 export class ShowRecommendedExtensionsAction extends Action {
@@ -1073,10 +1065,6 @@ export class ShowRecommendedExtensionsAction extends Action {
 				viewlet.search('@recommended ');
 				viewlet.focus();
 			});
-	}
-
-	protected isEnabled(): boolean {
-		return true;
 	}
 }
 
@@ -1151,10 +1139,6 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 		});
 	}
 
-	protected isEnabled(): boolean {
-		return this.enabled;
-	}
-
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
 		super.dispose();
@@ -1167,6 +1151,7 @@ export class InstallRecommendedExtensionAction extends Action {
 	static LABEL = localize('installRecommendedExtension', "Install Recommended Extension");
 
 	private extensionId: string;
+	private disposables: IDisposable[] = [];
 
 	constructor(
 		extensionId: string,
@@ -1176,6 +1161,11 @@ export class InstallRecommendedExtensionAction extends Action {
 	) {
 		super(InstallRecommendedExtensionAction.ID, InstallRecommendedExtensionAction.LABEL, null);
 		this.extensionId = extensionId;
+		this.extensionsWorkbenchService.onChange(() => this.update(), this, this.disposables);
+	}
+
+	private update(): void {
+		this.enabled = !this.extensionsWorkbenchService.local.some(x => x.id.toLowerCase() === this.extensionId.toLowerCase());
 	}
 
 	run(): TPromise<any> {
@@ -1198,11 +1188,8 @@ export class InstallRecommendedExtensionAction extends Action {
 			});
 	}
 
-	protected isEnabled(): boolean {
-		return !this.extensionsWorkbenchService.local.some(x => x.id.toLowerCase() === this.extensionId.toLowerCase());
-	}
-
 	dispose(): void {
+		this.disposables = dispose(this.disposables);
 		super.dispose();
 	}
 }
@@ -1211,7 +1198,6 @@ export class InstallRecommendedExtensionAction extends Action {
 export class ShowRecommendedKeymapExtensionsAction extends Action {
 
 	static ID = 'workbench.extensions.action.showRecommendedKeymapExtensions';
-	static LABEL = localize('showRecommendedKeymapExtensions', "Show Recommended Keymaps");
 	static SHORT_LABEL = localize('showRecommendedKeymapExtensionsShort', "Keymaps");
 
 	constructor(
@@ -1230,16 +1216,11 @@ export class ShowRecommendedKeymapExtensionsAction extends Action {
 				viewlet.focus();
 			});
 	}
-
-	protected isEnabled(): boolean {
-		return true;
-	}
 }
 
 export class ShowLanguageExtensionsAction extends Action {
 
 	static ID = 'workbench.extensions.action.showLanguageExtensions';
-	static LABEL = localize('showLanguageExtensions', "Show Language Extensions");
 	static SHORT_LABEL = localize('showLanguageExtensionsShort', "Language Extensions");
 
 	constructor(
@@ -1258,16 +1239,11 @@ export class ShowLanguageExtensionsAction extends Action {
 				viewlet.focus();
 			});
 	}
-
-	protected isEnabled(): boolean {
-		return true;
-	}
 }
 
 export class ShowAzureExtensionsAction extends Action {
 
 	static ID = 'workbench.extensions.action.showAzureExtensions';
-	static LABEL = localize('showAzureExtensions', "Show Azure Extensions");
 	static SHORT_LABEL = localize('showAzureExtensionsShort', "Azure Extensions");
 
 	constructor(
@@ -1285,10 +1261,6 @@ export class ShowAzureExtensionsAction extends Action {
 				viewlet.search('@sort:installs azure ');
 				viewlet.focus();
 			});
-	}
-
-	protected isEnabled(): boolean {
-		return true;
 	}
 }
 
@@ -1328,10 +1300,6 @@ export class ChangeSortAction extends Action {
 				viewlet.search(this.query.toString());
 				viewlet.focus();
 			});
-	}
-
-	protected isEnabled(): boolean {
-		return true;
 	}
 }
 
