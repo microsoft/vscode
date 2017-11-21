@@ -1076,6 +1076,25 @@ export class OpenPreviousEditorInGroup extends BaseNavigateEditorAction {
 	}
 }
 
+export class OpenLastEditorInGroup extends BaseNavigateEditorAction {
+
+	public static readonly ID = 'workbench.action.lastEditorInGroup';
+	public static readonly LABEL = nls.localize('lastEditorInGroup', "Open Last Editor in Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+	) {
+		super(id, label, editorGroupService, editorService);
+	}
+
+	protected navigate(): IEditorIdentifier {
+		return this.editorGroupService.getStacksModel().last();
+	}
+}
+
 export class NavigateForwardAction extends Action {
 
 	public static readonly ID = 'workbench.action.navigateForward';

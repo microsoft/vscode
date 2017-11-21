@@ -1077,6 +1077,16 @@ export class EditorStacksModel implements IEditorStacksModel {
 		return { group: lastGroup, editor: lastGroup.getEditor(lastGroup.count - 1) };
 	}
 
+	public last(): IEditorIdentifier {
+		this.ensureLoaded();
+
+		if (!this.activeGroup) {
+			return null;
+		}
+
+		return { group: this.activeGroup, editor: this.activeGroup.getEditor(this.activeGroup.count - 1) };
+	}
+
 	private save(): void {
 		const serialized = this.serialize();
 

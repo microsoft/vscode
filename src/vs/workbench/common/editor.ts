@@ -754,6 +754,7 @@ export interface IEditorStacksModel {
 
 	next(jumpGroups: boolean, cycleAtEnd?: boolean): IEditorIdentifier;
 	previous(jumpGroups: boolean, cycleAtStart?: boolean): IEditorIdentifier;
+	last(): IEditorIdentifier;
 
 	isOpen(resource: URI): boolean;
 
