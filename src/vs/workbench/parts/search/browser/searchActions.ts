@@ -249,7 +249,10 @@ export abstract class FindOrReplaceInFilesAction extends Action {
 			if (!searchViewletWasOpen || this.options.expandSearchReplaceWidget) {
 				const searchAndReplaceWidget = (<SearchViewlet>viewlet).searchAndReplaceWidget;
 				searchAndReplaceWidget.toggleReplace(this.options.expandSearchReplaceWidget);
-				searchAndReplaceWidget.focus(this.options.selectWidgetText, this.options.focusReplace);
+
+				// Focus replace only when there is text in the searchInput box
+				const focusReplace = this.options.focusReplace && searchAndReplaceWidget.searchInput.getValue();
+				searchAndReplaceWidget.focus(this.options.selectWidgetText, !!focusReplace);
 			}
 
 			return viewlet;
