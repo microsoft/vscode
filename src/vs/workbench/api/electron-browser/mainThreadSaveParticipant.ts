@@ -11,7 +11,6 @@ import * as strings from 'vs/base/common/strings';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ISaveParticipant, ITextFileEditorModel, SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IModel, ISingleEditOperation, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -279,7 +278,6 @@ export class SaveParticipant implements ISaveParticipant {
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@ITelemetryService private _telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
@@ -303,38 +301,10 @@ export class SaveParticipant implements ISaveParticipant {
 	}
 
 	participate(model: ITextFileEditorModel, env: { reason: SaveReason }): TPromise<void> {
-
-		const stats: { [name: string]: number } = Object.create(null);
-
 		const promiseFactory = this._saveParticipants.map(p => () => {
-
-			const { name } = p;
-			const t1 = Date.now();
-
-			return TPromise.as(p.participate(model, env)).then(() => {
-				stats[`Success-${name}`] = Date.now() - t1;
-			}, err => {
-				stats[`Failure-${name}`] = Date.now() - t1;
-				// console.error(err);
-			});
+			return TPromise.as(p.participate(model, env));
 		});
 
-		return sequence(promiseFactory).then(() => {
-			/* __GDPR__
-				"saveParticipantStats" : {
-					"${wildcard}": [
-						{
-							"${prefix}": "Success-",
-							"${classification}": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-						},
-						{
-							"${prefix}": "Failure-",
-							"${classification}": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-						}
-					]
-				}
-			*/
-			this._telemetryService.publicLog('saveParticipantStats', stats);
-		});
+		return sequence(promiseFactory).then(() => { });
 	}
 }
