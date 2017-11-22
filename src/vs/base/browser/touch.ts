@@ -82,9 +82,9 @@ export class Gesture implements IDisposable {
 		this.activeTouches = {};
 		this.handle = null;
 		this.targets = [];
-		this.toDispose.push(DomUtils.addDisposableListener(document, 'touchstart', (e) => this.onTouchStart(e), false, true));
-		this.toDispose.push(DomUtils.addDisposableListener(document, 'touchend', (e) => this.onTouchEnd(e), false, true));
-		this.toDispose.push(DomUtils.addDisposableListener(document, 'touchmove', (e) => this.onTouchMove(e), false, true));
+		this.toDispose.push(DomUtils.addDisposableListener(document, 'touchstart', (e) => this.onTouchStart(e), false, false));
+		this.toDispose.push(DomUtils.addDisposableListener(document, 'touchend', (e) => this.onTouchEnd(e), false, false));
+		this.toDispose.push(DomUtils.addDisposableListener(document, 'touchmove', (e) => this.onTouchMove(e), false, false));
 	}
 
 	public static addTarget(element: HTMLElement): void {

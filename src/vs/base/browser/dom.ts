@@ -186,7 +186,7 @@ class DomListener implements IDisposable {
 		this._type = type;
 		this._handler = handler;
 		this._useCapture = (useCapture || false);
-		this._passive = (passive || false);
+		this._passive = passive;
 		// TODO@Isidor remove any cast once we update our lib.d.ts
 		this._node.addEventListener(this._type, this._handler, <any>{ capture: this._useCapture, passive: this._passive });
 	}
