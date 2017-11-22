@@ -573,6 +573,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	removeDeprecatedExtensions(): TPromise<any> {
 		return TPromise.join([
+			// Remove obsolte extensions first to avoid removing installed older extension. See #38609.
 			this.removeObsoleteExtensions(),
 			this.removeOutdatedExtensions()
 		]);
