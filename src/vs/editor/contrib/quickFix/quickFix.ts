@@ -31,7 +31,30 @@ export function getCodeActions(model: IReadOnlyModel, range: Range): TPromise<(C
 		});
 	});
 
-	return TPromise.join(promises).then(() => allResults);
+	return TPromise.join(promises).then(() =>
+		allResults.sort(codeActionsAndCommandsComparator)
+	);
+}
+
+function isCommand(quickFix: CodeAction | Command): quickFix is Command {
+	return (<Command>quickFix).id !== undefined;
+}
+
+function codeActionsAndCommandsComparator(a: (CodeAction | Command), b: (CodeAction | Command)): number {
+	if (isCommand(a)) {
+		if (isCommand(b)) {
+			return a.title.localeCompare(b.title);
+		} else {
+			return 1;
+		}
+	}
+	else {
+		if (isCommand(b)) {
+			return -1;
+		} else {
+			return a.title.localeCompare(b.title);
+		}
+	}
 }
 
 registerLanguageCommand('_executeCodeActionProvider', function (accessor, args) {
