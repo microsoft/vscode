@@ -203,6 +203,7 @@ function main() {
 			timers.afterLoadWorkbenchMain = Date.now();
 
 			process.lazyEnv.then(function () {
+				perf.mark('main/startup');
 				require('vs/workbench/electron-browser/main')
 					.startup(configuration)
 					.done(function () {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { mixin } from 'vs/base/common/objects';
+import { mixin, deepClone } from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as vscode from 'vscode';
@@ -12,7 +12,7 @@ import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostConfigurationShape, MainThreadConfigurationShape, IWorkspaceConfigurationChangeEventData, IConfigurationInitData } from './extHost.protocol';
 import { ConfigurationTarget as ExtHostConfigurationTarget } from './extHostTypes';
 import { IConfigurationData, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { Configuration, ConfigurationModel, ConfigurationChangeEvent } from 'vs/platform/configuration/common/configurationModels';
+import { Configuration, ConfigurationChangeEvent, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { WorkspaceConfigurationChangeEvent } from 'vs/workbench/services/configuration/common/configurationModels';
 import { StrictResourceMap } from 'vs/base/common/map';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
@@ -61,9 +61,9 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 	}
 
 	getConfiguration(section?: string, resource?: URI, extensionId?: string): vscode.WorkspaceConfiguration {
-		const config = section
-			? lookUp(this._configuration.getSection(null, { resource }, this._extHostWorkspace.workspace), section)
-			: this._configuration.getSection(null, { resource }, this._extHostWorkspace.workspace);
+		const config = deepClone(section
+			? lookUp(this._configuration.getValue(null, { resource }, this._extHostWorkspace.workspace), section)
+			: this._configuration.getValue(null, { resource }, this._extHostWorkspace.workspace));
 
 		if (section) {
 			this._validateConfigurationAccess(section, resource, extensionId);
@@ -107,7 +107,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 			},
 			inspect: <T>(key: string): ConfigurationInspect<T> => {
 				key = section ? `${section}.${key}` : key;
-				const config = this._configuration.lookup<T>(key, { resource }, this._extHostWorkspace.workspace);
+				const config = deepClone(this._configuration.inspect<T>(key, { resource }, this._extHostWorkspace.workspace));
 				if (config) {
 					return {
 						key,

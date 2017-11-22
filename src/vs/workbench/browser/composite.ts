@@ -234,7 +234,7 @@ export abstract class CompositeDescriptor<T extends Composite> {
 	public name: string;
 	public cssClass: string;
 	public order: number;
-	public keybindingId;
+	public keybindingId: string;
 
 	private ctor: IConstructorSignature0<T>;
 
@@ -273,10 +273,6 @@ export abstract class CompositeRegistry<T extends Composite> {
 
 	protected getComposites(): CompositeDescriptor<T>[] {
 		return this.composites.slice(0);
-	}
-
-	protected setComposites(compositesToSet: CompositeDescriptor<T>[]): void {
-		this.composites = compositesToSet;
 	}
 
 	private compositeById(id: string): CompositeDescriptor<T> {

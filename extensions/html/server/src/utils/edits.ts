@@ -15,12 +15,10 @@ export function applyEdits(document: TextDocument, edits: TextEdit[]): string {
 		}
 		return startDiff;
 	});
-	let lastOffset = text.length;
 	sortedEdits.forEach(e => {
 		let startOffset = document.offsetAt(e.range.start);
 		let endOffset = document.offsetAt(e.range.end);
 		text = text.substring(0, startOffset) + e.newText + text.substring(endOffset, text.length);
-		lastOffset = startOffset;
 	});
 	return text;
 }

@@ -20,6 +20,7 @@ export interface IProductConfiguration {
 	quality?: string;
 	commit?: string;
 	settingsSearchBuildId?: number;
+	settingsSearchUrl?: string;
 	date: string;
 	extensionsGallery: {
 		serviceUrl: string;

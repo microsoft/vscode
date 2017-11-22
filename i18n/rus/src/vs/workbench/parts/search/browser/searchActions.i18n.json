@@ -14,13 +14,16 @@
 	"focusPreviousInputBox": "Фокус на предыдущем поле ввода",
 	"showSearchViewlet": "Показать средство поиска",
 	"findInFiles": "Найти в файлах",
+	"findInFilesWithSelectedText": "Найти в файлах с выделенным текстом",
 	"replaceInFiles": "Заменить в файлах",
+	"replaceInFilesWithSelectedText": "Заменить в файлах с выделенным текстом",
 	"findInWorkspace": "Найти в рабочей области...",
 	"findInFolder": "Найти в папке...",
 	"RefreshAction.label": "Обновить",
 	"ClearSearchResultsAction.label": "Очистить результаты поиска",
 	"FocusNextSearchResult.label": "Перейти к следующему результату поиска.",
 	"FocusPreviousSearchResult.label": "Перейти к предыдущему результату поиска.",
+	"RemoveAction.label": "Отклонить",
 	"file.replaceAll.label": "Заменить все",
 	"match.replace.label": "Заменить"
 }

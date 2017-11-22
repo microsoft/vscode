@@ -232,7 +232,7 @@ export class OutputService implements IOutputService {
 
 class OutputContentProvider implements ITextModelContentProvider {
 
-	private static OUTPUT_DELAY = 300;
+	private static readonly OUTPUT_DELAY = 300;
 
 	private bufferedOutput = new Map<string, IOutputDelta>();
 	private appendOutputScheduler: { [channel: string]: RunOnceScheduler; };

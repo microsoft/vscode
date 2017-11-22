@@ -8,7 +8,7 @@
  * https://github.com/Microsoft/TypeScript-Sublime-Plugin/blob/master/TypeScript%20Indent.tmPreferences
  * ------------------------------------------------------------------------------------------ */
 
-import { env, languages, commands, workspace, window, ExtensionContext, Memento, IndentAction, Diagnostic, DiagnosticCollection, Range, Disposable, Uri, MessageItem, DiagnosticSeverity, TextDocument } from 'vscode';
+import { env, languages, commands, workspace, window, ExtensionContext, Memento, Diagnostic, Range, Disposable, Uri, MessageItem, DiagnosticSeverity, TextDocument } from 'vscode';
 
 // This must be the first statement otherwise modules might got loaded with
 // the wrong locale.
@@ -25,7 +25,6 @@ import TypeScriptServiceClient from './typescriptServiceClient';
 import { ITypeScriptServiceClientHost } from './typescriptService';
 
 import BufferSyncSupport from './features/bufferSyncSupport';
-import { JsDocCompletionProvider, TryCompleteJsDocCommand } from './features/jsDocCompletionProvider';
 import TypeScriptTaskProviderManager from './features/taskProvider';
 
 import * as ProjectStatus from './utils/projectStatus';
@@ -36,6 +35,9 @@ import { openOrCreateConfigFile, isImplicitProjectConfigFile } from './utils/tsc
 import { tsLocationToVsPosition } from './utils/convert';
 import FormattingConfigurationManager from './features/formattingConfigurationManager';
 import * as languageModeIds from './utils/languageModeIds';
+import * as languageConfigurations from './utils/languageConfigurations';
+import { CommandManager, Command } from './utils/commandManager';
+import DiagnosticsManager from './features/diagnostics';
 
 interface LanguageDescription {
 	id: string;
@@ -43,16 +45,6 @@ interface LanguageDescription {
 	modeIds: string[];
 	configFile?: string;
 	isExternal?: boolean;
-}
-
-enum ProjectConfigAction {
-	None,
-	CreateConfig,
-	LearnMore
-}
-
-interface ProjectConfigMessageItem extends MessageItem {
-	id: ProjectConfigAction;
 }
 
 const standardLanguageDescriptions: LanguageDescription[] = [
@@ -69,14 +61,107 @@ const standardLanguageDescriptions: LanguageDescription[] = [
 	}
 ];
 
+class ReloadTypeScriptProjectsCommand implements Command {
+	public readonly id = 'typescript.reloadProjects';
+
+	public constructor(
+		private readonly lazyClientHost: () => TypeScriptServiceClientHost
+	) { }
+
+	public execute() {
+		this.lazyClientHost().reloadProjects();
+	}
+}
+
+class ReloadJavaScriptProjectsCommand implements Command {
+	public readonly id = 'javascript.reloadProjects';
+
+	public constructor(
+		private readonly lazyClientHost: () => TypeScriptServiceClientHost
+	) { }
+
+	public execute() {
+		this.lazyClientHost().reloadProjects();
+	}
+}
+
+class SelectTypeScriptVersionCommand implements Command {
+	public readonly id = 'typescript.selectTypeScriptVersion';
+
+	public constructor(
+		private readonly lazyClientHost: () => TypeScriptServiceClientHost
+	) { }
+
+	public execute() {
+		this.lazyClientHost().serviceClient.onVersionStatusClicked();
+	}
+}
+
+class OpenTsServerLogCommand implements Command {
+	public readonly id = 'typescript.openTsServerLog';
+
+	public constructor(
+		private readonly lazyClientHost: () => TypeScriptServiceClientHost
+	) { }
+
+	public execute() {
+		this.lazyClientHost().serviceClient.openTsServerLogFile();
+	}
+}
+
+class RestartTsServerCommand implements Command {
+	public readonly id = 'typescript.restartTsServer';
+
+	public constructor(
+		private readonly lazyClientHost: () => TypeScriptServiceClientHost
+	) { }
+
+	public execute() {
+		this.lazyClientHost().serviceClient.restartTsServer();
+	}
+}
+
+class TypeScriptGoToProjectConfigCommand implements Command {
+	public readonly id = 'typescript.goToProjectConfig';
+
+	public constructor(
+		private readonly lazyClientHost: () => TypeScriptServiceClientHost,
+	) { }
+
+	public execute() {
+		const editor = window.activeTextEditor;
+		if (editor) {
+			this.lazyClientHost().goToProjectConfig(true, editor.document.uri);
+		}
+	}
+}
+
+class JavaScriptGoToProjectConfigCommand implements Command {
+	public readonly id = 'javascript.goToProjectConfig';
+
+	public constructor(
+		private readonly lazyClientHost: () => TypeScriptServiceClientHost,
+	) { }
+
+	public execute() {
+		const editor = window.activeTextEditor;
+		if (editor) {
+			this.lazyClientHost().goToProjectConfig(false, editor.document.uri);
+		}
+	}
+}
+
 export function activate(context: ExtensionContext): void {
 	const plugins = getContributedTypeScriptServerPlugins();
+
+	const commandManager = new CommandManager();
+	context.subscriptions.push(commandManager);
 
 	const lazyClientHost = (() => {
 		let clientHost: TypeScriptServiceClientHost | undefined;
 		return () => {
 			if (!clientHost) {
-				clientHost = new TypeScriptServiceClientHost(standardLanguageDescriptions, context.workspaceState, plugins);
+				clientHost = new TypeScriptServiceClientHost(standardLanguageDescriptions, context.workspaceState, plugins, commandManager);
 				context.subscriptions.push(clientHost);
 
 				const host = clientHost;
@@ -92,58 +177,17 @@ export function activate(context: ExtensionContext): void {
 		};
 	})();
 
-
-	context.subscriptions.push(commands.registerCommand('typescript.reloadProjects', () => {
-		lazyClientHost().reloadProjects();
-	}));
-
-	context.subscriptions.push(commands.registerCommand('javascript.reloadProjects', () => {
-		lazyClientHost().reloadProjects();
-	}));
-
-	context.subscriptions.push(commands.registerCommand('typescript.selectTypeScriptVersion', () => {
-		lazyClientHost().serviceClient.onVersionStatusClicked();
-	}));
-
-	context.subscriptions.push(commands.registerCommand('typescript.openTsServerLog', () => {
-		lazyClientHost().serviceClient.openTsServerLogFile();
-	}));
-
-	context.subscriptions.push(commands.registerCommand('typescript.restartTsServer', () => {
-		lazyClientHost().serviceClient.restartTsServer();
-	}));
+	commandManager.register(new ReloadTypeScriptProjectsCommand(lazyClientHost));
+	commandManager.register(new ReloadJavaScriptProjectsCommand(lazyClientHost));
+	commandManager.register(new SelectTypeScriptVersionCommand(lazyClientHost));
+	commandManager.register(new OpenTsServerLogCommand(lazyClientHost));
+	commandManager.register(new RestartTsServerCommand(lazyClientHost));
+	commandManager.register(new TypeScriptGoToProjectConfigCommand(lazyClientHost));
+	commandManager.register(new JavaScriptGoToProjectConfigCommand(lazyClientHost));
 
 	context.subscriptions.push(new TypeScriptTaskProviderManager(() => lazyClientHost().serviceClient));
 
-	const goToProjectConfig = (isTypeScript: boolean) => {
-		const editor = window.activeTextEditor;
-		if (editor) {
-			lazyClientHost().goToProjectConfig(isTypeScript, editor.document.uri);
-		}
-	};
-	context.subscriptions.push(commands.registerCommand('typescript.goToProjectConfig', goToProjectConfig.bind(null, true)));
-	context.subscriptions.push(commands.registerCommand('javascript.goToProjectConfig', goToProjectConfig.bind(null, false)));
-
-	const jsDocCompletionCommand = new TryCompleteJsDocCommand(() => lazyClientHost().serviceClient);
-	context.subscriptions.push(commands.registerCommand(TryCompleteJsDocCommand.COMMAND_NAME, jsDocCompletionCommand.tryCompleteJsDoc, jsDocCompletionCommand));
-
-
-	const EMPTY_ELEMENTS: string[] = ['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'menuitem', 'meta', 'param', 'source', 'track', 'wbr'];
-
-	context.subscriptions.push(languages.setLanguageConfiguration('jsx-tags', {
-		wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\$\^\&\*\(\)\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\s]+)/g,
-		onEnterRules: [
-			{
-				beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
-				afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>$/i,
-				action: { indentAction: IndentAction.IndentOutdent }
-			},
-			{
-				beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))(\\w[\\w\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
-				action: { indentAction: IndentAction.Indent }
-			}
-		],
-	}));
+	context.subscriptions.push(languages.setLanguageConfiguration(languageModeIds.jsxTags, languageConfigurations.jsxTags));
 
 	const supportedLanguage = [].concat.apply([], standardLanguageDescriptions.map(x => x.modeIds).concat(plugins.map(x => x.languages)));
 	function didOpenTextDocument(textDocument: TextDocument): boolean {
@@ -167,46 +211,37 @@ export function activate(context: ExtensionContext): void {
 const validateSetting = 'validate.enable';
 
 class LanguageProvider {
-
-	private syntaxDiagnostics: ObjectMap<Diagnostic[]>;
-	private semanticDiagnostics: ObjectMap<Diagnostic[]>;
-
-	private readonly currentDiagnostics: DiagnosticCollection;
+	private readonly diagnosticsManager: DiagnosticsManager;
 	private readonly bufferSyncSupport: BufferSyncSupport;
 	private readonly formattingOptionsManager: FormattingConfigurationManager;
 
-	private readonly typingsStatus: TypingsStatus;
-	private readonly ataProgressReporter: AtaProgressReporter;
-	private toUpdateOnConfigurationChanged: ({ updateConfiguration: () => void })[] = [];
+	private readonly toUpdateOnConfigurationChanged: ({ updateConfiguration: () => void })[] = [];
 
 	private _validate: boolean = true;
 
 	private readonly disposables: Disposable[] = [];
-
-	private versionDependentDisposables: Disposable[] = [];
+	private readonly versionDependentDisposables: Disposable[] = [];
 
 	constructor(
 		private readonly client: TypeScriptServiceClient,
-		private readonly description: LanguageDescription
+		private readonly description: LanguageDescription,
+		commandManager: CommandManager,
+		typingsStatus: TypingsStatus
 	) {
 		this.formattingOptionsManager = new FormattingConfigurationManager(client);
 		this.bufferSyncSupport = new BufferSyncSupport(client, description.modeIds, {
 			delete: (file: string) => {
-				this.currentDiagnostics.delete(client.asUrl(file));
+				this.diagnosticsManager.delete(file);
 			}
 		}, this._validate);
-		this.syntaxDiagnostics = Object.create(null);
-		this.semanticDiagnostics = Object.create(null);
-		this.currentDiagnostics = languages.createDiagnosticCollection(description.id);
 
-		this.typingsStatus = new TypingsStatus(client);
-		this.ataProgressReporter = new AtaProgressReporter(client);
+		this.diagnosticsManager = new DiagnosticsManager(description.id, this.client);
 
 		workspace.onDidChangeConfiguration(this.configurationChanged, this, this.disposables);
 		this.configurationChanged();
 
 		client.onReady().then(async () => {
-			await this.registerProviders(client);
+			await this.registerProviders(client, commandManager, typingsStatus);
 			this.bufferSyncSupport.listen();
 		}, () => {
 			// Nothing to do here. The client did show a message;
@@ -228,18 +263,22 @@ class LanguageProvider {
 			}
 		}
 
-		this.typingsStatus.dispose();
-		this.ataProgressReporter.dispose();
-		this.currentDiagnostics.dispose();
+		this.diagnosticsManager.dispose();
 		this.bufferSyncSupport.dispose();
+		this.formattingOptionsManager.dispose();
 	}
 
-	private async registerProviders(client: TypeScriptServiceClient): Promise<void> {
+	private async registerProviders(
+		client: TypeScriptServiceClient,
+		commandManager: CommandManager,
+		typingsStatus: TypingsStatus
+	): Promise<void> {
 		const selector = this.description.modeIds;
 		const config = workspace.getConfiguration(this.id);
 
-		const completionItemProvider = new (await import('./features/completionItemProvider')).default(client, this.description.id, this.typingsStatus);
-		this.disposables.push(languages.registerCompletionItemProvider(selector, completionItemProvider, '.', '"', '\'', '/', '@'));
+		this.disposables.push(languages.registerCompletionItemProvider(selector,
+			new (await import('./features/completionItemProvider')).default(client, typingsStatus, commandManager),
+			'.', '"', '\'', '/', '@'));
 
 		this.disposables.push(languages.registerCompletionItemProvider(selector, new (await import('./features/directiveCommentCompletionProvider')).default(client), '@'));
 
@@ -253,7 +292,7 @@ class LanguageProvider {
 		this.disposables.push(formattingProviderManager);
 		this.toUpdateOnConfigurationChanged.push(formattingProviderManager);
 
-		this.disposables.push(languages.registerCompletionItemProvider(selector, new JsDocCompletionProvider(client), '*'));
+		this.disposables.push(languages.registerCompletionItemProvider(selector, new (await import('./features/jsDocCompletionProvider')).default(client, commandManager), '*'));
 		this.disposables.push(languages.registerHoverProvider(selector, new (await import('./features/hoverProvider')).default(client)));
 		this.disposables.push(languages.registerDefinitionProvider(selector, new (await import('./features/definitionProvider')).default(client)));
 		this.disposables.push(languages.registerDocumentHighlightProvider(selector, new (await import('./features/documentHighlightProvider')).default(client)));
@@ -261,58 +300,25 @@ class LanguageProvider {
 		this.disposables.push(languages.registerDocumentSymbolProvider(selector, new (await import('./features/documentSymbolProvider')).default(client)));
 		this.disposables.push(languages.registerSignatureHelpProvider(selector, new (await import('./features/signatureHelpProvider')).default(client), '(', ','));
 		this.disposables.push(languages.registerRenameProvider(selector, new (await import('./features/renameProvider')).default(client)));
-		this.disposables.push(languages.registerCodeActionsProvider(selector, new (await import('./features/codeActionProvider')).default(client, this.formattingOptionsManager, this.description.id)));
-		this.disposables.push(languages.registerCodeActionsProvider(selector, new (await import('./features/refactorProvider')).default(client, this.formattingOptionsManager, this.description.id)));
+		this.disposables.push(languages.registerCodeActionsProvider(selector, new (await import('./features/quickFixProvider')).default(client, this.formattingOptionsManager)));
+		this.disposables.push(languages.registerCodeActionsProvider(selector, new (await import('./features/refactorProvider')).default(client, this.formattingOptionsManager, commandManager)));
 		this.registerVersionDependentProviders();
 
-		for (const modeId of this.description.modeIds) {
-			this.disposables.push(languages.registerWorkspaceSymbolProvider(new (await import('./features/workspaceSymbolProvider')).default(client, modeId)));
+		const referenceCodeLensProvider = new (await import('./features/referencesCodeLensProvider')).default(client, this.description.id);
+		referenceCodeLensProvider.updateConfiguration();
+		this.toUpdateOnConfigurationChanged.push(referenceCodeLensProvider);
+		this.disposables.push(languages.registerCodeLensProvider(selector, referenceCodeLensProvider));
 
-			const referenceCodeLensProvider = new (await import('./features/referencesCodeLensProvider')).default(client, modeId);
-			referenceCodeLensProvider.updateConfiguration();
-			this.toUpdateOnConfigurationChanged.push(referenceCodeLensProvider);
-			this.disposables.push(languages.registerCodeLensProvider(selector, referenceCodeLensProvider));
+		const implementationCodeLensProvider = new (await import('./features/implementationsCodeLensProvider')).default(client, this.description.id);
+		implementationCodeLensProvider.updateConfiguration();
+		this.toUpdateOnConfigurationChanged.push(implementationCodeLensProvider);
+		this.disposables.push(languages.registerCodeLensProvider(selector, implementationCodeLensProvider));
 
-			const implementationCodeLensProvider = new (await import('./features/implementationsCodeLensProvider')).default(client, modeId);
-			implementationCodeLensProvider.updateConfiguration();
-			this.toUpdateOnConfigurationChanged.push(implementationCodeLensProvider);
-			this.disposables.push(languages.registerCodeLensProvider(selector, implementationCodeLensProvider));
+		this.disposables.push(languages.registerWorkspaceSymbolProvider(new (await import('./features/workspaceSymbolProvider')).default(client, this.description.modeIds)));
 
-			if (!this.description.isExternal) {
-				this.disposables.push(languages.setLanguageConfiguration(modeId, {
-					indentationRules: {
-						// ^(.*\*/)?\s*\}.*$
-						decreaseIndentPattern: /^((?!.*?\/\*).*\*\/)?\s*[\}\]\)].*$/,
-						// ^.*\{[^}"']*$
-						increaseIndentPattern: /^((?!\/\/).)*(\{[^}"'`]*|\([^)"'`]*|\[[^\]"'`]*)$/
-					},
-					wordPattern: /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g,
-					onEnterRules: [
-						{
-							// e.g. /** | */
-							beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
-							afterText: /^\s*\*\/$/,
-							action: { indentAction: IndentAction.IndentOutdent, appendText: ' * ' }
-						}, {
-							// e.g. /** ...|
-							beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
-							action: { indentAction: IndentAction.None, appendText: ' * ' }
-						}, {
-							// e.g.  * ...|
-							beforeText: /^(\t|(\ \ ))*\ \*(\ ([^\*]|\*(?!\/))*)?$/,
-							action: { indentAction: IndentAction.None, appendText: '* ' }
-						}, {
-							// e.g.  */|
-							beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
-							action: { indentAction: IndentAction.None, removeText: 1 }
-						},
-						{
-							// e.g.  *-----*/|
-							beforeText: /^(\t|(\ \ ))*\ \*[^/]*\*\/\s*$/,
-							action: { indentAction: IndentAction.None, removeText: 1 }
-						}
-					]
-				}));
+		if (!this.description.isExternal) {
+			for (const modeId of this.description.modeIds) {
+				this.disposables.push(languages.setLanguageConfiguration(modeId, languageConfigurations.jsTsLanguageConfiguration));
 			}
 		}
 	}
@@ -353,19 +359,14 @@ class LanguageProvider {
 		}
 		this._validate = value;
 		this.bufferSyncSupport.validate = value;
+		this.diagnosticsManager.validate = value;
 		if (value) {
 			this.triggerAllDiagnostics();
-		} else {
-			this.syntaxDiagnostics = Object.create(null);
-			this.semanticDiagnostics = Object.create(null);
-			this.currentDiagnostics.clear();
 		}
 	}
 
 	public reInitialize(): void {
-		this.currentDiagnostics.clear();
-		this.syntaxDiagnostics = Object.create(null);
-		this.semanticDiagnostics = Object.create(null);
+		this.diagnosticsManager.reInitialize();
 		this.bufferSyncSupport.reOpenDocuments();
 		this.bufferSyncSupport.requestAllDiagnostics();
 		this.formattingOptionsManager.reset();
@@ -380,7 +381,6 @@ class LanguageProvider {
 			}
 		}
 
-		this.versionDependentDisposables = [];
 		if (!this.client) {
 			return;
 		}
@@ -399,26 +399,16 @@ class LanguageProvider {
 		this.bufferSyncSupport.requestAllDiagnostics();
 	}
 
-	public syntaxDiagnosticsReceived(file: string, syntaxDiagnostics: Diagnostic[]): void {
-		if (!this._validate) {
-			return;
-		}
-		this.syntaxDiagnostics[file] = syntaxDiagnostics;
-		const semanticDianostics = this.semanticDiagnostics[file] || [];
-		this.currentDiagnostics.set(this.client.asUrl(file), semanticDianostics.concat(syntaxDiagnostics));
+	public syntaxDiagnosticsReceived(file: Uri, syntaxDiagnostics: Diagnostic[]): void {
+		this.diagnosticsManager.syntaxDiagnosticsReceived(file, syntaxDiagnostics);
 	}
 
-	public semanticDiagnosticsReceived(file: string, semanticDiagnostics: Diagnostic[]): void {
-		if (!this._validate) {
-			return;
-		}
-		this.semanticDiagnostics[file] = semanticDiagnostics;
-		const syntaxDiagnostics = this.syntaxDiagnostics[file] || [];
-		this.currentDiagnostics.set(this.client.asUrl(file), semanticDiagnostics.concat(syntaxDiagnostics));
+	public semanticDiagnosticsReceived(file: Uri, semanticDiagnostics: Diagnostic[]): void {
+		this.diagnosticsManager.semanticDiagnosticsReceived(file, semanticDiagnostics);
 	}
 
-	public configFileDiagnosticsReceived(file: string, diagnostics: Diagnostic[]): void {
-		this.currentDiagnostics.set(this.client.asUrl(file), diagnostics);
+	public configFileDiagnosticsReceived(file: Uri, diagnostics: Diagnostic[]): void {
+		this.diagnosticsManager.configFileDiagnosticsReceived(file, diagnostics);
 	}
 }
 
@@ -433,16 +423,19 @@ const styleCheckDiagnostics = [
 ];
 
 class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
-	private client: TypeScriptServiceClient;
-	private languages: LanguageProvider[] = [];
-	private languagePerId: Map<string, LanguageProvider>;
+	private readonly ataProgressReporter: AtaProgressReporter;
+	private readonly typingsStatus: TypingsStatus;
+	private readonly client: TypeScriptServiceClient;
+	private readonly languages: LanguageProvider[] = [];
+	private readonly languagePerId = new Map<string, LanguageProvider>();
 	private readonly disposables: Disposable[] = [];
 	private readonly versionStatus: VersionStatus;
 
 	constructor(
 		descriptions: LanguageDescription[],
 		workspaceState: Memento,
-		plugins: TypeScriptServerPlugin[]
+		plugins: TypeScriptServerPlugin[],
+		private readonly commandManager: CommandManager
 	) {
 		const handleProjectCreateOrDelete = () => {
 			this.client.execute('reloadProjects', null, false);
@@ -465,9 +458,11 @@ class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
 		this.client = new TypeScriptServiceClient(this, workspaceState, this.versionStatus, plugins);
 		this.disposables.push(this.client);
 
-		this.languagePerId = new Map();
+		this.typingsStatus = new TypingsStatus(this.client);
+		this.ataProgressReporter = new AtaProgressReporter(this.client);
+
 		for (const description of descriptions) {
-			const manager = new LanguageProvider(this.client, description);
+			const manager = new LanguageProvider(this.client, description, this.commandManager, this.typingsStatus);
 			this.languages.push(manager);
 			this.disposables.push(manager);
 			this.languagePerId.set(description.id, manager);
@@ -491,7 +486,7 @@ class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
 					diagnosticSource: 'ts-plugins',
 					isExternal: true
 				};
-				const manager = new LanguageProvider(this.client, description);
+				const manager = new LanguageProvider(this.client, description, this.commandManager, this.typingsStatus);
 				this.languages.push(manager);
 				this.disposables.push(manager);
 				this.languagePerId.set(description.id, manager);
@@ -510,6 +505,9 @@ class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
 				obj.dispose();
 			}
 		}
+
+		this.typingsStatus.dispose();
+		this.ataProgressReporter.dispose();
 	}
 
 	public get serviceClient(): TypeScriptServiceClient {
@@ -566,6 +564,16 @@ class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
 			return;
 		}
 
+		enum ProjectConfigAction {
+			None,
+			CreateConfig,
+			LearnMore
+		}
+
+		interface ProjectConfigMessageItem extends MessageItem {
+			id: ProjectConfigAction;
+		}
+
 		const selected = await window.showInformationMessage<ProjectConfigMessageItem>(
 			(isTypeScriptProject
 				? localize('typescript.noTypeScriptProjectConfig', 'File is not part of a TypeScript project')
@@ -595,15 +603,13 @@ class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
 		}
 	}
 
-	private findLanguage(file: string): Thenable<LanguageProvider | null> {
-		return workspace.openTextDocument(this.client.asUrl(file)).then((doc: TextDocument) => {
-			for (const language of this.languages) {
-				if (language.handles(file, doc)) {
-					return language;
-				}
-			}
-			return null;
-		}, () => null);
+	private async findLanguage(file: string): Promise<LanguageProvider | undefined> {
+		try {
+			const doc = await workspace.openTextDocument(this.client.asUrl(file));
+			return this.languages.find(language => language.handles(file, doc));
+		} catch {
+			return undefined;
+		}
 	}
 
 	private triggerAllDiagnostics() {
@@ -626,7 +632,7 @@ class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
 		if (body && body.diagnostics) {
 			this.findLanguage(body.file).then(language => {
 				if (language) {
-					language.syntaxDiagnosticsReceived(body.file, this.createMarkerDatas(body.diagnostics, language.diagnosticSource));
+					language.syntaxDiagnosticsReceived(this.client.asUrl(body.file), this.createMarkerDatas(body.diagnostics, language.diagnosticSource));
 				}
 			});
 		}
@@ -637,7 +643,7 @@ class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
 		if (body && body.diagnostics) {
 			this.findLanguage(body.file).then(language => {
 				if (language) {
-					language.semanticDiagnosticsReceived(body.file, this.createMarkerDatas(body.diagnostics, language.diagnosticSource));
+					language.semanticDiagnosticsReceived(this.client.asUrl(body.file), this.createMarkerDatas(body.diagnostics, language.diagnosticSource));
 				}
 			});
 		}
@@ -655,7 +661,7 @@ class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
 				return;
 			}
 			if (body.diagnostics.length === 0) {
-				language.configFileDiagnosticsReceived(body.configFile, []);
+				language.configFileDiagnosticsReceived(this.client.asUrl(body.configFile), []);
 			} else if (body.diagnostics.length >= 1) {
 				workspace.openTextDocument(Uri.file(body.configFile)).then((document) => {
 					let curly: [number, number, number] | undefined = undefined;
@@ -685,10 +691,10 @@ class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
 					}
 					if (diagnostic) {
 						diagnostic.source = language.diagnosticSource;
-						language.configFileDiagnosticsReceived(body.configFile, [diagnostic]);
+						language.configFileDiagnosticsReceived(this.client.asUrl(body.configFile), [diagnostic]);
 					}
 				}, _error => {
-					language.configFileDiagnosticsReceived(body.configFile, [new Diagnostic(new Range(0, 0, 0, 0), body.diagnostics[0].text)]);
+					language.configFileDiagnosticsReceived(this.client.asUrl(body.configFile), [new Diagnostic(new Range(0, 0, 0, 0), body.diagnostics[0].text)]);
 				});
 			}
 		});

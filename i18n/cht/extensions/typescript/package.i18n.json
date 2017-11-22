@@ -48,5 +48,7 @@
 	"typescript.problemMatchers.tsc.label": "TypeScript 問題",
 	"typescript.problemMatchers.tscWatch.label": " TypeScript 問題 (監看模式)",
 	"typescript.quickSuggestionsForPaths": "啟用/停用在輸入匯入路徑顯示即時建議。",
-	"typescript.locale": "設定報告 TypeScript 錯誤的語系。需要 TypeScript >= 2.6.0。預設值 'null' 則使用 VS Code 的語系來顯示 TypeScript 錯誤。"
+	"typescript.locale": "設定報告 TypeScript 錯誤的語系。需要 TypeScript >= 2.6.0。預設值 'null' 則使用 VS Code 的語系來顯示 TypeScript 錯誤。",
+	"javascript.implicitProjectConfig.experimentalDecorators": "啟用/停用 JavaScript 檔案中非專案部分的 'experimentalDecorators'。現有的 jsconfig.json 或 tsconfig.json 檔案會覆寫此設定。需要 TypeScript >=2.3.1。",
+	"typescript.autoImportSuggestions.enabled": "啟用/停用 自動匯入建議。需要 TypeScript >=2.6.1"
 }

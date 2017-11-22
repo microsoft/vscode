@@ -17,12 +17,9 @@ import * as browser from 'vs/base/browser/browser';
 class SingleLineTestModel implements ISimpleModel {
 
 	private _line: string;
-	// @ts-ignore unused property
-	private _eol: string;
 
 	constructor(line: string) {
 		this._line = line;
-		this._eol = '\n';
 	}
 
 	_setText(text: string) {

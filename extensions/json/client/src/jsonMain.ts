@@ -50,10 +50,6 @@ interface Settings {
 	};
 }
 
-interface JSONSettings {
-	schemas: JSONSchemaSettings[];
-}
-
 interface JSONSchemaSettings {
 	fileMatch?: string[];
 	url?: string;

@@ -52,9 +52,36 @@ const configurationEntrySchema: IJSONSchema = {
 	}
 };
 
+let registeredDefaultConfigurations: IDefaultConfigurationExtension[] = [];
+
+// BEGIN VSCode extension point `configurationDefaults`
+const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>('configurationDefaults', [], {
+	description: nls.localize('vscode.extension.contributes.defaultConfiguration', 'Contributes default editor configuration settings by language.'),
+	type: 'object',
+	defaultSnippets: [{ body: {} }],
+	patternProperties: {
+		'\\[.*\\]$': {
+			type: 'object',
+			default: {},
+			$ref: editorConfigurationSchemaId,
+		}
+	}
+});
+defaultConfigurationExtPoint.setHandler(extensions => {
+	registeredDefaultConfigurations = extensions.map(extension => {
+		const id = extension.description.id;
+		const name = extension.description.name;
+		const defaults = objects.deepClone(extension.value);
+		return <IDefaultConfigurationExtension>{
+			id, name, defaults
+		};
+	});
+});
+// END VSCode extension point `configurationDefaults`
+
 
 // BEGIN VSCode extension point `configuration`
-const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>('configuration', [], {
+const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>('configuration', [defaultConfigurationExtPoint], {
 	description: nls.localize('vscode.extension.contributes.configuration', 'Contributes configuration settings.'),
 	oneOf: [
 		configurationEntrySchema,
@@ -68,7 +95,7 @@ configurationExtPoint.setHandler(extensions => {
 	const configurations: IConfigurationNode[] = [];
 
 	function handleConfiguration(node: IConfigurationNode, id: string, extension: IExtensionPointUser<any>) {
-		let configuration = objects.clone(node);
+		let configuration = objects.deepClone(node);
 
 		if (configuration.title && (typeof configuration.title !== 'string')) {
 			extension.collector.error(nls.localize('invalid.title', "'configuration.title' must be a string"));
@@ -89,35 +116,9 @@ configurationExtPoint.setHandler(extensions => {
 			value.forEach(v => handleConfiguration(v, id, extension));
 		}
 	}
-	configurationRegistry.registerConfigurations(configurations, false);
+	configurationRegistry.registerConfigurations(configurations, registeredDefaultConfigurations, false);
 });
 // END VSCode extension point `configuration`
-
-// BEGIN VSCode extension point `configurationDefaults`
-const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>('configurationDefaults', [], {
-	description: nls.localize('vscode.extension.contributes.defaultConfiguration', 'Contributes default editor configuration settings by language.'),
-	type: 'object',
-	defaultSnippets: [{ body: {} }],
-	patternProperties: {
-		'\\[.*\\]$': {
-			type: 'object',
-			default: {},
-			$ref: editorConfigurationSchemaId,
-		}
-	}
-});
-defaultConfigurationExtPoint.setHandler(extensions => {
-	const defaultConfigurations: IDefaultConfigurationExtension[] = extensions.map(extension => {
-		const id = extension.description.id;
-		const name = extension.description.name;
-		const defaults = objects.clone(extension.value);
-		return <IDefaultConfigurationExtension>{
-			id, name, defaults
-		};
-	});
-	configurationRegistry.registerDefaultConfigurations(defaultConfigurations);
-});
-// END VSCode extension point `configurationDefaults`
 
 function validateProperties(configuration: IConfigurationNode, extension: IExtensionPointUser<any>): void {
 	let properties = configuration.properties;

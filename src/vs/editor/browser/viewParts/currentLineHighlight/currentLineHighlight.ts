@@ -16,8 +16,6 @@ import { editorLineHighlight, editorLineHighlightBorder } from 'vs/editor/common
 export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 	private _context: ViewContext;
 	private _lineHeight: number;
-	// @ts-ignore unused property
-	private _readOnly: boolean;
 	private _renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
 	private _selectionIsEmpty: boolean;
 	private _primaryCursorIsInEditableRange: boolean;
@@ -29,7 +27,6 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 		super();
 		this._context = context;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
-		this._readOnly = this._context.configuration.editor.readOnly;
 		this._renderLineHighlight = this._context.configuration.editor.viewInfo.renderLineHighlight;
 
 		this._selectionIsEmpty = true;
@@ -52,9 +49,6 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
-		}
-		if (e.readOnly) {
-			this._readOnly = this._context.configuration.editor.readOnly;
 		}
 		if (e.viewInfo) {
 			this._renderLineHighlight = this._context.configuration.editor.viewInfo.renderLineHighlight;

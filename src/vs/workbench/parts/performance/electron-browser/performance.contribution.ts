@@ -31,16 +31,9 @@ class StartupProfiler implements IWorkbenchContribution {
 		@IExtensionService extensionService: IExtensionService,
 	) {
 		// wait for everything to be ready
-		TPromise.join<any>([
-			lifecycleService.when(LifecyclePhase.Running),
-			extensionService.onReady(),
-		]).then(() => {
+		extensionService.whenInstalledExtensionsRegistered().then(() => {
 			this._stopProfiling();
 		});
-	}
-
-	getId(): string {
-		return 'performance.StartupProfiler';
 	}
 
 	private _stopProfiling(): void {
@@ -92,4 +85,4 @@ class StartupProfiler implements IWorkbenchContribution {
 }
 
 const registry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
-registry.registerWorkbenchContribution(StartupProfiler);
+registry.registerWorkbenchContribution(StartupProfiler, LifecyclePhase.Running);

@@ -13,6 +13,7 @@
 	"compoundMustHaveConfigurations": "Bileşik, birden çok yapılandırmayı başlatmak için \"configurations\" özniteliği bulundurmalıdır.",
 	"configMissing": "'launch.json' dosyasında '{0}' yapılandırması eksik.",
 	"debugRequestNotSupported": "Seçilen hata ayıklama yapılandırılmasındaki `{0}` özniteliği desteklenmeyen `{1}` değeri içeriyor.",
+	"debugRequesMissing": "'{0}' özniteliği seçilen hata ayıklama yapılandırılmasında eksik.",
 	"debugTypeNotSupported": "Yapılandırılan hata ayıklama türü '{0}', desteklenmiyor.",
 	"debugTypeMissing": "Seçilen başlatma yapılandırmasında `type` özelliği eksik.",
 	"debugAnyway": "Yine de Hata Ayıkla",
@@ -21,5 +22,6 @@
 	"preLaunchTaskExitCode": "'{0}' ön başlatma görevi {1} çıkış koduyla sonlandı.",
 	"noFolderWorkspaceDebugError": "Aktif dosyada hata ayıklama yapılamıyor. Lütfen, dosyanın diskte kayıtlı olduğundan ve bu dosya türü için hata ayıklama eklentinizin olduğundan emin olun.",
 	"NewLaunchConfig": "Lütfen uygulamanızın başlatma yapılandırması dosyasını ayarlayın. {0}",
-	"DebugTaskNotFound": "'{0}' ön başlatma görevi bulunamadı."
+	"DebugTaskNotFound": "'{0}' ön başlatma görevi bulunamadı.",
+	"taskNotTracked": "'{0}' başlatma öncesi görevi izlenemez."
 }

@@ -169,6 +169,7 @@ export interface IWindowService {
 
 	onDidChangeFocus: Event<boolean>;
 
+	getConfiguration(): IWindowConfiguration;
 	getCurrentWindowId(): number;
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
@@ -188,9 +189,6 @@ export interface IWindowService {
 	closeWindow(): TPromise<void>;
 	isFocused(): TPromise<boolean>;
 	setDocumentEdited(flag: boolean): TPromise<void>;
-	isMaximized(): TPromise<boolean>;
-	maximizeWindow(): TPromise<void>;
-	unmaximizeWindow(): TPromise<void>;
 	onWindowTitleDoubleClick(): TPromise<void>;
 	show(): TPromise<void>;
 	showMessageBoxSync(options: MessageBoxOptions): number;

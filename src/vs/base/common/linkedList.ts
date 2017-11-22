@@ -26,6 +26,11 @@ export class LinkedList<E> {
 		return !this._first;
 	}
 
+	clear(): void {
+		this._first = undefined;
+		this._last = undefined;
+	}
+
 	unshift(element: E) {
 		return this.insert(element, false);
 	}

@@ -198,7 +198,7 @@ suite('Types', () => {
 		assert(types.create(zeroConstructor) instanceof zeroConstructor);
 		assert(types.isObject(types.create(zeroConstructor)));
 
-		let manyArgConstructor = function (foo, bar) {
+		let manyArgConstructor = function (this: any, foo, bar) {
 			this.foo = foo;
 			this.bar = bar;
 		};

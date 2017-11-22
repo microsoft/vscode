@@ -11,6 +11,7 @@
 			"id": "yaml",
 			"aliases": ["YAML", "yaml"],
 			"extensions": [".eyaml", ".eyml", ".yaml", ".yml"],
+			"filenames": [ "yarn.lock" ],
 			"firstLine": "^#cloud-config",
 			"configuration": "./language-configuration.json"
 		}],

@@ -6,7 +6,7 @@
 {
 	"manage": "拡張機能を管理するには Enter キーを押してください。",
 	"notfound": "拡張機能 '{0}' が Marketplace に見つかりませんでした。",
-	"install": "Marketplace からインストールする から '{0}' をインストールするには Enter キーを押してください。",
+	"install": "Marketplace から '{0}' をインストールするには Enter キーを押してください。",
 	"searchFor": "マーケットプレース内で '{0}' を検索するには、Enter キーを押してください。",
 	"noExtensionsToInstall": "拡張機能名を入力してください"
 }

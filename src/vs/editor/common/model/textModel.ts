@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { OrderGuaranteeEventEmitter, BulkListenerCallback } from 'vs/base/common/eventEmitter';
 import * as strings from 'vs/base/common/strings';
+import Event, { Emitter } from 'vs/base/common/event';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -16,8 +16,8 @@ import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { TextSource, ITextSource, IRawTextSource, RawTextSource } from 'vs/editor/common/model/textSource';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
+import { IModelContentChangedEvent, ModelRawContentChangedEvent, ModelRawFlush, ModelRawEOLChanged, IModelOptionsChangedEvent, InternalModelContentChangeEvent } from 'vs/editor/common/model/textModelEvents';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 
 const LIMIT_FIND_COUNT = 999;
 export const LONG_LINE_BOUNDARY = 10000;
@@ -27,10 +27,10 @@ export interface ITextModelCreationData {
 	readonly options: editorCommon.TextModelResolvedOptions;
 }
 
-export class TextModel implements editorCommon.ITextModel {
-	private static MODEL_SYNC_LIMIT = 50 * 1024 * 1024; // 50 MB
-	private static MODEL_TOKENIZATION_LIMIT = 20 * 1024 * 1024; // 20 MB
-	private static MANY_MANY_LINES = 300 * 1000; // 300K lines
+export class TextModel extends Disposable implements editorCommon.ITextModel {
+	private static readonly MODEL_SYNC_LIMIT = 50 * 1024 * 1024; // 50 MB
+	private static readonly MODEL_TOKENIZATION_LIMIT = 20 * 1024 * 1024; // 20 MB
+	private static readonly MANY_MANY_LINES = 300 * 1000; // 300K lines
 
 	public static DEFAULT_CREATION_OPTIONS: editorCommon.ITextModelCreationOptions = {
 		tabSize: EDITOR_MODEL_DEFAULTS.tabSize,
@@ -71,11 +71,17 @@ export class TextModel implements editorCommon.ITextModel {
 		};
 	}
 
-	public addBulkListener(listener: BulkListenerCallback): IDisposable {
-		return this._eventEmitter.addBulkListener(listener);
-	}
+	private readonly _onDidChangeOptions: Emitter<IModelOptionsChangedEvent> = this._register(new Emitter<IModelOptionsChangedEvent>());
+	public readonly onDidChangeOptions: Event<IModelOptionsChangedEvent> = this._onDidChangeOptions.event;
 
-	protected readonly _eventEmitter: OrderGuaranteeEventEmitter;
+	protected readonly _eventEmitter: DidChangeContentEmitter = this._register(new DidChangeContentEmitter());
+
+	public onDidChangeRawContent(listener: (e: ModelRawContentChangedEvent) => void): IDisposable {
+		return this._eventEmitter.event((e: InternalModelContentChangeEvent) => listener(e.rawContentChangedEvent));
+	}
+	public onDidChangeContent(listener: (e: IModelContentChangedEvent) => void): IDisposable {
+		return this._eventEmitter.event((e: InternalModelContentChangeEvent) => listener(e.contentChangedEvent));
+	}
 
 	/*protected*/ _lines: IModelLine[];
 	protected _EOL: string;
@@ -97,7 +103,7 @@ export class TextModel implements editorCommon.ITextModel {
 	protected readonly _isTooLargeForTokenization: boolean;
 
 	constructor(rawTextSource: IRawTextSource, creationOptions: editorCommon.ITextModelCreationOptions) {
-		this._eventEmitter = new OrderGuaranteeEventEmitter();
+		super();
 
 		const textModelData = TextModel.resolveCreationData(rawTextSource, creationOptions);
 
@@ -167,7 +173,7 @@ export class TextModel implements editorCommon.ITextModel {
 		let e = this._options.createChangeEvent(newOpts);
 		this._options = newOpts;
 
-		this._eventEmitter.emit(textModelEvents.TextModelEventType.ModelOptionsChanged, e);
+		this._onDidChangeOptions.fire(e);
 	}
 
 	public detectIndentation(defaultInsertSpaces: boolean, defaultTabSize: number): void {
@@ -296,11 +302,11 @@ export class TextModel implements editorCommon.ITextModel {
 		this._EOL = null;
 		this._BOM = null;
 
-		this._eventEmitter.dispose();
+		super.dispose();
 	}
 
-	private _emitContentChanged2(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, rangeLength: number, text: string, isUndoing: boolean, isRedoing: boolean, isFlush: boolean): void {
-		const e: textModelEvents.IModelContentChangedEvent = {
+	private _createContentChanged2(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, rangeLength: number, text: string, isUndoing: boolean, isRedoing: boolean, isFlush: boolean): IModelContentChangedEvent {
+		return {
 			changes: [{
 				range: new Range(startLineNumber, startColumn, endLineNumber, endColumn),
 				rangeLength: rangeLength,
@@ -312,9 +318,6 @@ export class TextModel implements editorCommon.ITextModel {
 			isRedoing: isRedoing,
 			isFlush: isFlush
 		};
-		if (!this._isDisposing) {
-			this._eventEmitter.emit(textModelEvents.TextModelEventType.ModelContentChanged, e);
-		}
 	}
 
 	protected _resetValue(newValue: ITextSource): void {
@@ -364,18 +367,17 @@ export class TextModel implements editorCommon.ITextModel {
 
 		this._resetValue(newValue);
 
-		this._emitModelRawContentChangedEvent(
-			new textModelEvents.ModelRawContentChangedEvent(
+		this._emitContentChangedEvent(
+			new ModelRawContentChangedEvent(
 				[
-					new textModelEvents.ModelRawFlush()
+					new ModelRawFlush()
 				],
 				this._versionId,
 				false,
 				false
-			)
+			),
+			this._createContentChanged2(1, 1, endLineNumber, endColumn, oldModelValueLength, this.getValue(), false, false, true)
 		);
-
-		this._emitContentChanged2(1, 1, endLineNumber, endColumn, oldModelValueLength, this.getValue(), false, false, true);
 	}
 
 	public getValue(eol?: editorCommon.EndOfLinePreference, preserveBOM: boolean = false): string {
@@ -519,18 +521,17 @@ export class TextModel implements editorCommon.ITextModel {
 		this._increaseVersionId();
 		this._onAfterEOLChange();
 
-		this._emitModelRawContentChangedEvent(
-			new textModelEvents.ModelRawContentChangedEvent(
+		this._emitContentChangedEvent(
+			new ModelRawContentChangedEvent(
 				[
-					new textModelEvents.ModelRawEOLChanged()
+					new ModelRawEOLChanged()
 				],
 				this._versionId,
 				false,
 				false
-			)
+			),
+			this._createContentChanged2(1, 1, endLineNumber, endColumn, oldModelValueLength, this.getValue(), false, false, false)
 		);
-
-		this._emitContentChanged2(1, 1, endLineNumber, endColumn, oldModelValueLength, this.getValue(), false, false, false);
 	}
 
 	public getLineMinColumn(lineNumber: number): number {
@@ -571,17 +572,6 @@ export class TextModel implements editorCommon.ITextModel {
 			return 0;
 		}
 		return result + 2;
-	}
-
-	public validateLineNumber(lineNumber: number): number {
-		this._assertNotDisposed();
-		if (lineNumber < 1) {
-			lineNumber = 1;
-		}
-		if (lineNumber > this._lines.length) {
-			lineNumber = this._lines.length;
-		}
-		return lineNumber;
 	}
 
 	/**
@@ -750,12 +740,12 @@ export class TextModel implements editorCommon.ITextModel {
 		return new Range(1, 1, lineCount, this.getLineMaxColumn(lineCount));
 	}
 
-	protected _emitModelRawContentChangedEvent(e: textModelEvents.ModelRawContentChangedEvent): void {
+	protected _emitContentChangedEvent(rawChange: ModelRawContentChangedEvent, change: IModelContentChangedEvent): void {
 		if (this._isDisposing) {
 			// Do not confuse listeners by emitting any event after disposing
 			return;
 		}
-		this._eventEmitter.emit(textModelEvents.TextModelEventType.ModelRawContentChanged2, e);
+		this._eventEmitter.fire(new InternalModelContentChangeEvent(rawChange, change));
 	}
 
 	private _constructLines(textSource: ITextSource): void {
@@ -818,5 +808,41 @@ export class TextModel implements editorCommon.ITextModel {
 		this._assertNotDisposed();
 		const searchStart = this.validatePosition(rawSearchStart);
 		return TextModelSearch.findPreviousMatch(this, new SearchParams(searchString, isRegex, matchCase, wordSeparators), searchStart, captureMatches);
+	}
+}
+
+export class DidChangeContentEmitter extends Disposable {
+
+	private readonly _actual: Emitter<InternalModelContentChangeEvent> = this._register(new Emitter<InternalModelContentChangeEvent>());
+	public readonly event: Event<InternalModelContentChangeEvent> = this._actual.event;
+
+	private _deferredCnt: number;
+	private _deferredEvents: InternalModelContentChangeEvent[];
+
+	constructor() {
+		super();
+		this._deferredCnt = 0;
+		this._deferredEvents = [];
+	}
+
+	public beginDeferredEmit(): void {
+		this._deferredCnt++;
+	}
+
+	public endDeferredEmit(): void {
+		this._deferredCnt--;
+		if (this._deferredCnt === 0) {
+			while (this._deferredEvents.length > 0) {
+				this._actual.fire(this._deferredEvents.shift());
+			}
+		}
+	}
+
+	public fire(e: InternalModelContentChangeEvent): void {
+		if (this._deferredCnt > 0) {
+			this._deferredEvents.push(e);
+			return;
+		}
+		this._actual.fire(e);
 	}
 }

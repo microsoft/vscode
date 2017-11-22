@@ -31,18 +31,18 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { Verbosity } from 'vs/platform/editor/common/editor';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER } from 'vs/workbench/common/theme';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { isMacintosh } from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 export class TitlebarPart extends Part implements ITitleService {
 
 	public _serviceBrand: any;
 
-	private static NLS_UNSUPPORTED = nls.localize('patchedWindowTitle', "[Unsupported]");
-	private static NLS_EXTENSION_HOST = nls.localize('devExtensionWindowTitlePrefix', "[Extension Development Host]");
-	private static TITLE_DIRTY = '\u25cf ';
-	private static TITLE_SEPARATOR = isMacintosh ? ' — ' : ' - '; // macOS uses special - separator
+	private static readonly NLS_UNSUPPORTED = nls.localize('patchedWindowTitle', "[Unsupported]");
+	private static readonly NLS_EXTENSION_HOST = nls.localize('devExtensionWindowTitlePrefix', "[Extension Development Host]");
+	private static readonly TITLE_DIRTY = '\u25cf ';
+	private static readonly TITLE_SEPARATOR = isMacintosh ? ' — ' : ' - '; // macOS uses special - separator
 
 	private titleContainer: Builder;
 	private title: Builder;
@@ -67,7 +67,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IThemeService themeService: IThemeService,
-		@IPartService private partService: IPartService
+		@ILifecycleService private lifecycleService: ILifecycleService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
@@ -82,7 +82,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	private init(): void {
 
 		// Initial window title when loading is done
-		this.partService.joinCreation().done(() => this.setTitle(this.getWindowTitle()));
+		this.lifecycleService.when(LifecyclePhase.Running).then(() => this.setTitle(this.getWindowTitle()));
 
 		// Integrity for window title
 		this.integrityService.isPure().then(r => {
@@ -307,9 +307,11 @@ export class TitlebarPart extends Part implements ITitleService {
 
 				const path = segments.slice(0, pathOffset).join(paths.sep);
 
-				let label = paths.basename(path);
+				let label: string;
 				if (!isFile) {
-					label = paths.basename(paths.dirname(path));
+					label = labels.getBaseLabel(paths.dirname(path));
+				} else {
+					label = labels.getBaseLabel(path);
 				}
 
 				actions.push(new ShowItemInFolderAction(path, label || paths.sep, this.windowsService));

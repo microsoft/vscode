@@ -186,32 +186,6 @@ suite('WorkspacesMainService', () => {
 		});
 	});
 
-	test('resolveWorkspace', done => {
-		return createWorkspace([process.cwd(), os.tmpdir()]).then(workspace => {
-			return service.resolveWorkspace(workspace.configPath).then(ws => {
-				assert.ok(ws);
-
-				// make it a valid workspace path
-				const newPath = path.join(path.dirname(workspace.configPath), `workspace.${WORKSPACE_EXTENSION}`);
-				fs.renameSync(workspace.configPath, newPath);
-				workspace.configPath = newPath;
-
-				return service.resolveWorkspace(workspace.configPath).then(resolved => {
-					assert.equal(2, resolved.folders.length);
-					assert.equal(resolved.configPath, workspace.configPath);
-					assert.ok(resolved.id);
-
-					fs.writeFileSync(workspace.configPath, JSON.stringify({ something: 'something' })); // invalid workspace
-					return service.resolveWorkspace(workspace.configPath).then(resolvedInvalid => {
-						assert.ok(!resolvedInvalid);
-
-						done();
-					});
-				});
-			});
-		});
-	});
-
 	test('resolveWorkspaceSync (support relative paths)', done => {
 		return createWorkspace([process.cwd(), os.tmpdir()]).then(workspace => {
 			fs.writeFileSync(workspace.configPath, JSON.stringify({ folders: [{ path: './ticino-playground/lib' }] }));

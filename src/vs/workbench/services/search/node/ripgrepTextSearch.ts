@@ -18,10 +18,10 @@ import * as paths from 'vs/base/common/paths';
 import * as extfs from 'vs/base/node/extfs';
 import * as encoding from 'vs/base/node/encoding';
 import * as glob from 'vs/base/common/glob';
-import { ILineMatch, ISearchLog } from 'vs/platform/search/common/search';
+import { ISearchLog } from 'vs/platform/search/common/search';
 import { TPromise } from 'vs/base/common/winjs.base';
 
-import { ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, IFolderSearch } from './search';
+import { ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, IFolderSearch, LineMatch, FileMatch } from './search';
 
 export class RipgrepEngine {
 	private isDone = false;
@@ -160,11 +160,11 @@ export class RipgrepEngine {
 }
 
 export class RipgrepParser extends EventEmitter {
-	private static RESULT_REGEX = /^\u001b\[m(\d+)\u001b\[m:(.*)(\r?)/;
-	private static FILE_REGEX = /^\u001b\[m(.+)\u001b\[m$/;
+	private static readonly RESULT_REGEX = /^\u001b\[m(\d+)\u001b\[m:(.*)(\r?)/;
+	private static readonly FILE_REGEX = /^\u001b\[m(.+)\u001b\[m$/;
 
-	public static MATCH_START_MARKER = '\u001b[m\u001b[31m';
-	public static MATCH_END_MARKER = '\u001b[m';
+	public static readonly MATCH_START_MARKER = '\u001b[m\u001b[31m';
+	public static readonly MATCH_END_MARKER = '\u001b[m';
 
 	private fileMatch: FileMatch;
 	private remainder: string;
@@ -325,74 +325,6 @@ export class RipgrepParser extends EventEmitter {
 	private onResult(): void {
 		this.emit('result', this.fileMatch.serialize());
 		this.fileMatch = null;
-	}
-}
-
-export class FileMatch implements ISerializedFileMatch {
-	path: string;
-	lineMatches: LineMatch[];
-
-	constructor(path: string) {
-		this.path = path;
-		this.lineMatches = [];
-	}
-
-	addMatch(lineMatch: LineMatch): void {
-		this.lineMatches.push(lineMatch);
-	}
-
-	isEmpty(): boolean {
-		return this.lineMatches.length === 0;
-	}
-
-	serialize(): ISerializedFileMatch {
-		let lineMatches: ILineMatch[] = [];
-		let numMatches = 0;
-
-		for (let i = 0; i < this.lineMatches.length; i++) {
-			numMatches += this.lineMatches[i].offsetAndLengths.length;
-			lineMatches.push(this.lineMatches[i].serialize());
-		}
-
-		return {
-			path: this.path,
-			lineMatches,
-			numMatches
-		};
-	}
-}
-
-export class LineMatch implements ILineMatch {
-	preview: string;
-	lineNumber: number;
-	offsetAndLengths: number[][];
-
-	constructor(preview: string, lineNumber: number) {
-		this.preview = preview.replace(/(\r|\n)*$/, '');
-		this.lineNumber = lineNumber;
-		this.offsetAndLengths = [];
-	}
-
-	getText(): string {
-		return this.preview;
-	}
-
-	getLineNumber(): number {
-		return this.lineNumber;
-	}
-
-	addMatch(offset: number, length: number): void {
-		this.offsetAndLengths.push([offset, length]);
-	}
-
-	serialize(): ILineMatch {
-		const result = {
-			preview: this.preview,
-			lineNumber: this.lineNumber,
-			offsetAndLengths: this.offsetAndLengths
-		};
-
-		return result;
 	}
 }
 

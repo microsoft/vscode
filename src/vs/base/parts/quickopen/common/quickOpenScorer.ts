@@ -61,6 +61,8 @@ export function score(target: string, query: string, queryLower: string, fuzzy: 
 			if (targetOffset === -1) {
 				return NO_SCORE;
 			}
+
+			targetOffset++;
 		}
 	}
 

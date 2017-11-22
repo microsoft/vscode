@@ -237,6 +237,13 @@ suite('Quick Open Scorer', () => {
 		assert.equal(res.descriptionMatch[1].end, 14);
 	});
 
+	test('scoreItem - proper target offset', function () {
+		const resource = URI.file('etem');
+
+		const res = scoreItem(resource, 'teem', true, ResourceAccessor, cache);
+		assert.ok(!res.score);
+	});
+
 	test('compareItemsByScore - identity', function () {
 		const resourceA = URI.file('/some/path/fileA.txt');
 		const resourceB = URI.file('/some/path/other/fileB.txt');

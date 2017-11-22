@@ -28,7 +28,7 @@ enum WinSpawnType {
 export class WinTerminalService implements ITerminalService {
 	public _serviceBrand: any;
 
-	private static CMD = 'cmd.exe';
+	private static readonly CMD = 'cmd.exe';
 
 	constructor(
 		@IConfigurationService private _configurationService: IConfigurationService
@@ -36,7 +36,7 @@ export class WinTerminalService implements ITerminalService {
 	}
 
 	public openTerminal(cwd?: string): void {
-		const configuration = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		const configuration = this._configurationService.getValue<ITerminalConfiguration>();
 
 		this.spawnTerminal(cp, configuration, processes.getWindowsShell(), cwd)
 			.done(null, errors.onUnexpectedError);
@@ -44,7 +44,7 @@ export class WinTerminalService implements ITerminalService {
 
 	public runInTerminal(title: string, dir: string, args: string[], envVars: IProcessEnvironment): TPromise<void> {
 
-		const configuration = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		const configuration = this._configurationService.getValue<ITerminalConfiguration>();
 		const terminalConfig = configuration.terminal.external;
 		const exec = terminalConfig.windowsExec || DEFAULT_TERMINAL_WINDOWS;
 
@@ -114,21 +114,21 @@ export class WinTerminalService implements ITerminalService {
 export class MacTerminalService implements ITerminalService {
 	public _serviceBrand: any;
 
-	private static OSASCRIPT = '/usr/bin/osascript';	// osascript is the AppleScript interpreter on OS X
+	private static readonly OSASCRIPT = '/usr/bin/osascript';	// osascript is the AppleScript interpreter on OS X
 
 	constructor(
 		@IConfigurationService private _configurationService: IConfigurationService
 	) { }
 
 	public openTerminal(cwd?: string): void {
-		const configuration = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		const configuration = this._configurationService.getValue<ITerminalConfiguration>();
 
 		this.spawnTerminal(cp, configuration, cwd).done(null, errors.onUnexpectedError);
 	}
 
 	public runInTerminal(title: string, dir: string, args: string[], envVars: IProcessEnvironment): TPromise<void> {
 
-		const configuration = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		const configuration = this._configurationService.getValue<ITerminalConfiguration>();
 		const terminalConfig = configuration.terminal.external;
 		const terminalApp = terminalConfig.osxExec || DEFAULT_TERMINAL_OSX;
 
@@ -199,7 +199,7 @@ export class MacTerminalService implements ITerminalService {
 export class LinuxTerminalService implements ITerminalService {
 	public _serviceBrand: any;
 
-	private static WAIT_MESSAGE = nls.localize('press.any.key', "Press any key to continue...");
+	private static readonly WAIT_MESSAGE = nls.localize('press.any.key', "Press any key to continue...");
 
 	constructor(
 		@IConfigurationService private _configurationService: IConfigurationService
@@ -207,7 +207,7 @@ export class LinuxTerminalService implements ITerminalService {
 
 
 	public openTerminal(cwd?: string): void {
-		const configuration = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		const configuration = this._configurationService.getValue<ITerminalConfiguration>();
 
 		this.spawnTerminal(cp, configuration, cwd)
 			.done(null, errors.onUnexpectedError);
@@ -215,7 +215,7 @@ export class LinuxTerminalService implements ITerminalService {
 
 	public runInTerminal(title: string, dir: string, args: string[], envVars: IProcessEnvironment): TPromise<void> {
 
-		const configuration = this._configurationService.getConfiguration<ITerminalConfiguration>();
+		const configuration = this._configurationService.getValue<ITerminalConfiguration>();
 		const terminalConfig = configuration.terminal.external;
 		const execPromise = terminalConfig.linuxExec ? TPromise.as(terminalConfig.linuxExec) : DEFAULT_TERMINAL_LINUX_READY;
 

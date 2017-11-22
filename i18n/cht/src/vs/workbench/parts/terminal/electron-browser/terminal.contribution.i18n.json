@@ -17,6 +17,7 @@
 	"terminal.integrated.fontFamily": "控制終端機的字型家族，預設為 editor.fontFamily 的值。",
 	"terminal.integrated.fontSize": "控制終端機的字型大小 (以像素為單位)。",
 	"terminal.integrated.lineHeight": "控制終端機的行高，此數字會乘上終端機字型大小，以取得以像素為單位的實際行高。",
+	"terminal.integrated.enableBold": "是否要在終端機中啟用粗體文字，請注意，此動作須有終端機殼層的支援。",
 	"terminal.integrated.cursorBlinking": "控制終端機資料指標是否閃爍。",
 	"terminal.integrated.cursorStyle": "控制終端機資料指標的樣式。",
 	"terminal.integrated.scrollback": "控制終端機保留在其緩衝區中的行數上限。",

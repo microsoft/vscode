@@ -280,14 +280,6 @@ export class ThemeTrieElementRule {
 		return new ThemeTrieElementRule(this._fontStyle, this._foreground, this._background);
 	}
 
-	public static cloneArr(arr: ThemeTrieElementRule[]): ThemeTrieElementRule[] {
-		let r: ThemeTrieElementRule[] = [];
-		for (let i = 0, len = arr.length; i < len; i++) {
-			r[i] = arr[i].clone();
-		}
-		return r;
-	}
-
 	public acceptOverwrite(fontStyle: FontStyle, foreground: ColorId, background: ColorId): void {
 		if (fontStyle !== FontStyle.NotSet) {
 			this._fontStyle = fontStyle;

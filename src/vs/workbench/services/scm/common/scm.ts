@@ -12,6 +12,7 @@ import Event from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Command } from 'vs/editor/common/modes';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
+import { ISequence } from 'vs/base/common/sequence';
 
 export interface IBaselineResourceProvider {
 	getBaselineResource(resource: URI): TPromise<URI>;
@@ -31,17 +32,6 @@ export interface ISCMResourceDecorations {
 	color?: ColorIdentifier;
 }
 
-export interface ISCMResourceSplice {
-	start: number;
-	deleteCount: number;
-	resources: ISCMResource[];
-}
-
-export interface ISCMResourceCollection {
-	readonly resources: ISCMResource[];
-	readonly onDidSplice: Event<ISCMResourceSplice>;
-}
-
 export interface ISCMResource {
 	readonly resourceGroup: ISCMResourceGroup;
 	readonly sourceUri: URI;
@@ -49,12 +39,12 @@ export interface ISCMResource {
 	open(): TPromise<void>;
 }
 
-export interface ISCMResourceGroup {
+export interface ISCMResourceGroup extends ISequence<ISCMResource> {
 	readonly provider: ISCMProvider;
 	readonly label: string;
 	readonly id: string;
-	readonly resourceCollection: ISCMResourceCollection;
 	readonly hideWhenEmpty: boolean;
+	readonly onDidChange: Event<void>;
 }
 
 export interface ISCMProvider extends IDisposable {
@@ -62,7 +52,9 @@ export interface ISCMProvider extends IDisposable {
 	readonly id: string;
 	readonly contextValue: string;
 
-	readonly resources: ISCMResourceGroup[];
+	readonly groups: ISequence<ISCMResourceGroup>;
+
+	// TODO@Joao: remove
 	readonly onDidChangeResources: Event<void>;
 
 	readonly rootUri?: URI;
@@ -79,6 +71,9 @@ export interface ISCMProvider extends IDisposable {
 export interface ISCMInput {
 	value: string;
 	readonly onDidChange: Event<string>;
+
+	placeholder: string;
+	readonly onDidChangePlaceholder: Event<string>;
 }
 
 export interface ISCMRepository extends IDisposable {

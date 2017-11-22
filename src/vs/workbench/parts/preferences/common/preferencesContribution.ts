@@ -103,10 +103,6 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		}
 	}
 
-	public getId(): string {
-		return 'vs.contentprovider';
-	}
-
 	private start(): void {
 
 		this.textModelResolverService.registerTextModelContentProvider('vscode', {

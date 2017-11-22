@@ -5,8 +5,7 @@
 
 'use strict';
 
-import { ILocalExtension, IGalleryExtension, EXTENSION_IDENTIFIER_REGEX, IExtensionEnablementService, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { ILocalExtension, IGalleryExtension, EXTENSION_IDENTIFIER_REGEX, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifier): boolean {
 	if (a.uuid && b.uuid) {
@@ -81,23 +80,5 @@ export function getGalleryExtensionTelemetryData(extension: IGalleryExtension): 
 	};
 }
 
-
-const BetterMergeCheckKey = 'extensions/bettermergecheck';
 export const BetterMergeDisabledNowKey = 'extensions/bettermergedisablednow';
 export const BetterMergeId = 'pprice.better-merge';
-
-/**
- * Globally disabled extensions, taking care of disabling obsolete extensions.
- */
-export function getGloballyDisabledExtensions(extensionEnablementService: IExtensionEnablementService, storageService: IStorageService, installedExtensions: { id: string; }[]) {
-	const globallyDisabled = extensionEnablementService.getGloballyDisabledExtensions();
-	if (!storageService.getBoolean(BetterMergeCheckKey, StorageScope.GLOBAL, false)) {
-		storageService.store(BetterMergeCheckKey, true);
-		if (globallyDisabled.every(disabled => disabled.id !== BetterMergeId) && installedExtensions.some(d => d.id === BetterMergeId)) {
-			globallyDisabled.push({ id: BetterMergeId });
-			extensionEnablementService.setEnablement({ id: BetterMergeId }, false);
-			storageService.store(BetterMergeDisabledNowKey, true);
-		}
-	}
-	return globallyDisabled;
-}

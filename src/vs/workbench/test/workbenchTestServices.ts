@@ -5,11 +5,10 @@
 
 'use strict';
 
-import 'vs/workbench/parts/files/browser/files.contribution'; // load our contribution into the test
+import 'vs/workbench/parts/files/electron-browser/files.contribution'; // load our contribution into the test
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { EventEmitter } from 'vs/base/common/eventEmitter';
 import * as paths from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -21,7 +20,7 @@ import Severity from 'vs/base/common/severity';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Parts, Position as PartPosition } from 'vs/workbench/services/part/common/partService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IEditorInput, IEditorOptions, Position, Direction, IEditor, IResourceInput } from 'vs/platform/editor/common/editor';
@@ -46,7 +45,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IWindowsService, IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { RawTextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -57,10 +56,9 @@ import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
-import { IPosition } from 'vs/editor/common/core/position';
+import { IPosition, Position as EditorPosition } from 'vs/editor/common/core/position';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
-import { notImplemented } from 'vs/base/common/errors';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -264,7 +262,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 		choose: (severity, message, options, cancelId): TPromise<number> => {
 			return TPromise.as(cancelId);
 		}
-	});
+	} as IChoiceService);
 
 	return instantiationService;
 }
@@ -361,19 +359,15 @@ export class TestPartService implements IPartService {
 		return true;
 	}
 
-	public joinCreation(): Promise {
-		return TPromise.as(null);
-	}
-
-	public hasFocus(part): boolean {
+	public hasFocus(part: Parts): boolean {
 		return false;
 	}
 
-	public isVisible(part): boolean {
+	public isVisible(part: Parts): boolean {
 		return true;
 	}
 
-	public getContainer(part): HTMLElement {
+	public getContainer(part: Parts): HTMLElement {
 		return null;
 	}
 
@@ -421,6 +415,10 @@ export class TestPartService implements IPartService {
 		return 0;
 	}
 
+	public setPanelPosition(position: PartPosition): TPromise<void> {
+		return TPromise.as(null);
+	}
+
 	public addClass(clazz: string): void { }
 	public removeClass(clazz: string): void { }
 	public getWorkbenchElementId(): string { return ''; }
@@ -430,14 +428,12 @@ export class TestPartService implements IPartService {
 	public resizePart(part: Parts, sizeChange: number): void { }
 }
 
-export class TestStorageService extends EventEmitter implements IStorageService {
+export class TestStorageService implements IStorageService {
 	public _serviceBrand: any;
 
 	private storage: StorageService;
 
 	constructor() {
-		super();
-
 		let context = new TestContextService();
 		this.storage = new StorageService(new InMemoryLocalStorage(), null, context.getWorkspace().id);
 	}
@@ -564,11 +560,6 @@ export class TestEditorGroupService implements IEditorGroupService {
 	public pinEditor(arg1: any, input: IEditorInput): void {
 	}
 
-	public unpinEditor(group: IEditorGroup, input: IEditorInput): void;
-	public unpinEditor(position: Position, input: IEditorInput): void;
-	public unpinEditor(arg1: any, input: IEditorInput): void {
-	}
-
 	public moveEditor(input: IEditorInput, from: IEditorGroup, to: IEditorGroup, moveOptions?: IMoveOptions): void;
 	public moveEditor(input: IEditorInput, from: Position, to: Position, moveOptions?: IMoveOptions): void;
 	public moveEditor(input: IEditorInput, from: any, to: any, moveOptions?: IMoveOptions): void {
@@ -602,11 +593,11 @@ export class TestEditorService implements IWorkbenchEditorService {
 		this.mockLineNumber = 15;
 	}
 
-	public openEditors(inputs): Promise {
+	public openEditors(inputs: any[]): Promise {
 		return TPromise.as([]);
 	}
 
-	public replaceEditors(editors): TPromise<IEditor[]> {
+	public replaceEditors(editors: any[]): TPromise<IEditor[]> {
 		return TPromise.as([]);
 	}
 
@@ -616,10 +607,6 @@ export class TestEditorService implements IWorkbenchEditorService {
 
 	public closeAllEditors(except?: Position): TPromise<void> {
 		return TPromise.as(null);
-	}
-
-	public isVisible(input: IEditorInput, includeDiff: boolean): boolean {
-		return false;
 	}
 
 	public getActiveEditor(): IEditor {
@@ -800,6 +787,10 @@ export class TestFileService implements IFileService {
 		return TPromise.as(null);
 	}
 
+	canHandleResource(resource: URI): boolean {
+		return resource.scheme === 'file';
+	}
+
 	del(resource: URI, useTrash?: boolean): TPromise<void> {
 		return TPromise.as(null);
 	}
@@ -891,6 +882,10 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(false);
 	}
 
+	getConfiguration(): IWindowConfiguration {
+		return Object.create(null);
+	}
+
 	getCurrentWindowId(): number {
 		return 0;
 	}
@@ -959,18 +954,6 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
-	isMaximized(): TPromise<boolean> {
-		return TPromise.as(void 0);
-	}
-
-	maximizeWindow(): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-
-	unmaximizeWindow(): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-
 	onWindowTitleDoubleClick(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
@@ -1011,7 +994,7 @@ export class TestLifecycleService implements ILifecycleService {
 	private _onShutdown = new Emitter<ShutdownReason>();
 
 	when(): Thenable<void> {
-		throw notImplemented();
+		return TPromise.as(void 0);
 	}
 
 	public fireShutdown(reason = ShutdownReason.QUIT): void {
@@ -1229,11 +1212,10 @@ export class TestTextResourceConfigurationService implements ITextResourceConfig
 		return { dispose() { } };
 	}
 
-	public getConfiguration(resource: URI, section?: string): any;
-	public getConfiguration(resource: URI, position?: IPosition, section?: string): any;
-	public getConfiguration(resource: any, position?: any, section?: any): any;
-	public getConfiguration(resource: any, position?: any, section?: any): any {
-		return this.configurationService.getConfiguration(section, { resource });
+	getValue<T>(resource: URI, arg2?: any, arg3?: any): T {
+		const position: IPosition = EditorPosition.isIPosition(arg2) ? arg2 : null;
+		const section: string = position ? (typeof arg3 === 'string' ? arg3 : void 0) : (typeof arg2 === 'string' ? arg2 : void 0);
+		return this.configurationService.getValue(section, { resource });
 	}
 }
 

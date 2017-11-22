@@ -16,6 +16,8 @@
 	"exclude.boolean": "Criterio GLOB da usare per trovare percorsi file. Impostare su True o False per abilitare o disabilitare il criterio.",
 	"exclude.when": "Controllo aggiuntivo sugli elementi di pari livello di un file corrispondente. Usare $(basename) come variabile del nome file corrispondente.",
 	"useRipgrep": "Controlla l'utilizzo di ripgrep nelle ricerche su testo e file",
+	"useIgnoreFilesByDefault": "Controlla se utilizzare i file .gitignore e .ignore come impostazione predefinita durante la ricerca testuale in una nuova area di lavoro.",
+	"useIgnoreFiles": "Controlla se utilizzare i file .gitignore e .ignore durante la ricerca di file",
 	"search.quickOpen.includeSymbols": "Configurare questa opzione per includere i risultati di una ricerca di simboli globale nei risultati dei file per Quick Open.",
 	"search.followSymlinks": "Controlla se seguire i collegamenti simbolici durante la ricerca."
 }

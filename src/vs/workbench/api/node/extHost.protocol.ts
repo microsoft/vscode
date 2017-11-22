@@ -404,6 +404,7 @@ export interface MainThreadSCMShape extends IDisposable {
 	$spliceResourceStates(sourceControlHandle: number, splices: SCMRawResourceSplices[]): void;
 
 	$setInputBoxValue(sourceControlHandle: number, value: string): void;
+	$setInputBoxPlaceholder(sourceControlHandle: number, placeholder: string): void;
 }
 
 export type DebugSessionUUID = string;
@@ -414,12 +415,6 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$startDebugging(folder: URI | undefined, nameOrConfig: string | vscode.DebugConfiguration): TPromise<boolean>;
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): TPromise<any>;
 	$appendDebugConsole(value: string): TPromise<any>;
-}
-
-export interface MainThreadCredentialsShape extends IDisposable {
-	$readSecret(service: string, account: string): Thenable<string | undefined>;
-	$writeSecret(service: string, account: string, secret: string): Thenable<void>;
-	$deleteSecret(service: string, account: string): Thenable<boolean>;
 }
 
 export interface MainThreadWindowShape extends IDisposable {
@@ -586,7 +581,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideHover(handle: number, resource: URI, position: IPosition): TPromise<modes.Hover>;
 	$provideDocumentHighlights(handle: number, resource: URI, position: IPosition): TPromise<modes.DocumentHighlight[]>;
 	$provideReferences(handle: number, resource: URI, position: IPosition, context: modes.ReferenceContext): TPromise<modes.Location[]>;
-	$provideCodeActions(handle: number, resource: URI, range: IRange): TPromise<modes.Command[]>;
+	$provideCodeActions(handle: number, resource: URI, range: IRange): TPromise<(modes.Command | modes.CodeAction)[]>;
 	$provideDocumentFormattingEdits(handle: number, resource: URI, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]>;
 	$provideDocumentRangeFormattingEdits(handle: number, resource: URI, range: IRange, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]>;
 	$provideOnTypeFormattingEdits(handle: number, resource: URI, position: IPosition, ch: string, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]>;
@@ -640,9 +635,6 @@ export interface ExtHostDecorationsShape {
 	$providerDecorations(handle: number, uri: URI): TPromise<DecorationData>;
 }
 
-export interface ExtHostCredentialsShape {
-}
-
 export interface ExtHostWindowShape {
 	$onDidChangeWindowFocus(value: boolean): void;
 }
@@ -676,7 +668,6 @@ export const MainContext = {
 	MainThreadExtensionService: createMainId<MainThreadExtensionServiceShape>('MainThreadExtensionService'),
 	MainThreadSCM: createMainId<MainThreadSCMShape>('MainThreadSCM'),
 	MainThreadTask: createMainId<MainThreadTaskShape>('MainThreadTask'),
-	MainThreadCredentials: createMainId<MainThreadCredentialsShape>('MainThreadCredentials'),
 	MainThreadWindow: createMainId<MainThreadWindowShape>('MainThreadWindow'),
 };
 
@@ -702,6 +693,5 @@ export const ExtHostContext = {
 	ExtHostSCM: createExtId<ExtHostSCMShape>('ExtHostSCM'),
 	ExtHostTask: createExtId<ExtHostTaskShape>('ExtHostTask'),
 	ExtHostWorkspace: createExtId<ExtHostWorkspaceShape>('ExtHostWorkspace'),
-	ExtHostCredentials: createExtId<ExtHostCredentialsShape>('ExtHostCredentials'),
 	ExtHostWindow: createExtId<ExtHostWindowShape>('ExtHostWindow'),
 };

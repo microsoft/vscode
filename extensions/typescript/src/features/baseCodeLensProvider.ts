@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CodeLensProvider, CodeLens, CancellationToken, TextDocument, Range, Uri, Position, Event, EventEmitter, ProviderResult, } from 'vscode';
+import { CodeLensProvider, CodeLens, CancellationToken, TextDocument, Range, Uri, Position, Event, EventEmitter } from 'vscode';
 import * as Proto from '../protocol';
 
 import { ITypeScriptServiceClient } from '../typescriptService';
@@ -38,7 +38,7 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 		}
 	}
 
-	provideCodeLenses(document: TextDocument, token: CancellationToken): ProviderResult<CodeLens[]> {
+	async provideCodeLenses(document: TextDocument, token: CancellationToken): Promise<CodeLens[]> {
 		if (!this.enabled) {
 			return [];
 		}
@@ -47,7 +47,8 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 		if (!filepath) {
 			return [];
 		}
-		return this.client.execute('navtree', { file: filepath }, token).then(response => {
+		try {
+			const response = await this.client.execute('navtree', { file: filepath }, token);
 			if (!response) {
 				return [];
 			}
@@ -57,9 +58,9 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 				tree.childItems.forEach(item => this.walkNavTree(document, item, null, referenceableSpans));
 			}
 			return referenceableSpans.map(span => new ReferencesCodeLens(document.uri, filepath, span));
-		}, () => {
+		} catch {
 			return [];
-		});
+		}
 	}
 
 	protected abstract extractSymbol(

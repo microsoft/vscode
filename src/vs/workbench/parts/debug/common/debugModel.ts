@@ -58,7 +58,7 @@ export class SimpleReplElement extends AbstractReplElement {
 
 export class RawObjectReplElement extends AbstractReplElement implements IExpression {
 
-	private static MAX_CHILDREN = 1000; // upper bound of children per value
+	private static readonly MAX_CHILDREN = 1000; // upper bound of children per value
 
 	constructor(public name: string, public valueObj: any, source?: IReplElementSource, public annotation?: string) {
 		super(source);
@@ -104,7 +104,7 @@ export class ExpressionContainer implements IExpressionContainer {
 
 	public static allValues: Map<string, string> = new Map<string, string>();
 	// Use chunks to support variable paging #9537
-	private static BASE_CHUNK_SIZE = 100;
+	private static readonly BASE_CHUNK_SIZE = 100;
 
 	public valueChanged: boolean;
 	private _value: string;

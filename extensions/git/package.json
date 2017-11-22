@@ -220,6 +220,11 @@
         "category": "Git"
       },
       {
+        "command": "git.renameBranch",
+        "title": "%command.renameBranch%",
+        "category": "Git"
+      },
+      {
         "command": "git.merge",
         "title": "%command.merge%",
         "category": "Git"
@@ -265,6 +270,11 @@
         "category": "Git"
       },
       {
+        "command": "git.syncRebase",
+        "title": "%command.syncRebase%",
+        "category": "Git"
+      },
+      {
         "command": "git.publish",
         "title": "%command.publish%",
         "category": "Git"
@@ -277,6 +287,11 @@
       {
         "command": "git.ignore",
         "title": "%command.ignore%",
+        "category": "Git"
+      },
+      {
+        "command": "git.stashIncludeUntracked",
+        "title": "%command.stashIncludeUntracked%",
         "category": "Git"
       },
       {
@@ -410,6 +425,10 @@
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.renameBranch",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
           "command": "git.pull",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
@@ -447,6 +466,10 @@
         },
         {
           "command": "git.sync",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.syncRebase",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
@@ -494,6 +517,11 @@
           "command": "git.sync",
           "group": "1_sync",
           "when": "config.git.enabled && scmProvider == git"
+        },
+        {
+          "command": "git.syncRebase",
+          "group": "1_sync",
+          "when": "config.git.enabled && scmProvider == git && gitState == idle"
         },
         {
           "command": "git.pull",
@@ -573,6 +601,11 @@
         {
           "command": "git.cleanAll",
           "group": "4_stage",
+          "when": "config.git.enabled && scmProvider == git"
+        },
+        {
+          "command": "git.stashIncludeUntracked",
+          "group": "5_stash",
           "when": "config.git.enabled && scmProvider == git"
         },
         {
@@ -818,6 +851,11 @@
           "description": "%config.ignoreLegacyWarning%",
           "default": false
         },
+        "git.ignoreMissingGitWarning": {
+          "type": "boolean",
+          "description": "%config.ignoreMissingGitWarning%",
+          "default": false
+        },
         "git.ignoreLimitWarning": {
           "type": "boolean",
           "description": "%config.ignoreLimitWarning%",
@@ -895,11 +933,14 @@
   },
   "dependencies": {
     "byline": "^5.0.0",
+    "file-type": "^7.2.0",
     "iconv-lite": "0.4.19",
     "vscode-extension-telemetry": "0.0.8",
     "vscode-nls": "2.0.2"
   },
   "devDependencies": {
+    "@types/byline": "4.2.31",
+    "@types/file-type": "^5.2.1",
     "@types/mocha": "2.2.43",
     "@types/node": "7.0.43",
     "mocha": "^3.2.0"

@@ -114,7 +114,7 @@ const maven: TaskEntry = {
 		'\t\t\t"group": "build"',
 		'\t\t},',
 		'\t\t{',
-		'\t\t\t"taskName": "test",',
+		'\t\t\t"label": "test",',
 		'\t\t\t"type": "shell",',
 		'\t\t\t"command": "mvn -B test",',
 		'\t\t\t"group": "test"',

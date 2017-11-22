@@ -39,7 +39,5 @@ perfSuite('Performance - fuzzyMatch', function () {
 	perfTest('matchesFuzzy', filters.matchesFuzzy);
 	perfTest('fuzzyContiguousFilter', filters.fuzzyContiguousFilter);
 	perfTest('fuzzyScore', filters.fuzzyScore);
-	perfTest('fuzzyScoreGraceful', filters.fuzzyScoreGraceful);
-
 });
 

@@ -14,7 +14,7 @@ import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 const decoration = vscode.window.createTextEditorDecorationType({
-	color: '#b1b1b1'
+	color: '#9e9e9e'
 });
 
 let pendingLaunchJsonDecoration: NodeJS.Timer;

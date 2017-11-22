@@ -5,12 +5,8 @@
 
 import nls = require('vs/nls');
 import DOM = require('vs/base/browser/dom');
-import errors = require('vs/base/common/errors');
-import resources = require('vs/base/common/resources');
 import { TPromise } from 'vs/base/common/winjs.base';
-import URI from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
-import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { INavigator } from 'vs/base/common/iterator';
@@ -22,9 +18,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ResolvedKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IListService } from 'vs/platform/list/browser/listService';
-import { explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { OS } from 'vs/base/common/platform';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
@@ -67,8 +61,8 @@ export const toggleRegexCommand = (accessor: ServicesAccessor) => {
 
 export class ShowNextSearchIncludeAction extends Action {
 
-	public static ID = 'search.history.showNextIncludePattern';
-	public static LABEL = nls.localize('nextSearchIncludePattern', "Show Next Search Include Pattern");
+	public static readonly ID = 'search.history.showNextIncludePattern';
+	public static readonly LABEL = nls.localize('nextSearchIncludePattern', "Show Next Search Include Pattern");
 	public static CONTEXT_KEY_EXPRESSION: ContextKeyExpr = ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.PatternIncludesFocusedKey);
 
 	constructor(id: string, label: string,
@@ -88,8 +82,8 @@ export class ShowNextSearchIncludeAction extends Action {
 
 export class ShowPreviousSearchIncludeAction extends Action {
 
-	public static ID = 'search.history.showPreviousIncludePattern';
-	public static LABEL = nls.localize('previousSearchIncludePattern', "Show Previous Search Include Pattern");
+	public static readonly ID = 'search.history.showPreviousIncludePattern';
+	public static readonly LABEL = nls.localize('previousSearchIncludePattern', "Show Previous Search Include Pattern");
 	public static CONTEXT_KEY_EXPRESSION: ContextKeyExpr = ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.PatternIncludesFocusedKey);
 
 	constructor(id: string, label: string,
@@ -109,8 +103,8 @@ export class ShowPreviousSearchIncludeAction extends Action {
 
 export class ShowNextSearchExcludeAction extends Action {
 
-	public static ID = 'search.history.showNextExcludePattern';
-	public static LABEL = nls.localize('nextSearchExcludePattern', "Show Next Search Exclude Pattern");
+	public static readonly ID = 'search.history.showNextExcludePattern';
+	public static readonly LABEL = nls.localize('nextSearchExcludePattern', "Show Next Search Exclude Pattern");
 	public static CONTEXT_KEY_EXPRESSION: ContextKeyExpr = ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.PatternExcludesFocusedKey);
 
 	constructor(id: string, label: string,
@@ -129,8 +123,8 @@ export class ShowNextSearchExcludeAction extends Action {
 
 export class ShowPreviousSearchExcludeAction extends Action {
 
-	public static ID = 'search.history.showPreviousExcludePattern';
-	public static LABEL = nls.localize('previousSearchExcludePattern', "Show Previous Search Exclude Pattern");
+	public static readonly ID = 'search.history.showPreviousExcludePattern';
+	public static readonly LABEL = nls.localize('previousSearchExcludePattern', "Show Previous Search Exclude Pattern");
 	public static CONTEXT_KEY_EXPRESSION: ContextKeyExpr = ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.PatternExcludesFocusedKey);
 
 	constructor(id: string, label: string,
@@ -150,8 +144,8 @@ export class ShowPreviousSearchExcludeAction extends Action {
 
 export class ShowNextSearchTermAction extends Action {
 
-	public static ID = 'search.history.showNext';
-	public static LABEL = nls.localize('nextSearchTerm', "Show Next Search Term");
+	public static readonly ID = 'search.history.showNext';
+	public static readonly LABEL = nls.localize('nextSearchTerm', "Show Next Search Term");
 	public static CONTEXT_KEY_EXPRESSION: ContextKeyExpr = ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.SearchInputBoxFocusedKey);
 
 	constructor(id: string, label: string,
@@ -172,8 +166,8 @@ export class ShowNextSearchTermAction extends Action {
 
 export class ShowPreviousSearchTermAction extends Action {
 
-	public static ID = 'search.history.showPrevious';
-	public static LABEL = nls.localize('previousSearchTerm', "Show Previous Search Term");
+	public static readonly ID = 'search.history.showPrevious';
+	public static readonly LABEL = nls.localize('previousSearchTerm', "Show Previous Search Term");
 	public static CONTEXT_KEY_EXPRESSION: ContextKeyExpr = ContextKeyExpr.and(Constants.SearchViewletVisibleKey, Constants.SearchInputBoxFocusedKey);
 
 	constructor(id: string, label: string,
@@ -193,8 +187,8 @@ export class ShowPreviousSearchTermAction extends Action {
 
 export class FocusNextInputAction extends Action {
 
-	public static ID = 'search.focus.nextInputBox';
-	public static LABEL = nls.localize('focusNextInputBox', "Focus Next Input Box");
+	public static readonly ID = 'search.focus.nextInputBox';
+	public static readonly LABEL = nls.localize('focusNextInputBox', "Focus Next Input Box");
 
 	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
 		super(id, label);
@@ -208,8 +202,8 @@ export class FocusNextInputAction extends Action {
 
 export class FocusPreviousInputAction extends Action {
 
-	public static ID = 'search.focus.previousInputBox';
-	public static LABEL = nls.localize('focusPreviousInputBox', "Focus Previous Input Box");
+	public static readonly ID = 'search.focus.previousInputBox';
+	public static readonly LABEL = nls.localize('focusPreviousInputBox', "Focus Previous Input Box");
 
 	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
 		super(id, label);
@@ -219,32 +213,6 @@ export class FocusPreviousInputAction extends Action {
 		(<SearchViewlet>this.viewletService.getActiveViewlet()).focusPreviousInputBox();
 		return TPromise.as(null);
 	}
-}
-
-export class OpenSearchViewletAction extends ToggleViewletAction {
-
-	public static LABEL = nls.localize('showSearchViewlet', "Show Search");
-
-	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
-		super(id, label, Constants.VIEWLET_ID, viewletService, editorService);
-	}
-
-	public run(): TPromise<any> {
-		const activeViewlet = this.viewletService.getActiveViewlet();
-		const searchViewletWasOpen = activeViewlet && activeViewlet.getId() === Constants.VIEWLET_ID;
-
-		return super.run().then(() => {
-			if (!searchViewletWasOpen) {
-				// Get the search viewlet and ensure that 'replace' is collapsed
-				const searchViewlet = this.viewletService.getActiveViewlet();
-				if (searchViewlet && searchViewlet.getId() === Constants.VIEWLET_ID) {
-					const searchAndReplaceWidget = (<SearchViewlet>searchViewlet).searchAndReplaceWidget;
-					searchAndReplaceWidget.toggleReplace(false);
-				}
-			}
-		});
-	}
-
 }
 
 export const FocusActiveEditorCommand = (accessor: ServicesAccessor) => {
@@ -281,7 +249,10 @@ export abstract class FindOrReplaceInFilesAction extends Action {
 			if (!searchViewletWasOpen || this.options.expandSearchReplaceWidget) {
 				const searchAndReplaceWidget = (<SearchViewlet>viewlet).searchAndReplaceWidget;
 				searchAndReplaceWidget.toggleReplace(this.options.expandSearchReplaceWidget);
-				searchAndReplaceWidget.focus(this.options.selectWidgetText, this.options.focusReplace);
+
+				// Focus replace only when there is text in the searchInput box
+				const focusReplace = this.options.focusReplace && searchAndReplaceWidget.searchInput.getValue();
+				searchAndReplaceWidget.focus(this.options.selectWidgetText, !!focusReplace);
 			}
 
 			return viewlet;
@@ -289,9 +260,11 @@ export abstract class FindOrReplaceInFilesAction extends Action {
 	}
 }
 
+export const SHOW_SEARCH_LABEL = nls.localize('showSearchViewlet', "Show Search");
+
 export class FindInFilesAction extends FindOrReplaceInFilesAction {
 
-	public static LABEL = nls.localize('findInFiles', "Find in Files");
+	public static readonly LABEL = nls.localize('findInFiles', "Find in Files");
 
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService) {
 		super(id, label, viewletService, {
@@ -304,8 +277,8 @@ export class FindInFilesAction extends FindOrReplaceInFilesAction {
 
 export class FindInFilesWithSelectedTextAction extends FindOrReplaceInFilesAction {
 
-	public static ID = 'workbench.action.findInFilesWithSelectedText';
-	public static LABEL = nls.localize('findInFilesWithSelectedText', "Find in Files With Selected Text");
+	public static readonly ID = 'workbench.action.findInFilesWithSelectedText';
+	public static readonly LABEL = nls.localize('findInFilesWithSelectedText', "Find in Files With Selected Text");
 
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService) {
 		super(id, label, viewletService, {
@@ -319,8 +292,8 @@ export class FindInFilesWithSelectedTextAction extends FindOrReplaceInFilesActio
 
 export class ReplaceInFilesAction extends FindOrReplaceInFilesAction {
 
-	public static ID = 'workbench.action.replaceInFiles';
-	public static LABEL = nls.localize('replaceInFiles', "Replace in Files");
+	public static readonly ID = 'workbench.action.replaceInFiles';
+	public static readonly LABEL = nls.localize('replaceInFiles', "Replace in Files");
 
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService) {
 		super(id, label, viewletService, {
@@ -333,8 +306,8 @@ export class ReplaceInFilesAction extends FindOrReplaceInFilesAction {
 
 export class ReplaceInFilesWithSelectedTextAction extends FindOrReplaceInFilesAction {
 
-	public static ID = 'workbench.action.replaceInFilesWithSelectedText';
-	public static LABEL = nls.localize('replaceInFilesWithSelectedText', "Replace in Files With Selected Text");
+	public static readonly ID = 'workbench.action.replaceInFilesWithSelectedText';
+	public static readonly LABEL = nls.localize('replaceInFilesWithSelectedText', "Replace in Files With Selected Text");
 
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService) {
 		super(id, label, viewletService, {
@@ -359,59 +332,6 @@ export class CloseReplaceAction extends Action {
 		return TPromise.as(null);
 	}
 }
-
-export class FindInWorkspaceAction extends Action {
-
-	public static ID = 'filesExplorer.findInWorkspace';
-
-	constructor( @IViewletService private viewletService: IViewletService) {
-		super(FindInWorkspaceAction.ID, nls.localize('findInWorkspace', "Find in Workspace..."));
-	}
-
-	public run(event?: any): TPromise<any> {
-		return this.viewletService.openViewlet(Constants.VIEWLET_ID, true).then(viewlet => {
-			(viewlet as SearchViewlet).searchInFolder(null);
-		});
-	}
-}
-
-export class FindInFolderAction extends Action {
-
-	public static ID = 'filesExplorer.findInFolder';
-
-	private resource: URI;
-
-	constructor(resource: URI, @IInstantiationService private instantiationService: IInstantiationService) {
-		super(FindInFolderAction.ID, nls.localize('findInFolder', "Find in Folder..."));
-
-		this.resource = resource;
-	}
-
-	public run(event?: any): TPromise<any> {
-		return this.instantiationService.invokeFunction.apply(this.instantiationService, [findInFolderCommand, this.resource]);
-	}
-}
-
-export const findInFolderCommand = (accessor: ServicesAccessor, resource?: URI) => {
-	const listService = accessor.get(IListService);
-	const viewletService = accessor.get(IViewletService);
-
-	if (!URI.isUri(resource)) {
-		const focused = listService.getFocused() ? listService.getFocused().getFocus() : void 0;
-		if (focused) {
-			const file = explorerItemToFileResource(focused);
-			if (file) {
-				resource = file.isDirectory ? file.resource : resources.dirname(file.resource);
-			}
-		}
-	}
-
-	viewletService.openViewlet(Constants.VIEWLET_ID, true).then(viewlet => {
-		if (resource) {
-			(viewlet as SearchViewlet).searchInFolder(resource);
-		}
-	}).done(null, errors.onUnexpectedError);
-};
 
 export class RefreshAction extends Action {
 
@@ -472,8 +392,8 @@ export class ClearSearchResultsAction extends Action {
 }
 
 export class FocusNextSearchResultAction extends Action {
-	public static ID = 'search.action.focusNextSearchResult';
-	public static LABEL = nls.localize('FocusNextSearchResult.label', "Focus Next Search Result");
+	public static readonly ID = 'search.action.focusNextSearchResult';
+	public static readonly LABEL = nls.localize('FocusNextSearchResult.label', "Focus Next Search Result");
 
 	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
 		super(id, label);
@@ -487,8 +407,8 @@ export class FocusNextSearchResultAction extends Action {
 }
 
 export class FocusPreviousSearchResultAction extends Action {
-	public static ID = 'search.action.focusPreviousSearchResult';
-	public static LABEL = nls.localize('FocusPreviousSearchResult.label', "Focus Previous Search Result");
+	public static readonly ID = 'search.action.focusPreviousSearchResult';
+	public static readonly LABEL = nls.localize('FocusPreviousSearchResult.label', "Focus Previous Search Result");
 
 	constructor(id: string, label: string, @IViewletService private viewletService: IViewletService) {
 		super(id, label);
@@ -583,8 +503,6 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 
 	constructor(private viewer: ITree, private fileMatch: FileMatch, private viewlet: SearchViewlet,
-		// @ts-ignore unused injected service
-		@IReplaceService private replaceService: IReplaceService,
 		@IKeybindingService keyBindingService: IKeybindingService,
 		@ITelemetryService private telemetryService: ITelemetryService) {
 		super(Constants.ReplaceAllInFileActionId, appendKeyBindingLabel(nls.localize('file.replaceAll.label', "Replace All"), keyBindingService.lookupKeybinding(Constants.ReplaceAllInFileActionId), keyBindingService), 'action-replace-all');
@@ -603,6 +521,30 @@ export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 			this.viewer.DOMFocus();
 			this.viewlet.open(this.fileMatch, true);
 		});
+	}
+}
+
+export class ReplaceAllInFolderAction extends AbstractSearchAndReplaceAction {
+
+	constructor(private viewer: ITree, private folderMatch: FolderMatch,
+		@IKeybindingService keyBindingService: IKeybindingService,
+		@ITelemetryService private telemetryService: ITelemetryService
+	) {
+		super(Constants.ReplaceAllInFolderActionId, nls.localize('file.replaceAll.label', "Replace All"), 'action-replace-all');
+	}
+
+	public async run(): TPromise<any> {
+		/* __GDPR__
+			"replaceAllInFolder.action.selected" : {}
+		*/
+		this.telemetryService.publicLog('replaceAllInFolder.action.selected');
+		let nextFocusElement = this.getElementToFocusAfterRemoved(this.viewer, this.folderMatch);
+		await this.folderMatch.replaceAll();
+
+		if (nextFocusElement) {
+			this.viewer.setFocus(nextFocusElement);
+		}
+		this.viewer.DOMFocus();
 	}
 }
 

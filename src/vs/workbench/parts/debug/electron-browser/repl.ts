@@ -17,13 +17,13 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ITree, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
-import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
-import { IReadOnlyModel, ICommonCodeEditor } from 'vs/editor/common/editorCommon';
+import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
+import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
+import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Position } from 'vs/editor/common/core/position';
 import * as modes from 'vs/editor/common/modes';
-import { editorAction, ServicesAccessor, EditorAction, EditorCommand, CommonEditorRegistry } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -43,6 +43,7 @@ import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { clipboard } from 'electron';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 const $ = dom.$;
 
@@ -65,12 +66,12 @@ export interface IPrivateReplService {
 export class Repl extends Panel implements IPrivateReplService {
 	public _serviceBrand: any;
 
-	private static HALF_WIDTH_TYPICAL = 'n';
+	private static readonly HALF_WIDTH_TYPICAL = 'n';
 
 	private static HISTORY: ReplHistory;
-	private static REFRESH_DELAY = 500; // delay in ms to refresh the repl for new elements to show
-	private static REPL_INPUT_INITIAL_HEIGHT = 19;
-	private static REPL_INPUT_MAX_HEIGHT = 170;
+	private static readonly REFRESH_DELAY = 500; // delay in ms to refresh the repl for new elements to show
+	private static readonly REPL_INPUT_INITIAL_HEIGHT = 19;
+	private static readonly REPL_INPUT_MAX_HEIGHT = 170;
 
 	private tree: ITree;
 	private renderer: ReplExpressionsRenderer;
@@ -312,8 +313,6 @@ export class Repl extends Panel implements IPrivateReplService {
 	}
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class ReplHistoryPreviousAction extends EditorAction {
 
 	constructor() {
@@ -333,13 +332,11 @@ class ReplHistoryPreviousAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void | TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void | TPromise<void> {
 		accessor.get(IPrivateReplService).navigateHistory(true);
 	}
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class ReplHistoryNextAction extends EditorAction {
 
 	constructor() {
@@ -359,13 +356,11 @@ class ReplHistoryNextAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void | TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void | TPromise<void> {
 		accessor.get(IPrivateReplService).navigateHistory(false);
 	}
 }
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class AcceptReplInputAction extends EditorAction {
 
 	constructor() {
@@ -381,25 +376,12 @@ class AcceptReplInputAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void | TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void | TPromise<void> {
 		SuggestController.get(editor).acceptSelectedSuggestion();
 		accessor.get(IPrivateReplService).acceptReplInput();
 	}
 }
 
-const SuggestCommand = EditorCommand.bindToContribution<SuggestController>(SuggestController.get);
-CommonEditorRegistry.registerEditorCommand(new SuggestCommand({
-	id: 'repl.action.acceptSuggestion',
-	precondition: ContextKeyExpr.and(debug.CONTEXT_IN_DEBUG_REPL, SuggestContext.Visible),
-	handler: x => x.acceptSelectedSuggestion(),
-	kbOpts: {
-		weight: 50,
-		kbExpr: EditorContextKeys.textFocus,
-		primary: KeyCode.RightArrow
-	}
-}));
-
-@editorAction
 export class ReplCopyAllAction extends EditorAction {
 
 	constructor() {
@@ -411,7 +393,24 @@ export class ReplCopyAllAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void | TPromise<void> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void | TPromise<void> {
 		clipboard.writeText(accessor.get(IPrivateReplService).getVisibleContent());
 	}
 }
+
+registerEditorAction(ReplHistoryPreviousAction);
+registerEditorAction(ReplHistoryNextAction);
+registerEditorAction(AcceptReplInputAction);
+registerEditorAction(ReplCopyAllAction);
+
+const SuggestCommand = EditorCommand.bindToContribution<SuggestController>(SuggestController.get);
+registerEditorCommand(new SuggestCommand({
+	id: 'repl.action.acceptSuggestion',
+	precondition: ContextKeyExpr.and(debug.CONTEXT_IN_DEBUG_REPL, SuggestContext.Visible),
+	handler: x => x.acceptSelectedSuggestion(),
+	kbOpts: {
+		weight: 50,
+		kbExpr: EditorContextKeys.textFocus,
+		primary: KeyCode.RightArrow
+	}
+}));

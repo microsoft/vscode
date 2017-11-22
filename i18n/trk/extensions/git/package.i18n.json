@@ -61,5 +61,11 @@
 	"config.defaultCloneDirectory": "Bir git deposunun kopyalanacağı varsayılan konum",
 	"config.enableSmartCommit": "Hazırlanan değişiklik yoksa tüm değişiklikleri commit'le.",
 	"config.enableCommitSigning": "GPG ile commit imzalamayı etkinleştirir.",
-	"config.discardAllScope": "`Tüm Değişiklikleri Göz Ardı Et` komutuyla hangi değişikliklerin göz ardı edileceğini denetler. `all` tüm değişiklikleri göz ardı eder. `tracked` sadece izlenen dosyaları göz ardı eder. `prompt` eylem her çalıştığında bir onay penceresi gösterir."
+	"config.discardAllScope": "`Tüm Değişiklikleri Göz Ardı Et` komutuyla hangi değişikliklerin göz ardı edileceğini denetler. `all` tüm değişiklikleri göz ardı eder. `tracked` sadece izlenen dosyaları göz ardı eder. `prompt` eylem her çalıştığında bir onay penceresi gösterir.",
+	"config.decorations.enabled": "Git'in gezgine ve açık düzenleyiciler görünümüne renkler ve göstergeler ile ekleme yapıp yapmadığını denetler.",
+	"colors.modified": "Değiştirilen kaynakların rengi.",
+	"colors.deleted": "Silinen kaynakların rengi.",
+	"colors.untracked": "İzlenmeyen kaynakların rengi.",
+	"colors.ignored": "Yok sayılan kaynakların rengi.",
+	"colors.conflict": "Çakışma içeren kaynakların rengi."
 }

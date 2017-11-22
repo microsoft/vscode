@@ -34,7 +34,7 @@ import { IBadge } from 'vs/workbench/services/activity/common/activity';
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
-	public static activePanelSettingsKey = 'workbench.panelpart.activepanelid';
+	public static readonly activePanelSettingsKey = 'workbench.panelpart.activepanelid';
 	private static readonly PINNED_PANELS = 'workbench.panel.pinnedPanels';
 	private static readonly MIN_COMPOSITE_BAR_WIDTH = 50;
 
@@ -138,7 +138,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}
 
 		// First check if panel is hidden and show if so
-		let promise = TPromise.as<any>(null);
+		let promise = TPromise.wrap(null);
 		if (!this.partService.isVisible(Parts.PANEL_PART)) {
 			try {
 				this.blockOpeningPanel = true;

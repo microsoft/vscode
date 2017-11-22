@@ -431,10 +431,6 @@ export class StatusUpdater implements IWorkbenchContribution {
 		extensionsWorkbenchService.onChange(this.onServiceChange, this, this.disposables);
 	}
 
-	getId(): string {
-		return 'vs.extensions.statusupdater';
-	}
-
 	private onServiceChange(): void {
 
 		dispose(this.badgeHandle);

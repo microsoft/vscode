@@ -12,6 +12,12 @@ import { EditableTextModel, IValidatedEditOperation } from 'vs/editor/common/mod
 import { MirrorModel } from 'vs/editor/common/model/mirrorModel';
 import { assertSyncedModels, testApplyEditsWithSyncedModels } from 'vs/editor/test/common/model/editableTextModelTestUtils';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { RawTextSource } from 'vs/editor/common/model/textSource';
+
+function createEditableTextModelFromString(text: string): EditableTextModel {
+	return new EditableTextModel(RawTextSource.fromString(text), TextModel.DEFAULT_CREATION_OPTIONS, null);
+}
 
 suite('EditorModel - EditableTextModel._getInverseEdits', () => {
 
@@ -280,7 +286,7 @@ suite('EditorModel - EditableTextModel._toSingleEditOperation', () => {
 	}
 
 	function testSimpleApplyEdits(original: string[], edits: IValidatedEditOperation[], expected: IValidatedEditOperation): void {
-		let model = EditableTextModel.createFromString(original.join('\n'));
+		let model = createEditableTextModelFromString(original.join('\n'));
 		model.setEOL(EndOfLineSequence.LF);
 
 		let actual = model._toSingleEditOperation(edits);
@@ -522,7 +528,7 @@ suite('EditorModel - EditableTextModel._toSingleEditOperation', () => {
 suite('EditorModel - EditableTextModel.applyEdits updates mightContainRTL', () => {
 
 	function testApplyEdits(original: string[], edits: IIdentifiedSingleEditOperation[], before: boolean, after: boolean): void {
-		let model = EditableTextModel.createFromString(original.join('\n'));
+		let model = createEditableTextModelFromString(original.join('\n'));
 		model.setEOL(EndOfLineSequence.LF);
 
 		assert.equal(model.mightContainRTL(), before);
@@ -570,7 +576,7 @@ suite('EditorModel - EditableTextModel.applyEdits updates mightContainRTL', () =
 suite('EditorModel - EditableTextModel.applyEdits updates mightContainNonBasicASCII', () => {
 
 	function testApplyEdits(original: string[], edits: IIdentifiedSingleEditOperation[], before: boolean, after: boolean): void {
-		let model = EditableTextModel.createFromString(original.join('\n'));
+		let model = createEditableTextModelFromString(original.join('\n'));
 		model.setEOL(EndOfLineSequence.LF);
 
 		assert.equal(model.mightContainNonBasicASCII(), before);
@@ -1365,7 +1371,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 	});
 
 	function testApplyEditsFails(original: string[], edits: IIdentifiedSingleEditOperation[]): void {
-		let model = EditableTextModel.createFromString(original.join('\n'));
+		let model = createEditableTextModelFromString(original.join('\n'));
 
 		let hasThrown = false;
 		try {
@@ -1506,7 +1512,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 
 		}, (model) => {
 			var isFirstTime = true;
-			model.addBulkListener((events) => {
+			model.onDidChangeRawContent(() => {
 				if (!isFirstTime) {
 					return;
 				}
@@ -1553,7 +1559,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 	});
 
 	test('issue #1580: Changes in line endings are not correctly reflected in the extension host, leading to invalid offsets sent to external refactoring tools', () => {
-		let model = EditableTextModel.createFromString('Hello\nWorld!');
+		let model = createEditableTextModelFromString('Hello\nWorld!');
 		assert.equal(model.getEOL(), '\n');
 
 		let mirrorModel2 = new MirrorModel(null, model.getLinesContent(), model.getEOL(), model.getVersionId());

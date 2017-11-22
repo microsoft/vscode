@@ -9,6 +9,7 @@
 	"pathNotExistDetail": "Il percorso '{0}' sembra non esistere più sul disco.",
 	"reopen": "&& Riaprire",
 	"wait": "&&Continua ad attendere",
+	"close": "&&Chiudi",
 	"appStalled": "La finestra non risponde",
 	"appStalledDetail": "È possibile riaprire la finestra, chiuderla oppure attendere.",
 	"appCrashed": "Si è verificato un arresto anomalo della finestra",

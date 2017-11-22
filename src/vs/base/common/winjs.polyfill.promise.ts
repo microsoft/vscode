@@ -42,14 +42,14 @@ export class PolyfillPromise<T = any> implements Promise<T> {
 
 	constructor(winjsPromise: WinJSPromise);
 	constructor(callback: (resolve: (value?: T) => void, reject: (err?: any) => void) => any);
-	constructor(callback: WinJSPromise | ((resolve: (value?: T) => void, reject: (err?: any) => void) => any)) {
+	constructor(initOrPromise: WinJSPromise | ((resolve: (value?: T) => void, reject: (err?: any) => void) => any)) {
 
-		if (WinJSPromise.is(callback)) {
-			this._winjsPromise = callback;
+		if (WinJSPromise.is(initOrPromise)) {
+			this._winjsPromise = initOrPromise;
 		} else {
 			this._winjsPromise = new WinJSPromise((resolve, reject) => {
 				let initializing = true;
-				callback(function (value) {
+				initOrPromise(function (value) {
 					if (!initializing) {
 						resolve(value);
 					} else {
@@ -68,10 +68,28 @@ export class PolyfillPromise<T = any> implements Promise<T> {
 	}
 
 	then(onFulfilled?: any, onRejected?: any): PolyfillPromise {
-		return new PolyfillPromise(this._winjsPromise.then(onFulfilled, onRejected));
+		let sync = true;
+		let promise = new PolyfillPromise(this._winjsPromise.then(
+			onFulfilled && function (value) {
+				if (!sync) {
+					onFulfilled(value);
+				} else {
+					setImmediate(onFulfilled, value);
+				}
+			},
+			onRejected && function (err) {
+				if (!sync) {
+					onFulfilled(err);
+				} else {
+					setImmediate(onFulfilled, err);
+				}
+			}
+		));
+		sync = false;
+		return promise;
 	}
 
 	catch(onRejected?: any): PolyfillPromise {
-		return new PolyfillPromise(this._winjsPromise.then(null, onRejected));
+		return this.then(null, onRejected);
 	}
 }

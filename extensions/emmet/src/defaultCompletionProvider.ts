@@ -12,7 +12,7 @@ const allowedMimeTypesInScriptTag = ['text/html', 'text/plain', 'text/x-template
 
 export class DefaultCompletionItemProvider implements vscode.CompletionItemProvider {
 
-	public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Thenable<vscode.CompletionList> {
+	public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Thenable<vscode.CompletionList | undefined> | undefined {
 		const mappedLanguages = getMappingForIncludedLanguages();
 		const emmetConfig = vscode.workspace.getConfiguration('emmet');
 
@@ -45,22 +45,22 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 				if (abbreviation.startsWith('this.')) {
 					noiseCheckPromise = Promise.resolve(true);
 				} else {
-					noiseCheckPromise = vscode.commands.executeCommand('vscode.executeDocumentSymbolProvider', document.uri).then((symbols: vscode.SymbolInformation[]) => {
-						return symbols.find(x => abbreviation === x.name || (abbreviation.startsWith(x.name + '.') && !/>|\*|\+/.test(abbreviation)));
+					noiseCheckPromise = vscode.commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeDocumentSymbolProvider', document.uri).then((symbols: vscode.SymbolInformation[] | undefined) => {
+						return symbols && symbols.find(x => abbreviation === x.name || (abbreviation.startsWith(x.name + '.') && !/>|\*|\+/.test(abbreviation)));
 					});
 				}
 			}
 		}
 
-		return noiseCheckPromise.then(noise => {
+		return noiseCheckPromise.then((noise): vscode.CompletionList | undefined => {
 			if (noise) {
 				return;
 			}
 
-			let result = helper.doComplete(document, position, syntax, getEmmetConfiguration(syntax));
+			let result = helper.doComplete(document, position, syntax, getEmmetConfiguration(syntax!));
 			let newItems: vscode.CompletionItem[] = [];
 			if (result && result.items) {
-				result.items.forEach(item => {
+				result.items.forEach((item: any) => {
 					let newItem = new vscode.CompletionItem(item.label);
 					newItem.documentation = item.documentation;
 					newItem.detail = item.detail;
@@ -78,7 +78,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 				});
 			}
 
-			return Promise.resolve(new vscode.CompletionList(newItems, true));
+			return new vscode.CompletionList(newItems, true);
 		});
 	}
 
@@ -88,7 +88,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 	 * @param document vscode.Textdocument
 	 * @param position vscode.Position position of the abbreviation that needs to be expanded
 	 */
-	private syntaxHelper(syntax: string, document: vscode.TextDocument, position: vscode.Position): string {
+	private syntaxHelper(syntax: string | undefined, document: vscode.TextDocument, position: vscode.Position): string | undefined {
 		if (!syntax) {
 			return syntax;
 		}
@@ -101,23 +101,24 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 
 		if (!isStyleSheet(syntax)) {
 			const currentHtmlNode = <HtmlNode>currentNode;
-			if (currentHtmlNode
-				&& currentHtmlNode.close
-				&& getInnerRange(currentHtmlNode).contains(position)) {
-				if (currentHtmlNode.name === 'style') {
-					return 'css';
-				}
-				if (currentHtmlNode.name === 'script') {
-					if (currentHtmlNode.attributes
-						&& currentHtmlNode.attributes.some(x => x.name.toString() === 'type' && allowedMimeTypesInScriptTag.indexOf(x.value.toString()) > -1)) {
-						return syntax;
+			if (currentHtmlNode && currentHtmlNode.close) {
+				const innerRange = getInnerRange(currentHtmlNode);
+				if (innerRange && innerRange.contains(position)) {
+					if (currentHtmlNode.name === 'style') {
+						return 'css';
 					}
-					return;
+					if (currentHtmlNode.name === 'script') {
+						if (currentHtmlNode.attributes
+							&& currentHtmlNode.attributes.some(x => x.name.toString() === 'type' && allowedMimeTypesInScriptTag.indexOf(x.value.toString()) > -1)) {
+							return syntax;
+						}
+						return;
+					}
 				}
 			}
 		}
 
-		if (!isValidLocationForEmmetAbbreviation(currentNode, syntax, position)) {
+		if (!currentNode || !isValidLocationForEmmetAbbreviation(currentNode, syntax, position)) {
 			return;
 		}
 		return syntax;

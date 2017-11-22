@@ -6,6 +6,8 @@
 {
 	"openExtensionsFolder": "拡張機能フォルダーを開く",
 	"installVSIX": "VSIX からのインストール...",
+	"installFromVSIX": "VSIX からインストール",
+	"installButton": "インストール(&&I)",
 	"InstallVSIXAction.success": "拡張機能が正常にインストールされました。有効にするには再起動します。",
 	"InstallVSIXAction.reloadNow": "今すぐ再度読み込む"
 }

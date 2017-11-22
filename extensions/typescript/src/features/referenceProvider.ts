@@ -12,22 +12,27 @@ export default class TypeScriptReferenceSupport implements ReferenceProvider {
 	public constructor(
 		private client: ITypeScriptServiceClient) { }
 
-	public provideReferences(document: TextDocument, position: Position, options: { includeDeclaration: boolean }, token: CancellationToken): Promise<Location[]> {
+	public async provideReferences(
+		document: TextDocument,
+		position: Position,
+		options: { includeDeclaration: boolean },
+		token: CancellationToken
+	): Promise<Location[]> {
 		const filepath = this.client.normalizePath(document.uri);
 		if (!filepath) {
-			return Promise.resolve<Location[]>([]);
+			return [];
 		}
+
 		const args = vsPositionToTsFileLocation(filepath, position);
-		const apiVersion = this.client.apiVersion;
-		return this.client.execute('references', args, token).then((msg) => {
-			const result: Location[] = [];
+		try {
+			const msg = await this.client.execute('references', args, token);
 			if (!msg.body) {
-				return result;
+				return [];
 			}
-			const refs = msg.body.refs;
-			for (let i = 0; i < refs.length; i++) {
-				const ref = refs[i];
-				if (!options.includeDeclaration && apiVersion.has203Features() && ref.isDefinition) {
+			const result: Location[] = [];
+			const has203Features = this.client.apiVersion.has203Features();
+			for (const ref of msg.body.refs) {
+				if (!options.includeDeclaration && has203Features && ref.isDefinition) {
 					continue;
 				}
 				const url = this.client.asUrl(ref.file);
@@ -35,8 +40,8 @@ export default class TypeScriptReferenceSupport implements ReferenceProvider {
 				result.push(location);
 			}
 			return result;
-		}, () => {
+		} catch {
 			return [];
-		});
+		}
 	}
 }

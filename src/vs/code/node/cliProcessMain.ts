@@ -19,7 +19,7 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
 import { EnvironmentService, getInstallSourcePath } from 'vs/platform/environment/node/environmentService';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionManifest, IGalleryExtension, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
+import { ExtensionManagementService, validateLocalExtension } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { combinedAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -33,6 +33,7 @@ import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppen
 import { mkdirp } from 'vs/base/node/pfs';
 import { IChoiceService } from 'vs/platform/message/common/message';
 import { ChoiceCliService } from 'vs/platform/message/node/messageCli';
+import { getBaseLabel } from 'vs/base/common/labels';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = (id: string) => localize('notInstalled', "Extension '{0}' is not installed.", id);
@@ -95,7 +96,7 @@ class Main {
 				const extension = path.isAbsolute(id) ? id : path.join(process.cwd(), id);
 
 				return this.extensionManagementService.install(extension).then(() => {
-					console.log(localize('successVsixInstall', "Extension '{0}' was successfully installed!", path.basename(extension)));
+					console.log(localize('successVsixInstall', "Extension '{0}' was successfully installed!", getBaseLabel(extension)));
 				});
 			});
 
@@ -142,19 +143,31 @@ class Main {
 		return sequence([...vsixTasks, ...galleryTasks]);
 	}
 
-	private uninstallExtension(ids: string[]): TPromise<any> {
-		return sequence(ids.map(id => () => {
-			return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(installed => {
-				const [extension] = installed.filter(e => getId(e.manifest) === id);
+	private uninstallExtension(extensions: string[]): TPromise<any> {
+		async function getExtensionId(extensionDescription: string): TPromise<string> {
+			if (!/\.vsix$/i.test(extensionDescription)) {
+				return extensionDescription;
+			}
 
-				if (!extension) {
-					return TPromise.wrapError(new Error(`${notInstalled(id)}\n${useId}`));
-				}
+			const zipPath = path.isAbsolute(extensionDescription) ? extensionDescription : path.join(process.cwd(), extensionDescription);
+			const manifest = await validateLocalExtension(zipPath);
+			return getId(manifest);
+		}
 
-				console.log(localize('uninstalling', "Uninstalling {0}...", id));
+		return sequence(extensions.map(extension => () => {
+			return getExtensionId(extension).then(id => {
+				return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(installed => {
+					const [extension] = installed.filter(e => getId(e.manifest) === id);
 
-				return this.extensionManagementService.uninstall(extension, true)
-					.then(() => console.log(localize('successUninstall', "Extension '{0}' was successfully uninstalled!", id)));
+					if (!extension) {
+						return TPromise.wrapError(new Error(`${notInstalled(id)}\n${useId}`));
+					}
+
+					console.log(localize('uninstalling', "Uninstalling {0}...", id));
+
+					return this.extensionManagementService.uninstall(extension, true)
+						.then(() => console.log(localize('successUninstall', "Extension '{0}' was successfully uninstalled!", id)));
+				});
 			});
 		}));
 	}

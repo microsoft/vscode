@@ -3,19 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, TextEdit, Range, SnippetString, workspace, ProviderResult, CompletionContext, commands, Uri, MarkdownString } from 'vscode';
+import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, TextEdit, Range, SnippetString, workspace, ProviderResult, CompletionContext, Uri, MarkdownString, window, QuickPickItem } from 'vscode';
 
 import { ITypeScriptServiceClient } from '../typescriptService';
 import TypingsStatus from '../utils/typingsStatus';
 
 import * as PConst from '../protocol.const';
 import { CompletionEntry, CompletionsRequestArgs, CompletionDetailsRequestArgs, CompletionEntryDetails, CodeAction } from '../protocol';
-import * as Previewer from './previewer';
+import * as Previewer from '../utils/previewer';
 import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
 
 import * as nls from 'vscode-nls';
 import { applyCodeAction } from '../utils/codeAction';
 import * as languageModeIds from '../utils/languageModeIds';
+import { CommandManager, Command } from '../utils/commandManager';
 
 let localize = nls.loadMessageBundle();
 
@@ -125,6 +126,49 @@ class MyCompletionItem extends CompletionItem {
 	}
 }
 
+class ApplyCompletionCodeActionCommand implements Command {
+	public static readonly ID = '_typescript.applyCompletionCodeAction';
+	public readonly id = ApplyCompletionCodeActionCommand.ID;
+
+	public constructor(
+		private readonly client: ITypeScriptServiceClient
+	) { }
+
+	public async execute(_file: string, codeActions: CodeAction[]): Promise<boolean> {
+		if (codeActions.length === 0) {
+			return true;
+		}
+
+		if (codeActions.length === 1) {
+			return applyCodeAction(this.client, codeActions[0]);
+		}
+
+		interface MyQuickPickItem extends QuickPickItem {
+			index: number;
+		}
+
+		const selection = await window.showQuickPick<MyQuickPickItem>(
+			codeActions.map((action, i): MyQuickPickItem => ({
+				label: action.description,
+				description: '',
+				index: i
+			})), {
+				placeHolder: localize('selectCodeAction', 'Select code action to apply')
+			}
+		);
+
+		if (!selection) {
+			return false;
+		}
+
+		const action = codeActions[selection.index];
+		if (!action) {
+			return false;
+		}
+		return applyCodeAction(this.client, action);
+	}
+}
+
 interface Configuration {
 	useCodeSnippetsOnMethodSuggest: boolean;
 	nameSuggestions: boolean;
@@ -141,15 +185,12 @@ namespace Configuration {
 }
 
 export default class TypeScriptCompletionItemProvider implements CompletionItemProvider {
-	private readonly commandId: string;
-
 	constructor(
 		private client: ITypeScriptServiceClient,
-		mode: string,
-		private typingsStatus: TypingsStatus
+		private readonly typingsStatus: TypingsStatus,
+		commandManager: CommandManager
 	) {
-		this.commandId = `_typescript.applyCompletionCodeAction.${mode}`;
-		commands.registerCommand(this.commandId, this.applyCompletionCodeAction, this);
+		commandManager.register(new ApplyCompletionCodeActionCommand(this.client));
 	}
 
 	public async provideCompletionItems(
@@ -209,10 +250,10 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		}
 
 		try {
-			const args = {
+			const args: CompletionsRequestArgs = {
 				...vsPositionToTsFileLocation(file, position),
 				includeExternalModuleExports: config.autoImportSuggestions
-			} as CompletionsRequestArgs;
+			};
 			const msg = await this.client.execute('completions', args, token);
 			// This info has to come from the tsserver. See https://github.com/Microsoft/TypeScript/issues/2831
 			// let isMemberCompletion = false;
@@ -311,7 +352,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			if (detail.codeActions && detail.codeActions.length) {
 				item.command = {
 					title: '',
-					command: this.commandId,
+					command: ApplyCompletionCodeActionCommand.ID,
 					arguments: [filepath, detail.codeActions]
 				};
 			}
@@ -377,16 +418,6 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 
 		return new SnippetString(codeSnippet);
 	}
-
-	private async applyCompletionCodeAction(file: string, codeActions: CodeAction[]): Promise<boolean> {
-		for (const action of codeActions) {
-			if (!(await applyCodeAction(this.client, action, file))) {
-				return false;
-			}
-		}
-		return true;
-	}
-
 
 	private getConfiguration(resource: Uri): Configuration {
 		// Use shared setting for js and ts

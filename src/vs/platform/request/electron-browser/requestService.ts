@@ -62,6 +62,10 @@ export const xhrRequest: IRequestFunction = (options: IRequestOptions): TPromise
 			});
 		};
 
+		if (options.timeout) {
+			xhr.timeout = options.timeout;
+		}
+
 		xhr.send(options.data);
 		return null;
 

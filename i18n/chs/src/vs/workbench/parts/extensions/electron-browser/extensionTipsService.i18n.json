@@ -6,6 +6,7 @@
 {
 	"fileBasedRecommendation": "根据您最近打开的文件推荐此扩展。",
 	"workspaceRecommendation": "当前工作区的用户推荐此扩展。",
+	"exeBasedRecommendation": "根据你安装的 {0}，向你推荐此扩展。",
 	"reallyRecommended2": "建议对这种类型的文件使用“{0}”扩展。",
 	"reallyRecommendedExtensionPack": "建议对这种类型的文件使用“{0}”扩展包。",
 	"showRecommendations": "显示建议",

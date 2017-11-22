@@ -7,8 +7,8 @@ import * as nls from 'vs/nls';
 import { assign } from 'vs/base/common/objects';
 import { tail } from 'vs/base/common/arrays';
 import URI from 'vs/base/common/uri';
-import { IReference } from 'vs/base/common/lifecycle';
-import Event from 'vs/base/common/event';
+import { IReference, Disposable } from 'vs/base/common/lifecycle';
+import Event, { Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { visit, JSONVisitor } from 'vs/base/common/json';
 import { IModel } from 'vs/editor/common/editorCommon';
@@ -122,11 +122,17 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 	protected settingsModel: IModel;
 	private queue: Queue<void>;
 
+	private _onDidChangeGroups: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidChangeGroups: Event<void> = this._onDidChangeGroups.event;
+
 	constructor(reference: IReference<ITextEditorModel>, private _configurationTarget: ConfigurationTarget, @ITextFileService protected textFileService: ITextFileService) {
 		super();
 		this.settingsModel = reference.object.textEditorModel;
 		this._register(this.onDispose(() => reference.dispose()));
-		this._register(this.settingsModel.onDidChangeContent(() => this._settingsGroups = null));
+		this._register(this.settingsModel.onDidChangeContent(() => {
+			this._settingsGroups = null;
+			this._onDidChangeGroups.fire();
+		}));
 		this.queue = new Queue<void>();
 	}
 
@@ -372,8 +378,7 @@ export class WorkspaceConfigModel extends SettingsEditorModel implements ISettin
 		_configurationTarget: ConfigurationTarget,
 		onDispose: Event<void>,
 		@IFileService private fileService: IFileService,
-		// @ts-ignore unused injected service
-		@ITextModelService private textModelResolverService: ITextModelService,
+		@ITextModelService textModelResolverService: ITextModelService,
 		@ITextFileService textFileService: ITextFileService
 	) {
 		super(reference, _configurationTarget, textFileService);
@@ -500,39 +505,69 @@ export class WorkspaceConfigModel extends SettingsEditorModel implements ISettin
 	}
 }
 
-export class DefaultSettingsModel {
+export class DefaultSettings extends Disposable {
+
+	private static _RAW: string;
 
 	private _allSettingsGroups: ISettingsGroup[];
 	private _content: string;
 	private _settingsByName: Map<string, ISetting>;
 
+	readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidChange: Event<void> = this._onDidChange.event;
+
 	constructor(
 		private _mostCommonlyUsedSettingsKeys: string[],
 		readonly configurationScope: ConfigurationScope,
 	) {
+		super();
 	}
 
-	public get content(): string {
+	get content(): string {
 		if (!this._content) {
 			this.parse();
 		}
 		return this._content;
 	}
 
-	public get settingsGroups(): ISettingsGroup[] {
+	get settingsGroups(): ISettingsGroup[] {
 		if (!this._allSettingsGroups) {
 			this.parse();
 		}
 		return this._allSettingsGroups;
 	}
 
-	private parse() {
-		const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations().slice();
-		const settingsGroups = this.removeEmptySettingsGroups(configurations.sort(this.compareConfigurationNodes).reduce((result, config, index, array) => this.parseConfig(config, result, array), []));
+	parse(): string {
+		const settingsGroups = this.getRegisteredGroups();
 		this.initAllSettingsMap(settingsGroups);
 		const mostCommonlyUsed = this.getMostCommonlyUsedSettings(settingsGroups);
 		this._allSettingsGroups = [mostCommonlyUsed, ...settingsGroups];
-		this._content = this.toContent(mostCommonlyUsed, settingsGroups);
+
+		const builder = new SettingsContentBuilder();
+		builder.pushLine('[');
+		builder.pushGroups([mostCommonlyUsed]);
+		builder.pushLine(',');
+		builder.pushGroups(settingsGroups);
+		builder.pushLine(']');
+		this._content = builder.getContent();
+
+		return this._content;
+	}
+
+	get raw(): string {
+		if (!DefaultSettings._RAW) {
+			const settingsGroups = this.getRegisteredGroups();
+			const builder = new SettingsContentBuilder();
+			builder.pushGroups(settingsGroups);
+			DefaultSettings._RAW = builder.getContent();
+		}
+		return DefaultSettings._RAW;
+	}
+
+	private getRegisteredGroups(): ISettingsGroup[] {
+		const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations().slice();
+		return this.removeEmptySettingsGroups(configurations.sort(this.compareConfigurationNodes)
+			.reduce((result, config, index, array) => this.parseConfig(config, result, array), []));
 	}
 
 	private initAllSettingsMap(allSettingsGroups: ISettingsGroup[]): void {
@@ -599,9 +634,10 @@ export class DefaultSettingsModel {
 				settingsGroup = { sections: [{ settings: [] }], id: config.id, title: config.id, titleRange: null, range: null };
 				result.push(settingsGroup);
 			}
-			const configurationSettings: ISetting[] = this.parseSettings(config.properties);
+			const configurationSettings: ISetting[] = [...settingsGroup.sections[settingsGroup.sections.length - 1].settings, ...this.parseSettings(config.properties)];
 			if (configurationSettings.length) {
-				settingsGroup.sections[settingsGroup.sections.length - 1].settings.push(...configurationSettings);
+				configurationSettings.sort((a, b) => a.key.localeCompare(b.key));
+				settingsGroup.sections[settingsGroup.sections.length - 1].settings = configurationSettings;
 			}
 		}
 		if (config.allOf) {
@@ -661,40 +697,37 @@ export class DefaultSettingsModel {
 		return c1.order - c2.order;
 	}
 
-	private toContent(mostCommonlyUsed: ISettingsGroup, settingsGroups: ISettingsGroup[]): string {
-		const builder = new SettingsContentBuilder();
-		builder.pushLine('[');
-		builder.pushGroups([mostCommonlyUsed]);
-		builder.pushLine(',');
-		builder.pushGroups(settingsGroups);
-		builder.pushLine(']');
-		return builder.getContent();
-	}
-
 }
 
 export class DefaultSettingsEditorModel extends AbstractSettingsModel implements ISettingsEditorModel {
 
 	private _model: IModel;
 	private _settingsByName: Map<string, ISetting>;
-	private _mostRelevantLineOffset: number;
+
+	private _onDidChangeGroups: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidChangeGroups: Event<void> = this._onDidChangeGroups.event;
 
 	constructor(
 		private _uri: URI,
 		reference: IReference<ITextEditorModel>,
 		readonly configurationScope: ConfigurationScope,
-		readonly settingsGroups: ISettingsGroup[]
+		private readonly defaultSettings: DefaultSettings
 	) {
 		super();
+
+		this._register(defaultSettings.onDidChange(() => this._onDidChangeGroups.fire()));
 		this._model = reference.object.textEditorModel;
 		this._register(this.onDispose(() => reference.dispose()));
 
 		this.initAllSettingsMap();
-		this._mostRelevantLineOffset = tail(this.settingsGroups).range.endLineNumber + 2;
 	}
 
 	public get uri(): URI {
 		return this._uri;
+	}
+
+	public get settingsGroups(): ISettingsGroup[] {
+		return this.defaultSettings.settingsGroups;
 	}
 
 	public filterSettings(filter: string, groupFilter: IGroupFilter, settingFilter: ISettingFilter, mostRelevantSettings?: string[]): IFilterResult {
@@ -717,7 +750,8 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	}
 
 	private renderMostRelevantSettings(mostRelevantSettings: string[]): ISettingsGroup {
-		const builder = new SettingsContentBuilder(this._mostRelevantLineOffset - 1);
+		const mostRelevantLineOffset = tail(this.settingsGroups).range.endLineNumber + 2;
+		const builder = new SettingsContentBuilder(mostRelevantLineOffset - 1);
 		builder.pushLine(',');
 		const mostRelevantGroup = this.getMostRelevantSettings(mostRelevantSettings);
 		builder.pushGroups([mostRelevantGroup]);
@@ -730,7 +764,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			{
 				text: mostRelevantContent,
 				forceMoveMarkers: false,
-				range: new Range(this._mostRelevantLineOffset, 1, mostRelevantEndLine, 1),
+				range: new Range(mostRelevantLineOffset, 1, mostRelevantEndLine, 1),
 				identifier: { major: 1, minor: 0 }
 			}
 		]);
@@ -811,8 +845,7 @@ class SettingsContentBuilder {
 		return this._contentByLines[this._contentByLines.length - 1] || '';
 	}
 
-	// @ts-ignore unused property
-	constructor(private _rangeOffset = 0, private _maxLines = Infinity) {
+	constructor(private _rangeOffset = 0) {
 		this._contentByLines = [];
 	}
 

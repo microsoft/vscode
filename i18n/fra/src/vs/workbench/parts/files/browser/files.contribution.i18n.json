@@ -40,6 +40,7 @@
 	"dynamicHeight": "Contrôle si la hauteur de la section des éditeurs ouverts doit s'adapter dynamiquement ou non au nombre d'éléments.",
 	"autoReveal": "Contrôle si l'Explorateur doit automatiquement afficher et sélectionner les fichiers à l'ouverture.",
 	"enableDragAndDrop": "Contrôle si l'explorateur doit autoriser le déplacement de fichiers et de dossiers par glisser-déplacer.",
+	"confirmDragAndDrop": "Contrôle si l’Explorateur doit demander confirmation lors du déplacement de fichiers ou de dossiers via glisser-déposer.",
 	"confirmDelete": "Contrôle si l’explorateur doit demander confirmation lorsque vous supprimez un fichier via la corbeille.",
 	"sortOrder.default": "Les fichiers et dossiers sont triés par nom, dans l’ordre alphabétique. Les dossiers sont affichés avant les fichiers.",
 	"sortOrder.mixed": "Les fichiers et dossiers sont triés par nom, dans l’ordre alphabétique. Les fichiers sont imbriqués dans les dossiers.",

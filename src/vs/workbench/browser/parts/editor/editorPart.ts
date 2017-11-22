@@ -16,7 +16,7 @@ import arrays = require('vs/base/common/arrays');
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
 import * as objects from 'vs/base/common/objects';
-import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
+import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Scope as MementoScope } from 'vs/workbench/common/memento';
 import { Part } from 'vs/workbench/browser/part';
@@ -44,9 +44,9 @@ import { EDITOR_GROUP_BACKGROUND } from 'vs/workbench/common/theme';
 import { createCSSRule } from 'vs/base/browser/dom';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { join } from 'vs/base/common/paths';
-import { isCommonCodeEditor } from 'vs/editor/common/editorCommon';
 import { IEditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
-import { always } from 'vs/base/common/async';
+import { ThrottledEmitter } from 'vs/base/common/async';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 
 class ProgressMonitor {
 
@@ -73,41 +73,6 @@ interface IEditorReplacement extends EditorIdentifier {
 	options?: EditorOptions;
 }
 
-class ThrottledEmitter<T> extends Emitter<T> {
-	private suspended: boolean;
-
-	private lastEvent: T;
-	private hasLastEvent: boolean;
-
-	public throttle<C>(promise: TPromise<C>): TPromise<C> {
-		this.suspended = true;
-
-		return always(promise, () => this.resume());
-	}
-
-	public fire(event?: T): any {
-		if (this.suspended) {
-			this.lastEvent = event;
-			this.hasLastEvent = true;
-
-			return;
-		}
-
-		return super.fire(event);
-	}
-
-	private resume(): void {
-		this.suspended = false;
-
-		if (this.hasLastEvent) {
-			this.fire(this.lastEvent);
-		}
-
-		this.hasLastEvent = false;
-		this.lastEvent = void 0;
-	}
-}
-
 /**
  * The editor part is the container for editors in the workbench. Based on the editor input being opened, it asks the registered
  * editor for the given input to show the contents. The editor part supports up to 3 side-by-side editors.
@@ -116,14 +81,14 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	public _serviceBrand: any;
 
-	private static GROUP_LEFT = nls.localize('groupOneVertical', "Left");
-	private static GROUP_CENTER = nls.localize('groupTwoVertical', "Center");
-	private static GROUP_RIGHT = nls.localize('groupThreeVertical', "Right");
-	private static GROUP_TOP = nls.localize('groupOneHorizontal', "Top");
-	private static GROUP_MIDDLE = nls.localize('groupTwoHorizontal', "Center");
-	private static GROUP_BOTTOM = nls.localize('groupThreeHorizontal', "Bottom");
+	private static readonly GROUP_LEFT = nls.localize('groupOneVertical', "Left");
+	private static readonly GROUP_CENTER = nls.localize('groupTwoVertical', "Center");
+	private static readonly GROUP_RIGHT = nls.localize('groupThreeVertical', "Right");
+	private static readonly GROUP_TOP = nls.localize('groupOneHorizontal', "Top");
+	private static readonly GROUP_MIDDLE = nls.localize('groupTwoHorizontal', "Center");
+	private static readonly GROUP_BOTTOM = nls.localize('groupThreeHorizontal', "Bottom");
 
-	private static EDITOR_PART_UI_STATE_STORAGE_KEY = 'editorpart.uiState';
+	private static readonly EDITOR_PART_UI_STATE_STORAGE_KEY = 'editorpart.uiState';
 
 	private dimension: Dimension;
 	private editorGroupsControl: IEditorGroupsControl;
@@ -188,7 +153,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		this.textCompareEditorVisible = TextCompareEditorVisible.bindTo(contextKeyService);
 
-		const config = configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
+		const config = configurationService.getValue<IWorkbenchEditorConfiguration>();
 		if (config && config.workbench && config.workbench.editor) {
 			const editorConfig = config.workbench.editor;
 
@@ -209,7 +174,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 					]
 				}
 			*/
-			this.telemetryService.publicLog('workbenchEditorConfiguration', editorConfig);
+			this.telemetryService.publicLog('workbenchEditorConfiguration', objects.deepClone(editorConfig)); // Clone because telemetry service will modify the passed data by adding more details.
 		} else {
 			this.tabOptions = {
 				previewEditors: true,
@@ -250,7 +215,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	private onConfigurationUpdated(event: IConfigurationChangeEvent): void {
 		if (event.affectsConfiguration('workbench.editor')) {
-			const configuration = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
+			const configuration = this.configurationService.getValue<IWorkbenchEditorConfiguration>();
 			if (configuration && configuration.workbench && configuration.workbench.editor) {
 				const editorConfig = configuration.workbench.editor;
 
@@ -264,7 +229,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 					});
 				}
 
-				const oldTabOptions = objects.clone(this.tabOptions);
+				const oldTabOptions = objects.deepClone(this.tabOptions);
 				this.tabOptions = {
 					previewEditors: newPreviewEditors,
 					showIcons: editorConfig.showIcons,
@@ -317,7 +282,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 	public hideTabs(forceHide: boolean): void {
 		this.forceHideTabs = forceHide;
-		const config = this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>();
+		const config = this.configurationService.getValue<IWorkbenchEditorConfiguration>();
 		this.tabOptions.showTabs = forceHide ? false : config && config.workbench && config.workbench.editor && config.workbench.editor.showTabs;
 		this._onTabOptionsChanged.fire(this.tabOptions);
 	}
@@ -371,7 +336,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			!this.editorGroupsControl ||			// too early
 			this.editorGroupsControl.isDragging()	// pending editor DND
 		) {
-			return TPromise.as<BaseEditor>(null);
+			return TPromise.wrap<BaseEditor>(null);
 		}
 
 		// Editor opening event (can be prevented and overridden)
@@ -419,7 +384,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Return early if the editor is to be open inactive and there are other editors in this group to show
 		if (!active) {
-			return TPromise.as<BaseEditor>(null);
+			return TPromise.wrap<BaseEditor>(null);
 		}
 
 		// Progress Monitor & Ref Counting
@@ -436,7 +401,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// Show editor
 		const editor = this.doShowEditor(group, descriptor, input, options, ratio, monitor);
 		if (!editor) {
-			return TPromise.as<BaseEditor>(null); // canceled or other error
+			return TPromise.wrap<BaseEditor>(null); // canceled or other error
 		}
 
 		// Set input to editor
@@ -617,7 +582,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	public closeEditor(position: Position, input: EditorInput): TPromise<void> {
 		const group = this.stacks.groupAt(position);
 		if (!group) {
-			return TPromise.as<void>(null);
+			return TPromise.wrap<void>(null);
 		}
 
 		// Check for dirty and veto
@@ -754,7 +719,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	public closeEditors(position: Position, filter: { except?: EditorInput, direction?: Direction, unmodifiedOnly?: boolean } = Object.create(null)): TPromise<void> {
 		const group = this.stacks.groupAt(position);
 		if (!group) {
-			return TPromise.as<void>(null);
+			return TPromise.wrap<void>(null);
 		}
 
 		let editors = group.getEditors();
@@ -1322,48 +1287,11 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 	}
 
-	public unpinEditor(group: EditorGroup, input: EditorInput): void;
-	public unpinEditor(position: Position, input: EditorInput): void;
-	public unpinEditor(arg1: any, input: EditorInput): void {
-		if (input.isDirty()) {
-			return; // we do not allow to unpin dirty editors
-		}
-
-		const group = (typeof arg1 === 'number') ? this.stacks.groupAt(arg1) : arg1;
-		if (group) {
-			if (group.isPreview(input)) {
-				return;
-			}
-
-			// Unpinning an editor closes the preview editor if we have any
-			let handlePreviewEditor: TPromise<boolean> = TPromise.as(false);
-			if (group.previewEditor) {
-				handlePreviewEditor = this.handleDirty([{ group, editor: group.previewEditor }], true /* ignore if opened in other group */);
-			}
-
-			handlePreviewEditor.done(veto => {
-				if (veto) {
-					return;
-				}
-
-				// The active editor is the preview editor and we are asked to make
-				// another editor the preview editor. So we need to take care of closing
-				// the active editor first
-				if (group.isPreview(group.activeEditor) && !group.activeEditor.matches(input)) {
-					this.doCloseActiveEditor(group);
-				}
-
-				// Update stacks model
-				group.unpin(input);
-			});
-		}
-	}
-
 	public invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T {
 		const activeEditor = this.getActiveEditor();
 		if (activeEditor) {
 			const activeEditorControl = activeEditor.getControl();
-			if (isCommonCodeEditor(activeEditorControl)) {
+			if (isCodeEditor(activeEditorControl)) {
 				return activeEditorControl.invokeWithinContext(fn);
 			}
 

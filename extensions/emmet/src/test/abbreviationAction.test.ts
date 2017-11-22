@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'mocha';
 import * as assert from 'assert';
 import { Selection, workspace } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
@@ -221,13 +222,13 @@ m10
 			.hoo {
 				background:
 			}
-		}		
+		}
 		`
 
 		return withRandomFileEditor(scssContentsNoExpand, 'scss', (editor, doc) => {
 			editor.selections = [
 				new Selection(1, 3, 1, 3), // outside rule
-				new Selection(5, 15, 5, 15) // in the value part of property value				
+				new Selection(5, 15, 5, 15) // in the value part of property value
 			];
 			return expandEmmetAbbreviation(null).then(() => {
 				assert.equal(editor.document.getText(), scssContentsNoExpand);
@@ -310,7 +311,12 @@ suite('Tests for Wrap with Abbreviations', () => {
 `;
 		return withRandomFileEditor(contents, 'html', (editor, doc) => {
 			editor.selections = [new Selection(2, 2, 3, 33)];
-			return wrapIndividualLinesWithAbbreviation({ abbreviation: 'ul>li.hello$*' }).then(() => {
+			const promise = wrapIndividualLinesWithAbbreviation({ abbreviation: 'ul>li.hello$*' });
+			if (!promise) {
+				assert.equal(1, 2, 'Wrap Individual Lines with Abbreviation returned udnefined.');
+				return Promise.resolve();
+			}
+			return promise.then(() => {
 				assert.equal(editor.document.getText(), wrapIndividualLinesExpected);
 				return Promise.resolve();
 			});
@@ -334,7 +340,13 @@ suite('Tests for Wrap with Abbreviations', () => {
 	`;
 		return withRandomFileEditor(contents, 'html', (editor, doc) => {
 			editor.selections = [new Selection(2, 3, 3, 16)];
-			return wrapIndividualLinesWithAbbreviation({ abbreviation: 'ul>li.hello$*|t' }).then(() => {
+			const promise = wrapIndividualLinesWithAbbreviation({ abbreviation: 'ul>li.hello$*|t' });
+			if (!promise) {
+				assert.equal(1, 2, 'Wrap Individual Lines with Abbreviation returned udnefined.');
+				return Promise.resolve();
+			}
+
+			return promise.then(() => {
 				assert.equal(editor.document.getText(), wrapIndividualLinesExpected);
 				return Promise.resolve();
 			});
@@ -344,46 +356,46 @@ suite('Tests for Wrap with Abbreviations', () => {
 
 suite('Tests for jsx, xml and xsl', () => {
 	teardown(closeAllEditors);
-	
-		test('Expand abbreviation with className instead of class in jsx', () => {
-			return withRandomFileEditor('ul.nav', 'javascriptreact', (editor, doc) => {
-				editor.selection = new Selection(0, 6, 0, 6);
-				return expandEmmetAbbreviation({language: 'javascriptreact'}).then(() => {
-					assert.equal(editor.document.getText(), '<ul className="nav"></ul>');
-					return Promise.resolve();
-				});
-			});
-		});
 
-		test('Expand abbreviation with self closing tags for jsx', () => {
-			return withRandomFileEditor('img', 'javascriptreact', (editor, doc) => {
-				editor.selection = new Selection(0, 6, 0, 6);
-				return expandEmmetAbbreviation({language: 'javascriptreact'}).then(() => {
-					assert.equal(editor.document.getText(), '<img src="" alt=""/>');
-					return Promise.resolve();
-				});
+	test('Expand abbreviation with className instead of class in jsx', () => {
+		return withRandomFileEditor('ul.nav', 'javascriptreact', (editor, doc) => {
+			editor.selection = new Selection(0, 6, 0, 6);
+			return expandEmmetAbbreviation({ language: 'javascriptreact' }).then(() => {
+				assert.equal(editor.document.getText(), '<ul className="nav"></ul>');
+				return Promise.resolve();
 			});
 		});
+	});
 
-		test('Expand abbreviation with self closing tags for xml', () => {
-			return withRandomFileEditor('img', 'xml', (editor, doc) => {
-				editor.selection = new Selection(0, 6, 0, 6);
-				return expandEmmetAbbreviation({language: 'xml'}).then(() => {
-					assert.equal(editor.document.getText(), '<img src="" alt=""/>');
-					return Promise.resolve();
-				});
+	test('Expand abbreviation with self closing tags for jsx', () => {
+		return withRandomFileEditor('img', 'javascriptreact', (editor, doc) => {
+			editor.selection = new Selection(0, 6, 0, 6);
+			return expandEmmetAbbreviation({ language: 'javascriptreact' }).then(() => {
+				assert.equal(editor.document.getText(), '<img src="" alt=""/>');
+				return Promise.resolve();
 			});
 		});
+	});
 
-		test('Expand abbreviation with no self closing tags for html', () => {
-			return withRandomFileEditor('img', 'html', (editor, doc) => {
-				editor.selection = new Selection(0, 6, 0, 6);
-				return expandEmmetAbbreviation({language: 'html'}).then(() => {
-					assert.equal(editor.document.getText(), '<img src="" alt="">');
-					return Promise.resolve();
-				});
+	test('Expand abbreviation with self closing tags for xml', () => {
+		return withRandomFileEditor('img', 'xml', (editor, doc) => {
+			editor.selection = new Selection(0, 6, 0, 6);
+			return expandEmmetAbbreviation({ language: 'xml' }).then(() => {
+				assert.equal(editor.document.getText(), '<img src="" alt=""/>');
+				return Promise.resolve();
 			});
 		});
+	});
+
+	test('Expand abbreviation with no self closing tags for html', () => {
+		return withRandomFileEditor('img', 'html', (editor, doc) => {
+			editor.selection = new Selection(0, 6, 0, 6);
+			return expandEmmetAbbreviation({ language: 'html' }).then(() => {
+				assert.equal(editor.document.getText(), '<img src="" alt="">');
+				return Promise.resolve();
+			});
+		});
+	});
 
 });
 
@@ -407,7 +419,13 @@ function testHtmlExpandAbbreviation(selection: Selection, abbreviation: string, 
 function testWrapWithAbbreviation(selections: Selection[], abbreviation: string, expectedContents: string): Thenable<any> {
 	return withRandomFileEditor(htmlContentsForWrapTests, 'html', (editor, doc) => {
 		editor.selections = selections;
-		return wrapWithAbbreviation({ abbreviation: abbreviation }).then(() => {
+		const promise = wrapWithAbbreviation({ abbreviation });
+		if (!promise) {
+			assert.equal(1, 2, 'Wrap  with Abbreviation returned udnefined.');
+			return Promise.resolve();
+		}
+
+		return promise.then(() => {
 			assert.equal(editor.document.getText(), expectedContents);
 			return Promise.resolve();
 		});

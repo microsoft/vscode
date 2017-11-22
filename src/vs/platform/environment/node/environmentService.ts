@@ -75,6 +75,9 @@ export class EnvironmentService implements IEnvironmentService {
 	get settingsSearchBuildId(): number { return product.settingsSearchBuildId; }
 
 	@memoize
+	get settingsSearchUrl(): string { return product.settingsSearchUrl; }
+
+	@memoize
 	get appKeybindingsPath(): string { return path.join(this.appSettingsHome, 'keybindings.json'); }
 
 	@memoize

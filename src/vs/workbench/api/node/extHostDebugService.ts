@@ -40,8 +40,8 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 	private _onDidReceiveDebugSessionCustomEvent: Emitter<vscode.DebugSessionCustomEvent>;
 	get onDidReceiveDebugSessionCustomEvent(): Event<vscode.DebugSessionCustomEvent> { return this._onDidReceiveDebugSessionCustomEvent.event; }
 
-	private _debugConsole: ExtHostDebugConsole;
-	get debugConsole(): ExtHostDebugConsole { return this._debugConsole; }
+	private _activeDebugConsole: ExtHostDebugConsole;
+	get activeDebugConsole(): ExtHostDebugConsole { return this._activeDebugConsole; }
 
 
 	constructor(mainContext: IMainContext, workspace: ExtHostWorkspace) {
@@ -58,7 +58,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 		this._debugServiceProxy = mainContext.get(MainContext.MainThreadDebugService);
 
-		this._debugConsole = new ExtHostDebugConsole(this._debugServiceProxy);
+		this._activeDebugConsole = new ExtHostDebugConsole(this._debugServiceProxy);
 	}
 
 	public registerDebugConfigurationProvider(type: string, provider: vscode.DebugConfigurationProvider): vscode.Disposable {

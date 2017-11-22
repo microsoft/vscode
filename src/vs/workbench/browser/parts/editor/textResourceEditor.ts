@@ -30,7 +30,7 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
  */
 export class TextResourceEditor extends BaseTextEditor {
 
-	public static ID = 'workbench.editors.textResourceEditor';
+	public static readonly ID = 'workbench.editors.textResourceEditor';
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -64,7 +64,7 @@ export class TextResourceEditor extends BaseTextEditor {
 				textOptions.apply(this.getControl(), ScrollType.Smooth);
 			}
 
-			return TPromise.as<void>(null);
+			return TPromise.wrap<void>(null);
 		}
 
 		// Remember view settings if input changes

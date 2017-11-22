@@ -5,7 +5,6 @@
 'use strict';
 
 import { Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
@@ -110,12 +109,6 @@ export class CoordinatesConverter implements ICoordinatesConverter {
 		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
 	}
 
-	public convertViewSelectionToModelSelection(viewSelection: Selection): Selection {
-		let selectionStart = this._lines.convertViewPositionToModelPosition(viewSelection.selectionStartLineNumber, viewSelection.selectionStartColumn);
-		let position = this._lines.convertViewPositionToModelPosition(viewSelection.positionLineNumber, viewSelection.positionColumn);
-		return new Selection(selectionStart.lineNumber, selectionStart.column, position.lineNumber, position.column);
-	}
-
 	public validateViewPosition(viewPosition: Position, expectedModelPosition: Position): Position {
 		return this._lines.validateViewPosition(viewPosition.lineNumber, viewPosition.column, expectedModelPosition);
 	}
@@ -136,12 +129,6 @@ export class CoordinatesConverter implements ICoordinatesConverter {
 		let start = this._lines.convertModelPositionToViewPosition(modelRange.startLineNumber, modelRange.startColumn);
 		let end = this._lines.convertModelPositionToViewPosition(modelRange.endLineNumber, modelRange.endColumn);
 		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
-	}
-
-	public convertModelSelectionToViewSelection(modelSelection: Selection): Selection {
-		let selectionStart = this._lines.convertModelPositionToViewPosition(modelSelection.selectionStartLineNumber, modelSelection.selectionStartColumn);
-		let position = this._lines.convertModelPositionToViewPosition(modelSelection.positionLineNumber, modelSelection.positionColumn);
-		return new Selection(selectionStart.lineNumber, selectionStart.column, position.lineNumber, position.column);
 	}
 
 	public modelPositionIsVisible(modelPosition: Position): boolean {
@@ -790,7 +777,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 
 class VisibleIdentitySplitLine implements ISplitLine {
 
-	public static INSTANCE = new VisibleIdentitySplitLine();
+	public static readonly INSTANCE = new VisibleIdentitySplitLine();
 
 	private constructor() { }
 
@@ -855,7 +842,7 @@ class VisibleIdentitySplitLine implements ISplitLine {
 
 class InvisibleIdentitySplitLine implements ISplitLine {
 
-	public static INSTANCE = new InvisibleIdentitySplitLine();
+	public static readonly INSTANCE = new InvisibleIdentitySplitLine();
 
 	private constructor() { }
 
@@ -1097,12 +1084,6 @@ export class IdentityCoordinatesConverter implements ICoordinatesConverter {
 		return this._lines.model.validateRange(range);
 	}
 
-	private _validSelection(selection: Selection): Selection {
-		let selectionStart = this._validPosition(new Position(selection.selectionStartLineNumber, selection.selectionStartColumn));
-		let position = this._validPosition(new Position(selection.positionLineNumber, selection.positionColumn));
-		return new Selection(selectionStart.lineNumber, selectionStart.column, position.lineNumber, position.column);
-	}
-
 	// View -> Model conversion and related methods
 
 	public convertViewPositionToModelPosition(viewPosition: Position): Position {
@@ -1111,10 +1092,6 @@ export class IdentityCoordinatesConverter implements ICoordinatesConverter {
 
 	public convertViewRangeToModelRange(viewRange: Range): Range {
 		return this._validRange(viewRange);
-	}
-
-	public convertViewSelectionToModelSelection(viewSelection: Selection): Selection {
-		return this._validSelection(viewSelection);
 	}
 
 	public validateViewPosition(viewPosition: Position, expectedModelPosition: Position): Position {
@@ -1133,10 +1110,6 @@ export class IdentityCoordinatesConverter implements ICoordinatesConverter {
 
 	public convertModelRangeToViewRange(modelRange: Range): Range {
 		return this._validRange(modelRange);
-	}
-
-	public convertModelSelectionToViewSelection(modelSelection: Selection): Selection {
-		return this._validSelection(modelSelection);
 	}
 
 	public modelPositionIsVisible(modelPosition: Position): boolean {

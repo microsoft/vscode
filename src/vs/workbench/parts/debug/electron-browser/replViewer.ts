@@ -41,7 +41,7 @@ export class ReplExpressionsDataSource implements IDataSource {
 			return TPromise.as(element.getReplElements());
 		}
 		if (element instanceof RawObjectReplElement) {
-			return TPromise.as(element.getChildren());
+			return element.getChildren();
 		}
 		if (element instanceof SimpleReplElement) {
 			return TPromise.as(null);
@@ -80,12 +80,12 @@ interface IRawObjectReplTemplateData {
 
 export class ReplExpressionsRenderer implements IRenderer {
 
-	private static VARIABLE_TEMPLATE_ID = 'variable';
-	private static EXPRESSION_TEMPLATE_ID = 'expressionRepl';
-	private static SIMPLE_REPL_ELEMENT_TEMPLATE_ID = 'simpleReplElement';
-	private static RAW_OBJECT_REPL_ELEMENT_TEMPLATE_ID = 'rawObject';
+	private static readonly VARIABLE_TEMPLATE_ID = 'variable';
+	private static readonly EXPRESSION_TEMPLATE_ID = 'expressionRepl';
+	private static readonly SIMPLE_REPL_ELEMENT_TEMPLATE_ID = 'simpleReplElement';
+	private static readonly RAW_OBJECT_REPL_ELEMENT_TEMPLATE_ID = 'rawObject';
 
-	private static LINE_HEIGHT_PX = 18;
+	private static readonly LINE_HEIGHT_PX = 18;
 
 	private width: number;
 	private characterWidth: number;

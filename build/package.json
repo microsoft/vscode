@@ -10,7 +10,7 @@
     "@types/node": "8.0.33",
     "@types/xml2js": "0.0.33",
     "azure-storage": "^2.1.0",
-    "documentdb": "^1.11.0",
+    "documentdb": "1.13.0",
     "mime": "^1.3.4",
     "minimist": "^1.2.0",
     "typescript": "2.6.1",

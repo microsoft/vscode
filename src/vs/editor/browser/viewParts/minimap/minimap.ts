@@ -290,7 +290,7 @@ class MinimapLayout {
 
 class MinimapLine implements ILine {
 
-	public static INVALID = new MinimapLine(-1);
+	public static readonly INVALID = new MinimapLine(-1);
 
 	dy: number;
 
@@ -439,8 +439,6 @@ export class Minimap extends ViewPart {
 	private readonly _sliderMouseMoveMonitor: GlobalMouseMoveMonitor<IStandardMouseMoveEventData>;
 	private readonly _sliderMouseDownListener: IDisposable;
 
-	private readonly _minimapCharRenderer: MinimapCharRenderer;
-
 	private _options: MinimapOptions;
 	private _lastRenderData: RenderData;
 	private _buffers: MinimapBuffers;
@@ -481,8 +479,6 @@ export class Minimap extends ViewPart {
 		this._slider.appendChild(this._sliderHorizontal);
 
 		this._tokensColorTracker = MinimapTokensColorTracker.getInstance();
-
-		this._minimapCharRenderer = getOrCreateMinimapCharRenderer();
 
 		this._applyLayout();
 
@@ -734,7 +730,7 @@ export class Minimap extends ViewPart {
 					useLighterFont,
 					renderMinimap,
 					this._tokensColorTracker,
-					this._minimapCharRenderer,
+					getOrCreateMinimapCharRenderer(),
 					dy,
 					tabSize,
 					lineInfo.data[lineIndex]

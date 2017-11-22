@@ -54,11 +54,6 @@ export interface IPartService {
 	isCreated(): boolean;
 
 	/**
-	 * Promise is complete when all parts have been created.
-	 */
-	joinCreation(): TPromise<boolean>;
-
-	/**
 	 * Returns whether the given part has the keyboard focus or not.
 	 */
 	hasFocus(part: Parts): boolean;
@@ -113,6 +108,11 @@ export interface IPartService {
 	 * Gets the current panel position. Note that the panel can be hidden too.
 	 */
 	getPanelPosition(): Position;
+
+	/**
+	 * Sets the panel position.
+	 */
+	setPanelPosition(position: Position): TPromise<void>;
 
 	/**
 	 * Returns the identifier of the element that contains the workbench.

@@ -5,12 +5,10 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { editorAction, EditorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
-@editorAction
-// @ts-ignore @editorAction uses the class
 class ToggleHighContrast extends EditorAction {
 
 	private _originalThemeName: string;
@@ -25,7 +23,7 @@ class ToggleHighContrast extends EditorAction {
 		this._originalThemeName = null;
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const standaloneThemeService = accessor.get(IStandaloneThemeService);
 		if (this._originalThemeName) {
 			// We must toggle back to the integrator's theme
@@ -37,3 +35,5 @@ class ToggleHighContrast extends EditorAction {
 		}
 	}
 }
+
+registerEditorAction(ToggleHighContrast);

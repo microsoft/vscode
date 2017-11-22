@@ -12,14 +12,13 @@ suite('UUID', () => {
 		var asHex = uuid.v4().asHex();
 		assert.equal(asHex.length, 36);
 		assert.equal(asHex[14], '4');
-		assert(asHex[19] === '8' || asHex[19] === '9' || asHex[19] === 'a' || asHex[19] === 'b');
+		assert.ok(asHex[19] === '8' || asHex[19] === '9' || asHex[19] === 'a' || asHex[19] === 'b');
 	});
 
 	test('parse', () => {
 		var id = uuid.v4();
 		var asHext = id.asHex();
 		var id2 = uuid.parse(asHext);
-		assert(id.equals(id2));
-		assert(id2.equals(id));
+		assert.equal(id.asHex(), id2.asHex());
 	});
 });

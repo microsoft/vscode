@@ -10,5 +10,5 @@ export interface Ctor<T> {
 }
 
 export function mock<T>(): Ctor<T> {
-	return <any>function () { };
+	return function () { } as any;
 }

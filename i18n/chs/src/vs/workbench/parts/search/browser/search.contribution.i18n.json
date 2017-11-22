@@ -16,6 +16,8 @@
 	"exclude.boolean": "匹配文件路径所依据的 glob 模式。设置为 true 或 false 可启用或禁用该模式。",
 	"exclude.when": "对匹配文件的同级文件的其他检查。使用 $(basename) 作为匹配文件名的变量。",
 	"useRipgrep": "控制是否在文本和文件搜索中使用 ripgrep",
+	"useIgnoreFilesByDefault": "控制在新工作区中搜索文本时是否默认使用 .gitignore 和 .ignore 文件。",
+	"useIgnoreFiles": "控制搜索文件时是否使用 .gitignore 和 .ignore 文件。",
 	"search.quickOpen.includeSymbols": "配置为在 Quick Open 文件结果中包括全局符号搜索的结果。",
 	"search.followSymlinks": "控制是否在搜索中跟踪符号链接。"
 }

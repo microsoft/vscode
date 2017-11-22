@@ -57,14 +57,6 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 		return this._onUntitledWorkspaceDeleted.event;
 	}
 
-	public resolveWorkspace(path: string): TPromise<IResolvedWorkspace> {
-		if (!this.isWorkspacePath(path)) {
-			return TPromise.as(null); // does not look like a valid workspace config file
-		}
-
-		return readFile(path).then(contents => this.doResolveWorkspace(path, contents.toString()));
-	}
-
 	public resolveWorkspaceSync(path: string): IResolvedWorkspace {
 		if (!this.isWorkspacePath(path)) {
 			return null; // does not look like a valid workspace config file

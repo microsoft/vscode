@@ -335,11 +335,6 @@ export class CursorContext {
 		return this.viewModel.getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
 	}
 
-	public getCompletelyVisibleModelRangeAtScrollTop(scrollTop: number): Range {
-		const viewRange = this.viewModel.getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
-		return this.viewModel.coordinatesConverter.convertViewRangeToModelRange(viewRange);
-	}
-
 	public getVerticalOffsetForViewLine(viewLineNumber: number): number {
 		return this.viewModel.viewLayout.getVerticalOffsetForLineNumber(viewLineNumber);
 	}
