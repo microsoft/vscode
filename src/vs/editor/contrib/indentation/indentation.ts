@@ -21,6 +21,7 @@ import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import { TextEdit, StandardTokenType } from 'vs/editor/common/modes';
 import * as IndentUtil from './indentUtils';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IndentConsts } from 'vs/editor/common/modes/supports/indentRules';
 
 export function shiftIndent(tabSize: number, indentation: string, count?: number): string {
 	count = count || 1;
@@ -472,6 +473,16 @@ export class AutoIndentOnPaste implements IEditorContribution {
 						text: newIndent
 					});
 					firstLineText = newIndent + firstLineText.substr(oldIndentation.length);
+				} else {
+					let indentMetadata = LanguageConfigurationRegistry.getIndentMetadata(model, startLineNumber);
+
+					if (indentMetadata === 0 || indentMetadata === IndentConsts.UNINDENT_MASK) {
+						// we paste content into a line where only contains whitespaces
+						// after pasting, the indentation of the first line is already correct
+						// the first line doesn't match any indentation rule
+						// then no-op.
+						return;
+					}
 				}
 			}
 		}
