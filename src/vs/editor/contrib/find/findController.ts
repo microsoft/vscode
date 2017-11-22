@@ -101,7 +101,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 			if (shouldRestartFind) {
 				this._start({
 					forceRevealReplace: false,
-					seedSearchStringFromSelection: false,
+					seedSearchStringFromSelection: false && this._editor.getConfiguration().contribInfo.find.seedSearchStringFromSelection,
 					shouldFocus: FindStartFocusAction.NoFocusChange,
 					shouldAnimate: false,
 				});
@@ -233,8 +233,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 			isRevealed: true
 		};
 
-		// Consider editor selection and overwrite the state with it
-		if (opts.seedSearchStringFromSelection && this._editor.getConfiguration().contribInfo.find.seedSearchStringFromSelection) {
+		if (opts.seedSearchStringFromSelection) {
 			let selectionSearchString = getSelectionSearchString(this._editor);
 			if (selectionSearchString) {
 				if (this._state.isRegex) {
@@ -379,10 +378,37 @@ export class StartFindAction extends EditorAction {
 			precondition: null,
 			kbOpts: {
 				kbExpr: null,
-				primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_F
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		let controller = CommonFindController.get(editor);
+		if (controller) {
+			controller.start({
+				forceRevealReplace: false,
+				seedSearchStringFromSelection: editor.getConfiguration().contribInfo.find.seedSearchStringFromSelection,
+				shouldFocus: FindStartFocusAction.FocusFindInput,
+				shouldAnimate: true
+			});
+		}
+	}
+}
+
+export class StartFindWithSelectionAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: FIND_IDS.StartFindWithSelection,
+			label: nls.localize('startFindAction', "Find"),
+			alias: 'Find',
+			precondition: null,
+			kbOpts: {
+				kbExpr: null,
+				primary: null,
 				mac: {
-					primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
-					secondary: [KeyMod.CtrlCmd | KeyCode.KEY_E]
+					primary: KeyMod.CtrlCmd | KeyCode.KEY_E,
 				}
 			}
 		});
@@ -400,14 +426,13 @@ export class StartFindAction extends EditorAction {
 		}
 	}
 }
-
 export abstract class MatchFindAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let controller = CommonFindController.get(editor);
 		if (controller && !this._run(controller)) {
 			controller.start({
 				forceRevealReplace: false,
-				seedSearchStringFromSelection: (controller.getState().searchString.length === 0),
+				seedSearchStringFromSelection: (controller.getState().searchString.length === 0) && editor.getConfiguration().contribInfo.find.seedSearchStringFromSelection,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: true
 			});
@@ -549,7 +574,7 @@ export class StartFindReplaceAction extends EditorAction {
 		let currentSelection = editor.getSelection();
 		// we only seed search string from selection when the current selection is single line and not empty.
 		let seedSearchStringFromSelection = !currentSelection.isEmpty() &&
-			currentSelection.startLineNumber === currentSelection.endLineNumber;
+			currentSelection.startLineNumber === currentSelection.endLineNumber && editor.getConfiguration().contribInfo.find.seedSearchStringFromSelection;
 		let oldSearchString = controller.getState().searchString;
 		// if the existing search string in find widget is empty and we don't seed search string from selection, it means the Find Input
 		// is still empty, so we should focus the Find Input instead of Replace Input.
@@ -618,6 +643,7 @@ export class ShowPreviousFindTermAction extends MatchFindAction {
 registerEditorContribution(FindController);
 
 registerEditorAction(StartFindAction);
+registerEditorAction(StartFindWithSelectionAction);
 registerEditorAction(NextMatchFindAction);
 registerEditorAction(PreviousMatchFindAction);
 registerEditorAction(NextSelectionMatchFindAction);

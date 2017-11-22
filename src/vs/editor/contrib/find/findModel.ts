@@ -53,6 +53,7 @@ export const ShowNextFindTermKeybinding: IKeybindings = {
 
 export const FIND_IDS = {
 	StartFindAction: 'actions.find',
+	StartFindWithSelection: 'actions.findWithSelection',
 	NextMatchFindAction: 'editor.action.nextMatchFindAction',
 	PreviousMatchFindAction: 'editor.action.previousMatchFindAction',
 	NextSelectionMatchFindAction: 'editor.action.nextSelectionMatchFindAction',
