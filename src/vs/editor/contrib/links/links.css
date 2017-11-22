@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 .monaco-editor .detected-link,
 .monaco-editor .detected-link-active {
-	border-bottom: 1px solid;
+	text-decoration: underline;
+	text-underline-position: under;
 }
 
 .monaco-editor .detected-link-active {
