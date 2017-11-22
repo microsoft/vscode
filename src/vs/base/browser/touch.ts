@@ -186,7 +186,9 @@ export class Gesture implements IDisposable {
 				let deltaX = finalX - data.rollingPageX[0];
 				let deltaY = finalY - data.rollingPageY[0];
 
-				this.inertia(data.initialTarget, timestamp,		// time now
+				// We need to get all the dispatch targets on the start of the inertia event
+				const dispatchTo = this.targets.filter(t => data.initialTarget instanceof Node && t.contains(data.initialTarget));
+				this.inertia(dispatchTo, timestamp,		// time now
 					Math.abs(deltaX) / deltaT,	// speed
 					deltaX > 0 ? 1 : -1,		// x direction
 					finalX,						// x now
@@ -201,7 +203,7 @@ export class Gesture implements IDisposable {
 		}
 	}
 
-	private newGestureEvent(type: string, intialTarget: EventTarget): GestureEvent {
+	private newGestureEvent(type: string, intialTarget?: EventTarget): GestureEvent {
 		let event = <GestureEvent>(<any>document.createEvent('CustomEvent'));
 		event.initEvent(type, false, true);
 		event.initialTarget = intialTarget;
@@ -216,7 +218,7 @@ export class Gesture implements IDisposable {
 		});
 	}
 
-	private inertia(initialTarget: EventTarget, t1: number, vX: number, dirX: number, x: number, vY: number, dirY: number, y: number): void {
+	private inertia(dispatchTo: EventTarget[], t1: number, vX: number, dirX: number, x: number, vY: number, dirY: number, y: number): void {
 		this.handle = DomUtils.scheduleAtNextAnimationFrame(() => {
 			let now = Date.now();
 
@@ -239,13 +241,13 @@ export class Gesture implements IDisposable {
 			}
 
 			// dispatch translation event
-			let evt = this.newGestureEvent(EventType.Change, initialTarget);
+			let evt = this.newGestureEvent(EventType.Change);
 			evt.translationX = delta_pos_x;
 			evt.translationY = delta_pos_y;
-			this.dispatchEvent(evt);
+			dispatchTo.forEach(d => d.dispatchEvent(evt));
 
 			if (!stopped) {
-				this.inertia(initialTarget, now, vX, dirX, x + delta_pos_x, vY, dirY, y + delta_pos_y);
+				this.inertia(dispatchTo, now, vX, dirX, x + delta_pos_x, vY, dirY, y + delta_pos_y);
 			}
 		});
 	}
