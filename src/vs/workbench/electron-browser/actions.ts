@@ -26,7 +26,6 @@ import { IWorkspaceConfigurationService } from 'vs/workbench/services/configurat
 import paths = require('vs/base/common/paths');
 import { isMacintosh, isLinux, language } from 'vs/base/common/platform';
 import { IQuickOpenService, IFilePickOpenEntry, ISeparator, IPickOpenAction, IPickOpenItem } from 'vs/platform/quickOpen/common/quickOpen';
-import { KeyMod } from 'vs/base/common/keyCodes';
 import * as browser from 'vs/base/browser/browser';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
@@ -750,7 +749,7 @@ export abstract class BaseOpenRecentAction extends Action {
 		}
 
 		const runPick = (path: string, isFile: boolean, context: IEntryRunContext) => {
-			const forceNewWindow = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
+			const forceNewWindow = context.keymods.ctrlCmd;
 			this.windowsService.openWindow([path], { forceNewWindow, forceOpenWorkspaceAsFile: isFile });
 		};
 
