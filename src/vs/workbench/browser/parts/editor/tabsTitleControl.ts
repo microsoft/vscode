@@ -773,6 +773,8 @@ export class TabsTitleControl extends TitleControl {
 				}
 			}
 
+			DOM.addClass(tab, 'dragged-over');
+
 			if (!draggedEditorIsTab) {
 				this.updateDropFeedback(tab, true, index);
 			}
@@ -782,6 +784,7 @@ export class TabsTitleControl extends TitleControl {
 		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_LEAVE, (e: DragEvent) => {
 			counter--;
 			if (counter === 0) {
+				DOM.removeClass(tab, 'dragged-over');
 				this.updateDropFeedback(tab, false, index);
 			}
 		}));
@@ -789,6 +792,7 @@ export class TabsTitleControl extends TitleControl {
 		// Drag end
 		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DRAG_END, (e: DragEvent) => {
 			counter = 0;
+			DOM.removeClass(tab, 'dragged-over');
 			this.updateDropFeedback(tab, false, index);
 
 			this.onEditorDragEnd();
@@ -797,6 +801,7 @@ export class TabsTitleControl extends TitleControl {
 		// Drop
 		disposables.push(DOM.addDisposableListener(tab, DOM.EventType.DROP, (e: DragEvent) => {
 			counter = 0;
+			DOM.removeClass(tab, 'dragged-over');
 			this.updateDropFeedback(tab, false, index);
 
 			const { group, position } = this.toTabContext(index);
