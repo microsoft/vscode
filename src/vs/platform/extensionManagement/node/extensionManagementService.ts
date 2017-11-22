@@ -114,21 +114,48 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		zipPath = path.resolve(zipPath);
 
 		return validateLocalExtension(zipPath)
-			.then<void>(manifest => {
+			.then(manifest => {
 				const identifier = { id: getLocalExtensionIdFromManifest(manifest) };
+				return this.isObsolete(identifier.id)
+					.then(isObsolete => {
+						if (isObsolete) {
+							return TPromise.wrapError(new Error(nls.localize('restartCodeLocal', "Please restart Code before reinstalling {0}.", manifest.displayName || manifest.name)));
+						}
+						return this.checkOutdated(manifest)
+							.then(validated => {
+								if (validated) {
+									this._onInstallExtension.fire({ identifier, zipPath });
+									return this.getMetadata(getGalleryExtensionId(manifest.publisher, manifest.name))
+										.then(
+										metadata => this.installFromZipPath(identifier, zipPath, metadata, manifest),
+										error => this.installFromZipPath(identifier, zipPath, null, manifest));
+								}
+								return null;
+							});
+					});
+			});
+	}
 
-				return this.isObsolete(identifier.id).then(isObsolete => {
-					if (isObsolete) {
-						return TPromise.wrapError(new Error(nls.localize('restartCodeLocal', "Please restart Code before reinstalling {0}.", manifest.displayName || manifest.name)));
-					}
-
-					this._onInstallExtension.fire({ identifier, zipPath });
-
-					return this.getMetadata(getGalleryExtensionId(manifest.publisher, manifest.name))
-						.then(
-						metadata => this.installFromZipPath(identifier, zipPath, metadata, manifest),
-						error => this.installFromZipPath(identifier, zipPath, null, manifest));
-				});
+	private checkOutdated(manifest: IExtensionManifest): TPromise<boolean> {
+		const extensionIdentifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
+		return this.getInstalled()
+			.then(installedExtensions => {
+				const newer = installedExtensions.filter(local => areSameExtensions(extensionIdentifier, { id: getGalleryExtensionIdFromLocal(local) }) && semver.gt(local.manifest.version, manifest.version))[0];
+				if (newer) {
+					const message = nls.localize('installingOutdatedExtension', "A newer version of this extension is already installed. Would you like to override this with the older version?");
+					const options = [
+						nls.localize('override', "Override"),
+						nls.localize('cancel', "Cancel")
+					];
+					return this.choiceService.choose(Severity.Info, message, options, 1, true)
+						.then<boolean>(value => {
+							if (value === 0) {
+								return this.uninstall(newer, true).then(() => true);
+							}
+							return TPromise.wrapError(errors.canceled());
+						});
+				}
+				return true;
 			});
 	}
 
