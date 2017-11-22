@@ -12,7 +12,7 @@ import { isIPad } from 'vs/base/browser/browser';
 import { isMacintosh } from 'vs/base/common/platform';
 import types = require('vs/base/common/types');
 import DOM = require('vs/base/browser/dom');
-import { EventType, GestureEvent } from 'vs/base/browser/touch';
+import { EventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import Event, { Emitter } from 'vs/base/common/event';
 
@@ -71,6 +71,7 @@ export class Sash {
 
 		this.$e.on(DOM.EventType.MOUSE_DOWN, (e) => { this.onMouseDown(e as MouseEvent); });
 		this.$e.on(DOM.EventType.DBLCLICK, (e) => this._onDidReset.fire());
+		Gesture.addTarget(this.$e.getHTMLElement());
 		this.$e.on(EventType.Start, (e) => { this.onTouchStart(e as GestureEvent); });
 
 		this.size = options.baseSize || 5;

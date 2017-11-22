@@ -10,7 +10,7 @@ import { range, firstIndex } from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
 import * as DOM from 'vs/base/browser/dom';
 import * as platform from 'vs/base/common/platform';
-import { EventType as TouchEventType } from 'vs/base/browser/touch';
+import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import Event, { Emitter, EventBufferer, chain, mapEvent, fromCallback, anyEvent } from 'vs/base/common/event';
@@ -386,6 +386,7 @@ class MouseController<T> implements IDisposable {
 		this.disposables.push(view.addListener('dblclick', e => this.onDoubleClick(e)));
 		this.disposables.push(view.addListener('touchstart', e => this.onMouseDown(e)));
 		this.disposables.push(view.addListener(TouchEventType.Tap, e => this.onPointer(e)));
+		Gesture.addTarget(view.domNode);
 	}
 
 	private onMouseDown(e: IListMouseEvent<T>): void {
