@@ -148,6 +148,55 @@ export class BracketMatchingController extends Disposable implements editorCommo
 		this._editor.revealRange(newSelections[0]);
 	}
 
+	public selectToBracket(): void{
+		//getting the model //trying to find
+		const model = this._editor.getModel();
+		if (!model) {
+			return;
+		}
+
+		//get the current position of the editor, so it can be
+		//used in the next step
+		let openBracket: Position;
+		let closeBracket: Position;
+
+		let newSelections = this._editor.getSelections().map(selection => {
+			const position = selection.getStartPosition();
+			const brackets = model.matchBracket(position);
+			let newCursorPosition: Position = null;
+			if (brackets) {
+				openBracket = brackets[0];
+				closeBracket = brackets[1];
+				if (openBracket.containsPosition(position)) {
+					newCursorPosition = closeBracket.getStartPosition();
+				} else if (closeBracket.containsPosition(position)) {
+					newCursorPosition = openBracket.getStartPosition();
+				} else {
+					// find the next bracket if the position isn't on a matching bracket
+					const nextBracket = model.findNextBracket(position);
+					if (nextBracket && nextBracket.range) {
+						newCursorPosition = nextBracket.range.getStartPosition();
+					}
+				}
+			}
+		}
+		if (openBracket && closeBracket) {
+			this._selectContentWithinBrackets(openBracket, closeBracket);
+		}
+	}
+
+//By the first pull request guy
+//selecting text between the open and close bracket
+private _selectContentWithinBrackets(openBracket: Position, closeBracket: Position): void {
+		const bracketRange: Range = new Range(
+		openBracket.lineNumber,
+		openBracket.column,
+		closeBracket.lineNumber,
+		closeBracket.column
+	);
+	this._editor.setSelection(bracketRange);
+}
+
 	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'bracket-match'
