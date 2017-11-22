@@ -8,6 +8,7 @@
 
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
+import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { RunOnceScheduler, Delayer } from 'vs/base/common/async';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -15,7 +16,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ScrollType, IModel, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, registerInstantiatedEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { FoldingModel, setCollapseStateAtLevel, CollapseMemento, setCollapseStateLevelsDown, setCollapseStateLevelsUp } from 'vs/editor/contrib/folding/foldingModel';
+import { FoldingModel, setCollapseStateAtLevel, CollapseMemento, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateForMatchingLines } from 'vs/editor/contrib/folding/foldingModel';
 import { FoldingDecorationProvider } from './foldingDecorations';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
@@ -508,6 +509,30 @@ class FoldRecursivelyAction extends FoldingAction<void> {
 	}
 }
 
+class FoldAllBlockCommentsAction extends FoldingAction<void> {
+
+	constructor() {
+		super({
+			id: 'editor.foldAllBlockComments',
+			label: nls.localize('foldAllBlockComments.label', "Fold All Block Comments"),
+			alias: 'Fold All Block Comments',
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.textFocus,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.US_SLASH)
+			}
+		});
+	}
+
+	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
+		let comments = LanguageConfigurationRegistry.getComments(editor.getModel().getLanguageIdentifier().id);
+		if (comments && comments.blockCommentStartToken) {
+			let regExp = new RegExp('^\\s*' + escapeRegExpCharacters(comments.blockCommentStartToken));
+			setCollapseStateForMatchingLines(foldingModel, regExp, true);
+		}
+	}
+}
+
 class FoldAllAction extends FoldingAction<void> {
 
 	constructor() {
@@ -568,6 +593,7 @@ registerEditorAction(FoldAction);
 registerEditorAction(FoldRecursivelyAction);
 registerEditorAction(FoldAllAction);
 registerEditorAction(UnfoldAllAction);
+registerEditorAction(FoldAllBlockCommentsAction);
 
 for (let i = 1; i <= 9; i++) {
 	registerInstantiatedEditorAction(
