@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CodeLens, CancellationToken, TextDocument, Range, Location, ProviderResult, workspace } from 'vscode';
+import { CodeLens, CancellationToken, TextDocument, Range, Location, workspace } from 'vscode';
 import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 
@@ -27,14 +27,14 @@ export default class TypeScriptReferencesCodeLensProvider extends TypeScriptBase
 		this.setEnabled(config.get('referencesCodeLens.enabled', false));
 	}
 
-	provideCodeLenses(document: TextDocument, token: CancellationToken): ProviderResult<CodeLens[]> {
+	async provideCodeLenses(document: TextDocument, token: CancellationToken): Promise<CodeLens[]> {
 		if (!this.client.apiVersion.has206Features()) {
 			return [];
 		}
 		return super.provideCodeLenses(document, token);
 	}
 
-	resolveCodeLens(inputCodeLens: CodeLens, token: CancellationToken): Promise<CodeLens> {
+	public resolveCodeLens(inputCodeLens: CodeLens, token: CancellationToken): Promise<CodeLens> {
 		const codeLens = inputCodeLens as ReferencesCodeLens;
 		const args = vsPositionToTsFileLocation(codeLens.file, codeLens.range.start);
 		return this.client.execute('references', args, token).then(response => {

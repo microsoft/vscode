@@ -193,7 +193,7 @@ export class SortLinesDescendingAction extends AbstractSortLinesAction {
 
 export class TrimTrailingWhitespaceAction extends EditorAction {
 
-	public static ID = 'editor.action.trimTrailingWhitespace';
+	public static readonly ID = 'editor.action.trimTrailingWhitespace';
 
 	constructor() {
 		super({

@@ -12,7 +12,7 @@ import { marked } from 'vs/base/common/marked/marked';
 import { always } from 'vs/base/common/async';
 import * as arrays from 'vs/base/common/arrays';
 import { OS } from 'vs/base/common/platform';
-import Event, { Emitter, once, fromEventEmitter, chain } from 'vs/base/common/event';
+import Event, { Emitter, once, chain } from 'vs/base/common/event';
 import Cache from 'vs/base/common/cache';
 import { Action } from 'vs/base/common/actions';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
@@ -252,7 +252,7 @@ export class ExtensionEditor extends BaseEditor {
 
 		this.recommendation = append(details, $('.recommendation'));
 
-		chain(fromEventEmitter<{ error?: any; }>(this.extensionActionBar, 'run'))
+		chain(this.extensionActionBar.onDidRun)
 			.map(({ error }) => error)
 			.filter(error => !!error)
 			.on(this.onError, this, this.disposables);
@@ -532,7 +532,7 @@ export class ExtensionEditor extends BaseEditor {
 
 		tree.setInput(extensionDependencies);
 
-		this.contentDisposables.push(tree.addListener('selection', event => {
+		this.contentDisposables.push(tree.onDidChangeSelection(event => {
 			if (event && event.payload && event.payload.origin === 'keyboard') {
 				controller.openExtension(tree, false);
 			}

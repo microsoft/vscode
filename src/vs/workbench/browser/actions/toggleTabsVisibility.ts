@@ -15,10 +15,10 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 
 export class ToggleTabsVisibilityAction extends Action {
 
-	public static ID = 'workbench.action.toggleTabsVisibility';
-	public static LABEL = nls.localize('toggleTabs', "Toggle Tab Visibility");
+	public static readonly ID = 'workbench.action.toggleTabsVisibility';
+	public static readonly LABEL = nls.localize('toggleTabs', "Toggle Tab Visibility");
 
-	private static tabsVisibleKey = 'workbench.editor.showTabs';
+	private static readonly tabsVisibleKey = 'workbench.editor.showTabs';
 
 	constructor(
 		id: string,

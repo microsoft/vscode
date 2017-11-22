@@ -23,6 +23,6 @@ export class MenuService implements IMenuService {
 	}
 
 	createMenu(id: MenuId, contextKeyService: IContextKeyService): IMenu {
-		return new Menu(id, this._extensionService.onReady(), this._commandService, contextKeyService);
+		return new Menu(id, this._extensionService.whenInstalledExtensionsRegistered(), this._commandService, contextKeyService);
 	}
 }

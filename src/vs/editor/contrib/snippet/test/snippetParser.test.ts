@@ -244,6 +244,12 @@ suite('SnippetParser', () => {
 		assertMarker('${TM_DIRECTORY/src\\//$1/}', Variable);
 	});
 
+	test('No way to escape forward slash in snippet format section #37562', function () {
+		assertMarker('${TM_SELECTED_TEXT/a/\\/$1/g}', Variable);
+		assertMarker('${TM_SELECTED_TEXT/a/in\\/$1ner/g}', Variable);
+		assertMarker('${TM_SELECTED_TEXT/a/end\\//g}', Variable);
+	});
+
 	test('Parser, placeholder with choice', () => {
 
 		assertTextAndMarker('${1|one,two,three|}', 'one', Placeholder);

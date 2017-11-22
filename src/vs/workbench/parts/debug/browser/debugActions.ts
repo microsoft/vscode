@@ -14,7 +14,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IMessageService } from 'vs/platform/message/common/message';
-import { IDebugService, State, IProcess, IThread, IEnablement, IBreakpoint, IStackFrame, IFunctionBreakpoint, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, IExpression, REPL_ID, ProcessState }
+import { IDebugService, State, IProcess, IThread, IEnablement, IBreakpoint, IStackFrame, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, IExpression, REPL_ID, ProcessState }
 	from 'vs/workbench/parts/debug/common/debug';
 import { Variable, Expression, Thread, Breakpoint, Process } from 'vs/workbench/parts/debug/common/debugModel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -535,20 +535,6 @@ export class AddFunctionBreakpointAction extends AbstractDebugAction {
 
 	public run(): TPromise<any> {
 		this.debugService.addFunctionBreakpoint();
-		return TPromise.as(null);
-	}
-}
-
-export class RenameFunctionBreakpointAction extends AbstractDebugAction {
-	static ID = 'workbench.debug.viewlet.action.renameFunctionBreakpointAction';
-	static LABEL = nls.localize('renameFunctionBreakpoint', "Rename Function Breakpoint");
-
-	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, null, debugService, keybindingService);
-	}
-
-	public run(fbp: IFunctionBreakpoint): TPromise<any> {
-		this.debugService.getViewModel().setSelectedFunctionBreakpoint(fbp);
 		return TPromise.as(null);
 	}
 }

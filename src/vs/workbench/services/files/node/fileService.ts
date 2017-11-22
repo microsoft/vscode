@@ -11,7 +11,8 @@ import os = require('os');
 import crypto = require('crypto');
 import assert = require('assert');
 
-import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, MAX_FILE_SIZE, FileChangesEvent, ICreateFileOptions, IContentData } from 'vs/platform/files/common/files';
+import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, FileChangesEvent, ICreateFileOptions, IContentData } from 'vs/platform/files/common/files';
+import { MAX_FILE_SIZE } from 'vs/platform/files/node/files';
 import { isEqualOrParent } from 'vs/base/common/paths';
 import { ResourceMap } from 'vs/base/common/map';
 import arrays = require('vs/base/common/arrays');
@@ -38,6 +39,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { getBaseLabel } from 'vs/base/common/labels';
 
 export interface IEncodingOverride {
 	resource: uri;
@@ -101,8 +103,8 @@ export class FileService implements IFileService {
 
 	public _serviceBrand: any;
 
-	private static FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
-	private static FS_REWATCH_DELAY = 300; // delay to rewatch a file that was renamed or deleted (in ms)
+	private static readonly FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
+	private static readonly FS_REWATCH_DELAY = 300; // delay to rewatch a file that was renamed or deleted (in ms)
 
 	private tmpPath: string;
 	private options: IFileServiceOptions;
@@ -449,7 +451,7 @@ export class FileService implements IFileService {
 						} else {
 							// when receiving the first chunk of data we need to create the
 							// decoding stream which is then used to drive the string stream.
-							Promise.resolve(detectMimeAndEncodingFromBuffer(
+							TPromise.as(detectMimeAndEncodingFromBuffer(
 								{ buffer: chunkBuffer, bytesRead },
 								options && options.autoGuessEncoding || this.configuredAutoGuessEncoding(resource)
 							)).then(value => {
@@ -468,7 +470,7 @@ export class FileService implements IFileService {
 									handleChunk(bytesRead);
 								}
 
-							}).catch(err => {
+							}).then(undefined, err => {
 								// failed to get encoding
 								finish(err);
 							});
@@ -1006,7 +1008,7 @@ export class StatResolver {
 		this.resource = resource;
 		this.isDirectory = isDirectory;
 		this.mtime = mtime;
-		this.name = paths.basename(resource.fsPath);
+		this.name = getBaseLabel(resource);
 		this.etag = etag(size, mtime);
 		this.size = size;
 

@@ -283,7 +283,7 @@ class DecorationCSSRules {
 
 	private _buildCSS(): void {
 		let options = this._providerArgs.options;
-		let unthemedCSS, lightCSS, darkCSS: string;
+		let unthemedCSS: string, lightCSS: string, darkCSS: string;
 		switch (this._ruleType) {
 			case ModelDecorationCSSRuleType.ClassName:
 				unthemedCSS = this.getCSSTextForModelDecorationClassName(options);

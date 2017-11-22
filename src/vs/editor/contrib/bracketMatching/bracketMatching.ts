@@ -57,7 +57,7 @@ class BracketsData {
 }
 
 export class BracketMatchingController extends Disposable implements editorCommon.IEditorContribution {
-	private static ID = 'editor.contrib.bracketMatchingController';
+	private static readonly ID = 'editor.contrib.bracketMatchingController';
 
 	public static get(editor: ICodeEditor): BracketMatchingController {
 		return editor.getContribution<BracketMatchingController>(BracketMatchingController.ID);
@@ -148,7 +148,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 		this._editor.revealRange(newSelections[0]);
 	}
 
-	private static _DECORATION_OPTIONS = ModelDecorationOptions.register({
+	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'bracket-match'
 	});

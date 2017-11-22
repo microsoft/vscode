@@ -35,10 +35,6 @@ export interface IViewOptions extends IPanelOptions {
 	actionRunner: IActionRunner;
 }
 
-export interface IViewConstructorSignature<T extends ViewsViewletPanel> {
-	new(options: IViewOptions, ...services: { _serviceBrand: any; }[]): T;
-}
-
 export abstract class ViewsViewletPanel extends ViewletPanel {
 
 	readonly id: string;
@@ -242,7 +238,7 @@ export class ViewsViewlet extends PanelViewlet {
 		this._register(this.contextKeyService.onDidChangeContext(this.onContextChanged, this));
 
 		// Update headers after and title contributed views after available, since we read from cache in the beginning to know if the viewlet has single view or not. Ref #29609
-		this.extensionService.onReady().then(() => {
+		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
 			this.areExtensionsReady = true;
 			this.updateHeaders();
 		});
@@ -455,10 +451,6 @@ export class ViewsViewlet extends PanelViewlet {
 
 			view.order = order;
 		}
-	}
-
-	protected getDefaultViewSize(): number | undefined {
-		return undefined;
 	}
 
 	private isCurrentlyVisible(viewDescriptor: IViewDescriptor): boolean {

@@ -192,10 +192,6 @@ export class ViewCursors extends ViewPart {
 
 	// --- end event handlers
 
-	public getPosition(): Position {
-		return this._primaryCursor.getPosition();
-	}
-
 	// ---- blinking logic
 
 	private _getCursorBlinking(): TextEditorCursorBlinkingStyle {

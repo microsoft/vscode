@@ -217,7 +217,7 @@ export class MarkersPanel extends Panel {
 
 		this._register(attachListStyler(this.tree, this.themeService));
 
-		this._register(this.tree.addListener('focus', (e: { focus: any }) => {
+		this._register(this.tree.onDidChangeFocus((e: { focus: any }) => {
 			this.markerFocusContextKey.set(e.focus instanceof Marker);
 		}));
 
@@ -227,9 +227,8 @@ export class MarkersPanel extends Panel {
 		}));
 
 		const focusTracker = this._register(dom.trackFocus(this.tree.getHTMLElement()));
-		focusTracker.addBlurListener(() => {
-			this.markerFocusContextKey.set(false);
-		});
+		this._register(focusTracker.onDidBlur(() => this.markerFocusContextKey.set(false)));
+		this._register(focusTracker);
 
 		this.toUnbind.push(this.listService.register(this.tree));
 	}
@@ -249,7 +248,7 @@ export class MarkersPanel extends Panel {
 	private createListeners(): void {
 		this.toUnbind.push(this.markerService.onMarkerChanged(this.onMarkerChanged, this));
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(this.onEditorsChanged, this));
-		this.toUnbind.push(this.tree.addListener('selection', () => this.onSelected()));
+		this.toUnbind.push(this.tree.onDidChangeSelection(() => this.onSelected()));
 	}
 
 	private onMarkerChanged(changedResources: URI[]) {

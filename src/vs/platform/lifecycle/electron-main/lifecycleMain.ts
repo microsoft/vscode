@@ -74,7 +74,7 @@ export class LifecycleService implements ILifecycleService {
 
 	_serviceBrand: any;
 
-	private static QUIT_FROM_RESTART_MARKER = 'quit.from.restart'; // use a marker to find out if the session was restarted
+	private static readonly QUIT_FROM_RESTART_MARKER = 'quit.from.restart'; // use a marker to find out if the session was restarted
 
 	private windowToCloseRequest: { [windowId: string]: boolean };
 	private quitRequested: boolean;

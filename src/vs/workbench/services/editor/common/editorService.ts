@@ -52,14 +52,6 @@ export interface IWorkbenchEditorService extends IEditorService {
 	getVisibleEditors(): IEditor[];
 
 	/**
-	 * Returns if the provided input is currently visible.
-	 *
-	 * @param includeDiff if set to true, will also consider diff editors to find out if the provided
-	 * input is opened either on the left or right hand side of the diff editor.
-	 */
-	isVisible(input: IEditorInput, includeDiff: boolean): boolean;
-
-	/**
 	 * Opens an Editor on the given input with the provided options at the given position. If sideBySide parameter
 	 * is provided, causes the editor service to decide in what position to open the input.
 	 */
@@ -155,29 +147,6 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 
 	public getVisibleEditors(): IEditor[] {
 		return this.editorPart.getVisibleEditors();
-	}
-
-	public isVisible(input: IEditorInput, includeSideBySide: boolean): boolean {
-		if (!input) {
-			return false;
-		}
-
-		return this.getVisibleEditors().some(editor => {
-			if (!editor.input) {
-				return false;
-			}
-
-			if (input.matches(editor.input)) {
-				return true;
-			}
-
-			if (includeSideBySide && editor.input instanceof SideBySideEditorInput) {
-				const sideBySideInput = <SideBySideEditorInput>editor.input;
-				return input.matches(sideBySideInput.master) || input.matches(sideBySideInput.details);
-			}
-
-			return false;
-		});
 	}
 
 	public openEditor(input: IEditorInput, options?: IEditorOptions, sideBySide?: boolean): TPromise<IEditor>;

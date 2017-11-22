@@ -20,10 +20,7 @@ import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { hash } from 'vs/base/common/hash';
-import {
-	IModelContentChangedEvent, IModelDecorationsChangedEvent,
-	IModelLanguageChangedEvent, IModelOptionsChangedEvent, TextModelEventType, IModelLanguageConfigurationChangedEvent
-} from 'vs/editor/common/model/textModelEvents';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelOptionsChangedEvent, IModelLanguageConfigurationChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -159,10 +156,6 @@ export abstract class CommonCodeEditor extends Disposable {
 
 	public getEditorType(): string {
 		return editorCommon.EditorType.ICodeEditor;
-	}
-
-	public destroy(): void {
-		this.dispose();
 	}
 
 	public dispose(): void {
@@ -945,43 +938,16 @@ export abstract class CommonCodeEditor extends Disposable {
 
 			this.viewModel = new ViewModel(this.id, this._configuration, this.model, (callback) => this._scheduleAtNextAnimationFrame(callback));
 
-			this.listenersToRemove.push(this.model.addBulkListener((events) => {
-				for (let i = 0, len = events.length; i < len; i++) {
-					let eventType = events[i].type;
-					let e = events[i].data;
-
-					switch (eventType) {
-						case TextModelEventType.ModelDecorationsChanged:
-							this._onDidChangeModelDecorations.fire(e);
-							break;
-
-						case TextModelEventType.ModelLanguageChanged:
-							this.domElement.setAttribute('data-mode-id', this.model.getLanguageIdentifier().language);
-							this._onDidChangeModelLanguage.fire(e);
-							break;
-
-						case TextModelEventType.ModelLanguageConfigurationChanged:
-							this._onDidChangeModelLanguageConfiguration.fire(e);
-							break;
-
-						case TextModelEventType.ModelContentChanged:
-							this._onDidChangeModelContent.fire(e);
-							break;
-
-						case TextModelEventType.ModelOptionsChanged:
-							this._onDidChangeModelOptions.fire(e);
-							break;
-
-						case TextModelEventType.ModelDispose:
-							// Someone might destroy the model from under the editor, so prevent any exceptions by setting a null model
-							this.setModel(null);
-							break;
-
-						default:
-						// console.warn("Unhandled model event: ", e);
-					}
-				}
+			this.listenersToRemove.push(this.model.onDidChangeDecorations((e) => this._onDidChangeModelDecorations.fire(e)));
+			this.listenersToRemove.push(this.model.onDidChangeLanguage((e) => {
+				this.domElement.setAttribute('data-mode-id', this.model.getLanguageIdentifier().language);
+				this._onDidChangeModelLanguage.fire(e);
 			}));
+			this.listenersToRemove.push(this.model.onDidChangeLanguageConfiguration((e) => this._onDidChangeModelLanguageConfiguration.fire(e)));
+			this.listenersToRemove.push(this.model.onDidChangeContent((e) => this._onDidChangeModelContent.fire(e)));
+			this.listenersToRemove.push(this.model.onDidChangeOptions((e) => this._onDidChangeModelOptions.fire(e)));
+			// Someone might destroy the model from under the editor, so prevent any exceptions by setting a null model
+			this.listenersToRemove.push(this.model.onWillDispose(() => this.setModel(null)));
 
 			this.cursor = new Cursor(
 				this._configuration,

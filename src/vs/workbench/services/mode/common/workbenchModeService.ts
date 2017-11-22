@@ -138,7 +138,7 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 
 	protected _onReady(): TPromise<boolean> {
 		if (!this._onReadyPromise) {
-			this._onReadyPromise = this._extensionService.onReady().then(() => {
+			this._onReadyPromise = this._extensionService.whenInstalledExtensionsRegistered().then(() => {
 				this.updateMime();
 				return true;
 			});

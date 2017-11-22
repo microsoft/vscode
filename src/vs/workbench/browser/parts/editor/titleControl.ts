@@ -9,7 +9,7 @@ import 'vs/css!./media/titlecontrol';
 import nls = require('vs/nls');
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Scope, IActionBarRegistry, Extensions, prepareActions } from 'vs/workbench/browser/actions';
-import { IAction, Action } from 'vs/base/common/actions';
+import { IAction, Action, IRunEvent } from 'vs/base/common/actions';
 import errors = require('vs/base/common/errors');
 import DOM = require('vs/base/browser/dom');
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -17,7 +17,6 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import arrays = require('vs/base/common/arrays');
 import { IEditorStacksModel, IEditorGroup, IEditorIdentifier, EditorInput, IStacksModelChangeEvent, toResource } from 'vs/workbench/common/editor';
-import { EventType as BaseEventType } from 'vs/base/common/events';
 import { IActionItem, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -252,7 +251,7 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 		});
 
 		// Action Run Handling
-		this.toUnbind.push(this.editorActionsToolbar.actionRunner.addListener(BaseEventType.RUN, (e: any) => {
+		this.toUnbind.push(this.editorActionsToolbar.actionRunner.onDidRun((e: IRunEvent) => {
 
 			// Check for Error
 			if (e.error && !errors.isPromiseCanceledError(e.error)) {

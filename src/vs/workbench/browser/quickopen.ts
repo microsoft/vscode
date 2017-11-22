@@ -131,7 +131,6 @@ export class QuickOpenHandlerDescriptor {
 	public prefix: string;
 	public description: string;
 	public contextKey: string;
-	public isDefault: boolean;
 	public helpEntries: QuickOpenHandlerHelpEntry[];
 	public instantProgress: boolean;
 
@@ -312,21 +311,6 @@ export class EditorQuickOpenEntryGroup extends QuickOpenEntryGroup implements IE
 	public getOptions(): IEditorOptions {
 		return null;
 	}
-}
-
-// Infrastructure for quick open commands
-
-export interface ICommand {
-	aliases: string[];
-	getResults(input: string): TPromise<QuickOpenEntry[]>;
-	getEmptyLabel(input: string): string;
-	icon?: string;
-}
-
-export interface ICommandQuickOpenHandlerOptions {
-	prefix: string;
-	commands: ICommand[];
-	defaultCommand?: ICommand;
 }
 
 export class QuickOpenAction extends Action {

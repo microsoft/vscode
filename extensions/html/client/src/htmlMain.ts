@@ -12,7 +12,6 @@ import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
-import { ConfigurationFeature } from 'vscode-languageclient/lib/configuration.proposed';
 import { DocumentColorRequest, DocumentColorParams, ColorPresentationRequest, ColorPresentationParams } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
 import * as nls from 'vscode-nls';
@@ -65,7 +64,7 @@ export function activate(context: ExtensionContext) {
 
 	// Create the language client and start the client.
 	let client = new LanguageClient('html', localize('htmlserver.name', 'HTML Language Server'), serverOptions, clientOptions);
-	client.registerFeature(new ConfigurationFeature(client));
+	client.registerProposedFeatures();
 
 	let disposable = client.start();
 	toDispose.push(disposable);

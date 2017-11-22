@@ -12,7 +12,7 @@ import { RunOnceScheduler, Delayer } from 'vs/base/common/async';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ScrollType, IModel } from 'vs/editor/common/editorCommon';
+import { ScrollType, IModel, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, registerInstantiatedEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { FoldingModel, setCollapseStateAtLevel, CollapseMemento, setCollapseStateLevelsDown, setCollapseStateLevelsUp } from 'vs/editor/contrib/folding/foldingModel';
@@ -27,7 +27,7 @@ import { computeRanges as computeIndentRanges } from 'vs/editor/contrib/folding/
 
 export const ID = 'editor.contrib.folding';
 
-export class FoldingController {
+export class FoldingController implements IEditorContribution {
 
 	static MAX_FOLDING_REGIONS = 5000;
 
@@ -229,10 +229,10 @@ export class FoldingController {
 		this.mouseDownInfo = null;
 
 		let range = e.target.range;
-		if (!range) {
+		if (!this.hiddenRangeModel || !range) {
 			return;
 		}
-		if (!e.event.leftButton) {
+		if (!e.event.leftButton && !e.event.middleButton) {
 			return;
 		}
 		let iconClicked = false;
@@ -260,7 +260,7 @@ export class FoldingController {
 			case MouseTargetType.CONTENT_TEXT: {
 				if (this.hiddenRangeModel.hasRanges()) {
 					let model = this.editor.getModel();
-					if (range.startColumn === model.getLineMaxColumn(range.startLineNumber)) {
+					if (model && range.startColumn === model.getLineMaxColumn(range.startLineNumber)) {
 						break;
 					}
 				}
@@ -300,8 +300,13 @@ export class FoldingController {
 			if (foldingModel) {
 				let region = foldingModel.getRegionAtLine(lineNumber);
 				if (region && region.startLineNumber === lineNumber) {
-					if (iconClicked || region.isCollapsed) {
-						foldingModel.toggleCollapseState([region]);
+					let isCollapsed = region.isCollapsed;
+					if (iconClicked || isCollapsed) {
+						let toToggle = [region];
+						if (e.event.middleButton || e.event.shiftKey) {
+							toToggle.push(...foldingModel.getRegionsInside(region, r => r.isCollapsed === isCollapsed));
+						}
+						foldingModel.toggleCollapseState(toToggle);
 						this.reveal(lineNumber);
 					}
 				}
@@ -456,7 +461,7 @@ class FoldAction extends FoldingAction<FoldingArguments> {
 					{
 						name: 'Fold editor argument',
 						description: `Property-value pairs that can be passed through this argument:
-							* 'levels': Number of levels to fold. Defauts to 1
+							* 'levels': Number of levels to fold. Defaults to 1
 							* 'direction': If 'up', folds given number of levels up otherwise folds down
 							* 'selectionLines': The start lines (0-based) of the editor selections to apply the fold action to. If not set, the active selection(s) will be used.
 						`,
@@ -544,8 +549,8 @@ class UnfoldAllAction extends FoldingAction<void> {
 }
 
 class FoldLevelAction extends FoldingAction<void> {
-	private static ID_PREFIX = 'editor.foldLevel';
-	public static ID = (level: number) => FoldLevelAction.ID_PREFIX + level;
+	private static readonly ID_PREFIX = 'editor.foldLevel';
+	public static readonly ID = (level: number) => FoldLevelAction.ID_PREFIX + level;
 
 	private getFoldingLevel() {
 		return parseInt(this.id.substr(FoldLevelAction.ID_PREFIX.length));

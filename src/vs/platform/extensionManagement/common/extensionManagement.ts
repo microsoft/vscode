@@ -225,7 +225,7 @@ export interface IExtensionGalleryService {
 	getManifest(extension: IGalleryExtension): TPromise<IExtensionManifest>;
 	getChangelog(extension: IGalleryExtension): TPromise<string>;
 	loadCompatibleVersion(extension: IGalleryExtension): TPromise<IGalleryExtension>;
-	getAllDependencies(extension: IGalleryExtension): TPromise<IGalleryExtension[]>;
+	loadAllDependencies(dependencies: IExtensionIdentifier[]): TPromise<IGalleryExtension[]>;
 }
 
 export interface InstallExtensionEvent {
@@ -263,6 +263,13 @@ export interface IExtensionManagementService {
 	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): TPromise<ILocalExtension>;
 }
 
+export enum EnablementState {
+	Disabled,
+	WorkspaceDisabled,
+	Enabled,
+	WorkspaceEnabled
+}
+
 export const IExtensionEnablementService = createDecorator<IExtensionEnablementService>('extensionEnablementService');
 
 // TODO: @sandy: Merge this into IExtensionManagementService when we have a storage service available in Shared process
@@ -275,21 +282,20 @@ export interface IExtensionEnablementService {
 	onEnablementChanged: Event<IExtensionIdentifier>;
 
 	/**
-	 * Returns all globally disabled extension identifiers.
-	 * Returns an empty array if none exist.
+	 * Returns all disabled extension identifiers for current workspace
+	 * Returns an empty array if none exist
 	 */
-	getGloballyDisabledExtensions(): IExtensionIdentifier[];
+	getDisabledExtensions(): TPromise<IExtensionIdentifier[]>;
 
 	/**
-	 * Returns all workspace disabled extension identifiers.
-	 * Returns an empty array if none exist or workspace does not exist.
+	 * Returns the enablement state for the given extension
 	 */
-	getWorkspaceDisabledExtensions(): IExtensionIdentifier[];
+	getEnablementState(identifier: IExtensionIdentifier): EnablementState;
 
 	/**
-	 * Returns `true` if given extension can be enabled by calling `setEnablement`, otherwise false`.
+	 * Returns `true` if the enablement can be changed.
 	 */
-	canEnable(identifier: IExtensionIdentifier): boolean;
+	canChangeEnablement(): boolean;
 
 	/**
 	 * Returns `true` if the given extension identifier is enabled.
@@ -305,7 +311,7 @@ export interface IExtensionEnablementService {
 	 *
 	 * Throws error if enablement is requested for workspace and there is no workspace
 	 */
-	setEnablement(identifier: IExtensionIdentifier, enable: boolean, workspace?: boolean): TPromise<boolean>;
+	setEnablement(identifier: IExtensionIdentifier, state: EnablementState): TPromise<boolean>;
 
 	migrateToIdentifiers(installed: IExtensionIdentifier[]): void;
 }

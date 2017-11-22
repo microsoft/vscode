@@ -700,7 +700,7 @@ interface ISerializedEditorStacksModel {
 
 export class EditorStacksModel implements IEditorStacksModel {
 
-	private static STORAGE_KEY = 'editorStacks.model';
+	private static readonly STORAGE_KEY = 'editorStacks.model';
 
 	private toDispose: IDisposable[];
 	private loaded: boolean;
@@ -1075,6 +1075,16 @@ export class EditorStacksModel implements IEditorStacksModel {
 		// Return last in last group
 		const lastGroup = this.groups[this.groups.length - 1];
 		return { group: lastGroup, editor: lastGroup.getEditor(lastGroup.count - 1) };
+	}
+
+	public last(): IEditorIdentifier {
+		this.ensureLoaded();
+
+		if (!this.activeGroup) {
+			return null;
+		}
+
+		return { group: this.activeGroup, editor: this.activeGroup.getEditor(this.activeGroup.count - 1) };
 	}
 
 	private save(): void {

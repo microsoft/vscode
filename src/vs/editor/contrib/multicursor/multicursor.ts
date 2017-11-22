@@ -303,7 +303,7 @@ export class MultiCursorSession {
 
 export class MultiCursorSelectionController extends Disposable implements IEditorContribution {
 
-	private static ID = 'editor.contrib.multiCursorController';
+	private static readonly ID = 'editor.contrib.multiCursorController';
 
 	private readonly _editor: ICodeEditor;
 	private _ignoreSelectionChange: boolean;
@@ -359,7 +359,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 				this._editor.onDidBlurEditorText(() => {
 					this._endSession();
 				}),
-				findController.getState().addChangeListener((e) => {
+				findController.getState().onFindReplaceStateChange((e) => {
 					if (e.matchCase || e.wholeWord) {
 						this._endSession();
 					}
@@ -468,7 +468,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 		// - and the search widget is visible
 		// - and the search string is non-empty
 		// - and we're searching for a regex
-		if (!this._editor.isFocused() && findState.isRevealed && findState.searchString.length > 0 && findState.isRegex) {
+		if (findState.isRevealed && findState.searchString.length > 0 && findState.isRegex) {
 
 			matches = this._editor.getModel().findMatches(findState.searchString, true, findState.isRegex, findState.matchCase, findState.wholeWord ? this._editor.getConfiguration().wordSeparators : null, false, Constants.MAX_SAFE_SMALL_INTEGER);
 
@@ -654,7 +654,7 @@ class SelectionHighlighterState {
 }
 
 export class SelectionHighlighter extends Disposable implements IEditorContribution {
-	private static ID = 'editor.contrib.selectionHighlighter';
+	private static readonly ID = 'editor.contrib.selectionHighlighter';
 
 	private editor: ICodeEditor;
 	private _isEnabled: boolean;
@@ -699,7 +699,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		this._register(editor.onDidChangeModel((e) => {
 			this._setState(null);
 		}));
-		this._register(CommonFindController.get(editor).getState().addChangeListener((e) => {
+		this._register(CommonFindController.get(editor).getState().onFindReplaceStateChange((e) => {
 			this._update();
 		}));
 	}
@@ -860,7 +860,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		this.decorations = this.editor.deltaDecorations(this.decorations, decorations);
 	}
 
-	private static _SELECTION_HIGHLIGHT_OVERVIEW = ModelDecorationOptions.register({
+	private static readonly _SELECTION_HIGHLIGHT_OVERVIEW = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'selectionHighlight',
 		overviewRuler: {
@@ -870,7 +870,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		}
 	});
 
-	private static _SELECTION_HIGHLIGHT = ModelDecorationOptions.register({
+	private static readonly _SELECTION_HIGHLIGHT = ModelDecorationOptions.register({
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'selectionHighlight',
 	});

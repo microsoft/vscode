@@ -8,7 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { InlineDecoration, ViewModelDecoration, ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
+import { InlineDecoration, ViewModelDecoration, ICoordinatesConverter, InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
 import { IViewModelLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
 
 export interface IDecorationsViewportData {
@@ -123,7 +123,7 @@ export class ViewModelDecorations implements IDisposable {
 			decorationsInViewport[decorationsInViewportLen++] = viewModelDecoration;
 
 			if (decorationOptions.inlineClassName) {
-				let inlineDecoration = new InlineDecoration(viewRange, decorationOptions.inlineClassName, false);
+				let inlineDecoration = new InlineDecoration(viewRange, decorationOptions.inlineClassName, InlineDecorationType.Regular);
 				let intersectedStartLineNumber = Math.max(startLineNumber, viewRange.startLineNumber);
 				let intersectedEndLineNumber = Math.min(endLineNumber, viewRange.endLineNumber);
 				for (let j = intersectedStartLineNumber; j <= intersectedEndLineNumber; j++) {
@@ -132,21 +132,20 @@ export class ViewModelDecorations implements IDisposable {
 			}
 			if (decorationOptions.beforeContentClassName) {
 				if (startLineNumber <= viewRange.startLineNumber && viewRange.startLineNumber <= endLineNumber) {
-					// TODO: What happens if the startLineNumber and startColumn is at the end of a line?
 					let inlineDecoration = new InlineDecoration(
-						new Range(viewRange.startLineNumber, viewRange.startColumn, viewRange.startLineNumber, viewRange.startColumn + 1),
+						new Range(viewRange.startLineNumber, viewRange.startColumn, viewRange.startLineNumber, viewRange.startColumn),
 						decorationOptions.beforeContentClassName,
-						true
+						InlineDecorationType.Before
 					);
 					inlineDecorations[viewRange.startLineNumber - startLineNumber].push(inlineDecoration);
 				}
 			}
 			if (decorationOptions.afterContentClassName) {
-				if (startLineNumber <= viewRange.endLineNumber && viewRange.endLineNumber <= endLineNumber && viewRange.endColumn > 1) {
+				if (startLineNumber <= viewRange.endLineNumber && viewRange.endLineNumber <= endLineNumber) {
 					let inlineDecoration = new InlineDecoration(
-						new Range(viewRange.endLineNumber, viewRange.endColumn - 1, viewRange.endLineNumber, viewRange.endColumn),
+						new Range(viewRange.endLineNumber, viewRange.endColumn, viewRange.endLineNumber, viewRange.endColumn),
 						decorationOptions.afterContentClassName,
-						true
+						InlineDecorationType.After
 					);
 					inlineDecorations[viewRange.endLineNumber - startLineNumber].push(inlineDecoration);
 				}

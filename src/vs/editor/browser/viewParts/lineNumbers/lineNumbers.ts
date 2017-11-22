@@ -18,7 +18,7 @@ import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 
 export class LineNumbersOverlay extends DynamicViewOverlay {
 
-	public static CLASS_NAME = 'line-numbers';
+	public static readonly CLASS_NAME = 'line-numbers';
 
 	private _context: ViewContext;
 

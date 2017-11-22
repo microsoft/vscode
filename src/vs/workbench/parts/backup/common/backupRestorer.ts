@@ -100,8 +100,4 @@ export class BackupRestorer implements IWorkbenchContribution {
 
 		return { resource, options };
 	}
-
-	public getId(): string {
-		return 'vs.backup.backupRestorer';
-	}
 }

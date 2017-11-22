@@ -8,16 +8,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder, ITokenizedModel } from 'vs/editor/common/editorCommon';
 
-
 export class DeleteLinesCommand implements ICommand {
-
-	public static createFromSelection(selection: Selection): DeleteLinesCommand {
-		var endLineNumber = selection.endLineNumber;
-		if (selection.startLineNumber < selection.endLineNumber && selection.endColumn === 1) {
-			endLineNumber -= 1;
-		}
-		return new DeleteLinesCommand(selection.startLineNumber, endLineNumber, selection.positionColumn);
-	}
 
 	private startLineNumber: number;
 	private endLineNumber: number;

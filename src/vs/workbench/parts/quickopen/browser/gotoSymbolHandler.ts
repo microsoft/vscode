@@ -32,8 +32,8 @@ export const SCOPE_PREFIX = ':';
 
 export class GotoSymbolAction extends QuickOpenAction {
 
-	public static ID = 'workbench.action.gotoSymbol';
-	public static LABEL = nls.localize('gotoSymbol', "Go to Symbol in File...");
+	public static readonly ID = 'workbench.action.gotoSymbol';
+	public static readonly LABEL = nls.localize('gotoSymbol', "Go to Symbol in File...");
 
 	constructor(actionId: string, actionLabel: string, @IQuickOpenService quickOpenService: IQuickOpenService) {
 		super(actionId, actionLabel, GOTO_SYMBOL_PREFIX, quickOpenService);

@@ -49,8 +49,8 @@ import { DebugStatus } from 'vs/workbench/parts/debug/browser/debugStatus';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 class OpenDebugViewletAction extends ToggleViewletAction {
-	public static ID = VIEWLET_ID;
-	public static LABEL = nls.localize('toggleDebugViewlet', "Show Debug");
+	public static readonly ID = VIEWLET_ID;
+	public static readonly LABEL = nls.localize('toggleDebugViewlet', "Show Debug");
 
 	constructor(
 		id: string,
@@ -63,8 +63,8 @@ class OpenDebugViewletAction extends ToggleViewletAction {
 }
 
 class OpenDebugPanelAction extends TogglePanelAction {
-	public static ID = 'workbench.debug.action.toggleRepl';
-	public static LABEL = nls.localize('toggleDebugPanel', "Debug Console");
+	public static readonly ID = 'workbench.debug.action.toggleRepl';
+	public static readonly LABEL = nls.localize('toggleDebugPanel', "Debug Console");
 
 	constructor(
 		id: string,
@@ -114,10 +114,10 @@ const registry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionRegistryEx
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenDebugPanelAction, OpenDebugPanelAction.ID, OpenDebugPanelAction.LABEL, openPanelKb), 'View: Debug Console', nls.localize('view', "View"));
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenDebugViewletAction, OpenDebugViewletAction.ID, OpenDebugViewletAction.LABEL, openViewletKb), 'View: Show Debug', nls.localize('view', "View"));
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugEditorModelManager, LifecyclePhase.Starting);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugActionsWidget, LifecyclePhase.Starting);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugContentProvider, LifecyclePhase.Starting);
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(StatusBarColorProvider, LifecyclePhase.Starting);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugEditorModelManager, LifecyclePhase.Running);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugActionsWidget, LifecyclePhase.Running);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugContentProvider, LifecyclePhase.Eventually);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(StatusBarColorProvider, LifecyclePhase.Eventually);
 
 const debugCategory = nls.localize('debugCategory', "Debug");
 registry.registerWorkbenchAction(new SyncActionDescriptor(

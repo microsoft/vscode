@@ -80,7 +80,7 @@ export class FindWidgetViewZone implements IViewZone {
 }
 
 export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSashLayoutProvider {
-	private static ID = 'editor.contrib.findWidget';
+	private static readonly ID = 'editor.contrib.findWidget';
 	private _codeEditor: ICodeEditor;
 	private _state: FindReplaceState;
 	private _controller: IFindController;
@@ -129,7 +129,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._isVisible = false;
 		this._isReplaceVisible = false;
 
-		this._register(this._state.addChangeListener((e) => this._onStateChanged(e)));
+		this._register(this._state.onFindReplaceStateChange((e) => this._onStateChanged(e)));
 		this._buildDomNode();
 		this._updateButtons();
 
@@ -193,7 +193,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		}));
 		this._findInputFocused = CONTEXT_FIND_INPUT_FOCUSED.bindTo(contextKeyService);
 		this._focusTracker = this._register(dom.trackFocus(this._findInput.inputBox.inputElement));
-		this._focusTracker.addFocusListener(() => {
+		this._register(this._focusTracker.onDidFocus(() => {
 			this._findInputFocused.set(true);
 
 			if (this._toggleSelectionFind.checked) {
@@ -209,10 +209,10 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 					}
 				}
 			}
-		});
-		this._focusTracker.addBlurListener(() => {
+		}));
+		this._register(this._focusTracker.onDidBlur(() => {
 			this._findInputFocused.set(false);
-		});
+		}));
 
 		this._codeEditor.addOverlayWidget(this);
 		this._viewZone = new FindWidgetViewZone(0); // Put it before the first line then users can scroll beyond the first line.
@@ -863,11 +863,11 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._resizeSash = new Sash(this._domNode, this, { orientation: Orientation.VERTICAL });
 		let originalWidth = FIND_WIDGET_INITIAL_WIDTH;
 
-		this._register(this._resizeSash.addListener('start', (e: ISashEvent) => {
+		this._register(this._resizeSash.onDidStart((e: ISashEvent) => {
 			originalWidth = dom.getTotalWidth(this._domNode);
 		}));
 
-		this._register(this._resizeSash.addListener('change', (evt: ISashEvent) => {
+		this._register(this._resizeSash.onDidChange((evt: ISashEvent) => {
 			let width = originalWidth + evt.startX - evt.currentX;
 
 			if (width < FIND_WIDGET_INITIAL_WIDTH) {

@@ -34,6 +34,7 @@ import { IJSONEditingService } from 'vs/workbench/services/configuration/common/
 import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
+import { mkdirp } from 'vs/base/node/pfs';
 
 class SettingsTestEnvironmentService extends EnvironmentService {
 
@@ -53,15 +54,7 @@ function setUpFolderWorkspace(folderName: string): TPromise<{ parentDir: string,
 function setUpFolder(folderName: string, parentDir: string): TPromise<string> {
 	const folderDir = path.join(parentDir, folderName);
 	const workspaceSettingsDir = path.join(folderDir, '.vscode');
-	return new TPromise((c, e) => {
-		extfs.mkdirp(workspaceSettingsDir, 493, (error) => {
-			if (error) {
-				e(error);
-				return null;
-			}
-			c(folderDir);
-		});
-	});
+	return mkdirp(workspaceSettingsDir, 493).then(() => folderDir);
 }
 
 function setUpWorkspace(folders: string[]): TPromise<{ parentDir: string, configPath: string }> {
@@ -69,7 +62,7 @@ function setUpWorkspace(folders: string[]): TPromise<{ parentDir: string, config
 	const id = uuid.generateUuid();
 	const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 
-	return createDir(parentDir)
+	return mkdirp(parentDir, 493)
 		.then(() => {
 			const configPath = path.join(parentDir, 'vsctests.code-workspace');
 			const workspace = { folders: folders.map(path => ({ path })) };
@@ -81,17 +74,6 @@ function setUpWorkspace(folders: string[]): TPromise<{ parentDir: string, config
 
 }
 
-function createDir(dir: string): TPromise<void> {
-	return new TPromise((c, e) => {
-		extfs.mkdirp(dir, 493, (error) => {
-			if (error) {
-				e(error);
-				return null;
-			}
-			c(null);
-		});
-	});
-}
 
 suite('WorkspaceContextService - Folder', () => {
 

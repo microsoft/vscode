@@ -44,10 +44,6 @@ export class ReplacePreviewContentProvider implements ITextModelContentProvider,
 		this.textModelResolverService.registerTextModelContentProvider(network.Schemas.internal, this);
 	}
 
-	public getId(): string {
-		return 'replace.preview.contentprovider';
-	}
-
 	public provideTextContent(uri: URI): TPromise<IModel> {
 		if (uri.fragment === REPLACE_PREVIEW) {
 			return this.instantiationService.createInstance(ReplacePreviewModel).resolve(uri);

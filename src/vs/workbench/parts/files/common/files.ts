@@ -19,11 +19,20 @@ import { IMode } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IViewlet } from 'vs/workbench/common/viewlet';
 
 /**
  * Explorer viewlet id.
  */
 export const VIEWLET_ID = 'workbench.view.explorer';
+
+export interface IExplorerViewlet extends IViewlet {
+	getExplorerView(): IExplorerView;
+}
+
+export interface IExplorerView {
+	select(resource: URI, reveal?: boolean): TPromise<void>;
+}
 
 /**
  * Context Keys to use with keybindings for the Explorer and Open Editors view

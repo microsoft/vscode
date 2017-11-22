@@ -45,7 +45,7 @@ export class Checkbox extends Widget {
 
 		this.domNode = document.createElement('div');
 		this.domNode.title = this._opts.title;
-		this.domNode.className = this._className();
+		this.domNode.className = 'custom-checkbox ' + this._opts.actionClassName + ' ' + (this._checked ? 'checked' : 'unchecked');
 		this.domNode.tabIndex = 0;
 		this.domNode.setAttribute('role', 'checkbox');
 		this.domNode.setAttribute('aria-checked', String(this._checked));
@@ -88,12 +88,13 @@ export class Checkbox extends Widget {
 	public set checked(newIsChecked: boolean) {
 		this._checked = newIsChecked;
 		this.domNode.setAttribute('aria-checked', String(this._checked));
-		this.domNode.className = this._className();
-		this.applyStyles();
-	}
+		if (this._checked) {
+			this.domNode.classList.add('checked');
+		} else {
+			this.domNode.classList.remove('checked');
+		}
 
-	private _className(): string {
-		return 'custom-checkbox ' + this._opts.actionClassName + ' ' + (this._checked ? 'checked' : 'unchecked');
+		this.applyStyles();
 	}
 
 	public width(): number {

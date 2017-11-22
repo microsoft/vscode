@@ -13,7 +13,7 @@ import paths = require('vs/base/common/paths');
 import { Builder, $ } from 'vs/base/browser/builder';
 import DOM = require('vs/base/browser/dom');
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { BoundedMap } from 'vs/base/common/map';
+import { LRUCache } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 
 interface MapExtToMediaMimes {
@@ -82,7 +82,7 @@ export interface IResourceDescriptor {
 // we need to bypass the cache or not. We could always bypass the cache everytime we show the image
 // however that has very bad impact on memory consumption because each time the image gets shown,
 // memory grows (see also https://github.com/electron/electron/issues/6275)
-const IMAGE_RESOURCE_ETAG_CACHE = new BoundedMap<{ etag: string, src: string }>(100);
+const IMAGE_RESOURCE_ETAG_CACHE = new LRUCache<string, { etag: string, src: string }>(100);
 function imageSrc(descriptor: IResourceDescriptor): string {
 	if (descriptor.resource.scheme === Schemas.data) {
 		return descriptor.resource.toString(true /* skip encoding */);
@@ -110,12 +110,12 @@ function imageSrc(descriptor: IResourceDescriptor): string {
  */
 export class ResourceViewer {
 
-	private static KB = 1024;
-	private static MB = ResourceViewer.KB * ResourceViewer.KB;
-	private static GB = ResourceViewer.MB * ResourceViewer.KB;
-	private static TB = ResourceViewer.GB * ResourceViewer.KB;
+	private static readonly KB = 1024;
+	private static readonly MB = ResourceViewer.KB * ResourceViewer.KB;
+	private static readonly GB = ResourceViewer.MB * ResourceViewer.KB;
+	private static readonly TB = ResourceViewer.GB * ResourceViewer.KB;
 
-	private static MAX_IMAGE_SIZE = ResourceViewer.MB; // showing images inline is memory intense, so we have a limit
+	private static readonly MAX_IMAGE_SIZE = ResourceViewer.MB; // showing images inline is memory intense, so we have a limit
 
 	public static show(
 		descriptor: IResourceDescriptor,

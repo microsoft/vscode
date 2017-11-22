@@ -14,7 +14,6 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { CommonCodeEditor } from 'vs/editor/common/commonCodeEditor';
 import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditorAction, EditorExtensionsRegistry, IEditorContributionCtor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -166,14 +165,6 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 			return null;
 		}
 		return this._view.domNode.domNode;
-	}
-
-	public getCompletelyVisibleLinesRangeInViewport(): Range {
-		if (!this.hasView) {
-			return null;
-		}
-		const viewRange = this.viewModel.getCompletelyVisibleViewRange();
-		return this.viewModel.coordinatesConverter.convertViewRangeToModelRange(viewRange);
 	}
 
 	public delegateVerticalScrollbarMouseDown(browserEvent: IMouseEvent): void {
@@ -330,13 +321,6 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		this._view.render(true, false);
 	}
 
-	public setAriaActiveDescendant(id: string): void {
-		if (!this.hasView) {
-			return;
-		}
-		this._view.setAriaActiveDescendant(id);
-	}
-
 	public applyFontInfo(target: HTMLElement): void {
 		Configuration.applyFontInfoSlow(target, this._configuration.editor.fontInfo);
 	}
@@ -468,14 +452,14 @@ class CodeEditorWidgetFocusTracker extends Disposable {
 		this._hasFocus = false;
 		this._domFocusTracker = this._register(dom.trackFocus(domElement));
 
-		this._domFocusTracker.addFocusListener(() => {
+		this._register(this._domFocusTracker.onDidFocus(() => {
 			this._hasFocus = true;
 			this._onChange.fire(void 0);
-		});
-		this._domFocusTracker.addBlurListener(() => {
+		}));
+		this._register(this._domFocusTracker.onDidBlur(() => {
 			this._hasFocus = false;
 			this._onChange.fire(void 0);
-		});
+		}));
 	}
 
 	public hasFocus(): boolean {
@@ -483,7 +467,7 @@ class CodeEditorWidgetFocusTracker extends Disposable {
 	}
 }
 
-const squigglyStart = encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' height='3' width='6'><g fill='`);
+const squigglyStart = encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 6 3' enable-background='new 0 0 6 3' height='3' width='6'><g fill='`);
 const squigglyEnd = encodeURIComponent(`'><polygon points='5.5,0 2.5,3 1.1,3 4.1,0'/><polygon points='4,0 6,2 6,0.6 5.4,0'/><polygon points='0,2 1,3 2.4,3 0,0.6'/></g></svg>`);
 
 function getSquigglySVGData(color: Color) {
@@ -493,28 +477,28 @@ function getSquigglySVGData(color: Color) {
 registerThemingParticipant((theme, collector) => {
 	let errorBorderColor = theme.getColor(editorErrorBorder);
 	if (errorBorderColor) {
-		collector.addRule(`.monaco-editor .errorsquiggly { border-bottom: 4px double ${errorBorderColor}; }`);
+		collector.addRule(`.monaco-editor .squiggly-c-error { border-bottom: 4px double ${errorBorderColor}; }`);
 	}
 	let errorForeground = theme.getColor(editorErrorForeground);
 	if (errorForeground) {
-		collector.addRule(`.monaco-editor .errorsquiggly { background: url("data:image/svg+xml,${getSquigglySVGData(errorForeground)}") repeat-x bottom left; }`);
+		collector.addRule(`.monaco-editor .squiggly-c-error { background: url("data:image/svg+xml;utf8,${getSquigglySVGData(errorForeground)}") repeat-x bottom left; }`);
 	}
 
 	let warningBorderColor = theme.getColor(editorWarningBorder);
 	if (warningBorderColor) {
-		collector.addRule(`.monaco-editor .warningsquiggly { border-bottom: 4px double ${warningBorderColor}; }`);
+		collector.addRule(`.monaco-editor .squiggly-b-warning { border-bottom: 4px double ${warningBorderColor}; }`);
 	}
 	let warningForeground = theme.getColor(editorWarningForeground);
 	if (warningForeground) {
-		collector.addRule(`.monaco-editor .warningsquiggly { background: url("data:image/svg+xml;utf8,${getSquigglySVGData(warningForeground)}") repeat-x bottom left; }`);
+		collector.addRule(`.monaco-editor .squiggly-b-warning { background: url("data:image/svg+xml;utf8,${getSquigglySVGData(warningForeground)}") repeat-x bottom left; }`);
 	}
 
 	let infoBorderColor = theme.getColor(editorInfoBorder);
 	if (warningBorderColor) {
-		collector.addRule(`.monaco-editor .infosquiggly { border-bottom: 4px double ${infoBorderColor}; }`);
+		collector.addRule(`.monaco-editor .squiggly-c-info { border-bottom: 4px double ${infoBorderColor}; }`);
 	}
 	let infoForeground = theme.getColor(editorInfoForeground);
 	if (warningForeground) {
-		collector.addRule(`.monaco-editor .infosquiggly { background: url("data:image/svg+xml;utf8,${getSquigglySVGData(infoForeground)}") repeat-x bottom left; }`);
+		collector.addRule(`.monaco-editor .squiggly-c-info { background: url("data:image/svg+xml;utf8,${getSquigglySVGData(infoForeground)}") repeat-x bottom left; }`);
 	}
 });

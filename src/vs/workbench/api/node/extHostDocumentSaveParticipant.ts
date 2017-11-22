@@ -5,7 +5,6 @@
 'use strict';
 
 import Event from 'vs/base/common/event';
-import CallbackList from 'vs/base/common/callbackList';
 import URI from 'vs/base/common/uri';
 import { sequence, always } from 'vs/base/common/async';
 import { illegalState } from 'vs/base/common/errors';
@@ -16,12 +15,13 @@ import { fromRange, TextDocumentSaveReason, EndOfLine } from 'vs/workbench/api/n
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import * as vscode from 'vscode';
+import { LinkedList } from 'vs/base/common/linkedList';
 
 export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSaveParticipantShape {
 
 	private _documents: ExtHostDocuments;
 	private _mainThreadEditors: MainThreadEditorsShape;
-	private _callbacks = new CallbackList();
+	private _callbacks = new LinkedList<[Function, any]>();
 	private _badListeners = new WeakMap<Function, number>();
 	private _thresholds: { timeout: number; errors: number; };
 
@@ -32,12 +32,12 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 	}
 
 	dispose(): void {
-		this._callbacks.dispose();
+		this._callbacks.clear();
 	}
 
 	get onWillSaveTextDocumentEvent(): Event<vscode.TextDocumentWillSaveEvent> {
 		return (listener, thisArg, disposables) => {
-			const remove = this._callbacks.add(listener, thisArg);
+			const remove = this._callbacks.push([listener, thisArg]);
 			const result = { dispose: remove };
 			if (Array.isArray(disposables)) {
 				disposables.push(result);
@@ -47,7 +47,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 	}
 
 	$participateInSave(resource: URI, reason: SaveReason): TPromise<boolean[]> {
-		const entries = this._callbacks.entries();
+		const entries = this._callbacks.toArray();
 
 		let didTimeout = false;
 		let didTimeoutHandle = setTimeout(() => didTimeout = true, this._thresholds.timeout);

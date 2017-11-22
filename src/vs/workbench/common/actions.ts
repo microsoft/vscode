@@ -6,7 +6,6 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IAction } from 'vs/base/common/actions';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
@@ -19,10 +18,6 @@ import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/
 export const Extensions = {
 	WorkbenchActions: 'workbench.contributions.actions'
 };
-
-export interface IActionProvider {
-	getActions(): IAction[];
-}
 
 export interface IWorkbenchActionRegistry {
 
@@ -62,7 +57,7 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 
 		// menu item
 		// TODO@Rob slightly weird if-check required because of
-		// https://github.com/Microsoft/vscode/blob/master/src/vs/workbench/parts/search/browser/search.contribution.ts#L266
+		// https://github.com/Microsoft/vscode/blob/master/src/vs/workbench/parts/search/electron-browser/search.contribution.ts#L266
 		if (descriptor.label) {
 
 			const command = {

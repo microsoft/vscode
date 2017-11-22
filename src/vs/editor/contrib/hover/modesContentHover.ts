@@ -405,7 +405,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this._isChangingDecorations = false;
 	}
 
-	private static _DECORATION_OPTIONS = ModelDecorationOptions.register({
+	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({
 		className: 'hoverHighlight'
 	});
 }

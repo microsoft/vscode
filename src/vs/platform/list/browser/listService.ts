@@ -76,15 +76,15 @@ export class ListService implements IListService {
 		}
 
 		const toDispose = [
-			widget.onDOMFocus(() => this.focusChangeScheduler.schedule()),
-			widget.onDOMBlur(() => this.focusChangeScheduler.schedule())
+			widget.onDidFocus(() => this.focusChangeScheduler.schedule()),
+			widget.onDidBlur(() => this.focusChangeScheduler.schedule())
 		];
 
 		// Special treatment for tree highlight mode
 		if (!(widget instanceof List)) {
 			const tree = widget;
 
-			toDispose.push(tree.onHighlightChange(() => {
+			toDispose.push(tree.onDidChangeHighlight(() => {
 				this.focusChangeScheduler.schedule();
 			}));
 		}

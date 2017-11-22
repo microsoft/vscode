@@ -27,7 +27,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 export class QuickFixController implements IEditorContribution {
 
-	private static ID = 'editor.contrib.quickFixController';
+	private static readonly ID = 'editor.contrib.quickFixController';
 
 	public static get(editor: ICodeEditor): QuickFixController {
 		return editor.getContribution<QuickFixController>(QuickFixController.ID);

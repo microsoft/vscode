@@ -15,13 +15,18 @@ import { IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistr
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { SimpleConfigurationService } from 'vs/editor/standalone/browser/simpleServices';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import Event, { Emitter } from 'vs/base/common/event';
 
 class SimpleExtensionService implements IExtensionService {
 	_serviceBrand: any;
-	activateByEvent(activationEvent: string): TPromise<void> {
-		return this.onReady().then(() => { });
+	private _onDidRegisterExtensions = new Emitter<IExtensionDescription[]>();
+	get onDidRegisterExtensions(): Event<IExtensionDescription[]> {
+		return this._onDidRegisterExtensions.event;
 	}
-	onReady(): TPromise<boolean> {
+	activateByEvent(activationEvent: string): TPromise<void> {
+		return this.whenInstalledExtensionsRegistered().then(() => { });
+	}
+	whenInstalledExtensionsRegistered(): TPromise<boolean> {
 		return TPromise.as(true);
 	}
 	readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]> {
@@ -95,15 +100,36 @@ suite('CommandService', function () {
 		let callCounter = 0;
 		let reg = CommandsRegistry.registerCommand('bar', () => callCounter += 1);
 
-		// @ts-ignore unused local
-		let resolve: Function;
 		let service = new CommandService(new InstantiationService(), new class extends SimpleExtensionService {
-			onReady() {
-				return new TPromise<boolean>(_resolve => { resolve = _resolve; });
+			whenInstalledExtensionsRegistered() {
+				return new TPromise<boolean>(_resolve => { /*ignore*/ });
 			}
 		}, new ContextKeyService(new SimpleConfigurationService()));
 
-		return service.executeCommand('bar').then(() => {
+		service.executeCommand('bar');
+		assert.equal(callCounter, 1);
+		reg.dispose();
+	});
+
+	test('issue #34913: !onReady, unknown command', function () {
+
+		let callCounter = 0;
+		let resolveFunc: Function;
+		// let reg = CommandsRegistry.registerCommand('bar', () => callCounter += 1);
+
+		let service = new CommandService(new InstantiationService(), new class extends SimpleExtensionService {
+			whenInstalledExtensionsRegistered() {
+				return new TPromise<boolean>(_resolve => { resolveFunc = _resolve; });
+			}
+		}, new ContextKeyService(new SimpleConfigurationService()));
+
+		let r = service.executeCommand('bar');
+		assert.equal(callCounter, 0);
+
+		let reg = CommandsRegistry.registerCommand('bar', () => callCounter += 1);
+		resolveFunc(true);
+
+		return r.then(() => {
 			reg.dispose();
 			assert.equal(callCounter, 1);
 		});

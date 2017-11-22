@@ -92,13 +92,13 @@ export class RangeHighlightDecorations implements IDisposable {
 		this.editorDisposables = [];
 	}
 
-	private static _WHOLE_LINE_RANGE_HIGHLIGHT = ModelDecorationOptions.register({
+	private static readonly _WHOLE_LINE_RANGE_HIGHLIGHT = ModelDecorationOptions.register({
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'rangeHighlight',
 		isWholeLine: true
 	});
 
-	private static _RANGE_HIGHLIGHT = ModelDecorationOptions.register({
+	private static readonly _RANGE_HIGHLIGHT = ModelDecorationOptions.register({
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'rangeHighlight'
 	});

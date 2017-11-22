@@ -5,10 +5,9 @@
 'use strict';
 
 import arrays = require('vs/base/common/arrays');
-import objects = require('vs/base/common/objects');
 import strings = require('vs/base/common/strings');
 import paths = require('vs/base/common/paths');
-import { BoundedMap } from 'vs/base/common/map';
+import { LRUCache } from 'vs/base/common/map';
 import { CharCode } from 'vs/base/common/charCode';
 import { TPromise } from 'vs/base/common/winjs.base';
 
@@ -19,14 +18,11 @@ export interface IExpression {
 export interface IRelativePattern {
 	base: string;
 	pattern: string;
+	pathToRelative(from: string, to: string): string;
 }
 
 export function getEmptyExpression(): IExpression {
 	return Object.create(null);
-}
-
-export function mergeExpressions(...expressions: IExpression[]): IExpression {
-	return objects.assign(getEmptyExpression(), ...expressions.filter(expr => !!expr));
 }
 
 export interface SiblingClause {
@@ -272,7 +268,7 @@ interface ParsedExpressionPattern {
 	allPaths?: string[];
 }
 
-const CACHE = new BoundedMap<ParsedStringPattern>(10000); // bounded to 10000 elements
+const CACHE = new LRUCache<string, ParsedStringPattern>(10000); // bounded to 10000 elements
 
 const FALSE = function () {
 	return false;
@@ -343,7 +339,7 @@ function wrapRelativePattern(parsedPattern: ParsedStringPattern, arg2: string | 
 			return null;
 		}
 
-		return parsedPattern(paths.relative(arg2.base, path), basename);
+		return parsedPattern(paths.normalize(arg2.pathToRelative(arg2.base, path)), basename);
 	};
 }
 
@@ -485,7 +481,7 @@ export function parse(arg1: string | IExpression | IRelativePattern, options: IG
 export function isRelativePattern(obj: any): obj is IRelativePattern {
 	const rp = obj as IRelativePattern;
 
-	return typeof rp.base === 'string' && typeof rp.pattern === 'string';
+	return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string' && typeof rp.pathToRelative === 'function';
 }
 
 /**

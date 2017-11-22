@@ -34,7 +34,6 @@ export const STATUS_BAR_DEBUGGING_BORDER = registerColor('statusBar.debuggingBor
 }, localize('statusBarDebuggingBorder', "Status bar border color separating to the sidebar and editor when a program is being debugged. The status bar is shown in the bottom of the window"));
 
 export class StatusBarColorProvider extends Themable implements IWorkbenchContribution {
-	private static ID = 'debug.statusbarColorProvider';
 
 	constructor(
 		@IThemeService themeService: IThemeService,
@@ -102,10 +101,6 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 		const process = this.debugService.getViewModel().focusedProcess;
 
 		return process && process.configuration && process.configuration.noDebug;
-	}
-
-	public getId(): string {
-		return StatusBarColorProvider.ID;
 	}
 }
 

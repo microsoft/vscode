@@ -113,12 +113,12 @@ export abstract class SimpleFindWidget extends Widget {
 		});
 
 		this._focusTracker = this._register(dom.trackFocus(this._innerDomNode));
-		this._register(this._focusTracker.addFocusListener(this.onFocusTrackerFocus.bind(this)));
-		this._register(this._focusTracker.addBlurListener(this.onFocusTrackerBlur.bind(this)));
+		this._register(this._focusTracker.onDidFocus(this.onFocusTrackerFocus.bind(this)));
+		this._register(this._focusTracker.onDidBlur(this.onFocusTrackerBlur.bind(this)));
 
 		this._findInputFocusTracker = this._register(dom.trackFocus(this._findInput.domNode));
-		this._register(this._findInputFocusTracker.addFocusListener(this.onFindInputFocusTrackerFocus.bind(this)));
-		this._register(this._findInputFocusTracker.addBlurListener(this.onFindInputFocusTrackerBlur.bind(this)));
+		this._register(this._findInputFocusTracker.onDidFocus(this.onFindInputFocusTrackerFocus.bind(this)));
+		this._register(this._findInputFocusTracker.onDidBlur(this.onFindInputFocusTrackerBlur.bind(this)));
 
 		this._register(dom.addDisposableListener(this._innerDomNode, 'click', (event) => {
 			event.stopPropagation();

@@ -246,7 +246,6 @@ class DecorationProviderWrapper {
 			} else {
 				// selective changes -> drop for resource, fetch again, send event
 				for (const uri of uris) {
-					this.data.delete(uri.toString());
 					this._fetchData(uri);
 				}
 			}

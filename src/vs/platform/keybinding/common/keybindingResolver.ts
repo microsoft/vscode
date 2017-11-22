@@ -5,7 +5,7 @@
 'use strict';
 
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-import { ContextKeyExpr, IContext } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContext, ContextKeyAndExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 
@@ -121,7 +121,7 @@ export class KeybindingResolver {
 				continue;
 			}
 
-			if (KeybindingResolver.whenIsEntirelyIncluded(true, conflict.when, item.when)) {
+			if (KeybindingResolver.whenIsEntirelyIncluded(conflict.when, item.when)) {
 				// `item` completely overwrites `conflict`
 				// Remove conflict from the lookupMap
 				this._removeFromLookupMap(conflict);
@@ -160,15 +160,10 @@ export class KeybindingResolver {
 	}
 
 	/**
-	 * Returns true if `a` is completely covered by `b`.
-	 * Returns true if `b` is a more relaxed `a`.
-	 * Return true if (`a` === true implies `b` === true).
+	 * Returns true if it is provable `a` implies `b`.
+	 * **Precondition**: Assumes `a` and `b` are normalized!
 	 */
-	public static whenIsEntirelyIncluded(inNormalizedForm: boolean, a: ContextKeyExpr, b: ContextKeyExpr): boolean {
-		if (!inNormalizedForm) {
-			a = a ? a.normalize() : null;
-			b = b ? b.normalize() : null;
-		}
+	public static whenIsEntirelyIncluded(a: ContextKeyExpr, b: ContextKeyExpr): boolean {
 		if (!b) {
 			return true;
 		}
@@ -176,16 +171,22 @@ export class KeybindingResolver {
 			return false;
 		}
 
-		let aRulesArr = a.serialize().split(' && ');
-		let bRulesArr = b.serialize().split(' && ');
+		const aExpressions: ContextKeyExpr[] = ((a instanceof ContextKeyAndExpr) ? a.expr : [a]);
+		const bExpressions: ContextKeyExpr[] = ((b instanceof ContextKeyAndExpr) ? b.expr : [b]);
 
-		let aRules: { [rule: string]: boolean; } = Object.create(null);
-		for (let i = 0, len = aRulesArr.length; i < len; i++) {
-			aRules[aRulesArr[i]] = true;
-		}
+		let aIndex = 0;
+		for (let bIndex = 0; bIndex < bExpressions.length; bIndex++) {
+			let bExpr = bExpressions[bIndex];
+			let bExprMatched = false;
+			while (!bExprMatched && aIndex < aExpressions.length) {
+				let aExpr = aExpressions[aIndex];
+				if (aExpr.equals(bExpr)) {
+					bExprMatched = true;
+				}
+				aIndex++;
+			}
 
-		for (let i = 0, len = bRulesArr.length; i < len; i++) {
-			if (!aRules[bRulesArr[i]]) {
+			if (!bExprMatched) {
 				return false;
 			}
 		}

@@ -47,10 +47,6 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 		this.registerListeners();
 	}
 
-	public getId(): string {
-		return DebugEditorModelManager.ID;
-	}
-
 	public dispose(): void {
 		this.modelDataMap.forEach(modelData => {
 			lifecycle.dispose(modelData.toDispose);

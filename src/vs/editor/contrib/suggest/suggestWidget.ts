@@ -498,7 +498,9 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		}
 
 		const item = e.elements[0];
-		this.onDidSelectEmitter.fire(item);
+		item.resolve().then(() => {
+			this.onDidSelectEmitter.fire(item);
+		});
 
 		alert(nls.localize('suggestionAriaAccepted', "{0}, accepted", item.suggestion.label));
 
@@ -558,20 +560,11 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			}
 
 			this._ariaAlert(null);
-			// TODO@Alex: Chromium bug
-			// this.editor.setAriaActiveDescendant(null);
-
 			return;
 		}
 
 		const item = e.elements[0];
 		this._ariaAlert(this._getSuggestionAriaAlertLabel(item));
-
-		// TODO@Alex: Chromium bug
-		// // TODO@Alex: the list is not done rendering...
-		// setTimeout(() => {
-		// 	this.editor.setAriaActiveDescendant(this.list.getElementId(e.indexes[0]));
-		// }, 100);
 
 		if (item === this.focusedItem) {
 			return;
@@ -1107,7 +1100,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 registerThemingParticipant((theme, collector) => {
 	let matchHighlight = theme.getColor(editorSuggestWidgetHighlightForeground);
 	if (matchHighlight) {
-		collector.addRule(`.monaco-editor .suggest-widget:not(.frozen) .monaco-list .monaco-list-row .monaco-highlighted-label .highlight { color: ${matchHighlight}; }`);
+		collector.addRule(`.monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-highlighted-label .highlight { color: ${matchHighlight}; }`);
 	}
 	let foreground = theme.getColor(editorSuggestWidgetForeground);
 	if (foreground) {

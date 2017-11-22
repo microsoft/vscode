@@ -48,10 +48,6 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		super.dispose();
 	}
 
-	public getScrollable(): Scrollable {
-		return this.scrollable;
-	}
-
 	public onHeightMaybeChanged(): void {
 		this._updateHeight();
 	}

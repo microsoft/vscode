@@ -122,11 +122,17 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 	protected settingsModel: IModel;
 	private queue: Queue<void>;
 
+	private _onDidChangeGroups: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidChangeGroups: Event<void> = this._onDidChangeGroups.event;
+
 	constructor(reference: IReference<ITextEditorModel>, private _configurationTarget: ConfigurationTarget, @ITextFileService protected textFileService: ITextFileService) {
 		super();
 		this.settingsModel = reference.object.textEditorModel;
 		this._register(this.onDispose(() => reference.dispose()));
-		this._register(this.settingsModel.onDidChangeContent(() => this._settingsGroups = null));
+		this._register(this.settingsModel.onDidChangeContent(() => {
+			this._settingsGroups = null;
+			this._onDidChangeGroups.fire();
+		}));
 		this.queue = new Queue<void>();
 	}
 
@@ -501,11 +507,13 @@ export class WorkspaceConfigModel extends SettingsEditorModel implements ISettin
 
 export class DefaultSettings extends Disposable {
 
+	private static _RAW: string;
+
 	private _allSettingsGroups: ISettingsGroup[];
 	private _content: string;
 	private _settingsByName: Map<string, ISetting>;
 
-	private _onDidChange: Emitter<void> = this._register(new Emitter<void>());
+	readonly _onDidChange: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	constructor(
@@ -515,14 +523,14 @@ export class DefaultSettings extends Disposable {
 		super();
 	}
 
-	public get content(): string {
+	get content(): string {
 		if (!this._content) {
 			this.parse();
 		}
 		return this._content;
 	}
 
-	public get settingsGroups(): ISettingsGroup[] {
+	get settingsGroups(): ISettingsGroup[] {
 		if (!this._allSettingsGroups) {
 			this.parse();
 		}
@@ -530,17 +538,36 @@ export class DefaultSettings extends Disposable {
 	}
 
 	parse(): string {
-		const currentContent = this._content;
-		const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations().slice();
-		const settingsGroups = this.removeEmptySettingsGroups(configurations.sort(this.compareConfigurationNodes).reduce((result, config, index, array) => this.parseConfig(config, result, array), []));
+		const settingsGroups = this.getRegisteredGroups();
 		this.initAllSettingsMap(settingsGroups);
 		const mostCommonlyUsed = this.getMostCommonlyUsedSettings(settingsGroups);
 		this._allSettingsGroups = [mostCommonlyUsed, ...settingsGroups];
-		this._content = this.toContent(mostCommonlyUsed, settingsGroups);
-		if (this._content !== currentContent) {
-			this._onDidChange.fire();
-		}
+
+		const builder = new SettingsContentBuilder();
+		builder.pushLine('[');
+		builder.pushGroups([mostCommonlyUsed]);
+		builder.pushLine(',');
+		builder.pushGroups(settingsGroups);
+		builder.pushLine(']');
+		this._content = builder.getContent();
+
 		return this._content;
+	}
+
+	get raw(): string {
+		if (!DefaultSettings._RAW) {
+			const settingsGroups = this.getRegisteredGroups();
+			const builder = new SettingsContentBuilder();
+			builder.pushGroups(settingsGroups);
+			DefaultSettings._RAW = builder.getContent();
+		}
+		return DefaultSettings._RAW;
+	}
+
+	private getRegisteredGroups(): ISettingsGroup[] {
+		const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations().slice();
+		return this.removeEmptySettingsGroups(configurations.sort(this.compareConfigurationNodes)
+			.reduce((result, config, index, array) => this.parseConfig(config, result, array), []));
 	}
 
 	private initAllSettingsMap(allSettingsGroups: ISettingsGroup[]): void {
@@ -607,9 +634,10 @@ export class DefaultSettings extends Disposable {
 				settingsGroup = { sections: [{ settings: [] }], id: config.id, title: config.id, titleRange: null, range: null };
 				result.push(settingsGroup);
 			}
-			const configurationSettings: ISetting[] = this.parseSettings(config.properties);
+			const configurationSettings: ISetting[] = [...settingsGroup.sections[settingsGroup.sections.length - 1].settings, ...this.parseSettings(config.properties)];
 			if (configurationSettings.length) {
-				settingsGroup.sections[settingsGroup.sections.length - 1].settings.push(...configurationSettings);
+				configurationSettings.sort((a, b) => a.key.localeCompare(b.key));
+				settingsGroup.sections[settingsGroup.sections.length - 1].settings = configurationSettings;
 			}
 		}
 		if (config.allOf) {
@@ -667,16 +695,6 @@ export class DefaultSettings extends Disposable {
 			return title1.localeCompare(title2);
 		}
 		return c1.order - c2.order;
-	}
-
-	private toContent(mostCommonlyUsed: ISettingsGroup, settingsGroups: ISettingsGroup[]): string {
-		const builder = new SettingsContentBuilder();
-		builder.pushLine('[');
-		builder.pushGroups([mostCommonlyUsed]);
-		builder.pushLine(',');
-		builder.pushGroups(settingsGroups);
-		builder.pushLine(']');
-		return builder.getContent();
 	}
 
 }

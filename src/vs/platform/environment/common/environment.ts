@@ -77,6 +77,7 @@ export interface IEnvironmentService {
 	appKeybindingsPath: string;
 	machineUUID: string;
 	settingsSearchBuildId: number;
+	settingsSearchUrl: string;
 
 	backupHome: string;
 	backupWorkspacesPath: string;

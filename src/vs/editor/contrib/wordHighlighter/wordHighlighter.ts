@@ -362,7 +362,7 @@ class WordHighlighter {
 		}
 	}
 
-	private static _WRITE_OPTIONS = ModelDecorationOptions.register({
+	private static readonly _WRITE_OPTIONS = ModelDecorationOptions.register({
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'wordHighlightStrong',
 		overviewRuler: {
@@ -372,7 +372,7 @@ class WordHighlighter {
 		}
 	});
 
-	private static _TEXT_OPTIONS = ModelDecorationOptions.register({
+	private static readonly _TEXT_OPTIONS = ModelDecorationOptions.register({
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'selectionHighlight',
 		overviewRuler: {
@@ -382,7 +382,7 @@ class WordHighlighter {
 		}
 	});
 
-	private static _REGULAR_OPTIONS = ModelDecorationOptions.register({
+	private static readonly _REGULAR_OPTIONS = ModelDecorationOptions.register({
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'wordHighlight',
 		overviewRuler: {
@@ -400,7 +400,7 @@ class WordHighlighter {
 
 class WordHighlighterContribution implements editorCommon.IEditorContribution {
 
-	private static ID = 'editor.contrib.wordHighlighter';
+	private static readonly ID = 'editor.contrib.wordHighlighter';
 
 	public static get(editor: ICodeEditor): WordHighlighterContribution {
 		return editor.getContribution<WordHighlighterContribution>(WordHighlighterContribution.ID);

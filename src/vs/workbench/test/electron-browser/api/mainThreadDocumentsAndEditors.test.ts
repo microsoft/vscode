@@ -159,6 +159,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 		modelService.destroyModel(model.uri);
 		assert.equal(deltas.length, 1);
 		const [first] = deltas;
+
 		assert.equal(first.newActiveEditor, null);
 		assert.equal(first.removedEditors.length, 1);
 		assert.equal(first.removedDocuments.length, 1);

@@ -60,6 +60,7 @@ export function getHTMLMode(htmlLanguageService: HTMLLanguageService): LanguageM
 			if (offset > 0 && text.charAt(offset - 1).match(/[>\/]/g)) {
 				return htmlLanguageService.doTagComplete(document, position, htmlDocuments.get(document));
 			}
+			return null;
 		},
 		onDocumentRemoved(document: TextDocument) {
 			htmlDocuments.onDocumentRemoved(document);

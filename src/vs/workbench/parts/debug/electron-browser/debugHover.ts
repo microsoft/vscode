@@ -32,7 +32,7 @@ const MAX_ELEMENTS_SHOWN = 18;
 
 export class DebugHoverWidget implements IContentWidget {
 
-	public static ID = 'debug.hoverWidget';
+	public static readonly ID = 'debug.hoverWidget';
 	// editor.IContentWidget.allowEditorOverflow
 	public allowEditorOverflow = true;
 
@@ -53,12 +53,32 @@ export class DebugHoverWidget implements IContentWidget {
 		private editor: ICodeEditor,
 		private debugService: IDebugService,
 		private listService: IListService,
-		instantiationService: IInstantiationService,
+		private instantiationService: IInstantiationService,
 		private themeService: IThemeService
 	) {
 		this.toDispose = [];
-		this.create(instantiationService);
-		this.registerListeners();
+
+		this._isVisible = false;
+		this.showAtPosition = null;
+		this.highlightDecorations = [];
+	}
+
+	private create(): void {
+		this.domNode = $('.debug-hover-widget');
+		this.complexValueContainer = dom.append(this.domNode, $('.complex-value'));
+		this.complexValueTitle = dom.append(this.complexValueContainer, $('.title'));
+		this.treeContainer = dom.append(this.complexValueContainer, $('.debug-hover-tree'));
+		this.treeContainer.setAttribute('role', 'tree');
+		this.tree = new Tree(this.treeContainer, {
+			dataSource: new VariablesDataSource(),
+			renderer: this.instantiationService.createInstance(VariablesHoverRenderer),
+			controller: new DebugHoverController(this.editor)
+		}, {
+				indentPixels: 6,
+				twistiePixels: 15,
+				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover"),
+				keyboardSupport: false
+			});
 
 		this.valueContainer = $('.value');
 		this.valueContainer.tabIndex = 0;
@@ -67,30 +87,7 @@ export class DebugHoverWidget implements IContentWidget {
 		this.domNode.appendChild(this.scrollbar.getDomNode());
 		this.toDispose.push(this.scrollbar);
 
-		this._isVisible = false;
-		this.showAtPosition = null;
-		this.highlightDecorations = [];
-
-		this.editor.addContentWidget(this);
 		this.editor.applyFontInfo(this.domNode);
-	}
-
-	private create(instantiationService: IInstantiationService): void {
-		this.domNode = $('.debug-hover-widget');
-		this.complexValueContainer = dom.append(this.domNode, $('.complex-value'));
-		this.complexValueTitle = dom.append(this.complexValueContainer, $('.title'));
-		this.treeContainer = dom.append(this.complexValueContainer, $('.debug-hover-tree'));
-		this.treeContainer.setAttribute('role', 'tree');
-		this.tree = new Tree(this.treeContainer, {
-			dataSource: new VariablesDataSource(),
-			renderer: instantiationService.createInstance(VariablesHoverRenderer),
-			controller: new DebugHoverController(this.editor)
-		}, {
-				indentPixels: 6,
-				twistiePixels: 15,
-				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover"),
-				keyboardSupport: false
-			});
 
 		this.toDispose.push(attachListStyler(this.tree, this.themeService));
 		this.toDispose.push(this.listService.register(this.tree));
@@ -102,13 +99,16 @@ export class DebugHoverWidget implements IContentWidget {
 				this.domNode.style.border = null;
 			}
 		}));
+
+		this.registerListeners();
+		this.editor.addContentWidget(this);
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.tree.addListener('item:expanded', () => {
+		this.toDispose.push(this.tree.onDidExpandItem(() => {
 			this.layoutTree();
 		}));
-		this.toDispose.push(this.tree.addListener('item:collapsed', () => {
+		this.toDispose.push(this.tree.onDidCollapseItem(() => {
 			this.layoutTree();
 		}));
 
@@ -237,7 +237,8 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	private findExpressionInStackFrame(namesToFind: string[], expressionRange: Range): TPromise<IExpression> {
-		return this.debugService.getViewModel().focusedStackFrame.getMostSpecificScopes(expressionRange)
+		return this.debugService.getViewModel().focusedStackFrame.getScopes()
+			.then(scopes => scopes.filter(s => !s.expensive))
 			.then(scopes => TPromise.join(scopes.map(scope => this.doFindExpression(scope, namesToFind))))
 			.then(expressions => expressions.filter(exp => !!exp))
 			// only show if all expressions found have the same value
@@ -245,6 +246,10 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	private doShow(position: Position, expression: IExpression, focus: boolean, forceValueHover = false): TPromise<void> {
+		if (!this.domNode) {
+			this.create();
+		}
+
 		this.showAtPosition = position;
 		this._isVisible = true;
 		this.stoleFocus = focus;

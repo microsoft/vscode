@@ -851,6 +851,11 @@
           "description": "%config.ignoreLegacyWarning%",
           "default": false
         },
+        "git.ignoreMissingGitWarning": {
+          "type": "boolean",
+          "description": "%config.ignoreMissingGitWarning%",
+          "default": false
+        },
         "git.ignoreLimitWarning": {
           "type": "boolean",
           "description": "%config.ignoreLimitWarning%",

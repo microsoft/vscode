@@ -199,7 +199,12 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.toDispose.push(this.editor.onMouseDown((e: IEditorMouseEvent) => this.onEditorMouseDown(e)));
 		this.toDispose.push(this.editor.onMouseMove((e: IEditorMouseEvent) => this.onEditorMouseMove(e)));
 		this.toDispose.push(this.editor.onMouseLeave((e: IEditorMouseEvent) => {
-			const rect = this.hoverWidget.getDomNode().getBoundingClientRect();
+			const hoverDomNode = this.hoverWidget.getDomNode();
+			if (!hoverDomNode) {
+				return;
+			}
+
+			const rect = hoverDomNode.getBoundingClientRect();
 			// Only hide the hover widget if the editor mouse leave event is outside the hover widget #3528
 			if (e.event.posx < rect.left || e.event.posx > rect.right || e.event.posy < rect.top || e.event.posy > rect.bottom) {
 				this.hideHoverWidget();
