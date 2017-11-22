@@ -519,7 +519,7 @@ export class TabsTitleControl extends TitleControl {
 		DOM.addClass(tabContainer, 'tab');
 
 		// Gesture Support
-		const gestureSupport = new Gesture(tabContainer);
+		Gesture.addTarget(tabContainer);
 
 		// Tab Editor Label
 		const editorLabel = this.instantiationService.createInstance(ResourceLabel, tabContainer, void 0);
@@ -536,7 +536,7 @@ export class TabsTitleControl extends TitleControl {
 		// Eventing
 		const disposable = this.hookTabListeners(tabContainer, index);
 
-		this.tabDisposeables.push(combinedDisposable([disposable, bar, editorLabel, gestureSupport]));
+		this.tabDisposeables.push(combinedDisposable([disposable, bar, editorLabel]));
 
 		return tabContainer;
 	}

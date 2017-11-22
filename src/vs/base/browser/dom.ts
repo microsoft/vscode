@@ -179,13 +179,16 @@ class DomListener implements IDisposable {
 	private _node: Element | Window | Document;
 	private readonly _type: string;
 	private readonly _useCapture: boolean;
+	private readonly _passive: boolean;
 
-	constructor(node: Element | Window | Document, type: string, handler: (e: any) => void, useCapture: boolean) {
+	constructor(node: Element | Window | Document, type: string, handler: (e: any) => void, useCapture: boolean, passive: boolean) {
 		this._node = node;
 		this._type = type;
 		this._handler = handler;
 		this._useCapture = (useCapture || false);
-		this._node.addEventListener(this._type, this._handler, this._useCapture);
+		this._passive = passive;
+		// TODO@Isidor remove any cast once we update our lib.d.ts
+		this._node.addEventListener(this._type, this._handler, <any>{ capture: this._useCapture, passive: this._passive });
 	}
 
 	public dispose(): void {
@@ -202,8 +205,8 @@ class DomListener implements IDisposable {
 	}
 }
 
-export function addDisposableListener(node: Element | Window | Document, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable {
-	return new DomListener(node, type, handler, useCapture);
+export function addDisposableListener(node: Element | Window | Document, type: string, handler: (event: any) => void, useCapture?: boolean, passive?: boolean): IDisposable {
+	return new DomListener(node, type, handler, useCapture, passive);
 }
 
 export interface IAddStandardDisposableListenerSignature {
