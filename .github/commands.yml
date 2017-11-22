@@ -38,5 +38,11 @@
             action: 'close',
             comment: "This issue has been closed because it is already tracked by another issue. See also our [GitHub issues](https://aka.ms/vscodeissuesearch) to search for existing issues and our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
         },
+        {
+            type: 'comment',
+            name: 'confirm',
+            action: 'updateLabels',
+            addLabel: 'confirmed'
+        },
     ]
 }
