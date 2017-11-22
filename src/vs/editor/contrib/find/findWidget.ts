@@ -289,6 +289,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			if (this._state.isReplaceRevealed) {
 				if (!this._codeEditor.getConfiguration().readOnly && !this._isReplaceVisible) {
 					this._isReplaceVisible = true;
+					this._replaceInputBox.width = this._findInput.inputBox.width;
 					this._updateButtons();
 				}
 			} else {
