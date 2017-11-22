@@ -492,7 +492,10 @@ export class BreakpointsView extends ViewsViewletPanel {
 	}
 
 	private onBreakpointsChange(): void {
-		this.minimumBodySize = this.maximumBodySize = this.getExpandedBodySize();
+		this.minimumBodySize = this.getExpandedBodySize();
+		if (this.maximumBodySize < Number.POSITIVE_INFINITY) {
+			this.maximumBodySize = this.minimumBodySize;
+		}
 		if (this.tree) {
 			this.tree.refresh();
 		}
