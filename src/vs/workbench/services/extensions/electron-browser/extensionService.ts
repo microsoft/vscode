@@ -315,7 +315,7 @@ export class ExtensionService implements IExtensionService {
 				// Migrate enablement service to use identifiers
 				this._extensionEnablementService.migrateToIdentifiers(installedExtensions);
 
-				return this._getDisabledExtensions()
+				return this._getDisabledExtensions(installedExtensions)
 					.then(disabledExtensions => {
 						/* __GDPR__
 							"extensionsScanned" : {
@@ -357,18 +357,18 @@ export class ExtensionService implements IExtensionService {
 			});
 	}
 
-	private _getDisabledExtensions(): TPromise<IExtensionIdentifier[]> {
+	private _getDisabledExtensions(installedExtensions: IExtensionIdentifier[]): TPromise<IExtensionIdentifier[]> {
 		return this._extensionEnablementService.getDisabledExtensions()
 			.then(disabledExtensions => {
 				const betterMergeExtensionIdentifier: IExtensionIdentifier = { id: BetterMergeId };
-				if (disabledExtensions.some(d => d.id === betterMergeExtensionIdentifier.id)) {
-					return disabledExtensions;
+				if (disabledExtensions.every(disabled => disabled.id !== BetterMergeId) && installedExtensions.some(d => d.id === BetterMergeId)) {
+					return this._extensionEnablementService.setEnablement(betterMergeExtensionIdentifier, EnablementState.Disabled)
+						.then(() => {
+							this._storageService.store(BetterMergeDisabledNowKey, true);
+							return [...disabledExtensions, betterMergeExtensionIdentifier];
+						});
 				}
-				return this._extensionEnablementService.setEnablement(betterMergeExtensionIdentifier, EnablementState.Disabled)
-					.then(() => {
-						this._storageService.store(BetterMergeDisabledNowKey, true);
-						return [...disabledExtensions, betterMergeExtensionIdentifier];
-					});
+				return disabledExtensions;
 			});
 	}
 
