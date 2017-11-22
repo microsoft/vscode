@@ -82,9 +82,9 @@ export class Gesture implements IDisposable {
 		this.activeTouches = {};
 		this.handle = null;
 		this.targets = [];
-		this.toDispose.push(DomUtils.addDisposableListener(document, 'touchstart', (e) => this.onTouchStart(e)));
-		this.toDispose.push(DomUtils.addDisposableListener(document, 'touchend', (e) => this.onTouchEnd(e)));
-		this.toDispose.push(DomUtils.addDisposableListener(document, 'touchmove', (e) => this.onTouchMove(e)));
+		this.toDispose.push(DomUtils.addDisposableListener(document, 'touchstart', (e) => this.onTouchStart(e), false, true));
+		this.toDispose.push(DomUtils.addDisposableListener(document, 'touchend', (e) => this.onTouchEnd(e), false, true));
+		this.toDispose.push(DomUtils.addDisposableListener(document, 'touchmove', (e) => this.onTouchMove(e), false, true));
 	}
 
 	public static addTarget(element: HTMLElement): void {
@@ -113,6 +113,7 @@ export class Gesture implements IDisposable {
 
 	private onTouchStart(e: TouchEvent): void {
 		let timestamp = Date.now(); // use Date.now() because on FF e.timeStamp is not epoch based.
+		e.preventDefault();
 
 		if (this.handle) {
 			this.handle.dispose();
@@ -251,6 +252,7 @@ export class Gesture implements IDisposable {
 
 	private onTouchMove(e: TouchEvent): void {
 		let timestamp = Date.now(); // use Date.now() because on FF e.timeStamp is not epoch based.
+		e.preventDefault();
 		e.stopPropagation();
 
 		for (let i = 0, len = e.changedTouches.length; i < len; i++) {
