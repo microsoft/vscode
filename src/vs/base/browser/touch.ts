@@ -133,7 +133,7 @@ export class Gesture implements IDisposable {
 				rollingPageY: [touch.pageY]
 			};
 
-			let evt = this.newGestureEvent(EventType.Start);
+			let evt = this.newGestureEvent(EventType.Start, touch.target);
 			evt.pageX = touch.pageX;
 			evt.pageY = touch.pageY;
 			this.dispatchEvent(evt);
@@ -163,8 +163,7 @@ export class Gesture implements IDisposable {
 				&& Math.abs(data.initialPageX - arrays.tail(data.rollingPageX)) < 30
 				&& Math.abs(data.initialPageY - arrays.tail(data.rollingPageY)) < 30) {
 
-				let evt = this.newGestureEvent(EventType.Tap);
-				evt.initialTarget = data.initialTarget;
+				let evt = this.newGestureEvent(EventType.Tap, data.initialTarget);
 				evt.pageX = arrays.tail(data.rollingPageX);
 				evt.pageY = arrays.tail(data.rollingPageY);
 				this.dispatchEvent(evt);
@@ -173,8 +172,7 @@ export class Gesture implements IDisposable {
 				&& Math.abs(data.initialPageX - arrays.tail(data.rollingPageX)) < 30
 				&& Math.abs(data.initialPageY - arrays.tail(data.rollingPageY)) < 30) {
 
-				let evt = this.newGestureEvent(EventType.Contextmenu);
-				evt.initialTarget = data.initialTarget;
+				let evt = this.newGestureEvent(EventType.Contextmenu, data.initialTarget);
 				evt.pageX = arrays.tail(data.rollingPageX);
 				evt.pageY = arrays.tail(data.rollingPageY);
 				this.dispatchEvent(evt);
@@ -187,7 +185,7 @@ export class Gesture implements IDisposable {
 				let deltaX = finalX - data.rollingPageX[0];
 				let deltaY = finalY - data.rollingPageY[0];
 
-				this.inertia(timestamp,		// time now
+				this.inertia(data.initialTarget, timestamp,		// time now
 					Math.abs(deltaX) / deltaT,	// speed
 					deltaX > 0 ? 1 : -1,		// x direction
 					finalX,						// x now
@@ -202,9 +200,10 @@ export class Gesture implements IDisposable {
 		}
 	}
 
-	private newGestureEvent(type: string): GestureEvent {
+	private newGestureEvent(type: string, intialTarget: EventTarget): GestureEvent {
 		let event = <GestureEvent>(<any>document.createEvent('CustomEvent'));
 		event.initEvent(type, false, true);
+		event.initialTarget = intialTarget;
 		return event;
 	}
 
@@ -216,7 +215,7 @@ export class Gesture implements IDisposable {
 		});
 	}
 
-	private inertia(t1: number, vX: number, dirX: number, x: number, vY: number, dirY: number, y: number): void {
+	private inertia(initialTarget: EventTarget, t1: number, vX: number, dirX: number, x: number, vY: number, dirY: number, y: number): void {
 		this.handle = DomUtils.scheduleAtNextAnimationFrame(() => {
 			let now = Date.now();
 
@@ -239,13 +238,13 @@ export class Gesture implements IDisposable {
 			}
 
 			// dispatch translation event
-			let evt = this.newGestureEvent(EventType.Change);
+			let evt = this.newGestureEvent(EventType.Change, initialTarget);
 			evt.translationX = delta_pos_x;
 			evt.translationY = delta_pos_y;
 			this.dispatchEvent(evt);
 
 			if (!stopped) {
-				this.inertia(now, vX, dirX, x + delta_pos_x, vY, dirY, y + delta_pos_y);
+				this.inertia(initialTarget, now, vX, dirX, x + delta_pos_x, vY, dirY, y + delta_pos_y);
 			}
 		});
 	}
@@ -265,10 +264,9 @@ export class Gesture implements IDisposable {
 
 			let data = this.activeTouches[touch.identifier];
 
-			let evt = this.newGestureEvent(EventType.Change);
+			let evt = this.newGestureEvent(EventType.Change, data.initialTarget);
 			evt.translationX = touch.pageX - arrays.tail(data.rollingPageX);
 			evt.translationY = touch.pageY - arrays.tail(data.rollingPageY);
-			evt.initialTarget = data.initialTarget;
 			evt.pageX = touch.pageX;
 			evt.pageY = touch.pageY;
 			this.dispatchEvent(evt);
