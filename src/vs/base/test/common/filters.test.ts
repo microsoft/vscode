@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyScore, nextTypoPermutation, IMatch } from 'vs/base/common/filters';
+import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyScore, IMatch } from 'vs/base/common/filters';
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number; }[]) {
 	let r = filter(word, wordToMatchAgainst);
@@ -421,21 +421,5 @@ suite('Filters', () => {
 		assertTopScore(fuzzyScore, '_lines', 1, '_lineStarts', '_lines');
 		assertTopScore(fuzzyScore, '_lines', 1, '_lineS', '_lines');
 		assertTopScore(fuzzyScore, '_lineS', 0, '_lineS', '_lines');
-	});
-
-	test('nextTypoPermutation', function () {
-
-		function assertTypos(pattern: string, ...variants: string[]) {
-			let pos = 1;
-			for (const expected of variants) {
-				const actual = nextTypoPermutation(pattern, pos);
-				assert.equal(actual, expected);
-				pos += 1;
-			}
-			assert.equal(nextTypoPermutation(pattern, pos), undefined);
-		}
-
-		assertTypos('abc', 'acb');
-		assertTypos('foboar', 'fbooar', 'foobar', 'fobaor', 'fobora');
 	});
 });

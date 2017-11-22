@@ -692,15 +692,3 @@ class LazyArray {
 		return Array.prototype.concat.apply(this._data, bucket);
 	}
 }
-
-export function nextTypoPermutation(pattern: string, patternPos: number) {
-
-	if (patternPos + 1 >= pattern.length) {
-		return undefined;
-	}
-
-	return pattern.slice(0, patternPos)
-		+ pattern[patternPos + 1]
-		+ pattern[patternPos]
-		+ pattern.slice(patternPos + 2);
-}
