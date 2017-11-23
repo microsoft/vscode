@@ -94,7 +94,7 @@ export class LifecycleService implements ILifecycleService {
 
 	constructor(
 		@ILogService private logService: ILogService,
-		@IStorageMainService private storageService: IStorageMainService
+		@IStorageMainService private storageMainService: IStorageMainService
 	) {
 		this.windowToCloseRequest = Object.create(null);
 		this.quitRequested = false;
@@ -105,10 +105,10 @@ export class LifecycleService implements ILifecycleService {
 	}
 
 	private handleRestarted(): void {
-		this._wasRestarted = !!this.storageService.getItem(LifecycleService.QUIT_FROM_RESTART_MARKER);
+		this._wasRestarted = !!this.storageMainService.getItem(LifecycleService.QUIT_FROM_RESTART_MARKER);
 
 		if (this._wasRestarted) {
-			this.storageService.removeItem(LifecycleService.QUIT_FROM_RESTART_MARKER); // remove the marker right after if found
+			this.storageMainService.removeItem(LifecycleService.QUIT_FROM_RESTART_MARKER); // remove the marker right after if found
 		}
 	}
 
@@ -258,7 +258,7 @@ export class LifecycleService implements ILifecycleService {
 				app.once('will-quit', () => {
 					if (this.pendingQuitPromiseComplete) {
 						if (fromUpdate) {
-							this.storageService.setItem(LifecycleService.QUIT_FROM_RESTART_MARKER, true);
+							this.storageMainService.setItem(LifecycleService.QUIT_FROM_RESTART_MARKER, true);
 						}
 
 						this.pendingQuitPromiseComplete(false /* no veto */);
@@ -296,7 +296,7 @@ export class LifecycleService implements ILifecycleService {
 		let vetoed = false;
 		app.once('quit', () => {
 			if (!vetoed) {
-				this.storageService.setItem(LifecycleService.QUIT_FROM_RESTART_MARKER, true);
+				this.storageMainService.setItem(LifecycleService.QUIT_FROM_RESTART_MARKER, true);
 				app.relaunch({ args });
 			}
 		});

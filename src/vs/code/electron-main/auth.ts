@@ -32,7 +32,7 @@ export class ProxyAuthHandler {
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		@IWindowsMainService private windowsService: IWindowsMainService
+		@IWindowsMainService private windowsMainService: IWindowsMainService
 	) {
 		const onLogin = fromNodeEventEmitter<LoginEvent>(app, 'login', (event, webContents, req, authInfo, cb) => ({ event, webContents, req, authInfo, cb }));
 		onLogin(this.onLogin, this, this.disposables);
@@ -59,7 +59,7 @@ export class ProxyAuthHandler {
 			title: 'VS Code'
 		};
 
-		const focusedWindow = this.windowsService.getFocusedWindow();
+		const focusedWindow = this.windowsMainService.getFocusedWindow();
 
 		if (focusedWindow) {
 			opts.parent = focusedWindow.win;

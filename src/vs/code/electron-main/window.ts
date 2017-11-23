@@ -104,9 +104,9 @@ export class CodeWindow implements ICodeWindow {
 		@ILogService private logService: ILogService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IStorageMainService private storageService: IStorageMainService,
-		@IWorkspacesMainService private workspaceService: IWorkspacesMainService,
-		@IBackupMainService private backupService: IBackupMainService
+		@IStorageMainService private storageMainService: IStorageMainService,
+		@IWorkspacesMainService private workspacesMainService: IWorkspacesMainService,
+		@IBackupMainService private backupMainService: IBackupMainService
 	) {
 		this.touchBarGroups = [];
 		this._lastFocusTime = -1;
@@ -429,7 +429,7 @@ export class CodeWindow implements ICodeWindow {
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated()));
 
 		// Handle Workspace events
-		this.toDispose.push(this.workspaceService.onUntitledWorkspaceDeleted(e => this.onUntitledWorkspaceDeleted(e)));
+		this.toDispose.push(this.workspacesMainService.onUntitledWorkspaceDeleted(e => this.onUntitledWorkspaceDeleted(e)));
 	}
 
 	private onUntitledWorkspaceDeleted(workspace: IWorkspaceIdentifier): void {
@@ -492,7 +492,7 @@ export class CodeWindow implements ICodeWindow {
 
 		// Clear Document Edited if needed
 		if (isMacintosh && this._win.isDocumentEdited()) {
-			if (!isReload || !this.backupService.isHotExitEnabled()) {
+			if (!isReload || !this.backupMainService.isHotExitEnabled()) {
 				this._win.setDocumentEdited(false);
 			}
 		}
@@ -595,7 +595,7 @@ export class CodeWindow implements ICodeWindow {
 			return 'hc-black';
 		}
 
-		const theme = this.storageService.getItem<string>(CodeWindow.themeStorageKey, 'vs-dark');
+		const theme = this.storageMainService.getItem<string>(CodeWindow.themeStorageKey, 'vs-dark');
 
 		return theme.split(' ')[0];
 	}
@@ -605,7 +605,7 @@ export class CodeWindow implements ICodeWindow {
 			return CodeWindow.DEFAULT_BG_HC_BLACK;
 		}
 
-		const background = this.storageService.getItem<string>(CodeWindow.themeBackgroundStorageKey, null);
+		const background = this.storageMainService.getItem<string>(CodeWindow.themeBackgroundStorageKey, null);
 		if (!background) {
 			const baseTheme = this.getBaseTheme();
 

@@ -75,7 +75,7 @@ export class LaunchService implements ILaunchService {
 
 	constructor(
 		@ILogService private logService: ILogService,
-		@IWindowsMainService private windowsService: IWindowsMainService,
+		@IWindowsMainService private windowsMainService: IWindowsMainService,
 		@IURLService private urlService: IURLService
 	) { }
 
@@ -95,13 +95,13 @@ export class LaunchService implements ILaunchService {
 		const context = !!userEnv['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.DESKTOP;
 		let usedWindows: ICodeWindow[];
 		if (!!args.extensionDevelopmentPath) {
-			this.windowsService.openExtensionDevelopmentHostWindow({ context, cli: args, userEnv });
+			this.windowsMainService.openExtensionDevelopmentHostWindow({ context, cli: args, userEnv });
 		} else if (args._.length === 0 && (args['new-window'] || args['unity-launch'])) {
-			usedWindows = this.windowsService.open({ context, cli: args, userEnv, forceNewWindow: true, forceEmpty: true });
+			usedWindows = this.windowsMainService.open({ context, cli: args, userEnv, forceNewWindow: true, forceEmpty: true });
 		} else if (args._.length === 0) {
-			usedWindows = [this.windowsService.focusLastActive(args, context)];
+			usedWindows = [this.windowsMainService.focusLastActive(args, context)];
 		} else {
-			usedWindows = this.windowsService.open({
+			usedWindows = this.windowsMainService.open({
 				context,
 				cli: args,
 				userEnv,
@@ -118,7 +118,7 @@ export class LaunchService implements ILaunchService {
 		// In addition, we poll for the wait marker file to be deleted to return.
 		if (args.wait && usedWindows.length === 1 && usedWindows[0]) {
 			return TPromise.any([
-				this.windowsService.waitForWindowCloseOrLoad(usedWindows[0].id),
+				this.windowsMainService.waitForWindowCloseOrLoad(usedWindows[0].id),
 				whenDeleted(args.waitMarkerFilePath)
 			]).then(() => void 0, () => void 0);
 		}

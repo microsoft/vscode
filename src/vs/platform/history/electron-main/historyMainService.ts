@@ -41,9 +41,9 @@ export class HistoryMainService implements IHistoryMainService {
 	private macOSRecentDocumentsUpdater: RunOnceScheduler;
 
 	constructor(
-		@IStorageMainService private storageService: IStorageMainService,
+		@IStorageMainService private storageMainService: IStorageMainService,
 		@ILogService private logService: ILogService,
-		@IWorkspacesMainService private workspacesService: IWorkspacesMainService,
+		@IWorkspacesMainService private workspacesMainService: IWorkspacesMainService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 	) {
 		this.macOSRecentDocumentsUpdater = new RunOnceScheduler(() => this.updateMacOSRecentDocuments(), 800);
@@ -52,7 +52,7 @@ export class HistoryMainService implements IHistoryMainService {
 	}
 
 	private registerListeners(): void {
-		this.workspacesService.onWorkspaceSaved(e => this.onWorkspaceSaved(e));
+		this.workspacesMainService.onWorkspaceSaved(e => this.onWorkspaceSaved(e));
 	}
 
 	private onWorkspaceSaved(e: IWorkspaceSavedEvent): void {
@@ -67,7 +67,7 @@ export class HistoryMainService implements IHistoryMainService {
 
 			// Workspaces
 			workspaces.forEach(workspace => {
-				const isUntitledWorkspace = !isSingleFolderWorkspaceIdentifier(workspace) && this.workspacesService.isUntitledWorkspace(workspace);
+				const isUntitledWorkspace = !isSingleFolderWorkspaceIdentifier(workspace) && this.workspacesMainService.isUntitledWorkspace(workspace);
 				if (isUntitledWorkspace) {
 					return; // only store saved workspaces
 				}
@@ -179,7 +179,7 @@ export class HistoryMainService implements IHistoryMainService {
 		let files: string[];
 
 		// Get from storage
-		const storedRecents = this.storageService.getItem<IRecentlyOpened>(HistoryMainService.recentlyOpenedStorageKey) as ILegacyRecentlyOpened;
+		const storedRecents = this.storageMainService.getItem<IRecentlyOpened>(HistoryMainService.recentlyOpenedStorageKey) as ILegacyRecentlyOpened;
 		if (storedRecents) {
 			workspaces = storedRecents.workspaces || storedRecents.folders || [];
 			files = storedRecents.files || [];
@@ -203,7 +203,7 @@ export class HistoryMainService implements IHistoryMainService {
 		files = arrays.distinct(files, file => this.distinctFn(file));
 
 		// Hide untitled workspaces
-		workspaces = workspaces.filter(workspace => isSingleFolderWorkspaceIdentifier(workspace) || !this.workspacesService.isUntitledWorkspace(workspace));
+		workspaces = workspaces.filter(workspace => isSingleFolderWorkspaceIdentifier(workspace) || !this.workspacesMainService.isUntitledWorkspace(workspace));
 
 		return { workspaces, files };
 	}
@@ -217,7 +217,7 @@ export class HistoryMainService implements IHistoryMainService {
 	}
 
 	private saveRecentlyOpened(recent: IRecentlyOpened): void {
-		this.storageService.setItem(HistoryMainService.recentlyOpenedStorageKey, recent);
+		this.storageMainService.setItem(HistoryMainService.recentlyOpenedStorageKey, recent);
 	}
 
 	public updateWindowsJumpList(): void {

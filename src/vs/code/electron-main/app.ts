@@ -74,8 +74,8 @@ export class CodeApplication {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IConfigurationService configurationService: ConfigurationService,
-		@IStorageMainService private storageService: IStorageMainService,
-		@IHistoryMainService private historyService: IHistoryMainService
+		@IStorageMainService private storageMainService: IStorageMainService,
+		@IHistoryMainService private historyMainService: IHistoryMainService
 	) {
 		this.toDispose = [mainIpcServer, configurationService];
 
@@ -194,7 +194,7 @@ export class CodeApplication {
 
 		ipc.on(machineIdIpcChannel, (_event: any, machineId: string) => {
 			this.logService.log('IPC#vscode-machineId');
-			this.storageService.setItem(machineIdStorageKey, machineId);
+			this.storageMainService.setItem(machineIdStorageKey, machineId);
 		});
 
 		ipc.on('vscode:fetchShellEnv', (_event: any, windowId: number) => {
@@ -238,8 +238,8 @@ export class CodeApplication {
 		if (event === 'vscode:changeColorTheme' && typeof payload === 'string') {
 			let data = JSON.parse(payload);
 
-			this.storageService.setItem(CodeWindow.themeStorageKey, data.id);
-			this.storageService.setItem(CodeWindow.themeBackgroundStorageKey, data.background);
+			this.storageMainService.setItem(CodeWindow.themeStorageKey, data.id);
+			this.storageMainService.setItem(CodeWindow.themeBackgroundStorageKey, data.background);
 		}
 	}
 
@@ -293,7 +293,7 @@ export class CodeApplication {
 			const commonProperties = resolveCommonProperties(product.commit, pkg.version, this.environmentService.installSource)
 				// __GDPR__COMMON__ "common.machineId" : { "classification": "EndUserPseudonymizedInformation", "purpose": "FeatureInsight" }
 				.then(result => Object.defineProperty(result, 'common.machineId', {
-					get: () => this.storageService.getItem(machineIdStorageKey),
+					get: () => this.storageMainService.getItem(machineIdStorageKey),
 					enumerable: true
 				}));
 			const piiPaths = [this.environmentService.appRoot, this.environmentService.extensionsPath];
@@ -405,8 +405,8 @@ export class CodeApplication {
 		appInstantiationService.createInstance(CodeMenu);
 
 		// Jump List
-		this.historyService.updateWindowsJumpList();
-		this.historyService.onRecentlyOpenedChange(() => this.historyService.updateWindowsJumpList());
+		this.historyMainService.updateWindowsJumpList();
+		this.historyMainService.onRecentlyOpenedChange(() => this.historyMainService.updateWindowsJumpList());
 
 		// Start shared process here
 		this.sharedProcess.spawn();
@@ -414,8 +414,8 @@ export class CodeApplication {
 		// Helps application icon refresh after an update with new icon is installed (macOS)
 		// TODO@Ben remove after a couple of releases
 		if (platform.isMacintosh) {
-			if (!this.storageService.getItem(CodeApplication.APP_ICON_REFRESH_KEY)) {
-				this.storageService.setItem(CodeApplication.APP_ICON_REFRESH_KEY, true);
+			if (!this.storageMainService.getItem(CodeApplication.APP_ICON_REFRESH_KEY)) {
+				this.storageMainService.setItem(CodeApplication.APP_ICON_REFRESH_KEY, true);
 
 				// 'exe' => /Applications/Visual Studio Code - Insiders.app/Contents/MacOS/Electron
 				const appPath = dirname(dirname(dirname(app.getPath('exe'))));

@@ -58,13 +58,13 @@ export class KeybindingsResolver {
 	onKeybindingsChanged: Event<void> = this._onKeybindingsChanged.event;
 
 	constructor(
-		@IStorageMainService private storageService: IStorageMainService,
+		@IStorageMainService private storageMainService: IStorageMainService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IWindowsMainService private windowsService: IWindowsMainService,
+		@IWindowsMainService private windowsMainService: IWindowsMainService,
 		@ILogService private logService: ILogService
 	) {
 		this.commandIds = new Set<string>();
-		this.keybindings = this.storageService.getItem<{ [id: string]: string; }>(KeybindingsResolver.lastKnownKeybindingsMapStorageKey) || Object.create(null);
+		this.keybindings = this.storageMainService.getItem<{ [id: string]: string; }>(KeybindingsResolver.lastKnownKeybindingsMapStorageKey) || Object.create(null);
 		this.keybindingsWatcher = new ConfigWatcher<IUserFriendlyKeybinding[]>(environmentService.appKeybindingsPath, { changeBufferDelay: 100, onError: error => this.logService.error(error) });
 
 		this.registerListeners();
@@ -102,24 +102,24 @@ export class KeybindingsResolver {
 
 			if (keybindingsChanged) {
 				this.keybindings = resolvedKeybindings;
-				this.storageService.setItem(KeybindingsResolver.lastKnownKeybindingsMapStorageKey, this.keybindings); // keep to restore instantly after restart
+				this.storageMainService.setItem(KeybindingsResolver.lastKnownKeybindingsMapStorageKey, this.keybindings); // keep to restore instantly after restart
 
 				this._onKeybindingsChanged.fire();
 			}
 		});
 
 		// Resolve keybindings when any first window is loaded
-		const onceOnWindowReady = once(this.windowsService.onWindowReady);
+		const onceOnWindowReady = once(this.windowsMainService.onWindowReady);
 		onceOnWindowReady(win => this.resolveKeybindings(win));
 
 		// Resolve keybindings again when keybindings.json changes
 		this.keybindingsWatcher.onDidUpdateConfiguration(() => this.resolveKeybindings());
 
 		// Resolve keybindings when window reloads because an installed extension could have an impact
-		this.windowsService.onWindowReload(() => this.resolveKeybindings());
+		this.windowsMainService.onWindowReload(() => this.resolveKeybindings());
 	}
 
-	private resolveKeybindings(win = this.windowsService.getLastActiveWindow()): void {
+	private resolveKeybindings(win = this.windowsMainService.getLastActiveWindow()): void {
 		if (this.commandIds.size && win) {
 			const commandIds: string[] = [];
 			this.commandIds.forEach(id => commandIds.push(id));
