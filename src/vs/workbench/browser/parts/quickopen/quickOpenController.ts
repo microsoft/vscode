@@ -42,7 +42,6 @@ import { IPickOpenEntry, IFilePickOpenEntry, IInputOptions, IQuickOpenService, I
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -104,7 +103,6 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IMessageService private messageService: IMessageService,
-		@ITelemetryService private telemetryService: ITelemetryService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -313,8 +311,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 				}, {
 					inputPlaceHolder: options.placeHolder || '',
 					keyboardSupport: false
-				},
-				this.telemetryService
+				}
 			);
 			this.toUnbind.push(attachQuickOpenStyler(this.pickOpenWidget, this.themeService, { background: SIDE_BAR_BACKGROUND, foreground: SIDE_BAR_FOREGROUND }));
 
@@ -555,14 +552,6 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		const registry = Registry.as<IQuickOpenRegistry>(Extensions.Quickopen);
 		const handlerDescriptor = registry.getQuickOpenHandler(prefix) || registry.getDefaultQuickOpenHandler();
 
-		/* __GDPR__
-			"quickOpenWidgetShown" : {
-				"mode" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"quickNavigate": { "${inline}": [ "${IQuickNavigateConfiguration}" ] }
-			}
-		*/
-		this.telemetryService.publicLog('quickOpenWidgetShown', { mode: handlerDescriptor.getId(), quickNavigate: quickNavigateConfiguration });
-
 		// Trigger onOpen
 		this.resolveHandler(handlerDescriptor).done(null, errors.onUnexpectedError);
 
@@ -580,8 +569,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 				}, {
 					inputPlaceHolder: this.hasHandler(HELP_PREFIX) ? nls.localize('quickOpenInput', "Type '?' to get help on the actions you can take from here") : '',
 					keyboardSupport: false
-				},
-				this.telemetryService
+				}
 			);
 			this.toUnbind.push(attachQuickOpenStyler(this.quickOpenWidget, this.themeService, { background: SIDE_BAR_BACKGROUND, foreground: SIDE_BAR_FOREGROUND }));
 

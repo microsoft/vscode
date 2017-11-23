@@ -21,7 +21,6 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Position, POSITIONS } from 'vs/platform/editor/common/editor';
 import { IEditorGroupService, IEditorTabOptions, GroupArrangement, GroupOrientation } from 'vs/workbench/services/group/common/groupService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -147,7 +146,6 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		groupOrientation: GroupOrientation,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@ITelemetryService private telemetryService: ITelemetryService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -444,15 +442,6 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 			// Automatically maximize this position if it is minimized
 			if (this.isSiloMinimized(this.lastActivePosition)) {
-
-				// Log this fact in telemetry
-				if (this.telemetryService) {
-					/* __GDPR__
-						"workbenchEditorMaximized" : {}
-					*/
-					this.telemetryService.publicLog('workbenchEditorMaximized');
-				}
-
 				let remainingSize = this.totalSize;
 				let layout = false;
 

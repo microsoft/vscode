@@ -61,10 +61,6 @@ export interface IShowOptions {
 	inputSelection?: IRange;
 }
 
-export interface IQuickOpenUsageLogger {
-	publicLog(eventName: string, data?: any): void;
-}
-
 export class QuickOpenController extends DefaultController {
 
 	public onContextMenu(tree: ITree, element: any, event: ContextMenuEvent): boolean {
@@ -115,14 +111,13 @@ export class QuickOpenWidget implements IModelProvider {
 	private container: HTMLElement;
 	private treeElement: HTMLElement;
 	private inputElement: HTMLElement;
-	private usageLogger: IQuickOpenUsageLogger;
 	private layoutDimensions: Dimension;
 	private model: IModel<any>;
 	private inputChangingTimeoutHandle: number;
 	private styles: IQuickOpenStyles;
 	private renderer: Renderer;
 
-	constructor(container: HTMLElement, callbacks: IQuickOpenCallbacks, options: IQuickOpenOptions, usageLogger?: IQuickOpenUsageLogger) {
+	constructor(container: HTMLElement, callbacks: IQuickOpenCallbacks, options: IQuickOpenOptions) {
 		this.isDisposed = false;
 		this.toUnbind = [];
 		this.container = container;
@@ -130,7 +125,6 @@ export class QuickOpenWidget implements IModelProvider {
 		this.options = options;
 		this.styles = options || Object.create(null);
 		mixin(this.styles, defaultStyles, false);
-		this.usageLogger = usageLogger;
 		this.model = null;
 	}
 
@@ -526,21 +520,6 @@ export class QuickOpenWidget implements IModelProvider {
 			hide = this.model.runner.run(value, mode, context);
 		}
 
-		// add telemetry when an item is accepted, logging the index of the item in the list and the length of the list
-		// to measure the rate of the success and the relevance of the order
-		if (this.usageLogger) {
-			const indexOfAcceptedElement = this.model.entries.indexOf(value);
-			const entriesCount = this.model.entries.length;
-			/* __GDPR__
-				"quickOpenWidgetItemAccepted" : {
-					"index" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"count": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"isQuickNavigate": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			this.usageLogger.publicLog('quickOpenWidgetItemAccepted', { index: indexOfAcceptedElement, count: entriesCount, isQuickNavigate: this.quickNavigateConfiguration ? true : false });
-		}
-
 		// Hide if command was run successfully
 		if (hide) {
 			this.hide(HideReason.ELEMENT_SELECTED);
@@ -774,22 +753,6 @@ export class QuickOpenWidget implements IModelProvider {
 		this.visible = false;
 		this.builder.hide();
 		this.builder.domBlur();
-
-		// report failure cases
-		if (reason === HideReason.CANCELED) {
-			if (this.model) {
-				const entriesCount = this.model.entries.filter(e => this.isElementVisible(this.model, e)).length;
-				if (this.usageLogger) {
-					/* __GDPR__
-						"quickOpenWidgetCancelled" : {
-							"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"isQuickNavigate": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-						}
-					*/
-					this.usageLogger.publicLog('quickOpenWidgetCancelled', { count: entriesCount, isQuickNavigate: this.quickNavigateConfiguration ? true : false });
-				}
-			}
-		}
 
 		// Clear input field and clear tree
 		this.inputBox.value = '';

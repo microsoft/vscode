@@ -26,10 +26,10 @@ import { IConstructorSignature0, IInstantiationService } from 'vs/platform/insta
  * layout and focus call, but only one create and dispose call.
  */
 export abstract class Composite extends Component implements IComposite {
-	private _telemetryData: any = {};
+	private _onTitleAreaUpdate: Emitter<void>;
+
 	private visible: boolean;
 	private parent: Builder;
-	private _onTitleAreaUpdate: Emitter<void>;
 
 	protected actionRunner: IActionRunner;
 
@@ -99,42 +99,6 @@ export abstract class Composite extends Component implements IComposite {
 	 */
 	public setVisible(visible: boolean): TPromise<void> {
 		this.visible = visible;
-
-		// Reset telemetry data when composite becomes visible
-		if (visible) {
-			this._telemetryData = {};
-			this._telemetryData.startTime = new Date();
-
-			// Only submit telemetry data when not running from an integration test
-			if (this._telemetryService && this._telemetryService.publicLog) {
-				const eventName: string = 'compositeOpen';
-				/* __GDPR__
-					"compositeOpen" : {
-						"composite" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-				*/
-				this._telemetryService.publicLog(eventName, { composite: this.getId() });
-			}
-		}
-
-		// Send telemetry data when composite hides
-		else {
-			this._telemetryData.timeSpent = (Date.now() - this._telemetryData.startTime) / 1000;
-			delete this._telemetryData.startTime;
-
-			// Only submit telemetry data when not running from an integration test
-			if (this._telemetryService && this._telemetryService.publicLog) {
-				const eventName: string = 'compositeShown';
-				this._telemetryData.composite = this.getId();
-				/* __GDPR__
-					"compositeShown" : {
-						"timeSpent" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-						"composite": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-				*/
-				this._telemetryService.publicLog(eventName, this._telemetryData);
-			}
-		}
 
 		return TPromise.as(null);
 	}

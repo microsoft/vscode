@@ -166,15 +166,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			};
 
 			this.revealIfOpen = editorConfig.revealIfOpen;
-
-			/* __GDPR__
-				"workbenchEditorConfiguration" : {
-					"${include}": [
-						"${IWorkbenchEditorConfiguration}"
-					]
-				}
-			*/
-			this.telemetryService.publicLog('workbenchEditorConfiguration', objects.deepClone(editorConfig)); // Clone because telemetry service will modify the passed data by adding more details.
 		} else {
 			this.tabOptions = {
 				previewEditors: true,
@@ -357,16 +348,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		const descriptor = Registry.as<IEditorRegistry>(EditorExtensions.Editors).getEditor(input);
 		if (!descriptor) {
 			return TPromise.wrapError<BaseEditor>(new Error(strings.format('Can not find a registered editor for the input {0}', input)));
-		}
-
-		// Opened to the side
-		if (position !== Position.ONE) {
-			/* __GDPR__
-				"workbenchSideEditorOpened" : {
-					"position" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			this.telemetryService.publicLog('workbenchSideEditorOpened', { position: position });
 		}
 
 		// Update stacks: We do this early on before the UI is there because we want our stacks model to have
