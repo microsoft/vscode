@@ -867,7 +867,7 @@ export class Model implements IModel {
 		const newBreakpoints = rawData.map(rawBp => new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled, rawBp.condition, rawBp.hitCondition, undefined));
 		this.breakpoints = this.breakpoints.concat(newBreakpoints);
 		this.breakpointsActivated = true;
-		this.breakpoints = distinct(this.breakpoints, bp => `${bp.uri.toString()}:${bp.lineNumber}:${bp.column}`);
+		this.sortAndDeDup();
 		if (fireEvent) {
 			this._onDidChangeBreakpoints.fire();
 		}
@@ -894,9 +894,22 @@ export class Model implements IModel {
 				bp.adapterData = bpData.source ? bpData.source.adapterData : bp.adapterData;
 			}
 		});
-		this.breakpoints = distinct(this.breakpoints, bp => `${bp.uri.toString()}:${bp.lineNumber}:${bp.column}`);
-
+		this.sortAndDeDup();
 		this._onDidChangeBreakpoints.fire();
+	}
+
+	private sortAndDeDup(): void {
+		this.breakpoints = this.breakpoints.sort((first, second) => {
+			if (first.uri.toString() !== second.uri.toString()) {
+				return resources.basenameOrAuthority(first.uri).localeCompare(resources.basenameOrAuthority(second.uri));
+			}
+			if (first.lineNumber === second.lineNumber) {
+				return first.column - second.column;
+			}
+
+			return first.lineNumber - second.lineNumber;
+		});
+		this.breakpoints = distinct(this.breakpoints, bp => `${bp.uri.toString()}:${bp.lineNumber}:${bp.column}`);
 	}
 
 	public setEnablement(element: IEnablement, enable: boolean): void {
