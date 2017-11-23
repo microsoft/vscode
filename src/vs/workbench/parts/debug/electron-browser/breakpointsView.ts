@@ -10,7 +10,7 @@ import * as errors from 'vs/base/common/errors';
 import { IAction, IActionItem } from 'vs/base/common/actions';
 import { IHighlightEvent, ITree, IAccessibilityProvider, IRenderer, IDataSource, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { ViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { IViewletViewOptions, IViewOptions, TreeViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, IBreakpoint, CONTEXT_BREAKPOINTS_FOCUSED, State, DEBUG_SCHEME, IFunctionBreakpoint, IExceptionBreakpoint, IEnablement } from 'vs/workbench/parts/debug/common/debug';
 import { ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, Model } from 'vs/workbench/parts/debug/common/debugModel';
 import { AddFunctionBreakpointAction, ToggleBreakpointsActivatedAction, RemoveAllBreakpointsAction, RemoveBreakpointAction, EnableAllBreakpointsAction, DisableAllBreakpointsAction, ReapplyBreakpointsAction } from 'vs/workbench/parts/debug/browser/debugActions';
@@ -36,7 +36,7 @@ import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 
 const $ = dom.$;
 
-export class BreakpointsView extends ViewsViewletPanel {
+export class BreakpointsView extends TreeViewsViewletPanel {
 
 	private static readonly MAX_VISIBLE_FILES = 9;
 	private static readonly MEMENTO = 'breakopintsview.memento';

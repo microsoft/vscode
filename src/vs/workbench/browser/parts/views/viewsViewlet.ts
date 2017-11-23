@@ -37,15 +37,10 @@ export interface IViewOptions extends IPanelOptions {
 
 export abstract class ViewsViewletPanel extends ViewletPanel {
 
+	private _isVisible: boolean;
+
 	readonly id: string;
 	readonly name: string;
-	protected treeContainer: HTMLElement;
-
-	// TODO@sandeep why is tree here? isn't this coming only from TreeView
-	protected tree: ITree;
-	protected isDisposed: boolean;
-	private _isVisible: boolean;
-	private dragHandler: DelayedDragHandler;
 
 	constructor(
 		options: IViewOptions,
@@ -53,6 +48,72 @@ export abstract class ViewsViewletPanel extends ViewletPanel {
 		protected contextMenuService: IContextMenuService
 	) {
 		super(options.name, options, keybindingService, contextMenuService);
+
+		this.id = options.id;
+		this.name = options.name;
+		this._expanded = options.expanded;
+	}
+
+	setVisible(visible: boolean): TPromise<void> {
+		if (this._isVisible !== visible) {
+			this._isVisible = visible;
+		}
+
+		return TPromise.wrap(null);
+	}
+
+	isVisible(): boolean {
+		return this._isVisible;
+	}
+
+	getActions(): IAction[] {
+		return [];
+	}
+
+	getSecondaryActions(): IAction[] {
+		return [];
+	}
+
+	getActionItem(action: IAction): IActionItem {
+		return null;
+	}
+
+	getActionsContext(): any {
+		return undefined;
+	}
+
+	getOptimalWidth(): number {
+		return 0;
+	}
+
+	create(): TPromise<void> {
+		return TPromise.as(null);
+	}
+
+	shutdown(): void {
+		// Subclass to implement
+	}
+
+}
+
+// TODO@isidor @sandeep remove this class
+export abstract class TreeViewsViewletPanel extends ViewsViewletPanel {
+
+	readonly id: string;
+	readonly name: string;
+	protected treeContainer: HTMLElement;
+
+	// TODO@sandeep why is tree here? isn't this coming only from TreeView
+	protected tree: ITree;
+	protected isDisposed: boolean;
+	private dragHandler: DelayedDragHandler;
+
+	constructor(
+		options: IViewOptions,
+		protected keybindingService: IKeybindingService,
+		protected contextMenuService: IContextMenuService
+	) {
+		super(options, keybindingService, contextMenuService);
 
 		this.id = options.id;
 		this.name = options.name;
@@ -81,14 +142,10 @@ export abstract class ViewsViewletPanel extends ViewletPanel {
 		return this.tree;
 	}
 
-	isVisible(): boolean {
-		return this._isVisible;
-	}
-
 	setVisible(visible: boolean): TPromise<void> {
-		if (this._isVisible !== visible) {
-			this._isVisible = visible;
-			this.updateTreeVisibility(this.tree, visible && this.isExpanded());
+		if (this.isVisible() !== visible) {
+			return super.setVisible(visible)
+				.then(() => this.updateTreeVisibility(this.tree, visible && this.isExpanded()));
 		}
 
 		return TPromise.wrap(null);

@@ -11,7 +11,7 @@ import { prepareActions } from 'vs/workbench/browser/actions';
 import { IHighlightEvent, IActionProvider, ITree, IDataSource, IRenderer, IAccessibilityProvider } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
-import { ViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { TreeViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, State, CONTEXT_VARIABLES_FOCUSED, IExpression } from 'vs/workbench/parts/debug/common/debug';
 import { Variable, Scope } from 'vs/workbench/parts/debug/common/debugModel';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -35,7 +35,7 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 
 const $ = dom.$;
 
-export class VariablesView extends ViewsViewletPanel {
+export class VariablesView extends TreeViewsViewletPanel {
 
 	private static readonly MEMENTO = 'variablesview.memento';
 	private onFocusStackFrameScheduler: RunOnceScheduler;

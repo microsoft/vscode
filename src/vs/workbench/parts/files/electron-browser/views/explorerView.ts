@@ -27,7 +27,7 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import * as DOM from 'vs/base/browser/dom';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
-import { ViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { TreeViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { FileStat, Model } from 'vs/workbench/parts/files/common/explorerModel';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -52,7 +52,7 @@ export interface IExplorerViewOptions extends IViewletViewOptions {
 	viewletState: FileViewletState;
 }
 
-export class ExplorerView extends ViewsViewletPanel implements IExplorerView {
+export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView {
 
 	public static ID: string = 'workbench.explorer.fileView';
 	private static readonly EXPLORER_FILE_CHANGES_REACT_DELAY = 500; // delay in ms to react to file changes to give our internal events a chance to react first

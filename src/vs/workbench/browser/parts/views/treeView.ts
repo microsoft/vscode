@@ -27,11 +27,11 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ViewsRegistry } from 'vs/workbench/browser/parts/views/viewsRegistry';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { ViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { TreeViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { TreeItemCollapsibleState, ITreeItem, ITreeViewDataProvider, TreeViewItemHandleArg } from 'vs/workbench/common/views';
 
-export class TreeView extends ViewsViewletPanel {
+export class TreeView extends TreeViewsViewletPanel {
 
 	private menus: Menus;
 	private viewFocusContext: IContextKey<boolean>;

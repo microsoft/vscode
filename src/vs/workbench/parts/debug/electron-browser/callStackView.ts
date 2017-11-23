@@ -9,7 +9,7 @@ import * as dom from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { ViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { TreeViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, State, IStackFrame, IProcess, IThread } from 'vs/workbench/parts/debug/common/debug';
 import { Thread, StackFrame, ThreadAndProcessIds, Process, Model } from 'vs/workbench/parts/debug/common/debugModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -32,7 +32,7 @@ import { basenameOrAuthority } from 'vs/base/common/resources';
 
 const $ = dom.$;
 
-export class CallStackView extends ViewsViewletPanel {
+export class CallStackView extends TreeViewsViewletPanel {
 
 	private static readonly MEMENTO = 'callstackview.memento';
 	private pauseMessage: HTMLSpanElement;

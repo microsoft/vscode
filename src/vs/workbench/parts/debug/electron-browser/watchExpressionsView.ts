@@ -13,7 +13,7 @@ import { prepareActions } from 'vs/workbench/browser/actions';
 import { IHighlightEvent, IActionProvider, ITree, IDataSource, IRenderer, IAccessibilityProvider, IDragAndDropData, IDragOverReaction, DRAG_OVER_REJECT } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
-import { ViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { TreeViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, IExpression, CONTEXT_WATCH_EXPRESSIONS_FOCUSED } from 'vs/workbench/parts/debug/common/debug';
 import { Expression, Variable, Model } from 'vs/workbench/parts/debug/common/debugModel';
 import { AddWatchExpressionAction, RemoveAllWatchExpressionsAction, EditWatchExpressionAction, RemoveWatchExpressionAction } from 'vs/workbench/parts/debug/browser/debugActions';
@@ -37,7 +37,7 @@ import { IVariableTemplateData, renderVariable, renderRenameBox, renderExpressio
 const $ = dom.$;
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
 
-export class WatchExpressionsView extends ViewsViewletPanel {
+export class WatchExpressionsView extends TreeViewsViewletPanel {
 
 	private static readonly MEMENTO = 'watchexpressionsview.memento';
 	private onWatchExpressionsUpdatedScheduler: RunOnceScheduler;

@@ -18,7 +18,7 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup } from 'vs/workbench/common/editor';
 import { SaveAllAction } from 'vs/workbench/parts/files/electron-browser/fileActions';
-import { ViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { TreeViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { VIEWLET_ID, OpenEditorsFocusedContext, ExplorerFocusedContext } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -36,7 +36,7 @@ import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/th
 
 const $ = dom.$;
 
-export class OpenEditorsView extends ViewsViewletPanel {
+export class OpenEditorsView extends TreeViewsViewletPanel {
 
 	private static readonly DEFAULT_VISIBLE_OPEN_EDITORS = 9;
 	private static readonly DEFAULT_DYNAMIC_HEIGHT = true;
