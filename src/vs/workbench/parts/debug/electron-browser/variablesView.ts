@@ -8,14 +8,13 @@ import { RunOnceScheduler, sequence } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import * as errors from 'vs/base/common/errors';
 import { prepareActions } from 'vs/workbench/browser/actions';
-import { IHighlightEvent } from 'vs/base/parts/tree/browser/tree';
+import { IHighlightEvent, IActionProvider, ITree, IDataSource, IRenderer, IAccessibilityProvider } from 'vs/base/parts/tree/browser/tree';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { ViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IDebugService, State, CONTEXT_VARIABLES_FOCUSED } from 'vs/workbench/parts/debug/common/debug';
-import { Variable } from 'vs/workbench/parts/debug/common/debugModel';
-import * as viewer from 'vs/workbench/parts/debug/electron-browser/debugViewer';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IDebugService, State, CONTEXT_VARIABLES_FOCUSED, IExpression } from 'vs/workbench/parts/debug/common/debug';
+import { Variable, Scope } from 'vs/workbench/parts/debug/common/debugModel';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -24,15 +23,17 @@ import { IListService } from 'vs/platform/list/browser/listService';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { once } from 'vs/base/common/event';
+import { twistiePixels, renderViewTree, IVariableTemplateData, BaseDebugController, renderRenameBox, renderVariable } from 'vs/workbench/parts/debug/electron-browser/baseDebugView';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IAction, IActionItem } from 'vs/base/common/actions';
+import { SetValueAction, AddToWatchExpressionsAction } from 'vs/workbench/parts/debug/browser/debugActions';
+import { CopyValueAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
+import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
+import { equalsIgnoreCase } from 'vs/base/common/strings';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 
-function renderViewTree(container: HTMLElement): HTMLElement {
-	const treeContainer = document.createElement('div');
-	dom.addClass(treeContainer, 'debug-view-content');
-	container.appendChild(treeContainer);
-	return treeContainer;
-}
-
-const twistiePixels = 20;
+const $ = dom.$;
 
 export class VariablesView extends ViewsViewletPanel {
 
@@ -90,10 +91,10 @@ export class VariablesView extends ViewsViewletPanel {
 		this.treeContainer = renderViewTree(container);
 
 		this.tree = new Tree(this.treeContainer, {
-			dataSource: new viewer.VariablesDataSource(),
-			renderer: this.instantiationService.createInstance(viewer.VariablesRenderer),
-			accessibilityProvider: new viewer.VariablesAccessibilityProvider(),
-			controller: this.instantiationService.createInstance(viewer.VariablesController, new viewer.VariablesActionProvider(this.debugService, this.keybindingService), MenuId.DebugVariablesContext)
+			dataSource: new VariablesDataSource(),
+			renderer: this.instantiationService.createInstance(VariablesRenderer),
+			accessibilityProvider: new VariablesAccessibilityProvider(),
+			controller: this.instantiationService.createInstance(VariablesController, new VariablesActionProvider(this.debugService, this.keybindingService), MenuId.DebugVariablesContext)
 		}, {
 				ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
 				twistiePixels,
@@ -142,5 +143,175 @@ export class VariablesView extends ViewsViewletPanel {
 	public shutdown(): void {
 		this.settings[VariablesView.MEMENTO] = !this.isExpanded();
 		super.shutdown();
+	}
+}
+
+class VariablesActionProvider implements IActionProvider {
+
+	constructor(private debugService: IDebugService, private keybindingService: IKeybindingService) {
+		// noop
+	}
+
+	public hasActions(tree: ITree, element: any): boolean {
+		return false;
+	}
+
+	public getActions(tree: ITree, element: any): TPromise<IAction[]> {
+		return TPromise.as([]);
+	}
+
+	public hasSecondaryActions(tree: ITree, element: any): boolean {
+		// Only show context menu on "real" variables. Not on array chunk nodes.
+		return element instanceof Variable && !!element.value;
+	}
+
+	public getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
+		const actions: IAction[] = [];
+		const variable = <Variable>element;
+		actions.push(new SetValueAction(SetValueAction.ID, SetValueAction.LABEL, variable, this.debugService, this.keybindingService));
+		actions.push(new CopyValueAction(CopyValueAction.ID, CopyValueAction.LABEL, variable, this.debugService));
+		actions.push(new Separator());
+		actions.push(new AddToWatchExpressionsAction(AddToWatchExpressionsAction.ID, AddToWatchExpressionsAction.LABEL, variable, this.debugService, this.keybindingService));
+
+		return TPromise.as(actions);
+	}
+
+	public getActionItem(tree: ITree, element: any, action: IAction): IActionItem {
+		return null;
+	}
+}
+
+export class VariablesDataSource implements IDataSource {
+
+	public getId(tree: ITree, element: any): string {
+		return element.getId();
+	}
+
+	public hasChildren(tree: ITree, element: any): boolean {
+		if (element instanceof ViewModel || element instanceof Scope) {
+			return true;
+		}
+
+		let variable = <Variable>element;
+		return variable.hasChildren && !equalsIgnoreCase(variable.value, 'null');
+	}
+
+	public getChildren(tree: ITree, element: any): TPromise<any> {
+		if (element instanceof ViewModel) {
+			const focusedStackFrame = (<ViewModel>element).focusedStackFrame;
+			return focusedStackFrame ? focusedStackFrame.getScopes() : TPromise.as([]);
+		}
+
+		let scope = <Scope>element;
+		return scope.getChildren();
+	}
+
+	public getParent(tree: ITree, element: any): TPromise<any> {
+		return TPromise.as(null);
+	}
+}
+
+interface IScopeTemplateData {
+	name: HTMLElement;
+}
+
+export class VariablesRenderer implements IRenderer {
+
+	private static readonly SCOPE_TEMPLATE_ID = 'scope';
+	private static readonly VARIABLE_TEMPLATE_ID = 'variable';
+
+	constructor(
+		@IDebugService private debugService: IDebugService,
+		@IContextViewService private contextViewService: IContextViewService,
+		@IThemeService private themeService: IThemeService
+	) {
+		// noop
+	}
+
+	public getHeight(tree: ITree, element: any): number {
+		return 22;
+	}
+
+	public getTemplateId(tree: ITree, element: any): string {
+		if (element instanceof Scope) {
+			return VariablesRenderer.SCOPE_TEMPLATE_ID;
+		}
+		if (element instanceof Variable) {
+			return VariablesRenderer.VARIABLE_TEMPLATE_ID;
+		}
+
+		return null;
+	}
+
+	public renderTemplate(tree: ITree, templateId: string, container: HTMLElement): any {
+		if (templateId === VariablesRenderer.SCOPE_TEMPLATE_ID) {
+			let data: IScopeTemplateData = Object.create(null);
+			data.name = dom.append(container, $('.scope'));
+
+			return data;
+		}
+
+		let data: IVariableTemplateData = Object.create(null);
+		data.expression = dom.append(container, $('.expression'));
+		data.name = dom.append(data.expression, $('span.name'));
+		data.value = dom.append(data.expression, $('span.value'));
+
+		return data;
+	}
+
+	public renderElement(tree: ITree, element: any, templateId: string, templateData: any): void {
+		if (templateId === VariablesRenderer.SCOPE_TEMPLATE_ID) {
+			this.renderScope(element, templateData);
+		} else {
+			const variable = <Variable>element;
+			if (variable === this.debugService.getViewModel().getSelectedExpression() || variable.errorMessage) {
+				renderRenameBox(this.debugService, this.contextViewService, this.themeService, tree, variable, (<IVariableTemplateData>templateData).expression, {
+					initialValue: variable.value,
+					ariaLabel: nls.localize('variableValueAriaLabel', "Type new variable value"),
+					validationOptions: {
+						validation: (value: string) => variable.errorMessage ? ({ content: variable.errorMessage }) : null
+					}
+				});
+			} else {
+				renderVariable(tree, variable, templateData, true);
+			}
+		}
+	}
+
+	private renderScope(scope: Scope, data: IScopeTemplateData): void {
+		data.name.textContent = scope.name;
+	}
+
+	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
+		// noop
+	}
+}
+
+class VariablesAccessibilityProvider implements IAccessibilityProvider {
+
+	public getAriaLabel(tree: ITree, element: any): string {
+		if (element instanceof Scope) {
+			return nls.localize('variableScopeAriaLabel', "Scope {0}, variables, debug", (<Scope>element).name);
+		}
+		if (element instanceof Variable) {
+			return nls.localize('variableAriaLabel', "{0} value {1}, variables, debug", (<Variable>element).name, (<Variable>element).value);
+		}
+
+		return null;
+	}
+}
+
+class VariablesController extends BaseDebugController {
+
+	protected onLeftClick(tree: ITree, element: any, event: IMouseEvent): boolean {
+		// double click on primitive value: open input box to be able to set the value
+		const process = this.debugService.getViewModel().focusedProcess;
+		if (element instanceof Variable && event.detail === 2 && process && process.session.capabilities.supportsSetVariable) {
+			const expression = <IExpression>element;
+			this.debugService.getViewModel().setSelectedExpression(expression);
+			return true;
+		}
+
+		return super.onLeftClick(tree, element, event);
 	}
 }
