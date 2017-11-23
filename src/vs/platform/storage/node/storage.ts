@@ -38,7 +38,7 @@ export class FileStorage {
 			return defaultValue;
 		}
 
-		return this.database[key];
+		return res;
 	}
 
 	public setItem(key: string, data: any): void {
