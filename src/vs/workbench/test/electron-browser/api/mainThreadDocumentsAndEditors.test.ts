@@ -65,7 +65,6 @@ suite('MainThreadDocumentsAndEditors', () => {
 			null,
 			null,
 			editorGroupService,
-			null
 		);
 		/* tslint:enable */
 	});
