@@ -15,21 +15,17 @@ export const IStorageService = createDecorator<IStorageService>('storageService'
 
 export interface IStorageService {
 	_serviceBrand: any;
+
 	getItem<T>(key: string, defaultValue?: T): T;
 	setItem(key: string, data: any): void;
 	removeItem(key: string): void;
 }
 
-export class StorageService implements IStorageService {
+export class FileStorage {
 
-	_serviceBrand: any;
+	private database: object = null;
 
-	private dbPath: string;
-	private database: any = null;
-
-	constructor( @IEnvironmentService private environmentService: IEnvironmentService) {
-		this.dbPath = path.join(environmentService.userDataPath, 'storage.json');
-	}
+	constructor(private dbPath: string, private verbose?: boolean) { }
 
 	public getItem<T>(key: string, defaultValue?: T): T {
 		if (!this.database) {
@@ -71,11 +67,11 @@ export class StorageService implements IStorageService {
 		}
 	}
 
-	private load(): any {
+	private load(): object {
 		try {
 			return JSON.parse(fs.readFileSync(this.dbPath).toString()); // invalid JSON or permission issue can happen here
 		} catch (error) {
-			if (this.environmentService.verbose) {
+			if (this.verbose) {
 				console.error(error);
 			}
 
@@ -87,9 +83,32 @@ export class StorageService implements IStorageService {
 		try {
 			writeFileAndFlushSync(this.dbPath, JSON.stringify(this.database, null, 4)); // permission issue can happen here
 		} catch (error) {
-			if (this.environmentService.verbose) {
+			if (this.verbose) {
 				console.error(error);
 			}
 		}
+	}
+}
+
+export class StorageService implements IStorageService {
+
+	_serviceBrand: any;
+
+	private fileStorage: FileStorage;
+
+	constructor( @IEnvironmentService environmentService: IEnvironmentService) {
+		this.fileStorage = new FileStorage(path.join(environmentService.userDataPath, 'storage.json'), environmentService.verbose);
+	}
+
+	public getItem<T>(key: string, defaultValue?: T): T {
+		return this.fileStorage.getItem(key, defaultValue);
+	}
+
+	public setItem(key: string, data: any): void {
+		this.fileStorage.setItem(key, data);
+	}
+
+	public removeItem(key: string): void {
+		this.fileStorage.removeItem(key);
 	}
 }
