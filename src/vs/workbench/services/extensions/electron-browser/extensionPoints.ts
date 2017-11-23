@@ -16,7 +16,7 @@ import json = require('vs/base/common/json');
 import Types = require('vs/base/common/types');
 import { isValidExtensionDescription } from 'vs/platform/extensions/node/extensionValidator';
 import * as semver from 'semver';
-import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 
 const MANIFEST_FILE = 'package.json';

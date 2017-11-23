@@ -25,15 +25,14 @@ export function getGalleryExtensionIdFromLocal(local: ILocalExtension): string {
 	return getGalleryExtensionId(local.manifest.publisher, local.manifest.name);
 }
 
-export function getIdAndVersionFromLocalExtensionId(localExtensionId: string): { id: string, version: string } {
-	const matches = /^([^.]+\..+)-(\d+\.\d+\.\d+)$/.exec(localExtensionId);
-	if (matches && matches[1] && matches[2]) {
-		return { id: adoptToGalleryExtensionId(matches[1]), version: matches[2] };
+export const LOCAL_EXTENSION_ID_REGEX = /^([^.]+\..+)-(\d+\.\d+\.\d+(-.*)?)$/;
+
+export function getIdFromLocalExtensionId(localExtensionId: string): string {
+	const matches = LOCAL_EXTENSION_ID_REGEX.exec(localExtensionId);
+	if (matches && matches[1]) {
+		return adoptToGalleryExtensionId(matches[1]);
 	}
-	return {
-		id: adoptToGalleryExtensionId(localExtensionId),
-		version: null
-	};
+	return adoptToGalleryExtensionId(localExtensionId);
 }
 
 export function adoptToGalleryExtensionId(id: string): string {

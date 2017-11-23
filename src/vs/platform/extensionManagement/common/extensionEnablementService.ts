@@ -9,7 +9,7 @@ import { distinct, coalesce } from 'vs/base/common/arrays';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IExtensionManagementService, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionIdentifier, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { adoptToGalleryExtensionId, getIdAndVersionFromLocalExtensionId, areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { adoptToGalleryExtensionId, getIdFromLocalExtensionId, areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -258,7 +258,7 @@ export class ExtensionEnablementService implements IExtensionEnablementService {
 
 	private _onDidUninstallExtension({ identifier, error }: DidUninstallExtensionEvent): void {
 		if (!error) {
-			const id = getIdAndVersionFromLocalExtensionId(identifier.id).id;
+			const id = getIdFromLocalExtensionId(identifier.id);
 			if (id) {
 				const extension = { id, uuid: identifier.uuid };
 				this._removeFromDisabledExtensions(extension, StorageScope.WORKSPACE);

@@ -20,7 +20,8 @@ import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiati
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IMessageService, Severity, IChoiceService } from 'vs/platform/message/common/message';
 import { Action } from 'vs/base/common/actions';
-import { BetterMergeDisabledNowKey, BetterMergeId, getIdAndVersionFromLocalExtensionId, areSameExtensions, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { BetterMergeDisabledNowKey, BetterMergeId, areSameExtensions, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 
 export interface IExtensionStatus {
 	identifier: IExtensionIdentifier;
