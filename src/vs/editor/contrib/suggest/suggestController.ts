@@ -10,7 +10,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
@@ -90,7 +89,6 @@ export class SuggestController implements IEditorContribution {
 	constructor(
 		private _editor: ICodeEditor,
 		@ICommandService private _commandService: ICommandService,
-		@ITelemetryService private _telemetryService: ITelemetryService,
 		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
 	) {
@@ -224,15 +222,6 @@ export class SuggestController implements IEditorContribution {
 		}
 
 		this._alertCompletionItem(item);
-		/* __GDPR__
-		"suggestSnippetInsert" : {
-			"suggestionType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"${include}": [
-				"${EditorTelemetryData}"
-			]
-		}
-		*/
-		this._telemetryService.publicLog('suggestSnippetInsert', { ...this._editor.getTelemetryData(), suggestionType: suggestion.type });
 	}
 
 	private _alertCompletionItem({ suggestion }: ICompletionItem): void {

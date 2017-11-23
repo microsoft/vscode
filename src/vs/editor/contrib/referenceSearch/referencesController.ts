@@ -10,7 +10,6 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditorService } from 'vs/platform/editor/common/editor';
-import { fromPromise, stopwatch } from 'vs/base/common/event';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -143,7 +142,7 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 
 		const requestId = ++this._requestIdPool;
 
-		const promise = modelPromise.then(model => {
+		modelPromise.then(model => {
 
 			// still current request? widget still open?
 			if (requestId !== this._requestIdPool || !this._widget) {
@@ -192,20 +191,6 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		}, error => {
 			this._messageService.show(Severity.Error, error);
 		});
-
-		const onDone = stopwatch(fromPromise(promise));
-		const mode = this._editor.getModel().getLanguageIdentifier().language;
-
-		/* __GDPR__
-			"findReferences" : {
-				"durarion" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-				"mode": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		onDone(duration => this._telemetryService.publicLog('findReferences', {
-			duration,
-			mode
-		}));
 	}
 
 	public closeWidget(): void {
