@@ -156,27 +156,10 @@ export class ExtensionsListView extends ViewsViewletPanel {
 
 			let result = await this.extensionsWorkbenchService.queryLocal();
 
-			switch (options.sortBy) {
-				case SortBy.InstallCount:
-					result = result.sort((e1, e2) => e2.installCount - e1.installCount);
-					break;
-				case SortBy.AverageRating:
-				case SortBy.WeightedRating:
-					result = result.sort((e1, e2) => e2.rating - e1.rating);
-					break;
-				default:
-					result = result.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName));
-					break;
-			}
-
-			if (options.sortOrder === SortOrder.Descending) {
-				result = result.reverse();
-			}
-
 			result = result
 				.filter(e => e.type === LocalExtensionType.User && e.name.toLowerCase().indexOf(value) > -1);
 
-			return new PagedModel(result);
+			return new PagedModel(this.sortExtensions(result, options));
 		}
 
 		const idMatch = /@id:([a-z0-9][a-z0-9\-]*\.[a-z0-9][a-z0-9\-]*)/.exec(value);
@@ -189,18 +172,18 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		}
 
 		if (/@outdated/i.test(value)) {
-			value = value.replace(/@outdated/g, '').trim().toLowerCase();
+			value = value.replace(/@outdated/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
 
 			const local = await this.extensionsWorkbenchService.queryLocal();
 			const result = local
 				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
 				.filter(extension => extension.outdated && extension.name.toLowerCase().indexOf(value) > -1);
 
-			return new PagedModel(result);
+			return new PagedModel(this.sortExtensions(result, options));
 		}
 
 		if (/@disabled/i.test(value)) {
-			value = value.replace(/@disabled/g, '').trim().toLowerCase();
+			value = value.replace(/@disabled/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
 
 			const local = await this.extensionsWorkbenchService.queryLocal();
 			const runningExtensions = await this.extensionService.getExtensions();
@@ -209,22 +192,22 @@ export class ExtensionsListView extends ViewsViewletPanel {
 				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
 				.filter(e => runningExtensions.every(r => !areSameExtensions(r, e)) && e.name.toLowerCase().indexOf(value) > -1);
 
-			return new PagedModel(result);
+			return new PagedModel(this.sortExtensions(result, options));
 		}
 
 		if (/@enabled/i.test(value)) {
-			value = value ? value.replace(/@enabled/g, '').trim().toLowerCase() : '';
+			value = value ? value.replace(/@enabled/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase() : '';
 
 			const local = await this.extensionsWorkbenchService.queryLocal();
 
-			const result = local
+			let result = local
 				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
 				.filter(e => e.type === LocalExtensionType.User &&
 					(e.enablementState === EnablementState.Enabled || e.enablementState === EnablementState.WorkspaceEnabled) &&
 					e.name.toLowerCase().indexOf(value) > -1
 				);
 
-			return new PagedModel(result);
+			return new PagedModel(this.sortExtensions(result, options));
 		}
 
 		if (ExtensionsListView.isWorkspaceRecommendedExtensionsQuery(query.value)) {
@@ -277,6 +260,25 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		const pager = pagers.length === 2 ? mergePagers(pagers[0], pagers[1]) : pagers[0];
 
 		return new PagedModel(pager);
+	}
+
+	private sortExtensions(extensions: IExtension[], options: IQueryOptions): IExtension[] {
+		switch (options.sortBy) {
+			case SortBy.InstallCount:
+				extensions = extensions.sort((e1, e2) => e2.installCount - e1.installCount);
+				break;
+			case SortBy.AverageRating:
+			case SortBy.WeightedRating:
+				extensions = extensions.sort((e1, e2) => e2.rating - e1.rating);
+				break;
+			default:
+				extensions = extensions.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName));
+				break;
+		}
+		if (options.sortOrder === SortOrder.Descending) {
+			extensions = extensions.reverse();
+		}
+		return extensions;
 	}
 
 	private getAllRecommendationsModel(query: Query, options: IQueryOptions): TPromise<IPagedModel<IExtension>> {
