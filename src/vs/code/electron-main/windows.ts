@@ -12,7 +12,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { assign, mixin, equals } from 'vs/base/common/objects';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
-import { IStorageService } from 'vs/platform/storage/node/storage';
+import { IStorageMainService } from 'vs/platform/storage2/common/storage';
 import { CodeWindow, IWindowState as ISingleWindowState, defaultWindowState, WindowMode } from 'vs/code/electron-main/window';
 import { ipcMain as ipc, screen, BrowserWindow, dialog, systemPreferences, app } from 'electron';
 import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/node/paths';
@@ -139,7 +139,7 @@ export class WindowsManager implements IWindowsMainService {
 
 	constructor(
 		@ILogService private logService: ILogService,
-		@IStorageService private storageService: IStorageService,
+		@IStorageMainService private storageService: IStorageMainService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IBackupMainService private backupService: IBackupMainService,
@@ -1587,7 +1587,7 @@ class FileDialog {
 	constructor(
 		private environmentService: IEnvironmentService,
 		private telemetryService: ITelemetryService,
-		private storageService: IStorageService,
+		private storageService: IStorageMainService,
 		private windowsMainService: IWindowsMainService
 	) {
 	}

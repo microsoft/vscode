@@ -11,9 +11,9 @@ import path = require('path');
 import extfs = require('vs/base/node/extfs');
 import { getRandomTestPath } from 'vs/workbench/test/workbenchTestServices';
 import { writeFileAndFlushSync, mkdirp } from 'vs/base/node/extfs';
-import { FileStorage } from 'vs/platform/storage/node/storage';
+import { FileStorage } from 'vs/platform/storage2/node/storageMainService';
 
-suite('StorageService', () => {
+suite('StorageMainService', () => {
 	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'storageservice');
 	const storageFile = path.join(parentDir, 'storage.json');
 

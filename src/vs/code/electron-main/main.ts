@@ -21,7 +21,8 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService, LogMainService } from 'vs/platform/log/common/log';
-import { IStorageService, StorageService } from 'vs/platform/storage/node/storage';
+import { StorageMainService } from 'vs/platform/storage2/node/storageMainService';
+import { IStorageMainService } from 'vs/platform/storage2/common/storage';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
@@ -49,7 +50,7 @@ function createServices(args: ParsedArgs): IInstantiationService {
 	services.set(IWorkspacesMainService, new SyncDescriptor(WorkspacesMainService));
 	services.set(IHistoryMainService, new SyncDescriptor(HistoryMainService));
 	services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
-	services.set(IStorageService, new SyncDescriptor(StorageService));
+	services.set(IStorageMainService, new SyncDescriptor(StorageMainService));
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(IURLService, new SyncDescriptor(URLService, args['open-url']));

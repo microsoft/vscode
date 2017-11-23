@@ -7,7 +7,7 @@
 
 import * as nativeKeymap from 'native-keymap';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IStorageService } from 'vs/platform/storage/node/storage';
+import { IStorageMainService } from 'vs/platform/storage2/common/storage';
 import Event, { Emitter, once } from 'vs/base/common/event';
 import { ConfigWatcher } from 'vs/base/node/config';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
@@ -58,7 +58,7 @@ export class KeybindingsResolver {
 	onKeybindingsChanged: Event<void> = this._onKeybindingsChanged.event;
 
 	constructor(
-		@IStorageService private storageService: IStorageService,
+		@IStorageMainService private storageService: IStorageMainService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IWindowsMainService private windowsService: IWindowsMainService,
 		@ILogService private logService: ILogService

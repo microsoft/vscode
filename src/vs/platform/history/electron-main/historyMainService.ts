@@ -9,7 +9,7 @@ import * as path from 'path';
 import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
 import { trim } from 'vs/base/common/strings';
-import { IStorageService } from 'vs/platform/storage/node/storage';
+import { IStorageMainService } from 'vs/platform/storage2/common/storage';
 import { app } from 'electron';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getPathLabel, getBaseLabel } from 'vs/base/common/labels';
@@ -41,7 +41,7 @@ export class HistoryMainService implements IHistoryMainService {
 	private macOSRecentDocumentsUpdater: RunOnceScheduler;
 
 	constructor(
-		@IStorageService private storageService: IStorageService,
+		@IStorageMainService private storageService: IStorageMainService,
 		@ILogService private logService: ILogService,
 		@IWorkspacesMainService private workspacesService: IWorkspacesMainService,
 		@IEnvironmentService private environmentService: IEnvironmentService,

@@ -9,7 +9,7 @@ import * as path from 'path';
 import * as objects from 'vs/base/common/objects';
 import nls = require('vs/nls');
 import URI from 'vs/base/common/uri';
-import { IStorageService } from 'vs/platform/storage/node/storage';
+import { IStorageMainService } from 'vs/platform/storage2/common/storage';
 import { shell, screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
@@ -104,7 +104,7 @@ export class CodeWindow implements ICodeWindow {
 		@ILogService private logService: ILogService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IStorageService private storageService: IStorageService,
+		@IStorageMainService private storageService: IStorageMainService,
 		@IWorkspacesMainService private workspaceService: IWorkspacesMainService,
 		@IBackupMainService private backupService: IBackupMainService
 	) {

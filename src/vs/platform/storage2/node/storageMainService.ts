@@ -8,19 +8,9 @@
 import * as path from 'path';
 import * as fs from 'original-fs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { writeFileAndFlushSync } from 'vs/base/node/extfs';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
-
-export const IStorageService = createDecorator<IStorageService>('storageService');
-
-export interface IStorageService {
-	_serviceBrand: any;
-
-	getItem<T>(key: string, defaultValue?: T): T;
-	setItem(key: string, data: any): void;
-	removeItem(key: string): void;
-}
+import { IStorageMainService } from 'vs/platform/storage2/common/storage';
 
 export class FileStorage {
 
@@ -97,7 +87,7 @@ export class FileStorage {
 	}
 }
 
-export class StorageService implements IStorageService {
+export class StorageMainService implements IStorageMainService {
 
 	_serviceBrand: any;
 

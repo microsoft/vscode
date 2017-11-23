@@ -8,7 +8,7 @@
 import { ipcMain as ipc, app } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IStorageService } from 'vs/platform/storage/node/storage';
+import { IStorageMainService } from 'vs/platform/storage2/common/storage';
 import Event, { Emitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
@@ -94,7 +94,7 @@ export class LifecycleService implements ILifecycleService {
 
 	constructor(
 		@ILogService private logService: ILogService,
-		@IStorageService private storageService: IStorageService
+		@IStorageMainService private storageService: IStorageMainService
 	) {
 		this.windowToCloseRequest = Object.create(null);
 		this.quitRequested = false;

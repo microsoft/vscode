@@ -26,7 +26,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IStorageService } from 'vs/platform/storage/node/storage';
+import { IStorageMainService } from 'vs/platform/storage2/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IURLService } from 'vs/platform/url/common/url';
@@ -74,7 +74,7 @@ export class CodeApplication {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IConfigurationService configurationService: ConfigurationService,
-		@IStorageService private storageService: IStorageService,
+		@IStorageMainService private storageService: IStorageMainService,
 		@IHistoryMainService private historyService: IHistoryMainService
 	) {
 		this.toDispose = [mainIpcServer, configurationService];
