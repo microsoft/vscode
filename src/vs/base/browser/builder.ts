@@ -437,21 +437,6 @@ export class Builder implements IDisposable {
 	}
 
 	/**
-	 *  Calls select() on the current HTML element;
-	 */
-	public domSelect(range: IRange = null): Builder {
-		let input = <HTMLInputElement>this.currentElement;
-
-		input.select();
-
-		if (range) {
-			input.setSelectionRange(range.start, range.end);
-		}
-
-		return this;
-	}
-
-	/**
 	 *  Calls blur() on the current HTML element;
 	 */
 	public domBlur(): Builder {
@@ -656,15 +641,6 @@ export class Builder implements IDisposable {
 	 */
 	public title(title: string): Builder {
 		this.currentElement.setAttribute('title', title);
-
-		return this;
-	}
-
-	/**
-	 *  Sets the name attribute to the value provided for the current HTML element of the builder.
-	 */
-	public name(name: string): Builder {
-		this.currentElement.setAttribute('name', name);
 
 		return this;
 	}
@@ -1282,15 +1258,6 @@ export class Builder implements IDisposable {
 		}
 
 		return this;
-	}
-
-	/**
-	 *  Returns a new builder with the parent element of the current element of the builder.
-	 */
-	public parent(offdom?: boolean): Builder {
-		assert.ok(!this.offdom, 'Builder was created with offdom = true and thus has no parent set');
-
-		return withElement(<HTMLElement>this.currentElement.parentNode, offdom);
 	}
 
 	/**

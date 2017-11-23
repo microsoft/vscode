@@ -306,8 +306,6 @@ suite('Builder', () => {
 		divBuilder.span({
 			innerHtml: 'see man'
 		});
-
-		assert.strictEqual(divBuilder.parent().attr('id'), 'foobar');
 	});
 
 	test('Builder.clone()', function () {
@@ -390,7 +388,6 @@ suite('Builder', () => {
 
 		// Assert HTML through DOM
 		let root = document.getElementById(fixtureId);
-		assert.strictEqual(b.parent().getHTMLElement(), root);
 		assert.strictEqual(root.childNodes.length, 1);
 
 		let div = root.childNodes[0];
@@ -551,21 +548,18 @@ suite('Builder', () => {
 
 		b.id('foobar');
 		b.title('foobar');
-		b.name('foobar');
 		b.type('foobar');
 		b.value('foobar');
 		b.tabindex(0);
 
 		assert.strictEqual(b.attr('id'), 'foobar');
 		assert.strictEqual(b.attr('title'), 'foobar');
-		assert.strictEqual(b.attr('name'), 'foobar');
 		assert.strictEqual(b.attr('type'), 'foobar');
 		assert.strictEqual(b.attr('value'), 'foobar');
 		assert.strictEqual(b.attr('tabindex'), '0');
 
 		assert.strictEqual(b.getHTMLElement().getAttribute('id'), 'foobar');
 		assert.strictEqual(b.getHTMLElement().getAttribute('title'), 'foobar');
-		assert.strictEqual(b.getHTMLElement().getAttribute('name'), 'foobar');
 		assert.strictEqual(b.getHTMLElement().getAttribute('type'), 'foobar');
 		assert.strictEqual(b.getHTMLElement().getAttribute('value'), 'foobar');
 		assert.strictEqual(b.getHTMLElement().getAttribute('tabindex'), '0');
