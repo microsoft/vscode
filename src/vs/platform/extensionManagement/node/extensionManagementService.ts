@@ -31,11 +31,22 @@ import * as semver from 'semver';
 import { groupBy, values } from 'vs/base/common/collections';
 import URI from 'vs/base/common/uri';
 import { IChoiceService, Severity } from 'vs/platform/message/common/message';
+import pkg from 'vs/platform/node/package';
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
 const INSTALL_ERROR_OBSOLETE = 'obsolete';
+const INSTALL_ERROR_INCOMPATIBLE = 'incompatible';
+const INSTALL_ERROR_DOWNLOADING = 'downloading';
+const INSTALL_ERROR_VALIDATING = 'validating';
 const INSTALL_ERROR_GALLERY = 'gallery';
 const INSTALL_ERROR_LOCAL = 'local';
+const INSTALL_ERROR_UNKNOWN = 'unknown';
+
+export class InstallationError extends Error {
+	constructor(message: string, readonly code: string) {
+		super(message);
+	}
+}
 
 function parseManifest(raw: string): TPromise<{ manifest: IExtensionManifest; metadata: IGalleryMetadata; }> {
 	return new TPromise((c, e) => {
@@ -180,27 +191,46 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	installFromGallery(extension: IGalleryExtension): TPromise<void> {
-		return this.prepareAndCollectExtensionsToInstall(extension)
-			.then(extensionsToInstall => this.downloadAndInstallExtensions(extensionsToInstall)
-				.then(local => this.onDidInstallExtensions(extensionsToInstall, local)));
-	}
-
-	private prepareAndCollectExtensionsToInstall(extension: IGalleryExtension): TPromise<IGalleryExtension[]> {
 		this.onInstallExtensions([extension]);
 		return this.collectExtensionsToInstall(extension)
 			.then(
-			extensionsToInstall => this.checkForObsolete(extensionsToInstall)
-				.then(
-				extensionsToInstall => {
-					if (extensionsToInstall.length > 1) {
-						this.onInstallExtensions(extensionsToInstall.slice(1));
-					}
-					return extensionsToInstall;
-				},
-				error => this.onDidInstallExtensions([extension], null, INSTALL_ERROR_OBSOLETE, error)
-				),
-			error => this.onDidInstallExtensions([extension], null, INSTALL_ERROR_GALLERY, error)
-			);
+			extensionsToInstall => {
+				if (extensionsToInstall.length > 1) {
+					this.onInstallExtensions(extensionsToInstall.slice(1));
+				}
+				return this.downloadAndInstallExtensions(extensionsToInstall)
+					.then(
+					local => this.onDidInstallExtensions(extensionsToInstall, local),
+					error => {
+						const errorCode = error instanceof InstallationError ? error.code : INSTALL_ERROR_UNKNOWN;
+						return this.onDidInstallExtensions(extensionsToInstall, null, errorCode, error);
+					});
+			},
+			error => {
+				const errorCode = error instanceof InstallationError ? error.code : INSTALL_ERROR_UNKNOWN;
+				return this.onDidInstallExtensions([extension], null, errorCode, error);
+			});
+	}
+
+	private collectExtensionsToInstall(extension: IGalleryExtension): TPromise<IGalleryExtension[]> {
+		return this.galleryService.loadCompatibleVersion(extension)
+			.then(compatible => {
+				if (!compatible) {
+					return TPromise.wrapError<IGalleryExtension[]>(new InstallationError(nls.localize('notFoundCopatible', "Unable to install because, the extension '{0}' compatible with current version '{1}' of VS Code is not found.", extension.identifier.id, pkg.version), INSTALL_ERROR_INCOMPATIBLE));
+				}
+				return this.getDependenciesToInstall(compatible.properties.dependencies)
+					.then(
+					dependenciesToInstall => {
+						const extensionsToInstall = [compatible, ...dependenciesToInstall.filter(d => d.identifier.uuid !== compatible.identifier.uuid)];
+						return this.checkForObsolete(extensionsToInstall)
+							.then(
+							extensionsToInstall => extensionsToInstall,
+							error => TPromise.wrapError<IGalleryExtension[]>(new InstallationError(this.joinErrors(error).message, INSTALL_ERROR_OBSOLETE))
+							);
+					},
+					error => TPromise.wrapError<IGalleryExtension[]>(new InstallationError(this.joinErrors(error).message, INSTALL_ERROR_GALLERY)));
+			},
+			error => TPromise.wrapError<IGalleryExtension[]>(new InstallationError(this.joinErrors(error).message, INSTALL_ERROR_GALLERY)));
 	}
 
 	private downloadAndInstallExtensions(extensions: IGalleryExtension[]): TPromise<ILocalExtension[]> {
@@ -208,14 +238,8 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			.then(installed => TPromise.join(extensions.map(extensionToInstall => this.downloadInstallableExtension(extensionToInstall, installed)))
 				.then(
 				installableExtensions => TPromise.join(installableExtensions.map(installableExtension => this.installExtension(installableExtension)))
-					.then(null, error => this.rollback(extensions).then(() => this.onDidInstallExtensions(extensions, null, INSTALL_ERROR_LOCAL, error))),
+					.then(null, error => this.rollback(extensions).then(() => TPromise.wrapError(error))),
 				error => this.onDidInstallExtensions(extensions, null, INSTALL_ERROR_GALLERY, error)));
-	}
-
-	private collectExtensionsToInstall(extension: IGalleryExtension): TPromise<IGalleryExtension[]> {
-		return this.galleryService.loadCompatibleVersion(extension)
-			.then(extensionToInstall => this.getDependenciesToInstall(extension.properties.dependencies)
-				.then(dependenciesToInstall => [extensionToInstall, ...dependenciesToInstall.filter(d => d.identifier.uuid !== extensionToInstall.identifier.uuid)]));
 	}
 
 	private checkForObsolete(extensionsToInstall: IGalleryExtension[]): TPromise<IGalleryExtension[]> {
@@ -231,8 +255,24 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			publisherId: extension.publisherId,
 			publisherDisplayName: extension.publisherDisplayName,
 		};
-		return this.galleryService.download(extension)
-			.then(zipPath => validateLocalExtension(zipPath).then(() => (<InstallableExtension>{ zipPath, id, metadata, current })));
+
+		return this.galleryService.loadCompatibleVersion(extension)
+			.then(
+			compatible => {
+				if (compatible) {
+					return this.galleryService.download(extension)
+						.then(
+						zipPath => validateLocalExtension(zipPath)
+							.then(
+							() => (<InstallableExtension>{ zipPath, id, metadata, current }),
+							error => TPromise.wrapError(new InstallationError(this.joinErrors(error).message, INSTALL_ERROR_VALIDATING))
+							),
+						error => TPromise.wrapError(new InstallationError(this.joinErrors(error).message, INSTALL_ERROR_DOWNLOADING)));
+				} else {
+					return TPromise.wrapError<InstallableExtension>(new InstallationError(nls.localize('notFoundCompatibleDependency', "Unable to install because, the depending extension '{0}' compatible with current version '{1}' of VS Code is not found.", extension.identifier.id, pkg.version), INSTALL_ERROR_INCOMPATIBLE));
+				}
+			},
+			error => TPromise.wrapError<InstallableExtension>(new InstallationError(this.joinErrors(error).message, INSTALL_ERROR_GALLERY)));
 	}
 
 	private rollback(extensions: IGalleryExtension[]): TPromise<void> {

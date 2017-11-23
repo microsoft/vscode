@@ -458,25 +458,29 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	}
 
 	download(extension: IGalleryExtension): TPromise<string> {
-		return this.loadCompatibleVersion(extension).then(extension => {
-			const zipPath = path.join(tmpdir(), uuid.generateUuid());
-			const data = getGalleryExtensionTelemetryData(extension);
-			const startTime = new Date().getTime();
-			/* __GDPR__
-				"galleryService:downloadVSIX" : {
-					"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-					"${include}": [
-						"${GalleryExtensionTelemetryData}"
-					]
+		return this.loadCompatibleVersion(extension)
+			.then(extension => {
+				if (!extension) {
+					return TPromise.wrapError(new Error(localize('notCompatibleDownload', "Unable to download because the extension compatible with current version '{0}' of VS Code is not found.", pkg.version)));
 				}
-			*/
-			const log = (duration: number) => this.telemetryService.publicLog('galleryService:downloadVSIX', assign(data, { duration }));
+				const zipPath = path.join(tmpdir(), uuid.generateUuid());
+				const data = getGalleryExtensionTelemetryData(extension);
+				const startTime = new Date().getTime();
+				/* __GDPR__
+					"galleryService:downloadVSIX" : {
+						"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+						"${include}": [
+							"${GalleryExtensionTelemetryData}"
+						]
+					}
+				*/
+				const log = (duration: number) => this.telemetryService.publicLog('galleryService:downloadVSIX', assign(data, { duration }));
 
-			return this.getAsset(extension.assets.download)
-				.then(context => download(zipPath, context))
-				.then(() => log(new Date().getTime() - startTime))
-				.then(() => zipPath);
-		});
+				return this.getAsset(extension.assets.download)
+					.then(context => download(zipPath, context))
+					.then(() => log(new Date().getTime() - startTime))
+					.then(() => zipPath);
+			});
 	}
 
 	getReadme(extension: IGalleryExtension): TPromise<string> {
@@ -512,22 +516,26 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			.withAssetTypes(AssetType.Manifest, AssetType.VSIX)
 			.withFilter(FilterType.ExtensionId, extension.identifier.uuid);
 
-		return this.queryGallery(query).then(({ galleryExtensions }) => {
-			const [rawExtension] = galleryExtensions;
+		return this.queryGallery(query)
+			.then(({ galleryExtensions }) => {
+				const [rawExtension] = galleryExtensions;
 
-			if (!rawExtension) {
-				return TPromise.wrapError<IGalleryExtension>(new Error(localize('notFound', "Extension not found")));
-			}
+				if (!rawExtension) {
+					return null;
+				}
 
-			return this.getLastValidExtensionVersion(rawExtension, rawExtension.versions)
-				.then(rawVersion => {
-					extension.properties.dependencies = getDependencies(rawVersion);
-					extension.properties.engine = getEngine(rawVersion);
-					extension.assets.download = getVersionAsset(rawVersion, AssetType.VSIX);
-					extension.version = rawVersion.version;
-					return extension;
-				});
-		});
+				return this.getLastValidExtensionVersion(rawExtension, rawExtension.versions)
+					.then(rawVersion => {
+						if (rawVersion) {
+							extension.properties.dependencies = getDependencies(rawVersion);
+							extension.properties.engine = getEngine(rawVersion);
+							extension.assets.download = getVersionAsset(rawVersion, AssetType.VSIX);
+							extension.version = rawVersion.version;
+							return extension;
+						}
+						return null;
+					});
+			});
 	}
 
 	private loadDependencies(extensionNames: string[]): TPromise<IGalleryExtension[]> {
@@ -665,7 +673,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 	private getLastValidExtensionVersionReccursively(extension: IRawGalleryExtension, versions: IRawGalleryExtensionVersion[]): TPromise<IRawGalleryExtensionVersion> {
 		if (!versions.length) {
-			return TPromise.wrapError<IRawGalleryExtensionVersion>(new Error(localize('noCompatible', "Couldn't find a compatible version of {0} with this version of Code.", extension.displayName || extension.extensionName)));
+			return null;
 		}
 
 		const version = versions[0];

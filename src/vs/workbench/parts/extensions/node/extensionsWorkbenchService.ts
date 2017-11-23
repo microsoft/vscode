@@ -438,7 +438,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			// Loading the compatible version only there is an engine property
 			// Otherwise falling back to old way so that we will not make many roundtrips
 			if (gallery.properties.engine) {
-				this.galleryService.loadCompatibleVersion(gallery).then(compatible => this.syncLocalWithGalleryExtension(installed, compatible));
+				this.galleryService.loadCompatibleVersion(gallery)
+					.then(compatible => compatible ? this.syncLocalWithGalleryExtension(installed, compatible) : null);
 			} else {
 				this.syncLocalWithGalleryExtension(installed, gallery);
 			}
