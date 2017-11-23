@@ -138,6 +138,7 @@ export class WindowsManager implements IWindowsMainService {
 	onWindowsCountChanged: CommonEvent<IWindowsCountChangedEvent> = this._onWindowsCountChanged.event;
 
 	constructor(
+		private machineId: string,
 		@ILogService private logService: ILogService,
 		@IStorageMainService private storageMainService: IStorageMainService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -1065,6 +1066,7 @@ export class WindowsManager implements IWindowsMainService {
 		// Build IWindowConfiguration from config and options
 		const configuration: IWindowConfiguration = mixin({}, options.cli); // inherit all properties from CLI
 		configuration.appRoot = this.environmentService.appRoot;
+		configuration.machineId = this.machineId;
 		configuration.execPath = process.execPath;
 		configuration.userEnv = assign({}, this.initialUserEnv, options.userEnv || {});
 		configuration.isInitialStartup = options.initialStartup;
