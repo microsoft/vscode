@@ -17,7 +17,7 @@ import { Scrollable, ScrollEvent, ScrollbarVisibility, INewScrollDimensions, ISc
 import { Widget } from 'vs/base/browser/ui/widget';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { ScrollbarHost, ISimplifiedMouseEvent } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
+import { ScrollbarHost } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
 import Event, { Emitter } from 'vs/base/common/event';
 
 const HIDE_TIMEOUT = 500;
@@ -45,7 +45,7 @@ class MouseWheelClassifierItem {
 
 export class MouseWheelClassifier {
 
-	public static INSTANCE = new MouseWheelClassifier();
+	public static readonly INSTANCE = new MouseWheelClassifier();
 
 	private readonly _capacity: number;
 	private _memory: MouseWheelClassifierItem[];
@@ -248,14 +248,6 @@ export abstract class AbstractScrollableElement extends Widget {
 	 */
 	public delegateVerticalScrollbarMouseDown(browserEvent: IMouseEvent): void {
 		this._verticalScrollbar.delegateMouseDown(browserEvent);
-	}
-
-	/**
-	 * Delegate a mouse down event to the vertical scrollbar (directly to the slider!).
-	 * This is to help with clicking somewhere else and having the scrollbar react.
-	 */
-	public delegateSliderMouseDown(e: ISimplifiedMouseEvent, onDragFinished: () => void): void {
-		this._verticalScrollbar.delegateSliderMouseDown(e, onDragFinished);
 	}
 
 	public getScrollDimensions(): IScrollDimensions {

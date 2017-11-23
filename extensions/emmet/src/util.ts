@@ -358,7 +358,7 @@ export function getCssPropertyFromRule(rule: Rule, name: string): Property | und
  * Returns css property under caret in given editor or `null` if such node cannot
  * be found
  */
-export function getCssPropertyFromDocument(editor: vscode.TextEditor, position: vscode.Position): Property | undefined {
+export function getCssPropertyFromDocument(editor: vscode.TextEditor, position: vscode.Position): Property | null | undefined {
 	const rootNode = parseDocument(editor.document);
 	const node = getNode(rootNode, position);
 

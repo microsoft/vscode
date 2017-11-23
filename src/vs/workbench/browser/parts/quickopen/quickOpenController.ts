@@ -25,7 +25,6 @@ import { QuickOpenEntry, QuickOpenModel, QuickOpenEntryGroup, compareEntries, Qu
 import { QuickOpenWidget, HideReason } from 'vs/base/parts/quickopen/browser/quickOpenWidget';
 import { ContributableActionProvider } from 'vs/workbench/browser/actions';
 import labels = require('vs/base/common/labels');
-import paths = require('vs/base/common/paths');
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
@@ -36,7 +35,6 @@ import { EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/
 import { Component } from 'vs/workbench/common/component';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { KeyMod } from 'vs/base/common/keyCodes';
 import { QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, EditorQuickOpenEntry, CLOSE_ON_FOCUS_LOST_CONFIG } from 'vs/workbench/browser/quickopen';
 import errors = require('vs/base/common/errors');
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -57,6 +55,7 @@ import { ITree, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { FileKind, IFileService } from 'vs/platform/files/common/files';
 import { scoreItem, ScorerCache, compareItemsByScore, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
+import { getBaseLabel } from 'vs/base/common/labels';
 
 const HELP_PREFIX = '?';
 
@@ -77,11 +76,11 @@ interface IInternalPickOptions {
 
 export class QuickOpenController extends Component implements IQuickOpenService {
 
-	private static MAX_SHORT_RESPONSE_TIME = 500;
+	private static readonly MAX_SHORT_RESPONSE_TIME = 500;
 
 	public _serviceBrand: any;
 
-	private static ID = 'workbench.component.quickopen';
+	private static readonly ID = 'workbench.component.quickopen';
 
 	private _onShow: Emitter<void>;
 	private _onHide: Emitter<void>;
@@ -1272,7 +1271,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		} else {
 			const resourceInput = input as IResourceInput;
 			this.resource = resourceInput.resource;
-			this.label = paths.basename(resourceInput.resource.fsPath);
+			this.label = getBaseLabel(resourceInput.resource);
 			this.description = labels.getPathLabel(resources.dirname(this.resource), contextService, environmentService);
 			this.dirty = this.resource && this.textFileService.isDirty(this.resource);
 
@@ -1314,8 +1313,8 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 
 	public run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
-			const sideBySide = !context.quickNavigateConfiguration && context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
-			const pinned = !this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen;
+			const sideBySide = !context.quickNavigateConfiguration && context.keymods.ctrlCmd;
+			const pinned = !this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen || context.keymods.alt;
 
 			if (this.input instanceof EditorInput) {
 				this.editorService.openEditor(this.input, { pinned }, sideBySide).done(null, errors.onUnexpectedError);
@@ -1344,8 +1343,8 @@ function resourceForEditorHistory(input: EditorInput, fileService: IFileService)
 
 export class RemoveFromEditorHistoryAction extends Action {
 
-	public static ID = 'workbench.action.removeFromEditorHistory';
-	public static LABEL = nls.localize('removeFromEditorHistory', "Remove From History");
+	public static readonly ID = 'workbench.action.removeFromEditorHistory';
+	public static readonly LABEL = nls.localize('removeFromEditorHistory', "Remove From History");
 
 	constructor(
 		id: string,

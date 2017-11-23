@@ -71,7 +71,6 @@ export class FindReplaceState implements IDisposable {
 	private _matchesCount: number;
 	private _currentMatch: Range;
 	private _onFindReplaceStateChange: Emitter<FindReplaceStateChangedEvent>;
-	// private _eventEmitter: EventEmitter;
 
 	public get searchString(): string { return this._searchString; }
 	public get replaceString(): string { return this._replaceString; }

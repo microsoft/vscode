@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/workbench/parts/files/browser/files.contribution'; // load our contribution into the test
+import 'vs/workbench/parts/files/electron-browser/files.contribution'; // load our contribution into the test
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -560,11 +560,6 @@ export class TestEditorGroupService implements IEditorGroupService {
 	public pinEditor(arg1: any, input: IEditorInput): void {
 	}
 
-	public unpinEditor(group: IEditorGroup, input: IEditorInput): void;
-	public unpinEditor(position: Position, input: IEditorInput): void;
-	public unpinEditor(arg1: any, input: IEditorInput): void {
-	}
-
 	public moveEditor(input: IEditorInput, from: IEditorGroup, to: IEditorGroup, moveOptions?: IMoveOptions): void;
 	public moveEditor(input: IEditorInput, from: Position, to: Position, moveOptions?: IMoveOptions): void;
 	public moveEditor(input: IEditorInput, from: any, to: any, moveOptions?: IMoveOptions): void {
@@ -612,10 +607,6 @@ export class TestEditorService implements IWorkbenchEditorService {
 
 	public closeAllEditors(except?: Position): TPromise<void> {
 		return TPromise.as(null);
-	}
-
-	public isVisible(input: IEditorInput, includeDiff: boolean): boolean {
-		return false;
 	}
 
 	public getActiveEditor(): IEditor {
@@ -960,18 +951,6 @@ export class TestWindowService implements IWindowService {
 	}
 
 	setDocumentEdited(flag: boolean): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-
-	isMaximized(): TPromise<boolean> {
-		return TPromise.as(void 0);
-	}
-
-	maximizeWindow(): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-
-	unmaximizeWindow(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 

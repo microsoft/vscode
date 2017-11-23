@@ -22,7 +22,7 @@ interface IStorageData {
 }
 
 class WordWrapMigrationStorage {
-	private static KEY = 'wordWrapMigration';
+	private static readonly KEY = 'wordWrapMigration';
 
 	private _storageService: IStorageService;
 	private _value: IStorageData;
@@ -56,7 +56,7 @@ class WordWrapMigrationStorage {
 
 class WordWrapMigrationController extends Disposable implements IEditorContribution {
 
-	private static ID = 'editor.contrib.wordWrapMigrationController';
+	private static readonly ID = 'editor.contrib.wordWrapMigrationController';
 	private static _checked = false;
 
 	constructor(

@@ -178,8 +178,8 @@ export class ViewPickerHandler extends QuickOpenHandler {
 
 export class OpenViewPickerAction extends QuickOpenAction {
 
-	public static ID = 'workbench.action.openView';
-	public static LABEL = nls.localize('openView', "Open View");
+	public static readonly ID = 'workbench.action.openView';
+	public static readonly LABEL = nls.localize('openView', "Open View");
 
 	constructor(
 		id: string,
@@ -192,8 +192,8 @@ export class OpenViewPickerAction extends QuickOpenAction {
 
 export class QuickOpenViewPickerAction extends Action {
 
-	public static ID = 'workbench.action.quickOpenView';
-	public static LABEL = nls.localize('quickOpenView', "Quick Open View");
+	public static readonly ID = 'workbench.action.quickOpenView';
+	public static readonly LABEL = nls.localize('quickOpenView', "Quick Open View");
 
 	constructor(
 		id: string,

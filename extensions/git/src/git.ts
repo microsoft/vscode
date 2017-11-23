@@ -131,7 +131,7 @@ function findGitWin32(onLookup: (path: string) => void): Promise<IGit> {
 }
 
 export function findGit(hint: string | undefined, onLookup: (path: string) => void): Promise<IGit> {
-	var first = hint ? findSpecificGit(hint, onLookup) : Promise.reject<IGit>(null);
+	const first = hint ? findSpecificGit(hint, onLookup) : Promise.reject<IGit>(null);
 
 	return first
 		.then(void 0, () => {

@@ -41,33 +41,6 @@ export interface IActionItem {
 	dispose(): void;
 }
 
-/**
- * Checks if the provided object is compatible
- * with the IAction interface.
- * @param thing an object
- */
-export function isAction(thing: any): thing is IAction {
-	if (!thing) {
-		return false;
-	} else if (thing instanceof Action) {
-		return true;
-	} else if (typeof thing.id !== 'string') {
-		return false;
-	} else if (typeof thing.label !== 'string') {
-		return false;
-	} else if (typeof thing.class !== 'string') {
-		return false;
-	} else if (typeof thing.enabled !== 'boolean') {
-		return false;
-	} else if (typeof thing.checked !== 'boolean') {
-		return false;
-	} else if (typeof thing.run !== 'function') {
-		return false;
-	} else {
-		return true;
-	}
-}
-
 export interface IActionChangeEvent {
 	label?: string;
 	tooltip?: string;

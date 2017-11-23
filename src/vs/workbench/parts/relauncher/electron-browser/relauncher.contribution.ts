@@ -152,10 +152,6 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		});
 	}
 
-	public getId(): string {
-		return 'workbench.relauncher';
-	}
-
 	public dispose(): void {
 		this.toDispose = dispose(this.toDispose);
 	}

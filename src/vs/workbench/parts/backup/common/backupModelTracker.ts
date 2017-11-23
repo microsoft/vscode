@@ -92,8 +92,4 @@ export class BackupModelTracker implements IWorkbenchContribution {
 	public dispose(): void {
 		this.toDispose = dispose(this.toDispose);
 	}
-
-	public getId(): string {
-		return 'vs.backup.backupModelTracker';
-	}
 }

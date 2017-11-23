@@ -30,7 +30,7 @@ const tokenGroupToScopesMap: { [setting: string]: string[] } = {
 	strings: ['string'],
 	keywords: ['keyword', 'keyword.control', 'storage', 'storage.type'],
 	numbers: ['constant.numeric'],
-	types: ['entity.name.type'],
+	types: ['entity.name.type', 'entity.name.class', 'support.type', 'support.class'],
 	functions: ['entity.name.function'],
 	variables: ['variable']
 };
@@ -112,7 +112,7 @@ export class ColorThemeData implements IColorTheme {
 		const textMateRules: ITokenColorizationRule[] = customTokenColors.textMateRules || [];
 
 		// Put the general customizations such as comments, strings, etc. first so that
-		// they can be overriden by specific customizations like "string.interpolated"
+		// they can be overridden by specific customizations like "string.interpolated"
 		this.customTokenColors = generalRules.concat(textMateRules);
 	}
 

@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as uuid from 'vs/base/common/uuid';
 import { distinct } from 'vs/base/common/arrays';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
-import { StatisticType, IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { StatisticType, IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionManifest, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId, getGalleryExtensionTelemetryData, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { assign, getOrDefault } from 'vs/base/common/objects';
 import { IRequestService } from 'vs/platform/request/node/request';
@@ -202,22 +202,23 @@ function getVersionAsset(version: IRawGalleryExtensionVersion, type: string): IG
 	const result = version.files.filter(f => f.assetType === type)[0];
 
 	if (type === AssetType.Repository) {
-		const results = version.properties.filter(p => p.key === type);
-		const gitRegExp = new RegExp('((git|ssh|http(s)?)|(git@[\w\.]+))(:(//)?)([\w\.@\:/\-~]+)(\.git)(/)?');
+		if (version.properties) {
+			const results = version.properties.filter(p => p.key === type);
+			const gitRegExp = new RegExp('((git|ssh|http(s)?)|(git@[\w\.]+))(:(//)?)([\w\.@\:/\-~]+)(\.git)(/)?');
 
-		const uri = results.filter(r => gitRegExp.test(r.value))[0];
-		if (!uri) {
+			const uri = results.filter(r => gitRegExp.test(r.value))[0];
+			if (!uri) {
+				return {
+					uri: null,
+					fallbackUri: null
+				};
+			}
+
 			return {
-				uri: null,
-				fallbackUri: null
+				uri: uri.value,
+				fallbackUri: uri.value,
 			};
 		}
-
-		return {
-			uri: uri.value,
-			fallbackUri: uri.value,
-		};
-
 	}
 
 	if (!result) {
@@ -494,9 +495,8 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			.then(asText);
 	}
 
-	getAllDependencies(extension: IGalleryExtension): TPromise<IGalleryExtension[]> {
-		return this.loadCompatibleVersion(<IGalleryExtension>extension)
-			.then(compatible => this.getDependenciesReccursively(compatible.properties.dependencies, [], extension));
+	loadAllDependencies(extensions: IExtensionIdentifier[]): TPromise<IGalleryExtension[]> {
+		return this.getDependenciesReccursively(extensions.map(e => e.id), []);
 	}
 
 	loadCompatibleVersion(extension: IGalleryExtension): TPromise<IGalleryExtension> {
@@ -558,12 +558,9 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		});
 	}
 
-	private getDependenciesReccursively(toGet: string[], result: IGalleryExtension[], root: IGalleryExtension): TPromise<IGalleryExtension[]> {
+	private getDependenciesReccursively(toGet: string[], result: IGalleryExtension[]): TPromise<IGalleryExtension[]> {
 		if (!toGet || !toGet.length) {
 			return TPromise.wrap(result);
-		}
-		if (toGet.indexOf(`${root.publisher}.${root.name}`) !== -1 && result.indexOf(root) === -1) {
-			result.push(root);
 		}
 		toGet = result.length ? toGet.filter(e => !ExtensionGalleryService.hasExtensionByName(result, e)) : toGet;
 		if (!toGet.length) {
@@ -581,7 +578,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 				result = distinct(result.concat(loadedDependencies), d => d.identifier.uuid);
 				const dependencies: string[] = [];
 				dependenciesSet.forEach(d => !ExtensionGalleryService.hasExtensionByName(result, d) && dependencies.push(d));
-				return this.getDependenciesReccursively(dependencies, result, root);
+				return this.getDependenciesReccursively(dependencies, result);
 			});
 	}
 

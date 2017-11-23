@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, TextEdit, Range, SnippetString, workspace, ProviderResult, CompletionContext, Uri, MarkdownString } from 'vscode';
+import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, TextEdit, Range, SnippetString, workspace, ProviderResult, CompletionContext, Uri, MarkdownString, window, QuickPickItem } from 'vscode';
 
 import { ITypeScriptServiceClient } from '../typescriptService';
 import TypingsStatus from '../utils/typingsStatus';
 
 import * as PConst from '../protocol.const';
 import { CompletionEntry, CompletionsRequestArgs, CompletionDetailsRequestArgs, CompletionEntryDetails, CodeAction } from '../protocol';
-import * as Previewer from './previewer';
+import * as Previewer from '../utils/previewer';
 import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
 
 import * as nls from 'vscode-nls';
@@ -134,13 +134,38 @@ class ApplyCompletionCodeActionCommand implements Command {
 		private readonly client: ITypeScriptServiceClient
 	) { }
 
-	public async execute(file: string, codeActions: CodeAction[]): Promise<boolean> {
-		for (const action of codeActions) {
-			if (!(await applyCodeAction(this.client, action, file))) {
-				return false;
-			}
+	public async execute(_file: string, codeActions: CodeAction[]): Promise<boolean> {
+		if (codeActions.length === 0) {
+			return true;
 		}
-		return true;
+
+		if (codeActions.length === 1) {
+			return applyCodeAction(this.client, codeActions[0]);
+		}
+
+		interface MyQuickPickItem extends QuickPickItem {
+			index: number;
+		}
+
+		const selection = await window.showQuickPick<MyQuickPickItem>(
+			codeActions.map((action, i): MyQuickPickItem => ({
+				label: action.description,
+				description: '',
+				index: i
+			})), {
+				placeHolder: localize('selectCodeAction', 'Select code action to apply')
+			}
+		);
+
+		if (!selection) {
+			return false;
+		}
+
+		const action = codeActions[selection.index];
+		if (!action) {
+			return false;
+		}
+		return applyCodeAction(this.client, action);
 	}
 }
 
@@ -225,10 +250,10 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		}
 
 		try {
-			const args = {
+			const args: CompletionsRequestArgs = {
 				...vsPositionToTsFileLocation(file, position),
 				includeExternalModuleExports: config.autoImportSuggestions
-			} as CompletionsRequestArgs;
+			};
 			const msg = await this.client.execute('completions', args, token);
 			// This info has to come from the tsserver. See https://github.com/Microsoft/TypeScript/issues/2831
 			// let isMemberCompletion = false;

@@ -8,10 +8,9 @@ import 'vs/css!./quickopen';
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import platform = require('vs/base/common/platform');
-import { EventType } from 'vs/base/common/events';
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
-import { IQuickNavigateConfiguration, IAutoFocus, IEntryRunContext, IModel, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
+import { IQuickNavigateConfiguration, IAutoFocus, IEntryRunContext, IModel, Mode, IKeyMods } from 'vs/base/parts/quickopen/common/quickOpen';
 import { Filter, Renderer, DataSource, IModelProvider, AccessibilityProvider } from 'vs/base/parts/quickopen/browser/quickOpenViewer';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
 import { ISelectionEvent, IFocusEvent, ITree, ContextMenuEvent, IActionProvider, ITreeStyles } from 'vs/base/parts/tree/browser/tree';
@@ -22,7 +21,7 @@ import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { DefaultController, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 import DOM = require('vs/base/browser/dom');
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { Color } from 'vs/base/common/color';
@@ -96,8 +95,8 @@ const DEFAULT_INPUT_ARIA_LABEL = nls.localize('quickOpenAriaLabel', "Quick picke
 
 export class QuickOpenWidget implements IModelProvider {
 
-	private static MAX_WIDTH = 600;				// Max total width of quick open widget
-	private static MAX_ITEMS_HEIGHT = 20 * 22;	// Max height of item list below input field
+	private static readonly MAX_WIDTH = 600;				// Max total width of quick open widget
+	private static readonly MAX_ITEMS_HEIGHT = 20 * 22;	// Max height of item list below input field
 
 	private isDisposed: boolean;
 	private options: IQuickOpenOptions;
@@ -251,11 +250,11 @@ export class QuickOpenWidget implements IModelProvider {
 				this.treeElement = this.tree.getHTMLElement();
 
 				// Handle Focus and Selection event
-				this.toUnbind.push(this.tree.addListener(EventType.FOCUS, (event: IFocusEvent) => {
+				this.toUnbind.push(this.tree.onDidChangeFocus((event: IFocusEvent) => {
 					this.elementFocused(event.focus, event);
 				}));
 
-				this.toUnbind.push(this.tree.addListener(EventType.SELECTION, (event: ISelectionEvent) => {
+				this.toUnbind.push(this.tree.onDidChangeSelection((event: ISelectionEvent) => {
 					if (event.selection && event.selection.length > 0) {
 						this.elementSelected(event.selection[0], event);
 					}
@@ -548,10 +547,11 @@ export class QuickOpenWidget implements IModelProvider {
 		}
 	}
 
-	private extractKeyMods(event: any): number[] {
-		const isCtrlCmd = event && (event.ctrlKey || event.metaKey || (event.payload && event.payload.originalEvent && (event.payload.originalEvent.ctrlKey || event.payload.originalEvent.metaKey)));
-
-		return isCtrlCmd ? [KeyMod.CtrlCmd] : [];
+	private extractKeyMods(event: any): IKeyMods {
+		return {
+			ctrlCmd: event && (event.ctrlKey || event.metaKey || (event.payload && event.payload.originalEvent && (event.payload.originalEvent.ctrlKey || event.payload.originalEvent.metaKey))),
+			alt: event && (event.altKey || (event.payload && event.payload.originalEvent && event.payload.originalEvent.altKey))
+		};
 	}
 
 	public show(prefix: string, options?: IShowOptions): void;

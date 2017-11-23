@@ -23,7 +23,7 @@ export function getCSSMode(documentRegions: LanguageModelCache<HTMLDocumentRegio
 		configure(options: any) {
 			cssLanguageService.configure(options && options.css);
 		},
-		doValidation(document: TextDocument, settings: Settings) {
+		doValidation(document: TextDocument, settings?: Settings) {
 			let embedded = embeddedCSSDocuments.get(document);
 			return cssLanguageService.doValidation(embedded, cssStylesheets.get(embedded), settings && settings.css);
 		},

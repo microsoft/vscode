@@ -7,7 +7,7 @@
 import { TPromise, ValueCallback, ErrorCallback } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
 
-export class LazyPromise {
+export class LazyPromise implements TPromise<any> {
 
 	private _onCancel: () => void;
 

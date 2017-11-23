@@ -42,7 +42,7 @@ var ignoreSelection = false;
 
 class SmartSelectController implements IEditorContribution {
 
-	private static ID = 'editor.contrib.smartSelectController';
+	private static readonly ID = 'editor.contrib.smartSelectController';
 
 	public static get(editor: ICodeEditor): SmartSelectController {
 		return editor.getContribution<SmartSelectController>(SmartSelectController.ID);

@@ -33,7 +33,7 @@ import { mnemonicButtonLabel } from 'vs/base/common/labels';
 
 export class TextFileService extends AbstractTextFileService {
 
-	private static MAX_CONFIRM_FILES = 10;
+	private static readonly MAX_CONFIRM_FILES = 10;
 
 	constructor(
 		@IWorkspaceContextService contextService: IWorkspaceContextService,

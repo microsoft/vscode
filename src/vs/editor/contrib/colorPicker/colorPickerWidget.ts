@@ -328,7 +328,7 @@ class HueStrip extends Strip {
 
 export class ColorPickerWidget extends Widget {
 
-	private static ID = 'editor.contrib.colorPickerWidget';
+	private static readonly ID = 'editor.contrib.colorPickerWidget';
 
 	body: ColorPickerBody;
 

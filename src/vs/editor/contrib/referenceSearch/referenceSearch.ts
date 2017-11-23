@@ -34,7 +34,7 @@ const defaultReferenceSearchOptions: RequestOptions = {
 
 export class ReferenceController implements editorCommon.IEditorContribution {
 
-	private static ID = 'editor.contrib.referenceController';
+	private static readonly ID = 'editor.contrib.referenceController';
 
 	constructor(
 		editor: ICodeEditor,

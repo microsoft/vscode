@@ -59,10 +59,6 @@ export class ExtensionPoints implements IWorkbenchContribution {
 		this.instantiationService.createInstance(ColorExtensionPoint);
 		this.instantiationService.createInstance(LanguageConfigurationFileHandler);
 	}
-
-	public getId(): string {
-		return 'vs.api.extensionPoints';
-	}
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ExtensionPoints, LifecyclePhase.Starting);

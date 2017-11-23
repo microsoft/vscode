@@ -77,6 +77,7 @@ export interface IEnvironmentService {
 	appKeybindingsPath: string;
 	machineUUID: string;
 	settingsSearchBuildId: number;
+	settingsSearchUrl: string;
 
 	backupHome: string;
 	backupWorkspacesPath: string;
@@ -111,6 +112,4 @@ export interface IEnvironmentService {
 	installSource: string;
 	disableUpdates: boolean;
 	disableCrashReporter: boolean;
-
-	settingsSearchUrl: string;
 }

@@ -123,7 +123,6 @@ export class TestCodeEditor extends CommonCodeEditor implements editorBrowser.IC
 	render(): void { throw new Error('Not implemented'); }
 	getTargetAtClientPoint(clientX: number, clientY: number): editorBrowser.IMouseTarget { throw new Error('Not implemented'); }
 	getScrolledVisiblePosition(position: IPosition): { top: number; left: number; height: number; } { throw new Error('Not implemented'); }
-	setAriaActiveDescendant(id: string): void { throw new Error('Not implemented'); }
 	applyFontInfo(target: HTMLElement): void { throw new Error('Not implemented'); }
 	//#endregion ICodeEditor
 }

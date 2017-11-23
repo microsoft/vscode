@@ -261,7 +261,7 @@ export class WorkbenchShell {
 		this.timerService.workbenchStarted = Date.now();
 		this.timerService.restoreEditorsDuration = info.restoreEditorsDuration;
 		this.timerService.restoreViewletDuration = info.restoreViewletDuration;
-		this.extensionService.onReady().done(() => {
+		this.extensionService.whenInstalledExtensionsRegistered().done(() => {
 			/* __GDPR__
 				"startupTime" : {
 					"${include}": [
@@ -377,7 +377,7 @@ export class WorkbenchShell {
 		serviceCollection.set(IExtensionService, this.extensionService);
 
 		this.timerService.beforeExtensionLoad = Date.now();
-		this.extensionService.onReady().done(() => {
+		this.extensionService.whenInstalledExtensionsRegistered().done(() => {
 			this.timerService.afterExtensionLoad = Date.now();
 		});
 

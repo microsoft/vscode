@@ -5,7 +5,7 @@
 
 'use strict';
 
-import chokidar = require('chokidar');
+import chokidar = require('vscode-chokidar');
 import fs = require('fs');
 
 import gracefulFs = require('graceful-fs');
@@ -22,8 +22,8 @@ import { IWatcherRequest, IWatcherService } from './watcher';
 
 export class ChokidarWatcherService implements IWatcherService {
 
-	private static FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
-	private static EVENT_SPAM_WARNING_THRESHOLD = 60 * 1000; // warn after certain time span of event spam
+	private static readonly FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
+	private static readonly EVENT_SPAM_WARNING_THRESHOLD = 60 * 1000; // warn after certain time span of event spam
 
 	private spamCheckStartTime: number;
 	private spamWarningLogged: boolean;

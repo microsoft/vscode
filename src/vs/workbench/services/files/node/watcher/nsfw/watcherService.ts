@@ -17,7 +17,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export class FileWatcher {
-	private static MAX_RESTARTS = 5;
+	private static readonly MAX_RESTARTS = 5;
 
 	private service: WatcherChannelClient;
 	private isDisposed: boolean;

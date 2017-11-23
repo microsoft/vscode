@@ -32,7 +32,7 @@ export class Memento {
 	private static globalMementos: { [id: string]: ScopedMemento } = {};
 	private static workspaceMementos: { [id: string]: ScopedMemento } = {};
 
-	private static COMMON_PREFIX = 'memento/';
+	private static readonly COMMON_PREFIX = 'memento/';
 
 	private id: string;
 

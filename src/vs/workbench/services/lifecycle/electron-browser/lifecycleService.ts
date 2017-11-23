@@ -14,7 +14,7 @@ import { ipcRenderer as ipc } from 'electron';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { mark } from 'vs/base/common/performance';
-import { Barrier } from 'vs/workbench/services/extensions/node/barrier';
+import { Barrier } from 'vs/base/common/async';
 
 export class LifecycleService implements ILifecycleService {
 

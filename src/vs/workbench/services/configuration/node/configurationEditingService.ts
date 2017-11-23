@@ -347,7 +347,7 @@ export class ConfigurationEditingService {
 			const content = JSON.stringify(value, null, insertSpaces ? strings.repeat(' ', tabSize) : '\t');
 			return [{
 				content,
-				length: content.length,
+				length: model.getValue().length,
 				offset: 0
 			}];
 		}

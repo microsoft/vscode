@@ -27,7 +27,7 @@ import { compareItemsByScore, IItemAccessor, ScorerCache, prepareQuery } from 'v
 
 export class SearchService implements IRawSearchService {
 
-	private static BATCH_SIZE = 512;
+	private static readonly BATCH_SIZE = 512;
 
 	private caches: { [cacheKey: string]: Cache; } = Object.create(null);
 
@@ -443,10 +443,10 @@ interface CacheStats {
  * If the batch isn't filled within some time, the callback is also called.
  */
 class BatchedCollector<T> {
-	private static TIMEOUT = 4000;
+	private static readonly TIMEOUT = 4000;
 
 	// After RUN_TIMEOUT_UNTIL_COUNT items have been collected, stop flushing on timeout
-	private static START_BATCH_AFTER_COUNT = 50;
+	private static readonly START_BATCH_AFTER_COUNT = 50;
 
 	private totalNumberCompleted = 0;
 	private batch: T[] = [];

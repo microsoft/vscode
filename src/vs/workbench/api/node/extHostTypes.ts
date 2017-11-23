@@ -11,6 +11,7 @@ import { illegalArgument } from 'vs/base/common/errors';
 import * as vscode from 'vscode';
 import { isMarkdownString } from 'vs/base/common/htmlContent';
 import { IRelativePattern } from 'vs/base/common/glob';
+import { relative } from 'path';
 
 export class Disposable {
 
@@ -1491,5 +1492,9 @@ export class RelativePattern implements IRelativePattern {
 
 		this.base = typeof base === 'string' ? base : base.uri.fsPath;
 		this.pattern = pattern;
+	}
+
+	public pathToRelative(from: string, to: string): string {
+		return relative(from, to);
 	}
 }

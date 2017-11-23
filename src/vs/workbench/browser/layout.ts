@@ -49,10 +49,10 @@ interface PartLayoutInfo {
  */
 export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider {
 
-	private static sashXOneWidthSettingsKey = 'workbench.sidebar.width';
-	private static sashXTwoWidthSettingsKey = 'workbench.panel.width';
-	private static sashYHeightSettingsKey = 'workbench.panel.height';
-	private static panelSizeBeforeMaximizedKey = 'workbench.panel.sizeBeforeMaximized';
+	private static readonly sashXOneWidthSettingsKey = 'workbench.sidebar.width';
+	private static readonly sashXTwoWidthSettingsKey = 'workbench.panel.width';
+	private static readonly sashYHeightSettingsKey = 'workbench.panel.height';
+	private static readonly panelSizeBeforeMaximizedKey = 'workbench.panel.sizeBeforeMaximized';
 
 	private parent: Builder;
 	private workbenchContainer: Builder;

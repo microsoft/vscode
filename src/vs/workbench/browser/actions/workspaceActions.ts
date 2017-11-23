@@ -366,8 +366,8 @@ export class OpenWorkspaceAction extends Action {
 
 export class OpenWorkspaceConfigFileAction extends Action {
 
-	public static ID = 'workbench.action.openWorkspaceConfigFile';
-	public static LABEL = nls.localize('openWorkspaceConfigFile', "Open Workspace Configuration File");
+	public static readonly ID = 'workbench.action.openWorkspaceConfigFile';
+	public static readonly LABEL = nls.localize('openWorkspaceConfigFile', "Open Workspace Configuration File");
 
 	constructor(
 		id: string,
@@ -387,8 +387,8 @@ export class OpenWorkspaceConfigFileAction extends Action {
 
 export class OpenFolderAsWorkspaceInNewWindowAction extends Action {
 
-	public static ID = 'workbench.action.openFolderAsWorkspaceInNewWindow';
-	public static LABEL = nls.localize('openFolderAsWorkspaceInNewWindow', "Open Folder as Workspace in New Window");
+	public static readonly ID = 'workbench.action.openFolderAsWorkspaceInNewWindow';
+	public static readonly LABEL = nls.localize('openFolderAsWorkspaceInNewWindow', "Open Folder as Workspace in New Window");
 
 	constructor(
 		id: string,

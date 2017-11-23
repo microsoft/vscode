@@ -116,12 +116,6 @@ export interface IEditorGroupService {
 	pinEditor(position: Position, input: IEditorInput): void;
 
 	/**
-	 * Removes the pinned state of an editor making it a preview editor.
-	 */
-	unpinEditor(group: IEditorGroup, input: IEditorInput): void;
-	unpinEditor(position: Position, input: IEditorInput): void;
-
-	/**
 	 * Moves an editor from one group to another. The index in the group is optional.
 	 * The inactive option is applied when moving across groups.
 	 */

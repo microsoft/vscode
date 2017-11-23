@@ -89,10 +89,6 @@ class NPSContribution implements IWorkbenchContribution {
 
 		messageService.show(Severity.Info, { message, actions });
 	}
-
-	getId(): string {
-		return 'nps';
-	}
 }
 
 if (language === 'en' && product.npsSurveyUrl) {

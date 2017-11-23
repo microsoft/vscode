@@ -240,11 +240,10 @@ suite('ConfigurationEditingService', () => {
 	});
 
 	test('write workspace standalone setting - existing file - full JSON', () => {
-		const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['launch']);
+		const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['tasks']);
 		fs.writeFileSync(target, '{ "my.super.setting": "my.super.value" }');
 		return testObject.writeConfiguration(ConfigurationTarget.WORKSPACE, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } })
 			.then(() => {
-				const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['tasks']);
 				const contents = fs.readFileSync(target).toString('utf8');
 				const parsed = json.parse(contents);
 
@@ -254,16 +253,36 @@ suite('ConfigurationEditingService', () => {
 	});
 
 	test('write workspace standalone setting - existing file with JSON errors - full JSON', () => {
-		const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['launch']);
+		const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['tasks']);
 		fs.writeFileSync(target, '{ "my.super.setting": '); // invalid JSON
 		return testObject.writeConfiguration(ConfigurationTarget.WORKSPACE, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask' }] } })
 			.then(() => {
-				const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['tasks']);
 				const contents = fs.readFileSync(target).toString('utf8');
 				const parsed = json.parse(contents);
 
 				assert.equal(parsed['version'], '1.0.0');
 				assert.equal(parsed['tasks'][0]['taskName'], 'myTask');
+			});
+	});
+
+	test('write workspace standalone setting should replace complete file', () => {
+		const target = path.join(workspaceDir, WORKSPACE_STANDALONE_CONFIGURATIONS['tasks']);
+		fs.writeFileSync(target, `{
+			"version": "1.0.0",
+			"tasks": [
+				{
+					"taskName": "myTask1"
+				},
+				{
+					"taskName": "myTask2"
+				}
+			]
+		}`);
+		return testObject.writeConfiguration(ConfigurationTarget.WORKSPACE, { key: 'tasks', value: { 'version': '1.0.0', tasks: [{ 'taskName': 'myTask1' }] } })
+			.then(() => {
+				const actual = fs.readFileSync(target).toString('utf8');
+				const expected = JSON.stringify({ 'version': '1.0.0', tasks: [{ 'taskName': 'myTask1' }] }, null, '\t');
+				assert.equal(actual, expected);
 			});
 	});
 });

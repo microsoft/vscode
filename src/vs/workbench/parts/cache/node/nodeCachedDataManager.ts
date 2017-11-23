@@ -22,10 +22,6 @@ export class NodeCachedDataManager implements IWorkbenchContribution {
 		this._handleCachedDataInfo();
 	}
 
-	public getId(): string {
-		return 'vs.cache.nodeCachedDataManager';
-	}
-
 	private _handleCachedDataInfo(): void {
 
 		let didRejectCachedData = false;

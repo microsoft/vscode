@@ -28,7 +28,7 @@ enum WinSpawnType {
 export class WinTerminalService implements ITerminalService {
 	public _serviceBrand: any;
 
-	private static CMD = 'cmd.exe';
+	private static readonly CMD = 'cmd.exe';
 
 	constructor(
 		@IConfigurationService private _configurationService: IConfigurationService
@@ -114,7 +114,7 @@ export class WinTerminalService implements ITerminalService {
 export class MacTerminalService implements ITerminalService {
 	public _serviceBrand: any;
 
-	private static OSASCRIPT = '/usr/bin/osascript';	// osascript is the AppleScript interpreter on OS X
+	private static readonly OSASCRIPT = '/usr/bin/osascript';	// osascript is the AppleScript interpreter on OS X
 
 	constructor(
 		@IConfigurationService private _configurationService: IConfigurationService
@@ -199,7 +199,7 @@ export class MacTerminalService implements ITerminalService {
 export class LinuxTerminalService implements ITerminalService {
 	public _serviceBrand: any;
 
-	private static WAIT_MESSAGE = nls.localize('press.any.key', "Press any key to continue...");
+	private static readonly WAIT_MESSAGE = nls.localize('press.any.key', "Press any key to continue...");
 
 	constructor(
 		@IConfigurationService private _configurationService: IConfigurationService

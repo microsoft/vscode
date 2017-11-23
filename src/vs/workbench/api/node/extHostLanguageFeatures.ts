@@ -422,7 +422,9 @@ class NavigateTypeAdapter {
 				}
 			}
 		}).then(() => {
-			this._resultCache[result._id] = [result.symbols[0]._id, result.symbols[result.symbols.length - 1]._id];
+			if (result.symbols.length > 0) {
+				this._resultCache[result._id] = [result.symbols[0]._id, result.symbols[result.symbols.length - 1]._id];
+			}
 			return result;
 		});
 	}

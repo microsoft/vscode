@@ -24,7 +24,7 @@ const $ = dom.$;
 
 export class StartDebugActionItem implements IActionItem {
 
-	private static SEPARATOR = '─────────';
+	private static readonly SEPARATOR = '─────────';
 
 	public actionRunner: IActionRunner;
 	private container: HTMLElement;

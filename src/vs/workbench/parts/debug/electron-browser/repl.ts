@@ -66,12 +66,12 @@ export interface IPrivateReplService {
 export class Repl extends Panel implements IPrivateReplService {
 	public _serviceBrand: any;
 
-	private static HALF_WIDTH_TYPICAL = 'n';
+	private static readonly HALF_WIDTH_TYPICAL = 'n';
 
 	private static HISTORY: ReplHistory;
-	private static REFRESH_DELAY = 500; // delay in ms to refresh the repl for new elements to show
-	private static REPL_INPUT_INITIAL_HEIGHT = 19;
-	private static REPL_INPUT_MAX_HEIGHT = 170;
+	private static readonly REFRESH_DELAY = 500; // delay in ms to refresh the repl for new elements to show
+	private static readonly REPL_INPUT_INITIAL_HEIGHT = 19;
+	private static readonly REPL_INPUT_MAX_HEIGHT = 170;
 
 	private tree: ITree;
 	private renderer: ReplExpressionsRenderer;

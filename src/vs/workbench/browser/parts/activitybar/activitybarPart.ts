@@ -33,7 +33,7 @@ import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/composit
 export class ActivitybarPart extends Part {
 
 	private static readonly PINNED_VIEWLETS = 'workbench.activity.pinnedViewlets';
-	private static COLORS = {
+	private static readonly COLORS = {
 		backgroundColor: ACTIVITY_BAR_FOREGROUND,
 		badgeBackground: ACTIVITY_BAR_BADGE_BACKGROUND,
 		badgeForeground: ACTIVITY_BAR_BADGE_FOREGROUND,

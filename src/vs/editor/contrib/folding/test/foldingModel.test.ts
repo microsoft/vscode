@@ -5,13 +5,16 @@
 'use strict';
 
 import * as assert from 'assert';
-import { FoldingModel, FoldingRegion, setCollapseStateAtLevel, setCollapseStateLevelsDown, setCollapseStateLevelsUp } from 'vs/editor/contrib/folding/foldingModel';
+import { FoldingModel, setCollapseStateAtLevel, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateForMatchingLines } from 'vs/editor/contrib/folding/foldingModel';
 import { Model } from 'vs/editor/common/model/model';
 import { computeRanges } from 'vs/editor/contrib/folding/indentRangeProvider';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import { TrackedRangeStickiness, IModelDeltaDecoration, IModel, IModelDecorationsChangeAccessor } from 'vs/editor/common/editorCommon';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { FoldingRegion } from 'vs/editor/contrib/folding/foldingRanges';
+import { escapeRegExpCharacters } from 'vs/base/common/strings';
 
 
 interface ExpectedRegion {
@@ -196,6 +199,48 @@ suite('Folding Model', () => {
 			foldingModel.update(computeRanges(textModel, false, null));
 
 			assertRanges(foldingModel, [r(1, 3, true), r(5, 8, false), r(6, 7, true)]);
+		} finally {
+			textModel.dispose();
+		}
+	});
+
+	test('delete', () => {
+		let lines = [
+		/* 1*/	'function foo() {',
+		/* 2*/	'  switch (x) {',
+		/* 3*/	'    case 1:',
+		/* 4*/	'      //hello1',
+		/* 5*/	'      break;',
+		/* 6*/	'    case 2:',
+		/* 7*/	'      //hello2',
+		/* 8*/	'      break;',
+		/* 9*/	'    case 3:',
+		/* 10*/	'      //hello3',
+		/* 11*/	'      break;',
+		/* 12*/	'  }',
+		/* 13*/	'}'];
+
+		let textModel = Model.createFromString(lines.join('\n'));
+		try {
+			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+
+			let ranges = computeRanges(textModel, false, null);
+			foldingModel.update(ranges);
+
+			let r1 = r(1, 12, false);
+			let r2 = r(2, 11, false);
+			let r3 = r(3, 5, false);
+			let r4 = r(6, 8, false);
+			let r5 = r(9, 11, false);
+
+			assertRanges(foldingModel, [r1, r2, r3, r4, r5]);
+			foldingModel.toggleCollapseState([foldingModel.getRegionAtLine(6)]);
+
+			textModel.applyEdits([EditOperation.delete(new Range(6, 11, 9, 0))]);
+
+			foldingModel.update(computeRanges(textModel, false, null));
+
+			assertRanges(foldingModel, [r(1, 9, false), r(2, 8, false), r(3, 5, false), r(6, 8, false)]);
 		} finally {
 			textModel.dispose();
 		}
@@ -539,6 +584,46 @@ suite('Folding Model', () => {
 
 			setCollapseStateLevelsUp(foldingModel, true, 2, [10]);
 			assertFoldedRanges(foldingModel, [r3, r5], '4');
+		} finally {
+			textModel.dispose();
+		}
+
+	});
+
+
+	test('setCollapseStateForMatchingLines', () => {
+		let lines = [
+		/* 1*/	'/**',
+		/* 2*/	' * the class',
+		/* 3*/	' */',
+		/* 4*/	'class A {',
+		/* 5*/	'  /**',
+		/* 6*/	'   * the foo',
+		/* 7*/	'   */',
+		/* 8*/	'  void foo() {',
+		/* 9*/	'    /*',
+		/* 10*/	'     * the comment',
+		/* 11*/	'     */',
+		/* 12*/	'  }',
+		/* 13*/	'}'];
+
+		let textModel = Model.createFromString(lines.join('\n'));
+		try {
+			let foldingModel = new FoldingModel(textModel, new TestDecorationProvider(textModel));
+
+			let ranges = computeRanges(textModel, false, { start: /^\/\/#region$/, end: /^\/\/#endregion$/ });
+			foldingModel.update(ranges);
+
+			let r1 = r(1, 3, false);
+			let r2 = r(4, 12, false);
+			let r3 = r(5, 7, false);
+			let r4 = r(8, 11, false);
+			let r5 = r(9, 11, false);
+			assertRanges(foldingModel, [r1, r2, r3, r4, r5]);
+
+			let regExp = new RegExp('^\\s*' + escapeRegExpCharacters('/*'));
+			setCollapseStateForMatchingLines(foldingModel, regExp, true);
+			assertFoldedRanges(foldingModel, [r1, r3, r5], '1');
 		} finally {
 			textModel.dispose();
 		}

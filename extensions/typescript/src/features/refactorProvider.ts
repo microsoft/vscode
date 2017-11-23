@@ -131,6 +131,10 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 			return [];
 		}
 
+		if (editor.selection.isEmpty) {
+			return [];
+		}
+
 		const range = editor.selection;
 		const args: Proto.GetApplicableRefactorsRequestArgs = vsRangeToTsFileRange(file, range);
 		try {

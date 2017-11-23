@@ -15,7 +15,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { CursorColumns, CursorConfiguration, EditOperationResult, CursorContext, CursorState, RevealTarget, IColumnSelectData, ICursors, EditOperationType } from 'vs/editor/common/controller/cursorCommon';
 import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
-import { TextModelEventType, ModelRawContentChangedEvent, RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
+import { RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
@@ -113,28 +113,12 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		this._columnSelectData = null;
 		this._prevEditOperationType = EditOperationType.Other;
 
-		this._register(this._model.addBulkListener((events) => {
+		this._register(this._model.onDidChangeRawContent((e) => {
 			if (this._isHandling) {
 				return;
 			}
 
-			let hadContentChange = false;
-			let hadFlushEvent = false;
-			for (let i = 0, len = events.length; i < len; i++) {
-				const event = events[i];
-				const eventType = event.type;
-
-				if (eventType === TextModelEventType.ModelRawContentChanged2) {
-					hadContentChange = true;
-					const rawChangeEvent = <ModelRawContentChangedEvent>event.data;
-					hadFlushEvent = hadFlushEvent || rawChangeEvent.containsEvent(RawContentChangedType.Flush);
-				}
-			}
-
-			if (!hadContentChange) {
-				return;
-			}
-
+			let hadFlushEvent = e.containsEvent(RawContentChangedType.Flush);
 			this._onModelContentChanged(hadFlushEvent);
 		}));
 

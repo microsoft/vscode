@@ -205,10 +205,6 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		return propertyKeys;
 	}
 
-	validateProperty(property: string): boolean {
-		return !OVERRIDE_PROPERTY_PATTERN.test(property) && this.getConfigurationProperties()[property] !== void 0;
-	}
-
 	getConfigurations(): IConfigurationNode[] {
 		return this.configurationContributors;
 	}

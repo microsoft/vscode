@@ -176,7 +176,7 @@ class ToggleWordWrapAction extends EditorAction {
 
 class ToggleWordWrapController extends Disposable implements IEditorContribution {
 
-	private static _ID = 'editor.contrib.toggleWordWrapController';
+	private static readonly _ID = 'editor.contrib.toggleWordWrapController';
 
 	constructor(
 		private readonly editor: ICodeEditor,

@@ -15,10 +15,9 @@
   "main": "./client/out/htmlMain",
   "scripts": {
     "compile": "gulp compile-extension:html-client && gulp compile-extension:html-server",
-    "postinstall": "cd server && npm install",
+    "postinstall": "cd server && yarn install",
     "update-grammar": "node ../../build/npm/update-grammar.js textmate/html.tmbundle Syntaxes/HTML.plist ./syntaxes/html.json",
-    "install-client-next": "npm install vscode-languageclient@next -f -S",
-    "install-client-local": "npm install ../../../vscode-languageserver-node/client -f -S"
+    "install-client-next": "yarn add vscode-languageclient@next"
   },
   "contributes": {
     "languages": [

@@ -43,7 +43,7 @@ export interface LanguageMode {
 	findDocumentLinks?: (document: TextDocument, documentContext: DocumentContext) => DocumentLink[];
 	findDefinition?: (document: TextDocument, position: Position) => Definition | null;
 	findReferences?: (document: TextDocument, position: Position) => Location[];
-	format?: (document: TextDocument, range: Range, options: FormattingOptions, settings: Settings) => TextEdit[];
+	format?: (document: TextDocument, range: Range, options: FormattingOptions, settings?: Settings) => TextEdit[];
 	findDocumentColors?: (document: TextDocument) => ColorInformation[];
 	getColorPresentations?: (document: TextDocument, color: Color, range: Range) => ColorPresentation[];
 	doAutoClose?: (document: TextDocument, position: Position) => string | null;
@@ -62,7 +62,7 @@ export interface LanguageModes {
 }
 
 export interface LanguageModeRange extends Range {
-	mode: LanguageMode;
+	mode: LanguageMode | undefined;
 	attributeValue?: boolean;
 }
 
@@ -92,10 +92,10 @@ export function getLanguageModes(supportedLanguages: { [languageId: string]: boo
 		},
 		getModesInRange(document: TextDocument, range: Range): LanguageModeRange[] {
 			return documentRegions.get(document).getLanguageRanges(range).map(r => {
-				return {
+				return <LanguageModeRange>{
 					start: r.start,
 					end: r.end,
-					mode: modes[r.languageId],
+					mode: r.languageId && modes[r.languageId],
 					attributeValue: r.attributeValue
 				};
 			});

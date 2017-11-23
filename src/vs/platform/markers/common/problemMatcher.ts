@@ -406,14 +406,6 @@ class MultiLineMatcher extends AbstractLineMatcher {
 }
 
 export namespace Config {
-	/**
-	* Defines possible problem severity values
-	*/
-	export namespace ProblemSeverity {
-		export const Error: string = 'error';
-		export const Warning: string = 'warning';
-		export const Info: string = 'info';
-	}
 
 	export interface ProblemPattern {
 
@@ -955,7 +947,6 @@ let problemPatternExtPoint = ExtensionsRegistry.registerExtensionPoint<Config.Na
 export interface IProblemPatternRegistry {
 	onReady(): TPromise<void>;
 
-	exists(key: string): boolean;
 	get(key: string): ProblemPattern | MultiLineProblemPattern;
 }
 
@@ -1014,14 +1005,6 @@ class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 
 	public get(key: string): ProblemPattern | ProblemPattern[] {
 		return this.patterns[key];
-	}
-
-	public exists(key: string): boolean {
-		return !!this.patterns[key];
-	}
-
-	public remove(key: string): void {
-		delete this.patterns[key];
 	}
 
 	private fillDefaults(): void {
@@ -1508,9 +1491,7 @@ let problemMatchersExtPoint = ExtensionsRegistry.registerExtensionPoint<Config.N
 
 export interface IProblemMatcherRegistry {
 	onReady(): TPromise<void>;
-	exists(name: string): boolean;
 	get(name: string): NamedProblemMatcher;
-	values(): NamedProblemMatcher[];
 	keys(): string[];
 }
 
@@ -1547,6 +1528,7 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 	}
 
 	public onReady(): TPromise<void> {
+		ProblemPatternRegistry.onReady();
 		return this.readyPromise;
 	}
 
@@ -1558,20 +1540,8 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 		return this.matchers[name];
 	}
 
-	public exists(name: string): boolean {
-		return !!this.matchers[name];
-	}
-
-	public remove(name: string): void {
-		delete this.matchers[name];
-	}
-
 	public keys(): string[] {
 		return Object.keys(this.matchers);
-	}
-
-	public values(): NamedProblemMatcher[] {
-		return Object.keys(this.matchers).map(key => this.matchers[key]);
 	}
 
 	private fillDefaults(): void {

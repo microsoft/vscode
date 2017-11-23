@@ -21,7 +21,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDeco
 
 export class DragAndDropController implements editorCommon.IEditorContribution {
 
-	private static ID = 'editor.contrib.dragAndDrop';
+	private static readonly ID = 'editor.contrib.dragAndDrop';
 
 	private _editor: ICodeEditor;
 	private _toUnhook: IDisposable[];
@@ -161,7 +161,7 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 		this._mouseDown = false;
 	}
 
-	private static _DECORATION_OPTIONS = ModelDecorationOptions.register({
+	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({
 		className: 'dnd-target'
 	});
 

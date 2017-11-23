@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { toObject, assign, getOrDefault } from 'vs/base/common/objects';
+import { assign, getOrDefault } from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Gesture, EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import * as DOM from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollEvent, ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { RangeMap, IRange, relativeComplement, each } from './rangeMap';
+import { RangeMap, IRange, relativeComplement, intersect, shift } from './rangeMap';
 import { IDelegate, IRenderer } from './list';
 import { RowCache, IRow } from './rowCache';
 import { isWindows } from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
+import { ISpliceable } from 'vs/base/common/sequence';
 
 function canUseTranslate3d(): boolean {
 	if (browser.isFirefox) {
@@ -66,13 +67,13 @@ const DefaultOptions: IListViewOptions = {
 	useShadows: true
 };
 
-export class ListView<T> implements IDisposable {
+export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	private items: IItem<T>[];
 	private itemId: number;
 	private rangeMap: RangeMap;
 	private cache: RowCache<T>;
-	private renderers: { [templateId: string]: IRenderer<T, any>; };
+	private renderers = new Map<string, IRenderer<T, any>>();
 	private lastRenderTop: number;
 	private lastRenderHeight: number;
 	private _domNode: HTMLElement;
@@ -90,7 +91,11 @@ export class ListView<T> implements IDisposable {
 		this.items = [];
 		this.itemId = 0;
 		this.rangeMap = new RangeMap();
-		this.renderers = toObject<IRenderer<T, any>>(renderers, r => r.templateId);
+
+		for (const renderer of renderers) {
+			this.renderers.set(renderer.templateId, renderer);
+		}
+
 		this.cache = new RowCache(this.renderers);
 
 		this.lastRenderTop = 0;
@@ -101,7 +106,7 @@ export class ListView<T> implements IDisposable {
 
 		this.rowsContainer = document.createElement('div');
 		this.rowsContainer.className = 'monaco-list-rows';
-		this.gesture = new Gesture(this.rowsContainer);
+		Gesture.addTarget(this.rowsContainer);
 
 		this.scrollableElement = new ScrollableElement(this.rowsContainer, {
 			alwaysConsumeMouseWheel: true,
@@ -127,7 +132,16 @@ export class ListView<T> implements IDisposable {
 
 	splice(start: number, deleteCount: number, elements: T[] = []): T[] {
 		const previousRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
-		each(previousRenderRange, i => this.removeItemFromDOM(this.items[i]));
+		const deleteRange = { start, end: start + deleteCount };
+		const removeRange = intersect(previousRenderRange, deleteRange);
+
+		for (let i = removeRange.start; i < removeRange.end; i++) {
+			this.removeItemFromDOM(this.items[i]);
+		}
+
+		const previousRestRange: IRange = { start: start + deleteCount, end: this.items.length };
+		const previousRenderedRestRange = intersect(previousRestRange, previousRenderRange);
+		const previousUnrenderedRestRanges = relativeComplement(previousRestRange, previousRenderRange);
 
 		const inserted = elements.map<IItem<T>>(element => ({
 			id: String(this.itemId++),
@@ -138,11 +152,38 @@ export class ListView<T> implements IDisposable {
 		}));
 
 		this.rangeMap.splice(start, deleteCount, ...inserted);
-
 		const deleted = this.items.splice(start, deleteCount, ...inserted);
 
+		const delta = elements.length - deleteCount;
 		const renderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
-		each(renderRange, i => this.insertItemInDOM(this.items[i], i));
+		const renderedRestRange = shift(previousRenderedRestRange, delta);
+		const updateRange = intersect(renderRange, renderedRestRange);
+
+		for (let i = updateRange.start; i < updateRange.end; i++) {
+			this.updateItemInDOM(this.items[i], i);
+		}
+
+		const removeRanges = relativeComplement(renderedRestRange, renderRange);
+
+		for (let r = 0; r < removeRanges.length; r++) {
+			const removeRange = removeRanges[r];
+
+			for (let i = removeRange.start; i < removeRange.end; i++) {
+				this.removeItemFromDOM(this.items[i]);
+			}
+		}
+
+		const unrenderedRestRanges = previousUnrenderedRestRanges.map(r => shift(r, delta));
+		const elementsRange = { start, end: start + elements.length };
+		const insertRanges = [elementsRange, ...unrenderedRestRanges].map(r => intersect(renderRange, r));
+
+		for (let r = 0; r < insertRanges.length; r++) {
+			const insertRange = insertRanges[r];
+
+			for (let i = insertRange.start; i < insertRange.end; i++) {
+				this.insertItemInDOM(this.items[i], i);
+			}
+		}
 
 		const scrollHeight = this.getContentHeight();
 		this.rowsContainer.style.height = `${scrollHeight}px`;
@@ -200,8 +241,17 @@ export class ListView<T> implements IDisposable {
 		const rangesToInsert = relativeComplement(renderRange, previousRenderRange);
 		const rangesToRemove = relativeComplement(previousRenderRange, renderRange);
 
-		rangesToInsert.forEach(range => each(range, i => this.insertItemInDOM(this.items[i], i)));
-		rangesToRemove.forEach(range => each(range, i => this.removeItemFromDOM(this.items[i])));
+		for (const range of rangesToInsert) {
+			for (let i = range.start; i < range.end; i++) {
+				this.insertItemInDOM(this.items[i], i);
+			}
+		}
+
+		for (const range of rangesToRemove) {
+			for (let i = range.start; i < range.end; i++) {
+				this.removeItemFromDOM(this.items[i], );
+			}
+		}
 
 		if (canUseTranslate3d() && !isWindows /* Windows: translate3d breaks subpixel-antialias (ClearType) unless a background is defined */) {
 			const transform = `translate3d(0px, -${renderTop}px, 0px)`;
@@ -226,11 +276,16 @@ export class ListView<T> implements IDisposable {
 			this.rowsContainer.appendChild(item.row.domNode);
 		}
 
-		const renderer = this.renderers[item.templateId];
+		const renderer = this.renderers.get(item.templateId);
 		item.row.domNode.style.top = `${this.elementTop(index)}px`;
 		item.row.domNode.style.height = `${item.size}px`;
 		item.row.domNode.setAttribute('data-index', `${index}`);
 		renderer.renderElement(item.element, index, item.row.templateData);
+	}
+
+	private updateItemInDOM(item: IItem<T>, index: number): void {
+		item.row.domNode.style.top = `${this.elementTop(index)}px`;
+		item.row.domNode.setAttribute('data-index', `${index}`);
 	}
 
 	private removeItemFromDOM(item: IItem<T>): void {

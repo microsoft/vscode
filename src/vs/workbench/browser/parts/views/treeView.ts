@@ -100,7 +100,7 @@ export class TreeView extends ViewsViewletPanel {
 
 		this.disposables.push(attachListStyler(tree, this.themeService));
 		this.disposables.push(this.listService.register(tree, [this.viewFocusContext]));
-		tree.addListener('selection', (event: any) => this.onSelection());
+		this.disposables.push(tree.onDidChangeSelection(() => this.onSelection()));
 		return tree;
 	}
 
@@ -255,8 +255,8 @@ interface ITreeExplorerTemplateData {
 
 class TreeRenderer implements IRenderer {
 
-	private static ITEM_HEIGHT = 22;
-	private static TREE_TEMPLATE_ID = 'treeExplorer';
+	private static readonly ITEM_HEIGHT = 22;
+	private static readonly TREE_TEMPLATE_ID = 'treeExplorer';
 
 	constructor( @IThemeService private themeService: IThemeService) {
 	}

@@ -19,7 +19,7 @@ export interface IQuickOpenEditorWidgetOptions {
 
 export class QuickOpenEditorWidget implements IOverlayWidget {
 
-	private static ID = 'editor.contrib.quickOpenEditorWidget';
+	private static readonly ID = 'editor.contrib.quickOpenEditorWidget';
 
 	private codeEditor: ICodeEditor;
 	private themeService: IThemeService;

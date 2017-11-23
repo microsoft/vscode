@@ -342,7 +342,7 @@ export abstract class BaseEditorSimpleWorker {
 
 	// ---- BEGIN minimal edits ---------------------------------------------------------------
 
-	private static _diffLimit = 10000;
+	private static readonly _diffLimit = 10000;
 
 	public computeMoreMinimalEdits(modelUrl: string, edits: TextEdit[]): TPromise<TextEdit[]> {
 		const model = this._getModel(modelUrl);
@@ -517,7 +517,7 @@ export abstract class BaseEditorSimpleWorker {
  * @internal
  */
 export class EditorSimpleWorkerImpl extends BaseEditorSimpleWorker implements IRequestHandler, IDisposable {
-	_requestHandlerTrait: any;
+	_requestHandlerBrand: any;
 
 	private _models: { [uri: string]: MirrorModel; };
 

@@ -10,7 +10,6 @@ import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
 import { IEntryRunContext, Mode, IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import { KeyMod } from 'vs/base/common/keyCodes';
 import { QuickOpenHandler, EditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import { IEditor, IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecoration, IEditorViewState, ITextModel, IDiffEditorModel, ScrollType } from 'vs/editor/common/editorCommon';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -26,8 +25,8 @@ export const GOTO_LINE_PREFIX = ':';
 
 export class GotoLineAction extends QuickOpenAction {
 
-	public static ID = 'workbench.action.gotoLine';
-	public static LABEL = nls.localize('gotoLine', "Go to Line...");
+	public static readonly ID = 'workbench.action.gotoLine';
+	public static readonly LABEL = nls.localize('gotoLine', "Go to Line...");
 
 	constructor(actionId: string, actionLabel: string,
 		@IQuickOpenService private readonly _quickOpenService: IQuickOpenService,
@@ -131,9 +130,10 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 		return this.editorService.getActiveEditorInput();
 	}
 
-	public getOptions(): ITextEditorOptions {
+	public getOptions(pinned?: boolean): ITextEditorOptions {
 		return {
-			selection: this.toSelection()
+			selection: this.toSelection(),
+			pinned
 		};
 	}
 
@@ -145,9 +145,9 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 		}
 
 		// Check for sideBySide use
-		const sideBySide = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
+		const sideBySide = context.keymods.ctrlCmd;
 		if (sideBySide) {
-			this.editorService.openEditor(this.getInput(), this.getOptions(), true).done(null, errors.onUnexpectedError);
+			this.editorService.openEditor(this.getInput(), this.getOptions(context.keymods.alt), true).done(null, errors.onUnexpectedError);
 		}
 
 		// Apply selection and focus

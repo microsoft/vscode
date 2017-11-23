@@ -587,10 +587,6 @@ declare module monaco {
 		 */
 		getStartPosition(): Position;
 		/**
-		 * Clone this range.
-		 */
-		cloneRange(): Range;
-		/**
 		 * Transform to a user presentable string representation.
 		 */
 		toString(): string;
@@ -2018,10 +2014,6 @@ declare module monaco.editor {
 		 * Returns true if this editor has keyboard focus (e.g. cursor is blinking).
 		 */
 		isFocused(): boolean;
-		/**
-		 * Returns all actions associated with this editor.
-		 */
-		getActions(): IEditorAction[];
 		/**
 		 * Returns all actions associated with this editor.
 		 */
@@ -3889,13 +3881,6 @@ declare module monaco.editor {
 		 * If the diff computation is not finished or the model is missing, will return null.
 		 */
 		getDiffLineInformationForModified(lineNumber: number): IDiffLineInformation;
-		/**
-		 * @see ICodeEditor.getValue
-		 */
-		getValue(options?: {
-			preserveBOM: boolean;
-			lineEnding: string;
-		}): string;
 	}
 
 	export class FontInfo extends BareFontInfo {

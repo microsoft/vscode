@@ -14,7 +14,7 @@ import { isPromiseCanceledError, create as createError } from 'vs/base/common/er
 import Severity from 'vs/base/common/severity';
 import { PagedModel, IPagedModel, mergePagers, IPager } from 'vs/base/common/paging';
 import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
-import { SortBy, SortOrder, IQueryOptions, LocalExtensionType, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { SortBy, SortOrder, IQueryOptions, LocalExtensionType, IExtensionTipsService, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -220,7 +220,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 			const result = local
 				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
 				.filter(e => e.type === LocalExtensionType.User &&
-					!(e.disabledForWorkspace || e.disabledGlobally) &&
+					(e.enablementState === EnablementState.Enabled || e.enablementState === EnablementState.WorkspaceEnabled) &&
 					e.name.toLowerCase().indexOf(value) > -1
 				);
 

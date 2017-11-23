@@ -219,10 +219,6 @@ export class InputBox extends Widget {
 		}
 	}
 
-	public setContextViewProvider(contextViewProvider: IContextViewProvider): void {
-		this.contextViewProvider = contextViewProvider;
-	}
-
 	public get inputElement(): HTMLInputElement {
 		return this.input;
 	}

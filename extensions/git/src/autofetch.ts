@@ -12,7 +12,7 @@ import { eventToPromise, filterEvent } from './util';
 
 export class AutoFetcher {
 
-	private static Period = 3 * 60 * 1000 /* three minutes */;
+	private static readonly Period = 3 * 60 * 1000 /* three minutes */;
 
 	private _onDidChange = new EventEmitter<boolean>();
 	private onDidChange = this._onDidChange.event;

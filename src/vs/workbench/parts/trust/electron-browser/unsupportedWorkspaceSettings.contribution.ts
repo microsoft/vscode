@@ -23,7 +23,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 
 class UnsupportedWorkspaceSettingsContribution implements IWorkbenchContribution {
 
-	private static storageKey = 'workspace.settings.unsupported.warning';
+	private static readonly storageKey = 'workspace.settings.unsupported.warning';
 	private toDispose: IDisposable[] = [];
 	private isUntrusted = false;
 
@@ -39,10 +39,6 @@ class UnsupportedWorkspaceSettingsContribution implements IWorkbenchContribution
 		lifecycleService.onShutdown(this.dispose, this);
 		this.toDispose.push(this.workspaceConfigurationService.onDidChangeConfiguration(e => this.checkWorkspaceSettings()));
 		this.toDispose.push(workspaceContextService.onDidChangeWorkspaceFolders(e => this.checkWorkspaceSettings()));
-	}
-
-	getId(): string {
-		return 'unsupportedWorkspaceSettings';
 	}
 
 	public dispose(): void {

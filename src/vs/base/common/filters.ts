@@ -5,7 +5,7 @@
 'use strict';
 
 import strings = require('vs/base/common/strings');
-import { BoundedMap } from 'vs/base/common/map';
+import { LRUCache } from 'vs/base/common/map';
 import { CharCode } from 'vs/base/common/charCode';
 
 export interface IFilter {
@@ -317,7 +317,7 @@ function nextWord(word: string, start: number): number {
 
 export const fuzzyContiguousFilter = or(matchesPrefix, matchesCamelCase, matchesContiguousSubString);
 const fuzzySeparateFilter = or(matchesPrefix, matchesCamelCase, matchesSubString);
-const fuzzyRegExpCache = new BoundedMap<RegExp>(10000); // bounded to 10000 elements
+const fuzzyRegExpCache = new LRUCache<string, RegExp>(10000); // bounded to 10000 elements
 
 export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSeparateSubstringMatching = false): IMatch[] {
 	if (typeof word !== 'string' || typeof wordToMatchAgainst !== 'string') {
@@ -691,25 +691,4 @@ class LazyArray {
 		}
 		return Array.prototype.concat.apply(this._data, bucket);
 	}
-}
-
-export function nextTypoPermutation(pattern: string, patternPos: number) {
-
-	if (patternPos + 1 >= pattern.length) {
-		return undefined;
-	}
-
-	return pattern.slice(0, patternPos)
-		+ pattern[patternPos + 1]
-		+ pattern[patternPos]
-		+ pattern.slice(patternPos + 2);
-}
-
-export function fuzzyScoreGraceful(pattern: string, word: string): [number, number[]] {
-	let ret = fuzzyScore(pattern, word);
-	for (let patternPos = 1; patternPos < pattern.length - 1 && !ret; patternPos++) {
-		let pattern2 = nextTypoPermutation(pattern, patternPos);
-		ret = fuzzyScore(pattern2, word);
-	}
-	return ret;
 }

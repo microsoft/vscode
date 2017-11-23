@@ -14,9 +14,10 @@ Param(
 
 # Set the right architecture
 $env:npm_config_arch="$arch"
+$env:CHILD_CONCURRENCY="1"
 
 step "Install dependencies" {
-  exec { & npm install }
+  exec { & yarn }
 }
 
 step "Hygiene" {

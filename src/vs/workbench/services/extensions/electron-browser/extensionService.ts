@@ -13,8 +13,8 @@ import * as path from 'path';
 import URI from 'vs/base/common/uri';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import { IMessage, IExtensionDescription, IExtensionsStatus, IExtensionService, ExtensionPointContribution, ActivationTimes } from 'vs/platform/extensions/common/extensions';
-import { IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions, getGloballyDisabledExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { IExtensionEnablementService, IExtensionIdentifier, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { areSameExtensions, BetterMergeId, BetterMergeDisabledNowKey } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionsRegistry, ExtensionPoint, IExtensionPointUser, ExtensionMessageCollector, IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ExtensionScanner, ILog } from 'vs/workbench/services/extensions/electron-browser/extensionPoints';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -26,7 +26,6 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ExtensionHostProcessWorker } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
 import { MainThreadService } from 'vs/workbench/services/thread/electron-browser/threadService';
-import { Barrier } from 'vs/workbench/services/extensions/node/barrier';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { ExtHostCustomersRegistry } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IWindowService } from 'vs/platform/windows/common/windows';
@@ -34,6 +33,8 @@ import { Action } from 'vs/base/common/actions';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { mark, time } from 'vs/base/common/performance';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { Barrier } from 'vs/base/common/async';
+import Event, { Emitter } from 'vs/base/common/event';
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
 
@@ -54,8 +55,10 @@ const NO_OP_VOID_PROMISE = TPromise.wrap<void>(void 0);
 export class ExtensionService implements IExtensionService {
 	public _serviceBrand: any;
 
+	private _onDidRegisterExtensions: Emitter<IExtensionDescription[]>;
+
 	private _registry: ExtensionDescriptionRegistry;
-	private readonly _barrier: Barrier;
+	private readonly _installedExtensionsReady: Barrier;
 	private readonly _isDev: boolean;
 	private readonly _extensionsStatus: { [id: string]: IExtensionsStatus };
 	private _allRequestedActivateEvents: { [activationEvent: string]: boolean; };
@@ -87,10 +90,12 @@ export class ExtensionService implements IExtensionService {
 		@ILifecycleService lifecycleService: ILifecycleService
 	) {
 		this._registry = null;
-		this._barrier = new Barrier();
+		this._installedExtensionsReady = new Barrier();
 		this._isDev = !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment;
 		this._extensionsStatus = {};
 		this._allRequestedActivateEvents = Object.create(null);
+
+		this._onDidRegisterExtensions = new Emitter<IExtensionDescription[]>();
 
 		this._extensionHostProcessFinishedActivateEvents = Object.create(null);
 		this._extensionHostProcessActivationTimes = Object.create(null);
@@ -99,12 +104,16 @@ export class ExtensionService implements IExtensionService {
 		this._extensionHostProcessCustomers = [];
 		this._extensionHostProcessProxy = null;
 
-		lifecycleService.when(LifecyclePhase.Restoring).then(() => {
+		lifecycleService.when(LifecyclePhase.Running).then(() => {
 			// delay extension host creation and extension scanning
-			// until after the editors/panels are restored
+			// until after workbench is running
 			this._startExtensionHostProcess([]);
 			this._scanAndHandleExtensions();
 		});
+	}
+
+	public get onDidRegisterExtensions(): Event<IExtensionDescription[]> {
+		return this._onDidRegisterExtensions.event;
 	}
 
 	public restartExtensionHost(): void {
@@ -222,7 +231,7 @@ export class ExtensionService implements IExtensionService {
 	// ---- begin IExtensionService
 
 	public activateByEvent(activationEvent: string): TPromise<void> {
-		if (this._barrier.isOpen()) {
+		if (this._installedExtensionsReady.isOpen()) {
 			// Extensions have been scanned and interpreted
 
 			if (!this._registry.containsActivationEvent(activationEvent)) {
@@ -240,7 +249,7 @@ export class ExtensionService implements IExtensionService {
 			// Record the fact that this activationEvent was requested (in case of a restart)
 			this._allRequestedActivateEvents[activationEvent] = true;
 
-			return this._barrier.wait().then(() => this._activateByEvent(activationEvent));
+			return this._installedExtensionsReady.wait().then(() => this._activateByEvent(activationEvent));
 		}
 	}
 
@@ -255,18 +264,18 @@ export class ExtensionService implements IExtensionService {
 		});
 	}
 
-	public onReady(): TPromise<boolean> {
-		return this._barrier.wait();
+	public whenInstalledExtensionsRegistered(): TPromise<boolean> {
+		return this._installedExtensionsReady.wait();
 	}
 
 	public getExtensions(): TPromise<IExtensionDescription[]> {
-		return this.onReady().then(() => {
+		return this._installedExtensionsReady.wait().then(() => {
 			return this._registry.getAllExtensionDescriptions();
 		});
 	}
 
 	public readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]> {
-		return this.onReady().then(() => {
+		return this._installedExtensionsReady.wait().then(() => {
 			let availableExtensions = this._registry.getAllExtensionDescriptions();
 
 			let result: ExtensionPointContribution<T>[] = [], resultLen = 0;
@@ -300,51 +309,67 @@ export class ExtensionService implements IExtensionService {
 			this._logOrShowMessage(severity, this._isDev ? messageWithSource2(source, message) : message);
 		});
 
-		ExtensionService._scanInstalledExtensions(this._environmentService, log).then((installedExtensions) => {
+		ExtensionService._scanInstalledExtensions(this._environmentService, log)
+			.then((installedExtensions) => {
 
-			// Migrate enablement service to use identifiers
-			this._extensionEnablementService.migrateToIdentifiers(installedExtensions);
+				// Migrate enablement service to use identifiers
+				this._extensionEnablementService.migrateToIdentifiers(installedExtensions);
 
-			const disabledExtensions = [
-				...getGloballyDisabledExtensions(this._extensionEnablementService, this._storageService, installedExtensions),
-				...this._extensionEnablementService.getWorkspaceDisabledExtensions()
-			];
+				return this._getDisabledExtensions(installedExtensions)
+					.then(disabledExtensions => {
+						/* __GDPR__
+							"extensionsScanned" : {
+								"totalCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+								"disabledCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+							}
+						*/
+						this._telemetryService.publicLog('extensionsScanned', {
+							totalCount: installedExtensions.length,
+							disabledCount: disabledExtensions.length
+						});
 
-			/* __GDPR__
-				"extensionsScanned" : {
-					"totalCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-					"disabledCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+						if (disabledExtensions.length === 0) {
+							return installedExtensions;
+						}
+						return installedExtensions.filter(e => disabledExtensions.every(disabled => !areSameExtensions(disabled, e)));
+					});
+
+			}).then((extensionDescriptions) => {
+				this._registry = new ExtensionDescriptionRegistry(extensionDescriptions);
+
+				let availableExtensions = this._registry.getAllExtensionDescriptions();
+				let extensionPoints = ExtensionsRegistry.getExtensionPoints();
+
+				let messageHandler = (msg: IMessage) => this._handleExtensionPointMessage(msg);
+
+				for (let i = 0, len = extensionPoints.length; i < len; i++) {
+					const clock = time(`handleExtensionPoint:${extensionPoints[i].name}`);
+					try {
+						ExtensionService._handleExtensionPoint(extensionPoints[i], availableExtensions, messageHandler);
+					} finally {
+						clock.stop();
+					}
 				}
-			*/
-			this._telemetryService.publicLog('extensionsScanned', {
-				totalCount: installedExtensions.length,
-				disabledCount: disabledExtensions.length
+
+				mark('extensionHostReady');
+				this._installedExtensionsReady.open();
+				this._onDidRegisterExtensions.fire(availableExtensions);
 			});
+	}
 
-			if (disabledExtensions.length === 0) {
-				return installedExtensions;
-			}
-			return installedExtensions.filter(e => disabledExtensions.every(disabled => !areSameExtensions(disabled, e)));
-
-		}).then((extensionDescriptions) => {
-			this._registry = new ExtensionDescriptionRegistry(extensionDescriptions);
-
-			let availableExtensions = this._registry.getAllExtensionDescriptions();
-			let extensionPoints = ExtensionsRegistry.getExtensionPoints();
-
-			let messageHandler = (msg: IMessage) => this._handleExtensionPointMessage(msg);
-
-			for (let i = 0, len = extensionPoints.length; i < len; i++) {
-				const clock = time(`handleExtensionPoint:${extensionPoints[i].name}`);
-				try {
-					ExtensionService._handleExtensionPoint(extensionPoints[i], availableExtensions, messageHandler);
-				} finally {
-					clock.stop();
+	private _getDisabledExtensions(installedExtensions: IExtensionIdentifier[]): TPromise<IExtensionIdentifier[]> {
+		return this._extensionEnablementService.getDisabledExtensions()
+			.then(disabledExtensions => {
+				const betterMergeExtensionIdentifier: IExtensionIdentifier = { id: BetterMergeId };
+				if (disabledExtensions.every(disabled => disabled.id !== BetterMergeId) && installedExtensions.some(d => d.id === BetterMergeId)) {
+					return this._extensionEnablementService.setEnablement(betterMergeExtensionIdentifier, EnablementState.Disabled)
+						.then(() => {
+							this._storageService.store(BetterMergeDisabledNowKey, true);
+							return [...disabledExtensions, betterMergeExtensionIdentifier];
+						});
 				}
-			}
-			mark('extensionHostReady');
-			this._barrier.open();
-		});
+				return disabledExtensions;
+			});
 	}
 
 	private _handleExtensionPointMessage(msg: IMessage) {

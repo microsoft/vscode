@@ -113,26 +113,69 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	install(zipPath: string): TPromise<void> {
 		zipPath = path.resolve(zipPath);
 
-		return validateLocalExtension(zipPath).then<void>(manifest => {
-			const identifier = { id: getLocalExtensionIdFromManifest(manifest) };
-
-			return this.isObsolete(identifier.id).then(isObsolete => {
-				if (isObsolete) {
-					return TPromise.wrapError(new Error(nls.localize('restartCodeLocal', "Please restart Code before reinstalling {0}.", manifest.displayName || manifest.name)));
-				}
-
-				this._onInstallExtension.fire({ identifier, zipPath });
-
-				return this.getMetadata(getGalleryExtensionId(manifest.publisher, manifest.name))
-					.then(
-					metadata => this.installExtension({ zipPath, id: identifier.id, metadata }),
-					error => this.installExtension({ zipPath, id: identifier.id }))
-					.then(
-					local => this._onDidInstallExtension.fire({ identifier, zipPath, local }),
-					error => { this._onDidInstallExtension.fire({ identifier, zipPath, error }); return TPromise.wrapError(error); }
-					);
+		return validateLocalExtension(zipPath)
+			.then(manifest => {
+				const identifier = { id: getLocalExtensionIdFromManifest(manifest) };
+				return this.isObsolete(identifier.id)
+					.then(isObsolete => {
+						if (isObsolete) {
+							return TPromise.wrapError(new Error(nls.localize('restartCodeLocal', "Please restart Code before reinstalling {0}.", manifest.displayName || manifest.name)));
+						}
+						return this.checkOutdated(manifest)
+							.then(validated => {
+								if (validated) {
+									this._onInstallExtension.fire({ identifier, zipPath });
+									return this.getMetadata(getGalleryExtensionId(manifest.publisher, manifest.name))
+										.then(
+										metadata => this.installFromZipPath(identifier, zipPath, metadata, manifest),
+										error => this.installFromZipPath(identifier, zipPath, null, manifest));
+								}
+								return null;
+							});
+					});
 			});
-		});
+	}
+
+	private checkOutdated(manifest: IExtensionManifest): TPromise<boolean> {
+		const extensionIdentifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
+		return this.getInstalled()
+			.then(installedExtensions => {
+				const newer = installedExtensions.filter(local => areSameExtensions(extensionIdentifier, { id: getGalleryExtensionIdFromLocal(local) }) && semver.gt(local.manifest.version, manifest.version))[0];
+				if (newer) {
+					const message = nls.localize('installingOutdatedExtension', "A newer version of this extension is already installed. Would you like to override this with the older version?");
+					const options = [
+						nls.localize('override', "Override"),
+						nls.localize('cancel', "Cancel")
+					];
+					return this.choiceService.choose(Severity.Info, message, options, 1, true)
+						.then<boolean>(value => {
+							if (value === 0) {
+								return this.uninstall(newer, true).then(() => true);
+							}
+							return TPromise.wrapError(errors.canceled());
+						});
+				}
+				return true;
+			});
+	}
+
+	private installFromZipPath(identifier: IExtensionIdentifier, zipPath: string, metadata: IGalleryMetadata, manifest: IExtensionManifest): TPromise<void> {
+		return this.installExtension({ zipPath, id: identifier.id, metadata })
+			.then(local => {
+				if (this.galleryService.isEnabled() && local.manifest.extensionDependencies && local.manifest.extensionDependencies.length) {
+					return this.getDependenciesToInstall(local.manifest.extensionDependencies)
+						.then(dependenciesToInstall => this.downloadAndInstallExtensions(metadata ? dependenciesToInstall.filter(d => d.identifier.uuid !== metadata.id) : dependenciesToInstall))
+						.then(() => local, error => {
+							this.uninstallExtension(local.identifier);
+							return TPromise.wrapError(error);
+						});
+				}
+				return local;
+			})
+			.then(
+			local => this._onDidInstallExtension.fire({ identifier, zipPath, local }),
+			error => { this._onDidInstallExtension.fire({ identifier, zipPath, error }); return TPromise.wrapError(error); }
+			);
 	}
 
 	installFromGallery(extension: IGalleryExtension): TPromise<void> {
@@ -170,9 +213,8 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private collectExtensionsToInstall(extension: IGalleryExtension): TPromise<IGalleryExtension[]> {
 		return this.galleryService.loadCompatibleVersion(extension)
-			.then(extensionToInstall => this.galleryService.getAllDependencies(extension)
-				.then(allDependencies => this.filterDependenciesToInstall(extension, allDependencies))
-				.then(dependenciesToInstall => [extensionToInstall, ...dependenciesToInstall]));
+			.then(extensionToInstall => this.getDependenciesToInstall(extension.properties.dependencies)
+				.then(dependenciesToInstall => [extensionToInstall, ...dependenciesToInstall.filter(d => d.identifier.uuid !== extensionToInstall.identifier.uuid)]));
 	}
 
 	private checkForObsolete(extensionsToInstall: IGalleryExtension[]): TPromise<IGalleryExtension[]> {
@@ -217,17 +259,15 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		return error ? TPromise.wrapError(Array.isArray(error) ? this.joinErrors(error) : error) : TPromise.as(null);
 	}
 
-	private filterDependenciesToInstall(extension: IGalleryExtension, dependencies: IGalleryExtension[]): TPromise<IGalleryExtension[]> {
-		return this.getInstalled()
-			.then(local => {
-				return dependencies.filter(d => {
-					if (extension.identifier.uuid === d.identifier.uuid) {
-						return false;
-					}
-					const extensionId = getLocalExtensionIdFromGallery(d, d.version);
-					return local.every(({ identifier }) => identifier.id !== extensionId);
-				});
-			});
+	private getDependenciesToInstall(dependencies: string[]): TPromise<IGalleryExtension[]> {
+		return this.galleryService.loadAllDependencies(dependencies.map(id => (<IExtensionIdentifier>{ id })))
+			.then(allDependencies => this.getInstalled()
+				.then(local => {
+					return allDependencies.filter(d => {
+						const extensionId = getLocalExtensionIdFromGallery(d, d.version);
+						return local.every(({ identifier }) => identifier.id !== extensionId);
+					});
+				}));
 	}
 
 	private filterOutUninstalled(extensions: IGalleryExtension[]): TPromise<ILocalExtension[]> {
@@ -533,8 +573,9 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	removeDeprecatedExtensions(): TPromise<any> {
 		return TPromise.join([
-			this.removeOutdatedExtensions(),
-			this.removeObsoleteExtensions()
+			// Remove obsolte extensions first to avoid removing installed older extension. See #38609.
+			this.removeObsoleteExtensions(),
+			this.removeOutdatedExtensions()
 		]);
 	}
 

@@ -76,10 +76,6 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 		dispose(this._disposables);
 	}
 
-	getId(): string {
-		return 'markers.MarkersFileDecorations';
-	}
-
 	private _updateEnablement(): void {
 		let value = this._configurationService.getValue<{ decorations: { enabled: boolean } }>('problems');
 		if (value.decorations.enabled === this._enabled) {

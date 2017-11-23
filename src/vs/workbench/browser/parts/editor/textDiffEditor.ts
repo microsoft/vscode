@@ -40,7 +40,7 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
  */
 export class TextDiffEditor extends BaseTextEditor {
 
-	public static ID = TEXT_DIFF_EDITOR_ID;
+	public static readonly ID = TEXT_DIFF_EDITOR_ID;
 
 	private diffNavigator: DiffNavigator;
 	private nextDiffAction: NavigateAction;
@@ -341,9 +341,9 @@ class NavigateAction extends Action {
 }
 
 class ToggleEditorModeAction extends Action {
-	private static ID = 'toggle.diff.editorMode';
-	private static INLINE_LABEL = nls.localize('inlineDiffLabel', "Switch to Inline View");
-	private static SIDEBYSIDE_LABEL = nls.localize('sideBySideDiffLabel', "Switch to Side by Side View");
+	private static readonly ID = 'toggle.diff.editorMode';
+	private static readonly INLINE_LABEL = nls.localize('inlineDiffLabel', "Switch to Inline View");
+	private static readonly SIDEBYSIDE_LABEL = nls.localize('sideBySideDiffLabel', "Switch to Side by Side View");
 
 	constructor(private editor: TextDiffEditor) {
 		super(ToggleEditorModeAction.ID);

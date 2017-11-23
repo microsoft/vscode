@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { BulkListenerCallback } from 'vs/base/common/eventEmitter';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -17,7 +16,7 @@ import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import { ITextSource } from 'vs/editor/common/model/textSource';
 import {
 	ModelRawContentChangedEvent, IModelContentChangedEvent, IModelDecorationsChangedEvent,
-	IModelLanguageChangedEvent, IModelOptionsChangedEvent, IModelLanguageConfigurationChangedEvent
+	IModelLanguageChangedEvent, IModelOptionsChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent
 } from 'vs/editor/common/model/textModelEvents';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
@@ -1129,27 +1128,21 @@ export interface IModel extends IReadOnlyModel, IEditableTextModel, ITokenizedMo
 	 */
 	onDidChangeLanguageConfiguration(listener: (e: IModelLanguageConfigurationChangedEvent) => void): IDisposable;
 	/**
+	 * An event emitted when the tokens associated with the model have changed.
+	 * @event
+	 * @internal
+	 */
+	onDidChangeTokens(listener: (e: IModelTokensChangedEvent) => void): IDisposable;
+	/**
 	 * An event emitted right before disposing the model.
 	 * @event
 	 */
 	onWillDispose(listener: () => void): IDisposable;
 
 	/**
-	 * @internal
-	 */
-	addBulkListener(listener: BulkListenerCallback): IDisposable;
-
-	/**
 	 * A unique identifier associated with this model.
 	 */
 	readonly id: string;
-
-	/**
-	 * Destroy this model. This will unbind the model from the mode
-	 * and make all necessary clean-up to release this object to the GC.
-	 * @internal
-	 */
-	destroy(): void;
 
 	/**
 	 * Destroy this model. This will unbind the model from the mode
@@ -1340,12 +1333,6 @@ export interface IEditor {
 	getEditorType(): string;
 
 	/**
-	 * Destroy the editor.
-	 * @internal
-	 */
-	destroy(): void;
-
-	/**
 	 * Update the editor's options after the editor has been created.
 	 */
 	updateOptions(newOptions: editorOptions.IEditorOptions): void;
@@ -1377,11 +1364,6 @@ export interface IEditor {
 	 * Returns true if this editor has keyboard focus (e.g. cursor is blinking).
 	 */
 	isFocused(): boolean;
-
-	/**
-	 * Returns all actions associated with this editor.
-	 */
-	getActions(): IEditorAction[];
 
 	/**
 	 * Returns all actions associated with this editor.

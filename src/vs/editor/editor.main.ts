@@ -19,6 +19,7 @@ import { createMonacoEditorAPI } from 'vs/editor/standalone/browser/standaloneEd
 import { createMonacoLanguagesAPI } from 'vs/editor/standalone/browser/standaloneLanguages';
 import { EDITOR_DEFAULTS, WrappingIndent } from 'vs/editor/common/config/editorOptions';
 
+declare var exports: any;
 var global: any = self;
 global.monaco = exports;
 

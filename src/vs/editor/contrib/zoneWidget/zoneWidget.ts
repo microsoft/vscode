@@ -104,7 +104,7 @@ export class OverlayWidgetDelegate implements IOverlayWidget {
 
 class Arrow {
 
-	private static _IdGenerator = new IdGenerator('.arrow-decoration-');
+	private static readonly _IdGenerator = new IdGenerator('.arrow-decoration-');
 
 	private readonly _ruleName = Arrow._IdGenerator.nextId();
 	private _decorations: string[] = [];

@@ -39,6 +39,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { getBaseLabel } from 'vs/base/common/labels';
 
 export interface IEncodingOverride {
 	resource: uri;
@@ -102,8 +103,8 @@ export class FileService implements IFileService {
 
 	public _serviceBrand: any;
 
-	private static FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
-	private static FS_REWATCH_DELAY = 300; // delay to rewatch a file that was renamed or deleted (in ms)
+	private static readonly FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
+	private static readonly FS_REWATCH_DELAY = 300; // delay to rewatch a file that was renamed or deleted (in ms)
 
 	private tmpPath: string;
 	private options: IFileServiceOptions;
@@ -1007,7 +1008,7 @@ export class StatResolver {
 		this.resource = resource;
 		this.isDirectory = isDirectory;
 		this.mtime = mtime;
-		this.name = paths.basename(resource.fsPath);
+		this.name = getBaseLabel(resource);
 		this.etag = etag(size, mtime);
 		this.size = size;
 

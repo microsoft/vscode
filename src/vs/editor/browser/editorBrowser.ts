@@ -713,11 +713,6 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	getScrolledVisiblePosition(position: IPosition): { top: number; left: number; height: number; };
 
 	/**
-	 * @internal
-	 */
-	setAriaActiveDescendant(id: string): void;
-
-	/**
 	 * Apply the same font settings as the editor to `target`.
 	 */
 	applyFontInfo(target: HTMLElement): void;
@@ -803,11 +798,6 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	 * If the diff computation is not finished or the model is missing, will return null.
 	 */
 	getDiffLineInformationForModified(lineNumber: number): IDiffLineInformation;
-
-	/**
-	 * @see ICodeEditor.getValue
-	 */
-	getValue(options?: { preserveBOM: boolean; lineEnding: string; }): string;
 }
 
 /**

@@ -117,11 +117,11 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 
 		/* __GDPR__
 			"defaultSettingsActions.copySetting" : {
-				"userConfigurationKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				"query" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				"fuzzy" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				"index" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"userConfigurationKeys" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"query" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"fuzzy" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"index" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"editableSide" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
@@ -174,6 +174,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 		const s = this.getSetting(setting);
 		if (s) {
 			this.settingHighlighter.highlight(s, true);
+			this.editor.setPosition({ lineNumber: s.keyRange.startLineNumber, column: s.keyRange.startColumn });
 		} else {
 			this.settingHighlighter.clear(true);
 		}
@@ -424,8 +425,7 @@ class DefaultSettingsHeaderRenderer extends Disposable {
 
 	constructor(editor: ICodeEditor, scope: ConfigurationScope) {
 		super();
-		const title = scope === ConfigurationScope.RESOURCE ? nls.localize('defaultFolderSettingsTitle', "Default Folder Settings") : nls.localize('defaultSettingsTitle', "Default Settings");
-		this.settingsHeaderWidget = this._register(new DefaultSettingsHeaderWidget(editor, title));
+		this.settingsHeaderWidget = this._register(new DefaultSettingsHeaderWidget(editor, ''));
 		this.onClick = this.settingsHeaderWidget.onClick;
 	}
 
@@ -557,8 +557,8 @@ export class HiddenAreasRenderer extends Disposable {
 }
 
 export class FeedbackWidgetRenderer extends Disposable {
-	private static DEFAULT_COMMENT_TEXT = 'Replace this comment with any text feedback.';
-	private static INSTRUCTION_TEXT = [
+	private static readonly DEFAULT_COMMENT_TEXT = 'Replace this comment with any text feedback.';
+	private static readonly INSTRUCTION_TEXT = [
 		'// Modify the "resultScores" section to contain only your expected results. Assign scores to indicate their relevance.',
 		'// Results present in "resultScores" will be automatically "boosted" for this query, if they are not already at the top of the result set.',
 		'// Add phrase pairs to the "alts" section to have them considered to be synonyms in queries.'
@@ -579,8 +579,9 @@ export class FeedbackWidgetRenderer extends Disposable {
 	}
 
 	public render(result: IFilterResult): void {
+		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
 		this._currentResult = result;
-		if (result && result.metadata) {
+		if (result && result.metadata && workbenchSettings.enableNaturalLanguageSearchFeedback) {
 			this.showWidget();
 		} else if (this._feedbackWidget) {
 			this.disposeWidget();
@@ -656,7 +657,7 @@ export class FeedbackWidgetRenderer extends Disposable {
 		const altsAdded = expectedQuery.alts && expectedQuery.alts.length;
 		const alts = altsAdded ? expectedQuery.alts : undefined;
 		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
-		const autoIngest = workbenchSettings.experimentalFuzzySearchAutoIngestFeedback;
+		const autoIngest = workbenchSettings.naturalLanguageSearchAutoIngestFeedback;
 
 		/* __GDPR__
 			"settingsSearchResultFeedback" : {
@@ -842,7 +843,7 @@ export class HighlightMatchesRenderer extends Disposable {
 		}
 	}
 
-	private static _FIND_MATCH = ModelDecorationOptions.register({
+	private static readonly _FIND_MATCH = ModelDecorationOptions.register({
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'findMatch'
 	});
@@ -1232,14 +1233,14 @@ class UnsupportedSettingsRenderer extends Disposable {
 		super.dispose();
 	}
 
-	private static _DIM_CONFIGUARATION_ = ModelDecorationOptions.register({
+	private static readonly _DIM_CONFIGUARATION_ = ModelDecorationOptions.register({
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		inlineClassName: 'dim-configuration',
 		beforeContentClassName: 'unsupportedWorkbenhSettingInfo',
 		hoverMessage: new MarkdownString().appendText(nls.localize('unsupportedWorkbenchSetting', "This setting cannot be applied now. It will be applied when you open this folder directly."))
 	});
 
-	private static _DIM_CONFIGUARATION_DEV_MODE = ModelDecorationOptions.register({
+	private static readonly _DIM_CONFIGUARATION_DEV_MODE = ModelDecorationOptions.register({
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		inlineClassName: 'dim-configuration',
 		beforeContentClassName: 'unsupportedWorkbenhSettingInfo',
@@ -1282,7 +1283,7 @@ class WorkspaceConfigurationRenderer extends Disposable {
 		}
 	}
 
-	private static _DIM_CONFIGURATION_ = ModelDecorationOptions.register({
+	private static readonly _DIM_CONFIGURATION_ = ModelDecorationOptions.register({
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		inlineClassName: 'dim-configuration'
 	});

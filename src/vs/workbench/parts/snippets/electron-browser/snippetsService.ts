@@ -103,7 +103,7 @@ class SnippetsService implements ISnippetsService {
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IExtensionService extensionService: IExtensionService,
 	) {
-		this._wait = Promise.resolve(extensionService.onReady());
+		this._wait = Promise.resolve(extensionService.whenInstalledExtensionsRegistered());
 		this._userSnippetsFolder = join(_environmentService.appSettingsHome, 'snippets');
 		this._prepUserSnippetsWatching();
 		this._prepExtensionSnippets();
