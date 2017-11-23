@@ -7,7 +7,6 @@
 
 import * as path from 'path';
 import * as objects from 'vs/base/common/objects';
-import { stopProfiling } from 'vs/base/node/profiler';
 import nls = require('vs/nls');
 import URI from 'vs/base/common/uri';
 import { IStorageService } from 'vs/platform/storage/node/storage';
@@ -521,12 +520,6 @@ export class CodeWindow implements ICodeWindow {
 					this._win.webContents.openDevTools();
 				}
 			}, 10000);
-		}
-
-		// (--prof-startup) save profile to disk
-		const { profileStartup } = this.environmentService;
-		if (profileStartup) {
-			stopProfiling(profileStartup.dir, profileStartup.prefix).done(undefined, err => this.logService.error(err));
 		}
 	}
 

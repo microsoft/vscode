@@ -265,7 +265,7 @@ export class ExtensionHostProcessWorker {
 			return TPromise.wrap<number>(0);
 		}
 		return new TPromise<number>((c, e) => {
-			findFreePort(extensionHostPort, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */, (port) => {
+			return findFreePort(extensionHostPort, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */).then(port => {
 				if (!port) {
 					console.warn('%c[Extension Host] %cCould not find a free port for debugging', 'color: blue', 'color: black');
 					return c(void 0);

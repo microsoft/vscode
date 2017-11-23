@@ -15,10 +15,10 @@ import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions } f
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ReportPerformanceIssueAction } from 'vs/workbench/electron-browser/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { join } from 'path';
+import { join, dirname } from 'path';
 import { localize } from 'vs/nls';
-import { readdir } from 'vs/base/node/pfs';
-import { stopProfiling } from 'vs/base/node/profiler';
+import { readdir, del, readFile } from 'vs/base/node/pfs';
+import { basename } from 'vs/base/common/paths';
 
 class StartupProfiler implements IWorkbenchContribution {
 
@@ -31,55 +31,64 @@ class StartupProfiler implements IWorkbenchContribution {
 		@IExtensionService extensionService: IExtensionService,
 	) {
 		// wait for everything to be ready
-		extensionService.whenInstalledExtensionsRegistered().then(() => {
+		Promise.all([
+			lifecycleService.when(LifecyclePhase.Eventually),
+			extensionService.whenInstalledExtensionsRegistered()
+		]).then(() => {
 			this._stopProfiling();
 		});
 	}
 
 	private _stopProfiling(): void {
 
-		const { profileStartup } = this._environmentService;
-		if (!profileStartup) {
+		const profileFilenamePrefix = this._environmentService.args['prof-startup-prefix'];
+		if (!profileFilenamePrefix) {
 			return;
 		}
 
-		stopProfiling(profileStartup.dir, profileStartup.prefix).then(() => {
-			readdir(profileStartup.dir).then(files => {
-				return files.filter(value => value.indexOf(profileStartup.prefix) === 0);
-			}).then(files => {
-				const profileFiles = files.reduce((prev, cur) => `${prev}${join(profileStartup.dir, cur)}\n`, '\n');
+		const dir = dirname(profileFilenamePrefix);
+		const prefix = basename(profileFilenamePrefix);
 
-				const primaryButton = this._messageService.confirmSync({
-					type: 'info',
-					message: localize('prof.message', "Successfully created profiles."),
-					detail: localize('prof.detail', "Please create an issue and manually attach the following files:\n{0}", profileFiles),
-					primaryButton: localize('prof.restartAndFileIssue', "Create Issue and Restart"),
-					secondaryButton: localize('prof.restart', "Restart")
+		const removeArgs: string[] = ['--prof-startup'];
+		const markerFile = readFile(profileFilenamePrefix).then(value => removeArgs.push(...value.toString().split('|')))
+			.then(() => del(profileFilenamePrefix))
+			.then(() => TPromise.timeout(1000));
+
+		markerFile.then(() => {
+			return readdir(dir).then(files => files.filter(value => value.indexOf(prefix) === 0));
+		}).then(files => {
+			const profileFiles = files.reduce((prev, cur) => `${prev}${join(dir, cur)}\n`, '\n');
+
+			const primaryButton = this._messageService.confirmSync({
+				type: 'info',
+				message: localize('prof.message', "Successfully created profiles."),
+				detail: localize('prof.detail', "Please create an issue and manually attach the following files:\n{0}", profileFiles),
+				primaryButton: localize('prof.restartAndFileIssue', "Create Issue and Restart"),
+				secondaryButton: localize('prof.restart', "Restart")
+			});
+
+			if (primaryButton) {
+				const action = this._instantiationService.createInstance(ReportPerformanceIssueAction, ReportPerformanceIssueAction.ID, ReportPerformanceIssueAction.LABEL);
+				TPromise.join<any>([
+					this._windowsService.showItemInFolder(join(dir, files[0])),
+					action.run(`:warning: Make sure to **attach** these files from your *home*-directory: :warning:\n${files.map(file => `-\`${file}\``).join('\n')}`)
+				]).then(() => {
+					// keep window stable until restart is selected
+					this._messageService.confirmSync({
+						type: 'info',
+						message: localize('prof.thanks', "Thanks for helping us."),
+						detail: localize('prof.detail.restart', "A final restart is required to continue to use '{0}'. Again, thank you for your contribution.", this._environmentService.appNameLong),
+						primaryButton: localize('prof.restart', "Restart"),
+						secondaryButton: null
+					});
+					// now we are ready to restart
+					this._windowsService.relaunch({ removeArgs });
 				});
 
-				if (primaryButton) {
-					const action = this._instantiationService.createInstance(ReportPerformanceIssueAction, ReportPerformanceIssueAction.ID, ReportPerformanceIssueAction.LABEL);
-					TPromise.join<any>([
-						this._windowsService.showItemInFolder(join(profileStartup.dir, files[0])),
-						action.run(`:warning: Make sure to **attach** these files from your *home*-directory: :warning:\n${files.map(file => `-\`${file}\``).join('\n')}`)
-					]).then(() => {
-						// keep window stable until restart is selected
-						this._messageService.confirmSync({
-							type: 'info',
-							message: localize('prof.thanks', "Thanks for helping us."),
-							detail: localize('prof.detail.restart', "A final restart is required to continue to use '{0}'. Again, thank you for your contribution.", this._environmentService.appNameLong),
-							primaryButton: localize('prof.restart', "Restart"),
-							secondaryButton: null
-						});
-						// now we are ready to restart
-						this._windowsService.relaunch({ removeArgs: ['--prof-startup'] });
-					});
-
-				} else {
-					// simply restart
-					this._windowsService.relaunch({ removeArgs: ['--prof-startup'] });
-				}
-			});
+			} else {
+				// simply restart
+				this._windowsService.relaunch({ removeArgs });
+			}
 		});
 	}
 }
