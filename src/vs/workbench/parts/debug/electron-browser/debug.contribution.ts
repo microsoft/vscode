@@ -16,7 +16,10 @@ import { IWorkbenchActionRegistry, Extensions as WorkbenchActionRegistryExtensio
 import { ToggleViewletAction, Extensions as ViewletExtensions, ViewletRegistry, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { TogglePanelAction, Extensions as PanelExtensions, PanelRegistry, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { StatusbarItemDescriptor, StatusbarAlignment, IStatusbarRegistry, Extensions as StatusExtensions } from 'vs/workbench/browser/parts/statusbar/statusbar';
-import { VariablesView, WatchExpressionsView, CallStackView, BreakpointsView } from 'vs/workbench/parts/debug/electron-browser/debugViews';
+import { VariablesView } from 'vs/workbench/parts/debug/electron-browser/variablesView';
+import { BreakpointsView } from 'vs/workbench/parts/debug/electron-browser/breakpointsView';
+import { WatchExpressionsView } from 'vs/workbench/parts/debug/electron-browser/watchExpressionsView';
+import { CallStackView } from 'vs/workbench/parts/debug/electron-browser/callStackView';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import {
 	IDebugService, VIEWLET_ID, REPL_ID, CONTEXT_NOT_IN_DEBUG_MODE, CONTEXT_IN_DEBUG_MODE, INTERNAL_CONSOLE_OPTIONS_SCHEMA,
