@@ -44,6 +44,12 @@ suite('StorageService', () => {
 			service.setItem('some.other.key', 'some.other.value');
 			assert.equal(service.getItem('some.other.key'), 'some.other.value');
 
+			service.setItem('some.undefined.key', void 0);
+			assert.equal(service.getItem('some.undefined.key', 'some.default'), 'some.default');
+
+			service.setItem('some.null.key', null);
+			assert.equal(service.getItem('some.null.key', 'some.default'), 'some.default');
+
 			done();
 		});
 	});

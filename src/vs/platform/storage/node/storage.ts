@@ -10,6 +10,7 @@ import * as fs from 'original-fs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { writeFileAndFlushSync } from 'vs/base/node/extfs';
+import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
 
 export const IStorageService = createDecorator<IStorageService>('storageService');
 
@@ -33,7 +34,7 @@ export class FileStorage {
 		}
 
 		const res = this.database[key];
-		if (typeof res === 'undefined') {
+		if (isUndefinedOrNull(res)) {
 			return defaultValue;
 		}
 
@@ -43,6 +44,11 @@ export class FileStorage {
 	public setItem(key: string, data: any): void {
 		if (!this.database) {
 			this.database = this.load();
+		}
+
+		// Remove an item when it is undefined or null
+		if (isUndefinedOrNull(data)) {
+			return this.removeItem(key);
 		}
 
 		// Shortcut for primitives that did not change
@@ -61,8 +67,9 @@ export class FileStorage {
 			this.database = this.load();
 		}
 
-		if (this.database[key]) {
-			delete this.database[key];
+		// Only update if the key is actually present (not undefined)
+		if (!isUndefined(this.database[key])) {
+			this.database[key] = void 0;
 			this.save();
 		}
 	}
