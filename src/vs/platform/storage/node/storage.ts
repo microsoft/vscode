@@ -9,6 +9,7 @@ import * as path from 'path';
 import * as fs from 'original-fs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { writeFileAndFlushSync } from 'vs/base/node/extfs';
 
 export const IStorageService = createDecorator<IStorageService>('storageService');
 
@@ -84,7 +85,7 @@ export class StorageService implements IStorageService {
 
 	private save(): void {
 		try {
-			fs.writeFileSync(this.dbPath, JSON.stringify(this.database, null, 4)); // permission issue can happen here
+			writeFileAndFlushSync(this.dbPath, JSON.stringify(this.database, null, 4)); // permission issue can happen here
 		} catch (error) {
 			if (this.environmentService.verbose) {
 				console.error(error);

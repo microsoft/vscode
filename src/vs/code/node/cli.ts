@@ -11,10 +11,10 @@ import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
 
-import * as fs from 'fs';
 import * as paths from 'path';
 import * as os from 'os';
 import { whenDeleted } from 'vs/base/node/pfs';
+import { writeFileAndFlushSync } from 'vs/base/node/extfs';
 
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 	return !!argv['install-source']
@@ -66,7 +66,7 @@ export function main(argv: string[]): TPromise<void> {
 			let waitMarkerError: Error;
 			const randomTmpFile = paths.join(os.tmpdir(), Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10));
 			try {
-				fs.writeFileSync(randomTmpFile, '');
+				writeFileAndFlushSync(randomTmpFile, '');
 				waitMarkerFilePath = randomTmpFile;
 				argv.push('--waitMarkerFilePath', waitMarkerFilePath);
 			} catch (error) {

@@ -7,7 +7,6 @@ import { localize } from 'vs/nls';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
 import * as path from 'path';
-import * as fs from 'fs';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { sequence } from 'vs/base/common/async';
@@ -30,7 +29,7 @@ import { RequestService } from 'vs/platform/request/node/requestService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
-import { mkdirp } from 'vs/base/node/pfs';
+import { mkdirp, writeFile } from 'vs/base/node/pfs';
 import { IChoiceService } from 'vs/platform/message/common/message';
 import { ChoiceCliService } from 'vs/platform/message/node/messageCli';
 import { getBaseLabel } from 'vs/base/common/labels';
@@ -77,10 +76,9 @@ class Main {
 	}
 
 	private setInstallSource(installSource: string): TPromise<any> {
-		return new TPromise<void>((c, e) => {
-			const path = getInstallSourcePath(this.environmentService.userDataPath);
-			fs.writeFile(path, installSource.slice(0, 30), 'utf8', err => err ? e(err) : c(null));
-		});
+		const path = getInstallSourcePath(this.environmentService.userDataPath);
+
+		return writeFile(path, installSource.slice(0, 30));
 	}
 
 	private listExtensions(showVersions: boolean): TPromise<any> {

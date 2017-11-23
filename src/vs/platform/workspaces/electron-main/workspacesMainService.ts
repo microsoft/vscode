@@ -11,9 +11,9 @@ import { isParent } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { extname, join, dirname, isAbsolute, resolve } from 'path';
 import { mkdirp, writeFile, readFile } from 'vs/base/node/pfs';
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync } from 'fs';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
-import { delSync, readdirSync } from 'vs/base/node/extfs';
+import { delSync, readdirSync, writeFileAndFlushSync } from 'vs/base/node/extfs';
 import Event, { Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { isEqual } from 'vs/base/common/paths';
@@ -136,7 +136,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 
 		mkdirSync(configParent);
 
-		writeFileSync(workspace.configPath, JSON.stringify(storedWorkspace, null, '\t'));
+		writeFileAndFlushSync(workspace.configPath, JSON.stringify(storedWorkspace, null, '\t'));
 
 		return workspace;
 	}
