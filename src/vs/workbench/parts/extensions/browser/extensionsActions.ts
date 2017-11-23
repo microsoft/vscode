@@ -1476,7 +1476,7 @@ export class ConfigureWorkspaceFolderRecommendedExtensionsAction extends Abstrac
 
 export class BuiltinStatusLabelAction extends Action {
 
-	private static readonly Class = 'extension-action built-in-status';
+	private static readonly Class = 'built-in-status';
 
 	private _extension: IExtension;
 	get extension(): IExtension { return this._extension; }
