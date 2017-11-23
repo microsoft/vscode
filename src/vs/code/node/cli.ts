@@ -128,10 +128,27 @@ export async function main(argv: string[]): TPromise<any> {
 				// marker file
 				whenDeleted(filenamePrefix);
 
+				let profileMain = await main.stop();
+				let profileRenderer = await renderer.stop();
+				let profileExtHost = await extHost.stop();
+				let suffix = '';
+
+				if (!process.env['VSCODE_DEV']) {
+					// when running from a not-development-build we remove
+					// absolute filenames because we don't want to reveal anything
+					// about users. We also append the `.txt` suffix to make it
+					// easier to attach these files to GH issues
+					profileMain = profiler.rewriteAbsolutePaths(profileMain, 'piiRemoved');
+					profileRenderer = profiler.rewriteAbsolutePaths(profileRenderer, 'piiRemoved');
+					profileExtHost = profiler.rewriteAbsolutePaths(profileExtHost, 'piiRemoved');
+					suffix = '.txt';
+				}
+
 				// finally stop profiling and save profiles to disk
-				await profiler.writeProfile(await main.stop(), `${filenamePrefix}-main.cpuprofile`);
-				await profiler.writeProfile(await renderer.stop(), `${filenamePrefix}-renderer.cpuprofile`);
-				await profiler.writeProfile(await extHost.stop(), `${filenamePrefix}-exthost.cpuprofile`);
+				await profiler.writeProfile(profileMain, `${filenamePrefix}-main.cpuprofile${suffix}`);
+				await profiler.writeProfile(profileRenderer, `${filenamePrefix}-renderer.cpuprofile${suffix}`);
+				await profiler.writeProfile(profileExtHost, `${filenamePrefix}-exthost.cpuprofile${suffix}`);
+
 			});
 		}
 
