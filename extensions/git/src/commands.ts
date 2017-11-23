@@ -1543,7 +1543,7 @@ export class CommandCenter {
 						message = localize('clean repo', "Please clean your repository working tree before checkout.");
 						break;
 					case GitErrorCodes.PushRejected:
-						message = localize('cant push', "Can't push refs to remote. Run 'Pull' first to integrate your changes.");
+						message = localize('cant push', "Can't push refs to remote. Try running 'Pull' first to integrate your changes.");
 						break;
 					default:
 						const hint = (err.stderr || err.message || String(err))
