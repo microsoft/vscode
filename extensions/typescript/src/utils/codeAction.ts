@@ -45,8 +45,9 @@ export async function applyCodeActionCommands(
 	action: Proto.CodeAction
 ): Promise<boolean> {
 	if (action.commands && action.commands.length) {
+		const file = action.changes[0].fileName;
 		for (const command of action.commands) {
-			const response = await client.execute('applyCodeActionCommand', { command });
+			const response = await client.execute('applyCodeActionCommand', { command, file });
 			if (!response || !response.body) {
 				return false;
 			}
