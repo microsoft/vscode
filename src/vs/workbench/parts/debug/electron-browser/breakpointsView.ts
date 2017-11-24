@@ -73,7 +73,8 @@ export class BreakpointsView extends ViewsViewletPanel {
 			new FunctionBreakpointsRenderer(this.debugService),
 			new FunctionBreakpointInputRenderer(this.debugService, this.contextViewService, this.themeService)
 		], {
-				identityProvider: element => element.getId()
+				identityProvider: element => element.getId(),
+				multipleSelectionSupport: false
 			}, this.contextKeyService, this.listService, this.themeService);
 
 		CONTEXT_BREAKPOINTS_FOCUSED.bindTo(this.list.contextKeyService);
