@@ -7,7 +7,7 @@ import 'vs/css!./list';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { range } from 'vs/base/common/arrays';
 import { IDelegate, IRenderer, IListEvent } from './list';
-import { List, IListOptions } from './listWidget';
+import { List, IListOptions, IListStyles } from './listWidget';
 import { IPagedModel } from 'vs/base/common/paging';
 import Event, { mapEvent } from 'vs/base/common/event';
 
@@ -172,5 +172,9 @@ export class PagedList<T> {
 
 	reveal(index: number, relativeTop?: number): void {
 		this.list.reveal(index, relativeTop);
+	}
+
+	style(styles: IListStyles): void {
+		this.list.style(styles);
 	}
 }

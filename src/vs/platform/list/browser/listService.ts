@@ -12,6 +12,10 @@ import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/cont
 import { PagedList, IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
+import { attachListStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+
+export type ListWidget = List<any> | PagedList<any> | ITree;
 
 export const IListService = createDecorator<IListService>('listService');
 
@@ -22,10 +26,8 @@ export interface IListService {
 	/**
 	 * Returns the currently focused list widget if any.
 	 */
-	readonly lastFocusedList: ListWidget;
+	readonly lastFocusedList: ListWidget | undefined;
 }
-
-export type ListWidget = List<any> | PagedList<any> | ITree;
 
 interface IRegisteredList {
 	widget: ListWidget;
@@ -82,7 +84,7 @@ function createScopedContextKeyService(contextKeyService: IContextKeyService, wi
 export class WorkbenchList<T> extends List<T> {
 
 	readonly contextKeyService: IContextKeyService;
-	private listServiceDisposable: IDisposable;
+	private disposable: IDisposable;
 
 	constructor(
 		container: HTMLElement,
@@ -90,23 +92,28 @@ export class WorkbenchList<T> extends List<T> {
 		renderers: IRenderer<T, any>[],
 		options: IListOptions<T>,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IListService listService: IListService
+		@IListService listService: IListService,
+		@IThemeService themeService: IThemeService
 	) {
 		super(container, delegate, renderers, options);
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
-		this.listServiceDisposable = (listService as ListService).register(this);
+
+		this.disposable = combinedDisposable([
+			this.contextKeyService,
+			(listService as ListService).register(this),
+			attachListStyler(this, themeService)
+		]);
 	}
 
 	dispose(): void {
-		this.contextKeyService.dispose();
-		this.listServiceDisposable.dispose();
+		this.disposable.dispose();
 	}
 }
 
 export class WorkbenchPagedList<T> extends PagedList<T> {
 
 	readonly contextKeyService: IContextKeyService;
-	private listServiceDisposable: IDisposable;
+	private disposable: IDisposable;
 
 	constructor(
 		container: HTMLElement,
@@ -114,38 +121,48 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 		renderers: IPagedRenderer<T, any>[],
 		options: IListOptions<any>,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IListService listService: IListService
+		@IListService listService: IListService,
+		@IThemeService themeService: IThemeService
 	) {
 		super(container, delegate, renderers, options);
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
-		this.listServiceDisposable = (listService as ListService).register(this);
+
+		this.disposable = combinedDisposable([
+			this.contextKeyService,
+			(listService as ListService).register(this),
+			attachListStyler(this, themeService)
+		]);
 	}
 
 	dispose(): void {
-		this.contextKeyService.dispose();
-		this.listServiceDisposable.dispose();
+		this.disposable.dispose();
 	}
 }
 
 export class WorkbenchTree extends Tree {
 
 	readonly contextKeyService: IContextKeyService;
-	private listServiceDisposable: IDisposable;
+	private disposable: IDisposable;
 
 	constructor(
 		container: HTMLElement,
 		configuration: ITreeConfiguration,
 		options: ITreeOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IListService listService: IListService
+		@IListService listService: IListService,
+		@IThemeService themeService: IThemeService
 	) {
 		super(container, configuration, options);
 		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
-		this.listServiceDisposable = (listService as ListService).register(this);
+
+		this.disposable = combinedDisposable([
+			this.contextKeyService,
+			(listService as ListService).register(this),
+			attachListStyler(this, themeService)
+		]);
 	}
 
 	dispose(): void {
-		this.contextKeyService.dispose();
-		this.listServiceDisposable.dispose();
+		this.disposable.dispose();
 	}
 }

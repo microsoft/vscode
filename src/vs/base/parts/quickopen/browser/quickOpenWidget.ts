@@ -390,7 +390,7 @@ export class QuickOpenWidget implements IModelProvider {
 			});
 		}
 
-		if (this.tree) {
+		if (this.tree && !this.options.treeCreator) {
 			this.tree.style(this.styles);
 		}
 
@@ -852,10 +852,6 @@ export class QuickOpenWidget implements IModelProvider {
 
 	public getInput(): IModel<any> {
 		return this.tree.getInput();
-	}
-
-	public getTree(): ITree {
-		return this.tree;
 	}
 
 	public showInputDecoration(decoration: Severity): void {

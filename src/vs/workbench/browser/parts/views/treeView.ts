@@ -16,7 +16,6 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ClickBehavior, DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { createActionItem, fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -92,13 +91,13 @@ export class TreeView extends TreeViewsViewletPanel {
 			{ dataSource, renderer, controller },
 			{ keyboardSupport: false },
 			this.contextKeyService,
-			this.listService
+			this.listService,
+			this.themeService
 		);
 
 		tree.contextKeyService.createKey<boolean>(this.id, true);
-
-		this.disposables.push(attachListStyler(tree, this.themeService));
 		this.disposables.push(tree.onDidChangeSelection(() => this.onSelection()));
+
 		return tree;
 	}
 

@@ -22,7 +22,7 @@ import { Expression } from 'vs/workbench/parts/debug/common/debugModel';
 import { renderExpressionValue } from 'vs/workbench/parts/debug/electron-browser/baseDebugView';
 import { VariablesDataSource, VariablesRenderer } from 'vs/workbench/parts/debug/electron-browser/variablesView';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { attachListStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -80,7 +80,7 @@ export class DebugHoverWidget implements IContentWidget {
 				twistiePixels: 15,
 				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover"),
 				keyboardSupport: false
-			}, this.contextKeyService, this.listService);
+			}, this.contextKeyService, this.listService, this.themeService);
 
 		this.valueContainer = $('.value');
 		this.valueContainer.tabIndex = 0;
@@ -91,7 +91,6 @@ export class DebugHoverWidget implements IContentWidget {
 
 		this.editor.applyFontInfo(this.domNode);
 
-		this.toDispose.push(attachListStyler(this.tree, this.themeService));
 		this.toDispose.push(attachStylerCallback(this.themeService, { editorHoverBackground, editorHoverBorder }, colors => {
 			this.domNode.style.backgroundColor = colors.editorHoverBackground;
 			if (colors.editorHoverBorder) {
