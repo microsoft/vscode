@@ -14,10 +14,10 @@ import Event from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
 import { ActionItem, IActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, AutoUpdateConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/parts/extensions/common/extensionsFileTemplate';
-import { LocalExtensionType, IExtensionEnablementService, IExtensionTipsService, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { LocalExtensionType, IExtensionEnablementService, IExtensionTipsService, EnablementState, ExtensionsLabel } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -41,6 +41,9 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { PICK_WORKSPACE_FOLDER_COMMAND } from 'vs/workbench/browser/actions/workspaceActions';
 import Severity from 'vs/base/common/severity';
 import { PagedModel } from 'vs/base/common/paging';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 
 export class InstallAction extends Action {
 
@@ -1303,6 +1306,53 @@ export class ChangeSortAction extends Action {
 	}
 }
 
+export class ConfigureRecommendedExtensionsCommandsContributor extends Disposable implements IWorkbenchContribution {
+
+	private workspaceContextKey = new RawContextKey<boolean>('workspaceRecommendations', true);
+	private workspaceFolderContextKey = new RawContextKey<boolean>('workspaceFolderRecommendations', true);
+
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService
+	) {
+		super();
+		const boundWorkspaceContextKey = this.workspaceContextKey.bindTo(contextKeyService);
+		boundWorkspaceContextKey.set(workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE);
+		this._register(workspaceContextService.onDidChangeWorkbenchState(() => boundWorkspaceContextKey.set(workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE)));
+
+
+		const boundWorkspaceFolderContextKey = this.workspaceFolderContextKey.bindTo(contextKeyService);
+		boundWorkspaceFolderContextKey.set(workspaceContextService.getWorkspace().folders.length > 0);
+		this._register(workspaceContextService.onDidChangeWorkspaceFolders(() => boundWorkspaceFolderContextKey.set(workspaceContextService.getWorkspace().folders.length > 0)));
+
+		this.registerCommands();
+	}
+
+	private registerCommands(): void {
+		CommandsRegistry.registerCommand(ConfigureWorkspaceRecommendedExtensionsAction.ID, serviceAccessor => {
+			serviceAccessor.get(IInstantiationService).createInstance(ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceRecommendedExtensionsAction.ID, ConfigureWorkspaceRecommendedExtensionsAction.LABEL).run();
+		});
+		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+			command: {
+				id: ConfigureWorkspaceRecommendedExtensionsAction.ID,
+				title: `${ExtensionsLabel}: ${ConfigureWorkspaceRecommendedExtensionsAction.LABEL}`,
+			},
+			when: this.workspaceContextKey
+		});
+
+		CommandsRegistry.registerCommand(ConfigureWorkspaceFolderRecommendedExtensionsAction.ID, serviceAccessor => {
+			serviceAccessor.get(IInstantiationService).createInstance(ConfigureWorkspaceFolderRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction.ID, ConfigureWorkspaceFolderRecommendedExtensionsAction.LABEL).run();
+		});
+		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+			command: {
+				id: ConfigureWorkspaceFolderRecommendedExtensionsAction.ID,
+				title: `${ExtensionsLabel}: ${ConfigureWorkspaceFolderRecommendedExtensionsAction.LABEL}`,
+			},
+			when: this.workspaceFolderContextKey
+		});
+	}
+}
+
 interface IExtensionsContent {
 	recommendations: string[];
 }
@@ -1414,7 +1464,7 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends AbstractConfi
 		this.enabled = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY;
 	}
 
-	public run(event: any): TPromise<any> {
+	public run(): TPromise<any> {
 		switch (this.contextService.getWorkbenchState()) {
 			case WorkbenchState.FOLDER:
 				return this.openExtensionsFile(this.contextService.getWorkspace().folders[0].toResource(paths.join('.vscode', 'extensions.json')));
