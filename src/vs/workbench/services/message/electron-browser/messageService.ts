@@ -129,6 +129,8 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 
 		if (opts.defaultId !== void 0) {
 			opts.defaultId = isLinux ? opts.buttons.length - opts.defaultId - 1 : opts.defaultId;
+		} else if (isLinux) {
+			opts.defaultId = opts.buttons.length - 1; // since we reversed the buttons
 		}
 
 		if (opts.cancelId !== void 0) {
