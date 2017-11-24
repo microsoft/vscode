@@ -478,6 +478,7 @@ export interface IListOptions<T> extends IListViewOptions, IMouseControllerOptio
 	ariaLabel?: string;
 	mouseSupport?: boolean;
 	keyboardSupport?: boolean;
+	allowMultipleSelection?: boolean;
 }
 
 export interface IListStyles {
@@ -512,7 +513,8 @@ const defaultStyles: IListStyles = {
 
 const DefaultOptions: IListOptions<any> = {
 	keyboardSupport: true,
-	mouseSupport: true
+	mouseSupport: true,
+	allowMultipleSelection: true
 };
 
 // TODO@Joao: move these utils into a SortedArray class
@@ -674,7 +676,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		container: HTMLElement,
 		delegate: IDelegate<T>,
 		renderers: IRenderer<T, any>[],
-		options: IListOptions<T> = DefaultOptions
+		private options: IListOptions<T> = DefaultOptions
 	) {
 		const aria = new Aria();
 		this.focus = new FocusTrait(i => this.getElementDomId(i));
@@ -682,6 +684,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 		this.eventBufferer = new EventBufferer();
 		mixin(options, defaultStyles, false);
+		mixin(options, DefaultOptions, false);
 
 		renderers = renderers.map(r => new PipelineRenderer(r.templateId, [aria, this.focus.renderer, this.selection.renderer, r]));
 
@@ -759,7 +762,11 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	setSelection(indexes: number[]): void {
 		indexes = indexes.sort(numericSort);
-		this.selection.set(indexes);
+		if (!this.options.allowMultipleSelection && indexes.length > 1) {
+			this.selection.set([indexes[0]]);
+		} else {
+			this.selection.set(indexes);
+		}
 	}
 
 	selectNext(n = 1, loop = false): void {
