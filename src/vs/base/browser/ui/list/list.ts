@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { GestureEvent } from 'vs/base/browser/touch';
+
 export interface IDelegate<T> {
 	getHeight(element: T): number;
 	getTemplateId(element: T): string;
@@ -26,10 +28,31 @@ export interface IListEvent<T> {
 	indexes: number[];
 }
 
-export interface IListMouseEvent<T> extends MouseEvent {
-	element: T;
+export interface IListBrowserEvent<T, E extends Event> {
+	browserEvent: E;
+	elements: T[];
 	index: number;
 }
+
+export interface IListMouseEvent<T> {
+	browserEvent: MouseEvent;
+	element: T | undefined;
+	index: number;
+}
+
+export interface IListTouchEvent<T> {
+	browserEvent: TouchEvent;
+	element: T | undefined;
+	index: number;
+}
+
+export interface IListGestureEvent<T> {
+	browserEvent: GestureEvent;
+	element: T | undefined;
+	index: number;
+}
+
+export interface IListKeyboardEvent<T> extends IListBrowserEvent<T, KeyboardEvent> { }
 
 export interface IListContextMenuEvent<T> {
 	element: T;
