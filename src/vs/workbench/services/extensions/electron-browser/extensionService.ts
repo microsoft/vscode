@@ -305,37 +305,9 @@ export class ExtensionService implements IExtensionService {
 
 	private _scanAndHandleExtensions(): void {
 
-		const log = new Logger((severity, source, message) => {
-			this._logOrShowMessage(severity, this._isDev ? messageWithSource2(source, message) : message);
-		});
-
-		ExtensionService._scanInstalledExtensions(this._environmentService, log)
-			.then((installedExtensions) => {
-
-				// Migrate enablement service to use identifiers
-				this._extensionEnablementService.migrateToIdentifiers(installedExtensions);
-
-				return this._getDisabledExtensions(installedExtensions)
-					.then(disabledExtensions => {
-						/* __GDPR__
-							"extensionsScanned" : {
-								"totalCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-								"disabledCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-							}
-						*/
-						this._telemetryService.publicLog('extensionsScanned', {
-							totalCount: installedExtensions.length,
-							disabledCount: disabledExtensions.length
-						});
-
-						if (disabledExtensions.length === 0) {
-							return installedExtensions;
-						}
-						return installedExtensions.filter(e => disabledExtensions.every(disabled => !areSameExtensions(disabled, e)));
-					});
-
-			}).then((extensionDescriptions) => {
-				this._registry = new ExtensionDescriptionRegistry(extensionDescriptions);
+		this._getRuntimeExtension()
+			.then(runtimeExtensons => {
+				this._registry = new ExtensionDescriptionRegistry(runtimeExtensons);
 
 				let availableExtensions = this._registry.getAllExtensionDescriptions();
 				let extensionPoints = ExtensionsRegistry.getExtensionPoints();
@@ -357,18 +329,66 @@ export class ExtensionService implements IExtensionService {
 			});
 	}
 
-	private _getDisabledExtensions(installedExtensions: IExtensionIdentifier[]): TPromise<IExtensionIdentifier[]> {
-		return this._extensionEnablementService.getDisabledExtensions()
-			.then(disabledExtensions => {
-				const betterMergeExtensionIdentifier: IExtensionIdentifier = { id: BetterMergeId };
-				if (disabledExtensions.every(disabled => disabled.id !== BetterMergeId) && installedExtensions.some(d => d.id === BetterMergeId)) {
-					return this._extensionEnablementService.setEnablement(betterMergeExtensionIdentifier, EnablementState.Disabled)
-						.then(() => {
-							this._storageService.store(BetterMergeDisabledNowKey, true);
-							return [...disabledExtensions, betterMergeExtensionIdentifier];
+	private _getRuntimeExtension(): TPromise<IExtensionDescription[]> {
+		const log = new Logger((severity, source, message) => {
+			this._logOrShowMessage(severity, this._isDev ? messageWithSource2(source, message) : message);
+		});
+
+		return ExtensionService._scanInstalledExtensions(this._environmentService, log)
+			.then(({ system, user, development }) => {
+				this._extensionEnablementService.migrateToIdentifiers(user); // TODO: @sandy Remove it after couple of milestones
+				return this._extensionEnablementService.getDisabledExtensions()
+					.then(disabledExtensions => {
+						let result: { [extensionId: string]: IExtensionDescription; } = {};
+						let extensionsToDisable: IExtensionIdentifier[] = [];
+						let userMigratedSystemExtensions: IExtensionIdentifier[] = [{ id: BetterMergeId }];
+
+						system.forEach((systemExtension) => {
+							// Disabling system extensions is not supported
+							result[systemExtension.id] = systemExtension;
 						});
-				}
-				return disabledExtensions;
+
+						user.forEach((userExtension) => {
+							if (result.hasOwnProperty(userExtension.id)) {
+								log.warn(userExtension.extensionFolderPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", result[userExtension.id].extensionFolderPath, userExtension.extensionFolderPath));
+							}
+							if (disabledExtensions.every(disabled => !areSameExtensions(disabled, userExtension))) {
+								// Check if the extension is changed to system extension
+								let userMigratedSystemExtension = userMigratedSystemExtensions.filter(userMigratedSystemExtension => areSameExtensions(userMigratedSystemExtension, { id: userExtension.id }))[0];
+								if (userMigratedSystemExtension) {
+									extensionsToDisable.push(userMigratedSystemExtension);
+								} else {
+									result[userExtension.id] = userExtension;
+								}
+							}
+						});
+
+						development.forEach(developedExtension => {
+							log.info('', nls.localize('extensionUnderDevelopment', "Loading development extension at {0}", developedExtension.extensionFolderPath));
+							if (result.hasOwnProperty(developedExtension.id)) {
+								log.warn(developedExtension.extensionFolderPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", result[developedExtension.id].extensionFolderPath, developedExtension.extensionFolderPath));
+							}
+							// Do not disable extensions under development
+							result[developedExtension.id] = developedExtension;
+						});
+
+						const runtimeExtensions = Object.keys(result).map(name => result[name]);
+
+						this._telemetryService.publicLog('extensionsScanned', {
+							totalCount: runtimeExtensions.length,
+							disabledCount: disabledExtensions.length
+						});
+
+						if (extensionsToDisable.length) {
+							return TPromise.join(extensionsToDisable.map(e => this._extensionEnablementService.setEnablement(e, EnablementState.Disabled)))
+								.then(() => {
+									this._storageService.store(BetterMergeDisabledNowKey, true);
+									return runtimeExtensions;
+								});
+						} else {
+							return runtimeExtensions;
+						}
+					});
 			});
 	}
 
@@ -402,40 +422,23 @@ export class ExtensionService implements IExtensionService {
 		}
 	}
 
-	private static _scanInstalledExtensions(environmentService: IEnvironmentService, log: ILog): TPromise<IExtensionDescription[]> {
+	private static _scanInstalledExtensions(environmentService: IEnvironmentService, log: ILog): TPromise<{ system: IExtensionDescription[], user: IExtensionDescription[], development: IExtensionDescription[] }> {
 		const version = pkg.version;
 		const builtinExtensions = ExtensionScanner.scanExtensions(version, log, SystemExtensionsRoot, true);
 		const userExtensions = environmentService.disableExtensions || !environmentService.extensionsPath ? TPromise.as([]) : ExtensionScanner.scanExtensions(version, log, environmentService.extensionsPath, false);
-		const developedExtensions = environmentService.disableExtensions || !environmentService.isExtensionDevelopment ? TPromise.as([]) : ExtensionScanner.scanOneOrMultipleExtensions(version, log, environmentService.extensionDevelopmentPath, false);
+		// Always load developed extensions while extensions development
+		const developedExtensions = environmentService.isExtensionDevelopment ? ExtensionScanner.scanOneOrMultipleExtensions(version, log, environmentService.extensionDevelopmentPath, false) : TPromise.as([]);
 
-		return TPromise.join([builtinExtensions, userExtensions, developedExtensions]).then<IExtensionDescription[]>((extensionDescriptions: IExtensionDescription[][]) => {
-			const builtinExtensions = extensionDescriptions[0];
-			const userExtensions = extensionDescriptions[1];
-			const developedExtensions = extensionDescriptions[2];
-
-			let result: { [extensionId: string]: IExtensionDescription; } = {};
-			builtinExtensions.forEach((builtinExtension) => {
-				result[builtinExtension.id] = builtinExtension;
+		return TPromise.join([builtinExtensions, userExtensions, developedExtensions])
+			.then((extensionDescriptions: IExtensionDescription[][]) => {
+				const system = extensionDescriptions[0];
+				const user = extensionDescriptions[1];
+				const development = extensionDescriptions[2];
+				return { system, user, development };
+			}).then(null, err => {
+				log.error('', err);
+				return { system: [], user: [], development: [] };
 			});
-			userExtensions.forEach((userExtension) => {
-				if (result.hasOwnProperty(userExtension.id)) {
-					log.warn(userExtension.extensionFolderPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", result[userExtension.id].extensionFolderPath, userExtension.extensionFolderPath));
-				}
-				result[userExtension.id] = userExtension;
-			});
-			developedExtensions.forEach(developedExtension => {
-				log.info('', nls.localize('extensionUnderDevelopment', "Loading development extension at {0}", developedExtension.extensionFolderPath));
-				if (result.hasOwnProperty(developedExtension.id)) {
-					log.warn(developedExtension.extensionFolderPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", result[developedExtension.id].extensionFolderPath, developedExtension.extensionFolderPath));
-				}
-				result[developedExtension.id] = developedExtension;
-			});
-
-			return Object.keys(result).map(name => result[name]);
-		}).then(null, err => {
-			log.error('', err);
-			return [];
-		});
 	}
 
 	private static _handleExtensionPoint<T>(extensionPoint: ExtensionPoint<T>, availableExtensions: IExtensionDescription[], messageHandler: (msg: IMessage) => void): void {
