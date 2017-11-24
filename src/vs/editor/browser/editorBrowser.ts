@@ -195,6 +195,45 @@ export interface IOverlayWidget {
 }
 
 /**
+ * A positioning preference for rendering content widgets.
+ */
+export enum EdgeWidgetPositionEdge {
+	/**
+	 * Place the edge widget at the top
+	 */
+	TOP,
+	/**
+	 * Place the edge widget at the bottom
+	 */
+	BOTTOM
+}
+/**
+ * A position for rendering edge widgets.
+ */
+export interface IEdgeWidgetPosition {
+	size: number;
+	edge: EdgeWidgetPositionEdge;
+}
+/**
+ * An edge widget renders at the requested edge and pushed content inside.
+ */
+export interface IEdgeWidget {
+	/**
+	 * Get a unique identifier of the edge widget.
+	 */
+	getId(): string;
+	/**
+	 * Get the dom node of the content widget.
+	 */
+	getDomNode(): HTMLElement;
+	/**
+	 * Get the placement of the content widget.
+	 * If null is returned, the content widget will be placed off screen.
+	 */
+	getPosition(): IEdgeWidgetPosition;
+}
+
+/**
  * Type of hit element with the mouse in the editor.
  */
 export enum MouseTargetType {
