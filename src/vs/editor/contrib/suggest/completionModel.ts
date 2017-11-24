@@ -37,13 +37,20 @@ export class LineContext {
 	characterCountDelta: number;
 }
 
+const enum Refilter {
+	Nothing = 0,
+	All = 1,
+	Incr = 2
+}
+
 export class CompletionModel {
 
 	private readonly _column: number;
-	private readonly _items: ISuggestionItem[];
+	private readonly _items: ICompletionItem[];
 	private readonly _snippetCompareFn = CompletionModel._compareCompletionItems;
 
 	private _lineContext: LineContext;
+	private _refilterKind: Refilter;
 	private _filteredItems: ICompletionItem[];
 	private _isIncomplete: boolean;
 	private _stats: ICompletionStats;
@@ -51,6 +58,7 @@ export class CompletionModel {
 	constructor(items: ISuggestionItem[], column: number, lineContext: LineContext, snippetConfig?: SnippetConfig) {
 		this._items = items;
 		this._column = column;
+		this._refilterKind = Refilter.All;
 		this._lineContext = lineContext;
 
 		if (snippetConfig === 'top') {
@@ -78,10 +86,10 @@ export class CompletionModel {
 
 	set lineContext(value: LineContext) {
 		if (this._lineContext.leadingLineContent !== value.leadingLineContent
-			|| this._lineContext.characterCountDelta !== value.characterCountDelta) {
-
+			|| this._lineContext.characterCountDelta !== value.characterCountDelta
+		) {
+			this._refilterKind = this._lineContext.characterCountDelta < value.characterCountDelta ? Refilter.Incr : Refilter.All;
 			this._lineContext = value;
-			this._filteredItems = undefined;
 		}
 	}
 
@@ -116,22 +124,26 @@ export class CompletionModel {
 	}
 
 	private _ensureCachedState(): void {
-		if (!this._filteredItems) {
+		if (this._refilterKind !== Refilter.Nothing) {
 			this._createCachedState();
 		}
 	}
 
 	private _createCachedState(): void {
-		this._filteredItems = [];
+
 		this._isIncomplete = false;
 		this._stats = { suggestionCount: 0, snippetCount: 0, textCount: 0 };
 
 		const { leadingLineContent, characterCountDelta } = this._lineContext;
 		let word = '';
 
-		for (let i = 0; i < this._items.length; i++) {
+		// incrementally filter less
+		const source = this._refilterKind === Refilter.All ? this._items : this._filteredItems;
+		const target: typeof source = [];
 
-			const item = <ICompletionItem>this._items[i];
+		for (let i = 0; i < source.length; i++) {
+
+			const item = source[i];
 			const { suggestion, container } = item;
 
 			// collect those supports that signaled having
@@ -182,7 +194,7 @@ export class CompletionModel {
 
 			item.idx = i;
 
-			this._filteredItems.push(item);
+			target.push(item);
 
 			// update stats
 			this._stats.suggestionCount++;
@@ -192,7 +204,8 @@ export class CompletionModel {
 			}
 		}
 
-		this._filteredItems.sort(this._snippetCompareFn);
+		this._filteredItems = target.sort(this._snippetCompareFn);
+		this._refilterKind = Refilter.Nothing;
 	}
 
 	private static _compareCompletionItems(a: ICompletionItem, b: ICompletionItem): number {

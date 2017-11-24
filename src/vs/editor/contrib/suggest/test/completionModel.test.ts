@@ -225,7 +225,32 @@ suite('CompletionModel', function () {
 		const [first, second] = model.items;
 		assert.equal(first.suggestion.label, 'source');
 		assert.equal(second.suggestion.label, '<- groups');
-
 	});
 
+	test('Score only filtered items when typing more, score all when typing less', function () {
+		model = new CompletionModel([
+			createSuggestItem('console', 0, 'property'),
+			createSuggestItem('co_new', 0, 'property'),
+			createSuggestItem('bar', 0, 'property'),
+			createSuggestItem('car', 0, 'property'),
+			createSuggestItem('foo', 0, 'property'),
+		], 1, {
+				leadingLineContent: '',
+				characterCountDelta: 0
+			}, 'inline');
+
+		assert.equal(model.items.length, 5);
+
+		// narrow down once
+		model.lineContext = { leadingLineContent: 'c', characterCountDelta: 1 };
+		assert.equal(model.items.length, 3);
+
+		// query gets longer, narrow down the narrow-down'ed-set from before
+		model.lineContext = { leadingLineContent: 'cn', characterCountDelta: 2 };
+		assert.equal(model.items.length, 2);
+
+		// query gets shorter, refilter everything
+		model.lineContext = { leadingLineContent: '', characterCountDelta: 0 };
+		assert.equal(model.items.length, 5);
+	});
 });
