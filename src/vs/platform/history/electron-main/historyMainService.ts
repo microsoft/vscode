@@ -9,7 +9,7 @@ import * as path from 'path';
 import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
 import { trim } from 'vs/base/common/strings';
-import { IStorageMainService } from 'vs/platform/storage2/common/storage';
+import { IStateService } from 'vs/platform/state/common/state';
 import { app } from 'electron';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getPathLabel, getBaseLabel } from 'vs/base/common/labels';
@@ -41,7 +41,7 @@ export class HistoryMainService implements IHistoryMainService {
 	private macOSRecentDocumentsUpdater: RunOnceScheduler;
 
 	constructor(
-		@IStorageMainService private storageMainService: IStorageMainService,
+		@IStateService private stateService: IStateService,
 		@ILogService private logService: ILogService,
 		@IWorkspacesMainService private workspacesMainService: IWorkspacesMainService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -179,7 +179,7 @@ export class HistoryMainService implements IHistoryMainService {
 		let files: string[];
 
 		// Get from storage
-		const storedRecents = this.storageMainService.getItem<IRecentlyOpened>(HistoryMainService.recentlyOpenedStorageKey) as ILegacyRecentlyOpened;
+		const storedRecents = this.stateService.getItem<IRecentlyOpened>(HistoryMainService.recentlyOpenedStorageKey) as ILegacyRecentlyOpened;
 		if (storedRecents) {
 			workspaces = storedRecents.workspaces || storedRecents.folders || [];
 			files = storedRecents.files || [];
@@ -217,7 +217,7 @@ export class HistoryMainService implements IHistoryMainService {
 	}
 
 	private saveRecentlyOpened(recent: IRecentlyOpened): void {
-		this.storageMainService.setItem(HistoryMainService.recentlyOpenedStorageKey, recent);
+		this.stateService.setItem(HistoryMainService.recentlyOpenedStorageKey, recent);
 	}
 
 	public updateWindowsJumpList(): void {

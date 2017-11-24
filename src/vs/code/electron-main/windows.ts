@@ -12,7 +12,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { assign, mixin, equals } from 'vs/base/common/objects';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
-import { IStorageMainService } from 'vs/platform/storage2/common/storage';
+import { IStateService } from 'vs/platform/state/common/state';
 import { CodeWindow, IWindowState as ISingleWindowState, defaultWindowState, WindowMode } from 'vs/code/electron-main/window';
 import { ipcMain as ipc, screen, BrowserWindow, dialog, systemPreferences, app } from 'electron';
 import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/node/paths';
@@ -140,7 +140,7 @@ export class WindowsManager implements IWindowsMainService {
 	constructor(
 		private readonly machineId: string,
 		@ILogService private logService: ILogService,
-		@IStorageMainService private storageMainService: IStorageMainService,
+		@IStateService private stateService: IStateService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IBackupMainService private backupMainService: IBackupMainService,
@@ -150,9 +150,9 @@ export class WindowsManager implements IWindowsMainService {
 		@IWorkspacesMainService private workspacesMainService: IWorkspacesMainService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
-		this.windowsState = this.storageMainService.getItem<IWindowsState>(WindowsManager.windowsStateStorageKey) || { openedWindows: [] };
+		this.windowsState = this.stateService.getItem<IWindowsState>(WindowsManager.windowsStateStorageKey) || { openedWindows: [] };
 
-		this.fileDialog = new FileDialog(environmentService, telemetryService, storageMainService, this);
+		this.fileDialog = new FileDialog(environmentService, telemetryService, stateService, this);
 		this.workspacesManager = new WorkspacesManager(workspacesMainService, backupMainService, environmentService, this);
 
 		this.migrateLegacyWindowState();
@@ -311,7 +311,7 @@ export class WindowsManager implements IWindowsMainService {
 		}
 
 		// Persist
-		this.storageMainService.setItem(WindowsManager.windowsStateStorageKey, currentWindowsState);
+		this.stateService.setItem(WindowsManager.windowsStateStorageKey, currentWindowsState);
 	}
 
 	// See note on #onBeforeQuit() for details how these events are flowing
@@ -1589,7 +1589,7 @@ class FileDialog {
 	constructor(
 		private environmentService: IEnvironmentService,
 		private telemetryService: ITelemetryService,
-		private storageMainService: IStorageMainService,
+		private stateService: IStateService,
 		private windowsMainService: IWindowsMainService
 	) {
 	}
@@ -1630,7 +1630,7 @@ class FileDialog {
 
 		// Ensure defaultPath
 		if (!options.dialogOptions.defaultPath) {
-			options.dialogOptions.defaultPath = this.storageMainService.getItem<string>(FileDialog.workingDirPickerStorageKey);
+			options.dialogOptions.defaultPath = this.stateService.getItem<string>(FileDialog.workingDirPickerStorageKey);
 		}
 
 		// Ensure properties
@@ -1659,7 +1659,7 @@ class FileDialog {
 				}
 
 				// Remember path in storage for next time
-				this.storageMainService.setItem(FileDialog.workingDirPickerStorageKey, dirname(paths[0]));
+				this.stateService.setItem(FileDialog.workingDirPickerStorageKey, dirname(paths[0]));
 
 				// Return
 				return clb(paths);

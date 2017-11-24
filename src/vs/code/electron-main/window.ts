@@ -9,7 +9,7 @@ import * as path from 'path';
 import * as objects from 'vs/base/common/objects';
 import nls = require('vs/nls');
 import URI from 'vs/base/common/uri';
-import { IStorageMainService } from 'vs/platform/storage2/common/storage';
+import { IStateService } from 'vs/platform/state/common/state';
 import { shell, screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage } from 'electron';
 import { TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
@@ -104,7 +104,7 @@ export class CodeWindow implements ICodeWindow {
 		@ILogService private logService: ILogService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IStorageMainService private storageMainService: IStorageMainService,
+		@IStateService private stateService: IStateService,
 		@IWorkspacesMainService private workspacesMainService: IWorkspacesMainService,
 		@IBackupMainService private backupMainService: IBackupMainService
 	) {
@@ -595,7 +595,7 @@ export class CodeWindow implements ICodeWindow {
 			return 'hc-black';
 		}
 
-		const theme = this.storageMainService.getItem<string>(CodeWindow.themeStorageKey, 'vs-dark');
+		const theme = this.stateService.getItem<string>(CodeWindow.themeStorageKey, 'vs-dark');
 
 		return theme.split(' ')[0];
 	}
@@ -605,7 +605,7 @@ export class CodeWindow implements ICodeWindow {
 			return CodeWindow.DEFAULT_BG_HC_BLACK;
 		}
 
-		const background = this.storageMainService.getItem<string>(CodeWindow.themeBackgroundStorageKey, null);
+		const background = this.stateService.getItem<string>(CodeWindow.themeBackgroundStorageKey, null);
 		if (!background) {
 			const baseTheme = this.getBaseTheme();
 

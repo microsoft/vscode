@@ -10,7 +10,7 @@ import * as fs from 'original-fs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { writeFileAndFlushSync } from 'vs/base/node/extfs';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
-import { IStorageMainService } from 'vs/platform/storage2/common/storage';
+import { IStateService } from 'vs/platform/state/common/state';
 
 export class FileStorage {
 
@@ -87,7 +87,7 @@ export class FileStorage {
 	}
 }
 
-export class StorageMainService implements IStorageMainService {
+export class StateService implements IStateService {
 
 	_serviceBrand: any;
 

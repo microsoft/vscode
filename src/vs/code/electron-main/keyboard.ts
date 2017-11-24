@@ -7,7 +7,7 @@
 
 import * as nativeKeymap from 'native-keymap';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IStorageMainService } from 'vs/platform/storage2/common/storage';
+import { IStateService } from 'vs/platform/state/common/state';
 import Event, { Emitter, once } from 'vs/base/common/event';
 import { ConfigWatcher } from 'vs/base/node/config';
 import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
@@ -58,13 +58,13 @@ export class KeybindingsResolver {
 	onKeybindingsChanged: Event<void> = this._onKeybindingsChanged.event;
 
 	constructor(
-		@IStorageMainService private storageMainService: IStorageMainService,
+		@IStateService private stateService: IStateService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IWindowsMainService private windowsMainService: IWindowsMainService,
 		@ILogService private logService: ILogService
 	) {
 		this.commandIds = new Set<string>();
-		this.keybindings = this.storageMainService.getItem<{ [id: string]: string; }>(KeybindingsResolver.lastKnownKeybindingsMapStorageKey) || Object.create(null);
+		this.keybindings = this.stateService.getItem<{ [id: string]: string; }>(KeybindingsResolver.lastKnownKeybindingsMapStorageKey) || Object.create(null);
 		this.keybindingsWatcher = new ConfigWatcher<IUserFriendlyKeybinding[]>(environmentService.appKeybindingsPath, { changeBufferDelay: 100, onError: error => this.logService.error(error) });
 
 		this.registerListeners();
@@ -102,7 +102,7 @@ export class KeybindingsResolver {
 
 			if (keybindingsChanged) {
 				this.keybindings = resolvedKeybindings;
-				this.storageMainService.setItem(KeybindingsResolver.lastKnownKeybindingsMapStorageKey, this.keybindings); // keep to restore instantly after restart
+				this.stateService.setItem(KeybindingsResolver.lastKnownKeybindingsMapStorageKey, this.keybindings); // keep to restore instantly after restart
 
 				this._onKeybindingsChanged.fire();
 			}

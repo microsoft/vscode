@@ -11,10 +11,10 @@ import path = require('path');
 import extfs = require('vs/base/node/extfs');
 import { getRandomTestPath } from 'vs/workbench/test/workbenchTestServices';
 import { writeFileAndFlushSync, mkdirp } from 'vs/base/node/extfs';
-import { FileStorage } from 'vs/platform/storage2/node/storageMainService';
+import { FileStorage } from 'vs/platform/state/node/stateService';
 
-suite('StorageMainService', () => {
-	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'storageservice');
+suite('StateService', () => {
+	const parentDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'stateservice');
 	const storageFile = path.join(parentDir, 'storage.json');
 
 	teardown(done => {

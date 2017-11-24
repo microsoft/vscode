@@ -26,7 +26,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IStorageMainService } from 'vs/platform/storage2/common/storage';
+import { IStateService } from 'vs/platform/state/common/state';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IURLService } from 'vs/platform/url/common/url';
@@ -76,7 +76,7 @@ export class CodeApplication {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IConfigurationService configurationService: ConfigurationService,
-		@IStorageMainService private storageMainService: IStorageMainService,
+		@IStateService private stateService: IStateService,
 		@IHistoryMainService private historyMainService: IHistoryMainService
 	) {
 		this.toDispose = [mainIpcServer, configurationService];
@@ -235,8 +235,8 @@ export class CodeApplication {
 		if (event === 'vscode:changeColorTheme' && typeof payload === 'string') {
 			let data = JSON.parse(payload);
 
-			this.storageMainService.setItem(CodeWindow.themeStorageKey, data.id);
-			this.storageMainService.setItem(CodeWindow.themeBackgroundStorageKey, data.background);
+			this.stateService.setItem(CodeWindow.themeStorageKey, data.id);
+			this.stateService.setItem(CodeWindow.themeBackgroundStorageKey, data.background);
 		}
 	}
 
@@ -282,7 +282,7 @@ export class CodeApplication {
 	}
 
 	private resolveMachineId(): TPromise<string> {
-		const machineId = this.storageMainService.getItem<string>(CodeApplication.MACHINE_ID_KEY);
+		const machineId = this.stateService.getItem<string>(CodeApplication.MACHINE_ID_KEY);
 		if (machineId) {
 			return TPromise.wrap(machineId);
 		}
@@ -290,7 +290,7 @@ export class CodeApplication {
 		return getMachineId().then(machineId => {
 
 			// Remember in global storage
-			this.storageMainService.setItem(CodeApplication.MACHINE_ID_KEY, machineId);
+			this.stateService.setItem(CodeApplication.MACHINE_ID_KEY, machineId);
 
 			return machineId;
 		});
@@ -427,8 +427,8 @@ export class CodeApplication {
 		// Helps application icon refresh after an update with new icon is installed (macOS)
 		// TODO@Ben remove after a couple of releases
 		if (platform.isMacintosh) {
-			if (!this.storageMainService.getItem(CodeApplication.APP_ICON_REFRESH_KEY)) {
-				this.storageMainService.setItem(CodeApplication.APP_ICON_REFRESH_KEY, true);
+			if (!this.stateService.getItem(CodeApplication.APP_ICON_REFRESH_KEY)) {
+				this.stateService.setItem(CodeApplication.APP_ICON_REFRESH_KEY, true);
 
 				// 'exe' => /Applications/Visual Studio Code - Insiders.app/Contents/MacOS/Electron
 				const appPath = dirname(dirname(dirname(app.getPath('exe'))));
