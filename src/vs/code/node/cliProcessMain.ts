@@ -33,6 +33,8 @@ import { mkdirp, writeFile } from 'vs/base/node/pfs';
 import { IChoiceService } from 'vs/platform/message/common/message';
 import { ChoiceCliService } from 'vs/platform/message/node/messageCli';
 import { getBaseLabel } from 'vs/base/common/labels';
+import { IStateService } from 'vs/platform/state/common/state';
+import { StateService } from 'vs/platform/state/node/stateService';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = (id: string) => localize('notInstalled', "Extension '{0}' is not installed.", id);
@@ -176,11 +178,13 @@ const eventPrefix = 'monacoworkbench';
 export function main(argv: ParsedArgs): TPromise<void> {
 	const services = new ServiceCollection();
 	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, argv, process.execPath));
+	services.set(IStateService, new SyncDescriptor(StateService));
 
 	const instantiationService: IInstantiationService = new InstantiationService(services);
 
 	return instantiationService.invokeFunction(accessor => {
 		const envService = accessor.get(IEnvironmentService);
+		const stateService = accessor.get(IStateService);
 
 		return TPromise.join([envService.appSettingsHome, envService.extensionsPath].map(p => mkdirp(p))).then(() => {
 			const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt, installSource } = envService;
@@ -205,7 +209,7 @@ export function main(argv: ParsedArgs): TPromise<void> {
 
 				const config: ITelemetryServiceConfig = {
 					appender: combinedAppender(...appenders),
-					commonProperties: resolveCommonProperties(product.commit, pkg.version, installSource),
+					commonProperties: resolveCommonProperties(product.commit, pkg.version, installSource, stateService.getItem('telemetry.machineId')),
 					piiPaths: [appRoot, extensionsPath]
 				};
 
