@@ -1373,20 +1373,22 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 
 	protected openExtensionsFile(extensionsFileResource: URI): TPromise<any> {
 		return this.getOrCreateExtensionsFile(extensionsFileResource)
-			.then(({ created }) => {
-				return this.editorService.openEditor({
-					resource: extensionsFileResource,
-					options: {
-						forceOpen: true,
-						pinned: created
-					},
-				});
-			}, error => TPromise.wrapError(new Error(localize('OpenExtensionsFile.failed', "Unable to create 'extensions.json' file inside the '.vscode' folder ({0}).", error))));
+			.then(({ created, content }) =>
+				this.getSelectionPosition(content, extensionsFileResource, ['recommendations'])
+					.then(selection => this.editorService.openEditor({
+						resource: extensionsFileResource,
+						options: {
+							forceOpen: true,
+							pinned: created,
+							selection
+						}
+					})),
+			error => TPromise.wrapError(new Error(localize('OpenExtensionsFile.failed', "Unable to create 'extensions.json' file inside the '.vscode' folder ({0}).", error))));
 	}
 
 	protected openWorkspaceConfigurationFile(workspaceConfigurationFile: URI): TPromise<any> {
 		return this.getOrUpdateWorkspaceConfigurationFile(workspaceConfigurationFile)
-			.then(content => this.getSelectionPosition(content))
+			.then(content => this.getSelectionPosition(content.value, content.resource, ['extensions', 'recommendations']))
 			.then(selection => this.editorService.openEditor({
 				resource: workspaceConfigurationFile,
 				options: {
@@ -1408,12 +1410,14 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 			});
 	}
 
-	private getSelectionPosition(content: IContent): TPromise<ITextEditorSelection> {
-		const tree = json.parseTree(content.value);
-		const node = json.findNodeAtLocation(tree, ['extensions', 'recommendations']);
+	private getSelectionPosition(content: string, resource: URI, path: json.JSONPath): TPromise<ITextEditorSelection> {
+		const tree = json.parseTree(content);
+		const node = json.findNodeAtLocation(tree, path);
 		if (node && node.parent.children[1]) {
-			const offset = node.parent.children[1].offset;
-			return this.textModelResolverService.createModelReference(content.resource)
+			const recommendationsValueNode = node.parent.children[1];
+			const lastExtensionNode = recommendationsValueNode.children && recommendationsValueNode.children.length ? recommendationsValueNode.children[recommendationsValueNode.children.length - 1] : null;
+			const offset = lastExtensionNode ? lastExtensionNode.offset + lastExtensionNode.length : recommendationsValueNode.offset + 1;
+			return this.textModelResolverService.createModelReference(resource)
 				.then(reference => {
 					const position = reference.object.textEditorModel.getPositionAt(offset);
 					reference.dispose();
@@ -1428,12 +1432,12 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 		return TPromise.as(null);
 	}
 
-	private getOrCreateExtensionsFile(extensionsFileResource: URI): TPromise<{ created: boolean, extensionsFileResource: URI }> {
+	private getOrCreateExtensionsFile(extensionsFileResource: URI): TPromise<{ created: boolean, extensionsFileResource: URI, content: string }> {
 		return this.fileService.resolveContent(extensionsFileResource).then(content => {
-			return { created: false, extensionsFileResource };
+			return { created: false, extensionsFileResource, content: content.value };
 		}, err => {
 			return this.fileService.updateContent(extensionsFileResource, ExtensionsConfigurationInitialContent).then(() => {
-				return { created: true, extensionsFileResource };
+				return { created: true, extensionsFileResource, content: ExtensionsConfigurationInitialContent };
 			});
 		});
 	}
