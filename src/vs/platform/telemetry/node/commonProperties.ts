@@ -8,12 +8,12 @@ import * as os from 'os';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as uuid from 'vs/base/common/uuid';
 
-export const machineIdStorageKey = 'telemetry.machineId';
-export const machineIdIpcChannel = 'vscode:machineId';
-
-export function resolveCommonProperties(commit: string, version: string, source: string): TPromise<{ [name: string]: string; }> {
+export function resolveCommonProperties(commit: string, version: string, source: string, machineId?: string): TPromise<{ [name: string]: string; }> {
 	const result: { [name: string]: string; } = Object.create(null);
-
+	// __GDPR__COMMON__ "common.machineId" : { "classification": "EndUserPseudonymizedInformation", "purpose": "FeatureInsight" }
+	if (typeof machineId === 'string') {
+		result['common.machineId'] = machineId;
+	}
 	// __GDPR__COMMON__ "sessionID" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['sessionID'] = uuid.generateUuid() + Date.now();
 	// __GDPR__COMMON__ "commitHash" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }

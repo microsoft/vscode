@@ -24,7 +24,7 @@ import { IRequestService } from 'vs/platform/request/node/request';
 import { RequestService } from 'vs/platform/request/electron-browser/requestService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { combinedAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { resolveCommonProperties, machineIdStorageKey } from 'vs/platform/telemetry/node/commonProperties';
+import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { TelemetryAppenderChannel } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
@@ -34,8 +34,15 @@ import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { ipcRenderer } from 'electron';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { StorageService, inMemoryLocalStorageInstance } from 'vs/platform/storage/common/storageService';
 import { createSharedProcessContributions } from 'vs/code/electron-browser/contrib/contributions';
+
+export interface ISharedProcessConfiguration {
+	machineId: string;
+}
+
+export function startup(configuration: ISharedProcessConfiguration) {
+	handshake(configuration);
+}
 
 interface ISharedProcessInitData {
 	sharedIPCHandle: string;
@@ -66,7 +73,7 @@ class ActiveWindowManager implements IDisposable {
 
 const eventPrefix = 'monacoworkbench';
 
-function main(server: Server, initData: ISharedProcessInitData): void {
+function main(server: Server, initData: ISharedProcessInitData, configuration: ISharedProcessConfiguration): void {
 	const services = new ServiceCollection();
 
 	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, initData.args, process.execPath));
@@ -100,21 +107,12 @@ function main(server: Server, initData: ISharedProcessInitData): void {
 
 		const services = new ServiceCollection();
 		const environmentService = accessor.get(IEnvironmentService);
-		const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt, extensionTestsPath, installSource } = environmentService;
+		const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt, installSource } = environmentService;
 
 		if (isBuilt && !extensionDevelopmentPath && !environmentService.args['disable-telemetry'] && product.enableTelemetry) {
-			const disableStorage = !!extensionTestsPath; // never keep any state when running extension tests!
-			const storage = disableStorage ? inMemoryLocalStorageInstance : window.localStorage;
-			const storageService = new StorageService(storage, storage);
-
 			const config: ITelemetryServiceConfig = {
 				appender,
-				commonProperties: resolveCommonProperties(product.commit, pkg.version, installSource)
-					// __GDPR__COMMON__ "common.machineId" : { "classification": "EndUserPseudonymizedInformation", "purpose": "FeatureInsight" }
-					.then(result => Object.defineProperty(result, 'common.machineId', {
-						get: () => storageService.get(machineIdStorageKey),
-						enumerable: true
-					})),
+				commonProperties: resolveCommonProperties(product.commit, pkg.version, installSource, configuration.machineId),
 				piiPaths: [appRoot, extensionsPath]
 			};
 
@@ -182,10 +180,8 @@ function startHandshake(): TPromise<ISharedProcessInitData> {
 	});
 }
 
-function handshake(): TPromise<void> {
+function handshake(configuration: ISharedProcessConfiguration): TPromise<void> {
 	return startHandshake()
-		.then((data) => setupIPC(data.sharedIPCHandle).then(server => main(server, data)))
+		.then(data => setupIPC(data.sharedIPCHandle).then(server => main(server, data, configuration)))
 		.then(() => ipcRenderer.send('handshake:im ready'));
 }
-
-handshake();

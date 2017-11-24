@@ -28,8 +28,7 @@ import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry
 import { IdleMonitor, UserStatus } from 'vs/platform/telemetry/browser/idleMonitor';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
 import { ElectronWindow } from 'vs/workbench/electron-browser/window';
-import { resolveWorkbenchCommonProperties, getOrCreateMachineId } from 'vs/platform/telemetry/node/workbenchCommonProperties';
-import { machineIdIpcChannel } from 'vs/platform/telemetry/node/commonProperties';
+import { resolveWorkbenchCommonProperties } from 'vs/platform/telemetry/node/workbenchCommonProperties';
 import { IWindowsService, IWindowService, IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { WindowService } from 'vs/platform/windows/electron-browser/windowService';
 import { MessageService } from 'vs/workbench/services/message/electron-browser/messageService';
@@ -73,7 +72,7 @@ import { IExtensionManagementChannel, ExtensionManagementChannelClient } from 'v
 import { IExtensionManagementService, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
-import { remote, ipcRenderer as ipc } from 'electron';
+import { remote } from 'electron';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { restoreFontInfo, readFontInfo, saveFontInfo } from 'vs/editor/browser/config/configuration';
 import * as browser from 'vs/base/browser/browser';
@@ -311,7 +310,6 @@ export class WorkbenchShell {
 		serviceCollection.set(IExperimentService, this.experimentService);
 
 		// Telemetry
-		this.sendMachineIdToMain(this.storageService);
 		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
 			const channel = getDelayedChannel<ITelemetryAppenderChannel>(sharedProcess.then(c => c.getChannel('telemetryAppender')));
 			const commit = product.commit;
@@ -319,7 +317,7 @@ export class WorkbenchShell {
 
 			const config: ITelemetryServiceConfig = {
 				appender: new TelemetryAppenderClient(channel),
-				commonProperties: resolveWorkbenchCommonProperties(this.storageService, commit, version, this.environmentService.installSource),
+				commonProperties: resolveWorkbenchCommonProperties(this.storageService, commit, version, this.environmentService.installSource, this.configuration.machineId),
 				piiPaths: [this.environmentService.appRoot, this.environmentService.extensionsPath]
 			};
 
@@ -412,12 +410,6 @@ export class WorkbenchShell {
 		serviceCollection.set(IIntegrityService, new SyncDescriptor(IntegrityServiceImpl));
 
 		return [instantiationService, serviceCollection];
-	}
-
-	private sendMachineIdToMain(storageService: IStorageService) {
-		getOrCreateMachineId(storageService).then(machineId => {
-			ipc.send(machineIdIpcChannel, machineId);
-		}).then(null, errors.onUnexpectedError);
 	}
 
 	public open(): void {

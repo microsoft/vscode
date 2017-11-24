@@ -249,10 +249,7 @@ function main() {
 		// Startup
 		return instantiationService.invokeFunction(a => createPaths(a.get(IEnvironmentService)))
 			.then(() => instantiationService.invokeFunction(setupIPC))
-			.then(mainIpcServer => {
-				const app = instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnv);
-				app.startup();
-			});
+			.then(mainIpcServer => instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnv).startup());
 	}).done(null, err => instantiationService.invokeFunction(quit, err));
 }
 

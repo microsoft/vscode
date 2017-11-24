@@ -32,6 +32,7 @@ export class SharedProcess implements ISharedProcess {
 		});
 		const config = assign({
 			appRoot: this.environmentService.appRoot,
+			machineId: this.machineId,
 			nodeCachedDataDir: this.environmentService.nodeCachedDataDir,
 			userEnv: this.userEnv
 		});
@@ -78,6 +79,7 @@ export class SharedProcess implements ISharedProcess {
 
 	constructor(
 		private environmentService: IEnvironmentService,
+		private machineId: string,
 		private userEnv: IProcessEnvironment
 	) { }
 

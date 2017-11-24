@@ -292,6 +292,8 @@ export interface IAddFoldersRequest {
 }
 
 export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
+	machineId: string;
+
 	appRoot: string;
 	execPath: string;
 	isInitialStartup?: boolean;
