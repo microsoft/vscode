@@ -26,13 +26,7 @@ import { extHostCustomer } from 'vs/workbench/api/electron-browser/extHostCustom
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
-export interface INamedSaveParticpant extends ISaveParticipant {
-	readonly name: string;
-}
-
-class TrimWhitespaceParticipant implements INamedSaveParticpant {
-
-	readonly name = 'TrimWhitespaceParticipant';
+class TrimWhitespaceParticipant implements ISaveParticipant {
 
 	constructor(
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -88,9 +82,7 @@ function findEditor(model: IModel, codeEditorService: ICodeEditorService): ICode
 	return candidate;
 }
 
-export class FinalNewLineParticipant implements INamedSaveParticpant {
-
-	readonly name = 'FinalNewLineParticipant';
+export class FinalNewLineParticipant implements ISaveParticipant {
 
 	constructor(
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -128,9 +120,7 @@ export class FinalNewLineParticipant implements INamedSaveParticpant {
 	}
 }
 
-export class TrimFinalNewLinesParticipant implements INamedSaveParticpant {
-
-	readonly name = 'TrimFinalNewLinesParticipant';
+export class TrimFinalNewLinesParticipant implements ISaveParticipant {
 
 	constructor(
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -175,9 +165,7 @@ export class TrimFinalNewLinesParticipant implements INamedSaveParticpant {
 	}
 }
 
-class FormatOnSaveParticipant implements INamedSaveParticpant {
-
-	readonly name = 'FormatOnSaveParticipant';
+class FormatOnSaveParticipant implements ISaveParticipant {
 
 	constructor(
 		@ICodeEditorService private _editorService: ICodeEditorService,
@@ -245,11 +233,9 @@ class FormatOnSaveParticipant implements INamedSaveParticpant {
 	}
 }
 
-class ExtHostSaveParticipant implements INamedSaveParticpant {
+class ExtHostSaveParticipant implements ISaveParticipant {
 
 	private _proxy: ExtHostDocumentSaveParticipantShape;
-
-	readonly name = 'ExtHostSaveParticipant';
 
 	constructor(extHostContext: IExtHostContext) {
 		this._proxy = extHostContext.get(ExtHostContext.ExtHostDocumentSaveParticipant);
@@ -274,7 +260,7 @@ class ExtHostSaveParticipant implements INamedSaveParticpant {
 @extHostCustomer
 export class SaveParticipant implements ISaveParticipant {
 
-	private _saveParticipants: INamedSaveParticpant[];
+	private _saveParticipants: ISaveParticipant[];
 
 	constructor(
 		extHostContext: IExtHostContext,
