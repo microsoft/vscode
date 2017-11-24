@@ -118,7 +118,7 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 			}
 		}
 
-		if (!currentNode || !isValidLocationForEmmetAbbreviation(currentNode, syntax, position)) {
+		if (!isValidLocationForEmmetAbbreviation(currentNode, syntax, position)) {
 			return;
 		}
 		return syntax;
