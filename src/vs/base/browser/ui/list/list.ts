@@ -17,21 +17,9 @@ export interface IRenderer<TElement, TTemplateData> {
 	disposeTemplate(templateData: TTemplateData): void;
 }
 
-export interface IListElementEvent<T, E> {
-	element: T;
-	index: number;
-	event: E;
-}
-
 export interface IListEvent<T> {
 	elements: T[];
 	indexes: number[];
-}
-
-export interface IListBrowserEvent<T, E extends Event> {
-	browserEvent: E;
-	elements: T[];
-	index: number;
 }
 
 export interface IListMouseEvent<T> {
@@ -51,8 +39,6 @@ export interface IListGestureEvent<T> {
 	element: T | undefined;
 	index: number;
 }
-
-export interface IListKeyboardEvent<T> extends IListBrowserEvent<T, KeyboardEvent> { }
 
 export interface IListContextMenuEvent<T> {
 	element: T;

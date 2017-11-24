@@ -673,6 +673,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	get onTouchStart(): Event<IListTouchEvent<T>> { return this.view.onTouchStart; }
 	get onTap(): Event<IListGestureEvent<T>> { return this.view.onTap; }
 
+	get onKeyDown(): Event<KeyboardEvent> { return domEvent(this.view.domNode, 'keydown'); }
+	get onKeyUp(): Event<KeyboardEvent> { return domEvent(this.view.domNode, 'keyup'); }
+	get onKeyPress(): Event<KeyboardEvent> { return domEvent(this.view.domNode, 'keypress'); }
+
 	readonly onDidFocus: Event<void>;
 	readonly onDidBlur: Event<void>;
 
