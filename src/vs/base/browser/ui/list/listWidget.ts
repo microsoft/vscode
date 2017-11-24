@@ -259,8 +259,10 @@ class KeyboardController<T> implements IDisposable {
 
 	constructor(
 		private list: List<T>,
-		private view: ListView<T>
+		private view: ListView<T>,
+		options: IListOptions<T>
 	) {
+		const multipleSelectionSupport = !(options.multipleSelectionSupport === false);
 		this.disposables = [];
 
 		const onKeyDown = chain(domEvent(view.domNode, 'keydown'))
@@ -271,8 +273,11 @@ class KeyboardController<T> implements IDisposable {
 		onKeyDown.filter(e => e.keyCode === KeyCode.DownArrow).on(this.onDownArrow, this, this.disposables);
 		onKeyDown.filter(e => e.keyCode === KeyCode.PageUp).on(this.onPageUpArrow, this, this.disposables);
 		onKeyDown.filter(e => e.keyCode === KeyCode.PageDown).on(this.onPageDownArrow, this, this.disposables);
-		onKeyDown.filter(e => (platform.isMacintosh ? e.metaKey : e.ctrlKey) && e.keyCode === KeyCode.KEY_A).on(this.onCtrlA, this, this.disposables);
 		onKeyDown.filter(e => e.keyCode === KeyCode.Escape).on(this.onEscape, this, this.disposables);
+
+		if (multipleSelectionSupport) {
+			onKeyDown.filter(e => (platform.isMacintosh ? e.metaKey : e.ctrlKey) && e.keyCode === KeyCode.KEY_A).on(this.onCtrlA, this, this.disposables);
+		}
 	}
 
 	private onEnter(e: StandardKeyboardEvent): void {
@@ -345,13 +350,9 @@ function isSelectionChangeEvent(event: IListMouseEvent<any> | IListTouchEvent<an
 	return isSelectionSingleChangeEvent(event) || isSelectionRangeChangeEvent(event);
 }
 
-export interface IMouseControllerOptions {
-	selectOnMouseDown?: boolean;
-	focusOnMouseDown?: boolean;
-}
-
 class MouseController<T> implements IDisposable {
 
+	private multipleSelectionSupport: boolean;
 	private disposables: IDisposable[] = [];
 
 	@memoize get onContextMenu(): Event<IListContextMenuEvent<T>> {
@@ -378,8 +379,10 @@ class MouseController<T> implements IDisposable {
 	constructor(
 		private list: List<T>,
 		private view: ListView<T>,
-		private options: IMouseControllerOptions = {}
+		private options: IListOptions<T> = {}
 	) {
+		this.multipleSelectionSupport = options.multipleSelectionSupport !== false;
+
 		view.onMouseDown(this.onMouseDown, this, this.disposables);
 		view.onMouseClick(this.onPointer, this, this.disposables);
 		view.onMouseDblClick(this.onDoubleClick, this, this.disposables);
@@ -399,14 +402,14 @@ class MouseController<T> implements IDisposable {
 		let reference = this.list.getFocus()[0];
 		reference = reference === undefined ? this.list.getSelection()[0] : reference;
 
-		if (isSelectionRangeChangeEvent(e)) {
+		if (this.multipleSelectionSupport && isSelectionRangeChangeEvent(e)) {
 			return this.changeSelection(e, reference);
 		}
 
 		const focus = e.index;
 		this.list.setFocus([focus]);
 
-		if (isSelectionChangeEvent(e)) {
+		if (this.multipleSelectionSupport && isSelectionChangeEvent(e)) {
 			return this.changeSelection(e, reference);
 		}
 
@@ -417,7 +420,7 @@ class MouseController<T> implements IDisposable {
 	}
 
 	private onPointer(e: IListMouseEvent<T>): void {
-		if (isSelectionChangeEvent(e)) {
+		if (this.multipleSelectionSupport && isSelectionChangeEvent(e)) {
 			return;
 		}
 
@@ -429,7 +432,7 @@ class MouseController<T> implements IDisposable {
 	}
 
 	private onDoubleClick(e: IListMouseEvent<T>): void {
-		if (isSelectionChangeEvent(e)) {
+		if (this.multipleSelectionSupport && isSelectionChangeEvent(e)) {
 			return;
 		}
 
@@ -472,12 +475,14 @@ class MouseController<T> implements IDisposable {
 	}
 }
 
-export interface IListOptions<T> extends IListViewOptions, IMouseControllerOptions, IListStyles {
+export interface IListOptions<T> extends IListViewOptions, IListStyles {
 	identityProvider?: IIdentityProvider<T>;
 	ariaLabel?: string;
 	mouseSupport?: boolean;
+	selectOnMouseDown?: boolean;
+	focusOnMouseDown?: boolean;
 	keyboardSupport?: boolean;
-	allowMultipleSelection?: boolean;
+	multipleSelectionSupport?: boolean;
 }
 
 export interface IListStyles {
@@ -513,7 +518,7 @@ const defaultStyles: IListStyles = {
 const DefaultOptions: IListOptions<any> = {
 	keyboardSupport: true,
 	mouseSupport: true,
-	allowMultipleSelection: true
+	multipleSelectionSupport: true
 };
 
 // TODO@Joao: move these utils into a SortedArray class
@@ -636,7 +641,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	private focus: Trait<T>;
 	private selection: Trait<T>;
-	private eventBufferer: EventBufferer;
+	private eventBufferer = new EventBufferer();
 	private view: ListView<T>;
 	private spliceable: ISpliceable<T>;
 	private disposables: IDisposable[];
@@ -689,15 +694,13 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		container: HTMLElement,
 		delegate: IDelegate<T>,
 		renderers: IRenderer<T, any>[],
-		private options: IListOptions<T> = DefaultOptions
+		options: IListOptions<T> = DefaultOptions
 	) {
 		const aria = new Aria();
 		this.focus = new FocusTrait(i => this.getElementDomId(i));
 		this.selection = new Trait('selected');
 
-		this.eventBufferer = new EventBufferer();
 		mixin(options, defaultStyles, false);
-		mixin(options, DefaultOptions, false);
 
 		renderers = renderers.map(r => new PipelineRenderer(r.templateId, [aria, this.focus.renderer, this.selection.renderer, r]));
 
@@ -721,7 +724,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		this.onDidBlur = mapEvent(domEvent(this.view.domNode, 'blur', true), () => null);
 
 		if (typeof options.keyboardSupport !== 'boolean' || options.keyboardSupport) {
-			const controller = new KeyboardController(this, this.view);
+			const controller = new KeyboardController(this, this.view, options);
 			this.disposables.push(controller);
 		}
 
@@ -775,11 +778,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	setSelection(indexes: number[]): void {
 		indexes = indexes.sort(numericSort);
-		if (!this.options.allowMultipleSelection && indexes.length > 1) {
-			this.selection.set([indexes[0]]);
-		} else {
-			this.selection.set(indexes);
-		}
+		this.selection.set(indexes);
 	}
 
 	selectNext(n = 1, loop = false): void {
