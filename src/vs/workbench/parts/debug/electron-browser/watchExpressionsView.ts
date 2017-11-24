@@ -83,7 +83,7 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 			renderer: this.instantiationService.createInstance(WatchExpressionsRenderer),
 			accessibilityProvider: new WatchExpressionsAccessibilityProvider(),
 			controller: this.instantiationService.createInstance(WatchExpressionsController, actionProvider, MenuId.DebugWatchContext),
-			dnd: this.instantiationService.createInstance(WatchExpressionsDragAndDrop)
+			dnd: new WatchExpressionsDragAndDrop(this.debugService)
 		}, {
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'watchAriaTreeLabel' }, "Debug Watch Expressions"),
 				twistiePixels,
@@ -335,7 +335,7 @@ class WatchExpressionsController extends BaseDebugController {
 
 class WatchExpressionsDragAndDrop extends DefaultDragAndDrop {
 
-	constructor( @IDebugService private debugService: IDebugService) {
+	constructor(private debugService: IDebugService) {
 		super();
 	}
 

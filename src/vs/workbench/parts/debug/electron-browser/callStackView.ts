@@ -92,11 +92,11 @@ export class CallStackView extends TreeViewsViewletPanel {
 	public renderBody(container: HTMLElement): void {
 		dom.addClass(container, 'debug-call-stack');
 		this.treeContainer = renderViewTree(container);
-		const actionProvider = this.instantiationService.createInstance(CallStackActionProvider);
+		const actionProvider = new CallStackActionProvider(this.debugService, this.keybindingService);
 		const controller = this.instantiationService.createInstance(CallStackController, actionProvider, MenuId.DebugCallStackContext);
 
 		this.tree = new Tree(this.treeContainer, {
-			dataSource: this.instantiationService.createInstance(CallStackDataSource),
+			dataSource: new CallStackDataSource(),
 			renderer: this.instantiationService.createInstance(CallStackRenderer),
 			accessibilityProvider: this.instantiationService.createInstance(CallstackAccessibilityProvider),
 			controller
