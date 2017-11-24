@@ -40,6 +40,7 @@ export class VariablesView extends TreeViewsViewletPanel {
 	private onFocusStackFrameScheduler: RunOnceScheduler;
 	private settings: any;
 	private expandedElements: any[];
+	private needsRefresh: boolean;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -65,6 +66,7 @@ export class VariablesView extends TreeViewsViewletPanel {
 
 			// Always clear tree highlight to avoid ending up in a broken state #12203
 			this.tree.clearHighlight();
+			this.needsRefresh = false;
 			this.tree.refresh().then(() => {
 				const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 				return sequence(this.expandedElements.map(e => () => this.tree.expand(e))).then(() => {
@@ -110,6 +112,11 @@ export class VariablesView extends TreeViewsViewletPanel {
 		this.toolbar.setActions(prepareActions([collapseAction]))();
 
 		this.disposables.push(viewModel.onDidFocusStackFrame(sf => {
+			if (!this.isVisible() || !this.isExpanded()) {
+				this.needsRefresh = true;
+				return;
+			}
+
 			// Refresh the tree immediately if it is not visible.
 			// Otherwise postpone the refresh until user stops stepping.
 			if (!this.tree.getContentHeight() || sf.explicit) {
@@ -136,6 +143,21 @@ export class VariablesView extends TreeViewsViewletPanel {
 				});
 			}).done(null, errors.onUnexpectedError);
 		}));
+	}
+
+	public setExpanded(expanded: boolean): void {
+		super.setExpanded(expanded);
+		if (expanded && this.needsRefresh) {
+			this.onFocusStackFrameScheduler.schedule();
+		}
+	}
+
+	public setVisible(visible: boolean): TPromise<void> {
+		return super.setVisible(visible).then(() => {
+			if (visible && this.needsRefresh) {
+				this.onFocusStackFrameScheduler.schedule();
+			}
+		});
 	}
 
 	public shutdown(): void {

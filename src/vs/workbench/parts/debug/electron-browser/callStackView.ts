@@ -39,6 +39,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 	private pauseMessageLabel: HTMLSpanElement;
 	private onCallStackChangeScheduler: RunOnceScheduler;
 	private settings: any;
+	private needsRefresh: boolean;
 
 	constructor(
 		private options: IViewletViewOptions,
@@ -76,6 +77,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 				this.pauseMessage.hidden = true;
 			}
 
+			this.needsRefresh = false;
 			(this.tree.getInput() === newTreeInput ? this.tree.refresh() : this.tree.setInput(newTreeInput))
 				.done(() => this.updateTreeSelection(), errors.onUnexpectedError);
 		}, 50);
@@ -121,6 +123,11 @@ export class CallStackView extends TreeViewsViewletPanel {
 		}));
 
 		this.disposables.push(this.debugService.getModel().onDidChangeCallStack(() => {
+			if (!this.isVisible()) {
+				this.needsRefresh = true;
+				return;
+			}
+
 			if (!this.onCallStackChangeScheduler.isScheduled()) {
 				this.onCallStackChangeScheduler.schedule();
 			}
@@ -160,6 +167,14 @@ export class CallStackView extends TreeViewsViewletPanel {
 
 			this.tree.setSelection([stackFrame]);
 			return this.tree.reveal(stackFrame);
+		});
+	}
+
+	public setVisible(visible: boolean): TPromise<void> {
+		return super.setVisible(visible).then(() => {
+			if (visible && this.needsRefresh) {
+				this.onCallStackChangeScheduler.schedule();
+			}
 		});
 	}
 

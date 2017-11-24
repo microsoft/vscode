@@ -42,6 +42,7 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 	private onWatchExpressionsUpdatedScheduler: RunOnceScheduler;
 	private toReveal: IExpression;
 	private settings: any;
+	private needsRefresh: boolean;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -64,6 +65,7 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 		}));
 
 		this.onWatchExpressionsUpdatedScheduler = new RunOnceScheduler(() => {
+			this.needsRefresh = false;
 			this.tree.refresh().done(() => {
 				return this.toReveal instanceof Expression ? this.tree.reveal(this.toReveal) : TPromise.as(true);
 			}, errors.onUnexpectedError);
@@ -98,6 +100,11 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 		this.toolbar.setActions(prepareActions([addWatchExpressionAction, collapseAction, removeAllWatchExpressionsAction]))();
 
 		this.disposables.push(this.debugService.getModel().onDidChangeWatchExpressions(we => {
+			if (!this.isExpanded() || !this.isVisible()) {
+				this.needsRefresh = true;
+				return;
+			}
+
 			if (!this.onWatchExpressionsUpdatedScheduler.isScheduled()) {
 				this.onWatchExpressionsUpdatedScheduler.schedule();
 			}
@@ -118,6 +125,21 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 				});
 			}).done(null, errors.onUnexpectedError);
 		}));
+	}
+
+	public setExpanded(expanded: boolean): void {
+		super.setExpanded(expanded);
+		if (expanded && this.needsRefresh) {
+			this.onWatchExpressionsUpdatedScheduler.schedule();
+		}
+	}
+
+	public setVisible(visible: boolean): TPromise<void> {
+		return super.setVisible(visible).then(() => {
+			if (visible && this.needsRefresh) {
+				this.onWatchExpressionsUpdatedScheduler.schedule();
+			}
+		});
 	}
 
 	public shutdown(): void {
