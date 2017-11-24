@@ -505,7 +505,7 @@ export function fuzzyScore(pattern: string, word: string, patternMaxWhitespaceIg
 					} else {
 						score = 5;
 					}
-				} else if (isSeparatorAtPos(lowWord, wordPos - 2)) {
+				} else if (isSeparatorAtPos(lowWord, wordPos - 2) || isWhitespaceAtPos(lowWord, wordPos - 2)) {
 					// post separator: `foo <-> bar_foo`
 					score = 5;
 

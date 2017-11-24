@@ -423,6 +423,12 @@ suite('Filters', () => {
 		assertTopScore(fuzzyScore, '_lineS', 0, '_lineS', '_lines');
 	});
 
+	test('HTML closing tag proposal filtered out #38880', function () {
+		assertMatches('\t\t<', '\t\t</body>', '^\t^\t^</body>', (pattern, word) => fuzzyScore(pattern, word, 0));
+		assertMatches('\t\t<', '\t\t</body>', '\t\t^</body>', (pattern, word) => fuzzyScore(pattern, word, 3));
+		assertMatches('\t<', '\t</body>', '\t^</body>', (pattern, word) => fuzzyScore(pattern, word, 2));
+	});
+
 	test('fuzzyScoreGraceful', function () {
 
 		assertMatches('rlut', 'result', undefined, fuzzyScore);
