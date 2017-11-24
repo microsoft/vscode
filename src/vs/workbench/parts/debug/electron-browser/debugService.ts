@@ -609,10 +609,6 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public addReplExpression(name: string): TPromise<void> {
-		/* __GDPR__
-			"debugService/addReplExpression" : {}
-		*/
-		this.telemetryService.publicLog('debugService/addReplExpression');
 		return this.model.addReplExpression(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame, name)
 			// Evaluate all watch expressions and fetch variables again since repl evaluation might have changed some.
 			.then(() => this.focusStackFrameAndEvaluate(this.viewModel.focusedStackFrame, this.viewModel.focusedProcess));
