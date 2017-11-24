@@ -32,7 +32,7 @@ suite('Telemetry - common properties', function () {
 		del(parentDir, os.tmpdir(), done);
 	});
 
-	test('pasero default', function () {
+	test('default', function () {
 		return mkdirp(parentDir).then(() => {
 			fs.writeFileSync(installSource, 'my.install.source');
 
@@ -60,6 +60,11 @@ suite('Telemetry - common properties', function () {
 				assert.ok('common.instanceId' in props, 'instanceId');
 				assert.ok('common.machineId' in props, 'machineId');
 
+				fs.unlinkSync(installSource);
+
+				return resolveWorkbenchCommonProperties(storageService, commit, version, 'someMachineId', installSource).then(props => {
+					assert.ok(!('common.source' in props));
+				});
 			});
 		});
 	});
