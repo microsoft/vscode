@@ -45,7 +45,7 @@ interface Settings {
 		format?: { enable: boolean; };
 	};
 	http?: {
-		proxy: string;
+		proxy: string | undefined;
 		proxyStrictSSL: boolean;
 	};
 }
@@ -61,8 +61,10 @@ export function activate(context: ExtensionContext) {
 	let toDispose = context.subscriptions;
 
 	let packageInfo = getPackageInfo(context);
-	let telemetryReporter: TelemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
-	toDispose.push(telemetryReporter);
+	let telemetryReporter: TelemetryReporter | null = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
+	if (telemetryReporter) {
+		toDispose.push(telemetryReporter);
+	}
 
 	// The server is implemented in node
 	let serverModule = context.asAbsolutePath(path.join('server', 'out', 'jsonServerMain.js'));
@@ -207,7 +209,7 @@ function getSettings(): Settings {
 	let settings: Settings = {
 		http: {
 			proxy: httpSettings.get('proxy'),
-			proxyStrictSSL: httpSettings.get('proxyStrictSSL')
+			proxyStrictSSL: httpSettings.get('proxyStrictSSL', true)
 		},
 		json: {
 			format: workspace.getConfiguration('json').get('format'),
@@ -224,14 +226,14 @@ function getSettings(): Settings {
 			let schemaSetting = schemaSettingsById[url];
 			if (!schemaSetting) {
 				schemaSetting = schemaSettingsById[url] = { url, fileMatch: [] };
-				settings.json.schemas.push(schemaSetting);
+				settings.json!.schemas!.push(schemaSetting);
 			}
 			let fileMatches = setting.fileMatch;
 			if (Array.isArray(fileMatches)) {
 				if (fileMatchPrefix) {
 					fileMatches = fileMatches.map(m => fileMatchPrefix + m);
 				}
-				schemaSetting.fileMatch.push(...fileMatches);
+				schemaSetting.fileMatch!.push(...fileMatches);
 			}
 			if (setting.schema) {
 				schemaSetting.schema = setting.schema;
@@ -240,16 +242,16 @@ function getSettings(): Settings {
 	};
 
 	// merge global and folder settings. Qualify all file matches with the folder path.
-	let globalSettings = workspace.getConfiguration('json', null).get<JSONSchemaSettings[]>('schemas');
-	if (Array.isArray(globalSettings)) {
-		collectSchemaSettings(globalSettings, workspace.rootPath);
+	let globalSettings = workspace.getConfiguration('json').inspect<JSONSchemaSettings[]>('schemas');
+	if (globalSettings && Array.isArray(globalSettings.globalValue)) {
+		collectSchemaSettings(globalSettings.globalValue, workspace.rootPath);
 	}
 	let folders = workspace.workspaceFolders;
 	if (folders) {
 		for (let folder of folders) {
 			let folderUri = folder.uri;
 			let schemaConfigInfo = workspace.getConfiguration('json', folderUri).inspect<JSONSchemaSettings[]>('schemas');
-			let folderSchemas = schemaConfigInfo.workspaceFolderValue;
+			let folderSchemas = schemaConfigInfo!.workspaceFolderValue;
 			if (Array.isArray(folderSchemas)) {
 				let folderPath = folderUri.toString();
 				if (folderPath[folderPath.length - 1] !== '/') {
@@ -274,7 +276,7 @@ function getSchemaId(schema: JSONSchemaSettings, rootPath?: string) {
 	return url;
 }
 
-function getPackageInfo(context: ExtensionContext): IPackageInfo {
+function getPackageInfo(context: ExtensionContext): IPackageInfo | null {
 	let extensionPackage = require(context.asAbsolutePath('./package.json'));
 	if (extensionPackage) {
 		return {
