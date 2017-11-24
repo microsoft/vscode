@@ -252,6 +252,14 @@ export namespace WorkspaceEdit {
 		}
 		return result;
 	}
+
+	export function to(value: modes.WorkspaceEdit) {
+		const result = new types.WorkspaceEdit();
+		for (const edit of value.edits) {
+			result.replace(edit.resource, toRange(edit.range), edit.newText);
+		}
+		return result;
+	}
 }
 
 
