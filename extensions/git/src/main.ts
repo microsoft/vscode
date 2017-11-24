@@ -70,16 +70,16 @@ async function _activate(context: ExtensionContext, disposables: Disposable[]): 
 			throw err;
 		}
 
-		console.warn(err.message);
-		outputChannel.appendLine(err.message);
-		outputChannel.show();
-
 		const config = workspace.getConfiguration('git');
 		const shouldIgnore = config.get<boolean>('ignoreMissingGitWarning') === true;
 
 		if (shouldIgnore) {
 			return;
 		}
+
+		console.warn(err.message);
+		outputChannel.appendLine(err.message);
+		outputChannel.show();
 
 		const download = localize('downloadgit', "Download Git");
 		const neverShowAgain = localize('neverShowAgain', "Don't show again");
