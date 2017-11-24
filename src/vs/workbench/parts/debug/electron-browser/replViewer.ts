@@ -301,7 +301,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 				let codes = [];
 				if (chr && chr === '[') {
 					let code: string = null;
-					while (chr !== 'm') {
+					while (chr !== 'm' && codes.length <= 7) {
 						chr = (++index < len ? text.charAt(index) : null);
 
 						if (chr && chr >= '0' && chr <= '9') {
