@@ -26,7 +26,7 @@ import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IDelegate, IListContextMenuEvent, IRenderer } from 'vs/base/browser/ui/list/list';
 import { IEditorService } from 'vs/platform/editor/common/editor';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { WorkbenchList, IListService } from 'vs/platform/list/browser/listService';
 import { ViewsViewletPanel, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
@@ -79,17 +79,29 @@ export class BreakpointsView extends ViewsViewletPanel {
 		CONTEXT_BREAKPOINTS_FOCUSED.bindTo(this.list.contextKeyService);
 
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
-		this.list.onSelectionChange(event => {
-			// TODO@Isidor need to check if double click
-			const element = event.elements.length ? event.elements[0] : undefined;
-			if (element instanceof FunctionBreakpoint /* && event.detail === 2 */) {
-				// this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
 
-			}
+		const handleBreakpointFocus = (preserveFocuse: boolean, selectFunctionBreakpoint: boolean) => {
+			const focused = this.list.getFocusedElements();
+			const element = focused.length ? focused[0] : undefined;
 			if (element instanceof Breakpoint) {
-				openBreakpointSource(element, event, true, this.debugService, this.editorService);
+				openBreakpointSource(element, event, preserveFocuse, this.debugService, this.editorService);
 			}
-		});
+			if (selectFunctionBreakpoint && element instanceof FunctionBreakpoint) {
+				this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
+			}
+		};
+		this.disposables.push(this.list.onKeyUp(e => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.Enter)) {
+				handleBreakpointFocus(false, false);
+			}
+		}));
+		this.disposables.push(this.list.onMouseDblClick(e => {
+			handleBreakpointFocus(false, true);
+		}));
+		this.disposables.push(this.list.onMouseClick(e => {
+			handleBreakpointFocus(true, false);
+		}));
 
 		this.list.splice(0, 0, this.elements);
 	}
@@ -190,7 +202,7 @@ class BreakpointsDelegate implements IDelegate<IEnablement> {
 			return BreakpointsRenderer.ID;
 		}
 		if (element instanceof FunctionBreakpoint) {
-			const selected = this.debugService.getViewModel().getSelectedExpression();
+			const selected = this.debugService.getViewModel().getSelectedFunctionBreakpoint();
 			if (!element.name || (selected && selected.getId() === element.getId())) {
 				return FunctionBreakpointInputRenderer.ID;
 			}
@@ -418,6 +430,7 @@ class FunctionBreakpointInputRenderer implements IRenderer<IFunctionBreakpoint, 
 			} else if (!template.breakpoint.name) {
 				this.debugService.removeFunctionBreakpoints(template.breakpoint.getId()).done(null, onUnexpectedError);
 			}
+			this.debugService.getViewModel().setSelectedFunctionBreakpoint(undefined);
 		};
 
 		toDispose.push(dom.addStandardDisposableListener(inputBox.inputElement, 'keydown', (e: IKeyboardEvent) => {
