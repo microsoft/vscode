@@ -31,7 +31,6 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import FileResultsNavigation from 'vs/workbench/parts/files/browser/fileResultsNavigation';
 import { debounceEvent } from 'vs/base/common/event';
-import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { SimpleFileResourceDragAndDrop } from 'vs/base/parts/tree/browser/treeDnd';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
@@ -209,10 +208,9 @@ export class MarkersPanel extends Panel {
 				twistiePixels: 20,
 				ariaLabel: Messages.MARKERS_PANEL_ARIA_LABEL_PROBLEMS_TREE,
 				keyboardSupport: false
-			}, this.contextKeyService, this.listService);
+			}, this.contextKeyService, this.listService, this.themeService);
 
 		Constants.MarkerFocusContextKey.bindTo(this.tree.contextKeyService);
-		this._register(attachListStyler(this.tree, this.themeService));
 
 		const fileResultsNavigation = this._register(new FileResultsNavigation(this.tree));
 		this._register(debounceEvent(fileResultsNavigation.openFile, (last, event) => event, 75, true)(options => {

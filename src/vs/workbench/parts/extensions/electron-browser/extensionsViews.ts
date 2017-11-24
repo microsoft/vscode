@@ -25,7 +25,7 @@ import { IExtension, IExtensionsWorkbenchService } from '../common/extensions';
 import { Query } from '../common/extensionQuery';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachListStyler, attachBadgeStyler } from 'vs/platform/theme/common/styler';
+import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IViewletViewOptions, IViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { OpenGlobalSettingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -83,9 +83,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		this.list = new WorkbenchPagedList(this.extensionsList, delegate, [renderer], {
 			ariaLabel: localize('extensions', "Extensions"),
 			keyboardSupport: false
-		}, this.contextKeyService, this.listService);
-
-		this.disposables.push(attachListStyler(this.list.widget, this.themeService));
+		}, this.contextKeyService, this.listService, this.themeService);
 
 		chain(this.list.onSelectionChange)
 			.map(e => e.elements[0])

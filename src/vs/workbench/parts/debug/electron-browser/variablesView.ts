@@ -18,7 +18,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { once } from 'vs/base/common/event';
 import { twistiePixels, renderViewTree, IVariableTemplateData, BaseDebugController, renderRenameBox, renderVariable } from 'vs/workbench/parts/debug/electron-browser/baseDebugView';
@@ -98,11 +97,9 @@ export class VariablesView extends TreeViewsViewletPanel {
 				ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
 				twistiePixels,
 				keyboardSupport: false
-			}, this.contextKeyService, this.listService);
+			}, this.contextKeyService, this.listService, this.themeService);
 
 		CONTEXT_VARIABLES_FOCUSED.bindTo(this.tree.contextKeyService);
-
-		this.disposables.push(attachListStyler(this.tree, this.themeService));
 
 		const viewModel = this.debugService.getViewModel();
 

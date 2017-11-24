@@ -54,7 +54,6 @@ import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { IThemeService, ITheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorFindMatchHighlight, diffInserted, diffRemoved, diffInsertedOutline, diffRemovedOutline, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import FileResultsNavigation from 'vs/workbench/parts/files/browser/fileResultsNavigation';
-import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/common/search';
 import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
@@ -500,9 +499,7 @@ export class SearchViewlet extends Viewlet {
 			}, {
 					ariaLabel: nls.localize('treeAriaLabel', "Search Results"),
 					keyboardSupport: false
-				}, this.contextKeyService, this.listService);
-
-			this.toUnbind.push(attachListStyler(this.tree, this.themeService));
+				}, this.contextKeyService, this.listService, this.themeService);
 
 			this.tree.setInput(this.viewModel.searchResult);
 			this.toUnbind.push(renderer);

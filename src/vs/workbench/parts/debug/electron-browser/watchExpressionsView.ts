@@ -21,7 +21,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { once } from 'vs/base/common/event';
 import { IAction, IActionItem } from 'vs/base/common/actions';
@@ -87,9 +86,8 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'watchAriaTreeLabel' }, "Debug Watch Expressions"),
 				twistiePixels,
 				keyboardSupport: false
-			}, this.contextKeyService, this.listService);
+			}, this.contextKeyService, this.listService, this.themeService);
 
-		this.disposables.push(attachListStyler(this.tree, this.themeService));
 		CONTEXT_WATCH_EXPRESSIONS_FOCUSED.bindTo(this.tree.contextKeyService);
 
 		this.tree.setInput(this.debugService.getModel());

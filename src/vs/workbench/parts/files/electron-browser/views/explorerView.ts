@@ -42,7 +42,6 @@ import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { ResourceGlobMatcher } from 'vs/workbench/electron-browser/resources';
 import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { isLinux } from 'vs/base/common/platform';
-import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
 import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
 
@@ -423,14 +422,11 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 				twistiePixels: 12,
 				showTwistie: false,
 				keyboardSupport: false
-			}, this.contextKeyService, this.listService);
+			}, this.contextKeyService, this.listService, this.themeService);
 
 		// Bind context keys
 		FilesExplorerFocusedContext.bindTo(this.explorerViewer.contextKeyService);
 		ExplorerFocusedContext.bindTo(this.explorerViewer.contextKeyService);
-
-		// Theme styler
-		this.disposables.push(attachListStyler(this.explorerViewer, this.themeService));
 
 		// Update Viewer based on File Change Events
 		this.disposables.push(this.fileService.onAfterOperation(e => this.onFileOperation(e)));

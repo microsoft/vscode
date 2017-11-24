@@ -37,7 +37,6 @@ import { ClearReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { ReplHistory } from 'vs/workbench/parts/debug/common/replHistory';
 import { Panel } from 'vs/workbench/browser/panel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { clipboard } from 'electron';
@@ -149,9 +148,7 @@ export class Repl extends Panel implements IPrivateReplService {
 			renderer: this.renderer,
 			accessibilityProvider: new ReplExpressionsAccessibilityProvider(),
 			controller
-		}, replTreeOptions, this.contextKeyService, this.listService);
-
-		this.toUnbind.push(attachListStyler(this.tree, this.themeService));
+		}, replTreeOptions, this.contextKeyService, this.listService, this.themeService);
 
 		if (!Repl.HISTORY) {
 			Repl.HISTORY = new ReplHistory(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')));

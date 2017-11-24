@@ -28,7 +28,7 @@ import { CloseAllEditorsAction } from 'vs/workbench/browser/parts/editor/editorA
 import { ToggleEditorLayoutAction } from 'vs/workbench/browser/actions/toggleEditorLayout';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
-import { attachListStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
@@ -129,10 +129,7 @@ export class OpenEditorsView extends TreeViewsViewletPanel {
 				ariaLabel: nls.localize({ key: 'treeAriaLabel', comment: ['Open is an adjective'] }, "Open Editors: List of Active Files"),
 				showTwistie: false,
 				keyboardSupport: false
-			}, this.contextKeyService, this.listService);
-
-		// Theme styler
-		this.disposables.push(attachListStyler(this.tree, this.themeService));
+			}, this.contextKeyService, this.listService, this.themeService);
 
 		// Bind context keys
 		OpenEditorsFocusedContext.bindTo(this.tree.contextKeyService);

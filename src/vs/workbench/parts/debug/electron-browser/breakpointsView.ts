@@ -31,7 +31,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { WorkbenchList, IListService } from 'vs/platform/list/browser/listService';
 import { ViewsViewletPanel, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { attachListStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 
 const $ = dom.$;
 
@@ -74,11 +74,10 @@ export class BreakpointsView extends ViewsViewletPanel {
 			new FunctionBreakpointInputRenderer(this.debugService, this.contextViewService, this.themeService)
 		], {
 				identityProvider: element => element.getId()
-			}, this.contextKeyService, this.listService);
+			}, this.contextKeyService, this.listService, this.themeService);
 
 		CONTEXT_BREAKPOINTS_FOCUSED.bindTo(this.list.contextKeyService);
 
-		this.disposables.push(attachListStyler(this.list, this.themeService));
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
 		this.list.onSelectionChange(event => {
 			// TODO@Isidor need to check if double click

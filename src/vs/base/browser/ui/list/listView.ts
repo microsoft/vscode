@@ -3,19 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assign, getOrDefault } from 'vs/base/common/objects';
+import { getOrDefault } from 'vs/base/common/objects';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Gesture, EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import * as DOM from 'vs/base/browser/dom';
+import Event, { mapEvent, filterEvent } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollEvent, ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { RangeMap, IRange, relativeComplement, intersect, shift } from './rangeMap';
-import { IDelegate, IRenderer } from './list';
+import { IDelegate, IRenderer, IListMouseEvent, IListTouchEvent, IListGestureEvent } from './list';
 import { RowCache, IRow } from './rowCache';
 import { isWindows } from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
 import { ISpliceable } from 'vs/base/common/sequence';
+import { memoize } from 'vs/base/common/decorators';
 
 function canUseTranslate3d(): boolean {
 	if (browser.isFirefox) {
@@ -46,18 +48,6 @@ interface IItem<T> {
 	templateId: string;
 	row: IRow;
 }
-
-const MouseEventTypes = [
-	'click',
-	'dblclick',
-	'mouseup',
-	'mousedown',
-	'mouseover',
-	'mousemove',
-	'mouseout',
-	'contextmenu',
-	'touchstart'
-];
 
 export interface IListViewOptions {
 	useShadows?: boolean;
@@ -316,31 +306,33 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	// Events
 
-	addListener(type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable {
-		const userHandler = handler;
-		let domNode = this.domNode;
+	@memoize get onMouseClick(): Event<IListMouseEvent<T>> { return filterEvent(mapEvent(domEvent(this.domNode, 'click'), e => this.toMouseEvent(e)), e => e.index >= 0); }
+	@memoize get onMouseDblClick(): Event<IListMouseEvent<T>> { return filterEvent(mapEvent(domEvent(this.domNode, 'dblclick'), e => this.toMouseEvent(e)), e => e.index >= 0); }
+	@memoize get onMouseUp(): Event<IListMouseEvent<T>> { return filterEvent(mapEvent(domEvent(this.domNode, 'mouseup'), e => this.toMouseEvent(e)), e => e.index >= 0); }
+	@memoize get onMouseDown(): Event<IListMouseEvent<T>> { return filterEvent(mapEvent(domEvent(this.domNode, 'mousedown'), e => this.toMouseEvent(e)), e => e.index >= 0); }
+	@memoize get onMouseOver(): Event<IListMouseEvent<T>> { return filterEvent(mapEvent(domEvent(this.domNode, 'mouseover'), e => this.toMouseEvent(e)), e => e.index >= 0); }
+	@memoize get onMouseMove(): Event<IListMouseEvent<T>> { return filterEvent(mapEvent(domEvent(this.domNode, 'mousemove'), e => this.toMouseEvent(e)), e => e.index >= 0); }
+	@memoize get onMouseOut(): Event<IListMouseEvent<T>> { return filterEvent(mapEvent(domEvent(this.domNode, 'mouseout'), e => this.toMouseEvent(e)), e => e.index >= 0); }
+	@memoize get onContextMenu(): Event<IListMouseEvent<T>> { return filterEvent(mapEvent(domEvent(this.domNode, 'contextmenu'), e => this.toMouseEvent(e)), e => e.index >= 0); }
+	@memoize get onTouchStart(): Event<IListTouchEvent<T>> { return filterEvent(mapEvent(domEvent(this.domNode, 'touchstart'), e => this.toTouchEvent(e)), e => e.index >= 0); }
+	@memoize get onTap(): Event<IListGestureEvent<T>> { return filterEvent(mapEvent(domEvent(this.rowsContainer, TouchEventType.Tap), e => this.toGestureEvent(e)), e => e.index >= 0); }
 
-		if (MouseEventTypes.indexOf(type) > -1) {
-			handler = e => this.fireScopedEvent(e, userHandler, this.getItemIndexFromMouseEvent(e));
-		} else if (type === TouchEventType.Tap) {
-			domNode = this.rowsContainer;
-			handler = e => this.fireScopedEvent(e, userHandler, this.getItemIndexFromGestureEvent(e));
-		}
-
-		return DOM.addDisposableListener(domNode, type, handler, useCapture);
+	private toMouseEvent(browserEvent: MouseEvent): IListMouseEvent<T> {
+		const index = this.getItemIndexFromEventTarget(browserEvent.target);
+		const element = index < 0 ? undefined : this.items[index].element;
+		return { browserEvent, index, element };
 	}
 
-	private fireScopedEvent(
-		event: any,
-		handler: (event: any) => void,
-		index: number
-	) {
-		if (index < 0) {
-			return;
-		}
+	private toTouchEvent(browserEvent: TouchEvent): IListTouchEvent<T> {
+		const index = this.getItemIndexFromEventTarget(browserEvent.target);
+		const element = index < 0 ? undefined : this.items[index].element;
+		return { browserEvent, index, element };
+	}
 
-		const element = this.items[index].element;
-		handler(assign(event, { element, index }));
+	private toGestureEvent(browserEvent: GestureEvent): IListGestureEvent<T> {
+		const index = this.getItemIndexFromEventTarget(browserEvent.initialTarget);
+		const element = index < 0 ? undefined : this.items[index].element;
+		return { browserEvent, index, element };
 	}
 
 	private onScroll(e: ScrollEvent): void {
@@ -355,14 +347,6 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	// Util
-
-	private getItemIndexFromMouseEvent(event: MouseEvent): number {
-		return this.getItemIndexFromEventTarget(event.target);
-	}
-
-	private getItemIndexFromGestureEvent(event: GestureEvent): number {
-		return this.getItemIndexFromEventTarget(event.initialTarget);
-	}
 
 	private getItemIndexFromEventTarget(target: EventTarget): number {
 		while (target instanceof HTMLElement && target !== this.rowsContainer) {

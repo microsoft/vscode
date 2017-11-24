@@ -10,12 +10,12 @@ import { range, firstIndex } from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
 import * as DOM from 'vs/base/browser/dom';
 import * as platform from 'vs/base/common/platform';
-import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
+import { Gesture } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import Event, { Emitter, EventBufferer, chain, mapEvent, fromCallback, anyEvent } from 'vs/base/common/event';
+import Event, { Emitter, EventBufferer, chain, mapEvent, anyEvent } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { IDelegate, IRenderer, IListEvent, IListMouseEvent, IListContextMenuEvent } from './list';
+import { IDelegate, IRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent } from './list';
 import { ListView, IListViewOptions } from './listView';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
@@ -333,15 +333,15 @@ class KeyboardController<T> implements IDisposable {
 	}
 }
 
-function isSelectionSingleChangeEvent(event: IListMouseEvent<any>): boolean {
-	return platform.isMacintosh ? event.metaKey : event.ctrlKey;
+function isSelectionSingleChangeEvent(event: IListMouseEvent<any> | IListTouchEvent<any>): boolean {
+	return platform.isMacintosh ? event.browserEvent.metaKey : event.browserEvent.ctrlKey;
 }
 
-function isSelectionRangeChangeEvent(event: IListMouseEvent<any>): boolean {
-	return event.shiftKey;
+function isSelectionRangeChangeEvent(event: IListMouseEvent<any> | IListTouchEvent<any>): boolean {
+	return event.browserEvent.shiftKey;
 }
 
-function isSelectionChangeEvent(event: IListMouseEvent<any>): boolean {
+function isSelectionChangeEvent(event: IListMouseEvent<any> | IListTouchEvent<any>): boolean {
 	return isSelectionSingleChangeEvent(event) || isSelectionRangeChangeEvent(event);
 }
 
@@ -352,7 +352,7 @@ export interface IMouseControllerOptions {
 
 class MouseController<T> implements IDisposable {
 
-	private disposables: IDisposable[];
+	private disposables: IDisposable[] = [];
 
 	@memoize get onContextMenu(): Event<IListContextMenuEvent<T>> {
 		const fromKeyboard = chain(domEvent(this.view.domNode, 'keydown'))
@@ -368,8 +368,8 @@ class MouseController<T> implements IDisposable {
 			.filter(({ anchor }) => !!anchor)
 			.event;
 
-		const fromMouse = chain(fromCallback(handler => this.view.addListener('contextmenu', handler)))
-			.map(({ element, index, clientX, clientY }) => ({ element, index, anchor: { x: clientX + 1, y: clientY } }))
+		const fromMouse = chain(this.view.onContextMenu)
+			.map(({ element, index, browserEvent }) => ({ element, index, anchor: { x: browserEvent.clientX + 1, y: browserEvent.clientY } }))
 			.event;
 
 		return anyEvent<IListContextMenuEvent<T>>(fromKeyboard, fromMouse);
@@ -380,19 +380,18 @@ class MouseController<T> implements IDisposable {
 		private view: ListView<T>,
 		private options: IMouseControllerOptions = {}
 	) {
-		this.disposables = [];
-		this.disposables.push(view.addListener('mousedown', e => this.onMouseDown(e)));
-		this.disposables.push(view.addListener('click', e => this.onPointer(e)));
-		this.disposables.push(view.addListener('dblclick', e => this.onDoubleClick(e)));
-		this.disposables.push(view.addListener('touchstart', e => this.onMouseDown(e)));
-		this.disposables.push(view.addListener(TouchEventType.Tap, e => this.onPointer(e)));
+		view.onMouseDown(this.onMouseDown, this, this.disposables);
+		view.onMouseClick(this.onPointer, this, this.disposables);
+		view.onMouseDblClick(this.onDoubleClick, this, this.disposables);
+		view.onTouchStart(this.onMouseDown, this, this.disposables);
+		view.onTap(this.onPointer, this, this.disposables);
 		Gesture.addTarget(view.domNode);
 	}
 
-	private onMouseDown(e: IListMouseEvent<T>): void {
+	private onMouseDown(e: IListMouseEvent<T> | IListTouchEvent<T>): void {
 		if (this.options.focusOnMouseDown === false) {
-			e.preventDefault();
-			e.stopPropagation();
+			e.browserEvent.preventDefault();
+			e.browserEvent.stopPropagation();
 		} else {
 			this.view.domNode.focus();
 		}
@@ -439,7 +438,7 @@ class MouseController<T> implements IDisposable {
 		this.list.pin(focus);
 	}
 
-	private changeSelection(e: IListMouseEvent<T>, reference: number | undefined): void {
+	private changeSelection(e: IListMouseEvent<T> | IListTouchEvent<T>, reference: number | undefined): void {
 		const focus = e.index;
 
 		if (isSelectionRangeChangeEvent(e) && reference !== undefined) {
@@ -665,6 +664,20 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	@memoize get onPin(): Event<IListEvent<T>> {
 		return mapEvent(this._onPin.event, indexes => this.toListEvent({ indexes }));
 	}
+
+	get onMouseClick(): Event<IListMouseEvent<T>> { return this.view.onMouseClick; }
+	get onMouseDblClick(): Event<IListMouseEvent<T>> { return this.view.onMouseDblClick; }
+	get onMouseUp(): Event<IListMouseEvent<T>> { return this.view.onMouseUp; }
+	get onMouseDown(): Event<IListMouseEvent<T>> { return this.view.onMouseDown; }
+	get onMouseOver(): Event<IListMouseEvent<T>> { return this.view.onMouseOver; }
+	get onMouseMove(): Event<IListMouseEvent<T>> { return this.view.onMouseMove; }
+	get onMouseOut(): Event<IListMouseEvent<T>> { return this.view.onMouseOut; }
+	get onTouchStart(): Event<IListTouchEvent<T>> { return this.view.onTouchStart; }
+	get onTap(): Event<IListGestureEvent<T>> { return this.view.onTap; }
+
+	get onKeyDown(): Event<KeyboardEvent> { return domEvent(this.view.domNode, 'keydown'); }
+	get onKeyUp(): Event<KeyboardEvent> { return domEvent(this.view.domNode, 'keyup'); }
+	get onKeyPress(): Event<KeyboardEvent> { return domEvent(this.view.domNode, 'keypress'); }
 
 	readonly onDidFocus: Event<void>;
 	readonly onDidBlur: Event<void>;

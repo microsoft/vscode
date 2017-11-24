@@ -38,7 +38,7 @@ import { SCMMenus } from './scmMenus';
 import { ActionBar, IActionItemProvider, Separator, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { isSCMResource } from './scmUtil';
-import { attachListStyler, attachBadgeStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { attachBadgeStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import Severity from 'vs/base/common/severity';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -224,6 +224,7 @@ class MainPanel extends ViewletPanel {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IListService private listService: IListService,
 		@IMenuService private menuService: IMenuService
 	) {
 		super(localize('scm providers', "Source Control Providers"), {}, keybindingService, contextMenuService);
@@ -267,12 +268,11 @@ class MainPanel extends ViewletPanel {
 		const delegate = new ProvidersListDelegate();
 		const renderer = this.instantiationService.createInstance(ProviderRenderer);
 
-		this.list = new List<ISCMRepository>(container, delegate, [renderer], {
+		this.list = new WorkbenchList<ISCMRepository>(container, delegate, [renderer], {
 			identityProvider: repository => repository.provider.id
-		});
+		}, this.contextKeyService, this.listService, this.themeService);
 
 		this.disposables.push(this.list);
-		this.disposables.push(attachListStyler(this.list, this.themeService));
 		this.list.onSelectionChange(this.onListSelectionChange, this, this.disposables);
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
 
@@ -757,9 +757,7 @@ export class RepositoryPanel extends ViewletPanel {
 		this.list = new WorkbenchList(this.listContainer, delegate, renderers, {
 			identityProvider: scmResourceIdentityProvider,
 			keyboardSupport: false
-		}, this.contextKeyService, this.listService);
-
-		this.disposables.push(attachListStyler(this.list, this.themeService));
+		}, this.contextKeyService, this.listService, this.themeService);
 
 		chain(this.list.onOpen)
 			.map(e => e.elements[0])
