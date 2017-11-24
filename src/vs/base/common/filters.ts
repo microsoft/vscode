@@ -341,6 +341,8 @@ export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSep
 	return enableSeparateSubstringMatching ? fuzzySeparateFilter(word, wordToMatchAgainst) : fuzzyContiguousFilter(word, wordToMatchAgainst);
 }
 
+//#region --- fuzzyScore ---
+
 export function createMatches(position: number[]): IMatch[] {
 	let ret: IMatch[] = [];
 	if (!position) {
@@ -673,8 +675,7 @@ class LazyArray {
 	slice(): LazyArray {
 		const ret = new LazyArray();
 		ret._parent = this;
-		ret._parentLen = this._data ? this._data.length : 0;
-		return ret;
+		ret._parentLen = this._data ? this._data.length : 0; return ret;
 	}
 
 	toArray(): number[] {
@@ -692,3 +693,67 @@ class LazyArray {
 		return Array.prototype.concat.apply(this._data, bucket);
 	}
 }
+
+//#endregion
+
+
+//#region --- graceful ---
+
+export function fuzzyScoreGracefulAggressive(pattern: string, word: string, patternMaxWhitespaceIgnore?: number): [number, number[]] {
+	return fuzzyScoreWithPermutations(pattern, word, true, patternMaxWhitespaceIgnore);
+}
+
+export function fuzzyScoreGraceful(pattern: string, word: string, patternMaxWhitespaceIgnore?: number): [number, number[]] {
+	return fuzzyScoreWithPermutations(pattern, word, false, patternMaxWhitespaceIgnore);
+}
+
+function fuzzyScoreWithPermutations(pattern: string, word: string, aggressive?: boolean, patternMaxWhitespaceIgnore?: number): [number, number[]] {
+	let top: [number, number[]] = fuzzyScore(pattern, word, patternMaxWhitespaceIgnore);
+
+	if (top && !aggressive) {
+		// when using the original pattern yield a result we`
+		// return it unless we are aggressive and try to find
+		// a better alignment, e.g. `cno` -> `^co^ns^ole` or `^c^o^nsole`.
+		return top;
+	}
+
+	if (pattern.length >= 3) {
+		// when the pattern is long enough then trie a few (max 7)
+		// permutation of the pattern to find a better match. the
+		// permutations only swap neighbouring characters, e.g
+		// `cnoso` becomes `conso`, `cnsoo`, `cnoos`.
+		let tries = Math.min(7, pattern.length - 1);
+		for (let patternPos = 1; patternPos < tries; patternPos++) {
+			let newPattern = nextTypoPermutation(pattern, patternPos);
+			if (newPattern) {
+				let candidate = fuzzyScore(newPattern, word, patternMaxWhitespaceIgnore);
+				if (candidate && (!top || candidate[0] > top[0])) {
+					top = candidate;
+				}
+			}
+		}
+	}
+
+	return top;
+}
+
+function nextTypoPermutation(pattern: string, patternPos: number): string {
+
+	if (patternPos + 1 >= pattern.length) {
+		return undefined;
+	}
+
+	let swap1 = pattern[patternPos];
+	let swap2 = pattern[patternPos + 1];
+
+	if (swap1 === swap2) {
+		return undefined;
+	}
+
+	return pattern.slice(0, patternPos)
+		+ swap2
+		+ swap1
+		+ pattern.slice(patternPos + 2);
+}
+
+//#endregion

@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { fuzzyScore } from 'vs/base/common/filters';
+import { fuzzyScore, fuzzyScoreGracefulAggressive } from 'vs/base/common/filters';
 import { ISuggestSupport, ISuggestResult } from 'vs/editor/common/modes';
 import { ISuggestionItem, SnippetConfig } from './suggest';
 import { isDisposable } from 'vs/base/common/lifecycle';
@@ -88,7 +88,7 @@ export class CompletionModel {
 		if (this._lineContext.leadingLineContent !== value.leadingLineContent
 			|| this._lineContext.characterCountDelta !== value.characterCountDelta
 		) {
-			this._refilterKind = this._lineContext.characterCountDelta < value.characterCountDelta ? Refilter.Incr : Refilter.All;
+			this._refilterKind = this._lineContext.characterCountDelta < value.characterCountDelta && this._filteredItems ? Refilter.Incr : Refilter.All;
 			this._lineContext = value;
 		}
 	}
@@ -141,6 +141,10 @@ export class CompletionModel {
 		const source = this._refilterKind === Refilter.All ? this._items : this._filteredItems;
 		const target: typeof source = [];
 
+		// picks a score function based on the number of
+		// items that we have to score/filter
+		const scoreFn = source.length > 2000 ? fuzzyScore : fuzzyScoreGracefulAggressive;
+
 		for (let i = 0; i < source.length; i++) {
 
 			const item = source[i];
@@ -171,19 +175,19 @@ export class CompletionModel {
 				// if it matches we check with the label to compute highlights
 				// and if that doesn't yield a result we have no highlights,
 				// despite having the match
-				let match = fuzzyScore(word, suggestion.filterText, suggestion.overwriteBefore);
+				let match = scoreFn(word, suggestion.filterText, suggestion.overwriteBefore);
 				if (!match) {
 					continue;
 				}
 				item.score = match[0];
 				item.matches = [];
-				match = fuzzyScore(word, suggestion.label, suggestion.overwriteBefore);
+				match = scoreFn(word, suggestion.label, suggestion.overwriteBefore);
 				if (match) {
 					item.matches = match[1];
 				}
 			} else {
 				// by default match `word` against the `label`
-				let match = fuzzyScore(word, suggestion.label, suggestion.overwriteBefore);
+				let match = scoreFn(word, suggestion.label, suggestion.overwriteBefore);
 				if (match) {
 					item.score = match[0];
 					item.matches = match[1];
