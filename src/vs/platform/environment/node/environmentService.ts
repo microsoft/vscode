@@ -40,10 +40,6 @@ function getIPCHandle(userDataPath: string, type: string): string {
 	}
 }
 
-export function getInstallSourcePath(userDataPath: string): string {
-	return path.join(userDataPath, 'installSource');
-}
-
 export class EnvironmentService implements IEnvironmentService {
 
 	_serviceBrand: any;
@@ -93,6 +89,9 @@ export class EnvironmentService implements IEnvironmentService {
 	get workspacesHome(): string { return path.join(this.userDataPath, 'Workspaces'); }
 
 	@memoize
+	get installSourcePath(): string { return path.join(this.userDataPath, 'installSource'); }
+
+	@memoize
 	get extensionsPath(): string { return parsePathArg(this._args['extensions-dir'], process) || process.env['VSCODE_EXTENSIONS'] || path.join(this.userHome, product.dataFolderName, 'extensions'); }
 
 	@memoize
@@ -132,8 +131,6 @@ export class EnvironmentService implements IEnvironmentService {
 
 	readonly machineUUID: string;
 
-	readonly installSource: string;
-
 	constructor(private _args: ParsedArgs, private _execPath: string) {
 		const machineIdPath = path.join(this.userDataPath, 'machineid');
 
@@ -151,12 +148,6 @@ export class EnvironmentService implements IEnvironmentService {
 			} catch (err) {
 				// noop
 			}
-		}
-
-		try {
-			this.installSource = fs.readFileSync(getInstallSourcePath(this.userDataPath), 'utf8').slice(0, 30);
-		} catch (err) {
-			this.installSource = '';
 		}
 	}
 }

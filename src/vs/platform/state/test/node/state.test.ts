@@ -18,7 +18,7 @@ suite('StateService', () => {
 	const storageFile = path.join(parentDir, 'storage.json');
 
 	teardown(done => {
-		extfs.del(storageFile, os.tmpdir(), done);
+		extfs.del(parentDir, os.tmpdir(), done);
 	});
 
 	test('Basics', done => {

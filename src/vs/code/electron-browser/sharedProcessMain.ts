@@ -107,12 +107,12 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 
 		const services = new ServiceCollection();
 		const environmentService = accessor.get(IEnvironmentService);
-		const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt, installSource } = environmentService;
+		const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt, installSourcePath } = environmentService;
 
 		if (isBuilt && !extensionDevelopmentPath && !environmentService.args['disable-telemetry'] && product.enableTelemetry) {
 			const config: ITelemetryServiceConfig = {
 				appender,
-				commonProperties: resolveCommonProperties(product.commit, pkg.version, installSource, configuration.machineId),
+				commonProperties: resolveCommonProperties(product.commit, pkg.version, configuration.machineId, installSourcePath),
 				piiPaths: [appRoot, extensionsPath]
 			};
 

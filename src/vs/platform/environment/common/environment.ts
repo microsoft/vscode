@@ -109,7 +109,7 @@ export interface IEnvironmentService {
 
 	nodeCachedDataDir: string;
 
-	installSource: string;
+	installSourcePath: string;
 	disableUpdates: boolean;
 	disableCrashReporter: boolean;
 }

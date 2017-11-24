@@ -16,7 +16,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
-import { EnvironmentService, getInstallSourcePath } from 'vs/platform/environment/node/environmentService';
+import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionManifest, IGalleryExtension, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService, validateLocalExtension } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
@@ -78,9 +78,7 @@ class Main {
 	}
 
 	private setInstallSource(installSource: string): TPromise<any> {
-		const path = getInstallSourcePath(this.environmentService.userDataPath);
-
-		return writeFile(path, installSource.slice(0, 30));
+		return writeFile(this.environmentService.installSourcePath, installSource.slice(0, 30));
 	}
 
 	private listExtensions(showVersions: boolean): TPromise<any> {
@@ -187,7 +185,7 @@ export function main(argv: ParsedArgs): TPromise<void> {
 		const stateService = accessor.get(IStateService);
 
 		return TPromise.join([envService.appSettingsHome, envService.extensionsPath].map(p => mkdirp(p))).then(() => {
-			const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt, installSource } = envService;
+			const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt, installSourcePath } = envService;
 
 			const services = new ServiceCollection();
 			services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
@@ -209,7 +207,7 @@ export function main(argv: ParsedArgs): TPromise<void> {
 
 				const config: ITelemetryServiceConfig = {
 					appender: combinedAppender(...appenders),
-					commonProperties: resolveCommonProperties(product.commit, pkg.version, installSource, stateService.getItem('telemetry.machineId')),
+					commonProperties: resolveCommonProperties(product.commit, pkg.version, stateService.getItem('telemetry.machineId'), installSourcePath),
 					piiPaths: [appRoot, extensionsPath]
 				};
 
