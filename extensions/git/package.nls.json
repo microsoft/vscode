@@ -31,6 +31,7 @@
 	"command.renameBranch": "Rename Branch...",
 	"command.merge": "Merge Branch...",
 	"command.createTag": "Create Tag",
+	"command.fetch": "Fetch",
 	"command.pull": "Pull",
 	"command.pullRebase": "Pull (Rebase)",
 	"command.pullFrom": "Pull from...",

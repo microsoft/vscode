@@ -1230,6 +1230,16 @@ export class CommandCenter {
 		await repository.tag(name, message);
 	}
 
+	@command('git.fetch', { repository: true })
+	async fetch(repository: Repository): Promise<void> {
+		if (repository.remotes.length === 0) {
+			window.showWarningMessage(localize('no remotes to fetch', "This repository has no remotes configured to fetch from."));
+			return;
+		}
+
+		await repository.fetch();
+	}
+
 	@command('git.pullFrom', { repository: true })
 	async pullFrom(repository: Repository): Promise<void> {
 		const remotes = repository.remotes;

@@ -5,14 +5,22 @@
 
 'use strict';
 
-import { workspace, Disposable, EventEmitter } from 'vscode';
+import { workspace, Disposable, EventEmitter, Memento, window, MessageItem, ConfigurationTarget } from 'vscode';
 import { GitErrorCodes } from './git';
-import { Repository } from './repository';
-import { eventToPromise, filterEvent } from './util';
+import { Repository, Operation } from './repository';
+import { eventToPromise, filterEvent, onceEvent } from './util';
+import * as nls from 'vscode-nls';
+
+const localize = nls.loadMessageBundle();
+
+function isRemoteOperation(operation: Operation): boolean {
+	return operation === Operation.Pull || operation === Operation.Push || operation === Operation.Sync || operation === Operation.Fetch;
+}
 
 export class AutoFetcher {
 
 	private static readonly Period = 3 * 60 * 1000 /* three minutes */;
+	private static DidInformUser = 'autofetch.didInformUser';
 
 	private _onDidChange = new EventEmitter<boolean>();
 	private onDidChange = this._onDidChange.event;
@@ -23,9 +31,39 @@ export class AutoFetcher {
 
 	private disposables: Disposable[] = [];
 
-	constructor(private repository: Repository) {
+	constructor(private repository: Repository, private globalState: Memento) {
 		workspace.onDidChangeConfiguration(this.onConfiguration, this, this.disposables);
 		this.onConfiguration();
+
+		const didInformUser = !globalState.get<boolean>(AutoFetcher.DidInformUser);
+
+		if (this.enabled && !didInformUser) {
+			globalState.update(AutoFetcher.DidInformUser, true);
+		}
+
+		const shouldInformUser = !this.enabled && didInformUser;
+
+		if (shouldInformUser) {
+			const onGoodRemoteOperation = filterEvent(repository.onDidRunOperation, ({ operation, error }) => !error && isRemoteOperation(operation));
+
+			this.disposables.push(onceEvent(onGoodRemoteOperation)(async () => {
+				const yes: MessageItem = { title: localize('yes', "Yes") };
+				const no: MessageItem = { isCloseAffordance: true, title: localize('no', "No") };
+				const askLater: MessageItem = { title: localize('not now', "Not Now") };
+				const result = await window.showInformationMessage(localize('suggest auto fetch', "Would you like to enable auto fetching of Git repositories?"), yes, no, askLater);
+
+				if (result === askLater) {
+					return;
+				}
+
+				if (result === yes) {
+					const gitConfig = workspace.getConfiguration('git');
+					gitConfig.update('autofetch', true, ConfigurationTarget.Global);
+				}
+
+				globalState.update(AutoFetcher.DidInformUser, true);
+			}));
+		}
 	}
 
 	private onConfiguration(): void {

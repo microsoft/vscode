@@ -29,7 +29,7 @@ async function init(context: ExtensionContext, outputChannel: OutputChannel, dis
 	const askpass = new Askpass();
 	const env = await askpass.getEnv();
 	const git = new Git({ gitPath: info.path, version: info.version, env });
-	const model = new Model(git);
+	const model = new Model(git, context.globalState);
 	disposables.push(model);
 
 	const onRepository = () => commands.executeCommand('setContext', 'gitOpenRepositoryCount', `${model.repositories.length}`);

@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor } from 'vscode';
+import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento } from 'vscode';
 import { Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
 import { dispose, anyEvent, filterEvent } from './util';
@@ -71,7 +71,7 @@ export class Model {
 	private configurationChangeDisposable: Disposable;
 	private disposables: Disposable[] = [];
 
-	constructor(private git: Git) {
+	constructor(private git: Git, private globalState: Memento) {
 		const config = workspace.getConfiguration('git');
 		this.enabled = config.get<boolean>('enabled') === true;
 
@@ -209,7 +209,7 @@ export class Model {
 				return;
 			}
 
-			const repository = new Repository(this.git.open(repositoryRoot));
+			const repository = new Repository(this.git.open(repositoryRoot), this.globalState);
 
 			this.open(repository);
 		} catch (err) {

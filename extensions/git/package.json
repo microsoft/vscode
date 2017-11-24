@@ -235,6 +235,11 @@
         "category": "Git"
       },
       {
+        "command": "git.fetch",
+        "title": "%command.fetch%",
+        "category": "Git"
+      },
+      {
         "command": "git.pull",
         "title": "%command.pull%",
         "category": "Git"
@@ -818,7 +823,7 @@
         "git.autofetch": {
           "type": "boolean",
           "description": "%config.autofetch%",
-          "default": true
+          "default": false
         },
         "git.confirmSync": {
           "type": "boolean",

@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData } from 'vscode';
+import { Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData, Memento } from 'vscode';
 import { Repository as BaseRepository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash, RefType, GitError } from './git';
 import { anyEvent, filterEvent, eventToPromise, dispose, find } from './util';
 import { memoize, throttle, debounce } from './decorators';
@@ -381,6 +381,11 @@ export interface GitResourceGroup extends SourceControlResourceGroup {
 	resourceStates: Resource[];
 }
 
+export interface OperationResult {
+	operation: Operation;
+	error: any;
+}
+
 export class Repository implements Disposable {
 
 	private _onDidChangeRepository = new EventEmitter<Uri>();
@@ -398,8 +403,8 @@ export class Repository implements Disposable {
 	private _onRunOperation = new EventEmitter<Operation>();
 	readonly onRunOperation: Event<Operation> = this._onRunOperation.event;
 
-	private _onDidRunOperation = new EventEmitter<Operation>();
-	readonly onDidRunOperation: Event<Operation> = this._onDidRunOperation.event;
+	private _onDidRunOperation = new EventEmitter<OperationResult>();
+	readonly onDidRunOperation: Event<OperationResult> = this._onDidRunOperation.event;
 
 	@memoize
 	get onDidChangeOperations(): Event<void> {
@@ -462,7 +467,8 @@ export class Repository implements Disposable {
 	private disposables: Disposable[] = [];
 
 	constructor(
-		private readonly repository: BaseRepository
+		private readonly repository: BaseRepository,
+		globalState: Memento
 	) {
 		const fsWatcher = workspace.createFileSystemWatcher('**');
 		this.disposables.push(fsWatcher);
@@ -492,7 +498,7 @@ export class Repository implements Disposable {
 		this.disposables.push(this.indexGroup);
 		this.disposables.push(this.workingTreeGroup);
 
-		this.disposables.push(new AutoFetcher(this));
+		this.disposables.push(new AutoFetcher(this, globalState));
 
 		const statusBar = new StatusBarCommands(this);
 		this.disposables.push(statusBar);
@@ -802,6 +808,8 @@ export class Repository implements Disposable {
 		}
 
 		const run = async () => {
+			let error: any = null;
+
 			this._operations.start(operation);
 			this._onRunOperation.fire(operation);
 
@@ -814,6 +822,8 @@ export class Repository implements Disposable {
 
 				return result;
 			} catch (err) {
+				error = err;
+
 				if (err.gitErrorCode === GitErrorCodes.NotAGitRepository) {
 					this.state = RepositoryState.Disposed;
 				}
@@ -821,7 +831,7 @@ export class Repository implements Disposable {
 				throw err;
 			} finally {
 				this._operations.end(operation);
-				this._onDidRunOperation.fire(operation);
+				this._onDidRunOperation.fire({ operation, error });
 			}
 		};
 
