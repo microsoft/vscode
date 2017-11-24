@@ -61,7 +61,7 @@ export class WinTerminalService implements ITerminalService {
 			const env = assign({}, process.env, envVars);
 
 			// delete environment variables that have a null value
-			Object.keys(env).filter(v => v === null).forEach(key => delete env[key]);
+			Object.keys(env).filter(v => env[v] === null).forEach(key => delete env[key]);
 
 			const options: any = {
 				cwd: dir,
@@ -249,7 +249,7 @@ export class LinuxTerminalService implements ITerminalService {
 				const env = assign({}, process.env, envVars);
 
 				// delete environment variables that have a null value
-				Object.keys(env).filter(v => v === null).forEach(key => delete env[key]);
+				Object.keys(env).filter(v => env[v] === null).forEach(key => delete env[key]);
 
 				const options: any = {
 					cwd: dir,
