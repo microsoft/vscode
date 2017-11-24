@@ -181,8 +181,12 @@ class Extension implements IExtension {
 		return this.gallery ? this.gallery.preview : false;
 	}
 
+	private isGalleryOutdated(): boolean {
+		return this.local && this.gallery && semver.gt(this.local.manifest.version, this.gallery.version);
+	}
+
 	getManifest(): TPromise<IExtensionManifest> {
-		if (this.gallery) {
+		if (this.gallery && !this.isGalleryOutdated()) {
 			if (this.gallery.assets.manifest) {
 				return this.galleryService.getManifest(this.gallery);
 			}
@@ -194,7 +198,7 @@ class Extension implements IExtension {
 	}
 
 	getReadme(): TPromise<string> {
-		if (this.gallery) {
+		if (this.gallery && !this.isGalleryOutdated()) {
 			if (this.gallery.assets.readme) {
 				return this.galleryService.getReadme(this.gallery);
 			}
@@ -210,7 +214,7 @@ class Extension implements IExtension {
 	}
 
 	getChangelog(): TPromise<string> {
-		if (this.gallery && this.gallery.assets.changelog) {
+		if (this.gallery && this.gallery.assets.changelog && !this.isGalleryOutdated()) {
 			return this.galleryService.getChangelog(this.gallery);
 		}
 
@@ -231,11 +235,11 @@ class Extension implements IExtension {
 
 	get dependencies(): string[] {
 		const { local, gallery } = this;
+		if (gallery && !this.isGalleryOutdated()) {
+			return gallery.properties.dependencies;
+		}
 		if (local && local.manifest.extensionDependencies) {
 			return local.manifest.extensionDependencies;
-		}
-		if (gallery) {
-			return gallery.properties.dependencies;
 		}
 		return [];
 	}
