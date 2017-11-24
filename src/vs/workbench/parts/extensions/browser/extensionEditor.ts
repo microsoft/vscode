@@ -379,12 +379,6 @@ export class ExtensionEditor extends BaseEditor {
 		}
 	}
 
-	hideFind(): void {
-		if (this.activeWebview) {
-			this.activeWebview.hideFind();
-		}
-	}
-
 	public showNextFindTerm() {
 		if (this.activeWebview) {
 			this.activeWebview.showNextFindTerm();
@@ -940,15 +934,6 @@ const showCommand = new ShowExtensionEditorFindCommand({
 	}
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule(showCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
-
-const hideCommand = new ShowExtensionEditorFindCommand({
-	id: 'editor.action.extensioneditor.hidefind',
-	precondition: KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS,
-	kbOpts: {
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_F
-	}
-});
-KeybindingsRegistry.registerCommandAndKeybindingRule(hideCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
 
 class ShowExtensionEditorFindTermCommand extends Command {
 	constructor(opts: ICommandOptions, private _next: boolean) {

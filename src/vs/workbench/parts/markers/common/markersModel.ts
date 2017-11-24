@@ -310,25 +310,6 @@ export class MarkersModel {
 		return Messages.MARKERS_PANEL_NO_PROBLEMS_BUILT;
 	}
 
-	public static getStatisticsLabel(markerStatistics: MarkerStatistics, onlyErrors: boolean = false): string {
-		let label = this.getLabel('', markerStatistics.errors, Messages.MARKERS_PANEL_SINGLE_ERROR_LABEL, Messages.MARKERS_PANEL_MULTIPLE_ERRORS_LABEL);
-		if (!onlyErrors) {
-			label = this.getLabel(label, markerStatistics.warnings, Messages.MARKERS_PANEL_SINGLE_WARNING_LABEL, Messages.MARKERS_PANEL_MULTIPLE_WARNINGS_LABEL);
-			label = this.getLabel(label, markerStatistics.infos, Messages.MARKERS_PANEL_SINGLE_INFO_LABEL, Messages.MARKERS_PANEL_MULTIPLE_INFOS_LABEL);
-			label = this.getLabel(label, markerStatistics.unknowns, Messages.MARKERS_PANEL_SINGLE_UNKNOWN_LABEL, Messages.MARKERS_PANEL_MULTIPLE_UNKNOWNS_LABEL);
-		}
-		return label;
-	}
-
-	private static getLabel(title: string, markersCount: number, singleMarkerString: string, multipleMarkersFunction: (markersCount: number) => string): string {
-		if (markersCount <= 0) {
-			return title;
-		}
-		title = title ? title + ', ' : '';
-		title += markersCount === 1 ? singleMarkerString : multipleMarkersFunction(markersCount);
-		return title;
-	}
-
 	public static compare(a: any, b: any): number {
 		if (a instanceof Resource && b instanceof Resource) {
 			return MarkersModel.compareResources(a, b);

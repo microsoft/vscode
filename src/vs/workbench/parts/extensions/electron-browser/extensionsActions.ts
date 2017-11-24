@@ -47,10 +47,6 @@ export class OpenExtensionsFolderAction extends Action {
 			return this.windowsService.showItemInFolder(itemToShow);
 		});
 	}
-
-	protected isEnabled(): boolean {
-		return true;
-	}
 }
 
 export class InstallVSIXAction extends Action {

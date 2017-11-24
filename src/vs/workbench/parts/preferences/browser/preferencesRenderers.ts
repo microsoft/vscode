@@ -363,10 +363,6 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.settingHighlighter.clear(true);
 	}
 
-	public collapseAll() {
-		this.settingsGroupTitleRenderer.collapseAll();
-	}
-
 	public updatePreference(key: string, value: any, source: ISetting): void {
 	}
 }
@@ -499,15 +495,6 @@ export class SettingsGroupTitleRenderer extends Disposable implements HiddenArea
 			this.hiddenGroups.splice(this.hiddenGroups.indexOf(settingsGroupTitleWidget.settingsGroup), 1);
 			this._onHiddenAreasChanged.fire();
 		}
-	}
-
-	public collapseAll() {
-		this.editor.setPosition({ lineNumber: 1, column: 1 });
-		this.hiddenGroups = this.settingsGroups.slice();
-		for (const groupTitleWidget of this.settingsGroupTitleWidgets) {
-			groupTitleWidget.toggleCollapse(true);
-		}
-		this._onHiddenAreasChanged.fire();
 	}
 
 	private onToggled(collapsed: boolean, group: ISettingsGroup) {
