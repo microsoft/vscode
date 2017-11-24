@@ -251,8 +251,8 @@ declare module DebugProtocol {
 		cwd: string;
 		/** List of arguments. The first argument is the command to run. */
 		args: string[];
-		/** Environment key-value pairs that are added to the default environment. */
-		env?: { [key: string]: string; };
+		/** Environment key-value pairs that are added to or removed from the default environment. */
+		env?: { [key: string]: string | null; };
 	}
 
 	/** Response to Initialize request. */
