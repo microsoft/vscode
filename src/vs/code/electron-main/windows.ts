@@ -138,7 +138,7 @@ export class WindowsManager implements IWindowsMainService {
 	onWindowsCountChanged: CommonEvent<IWindowsCountChangedEvent> = this._onWindowsCountChanged.event;
 
 	constructor(
-		private machineId: string,
+		private readonly machineId: string,
 		@ILogService private logService: ILogService,
 		@IStorageMainService private storageMainService: IStorageMainService,
 		@IEnvironmentService private environmentService: IEnvironmentService,

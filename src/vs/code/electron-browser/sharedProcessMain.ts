@@ -37,7 +37,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createSharedProcessContributions } from 'vs/code/electron-browser/contrib/contributions';
 
 export interface ISharedProcessConfiguration {
-	machineId: string;
+	readonly machineId: string;
 }
 
 export function startup(configuration: ISharedProcessConfiguration) {

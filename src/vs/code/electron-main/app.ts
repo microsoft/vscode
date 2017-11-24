@@ -257,7 +257,9 @@ export class CodeApplication {
 		this.electronIpcServer = new ElectronIPCServer();
 
 		// Resolve unique machine ID
+		this.logService.log('Resolving machine identifier...');
 		return this.resolveMachineId().then(machineId => {
+			this.logService.log(`Resolved machine identifier: ${machineId}`);
 
 			// Spawn shared process
 			this.sharedProcess = new SharedProcess(this.environmentService, machineId, this.userEnv);
