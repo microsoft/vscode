@@ -46,10 +46,10 @@ const explorerResourceIsFolderId = 'explorerResourceIsFolder';
 
 export const ExplorerViewletVisibleContext = new RawContextKey<boolean>(explorerViewletVisibleId, true);
 export const ExplorerFolderContext = new RawContextKey<boolean>(explorerResourceIsFolderId, false);
-export const FilesExplorerFocusedContext = new RawContextKey<boolean>(filesExplorerFocusId, false);
+export const FilesExplorerFocusedContext = new RawContextKey<boolean>(filesExplorerFocusId, true);
 export const OpenEditorsVisibleContext = new RawContextKey<boolean>(openEditorsVisibleId, false);
-export const OpenEditorsFocusedContext = new RawContextKey<boolean>(openEditorsFocusId, false);
-export const ExplorerFocusedContext = new RawContextKey<boolean>(explorerViewletFocusId, false);
+export const OpenEditorsFocusedContext = new RawContextKey<boolean>(openEditorsFocusId, true);
+export const ExplorerFocusedContext = new RawContextKey<boolean>(explorerViewletFocusId, true);
 
 export const OpenEditorsVisibleCondition = ContextKeyExpr.has(openEditorsVisibleId);
 export const FilesExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has(explorerViewletVisibleId), ContextKeyExpr.has(filesExplorerFocusId));

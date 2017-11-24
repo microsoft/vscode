@@ -8,16 +8,12 @@ import * as resources from 'vs/base/common/resources';
 import * as dom from 'vs/base/browser/dom';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IAction } from 'vs/base/common/actions';
-import { IViewletViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, IBreakpoint, CONTEXT_BREAKPOINTS_FOCUSED, State, DEBUG_SCHEME, IFunctionBreakpoint, IExceptionBreakpoint, IEnablement } from 'vs/workbench/parts/debug/common/debug';
 import { ExceptionBreakpoint, FunctionBreakpoint, Breakpoint } from 'vs/workbench/parts/debug/common/debugModel';
 import { AddFunctionBreakpointAction, ToggleBreakpointsActivatedAction, RemoveAllBreakpointsAction, RemoveBreakpointAction, EnableAllBreakpointsAction, DisableAllBreakpointsAction, ReapplyBreakpointsAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IListService } from 'vs/platform/list/browser/listService';
-import { attachListStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Constants } from 'vs/editor/common/core/uint';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -27,12 +23,15 @@ import { basename } from 'vs/base/common/paths';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { List } from 'vs/base/browser/ui/list/listWidget';
-import { IDelegate, IRenderer, IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
+import { IDelegate, IListContextMenuEvent, IRenderer } from 'vs/base/browser/ui/list/list';
 import { IEditorService } from 'vs/platform/editor/common/editor';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { WorkbenchList, IListService } from 'vs/platform/list/browser/listService';
+import { ViewsViewletPanel, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { attachListStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 
 const $ = dom.$;
 
@@ -40,9 +39,8 @@ export class BreakpointsView extends ViewsViewletPanel {
 
 	private static readonly MAX_VISIBLE_FILES = 9;
 	private static readonly MEMENTO = 'breakopintsview.memento';
-	private breakpointsFocusedContext: IContextKey<boolean>;
 	private settings: any;
-	private list: List<IEnablement>;
+	private list: WorkbenchList<IEnablement>;
 	private needsRefresh: boolean;
 
 	constructor(
@@ -51,17 +49,16 @@ export class BreakpointsView extends ViewsViewletPanel {
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService private listService: IListService,
 		@IThemeService private themeService: IThemeService,
 		@IEditorService private editorService: IEditorService,
-		@IContextViewService private contextViewService: IContextViewService
+		@IContextViewService private contextViewService: IContextViewService,
+		@IContextKeyService private contextKeyService: IContextKeyService
 	) {
 		super(options, keybindingService, contextMenuService);
 
 		this.minimumBodySize = this.maximumBodySize = this.getExpandedBodySize();
 		this.settings = options.viewletSettings;
-		this.breakpointsFocusedContext = CONTEXT_BREAKPOINTS_FOCUSED.bindTo(contextKeyService);
 		this.disposables.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
 		this.disposables.push(this.debugService.getViewModel().onDidSelectFunctionBreakpoint(() => this.onBreakpointsChange()));
 	}
@@ -70,23 +67,25 @@ export class BreakpointsView extends ViewsViewletPanel {
 		dom.addClass(container, 'debug-breakpoints');
 		const delegate = new BreakpointsDelegate(this.debugService);
 
-		this.list = new List<IEnablement>(container, delegate, [
+		this.list = new WorkbenchList<IEnablement>(container, delegate, [
 			this.instantiationService.createInstance(BreakpointsRenderer),
 			new ExceptionBreakpointsRenderer(this.debugService),
 			new FunctionBreakpointsRenderer(this.debugService),
 			new FunctionBreakpointInputRenderer(this.debugService, this.contextViewService, this.themeService)
 		], {
 				identityProvider: element => element.getId()
-			});
+			}, this.contextKeyService, this.listService);
+
+		CONTEXT_BREAKPOINTS_FOCUSED.bindTo(this.list.contextKeyService);
 
 		this.disposables.push(attachListStyler(this.list, this.themeService));
-		this.disposables.push(this.listService.register(this.list, [this.breakpointsFocusedContext]));
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
 		this.list.onSelectionChange(event => {
 			// TODO@Isidor need to check if double click
 			const element = event.elements.length ? event.elements[0] : undefined;
 			if (element instanceof FunctionBreakpoint /* && event.detail === 2 */) {
 				// this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
+
 			}
 			if (element instanceof Breakpoint) {
 				openBreakpointSource(element, event, true, this.debugService, this.editorService);

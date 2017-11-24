@@ -8,7 +8,6 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
-import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { TreeViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, State, IStackFrame, IProcess, IThread } from 'vs/workbench/parts/debug/common/debug';
 import { Thread, StackFrame, ThreadAndProcessIds, Process, Model } from 'vs/workbench/parts/debug/common/debugModel';
@@ -16,7 +15,6 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IListService } from 'vs/platform/list/browser/listService';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseDebugController, twistiePixels, renderViewTree } from 'vs/workbench/parts/debug/electron-browser/baseDebugView';
@@ -29,6 +27,8 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { basenameOrAuthority } from 'vs/base/common/resources';
+import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 const $ = dom.$;
 
@@ -43,11 +43,12 @@ export class CallStackView extends TreeViewsViewletPanel {
 	constructor(
 		private options: IViewletViewOptions,
 		@IContextMenuService contextMenuService: IContextMenuService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IListService private listService: IListService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private themeService: IThemeService,
+		@IListService private listService: IListService
 	) {
 		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService);
 		this.settings = options.viewletSettings;
@@ -95,7 +96,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 		const actionProvider = new CallStackActionProvider(this.debugService, this.keybindingService);
 		const controller = this.instantiationService.createInstance(CallStackController, actionProvider, MenuId.DebugCallStackContext);
 
-		this.tree = new Tree(this.treeContainer, {
+		this.tree = new WorkbenchTree(this.treeContainer, {
 			dataSource: new CallStackDataSource(),
 			renderer: this.instantiationService.createInstance(CallStackRenderer),
 			accessibilityProvider: this.instantiationService.createInstance(CallstackAccessibilityProvider),
@@ -104,10 +105,9 @@ export class CallStackView extends TreeViewsViewletPanel {
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'callStackAriaLabel' }, "Debug Call Stack"),
 				twistiePixels,
 				keyboardSupport: false
-			});
+			}, this.contextKeyService, this.listService);
 
 		this.disposables.push(attachListStyler(this.tree, this.themeService));
-		this.disposables.push(this.listService.register(this.tree));
 
 		this.disposables.push(this.tree.onDidChangeSelection(event => {
 			if (event && event.payload && event.payload.origin === 'keyboard') {

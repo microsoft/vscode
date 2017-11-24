@@ -14,8 +14,6 @@ import { IAction, IActionItem, ActionRunner } from 'vs/base/common/actions';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IListService } from 'vs/platform/list/browser/listService';
-import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { ClickBehavior, DefaultController } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
@@ -23,18 +21,18 @@ import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { createActionItem, fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ITree, IDataSource, IRenderer, ContextMenuEvent } from 'vs/base/parts/tree/browser/tree';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ViewsRegistry } from 'vs/workbench/browser/parts/views/viewsRegistry';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { TreeViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { TreeItemCollapsibleState, ITreeItem, ITreeViewDataProvider, TreeViewItemHandleArg } from 'vs/workbench/common/views';
+import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
 
 export class TreeView extends TreeViewsViewletPanel {
 
 	private menus: Menus;
-	private viewFocusContext: IContextKey<boolean>;
 	private activated: boolean = false;
 	private treeInputPromise: TPromise<void>;
 
@@ -54,7 +52,6 @@ export class TreeView extends TreeViewsViewletPanel {
 	) {
 		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name }, keybindingService, contextMenuService);
 		this.menus = this.instantiationService.createInstance(Menus, this.id);
-		this.viewFocusContext = this.contextKeyService.createKey<boolean>(this.id, void 0);
 		this.menus.onDidChangeTitle(() => this.updateActions(), this, this.disposables);
 		this.themeService.onThemeChange(() => this.tree.refresh() /* soft refresh */, this, this.disposables);
 		if (options.expanded) {
@@ -86,20 +83,21 @@ export class TreeView extends TreeViewsViewletPanel {
 		}
 	}
 
-	public createViewer(container: Builder): ITree {
+	public createViewer(container: Builder): WorkbenchTree {
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this.id);
 		const renderer = this.instantiationService.createInstance(TreeRenderer);
 		const controller = this.instantiationService.createInstance(TreeController, this.id, this.menus);
-		const tree = new Tree(container.getHTMLElement(), {
-			dataSource,
-			renderer,
-			controller
-		}, {
-				keyboardSupport: false
-			});
+		const tree = new WorkbenchTree(
+			container.getHTMLElement(),
+			{ dataSource, renderer, controller },
+			{ keyboardSupport: false },
+			this.contextKeyService,
+			this.listService
+		);
+
+		tree.contextKeyService.createKey<boolean>(this.id, true);
 
 		this.disposables.push(attachListStyler(tree, this.themeService));
-		this.disposables.push(this.listService.register(tree, [this.viewFocusContext]));
 		this.disposables.push(tree.onDidChangeSelection(() => this.onSelection()));
 		return tree;
 	}

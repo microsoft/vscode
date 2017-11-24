@@ -9,7 +9,6 @@ import * as dom from 'vs/base/browser/dom';
 import * as errors from 'vs/base/common/errors';
 import { prepareActions } from 'vs/workbench/browser/actions';
 import { IHighlightEvent, IActionProvider, ITree, IDataSource, IRenderer, IAccessibilityProvider } from 'vs/base/parts/tree/browser/tree';
-import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { TreeViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, State, CONTEXT_VARIABLES_FOCUSED, IExpression } from 'vs/workbench/parts/debug/common/debug';
@@ -18,8 +17,7 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IListService } from 'vs/platform/list/browser/listService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { once } from 'vs/base/common/event';
@@ -32,6 +30,7 @@ import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ViewModel } from 'vs/workbench/parts/debug/common/debugViewModel';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
 
 const $ = dom.$;
 
@@ -39,7 +38,6 @@ export class VariablesView extends TreeViewsViewletPanel {
 
 	private static readonly MEMENTO = 'variablesview.memento';
 	private onFocusStackFrameScheduler: RunOnceScheduler;
-	private variablesFocusedContext: IContextKey<boolean>;
 	private settings: any;
 	private expandedElements: any[];
 
@@ -49,14 +47,13 @@ export class VariablesView extends TreeViewsViewletPanel {
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService private listService: IListService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IThemeService private themeService: IThemeService
 	) {
 		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('variablesSection', "Variables Section") }, keybindingService, contextMenuService);
 
 		this.settings = options.viewletSettings;
-		this.variablesFocusedContext = CONTEXT_VARIABLES_FOCUSED.bindTo(contextKeyService);
 		this.expandedElements = [];
 		// Use scheduler to prevent unnecessary flashing
 		this.onFocusStackFrameScheduler = new RunOnceScheduler(() => {
@@ -90,7 +87,7 @@ export class VariablesView extends TreeViewsViewletPanel {
 		dom.addClass(container, 'debug-variables');
 		this.treeContainer = renderViewTree(container);
 
-		this.tree = new Tree(this.treeContainer, {
+		this.tree = new WorkbenchTree(this.treeContainer, {
 			dataSource: new VariablesDataSource(),
 			renderer: this.instantiationService.createInstance(VariablesRenderer),
 			accessibilityProvider: new VariablesAccessibilityProvider(),
@@ -99,10 +96,11 @@ export class VariablesView extends TreeViewsViewletPanel {
 				ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
 				twistiePixels,
 				keyboardSupport: false
-			});
+			}, this.contextKeyService, this.listService);
+
+		CONTEXT_VARIABLES_FOCUSED.bindTo(this.tree.contextKeyService);
 
 		this.disposables.push(attachListStyler(this.tree, this.themeService));
-		this.disposables.push(this.listService.register(this.tree, [this.variablesFocusedContext]));
 
 		const viewModel = this.debugService.getViewModel();
 

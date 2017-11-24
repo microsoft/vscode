@@ -19,12 +19,10 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { append, $, toggleClass } from 'vs/base/browser/dom';
-import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Delegate, Renderer } from 'vs/workbench/parts/extensions/browser/extensionsList';
 import { IExtension, IExtensionsWorkbenchService } from '../common/extensions';
 import { Query } from '../common/extensionQuery';
-import { IListService } from 'vs/platform/list/browser/listService';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachListStyler, attachBadgeStyler } from 'vs/platform/theme/common/styler';
@@ -37,6 +35,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { InstallWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { WorkbenchPagedList, IListService } from 'vs/platform/list/browser/listService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export class ExtensionsListView extends ViewsViewletPanel {
 
@@ -44,7 +44,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 	private extensionsList: HTMLElement;
 	private badge: CountBadge;
 	protected badgeContainer: HTMLElement;
-	private list: PagedList<IExtension>;
+	private list: WorkbenchPagedList<IExtension>;
 
 	constructor(
 		private options: IViewletViewOptions,
@@ -60,7 +60,8 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		@IEditorGroupService private editorInputService: IEditorGroupService,
 		@IExtensionTipsService private tipsService: IExtensionTipsService,
 		@IModeService private modeService: IModeService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IContextKeyService private contextKeyService: IContextKeyService
 	) {
 		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name }, keybindingService, contextMenuService);
 	}
@@ -79,13 +80,12 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		this.messageBox = append(container, $('.message'));
 		const delegate = new Delegate();
 		const renderer = this.instantiationService.createInstance(Renderer);
-		this.list = new PagedList(this.extensionsList, delegate, [renderer], {
+		this.list = new WorkbenchPagedList(this.extensionsList, delegate, [renderer], {
 			ariaLabel: localize('extensions', "Extensions"),
 			keyboardSupport: false
-		});
+		}, this.contextKeyService, this.listService);
 
 		this.disposables.push(attachListStyler(this.list.widget, this.themeService));
-		this.disposables.push(this.listService.register(this.list.widget));
 
 		chain(this.list.onSelectionChange)
 			.map(e => e.elements[0])

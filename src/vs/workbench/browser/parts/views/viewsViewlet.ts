@@ -12,7 +12,6 @@ import { Scope } from 'vs/workbench/common/memento';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { firstIndex } from 'vs/base/common/arrays';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
@@ -28,6 +27,7 @@ import { IContextKeyService, IContextKeyChangeEvent } from 'vs/platform/contextk
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { PanelViewlet, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IPanelOptions } from 'vs/base/browser/ui/splitview/panelview';
+import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 
 export interface IViewOptions extends IPanelOptions {
 	id: string;
@@ -104,7 +104,7 @@ export abstract class TreeViewsViewletPanel extends ViewsViewletPanel {
 	protected treeContainer: HTMLElement;
 
 	// TODO@sandeep why is tree here? isn't this coming only from TreeView
-	protected tree: ITree;
+	protected tree: WorkbenchTree;
 	protected isDisposed: boolean;
 	private dragHandler: DelayedDragHandler;
 
@@ -138,7 +138,7 @@ export abstract class TreeViewsViewletPanel extends ViewsViewletPanel {
 		return treeContainer;
 	}
 
-	getViewer(): ITree {
+	getViewer(): WorkbenchTree {
 		return this.tree;
 	}
 
@@ -214,7 +214,7 @@ export abstract class TreeViewsViewletPanel extends ViewsViewletPanel {
 		super.dispose();
 	}
 
-	private updateTreeVisibility(tree: ITree, isVisible: boolean): void {
+	private updateTreeVisibility(tree: WorkbenchTree, isVisible: boolean): void {
 		if (!tree) {
 			return;
 		}

@@ -9,7 +9,6 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction } from 'vs/base/common/actions';
 import dom = require('vs/base/browser/dom');
-import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IItemCollapseEvent } from 'vs/base/parts/tree/browser/treeModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -27,12 +26,12 @@ import { Renderer, DataSource, Controller, AccessibilityProvider, ActionProvider
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { CloseAllEditorsAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { ToggleEditorLayoutAction } from 'vs/workbench/browser/actions/toggleEditorLayout';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IListService } from 'vs/platform/list/browser/listService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
 import { attachListStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
 
 const $ = dom.$;
 
@@ -50,9 +49,6 @@ export class OpenEditorsView extends TreeViewsViewletPanel {
 	private groupToRefresh: IEditorGroup;
 	private fullRefreshNeeded: boolean;
 
-	private openEditorsFocusedContext: IContextKey<boolean>;
-	private explorerFocusedContext: IContextKey<boolean>;
-
 	constructor(
 		options: IViewletViewOptions,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -63,7 +59,7 @@ export class OpenEditorsView extends TreeViewsViewletPanel {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IListService private listService: IListService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IViewletService private viewletService: IViewletService,
 		@IThemeService private themeService: IThemeService
 	) {
@@ -73,9 +69,6 @@ export class OpenEditorsView extends TreeViewsViewletPanel {
 		}, keybindingService, contextMenuService);
 
 		this.model = editorGroupService.getStacksModel();
-
-		this.openEditorsFocusedContext = OpenEditorsFocusedContext.bindTo(contextKeyService);
-		this.explorerFocusedContext = ExplorerFocusedContext.bindTo(contextKeyService);
 
 		this.structuralRefreshDelay = 0;
 		this.structuralTreeRefreshScheduler = new RunOnceScheduler(() => this.structuralTreeUpdate(), this.structuralRefreshDelay);
@@ -124,7 +117,7 @@ export class OpenEditorsView extends TreeViewsViewletPanel {
 		const accessibilityProvider = this.instantiationService.createInstance(AccessibilityProvider);
 		const dnd = this.instantiationService.createInstance(DragAndDrop);
 
-		this.tree = new Tree(this.treeContainer, {
+		this.tree = new WorkbenchTree(this.treeContainer, {
 			dataSource,
 			renderer,
 			controller,
@@ -136,13 +129,14 @@ export class OpenEditorsView extends TreeViewsViewletPanel {
 				ariaLabel: nls.localize({ key: 'treeAriaLabel', comment: ['Open is an adjective'] }, "Open Editors: List of Active Files"),
 				showTwistie: false,
 				keyboardSupport: false
-			});
+			}, this.contextKeyService, this.listService);
 
 		// Theme styler
 		this.disposables.push(attachListStyler(this.tree, this.themeService));
 
-		// Register to list service
-		this.disposables.push(this.listService.register(this.tree, [this.explorerFocusedContext, this.openEditorsFocusedContext]));
+		// Bind context keys
+		OpenEditorsFocusedContext.bindTo(this.tree.contextKeyService);
+		ExplorerFocusedContext.bindTo(this.tree.contextKeyService);
 
 		// Open when selecting via keyboard
 		this.disposables.push(this.tree.onDidChangeSelection(event => {

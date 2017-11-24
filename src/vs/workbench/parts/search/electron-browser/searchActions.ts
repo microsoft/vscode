@@ -39,9 +39,10 @@ export const findInFolderCommand = (accessor: ServicesAccessor, resource?: URI) 
 	const viewletService = accessor.get(IViewletService);
 
 	if (!URI.isUri(resource)) {
-		const focused = listService.getFocused() ? listService.getFocused().getFocus() : void 0;
-		if (focused) {
-			const file = explorerItemToFileResource(focused);
+		const lastFocusedList = listService.lastFocusedList;
+		const focus = lastFocusedList ? lastFocusedList.getFocus() : void 0;
+		if (focus) {
+			const file = explorerItemToFileResource(focus);
 			if (file) {
 				resource = file.isDirectory ? file.resource : resources.dirname(file.resource);
 			}

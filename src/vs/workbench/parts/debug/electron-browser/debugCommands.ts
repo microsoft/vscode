@@ -44,7 +44,7 @@ export function registerCommands(): void {
 		handler: (accessor) => {
 			const listService = accessor.get(IListService);
 			const debugService = accessor.get(IDebugService);
-			const focused = listService.getFocused();
+			const focused = listService.lastFocusedList;
 
 			// Tree only
 			if (!(focused instanceof List)) {
@@ -64,7 +64,7 @@ export function registerCommands(): void {
 		handler: (accessor) => {
 			const listService = accessor.get(IListService);
 			const debugService = accessor.get(IDebugService);
-			const focused = listService.getFocused();
+			const focused = listService.lastFocusedList;
 
 			// Tree only
 			if (!(focused instanceof List)) {
@@ -85,7 +85,7 @@ export function registerCommands(): void {
 		handler: (accessor) => {
 			const listService = accessor.get(IListService);
 			const debugService = accessor.get(IDebugService);
-			const focused = listService.getFocused();
+			const focused = listService.lastFocusedList;
 
 			// Tree only
 			if (!(focused instanceof List)) {
@@ -106,7 +106,7 @@ export function registerCommands(): void {
 		handler: (accessor) => {
 			const listService = accessor.get(IListService);
 			const debugService = accessor.get(IDebugService);
-			const focused = listService.getFocused();
+			const focused = listService.lastFocusedList;
 
 			// Tree only
 			if (!(focused instanceof List)) {
@@ -127,7 +127,7 @@ export function registerCommands(): void {
 		handler: (accessor) => {
 			const listService = accessor.get(IListService);
 			const debugService = accessor.get(IDebugService);
-			const focused = listService.getFocused();
+			const focused = listService.lastFocusedList;
 
 			// Tree only
 			if (!(focused instanceof List)) {
