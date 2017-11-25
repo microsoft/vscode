@@ -655,6 +655,11 @@
           "when": "config.git.enabled && scmProvider == git"
         },
         {
+          "command": "git.compare",
+          "group": "6_compare",
+          "when": "config.git.enabled && scmProvider == git"
+        },
+        {
           "command": "git.showOutput",
           "group": "7_repository",
           "when": "config.git.enabled && scmProvider == git"
