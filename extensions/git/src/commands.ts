@@ -37,6 +37,18 @@ class RefItem implements QuickPickItem {
 	constructor(public readonly ref: Ref) { }
 }
 
+class RemoveCompareItem extends RefItem {
+	private _description: string | undefined;
+
+	constructor(private _label: string) {
+		super({ type: RefType.Head });
+	}
+
+	get label(): string { return this._label; }
+	get description(): string { return this._description || ''; }
+	set description(description: string) { this._description = description; }
+}
+
 class CheckoutItem extends RefItem {
 
 	async run(repository: Repository): Promise<void> {
@@ -1109,9 +1121,18 @@ export class CommandCenter {
 		const tags = repository.refs.filter(ref => ref.type === RefType.Tag);
 		const remoteHeads = repository.refs.filter(ref => ref.type === RefType.RemoteHead);
 		const picks = [...heads, ...tags, ...remoteHeads].map(ref => new RefItem(ref));
+		const removeCompare = new RemoveCompareItem(localize('remove comparison', "> Remove Comparison"));
+		if (repository.compare) {
+			removeCompare.description = repository.compare.raw;
+			picks.unshift(removeCompare);
+		}
 		const placeHolder = localize('select a ref to compare to', "Select a ref to compare to");
 		const pick = await window.showQuickPick(picks, { placeHolder });
 		if (!pick) {
+			return;
+		}
+		if (pick === removeCompare) {
+			repository.compare = undefined;
 			return;
 		}
 		const comparisonBase = pick.ref.name || pick.ref.commit;
