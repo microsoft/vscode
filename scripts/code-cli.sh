@@ -8,7 +8,7 @@ else
 fi
 
 function code() {
-	cd $ROOT
+	pushd $ROOT >/dev/null
 
 	if [[ "$OSTYPE" == "darwin"* ]]; then
 		NAME=`node -p "require('./product.json').nameLong"`
@@ -27,12 +27,14 @@ function code() {
 	# Build
 	test -d out || ./node_modules/.bin/gulp compile
 
+	popd >/dev/null
+
 	ELECTRON_RUN_AS_NODE=1 \
 	NODE_ENV=development \
 	VSCODE_DEV=1 \
 	ELECTRON_ENABLE_LOGGING=1 \
 	ELECTRON_ENABLE_STACK_DUMPING=1 \
-	"$CODE" --debug=5874 "$ROOT/out/cli.js" . "$@"
+	"$ROOT/$CODE" --debug=5874 "$ROOT/out/cli.js" "$ROOT" "$@"
 }
 
 code "$@"
