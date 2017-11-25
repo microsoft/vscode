@@ -286,6 +286,10 @@ export class TabsTitleControl extends TitleControl {
 		// Tab label and styles
 		editorsOfGroup.forEach((editor, index) => {
 			const tabContainer = this.tabsContainer.children[index] as HTMLElement;
+			if (!tabContainer) {
+				return; // could be a race condition between updating tabs and creating tabs
+			}
+
 			const isPinned = group.isPinned(index);
 			const isTabActive = group.isActive(editor);
 			const isDirty = editor.isDirty();
