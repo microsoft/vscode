@@ -268,16 +268,16 @@ export class UpdateService implements IUpdateService {
 			return TPromise.as(null);
 		}
 
+		// for some reason updating on Mac causes the local storage not to be flushed.
+		// we workaround this issue by forcing an explicit flush of the storage data.
+		// see also https://github.com/Microsoft/vscode/issues/172
+		if (process.platform === 'darwin') {
+			electron.session.defaultSession.flushStorageData();
+		}
+
 		this.lifecycleService.quit(true /* from update */).done(vetod => {
 			if (vetod) {
 				return;
-			}
-
-			// for some reason updating on Mac causes the local storage not to be flushed.
-			// we workaround this issue by forcing an explicit flush of the storage data.
-			// see also https://github.com/Microsoft/vscode/issues/172
-			if (process.platform === 'darwin') {
-				electron.session.defaultSession.flushStorageData();
 			}
 
 			this.raw.quitAndInstall();
