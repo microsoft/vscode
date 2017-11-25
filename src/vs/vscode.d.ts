@@ -1253,7 +1253,7 @@ declare module 'vscode' {
 		 *
 		 * @return An object.
 		 */
-		toJSON(): any;
+		toJSON(): object;
 	}
 
 	/**
