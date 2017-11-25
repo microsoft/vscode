@@ -14,7 +14,7 @@ import product from 'vs/platform/node/product';
 import { Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import language from 'vs/base/common/platform';
+import { language } from 'vs/base/common/platform';
 
 class TwitterFeedbackService implements IFeedbackService {
 
