@@ -444,6 +444,10 @@
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.removeCompare",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
           "command": "git.branch",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
