@@ -106,6 +106,14 @@ export function tildify(path: string, userHome: string): string {
 	return path;
 }
 
+export function untildify(path: string, userHome: string): string {
+	if (platform.isMacintosh || platform.isLinux) {
+		path = path.replace(/^~($|\/|\\)/, `${userHome}$1`);
+	}
+
+	return path;
+}
+
 /**
  * Shortens the paths but keeps them easy to distinguish.
  * Replaces not important parts with ellipsis.
