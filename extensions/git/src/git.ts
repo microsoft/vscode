@@ -14,6 +14,7 @@ import iconv = require('iconv-lite');
 import * as filetype from 'file-type';
 import { assign, uniqBy, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent } from './util';
 import { CancellationToken } from 'vscode';
+import { memoize } from './decorators';
 
 const readfile = denodeify<string>(fs.readFile);
 
@@ -28,6 +29,22 @@ export interface IFileStatus {
 	path: string;
 	rename?: string;
 }
+
+export class Compare {
+	public readonly left: string;
+	public readonly right: string;
+	constructor(public readonly raw: string) {
+		const [left, right] = raw.split(/(?:\.\.\.?|\s+)/);
+		this.left = left;
+		this.right = right;
+	}
+
+	@memoize
+	public get mergeBase(): boolean {
+		return this.raw.indexOf('...') !== -1;
+	}
+}
+
 
 export interface Remote {
 	name: string;
@@ -56,6 +73,19 @@ export interface Branch extends Ref {
 	upstream?: string;
 	ahead?: number;
 	behind?: number;
+}
+
+export function equalRefs(left: Branch | undefined, right: Branch | undefined): boolean {
+	if (!left) {
+		return !right;
+	}
+	if (!right) {
+		return !left;
+	}
+	return left.commit === right.commit &&
+		left.name === right.name &&
+		left.remote === right.remote &&
+		left.upstream === right.upstream;
 }
 
 function parseVersion(raw: string): string {
@@ -468,6 +498,69 @@ export interface Commit {
 	message: string;
 }
 
+export class GitDiffStatusParser {
+	private lastRaw = '';
+	private result: IFileStatus[] = [];
+
+	get status(): IFileStatus[] {
+		return this.result;
+	}
+
+	update(raw: string): void {
+		let i = 0;
+		let nextI: number | undefined;
+		raw = this.lastRaw + raw;
+
+		while ((nextI = this.parseEntry(raw, i)) !== undefined) {
+			i = nextI;
+		}
+
+		this.lastRaw = raw.substr(i);
+	}
+
+	private parseEntry(raw: string, statusStartIndex: number): number | undefined {
+		if (statusStartIndex + 3 >= raw.length) {
+			return;
+		}
+		const statusEndIndex = raw.indexOf('\0', statusStartIndex);
+		if (statusEndIndex === -1) {
+			return;
+		}
+		const status = raw.substr(statusStartIndex, 1);
+		const pathStartIndex = statusEndIndex + 1;
+
+		const pathEndIndex = raw.indexOf('\0', pathStartIndex);
+		if (pathEndIndex === -1) {
+			return;
+		}
+		const path = raw.substring(pathStartIndex, pathEndIndex);
+
+		const entry: IFileStatus = {
+			x: status,
+			y: '',
+			path,
+			rename: undefined,
+		};
+
+		let lastIndex = pathEndIndex;
+		if (status === 'R' || status === 'C') {
+			const renameCopyStartIndex = pathEndIndex + 1;
+			lastIndex = raw.indexOf('\0', renameCopyStartIndex);
+			if (lastIndex === -1) {
+				return;
+			}
+			entry.rename = raw.substring(renameCopyStartIndex, lastIndex);
+		}
+
+		// If path ends with slash, it must be a nested git repo
+		if (entry.path[entry.path.length - 1] !== '/') {
+			this.result.push(entry);
+		}
+
+		return lastIndex + 1;
+	}
+}
+
 export class GitStatusParser {
 
 	private lastRaw = '';
@@ -798,6 +891,11 @@ export class Repository {
 		}
 	}
 
+	async mergeBase(refs: string[]): Promise<string> {
+		const result = await this.run(['merge-base'].concat(refs));
+		return result.stdout.trim();
+	}
+
 	async tag(name: string, message?: string): Promise<void> {
 		let args = ['tag'];
 
@@ -993,11 +1091,12 @@ export class Repository {
 		}
 	}
 
-	getStatus(limit = 5000): Promise<{ status: IFileStatus[]; didHitLimit: boolean; }> {
+	getStatus(compare?: Compare, limit = 5000): Promise<{ status: IFileStatus[]; didHitLimit: boolean; }> {
 		return new Promise<{ status: IFileStatus[]; didHitLimit: boolean; }>((c, e) => {
-			const parser = new GitStatusParser();
+			const parser = compare ? new GitDiffStatusParser() : new GitStatusParser();
 			const env = { GIT_OPTIONAL_LOCKS: '0' };
-			const child = this.stream(['status', '-z', '-u'], { env });
+			const cmd = compare ? ['diff', '--name-status', '-z', compare.raw] : ['status', '-z', '-u'];
+			const child = this.stream(cmd, { env });
 
 			const onExit = (exitCode: number) => {
 				if (exitCode !== 0) {
@@ -1007,7 +1106,7 @@ export class Repository {
 						stderr,
 						exitCode,
 						gitErrorCode: getGitErrorCode(stderr),
-						gitCommand: 'status'
+						gitCommand: cmd[0],
 					}));
 				}
 

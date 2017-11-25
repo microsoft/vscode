@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor, CancellationTokenSource, StatusBarAlignment } from 'vscode';
-import { Ref, RefType, Git, GitErrorCodes, Branch } from './git';
+import { Ref, RefType, Git, GitErrorCodes, Branch, Compare } from './git';
 import { Repository, Resource, Status, CommitOptions, ResourceGroupType } from './repository';
 import { Model } from './model';
 import { toGitUri, fromGitUri } from './uri';
@@ -19,14 +19,25 @@ import * as nls from 'vscode-nls';
 
 const localize = nls.loadMessageBundle();
 
-class CheckoutItem implements QuickPickItem {
-
+class RefItem implements QuickPickItem {
 	protected get shortCommit(): string { return (this.ref.commit || '').substr(0, 8); }
 	protected get treeish(): string | undefined { return this.ref.name; }
 	get label(): string { return this.ref.name || this.shortCommit; }
-	get description(): string { return this.shortCommit; }
+	get description(): string {
+		switch (this.ref.type) {
+			case RefType.Tag:
+				return localize('tag at', "Tag at {0}", this.shortCommit);
+			case RefType.RemoteHead:
+				return localize('remote branch at', "Remote branch at {0}", this.shortCommit);
+			case RefType.Head:
+				return this.shortCommit;
+		}
+	}
 
-	constructor(protected ref: Ref) { }
+	constructor(public readonly ref: Ref) { }
+}
+
+class CheckoutItem extends RefItem {
 
 	async run(repository: Repository): Promise<void> {
 		const ref = this.treeish;
@@ -39,18 +50,7 @@ class CheckoutItem implements QuickPickItem {
 	}
 }
 
-class CheckoutTagItem extends CheckoutItem {
-
-	get description(): string {
-		return localize('tag at', "Tag at {0}", this.shortCommit);
-	}
-}
-
 class CheckoutRemoteHeadItem extends CheckoutItem {
-
-	get description(): string {
-		return localize('remote branch at', "Remote branch at {0}", this.shortCommit);
-	}
 
 	protected get treeish(): string | undefined {
 		if (!this.ref.name) {
@@ -243,6 +243,24 @@ export class CommandCenter {
 			case Status.INDEX_RENAMED:
 				return this.getURI(resource.original, 'HEAD');
 
+			case Status.COMPARE_ADDED:
+			case Status.COMPARE_DELETED:
+			case Status.COMPARE_MODIFIED:
+			case Status.COMPARE_COPIED:
+			case Status.COMPARE_RENAMED:
+				const left = await (async () => {
+					const compare = resource.compare!;
+					if (!compare.mergeBase) {
+						return compare.left;
+					}
+					const repository = this.model.getRepository(resource.resourceUri);
+					if (!repository) {
+						throw new Error(`no repository for ${resource.resourceUri.toString()}`);
+					}
+					return await repository.mergeBase([compare.left, compare.right]);
+				})();
+				return this.getURI(resource.resourceUri, left);
+
 			case Status.MODIFIED:
 				return this.getURI(resource.resourceUri, '~');
 
@@ -258,6 +276,13 @@ export class CommandCenter {
 			case Status.INDEX_COPIED:
 			case Status.INDEX_RENAMED:
 				return this.getURI(resource.resourceUri, '');
+
+			case Status.COMPARE_ADDED:
+			case Status.COMPARE_DELETED:
+			case Status.COMPARE_MODIFIED:
+			case Status.COMPARE_COPIED:
+			case Status.COMPARE_RENAMED:
+				return this.getURI(resource.resourceUri, resource.compare!.right);
 
 			case Status.INDEX_DELETED:
 			case Status.DELETED_BY_THEM:
@@ -296,6 +321,13 @@ export class CommandCenter {
 			case Status.INDEX_RENAMED:
 			case Status.DELETED_BY_THEM:
 				return `${basename} (Index)`;
+
+			case Status.COMPARE_ADDED:
+			case Status.COMPARE_DELETED:
+			case Status.COMPARE_MODIFIED:
+			case Status.COMPARE_COPIED:
+			case Status.COMPARE_RENAMED:
+				return `${basename} (${resource.compare!.raw})`;
 
 			case Status.MODIFIED:
 			case Status.BOTH_ADDED:
@@ -1062,6 +1094,34 @@ export class CommandCenter {
 		repository.inputBox.value = commit.message;
 	}
 
+	@command('git.removeCompare', { repository: true })
+	async removeCompare(repository: Repository): Promise<void> {
+		repository.compare = undefined;
+	}
+
+	@command('git.compare', { repository: true })
+	async compare(repository: Repository, compare: string): Promise<void> {
+		if (typeof compare === 'string') {
+			repository.compare = new Compare(compare);
+			return;
+		}
+		const heads = repository.refs.filter(ref => ref.type === RefType.Head);
+		const tags = repository.refs.filter(ref => ref.type === RefType.Tag);
+		const remoteHeads = repository.refs.filter(ref => ref.type === RefType.RemoteHead);
+		const picks = [...heads, ...tags, ...remoteHeads].map(ref => new RefItem(ref));
+		const placeHolder = localize('select a ref to compare to', "Select a ref to compare to");
+		const pick = await window.showQuickPick(picks, { placeHolder });
+		if (!pick) {
+			return;
+		}
+		const comparisonBase = pick.ref.name || pick.ref.commit;
+		if (!comparisonBase) {
+			return;
+		}
+		const head = repository.HEAD && (repository.HEAD.name || repository.HEAD.commit) || 'HEAD';
+		repository.compare = new Compare(`${comparisonBase}...${head}`);
+	}
+
 	@command('git.checkout', { repository: true })
 	async checkout(repository: Repository, treeish: string): Promise<void> {
 		if (typeof treeish === 'string') {
@@ -1079,7 +1139,7 @@ export class CommandCenter {
 			.map(ref => new CheckoutItem(ref));
 
 		const tags = (includeTags ? repository.refs.filter(ref => ref.type === RefType.Tag) : [])
-			.map(ref => new CheckoutTagItem(ref));
+			.map(ref => new CheckoutItem(ref));
 
 		const remoteHeads = (includeRemotes ? repository.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
 			.map(ref => new CheckoutRemoteHeadItem(ref));

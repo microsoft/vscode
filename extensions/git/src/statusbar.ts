@@ -23,13 +23,37 @@ class CheckoutStatusBar {
 		repository.onDidChangeStatus(this._onDidChange.fire, this._onDidChange, this.disposables);
 	}
 
-	get command(): Command | undefined {
+	get command(): Command {
 		const title = `$(git-branch) ${this.repository.headLabel}`;
 
 		return {
 			command: 'git.checkout',
 			tooltip: localize('checkout', 'Checkout...'),
 			title,
+			arguments: [this.repository.sourceControl]
+		};
+	}
+
+	dispose(): void {
+		this.disposables.forEach(d => d.dispose());
+	}
+}
+
+class CompareStatusBar {
+
+	private _onDidChange = new EventEmitter<void>();
+	get onDidChange(): Event<void> { return this._onDidChange.event; }
+	private disposables: Disposable[] = [];
+
+	constructor(private repository: Repository) {
+		repository.onDidChangeStatus(this._onDidChange.fire, this._onDidChange, this.disposables);
+	}
+
+	get command(): Command {
+		return {
+			command: 'git.compare',
+			tooltip: localize('compare', 'Compare...'),
+			title: `$(git-compare)`,
 			arguments: [this.repository.sourceControl]
 		};
 	}
@@ -136,11 +160,13 @@ export class StatusBarCommands {
 
 	private syncStatusBar: SyncStatusBar;
 	private checkoutStatusBar: CheckoutStatusBar;
+	private compareStatusBar: CompareStatusBar;
 	private disposables: Disposable[] = [];
 
 	constructor(repository: Repository) {
 		this.syncStatusBar = new SyncStatusBar(repository);
 		this.checkoutStatusBar = new CheckoutStatusBar(repository);
+		this.compareStatusBar = new CompareStatusBar(repository);
 	}
 
 	get onDidChange(): Event<void> {
@@ -151,16 +177,12 @@ export class StatusBarCommands {
 	}
 
 	get commands(): Command[] {
-		const result: Command[] = [];
-
-		const checkout = this.checkoutStatusBar.command;
-
-		if (checkout) {
-			result.push(checkout);
-		}
+		const result = [
+			this.checkoutStatusBar.command,
+			this.compareStatusBar.command,
+		];
 
 		const sync = this.syncStatusBar.command;
-
 		if (sync) {
 			result.push(sync);
 		}

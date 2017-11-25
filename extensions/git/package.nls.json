@@ -26,6 +26,8 @@
 	"command.commitAllAmend": "Commit All (Amend)",
 	"command.undoCommit": "Undo Last Commit",
 	"command.checkout": "Checkout to...",
+	"command.compare": "Compare to...",
+	"command.removeCompare": "Remove Comparison",
 	"command.branch": "Create Branch...",
 	"command.deleteBranch": "Delete Branch...",
 	"command.renameBranch": "Rename Branch...",

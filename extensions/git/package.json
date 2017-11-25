@@ -210,6 +210,24 @@
         "category": "Git"
       },
       {
+        "command": "git.compare",
+        "title": "%command.compare%",
+        "category": "Git",
+        "icon": {
+          "light": "resources/icons/light/edit.svg",
+          "dark": "resources/icons/dark/edit.svg"
+        }
+      },
+      {
+        "command": "git.removeCompare",
+        "title": "%command.removeCompare%",
+        "category": "Git",
+        "icon": {
+          "light": "resources/icons/light/close.svg",
+          "dark": "resources/icons/dark/close.svg"
+        }
+      },
+      {
         "command": "git.branch",
         "title": "%command.branch%",
         "category": "Git"
@@ -419,6 +437,10 @@
         },
         {
           "command": "git.checkout",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.compare",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
@@ -680,6 +702,16 @@
         {
           "command": "git.stageAll",
           "when": "config.git.enabled && scmProvider == git && scmResourceGroup == workingTree",
+          "group": "inline"
+        },
+        {
+          "command": "git.compare",
+          "when": "config.git.enabled && scmProvider == git && scmResourceGroup == compare",
+          "group": "inline"
+        },
+        {
+          "command": "git.removeCompare",
+          "when": "config.git.enabled && scmProvider == git && scmResourceGroup == compare",
           "group": "inline"
         }
       ],

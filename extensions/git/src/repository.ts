@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData, Memento } from 'vscode';
-import { Repository as BaseRepository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash, RefType, GitError } from './git';
+import { Repository as BaseRepository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash, RefType, GitError, Compare, equalRefs } from './git';
 import { anyEvent, filterEvent, eventToPromise, dispose, find } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { toGitUri } from './uri';
@@ -37,6 +37,12 @@ export enum Status {
 	INDEX_RENAMED,
 	INDEX_COPIED,
 
+	COMPARE_ADDED,
+	COMPARE_COPIED,
+	COMPARE_DELETED,
+	COMPARE_MODIFIED,
+	COMPARE_RENAMED,
+
 	MODIFIED,
 	DELETED,
 	UNTRACKED,
@@ -54,14 +60,24 @@ export enum Status {
 export enum ResourceGroupType {
 	Merge,
 	Index,
-	WorkingTree
+	WorkingTree,
+	Compare
 }
 
 export class Resource implements SourceControlResourceState {
 
 	@memoize
 	get resourceUri(): Uri {
-		if (this.renameResourceUri && (this._type === Status.MODIFIED || this._type === Status.DELETED || this._type === Status.INDEX_RENAMED || this._type === Status.INDEX_COPIED)) {
+		if (this.renameResourceUri &&
+			(
+				this._type === Status.MODIFIED ||
+				this._type === Status.DELETED ||
+				this._type === Status.INDEX_RENAMED ||
+				this._type === Status.INDEX_COPIED ||
+				this._type === Status.COMPARE_RENAMED ||
+				this._type === Status.COMPARE_COPIED
+			)
+		) {
 			return this.renameResourceUri;
 		}
 
@@ -81,6 +97,9 @@ export class Resource implements SourceControlResourceState {
 	get type(): Status { return this._type; }
 	get original(): Uri { return this._resourceUri; }
 	get renameResourceUri(): Uri | undefined { return this._renameResourceUri; }
+	get compare(): Compare | undefined {
+		return this._compare;
+	}
 
 	private static Icons: any = {
 		light: {
@@ -105,7 +124,7 @@ export class Resource implements SourceControlResourceState {
 		}
 	};
 
-	private getIconPath(theme: string): Uri | undefined {
+	private getIconPath(theme: string): Uri {
 		switch (this.type) {
 			case Status.INDEX_MODIFIED: return Resource.Icons[theme].Modified;
 			case Status.MODIFIED: return Resource.Icons[theme].Modified;
@@ -114,6 +133,11 @@ export class Resource implements SourceControlResourceState {
 			case Status.DELETED: return Resource.Icons[theme].Deleted;
 			case Status.INDEX_RENAMED: return Resource.Icons[theme].Renamed;
 			case Status.INDEX_COPIED: return Resource.Icons[theme].Copied;
+			case Status.COMPARE_ADDED: return Resource.Icons[theme].Added;
+			case Status.COMPARE_COPIED: return Resource.Icons[theme].Copied;
+			case Status.COMPARE_DELETED: return Resource.Icons[theme].Deleted;
+			case Status.COMPARE_MODIFIED: return Resource.Icons[theme].Modified;
+			case Status.COMPARE_RENAMED: return Resource.Icons[theme].Renamed;
 			case Status.UNTRACKED: return Resource.Icons[theme].Untracked;
 			case Status.IGNORED: return Resource.Icons[theme].Ignored;
 			case Status.BOTH_DELETED: return Resource.Icons[theme].Conflict;
@@ -123,7 +147,6 @@ export class Resource implements SourceControlResourceState {
 			case Status.DELETED_BY_US: return Resource.Icons[theme].Conflict;
 			case Status.BOTH_ADDED: return Resource.Icons[theme].Conflict;
 			case Status.BOTH_MODIFIED: return Resource.Icons[theme].Conflict;
-			default: return void 0;
 		}
 	}
 
@@ -136,6 +159,11 @@ export class Resource implements SourceControlResourceState {
 			case Status.DELETED: return localize('deleted', "Deleted");
 			case Status.INDEX_RENAMED: return localize('index renamed', "Index Renamed");
 			case Status.INDEX_COPIED: return localize('index copied', "Index Copied");
+			case Status.COMPARE_ADDED: return localize('compare added', "Compare Added");
+			case Status.COMPARE_COPIED: return localize('compare copied', "Compare Copied");
+			case Status.COMPARE_DELETED: return localize('compare deleted', "Compare Deleted");
+			case Status.COMPARE_MODIFIED: return localize('compare modified', "Compare Modified");
+			case Status.COMPARE_RENAMED: return localize('compare renamed', "Compare Renamed");
 			case Status.UNTRACKED: return localize('untracked', "Untracked");
 			case Status.IGNORED: return localize('ignored', "Ignored");
 			case Status.BOTH_DELETED: return localize('both deleted', "Both Deleted");
@@ -145,7 +173,6 @@ export class Resource implements SourceControlResourceState {
 			case Status.DELETED_BY_US: return localize('deleted by us', "Deleted By Us");
 			case Status.BOTH_ADDED: return localize('both added', "Both Added");
 			case Status.BOTH_MODIFIED: return localize('both modified', "Both Modified");
-			default: return '';
 		}
 	}
 
@@ -156,6 +183,7 @@ export class Resource implements SourceControlResourceState {
 			case Status.DELETED_BY_THEM:
 			case Status.DELETED_BY_US:
 			case Status.INDEX_DELETED:
+			case Status.COMPARE_DELETED:
 				return true;
 			default:
 				return false;
@@ -184,23 +212,28 @@ export class Resource implements SourceControlResourceState {
 		return { strikeThrough, faded, tooltip, light, dark, letter, color, source: 'git.resource' /*todo@joh*/ };
 	}
 
-	get letter(): string | undefined {
+	get letter(): string {
 		switch (this.type) {
 			case Status.INDEX_MODIFIED:
+			case Status.COMPARE_MODIFIED:
 			case Status.MODIFIED:
 				return 'M';
 			case Status.INDEX_ADDED:
+			case Status.COMPARE_ADDED:
 				return 'A';
 			case Status.INDEX_DELETED:
+			case Status.COMPARE_DELETED:
 			case Status.DELETED:
 				return 'D';
 			case Status.INDEX_RENAMED:
+			case Status.COMPARE_RENAMED:
 				return 'R';
 			case Status.UNTRACKED:
 				return 'U';
 			case Status.IGNORED:
 				return 'I';
 			case Status.INDEX_COPIED:
+			case Status.COMPARE_COPIED:
 			case Status.BOTH_DELETED:
 			case Status.ADDED_BY_US:
 			case Status.DELETED_BY_THEM:
@@ -209,26 +242,29 @@ export class Resource implements SourceControlResourceState {
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
 				return 'C';
-			default:
-				return undefined;
 		}
 	}
 
-	get color(): ThemeColor | undefined {
+	get color(): ThemeColor {
 		switch (this.type) {
 			case Status.INDEX_MODIFIED:
+			case Status.COMPARE_MODIFIED:
 			case Status.MODIFIED:
 				return new ThemeColor('gitDecoration.modifiedResourceForeground');
 			case Status.INDEX_DELETED:
+			case Status.COMPARE_DELETED:
 			case Status.DELETED:
 				return new ThemeColor('gitDecoration.deletedResourceForeground');
 			case Status.INDEX_ADDED: // todo@joh - special color?
+			case Status.COMPARE_ADDED:
 			case Status.INDEX_RENAMED: // todo@joh - special color?
+			case Status.COMPARE_RENAMED:
 			case Status.UNTRACKED:
 				return new ThemeColor('gitDecoration.untrackedResourceForeground');
 			case Status.IGNORED:
 				return new ThemeColor('gitDecoration.ignoredResourceForeground');
 			case Status.INDEX_COPIED:
+			case Status.COMPARE_COPIED:
 			case Status.BOTH_DELETED:
 			case Status.ADDED_BY_US:
 			case Status.DELETED_BY_THEM:
@@ -237,19 +273,19 @@ export class Resource implements SourceControlResourceState {
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
 				return new ThemeColor('gitDecoration.conflictingResourceForeground');
-			default:
-				return undefined;
 		}
 	}
 
 	get priority(): number {
 		switch (this.type) {
 			case Status.INDEX_MODIFIED:
+			case Status.COMPARE_MODIFIED:
 			case Status.MODIFIED:
 				return 2;
 			case Status.IGNORED:
 				return 3;
 			case Status.INDEX_COPIED:
+			case Status.COMPARE_COPIED:
 			case Status.BOTH_DELETED:
 			case Status.ADDED_BY_US:
 			case Status.DELETED_BY_THEM:
@@ -275,7 +311,8 @@ export class Resource implements SourceControlResourceState {
 		private _resourceGroupType: ResourceGroupType,
 		private _resourceUri: Uri,
 		private _type: Status,
-		private _renameResourceUri?: Uri
+		private _renameResourceUri?: Uri,
+		private _compare?: Compare
 	) { }
 }
 
@@ -298,6 +335,7 @@ export enum Operation {
 	DeleteBranch = 'DeleteBranch',
 	RenameBranch = 'RenameBranch',
 	Merge = 'Merge',
+	MergeBase = 'MergeBase',
 	Ignore = 'Ignore',
 	Tag = 'Tag',
 	Stash = 'Stash',
@@ -311,6 +349,7 @@ function isReadOnly(operation: Operation): boolean {
 		case Operation.GetCommitTemplate:
 		case Operation.CheckIgnore:
 		case Operation.LSTree:
+		case Operation.MergeBase:
 			return true;
 		default:
 			return false;
@@ -425,6 +464,9 @@ export class Repository implements Disposable {
 	private _workingTreeGroup: SourceControlResourceGroup;
 	get workingTreeGroup(): GitResourceGroup { return this._workingTreeGroup as GitResourceGroup; }
 
+	private _compareGroup: SourceControlResourceGroup;
+	get compareGroup(): GitResourceGroup { return this._compareGroup as GitResourceGroup; }
+
 	private _HEAD: Branch | undefined;
 	get HEAD(): Branch | undefined {
 		return this._HEAD;
@@ -455,7 +497,15 @@ export class Repository implements Disposable {
 		this.mergeGroup.resourceStates = [];
 		this.indexGroup.resourceStates = [];
 		this.workingTreeGroup.resourceStates = [];
+		this.compareGroup.resourceStates = [];
 		this._sourceControl.count = 0;
+	}
+
+	private _compare: Compare | undefined;
+	get compare(): Compare | undefined { return this._compare; }
+	set compare(compare: Compare | undefined) {
+		this._compare = compare;
+		this.updateModelState();
 	}
 
 	get root(): string {
@@ -490,13 +540,16 @@ export class Repository implements Disposable {
 		this._mergeGroup = this._sourceControl.createResourceGroup('merge', localize('merge changes', "Merge Changes"));
 		this._indexGroup = this._sourceControl.createResourceGroup('index', localize('staged changes', "Staged Changes"));
 		this._workingTreeGroup = this._sourceControl.createResourceGroup('workingTree', localize('changes', "Changes"));
+		this._compareGroup = this._sourceControl.createResourceGroup('compare', '' /* label will be set when model updates */);
 
 		this.mergeGroup.hideWhenEmpty = true;
 		this.indexGroup.hideWhenEmpty = true;
+		this._compareGroup.hideWhenEmpty = true;
 
 		this.disposables.push(this.mergeGroup);
 		this.disposables.push(this.indexGroup);
 		this.disposables.push(this.workingTreeGroup);
+		this.disposables.push(this.compareGroup);
 
 		this.disposables.push(new AutoFetcher(this, globalState));
 
@@ -617,6 +670,10 @@ export class Repository implements Disposable {
 
 	async merge(ref: string): Promise<void> {
 		await this.run(Operation.Merge, () => this.repository.merge(ref));
+	}
+
+	async mergeBase(refs: string[]): Promise<string> {
+		return await this.run(Operation.MergeBase, () => this.repository.mergeBase(refs));
 	}
 
 	async tag(name: string, message?: string): Promise<void> {
@@ -860,13 +917,30 @@ export class Repository implements Disposable {
 
 	@throttle
 	private async updateModelState(): Promise<void> {
-		const { status, didHitLimit } = await this.repository.getStatus();
+		let HEAD: Branch | undefined;
+		try {
+			HEAD = await this.repository.getHEAD();
+			if (HEAD.name) {
+				HEAD = await this.repository.getBranch(HEAD.name);
+			}
+		} catch (err) {
+			// noop
+		}
+
+		if (!equalRefs(this._HEAD, HEAD)) {
+			// Reset the comparison if the head ref changes.
+			this.compare = undefined;
+		}
+		this._HEAD = HEAD;
+
+		const status = await this.repository.getStatus();
+		const compareStatus = await (async () => this.compare && this.repository.getStatus(this.compare))();
 		const config = workspace.getConfiguration('git');
 		const shouldIgnore = config.get<boolean>('ignoreLimitWarning') === true;
 
-		this.isRepositoryHuge = didHitLimit;
+		this.isRepositoryHuge = status.didHitLimit || (!!compareStatus && compareStatus.didHitLimit);
 
-		if (didHitLimit && !shouldIgnore && !this.didWarnAboutLimit) {
+		if (this.isRepositoryHuge && !shouldIgnore && !this.didWarnAboutLimit) {
 			const ok = { title: localize('ok', "OK"), isCloseAffordance: true };
 			const neverAgain = { title: localize('neveragain', "Never Show Again") };
 
@@ -879,25 +953,8 @@ export class Repository implements Disposable {
 			this.didWarnAboutLimit = true;
 		}
 
-		let HEAD: Branch | undefined;
-
-		try {
-			HEAD = await this.repository.getHEAD();
-
-			if (HEAD.name) {
-				try {
-					HEAD = await this.repository.getBranch(HEAD.name);
-				} catch (err) {
-					// noop
-				}
-			}
-		} catch (err) {
-			// noop
-		}
-
 		const [refs, remotes] = await Promise.all([this.repository.getRefs(), this.repository.getRemotes()]);
 
-		this._HEAD = HEAD;
 		this._refs = refs;
 		this._remotes = remotes;
 
@@ -905,7 +962,7 @@ export class Repository implements Disposable {
 		const workingTree: Resource[] = [];
 		const merge: Resource[] = [];
 
-		status.forEach(raw => {
+		status.status.forEach(raw => {
 			const uri = Uri.file(path.join(this.repository.root, raw.path));
 			const renameUri = raw.rename ? Uri.file(path.join(this.repository.root, raw.rename)) : undefined;
 
@@ -921,10 +978,8 @@ export class Repository implements Disposable {
 				case 'UU': return merge.push(new Resource(ResourceGroupType.Merge, uri, Status.BOTH_MODIFIED));
 			}
 
-			let isModifiedInIndex = false;
-
 			switch (raw.x) {
-				case 'M': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_MODIFIED)); isModifiedInIndex = true; break;
+				case 'M': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_MODIFIED)); break;
 				case 'A': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_ADDED)); break;
 				case 'D': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_DELETED)); break;
 				case 'R': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_RENAMED, renameUri)); break;
@@ -937,10 +992,30 @@ export class Repository implements Disposable {
 			}
 		});
 
+		const compare: Resource[] = [];
+		for (const status of compareStatus && compareStatus.status || []) {
+			const uri = Uri.file(path.join(this.repository.root, status.path));
+			const renameUri = status.rename ? Uri.file(path.join(this.repository.root, status.rename)) : undefined;
+			switch (status.x) {
+				case 'A': compare.push(new Resource(ResourceGroupType.Compare, uri, Status.COMPARE_ADDED, renameUri, this.compare)); break;
+				case 'C': compare.push(new Resource(ResourceGroupType.Compare, uri, Status.COMPARE_COPIED, renameUri, this.compare)); break;
+				case 'D': compare.push(new Resource(ResourceGroupType.Compare, uri, Status.COMPARE_DELETED, renameUri, this.compare)); break;
+				case 'M': compare.push(new Resource(ResourceGroupType.Compare, uri, Status.COMPARE_MODIFIED, renameUri, this.compare)); break;
+				case 'R': compare.push(new Resource(ResourceGroupType.Compare, uri, Status.COMPARE_RENAMED, renameUri, this.compare)); break;
+			}
+		}
+
 		// set resource groups
 		this.mergeGroup.resourceStates = merge;
 		this.indexGroup.resourceStates = index;
 		this.workingTreeGroup.resourceStates = workingTree;
+		this.compareGroup.resourceStates = compare;
+
+		if (this.compare) {
+			this.compareGroup.label = localize('compare refs', "Compare {0}", this.compare.raw);
+		} else {
+			this.compareGroup.label = '';
+		}
 
 		// set count badge
 		const countBadge = workspace.getConfiguration('git').get<string>('countBadge');
