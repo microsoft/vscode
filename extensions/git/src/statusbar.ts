@@ -49,10 +49,14 @@ class CompareStatusBar {
 		repository.onDidChangeStatus(this._onDidChange.fire, this._onDidChange, this.disposables);
 	}
 
-	get command(): Command {
+	get command(): Command | undefined {
+		if (!this.repository.compare) {
+			// Only show comparison icon if a comparison is active.
+			return undefined;
+		}
 		return {
 			command: 'git.compare',
-			tooltip: localize('compare', 'Compare...'),
+			tooltip: this.repository.compare.raw,
 			title: `$(git-compare)`,
 			arguments: [this.repository.sourceControl]
 		};
@@ -179,8 +183,11 @@ export class StatusBarCommands {
 	get commands(): Command[] {
 		const result = [
 			this.checkoutStatusBar.command,
-			this.compareStatusBar.command,
 		];
+
+		if (this.compareStatusBar.command) {
+			result.push(this.compareStatusBar.command);
+		}
 
 		const sync = this.syncStatusBar.command;
 		if (sync) {
