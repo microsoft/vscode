@@ -259,6 +259,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.viewInfo.smoothScrolling,
 			'description': nls.localize('smoothScrolling', "Controls if the editor will scroll using an animation")
 		},
+		'editor.sameCursorStyle': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.sameCursorStyle,
+			'description': nls.localize('sameCursorStyle', "Disable difference between first and secondary cursors if true")
+		},
 		'editor.minimap.enabled': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.viewInfo.minimap.enabled,
