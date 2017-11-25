@@ -45,7 +45,7 @@ class TwitterFeedbackService implements IFeedbackService {
 			length += ` via @${TwitterFeedbackService.VIA_NAME}`.length;
 		}
 		
-		if (language == 'zh-cn' || language == 'zh-tw' || language == 'ja' || language == 'ko') {
+		if (language === 'zh-cn' || language === 'zh-tw' || language === 'ja' || language === 'ko') {
 			return 140 - length;
 		}
 		
