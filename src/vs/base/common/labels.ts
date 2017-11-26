@@ -107,11 +107,7 @@ export function tildify(path: string, userHome: string): string {
 }
 
 export function untildify(path: string, userHome: string): string {
-	if (platform.isMacintosh || platform.isLinux) {
-		path = path.replace(/^~($|\/|\\)/, `${userHome}$1`);
-	}
-
-	return path;
+	return path.replace(/^~($|\/|\\)/, `${userHome}$1`);
 }
 
 /**
