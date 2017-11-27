@@ -159,6 +159,18 @@ export class MarkersModel {
 		return this.markersByResource.has(resource.toString());
 	}
 
+	public total(): number {
+		let total = 0;
+		this.markersByResource.forEach(markers => total = total + markers.length);
+		return total;
+	}
+
+	public count(): number {
+		let count = 0;
+		this.filteredResources.forEach(resource => count = count + resource.markers.length);
+		return count;
+	}
+
 	public get nonFilteredResources(): Resource[] {
 		return this._nonFilteredResources;
 	}
