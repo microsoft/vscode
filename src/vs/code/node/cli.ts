@@ -10,11 +10,10 @@ import { parseCLIProcessArgv, buildHelpMessage } from 'vs/platform/environment/n
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
-
 import * as paths from 'path';
 import * as os from 'os';
+import * as fs from 'fs';
 import { whenDeleted } from 'vs/base/node/pfs';
-import { writeFileAndFlushSync } from 'vs/base/node/extfs';
 import { findFreePort } from 'vs/base/node/ports';
 
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
@@ -62,8 +61,47 @@ export async function main(argv: string[]): TPromise<any> {
 			processCallbacks.push(child => {
 				child.stdout.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
 				child.stderr.on('data', (data: Buffer) => console.log(data.toString('utf8').trim()));
+
 				return new TPromise<void>(c => child.once('exit', () => c(null)));
 			});
+		}
+
+		// If we are running with input from stdin, pipe that into a file and
+		// open this file via arguments.
+		let isReadingFromStdin: boolean;
+		try {
+			isReadingFromStdin = !process.stdin.isTTY; // Via https://twitter.com/MylesBorins/status/782009479382626304
+		} catch (error) {
+			// Windows workaround for https://github.com/nodejs/node/issues/11656
+		}
+
+		let stdinFilePath: string;
+		if (isReadingFromStdin) {
+			let stdinFileError: Error;
+			stdinFilePath = paths.join(os.tmpdir(), `stdin-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 6)}.txt`);
+			try {
+
+				// Pipe into tmp file
+				process.stdin.setEncoding('utf8');
+				process.stdin.pipe(fs.createWriteStream(stdinFilePath));
+
+				// Make sure to open tmp file
+				argv.push(stdinFilePath);
+
+				// Enable --wait to get all data
+				argv.push('--wait');
+				args.wait = true;
+			} catch (error) {
+				stdinFileError = error;
+			}
+
+			if (args.verbose) {
+				if (stdinFileError) {
+					console.error(`Failed to create file to read via stdin: ${stdinFileError.toString()}`);
+				} else {
+					console.log(`Reading from stdin via: ${stdinFilePath}`);
+				}
+			}
 		}
 
 		// If we are started with --wait create a random temporary file
@@ -75,7 +113,7 @@ export async function main(argv: string[]): TPromise<any> {
 			let waitMarkerError: Error;
 			const randomTmpFile = paths.join(os.tmpdir(), Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10));
 			try {
-				writeFileAndFlushSync(randomTmpFile, '');
+				fs.writeFileSync(randomTmpFile, '');
 				waitMarkerFilePath = randomTmpFile;
 				argv.push('--waitMarkerFilePath', waitMarkerFilePath);
 			} catch (error) {
@@ -96,7 +134,6 @@ export async function main(argv: string[]): TPromise<any> {
 		// to get better profile traces. Last, we listen on stdout for a signal that tells us to
 		// stop profiling.
 		if (args['prof-startup']) {
-
 			const portMain = await findFreePort(9222, 10, 6000);
 			const portRenderer = await findFreePort(portMain + 1, 10, 6000);
 			const portExthost = await findFreePort(portRenderer + 1, 10, 6000);
@@ -114,7 +151,7 @@ export async function main(argv: string[]): TPromise<any> {
 			argv.push(`--prof-startup-prefix`, filenamePrefix);
 			argv.push(`--no-cached-data`);
 
-			writeFileAndFlushSync(filenamePrefix, argv.slice(-6).join('|'));
+			fs.writeFileSync(filenamePrefix, argv.slice(-6).join('|'));
 
 			processCallbacks.push(async child => {
 
@@ -148,7 +185,6 @@ export async function main(argv: string[]): TPromise<any> {
 				await profiler.writeProfile(profileMain, `${filenamePrefix}-main.cpuprofile${suffix}`);
 				await profiler.writeProfile(profileRenderer, `${filenamePrefix}-renderer.cpuprofile${suffix}`);
 				await profiler.writeProfile(profileExtHost, `${filenamePrefix}-exthost.cpuprofile${suffix}`);
-
 			});
 		}
 
@@ -171,6 +207,12 @@ export async function main(argv: string[]): TPromise<any> {
 
 				// Complete when wait marker file is deleted
 				whenDeleted(waitMarkerFilePath).done(c, c);
+			}).then(() => {
+
+				// Make sure to delete the tmp stdin file if we have any
+				if (stdinFilePath) {
+					fs.unlinkSync(stdinFilePath);
+				}
 			});
 		}
 
