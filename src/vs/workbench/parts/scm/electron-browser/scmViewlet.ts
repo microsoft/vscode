@@ -82,6 +82,10 @@ export interface IViewModel {
 	readonly repositories: ISCMRepository[];
 	readonly selectedRepositories: ISCMRepository[];
 	readonly onDidSplice: Event<ISpliceEvent<ISCMRepository>>;
+
+	isVisible(): boolean;
+	readonly onDidChangeVisibility: Event<boolean>;
+
 	hide(repository: ISCMRepository): void;
 }
 
@@ -212,7 +216,9 @@ class ProviderRenderer implements IRenderer<ISCMRepository, RepositoryTemplateDa
 class MainPanel extends ViewletPanel {
 
 	private list: List<ISCMRepository>;
+	private visibilityDisposables: IDisposable[] = [];
 
+	private previousSelection: ISCMRepository[] | undefined = undefined;
 	private _onSelectionChange = new Emitter<ISCMRepository[]>();
 	readonly onSelectionChange: Event<ISCMRepository[]> = this._onSelectionChange.event;
 
@@ -252,18 +258,6 @@ class MainPanel extends ViewletPanel {
 		return this.list.getSelectedElements();
 	}
 
-	private splice(index: number, deleteCount: number, repositories: ISCMRepository[] = []): void {
-		const wasEmpty = this.list.length === 0;
-
-		this.list.splice(index, deleteCount, repositories);
-		this.updateBodySize();
-
-		// Automatically select the first one
-		if (wasEmpty && this.list.length > 0) {
-			this.list.setSelection([0]);
-		}
-	}
-
 	protected renderBody(container: HTMLElement): void {
 		const delegate = new ProvidersListDelegate();
 		const renderer = this.instantiationService.createInstance(ProviderRenderer);
@@ -276,8 +270,30 @@ class MainPanel extends ViewletPanel {
 		this.list.onSelectionChange(this.onListSelectionChange, this, this.disposables);
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
 
-		this.viewModel.onDidSplice(({ index, deleteCount, elements }) => this.splice(index, deleteCount, elements), null, this.disposables);
-		this.splice(0, 0, this.viewModel.repositories);
+		this.viewModel.onDidChangeVisibility(this.onDidChangeVisibility, this, this.disposables);
+		this.onDidChangeVisibility(this.viewModel.isVisible());
+	}
+
+	private onDidChangeVisibility(visible: boolean): void {
+		if (visible) {
+			this.viewModel.onDidSplice(({ index, deleteCount, elements }) => this.splice(index, deleteCount, elements), null, this.visibilityDisposables);
+			this.splice(0, 0, this.viewModel.repositories);
+		} else {
+			this.visibilityDisposables = dispose(this.visibilityDisposables);
+			this.splice(0, this.list.length);
+		}
+	}
+
+	private splice(index: number, deleteCount: number, repositories: ISCMRepository[] = []): void {
+		const wasEmpty = this.list.length === 0;
+
+		this.list.splice(index, deleteCount, repositories);
+		this.updateBodySize();
+
+		// Automatically select the first one
+		if (wasEmpty && this.list.length > 0) {
+			this.restoreSelection();
+		}
 	}
 
 	protected layoutBody(size: number): void {
@@ -328,11 +344,31 @@ class MainPanel extends ViewletPanel {
 	private onListSelectionChange(e: IListEvent<ISCMRepository>): void {
 		// select one repository if the selected one is gone
 		if (e.elements.length === 0 && this.list.length > 0) {
-			this.list.setSelection([0]);
+			this.restoreSelection();
 			return;
 		}
 
+		if (e.elements.length > 0) {
+			this.previousSelection = e.elements;
+		}
+
 		this._onSelectionChange.fire(e.elements);
+	}
+
+	private restoreSelection(): void {
+		let selection: number[];
+
+		if (this.previousSelection) {
+			selection = this.previousSelection
+				.map(r => this.viewModel.repositories.indexOf(r))
+				.filter(i => i > -1);
+		}
+
+		if (!selection || selection.length === 0) {
+			selection = [0];
+		}
+
+		this.list.setSelection(selection);
 	}
 }
 
@@ -634,6 +670,7 @@ class ResourceGroupSplicer {
 	}
 
 	dispose(): void {
+		this.onDidSpliceGroups({ start: 0, deleteCount: this.items.length, toInsert: [] });
 		this.disposables = dispose(this.disposables);
 	}
 }
@@ -646,6 +683,7 @@ export class RepositoryPanel extends ViewletPanel {
 	private listContainer: HTMLElement;
 	private list: List<ISCMResourceGroup | ISCMResource>;
 	private menus: SCMMenus;
+	private visibilityDisposables: IDisposable[] = [];
 
 	constructor(
 		readonly repository: ISCMRepository,
@@ -772,8 +810,17 @@ export class RepositoryPanel extends ViewletPanel {
 		this.list.onContextMenu(this.onListContextMenu, this, this.disposables);
 		this.disposables.push(this.list);
 
-		const listSplicer = new ResourceGroupSplicer(this.repository.provider.groups, this.list);
-		this.disposables.push(listSplicer);
+		this.viewModel.onDidChangeVisibility(this.onDidChangeVisibility, this, this.disposables);
+		this.onDidChangeVisibility(this.viewModel.isVisible());
+	}
+
+	private onDidChangeVisibility(visible: boolean): void {
+		if (visible) {
+			const listSplicer = new ResourceGroupSplicer(this.repository.provider.groups, this.list);
+			this.visibilityDisposables.push(listSplicer);
+		} else {
+			this.visibilityDisposables = dispose(this.visibilityDisposables);
+		}
 	}
 
 	layoutBody(height: number = this.cachedHeight): void {
@@ -879,7 +926,7 @@ export class RepositoryPanel extends ViewletPanel {
 	}
 
 	dispose(): void {
-		this.disposables = dispose(this.disposables);
+		this.visibilityDisposables = dispose(this.visibilityDisposables);
 		super.dispose();
 	}
 }
@@ -911,6 +958,9 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 
 	private _onDidSplice = new Emitter<ISpliceEvent<ISCMRepository>>();
 	readonly onDidSplice: Event<ISpliceEvent<ISCMRepository>> = this._onDidSplice.event;
+
+	private _onDidChangeVisibility = new Emitter<boolean>();
+	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
 
 	private _height: number | undefined = undefined;
 	get height(): number | undefined { return this._height; }
@@ -1008,6 +1058,12 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 			this.mainPanelDisposable = EmptyDisposable;
 			this.mainPanel = null;
 		}
+	}
+
+	setVisible(visible: boolean): TPromise<void> {
+		const result = super.setVisible(visible);
+		this._onDidChangeVisibility.fire(visible);
+		return result;
 	}
 
 	getOptimalWidth(): number {
