@@ -11,9 +11,9 @@ import { IContext, QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickope
 import { IAutoFocus, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { BaseEditorQuickOpenAction, IDecorator } from './editorQuickOpen';
-import { editorAction, ServicesAccessor } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -53,7 +53,7 @@ export class GotoLineEntry extends QuickOpenEntry {
 		}
 
 		let model: editorCommon.IModel;
-		if (editorCommon.isCommonCodeEditor(this.editor)) {
+		if (isCodeEditor(this.editor)) {
 			model = this.editor.getModel();
 		} else {
 			model = (<IDiffEditor>this.editor).getModel().modified;
@@ -141,7 +141,6 @@ export class GotoLineEntry extends QuickOpenEntry {
 	}
 }
 
-@editorAction
 export class GotoLineAction extends BaseEditorQuickOpenAction {
 
 	constructor() {
@@ -158,7 +157,7 @@ export class GotoLineAction extends BaseEditorQuickOpenAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: editorCommon.ICommonCodeEditor): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		this._show(this.getController(editor), {
 			getModel: (value: string): QuickOpenModel => {
 				return new QuickOpenModel([new GotoLineEntry(value, editor, this.getController(editor))]);
@@ -172,3 +171,5 @@ export class GotoLineAction extends BaseEditorQuickOpenAction {
 		});
 	}
 }
+
+registerEditorAction(GotoLineAction);

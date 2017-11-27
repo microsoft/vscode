@@ -52,46 +52,7 @@ const configurationEntrySchema: IJSONSchema = {
 	}
 };
 
-
-// BEGIN VSCode extension point `configuration`
-const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>('configuration', [], {
-	description: nls.localize('vscode.extension.contributes.configuration', 'Contributes configuration settings.'),
-	oneOf: [
-		configurationEntrySchema,
-		{
-			type: 'array',
-			items: configurationEntrySchema
-		}
-	]
-});
-configurationExtPoint.setHandler(extensions => {
-	const configurations: IConfigurationNode[] = [];
-
-	function handleConfiguration(node: IConfigurationNode, id: string, extension: IExtensionPointUser<any>) {
-		let configuration = objects.clone(node);
-
-		if (configuration.title && (typeof configuration.title !== 'string')) {
-			extension.collector.error(nls.localize('invalid.title', "'configuration.title' must be a string"));
-		}
-
-		validateProperties(configuration, extension);
-
-		configuration.id = id;
-		configurations.push(configuration);
-	};
-
-	for (let extension of extensions) {
-		const value = <IConfigurationNode | IConfigurationNode[]>extension.value;
-		const id = extension.description.id;
-		if (!Array.isArray(value)) {
-			handleConfiguration(value, id, extension);
-		} else {
-			value.forEach(v => handleConfiguration(v, id, extension));
-		}
-	}
-	configurationRegistry.registerConfigurations(configurations, false);
-});
-// END VSCode extension point `configuration`
+let registeredDefaultConfigurations: IDefaultConfigurationExtension[] = [];
 
 // BEGIN VSCode extension point `configurationDefaults`
 const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>('configurationDefaults', [], {
@@ -107,17 +68,57 @@ const defaultConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<I
 	}
 });
 defaultConfigurationExtPoint.setHandler(extensions => {
-	const defaultConfigurations: IDefaultConfigurationExtension[] = extensions.map(extension => {
+	registeredDefaultConfigurations = extensions.map(extension => {
 		const id = extension.description.id;
 		const name = extension.description.name;
-		const defaults = objects.clone(extension.value);
+		const defaults = objects.deepClone(extension.value);
 		return <IDefaultConfigurationExtension>{
 			id, name, defaults
 		};
 	});
-	configurationRegistry.registerDefaultConfigurations(defaultConfigurations);
 });
 // END VSCode extension point `configurationDefaults`
+
+
+// BEGIN VSCode extension point `configuration`
+const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IConfigurationNode>('configuration', [defaultConfigurationExtPoint], {
+	description: nls.localize('vscode.extension.contributes.configuration', 'Contributes configuration settings.'),
+	oneOf: [
+		configurationEntrySchema,
+		{
+			type: 'array',
+			items: configurationEntrySchema
+		}
+	]
+});
+configurationExtPoint.setHandler(extensions => {
+	const configurations: IConfigurationNode[] = [];
+
+	function handleConfiguration(node: IConfigurationNode, id: string, extension: IExtensionPointUser<any>) {
+		let configuration = objects.deepClone(node);
+
+		if (configuration.title && (typeof configuration.title !== 'string')) {
+			extension.collector.error(nls.localize('invalid.title', "'configuration.title' must be a string"));
+		}
+
+		validateProperties(configuration, extension);
+
+		configuration.id = id;
+		configurations.push(configuration);
+	}
+
+	for (let extension of extensions) {
+		const value = <IConfigurationNode | IConfigurationNode[]>extension.value;
+		const id = extension.description.id;
+		if (!Array.isArray(value)) {
+			handleConfiguration(value, id, extension);
+		} else {
+			value.forEach(v => handleConfiguration(v, id, extension));
+		}
+	}
+	configurationRegistry.registerConfigurations(configurations, registeredDefaultConfigurations, false);
+});
+// END VSCode extension point `configuration`
 
 function validateProperties(configuration: IConfigurationNode, extension: IExtensionPointUser<any>): void {
 	let properties = configuration.properties;

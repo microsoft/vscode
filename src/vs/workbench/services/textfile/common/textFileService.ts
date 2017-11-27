@@ -20,7 +20,6 @@ import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileService, IResolveContentOptions, IFilesConfiguration, FileOperationError, FileOperationResult, AutoSaveConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IUntitledEditorService, UNTITLED_SCHEMA } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -62,7 +61,6 @@ export abstract class TextFileService implements ITextFileService {
 		private lifecycleService: ILifecycleService,
 		private contextService: IWorkspaceContextService,
 		private configurationService: IConfigurationService,
-		private telemetryService: ITelemetryService,
 		protected fileService: IFileService,
 		private untitledEditorService: IUntitledEditorService,
 		private instantiationService: IInstantiationService,
@@ -82,19 +80,10 @@ export abstract class TextFileService implements ITextFileService {
 
 		this._models = this.instantiationService.createInstance(TextFileEditorModelManager);
 
-		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
+		const configuration = this.configurationService.getValue<IFilesConfiguration>();
 		this.currentFilesAssociationConfig = configuration && configuration.files && configuration.files.associations;
 
 		this.onFilesConfigurationChange(configuration);
-
-		/* __GDPR__
-			"autoSave" : {
-				"${include}": [
-					"${IAutoSaveConfiguration}"
-				]
-			}
-		*/
-		this.telemetryService.publicLog('autoSave', this.getAutoSaveConfiguration());
 
 		this.registerListeners();
 	}
@@ -126,7 +115,7 @@ export abstract class TextFileService implements ITextFileService {
 		// Files configuration changes
 		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('files')) {
-				this.onFilesConfigurationChange(this.configurationService.getConfiguration<IFilesConfiguration>());
+				this.onFilesConfigurationChange(this.configurationService.getValue<IFilesConfiguration>());
 			}
 		}));
 	}
@@ -138,9 +127,10 @@ export abstract class TextFileService implements ITextFileService {
 		if (dirty.length) {
 
 			// If auto save is enabled, save all files and then check again for dirty files
+			// We DO NOT run any save participant if we are in the shutdown phase for performance reasons
 			let handleAutoSave: TPromise<URI[] /* remaining dirty resources */>;
 			if (this.getAutoSaveMode() !== AutoSaveMode.OFF) {
-				handleAutoSave = this.saveAll(false /* files only */).then(() => this.getDirty());
+				handleAutoSave = this.saveAll(false /* files only */, { skipSaveParticipants: true }).then(() => this.getDirty());
 			} else {
 				handleAutoSave = TPromise.as(dirty);
 			}
@@ -162,7 +152,7 @@ export abstract class TextFileService implements ITextFileService {
 							return this.confirmBeforeShutdown();
 						}, errors => {
 							const firstError = errors[0];
-							this.messageService.show(Severity.Error, nls.localize('files.backup.failSave', "Files could not be backed up (Error: {0}), try saving your files to exit.", firstError.message));
+							this.messageService.show(Severity.Error, nls.localize('files.backup.failSave', "Files that are dirty could not be written to the backup location (Error: {0}). Try saving your files first and then exit.", firstError.message));
 
 							return true; // veto, the backups failed
 						});
@@ -221,16 +211,6 @@ export abstract class TextFileService implements ITextFileService {
 				return TPromise.as({ didBackup: false });
 			}
 
-			// Telemetry
-			/* __GDPR__
-				"hotExit:triggered" : {
-					"reason" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"windowCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"fileCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			this.telemetryService.publicLog('hotExit:triggered', { reason, windowCount, fileCount: dirtyToBackup.length });
-
 			// Backup
 			return this.backupAll(dirtyToBackup, textFileEditorModelManager).then(() => { return { didBackup: true }; });
 		});
@@ -277,7 +257,7 @@ export abstract class TextFileService implements ITextFileService {
 
 		// Save
 		if (confirm === ConfirmResult.SAVE) {
-			return this.saveAll(true /* includeUntitled */).then(result => {
+			return this.saveAll(true /* includeUntitled */, { skipSaveParticipants: true }).then(result => {
 				if (result.results.some(r => !r.success)) {
 					return true; // veto if some saves failed
 				}

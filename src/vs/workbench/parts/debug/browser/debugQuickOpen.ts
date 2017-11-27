@@ -9,12 +9,14 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import Quickopen = require('vs/workbench/browser/quickopen');
 import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
 import Model = require('vs/base/parts/quickopen/browser/quickOpenModel');
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IDebugService, ILaunch } from 'vs/workbench/parts/debug/common/debug';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import * as errors from 'vs/base/common/errors';
 import { QuickOpenEntry, QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { StartAction } from 'vs/workbench/parts/debug/browser/debugActions';
+import { IMessageService } from 'vs/platform/message/common/message';
+import { Severity } from 'vs/workbench/services/message/browser/messageList';
 
 class AddConfigEntry extends Model.QuickOpenEntry {
 
@@ -46,7 +48,7 @@ class AddConfigEntry extends Model.QuickOpenEntry {
 
 class StartDebugEntry extends Model.QuickOpenEntry {
 
-	constructor(private debugService: IDebugService, private contextService: IWorkspaceContextService, private launch: ILaunch, private configurationName: string, highlights: Model.IHighlight[] = []) {
+	constructor(private debugService: IDebugService, private contextService: IWorkspaceContextService, private messageService: IMessageService, private launch: ILaunch, private configurationName: string, highlights: Model.IHighlight[] = []) {
 		super(highlights);
 	}
 
@@ -63,12 +65,12 @@ class StartDebugEntry extends Model.QuickOpenEntry {
 	}
 
 	public run(mode: QuickOpen.Mode, context: Model.IContext): boolean {
-		if (mode === QuickOpen.Mode.PREVIEW) {
+		if (mode === QuickOpen.Mode.PREVIEW || !StartAction.isEnabled(this.debugService, this.contextService, this.configurationName)) {
 			return false;
 		}
 		// Run selected debug configuration
 		this.debugService.getConfigurationManager().selectConfiguration(this.launch, this.configurationName);
-		this.debugService.startDebugging(this.launch.workspace).done(undefined, errors.onUnexpectedError);
+		this.debugService.startDebugging(this.launch.workspace).done(undefined, e => this.messageService.show(Severity.Error, e));
 
 		return true;
 	}
@@ -80,10 +82,10 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 	private autoFocusIndex: number;
 
 	constructor(
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IDebugService private debugService: IDebugService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@ICommandService private commandService: ICommandService
+		@ICommandService private commandService: ICommandService,
+		@IMessageService private messageService: IMessageService
 	) {
 		super();
 	}
@@ -104,7 +106,7 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 					if (launch === configManager.selectedLaunch && config === configManager.selectedName) {
 						this.autoFocusIndex = configurations.length;
 					}
-					configurations.push(new StartDebugEntry(this.debugService, this.contextService, launch, config, highlights));
+					configurations.push(new StartDebugEntry(this.debugService, this.contextService, this.messageService, launch, config, highlights));
 				});
 		}
 		launches.forEach((l, index) => {

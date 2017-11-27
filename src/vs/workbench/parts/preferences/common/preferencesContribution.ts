@@ -103,10 +103,6 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		}
 	}
 
-	public getId(): string {
-		return 'vs.contentprovider';
-	}
-
 	private start(): void {
 
 		this.textModelResolverService.registerTextModelContentProvider('vscode', {
@@ -129,7 +125,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		let schema = schemaRegistry.getSchemaContributions().schemas[uri.toString()];
 		if (schema) {
 			const modelContent = JSON.stringify(schema);
-			const mode = this.modeService.getOrCreateMode('json');
+			const mode = this.modeService.getOrCreateMode('jsonc');
 			const model = this.modelService.createModel(modelContent, mode, uri);
 
 			let disposables = [];

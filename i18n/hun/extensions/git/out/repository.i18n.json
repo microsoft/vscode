@@ -21,6 +21,7 @@
 	"deleted by us": "Általunk törölt",
 	"both added": "Mindkettő hozzáadta",
 	"both modified": "Mindkettő módosította",
+	"commitMessage": "Üzenet (nyomja meg a következőt a commithoz: {0})",
 	"commit": "Commit",
 	"merge changes": "Módosítások összeolvasztása",
 	"staged changes": "Beadásra előjegyzett módosítások",

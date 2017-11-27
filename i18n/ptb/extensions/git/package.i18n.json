@@ -33,6 +33,7 @@
 	"command.checkout": "Fazer checkout para...",
 	"command.branch": "Criar Ramificação...",
 	"command.deleteBranch": "Excluir Ramificação...",
+	"command.renameBranch": "Renomear o Branch",
 	"command.merge": "Mesclar ramificação...",
 	"command.createTag": "Criar Tag",
 	"command.pull": "Efetuar pull",
@@ -42,9 +43,11 @@
 	"command.pushTo": "Enviar por push para...",
 	"command.pushWithTags": "Mover com Tags",
 	"command.sync": "Sincronizar",
+	"command.syncRebase": "Sincronização (Rebase)",
 	"command.publish": "Publicar Ramo",
 	"command.showOutput": "Mostrar Saída do Git",
 	"command.ignore": "Adicionar arquivo ao .gitignore",
+	"command.stashIncludeUntracked": "Estoque (incluir não controlados)",
 	"command.stash": "Esconder",
 	"command.stashPop": "Pop Stash...",
 	"command.stashPopLatest": "Pop mais recente Stash",
@@ -61,5 +64,11 @@
 	"config.defaultCloneDirectory": "O local padrão onde clonar um repositório git",
 	"config.enableSmartCommit": "Confirme todas as alterações quando não há modificações planejadas.",
 	"config.enableCommitSigning": "Habilitar Commit assinando com GPG.",
-	"config.discardAllScope": "Controla as alterações que são descartadas pelo comando 'Descartar todas as alterações'. 'todos' descarta todas as alterações. 'rastreados' descarta somente arquivos rastreados. 'prompt' mostra uma caixa de diálogo de alerta cada vez que a ação é executada."
+	"config.discardAllScope": "Controla as alterações que são descartadas pelo comando 'Descartar todas as alterações'. 'todos' descarta todas as alterações. 'rastreados' descarta somente arquivos rastreados. 'prompt' mostra uma caixa de diálogo de alerta cada vez que a ação é executada.",
+	"config.decorations.enabled": "Controla se o Git contribui cores e emblemas para o explorer e visualizador de editores abertos.",
+	"colors.modified": "Cor para recursos modificados.",
+	"colors.deleted": "Cor para recursos excluídos.",
+	"colors.untracked": "Cor para recursos não controlados.",
+	"colors.ignored": "Cor para recursos ignorados.",
+	"colors.conflict": "Cor para recursos com conflitos."
 }

@@ -33,6 +33,7 @@
 	"command.checkout": "Auschecken an...",
 	"command.branch": "Branch erstellen...",
 	"command.deleteBranch": "Branch löschen...",
+	"command.renameBranch": "Branch umbenennen...",
 	"command.merge": "Branch zusammenführen...",
 	"command.createTag": "Tag erstellen",
 	"command.pull": "Pull",
@@ -42,6 +43,7 @@
 	"command.pushTo": "Push zu...",
 	"command.pushWithTags": "Push mit Tags ausführen",
 	"command.sync": "Synchronisierung",
+	"command.syncRebase": "Sync (Rebase)",
 	"command.publish": "Branch veröffentlichen",
 	"command.showOutput": "Git-Ausgabe anzeigen",
 	"command.ignore": "Datei zu .gitignore hinzufügen",
@@ -61,5 +63,11 @@
 	"config.defaultCloneDirectory": "Das Standard-Verzeichnis für einen Klon eines Git-Repositorys",
 	"config.enableSmartCommit": "Alle Änderungen committen, wenn keine bereitgestellten Änderungen vorhanden sind.",
 	"config.enableCommitSigning": "Aktiviert das Signieren von Commits per GPG.",
-	"config.discardAllScope": "Legt fest, welche Änderungen vom Befehl \"Alle Änderungen verwerfen\" verworfen werden. \"all\" verwirft alle Änderungen. \"tracked\" verwirft nur verfolgte Dateien. \"prompt\" zeigt immer eine Eingabeaufforderung an, wenn die Aktion ausgeführt wird."
+	"config.discardAllScope": "Legt fest, welche Änderungen vom Befehl \"Alle Änderungen verwerfen\" verworfen werden. \"all\" verwirft alle Änderungen. \"tracked\" verwirft nur verfolgte Dateien. \"prompt\" zeigt immer eine Eingabeaufforderung an, wenn die Aktion ausgeführt wird.",
+	"config.decorations.enabled": "Steuert, ob Git Farben und Badges für die Explorer-Ansicht und die Ansicht \"Geöffnete Editoren\" beiträgt.",
+	"colors.modified": "Farbe für geänderte Ressourcen.",
+	"colors.deleted": "Farbe für gelöschten Ressourcen.",
+	"colors.untracked": "Farbe für nicht verfolgte Ressourcen.",
+	"colors.ignored": "Farbe für ignorierte Ressourcen.",
+	"colors.conflict": "Farbe für Ressourcen mit Konflikten."
 }

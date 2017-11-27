@@ -25,7 +25,6 @@ import { QuickOpenEntry, QuickOpenModel, QuickOpenEntryGroup, compareEntries, Qu
 import { QuickOpenWidget, HideReason } from 'vs/base/parts/quickopen/browser/quickOpenWidget';
 import { ContributableActionProvider } from 'vs/workbench/browser/actions';
 import labels = require('vs/base/common/labels');
-import paths = require('vs/base/common/paths');
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IResourceInput, IEditorInput } from 'vs/platform/editor/common/editor';
@@ -36,7 +35,6 @@ import { EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/
 import { Component } from 'vs/workbench/common/component';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { KeyMod } from 'vs/base/common/keyCodes';
 import { QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, EditorQuickOpenEntry, CLOSE_ON_FOCUS_LOST_CONFIG } from 'vs/workbench/browser/quickopen';
 import errors = require('vs/base/common/errors');
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -44,11 +42,9 @@ import { IPickOpenEntry, IFilePickOpenEntry, IInputOptions, IQuickOpenService, I
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { attachQuickOpenStyler } from 'vs/platform/theme/common/styler';
@@ -57,6 +53,8 @@ import { ITree, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { FileKind, IFileService } from 'vs/platform/files/common/files';
 import { scoreItem, ScorerCache, compareItemsByScore, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
+import { getBaseLabel } from 'vs/base/common/labels';
+import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
 
 const HELP_PREFIX = '?';
 
@@ -77,11 +75,11 @@ interface IInternalPickOptions {
 
 export class QuickOpenController extends Component implements IQuickOpenService {
 
-	private static MAX_SHORT_RESPONSE_TIME = 500;
+	private static readonly MAX_SHORT_RESPONSE_TIME = 500;
 
 	public _serviceBrand: any;
 
-	private static ID = 'workbench.component.quickopen';
+	private static readonly ID = 'workbench.component.quickopen';
 
 	private _onShow: Emitter<void>;
 	private _onHide: Emitter<void>;
@@ -98,7 +96,6 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	private promisesToCompleteOnHide: ValueCallback[];
 	private previousActiveHandlerDescriptor: QuickOpenHandlerDescriptor;
 	private actionProvider = new ContributableActionProvider();
-	private previousValue = '';
 	private visibilityChangeTimeoutHandle: number;
 	private closeOnFocusLost: boolean;
 	private editorHistoryHandler: EditorHistoryHandler;
@@ -106,11 +103,8 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IMessageService private messageService: IMessageService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IHistoryService private historyService: IHistoryService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
 		@IListService private listService: IListService,
@@ -316,14 +310,13 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 					onHide: (reason) => this.handleOnHide(true, reason)
 				}, {
 					inputPlaceHolder: options.placeHolder || '',
-					keyboardSupport: false
-				},
-				this.telemetryService
+					keyboardSupport: false,
+					treeCreator: (container, config, opts) => new WorkbenchTree(container, config, opts, this.contextKeyService, this.listService, this.themeService)
+				}
 			);
 			this.toUnbind.push(attachQuickOpenStyler(this.pickOpenWidget, this.themeService, { background: SIDE_BAR_BACKGROUND, foreground: SIDE_BAR_FOREGROUND }));
 
 			const pickOpenContainer = this.pickOpenWidget.create();
-			this.toUnbind.push(this.listService.register(this.pickOpenWidget.getTree()));
 			DOM.addClass(pickOpenContainer, 'show-file-icons');
 			this.positionQuickOpenWidget();
 		}
@@ -551,8 +544,6 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		let inputSelection = options ? options.inputSelection : void 0;
 		let autoFocus = options ? options.autoFocus : void 0;
 
-		this.previousValue = prefix;
-
 		const promiseCompletedOnHide = new TPromise<void>(c => {
 			this.promisesToCompleteOnHide.push(c);
 		});
@@ -560,14 +551,6 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		// Telemetry: log that quick open is shown and log the mode
 		const registry = Registry.as<IQuickOpenRegistry>(Extensions.Quickopen);
 		const handlerDescriptor = registry.getQuickOpenHandler(prefix) || registry.getDefaultQuickOpenHandler();
-
-		/* __GDPR__
-			"quickOpenWidgetShown" : {
-				"mode" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"quickNavigate": { "${inline}": [ "${IQuickNavigateConfiguration}" ] }
-			}
-		*/
-		this.telemetryService.publicLog('quickOpenWidgetShown', { mode: handlerDescriptor.getId(), quickNavigate: quickNavigateConfiguration });
 
 		// Trigger onOpen
 		this.resolveHandler(handlerDescriptor).done(null, errors.onUnexpectedError);
@@ -585,14 +568,13 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 					onFocusLost: () => !this.closeOnFocusLost
 				}, {
 					inputPlaceHolder: this.hasHandler(HELP_PREFIX) ? nls.localize('quickOpenInput', "Type '?' to get help on the actions you can take from here") : '',
-					keyboardSupport: false
-				},
-				this.telemetryService
+					keyboardSupport: false,
+					treeCreator: (container, config, opts) => new WorkbenchTree(container, config, opts, this.contextKeyService, this.listService, this.themeService)
+				}
 			);
 			this.toUnbind.push(attachQuickOpenStyler(this.quickOpenWidget, this.themeService, { background: SIDE_BAR_BACKGROUND, foreground: SIDE_BAR_FOREGROUND }));
 
 			const quickOpenContainer = this.quickOpenWidget.create();
-			this.toUnbind.push(this.listService.register(this.quickOpenWidget.getTree()));
 			DOM.addClass(quickOpenContainer, 'show-file-icons');
 			this.positionQuickOpenWidget();
 		}
@@ -747,7 +729,6 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	}
 
 	private onType(value: string): void {
-		this.previousValue = value;
 
 		// look for a handler
 		const registry = Registry.as<IQuickOpenRegistry>(Extensions.Quickopen);
@@ -1176,7 +1157,6 @@ class EditorHistoryHandler {
 	constructor(
 		@IHistoryService private historyService: IHistoryService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IFileService private fileService: IFileService
 	) {
 		this.scorerCache = Object.create(null);
@@ -1265,7 +1245,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IFileService private fileService: IFileService
+		@IFileService fileService: IFileService
 	) {
 		super(editorService);
 
@@ -1279,7 +1259,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 		} else {
 			const resourceInput = input as IResourceInput;
 			this.resource = resourceInput.resource;
-			this.label = paths.basename(resourceInput.resource.fsPath);
+			this.label = getBaseLabel(resourceInput.resource);
 			this.description = labels.getPathLabel(resources.dirname(this.resource), contextService, environmentService);
 			this.dirty = this.resource && this.textFileService.isDirty(this.resource);
 
@@ -1321,8 +1301,8 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 
 	public run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
-			const sideBySide = !context.quickNavigateConfiguration && context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
-			const pinned = !this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen;
+			const sideBySide = !context.quickNavigateConfiguration && context.keymods.ctrlCmd;
+			const pinned = !this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen || context.keymods.alt;
 
 			if (this.input instanceof EditorInput) {
 				this.editorService.openEditor(this.input, { pinned }, sideBySide).done(null, errors.onUnexpectedError);
@@ -1351,8 +1331,8 @@ function resourceForEditorHistory(input: EditorInput, fileService: IFileService)
 
 export class RemoveFromEditorHistoryAction extends Action {
 
-	public static ID = 'workbench.action.removeFromEditorHistory';
-	public static LABEL = nls.localize('removeFromEditorHistory', "Remove From History");
+	public static readonly ID = 'workbench.action.removeFromEditorHistory';
+	public static readonly LABEL = nls.localize('removeFromEditorHistory', "Remove From History");
 
 	constructor(
 		id: string,

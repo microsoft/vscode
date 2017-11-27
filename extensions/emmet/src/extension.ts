@@ -45,7 +45,11 @@ export function activate(context: vscode.ExtensionContext) {
 			return updateTag(inputTag);
 		}
 		return vscode.window.showInputBox({ prompt: 'Enter Tag' }).then(tagName => {
-			return updateTag(tagName);
+			if (tagName) {
+				const update = updateTag(tagName);
+				return update ? update : false;
+			}
+			return false;
 		});
 	}));
 
@@ -149,7 +153,10 @@ function registerCompletionProviders(context: vscode.ExtensionContext) {
 		}
 
 		if (languageMappingForCompletionProviders.has(language)) {
-			completionProvidersMapping.get(language).dispose();
+			const mapping = completionProvidersMapping.get(language);
+			if (mapping) {
+				mapping.dispose();
+			}
 			languageMappingForCompletionProviders.delete(language);
 			completionProvidersMapping.delete(language);
 		}

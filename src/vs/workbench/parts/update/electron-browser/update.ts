@@ -128,7 +128,6 @@ export abstract class AbstractShowReleaseNotesAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		private returnValue: boolean,
 		private version: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService
@@ -156,12 +155,11 @@ export abstract class AbstractShowReleaseNotesAction extends Action {
 export class ShowReleaseNotesAction extends AbstractShowReleaseNotesAction {
 
 	constructor(
-		returnValue: boolean,
 		version: string,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super('update.showReleaseNotes', nls.localize('releaseNotes', "Release Notes"), returnValue, version, editorService, instantiationService);
+		super('update.showReleaseNotes', nls.localize('releaseNotes', "Release Notes"), version, editorService, instantiationService);
 	}
 }
 
@@ -176,13 +174,13 @@ export class ShowCurrentReleaseNotesAction extends AbstractShowReleaseNotesActio
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(id, label, true, pkg.version, editorService, instantiationService);
+		super(id, label, pkg.version, editorService, instantiationService);
 	}
 }
 
 export class DownloadAction extends Action {
 
-	constructor(private url: string, @IUpdateService private updateService: IUpdateService) {
+	constructor( @IUpdateService private updateService: IUpdateService) {
 		super('update.download', nls.localize('downloadNow', "Download Now"), null, true);
 	}
 
@@ -198,8 +196,7 @@ const LinkAction = (id: string, message: string, licenseUrl: string) => new Acti
 
 export class ProductContribution implements IWorkbenchContribution {
 
-	private static KEY = 'releaseNotes/lastVersion';
-	getId() { return 'vs.product'; }
+	private static readonly KEY = 'releaseNotes/lastVersion';
 
 	constructor(
 		@IStorageService storageService: IStorageService,
@@ -258,11 +255,9 @@ class NeverShowAgain {
 
 export class Win3264BitContribution implements IWorkbenchContribution {
 
-	private static KEY = 'update/win32-64bits';
-	private static URL = 'https://code.visualstudio.com/updates/v1_15#_windows-64-bit';
-	private static INSIDER_URL = 'https://github.com/Microsoft/vscode-docs/blob/vnext/release-notes/v1_15.md#windows-64-bit';
-
-	getId() { return 'vs.win32-64bit'; }
+	private static readonly KEY = 'update/win32-64bits';
+	private static readonly URL = 'https://code.visualstudio.com/updates/v1_15#_windows-64-bit';
+	private static readonly INSIDER_URL = 'https://github.com/Microsoft/vscode-docs/blob/vnext/release-notes/v1_15.md#windows-64-bit';
 
 	constructor(
 		@IStorageService storageService: IStorageService,
@@ -301,7 +296,7 @@ class CommandAction extends Action {
 	constructor(
 		commandId: string,
 		label: string,
-		@ICommandService private commandService: ICommandService
+		@ICommandService commandService: ICommandService
 	) {
 		super(`command-action:${commandId}`, label, undefined, true, () => commandService.executeCommand(commandId));
 	}
@@ -394,10 +389,10 @@ export class UpdateContribution implements IGlobalActivity {
 	}
 
 	private showUpdateNotification(version: string): void {
-		const releaseNotesAction = this.instantiationService.createInstance(ShowReleaseNotesAction, false, version);
+		const releaseNotesAction = this.instantiationService.createInstance(ShowReleaseNotesAction, version);
 
 		if (isLinux) {
-			const downloadAction = this.instantiationService.createInstance(DownloadAction, version);
+			const downloadAction = this.instantiationService.createInstance(DownloadAction);
 
 			this.messageService.show(severity.Info, {
 				message: nls.localize('thereIsUpdateAvailable', "There is an available update."),

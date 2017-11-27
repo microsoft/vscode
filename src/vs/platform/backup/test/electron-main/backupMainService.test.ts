@@ -22,7 +22,6 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { LogMainService } from 'vs/platform/log/common/log';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { createHash } from 'crypto';
-import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { getRandomTestPath } from 'vs/workbench/test/workbenchTestServices';
 
 suite('BackupMainService', () => {
@@ -31,12 +30,11 @@ suite('BackupMainService', () => {
 	const backupWorkspacesPath = path.join(backupHome, 'workspaces.json');
 
 	const environmentService = new EnvironmentService(parseArgs(process.argv), process.execPath);
-	const logService = new LogMainService(environmentService);
 
 	class TestBackupMainService extends BackupMainService {
 
 		constructor(backupHome: string, backupWorkspacesPath: string, configService: TestConfigurationService) {
-			super(environmentService, configService, new LogMainService(environmentService), new WorkspacesMainService(environmentService, logService));
+			super(environmentService, configService, new LogMainService(environmentService));
 
 			this.backupHome = backupHome;
 			this.workspacesJsonPath = backupWorkspacesPath;

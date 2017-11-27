@@ -32,7 +32,7 @@ interface IPathWatcher {
 }
 
 export class NsfwWatcherService implements IWatcherService {
-	private static FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
+	private static readonly FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
 
 	private _pathWatchers: { [watchPath: string]: IPathWatcher } = {};
 	private _watcherPromise: TPromise<void>;

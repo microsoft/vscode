@@ -47,5 +47,10 @@
 	"showNextWindowTab": "Mostrar siguiente pestaña de ventana",
 	"moveWindowTabToNewWindow": "Mover pestaña de ventana a una nueva ventana",
 	"mergeAllWindowTabs": "Fusionar todas las ventanas",
-	"toggleWindowTabsBar": "Alternar barra de pestañas de ventana"
+	"toggleWindowTabsBar": "Alternar barra de pestañas de ventana",
+	"configureLocale": "Configurar idioma",
+	"displayLanguage": "Define el lenguaje para mostrar de VSCode.",
+	"doc": "Consulte {0} para obtener una lista de idiomas compatibles.",
+	"restart": "Al cambiar el valor se requiere reiniciar VSCode.",
+	"fail.createSettings": "No se puede crear '{0}' ({1})."
 }

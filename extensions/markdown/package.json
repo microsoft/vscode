@@ -317,7 +317,7 @@
 	"devDependencies": {
 		"@types/highlight.js": "9.1.10",
 		"@types/markdown-it": "0.0.2",
-		"@types/node": "8.0.33",
+		"@types/node": "7.0.43",
 		"gulp-rename": "^1.2.2",
 		"gulp-replace": "^0.5.4"
 	}

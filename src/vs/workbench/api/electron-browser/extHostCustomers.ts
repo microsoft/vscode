@@ -37,7 +37,7 @@ export namespace ExtHostCustomersRegistry {
 
 class ExtHostCustomersRegistryImpl {
 
-	public static INSTANCE = new ExtHostCustomersRegistryImpl();
+	public static readonly INSTANCE = new ExtHostCustomersRegistryImpl();
 
 	private _namedCustomers: IExtHostNamedCustomer<any>[];
 	private _customers: IExtHostCustomerCtor<any>[];

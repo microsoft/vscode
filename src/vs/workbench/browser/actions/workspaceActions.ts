@@ -14,7 +14,7 @@ import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/p
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import URI from 'vs/base/common/uri';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { WORKSPACE_FILTER, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isLinux } from 'vs/base/common/platform';
@@ -204,7 +204,6 @@ export class AddRootFolderAction extends BaseWorkspacesAction {
 		@IWindowService windowService: IWindowService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
 		@IViewletService private viewletService: IViewletService,
 		@IHistoryService historyService: IHistoryService
@@ -367,8 +366,8 @@ export class OpenWorkspaceAction extends Action {
 
 export class OpenWorkspaceConfigFileAction extends Action {
 
-	public static ID = 'workbench.action.openWorkspaceConfigFile';
-	public static LABEL = nls.localize('openWorkspaceConfigFile', "Open Workspace Configuration File");
+	public static readonly ID = 'workbench.action.openWorkspaceConfigFile';
+	public static readonly LABEL = nls.localize('openWorkspaceConfigFile', "Open Workspace Configuration File");
 
 	constructor(
 		id: string,
@@ -388,8 +387,8 @@ export class OpenWorkspaceConfigFileAction extends Action {
 
 export class OpenFolderAsWorkspaceInNewWindowAction extends Action {
 
-	public static ID = 'workbench.action.openFolderAsWorkspaceInNewWindow';
-	public static LABEL = nls.localize('openFolderAsWorkspaceInNewWindow', "Open Folder as Workspace in New Window");
+	public static readonly ID = 'workbench.action.openFolderAsWorkspaceInNewWindow';
+	public static readonly LABEL = nls.localize('openFolderAsWorkspaceInNewWindow', "Open Folder as Workspace in New Window");
 
 	constructor(
 		id: string,

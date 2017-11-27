@@ -8,11 +8,11 @@ import { localize } from 'vs/nls';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { ISuggestSupport, ISuggestResult, ISuggestion, LanguageId, SuggestionType, SnippetType } from 'vs/editor/common/modes';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/browser/suggest';
+import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/suggest';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Position } from 'vs/editor/common/core/position';
 import { overlap, compare, startsWith } from 'vs/base/common/strings';
-import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
+import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -103,7 +103,7 @@ class SnippetsService implements ISnippetsService {
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IExtensionService extensionService: IExtensionService,
 	) {
-		this._wait = Promise.resolve(extensionService.onReady());
+		this._wait = Promise.resolve(extensionService.whenInstalledExtensionsRegistered());
 		this._userSnippetsFolder = join(_environmentService.appSettingsHome, 'snippets');
 		this._prepUserSnippetsWatching();
 		this._prepExtensionSnippets();
@@ -226,6 +226,7 @@ class SnippetsService implements ISnippetsService {
 			// not yet loaded
 			return SnippetFile.fromFile(this._getUserSnippetFilepath(languageId), localize('source.snippet', "User Snippet")).then(file => {
 				this._userSnippets.set(languageId, file.data);
+				bucket.push(...file.data);
 			}, err => {
 				this._userSnippets.set(languageId, null);
 			});

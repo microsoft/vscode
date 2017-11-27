@@ -246,7 +246,8 @@ export class MDDocumentContentProvider implements vscode.TextDocumentContentProv
 			line: initialLine,
 			scrollPreviewWithEditorSelection: config.scrollPreviewWithEditorSelection,
 			scrollEditorWithPreview: config.scrollEditorWithPreview,
-			doubleClickToSwitchToEditor: config.doubleClickToSwitchToEditor
+			doubleClickToSwitchToEditor: config.doubleClickToSwitchToEditor,
+			disableSecurityWarnings: this.cspArbiter.shouldDisableSecurityWarnings()
 		};
 
 		this.logger.log('provideTextDocumentContent', initialData);

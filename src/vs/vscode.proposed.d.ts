@@ -199,29 +199,52 @@ declare module 'vscode' {
 	//#endregion
 
 	/**
-	 * Represents the debug console.
+	 * Represents an action that can be performed in code.
+	 *
+	 * Shown using the [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action)
 	 */
-	export interface DebugConsole {
+	export class CodeAction {
 		/**
-		 * Append the given value to the debug console.
-		 *
-		 * @param value A string, falsy values will not be printed.
+		 * Label used to identify the code action in UI.
 		 */
-		append(value: string): void;
+		title: string;
 
 		/**
-		 * Append the given value and a line feed character
-		 * to the debug console.
+		 * Optional command that performs the code action.
 		 *
-		 * @param value A string, falsy values will be printed.
+		 * Executed after `edits` if any edits are provided. Either `command` or `edits` must be provided for a `CodeAction`.
 		 */
-		appendLine(value: string): void;
+		command?: Command;
+
+		/**
+		 * Optional edit that performs the code action.
+		 *
+		 * Either `command` or `edits` must be provided for a `CodeAction`.
+		 */
+		edits?: TextEdit[] | WorkspaceEdit;
+
+		/**
+		 * Diagnostics that this code action resolves.
+		 */
+		diagnostics?: Diagnostic[];
+
+		constructor(title: string, edits?: TextEdit[] | WorkspaceEdit);
 	}
 
-	export namespace debug {
+	export interface CodeActionProvider {
+
 		/**
-		 * The [debug console](#DebugConsole) singleton.
+		 * Provide commands for the given document and range.
+		 *
+		 * If implemented, overrides `provideCodeActions`
+		 *
+		 * @param document The document in which the command was invoked.
+		 * @param range The range for which the command was invoked.
+		 * @param context Context carrying additional information.
+		 * @param token A cancellation token.
+		 * @return An array of commands, quick fixes, or refactorings or a thenable of such. The lack of a result can be
+		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
-		export let console: DebugConsole;
+		provideCodeActions2?(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): ProviderResult<(Command | CodeAction)[]>;
 	}
 }

@@ -20,8 +20,6 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IPartService, Position as SideBarPosition } from 'vs/workbench/services/part/common/partService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -35,7 +33,7 @@ import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/composit
 export class ActivitybarPart extends Part {
 
 	private static readonly PINNED_VIEWLETS = 'workbench.activity.pinnedViewlets';
-	private static COLORS = {
+	private static readonly COLORS = {
 		backgroundColor: ACTIVITY_BAR_FOREGROUND,
 		badgeBackground: ACTIVITY_BAR_BADGE_BACKGROUND,
 		badgeForeground: ACTIVITY_BAR_BADGE_FOREGROUND,
@@ -54,8 +52,6 @@ export class ActivitybarPart extends Part {
 	constructor(
 		id: string,
 		@IViewletService private viewletService: IViewletService,
-		@IExtensionService private extensionService: IExtensionService,
-		@IStorageService private storageService: IStorageService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
@@ -181,7 +177,7 @@ export class ActivitybarPart extends Part {
 	}
 
 	public getPinned(): string[] {
-		return this.viewletService.getViewlets().map(v => v.id).filter(id => this.compositeBar.isPinned(id));;
+		return this.viewletService.getViewlets().map(v => v.id).filter(id => this.compositeBar.isPinned(id));
 	}
 
 	/**

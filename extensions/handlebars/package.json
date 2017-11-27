@@ -11,7 +11,7 @@
 	"contributes": {
 		"languages": [{
 			"id": "handlebars",
-			"extensions": [ ".handlebars", ".hbs"],
+			"extensions": [ ".handlebars", ".hbs", ".hjs" ],
 			"aliases": [ "Handlebars", "handlebars" ],
 			"mimetypes": ["text/x-handlebars-template"],
 			"configuration": "./language-configuration.json"

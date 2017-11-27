@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { IntervalTree, IntervalNode } from 'vs/editor/common/model/intervalTree';
+import { IntervalTree, IntervalNode, getNodeColor, NodeColor, SENTINEL, intervalCompare } from 'vs/editor/common/model/intervalTree';
 
 const GENERATE_TESTS = false;
 let TEST_COUNT = GENERATE_TESTS ? 10000 : 0;
@@ -116,10 +116,10 @@ suite('IntervalTree', () => {
 			}
 
 			if (PRINT_TREE) {
-				this._tree.print();
+				printTree(this._tree);
 			}
 
-			this._tree.assertInvariants();
+			assertTreeInvariants(this._tree);
 
 			let actual = this._tree.getAllInOrder().map(n => new Interval(n.cachedAbsoluteStart, n.cachedAbsoluteEnd));
 			let expected = this._oracle.intervals;
@@ -553,3 +553,89 @@ suite('IntervalTree', () => {
 		});
 	});
 });
+
+function printTree(T: IntervalTree): void {
+	if (T.root === SENTINEL) {
+		console.log(`~~ empty`);
+		return;
+	}
+	let out: string[] = [];
+	_printTree(T, T.root, '', 0, out);
+	console.log(out.join(''));
+}
+
+function _printTree(T: IntervalTree, n: IntervalNode, indent: string, delta: number, out: string[]): void {
+	out.push(`${indent}[${getNodeColor(n) === NodeColor.Red ? 'R' : 'B'},${n.delta}, ${n.start}->${n.end}, ${n.maxEnd}] : {${delta + n.start}->${delta + n.end}}, maxEnd: ${n.maxEnd + delta}\n`);
+	if (n.left !== SENTINEL) {
+		_printTree(T, n.left, indent + '    ', delta, out);
+	} else {
+		out.push(`${indent}    NIL\n`);
+	}
+	if (n.right !== SENTINEL) {
+		_printTree(T, n.right, indent + '    ', delta + n.delta, out);
+	} else {
+		out.push(`${indent}    NIL\n`);
+	}
+}
+
+//#region Assertion
+
+function assertTreeInvariants(T: IntervalTree): void {
+	assert(getNodeColor(SENTINEL) === NodeColor.Black);
+	assert(SENTINEL.parent === SENTINEL);
+	assert(SENTINEL.left === SENTINEL);
+	assert(SENTINEL.right === SENTINEL);
+	assert(SENTINEL.start === 0);
+	assert(SENTINEL.end === 0);
+	assert(SENTINEL.delta === 0);
+	assert(T.root.parent === SENTINEL);
+	assertValidTree(T);
+}
+
+function depth(n: IntervalNode): number {
+	if (n === SENTINEL) {
+		// The leafs are black
+		return 1;
+	}
+	assert(depth(n.left) === depth(n.right));
+	return (getNodeColor(n) === NodeColor.Black ? 1 : 0) + depth(n.left);
+}
+
+function assertValidNode(n: IntervalNode, delta): void {
+	if (n === SENTINEL) {
+		return;
+	}
+
+	let l = n.left;
+	let r = n.right;
+
+	if (getNodeColor(n) === NodeColor.Red) {
+		assert(getNodeColor(l) === NodeColor.Black);
+		assert(getNodeColor(r) === NodeColor.Black);
+	}
+
+	let expectedMaxEnd = n.end;
+	if (l !== SENTINEL) {
+		assert(intervalCompare(l.start + delta, l.end + delta, n.start + delta, n.end + delta) <= 0);
+		expectedMaxEnd = Math.max(expectedMaxEnd, l.maxEnd);
+	}
+	if (r !== SENTINEL) {
+		assert(intervalCompare(n.start + delta, n.end + delta, r.start + delta + n.delta, r.end + delta + n.delta) <= 0);
+		expectedMaxEnd = Math.max(expectedMaxEnd, r.maxEnd + n.delta);
+	}
+	assert(n.maxEnd === expectedMaxEnd);
+
+	assertValidNode(l, delta);
+	assertValidNode(r, delta + n.delta);
+}
+
+function assertValidTree(T: IntervalTree): void {
+	if (T.root === SENTINEL) {
+		return;
+	}
+	assert(getNodeColor(T.root) === NodeColor.Black);
+	assert(depth(T.root.left) === depth(T.root.right));
+	assertValidNode(T.root, 0);
+}
+
+//#endregion

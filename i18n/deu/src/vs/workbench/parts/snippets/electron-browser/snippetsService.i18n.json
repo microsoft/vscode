@@ -10,6 +10,7 @@
 	"vscode.extension.contributes.snippets": "Trägt Codeausschnitte bei.",
 	"vscode.extension.contributes.snippets-language": "Der Sprachbezeichner, für den dieser Codeausschnitt beigetragen wird.",
 	"vscode.extension.contributes.snippets-path": "Der Pfad der Codeausschnittdatei. Der Pfad ist relativ zum Erweiterungsordner und beginnt normalerweise mit \". /snippets/\".",
+	"badVariableUse": "Bei mindestens einem Ausschnitt von der Erweiterung \"{0}\" sind Ausschnittsvariablen und Ausschnittsplatzhalter vertauscht (weitere Informationen finden Sie unter https://code.visualstudio.com/docs/editor/userdefinedsnippets#_snippet-syntax).",
 	"badFile": "Die Ausschnittsdatei \"{0}\" konnte nicht gelesen werden.",
 	"source.snippet": "Benutzercodeausschnitt",
 	"detail.snippet": "{0} ({1})",

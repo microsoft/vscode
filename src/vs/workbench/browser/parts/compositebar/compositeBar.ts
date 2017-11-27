@@ -70,7 +70,8 @@ export class CompositeBar implements ICompositeBar {
 
 		const pinnedComposites = JSON.parse(this.storageService.get(this.options.storageId, StorageScope.GLOBAL, null)) as string[];
 		if (pinnedComposites) {
-			this.pinnedComposites = pinnedComposites;
+			const compositeIds = this.options.composites.map(c => c.id);
+			this.pinnedComposites = pinnedComposites.filter(pcid => compositeIds.indexOf(pcid) >= 0);
 		} else {
 			this.pinnedComposites = this.options.composites.map(c => c.id);
 		}

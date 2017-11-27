@@ -9,5 +9,7 @@
 	"numberBadge": "{0}({1})",
 	"manageExtension": "확장 관리",
 	"titleKeybinding": "{0}({1})",
+	"hide": "숨기기",
+	"keep": "유지",
 	"toggle": "뷰 고정 전환"
 }

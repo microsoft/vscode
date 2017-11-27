@@ -9,7 +9,6 @@ import * as cp from 'child_process';
 import ChildProcess = cp.ChildProcess;
 import exec = cp.exec;
 import spawn = cp.spawn;
-import { PassThrough } from 'stream';
 import { fork } from 'vs/base/node/stdFork';
 import nls = require('vs/nls');
 import { PPromise, TPromise, TValueCallback, TProgressCallback, ErrorCallback } from 'vs/base/common/winjs.base';
@@ -26,17 +25,6 @@ export { CommandOptions, ForkOptions, SuccessData, Source, TerminateResponse, Te
 export interface LineData {
 	line: string;
 	source: Source;
-}
-
-export interface BufferData {
-	data: Buffer;
-	source: Source;
-}
-
-export interface StreamData {
-	stdin: NodeJS.WritableStream;
-	stdout: NodeJS.ReadableStream;
-	stderr: NodeJS.ReadableStream;
 }
 
 function getWindowsCode(status: number): TerminateResponseCode {
@@ -212,7 +200,7 @@ export abstract class AbstractProcess<TProgressData> {
 					cc(result);
 				};
 				if (this.shell && Platform.isWindows) {
-					let options: any = Objects.clone(this.options);
+					let options: any = Objects.deepClone(this.options);
 					options.windowsVerbatimArguments = true;
 					options.detached = false;
 					let quotedCommand: boolean = false;
@@ -287,7 +275,7 @@ export abstract class AbstractProcess<TProgressData> {
 		// Default is to do nothing.
 	}
 
-	private static regexp = /^[^"].* .*[^"]/;
+	private static readonly regexp = /^[^"].* .*[^"]/;
 	private ensureQuotes(value: string) {
 		if (AbstractProcess.regexp.test(value)) {
 			return {
@@ -300,10 +288,6 @@ export abstract class AbstractProcess<TProgressData> {
 				quoted: value.length > 0 && value[0] === '"' && value[value.length - 1] === '"'
 			};
 		}
-	}
-
-	public isRunning(): boolean {
-		return this.childProcessPromise !== null;
 	}
 
 	public get pid(): TPromise<number> {
@@ -388,60 +372,6 @@ export class LineProcess extends AbstractProcess<LineData> {
 				pp({ line: line, source: index === 0 ? Source.stdout : Source.stderr });
 			}
 		});
-	}
-}
-
-export class BufferProcess extends AbstractProcess<BufferData> {
-
-	public constructor(executable: Executable);
-	public constructor(cmd: string, args: string[], shell: boolean, options: CommandOptions);
-	public constructor(module: string, args: string[], options: ForkOptions);
-	public constructor(arg1: string | Executable, arg2?: string[], arg3?: boolean | ForkOptions, arg4?: CommandOptions) {
-		super(<any>arg1, arg2, <any>arg3, arg4);
-	}
-
-	protected handleExec(cc: TValueCallback<SuccessData>, pp: TProgressCallback<BufferData>, error: Error, stdout: Buffer, stderr: Buffer): void {
-		pp({ data: stdout, source: Source.stdout });
-		pp({ data: stderr, source: Source.stderr });
-		cc({ terminated: this.terminateRequested, error: error });
-	}
-
-	protected handleSpawn(childProcess: ChildProcess, cc: TValueCallback<SuccessData>, pp: TProgressCallback<BufferData>, ee: ErrorCallback, sync: boolean): void {
-		childProcess.stdout.on('data', (data: Buffer) => {
-			pp({ data: data, source: Source.stdout });
-		});
-		childProcess.stderr.on('data', (data: Buffer) => {
-			pp({ data: data, source: Source.stderr });
-		});
-	}
-}
-
-export class StreamProcess extends AbstractProcess<StreamData> {
-
-	public constructor(executable: Executable);
-	public constructor(cmd: string, args: string[], shell: boolean, options: CommandOptions);
-	public constructor(module: string, args: string[], options: ForkOptions);
-	public constructor(arg1: string | Executable, arg2?: string[], arg3?: boolean | ForkOptions, arg4?: CommandOptions) {
-		super(<any>arg1, arg2, <any>arg3, arg4);
-	}
-
-	protected handleExec(cc: TValueCallback<SuccessData>, pp: TProgressCallback<StreamData>, error: Error, stdout: Buffer, stderr: Buffer): void {
-		let stdoutStream = new PassThrough();
-		stdoutStream.end(stdout);
-		let stderrStream = new PassThrough();
-		stderrStream.end(stderr);
-		pp({ stdin: null, stdout: stdoutStream, stderr: stderrStream });
-		cc({ terminated: this.terminateRequested, error: error });
-	}
-
-	protected handleSpawn(childProcess: ChildProcess, cc: TValueCallback<SuccessData>, pp: TProgressCallback<StreamData>, ee: ErrorCallback, sync: boolean): void {
-		if (sync) {
-			process.nextTick(() => {
-				pp({ stdin: childProcess.stdin, stdout: childProcess.stdout, stderr: childProcess.stderr });
-			});
-		} else {
-			pp({ stdin: childProcess.stdin, stdout: childProcess.stdout, stderr: childProcess.stderr });
-		}
 	}
 }
 

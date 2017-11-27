@@ -8,30 +8,29 @@ import URI from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { disposed } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ISingleEditOperation, IDecorationRenderOptions, IDecorationOptions, ILineChange, ICommonCodeEditor, isCommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { ISingleEditOperation, IDecorationRenderOptions, IDecorationOptions, ILineChange } from 'vs/editor/common/editorCommon';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { Position as EditorPosition, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { MainThreadTextEditor } from './mainThreadEditor';
 import { ITextEditorConfigurationUpdate, TextEditorRevealType, IApplyEditsOptions, IUndoStopOptions } from 'vs/workbench/api/node/extHost.protocol';
 import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { equals as objectEquals } from 'vs/base/common/objects';
 import { ExtHostContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData, IExtHostContext, IWorkspaceResourceEdit } from '../node/extHost.protocol';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { bulkEdit, IResourceEdit } from 'vs/editor/common/services/bulkEdit';
+import { bulkEdit, IResourceEdit } from 'vs/editor/browser/services/bulkEdit';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { isCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class MainThreadEditors implements MainThreadEditorsShape {
 
 	private _proxy: ExtHostEditorsShape;
 	private _documentsAndEditors: MainThreadDocumentsAndEditors;
 	private _workbenchEditorService: IWorkbenchEditorService;
-	private _telemetryService: ITelemetryService;
 	private _toDispose: IDisposable[];
 	private _textEditorsListenersMap: { [editorId: string]: IDisposable[]; };
 	private _editorPositionData: ITextEditorPositionData;
@@ -43,7 +42,6 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 		@ICodeEditorService private _codeEditorService: ICodeEditorService,
 		@IWorkbenchEditorService workbenchEditorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 		@IFileService private readonly _fileService: IFileService,
 		@IModelService private readonly _modelService: IModelService,
@@ -51,7 +49,6 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 		this._proxy = extHostContext.get(ExtHostContext.ExtHostEditors);
 		this._documentsAndEditors = documentsAndEditors;
 		this._workbenchEditorService = workbenchEditorService;
-		this._telemetryService = telemetryService;
 		this._toDispose = [];
 		this._textEditorsListenersMap = Object.create(null);
 		this._editorPositionData = null;
@@ -139,14 +136,6 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 	}
 
 	$tryShowEditor(id: string, position: EditorPosition): TPromise<void> {
-		// check how often this is used
-		/* __GDPR__
-			"api.deprecated" : {
-				"function" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		this._telemetryService.publicLog('api.deprecated', { function: 'TextEditor.show' });
-
 		let mainThreadEditor = this._documentsAndEditors.getEditor(id);
 		if (mainThreadEditor) {
 			let model = mainThreadEditor.getModel();
@@ -159,14 +148,6 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 	}
 
 	$tryHideEditor(id: string): TPromise<void> {
-		// check how often this is used
-		/* __GDPR__
-			"api.deprecated" : {
-				"function" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		this._telemetryService.publicLog('api.deprecated', { function: 'TextEditor.hide' });
-
 		let mainThreadEditor = this._documentsAndEditors.getEditor(id);
 		if (mainThreadEditor) {
 			let editors = this._workbenchEditorService.getVisibleEditors();
@@ -259,11 +240,11 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 			}
 		}
 
-		let codeEditor: ICommonCodeEditor;
+		let codeEditor: ICodeEditor;
 		let editor = this._workbenchEditorService.getActiveEditor();
 		if (editor) {
 			let candidate = editor.getControl();
-			if (isCommonCodeEditor(candidate)) {
+			if (isCodeEditor(candidate)) {
 				codeEditor = candidate;
 			}
 		}

@@ -5,9 +5,9 @@
 'use strict';
 
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModel, ICommonCodeEditor, isCommonCodeEditor, isCommonDiffEditor } from 'vs/editor/common/editorCommon';
+import { IModel } from 'vs/editor/common/editorCommon';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import Event, { Emitter } from 'vs/base/common/event';
 import { ExtHostContext, ExtHostDocumentsAndEditorsShape, IModelAddedData, ITextEditorAddData, IDocumentsAndEditorsDelta, IExtHostContext, MainContext } from '../node/extHost.protocol';
 import { MainThreadTextEditor } from './mainThreadEditor';
@@ -22,16 +22,9 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { isCodeEditor, isDiffEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 namespace mapset {
-
-	export function newSet<E>(from: Set<E>): Set<E> {
-		return new (<any>Set)(from);
-		// let ret = new Set<E>();
-		// from.forEach(ret.add, ret);
-		// return ret;
-	}
 
 	export function setValues<T>(set: Set<T>): T[] {
 		// return Array.from(set);
@@ -64,7 +57,7 @@ namespace delta {
 			}
 		});
 		return { removed, added };
-	};
+	}
 
 	export function ofMaps<K, V>(before: Map<K, V>, after: Map<K, V>): { removed: V[], added: V[] } {
 		const removed: V[] = [];
@@ -80,7 +73,7 @@ namespace delta {
 			}
 		});
 		return { removed, added };
-	};
+	}
 }
 
 class EditorSnapshot {
@@ -88,7 +81,7 @@ class EditorSnapshot {
 	readonly id: string;
 
 	constructor(
-		readonly editor: ICommonCodeEditor,
+		readonly editor: ICodeEditor,
 	) {
 		this.id = `${editor.getId()},${editor.getModel().id}`;
 	}
@@ -181,14 +174,14 @@ class MainThreadDocumentAndEditorStateComputer {
 		this._toDispose = dispose(this._toDispose);
 	}
 
-	private _onDidAddEditor(e: ICommonCodeEditor): void {
+	private _onDidAddEditor(e: ICodeEditor): void {
 		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidChangeModel(() => this._updateState()));
 		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidFocusEditor(() => this._updateState()));
 		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidBlurEditor(() => this._updateState()));
 		this._updateState();
 	}
 
-	private _onDidRemoveEditor(e: ICommonCodeEditor): void {
+	private _onDidRemoveEditor(e: ICodeEditor): void {
 		const sub = this._toDisposeOnEditorRemove.get(e.getId());
 		if (sub) {
 			this._toDisposeOnEditorRemove.delete(e.getId());
@@ -219,7 +212,7 @@ class MainThreadDocumentAndEditorStateComputer {
 		this._onDidChangeState(new DocumentAndEditorStateDelta(
 			[], [model],
 			[], [],
-			this._currentState.activeEditor, this._currentState.activeEditor
+			undefined, undefined
 		));
 	}
 
@@ -259,10 +252,10 @@ class MainThreadDocumentAndEditorStateComputer {
 			const workbenchEditor = this._workbenchEditorService.getActiveEditor();
 			if (workbenchEditor) {
 				const workbenchEditorControl = workbenchEditor.getControl();
-				let candidate: ICommonCodeEditor;
-				if (isCommonCodeEditor(workbenchEditorControl)) {
+				let candidate: ICodeEditor;
+				if (isCodeEditor(workbenchEditorControl)) {
 					candidate = workbenchEditorControl;
-				} else if (isCommonDiffEditor(workbenchEditorControl)) {
+				} else if (isDiffEditor(workbenchEditorControl)) {
 					candidate = workbenchEditorControl.getModifiedEditor();
 				}
 				if (candidate) {
@@ -313,15 +306,14 @@ export class MainThreadDocumentsAndEditors {
 		@IFileService fileService: IFileService,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@IEditorGroupService editorGroupService: IEditorGroupService
 	) {
 		this._proxy = extHostContext.get(ExtHostContext.ExtHostDocumentsAndEditors);
 
 		const mainThreadDocuments = new MainThreadDocuments(this, extHostContext, this._modelService, modeService, this._textFileService, fileService, textModelResolverService, untitledEditorService);
 		extHostContext.set(MainContext.MainThreadDocuments, mainThreadDocuments);
 
-		const mainThreadEditors = new MainThreadEditors(this, extHostContext, codeEditorService, this._workbenchEditorService, editorGroupService, telemetryService, textModelResolverService, fileService, this._modelService);
+		const mainThreadEditors = new MainThreadEditors(this, extHostContext, codeEditorService, this._workbenchEditorService, editorGroupService, textModelResolverService, fileService, this._modelService);
 		extHostContext.set(MainContext.MainThreadEditors, mainThreadEditors);
 
 		// It is expected that the ctor of the state computer calls our `_onDelta`.

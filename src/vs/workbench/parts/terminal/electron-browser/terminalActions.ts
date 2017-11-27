@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as os from 'os';
 import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
-import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ITerminalService, TERMINAL_PANEL_ID, ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
 import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -29,8 +29,8 @@ export const TERMINAL_PICKER_PREFIX = 'term ';
 
 export class ToggleTerminalAction extends TogglePanelAction {
 
-	public static ID = 'workbench.action.terminal.toggleTerminal';
-	public static LABEL = nls.localize('workbench.action.terminal.toggleTerminal', "Toggle Integrated Terminal");
+	public static readonly ID = 'workbench.action.terminal.toggleTerminal';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.toggleTerminal', "Toggle Integrated Terminal");
 
 	constructor(
 		id: string, label: string,
@@ -53,9 +53,9 @@ export class ToggleTerminalAction extends TogglePanelAction {
 
 export class KillTerminalAction extends Action {
 
-	public static ID = 'workbench.action.terminal.kill';
-	public static LABEL = nls.localize('workbench.action.terminal.kill', "Kill the Active Terminal Instance");
-	public static PANEL_LABEL = nls.localize('workbench.action.terminal.kill.short', "Kill Terminal");
+	public static readonly ID = 'workbench.action.terminal.kill';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.kill', "Kill the Active Terminal Instance");
+	public static readonly PANEL_LABEL = nls.localize('workbench.action.terminal.kill.short', "Kill Terminal");
 
 	constructor(
 		id: string, label: string,
@@ -79,8 +79,8 @@ export class KillTerminalAction extends Action {
 
 export class QuickKillTerminalAction extends Action {
 
-	public static ID = 'workbench.action.terminal.quickKill';
-	public static LABEL = nls.localize('workbench.action.terminal.quickKill', "Kill Terminal Instance");
+	public static readonly ID = 'workbench.action.terminal.quickKill';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.quickKill', "Kill Terminal Instance");
 
 	constructor(
 		id: string, label: string,
@@ -111,8 +111,8 @@ export class QuickKillTerminalAction extends Action {
  */
 export class CopyTerminalSelectionAction extends Action {
 
-	public static ID = 'workbench.action.terminal.copySelection';
-	public static LABEL = nls.localize('workbench.action.terminal.copySelection', "Copy Selection");
+	public static readonly ID = 'workbench.action.terminal.copySelection';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.copySelection', "Copy Selection");
 
 	constructor(
 		id: string, label: string,
@@ -132,8 +132,8 @@ export class CopyTerminalSelectionAction extends Action {
 
 export class SelectAllTerminalAction extends Action {
 
-	public static ID = 'workbench.action.terminal.selectAll';
-	public static LABEL = nls.localize('workbench.action.terminal.selectAll', "Select All");
+	public static readonly ID = 'workbench.action.terminal.selectAll';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.selectAll', "Select All");
 
 	constructor(
 		id: string, label: string,
@@ -153,8 +153,8 @@ export class SelectAllTerminalAction extends Action {
 
 export class DeleteWordLeftTerminalAction extends Action {
 
-	public static ID = 'workbench.action.terminal.deleteWordLeft';
-	public static LABEL = nls.localize('workbench.action.terminal.deleteWordLeft', "Delete Word Left");
+	public static readonly ID = 'workbench.action.terminal.deleteWordLeft';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.deleteWordLeft', "Delete Word Left");
 
 	constructor(
 		id: string, label: string,
@@ -175,8 +175,8 @@ export class DeleteWordLeftTerminalAction extends Action {
 
 export class DeleteWordRightTerminalAction extends Action {
 
-	public static ID = 'workbench.action.terminal.deleteWordRight';
-	public static LABEL = nls.localize('workbench.action.terminal.deleteWordRight', "Delete Word Right");
+	public static readonly ID = 'workbench.action.terminal.deleteWordRight';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.deleteWordRight', "Delete Word Right");
 
 	constructor(
 		id: string, label: string,
@@ -197,9 +197,9 @@ export class DeleteWordRightTerminalAction extends Action {
 
 export class CreateNewTerminalAction extends Action {
 
-	public static ID = 'workbench.action.terminal.new';
-	public static LABEL = nls.localize('workbench.action.terminal.new', "Create New Integrated Terminal");
-	public static PANEL_LABEL = nls.localize('workbench.action.terminal.new.short', "New Terminal");
+	public static readonly ID = 'workbench.action.terminal.new';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.new', "Create New Integrated Terminal");
+	public static readonly PANEL_LABEL = nls.localize('workbench.action.terminal.new.short', "New Terminal");
 
 	constructor(
 		id: string, label: string,
@@ -241,8 +241,8 @@ export class CreateNewTerminalAction extends Action {
 
 export class FocusActiveTerminalAction extends Action {
 
-	public static ID = 'workbench.action.terminal.focus';
-	public static LABEL = nls.localize('workbench.action.terminal.focus', "Focus Terminal");
+	public static readonly ID = 'workbench.action.terminal.focus';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.focus', "Focus Terminal");
 
 	constructor(
 		id: string, label: string,
@@ -263,8 +263,8 @@ export class FocusActiveTerminalAction extends Action {
 
 export class FocusNextTerminalAction extends Action {
 
-	public static ID = 'workbench.action.terminal.focusNext';
-	public static LABEL = nls.localize('workbench.action.terminal.focusNext', "Focus Next Terminal");
+	public static readonly ID = 'workbench.action.terminal.focusNext';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.focusNext', "Focus Next Terminal");
 
 	constructor(
 		id: string, label: string,
@@ -281,8 +281,8 @@ export class FocusNextTerminalAction extends Action {
 
 export class FocusPreviousTerminalAction extends Action {
 
-	public static ID = 'workbench.action.terminal.focusPrevious';
-	public static LABEL = nls.localize('workbench.action.terminal.focusPrevious', "Focus Previous Terminal");
+	public static readonly ID = 'workbench.action.terminal.focusPrevious';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.focusPrevious', "Focus Previous Terminal");
 
 	constructor(
 		id: string, label: string,
@@ -298,8 +298,8 @@ export class FocusPreviousTerminalAction extends Action {
 }
 export class TerminalPasteAction extends Action {
 
-	public static ID = 'workbench.action.terminal.paste';
-	public static LABEL = nls.localize('workbench.action.terminal.paste', "Paste into Active Terminal");
+	public static readonly ID = 'workbench.action.terminal.paste';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.paste', "Paste into Active Terminal");
 
 	constructor(
 		id: string, label: string,
@@ -319,8 +319,8 @@ export class TerminalPasteAction extends Action {
 
 export class SelectDefaultShellWindowsTerminalAction extends Action {
 
-	public static ID = 'workbench.action.terminal.selectDefaultShell';
-	public static LABEL = nls.localize('workbench.action.terminal.DefaultShell', "Select Default Shell");
+	public static readonly ID = 'workbench.action.terminal.selectDefaultShell';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.DefaultShell', "Select Default Shell");
 
 	constructor(
 		id: string, label: string,
@@ -336,8 +336,8 @@ export class SelectDefaultShellWindowsTerminalAction extends Action {
 
 export class RunSelectedTextInTerminalAction extends Action {
 
-	public static ID = 'workbench.action.terminal.runSelectedText';
-	public static LABEL = nls.localize('workbench.action.terminal.runSelectedText', "Run Selected Text In Active Terminal");
+	public static readonly ID = 'workbench.action.terminal.runSelectedText';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.runSelectedText', "Run Selected Text In Active Terminal");
 
 	constructor(
 		id: string, label: string,
@@ -371,8 +371,8 @@ export class RunSelectedTextInTerminalAction extends Action {
 
 export class RunActiveFileInTerminalAction extends Action {
 
-	public static ID = 'workbench.action.terminal.runActiveFile';
-	public static LABEL = nls.localize('workbench.action.terminal.runActiveFile', "Run Active File In Active Terminal");
+	public static readonly ID = 'workbench.action.terminal.runActiveFile';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.runActiveFile', "Run Active File In Active Terminal");
 
 	constructor(
 		id: string, label: string,
@@ -404,8 +404,8 @@ export class RunActiveFileInTerminalAction extends Action {
 
 export class SwitchTerminalInstanceAction extends Action {
 
-	public static ID = 'workbench.action.terminal.switchTerminalInstance';
-	public static LABEL = nls.localize('workbench.action.terminal.switchTerminalInstance', "Switch Terminal Instance");
+	public static readonly ID = 'workbench.action.terminal.switchTerminalInstance';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.switchTerminalInstance', "Switch Terminal Instance");
 
 	constructor(
 		id: string, label: string,
@@ -447,8 +447,8 @@ export class SwitchTerminalInstanceActionItem extends SelectActionItem {
 
 export class ScrollDownTerminalAction extends Action {
 
-	public static ID = 'workbench.action.terminal.scrollDown';
-	public static LABEL = nls.localize('workbench.action.terminal.scrollDown', "Scroll Down (Line)");
+	public static readonly ID = 'workbench.action.terminal.scrollDown';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.scrollDown', "Scroll Down (Line)");
 
 	constructor(
 		id: string, label: string,
@@ -468,8 +468,8 @@ export class ScrollDownTerminalAction extends Action {
 
 export class ScrollDownPageTerminalAction extends Action {
 
-	public static ID = 'workbench.action.terminal.scrollDownPage';
-	public static LABEL = nls.localize('workbench.action.terminal.scrollDownPage', "Scroll Down (Page)");
+	public static readonly ID = 'workbench.action.terminal.scrollDownPage';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.scrollDownPage', "Scroll Down (Page)");
 
 	constructor(
 		id: string, label: string,
@@ -489,8 +489,8 @@ export class ScrollDownPageTerminalAction extends Action {
 
 export class ScrollToBottomTerminalAction extends Action {
 
-	public static ID = 'workbench.action.terminal.scrollToBottom';
-	public static LABEL = nls.localize('workbench.action.terminal.scrollToBottom', "Scroll to Bottom");
+	public static readonly ID = 'workbench.action.terminal.scrollToBottom';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.scrollToBottom', "Scroll to Bottom");
 
 	constructor(
 		id: string, label: string,
@@ -510,8 +510,8 @@ export class ScrollToBottomTerminalAction extends Action {
 
 export class ScrollUpTerminalAction extends Action {
 
-	public static ID = 'workbench.action.terminal.scrollUp';
-	public static LABEL = nls.localize('workbench.action.terminal.scrollUp', "Scroll Up (Line)");
+	public static readonly ID = 'workbench.action.terminal.scrollUp';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.scrollUp', "Scroll Up (Line)");
 
 	constructor(
 		id: string, label: string,
@@ -531,8 +531,8 @@ export class ScrollUpTerminalAction extends Action {
 
 export class ScrollUpPageTerminalAction extends Action {
 
-	public static ID = 'workbench.action.terminal.scrollUpPage';
-	public static LABEL = nls.localize('workbench.action.terminal.scrollUpPage', "Scroll Up (Page)");
+	public static readonly ID = 'workbench.action.terminal.scrollUpPage';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.scrollUpPage', "Scroll Up (Page)");
 
 	constructor(
 		id: string, label: string,
@@ -552,8 +552,8 @@ export class ScrollUpPageTerminalAction extends Action {
 
 export class ScrollToTopTerminalAction extends Action {
 
-	public static ID = 'workbench.action.terminal.scrollToTop';
-	public static LABEL = nls.localize('workbench.action.terminal.scrollToTop', "Scroll to Top");
+	public static readonly ID = 'workbench.action.terminal.scrollToTop';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.scrollToTop', "Scroll to Top");
 
 	constructor(
 		id: string, label: string,
@@ -573,8 +573,8 @@ export class ScrollToTopTerminalAction extends Action {
 
 export class ClearTerminalAction extends Action {
 
-	public static ID = 'workbench.action.terminal.clear';
-	public static LABEL = nls.localize('workbench.action.terminal.clear', "Clear");
+	public static readonly ID = 'workbench.action.terminal.clear';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.clear', "Clear");
 
 	constructor(
 		id: string, label: string,
@@ -594,8 +594,8 @@ export class ClearTerminalAction extends Action {
 
 export class AllowWorkspaceShellTerminalCommand extends Action {
 
-	public static ID = 'workbench.action.terminal.allowWorkspaceShell';
-	public static LABEL = nls.localize('workbench.action.terminal.allowWorkspaceShell', "Allow Workspace Shell Configuration");
+	public static readonly ID = 'workbench.action.terminal.allowWorkspaceShell';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.allowWorkspaceShell', "Allow Workspace Shell Configuration");
 
 	constructor(
 		id: string, label: string,
@@ -612,8 +612,8 @@ export class AllowWorkspaceShellTerminalCommand extends Action {
 
 export class DisallowWorkspaceShellTerminalCommand extends Action {
 
-	public static ID = 'workbench.action.terminal.disallowWorkspaceShell';
-	public static LABEL = nls.localize('workbench.action.terminal.disallowWorkspaceShell', "Disallow Workspace Shell Configuration");
+	public static readonly ID = 'workbench.action.terminal.disallowWorkspaceShell';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.disallowWorkspaceShell', "Disallow Workspace Shell Configuration");
 
 	constructor(
 		id: string, label: string,
@@ -630,8 +630,8 @@ export class DisallowWorkspaceShellTerminalCommand extends Action {
 
 export class RenameTerminalAction extends Action {
 
-	public static ID = 'workbench.action.terminal.rename';
-	public static LABEL = nls.localize('workbench.action.terminal.rename', "Rename");
+	public static readonly ID = 'workbench.action.terminal.rename';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.rename', "Rename");
 
 	constructor(
 		id: string, label: string,
@@ -659,8 +659,8 @@ export class RenameTerminalAction extends Action {
 
 export class FocusTerminalFindWidgetAction extends Action {
 
-	public static ID = 'workbench.action.terminal.focusFindWidget';
-	public static LABEL = nls.localize('workbench.action.terminal.focusFindWidget', "Focus Find Widget");
+	public static readonly ID = 'workbench.action.terminal.focusFindWidget';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.focusFindWidget', "Focus Find Widget");
 
 	constructor(
 		id: string, label: string,
@@ -676,8 +676,8 @@ export class FocusTerminalFindWidgetAction extends Action {
 
 export class HideTerminalFindWidgetAction extends Action {
 
-	public static ID = 'workbench.action.terminal.hideFindWidget';
-	public static LABEL = nls.localize('workbench.action.terminal.hideFindWidget', "Hide Find Widget");
+	public static readonly ID = 'workbench.action.terminal.hideFindWidget';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.hideFindWidget', "Hide Find Widget");
 
 	constructor(
 		id: string, label: string,
@@ -693,8 +693,8 @@ export class HideTerminalFindWidgetAction extends Action {
 
 export class ShowNextFindTermTerminalFindWidgetAction extends Action {
 
-	public static ID = 'workbench.action.terminal.findWidget.history.showNext';
-	public static LABEL = nls.localize('nextTerminalFindTerm', "Show Next Find Term");
+	public static readonly ID = 'workbench.action.terminal.findWidget.history.showNext';
+	public static readonly LABEL = nls.localize('nextTerminalFindTerm', "Show Next Find Term");
 
 	constructor(
 		id: string, label: string,
@@ -710,8 +710,8 @@ export class ShowNextFindTermTerminalFindWidgetAction extends Action {
 
 export class ShowPreviousFindTermTerminalFindWidgetAction extends Action {
 
-	public static ID = 'workbench.action.terminal.findWidget.history.showPrevious';
-	public static LABEL = nls.localize('previousTerminalFindTerm', "Show Previous Find Term");
+	public static readonly ID = 'workbench.action.terminal.findWidget.history.showPrevious';
+	public static readonly LABEL = nls.localize('previousTerminalFindTerm', "Show Previous Find Term");
 
 	constructor(
 		id: string, label: string,
@@ -729,8 +729,6 @@ export class ShowPreviousFindTermTerminalFindWidgetAction extends Action {
 export class QuickOpenActionTermContributor extends ActionBarContributor {
 
 	constructor(
-		@ITerminalService private terminalService: ITerminalService,
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		super();
@@ -752,8 +750,8 @@ export class QuickOpenActionTermContributor extends ActionBarContributor {
 
 export class QuickOpenTermAction extends Action {
 
-	public static ID = 'workbench.action.quickOpenTerm';
-	public static LABEL = nls.localize('quickOpenTerm', "Switch Active Terminal");
+	public static readonly ID = 'workbench.action.quickOpenTerm';
+	public static readonly LABEL = nls.localize('quickOpenTerm', "Switch Active Terminal");
 
 	constructor(
 		id: string,
@@ -774,8 +772,7 @@ export class RenameTerminalQuickOpenAction extends RenameTerminalAction {
 		id: string, label: string,
 		private terminal: TerminalEntry,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@ITerminalService terminalService: ITerminalService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@ITerminalService terminalService: ITerminalService
 	) {
 		super(id, label, quickOpenService, terminalService);
 		this.class = 'quick-open-terminal-configure';

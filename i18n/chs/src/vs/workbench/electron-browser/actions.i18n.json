@@ -47,5 +47,10 @@
 	"showNextWindowTab": "显示下一个窗口选项卡",
 	"moveWindowTabToNewWindow": "将窗口选项卡移动到新窗口",
 	"mergeAllWindowTabs": "合并所有窗口",
-	"toggleWindowTabsBar": "切换窗口选项卡栏"
+	"toggleWindowTabsBar": "切换窗口选项卡栏",
+	"configureLocale": "配置语言",
+	"displayLanguage": "定义 VSCode 的显示语言。",
+	"doc": "请参阅 {0}，了解支持的语言列表。",
+	"restart": "更改此值需要重启 VSCode。",
+	"fail.createSettings": "无法创建“{0}”({1})。"
 }

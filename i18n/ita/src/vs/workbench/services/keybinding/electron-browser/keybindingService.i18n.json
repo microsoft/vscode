@@ -21,6 +21,5 @@
 	"keybindings.json.command": "Nome del comando da eseguire",
 	"keybindings.json.when": "Condizione quando il tasto è attivo.",
 	"keybindings.json.args": "Argomenti da passare al comando da eseguire.",
-	"keyboardConfigurationTitle": "Tastiera",
-	"dispatch": "Controlla la logica di invio delle pressioni di tasti da usare, tra `keydown.code` (scelta consigliata) e `keydown.keyCode`."
+	"keyboardConfigurationTitle": "Tastiera"
 }

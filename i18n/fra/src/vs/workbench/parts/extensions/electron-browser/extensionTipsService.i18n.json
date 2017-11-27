@@ -6,6 +6,7 @@
 {
 	"fileBasedRecommendation": "Cette extension est recommandée basé sur les fichiers que vous avez ouverts récemment.",
 	"workspaceRecommendation": "Cette extension est recommandée par les utilisateurs de l’espace de travail actuel.",
+	"exeBasedRecommendation": "Cette extension est recommandée parce que {0} est installé.",
 	"reallyRecommended2": "L'extension '{0}' est recommandée pour ce type de fichier.",
 	"reallyRecommendedExtensionPack": "Le pack d’extensions '{0}' est recommandé pour ce type de fichier.",
 	"showRecommendations": "Afficher les recommandations",

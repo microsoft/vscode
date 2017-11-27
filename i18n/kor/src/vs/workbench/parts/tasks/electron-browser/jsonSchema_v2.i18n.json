@@ -25,6 +25,8 @@
 	"JsonSchema.tasks.group.test": "이 작업을 '테스트 작업 실행' 명령을 통해 액세스할 수 있는 테스트 작업으로 표시합니다.",
 	"JsonSchema.tasks.group.none": "작업을 그룹에 할당 안 함",
 	"JsonSchema.tasks.group": "이 작업을 할당할 실행 그룹을 정의합니다. 빌드 그룹에 추가를 위한 \"build'와 테스트 그룹에 추가를 위한 \"test\"를 지원합니다.",
+	"JsonSchema.tasks.type": "작업이 프로세스로 실행되는지 또는 셸 내의 명령으로 실행되는지를 제어합니다.",
+	"JsonSchema.tasks.label": "작업 사용자 인터페이스 레이블",
 	"JsonSchema.version": "구성의 버전 번호입니다.",
 	"JsonSchema.tasks.identifier": "작업을 launch.json 또는 dependsOn 구문에서 참조할 사용자 정의 식별자입니다.",
 	"JsonSchema.tasks.taskLabel": "작업 레이블",

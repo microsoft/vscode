@@ -14,7 +14,6 @@ import { IWorkspaceData, ExtHostWorkspaceShape, MainContext, MainThreadWorkspace
 import * as vscode from 'vscode';
 import { compare } from 'vs/base/common/strings';
 import { TernarySearchTree } from 'vs/base/common/map';
-import { IRelativePattern } from 'vs/base/common/glob';
 
 class Workspace2 extends Workspace {
 
@@ -155,9 +154,30 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 
 	// --- search ---
 
-	findFiles(include: string | IRelativePattern, exclude: string | IRelativePattern, maxResults?: number, token?: vscode.CancellationToken): Thenable<vscode.Uri[]> {
+	findFiles(include: vscode.GlobPattern, exclude: vscode.GlobPattern, maxResults?: number, token?: vscode.CancellationToken): Thenable<vscode.Uri[]> {
 		const requestId = ExtHostWorkspace._requestIdPool++;
-		const result = this._proxy.$startSearch(include, exclude, maxResults, requestId);
+
+		let includePattern: string;
+		let includeFolder: string;
+		if (include) {
+			if (typeof include === 'string') {
+				includePattern = include;
+			} else {
+				includePattern = include.pattern;
+				includeFolder = include.base;
+			}
+		}
+
+		let excludePattern: string;
+		if (exclude) {
+			if (typeof exclude === 'string') {
+				excludePattern = exclude;
+			} else {
+				excludePattern = exclude.pattern;
+			}
+		}
+
+		const result = this._proxy.$startSearch(includePattern, includeFolder, excludePattern, maxResults, requestId);
 		if (token) {
 			token.onCancellationRequested(() => this._proxy.$cancelSearch(requestId));
 		}

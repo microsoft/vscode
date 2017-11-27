@@ -62,7 +62,7 @@ export function debounce(delay: number): Function {
 	return createDecorator((fn, key) => {
 		const timerKey = `$debounce$${key}`;
 
-		return function (...args: any[]) {
+		return function (this: any, ...args: any[]) {
 			clearTimeout(this[timerKey]);
 			this[timerKey] = setTimeout(() => fn.apply(this, args), delay);
 		};

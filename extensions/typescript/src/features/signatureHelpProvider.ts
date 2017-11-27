@@ -5,15 +5,15 @@
 
 import { SignatureHelpProvider, SignatureHelp, SignatureInformation, ParameterInformation, TextDocument, Position, CancellationToken } from 'vscode';
 
-import * as Previewer from './previewer';
+import * as Previewer from '../utils/previewer';
 import * as Proto from '../protocol';
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
 import { vsPositionToTsFileLocation } from '../utils/convert';
 
 export default class TypeScriptSignatureHelpProvider implements SignatureHelpProvider {
 
 	public constructor(
-		private client: ITypescriptServiceClient) { }
+		private client: ITypeScriptServiceClient) { }
 
 	public provideSignatureHelp(document: TextDocument, position: Position, token: CancellationToken): Promise<SignatureHelp | undefined | null> {
 		const filepath = this.client.normalizePath(document.uri);

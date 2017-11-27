@@ -6,7 +6,6 @@
 {
 	"scm providers": "Provedores de Controle de Código Fonte",
 	"hideRepository": "Ocultar",
-	"commitMessage": "Mensagem (tecle {0} para confirmar)",
 	"installAdditionalSCMProviders": "Instalar provedores de SCM adicionais...",
 	"no open repo": "Não existem provedores controle de código fonte ativos.",
 	"source control": "Controle de código-fonte",

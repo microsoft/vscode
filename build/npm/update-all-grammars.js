@@ -18,7 +18,7 @@ function updateGrammar(location) {
 }
 
 const extensions = [
-	// 'bat'   Grammar no longer available
+	'bat',
 	'clojure',
 	'coffeescript',
 	'cpp',

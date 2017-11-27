@@ -5,9 +5,10 @@
 
 'use strict';
 
-import { app } from 'electron';
+import { app, dialog } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
+import product from 'vs/platform/node/product';
 import { parseMainProcessArgv } from 'vs/platform/environment/node/argv';
 import { mkdirp } from 'vs/base/node/pfs';
 import { validatePaths } from 'vs/code/node/paths';
@@ -20,7 +21,8 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService, LogMainService } from 'vs/platform/log/common/log';
-import { IStorageService, StorageService } from 'vs/platform/storage/node/storage';
+import { StateService } from 'vs/platform/state/node/stateService';
+import { IStateService } from 'vs/platform/state/common/state';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
 import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
@@ -37,6 +39,8 @@ import { HistoryMainService } from 'vs/platform/history/electron-main/historyMai
 import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
+import { localize } from 'vs/nls';
+import { mnemonicButtonLabel } from 'vs/base/common/labels';
 
 function createServices(args: ParsedArgs): IInstantiationService {
 	const services = new ServiceCollection();
@@ -46,7 +50,7 @@ function createServices(args: ParsedArgs): IInstantiationService {
 	services.set(IWorkspacesMainService, new SyncDescriptor(WorkspacesMainService));
 	services.set(IHistoryMainService, new SyncDescriptor(HistoryMainService));
 	services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
-	services.set(IStorageService, new SyncDescriptor(StorageService));
+	services.set(IStateService, new SyncDescriptor(StateService));
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(IURLService, new SyncDescriptor(URLService, args['open-url']));
@@ -73,7 +77,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	const environmentService = accessor.get(IEnvironmentService);
 
 	function allowSetForegroundWindow(service: LaunchChannelClient): TPromise<void> {
-		let promise = TPromise.as<void>(void 0);
+		let promise = TPromise.wrap<void>(void 0);
 		if (platform.isWindows) {
 			promise = service.getMainProcessId()
 				.then(processId => {
@@ -123,16 +127,43 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 
 					logService.log('Sending env to running instance...');
 
+					// Show a warning dialog after some timeout if it takes long to talk to the other instance
+					// Skip this if we are running with --wait where it is expected that we wait for a while
+					let startupWarningDialogHandle: number;
+					if (!environmentService.wait) {
+						startupWarningDialogHandle = setTimeout(() => {
+							showStartupWarningDialog(
+								localize('secondInstanceNoResponse', "Another instance of {0} is running but not responding", product.nameShort),
+								localize('secondInstanceNoResponseDetail', "Please close all other instances and try again.")
+							);
+						}, 10000);
+					}
+
 					const channel = client.getChannel<ILaunchChannel>('launch');
 					const service = new LaunchChannelClient(channel);
 
 					return allowSetForegroundWindow(service)
 						.then(() => service.start(environmentService.args, process.env))
 						.then(() => client.dispose())
-						.then(() => TPromise.wrapError(new ExpectedError('Sent env to running instance. Terminating...')));
+						.then(() => {
+
+							// Now that we started, make sure the warning dialog is prevented
+							if (startupWarningDialogHandle) {
+								clearTimeout(startupWarningDialogHandle);
+							}
+
+							return TPromise.wrapError(new ExpectedError('Sent env to running instance. Terminating...'));
+						});
 				},
 				err => {
 					if (!retry || platform.isWindows || err.code !== 'ECONNREFUSED') {
+						if (err.code === 'EPERM') {
+							showStartupWarningDialog(
+								localize('secondInstanceAdmin', "A second instance of {0} is already running as administrator.", product.nameShort),
+								localize('secondInstanceAdminDetail', "Please close the other instance and try again.")
+							);
+						}
+
 						return TPromise.wrapError<Server>(err);
 					}
 
@@ -153,6 +184,17 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	}
 
 	return setup(true);
+}
+
+function showStartupWarningDialog(message: string, detail: string): void {
+	dialog.showMessageBox(null, {
+		title: product.nameLong,
+		type: 'warning',
+		buttons: [mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
+		message,
+		detail,
+		noLink: true
+	});
 }
 
 function quit(accessor: ServicesAccessor, reason?: ExpectedError | Error): void {
@@ -207,10 +249,7 @@ function main() {
 		// Startup
 		return instantiationService.invokeFunction(a => createPaths(a.get(IEnvironmentService)))
 			.then(() => instantiationService.invokeFunction(setupIPC))
-			.then(mainIpcServer => {
-				const app = instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnv);
-				app.startup();
-			});
+			.then(mainIpcServer => instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnv).startup());
 	}).done(null, err => instantiationService.invokeFunction(quit, err));
 }
 

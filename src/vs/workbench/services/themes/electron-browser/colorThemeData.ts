@@ -25,14 +25,14 @@ import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 
 let colorRegistry = <IColorRegistry>Registry.as(Extensions.ColorContribution);
 
-const tokenGroupToScopesMap = {
-	comments: 'comment',
-	strings: 'string',
-	keywords: 'keyword',
-	numbers: 'constant.numeric',
-	types: 'entity.name.type',
-	functions: 'entity.name.function',
-	variables: 'variable'
+const tokenGroupToScopesMap: { [setting: string]: string[] } = {
+	comments: ['comment'],
+	strings: ['string'],
+	keywords: ['keyword', 'keyword.control', 'storage', 'storage.type'],
+	numbers: ['constant.numeric'],
+	types: ['entity.name.type', 'entity.name.class', 'support.type', 'support.class'],
+	functions: ['entity.name.function'],
+	variables: ['variable']
 };
 
 export class ColorThemeData implements IColorTheme {
@@ -95,28 +95,24 @@ export class ColorThemeData implements IColorTheme {
 	public setCustomTokenColors(customTokenColors: ITokenColorCustomizations) {
 		let generalRules: ITokenColorizationRule[] = [];
 
-		let value, settings, scope;
 		Object.keys(tokenGroupToScopesMap).forEach(key => {
-			value = customTokenColors[key];
-			settings = typeof value === 'string'
-				? { foreground: value }
-				: value;
-			scope = tokenGroupToScopesMap[key];
-
-			if (!settings) {
-				return;
+			let value = customTokenColors[key];
+			if (value) {
+				let settings = typeof value === 'string' ? { foreground: value } : value;
+				let scopes = tokenGroupToScopesMap[key];
+				for (let scope of scopes) {
+					generalRules.push({
+						scope,
+						settings
+					});
+				}
 			}
-
-			generalRules.push({
-				scope,
-				settings
-			});
 		});
 
 		const textMateRules: ITokenColorizationRule[] = customTokenColors.textMateRules || [];
 
 		// Put the general customizations such as comments, strings, etc. first so that
-		// they can be overriden by specific customizations like "string.interpolated"
+		// they can be overridden by specific customizations like "string.interpolated"
 		this.customTokenColors = generalRules.concat(textMateRules);
 	}
 
@@ -150,17 +146,6 @@ export class ColorThemeData implements IColorTheme {
 			updatedTokenColors.push(...defaultThemeColors[this.type]);
 		}
 		this.themeTokenColors = updatedTokenColors;
-	}
-
-	toThemeFile() {
-		if (!this.isLoaded) {
-			return '';
-		}
-		let content = { name: this.label, colors: {}, tokenColors: this.tokenColors };
-		for (let key in this.colorMap) {
-			content.colors[key] = Color.Format.CSS.formatHexA(this.colorMap[key], true);
-		}
-		return JSON.stringify(content, null, '\t');
 	}
 
 	toStorageData() {

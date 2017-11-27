@@ -7,7 +7,7 @@ import * as fs from 'fs';
 
 import { workspace, TextDocument, TextDocumentChangeEvent, TextDocumentContentChangeEvent, Disposable } from 'vscode';
 import * as Proto from '../protocol';
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
 import { Delayer } from '../utils/async';
 import * as languageModeIds from '../utils/languageModeIds';
 
@@ -31,7 +31,7 @@ class SyncedBuffer {
 		private readonly document: TextDocument,
 		private readonly filepath: string,
 		private readonly diagnosticRequestor: IDiagnosticRequestor,
-		private readonly client: ITypescriptServiceClient
+		private readonly client: ITypeScriptServiceClient
 	) { }
 
 	public open(): void {
@@ -106,7 +106,7 @@ export interface Diagnostics {
 
 export default class BufferSyncSupport {
 
-	private readonly client: ITypescriptServiceClient;
+	private readonly client: ITypeScriptServiceClient;
 
 	private _validate: boolean;
 	private readonly modeIds: Set<string>;
@@ -118,7 +118,7 @@ export default class BufferSyncSupport {
 	private readonly diagnosticDelayer: Delayer<any>;
 
 	constructor(
-		client: ITypescriptServiceClient,
+		client: ITypeScriptServiceClient,
 		modeIds: string[],
 		diagnostics: Diagnostics,
 		validate: boolean

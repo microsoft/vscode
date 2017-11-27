@@ -16,6 +16,7 @@ import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { ILanguageExtensionPoint, IValidLanguageExtensionPoint } from 'vs/editor/common/services/modeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export const languagesExtPoint: IExtensionPoint<ILanguageExtensionPoint[]> = ExtensionsRegistry.registerExtensionPoint<ILanguageExtensionPoint[]>('languages', [], {
 	description: nls.localize('vscode.extension.contributes.languages', 'Contributes language declarations.'),
@@ -84,9 +85,10 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 
 	constructor(
 		@IExtensionService extensionService: IExtensionService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IEnvironmentService environmentService: IEnvironmentService
 	) {
-		super();
+		super(environmentService.verbose || environmentService.isExtensionDevelopment || !environmentService.isBuilt);
 		this._configurationService = configurationService;
 		this._extensionService = extensionService;
 
@@ -136,7 +138,7 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 
 	protected _onReady(): TPromise<boolean> {
 		if (!this._onReadyPromise) {
-			this._onReadyPromise = this._extensionService.onReady().then(() => {
+			this._onReadyPromise = this._extensionService.whenInstalledExtensionsRegistered().then(() => {
 				this.updateMime();
 				return true;
 			});
@@ -146,7 +148,7 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 	}
 
 	private updateMime(): void {
-		const configuration = this._configurationService.getConfiguration<IFilesConfiguration>();
+		const configuration = this._configurationService.getValue<IFilesConfiguration>();
 
 		// Clear user configured mime associations
 		mime.clearTextMimes(true /* user configured */);

@@ -15,7 +15,7 @@ import * as modes from 'vs/editor/common/modes';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
-import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
+import { ExtHostDiagnostics, DiagnosticCollection } from 'vs/workbench/api/node/extHostDiagnostics';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IExtHostSuggestResult, IExtHostSuggestion, IWorkspaceSymbols, IWorkspaceSymbol, IdObject } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
@@ -255,7 +255,11 @@ class ReferenceAdapter {
 	}
 }
 
-class QuickFixAdapter {
+export interface CustomCodeAction extends modes.CodeAction {
+	_isSynthetic?: boolean;
+}
+
+class CodeActionAdapter {
 
 	private _documents: ExtHostDocuments;
 	private _commands: CommandsConverter;
@@ -269,7 +273,7 @@ class QuickFixAdapter {
 		this._provider = provider;
 	}
 
-	provideCodeActions(resource: URI, range: IRange): TPromise<modes.Command[]> {
+	provideCodeActions(resource: URI, range: IRange): TPromise<modes.CodeAction[]> {
 
 		const doc = this._documents.getDocumentData(resource).document;
 		const ran = <vscode.Range>TypeConverters.toRange(range);
@@ -285,12 +289,44 @@ class QuickFixAdapter {
 			}
 		});
 
-		return asWinJsPromise(token => this._provider.provideCodeActions(doc, ran, { diagnostics: allDiagnostics }, token)).then(commands => {
-			if (!Array.isArray(commands)) {
+		return asWinJsPromise(token => this._provider.provideCodeActions2
+			? this._provider.provideCodeActions2(doc, ran, { diagnostics: allDiagnostics }, token)
+			: this._provider.provideCodeActions(doc, ran, { diagnostics: allDiagnostics }, token)
+		).then(commandsOrActions => {
+			if (isFalsyOrEmpty(commandsOrActions)) {
 				return undefined;
 			}
-			return commands.map(command => this._commands.toInternal(command));
+			const result: CustomCodeAction[] = [];
+			for (const candidate of commandsOrActions) {
+				if (!candidate) {
+					continue;
+				}
+				if (CodeActionAdapter._isCommand(candidate)) {
+					// old school: synthetic code action
+					result.push({
+						_isSynthetic: true,
+						title: candidate.title,
+						command: this._commands.toInternal(candidate),
+					});
+				} else {
+					// new school: convert code action
+					result.push({
+						title: candidate.title,
+						command: candidate.command && this._commands.toInternal(candidate.command),
+						diagnostics: candidate.diagnostics && candidate.diagnostics.map(DiagnosticCollection.toMarkerData),
+						edits: Array.isArray(candidate.edits)
+							? TypeConverters.WorkspaceEdit.fromTextEdits(resource, candidate.edits)
+							: candidate.edits && TypeConverters.WorkspaceEdit.from(candidate.edits),
+					});
+				}
+			}
+
+			return result;
 		});
+	}
+
+	private static _isCommand(thing: any): thing is vscode.Command {
+		return typeof (<vscode.Command>thing).command === 'string' && typeof (<vscode.Command>thing).title === 'string';
 	}
 }
 
@@ -382,13 +418,23 @@ class NavigateTypeAdapter {
 		return asWinJsPromise(token => this._provider.provideWorkspaceSymbols(search, token)).then(value => {
 			if (!isFalsyOrEmpty(value)) {
 				for (const item of value) {
+					if (!item) {
+						// drop
+						continue;
+					}
+					if (!item.name) {
+						console.warn('INVALID SymbolInformation, lacks name', item);
+						continue;
+					}
 					const symbol = IdObject.mixin(TypeConverters.fromSymbolInformation(item));
 					this._symbolCache[symbol._id] = item;
 					result.symbols.push(symbol);
 				}
 			}
 		}).then(() => {
-			this._resultCache[result._id] = [result.symbols[0]._id, result.symbols[result.symbols.length - 1]._id];
+			if (result.symbols.length > 0) {
+				this._resultCache[result._id] = [result.symbols[0]._id, result.symbols[result.symbols.length - 1]._id];
+			}
 			return result;
 		});
 	}
@@ -438,30 +484,22 @@ class RenameAdapter {
 			if (!value) {
 				return undefined;
 			}
-
-			let result = <modes.WorkspaceEdit>{
-				edits: []
-			};
-
-			for (let entry of value.entries()) {
-				let [uri, textEdits] = entry;
-				for (let textEdit of textEdits) {
-					result.edits.push({
-						resource: uri,
-						newText: textEdit.newText,
-						range: TypeConverters.fromRange(textEdit.range)
-					});
-				}
-			}
-			return result;
+			return TypeConverters.WorkspaceEdit.from(value);
 		}, err => {
 			if (typeof err === 'string') {
 				return <modes.WorkspaceEdit>{
 					edits: undefined,
 					rejectReason: err
 				};
+			} else if (err instanceof Error && typeof err.message === 'string') {
+				return <modes.WorkspaceEdit>{
+					edits: undefined,
+					rejectReason: err.message
+				};
+			} else {
+				// generic error
+				return TPromise.wrapError<modes.WorkspaceEdit>(err);
 			}
-			return TPromise.wrapError<modes.WorkspaceEdit>(err);
 		});
 	}
 }
@@ -707,9 +745,7 @@ class LinkProviderAdapter {
 class ColorProviderAdapter {
 
 	constructor(
-		private _proxy: MainThreadLanguageFeaturesShape,
 		private _documents: ExtHostDocuments,
-		private _colorFormatCache: Map<string, number>,
 		private _provider: vscode.DocumentColorProvider
 	) { }
 
@@ -742,7 +778,7 @@ class ColorProviderAdapter {
 }
 
 type Adapter = OutlineAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
-	| DocumentHighlightAdapter | ReferenceAdapter | QuickFixAdapter | DocumentFormattingAdapter
+	| DocumentHighlightAdapter | ReferenceAdapter | CodeActionAdapter | DocumentFormattingAdapter
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
 	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter | TypeDefinitionAdapter | ColorProviderAdapter;
 
@@ -756,7 +792,6 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	private _heapService: ExtHostHeapService;
 	private _diagnostics: ExtHostDiagnostics;
 	private _adapter = new Map<number, Adapter>();
-	private _colorFormatCache = new Map<string, number>();
 
 	constructor(
 		mainContext: IMainContext,
@@ -908,13 +943,13 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	registerCodeActionProvider(selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter.set(handle, new QuickFixAdapter(this._documents, this._commands.converter, this._diagnostics, provider));
+		this._adapter.set(handle, new CodeActionAdapter(this._documents, this._commands.converter, this._diagnostics, provider));
 		this._proxy.$registerQuickFixSupport(handle, selector);
 		return this._createDisposable(handle);
 	}
 
-	$provideCodeActions(handle: number, resource: URI, range: IRange): TPromise<modes.Command[]> {
-		return this._withAdapter(handle, QuickFixAdapter, adapter => adapter.provideCodeActions(resource, range));
+	$provideCodeActions(handle: number, resource: URI, range: IRange): TPromise<modes.CodeAction[]> {
+		return this._withAdapter(handle, CodeActionAdapter, adapter => adapter.provideCodeActions(resource, range));
 	}
 
 	// --- formatting
@@ -1039,7 +1074,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	registerColorProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentColorProvider): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter.set(handle, new ColorProviderAdapter(this._proxy, this._documents, this._colorFormatCache, provider));
+		this._adapter.set(handle, new ColorProviderAdapter(this._documents, provider));
 		this._proxy.$registerDocumentColorProvider(handle, selector);
 		return this._createDisposable(handle);
 	}

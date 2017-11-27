@@ -13,7 +13,7 @@ import { Reader } from './utils/wireProtocol';
 
 import { workspace, window, Uri, CancellationToken, Disposable, Memento, MessageItem, EventEmitter, Event, commands, env } from 'vscode';
 import * as Proto from './protocol';
-import { ITypescriptServiceClient, ITypescriptServiceClientHost } from './typescriptService';
+import { ITypeScriptServiceClient, ITypeScriptServiceClientHost } from './typescriptService';
 import { TypeScriptServerPlugin } from './utils/plugins';
 import Logger from './utils/logger';
 
@@ -36,14 +36,14 @@ interface CallbackItem {
 }
 
 class CallbackMap {
-	private callbacks: Map<number, CallbackItem> = new Map();
+	private readonly callbacks: Map<number, CallbackItem> = new Map();
 	public pendingResponses: number = 0;
 
 	public destroy(e: any): void {
 		for (const callback of this.callbacks.values()) {
 			callback.e(e);
 		}
-		this.callbacks = new Map();
+		this.callbacks.clear();
 		this.pendingResponses = 0;
 	}
 
@@ -69,15 +69,6 @@ interface RequestItem {
 	request: Proto.Request;
 	promise: Promise<any> | null;
 	callbacks: CallbackItem | null;
-}
-
-
-enum MessageAction {
-	reportIssue
-}
-
-interface MyMessageItem extends MessageItem {
-	id: MessageAction;
 }
 
 class RequestQueue {
@@ -116,7 +107,7 @@ class RequestQueue {
 	}
 }
 
-export default class TypeScriptServiceClient implements ITypescriptServiceClient {
+export default class TypeScriptServiceClient implements ITypeScriptServiceClient {
 	private static readonly WALK_THROUGH_SNIPPET_SCHEME = 'walkThroughSnippet';
 	private static readonly WALK_THROUGH_SNIPPET_SCHEME_COLON = `${TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME}:`;
 
@@ -128,7 +119,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private versionPicker: TypeScriptVersionPicker;
 
 	private tracer: Tracer;
-	private readonly logger: Logger = new Logger();
+	public readonly logger: Logger = new Logger();
 	private tsServerLogFile: string | null = null;
 	private servicePromise: Thenable<cp.ChildProcess> | null;
 	private lastError: Error | null;
@@ -147,7 +138,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private readonly _onDidEndInstallTypings = new EventEmitter<Proto.EndInstallTypesEventBody>();
 	private readonly _onTypesInstallerInitializationFailed = new EventEmitter<Proto.TypesInstallerInitializationFailedEventBody>();
 
-	private telemetryReporter: TelemetryReporter;
+	public readonly telemetryReporter: TelemetryReporter;
 	/**
 	 * API version obtained from the version picker after checking the corresponding path exists.
 	 */
@@ -160,7 +151,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	private readonly disposables: Disposable[] = [];
 
 	constructor(
-		private readonly host: ITypescriptServiceClientHost,
+		private readonly host: ITypeScriptServiceClientHost,
 		private readonly workspaceState: Memento,
 		private readonly versionStatus: VersionStatus,
 		public readonly plugins: TypeScriptServerPlugin[]
@@ -384,6 +375,7 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 						this.isRestarting = false;
 					});
 
+					// tslint:disable-next-line:no-unused-expression
 					new Reader<Proto.Response>(
 						childProcess.stdout,
 						(msg) => { this.dispatchMessage(msg); },
@@ -502,6 +494,14 @@ export default class TypeScriptServiceClient implements ITypescriptServiceClient
 	}
 
 	private serviceExited(restart: boolean): void {
+		enum MessageAction {
+			reportIssue
+		}
+
+		interface MyMessageItem extends MessageItem {
+			id: MessageAction;
+		}
+
 		this.servicePromise = null;
 		this.tsServerLogFile = null;
 		this.callbacks.destroy(new Error('Service died.'));

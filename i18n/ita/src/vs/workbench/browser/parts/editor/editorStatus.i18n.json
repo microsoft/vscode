@@ -53,5 +53,5 @@
 	"screenReaderDetectedExplanation.answerYes": "Sì",
 	"screenReaderDetectedExplanation.answerNo": "No",
 	"screenReaderDetectedExplanation.body1": "VS Code è ora ottimizzato per l'utilizzo con un'utilità per la lettura dello schermo.",
-	"screenReaderDetectedExplanation.body2": "Il comportamento di alcune funzionalità dell'editor sarà diverso, ad esempio a capo automatico, riduzione del codice, chiusura automatica delle parentesi e così via."
+	"screenReaderDetectedExplanation.body2": "Alcune funzionalità dell'editor avranno un comportamento differente: ad esempio a capo automatico, folding, ecc."
 }

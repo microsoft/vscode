@@ -198,10 +198,6 @@ export class ActivityActionItem extends BaseActionItem {
 		this.updateStyles();
 	}
 
-	public setBadge(badge: IBadge): void {
-		this.updateBadge(badge);
-	}
-
 	protected updateBadge(badge: IBadge): void {
 		this.$badgeContent.empty();
 		this.$badge.hide();
@@ -211,7 +207,13 @@ export class ActivityActionItem extends BaseActionItem {
 			// Number
 			if (badge instanceof NumberBadge) {
 				if (badge.number) {
-					this.$badgeContent.text(badge.number > 99 ? '99+' : badge.number.toString());
+					let number = badge.number.toString();
+					if (badge.number > 9999) {
+						number = nls.localize('largeNumberBadge', '10k+');
+					} else if (badge.number > 999) {
+						number = number.charAt(0) + 'k';
+					}
+					this.$badgeContent.text(number);
 					this.$badge.show();
 				}
 			}
@@ -291,8 +293,6 @@ export class CompositeOverflowActivityAction extends ActivityAction {
 }
 
 export class CompositeOverflowActivityActionItem extends ActivityActionItem {
-	private name: string;
-	private cssClass: string;
 	private actions: Action[];
 
 	constructor(
@@ -302,14 +302,10 @@ export class CompositeOverflowActivityActionItem extends ActivityActionItem {
 		private getBadge: (compositeId: string) => IBadge,
 		private getCompositeOpenAction: (compositeId: string) => Action,
 		colors: ICompositeBarColors,
-		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IThemeService themeService: IThemeService
 	) {
 		super(action, { icon: true, colors }, themeService);
-
-		this.cssClass = action.class;
-		this.name = action.label;
 	}
 
 	public showMenu(): void {

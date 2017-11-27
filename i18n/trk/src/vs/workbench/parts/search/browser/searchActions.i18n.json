@@ -20,6 +20,7 @@
 	"findInWorkspace": "Çalışma Alanında Bul...",
 	"findInFolder": "Klasörde Bul...",
 	"RefreshAction.label": "Yenile",
+	"collapse": "Daralt",
 	"ClearSearchResultsAction.label": "Arama Sonuçlarını Temizle",
 	"FocusNextSearchResult.label": "Sonraki Arama Sonucuna Odakla",
 	"FocusPreviousSearchResult.label": "Önceki Arama Sonucuna Odakla",

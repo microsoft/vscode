@@ -3191,10 +3191,15 @@
 							<key>name</key>
 							<string>punctuation.definition.string.begin.markdown</string>
 						</dict>
-						<key>10</key>
+						<key>9</key>
 						<dict>
 							<key>name</key>
 							<string>string.other.link.description.title.markdown</string>
+						</dict>
+						<key>10</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.string.markdown</string>
 						</dict>
 						<key>11</key>
 						<dict>
@@ -3204,12 +3209,12 @@
 						<key>12</key>
 						<dict>
 							<key>name</key>
-							<string>punctuation.definition.string.markdown</string>
+							<string>string.other.link.description.title.markdown</string>
 						</dict>
 						<key>13</key>
 						<dict>
 							<key>name</key>
-							<string>string.other.link.description.title.markdown</string>
+							<string>punctuation.definition.string.markdown</string>
 						</dict>
 						<key>14</key>
 						<dict>
@@ -3217,11 +3222,6 @@
 							<string>punctuation.definition.string.markdown</string>
 						</dict>
 						<key>15</key>
-						<dict>
-							<key>name</key>
-							<string>punctuation.definition.string.markdown</string>
-						</dict>
-						<key>16</key>
 						<dict>
 							<key>name</key>
 							<string>punctuation.definition.metadata.markdown</string>
@@ -3239,24 +3239,19 @@
 						<key>5</key>
 						<dict>
 							<key>name</key>
-							<string>invalid.illegal.whitespace.markdown</string>
+							<string>punctuation.definition.metadata.markdown</string>
 						</dict>
 						<key>6</key>
 						<dict>
 							<key>name</key>
-							<string>punctuation.definition.metadata.markdown</string>
+							<string>punctuation.definition.link.markdown</string>
 						</dict>
 						<key>7</key>
 						<dict>
 							<key>name</key>
-							<string>punctuation.definition.link.markdown</string>
-						</dict>
-						<key>8</key>
-						<dict>
-							<key>name</key>
 							<string>markup.underline.link.image.markdown</string>
 						</dict>
-						<key>9</key>
+						<key>8</key>
 						<dict>
 							<key>name</key>
 							<string>punctuation.definition.link.markdown</string>
@@ -3266,7 +3261,6 @@
 					<string>(?x:
 						(\!\[)((?&lt;square&gt;[^\[\]\\]|\\.|\[\g&lt;square&gt;*+\])*+)(\])
 													# Match the link text.
-						([ ])?						# Space not allowed
 						(\()						# Opening paren for url
 							(&lt;?)(\S+?)(&gt;?)			# The url
 							[ \t]*					# Optional whitespace
@@ -3503,37 +3497,37 @@
 							<key>name</key>
 							<string>punctuation.definition.string.begin.markdown</string>
 						</dict>
-						<key>10</key>
+						<key>9</key>
 						<dict>
 							<key>name</key>
 							<string>string.other.link.description.title.markdown</string>
+						</dict>
+						<key>10</key>
+						<dict>
+							<key>name</key>
+							<string>punctuation.definition.string.begin.markdown</string>
 						</dict>
 						<key>11</key>
 						<dict>
 							<key>name</key>
-							<string>punctuation.definition.string.begin.markdown</string>
+							<string>punctuation.definition.string.end.markdown</string>
 						</dict>
 						<key>12</key>
 						<dict>
 							<key>name</key>
-							<string>punctuation.definition.string.end.markdown</string>
+							<string>string.other.link.description.title.markdown</string>
 						</dict>
 						<key>13</key>
 						<dict>
 							<key>name</key>
-							<string>string.other.link.description.title.markdown</string>
+							<string>punctuation.definition.string.begin.markdown</string>
 						</dict>
 						<key>14</key>
 						<dict>
 							<key>name</key>
-							<string>punctuation.definition.string.begin.markdown</string>
-						</dict>
-						<key>15</key>
-						<dict>
-							<key>name</key>
 							<string>punctuation.definition.string.end.markdown</string>
 						</dict>
-						<key>16</key>
+						<key>15</key>
 						<dict>
 							<key>name</key>
 							<string>punctuation.definition.metadata.markdown</string>
@@ -3551,24 +3545,19 @@
 						<key>5</key>
 						<dict>
 							<key>name</key>
-							<string>invalid.illegal.whitespace.markdown</string>
+							<string>punctuation.definition.metadata.markdown</string>
 						</dict>
 						<key>6</key>
 						<dict>
 							<key>name</key>
-							<string>punctuation.definition.metadata.markdown</string>
+							<string>punctuation.definition.link.markdown</string>
 						</dict>
 						<key>7</key>
 						<dict>
 							<key>name</key>
-							<string>punctuation.definition.link.markdown</string>
-						</dict>
-						<key>8</key>
-						<dict>
-							<key>name</key>
 							<string>markup.underline.link.markdown</string>
 						</dict>
-						<key>9</key>
+						<key>8</key>
 						<dict>
 							<key>name</key>
 							<string>punctuation.definition.link.markdown</string>
@@ -3578,7 +3567,6 @@
 					<string>(?x:
 						(\[)((?&lt;square&gt;[^\[\]\\]|\\.|\[\g&lt;square&gt;*+\])*+)(\])
 													# Match the link text.
-						([ ])?						# Space not allowed
 						(\()						# Opening paren for url
 							(&lt;?)(.*?)(&gt;?)			# The url
 							[ \t]*					# Optional whitespace

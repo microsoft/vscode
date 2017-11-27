@@ -39,6 +39,7 @@
 	"typescript.openTsServerLog.title": "Ouvrir le journal du serveur TS",
 	"typescript.restartTsServer": "Redémarrer le serveur TS",
 	"typescript.selectTypeScriptVersion.title": "Sélectionner la version de TypeScript",
+	"typescript.reportStyleChecksAsWarnings": "Rapporter les vérifications de style comme des avertissements",
 	"jsDocCompletion.enabled": "Activer/désactiver les commentaires JSDoc automatiques",
 	"javascript.implicitProjectConfig.checkJs": "Activer/désactiver la vérification sémantique des fichiers JavaScript. Les fichiers jsconfig.json ou tsconfig.json existants remplacent ce paramètre. Nécessite TypeScript >=2.3.1.",
 	"typescript.npm": "Spécifie le chemin de l'exécutable NPM utilisé pour l'acquisition de type automatique. Nécessite TypeScript >= 2.3.4.",

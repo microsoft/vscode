@@ -15,7 +15,6 @@
 .extension-editor > .header {
 	display: flex;
 	height: 128px;
-	background: rgba(128, 128, 128, 0.15);
 	padding: 20px;
 	overflow: hidden;
 	font-size: 14px;
@@ -60,6 +59,19 @@
 	user-select: text;
 	-webkit-user-select: text;
 	white-space: nowrap;
+}
+
+.vs .extension-editor > .header > .details > .title > .preview {
+	color: white;
+}
+
+.extension-editor > .header > .details > .title > .preview {
+	background: rgb(214, 63, 38);
+	font-size: 10px;
+	font-style: italic;
+	margin-left: 10px;
+	padding: 0px 4px;
+	border-radius: 4px;
 }
 
 .extension-editor > .header > .details > .subtitle {

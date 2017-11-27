@@ -14,7 +14,7 @@ VSO_PAT="$6"
 echo "machine monacotools.visualstudio.com password $VSO_PAT" > ~/.netrc
 
 step "Install dependencies" \
-	npm install
+	yarn
 
 step "Hygiene" \
 	npm run gulp -- hygiene

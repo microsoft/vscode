@@ -96,7 +96,7 @@ export class FileEntry extends EditorQuickOpenEntry {
 		const input: IResourceInput = {
 			resource: this.resource,
 			options: {
-				pinned: !this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen
+				pinned: !this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen
 			}
 		};
 
@@ -123,7 +123,6 @@ export class OpenFileHandler extends QuickOpenHandler {
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ISearchService private searchService: ISearchService,
-		@IConfigurationService private configurationService: IConfigurationService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super();
@@ -142,6 +141,9 @@ export class OpenFileHandler extends QuickOpenHandler {
 		if (!searchValue) {
 			return TPromise.as(new FileQuickOpenModel([]));
 		}
+
+		// Untildify file pattern
+		searchValue = labels.untildify(searchValue, this.environmentService.userHome);
 
 		// Do find results
 		return this.doFindResults(searchValue, this.cacheState.cacheKey, maxSortedResults);

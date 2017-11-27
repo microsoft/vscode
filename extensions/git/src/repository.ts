@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData } from 'vscode';
+import { Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData, Memento } from 'vscode';
 import { Repository as BaseRepository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash, RefType, GitError } from './git';
 import { anyEvent, filterEvent, eventToPromise, dispose, find } from './util';
 import { memoize, throttle, debounce } from './decorators';
@@ -82,7 +82,7 @@ export class Resource implements SourceControlResourceState {
 	get original(): Uri { return this._resourceUri; }
 	get renameResourceUri(): Uri | undefined { return this._renameResourceUri; }
 
-	private static Icons = {
+	private static Icons: any = {
 		light: {
 			Modified: getIconUri('status-modified', 'light'),
 			Added: getIconUri('status-added', 'light'),
@@ -296,11 +296,13 @@ export enum Operation {
 	Stage = 'Stage',
 	GetCommitTemplate = 'GetCommitTemplate',
 	DeleteBranch = 'DeleteBranch',
+	RenameBranch = 'RenameBranch',
 	Merge = 'Merge',
 	Ignore = 'Ignore',
 	Tag = 'Tag',
 	Stash = 'Stash',
-	CheckIgnore = 'CheckIgnore'
+	CheckIgnore = 'CheckIgnore',
+	LSTree = 'LSTree'
 }
 
 function isReadOnly(operation: Operation): boolean {
@@ -308,6 +310,7 @@ function isReadOnly(operation: Operation): boolean {
 		case Operation.Show:
 		case Operation.GetCommitTemplate:
 		case Operation.CheckIgnore:
+		case Operation.LSTree:
 			return true;
 		default:
 			return false;
@@ -318,6 +321,8 @@ function shouldShowProgress(operation: Operation): boolean {
 	switch (operation) {
 		case Operation.Fetch:
 		case Operation.CheckIgnore:
+		case Operation.LSTree:
+		case Operation.Show:
 			return false;
 		default:
 			return true;
@@ -369,10 +374,16 @@ export interface CommitOptions {
 	amend?: boolean;
 	signoff?: boolean;
 	signCommit?: boolean;
+	defaultMsg?: string;
 }
 
 export interface GitResourceGroup extends SourceControlResourceGroup {
 	resourceStates: Resource[];
+}
+
+export interface OperationResult {
+	operation: Operation;
+	error: any;
 }
 
 export class Repository implements Disposable {
@@ -392,8 +403,8 @@ export class Repository implements Disposable {
 	private _onRunOperation = new EventEmitter<Operation>();
 	readonly onRunOperation: Event<Operation> = this._onRunOperation.event;
 
-	private _onDidRunOperation = new EventEmitter<Operation>();
-	readonly onDidRunOperation: Event<Operation> = this._onDidRunOperation.event;
+	private _onDidRunOperation = new EventEmitter<OperationResult>();
+	readonly onDidRunOperation: Event<OperationResult> = this._onDidRunOperation.event;
 
 	@memoize
 	get onDidChangeOperations(): Event<void> {
@@ -456,7 +467,8 @@ export class Repository implements Disposable {
 	private disposables: Disposable[] = [];
 
 	constructor(
-		private readonly repository: BaseRepository
+		private readonly repository: BaseRepository,
+		globalState: Memento
 	) {
 		const fsWatcher = workspace.createFileSystemWatcher('**');
 		this.disposables.push(fsWatcher);
@@ -470,6 +482,7 @@ export class Repository implements Disposable {
 		onRelevantGitChange(this._onDidChangeRepository.fire, this._onDidChangeRepository, this.disposables);
 
 		this._sourceControl = scm.createSourceControl('git', 'Git', Uri.file(repository.root));
+		this._sourceControl.inputBox.placeholder = localize('commitMessage', "Message (press {0} to commit)");
 		this._sourceControl.acceptInputCommand = { command: 'git.commitWithInput', title: localize('commit', "Commit"), arguments: [this._sourceControl] };
 		this._sourceControl.quickDiffProvider = this;
 		this.disposables.push(this._sourceControl);
@@ -485,7 +498,7 @@ export class Repository implements Disposable {
 		this.disposables.push(this.indexGroup);
 		this.disposables.push(this.workingTreeGroup);
 
-		this.disposables.push(new AutoFetcher(this));
+		this.disposables.push(new AutoFetcher(this, globalState));
 
 		const statusBar = new StatusBarCommands(this);
 		this.disposables.push(statusBar);
@@ -598,6 +611,10 @@ export class Repository implements Disposable {
 		await this.run(Operation.DeleteBranch, () => this.repository.deleteBranch(name, force));
 	}
 
+	async renameBranch(name: string): Promise<void> {
+		await this.run(Operation.RenameBranch, () => this.repository.renameBranch(name));
+	}
+
 	async merge(ref: string): Promise<void> {
 		await this.run(Operation.Merge, () => this.repository.merge(ref));
 	}
@@ -650,10 +667,9 @@ export class Repository implements Disposable {
 		await this.run(Operation.Push, () => this.repository.push(remote, undefined, false, true));
 	}
 
-	@throttle
-	async sync(): Promise<void> {
+	private async _sync(rebase: boolean): Promise<void> {
 		await this.run(Operation.Sync, async () => {
-			await this.repository.pull();
+			await this.repository.pull(rebase);
 
 			const shouldPush = this.HEAD && typeof this.HEAD.ahead === 'number' ? this.HEAD.ahead > 0 : true;
 
@@ -663,22 +679,52 @@ export class Repository implements Disposable {
 		});
 	}
 
+	@throttle
+	sync(): Promise<void> {
+		return this._sync(false);
+	}
+
+	@throttle
+	async syncRebase(): Promise<void> {
+		return this._sync(true);
+	}
+
 	async show(ref: string, filePath: string): Promise<string> {
 		return await this.run(Operation.Show, async () => {
 			const relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
 			const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
 			const encoding = configFiles.get<string>('encoding');
 
-			return await this.repository.buffer(`${ref}:${relativePath}`, encoding);
+			// TODO@joao: Resource config api
+			return await this.repository.bufferString(`${ref}:${relativePath}`, encoding);
 		});
+	}
+
+	async buffer(ref: string, filePath: string): Promise<Buffer> {
+		return await this.run(Operation.Show, async () => {
+			const relativePath = path.relative(this.repository.root, filePath).replace(/\\/g, '/');
+			const configFiles = workspace.getConfiguration('files', Uri.file(filePath));
+			const encoding = configFiles.get<string>('encoding');
+
+			// TODO@joao: REsource config api
+			return await this.repository.buffer(`${ref}:${relativePath}`);
+		});
+	}
+
+	lstree(ref: string, filePath: string): Promise<{ mode: number, object: string, size: number }> {
+		return this.run(Operation.LSTree, () => this.repository.lstree(ref, filePath));
+	}
+
+	detectObjectType(object: string): Promise<{ mimetype: string, encoding?: string }> {
+		return this.run(Operation.Show, () => this.repository.detectObjectType(object));
 	}
 
 	async getStashes(): Promise<Stash[]> {
 		return await this.repository.getStashes();
 	}
 
-	async createStash(message?: string): Promise<void> {
-		return await this.run(Operation.Stash, () => this.repository.createStash(message));
+	async createStash(message?: string, includeUntracked?: boolean): Promise<void> {
+		return await this.run(Operation.Stash, () => this.repository.createStash(message, includeUntracked));
 	}
 
 	async popStash(index?: number): Promise<void> {
@@ -719,18 +765,20 @@ export class Repository implements Disposable {
 
 				if (filePaths.length === 0) {
 					// nothing left
-					return Promise.resolve(new Set<string>());
+					return resolve(new Set<string>());
 				}
 
-				const child = this.repository.stream(['check-ignore', ...filePaths]);
+				// https://git-scm.com/docs/git-check-ignore#git-check-ignore--z
+				const child = this.repository.stream(['check-ignore', '-z', '--stdin'], { stdio: [null, null, null] });
+				child.stdin.end(filePaths.join('\0'), 'utf8');
 
-				const onExit = exitCode => {
+				const onExit = (exitCode: number) => {
 					if (exitCode === 1) {
 						// nothing ignored
 						resolve(new Set<string>());
 					} else if (exitCode === 0) {
-						// each line is something ignored
-						resolve(new Set<string>(data.split('\n')));
+						// paths are separated by the null-character
+						resolve(new Set<string>(data.split('\0')));
 					} else {
 						reject(new GitError({ stdout: data, stderr, exitCode }));
 					}
@@ -760,6 +808,8 @@ export class Repository implements Disposable {
 		}
 
 		const run = async () => {
+			let error: any = null;
+
 			this._operations.start(operation);
 			this._onRunOperation.fire(operation);
 
@@ -772,6 +822,8 @@ export class Repository implements Disposable {
 
 				return result;
 			} catch (err) {
+				error = err;
+
 				if (err.gitErrorCode === GitErrorCodes.NotAGitRepository) {
 					this.state = RepositoryState.Disposed;
 				}
@@ -779,7 +831,7 @@ export class Repository implements Disposable {
 				throw err;
 			} finally {
 				this._operations.end(operation);
-				this._onDidRunOperation.fire(operation);
+				this._onDidRunOperation.fire({ operation, error });
 			}
 		};
 

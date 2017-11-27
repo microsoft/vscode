@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import 'mocha';
 import * as assert from 'assert';
 import { getJavascriptMode } from '../modes/javascriptMode';
 import { TextDocument } from 'vscode-languageserver-types';
@@ -27,10 +28,10 @@ suite('HTML Javascript Support', () => {
 		var mode = getJavascriptMode(documentRegions);
 
 		let position = document.positionAt(offset);
-		let list = mode.doComplete(document, position);
+		let list = mode.doComplete!(document, position);
 		assert.ok(list);
 
-		let actualLabels = list.items.map(c => c.label).sort();
+		let actualLabels = list!.items.map(c => c.label).sort();
 		for (let expected of expectedProposals) {
 			assert.ok(actualLabels.indexOf(expected) !== -1, 'Not found:' + expected + ' is ' + actualLabels.join(', '));
 		}

@@ -11,12 +11,9 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { MainThreadWorkspaceShape, ExtHostWorkspaceShape, ExtHostContext, MainContext, IExtHostContext } from '../node/extHost.protocol';
-import { IFileService } from 'vs/platform/files/common/files';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IRelativePattern } from 'vs/base/common/glob';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -30,9 +27,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@ISearchService private readonly _searchService: ISearchService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@IConfigurationService private _configurationService: IConfigurationService,
-		@IFileService private readonly _fileService: IFileService,
-		@IWorkspaceEditingService private _workspaceEditingService: IWorkspaceEditingService
+		@IConfigurationService private _configurationService: IConfigurationService
 	) {
 		this._proxy = extHostContext.get(ExtHostContext.ExtHostWorkspace);
 		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._toDispose);
@@ -56,26 +51,30 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- search ---
 
-	$startSearch(include: string | IRelativePattern, exclude: string | IRelativePattern, maxResults: number, requestId: number): Thenable<URI[]> {
+	$startSearch(includePattern: string, includeFolder: string, excludePattern: string, maxResults: number, requestId: number): Thenable<URI[]> {
 		const workspace = this._contextService.getWorkspace();
 		if (!workspace.folders.length) {
 			return undefined;
 		}
 
 		let folderQueries: IFolderQuery[];
-		if (typeof include === 'string' || !include) {
-			folderQueries = workspace.folders.map(folder => ({ folder: folder.uri })); // absolute pattern: search across all folders
+		if (typeof includeFolder === 'string') {
+			folderQueries = [{ folder: URI.file(includeFolder) }]; // if base provided, only search in that folder
 		} else {
-			folderQueries = [{ folder: URI.file(include.base) }]; // relative pattern: search only in base folder
+			folderQueries = workspace.folders.map(folder => ({ folder: folder.uri })); // absolute pattern: search across all folders
+		}
+
+		if (!folderQueries) {
+			return undefined; // invalid query parameters
 		}
 
 		const useRipgrep = folderQueries.every(folderQuery => {
-			const folderConfig = this._configurationService.getConfiguration<ISearchConfiguration>({ resource: folderQuery.folder });
+			const folderConfig = this._configurationService.getValue<ISearchConfiguration>({ resource: folderQuery.folder });
 			return folderConfig.search.useRipgrep;
 		});
 
 		const ignoreSymlinks = folderQueries.every(folderQuery => {
-			const folderConfig = this._configurationService.getConfiguration<ISearchConfiguration>({ resource: folderQuery.folder });
+			const folderConfig = this._configurationService.getValue<ISearchConfiguration>({ resource: folderQuery.folder });
 			return !folderConfig.search.followSymlinks;
 		});
 
@@ -83,8 +82,8 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			folderQueries,
 			type: QueryType.File,
 			maxResults,
-			includePattern: { [typeof include === 'string' ? include : !!include ? include.pattern : undefined]: true },
-			excludePattern: { [typeof exclude === 'string' ? exclude : !!exclude ? exclude.pattern : undefined]: true },
+			includePattern: { [typeof includePattern === 'string' ? includePattern : undefined]: true },
+			excludePattern: { [typeof excludePattern === 'string' ? excludePattern : undefined]: true },
 			useRipgrep,
 			ignoreSymlinks
 		};

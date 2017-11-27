@@ -133,7 +133,7 @@ export class ColorThemeStore {
 	}
 
 	public getColorThemes(): TPromise<IColorTheme[]> {
-		return this.extensionService.onReady().then(isReady => {
+		return this.extensionService.whenInstalledExtensionsRegistered().then(isReady => {
 			return this.extensionsColorThemes;
 		});
 	}

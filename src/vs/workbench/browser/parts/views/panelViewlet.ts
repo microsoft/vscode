@@ -70,7 +70,7 @@ export abstract class ViewletPanel extends Panel {
 
 		const focusTracker = trackFocus(container);
 		this.disposables.push(focusTracker);
-		this.disposables.push(focusTracker.addFocusListener(() => this._onDidFocus.fire()));
+		this.disposables.push(focusTracker.onDidFocus(() => this._onDidFocus.fire()));
 	}
 
 	protected renderHeader(container: HTMLElement): void {

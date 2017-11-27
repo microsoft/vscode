@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MessageItem, workspace, Disposable, ProgressLocation, window, commands, Uri } from 'vscode';
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
 import { loadMessageBundle } from 'vscode-nls';
 
 const localize = loadMessageBundle();
@@ -13,10 +13,10 @@ const typingsInstallTimeout = 30 * 1000;
 
 export default class TypingsStatus extends Disposable {
 	private _acquiringTypings: { [eventId: string]: NodeJS.Timer } = Object.create({});
-	private _client: ITypescriptServiceClient;
+	private _client: ITypeScriptServiceClient;
 	private _subscriptions: Disposable[] = [];
 
-	constructor(client: ITypescriptServiceClient) {
+	constructor(client: ITypeScriptServiceClient) {
 		super(() => this.dispose());
 		this._client = client;
 
@@ -62,7 +62,7 @@ export class AtaProgressReporter {
 	private _promises = new Map<number, Function>();
 	private _disposable: Disposable;
 
-	constructor(client: ITypescriptServiceClient) {
+	constructor(client: ITypeScriptServiceClient) {
 		this._disposable = Disposable.from(
 			client.onDidBeginInstallTypings(e => this._onBegin(e.eventId)),
 			client.onDidEndInstallTypings(e => this._onEndOrTimeout(e.eventId)),

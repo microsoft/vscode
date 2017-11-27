@@ -82,11 +82,6 @@ class KeybindingInputWidget extends Widget {
 		this._chordPart = null;
 	}
 
-	public setAcceptChords(acceptChords: boolean) {
-		this._acceptChords = acceptChords;
-		this._chordPart = null;
-	}
-
 	private _onKeyDown(keyboardEvent: IKeyboardEvent): void {
 		keyboardEvent.preventDefault();
 		keyboardEvent.stopPropagation();
@@ -137,8 +132,8 @@ class KeybindingInputWidget extends Widget {
 
 export class DefineKeybindingWidget extends Widget {
 
-	private static WIDTH = 400;
-	private static HEIGHT = 90;
+	private static readonly WIDTH = 400;
+	private static readonly HEIGHT = 90;
 
 	private _domNode: FastDomNode<HTMLElement>;
 	private _keybindingInputWidget: KeybindingInputWidget;
@@ -152,7 +147,6 @@ export class DefineKeybindingWidget extends Widget {
 
 	constructor(
 		parent: HTMLElement,
-		@IKeybindingService private keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService
 	) {
@@ -209,7 +203,7 @@ export class DefineKeybindingWidget extends Widget {
 		this._domNode.setClassName('defineKeybindingWidget');
 		this._domNode.setWidth(DefineKeybindingWidget.WIDTH);
 		this._domNode.setHeight(DefineKeybindingWidget.HEIGHT);
-		dom.append(this._domNode.domNode, dom.$('.message', null, nls.localize('defineKeybinding.initial', "Press desired key combination and ENTER. ESCAPE to cancel.")));
+		dom.append(this._domNode.domNode, dom.$('.message', null, nls.localize('defineKeybinding.initial', "Press desired key combination and then press ENTER.")));
 
 		this._register(attachStylerCallback(this.themeService, { editorWidgetBackground, widgetShadow }, colors => {
 			this._domNode.domNode.style.backgroundColor = colors.editorWidgetBackground;
@@ -257,7 +251,7 @@ export class DefineKeybindingWidget extends Widget {
 
 export class DefineKeybindingOverlayWidget extends Disposable implements IOverlayWidget {
 
-	private static ID = 'editor.contrib.defineKeybindingWidget';
+	private static readonly ID = 'editor.contrib.defineKeybindingWidget';
 
 	private readonly _widget: DefineKeybindingWidget;
 

@@ -21,6 +21,5 @@
 	"keybindings.json.command": "Имя выполняемой команды",
 	"keybindings.json.when": "Условие, когда клавиша нажата.",
 	"keybindings.json.args": "Аргументы, передаваемые в выполняемую команду.",
-	"keyboardConfigurationTitle": "Клавиатура",
-	"dispatch": "Управляет логикой диспетчеризации для нажатий клавиш \"keydown.code\" (рекомендуется) или \"keydown.keyCode\"."
+	"keyboardConfigurationTitle": "Клавиатура"
 }

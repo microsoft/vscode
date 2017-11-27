@@ -44,6 +44,11 @@
 	"typescript.npm": "Указывает путь к исполняемому файлу NPM, используемому для автоматического получения типа. Требуется TypeScript версии 2.3.4 или более поздней версии.",
 	"typescript.check.npmIsInstalled": "Проверяет, установлен ли NPM для автоматического получения типов.",
 	"javascript.nameSuggestions": "Включить/отключить использование уникальных имен из файла в списках предложений JavaScript.",
+	"typescript.tsc.autoDetect": "Управляет автоматическим обнаружением задач tsc. При указании значения 'off' эта функция отключается. При указании значения 'build' создаются задачи компиляции для однократного запуска. При указании значения 'watch' создаются только задачи компиляции и наблюдения. При указании значения 'on' создаются как задачи сборки, так и задачи наблюдения. По умолчанию используется значение 'on'.",
 	"typescript.problemMatchers.tsc.label": "Проблемы TypeScript",
-	"typescript.problemMatchers.tscWatch.label": "Проблемы TypeScript (режим наблюдения)"
+	"typescript.problemMatchers.tscWatch.label": "Проблемы TypeScript (режим наблюдения)",
+	"typescript.quickSuggestionsForPaths": "Включить/отключить краткие предложения при вводе пути импорта.",
+	"typescript.locale": "Устанавливает языковой стандарт, используемый для сообщений об ошибках TypeScript. Требуется TypeScript 2.6.0 или более поздней версии. Значение по умолчанию — 'null'. При указании значения null для сообщений об ошибках TypeScript используется языковой стандарт VS Code.",
+	"javascript.implicitProjectConfig.experimentalDecorators": "Включает/отключает параметр 'experimentalDecorators' для файлов JavaScript, которые не являются частью проекта. Этот параметр может переопределяться в файле jsconfig.json или tsconfig.json. Требуется TypeScript 2.3.1 или более поздней версии.",
+	"typescript.autoImportSuggestions.enabled": "Включить/отключить предложения автоматического импорта. Требуется TypeScript 2.6.1 или более поздней версии"
 }

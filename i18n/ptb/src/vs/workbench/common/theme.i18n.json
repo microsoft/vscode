@@ -20,6 +20,7 @@
 	"editorGroupBorder": "Cor para separar múltiplos grupos de editor de outro. Grupos de editor são os recipientes dos editores.",
 	"editorDragAndDropBackground": "Cor de fundo ao arrastar editores. A cor deve ter transparência para que o conteúdo do editor ainda possa ser visto.",
 	"panelBackground": "Cor de fundo do painel. Os painéis são mostrados abaixo da área do editor e contém visualizações como saída e terminal integrado.",
+	"panelBorder": "Cor da borda do painel para separar o painel do editor. Os painéis são exibidos abaixo da área do editor e contém visualizações como saída e terminal integrado.",
 	"panelActiveTitleForeground": "Cor do título para o painel ativo. Os painéis são mostrados abaixo da área do editor e contém visualizações como saída e terminal integrado.",
 	"panelInactiveTitleForeground": "Cor do título para o painel inativo. Os painéis são mostrados abaixo da área do editor e contém visualizações como saída e terminal integrado.",
 	"panelActiveTitleBorder": "Cor da borda para o título do painel ativo. Os painéis são mostrados abaixo da área do editor e contém visualizações como saída e terminal integrado.",

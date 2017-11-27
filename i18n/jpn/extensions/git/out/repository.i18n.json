@@ -21,6 +21,7 @@
 	"deleted by us": "こちら側による削除",
 	"both added": "双方とも追加",
 	"both modified": "双方とも変更",
+	"commitMessage": "Message (press {0} to commit)",
 	"commit": "コミット",
 	"merge changes": "変更のマージ",
 	"staged changes": "ステージング済みの変更",

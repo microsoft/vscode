@@ -18,8 +18,8 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class ToggleOutputAction extends TogglePanelAction {
 
-	public static ID = 'workbench.action.output.toggleOutput';
-	public static LABEL = nls.localize('toggleOutput', "Toggle Output");
+	public static readonly ID = 'workbench.action.output.toggleOutput';
+	public static readonly LABEL = nls.localize('toggleOutput', "Toggle Output");
 
 	constructor(
 		id: string, label: string,
@@ -32,8 +32,8 @@ export class ToggleOutputAction extends TogglePanelAction {
 
 export class ClearOutputAction extends Action {
 
-	public static ID = 'workbench.output.action.clearOutput';
-	public static LABEL = nls.localize('clearOutput', "Clear Output");
+	public static readonly ID = 'workbench.output.action.clearOutput';
+	public static readonly LABEL = nls.localize('clearOutput', "Clear Output");
 
 	constructor(
 		id: string, label: string,
@@ -53,8 +53,8 @@ export class ClearOutputAction extends Action {
 
 export class ToggleOutputScrollLockAction extends Action {
 
-	public static ID = 'workbench.output.action.toggleOutputScrollLock';
-	public static LABEL = nls.localize({ key: 'toggleOutputScrollLock', comment: ['Turn on / off automatic output scrolling'] }, "Toggle Output Scroll Lock");
+	public static readonly ID = 'workbench.output.action.toggleOutputScrollLock';
+	public static readonly LABEL = nls.localize({ key: 'toggleOutputScrollLock', comment: ['Turn on / off automatic output scrolling'] }, "Toggle Output Scroll Lock");
 
 	private toDispose: IDisposable[] = [];
 
@@ -90,7 +90,7 @@ export class ToggleOutputScrollLockAction extends Action {
 
 export class SwitchOutputAction extends Action {
 
-	public static ID = 'workbench.output.action.switchBetweenOutputs';
+	public static readonly ID = 'workbench.output.action.switchBetweenOutputs';
 
 	constructor( @IOutputService private outputService: IOutputService) {
 		super(SwitchOutputAction.ID, nls.localize('switchToOutput.label', "Switch to Output"));

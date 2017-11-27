@@ -6,7 +6,7 @@
 
 import * as path from 'path';
 
-import { workspace, languages, ExtensionContext, extensions, Uri, TextDocument, ColorInformation, Color, ColorPresentation } from 'vscode';
+import { workspace, languages, ExtensionContext, extensions, Uri, TextDocument, ColorInformation, Color, ColorPresentation, LanguageConfiguration } from 'vscode';
 import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { ConfigurationFeature } from 'vscode-languageclient/lib/configuration.proposed';
@@ -50,10 +50,6 @@ interface Settings {
 	};
 }
 
-interface JSONSettings {
-	schemas: JSONSchemaSettings[];
-}
-
 interface JSONSchemaSettings {
 	fileMatch?: string[];
 	url?: string;
@@ -71,7 +67,7 @@ export function activate(context: ExtensionContext) {
 	// The server is implemented in node
 	let serverModule = context.asAbsolutePath(path.join('server', 'out', 'jsonServerMain.js'));
 	// The debug options for the server
-	let debugOptions = { execArgv: ['--nolazy', '--inspect=6004'] };
+	let debugOptions = { execArgv: ['--nolazy', '--inspect'] };
 
 	// If the extension is launch in debug mode the debug server options are use
 	// Otherwise the run options are used
@@ -80,7 +76,7 @@ export function activate(context: ExtensionContext) {
 		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
 	};
 
-	let documentSelector = ['json'];
+	let documentSelector = ['json', 'jsonc'];
 
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
@@ -163,13 +159,15 @@ export function activate(context: ExtensionContext) {
 		}));
 	});
 
-	languages.setLanguageConfiguration('json', {
+	let languageConfiguration: LanguageConfiguration = {
 		wordPattern: /("(?:[^\\\"]*(?:\\.)?)*"?)|[^\s{}\[\],:]+/,
 		indentationRules: {
 			increaseIndentPattern: /^.*(\{[^}]*|\[[^\]]*)$/,
 			decreaseIndentPattern: /^\s*[}\]],?\s*$/
 		}
-	});
+	};
+	languages.setLanguageConfiguration('json', languageConfiguration);
+	languages.setLanguageConfiguration('jsonc', languageConfiguration);
 }
 
 function getSchemaAssociation(context: ExtensionContext): ISchemaAssociations {
@@ -260,8 +258,8 @@ function getSettings(): Settings {
 					folderPath = folderPath + '/';
 				}
 				collectSchemaSettings(folderSchemas, folderUri.fsPath, folderPath + '*');
-			};
-		};
+			}
+		}
 	}
 	return settings;
 }
