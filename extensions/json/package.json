@@ -50,6 +50,9 @@
         "aliases": [
           "JSON with comments"
         ],
+        "extensions": [
+          ".code-workspace"
+        ],
         "filenames": [
           "settings.json",
           "launch.json",
