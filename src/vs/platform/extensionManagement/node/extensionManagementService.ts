@@ -297,7 +297,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 				this._onDidInstallExtension.fire({ identifier, gallery, local: local[index] });
 			}
 		});
-		return error ? TPromise.wrapError(Array.isArray(error) ? this.joinErrors(error) : error) : TPromise.as(null);
+		return error ? TPromise.wrapError(this.joinErrors(error)) : TPromise.as(null);
 	}
 
 	private getDependenciesToInstall(dependencies: string[]): TPromise<IGalleryExtension[]> {
@@ -354,7 +354,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 						const promises = installed
 							.filter(e => e.manifest.publisher === extension.manifest.publisher && e.manifest.name === extension.manifest.name)
 							.map(e => this.checkForDependenciesAndUninstall(e, installed, force));
-						return TPromise.join(promises).then(null, error => TPromise.wrapError(Array.isArray(error) ? this.joinErrors(error) : error));
+						return TPromise.join(promises).then(null, error => TPromise.wrapError(this.joinErrors(error)));
 					}))
 			.then(() => { /* drop resolved value */ });
 	}
@@ -393,11 +393,11 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		return TPromise.as(null);
 	}
 
-	private joinErrors(errors: (Error | string)[]): Error {
+	private joinErrors(errorOrErrors: (Error | string) | ((Error | string)[])): Error {
+		const errors = Array.isArray(errorOrErrors) ? errorOrErrors : [errorOrErrors];
 		if (errors.length === 1) {
 			return errors[0] instanceof Error ? <Error>errors[0] : new Error(<string>errors[0]);
 		}
-
 		return errors.reduce<Error>((previousValue: Error, currentValue: Error | string) => {
 			return new Error(`${previousValue.message}${previousValue.message ? ',' : ''}${currentValue instanceof Error ? currentValue.message : currentValue}`);
 		}, new Error(''));
