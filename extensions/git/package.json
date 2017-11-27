@@ -326,6 +326,10 @@
           "when": "config.git.enabled"
         },
         {
+          "command": "git.close",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
           "command": "git.refresh",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
@@ -458,6 +462,10 @@
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.fetch",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
           "command": "git.push",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
@@ -487,6 +495,10 @@
         },
         {
           "command": "git.ignore",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.stashIncludeUntracked",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
