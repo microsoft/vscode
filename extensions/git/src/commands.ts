@@ -1249,24 +1249,25 @@ export class CommandCenter {
 			return;
 		}
 
-		const remotePicks = remotes.map(r => ({ label: r.name, description: r.url }));
+		const picks = remotes.map(r => ({ label: r.name, description: r.url }));
 		const placeHolder = localize('pick remote pull repo', "Pick a remote to pull the branch from");
-		const remotePick = await window.showQuickPick(remotePicks, { placeHolder });
+		const pick = await window.showQuickPick(picks, { placeHolder });
 
-		if (!remotePick) {
+		if (!pick) {
 			return;
 		}
 
-		const remoteRefs = repository.refs;
-		const remoteRefsFiltered = remoteRefs.filter(r => (r.remote === remotePick.label));
-		const branchPicks = remoteRefsFiltered.map(r => ({ label: r.name})) as {label : string; description : string}[];
-		const branchPick = await window.showQuickPick(branchPicks, { placeHolder });
+		const branchName = await window.showInputBox({
+			placeHolder: localize('branch name', "Branch name"),
+			prompt: localize('provide branch name', "Please provide a branch name"),
+			ignoreFocusOut: true
+		});
 
-		if (!branchPick) {
+		if (!branchName) {
 			return;
 		}
 
-		repository.pull(false, remotePick.label, branchPick.label);
+		repository.pull(false, pick.label, branchName);
 	}
 
 	@command('git.pull', { repository: true })
