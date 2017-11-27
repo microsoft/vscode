@@ -32,6 +32,7 @@ import { groupBy, values } from 'vs/base/common/collections';
 import URI from 'vs/base/common/uri';
 import { IChoiceService, Severity } from 'vs/platform/message/common/message';
 import pkg from 'vs/platform/node/package';
+import { platform, isMacintosh, isWindows, isLinux } from 'vs/base/common/platform';
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
 const INSTALL_ERROR_OBSOLETE = 'obsolete';
@@ -244,7 +245,15 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private checkForObsolete(extensionsToInstall: IGalleryExtension[]): TPromise<IGalleryExtension[]> {
 		return this.filterObsolete(...extensionsToInstall.map(i => getLocalExtensionIdFromGallery(i, i.version)))
-			.then(obsolete => obsolete.length ? TPromise.wrapError<IGalleryExtension[]>(new Error(nls.localize('restartCodeGallery', "Please restart Code before reinstalling."))) : extensionsToInstall);
+			.then(obsolete => {
+				if (obsolete.length) {
+					if (isMacintosh) {
+						return TPromise.wrapError<IGalleryExtension[]>(new Error(nls.localize('quitCode', "Unable to install because an obsolete instance of the extension is still running. Please Quit and Start VS Code before reinstalling.")));
+					}
+					return TPromise.wrapError<IGalleryExtension[]>(new Error(nls.localize('exitCode', "Unable to install because an obsolete instance of the extension is still running. Please Exit and Start VS Code before reinstalling.")));
+				}
+				return extensionsToInstall;
+			});
 	}
 
 	private downloadInstallableExtension(extension: IGalleryExtension, installed: ILocalExtension[]): TPromise<InstallableExtension> {
