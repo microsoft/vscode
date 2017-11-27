@@ -35,35 +35,39 @@ export class AutoFetcher {
 		workspace.onDidChangeConfiguration(this.onConfiguration, this, this.disposables);
 		this.onConfiguration();
 
-		const didInformUser = !globalState.get<boolean>(AutoFetcher.DidInformUser);
+		const onGoodRemoteOperation = filterEvent(repository.onDidRunOperation, ({ operation, error }) => !error && isRemoteOperation(operation));
+		const onFirstGoodRemoteOperation = onceEvent(onGoodRemoteOperation);
+		onFirstGoodRemoteOperation(this.onFirstGoodRemoteOperation, this, this.disposables);
+	}
+
+	private async onFirstGoodRemoteOperation(): Promise<void> {
+		const didInformUser = !this.globalState.get<boolean>(AutoFetcher.DidInformUser);
 
 		if (this.enabled && !didInformUser) {
-			globalState.update(AutoFetcher.DidInformUser, true);
+			this.globalState.update(AutoFetcher.DidInformUser, true);
 		}
 
 		const shouldInformUser = !this.enabled && didInformUser;
 
-		if (shouldInformUser) {
-			const onGoodRemoteOperation = filterEvent(repository.onDidRunOperation, ({ operation, error }) => !error && isRemoteOperation(operation));
-
-			this.disposables.push(onceEvent(onGoodRemoteOperation)(async () => {
-				const yes: MessageItem = { title: localize('yes', "Yes") };
-				const no: MessageItem = { isCloseAffordance: true, title: localize('no', "No") };
-				const askLater: MessageItem = { title: localize('not now', "Not Now") };
-				const result = await window.showInformationMessage(localize('suggest auto fetch', "Would you like to enable auto fetching of Git repositories?"), yes, no, askLater);
-
-				if (result === askLater) {
-					return;
-				}
-
-				if (result === yes) {
-					const gitConfig = workspace.getConfiguration('git');
-					gitConfig.update('autofetch', true, ConfigurationTarget.Global);
-				}
-
-				globalState.update(AutoFetcher.DidInformUser, true);
-			}));
+		if (!shouldInformUser) {
+			return;
 		}
+
+		const yes: MessageItem = { title: localize('yes', "Yes") };
+		const no: MessageItem = { isCloseAffordance: true, title: localize('no', "No") };
+		const askLater: MessageItem = { title: localize('not now', "Not Now") };
+		const result = await window.showInformationMessage(localize('suggest auto fetch', "Would you like to enable auto fetching of Git repositories?"), yes, no, askLater);
+
+		if (result === askLater) {
+			return;
+		}
+
+		if (result === yes) {
+			const gitConfig = workspace.getConfiguration('git');
+			gitConfig.update('autofetch', true, ConfigurationTarget.Global);
+		}
+
+		this.globalState.update(AutoFetcher.DidInformUser, true);
 	}
 
 	private onConfiguration(): void {
