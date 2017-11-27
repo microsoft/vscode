@@ -781,7 +781,6 @@ export class RepositoryPanel extends ViewletPanel {
 			return;
 		}
 
-		this.list.layout(height);
 		this.cachedHeight = height;
 		this.inputBox.layout();
 
