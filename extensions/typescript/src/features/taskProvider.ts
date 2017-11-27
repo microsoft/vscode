@@ -123,8 +123,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 					workspaceFolder: folder
 				}];
 			}
-		}
-		catch (e) {
+		} catch (e) {
 			// noop
 		}
 		return [];
@@ -134,17 +133,32 @@ class TscTaskProvider implements vscode.TaskProvider {
 		return Array.from(await this.tsconfigProvider.getConfigsForWorkspace());
 	}
 
-	private async getCommand(project: TSConfig): Promise<string> {
+	private static async getCommand(project: TSConfig): Promise<string> {
 		if (project.workspaceFolder) {
-			const platform = process.platform;
-			const bin = path.join(project.workspaceFolder.uri.fsPath, 'node_modules', '.bin');
-			if (platform === 'win32' && await exists(path.join(bin, 'tsc.cmd'))) {
-				return path.join(bin, 'tsc.cmd');
-			} else if ((platform === 'linux' || platform === 'darwin') && await exists(path.join(bin, 'tsc'))) {
-				return path.join(bin, 'tsc');
+			const localTsc = await TscTaskProvider.getLocalTscAtPath(path.dirname(project.path));
+			if (localTsc) {
+				return localTsc;
+			}
+
+			const workspaceTsc = await TscTaskProvider.getLocalTscAtPath(project.workspaceFolder.uri.fsPath);
+			if (workspaceTsc) {
+				return workspaceTsc;
 			}
 		}
+
+		// Use global tsc version
 		return 'tsc';
+	}
+
+	private static async getLocalTscAtPath(folderPath: string): Promise<string | undefined> {
+		const platform = process.platform;
+		const bin = path.join(folderPath, 'node_modules', '.bin');
+		if (platform === 'win32' && await exists(path.join(bin, 'tsc.cmd'))) {
+			return path.join(bin, 'tsc.cmd');
+		} else if ((platform === 'linux' || platform === 'darwin') && await exists(path.join(bin, 'tsc'))) {
+			return path.join(bin, 'tsc');
+		}
+		return undefined;
 	}
 
 	private getActiveTypeScriptFile(): string | null {
@@ -159,7 +173,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 	}
 
 	private async getTasksForProject(project: TSConfig): Promise<vscode.Task[]> {
-		const command = await this.getCommand(project);
+		const command = await TscTaskProvider.getCommand(project);
 		const label = this.getLabelForTasks(project);
 
 		const tasks: vscode.Task[] = [];
