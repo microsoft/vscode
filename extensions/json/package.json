@@ -7,7 +7,7 @@
     "vscode": "0.10.x"
   },
   "activationEvents": [
-    "onLanguage:json"
+    "onLanguage:json", "onLanguage:jsonc"
   ],
   "enableProposedApi": true,
   "main": "./client/out/jsonMain",
@@ -44,11 +44,29 @@
           "application/manifest+json"
         ],
         "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "jsonc",
+        "aliases": [
+          "JSON with comments"
+        ],
+        "filenames": [
+          "settings.json",
+          "launch.json",
+          "debug.json",
+          "keybindings.json"
+        ],
+        "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [
       {
         "language": "json",
+        "scopeName": "source.json",
+        "path": "./syntaxes/JSON.tmLanguage.json"
+      },
+      {
+        "language": "jsonc",
         "scopeName": "source.json",
         "path": "./syntaxes/JSON.tmLanguage.json"
       }
