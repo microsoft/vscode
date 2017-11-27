@@ -17,7 +17,7 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 import * as htmlContent from 'vs/base/common/htmlContent';
-import { IRelativePattern, isRelativePattern } from 'vs/base/common/glob';
+import { IRelativePattern } from 'vs/base/common/glob';
 import { LanguageSelector, LanguageFilter } from 'vs/editor/common/modes/languageSelector';
 
 export interface PositionLike {
@@ -605,6 +605,12 @@ export function toGlobPattern(pattern: vscode.GlobPattern): string | IRelativePa
 	}
 
 	return new types.RelativePattern(pattern.base, pattern.pattern);
+}
+
+function isRelativePattern(obj: any): obj is vscode.RelativePattern {
+	const rp = obj as vscode.RelativePattern;
+
+	return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string';
 }
 
 export function toLanguageSelector(selector: vscode.DocumentSelector): LanguageSelector {

@@ -157,6 +157,12 @@ let workbenchProperties: { [path: string]: IJSONSchema; } = {
 		'default': 'right',
 		'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorTabCloseButton' }, "Controls the position of the editor's tabs close buttons or disables them when set to 'off'.")
 	},
+	'workbench.editor.tabSizing': {
+		'type': 'string',
+		'enum': ['fit', 'shrink'],
+		'default': 'fit',
+		'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'tabSizing' }, "Controls the sizing of editor tabs. Set to 'fit' to keep tabs always large enough to show the full editor label. Set to 'shrink' to allow tabs to get smaller when the available space is not enough to show all tabs at once.")
+	},
 	'workbench.editor.showIcons': {
 		'type': 'boolean',
 		'description': nls.localize('showIcons', "Controls if opened editors should show with an icon or not. This requires an icon theme to be enabled as well."),

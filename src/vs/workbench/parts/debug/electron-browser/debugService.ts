@@ -595,7 +595,8 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public addFunctionBreakpoint(): void {
-		this.model.addFunctionBreakpoint('');
+		const newFunctionBreakpoint = this.model.addFunctionBreakpoint('');
+		this.viewModel.setSelectedFunctionBreakpoint(newFunctionBreakpoint);
 	}
 
 	public renameFunctionBreakpoint(id: string, newFunctionName: string): TPromise<void> {

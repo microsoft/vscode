@@ -808,23 +808,11 @@ export const EditorOpenPositioning = {
 export const OPEN_POSITIONING_CONFIG = 'workbench.editor.openPositioning';
 
 export interface IWorkbenchEditorConfiguration {
-	/* __GDPR__FRAGMENT__
-		"IWorkbenchEditorConfiguration" : {
-			"showTabs" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"tabCloseButton": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"showIcons": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"enablePreview": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"enablePreviewFromQuickOpen": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"closeOnFileDelete": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"openPositioning": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"revealIfOpen": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"swipeToNavigate": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-		}
-	*/
 	workbench: {
 		editor: {
 			showTabs: boolean;
 			tabCloseButton: 'left' | 'right' | 'off';
+			tabSizing: 'fit' | 'shrink';
 			showIcons: boolean;
 			enablePreview: boolean;
 			enablePreviewFromQuickOpen: boolean;

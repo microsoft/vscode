@@ -60,7 +60,6 @@ export class BreakpointsView extends ViewsViewletPanel {
 		this.minimumBodySize = this.maximumBodySize = this.getExpandedBodySize();
 		this.settings = options.viewletSettings;
 		this.disposables.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
-		this.disposables.push(this.debugService.getViewModel().onDidSelectFunctionBreakpoint(() => this.onBreakpointsChange()));
 	}
 
 	public renderBody(container: HTMLElement): void {
@@ -89,6 +88,7 @@ export class BreakpointsView extends ViewsViewletPanel {
 			}
 			if (selectFunctionBreakpoint && element instanceof FunctionBreakpoint) {
 				this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
+				this.onBreakpointsChange();
 			}
 		};
 		this.disposables.push(this.list.onKeyUp(e => {
@@ -104,7 +104,7 @@ export class BreakpointsView extends ViewsViewletPanel {
 			handleBreakpointFocus(true, false);
 		}));
 
-		this.list.splice(0, 0, this.elements);
+		this.list.splice(0, this.list.length, this.elements);
 	}
 
 	protected layoutBody(size: number): void {
@@ -234,6 +234,7 @@ interface IBreakpointTemplateData extends IBaseBreakpointTemplateData {
 interface IInputTemplateData {
 	inputBox: InputBox;
 	breakpoint: IFunctionBreakpoint;
+	reactedOnEvent: boolean;
 	toDispose: IDisposable[];
 }
 
@@ -426,12 +427,15 @@ class FunctionBreakpointInputRenderer implements IRenderer<IFunctionBreakpoint, 
 		const toDispose: IDisposable[] = [inputBox, styler];
 
 		const wrapUp = (renamed: boolean) => {
-			if (inputBox.value) {
-				this.debugService.renameFunctionBreakpoint(template.breakpoint.getId(), renamed ? inputBox.value : template.breakpoint.name).done(null, onUnexpectedError);
-			} else if (!template.breakpoint.name) {
-				this.debugService.removeFunctionBreakpoints(template.breakpoint.getId()).done(null, onUnexpectedError);
+			if (!template.reactedOnEvent) {
+				template.reactedOnEvent = true;
+				this.debugService.getViewModel().setSelectedFunctionBreakpoint(undefined);
+				if (inputBox.value && (renamed || template.breakpoint.name)) {
+					this.debugService.renameFunctionBreakpoint(template.breakpoint.getId(), renamed ? inputBox.value : template.breakpoint.name).done(null, onUnexpectedError);
+				} else {
+					this.debugService.removeFunctionBreakpoints(template.breakpoint.getId()).done(null, onUnexpectedError);
+				}
 			}
-			this.debugService.getViewModel().setSelectedFunctionBreakpoint(undefined);
 		};
 
 		toDispose.push(dom.addStandardDisposableListener(inputBox.inputElement, 'keydown', (e: IKeyboardEvent) => {
@@ -454,6 +458,7 @@ class FunctionBreakpointInputRenderer implements IRenderer<IFunctionBreakpoint, 
 
 	renderElement(functionBreakpoint: IFunctionBreakpoint, index: number, data: IInputTemplateData): void {
 		data.breakpoint = functionBreakpoint;
+		data.reactedOnEvent = false;
 		data.inputBox.value = functionBreakpoint.name || '';
 		data.inputBox.focus();
 		data.inputBox.select();

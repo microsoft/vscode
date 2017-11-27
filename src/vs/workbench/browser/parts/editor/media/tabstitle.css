@@ -37,14 +37,28 @@
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab {
 	display: flex;
-	width: 120px;
-	min-width: fit-content;
 	white-space: nowrap;
 	cursor: pointer;
 	height: 35px;
 	box-sizing: border-box;
 	border: 1px solid transparent;
 	padding-left: 10px;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-fit {
+	width: 120px;
+	min-width: fit-content;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-shrink {
+	min-width: 80px;
+	flex-basis: 0; /* all tabs are even */
+	flex-grow: 1; /* all tabs grow even */
+	max-width: fit-content;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-shrink.tab.close-button-off {
+	min-width: 60px;
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.dragged {
@@ -68,8 +82,8 @@
 	margin-bottom: auto;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .monaco-icon-label,
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .monaco-icon-label > .monaco-icon-label-description-container {
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-fit .monaco-icon-label,
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-fit .monaco-icon-label > .monaco-icon-label-description-container {
 	overflow: visible; /* fixes https://github.com/Microsoft/vscode/issues/20182 */
 }
 

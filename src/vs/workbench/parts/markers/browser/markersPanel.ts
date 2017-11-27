@@ -122,11 +122,17 @@ export class MarkersPanel extends Panel {
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {
-		let promise: TPromise<void> = super.setVisible(visible);
-		if (!visible) {
-			this.rangeHighlightDecorations.removeHighlightRange();
-		}
-		return promise;
+		const wasVisible = this.isVisible();
+		return super.setVisible(visible)
+			.then(() => {
+				if (this.isVisible()) {
+					if (!wasVisible) {
+						this.refreshPanel();
+					}
+				} else {
+					this.rangeHighlightDecorations.removeHighlightRange();
+				}
+			});
 	}
 
 	public getActions(): IAction[] {
@@ -166,13 +172,15 @@ export class MarkersPanel extends Panel {
 	}
 
 	private refreshPanel(): TPromise<any> {
-		this.collapseAllAction.enabled = this.markersModel.hasFilteredResources();
-		dom.toggleClass(this.treeContainer, 'hidden', !this.markersModel.hasFilteredResources());
-		this.renderMessage();
-		if (this.markersModel.hasFilteredResources()) {
-			return this.tree.refresh().then(() => {
-				this.autoExpand();
-			});
+		if (this.isVisible()) {
+			this.collapseAllAction.enabled = this.markersModel.hasFilteredResources();
+			dom.toggleClass(this.treeContainer, 'hidden', !this.markersModel.hasFilteredResources());
+			this.renderMessage();
+			if (this.markersModel.hasFilteredResources()) {
+				return this.tree.refresh().then(() => {
+					this.autoExpand();
+				});
+			}
 		}
 		return TPromise.as(null);
 	}

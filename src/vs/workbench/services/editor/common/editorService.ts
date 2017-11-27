@@ -280,7 +280,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		if (resourceDiffInput.leftResource && resourceDiffInput.rightResource) {
 			const leftInput = this.createInput({ resource: resourceDiffInput.leftResource });
 			const rightInput = this.createInput({ resource: resourceDiffInput.rightResource });
-			const label = resourceDiffInput.label || this.toDiffLabel(resourceDiffInput.leftResource, resourceDiffInput.rightResource, this.workspaceContextService, this.environmentService);
+			const label = resourceDiffInput.label || nls.localize('compareLabels', "{0} ↔ {1}", this.toDiffLabel(leftInput, this.workspaceContextService, this.environmentService), this.toDiffLabel(rightInput, this.workspaceContextService, this.environmentService));
 
 			return new DiffEditorInput(label, resourceDiffInput.description, leftInput, rightInput);
 		}
@@ -352,11 +352,16 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 		return input;
 	}
 
-	private toDiffLabel(res1: URI, res2: URI, context: IWorkspaceContextService, environment: IEnvironmentService): string {
-		const leftName = getPathLabel(res1.fsPath, context, environment);
-		const rightName = getPathLabel(res2.fsPath, context, environment);
+	private toDiffLabel(input: EditorInput, context: IWorkspaceContextService, environment: IEnvironmentService): string {
+		const res = input.getResource();
 
-		return nls.localize('compareLabels', "{0} ↔ {1}", leftName, rightName);
+		// Do not try to extract any paths from simple untitled editors
+		if (res.scheme === 'untitled' && !this.untitledEditorService.hasAssociatedFilePath(res)) {
+			return input.getName();
+		}
+
+		// Otherwise: for diff labels prefer to see the path as part of the label
+		return getPathLabel(res.fsPath, context, environment);
 	}
 }
 

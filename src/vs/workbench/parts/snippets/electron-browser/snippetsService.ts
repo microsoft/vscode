@@ -226,6 +226,7 @@ class SnippetsService implements ISnippetsService {
 			// not yet loaded
 			return SnippetFile.fromFile(this._getUserSnippetFilepath(languageId), localize('source.snippet', "User Snippet")).then(file => {
 				this._userSnippets.set(languageId, file.data);
+				bucket.push(...file.data);
 			}, err => {
 				this._userSnippets.set(languageId, null);
 			});

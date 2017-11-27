@@ -22,8 +22,6 @@ async function init(context: ExtensionContext, outputChannel: OutputChannel, dis
 	const telemetryReporter: TelemetryReporter = new TelemetryReporter(name, version, aiKey);
 	disposables.push(telemetryReporter);
 
-	const config = workspace.getConfiguration('git');
-	const enabled = config.get<boolean>('enabled') === true;
 	const pathHint = workspace.getConfiguration('git').get<string>('path');
 	const info = await findGit(pathHint, path => outputChannel.appendLine(localize('looking', "Looking for git in: {0}", path)));
 	const askpass = new Askpass();
@@ -36,12 +34,6 @@ async function init(context: ExtensionContext, outputChannel: OutputChannel, dis
 	model.onDidOpenRepository(onRepository, null, disposables);
 	model.onDidCloseRepository(onRepository, null, disposables);
 	onRepository();
-
-	if (!enabled) {
-		const commandCenter = new CommandCenter(git, model, outputChannel, telemetryReporter);
-		disposables.push(commandCenter);
-		return;
-	}
 
 	outputChannel.appendLine(localize('using git', "Using git {0} from {1}", info.version, info.path));
 

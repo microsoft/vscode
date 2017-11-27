@@ -27,6 +27,7 @@ import { SuggestModel, State } from './suggestModel';
 import { ICompletionItem } from './completionModel';
 import { SuggestWidget } from './suggestWidget';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { SuggestMemories } from 'vs/editor/contrib/suggest/suggestMemory';
 
 class AcceptOnCharacterOracle {
 
@@ -84,6 +85,7 @@ export class SuggestController implements IEditorContribution {
 
 	private _model: SuggestModel;
 	private _widget: SuggestWidget;
+	private _memory: SuggestMemories;
 	private _toDispose: IDisposable[] = [];
 
 	constructor(
@@ -93,6 +95,7 @@ export class SuggestController implements IEditorContribution {
 		@IInstantiationService private _instantiationService: IInstantiationService,
 	) {
 		this._model = new SuggestModel(this._editor);
+		this._memory = _instantiationService.createInstance(SuggestMemories);
 
 		this._toDispose.push(this._model.onDidTrigger(e => {
 			if (!this._widget) {
@@ -106,7 +109,8 @@ export class SuggestController implements IEditorContribution {
 			}
 		}));
 		this._toDispose.push(this._model.onDidSuggest(e => {
-			this._widget.showSuggestions(e.completionModel, e.isFrozen, e.auto);
+			let index = this._memory.select(this._editor.getModel().getLanguageIdentifier(), e.completionModel.items);
+			this._widget.showSuggestions(e.completionModel, index, e.isFrozen, e.auto);
 		}));
 
 		// Manage the acceptSuggestionsOnEnter context key
@@ -188,13 +192,17 @@ export class SuggestController implements IEditorContribution {
 		}
 
 		const { suggestion, position } = item;
-		const columnDelta = this._editor.getPosition().column - position.column;
+		const editorColumn = this._editor.getPosition().column;
+		const columnDelta = editorColumn - position.column;
 
 		if (Array.isArray(suggestion.additionalTextEdits)) {
 			this._editor.pushUndoStop();
 			this._editor.executeEdits('suggestController.additionalTextEdits', suggestion.additionalTextEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
 			this._editor.pushUndoStop();
 		}
+
+		// remember this word for future invocations
+		this._memory.remember(this._editor.getModel().getLanguageIdentifier(), item);
 
 		let { insertText } = suggestion;
 		if (suggestion.snippetType !== 'textmate') {

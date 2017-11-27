@@ -147,7 +147,6 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 	clearInput(): void {
 		super.clearInput();
-		this.searchWidget.clear();
 		this.keybindingsEditorContextKey.reset();
 		this.keybindingFocusContextKey.reset();
 	}
@@ -337,6 +336,16 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this._register(this.keybindingsList.onDidBlur(() => {
 			DOM.removeClass(this.keybindingsList.getHTMLElement(), 'focused');
 			this.keybindingFocusContextKey.reset();
+		}));
+		this._register(this.keybindingsList.onKeyUp(e => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.keyCode === KeyCode.Enter) {
+				const keybindingEntry = this.activeKeybindingEntry;
+				if (keybindingEntry) {
+					this.defineKeybinding(this.activeKeybindingEntry);
+				}
+				e.stopPropagation();
+			}
 		}));
 	}
 
