@@ -718,6 +718,20 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	removeOverlayWidget(widget: IOverlayWidget): void;
 
 	/**
+	 * Add an edge widget. Widgets must have unique ids, otherwise they will be overwritten.
+	 */
+	addEdgeWidget(widget: IEdgeWidget): void;
+	/**
+	 * Layout/Reposition an edge widget. This is a ping to the editor to call widget.getPosition()
+	 * and update appropiately.
+	 */
+	layoutEdgeWidget(widget: IEdgeWidget): void;
+	/**
+	 * Remove an edge widget.
+	 */
+	removeEdgeWidget(widget: IEdgeWidget): void;
+
+	/**
 	 * Change the view zones. View zones are lost when a new model is attached to the editor.
 	 */
 	changeViewZones(callback: (accessor: IViewZoneChangeAccessor) => void): void;

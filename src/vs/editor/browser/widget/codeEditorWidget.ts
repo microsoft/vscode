@@ -19,7 +19,7 @@ import { EditorAction, EditorExtensionsRegistry, IEditorContributionCtor } from 
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import { View, IOverlayWidgetData, IContentWidgetData } from 'vs/editor/browser/view/viewImpl';
+import { View, IOverlayWidgetData, IContentWidgetData, IEdgeWidgetData } from 'vs/editor/browser/view/viewImpl';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -79,6 +79,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 
 	private contentWidgets: { [key: string]: IContentWidgetData; };
 	private overlayWidgets: { [key: string]: IOverlayWidgetData; };
+	private edgeWidgets: { [key: string]: IEdgeWidgetData; };
 
 	_view: View;
 
@@ -269,6 +270,45 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 			delete this.overlayWidgets[widgetId];
 			if (this.hasView) {
 				this._view.removeOverlayWidget(widgetData);
+			}
+		}
+	}
+
+	public addEdgeWidget(widget: editorBrowser.IEdgeWidget): void {
+		let widgetData: IEdgeWidgetData = {
+			widget: widget,
+			position: widget.getPosition()
+		};
+
+		if (this.edgeWidgets.hasOwnProperty(widget.getId())) {
+			console.warn('Overwriting an edge widget with the same id.');
+		}
+
+		this.edgeWidgets[widget.getId()] = widgetData;
+
+		if (this.hasView) {
+			this._view.addEdgeWidget(widgetData);
+		}
+	}
+
+	public layoutEdgeWidget(widget: editorBrowser.IEdgeWidget): void {
+		let widgetId = widget.getId();
+		if (this.edgeWidgets.hasOwnProperty(widgetId)) {
+			let widgetData = this.edgeWidgets[widgetId];
+			widgetData.position = widget.getPosition();
+			if (this.hasView) {
+				this._view.layoutEdgeWidget(widgetData);
+			}
+		}
+	}
+
+	public removeEdgeWidget(widget: editorBrowser.IEdgeWidget): void {
+		let widgetId = widget.getId();
+		if (this.edgeWidgets.hasOwnProperty(widgetId)) {
+			let widgetData = this.edgeWidgets[widgetId];
+			delete this.edgeWidgets[widgetId];
+			if (this.hasView) {
+				this._view.removeEdgeWidget(widgetData);
 			}
 		}
 	}

@@ -30,6 +30,7 @@ import { Margin } from 'vs/editor/browser/viewParts/margin/margin';
 import { LinesDecorationsOverlay } from 'vs/editor/browser/viewParts/linesDecorations/linesDecorations';
 import { MarginViewLineDecorationsOverlay } from 'vs/editor/browser/viewParts/marginDecorations/marginDecorations';
 import { ViewOverlayWidgets } from 'vs/editor/browser/viewParts/overlayWidgets/overlayWidgets';
+import { ViewEdgeWidgets } from 'vs/editor/browser/viewParts/edgeWidgets/edgeWidgets';
 import { DecorationsOverviewRuler } from 'vs/editor/browser/viewParts/overviewRuler/decorationsOverviewRuler';
 import { OverviewRuler } from 'vs/editor/browser/viewParts/overviewRuler/overviewRuler';
 import { Rulers } from 'vs/editor/browser/viewParts/rulers/rulers';
@@ -50,6 +51,7 @@ import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { IThemeService, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
 import { Cursor } from 'vs/editor/common/controller/cursor';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { EditorSnippetVariableResolver } from 'vs/editor/contrib/snippet/snippetVariables';
 
 export interface IContentWidgetData {
 	widget: editorBrowser.IContentWidget;
@@ -59,6 +61,11 @@ export interface IContentWidgetData {
 export interface IOverlayWidgetData {
 	widget: editorBrowser.IOverlayWidget;
 	position: editorBrowser.IOverlayWidgetPosition;
+}
+
+export interface IEdgeWidgetData {
+	widget: editorBrowser.IEdgeWidget;
+	position: editorBrowser.IEdgeWidgetPosition;
 }
 
 export class View extends ViewEventHandler {
@@ -76,6 +83,7 @@ export class View extends ViewEventHandler {
 	private viewZones: ViewZones;
 	private contentWidgets: ViewContentWidgets;
 	private overlayWidgets: ViewOverlayWidgets;
+	private edgeWidgets: ViewEdgeWidgets;
 	private viewCursors: ViewCursors;
 	private viewParts: ViewPart[];
 
@@ -571,6 +579,26 @@ export class View extends ViewEventHandler {
 
 	public removeOverlayWidget(widgetData: IOverlayWidgetData): void {
 		this.overlayWidgets.removeWidget(widgetData.widget);
+		this._scheduleRender();
+	}
+
+	public addEdgeWidget(widgetData: IEdgeWidgetData): void {
+		this.edgeWidgets.addWidget(widgetData.widget);
+		this.layoutEdgeWidget(widgetData);
+		this._scheduleRender();
+	}
+
+	public layoutEdgeWidget(widgetData: IEdgeWidgetData): void {
+		let newEdge = widgetData.position ? widgetData.position.edge : null;
+		let newSize = widgetData.position ? widgetData.position.size : null;
+		let shouldRender = this.edgeWidgets.setWidgetPosition(widgetData.widget, newEdge, newSize);
+		if (shouldRender) {
+			this._scheduleRender();
+		}
+	}
+
+	public removeEdgeWidget(widgetData: IEdgeWidgetData): void {
+		this.edgeWidgets.removeWidget(widgetData.widget);
 		this._scheduleRender();
 	}
 
