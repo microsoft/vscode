@@ -14,6 +14,7 @@ export interface ICompletionItem extends ISuggestionItem {
 	matches?: number[];
 	score?: number;
 	idx?: number;
+	word?: string;
 }
 
 
@@ -156,11 +157,15 @@ export class CompletionModel {
 
 			// 'word' is that remainder of the current line that we
 			// filter and score against. In theory each suggestion uses a
-			// differnet word, but in practice not - that's why we cache
+			// different word, but in practice not - that's why we cache
 			const wordLen = suggestion.overwriteBefore + characterCountDelta - (item.position.column - this._column);
 			if (word.length !== wordLen) {
 				word = wordLen === 0 ? '' : leadingLineContent.slice(-wordLen);
 			}
+
+			// remember the word against which this item was
+			// scored
+			item.word = word;
 
 			if (wordLen === 0) {
 				// when there is nothing to score against, don't
