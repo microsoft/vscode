@@ -142,6 +142,9 @@ export class OpenFileHandler extends QuickOpenHandler {
 			return TPromise.as(new FileQuickOpenModel([]));
 		}
 
+		// Untildify file pattern
+		searchValue = labels.untildify(searchValue, this.environmentService.userHome);
+
 		// Do find results
 		return this.doFindResults(searchValue, this.cacheState.cacheKey, maxSortedResults);
 	}
