@@ -44,11 +44,11 @@ class TwitterFeedbackService implements IFeedbackService {
 		if (TwitterFeedbackService.VIA_NAME) {
 			length += ` via @${TwitterFeedbackService.VIA_NAME}`.length;
 		}
-		
+
 		if (language === 'zh-cn' || language === 'zh-tw' || language === 'ja' || language === 'ko') {
 			return 140 - length;
 		}
-		
+
 		return 280 - length;
 	}
 }
