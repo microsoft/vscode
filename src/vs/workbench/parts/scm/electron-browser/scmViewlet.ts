@@ -153,9 +153,6 @@ class ProviderRenderer implements IRenderer<ISCMRepository, RepositoryTemplateDa
 		const title = append(name, $('span.title'));
 		const type = append(name, $('span.type'));
 		const countContainer = append(provider, $('.count'));
-
-		append(provider, $('.spacer'));
-
 		const count = new CountBadge(countContainer);
 		const badgeStyler = attachBadgeStyler(count, this.themeService);
 		const actionBar = new ActionBar(provider, { actionItemProvider: a => new StatusBarActionItem(a as StatusBarAction) });
