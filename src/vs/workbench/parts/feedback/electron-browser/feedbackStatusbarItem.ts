@@ -14,6 +14,7 @@ import product from 'vs/platform/node/product';
 import { Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { language } from 'vs/base/common/platform';
 
 class TwitterFeedbackService implements IFeedbackService {
 
@@ -43,8 +44,12 @@ class TwitterFeedbackService implements IFeedbackService {
 		if (TwitterFeedbackService.VIA_NAME) {
 			length += ` via @${TwitterFeedbackService.VIA_NAME}`.length;
 		}
-
-		return 140 - length;
+		
+		if (language === 'zh-cn' || language === 'zh-tw' || language === 'ja' || language === 'ko') {
+			return 140 - length;
+		}
+		
+		return 280 - length;
 	}
 }
 
