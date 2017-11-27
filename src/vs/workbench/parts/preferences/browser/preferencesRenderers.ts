@@ -606,7 +606,7 @@ export class FeedbackWidgetRenderer extends Disposable {
 			JSON.stringify(feedbackQuery, undefined, '    ') + '\n\n' +
 			actualResultNames.map(name => `// ${name}: ${result.metadata.scoredResults[name]}`).join('\n');
 
-		this.editorService.openEditor({ contents, language: 'json' }, /*sideBySide=*/true).then(feedbackEditor => {
+		this.editorService.openEditor({ contents, language: 'jsonc' }, /*sideBySide=*/true).then(feedbackEditor => {
 			const sendFeedbackWidget = this._register(this.instantiationService.createInstance(FloatingClickWidget, feedbackEditor.getControl(), 'Send feedback', null));
 			sendFeedbackWidget.render();
 

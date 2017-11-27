@@ -56,7 +56,7 @@
         "filenames": [
           "settings.json",
           "launch.json",
-          "debug.json",
+          "tasks.json",
           "keybindings.json"
         ],
         "configuration": "./language-configuration.json"
