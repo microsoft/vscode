@@ -1266,7 +1266,9 @@ export class CommandCenter {
 			return;
 		}
 
-		repository.pull(false, remotePick.label, branchPick.label);
+		const remoteCharCnt = remotePick.label.length;
+
+		repository.pull(false, remotePick.label, branchPick.label.slice(remoteCharCnt+1));
 	}
 
 	@command('git.pull', { repository: true })
