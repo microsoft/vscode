@@ -621,7 +621,7 @@ export class TabsTitleControl extends TitleControl {
 
 			if (e instanceof MouseEvent && e.button !== 0) {
 				if (e.button === 1) {
-					return false; // required due to https://github.com/Microsoft/vscode/issues/16690
+					e.preventDefault(); // required to prevent auto-scrolling (https://github.com/Microsoft/vscode/issues/16690)
 				}
 
 				return void 0; // only for left mouse click
