@@ -109,6 +109,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	private _viewZoneId: number;
 
 	private _resizeSash: Sash;
+	private _resized: boolean;
 
 	constructor(
 		codeEditor: ICodeEditor,
@@ -505,13 +506,16 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		let collapsedFindWidget = false;
 		let reducedFindWidget = false;
 		let narrowFindWidget = false;
-		let widgetWidth = dom.getTotalWidth(this._domNode);
 
-		if (widgetWidth > FIND_WIDGET_INITIAL_WIDTH) {
-			// as the widget is resized by users, we may need to change the max width of the widget as the editor width changes.
-			this._domNode.style.maxWidth = `${editorWidth - 28 - minimapWidth - 15}px`;
-			this._replaceInputBox.inputElement.style.width = `${dom.getTotalWidth(this._findInput.inputBox.inputElement)}px`;
-			return;
+		if (this._resized) {
+			let widgetWidth = dom.getTotalWidth(this._domNode);
+
+			if (widgetWidth > FIND_WIDGET_INITIAL_WIDTH) {
+				// as the widget is resized by users, we may need to change the max width of the widget as the editor width changes.
+				this._domNode.style.maxWidth = `${editorWidth - 28 - minimapWidth - 15}px`;
+				this._replaceInputBox.inputElement.style.width = `${dom.getTotalWidth(this._findInput.inputBox.inputElement)}px`;
+				return;
+			}
 		}
 
 		if (FIND_WIDGET_INITIAL_WIDTH + 28 + minimapWidth >= editorWidth) {
@@ -532,9 +536,11 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			this._domNode.style.maxWidth = `${editorWidth - 28 - minimapWidth - 15}px`;
 		}
 
-		let findInputWidth = dom.getTotalWidth(this._findInput.inputBox.inputElement);
-		if (findInputWidth > 0) {
-			this._replaceInputBox.inputElement.style.width = `${findInputWidth}px`;
+		if (this._resized) {
+			let findInputWidth = dom.getTotalWidth(this._findInput.inputBox.inputElement);
+			if (findInputWidth > 0) {
+				this._replaceInputBox.inputElement.style.width = `${findInputWidth}px`;
+			}
 		}
 	}
 
@@ -865,6 +871,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 	private _buildSash() {
 		this._resizeSash = new Sash(this._domNode, this, { orientation: Orientation.VERTICAL });
+		this._resized = false;
 		let originalWidth = FIND_WIDGET_INITIAL_WIDTH;
 
 		this._register(this._resizeSash.onDidStart((e: ISashEvent) => {
@@ -872,6 +879,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		}));
 
 		this._register(this._resizeSash.onDidChange((evt: ISashEvent) => {
+			this._resized = true;
 			let width = originalWidth + evt.startX - evt.currentX;
 
 			if (width < FIND_WIDGET_INITIAL_WIDTH) {
