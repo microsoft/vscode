@@ -337,6 +337,16 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			DOM.removeClass(this.keybindingsList.getHTMLElement(), 'focused');
 			this.keybindingFocusContextKey.reset();
 		}));
+		this._register(this.keybindingsList.onKeyUp(e => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.keyCode === KeyCode.Enter) {
+				const keybindingEntry = this.activeKeybindingEntry;
+				if (keybindingEntry) {
+					this.defineKeybinding(this.activeKeybindingEntry);
+				}
+				e.stopPropagation();
+			}
+		}));
 	}
 
 	private render(): TPromise<any> {
