@@ -8,7 +8,7 @@ else
 fi
 
 function code() {
-	cd "$ROOT"
+	pushd $ROOT >/dev/null
 
 	if [[ "$OSTYPE" == "darwin"* ]]; then
 		NAME=`node -p "require('./product.json').nameLong"`
@@ -27,6 +27,8 @@ function code() {
 	# Build
 	test -d out || ./node_modules/.bin/gulp compile
 
+	popd >/dev/null
+
 	# Configuration
 	export NODE_ENV=development
 	export VSCODE_DEV=1
@@ -35,7 +37,7 @@ function code() {
 	export ELECTRON_ENABLE_STACK_DUMPING=1
 
 	# Launch Code
-	exec "$CODE" . "$@"
+	exec "$ROOT/$CODE" "$ROOT" "$@"
 }
 
 # Use the following to get v8 tracing:
