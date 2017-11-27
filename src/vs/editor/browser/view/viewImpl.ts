@@ -51,7 +51,6 @@ import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { IThemeService, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
 import { Cursor } from 'vs/editor/common/controller/cursor';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { EditorSnippetVariableResolver } from 'vs/editor/contrib/snippet/snippetVariables';
 
 export interface IContentWidgetData {
 	widget: editorBrowser.IContentWidget;
