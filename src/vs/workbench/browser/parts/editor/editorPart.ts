@@ -162,6 +162,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				showIcons: editorConfig.showIcons,
 				showTabs: editorConfig.showTabs,
 				tabCloseButton: editorConfig.tabCloseButton,
+				tabSizing: editorConfig.tabSizing,
 				labelFormat: editorConfig.labelFormat,
 			};
 
@@ -172,6 +173,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				showIcons: false,
 				showTabs: true,
 				tabCloseButton: 'right',
+				tabSizing: 'fit',
 				labelFormat: 'default',
 			};
 
@@ -225,6 +227,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 					previewEditors: newPreviewEditors,
 					showIcons: editorConfig.showIcons,
 					tabCloseButton: editorConfig.tabCloseButton,
+					tabSizing: editorConfig.tabSizing,
 					showTabs: this.forceHideTabs ? false : editorConfig.showTabs,
 					labelFormat: editorConfig.labelFormat,
 				};

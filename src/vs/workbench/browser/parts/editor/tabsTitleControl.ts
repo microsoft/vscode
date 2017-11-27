@@ -307,9 +307,15 @@ export class TabsTitleControl extends TitleControl {
 			tabContainer.style.outlineColor = this.getColor(activeContrastBorder);
 
 			const tabOptions = this.editorGroupService.getTabOptions();
+
 			['off', 'left'].forEach(option => {
 				const domAction = tabOptions.tabCloseButton === option ? DOM.addClass : DOM.removeClass;
 				domAction(tabContainer, `close-button-${option}`);
+			});
+
+			['fit', 'shrink'].forEach(option => {
+				const domAction = tabOptions.tabSizing === option ? DOM.addClass : DOM.removeClass;
+				domAction(tabContainer, `sizing-${option}`);
 			});
 
 			// Label

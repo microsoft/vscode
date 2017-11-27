@@ -227,6 +227,8 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 	private updateTabOptions(tabOptions: IEditorTabOptions, refresh?: boolean): void {
 		const tabCloseButton = this.tabOptions ? this.tabOptions.tabCloseButton : 'right';
+		const tabSizing = this.tabOptions ? this.tabOptions.tabSizing : 'fit';
+
 		this.tabOptions = tabOptions;
 
 		if (!refresh) {
@@ -263,8 +265,8 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 					this.createTitleControl(this.stacks.groupAt(position), this.silos[position], titleContainer, this.getInstantiationService(position));
 				}
 
-				// Refresh title when icons change
-				else if (showingIcons !== this.tabOptions.showIcons || tabCloseButton !== this.tabOptions.tabCloseButton) {
+				// Refresh title when layout options change
+				else if (showingIcons !== this.tabOptions.showIcons || tabCloseButton !== this.tabOptions.tabCloseButton || tabSizing !== this.tabOptions.tabSizing) {
 					titleControl.refresh();
 				}
 			}
