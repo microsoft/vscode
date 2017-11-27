@@ -104,6 +104,8 @@ export class EnvironmentService implements IEnvironmentService {
 
 	get skipGettingStarted(): boolean { return this._args['skip-getting-started']; }
 
+	get skipAddToRecentlyOpened(): boolean { return this._args['skip-add-to-recently-opened']; }
+
 	@memoize
 	get debugExtensionHost(): IExtensionHostDebugParams { return parseExtensionHostPort(this._args, this.isBuilt); }
 

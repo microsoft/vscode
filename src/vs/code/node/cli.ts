@@ -88,8 +88,9 @@ export async function main(argv: string[]): TPromise<any> {
 				// Make sure to open tmp file
 				argv.push(stdinFilePath);
 
-				// Enable --wait to get all data
+				// Enable --wait to get all data and ignore adding this to history
 				argv.push('--wait');
+				argv.push('--skip-add-to-recently-opened');
 				args.wait = true;
 			} catch (error) {
 				stdinFileError = error;

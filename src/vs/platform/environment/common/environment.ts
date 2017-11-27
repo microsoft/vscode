@@ -47,6 +47,7 @@ export interface ParsedArgs {
 	'install-source'?: string;
 	'disable-updates'?: string;
 	'disable-crash-reporter'?: string;
+	'skip-add-to-recently-opened'?: boolean;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
@@ -103,6 +104,8 @@ export interface IEnvironmentService {
 	performance: boolean;
 
 	skipGettingStarted: boolean | undefined;
+
+	skipAddToRecentlyOpened: boolean;
 
 	mainIPCHandle: string;
 	sharedIPCHandle: string;

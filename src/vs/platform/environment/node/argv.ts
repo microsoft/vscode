@@ -51,7 +51,8 @@ const options: minimist.Opts = {
 		'sticky-quickopen',
 		'disable-telemetry',
 		'disable-updates',
-		'disable-crash-reporter'
+		'disable-crash-reporter',
+		'skip-add-to-recently-opened'
 	],
 	alias: {
 		add: 'a',
