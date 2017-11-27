@@ -20,6 +20,7 @@
 	"findInWorkspace": "Procurar no Espaço de Trabalho...",
 	"findInFolder": "Procurar na pasta...",
 	"RefreshAction.label": "Atualizar",
+	"collapse": "Recolher",
 	"ClearSearchResultsAction.label": "Limpar os Resultados da Pesquisa",
 	"FocusNextSearchResult.label": "Focalizar o Próximo Resultado da Pesquisa",
 	"FocusPreviousSearchResult.label": "Focalizar o Resultado da Pesquisa Anterior",

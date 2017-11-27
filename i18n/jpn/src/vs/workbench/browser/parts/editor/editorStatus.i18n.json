@@ -53,5 +53,5 @@
 	"screenReaderDetectedExplanation.answerYes": "はい",
 	"screenReaderDetectedExplanation.answerNo": "いいえ",
 	"screenReaderDetectedExplanation.body1": "VS Codeは現在スクリーンリーダーの使用状況に最適化されています。",
-	"screenReaderDetectedExplanation.body2": "いくつかのエディター機能が通常と異なる動作をします。例: 折り返し、折りたたみ、かっこの自動閉じなど"
+	"screenReaderDetectedExplanation.body2": "いくつかのエディター機能が通常と異なる動作をします。例: 折り返し、折りたたみなど"
 }

@@ -7,12 +7,10 @@
 	"settingsEditorName": "Configuración predeterminada",
 	"SearchSettingsWidget.AriaLabel": "Buscar configuración",
 	"SearchSettingsWidget.Placeholder": "Buscar configuración",
-	"totalSettingsMessage": "{0} configuraciones en total",
 	"noSettingsFound": "Sin resultados",
 	"oneSettingFound": "Coincide 1 configuración",
 	"settingsFound": "{0} configuraciones coincidentes",
-	"fileEditorWithInputAriaLabel": "{0}. Editor de archivos de texto.",
-	"fileEditorAriaLabel": "Editor de archivos de texto.",
+	"totalSettingsMessage": "{0} configuraciones en total",
 	"defaultEditorReadonly": "Editar en el editor de lado de mano derecha para reemplazar valores predeterminados.",
 	"preferencesAriaLabel": "Preferencias predeterminadas. Editor de texto de solo lectura."
 }

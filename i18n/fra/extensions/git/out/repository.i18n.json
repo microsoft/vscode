@@ -21,6 +21,7 @@
 	"deleted by us": "Supprimé par nos soins",
 	"both added": "Tous deux ajoutés",
 	"both modified": "Tous deux modifiés",
+	"commitMessage": "Message (press {0} to commit)",
 	"commit": "Commit",
 	"merge changes": "Fusionner les modifications",
 	"staged changes": "Modifications en zone de transit",

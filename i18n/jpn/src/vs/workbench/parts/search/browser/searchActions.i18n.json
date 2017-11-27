@@ -20,6 +20,7 @@
 	"findInWorkspace": "ワークスペース内を検索...",
 	"findInFolder": "フォルダー内を検索...",
 	"RefreshAction.label": "最新の情報に更新",
+	"collapse": "折りたたむ",
 	"ClearSearchResultsAction.label": "検索結果のクリア",
 	"FocusNextSearchResult.label": "次の検索結果にフォーカス",
 	"FocusPreviousSearchResult.label": "前の検索結果にフォーカス",

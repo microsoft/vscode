@@ -75,5 +75,6 @@
 	"zenMode.hideTabs": "控制開啟 Zen Mode 是否也會隱藏 Workbench 索引標籤。",
 	"zenMode.hideStatusBar": "控制開啟 Zen Mode 是否也會隱藏 Workbench 底部的狀態列。",
 	"zenMode.hideActivityBar": "控制開啟 Zen Mode 是否也會隱藏 Workbench 左方的活動列。",
-	"zenMode.restore": "控制視窗如果在 Zen Mode 下結束，是否應還原為 Zen Mode。"
+	"zenMode.restore": "控制視窗如果在 Zen Mode 下結束，是否應還原為 Zen Mode。",
+	"JsonSchema.locale": "要使用的 UI 語言。"
 }

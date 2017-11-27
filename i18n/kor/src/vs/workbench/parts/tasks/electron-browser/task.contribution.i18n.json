@@ -6,9 +6,7 @@
 {
 	"tasksCategory": "작업",
 	"ConfigureTaskRunnerAction.label": "작업 구성",
-	"ConfigureBuildTaskAction.label": "빌드 작업 구성",
 	"CloseMessageAction.label": "닫기",
-	"ShowTerminalAction.label": "터미널 보기",
 	"problems": "문제",
 	"manyMarkers": "99+",
 	"runningTasks": "실행 중인 작업 표시",
@@ -52,7 +50,6 @@
 	"TaslService.noEntryToRun": "실행할 작업이 없습니다. 작업 구성...",
 	"TaskService.fetchingBuildTasks": "빌드 작업을 페치하는 중...",
 	"TaskService.pickBuildTask": "실행할 빌드 작업 선택",
-	"TaskService.noBuildTask": "실행할 빌드 작업이 없습니다. 작업 구성...",
 	"TaskService.fetchingTestTasks": "테스트 작업을 페치하는 중...",
 	"TaskService.pickTestTask": "실행할 테스트 작업 선택",
 	"TaskService.noTestTaskTerminal": "실행할 테스트 작업이 없습니다. 작업 구성...",

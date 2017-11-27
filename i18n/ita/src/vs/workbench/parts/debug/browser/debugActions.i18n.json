@@ -30,7 +30,6 @@
 	"deactivateBreakpoints": "Disattiva punti di interruzione",
 	"reapplyAllBreakpoints": "Riapplica tutti i punti di interruzione",
 	"addFunctionBreakpoint": "Aggiungi punto di interruzione della funzione",
-	"renameFunctionBreakpoint": "Rinomina punto di interruzione della funzione",
 	"addConditionalBreakpoint": "Aggiungi punto di interruzione condizionale...",
 	"editConditionalBreakpoint": "Modifica punto di interruzione...",
 	"setValue": "Imposta valore",

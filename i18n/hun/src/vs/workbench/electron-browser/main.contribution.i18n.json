@@ -75,5 +75,6 @@
 	"zenMode.hideTabs": "Meghatározza, hogy zen-módban el vannak-e rejtve a munkaterület fülei.",
 	"zenMode.hideStatusBar": "Meghatározza, hogy zen-módban el van-e rejtve a munkaterület alján található állapotsor.",
 	"zenMode.hideActivityBar": "Meghatározza, hogy zen-módban el van-e rejtve a munkaterület bal oldalán található tevékenységsáv.",
-	"zenMode.restore": "Meghatározza, hogy az ablak zen-módban induljon-e, ha kilépéskor zen-módban volt."
+	"zenMode.restore": "Meghatározza, hogy az ablak zen-módban induljon-e, ha kilépéskor zen-módban volt.",
+	"JsonSchema.locale": "A felhasználói felületen használt nyelv."
 }
