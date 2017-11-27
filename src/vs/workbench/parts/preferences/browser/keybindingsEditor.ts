@@ -147,7 +147,6 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 	clearInput(): void {
 		super.clearInput();
-		this.searchWidget.clear();
 		this.keybindingsEditorContextKey.reset();
 		this.keybindingFocusContextKey.reset();
 	}
