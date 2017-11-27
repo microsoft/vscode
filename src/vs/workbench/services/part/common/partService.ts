@@ -28,6 +28,11 @@ export interface ILayoutOptions {
 	source?: Parts;
 }
 
+export interface Dimension {
+	readonly width: number;
+	readonly height: number;
+}
+
 export const IPartService = createDecorator<IPartService>('partService');
 
 export interface IPartService {
@@ -41,7 +46,7 @@ export interface IPartService {
 	/**
 	 * Emits when the editor part's layout changes.
 	 */
-	onEditorLayout: Event<void>;
+	onEditorLayout: Event<Dimension>;
 
 	/**
 	 * Asks the part service to layout all parts.
