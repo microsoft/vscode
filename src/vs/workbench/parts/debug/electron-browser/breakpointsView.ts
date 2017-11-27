@@ -234,6 +234,7 @@ interface IBreakpointTemplateData extends IBaseBreakpointTemplateData {
 interface IInputTemplateData {
 	inputBox: InputBox;
 	breakpoint: IFunctionBreakpoint;
+	reactedOnEvent: boolean;
 	toDispose: IDisposable[];
 }
 
@@ -426,11 +427,14 @@ class FunctionBreakpointInputRenderer implements IRenderer<IFunctionBreakpoint, 
 		const toDispose: IDisposable[] = [inputBox, styler];
 
 		const wrapUp = (renamed: boolean) => {
-			this.debugService.getViewModel().setSelectedFunctionBreakpoint(undefined);
-			if (inputBox.value && (renamed || template.breakpoint.name)) {
-				this.debugService.renameFunctionBreakpoint(template.breakpoint.getId(), renamed ? inputBox.value : template.breakpoint.name).done(null, onUnexpectedError);
-			} else {
-				this.debugService.removeFunctionBreakpoints(template.breakpoint.getId()).done(null, onUnexpectedError);
+			if (!template.reactedOnEvent) {
+				template.reactedOnEvent = true;
+				this.debugService.getViewModel().setSelectedFunctionBreakpoint(undefined);
+				if (inputBox.value && (renamed || template.breakpoint.name)) {
+					this.debugService.renameFunctionBreakpoint(template.breakpoint.getId(), renamed ? inputBox.value : template.breakpoint.name).done(null, onUnexpectedError);
+				} else {
+					this.debugService.removeFunctionBreakpoints(template.breakpoint.getId()).done(null, onUnexpectedError);
+				}
 			}
 		};
 
@@ -454,6 +458,7 @@ class FunctionBreakpointInputRenderer implements IRenderer<IFunctionBreakpoint, 
 
 	renderElement(functionBreakpoint: IFunctionBreakpoint, index: number, data: IInputTemplateData): void {
 		data.breakpoint = functionBreakpoint;
+		data.reactedOnEvent = false;
 		data.inputBox.value = functionBreakpoint.name || '';
 		data.inputBox.focus();
 		data.inputBox.select();
