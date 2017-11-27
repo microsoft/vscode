@@ -815,6 +815,7 @@
       "properties": {
         "git.enabled": {
           "type": "boolean",
+          "scope": "resource",
           "description": "%config.enabled%",
           "default": true
         },
