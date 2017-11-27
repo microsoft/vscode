@@ -61,6 +61,9 @@ export class RichEditSupport {
 	constructor(languageIdentifier: LanguageIdentifier, previous: RichEditSupport, rawConf: LanguageConfiguration) {
 		this._languageIdentifier = languageIdentifier;
 
+		this._brackets = null;
+		this._electricCharacter = null;
+
 		let prev: LanguageConfiguration = null;
 		if (previous) {
 			prev = previous._conf;
