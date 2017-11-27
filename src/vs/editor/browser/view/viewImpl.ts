@@ -212,6 +212,10 @@ export class View extends ViewEventHandler {
 		this.overlayWidgets = new ViewOverlayWidgets(this._context);
 		this.viewParts.push(this.overlayWidgets);
 
+		// Edge widgets
+		this.edgeWidgets = new ViewEdgeWidgets(this._context);
+		this.viewParts.push(this.edgeWidgets);
+
 		let rulers = new Rulers(this._context);
 		this.viewParts.push(rulers);
 
