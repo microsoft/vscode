@@ -28,6 +28,7 @@ export class SearchService implements ISearchService {
 
 	private diskSearch: DiskSearch;
 	private readonly searchProvider: ISearchResultProvider[] = [];
+	private forwardingTelemetry: PPromise<void, ITelemetryEvent>;
 
 	constructor(
 		@IModelService private modelService: IModelService,
@@ -38,7 +39,6 @@ export class SearchService implements ISearchService {
 	) {
 		this.diskSearch = new DiskSearch(!environmentService.isBuilt || environmentService.verbose, /*timeout=*/undefined, environmentService.debugSearch);
 		this.registerSearchResultProvider(this.diskSearch);
-		this.forwardTelemetry();
 	}
 
 	public registerSearchResultProvider(provider: ISearchResultProvider): IDisposable {
@@ -76,6 +76,7 @@ export class SearchService implements ISearchService {
 	}
 
 	public search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem> {
+		this.forwardTelemetry();
 
 		let combinedPromise: TPromise<void>;
 
@@ -210,10 +211,12 @@ export class SearchService implements ISearchService {
 	}
 
 	private forwardTelemetry() {
-		this.diskSearch.fetchTelemetry()
-			.then(null, onUnexpectedError, event => {
-				this.telemetryService.publicLog(event.eventName, event.data);
-			});
+		if (!this.forwardingTelemetry) {
+			this.forwardingTelemetry = this.diskSearch.fetchTelemetry()
+				.then(null, onUnexpectedError, event => {
+					this.telemetryService.publicLog(event.eventName, event.data);
+				});
+		}
 	}
 }
 
