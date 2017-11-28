@@ -487,6 +487,17 @@ export class AutoIndentOnPaste implements IEditorContribution {
 			}
 		}
 
+		const firstLineNumber = startLineNumber;
+
+		// ignore empty or ignored lines
+		while (startLineNumber < range.endLineNumber) {
+			if (!/\S/.test(model.getLineContent(startLineNumber + 1))) {
+				startLineNumber++;
+				continue;
+			}
+			break;
+		}
+
 		if (startLineNumber !== range.endLineNumber) {
 			let virtualModel = {
 				getLineTokens: (lineNumber: number) => {
@@ -499,7 +510,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 					return model.getLanguageIdAtPosition(lineNumber, column);
 				},
 				getLineContent: (lineNumber: number) => {
-					if (lineNumber === startLineNumber) {
+					if (lineNumber === firstLineNumber) {
 						return firstLineText;
 					} else {
 						return model.getLineContent(lineNumber);
