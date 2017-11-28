@@ -156,6 +156,12 @@ export class TabsTitleControl extends TitleControl {
 			}
 		}));
 
+		this.toUnbind.push(DOM.addDisposableListener(this.tabsContainer, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+			if (e.button === 1) {
+				e.preventDefault(); // required to prevent auto-scrolling (https://github.com/Microsoft/vscode/issues/16690)
+			}
+		}));
+
 		// Custom Scrollbar
 		this.scrollbar = new ScrollableElement(this.tabsContainer, {
 			horizontal: ScrollbarVisibility.Auto,
