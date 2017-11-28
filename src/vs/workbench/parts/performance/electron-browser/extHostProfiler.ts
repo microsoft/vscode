@@ -12,6 +12,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IStatusbarService, StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { TernarySearchTree } from 'vs/base/common/map';
+import { realpathSync } from 'vs/base/node/extfs';
 
 
 CommandsRegistry.registerCommand('exthost.profile.start', async accessor => {
@@ -20,7 +21,7 @@ CommandsRegistry.registerCommand('exthost.profile.start', async accessor => {
 
 	const searchTree = TernarySearchTree.forPaths<IExtensionDescription>();
 	for (let extension of await extensionService.getExtensions()) {
-		searchTree.set(extension.extensionFolderPath, extension);
+		searchTree.set(realpathSync(extension.extensionFolderPath), extension);
 	}
 
 	const handle = statusbarService.addEntry({ text: localize('message', "$(zap) Profiling Extension Host...") }, StatusbarAlignment.LEFT);
