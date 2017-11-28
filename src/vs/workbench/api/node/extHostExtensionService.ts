@@ -14,7 +14,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { ExtHostStorage } from 'vs/workbench/api/node/extHostStorage';
 import { createApiFactory, initializeExtensionApi } from 'vs/workbench/api/node/extHost.api.impl';
 import { MainContext, MainThreadExtensionServiceShape, IWorkspaceData, IEnvironment, IInitData, ExtHostExtensionServiceShape, MainThreadTelemetryShape } from './extHost.protocol';
-import { IExtensionMemento, ExtensionsActivator, ActivatedExtension, IExtensionAPI, IExtensionContext, EmptyExtension, IExtensionModule, ExtensionActivationTimesBuilder, ExtensionActivationTimes } from 'vs/workbench/api/node/extHostExtensionActivator';
+import { IExtensionMemento, ExtensionsActivator, ActivatedExtension, IExtensionAPI, IExtensionContext, EmptyExtension, IExtensionModule, ExtensionActivationTimesBuilder, ExtensionActivationTimes, ExtensionActivationReason, ExtensionActivatedByEvent } from 'vs/workbench/api/node/extHostExtensionActivator';
 import { ExtHostThreadService } from 'vs/workbench/services/thread/node/extHostThreadService';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
@@ -157,8 +157,8 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 					}
 				},
 
-				actualActivateExtension: (extensionDescription: IExtensionDescription, startup: boolean): TPromise<ActivatedExtension> => {
-					return this._activateExtension(extensionDescription, startup);
+				actualActivateExtension: (extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): TPromise<ActivatedExtension> => {
+					return this._activateExtension(extensionDescription, reason);
 				}
 			});
 
@@ -178,18 +178,19 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	}
 
 	public activateByEvent(activationEvent: string, startup: boolean): TPromise<void> {
+		const reason = new ExtensionActivatedByEvent(startup, activationEvent);
 		if (this._barrier.isOpen()) {
-			return this._activator.activateByEvent(activationEvent, startup);
+			return this._activator.activateByEvent(activationEvent, reason);
 		} else {
-			return this._barrier.wait().then(() => this._activator.activateByEvent(activationEvent, startup));
+			return this._barrier.wait().then(() => this._activator.activateByEvent(activationEvent, reason));
 		}
 	}
 
-	public activateById(extensionId: string, startup: boolean): TPromise<void> {
+	public activateById(extensionId: string, reason: ExtensionActivationReason): TPromise<void> {
 		if (this._barrier.isOpen()) {
-			return this._activator.activateById(extensionId, startup);
+			return this._activator.activateById(extensionId, reason);
 		} else {
-			return this._barrier.wait().then(() => this._activator.activateById(extensionId, startup));
+			return this._barrier.wait().then(() => this._activator.activateById(extensionId, reason));
 		}
 	}
 
@@ -274,8 +275,8 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 
 	// --- impl
 
-	private _activateExtension(extensionDescription: IExtensionDescription, startup: boolean): TPromise<ActivatedExtension> {
-		return this._doActivateExtension(extensionDescription, startup).then((activatedExtension) => {
+	private _activateExtension(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): TPromise<ActivatedExtension> {
+		return this._doActivateExtension(extensionDescription, reason).then((activatedExtension) => {
 			const activationTimes = activatedExtension.activationTimes;
 			this._proxy.$onExtensionActivated(extensionDescription.id, activationTimes.startup, activationTimes.codeLoadingTime, activationTimes.activateCallTime, activationTimes.activateResolvedTime);
 			return activatedExtension;
@@ -285,7 +286,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		});
 	}
 
-	private _doActivateExtension(extensionDescription: IExtensionDescription, startup: boolean): TPromise<ActivatedExtension> {
+	private _doActivateExtension(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): TPromise<ActivatedExtension> {
 		let event = getTelemetryActivationEvent(extensionDescription);
 		/* __GDPR__
 			"activatePlugin" : {
@@ -300,7 +301,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			return TPromise.as(new EmptyExtension(ExtensionActivationTimes.NONE));
 		}
 
-		const activationTimesBuilder = new ExtensionActivationTimesBuilder(startup);
+		const activationTimesBuilder = new ExtensionActivationTimesBuilder(reason.startup);
 		return TPromise.join<any>([
 			loadCommonJSModule(extensionDescription.main, activationTimesBuilder),
 			this._loadExtensionContext(extensionDescription)

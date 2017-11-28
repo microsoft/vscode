@@ -56,6 +56,7 @@ import { ExtHostFileSystem } from 'vs/workbench/api/node/extHostFileSystem';
 import { FileChangeType, FileType } from 'vs/platform/files/common/files';
 import { ExtHostDecorations } from 'vs/workbench/api/node/extHostDecorations';
 import { toGlobPattern, toLanguageSelector } from 'vs/workbench/api/node/extHostTypeConverters';
+import { ExtensionActivatedByAPI } from 'vs/workbench/api/node/extHostExtensionActivator';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription): typeof vscode;
@@ -620,7 +621,7 @@ class Extension<T> implements vscode.Extension<T> {
 	}
 
 	activate(): Thenable<T> {
-		return this._extensionService.activateById(this.id, false).then(() => this.exports);
+		return this._extensionService.activateById(this.id, new ExtensionActivatedByAPI(false)).then(() => this.exports);
 	}
 }
 

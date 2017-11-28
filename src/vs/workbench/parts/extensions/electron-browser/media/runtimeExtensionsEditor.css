@@ -10,6 +10,7 @@
 
 .runtime-extensions-editor .extension .desc {
 	flex: 1;
+	padding: 4px 0;
 }
 
 .runtime-extensions-editor .extension .desc .name {

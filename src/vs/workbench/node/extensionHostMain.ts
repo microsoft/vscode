@@ -21,6 +21,7 @@ import { IInitData, IEnvironment, IWorkspaceData, MainContext } from 'vs/workben
 import * as errors from 'vs/base/common/errors';
 import * as watchdog from 'native-watchdog';
 import * as glob from 'vs/base/common/glob';
+import { ExtensionActivatedByEvent } from 'vs/workbench/api/node/extHostExtensionActivator';
 
 // const nativeExit = process.exit.bind(process);
 function patchExit(allowExit: boolean) {
@@ -208,7 +209,7 @@ export class ExtensionHostMain {
 			if (await pfs.exists(join(uri.fsPath, fileName))) {
 				// the file was found
 				return (
-					this._extensionService.activateById(extensionId, true)
+					this._extensionService.activateById(extensionId, new ExtensionActivatedByEvent(true, `workspaceContains:${fileName}`))
 						.done(null, err => console.error(err))
 				);
 			}
@@ -250,7 +251,7 @@ export class ExtensionHostMain {
 		if (result.limitHit) {
 			// a file was found matching one of the glob patterns
 			return (
-				this._extensionService.activateById(extensionId, true)
+				this._extensionService.activateById(extensionId, new ExtensionActivatedByEvent(true, `workspaceContains:${globPatterns.join(',')}`))
 					.done(null, err => console.error(err))
 			);
 		}
