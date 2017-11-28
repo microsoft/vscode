@@ -80,7 +80,7 @@ export class LaunchService implements ILaunchService {
 	) { }
 
 	public start(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void> {
-		this.logService.log('Received data from other instance: ', args, userEnv);
+		this.logService.info('Received data from other instance: ', args, userEnv);
 
 		// Check early for open-url which is handled in URL service
 		const openUrlArg = args['open-url'] || [];
@@ -127,7 +127,7 @@ export class LaunchService implements ILaunchService {
 	}
 
 	public getMainProcessId(): TPromise<number> {
-		this.logService.log('Received request for process ID from other instance.');
+		this.logService.info('Received request for process ID from other instance.');
 
 		return TPromise.as(process.pid);
 	}
