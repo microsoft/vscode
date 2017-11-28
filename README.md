@@ -4,6 +4,8 @@
 [![Build Status](https://ci.appveyor.com/api/projects/status/vuhlhg80tj3e2a0l/branch/master?svg=true)](https://ci.appveyor.com/project/VSCode/vscode)
 [![Coverage Status](https://img.shields.io/coveralls/Microsoft/vscode/master.svg)](https://coveralls.io/github/Microsoft/vscode?branch=master)
 [![Gitter](https://img.shields.io/badge/chat-on%20gitter-blue.svg)](https://gitter.im/Microsoft/vscode)
+[![dependencies Status](https://david-dm.org/Microsoft/vscode/master/status.svg)](https://david-dm.org/Microsoft/vscode/master)
+[![devDependencies Status](https://david-dm.org/Microsoft/vscode/master/dev-status.svg)](https://david-dm.org/Microsoft/vscode/master?type=dev)
 
 [VS Code](https://code.visualstudio.com) is a new type of tool that combines the simplicity of
 a code editor with what developers need for their core edit-build-debug cycle. Code
