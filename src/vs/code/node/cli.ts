@@ -15,6 +15,7 @@ import * as os from 'os';
 import * as fs from 'fs';
 import { whenDeleted } from 'vs/base/node/pfs';
 import { findFreePort } from 'vs/base/node/ports';
+import { listProcesses } from 'vs/base/node/ps';
 
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 	return !!argv['install-source']
@@ -39,6 +40,8 @@ export async function main(argv: string[]): TPromise<any> {
 
 	if (args.help) {
 		console.log(buildHelpMessage(product.nameLong, product.applicationName, pkg.version));
+	} else if (args.ps) {
+		return listProcesses('16731').then(output => console.log(output));
 	} else if (args.version) {
 		console.log(`${pkg.version}\n${product.commit}\n${process.arch}`);
 	} else if (shouldSpawnCliProcess(args)) {
@@ -68,7 +71,7 @@ export async function main(argv: string[]): TPromise<any> {
 
 		// If we are running with input from stdin, pipe that into a file and
 		// open this file via arguments. Ignore this when we are passed with
-		// paths to open. 
+		// paths to open.
 		let isReadingFromStdin: boolean;
 		try {
 			isReadingFromStdin = args._.length === 0 && !process.stdin.isTTY; // Via https://twitter.com/MylesBorins/status/782009479382626304

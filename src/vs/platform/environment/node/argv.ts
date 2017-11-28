@@ -52,7 +52,8 @@ const options: minimist.Opts = {
 		'disable-telemetry',
 		'disable-updates',
 		'disable-crash-reporter',
-		'skip-add-to-recently-opened'
+		'skip-add-to-recently-opened',
+		'ps'
 	],
 	alias: {
 		add: 'a',
@@ -61,6 +62,7 @@ const options: minimist.Opts = {
 		wait: 'w',
 		diff: 'd',
 		goto: 'g',
+		ps: 'p',
 		'new-window': 'n',
 		'reuse-window': 'r',
 		performance: 'p',
@@ -146,6 +148,7 @@ export const optionsHelp: { [name: string]: string; } = {
 	'--enable-proposed-api <extension-id>': localize('experimentalApis', "Enables proposed api features for an extension."),
 	'--disable-extensions': localize('disableExtensions', "Disable all installed extensions."),
 	'--disable-gpu': localize('disableGPU', "Disable GPU hardware acceleration."),
+	'-p, --ps': localize('ps', "Print process usage."),
 	'-v, --version': localize('version', "Print version."),
 	'-h, --help': localize('help', "Print usage.")
 };
