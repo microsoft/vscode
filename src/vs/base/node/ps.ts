@@ -94,7 +94,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 		if (process.platform === 'win32') {
 
 			const CMD = 'wmic process get ProcessId,ParentProcessId,CommandLine \n';
-			const CMD_PID = new RegExp('^(.+)\\s+([0-9]+)\\s+([0-9]+)$');
+			const CMD_PID = /^(.+)\s+([0-9]+)\s+([0-9]+)$/;
 
 			let stdout = '';
 			let stderr = '';
@@ -132,7 +132,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 		} else {	// OS X & Linux
 
 			const CMD = 'ps -ax -o pid=,ppid=,command=';
-			const PID_CMD = new RegExp('^\\s*([0-9]+)\\s+([0-9]+)\\s+(.+)$');
+			const PID_CMD = /^\s*([0-9]+)\s+([0-9]+)\s+(.+)$/;
 
 			exec(CMD, { maxBuffer: 1000 * 1024 }, (err, stdout, stderr) => {
 
