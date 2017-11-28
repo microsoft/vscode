@@ -68,7 +68,7 @@ export async function main(argv: string[]): TPromise<any> {
 
 		// If we are running with input from stdin, pipe that into a file and
 		// open this file via arguments. Ignore this when we are passed with
-		// paths to open. 
+		// paths to open.
 		let isReadingFromStdin: boolean;
 		try {
 			isReadingFromStdin = args._.length === 0 && !process.stdin.isTTY; // Via https://twitter.com/MylesBorins/status/782009479382626304
@@ -188,6 +188,28 @@ export async function main(argv: string[]): TPromise<any> {
 				await profiler.writeProfile(profileRenderer, `${filenamePrefix}-renderer.cpuprofile${suffix}`);
 				await profiler.writeProfile(profileExtHost, `${filenamePrefix}-exthost.cpuprofile${suffix}`);
 			});
+		}
+
+		if (args['inspect-all']) {
+			const portMain = await findFreePort(9222, 10, 6000);
+			const portRenderer = await findFreePort(portMain + 1, 10, 6000);
+			const portExthost = await findFreePort(portRenderer + 1, 10, 6000);
+			const portSearch = await findFreePort(portExthost + 1, 10, 6000);
+
+			if (!portMain || !portRenderer || !portExthost || !portSearch) {
+				console.error('Failed to find free ports for profiler to connect to do.');
+				return;
+			}
+
+			argv.push(`--inspect=${portMain}`);
+			argv.push(`--remote-debugging-port=${portRenderer}`);
+			argv.push(`--inspect-extensions=${portExthost}`);
+			argv.push(`--inspect-search=${portSearch}`);
+
+			console.log(`Main process debug port: ${portMain}`);
+			console.log(`Renderer process debug port: ${portRenderer}`);
+			console.log(`Extension host process debug port: ${portExthost}`);
+			console.log(`Search process debug port: ${portSearch}`);
 		}
 
 		const options = {
