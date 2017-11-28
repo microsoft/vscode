@@ -70,23 +70,23 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 							return `renderer ${matches[1]}`;
 						}
 					}
-				} else {
-					return matches[1];
 				}
-			} else {
-				// find all xxxx.js
-				const JS = /[a-zA-Z-]+\.js/g;
-				let result = '';
-				do {
-					matches = JS.exec(cmd);
-					if (matches) {
-						result += matches + ' ';
-					}
-				} while (matches);
+				return matches[1];
+			}
 
-				if (result) {
-					return `node ${result}`;
+			// find all xxxx.js
+			const JS = /[a-zA-Z-]+\.js/g;
+			let result = '';
+			do {
+				matches = JS.exec(cmd);
+				if (matches) {
+					result += matches + ' ';
 				}
+			} while (matches);
+
+			if (result) {
+				// assume this is a node process
+				return `node ${result}`;
 			}
 			return cmd;
 		}
