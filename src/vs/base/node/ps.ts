@@ -73,7 +73,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 						const RID = /--renderer-client-id=([0-9]+)/;
 						matches = RID.exec(cmd);
 						if (matches && matches.length === 2) {
-							return `renderer ${matches[1]}`;
+							return `renderer-${matches[1]}`;
 						}
 					}
 				}
