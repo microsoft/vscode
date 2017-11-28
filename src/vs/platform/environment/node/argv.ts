@@ -53,7 +53,8 @@ const options: minimist.Opts = {
 		'disable-telemetry',
 		'disable-updates',
 		'disable-crash-reporter',
-		'skip-add-to-recently-opened'
+		'skip-add-to-recently-opened',
+		'inspect-all'
 	],
 	alias: {
 		add: 'a',
@@ -62,7 +63,6 @@ const options: minimist.Opts = {
 		wait: 'w',
 		diff: 'd',
 		goto: 'g',
-		'cpu-profile': 'cpr',
 		'new-window': 'n',
 		'reuse-window': 'r',
 		performance: 'p',
@@ -150,7 +150,8 @@ export const optionsHelp: { [name: string]: string; } = {
 	'--disable-gpu': localize('disableGPU', "Disable GPU hardware acceleration."),
 	'-v, --version': localize('version', "Print version."),
 	'-h, --help': localize('help', "Print usage."),
-	'-cpr, --cpu-profile': localize('cpr', "Run CPU Profile on process")
+	'--inspect-all': localize('inspect-all', "Start processes in debug mode and print debug ports to console"),
+	'--cpu-profile <port>': localize('cpu-profile', "Collect CPU profile from debug port")
 };
 
 export function formatOptions(options: { [name: string]: string; }, columns: number): string {
