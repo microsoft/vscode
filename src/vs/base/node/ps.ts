@@ -7,17 +7,15 @@
 
 import { spawn, exec } from 'child_process';
 import { basename } from 'path';
-import { repeat } from 'vs/base/common/strings';
 
 export interface ProcessItem {
-	label: string;
-	description: string;
-	detail?: string;
+	name: string;
+	cmd: string;
 	pid: string;
 	children?: ProcessItem[];
 }
 
-export function listProcesses(rootPid: number): Promise<ProcessItem[]> {
+export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 	return new Promise((resolve, reject) => {
 
@@ -79,16 +77,15 @@ export function listProcesses(rootPid: number): Promise<ProcessItem[]> {
 								}
 
 								items.push({
-									label: executable_name,
-									description: pid,
-									detail: cmd,
-									pid: pid
+									name: executable_name,
+									cmd,
+									pid
 								});
 							}
 						}
 					}
 
-					resolve(items);
+					resolve(items[0]); // TODO build proper structure
 				}
 			});
 
@@ -124,17 +121,17 @@ export function listProcesses(rootPid: number): Promise<ProcessItem[]> {
 
 							if (pid === String(rootPid) || parent) {
 
-								let label = cmd;
+								let name = cmd;
 
 								// find "--type=xxxx"
 								matches = TYPE.exec(cmd);
 								if (matches && matches.length === 2) {
-									label = `helper ${matches[1]}`;
+									name = `helper ${matches[1]}`;
 									if (matches[1] === 'renderer') {
 										const rid = /--renderer-client-id=([0-9]+)/;
 										matches = rid.exec(cmd);
 										if (matches && matches.length === 2) {
-											label = `${label} ${matches[1]}`;
+											name = `${name} ${matches[1]}`;
 										}
 									}
 								} else {
@@ -149,15 +146,14 @@ export function listProcesses(rootPid: number): Promise<ProcessItem[]> {
 									} while (matches);
 
 									if (result) {
-										label = `node ${result}`;
+										name = `node ${result}`;
 									}
 								}
 
 								const item = {
-									label: label,
-									description: pid,
-									//detail: cmd,
-									pid: pid
+									name,
+									cmd,
+									pid
 								};
 
 								if (pid === String(rootPid)) {
@@ -177,19 +173,17 @@ export function listProcesses(rootPid: number): Promise<ProcessItem[]> {
 					}
 
 					const items: ProcessItem[] = [];
-					walk(items, rootItem, 0);
-					resolve(items);
+					walk(items, rootItem);
+					resolve(rootItem);
 				}
 			});
 		}
 	});
 }
 
-function walk(items: ProcessItem[], root: ProcessItem, indent: number) {
-	root.label = `${repeat('-', indent)} ${root.label}`;
+function walk(items: ProcessItem[], root: ProcessItem) {
 	items.push(root);
 	if (root.children) {
-		indent++;
-		root.children.sort((a, b) => parseInt(a.pid) - parseInt(b.pid)).forEach(item => walk(items, item, indent));
+		root.children.sort((a, b) => parseInt(a.pid) - parseInt(b.pid)).forEach(item => walk(items, item));
 	}
 }

@@ -41,7 +41,8 @@ import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/work
 import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { localize } from 'vs/nls';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { listProcesses } from 'vs/base/node/ps';
+import { listProcesses, ProcessItem } from 'vs/base/node/ps';
+import { repeat } from 'vs/base/common/strings';
 
 function createServices(args: ParsedArgs): IInstantiationService {
 	const services = new ServiceCollection();
@@ -144,8 +145,10 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 					// Process Info
 					if (environmentService.args.ps) {
 						return service.getMainProcessId().then(mainProcessPid => {
-							return listProcesses(mainProcessPid).then(processList => {
-								console.log(processList);
+							return listProcesses(mainProcessPid).then(rootProcess => {
+								const output: string[] = [];
+								formatProcess(output, rootProcess, 0);
+								console.log(output.join('\n'));
 
 								return TPromise.wrapError(new ExpectedError());
 							});
@@ -196,6 +199,18 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	}
 
 	return setup(true);
+}
+
+function formatProcess(output: string[], item: ProcessItem, indent: number): void {
+
+	// Format name with indent
+	const name = `${repeat('-', indent)} ${item.name}`;
+	output.push(name);
+
+	// Recurse into children if any
+	if (Array.isArray(item.children)) {
+		item.children.forEach(child => formatProcess(output, child, indent + 1));
+	}
 }
 
 function showStartupWarningDialog(message: string, detail: string): void {
