@@ -151,7 +151,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 				const msgContainer = append(desc, $('div.msg'));
 				const msgIcon = append(msgContainer, $('.'));
-				const msgLabel = append(msgContainer, $('span'));
+				const msgLabel = append(msgContainer, $('span.msg-label'));
 
 				const actionbar = new ActionBar(element, {
 					animated: false,

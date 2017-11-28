@@ -18,10 +18,11 @@
 }
 
 .runtime-extensions-editor .extension .desc .time.on-startup {
-	color: rgb(255, 174, 0);
+	color: #b7850b;
 }
 
-.runtime-extensions-editor .extension .desc .time-label {
+.runtime-extensions-editor .extension .desc .time-label,
+.runtime-extensions-editor .extension .desc .msg-label {
 	padding-left: 4px;
 }
 
