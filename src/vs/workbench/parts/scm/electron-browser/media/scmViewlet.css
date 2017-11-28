@@ -108,6 +108,11 @@
 	flex-grow: 100;
 }
 
+.scm-viewlet .monaco-panel-view .panel > .panel-header > .actions {
+	display: block;
+	flex: 1;
+}
+
 .scm-viewlet .monaco-list .monaco-list-row > .resource-group > .actions,
 .scm-viewlet .monaco-list .monaco-list-row > .resource > .name > .monaco-icon-label > .actions {
 	display: none;
