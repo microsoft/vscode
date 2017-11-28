@@ -9,23 +9,23 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { IStatusbarService, StatusbarAlignment } from 'vs/platform/statusbar/common/statusbar';
+
 
 CommandsRegistry.registerCommand('exthost.profile.start', async accessor => {
-	const progressService = accessor.get(IProgressService2);
-	const { inspectPort } = accessor.get(IExtensionService).getExtensionHostInformation();
+	const statusbarService = accessor.get(IStatusbarService);
+	const extensionService = accessor.get(IExtensionService);
 
-	progressService.withProgress({
-		location: ProgressLocation.Window,
-		title: localize('message', "Profiling Extension Host")
-	}, progress => {
-		return TPromise.wrap(import('v8-inspect-profiler')).then(profiler => {
-			return profiler.startProfiling({ port: inspectPort }).then(session => {
-				return session.stop(5000);
-			}).then(profile => {
-				profiler.writeProfile(profile, '/Users/jrieken/Code/test.cpuprofile');
-			});
+	const handle = statusbarService.addEntry({ text: localize('message', "$(zap) Profiling Extension Host...") }, StatusbarAlignment.LEFT);
+
+	return TPromise.wrap(import('v8-inspect-profiler')).then(profiler => {
+		return profiler.startProfiling({ port: extensionService.getExtensionHostInformation().inspectPort }).then(session => {
+			return session.stop(5000);
+		}).then(profile => {
+			// return profiler.writeProfile(profile, '/Users/jrieken/Code/test.cpuprofile');
+		}).then(() => {
+			handle.dispose();
 		});
 	});
 });
