@@ -124,6 +124,8 @@ export function createApiFactory(
 
 	return function (extension: IExtensionDescription): typeof vscode {
 
+		const EXTENSION_ID = extension.id;
+
 		if (extension.enableProposedApi && !extension.isBuiltin) {
 
 			if (
@@ -386,6 +388,7 @@ export function createApiFactory(
 		// namespace: workspace
 		const workspace: typeof vscode.workspace = {
 			get rootPath() {
+				extensionService.addMessage(EXTENSION_ID, Severity.Warning, 'workspace.rootPath is deprecated');
 				return extHostWorkspace.getPath();
 			},
 			set rootPath(value) {

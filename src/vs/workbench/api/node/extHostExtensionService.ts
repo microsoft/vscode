@@ -273,6 +273,10 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		return result;
 	}
 
+	public addMessage(extensionId: string, severity: Severity, message: string): void {
+		this._proxy.$addMessage(extensionId, severity, message);
+	}
+
 	// --- impl
 
 	private _activateExtension(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): TPromise<ActivatedExtension> {

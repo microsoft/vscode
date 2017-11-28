@@ -352,6 +352,7 @@ export interface MainThreadExtensionServiceShape extends IDisposable {
 	$localShowMessage(severity: Severity, msg: string): void;
 	$onExtensionActivated(extensionId: string, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void;
 	$onExtensionActivationFailed(extensionId: string): void;
+	$addMessage(extensionId: string, severity: Severity, message: string): void;
 }
 
 export interface SCMProviderFeatures {

@@ -510,6 +510,20 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		this._extensionHostProcessActivationTimes[extensionId] = new ActivationTimes(startup, codeLoadingTime, activateCallTime, activateResolvedTime, activationEvent);
 		this._onDidChangeExtensionsStatus.fire([extensionId]);
 	}
+
+	public _addMessage(extensionId: string, severity: Severity, message: string): void {
+		if (!this._extensionsMessages[extensionId]) {
+			this._extensionsMessages[extensionId] = [];
+		}
+		this._extensionsMessages[extensionId].push({
+			type: severity,
+			message: message,
+			source: null,
+			extensionId: null,
+			extensionPointId: null
+		});
+		this._onDidChangeExtensionsStatus.fire([extensionId]);
+	}
 }
 
 export class Logger implements ILog {

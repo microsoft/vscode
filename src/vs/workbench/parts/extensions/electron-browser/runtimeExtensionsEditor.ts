@@ -22,7 +22,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IExtensionService, IExtensionDescription, IExtensionsStatus } from 'vs/platform/extensions/common/extensions';
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { WorkbenchList, IListService } from 'vs/platform/list/browser/listService';
-import { append, $, addDisposableListener, addClass, toggleClass } from 'vs/base/browser/dom';
+import { append, $, addDisposableListener, addClass, toggleClass, removeClass } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -124,9 +124,14 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			element: HTMLElement;
 			icon: HTMLImageElement;
 			name: HTMLElement;
+
 			timeContainer: HTMLElement;
 			timeIcon: HTMLElement;
 			timeLabel: HTMLElement;
+
+			msgIcon: HTMLElement;
+			msgLabel: HTMLElement;
+
 			disposables: IDisposable[];
 			elementDisposables: IDisposable[];
 		}
@@ -139,9 +144,15 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 				const desc = append(element, $('div.desc'));
 				const name = append(desc, $('div.name'));
+
 				const timeContainer = append(desc, $('div.time'));
 				const timeIcon = append(timeContainer, $('span.octicon.octicon-clock'));
 				const timeLabel = append(timeContainer, $('span.time-label'));
+
+				const msgContainer = append(desc, $('div.msg'));
+				const msgIcon = append(msgContainer, $('.'));
+				const msgLabel = append(msgContainer, $('span'));
+
 				const actionbar = new ActionBar(element, {
 					animated: false,
 					actionItemProvider: (action: Action) => {
@@ -164,6 +175,8 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					timeContainer,
 					timeIcon,
 					timeLabel,
+					msgIcon,
+					msgLabel,
 					disposables,
 					elementDisposables: []
 				};
@@ -208,7 +221,15 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				if (activationTimes.startup) {
 					data.timeIcon.className = 'octicon octicon-clock';
 				} else {
-					data.timeIcon.className = 'octicon octicon-rocket';
+					data.timeIcon.className = 'octicon octicon-dashboard';
+				}
+
+				if (element.status.messages && element.status.messages.length > 0) {
+					data.msgIcon.className = 'octicon octicon-alert';
+					data.msgLabel.textContent = element.status.messages[0].message;
+				} else {
+					data.msgIcon.className = '';
+					data.msgLabel.textContent = '';
 				}
 			},
 
