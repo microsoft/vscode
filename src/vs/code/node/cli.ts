@@ -38,16 +38,29 @@ export async function main(argv: string[]): TPromise<any> {
 		return TPromise.as(null);
 	}
 
+	// Help
 	if (args.help) {
 		console.log(buildHelpMessage(product.nameLong, product.applicationName, pkg.version));
-	} else if (args.ps) {
+	}
+
+	// Process Info
+	else if (args.ps) {
 		return listProcesses('16731').then(output => console.log(output));
-	} else if (args.version) {
+	}
+
+	// Version Info
+	else if (args.version) {
 		console.log(`${pkg.version}\n${product.commit}\n${process.arch}`);
-	} else if (shouldSpawnCliProcess(args)) {
+	}
+
+	// Extensions Management
+	else if (shouldSpawnCliProcess(args)) {
 		const mainCli = new TPromise<IMainCli>(c => require(['vs/code/node/cliProcessMain'], c));
 		return mainCli.then(cli => cli.main(args));
-	} else {
+	}
+
+	// Just Code
+	else {
 		const env = assign({}, process.env, {
 			// this will signal Code that it was spawned from this module
 			'VSCODE_CLI': '1',
