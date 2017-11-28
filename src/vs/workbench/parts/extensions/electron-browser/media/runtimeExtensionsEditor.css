@@ -17,6 +17,10 @@
 	font-weight: bold;
 }
 
+.runtime-extensions-editor .extension .desc .time.on-startup {
+	color: rgb(255, 174, 0);
+}
+
 .runtime-extensions-editor .extension .desc .time-label {
 	padding-left: 4px;
 }

@@ -22,7 +22,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IExtensionService, IExtensionDescription, IExtensionsStatus } from 'vs/platform/extensions/common/extensions';
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { WorkbenchList, IListService } from 'vs/platform/list/browser/listService';
-import { append, $, addDisposableListener, addClass } from 'vs/base/browser/dom';
+import { append, $, addDisposableListener, addClass, toggleClass } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -124,7 +124,9 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			element: HTMLElement;
 			icon: HTMLImageElement;
 			name: HTMLElement;
-			time: HTMLElement;
+			timeContainer: HTMLElement;
+			timeIcon: HTMLElement;
+			timeLabel: HTMLElement;
 			disposables: IDisposable[];
 			elementDisposables: IDisposable[];
 		}
@@ -138,8 +140,8 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				const desc = append(element, $('div.desc'));
 				const name = append(desc, $('div.name'));
 				const timeContainer = append(desc, $('div.time'));
-				append(timeContainer, $('span.octicon.octicon-clock'));
-				const time = append(timeContainer, $('span.time-label'));
+				const timeIcon = append(timeContainer, $('span.octicon.octicon-clock'));
+				const timeLabel = append(timeContainer, $('span.time-label'));
 				const actionbar = new ActionBar(element, {
 					animated: false,
 					actionItemProvider: (action: Action) => {
@@ -159,7 +161,9 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					element,
 					icon,
 					name,
-					time,
+					timeContainer,
+					timeIcon,
+					timeLabel,
 					disposables,
 					elementDisposables: []
 				};
@@ -180,7 +184,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 				const activationTimes = element.status.activationTimes;
 				let syncTime = activationTimes.codeLoadingTime + activationTimes.activateCallTime;
-				data.time.textContent = `${syncTime}ms`;
+				data.timeLabel.textContent = `${syncTime}ms`;
 
 				let title: string;
 				if (activationTimes.activationEvent === '*') {
@@ -198,7 +202,14 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				} else {
 					title = nls.localize('workspaceGenericActivation', "Activated on {0}", activationTimes.activationEvent);
 				}
-				data.time.title = title;
+				data.timeContainer.title = title;
+
+				toggleClass(data.timeContainer, 'on-startup', activationTimes.startup);
+				if (activationTimes.startup) {
+					data.timeIcon.className = 'octicon octicon-clock';
+				} else {
+					data.timeIcon.className = 'octicon octicon-rocket';
+				}
 			},
 
 			disposeTemplate: (data: IRuntimeExtensionTemplateData): void => {
