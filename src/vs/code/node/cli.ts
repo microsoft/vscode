@@ -15,7 +15,6 @@ import * as os from 'os';
 import * as fs from 'fs';
 import { whenDeleted } from 'vs/base/node/pfs';
 import { findFreePort } from 'vs/base/node/ports';
-import { listProcesses } from 'vs/base/node/ps';
 
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 	return !!argv['install-source']
@@ -43,11 +42,6 @@ export async function main(argv: string[]): TPromise<any> {
 		console.log(buildHelpMessage(product.nameLong, product.applicationName, pkg.version));
 	}
 
-	// Process Info
-	else if (args.ps) {
-		return listProcesses('16731').then(output => console.log(output));
-	}
-
 	// Version Info
 	else if (args.version) {
 		console.log(`${pkg.version}\n${product.commit}\n${process.arch}`);
@@ -71,7 +65,9 @@ export async function main(argv: string[]): TPromise<any> {
 
 		let processCallbacks: ((child: ChildProcess) => Thenable<any>)[] = [];
 
-		if (args.verbose) {
+		const verbose = args.verbose || args.ps;
+
+		if (verbose) {
 			env['ELECTRON_ENABLE_LOGGING'] = '1';
 
 			processCallbacks.push(child => {
@@ -113,7 +109,7 @@ export async function main(argv: string[]): TPromise<any> {
 				stdinFileError = error;
 			}
 
-			if (args.verbose) {
+			if (verbose) {
 				if (stdinFileError) {
 					console.error(`Failed to create file to read via stdin: ${stdinFileError.toString()}`);
 				} else {
@@ -138,7 +134,7 @@ export async function main(argv: string[]): TPromise<any> {
 				waitMarkerError = error;
 			}
 
-			if (args.verbose) {
+			if (verbose) {
 				if (waitMarkerError) {
 					console.error(`Failed to create marker file for --wait: ${waitMarkerError.toString()}`);
 				} else {
@@ -211,7 +207,7 @@ export async function main(argv: string[]): TPromise<any> {
 			env
 		};
 
-		if (!args.verbose) {
+		if (!verbose) {
 			options['stdio'] = 'ignore';
 		}
 

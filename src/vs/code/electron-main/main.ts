@@ -41,6 +41,7 @@ import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/work
 import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { localize } from 'vs/nls';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { listProcesses } from 'vs/base/node/ps';
 
 function createServices(args: ParsedArgs): IInstantiationService {
 	const services = new ServiceCollection();
@@ -125,8 +126,6 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 						return TPromise.wrapError<Server>(new Error(msg));
 					}
 
-					logService.log('Sending env to running instance...');
-
 					// Show a warning dialog after some timeout if it takes long to talk to the other instance
 					// Skip this if we are running with --wait where it is expected that we wait for a while
 					let startupWarningDialogHandle: number;
@@ -141,6 +140,19 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 
 					const channel = client.getChannel<ILaunchChannel>('launch');
 					const service = new LaunchChannelClient(channel);
+
+					// Process Info
+					if (environmentService.args.ps) {
+						return service.getMainProcessId().then(mainProcessPid => {
+							return listProcesses(mainProcessPid).then(processList => {
+								console.log(processList);
+
+								return TPromise.wrapError(new ExpectedError());
+							});
+						});
+					}
+
+					logService.log('Sending env to running instance...');
 
 					return allowSetForegroundWindow(service)
 						.then(() => service.start(environmentService.args, process.env))

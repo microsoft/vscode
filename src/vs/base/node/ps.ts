@@ -17,7 +17,7 @@ export interface ProcessItem {
 	children?: ProcessItem[];
 }
 
-export function listProcesses(rootPid: string): Promise<ProcessItem[]> {
+export function listProcesses(rootPid: number): Promise<ProcessItem[]> {
 
 	return new Promise((resolve, reject) => {
 
@@ -122,7 +122,7 @@ export function listProcesses(rootPid: string): Promise<ProcessItem[]> {
 
 							const parent = map.get(ppid);
 
-							if (pid === rootPid || parent) {
+							if (pid === String(rootPid) || parent) {
 
 								let label = cmd;
 
@@ -160,7 +160,7 @@ export function listProcesses(rootPid: string): Promise<ProcessItem[]> {
 									pid: pid
 								};
 
-								if (pid === rootPid) {
+								if (pid === String(rootPid)) {
 									rootItem = item;
 								}
 
