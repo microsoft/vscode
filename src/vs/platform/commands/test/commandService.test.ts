@@ -23,6 +23,7 @@ class SimpleExtensionService implements IExtensionService {
 	get onDidRegisterExtensions(): Event<IExtensionDescription[]> {
 		return this._onDidRegisterExtensions.event;
 	}
+	onDidChangeExtensionsStatus = null;
 	activateByEvent(activationEvent: string): TPromise<void> {
 		return this.whenInstalledExtensionsRegistered().then(() => { });
 	}
@@ -33,9 +34,6 @@ class SimpleExtensionService implements IExtensionService {
 		return TPromise.as([]);
 	}
 	getExtensionsStatus() {
-		return undefined;
-	}
-	getExtensionsActivationTimes() {
 		return undefined;
 	}
 	getExtensions(): TPromise<IExtensionDescription[]> {

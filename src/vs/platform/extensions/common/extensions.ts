@@ -42,6 +42,7 @@ export interface IMessage {
 
 export interface IExtensionsStatus {
 	messages: IMessage[];
+	activationTimes: ActivationTimes;
 }
 
 export class ActivationTimes {
@@ -72,6 +73,7 @@ export interface IExtensionService {
 	_serviceBrand: any;
 
 	/**
+	 * TODO@Ben: Delete this and use `whenInstalledExtensionsRegistered`
 	 * An event emitted when extensions are registered after their extension points got handled.
 	 *
 	 * This event will also fire on startup to signal the installed extensions.
@@ -79,6 +81,13 @@ export interface IExtensionService {
 	 * @returns the extensions that got registered
 	 */
 	onDidRegisterExtensions: Event<IExtensionDescription[]>;
+
+	/**
+	 * @event
+	 * Fired when extensions status changes.
+	 * The event contains the ids of the extensions that have changed.
+	 */
+	onDidChangeExtensionsStatus: Event<string[]>;
 
 	/**
 	 * Send an activation event and activate interested extensions.
@@ -105,11 +114,6 @@ export interface IExtensionService {
 	 * Get information about extensions status.
 	 */
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus };
-
-	/**
-	 * Get information about extension activation times.
-	 */
-	getExtensionsActivationTimes(): { [id: string]: ActivationTimes; };
 
 	/**
 	 * Restarts the extension host.

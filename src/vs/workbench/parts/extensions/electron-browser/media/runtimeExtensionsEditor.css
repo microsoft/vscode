@@ -1,0 +1,11 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.runtime-extensions-editor .icon {
+	width: 42px;
+	height: 42px;
+	padding: 10px 14px 10px 0;
+	float: left;
+}
