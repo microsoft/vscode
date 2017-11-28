@@ -97,6 +97,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 			const PID_CMD = new RegExp('^\\s*([0-9]+)\\s+([0-9]+)\\s+(.+)$');
 			// const MAC_APPS = new RegExp('^.*/(.*).(?:app|bundle)/Contents/.*$');
 			const TYPE = new RegExp('--type=([a-zA-Z-]+)');
+			const RENDERER_PROCESS_HINT = new RegExp('--disable-blink-features=Auxclick');
 
 			exec('ps -ax -o pid=,ppid=,command=', { maxBuffer: 1000 * 1024 }, (err, stdout, stderr) => {
 
@@ -126,13 +127,20 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 								// find "--type=xxxx"
 								matches = TYPE.exec(cmd);
 								if (matches && matches.length === 2) {
-									name = `helper ${matches[1]}`;
 									if (matches[1] === 'renderer') {
-										const rid = /--renderer-client-id=([0-9]+)/;
-										matches = rid.exec(cmd);
-										if (matches && matches.length === 2) {
-											name = `${name} ${matches[1]}`;
+										if (!RENDERER_PROCESS_HINT.exec(cmd)) {
+											name = 'shared-process';
+										} else {
+											const rid = /--renderer-client-id=([0-9]+)/;
+											matches = rid.exec(cmd);
+											if (matches && matches.length === 2) {
+												name = `renderer ${matches[1]}`;
+											}
 										}
+									} else if (matches[1] === 'gpu-process') {
+										name = 'gpu-process';
+									} else {
+										name = matches[1];
 									}
 								} else {
 									// find all xxxx.js

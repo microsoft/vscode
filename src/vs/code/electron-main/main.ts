@@ -204,8 +204,13 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 function formatProcess(output: string[], item: ProcessItem, indent: number): void {
 
 	// Format name with indent
-	const name = `${repeat('-', indent)} ${item.name}`;
-	output.push(name);
+	let name: string;
+	if (indent === 0) {
+		name = `${product.applicationName} main`;
+	} else {
+		name = `${repeat('  ', indent)} ${item.name}`;
+	}
+	output.push(`${name} \x1b[90m${item.pid}\x1b[0m`);
 
 	// Recurse into children if any
 	if (Array.isArray(item.children)) {
