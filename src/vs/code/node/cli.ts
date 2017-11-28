@@ -67,10 +67,11 @@ export async function main(argv: string[]): TPromise<any> {
 		}
 
 		// If we are running with input from stdin, pipe that into a file and
-		// open this file via arguments.
+		// open this file via arguments. Ignore this when we are passed with
+		// paths to open. 
 		let isReadingFromStdin: boolean;
 		try {
-			isReadingFromStdin = !process.stdin.isTTY; // Via https://twitter.com/MylesBorins/status/782009479382626304
+			isReadingFromStdin = args._.length === 0 && !process.stdin.isTTY; // Via https://twitter.com/MylesBorins/status/782009479382626304
 		} catch (error) {
 			// Windows workaround for https://github.com/nodejs/node/issues/11656
 		}
