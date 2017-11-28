@@ -374,9 +374,14 @@ class MouseController<T> implements IDisposable {
 				const index = this.list.getFocus()[0];
 				const element = this.view.element(index);
 				const anchor = this.view.domElement(index);
-				return { index, element, anchor };
+				return { e, index, element, anchor };
 			})
-			.filter(({ anchor }) => !!anchor)
+			.filter(({ e, anchor }) => !!anchor)
+			.map(o => {
+				o.e.preventDefault();
+				o.e.preventDefault();
+				return o;
+			})
 			.event;
 
 		const fromMouse = chain(this.view.onContextMenu)
