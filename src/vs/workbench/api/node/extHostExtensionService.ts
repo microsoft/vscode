@@ -278,7 +278,8 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	private _activateExtension(extensionDescription: IExtensionDescription, reason: ExtensionActivationReason): TPromise<ActivatedExtension> {
 		return this._doActivateExtension(extensionDescription, reason).then((activatedExtension) => {
 			const activationTimes = activatedExtension.activationTimes;
-			this._proxy.$onExtensionActivated(extensionDescription.id, activationTimes.startup, activationTimes.codeLoadingTime, activationTimes.activateCallTime, activationTimes.activateResolvedTime);
+			let activationEvent = (reason instanceof ExtensionActivatedByEvent ? reason.activationEvent : null);
+			this._proxy.$onExtensionActivated(extensionDescription.id, activationTimes.startup, activationTimes.codeLoadingTime, activationTimes.activateCallTime, activationTimes.activateResolvedTime, activationEvent);
 			return activatedExtension;
 		}, (err) => {
 			this._proxy.$onExtensionActivationFailed(extensionDescription.id);

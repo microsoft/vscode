@@ -181,6 +181,24 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				const activationTimes = element.status.activationTimes;
 				let syncTime = activationTimes.codeLoadingTime + activationTimes.activateCallTime;
 				data.time.textContent = `${syncTime}ms`;
+
+				let title: string;
+				if (activationTimes.activationEvent === '*') {
+					title = nls.localize('starActivation', "Activated on start-up");
+				} else if (/^workspaceContains:/.test(activationTimes.activationEvent)) {
+					let fileNameOrGlob = activationTimes.activationEvent.substr('workspaceContains:'.length);
+					if (fileNameOrGlob.indexOf('*') >= 0 || fileNameOrGlob.indexOf('?') >= 0) {
+						title = nls.localize('workspaceContainsGlobActivation', "Activated because a file matching {0} exists in your workspace", fileNameOrGlob);
+					} else {
+						title = nls.localize('workspaceContainsFileActivation', "Activated because file {0} exists in your workspace", fileNameOrGlob);
+					}
+				} else if (/^onLanguage:/.test(activationTimes.activationEvent)) {
+					let language = activationTimes.activationEvent.substr('onLanguage:'.length);
+					title = nls.localize('languageActivation', "Activated because you opened a {0} file", language);
+				} else {
+					title = nls.localize('workspaceGenericActivation', "Activated on {0}", activationTimes.activationEvent);
+				}
+				data.time.title = title;
 			},
 
 			disposeTemplate: (data: IRuntimeExtensionTemplateData): void => {
