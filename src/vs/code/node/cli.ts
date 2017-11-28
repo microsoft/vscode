@@ -41,6 +41,34 @@ export async function main(argv: string[]): TPromise<any> {
 		console.log(buildHelpMessage(product.nameLong, product.applicationName, pkg.version));
 	} else if (args.version) {
 		console.log(`${pkg.version}\n${product.commit}\n${process.arch}`);
+	} else if (args['cpu-profile']) {
+		const debugPort = args['cpu-profile'];
+		// load and start profiler
+		const profiler = await import('v8-inspect-profiler');
+		const targetProcess = await profiler.startProfiling({ port: Number(debugPort) });
+
+		// marker file
+		const filenamePrefix = paths.join(os.homedir(), Math.random().toString(16).slice(-4));
+
+		if (args.wait) {
+			return new TPromise<void>(c => {
+				process.on('SIGINT', async () => {
+					let suffix = '';
+					let profileTargetProcess = await targetProcess.stop();
+
+					if (!process.env['VSCODE_DEV']) {
+						profileTargetProcess = profiler.rewriteAbsolutePaths(profileTargetProcess, 'piiRemoved');
+						suffix = '.txt';
+					}
+
+					await profiler.writeProfile(profileTargetProcess, `${filenamePrefix}-main.cpuprofile${suffix}`);
+					console.log(`\nCPU Profile written to ${filenamePrefix}.cpuprofile${suffix}`);
+					c(null);
+					process.exit(0);
+				});
+			});
+		}
+		return;
 	} else if (shouldSpawnCliProcess(args)) {
 		const mainCli = new TPromise<IMainCli>(c => require(['vs/code/node/cliProcessMain'], c));
 		return mainCli.then(cli => cli.main(args));

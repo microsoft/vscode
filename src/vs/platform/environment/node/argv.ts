@@ -27,7 +27,8 @@ const options: minimist.Opts = {
 		'open-url',
 		'enable-proposed-api',
 		'export-default-configuration',
-		'install-source'
+		'install-source',
+		'cpu-profile'
 	],
 	boolean: [
 		'help',
@@ -61,6 +62,7 @@ const options: minimist.Opts = {
 		wait: 'w',
 		diff: 'd',
 		goto: 'g',
+		'cpu-profile': 'cpr',
 		'new-window': 'n',
 		'reuse-window': 'r',
 		performance: 'p',
@@ -147,7 +149,8 @@ export const optionsHelp: { [name: string]: string; } = {
 	'--disable-extensions': localize('disableExtensions', "Disable all installed extensions."),
 	'--disable-gpu': localize('disableGPU', "Disable GPU hardware acceleration."),
 	'-v, --version': localize('version', "Print version."),
-	'-h, --help': localize('help', "Print usage.")
+	'-h, --help': localize('help', "Print usage."),
+	'-cpr, --cpu-profile': localize('cpr', "Run CPU Profile on process")
 };
 
 export function formatOptions(options: { [name: string]: string; }, columns: number): string {
