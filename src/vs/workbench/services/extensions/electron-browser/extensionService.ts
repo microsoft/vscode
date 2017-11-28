@@ -304,14 +304,16 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 	public getExtensionsStatus(): { [id: string]: IExtensionsStatus; } {
 		let result: { [id: string]: IExtensionsStatus; } = Object.create(null);
-		const extensions = this._registry.getAllExtensionDescriptions();
-		for (let i = 0, len = extensions.length; i < len; i++) {
-			const extension = extensions[i];
-			const id = extension.id;
-			result[id] = {
-				messages: this._extensionsMessages[id],
-				activationTimes: this._extensionHostProcessActivationTimes[id]
-			};
+		if (this._registry) {
+			const extensions = this._registry.getAllExtensionDescriptions();
+			for (let i = 0, len = extensions.length; i < len; i++) {
+				const extension = extensions[i];
+				const id = extension.id;
+				result[id] = {
+					messages: this._extensionsMessages[id],
+					activationTimes: this._extensionHostProcessActivationTimes[id]
+				};
+			}
 		}
 		return result;
 	}

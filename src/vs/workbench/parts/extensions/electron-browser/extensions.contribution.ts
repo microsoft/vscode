@@ -34,13 +34,14 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import jsonContributionRegistry = require('vs/platform/jsonschemas/common/jsonContributionRegistry');
 import { ExtensionsConfigurationSchema, ExtensionsConfigurationSchemaId } from 'vs/workbench/parts/extensions/common/extensionsFileTemplate';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeymapExtensions, BetterMergeDisabled } from 'vs/workbench/parts/extensions/electron-browser/extensionsUtils';
 import { adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { GalleryExtensionsHandler, ExtensionsHandler } from 'vs/workbench/parts/extensions/browser/extensionsQuickOpen';
 import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { RuntimeExtensionsEditor, RuntimeExtensionsInput, ShowRuntimeExtensionsAction } from 'vs/workbench/parts/extensions/electron-browser/runtimeExtensionsEditor';
+import { EditorInput, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
 
 // Singletons
 registerSingleton(IExtensionGalleryService, ExtensionGalleryService);
@@ -89,6 +90,8 @@ const editorDescriptor = new EditorDescriptor(
 Registry.as<IEditorRegistry>(EditorExtensions.Editors)
 	.registerEditor(editorDescriptor, [new SyncDescriptor(ExtensionsInput)]);
 
+// Running Extensions Editor
+
 const runtimeExtensionsEditorDescriptor = new EditorDescriptor(
 	RuntimeExtensionsEditor,
 	RuntimeExtensionsEditor.ID,
@@ -97,6 +100,18 @@ const runtimeExtensionsEditorDescriptor = new EditorDescriptor(
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors)
 	.registerEditor(runtimeExtensionsEditorDescriptor, [new SyncDescriptor(RuntimeExtensionsInput)]);
+
+class RuntimeExtensionsInputFactory implements IEditorInputFactory {
+	serialize(editorInput: EditorInput): string {
+		return '';
+	}
+	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
+		return new RuntimeExtensionsInput();
+	}
+}
+
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(RuntimeExtensionsInput.ID, RuntimeExtensionsInputFactory);
+
 
 // Viewlet
 const viewletDescriptor = new ViewletDescriptor(

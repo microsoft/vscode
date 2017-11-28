@@ -62,7 +62,10 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		this._updateExtensions();
 
 		this._extensionService.getExtensions().then((extensions) => {
-			this._extensionsDescriptions = extensions;
+			// We only deal with extensions with source code!
+			this._extensionsDescriptions = extensions.filter((extension) => {
+				return !!extension.main;
+			});
 			this._updateExtensions();
 		});
 		this._register(this._extensionService.onDidChangeExtensionsStatus(() => this._updateExtensions()));
@@ -97,7 +100,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			};
 		}
 
-		return result;
+		return result.filter((element) => element.status.activationTimes);
 	}
 
 	protected createEditor(parent: Builder): void {
@@ -121,6 +124,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			element: HTMLElement;
 			icon: HTMLImageElement;
 			name: HTMLElement;
+			time: HTMLElement;
 			disposables: IDisposable[];
 			elementDisposables: IDisposable[];
 		}
@@ -130,7 +134,12 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			renderTemplate: (root: HTMLElement): IRuntimeExtensionTemplateData => {
 				const element = append(root, $('.extension'));
 				const icon = append(element, $<HTMLImageElement>('img.icon'));
-				const name = append(element, $('span.name'));
+
+				const desc = append(element, $('div.desc'));
+				const name = append(desc, $('div.name'));
+				const timeContainer = append(desc, $('div.time'));
+				append(timeContainer, $('span.octicon.octicon-clock'));
+				const time = append(timeContainer, $('span.time-label'));
 				const actionbar = new ActionBar(element, {
 					animated: false,
 					actionItemProvider: (action: Action) => {
@@ -150,6 +159,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					element,
 					icon,
 					name,
+					time,
 					disposables,
 					elementDisposables: []
 				};
@@ -167,6 +177,10 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				data.icon.src = element.marketplaceInfo.iconUrl;
 
 				data.name.textContent = element.marketplaceInfo.displayName;
+
+				const activationTimes = element.status.activationTimes;
+				let syncTime = activationTimes.codeLoadingTime + activationTimes.activateCallTime;
+				data.time.textContent = `${syncTime}ms`;
 			},
 
 			disposeTemplate: (data: IRuntimeExtensionTemplateData): void => {

@@ -3,9 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.runtime-extensions-editor .extension {
+	display: flex;
+	padding-left: 20px;
+}
+
+.runtime-extensions-editor .extension .desc {
+	flex: 1;
+}
+
+.runtime-extensions-editor .extension .desc .name {
+	font-weight: bold;
+}
+
+.runtime-extensions-editor .extension .desc .time-label {
+	padding-left: 4px;
+}
+
 .runtime-extensions-editor .icon {
 	width: 42px;
 	height: 42px;
 	padding: 10px 14px 10px 0;
-	float: left;
 }
