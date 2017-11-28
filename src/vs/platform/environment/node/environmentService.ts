@@ -155,16 +155,16 @@ export class EnvironmentService implements IEnvironmentService {
 }
 
 export function parseExtensionHostPort(args: ParsedArgs, isBuild: boolean): IExtensionHostDebugParams {
-	return parseDebugPort(args.debugPluginHost, args.debugBrkPluginHost, 5870, isBuild, args.debugId);
+	return parseDebugPort(args.debugPluginHost, args.debugBrkPluginHost, 5870, args.debugId);
 }
 
 export function parseSearchPort(args: ParsedArgs, isBuild: boolean): IDebugParams {
-	return parseDebugPort(args.debugSearch, args.debugBrkSearch, 5876, isBuild);
+	return parseDebugPort(args.debugSearch, args.debugBrkSearch, !isBuild ? 5876 : null);
 }
 
-export function parseDebugPort(debugArg: string, debugBrkArg: string, defaultBuildPort: number, isBuild: boolean, debugId?: string): IExtensionHostDebugParams {
+export function parseDebugPort(debugArg: string, debugBrkArg: string, defaultBuildPort: number, debugId?: string): IExtensionHostDebugParams {
 	const portStr = debugBrkArg || debugArg;
-	const port = Number(portStr) || (!isBuild ? defaultBuildPort : null);
+	const port = Number(portStr) || defaultBuildPort;
 	const brk = port ? Boolean(!!debugBrkArg) : false;
 	return { port, break: brk, debugId };
 }

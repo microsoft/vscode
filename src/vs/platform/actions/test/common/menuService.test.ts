@@ -18,6 +18,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 // --- service instances
 
 class MockExtensionService implements IExtensionService {
+
 	public _serviceBrand: any;
 
 	private _onDidRegisterExtensions = new Emitter<IExtensionDescription[]>();
@@ -58,6 +59,10 @@ class MockExtensionService implements IExtensionService {
 	}
 
 	public stopExtensionHost(): void {
+		throw new Error('Method not implemented.');
+	}
+
+	public getExtensionHostInformation(): any {
 		throw new Error('Method not implemented.');
 	}
 }

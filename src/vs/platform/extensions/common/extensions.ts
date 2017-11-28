@@ -68,6 +68,10 @@ export class ExtensionPointContribution<T> {
 	}
 }
 
+export interface IExtensionHostInformation {
+	inspectPort: number;
+}
+
 export interface IExtensionService {
 	_serviceBrand: any;
 
@@ -125,4 +129,9 @@ export interface IExtensionService {
 	 * Stops the extension host.
 	 */
 	stopExtensionHost(): void;
+
+	/**
+	 *
+	 */
+	getExtensionHostInformation(): IExtensionHostInformation;
 }
