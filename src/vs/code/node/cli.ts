@@ -14,7 +14,7 @@ import * as paths from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
 import { whenDeleted } from 'vs/base/node/pfs';
-import { findFreePort } from 'vs/base/node/ports';
+import { findFreePort, findRandomFreePort } from 'vs/base/node/ports';
 
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 	return !!argv['install-source']
@@ -219,43 +219,9 @@ export async function main(argv: string[]): TPromise<any> {
 		}
 
 		if (args['inspect-all']) {
-			const portMain = await findFreePort(9222, 10, 6000);
-			const portRenderer = await findFreePort(portMain + 1, 10, 6000);
-			const portSearch = await findFreePort(portRenderer + 1, 10, 6000);
-
-			if (!portMain || !portRenderer || !portSearch) {
-				console.error('Failed to find free ports for profiler to connect to do.');
-				return;
-			}
-
-			argv.push(`--inspect=${portMain}`);
-			argv.push(`--remote-debugging-port=${portRenderer}`);
-			argv.push(`--inspect-search=${portSearch}`);
-
-			console.log(`Main process debug port: ${portMain}`);
-			console.log(`Renderer process debug port: ${portRenderer}`);
-			console.log(`Search process debug port: ${portSearch}`);
-
-			// const processes = [
-			// 	{
-			// 		name: 'Main',
-			// 		debugPort: portMain,
-			// 	},
-			// 	{
-			// 		name: 'Renderer',
-			// 		debugPort: portRenderer,
-			// 	},
-			// 	{
-			// 		name: 'Search',
-			// 		debugPort: portSearch,
-			// 	},
-			// ];
-
-			processCallbacks.push(child => {
-				return new TPromise<void>(c => child.once('exit', () => {
-					c(null);
-				}));
-			});
+			argv.push(`--inspect=${await findRandomFreePort()}`);
+			argv.push(`--remote-debugging-port=${await findRandomFreePort()}`);
+			argv.push(`--inspect-search=${await findRandomFreePort()}`);
 		}
 
 		const options = {
