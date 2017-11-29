@@ -41,6 +41,8 @@ import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/work
 import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { localize } from 'vs/nls';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { listProcesses, ProcessItem } from 'vs/base/node/ps';
+import { repeat } from 'vs/base/common/strings';
 
 function createServices(args: ParsedArgs): IInstantiationService {
 	const services = new ServiceCollection();
@@ -101,6 +103,11 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 				app.dock.show(); // dock might be hidden at this case due to a retry
 			}
 
+			// Print --ps usage info
+			if (environmentService.args.ps) {
+				console.log('Warning: The --ps argument can only be used if Code is already running. Please run it again after Code has started.');
+			}
+
 			return server;
 		}, err => {
 			if (err.code !== 'EADDRINUSE') {
@@ -125,8 +132,6 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 						return TPromise.wrapError<Server>(new Error(msg));
 					}
 
-					logService.info('Sending env to running instance...');
-
 					// Show a warning dialog after some timeout if it takes long to talk to the other instance
 					// Skip this if we are running with --wait where it is expected that we wait for a while
 					let startupWarningDialogHandle: number;
@@ -141,6 +146,21 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 
 					const channel = client.getChannel<ILaunchChannel>('launch');
 					const service = new LaunchChannelClient(channel);
+
+					// Process Info
+					if (environmentService.args.ps) {
+						return service.getMainProcessId().then(mainProcessPid => {
+							return listProcesses(mainProcessPid).then(rootProcess => {
+								const output: string[] = [];
+								formatProcess(output, rootProcess, 0);
+								console.log(output.join('\n'));
+
+								return TPromise.wrapError(new ExpectedError());
+							});
+						});
+					}
+
+					logService.info('Sending env to running instance...');
 
 					return allowSetForegroundWindow(service)
 						.then(() => service.start(environmentService.args, process.env))
@@ -184,6 +204,23 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	}
 
 	return setup(true);
+}
+
+function formatProcess(output: string[], item: ProcessItem, indent: number): void {
+
+	// Format name with indent
+	let name: string;
+	if (indent === 0) {
+		name = `${product.applicationName} main`;
+	} else {
+		name = `${repeat('  ', indent)} ${item.name}`;
+	}
+	output.push(name);
+
+	// Recurse into children if any
+	if (Array.isArray(item.children)) {
+		item.children.forEach(child => formatProcess(output, child, indent + 1));
+	}
 }
 
 function showStartupWarningDialog(message: string, detail: string): void {
