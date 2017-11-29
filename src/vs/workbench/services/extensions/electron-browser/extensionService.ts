@@ -35,6 +35,7 @@ import { mark, time } from 'vs/base/common/performance';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Barrier } from 'vs/base/common/async';
 import Event, { Emitter } from 'vs/base/common/event';
+import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-browser/extensionHostProfiler';
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
 
@@ -331,8 +332,14 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		return result;
 	}
 
-	public startExtensionHostProfile(): ProfileSession {
-		return null;
+	public startExtensionHostProfile(): TPromise<ProfileSession> {
+		if (this._extensionHostProcessWorker) {
+			let port = this._extensionHostProcessWorker.getInspectPort();
+			if (port) {
+				return this._instantiationService.createInstance(ExtensionHostProfiler, port).start();
+			}
+		}
+		throw new Error('Extension host not running or no inspect port available');
 	}
 
 	// ---- end IExtensionService

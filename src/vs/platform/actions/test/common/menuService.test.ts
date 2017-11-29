@@ -48,7 +48,7 @@ class MockExtensionService implements IExtensionService {
 		throw new Error('Not implemented');
 	}
 
-	public startExtensionHostProfile(): ProfileSession {
+	public startExtensionHostProfile(): TPromise<ProfileSession> {
 		throw new Error('Not implemented');
 	}
 

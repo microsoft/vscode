@@ -73,13 +73,23 @@ export interface IExtensionHostProfile {
 	/**
 	 * Segment identifier: extension id or one of the four known strings.
 	 */
-	ids: (string | 'idle' | 'program' | 'gc' | 'self')[];
+	ids: ProfileSegmentId[];
 
 	/**
 	 * Get the information as a .cpuprofile.
 	 */
 	data: object;
+
+	/**
+	 * Get the aggregated time per segmentId
+	 */
+	getAggregatedTimes(): Map<ProfileSegmentId, number>;
 }
+
+/**
+ * Extension id or one of the four known program states.
+ */
+export type ProfileSegmentId = string | 'idle' | 'program' | 'gc' | 'self';
 
 export class ActivationTimes {
 	constructor(
@@ -155,7 +165,7 @@ export interface IExtensionService {
 	/**
 	 * Begin an extension host process profile session.
 	 */
-	startExtensionHostProfile(): ProfileSession;
+	startExtensionHostProfile(): TPromise<ProfileSession>;
 
 	/**
 	 * Restarts the extension host.
@@ -179,7 +189,5 @@ export interface IExtensionService {
 }
 
 export interface ProfileSession {
-
 	stop(): TPromise<IExtensionHostProfile>;
-
 }
