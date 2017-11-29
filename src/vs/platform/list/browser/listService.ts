@@ -15,6 +15,7 @@ import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { debounce } from 'vs/base/common/decorators';
+import Event, { Emitter } from 'vs/base/common/event';
 
 export type ListWidget = List<any> | PagedList<any> | ITree;
 
@@ -142,6 +143,9 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 
 export class WorkbenchTree extends Tree {
 
+	private _onFocusChange = new Emitter<boolean>();
+	readonly onFocusChange: Event<boolean> = this._onFocusChange.event;
+
 	readonly contextKeyService: IContextKeyService;
 	private workbenchListFocusContextKey: IContextKey<boolean>;
 	private disposables: IDisposable[] = [];
@@ -172,7 +176,10 @@ export class WorkbenchTree extends Tree {
 
 	@debounce(50)
 	private updateContextKey(): void {
-		this.workbenchListFocusContextKey.set(document.activeElement === this.getHTMLElement());
+		const isFocused = document.activeElement === this.getHTMLElement();
+
+		this.workbenchListFocusContextKey.set(isFocused);
+		this._onFocusChange.fire(isFocused);
 	}
 
 	dispose(): void {
