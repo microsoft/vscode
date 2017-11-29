@@ -11,7 +11,7 @@ import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { findFreePort } from 'vs/base/node/ports';
 
-CommandsRegistry.registerCommand('workbench.profile.all', async accessor => {
+CommandsRegistry.registerCommand('workbench.reload.debug', async accessor => {
 	const windowService = accessor.get(IWindowsService);
 
 	let argv = [];
@@ -36,4 +36,4 @@ CommandsRegistry.registerCommand('workbench.profile.all', async accessor => {
 	});
 });
 
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: 'workbench.profile.all', title: localize('', "Profile All") } });
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: 'workbench.reload.debug', title: localize('', "Reload Workspace in Debug Mode") } });
