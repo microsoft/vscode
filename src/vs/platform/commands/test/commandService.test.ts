@@ -16,6 +16,7 @@ import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyServ
 import { SimpleConfigurationService } from 'vs/editor/standalone/browser/simpleServices';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import Event, { Emitter } from 'vs/base/common/event';
+import { NoopLogService } from 'vs/platform/log/common/log';
 
 class SimpleExtensionService implements IExtensionService {
 	_serviceBrand: any;
@@ -70,7 +71,7 @@ suite('CommandService', function () {
 				lastEvent = activationEvent;
 				return super.activateByEvent(activationEvent);
 			}
-		}, new ContextKeyService(new SimpleConfigurationService()));
+		}, new ContextKeyService(new SimpleConfigurationService()), new NoopLogService());
 
 		return service.executeCommand('foo').then(() => {
 			assert.ok(lastEvent, 'onCommand:foo');
@@ -88,7 +89,7 @@ suite('CommandService', function () {
 			activateByEvent(activationEvent: string): TPromise<void> {
 				return TPromise.wrapError<void>(new Error('bad_activate'));
 			}
-		}, new ContextKeyService(new SimpleConfigurationService()));
+		}, new ContextKeyService(new SimpleConfigurationService()), new NoopLogService());
 
 		return service.executeCommand('foo').then(() => assert.ok(false), err => {
 			assert.equal(err.message, 'bad_activate');
@@ -104,7 +105,7 @@ suite('CommandService', function () {
 			whenInstalledExtensionsRegistered() {
 				return new TPromise<boolean>(_resolve => { /*ignore*/ });
 			}
-		}, new ContextKeyService(new SimpleConfigurationService()));
+		}, new ContextKeyService(new SimpleConfigurationService()), new NoopLogService());
 
 		service.executeCommand('bar');
 		assert.equal(callCounter, 1);
@@ -121,7 +122,7 @@ suite('CommandService', function () {
 			whenInstalledExtensionsRegistered() {
 				return new TPromise<boolean>(_resolve => { resolveFunc = _resolve; });
 			}
-		}, new ContextKeyService(new SimpleConfigurationService()));
+		}, new ContextKeyService(new SimpleConfigurationService()), new NoopLogService());
 
 		let r = service.executeCommand('bar');
 		assert.equal(callCounter, 0);
@@ -140,7 +141,8 @@ suite('CommandService', function () {
 		let commandService = new CommandService(
 			new InstantiationService(),
 			new SimpleExtensionService(),
-			contextKeyService
+			contextKeyService,
+			new NoopLogService()
 		);
 
 		let counter = 0;

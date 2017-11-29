@@ -15,6 +15,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { OpenContext } from 'vs/platform/windows/common/windows';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { whenDeleted } from 'vs/base/node/pfs';
+import { BrowserWindow } from 'electron';
 
 export const ID = 'launchService';
 export const ILaunchService = createDecorator<ILaunchService>(ID);
@@ -24,15 +25,22 @@ export interface IStartArguments {
 	userEnv: IProcessEnvironment;
 }
 
+export interface IMainProcessInfo {
+	mainPID: number;
+	windows: { pid: number; title: string; }[];
+}
+
 export interface ILaunchService {
 	_serviceBrand: any;
 	start(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void>;
 	getMainProcessId(): TPromise<number>;
+	getMainProcessInfo(): TPromise<IMainProcessInfo>;
 }
 
 export interface ILaunchChannel extends IChannel {
 	call(command: 'start', arg: IStartArguments): TPromise<void>;
 	call(command: 'get-main-process-id', arg: null): TPromise<any>;
+	call(command: 'get-main-process-info', arg: null): TPromise<any>;
 	call(command: string, arg: any): TPromise<any>;
 }
 
@@ -48,6 +56,9 @@ export class LaunchChannel implements ILaunchChannel {
 
 			case 'get-main-process-id':
 				return this.service.getMainProcessId();
+
+			case 'get-main-process-info':
+				return this.service.getMainProcessInfo();
 		}
 
 		return undefined;
@@ -66,6 +77,10 @@ export class LaunchChannelClient implements ILaunchService {
 
 	public getMainProcessId(): TPromise<number> {
 		return this.channel.call('get-main-process-id', null);
+	}
+
+	public getMainProcessInfo(): TPromise<IMainProcessInfo> {
+		return this.channel.call('get-main-process-info', null);
 	}
 }
 
@@ -130,5 +145,19 @@ export class LaunchService implements ILaunchService {
 		this.logService.info('Received request for process ID from other instance.');
 
 		return TPromise.as(process.pid);
+	}
+
+	public getMainProcessInfo(): TPromise<IMainProcessInfo> {
+		this.logService.info('Received request for main process info from other instance.');
+
+		return TPromise.as({
+			mainPID: process.pid,
+			windows: BrowserWindow.getAllWindows().map(window => {
+				return {
+					pid: window.webContents.getOSProcessId(),
+					title: window.getTitle()
+				};
+			})
+		} as IMainProcessInfo);
 	}
 }

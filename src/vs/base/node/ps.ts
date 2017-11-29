@@ -73,13 +73,9 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 				if (matches[1] === 'renderer') {
 					if (!RENDERER_PROCESS_HINT.exec(cmd)) {
 						return 'shared-process';
-					} else {
-						const RID = /--renderer-client-id=([0-9]+)/;
-						matches = RID.exec(cmd);
-						if (matches && matches.length === 2) {
-							return `renderer-${matches[1]}`;
-						}
 					}
+
+					return `renderer`;
 				}
 				return matches[1];
 			}
