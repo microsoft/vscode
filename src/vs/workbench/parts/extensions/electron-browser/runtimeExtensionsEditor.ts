@@ -10,7 +10,7 @@ import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Action } from 'vs/base/common/actions';
+import { Action, IAction } from 'vs/base/common/actions';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -26,6 +26,7 @@ import { append, $, addDisposableListener, addClass, toggleClass } from 'vs/base
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { ExtensionHostProfileAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 
 interface IRuntimeExtension {
 
@@ -243,6 +244,10 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		}, this._contextKeyService, this._listService, this.themeService);
 
 		this._list.splice(0, this._list.length, this._elements);
+	}
+
+	public getActions(): IAction[] {
+		return [new ExtensionHostProfileAction(ExtensionHostProfileAction.LABEL_START, ExtensionHostProfileAction.ID, this._extensionService)];
 	}
 
 	public layout(dimension: Dimension): void {

@@ -31,3 +31,11 @@
 	height: 42px;
 	padding: 10px 14px 10px 0;
 }
+
+.monaco-action-bar .extension-host-profile-start {
+	background: url('profile-start.svg') center center no-repeat;
+}
+
+.monaco-action-bar .extension-host-profile-stop {
+	background: url('profile-stop.svg') center center no-repeat;
+}
