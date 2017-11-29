@@ -36,6 +36,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { writeFile } from 'vs/base/node/pfs';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 interface IExtensionProfileInformation {
 	/**
@@ -80,6 +81,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		@IMessageService private readonly _messageService: IMessageService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IWindowService private readonly _windowService: IWindowService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 	) {
 		super(RuntimeExtensionsEditor.ID, telemetryService, themeService);
 
@@ -365,7 +367,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		this._list.onContextMenu((e) => {
 			const actions: IAction[] = [];
 
-			actions.push(new Action('save', 'Save Extension Host Profile', '', !!this._profileInfo, () => {
+			actions.push(new Action('save', 'Save Extension Host Profile', '', !!this._profileInfo, async (): TPromise<any> => {
 				let picked = this._windowService.showSaveDialog({
 					title: 'Save Extension Host Profile',
 					buttonLabel: 'Save',
@@ -376,10 +378,26 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					}]
 				});
 
-				if (picked) {
-					return writeFile(picked, JSON.stringify(this._profileInfo.data, null, '\t'));
+				if (!picked) {
+					return;
 				}
-				return TPromise.as(null);
+
+				let dataToWrite: object = this._profileInfo.data;
+
+				if (this._environmentService.isBuilt) {
+					const profiler = await import('v8-inspect-profiler');
+					// when running from a not-development-build we remove
+					// absolute filenames because we don't want to reveal anything
+					// about users. We also append the `.txt` suffix to make it
+					// easier to attach these files to GH issues
+
+					let tmp = profiler.rewriteAbsolutePaths({ profile: dataToWrite }, 'piiRemoved');
+					dataToWrite = tmp.profile;
+
+					picked = picked + '.txt';
+				}
+
+				await writeFile(picked, JSON.stringify(this._profileInfo.data, null, '\t'));
 			}));
 
 			this._contextMenuService.showContextMenu({
