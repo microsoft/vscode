@@ -5,41 +5,47 @@
 
 'use strict';
 
+import * as path from 'path';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { RotatingLogger } from 'spdlog';
 
 export class SpdLogService implements ILogService {
 
 	_serviceBrand: any;
 
+	private logger: RotatingLogger;
+
 	constructor(
 		processName: string,
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
-		// TODO create logger
+		// const logfilePath = path.join(environmentService.userDataPath, 'logs', processName);
+		this.logger = new RotatingLogger(processName, 'LOG', 1024 * 1024 * 5, 6);
 	}
 
 	trace(message: string, ...args: any[]): void {
-		// console.log('TRACE', message, ...args);
+		this.logger.trace(message);
 	}
 
 	debug(message: string, ...args: any[]): void {
-		// console.log('DEBUG', message, ...args);
+		this.logger.debug(message);
 	}
 
 	info(message: string, ...args: any[]): void {
-		// console.log('INFO', message, ...args);
+		this.logger.info(message);
 	}
 
 	warn(message: string, ...args: any[]): void {
-		// console.warn('WARN', message, ...args);
+		this.logger.warn(message);
 	}
 
-	error(message: string | Error, ...args: any[]): void {
-		// console.error('ERROR', message, ...args);
+	error(arg: string | Error, ...args: any[]): void {
+		const message = arg instanceof Error ? arg.stack : arg;
+		this.logger.error(message);
 	}
 
 	critical(message: string, ...args: any[]): void {
-		// console.error('CRITICAL', message, ...args);
+		this.logger.critical(message);
 	}
 }
