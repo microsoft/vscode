@@ -15,6 +15,7 @@ import { IStatusbarService, StatusbarAlignment } from 'vs/platform/statusbar/com
 import { writeFile } from 'vs/base/node/pfs';
 import * as path from 'path';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { setTimeout } from 'timers';
 
 export class ExtensionHostProfiler {
 
@@ -26,7 +27,7 @@ export class ExtensionHostProfiler {
 			return profiler.startProfiling({ port: this._port }).then(session => {
 				return {
 					stop: () => {
-						return TPromise.wrap(session.stop(5000)).then(profile => {
+						return TPromise.wrap(session.stop()).then(profile => {
 							return this._extensionService.getExtensions().then(extensions => {
 								return this.distill(<Profile>profile['profile'], extensions);
 							});
@@ -101,6 +102,10 @@ export class ExtensionHostProfiler {
 			}
 			currSegmentTime += timeDeltas[i];
 		}
+		if (currSegmentId) {
+			distilledIds.push(currSegmentId);
+			distilledDeltas.push(currSegmentTime);
+		}
 		return {
 			startTime: profile.startTime,
 			endTime: profile.endTime,
@@ -128,16 +133,19 @@ CommandsRegistry.registerCommand('exthost.profile.start', async accessor => {
 	const handle = statusbarService.addEntry({ text: localize('message', "$(zap) Profiling Extension Host...") }, StatusbarAlignment.LEFT);
 
 	extensionService.startExtensionHostProfile().then(session => {
-		session.stop().then(result => {
-			result.getAggregatedTimes().forEach((val, index) => {
-				console.log(`${index} : ${Math.round(val / 1000)} ms`);
+		setTimeout(() => {
+			session.stop().then(result => {
+				result.getAggregatedTimes().forEach((val, index) => {
+					console.log(`${index} : ${Math.round(val / 1000)} ms`);
+				});
+				let profilePath = path.join(environmentService.userHome, 'extHostProfile.cpuprofile');
+				console.log(`Saving profile at ${profilePath}`);
+				return writeFile(profilePath, JSON.stringify(result.data));
+			}).then(() => {
+				handle.dispose();
 			});
-			let profilePath = path.join(environmentService.userHome, 'extHostProfile.cpuprofile');
-			console.log(`Saving profile at ${profilePath}`);
-			return writeFile(profilePath, JSON.stringify(result.data));
-		}).then(() => {
-			handle.dispose();
-		});
+		}, 5000);
+
 	});
 
 	const searchTree = TernarySearchTree.forPaths<IExtensionDescription>();
