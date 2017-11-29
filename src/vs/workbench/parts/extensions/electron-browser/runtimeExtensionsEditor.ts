@@ -37,6 +37,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { memoize } from 'vs/base/common/decorators';
 
 interface IExtensionProfileInformation {
 	/**
@@ -398,7 +399,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				}
 
 				await writeFile(picked, JSON.stringify(this._profileInfo.data, null, '\t'));
-			}));
+			}), this.extensionHostProfileAction);
 
 			this._contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
@@ -409,8 +410,13 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 	public getActions(): IAction[] {
 		return [
-			new ExtensionHostProfileAction(ExtensionHostProfileAction.LABEL_START, ExtensionHostProfileAction.ID, this, this._extensionService)
+			this.extensionHostProfileAction
 		];
+	}
+
+	@memoize
+	private get extensionHostProfileAction(): IAction {
+		return new ExtensionHostProfileAction(ExtensionHostProfileAction.LABEL_START, ExtensionHostProfileAction.ID, this, this._extensionService);
 	}
 
 	public layout(dimension: Dimension): void {
