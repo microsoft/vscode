@@ -135,6 +135,14 @@ const Identifiers = {
 	STATUSBAR_PART: 'workbench.parts.statusbar'
 };
 
+function getWorkbenchStateString(state: WorkbenchState): string {
+	switch (state) {
+		case WorkbenchState.EMPTY: return 'empty';
+		case WorkbenchState.FOLDER: return 'folder';
+		case WorkbenchState.WORKSPACE: return 'workspace';
+	}
+}
+
 /**
  * The workbench creates and lays out all parts that make up the workbench.
  */
@@ -268,6 +276,11 @@ export class Workbench implements IPartService {
 		this.editorsVisibleContext = EditorsVisibleContext.bindTo(this.contextKeyService);
 		this.inZenMode = InZenModeContext.bindTo(this.contextKeyService);
 		this.sideBarVisibleContext = SidebarVisibleContext.bindTo(this.contextKeyService);
+
+		// Set workbench state context
+		const WorkbenchStateContext = new RawContextKey<string>('workbenchState', getWorkbenchStateString(this.configurationService.getWorkbenchState()));
+		const workbenchStateContext = WorkbenchStateContext.bindTo(this.contextKeyService);
+		this.toDispose.push(this.configurationService.onDidChangeWorkbenchState(() => workbenchStateContext.set(getWorkbenchStateString(this.configurationService.getWorkbenchState()))));
 
 		// Register Listeners
 		this.registerListeners();

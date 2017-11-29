@@ -41,6 +41,7 @@ import { WorkspacesChannelClient } from 'vs/platform/workspaces/common/workspace
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 
 import fs = require('fs');
+import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
 const currentWindowId = remote.getCurrentWindow().id;
@@ -72,6 +73,8 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 	const mainServices = createMainProcessServices(mainProcessClient);
 
 	const environmentService = new EnvironmentService(configuration, configuration.execPath);
+	const logService = new SpdLogService('renderer', environmentService);
+	logService.info('openWorkbench', JSON.stringify(configuration, null, 2));
 
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
 	// right before startup of the workbench shell to have its data ready for consumers
@@ -90,6 +93,7 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 				contextService: workspaceService,
 				configurationService: workspaceService,
 				environmentService,
+				logService,
 				timerService,
 				storageService
 			}, mainServices, configuration);
