@@ -26,6 +26,14 @@
 	padding-left: 4px;
 }
 
+.runtime-extensions-editor .extension .profile-timeline {
+	width: 100%;
+}
+
+.runtime-extensions-editor .extension .profile-timeline rect {
+	fill: rgb(181, 181, 255);
+}
+
 .runtime-extensions-editor .icon {
 	width: 42px;
 	height: 42px;

@@ -91,10 +91,14 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			this._profileInfo = {
 				startTime: 1511954813493000,
 				endTime: 1511954835590000,
-				deltas: [1000, 1500, 123456, 130, 1500, 100000],
-				ids: ['idle', 'self', 'vscode.git', 'vscode.emmet', 'self', 'idle'],
+				deltas: [1000, 1500, 123456, 130, 1500, 1234, 100000],
+				ids: ['idle', 'self', 'vscode.git', 'vscode.emmet', 'self', 'vscode.git', 'idle'],
 				data: null
 			};
+			this._profileInfo.endTime = this._profileInfo.startTime;
+			for (let i = 0, len = this._profileInfo.deltas.length; i < len; i++) {
+				this._profileInfo.endTime += this._profileInfo.deltas[i];
+			}
 			this._updateExtensions();
 		});
 		this._register(this._extensionService.onDidChangeExtensionsStatus(() => this._updateSoon.schedule()));
@@ -318,12 +322,25 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 				if (this._profileInfo) {
 					data.profileTime.textContent = (element.profileInfo.totalTime / 1000).toFixed(2) + 'ms';
-					// let svg = `
-					// <svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 194 186">
-					// <circle cx="50" cy="50" r="40" stroke="green" stroke-width="4" fill="yellow" />
-					// </svg>
-					// `;
-					// data.activationTimeLabel.innerHTML = svg;
+					const elementSegments = element.profileInfo.segments;
+					let inner = '<rect x="0" y="0" width="100" height="1" />';
+					for (let i = 0, len = elementSegments.length / 2; i < len; i++) {
+						const absoluteStart = elementSegments[2 * i];
+						const absoluteEnd = elementSegments[2 * i + 1];
+
+						const start = absoluteStart - this._profileInfo.startTime;
+						const end = absoluteEnd - this._profileInfo.startTime;
+
+						const absoluteDuration = this._profileInfo.endTime - this._profileInfo.startTime;
+
+						const xStart = start / absoluteDuration * 100;
+						const xEnd = end / absoluteDuration * 100;
+
+						inner += `<rect x="${xStart}" y="0" width="${xEnd - xStart}" height="100" />`;
+					}
+					let svg = `<svg class="profile-timeline" preserveAspectRatio="none" height="16" viewBox="0 0 100 100">${inner}</svg>`;
+
+					data.activationTimeLabel.innerHTML = svg;
 				} else {
 					data.profileTime.textContent = '';
 				}
