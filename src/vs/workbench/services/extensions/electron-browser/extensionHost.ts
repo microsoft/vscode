@@ -266,7 +266,7 @@ export class ExtensionHostProcessWorker {
 		}
 		return new TPromise<number>((c, e) => {
 			return sendData(this._environmentService.args['inspect-all-ipc'], JSON.stringify({
-				type: 'getExtensionHostPort',
+				type: 'getDebugPort',
 				processName: 'Extension Host Instance'
 			})).then(res => readJSON<any>(res))
 				.then(data => {

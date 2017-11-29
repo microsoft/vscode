@@ -222,29 +222,26 @@ export async function main(argv: string[]): TPromise<any> {
 		if (args['inspect-all']) {
 			const portMain = await findFreePort(9222, 10, 6000);
 			const portRenderer = await findFreePort(portMain + 1, 10, 6000);
-			const portExthost = await findFreePort(portRenderer + 1, 10, 6000);
-			const portSearch = await findFreePort(portExthost + 1, 10, 6000);
+			const portSearch = await findFreePort(portRenderer + 1, 10, 6000);
 
-			if (!portMain || !portRenderer || !portExthost || !portSearch) {
+			if (!portMain || !portRenderer || !portSearch) {
 				console.error('Failed to find free ports for profiler to connect to do.');
 				return;
 			}
 
 			argv.push(`--inspect=${portMain}`);
 			argv.push(`--remote-debugging-port=${portRenderer}`);
-			argv.push(`--inspect-extensions=${portExthost}`);
 			argv.push(`--inspect-search=${portSearch}`);
 
 			console.log(`Main process debug port: ${portMain}`);
 			console.log(`Renderer process debug port: ${portRenderer}`);
-			console.log(`Extension host process debug port: ${portExthost}`);
 			console.log(`Search process debug port: ${portSearch}`);
 
 			let lastPort = portSearch;
 			let findingFreePort: Thenable<number>;
 			const ipc = await createServer('vscode-inspect-all', async (req, res) => {
 				const message = await readJSON<any>(req);
-				if (message.type === 'getDebugPort' || message.type === 'getExtensionHostPort') {
+				if (message.type === 'getDebugPort') {
 					while (findingFreePort) {
 						await findingFreePort;
 					}
