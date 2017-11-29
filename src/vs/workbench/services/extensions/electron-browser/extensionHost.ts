@@ -12,6 +12,7 @@ import * as objects from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isWindows, isLinux } from 'vs/base/common/platform';
+import { findFreePort } from 'vs/base/node/ports';
 import { sendData, readJSON } from 'vs/base/node/simpleIpc';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ILifecycleService, ShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
@@ -259,32 +260,34 @@ export class ExtensionHostProcessWorker {
 	/**
 	 * Find a free port if extension host debugging is enabled.
 	 */
-	private _tryFindDebugPort(): TPromise<number> {
+	private _tryFindDebugPort(): Thenable<number> {
+		if (this._environmentService.args['inspect-all']) {
+			return sendData(this._environmentService.args['inspect-all-ipc'], JSON.stringify({
+				type: 'getDebugPort',
+				processName: 'Extension Host Instance'
+			})).then(res => readJSON<any>(res))
+				.then(data => data.debugPort);
+		}
 		const extensionHostPort = this._environmentService.debugExtensionHost.port;
 		if (typeof extensionHostPort !== 'number') {
 			return TPromise.wrap<number>(0);
 		}
 		return new TPromise<number>((c, e) => {
-			return sendData(this._environmentService.args['inspect-all-ipc'], JSON.stringify({
-				type: 'getDebugPort',
-				processName: 'Extension Host Instance'
-			})).then(res => readJSON<any>(res))
-				.then(data => {
-					const port = data.debugPort;
-					if (!port) {
-						console.warn('%c[Extension Host] %cCould not find a free port for debugging', 'color: blue', 'color: black');
-						return c(void 0);
-					}
-					if (port !== extensionHostPort) {
-						console.warn(`%c[Extension Host] %cProvided debugging port ${extensionHostPort} is not free, using ${port} instead.`, 'color: blue', 'color: black');
-					}
-					if (this._isExtensionDevDebugBrk) {
-						console.warn(`%c[Extension Host] %cSTOPPED on first line for debugging on port ${port}`, 'color: blue', 'color: black');
-					} else {
-						console.info(`%c[Extension Host] %cdebugger listening on port ${port}`, 'color: blue', 'color: black');
-					}
-					return c(port);
-				});
+			return findFreePort(extensionHostPort, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */).then(port => {
+				if (!port) {
+					console.warn('%c[Extension Host] %cCould not find a free port for debugging', 'color: blue', 'color: black');
+					return c(void 0);
+				}
+				if (port !== extensionHostPort) {
+					console.warn(`%c[Extension Host] %cProvided debugging port ${extensionHostPort} is not free, using ${port} instead.`, 'color: blue', 'color: black');
+				}
+				if (this._isExtensionDevDebugBrk) {
+					console.warn(`%c[Extension Host] %cSTOPPED on first line for debugging on port ${port}`, 'color: blue', 'color: black');
+				} else {
+					console.info(`%c[Extension Host] %cdebugger listening on port ${port}`, 'color: blue', 'color: black');
+				}
+				return c(port);
+			});
 		});
 	}
 
