@@ -1721,6 +1721,22 @@ export class ExtensionHostProfileAction extends Action {
 	}
 }
 
+export class ReportExtensionIssueAction extends Action {
+	static ID = 'workbench.extensions.action.reportExtensionIssue';
+	static LABEL = localize('reportExtensionIssue', "Report Issue");
+
+	constructor(
+		id: string = ExtensionHostProfileAction.ID, label: string = ExtensionHostProfileAction.LABEL_START,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+	) {
+		super(id, label, 'report-extension-issue');
+	}
+
+	run(extension: IExtension): TPromise<any> {
+		return this.extensionsWorkbenchService.reportIssue(extension);
+	}
+}
+
 CommandsRegistry.registerCommand('workbench.extensions.action.showExtensionsForLanguage', function (accessor: ServicesAccessor, fileExtension: string) {
 	const viewletService = accessor.get(IViewletService);
 

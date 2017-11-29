@@ -39,3 +39,17 @@
 .monaco-action-bar .extension-host-profile-stop {
 	background: url('profile-stop.svg') center center no-repeat;
 }
+
+.runtime-extensions-editor .monaco-action-bar {
+	padding-top: 21px;
+}
+
+.runtime-extensions-editor .monaco-action-bar .action-label {
+	background: #fef2c0;
+	border-radius: 6px;
+	padding: 2px;
+}
+
+.vs-dark .runtime-extensions-editor .monaco-action-bar .action-label {
+	background: #796926;
+}

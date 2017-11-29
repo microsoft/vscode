@@ -435,6 +435,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		return this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension), null, sideByside);
 	}
 
+	reportIssue(extension: IExtension): TPromise<void> {
+		return TPromise.as(undefined);
+	}
+
 	private fromGallery(gallery: IGalleryExtension): Extension {
 		const installed = this.getInstalledExtensionMatchingGallery(gallery);
 

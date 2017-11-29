@@ -26,7 +26,7 @@ import { append, $, addDisposableListener, addClass, toggleClass } from 'vs/base
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { ExtensionHostProfileAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { ExtensionHostProfileAction, ReportExtensionIssueAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 
 interface IRuntimeExtension {
 
@@ -133,6 +133,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			msgIcon: HTMLElement;
 			msgLabel: HTMLElement;
 
+			actionbar: ActionBar;
 			disposables: IDisposable[];
 			elementDisposables: IDisposable[];
 		}
@@ -155,16 +156,10 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				const msgLabel = append(msgContainer, $('span.msg-label'));
 
 				const actionbar = new ActionBar(element, {
-					animated: false,
-					actionItemProvider: (action: Action) => {
-						// TODO
-						// if (action.id === ManageExtensionAction.ID) {
-						// 	return (<ManageExtensionAction>action).actionItem;
-						// }
-						return null;
-					}
+					animated: false
 				});
 				actionbar.onDidRun(({ error }) => error && this._messageService.show(Severity.Error, error));
+				actionbar.push(new ReportExtensionIssueAction(ReportExtensionIssueAction.ID, ReportExtensionIssueAction.LABEL, this._extensionsWorkbenchService), { icon: false });
 
 				const disposables = [actionbar];
 
@@ -173,6 +168,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					element,
 					icon,
 					name,
+					actionbar,
 					timeContainer,
 					timeIcon,
 					timeLabel,
@@ -199,6 +195,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				const activationTimes = element.status.activationTimes;
 				let syncTime = activationTimes.codeLoadingTime + activationTimes.activateCallTime;
 				data.timeLabel.textContent = `${syncTime}ms`;
+				data.actionbar.context = element.marketplaceInfo;
 
 				let title: string;
 				if (activationTimes.activationEvent === '*') {
