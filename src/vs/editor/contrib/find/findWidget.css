@@ -312,7 +312,8 @@
 }
 
 .monaco-editor.vs-dark .find-widget .monaco-checkbox .checkbox:checked + .label {
-	background-color: rgba(255, 255, 255, 0.1);
+	background-image: url('images/cancelSelectionFind-inverseSelected.svg');
+	background-color: rgba(197, 197, 197, 1);
 }
 
 .monaco-editor.hc-black .find-widget .close-fw,
