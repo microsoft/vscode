@@ -256,7 +256,7 @@ export async function main(argv: string[]): TPromise<any> {
 			let findingFreePort: Thenable<number>;
 			const ipc = await createServer('vscode-inspect-all', async (req, res) => {
 				const message = await readJSON<any>(req);
-				console.log(JSON.stringify(message));
+				// console.log(JSON.stringify(message));
 
 				if (message.type === 'getDebugPort') {
 
