@@ -9,6 +9,7 @@ import { app, dialog } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import product from 'vs/platform/node/product';
+import pkg from 'vs/platform/node/package';
 import { parseMainProcessArgv } from 'vs/platform/environment/node/argv';
 import { mkdirp } from 'vs/base/node/pfs';
 import { validatePaths } from 'vs/code/node/paths';
@@ -34,6 +35,8 @@ import { RequestService } from 'vs/platform/request/electron-main/requestService
 import { IURLService } from 'vs/platform/url/common/url';
 import { URLService } from 'vs/platform/url/electron-main/urlService';
 import * as fs from 'original-fs';
+import * as os from 'os';
+import { virtualMachineHint } from 'vs/base/node/id';
 import { CodeApplication } from 'vs/code/electron-main/app';
 import { HistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
@@ -42,7 +45,7 @@ import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces
 import { localize } from 'vs/nls';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { listProcesses, ProcessItem } from 'vs/base/node/ps';
-import { repeat } from 'vs/base/common/strings';
+import { repeat, pad } from 'vs/base/common/strings';
 
 function createServices(args: ParsedArgs): IInstantiationService {
 	const services = new ServiceCollection();
@@ -207,15 +210,33 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 }
 
 function formatProcess(output: string[], item: ProcessItem, indent: number): void {
+	const isRoot = (indent === 0);
+	const MB = 1024 * 1024;
+	const GB = 1024 * MB;
+
+	if (isRoot) {
+		output.push(`Version:          ${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`);
+		output.push(`OS Version:       ${os.type()} ${os.arch()} ${os.release()}`);
+		const cpus = os.cpus();
+		if (cpus && cpus.length > 0) {
+			output.push(`CPUs:             ${cpus[0].model} (${cpus.length} x ${cpus[0].speed}`);
+		}
+		output.push(`Memory (System):  ${(os.totalmem() / GB).toFixed(2)}GB (${(os.freemem() / GB).toFixed(2)}GB free)`);
+		output.push(`Load (avg):       ${os.loadavg().map(l => Math.round(l)).join(', ')}`);
+		output.push(`VM:               ${Math.round((virtualMachineHint.value() * 100))}`);
+		output.push(`Screen Reader:    ${app.isAccessibilitySupportEnabled() ? 'yes' : 'no'}`);
+		output.push('');
+		output.push('CPU %\tMem MB\tProcess');
+	}
 
 	// Format name with indent
 	let name: string;
-	if (indent === 0) {
+	if (isRoot) {
 		name = `${product.applicationName} main`;
 	} else {
 		name = `${repeat('  ', indent)} ${item.name}`;
 	}
-	output.push(name);
+	output.push(`${pad(Number(item.load.toFixed(0)), 5, ' ')}\t${pad(Number(((os.totalmem() * (item.mem / 100)) / MB).toFixed(0)), 6, ' ')}\t${name}`);
 
 	// Recurse into children if any
 	if (Array.isArray(item.children)) {
