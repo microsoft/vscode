@@ -103,6 +103,11 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 				app.dock.show(); // dock might be hidden at this case due to a retry
 			}
 
+			// Print --ps usage info
+			if (environmentService.args.ps) {
+				console.log('Warning: The --ps argument can only be used if Code is already running. Please run it again after Code has started.');
+			}
+
 			return server;
 		}, err => {
 			if (err.code !== 'EADDRINUSE') {
