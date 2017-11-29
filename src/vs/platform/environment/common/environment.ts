@@ -50,6 +50,7 @@ export interface ParsedArgs {
 	'disable-crash-reporter'?: string;
 	'skip-add-to-recently-opened'?: boolean;
 	'inspect-all'?: boolean;
+	'inspect-all-ipc'?: string;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');

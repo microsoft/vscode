@@ -36,7 +36,8 @@ import pkg from 'vs/platform/node/package';
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/parts/terminal/electron-browser/terminalColorRegistry';
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { findFreePort } from 'vs/base/node/ports';
+import { sendData, readJSON } from 'vs/base/node/simpleIpc';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -152,11 +153,18 @@ export class TerminalInstance implements ITerminalInstance {
 		});
 
 		this._initDimensions();
-		if (this._envService.args['inspectAll']) {
-			this._createProcessInDebugMode();
+		if (this._envService.args['inspect-all']) {
+			this._createProcessInDebugMode()
+				.then(() => {
+					this._init();
+				}, onUnexpectedError);
 		} else {
 			this._createProcess();
+			this._init();
 		}
+	}
+
+	public _init(): void {
 		this._createXterm();
 
 		if (platform.isWindows) {
@@ -168,8 +176,8 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 
 		// Only attach xterm.js to the DOM if the terminal panel has been opened before.
-		if (_container) {
-			this.attachToElement(_container);
+		if (this._container) {
+			this.attachToElement(this._container);
 		}
 	}
 
@@ -587,10 +595,14 @@ export class TerminalInstance implements ITerminalInstance {
 		return TerminalInstance._sanitizeCwd(cwd);
 	}
 
-	protected _createProcessInDebugMode(): void {
-		findFreePort(9333, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */).then(port => {
-			this._createProcess(port);
-		});
+	protected _createProcessInDebugMode() {
+		return sendData(this._envService.args['inspect-all-ipc'], JSON.stringify({
+			type: 'getDebugPort',
+			processName: 'Terminal Instance'
+		})).then(res => readJSON<any>(res))
+			.then(data => {
+				this._createProcess(data.debugPort);
+			});
 	}
 
 	protected _createProcess(port?: number): void {

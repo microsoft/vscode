@@ -15,6 +15,7 @@ import * as os from 'os';
 import * as fs from 'fs';
 import { whenDeleted } from 'vs/base/node/pfs';
 import { findFreePort } from 'vs/base/node/ports';
+import { createServer, readJSON } from 'vs/base/node/simpleIpc';
 
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 	return !!argv['install-source']
@@ -238,6 +239,32 @@ export async function main(argv: string[]): TPromise<any> {
 			console.log(`Renderer process debug port: ${portRenderer}`);
 			console.log(`Extension host process debug port: ${portExthost}`);
 			console.log(`Search process debug port: ${portSearch}`);
+
+			let lastPort = portSearch;
+			let findingFreePort: Thenable<number>;
+			const ipc = await createServer('vscode-inspect-all', async (req, res) => {
+				const message = await readJSON<any>(req);
+				if (message.type === 'getDebugPort') {
+					while (findingFreePort) {
+						await findingFreePort;
+					}
+					findingFreePort = findFreePort(lastPort + 1, 10, 6000);
+					lastPort = await findingFreePort;
+					findingFreePort = null;
+					console.log(`${message.processName} process debug port: ${lastPort}`);
+					res.write(JSON.stringify({ debugPort: lastPort }));
+					res.end();
+				}
+			});
+
+			argv.push(`--inspect-all-ipc=${ipc.ipcHandlePath}`);
+
+			processCallbacks.push(child => {
+				return new TPromise<void>(c => child.once('exit', () => {
+					ipc.dispose();
+					c(null);
+				}));
+			});
 		}
 
 		const options = {
@@ -245,7 +272,7 @@ export async function main(argv: string[]): TPromise<any> {
 			env
 		};
 
-		if (!args.verbose) {
+		if (!args.verbose && !args['inspect-all']) {
 			options['stdio'] = 'ignore';
 		}
 
