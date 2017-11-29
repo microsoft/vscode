@@ -38,6 +38,9 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { memoize } from 'vs/base/common/decorators';
+import { StatusbarAlignment, IStatusbarRegistry, StatusbarItemDescriptor, Extensions, IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
+import { Registry } from 'vs/platform/registry/common/platform';
+
 
 interface IExtensionProfileInformation {
 	/**
@@ -545,9 +548,13 @@ class ExtensionHostProfileAction extends Action {
 		if (this._profileSession) {
 			this.class = ExtensionHostProfileAction.STOP_CSS_CLASS;
 			this.label = ExtensionHostProfileAction.LABEL_STOP;
+			ProfileExtHostStatusbarItem.instance.show(() => {
+				this.run();
+			});
 		} else {
 			this.class = ExtensionHostProfileAction.START_CSS_CLASS;
 			this.label = ExtensionHostProfileAction.LABEL_START;
+			ProfileExtHostStatusbarItem.instance.hide();
 		}
 	}
 
@@ -590,3 +597,76 @@ class ExtensionHostProfileAction extends Action {
 		return TPromise.as(null);
 	}
 }
+
+export class ProfileExtHostStatusbarItem implements IStatusbarItem {
+
+	public static instance: ProfileExtHostStatusbarItem;
+
+	private toDispose: IDisposable[];
+	private container: HTMLElement;
+	private statusBarItem: HTMLElement;
+	private label: HTMLElement;
+	private timeStarted: number;
+	private labelUpdater: number;
+	private clickHandler: () => void;
+
+	constructor() {
+		ProfileExtHostStatusbarItem.instance = this;
+		this.toDispose = [];
+	}
+
+	public show(clickHandler: () => void) {
+		this.clickHandler = clickHandler;
+		if (this.timeStarted === 0) {
+			this.timeStarted = new Date().getTime();
+			this.statusBarItem.hidden = false;
+			this.labelUpdater = setInterval(() => {
+				this.updateLabel();
+			}, 1000);
+		}
+	}
+
+	public hide() {
+		this.clickHandler = null;
+		this.statusBarItem.hidden = true;
+		this.timeStarted = 0;
+		clearInterval(this.labelUpdater);
+		this.labelUpdater = null;
+	}
+
+	public render(container: HTMLElement): IDisposable {
+		this.container = container;
+		if (!this.statusBarItem && this.container) {
+			this.statusBarItem = append(this.container, $('.profileExtHost-statusbar-item'));
+			this.toDispose.push(addDisposableListener(this.statusBarItem, 'click', () => {
+				if (this.clickHandler) {
+					this.clickHandler();
+				}
+			}));
+			this.statusBarItem.title = nls.localize('selectAndStartDebug', "Click to stop profiling.");
+			const a = append(this.statusBarItem, $('a'));
+			append(a, $('.icon'));
+			this.label = append(a, $('span.label'));
+			this.updateLabel();
+			this.statusBarItem.hidden = true;
+		}
+		return this;
+	}
+
+	private updateLabel() {
+		let label = 'Profiling Extension Host';
+		if (this.timeStarted > 0) {
+			let secondsRecoreded = (new Date().getTime() - this.timeStarted) / 1000;
+			label = `Profiling Extension Host (${Math.round(secondsRecoreded)} sec)`;
+		}
+		this.label.textContent = label;
+	}
+
+	public dispose(): void {
+		this.toDispose = dispose(this.toDispose);
+	}
+}
+
+Registry.as<IStatusbarRegistry>(Extensions.Statusbar).registerStatusbarItem(
+	new StatusbarItemDescriptor(ProfileExtHostStatusbarItem, StatusbarAlignment.RIGHT)
+);

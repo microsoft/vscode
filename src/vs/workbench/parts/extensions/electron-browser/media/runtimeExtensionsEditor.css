@@ -83,3 +83,25 @@
 .vs-dark .runtime-extensions-editor .monaco-action-bar .action-label {
 	background: #796926;
 }
+
+.monaco-workbench .part.statusbar .profileExtHost-statusbar-item .icon {
+	background: url('profile-stop.svg') no-repeat;
+	display: inline-block;
+	padding-right: 2px;
+	width: 16px;
+	height: 16px;
+	vertical-align: middle;
+	animation: blink 1s step-start 0s infinite;
+	-webkit-animation: blink 1s step-start 0s infinite;
+}
+
+@keyframes blink {
+	50% {
+		opacity: 0.0;
+	}
+}
+@-webkit-keyframes blink {
+	50% {
+		opacity: 0.0;
+	}
+}
