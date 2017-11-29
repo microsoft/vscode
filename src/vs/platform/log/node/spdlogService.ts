@@ -20,8 +20,8 @@ export class SpdLogService implements ILogService {
 		processName: string,
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
-		// const logfilePath = path.join(environmentService.userDataPath, 'logs', processName);
-		this.logger = new RotatingLogger(processName, 'LOG', 1024 * 1024 * 5, 6);
+		const logfilePath = path.join(environmentService.userDataPath, 'logs', processName);
+		this.logger = new RotatingLogger(processName, logfilePath, 1024 * 1024 * 5, 6);
 	}
 
 	trace(message: string, ...args: any[]): void {
