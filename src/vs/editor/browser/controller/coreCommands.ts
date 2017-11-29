@@ -1139,7 +1139,7 @@ export namespace CoreNavigationCommands {
 			EditorScroll._runEditorScroll(cursors, args.source, {
 				direction: EditorScroll_.Direction.Up,
 				unit: EditorScroll_.Unit.WrappedLine,
-				value: 1,
+				value: args.value || 1,
 				revealCursor: false,
 				select: false
 			});
@@ -1190,7 +1190,7 @@ export namespace CoreNavigationCommands {
 			EditorScroll._runEditorScroll(cursors, args.source, {
 				direction: EditorScroll_.Direction.Down,
 				unit: EditorScroll_.Unit.WrappedLine,
-				value: 1,
+				value: args.value || 1,
 				revealCursor: false,
 				select: false
 			});
