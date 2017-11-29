@@ -11,7 +11,7 @@
 
 .monaco-workbench > .part > .title,
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title {
-	height: 35px;
+	height: 48px;   /* 35px for default plus 13px of the horizontal scroll bar */
 	display: flex;
 	box-sizing:	border-box;
 	overflow: hidden;
