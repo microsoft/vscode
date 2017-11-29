@@ -19,7 +19,7 @@ import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/parts/exte
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IExtensionService, IExtensionDescription, IExtensionsStatus } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService, IExtensionDescription, IExtensionsStatus, IExtensionHostProfile } from 'vs/platform/extensions/common/extensions';
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { WorkbenchList, IListService } from 'vs/platform/list/browser/listService';
 import { append, $, addDisposableListener, addClass, toggleClass } from 'vs/base/browser/dom';
@@ -27,13 +27,28 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionHostProfileAction, ReportExtensionIssueAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { RunOnceScheduler } from 'vs/base/common/async';
+
+interface IExtensionProfileInformation {
+	/**
+	 * segment when the extension was running.
+	 * 2*i = segment start time
+	 * 2*i+1 = segment end time
+	 */
+	segments: number[];
+	/**
+	 * total time when the extension was running.
+	 * (sum of all segment lengths).
+	 */
+	totalTime: number;
+}
 
 interface IRuntimeExtension {
-
+	originalIndex: number;
 	description: IExtensionDescription;
 	marketplaceInfo: IExtension;
 	status: IExtensionsStatus;
-
+	profileInfo: IExtensionProfileInformation;
 }
 
 export class RuntimeExtensionsEditor extends BaseEditor {
@@ -41,8 +56,11 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 	static ID: string = 'workbench.editor.runtimeExtensions';
 
 	private _list: WorkbenchList<IRuntimeExtension>;
+	private _profileInfo: IExtensionHostProfile;
+
 	private _elements: IRuntimeExtension[];
 	private _extensionsDescriptions: IExtensionDescription[];
+	private _updateSoon: RunOnceScheduler;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -57,19 +75,29 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		super(RuntimeExtensionsEditor.ID, telemetryService, themeService);
 
 		this._list = null;
+		this._profileInfo = null;
 		this._elements = null;
 
 		this._extensionsDescriptions = [];
 		this._updateExtensions();
+
+		this._updateSoon = this._register(new RunOnceScheduler(() => this._updateExtensions(), 200));
 
 		this._extensionService.getExtensions().then((extensions) => {
 			// We only deal with extensions with source code!
 			this._extensionsDescriptions = extensions.filter((extension) => {
 				return !!extension.main;
 			});
+			this._profileInfo = {
+				startTime: 1511954813493000,
+				endTime: 1511954835590000,
+				deltas: [1000, 1500, 123456, 130, 1500, 100000],
+				ids: ['idle', 'self', 'vscode.git', 'vscode.emmet', 'self', 'idle'],
+				data: null
+			};
 			this._updateExtensions();
 		});
-		this._register(this._extensionService.onDidChangeExtensionsStatus(() => this._updateExtensions()));
+		this._register(this._extensionService.onDidChangeExtensionsStatus(() => this._updateSoon.schedule()));
 
 		// TODO@Alex TODO@Isi ????
 		// this._extensionsWorkbenchService.onChange(() => this._updateExtensions());
@@ -90,18 +118,68 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 		let statusMap = this._extensionService.getExtensionsStatus();
 
+		// group profile segments by extension
+		let segments: { [id: string]: number[]; } = Object.create(null);
+
+		if (this._profileInfo) {
+			let currentStartTime = this._profileInfo.startTime;
+			for (let i = 0, len = this._profileInfo.deltas.length; i < len; i++) {
+				const id = this._profileInfo.ids[i];
+				const delta = this._profileInfo.deltas[i];
+
+				let extensionSegments = segments[id];
+				if (!extensionSegments) {
+					extensionSegments = [];
+					segments[id] = extensionSegments;
+				}
+
+				extensionSegments.push(currentStartTime);
+				currentStartTime = currentStartTime + delta;
+				extensionSegments.push(currentStartTime);
+			}
+		}
+
 		let result: IRuntimeExtension[] = [];
 		for (let i = 0, len = this._extensionsDescriptions.length; i < len; i++) {
 			const extensionDescription = this._extensionsDescriptions[i];
 
+			let profileInfo: IExtensionProfileInformation = null;
+			if (this._profileInfo) {
+				let extensionSegments = segments[extensionDescription.id] || [];
+				let extensionTotalTime = 0;
+				for (let j = 0, lenJ = extensionSegments.length / 2; j < lenJ; j++) {
+					const startTime = extensionSegments[2 * j];
+					const endTime = extensionSegments[2 * j + 1];
+					extensionTotalTime += (endTime - startTime);
+				}
+				profileInfo = {
+					segments: extensionSegments,
+					totalTime: extensionTotalTime
+				};
+			}
+
 			result[i] = {
+				originalIndex: i,
 				description: extensionDescription,
 				marketplaceInfo: marketplaceMap[extensionDescription.id],
-				status: statusMap[extensionDescription.id]
+				status: statusMap[extensionDescription.id],
+				profileInfo: profileInfo
 			};
 		}
 
-		return result.filter((element) => element.status.activationTimes);
+		result = result.filter((element) => element.status.activationTimes);
+
+		if (this._profileInfo) {
+			// sort descending by time spent in the profiler
+			result = result.sort((a, b) => {
+				if (a.profileInfo.totalTime === b.profileInfo.totalTime) {
+					return a.originalIndex - b.originalIndex;
+				}
+				return b.profileInfo.totalTime - a.profileInfo.totalTime;
+			});
+		}
+
+		return result;
 	}
 
 	protected createEditor(parent: Builder): void {
@@ -126,9 +204,12 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			icon: HTMLImageElement;
 			name: HTMLElement;
 
-			timeContainer: HTMLElement;
-			timeIcon: HTMLElement;
-			timeLabel: HTMLElement;
+			activationTimeContainer: HTMLElement;
+			activationTimeIcon: HTMLElement;
+			activationTimeLabel: HTMLElement;
+
+			profileContainer: HTMLElement;
+			profileTime: HTMLElement;
 
 			msgIcon: HTMLElement;
 			msgLabel: HTMLElement;
@@ -147,13 +228,16 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				const desc = append(element, $('div.desc'));
 				const name = append(desc, $('div.name'));
 
-				const timeContainer = append(desc, $('div.time'));
-				const timeIcon = append(timeContainer, $('span.octicon.octicon-clock'));
-				const timeLabel = append(timeContainer, $('span.time-label'));
+				const activationTimeContainer = append(desc, $('div.time'));
+				const activationTimeIcon = append(activationTimeContainer, $('span.octicon.octicon-clock'));
+				const activationTimeLabel = append(activationTimeContainer, $('span.time-label'));
 
 				const msgContainer = append(desc, $('div.msg'));
 				const msgIcon = append(msgContainer, $('.'));
 				const msgLabel = append(msgContainer, $('span.msg-label'));
+
+				const profileContainer = append(element, $('div.profile'));
+				const profileTime = append(profileContainer, $('span.time'));
 
 				const actionbar = new ActionBar(element, {
 					animated: false
@@ -169,9 +253,11 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					icon,
 					name,
 					actionbar,
-					timeContainer,
-					timeIcon,
-					timeLabel,
+					activationTimeContainer,
+					activationTimeIcon,
+					activationTimeLabel,
+					profileContainer,
+					profileTime,
 					msgIcon,
 					msgLabel,
 					disposables,
@@ -194,7 +280,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 				const activationTimes = element.status.activationTimes;
 				let syncTime = activationTimes.codeLoadingTime + activationTimes.activateCallTime;
-				data.timeLabel.textContent = `${syncTime}ms`;
+				data.activationTimeLabel.textContent = `${syncTime}ms`;
 				data.actionbar.context = element.marketplaceInfo;
 
 				let title: string;
@@ -213,13 +299,13 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				} else {
 					title = nls.localize('workspaceGenericActivation', "Activated on {0}", activationTimes.activationEvent);
 				}
-				data.timeContainer.title = title;
+				data.activationTimeContainer.title = title;
 
-				toggleClass(data.timeContainer, 'on-startup', activationTimes.startup);
+				toggleClass(data.activationTimeContainer, 'on-startup', activationTimes.startup);
 				if (activationTimes.startup) {
-					data.timeIcon.className = 'octicon octicon-clock';
+					data.activationTimeIcon.className = 'octicon octicon-clock';
 				} else {
-					data.timeIcon.className = 'octicon octicon-dashboard';
+					data.activationTimeIcon.className = 'octicon octicon-dashboard';
 				}
 
 				if (element.status.messages && element.status.messages.length > 0) {
@@ -228,6 +314,18 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				} else {
 					data.msgIcon.className = '';
 					data.msgLabel.textContent = '';
+				}
+
+				if (this._profileInfo) {
+					data.profileTime.textContent = (element.profileInfo.totalTime / 1000).toFixed(2) + 'ms';
+					// let svg = `
+					// <svg xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 194 186">
+					// <circle cx="50" cy="50" r="40" stroke="green" stroke-width="4" fill="yellow" />
+					// </svg>
+					// `;
+					// data.activationTimeLabel.innerHTML = svg;
+				} else {
+					data.profileTime.textContent = '';
 				}
 			},
 

@@ -48,12 +48,14 @@ export interface IExtensionsStatus {
 
 /**
  * e.g.
+ * ```
  * {
  *    startTime: 1511954813493000,
  *    endTime: 1511954835590000,
  *    deltas: [ 100, 1500, 123456, 1500, 100000 ],
  *    ids: [ 'idle', 'self', 'extension1', 'self', 'idle' ]
  * }
+ * ```
  */
 export interface IExtensionHostProfile {
 	/**
