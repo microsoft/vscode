@@ -15,7 +15,7 @@ import * as os from 'os';
 import * as fs from 'fs';
 import { whenDeleted } from 'vs/base/node/pfs';
 import { findFreePort } from 'vs/base/node/ports';
-import { createInspectServer } from 'vs/base/node/simpleIpc';
+import { createServer, readJSON } from 'vs/base/node/simpleIpc';
 
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 	return !!argv['install-source']
@@ -252,7 +252,35 @@ export async function main(argv: string[]): TPromise<any> {
 				},
 			];
 
-			const ipc = await createInspectServer(portSearch + 1, processes);
+			let lastPort = portSearch;
+			let findingFreePort: Thenable<number>;
+			const ipc = await createServer('vscode-inspect-all', async (req, res) => {
+				const message = await readJSON<any>(req);
+				// console.log(JSON.stringify(message));
+
+				if (message.type === 'getDebugPort') {
+
+					while (findingFreePort) {
+						await findingFreePort;
+					}
+					findingFreePort = findFreePort(lastPort + 1, 10, 6000);
+					lastPort = await findingFreePort;
+					findingFreePort = null;
+
+					console.log(`${message.processName} process debug port: ${lastPort}`);
+					processes.push({
+						name: message.processName,
+						debugPort: lastPort,
+					});
+
+					res.write(JSON.stringify({ debugPort: lastPort }));
+					res.end();
+
+				} else if (message.type === 'getProcesses') {
+					res.write(JSON.stringify(processes));
+					res.end();
+				}
+			});
 
 			argv.push(`--inspect-all-ipc=${ipc.ipcHandlePath}`);
 
