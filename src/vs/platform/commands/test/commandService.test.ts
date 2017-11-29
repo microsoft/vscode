@@ -9,7 +9,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/platform/commands/common/commandService';
-import { IExtensionService, ExtensionPointContribution, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService, ExtensionPointContribution, IExtensionDescription, IExtensionHostInformation } from 'vs/platform/extensions/common/extensions';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
@@ -34,6 +34,9 @@ class SimpleExtensionService implements IExtensionService {
 		return TPromise.as([]);
 	}
 	getExtensionsStatus() {
+		return undefined;
+	}
+	getExtensionHostInformation(): IExtensionHostInformation {
 		return undefined;
 	}
 	getExtensions(): TPromise<IExtensionDescription[]> {

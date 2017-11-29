@@ -12,7 +12,7 @@ import pkg from 'vs/platform/node/package';
 import * as path from 'path';
 import URI from 'vs/base/common/uri';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
-import { IMessage, IExtensionDescription, IExtensionsStatus, IExtensionService, ExtensionPointContribution, ActivationTimes } from 'vs/platform/extensions/common/extensions';
+import { IMessage, IExtensionDescription, IExtensionsStatus, IExtensionService, ExtensionPointContribution, ActivationTimes, IExtensionHostInformation } from 'vs/platform/extensions/common/extensions';
 import { IExtensionEnablementService, IExtensionIdentifier, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, BetterMergeId, BetterMergeDisabledNowKey } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionsRegistry, ExtensionPoint, IExtensionPointUser, ExtensionMessageCollector, IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
@@ -121,6 +121,15 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 	public get onDidRegisterExtensions(): Event<IExtensionDescription[]> {
 		return this._onDidRegisterExtensions.event;
+	}
+
+	public getExtensionHostInformation(): IExtensionHostInformation {
+		if (!this._extensionHostProcessWorker) {
+			throw errors.illegalState();
+		}
+		return <IExtensionHostInformation>{
+			inspectPort: this._extensionHostProcessWorker.getInspectPort()
+		};
 	}
 
 	public restartExtensionHost(): void {
