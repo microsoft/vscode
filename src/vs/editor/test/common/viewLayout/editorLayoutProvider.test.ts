@@ -51,6 +51,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				decorationsHeight: 800,
 
 				contentLeft: 10,
+				contentTop: 0,
 				contentWidth: 990,
 				contentHeight: 800,
 
@@ -107,6 +108,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				decorationsHeight: 800,
 
 				contentLeft: 10,
+				contentTop: 0,
 				contentWidth: 990,
 				contentHeight: 800,
 
@@ -163,6 +165,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				decorationsHeight: 800,
 
 				contentLeft: 10,
+				contentTop: 0,
 				contentWidth: 890,
 				contentHeight: 800,
 
@@ -219,6 +222,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				decorationsHeight: 900,
 
 				contentLeft: 10,
+				contentTop: 0,
 				contentWidth: 890,
 				contentHeight: 900,
 
@@ -275,6 +279,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				decorationsHeight: 900,
 
 				contentLeft: 10,
+				contentTop: 0,
 				contentWidth: 890,
 				contentHeight: 900,
 
@@ -331,6 +336,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				decorationsHeight: 900,
 
 				contentLeft: 60,
+				contentTop: 0,
 				contentWidth: 840,
 				contentHeight: 900,
 
@@ -387,6 +393,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				decorationsHeight: 900,
 
 				contentLeft: 60,
+				contentTop: 0,
 				contentWidth: 840,
 				contentHeight: 900,
 
@@ -443,6 +450,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				decorationsHeight: 900,
 
 				contentLeft: 70,
+				contentTop: 0,
 				contentWidth: 830,
 				contentHeight: 900,
 
@@ -499,6 +507,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				decorationsHeight: 900,
 
 				contentLeft: 40,
+				contentTop: 0,
 				contentWidth: 860,
 				contentHeight: 900,
 
@@ -555,6 +564,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				decorationsHeight: 900,
 
 				contentLeft: 40,
+				contentTop: 0,
 				contentWidth: 860,
 				contentHeight: 900,
 
@@ -611,6 +621,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				decorationsHeight: 800,
 
 				contentLeft: 10,
+				contentTop: 0,
 				contentWidth: 900,
 				contentHeight: 800,
 
@@ -667,6 +678,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				decorationsHeight: 800,
 
 				contentLeft: 10,
+				contentTop: 0,
 				contentWidth: 900,
 				contentHeight: 800,
 
@@ -723,6 +735,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				decorationsHeight: 800,
 
 				contentLeft: 10,
+				contentTop: 0,
 				contentWidth: 943,
 				contentHeight: 800,
 

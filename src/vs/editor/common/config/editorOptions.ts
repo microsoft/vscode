@@ -1002,6 +1002,7 @@ export class InternalEditorOptions {
 			&& a.decorationsWidth === b.decorationsWidth
 			&& a.decorationsHeight === b.decorationsHeight
 			&& a.contentLeft === b.contentLeft
+			&& a.contentTop === b.contentTop
 			&& a.contentWidth === b.contentWidth
 			&& a.contentHeight === b.contentHeight
 			&& a.renderMinimap === b.renderMinimap
@@ -1259,6 +1260,10 @@ export interface EditorLayoutInfo {
 	 */
 	readonly decorationsHeight: number;
 
+	/**
+	 * Top position for the content (actual text)
+	 */
+	readonly contentTop: number;
 	/**
 	 * Left position for the content (actual text)
 	 */
@@ -2007,6 +2012,7 @@ export class EditorLayoutProvider {
 		const lineNumbersLeft = glyphMarginLeft + glyphMarginWidth;
 		const decorationsLeft = lineNumbersLeft + lineNumbersWidth;
 		const contentLeft = decorationsLeft + lineDecorationsWidth;
+		const contentTop = 0;
 
 		const remainingWidth = outerWidth - glyphMarginWidth - lineNumbersWidth - lineDecorationsWidth;
 
@@ -2068,6 +2074,7 @@ export class EditorLayoutProvider {
 			decorationsHeight: outerHeight,
 
 			contentLeft: contentLeft,
+			contentTop: contentTop,
 			contentWidth: contentWidth,
 			contentHeight: outerHeight,
 

@@ -3182,6 +3182,10 @@ declare module monaco.editor {
 		 */
 		readonly decorationsHeight: number;
 		/**
+		 * Top position for the content (actual text)
+		 */
+		readonly contentTop: number;
+		/**
 		 * Left position for the content (actual text)
 		 */
 		readonly contentLeft: number;
