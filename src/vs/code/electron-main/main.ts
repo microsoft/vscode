@@ -154,9 +154,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 					if (environmentService.args.ps) {
 						return service.getMainProcessInfo().then(info => {
 							return listProcesses(info.mainPID).then(rootProcess => {
-								const output: string[] = [];
-								formatProcess(info, output, rootProcess, 0);
-								console.log(output.join('\n'));
+								console.log(formatProcessList(info, rootProcess));
 
 								return TPromise.wrapError(new ExpectedError());
 							});
@@ -209,35 +207,36 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	return setup(true);
 }
 
-function formatProcess(info: IMainProcessInfo, output: string[], item: ProcessItem, indent: number): void {
-	const isRoot = (indent === 0);
+function formatProcessList(info: IMainProcessInfo, rootProcess: ProcessItem): string {
+	const mapPidToWindowTitle = new Map<number, string>();
+	info.windows.forEach(window => mapPidToWindowTitle.set(window.pid, window.title));
+
 	const MB = 1024 * 1024;
 	const GB = 1024 * MB;
 
-	if (isRoot) {
-		output.push(`Version:          ${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`);
-		output.push(`OS Version:       ${os.type()} ${os.arch()} ${os.release()})`);
-		const cpus = os.cpus();
-		if (cpus && cpus.length > 0) {
-			output.push(`CPUs:             ${cpus[0].model} (${cpus.length} x ${cpus[0].speed})`);
-		}
-		output.push(`Memory (System):  ${(os.totalmem() / GB).toFixed(2)}GB (${(os.freemem() / GB).toFixed(2)}GB free)`);
-		output.push(`Load (avg):       ${os.loadavg().map(l => Math.round(l)).join(', ')}`);
-		output.push(`VM:               ${Math.round((virtualMachineHint.value() * 100))}`);
-		output.push(`Screen Reader:    ${app.isAccessibilitySupportEnabled() ? 'yes' : 'no'}`);
-		output.push('');
-		output.push('Window PID\tTitle');
-
-		info.windows.forEach(window => {
-			if (window.title === 'Shared Process') {
-				return; // skip shared process
-			}
-			output.push(`${pad(window.pid, 10, ' ')}\t${window.title}`);
-		});
-
-		output.push('');
-		output.push('CPU %\tMem MB\tProcess');
+	const output: string[] = [];
+	output.push(`Version:          ${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`);
+	output.push(`OS Version:       ${os.type()} ${os.arch()} ${os.release()})`);
+	const cpus = os.cpus();
+	if (cpus && cpus.length > 0) {
+		output.push(`CPUs:             ${cpus[0].model} (${cpus.length} x ${cpus[0].speed})`);
 	}
+	output.push(`Memory (System):  ${(os.totalmem() / GB).toFixed(2)}GB (${(os.freemem() / GB).toFixed(2)}GB free)`);
+	output.push(`Load (avg):       ${os.loadavg().map(l => Math.round(l)).join(', ')}`);
+	output.push(`VM:               ${Math.round((virtualMachineHint.value() * 100))}`);
+	output.push(`Screen Reader:    ${app.isAccessibilitySupportEnabled() ? 'yes' : 'no'}`);
+	output.push('');
+	output.push('CPU %\tMem MB\tProcess');
+
+	formatProcessItem(mapPidToWindowTitle, output, rootProcess, 0);
+
+	return output.join('\n');
+}
+
+function formatProcessItem(mapPidToWindowTitle: Map<number, string>, output: string[], item: ProcessItem, indent: number): void {
+	const isRoot = (indent === 0);
+
+	const MB = 1024 * 1024;
 
 	// Format name with indent
 	let name: string;
@@ -247,14 +246,14 @@ function formatProcess(info: IMainProcessInfo, output: string[], item: ProcessIt
 		name = `${repeat('  ', indent)} ${item.name}`;
 
 		if (item.name === 'renderer') {
-			name = `${name} (pid: ${item.pid})`;
+			name = `${name} (${mapPidToWindowTitle.get(item.pid)})`;
 		}
 	}
 	output.push(`${pad(Number(item.load.toFixed(0)), 5, ' ')}\t${pad(Number(((os.totalmem() * (item.mem / 100)) / MB).toFixed(0)), 6, ' ')}\t${name}`);
 
 	// Recurse into children if any
 	if (Array.isArray(item.children)) {
-		item.children.forEach(child => formatProcess(info, output, child, indent + 1));
+		item.children.forEach(child => formatProcessItem(mapPidToWindowTitle, output, child, indent + 1));
 	}
 }
 
