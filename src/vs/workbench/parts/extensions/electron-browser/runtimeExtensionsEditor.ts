@@ -22,17 +22,17 @@ import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/parts/exte
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IExtensionService, IExtensionDescription, IExtensionsStatus, IExtensionHostProfile } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService, IExtensionDescription, IExtensionsStatus, IExtensionHostProfile, ProfileSession } from 'vs/platform/extensions/common/extensions';
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { WorkbenchList, IListService } from 'vs/platform/list/browser/listService';
 import { append, $, addDisposableListener, addClass, toggleClass } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { ExtensionHostProfileAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { clipboard } from 'electron';
 import { LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 interface IExtensionProfileInformation {
 	/**
@@ -93,24 +93,29 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			this._extensionsDescriptions = extensions.filter((extension) => {
 				return !!extension.main;
 			});
-			this._profileInfo = {
-				startTime: 1511954813493000,
-				endTime: 1511954835590000,
-				deltas: [1000, 1500, 123456, 130, 1500, 1234, 100000],
-				ids: ['idle', 'self', 'vscode.git', 'vscode.emmet', 'self', 'vscode.git', 'idle'],
-				data: null,
-				getAggregatedTimes: undefined
-			};
-			this._profileInfo.endTime = this._profileInfo.startTime;
-			for (let i = 0, len = this._profileInfo.deltas.length; i < len; i++) {
-				this._profileInfo.endTime += this._profileInfo.deltas[i];
-			}
+			// this._profileInfo = {
+			// 	startTime: 1511954813493000,
+			// 	endTime: 1511954835590000,
+			// 	deltas: [1000, 1500, 123456, 130, 1500, 1234, 100000],
+			// 	ids: ['idle', 'self', 'vscode.git', 'vscode.emmet', 'self', 'vscode.git', 'idle'],
+			// 	data: null,
+			// 	getAggregatedTimes: undefined
+			// };
+			// this._profileInfo.endTime = this._profileInfo.startTime;
+			// for (let i = 0, len = this._profileInfo.deltas.length; i < len; i++) {
+			// 	this._profileInfo.endTime += this._profileInfo.deltas[i];
+			// }
 			this._updateExtensions();
 		});
 		this._register(this._extensionService.onDidChangeExtensionsStatus(() => this._updateSoon.schedule()));
 
 		// TODO@Alex TODO@Isi ????
 		// this._extensionsWorkbenchService.onChange(() => this._updateExtensions());
+	}
+
+	public setProfileInfo(profileInfo: IExtensionHostProfile): void {
+		this._profileInfo = profileInfo;
+		this._updateExtensions();
 	}
 
 	private _updateExtensions(): void {
@@ -365,7 +370,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 	}
 
 	public getActions(): IAction[] {
-		return [new ExtensionHostProfileAction(ExtensionHostProfileAction.LABEL_START, ExtensionHostProfileAction.ID, this._extensionService)];
+		return [new ExtensionHostProfileAction(ExtensionHostProfileAction.LABEL_START, ExtensionHostProfileAction.ID, this, this._extensionService)];
 	}
 
 	public layout(dimension: Dimension): void {
@@ -460,5 +465,82 @@ class ReportExtensionIssueAction extends Action {
 		);
 
 		return `${baseUrl}${queryStringPrefix}body=${body}`;
+	}
+}
+
+const enum ProfileSessionState {
+	None = 0,
+	Starting = 1,
+	Running = 2,
+	Stopping = 3
+}
+
+class ExtensionHostProfileAction extends Action {
+	static ID = 'workbench.extensions.action.extensionHostProfile';
+	static LABEL_START = nls.localize('extensionHostProfileStart', "Start Extension Host Profile");
+	static LABEL_STOP = nls.localize('extensionHostProfileStop', "Stop Extension Host Profile");
+	static STOP_CSS_CLASS = 'extension-host-profile-stop';
+	static START_CSS_CLASS = 'extension-host-profile-start';
+
+	private _profileSession: ProfileSession;
+	private _state: ProfileSessionState;
+
+	constructor(
+		id: string = ExtensionHostProfileAction.ID, label: string = ExtensionHostProfileAction.LABEL_START,
+		private readonly _parentEditor: RuntimeExtensionsEditor,
+		@IExtensionService private readonly _extensionService: IExtensionService,
+	) {
+		super(id, label, ExtensionHostProfileAction.START_CSS_CLASS);
+		this._profileSession = null;
+		this._setState(ProfileSessionState.None);
+	}
+
+	private update(): void {
+		if (this._profileSession) {
+			this.class = ExtensionHostProfileAction.STOP_CSS_CLASS;
+			this.label = ExtensionHostProfileAction.LABEL_STOP;
+		} else {
+			this.class = ExtensionHostProfileAction.START_CSS_CLASS;
+			this.label = ExtensionHostProfileAction.LABEL_START;
+		}
+	}
+
+	private _setState(state: ProfileSessionState): void {
+		this._state = state;
+		this.update();
+	}
+
+	run(): TPromise<any> {
+		switch (this._state) {
+			case ProfileSessionState.None:
+				this._setState(ProfileSessionState.Starting);
+				this._extensionService.startExtensionHostProfile().then((value) => {
+					this._profileSession = value;
+					this._setState(ProfileSessionState.Running);
+				}, (err) => {
+					onUnexpectedError(err);
+					this._setState(ProfileSessionState.None);
+				});
+				break;
+			case ProfileSessionState.Starting:
+				break;
+			case ProfileSessionState.Running:
+				this._setState(ProfileSessionState.Stopping);
+				this._profileSession.stop().then((result) => {
+					this._parentEditor.setProfileInfo(result);
+					console.log(result);
+					console.log(`here here`);
+					this._setState(ProfileSessionState.None);
+				}, (err) => {
+					onUnexpectedError(err);
+					this._setState(ProfileSessionState.None);
+				});
+				this._profileSession = null;
+				break;
+			case ProfileSessionState.Stopping:
+				break;
+		}
+
+		return TPromise.as(null);
 	}
 }

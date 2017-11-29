@@ -28,7 +28,7 @@ import { Query } from 'vs/workbench/parts/extensions/common/extensionQuery';
 import { IFileService, IContent } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { IExtensionService, IExtensionDescription, ProfileSession } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import URI from 'vs/base/common/uri';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -1676,50 +1676,6 @@ export class EnableAllWorkpsaceAction extends Action {
 	dispose(): void {
 		super.dispose();
 		this.disposables = dispose(this.disposables);
-	}
-}
-
-export class ExtensionHostProfileAction extends Action {
-	static ID = 'workbench.extensions.action.extensionHostProfile';
-	static LABEL_START = localize('extensionHostProfileStart', "Start Extension Host Profile");
-	static LABEL_STOP = localize('extensionHostProfileStop', "Stop Extension Host Profile");
-	static STOP_CSS_CLASS = 'extension-host-profile-stop';
-	static START_CSS_CLASS = 'extension-host-profile-start';
-
-	private profileSession: TPromise<ProfileSession>;
-
-	constructor(
-		id: string = ExtensionHostProfileAction.ID, label: string = ExtensionHostProfileAction.LABEL_START,
-		@IExtensionService private extensionService: IExtensionService,
-	) {
-		super(id, label, ExtensionHostProfileAction.START_CSS_CLASS);
-		this.update();
-	}
-
-	private update(): void {
-		if (this.profileSession) {
-			this.class = ExtensionHostProfileAction.STOP_CSS_CLASS;
-			this.label = ExtensionHostProfileAction.LABEL_STOP;
-		} else {
-			this.class = ExtensionHostProfileAction.START_CSS_CLASS;
-			this.label = ExtensionHostProfileAction.LABEL_START;
-		}
-	}
-
-	run(): TPromise<any> {
-		if (this.profileSession) {
-			return this.profileSession.then((actual) => {
-				return actual.stop().then(profile => {
-					// TODO@isidor need to store the profile result somewhere
-					this.profileSession = undefined;
-					this.update();
-				});
-			});
-		}
-		this.profileSession = this.extensionService.startExtensionHostProfile();
-		this.update();
-
-		return TPromise.as(null);
 	}
 }
 
