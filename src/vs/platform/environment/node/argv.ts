@@ -28,8 +28,7 @@ const options: minimist.Opts = {
 		'enable-proposed-api',
 		'export-default-configuration',
 		'install-source',
-		'cpu-profile',
-		'inspect-all-ipc'
+		'cpu-profile'
 	],
 	boolean: [
 		'help',

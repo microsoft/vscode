@@ -36,7 +36,7 @@ import pkg from 'vs/platform/node/package';
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/parts/terminal/electron-browser/terminalColorRegistry';
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { sendData, readJSON } from 'vs/base/node/simpleIpc';
+import { findRandomFreePort } from 'vs/base/node/ports';
 import { onUnexpectedError } from 'vs/base/common/errors';
 
 /** The amount of time to consider terminal errors to be related to the launch */
@@ -596,13 +596,10 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	protected _createProcessInDebugMode() {
-		return sendData(this._envService.args['inspect-all-ipc'], JSON.stringify({
-			type: 'getDebugPort',
-			processName: 'Terminal Instance'
-		})).then(res => readJSON<any>(res))
-			.then(data => {
-				this._createProcess(data.debugPort);
-			});
+		return findRandomFreePort(9000, 20000, 20, 5000).then(port => {
+			console.log(`Terminal process running in inspect mode using port: ${port}`);
+			this._createProcess(port);
+		});
 	}
 
 	protected _createProcess(port?: number): void {
