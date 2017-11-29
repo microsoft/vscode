@@ -111,6 +111,7 @@ import 'vs/workbench/parts/surveys/electron-browser/nps.contribution';
 import 'vs/workbench/parts/surveys/electron-browser/languageSurveys.contribution';
 
 import 'vs/workbench/parts/performance/electron-browser/performance.contribution';
+import 'vs/workbench/parts/performance/electron-browser/cpu.contribution';
 
 import 'vs/workbench/parts/cli/electron-browser/cli.contribution';
 
