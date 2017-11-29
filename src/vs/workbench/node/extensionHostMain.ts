@@ -101,11 +101,16 @@ export class ExtensionHostMain {
 				return `${error.name || 'Error'}: ${error.message || ''}${stackTraceMessage}`;
 			};
 		});
+		const mainThreadExtensions = threadService.get(MainContext.MainThreadExtensionService);
 		const mainThreadErrors = threadService.get(MainContext.MainThreadErrors);
 		errors.setUnexpectedErrorHandler(err => {
 			const data = errors.transformErrorForSerialization(err);
 			const extension = extensionErrors.get(err);
-			mainThreadErrors.$onUnexpectedError(data, extension && extension.id);
+			if (extension) {
+				mainThreadExtensions.$onExtensionRuntimeError(extension.id, data);
+			} else {
+				mainThreadErrors.$onUnexpectedError(data);
+			}
 		});
 
 		// Configure the watchdog to kill our process if the JS event loop is unresponsive for more than 10s

@@ -73,6 +73,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	 */
 	private _extensionHostProcessFinishedActivateEvents: { [activationEvent: string]: boolean; };
 	private _extensionHostProcessActivationTimes: { [id: string]: ActivationTimes; };
+	private _extensionHostExtensionRuntimeErrors: { [id: string]: Error[]; };
 	private _extensionHostProcessWorker: ExtensionHostProcessWorker;
 	private _extensionHostProcessThreadService: MainThreadService;
 	private _extensionHostProcessCustomers: IDisposable[];
@@ -102,6 +103,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 		this._extensionHostProcessFinishedActivateEvents = Object.create(null);
 		this._extensionHostProcessActivationTimes = Object.create(null);
+		this._extensionHostExtensionRuntimeErrors = Object.create(null);
 		this._extensionHostProcessWorker = null;
 		this._extensionHostProcessThreadService = null;
 		this._extensionHostProcessCustomers = [];
@@ -150,6 +152,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 		this._extensionHostProcessFinishedActivateEvents = Object.create(null);
 		this._extensionHostProcessActivationTimes = Object.create(null);
+		this._extensionHostExtensionRuntimeErrors = Object.create(null);
 		if (this._extensionHostProcessWorker) {
 			this._extensionHostProcessWorker.dispose();
 			this._extensionHostProcessWorker = null;
@@ -320,7 +323,8 @@ export class ExtensionService extends Disposable implements IExtensionService {
 				const id = extension.id;
 				result[id] = {
 					messages: this._extensionsMessages[id],
-					activationTimes: this._extensionHostProcessActivationTimes[id]
+					activationTimes: this._extensionHostProcessActivationTimes[id],
+					runtimeErrors: this._extensionHostExtensionRuntimeErrors[id],
 				};
 			}
 		}
@@ -521,6 +525,14 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 	public _onExtensionActivated(extensionId: string, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void {
 		this._extensionHostProcessActivationTimes[extensionId] = new ActivationTimes(startup, codeLoadingTime, activateCallTime, activateResolvedTime, activationEvent);
+		this._onDidChangeExtensionsStatus.fire([extensionId]);
+	}
+
+	public _onExtensionRuntimeError(extensionId: string, err: Error): void {
+		if (!this._extensionHostExtensionRuntimeErrors[extensionId]) {
+			this._extensionHostExtensionRuntimeErrors[extensionId] = [];
+		}
+		this._extensionHostExtensionRuntimeErrors[extensionId].push(err);
 		this._onDidChangeExtensionsStatus.fire([extensionId]);
 	}
 

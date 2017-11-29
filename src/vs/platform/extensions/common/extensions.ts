@@ -43,6 +43,7 @@ export interface IMessage {
 export interface IExtensionsStatus {
 	messages: IMessage[];
 	activationTimes: ActivationTimes;
+	runtimeErrors: Error[];
 }
 
 /**

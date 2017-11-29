@@ -239,7 +239,7 @@ export interface MainThreadTreeViewsShape extends IDisposable {
 }
 
 export interface MainThreadErrorsShape extends IDisposable {
-	$onUnexpectedError(err: any | SerializedError, extensionId: string | undefined): void;
+	$onUnexpectedError(err: any | SerializedError): void;
 }
 
 export interface MainThreadLanguageFeaturesShape extends IDisposable {
@@ -352,6 +352,7 @@ export interface MainThreadExtensionServiceShape extends IDisposable {
 	$localShowMessage(severity: Severity, msg: string): void;
 	$onExtensionActivated(extensionId: string, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void;
 	$onExtensionActivationFailed(extensionId: string): void;
+	$onExtensionRuntimeError(extensionId: string, error: SerializedError): void;
 	$addMessage(extensionId: string, severity: Severity, message: string): void;
 }
 
