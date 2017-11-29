@@ -264,7 +264,7 @@ export class ExtensionHostProcessWorker {
 		if (typeof extensionHostPort !== 'number' && !this._environmentService.args['inspect-all']) {
 			return TPromise.wrap<number>(0);
 		}
-		const findPort = this._environmentService.args['inspect-all'] ? findRandomFreePort(9000, 20000, 10, 5000) : findFreePort(extensionHostPort, 10, 5000);
+		const findPort = this._environmentService.args['inspect-all'] ? findRandomFreePort() : findFreePort(extensionHostPort, 10, 5000);
 		return new TPromise<number>((c, e) => {
 			return findPort.then(port => {
 				if (!port) {

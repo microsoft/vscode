@@ -32,14 +32,9 @@ export function findFreePort(startPort: number, giveUpAfter: number, timeout: nu
 	});
 }
 
-export function findRandomFreePort(startPort: number, endPort: number, giveUpAfter: number, timeout: number): Thenable<number> {
-	if (startPort > endPort) {
-		const temp = endPort;
-		endPort = startPort;
-		startPort = temp;
-	}
-	const port = Math.floor(Math.random() * (endPort - startPort) + startPort);
-	return findFreePort(port, giveUpAfter, timeout);
+export function findRandomFreePort(): Thenable<number> {
+	const port = Math.floor(Math.random() * (20000 - 9000) + 9000);
+	return findFreePort(port, 10, 5000);
 }
 
 function doFindFreePort(startPort: number, giveUpAfter: number, clb: (port: number) => void): void {

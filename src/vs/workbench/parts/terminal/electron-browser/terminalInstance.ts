@@ -596,7 +596,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	protected _createProcessInDebugMode() {
-		return findRandomFreePort(9000, 20000, 20, 5000).then(port => {
+		return findRandomFreePort().then(port => {
 			console.log(`Terminal process running in inspect mode using port: ${port}`);
 			this._createProcess(port);
 		});
