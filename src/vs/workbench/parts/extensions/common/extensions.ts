@@ -78,7 +78,6 @@ export interface IExtensionsWorkbenchService {
 	setEnablement(extension: IExtension, enablementState: EnablementState): TPromise<void>;
 	loadDependencies(extension: IExtension): TPromise<IExtensionDependencies>;
 	open(extension: IExtension, sideByside?: boolean): TPromise<any>;
-	reportIssue(extension: IExtension): TPromise<void>;
 	checkForUpdates(): TPromise<void>;
 	allowedBadgeProviders: string[];
 }

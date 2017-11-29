@@ -7,8 +7,11 @@
 
 import 'vs/css!./media/runtimeExtensionsEditor';
 import * as nls from 'vs/nls';
+import * as os from 'os';
+import product from 'vs/platform/node/product';
 import URI from 'vs/base/common/uri';
 import { EditorInput } from 'vs/workbench/common/editor';
+import pkg from 'vs/platform/node/package';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action, IAction } from 'vs/base/common/actions';
 import { Builder, Dimension } from 'vs/base/browser/builder';
@@ -26,8 +29,10 @@ import { append, $, addDisposableListener, addClass, toggleClass } from 'vs/base
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { ExtensionHostProfileAction, ReportExtensionIssueAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { ExtensionHostProfileAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { clipboard } from 'electron';
+import { LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 interface IExtensionProfileInformation {
 	/**
@@ -248,7 +253,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					animated: false
 				});
 				actionbar.onDidRun(({ error }) => error && this._messageService.show(Severity.Error, error));
-				actionbar.push(new ReportExtensionIssueAction(ReportExtensionIssueAction.ID, ReportExtensionIssueAction.LABEL, this._extensionsWorkbenchService), { icon: false });
+				actionbar.push(new ReportExtensionIssueAction(), { icon: false });
 
 				const disposables = [actionbar];
 
@@ -286,7 +291,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				const activationTimes = element.status.activationTimes;
 				let syncTime = activationTimes.codeLoadingTime + activationTimes.activateCallTime;
 				data.activationTimeLabel.textContent = `${syncTime}ms`;
-				data.actionbar.context = element.marketplaceInfo;
+				data.actionbar.context = element;
 
 				let title: string;
 				if (activationTimes.activationEvent === '*') {
@@ -421,5 +426,39 @@ export class ShowRuntimeExtensionsAction extends Action {
 
 	public run(e?: any): TPromise<any> {
 		return this._editorService.openEditor(this._instantiationService.createInstance(RuntimeExtensionsInput));
+	}
+}
+
+class ReportExtensionIssueAction extends Action {
+	static ID = 'workbench.extensions.action.reportExtensionIssue';
+	static LABEL = nls.localize('reportExtensionIssue', "Report Issue");
+
+	constructor(
+		id: string = ReportExtensionIssueAction.ID, label: string = ReportExtensionIssueAction.LABEL
+	) {
+		super(id, label, 'report-extension-issue');
+	}
+
+	run(extension: IRuntimeExtension): TPromise<any> {
+		clipboard.writeText('```json \n' + JSON.stringify(extension.status, null, '\t') + '\n```');
+		window.open(this.generateNewIssueUrl(extension));
+
+		return TPromise.as(null);
+	}
+
+	private generateNewIssueUrl(extension: IRuntimeExtension): string {
+		const baseUrl = extension.marketplaceInfo.type === LocalExtensionType.User && extension.description.repository && extension.description.repository.url ?
+			`${extension.description.repository.url.substr(0, extension.description.repository.url.length - 4)}/issues/new/`
+			: product.reportIssueUrl;
+		const osVersion = `${os.type()} ${os.arch()} ${os.release()}`;
+		const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
+		const body = encodeURIComponent(
+			`- Extension Name: ${extension.description.name}
+- Extension Version: ${extension.description.version}
+- OS Version: ${osVersion}
+- VSCode version: ${pkg.version}` + '\n\n We have written the needed data into your clipboard. Please paste:'
+		);
+
+		return `${baseUrl}${queryStringPrefix}body=${body}`;
 	}
 }

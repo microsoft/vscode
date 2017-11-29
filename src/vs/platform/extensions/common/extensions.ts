@@ -27,6 +27,9 @@ export interface IExtensionDescription {
 	readonly main?: string;
 	readonly contributes?: { [point: string]: any; };
 	readonly keywords?: string[];
+	readonly repository?: {
+		url: string;
+	};
 	enableProposedApi?: boolean;
 }
 
