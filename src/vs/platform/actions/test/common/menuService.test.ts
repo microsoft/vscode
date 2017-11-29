@@ -12,7 +12,7 @@ import { NullCommandService } from 'vs/platform/commands/common/commands';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ExtensionPointContribution, IExtensionDescription, IExtensionsStatus, IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { ExtensionPointContribution, IExtensionDescription, IExtensionsStatus, IExtensionService, ProfileSession } from 'vs/platform/extensions/common/extensions';
 import Event, { Emitter } from 'vs/base/common/event';
 
 // --- service instances
@@ -45,6 +45,10 @@ class MockExtensionService implements IExtensionService {
 	}
 
 	public getExtensionsStatus(): { [id: string]: IExtensionsStatus; } {
+		throw new Error('Not implemented');
+	}
+
+	public startExtensionHostProfile(): ProfileSession {
 		throw new Error('Not implemented');
 	}
 

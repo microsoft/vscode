@@ -45,6 +45,39 @@ export interface IExtensionsStatus {
 	activationTimes: ActivationTimes;
 }
 
+/**
+ * e.g.
+ * {
+ *    startTime: 1511954813493000,
+ *    endTime: 1511954835590000,
+ *    deltas: [ 100, 1500, 123456, 1500, 100000 ],
+ *    ids: [ 'idle', 'self', 'extension1', 'self', 'idle' ]
+ * }
+ */
+export interface IExtensionHostProfile {
+	/**
+	 * Profiling start timestamp in microseconds.
+	 */
+	startTime: number;
+	/**
+	 * Profiling end timestamp in microseconds.
+	 */
+	endTime: number;
+	/**
+	 * Duration of segment in microseconds.
+	 */
+	deltas: number[];
+	/**
+	 * Segment identifier: extension id or one of the four known strings.
+	 */
+	ids: (string | 'idle' | 'program' | 'gc' | 'self')[];
+
+	/**
+	 * Get the information as a .cpuprofile.
+	 */
+	data: object;
+}
+
 export class ActivationTimes {
 	constructor(
 		public readonly startup: boolean,
@@ -117,6 +150,11 @@ export interface IExtensionService {
 	getExtensionsStatus(): { [id: string]: IExtensionsStatus };
 
 	/**
+	 * Begin an extension host process profile session.
+	 */
+	startExtensionHostProfile(): ProfileSession;
+
+	/**
 	 * Restarts the extension host.
 	 */
 	restartExtensionHost(): void;
@@ -135,4 +173,10 @@ export interface IExtensionService {
 	 *
 	 */
 	getExtensionHostInformation(): IExtensionHostInformation;
+}
+
+export interface ProfileSession {
+
+	stop(): TPromise<IExtensionHostProfile>;
+
 }
