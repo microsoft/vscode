@@ -220,7 +220,6 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			name: HTMLElement;
 
 			activationTimeContainer: HTMLElement;
-			activationTimeIcon: HTMLElement;
 			activationTimeLabel: HTMLElement;
 
 			profileContainer: HTMLElement;
@@ -250,7 +249,6 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				const msgLabel = append(msgContainer, $('span.msg-label'));
 
 				const activationTimeContainer = append(element, $('div.time'));
-				const activationTimeIcon = append(activationTimeContainer, $('span.octicon.octicon-clock'));
 				const activationTimeLabel = append(activationTimeContainer, $('span.time-label'));
 
 				const profileContainer = append(element, $('div.profile'));
@@ -273,7 +271,6 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					name,
 					actionbar,
 					activationTimeContainer,
-					activationTimeIcon,
 					activationTimeLabel,
 					profileContainer,
 					profileTime,
@@ -300,7 +297,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 				const activationTimes = element.status.activationTimes;
 				let syncTime = activationTimes.codeLoadingTime + activationTimes.activateCallTime;
-				data.activationTimeLabel.textContent = `${syncTime}ms`;
+				data.activationTimeLabel.textContent = `Activation: ${syncTime}ms`;
 				data.actionbar.context = element;
 
 				let title: string;
@@ -322,11 +319,6 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				data.activationTimeContainer.title = title;
 
 				toggleClass(data.activationTimeContainer, 'on-startup', activationTimes.startup);
-				if (activationTimes.startup) {
-					data.activationTimeIcon.className = 'octicon octicon-clock';
-				} else {
-					data.activationTimeIcon.className = 'octicon octicon-dashboard';
-				}
 
 				if (element.status.messages && element.status.messages.length > 0) {
 					data.msgIcon.className = 'octicon octicon-alert';
@@ -337,7 +329,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				}
 
 				if (this._profileInfo) {
-					data.profileTime.textContent = (element.profileInfo.totalTime / 1000).toFixed(2) + 'ms';
+					data.profileTime.textContent = `Profile: ${(element.profileInfo.totalTime / 1000).toFixed(2)}ms`;
 					const elementSegments = element.profileInfo.segments;
 					let inner = '<rect x="0" y="99" width="100" height="1" />';
 					for (let i = 0, len = elementSegments.length / 2; i < len; i++) {
