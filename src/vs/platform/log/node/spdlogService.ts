@@ -20,26 +20,26 @@ export class SpdLogService implements ILogService {
 	}
 
 	trace(message: string, ...args: any[]): void {
-		throw new Error('Method not implemented.');
+		// throw new Error('Method not implemented.');
 	}
 
 	debug(message: string, ...args: any[]): void {
-		throw new Error('Method not implemented.');
+		// throw new Error('Method not implemented.');
 	}
 
 	info(message: string, ...args: any[]): void {
-		throw new Error('Method not implemented.');
+		// throw new Error('Method not implemented.');
 	}
 
 	warn(message: string, ...args: any[]): void {
-		throw new Error('Method not implemented.');
+		// throw new Error('Method not implemented.');
 	}
 
 	error(message: string | Error, ...args: any[]): void {
-		throw new Error('Method not implemented.');
+		// throw new Error('Method not implemented.');
 	}
 
 	critical(message: string, ...args: any[]): void {
-		throw new Error('Method not implemented.');
+		// throw new Error('Method not implemented.');
 	}
 }

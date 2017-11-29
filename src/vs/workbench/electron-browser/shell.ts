@@ -88,6 +88,7 @@ import { ITextMateService } from 'vs/workbench/services/textMate/electron-browse
 import { IBroadcastService, BroadcastService } from 'vs/platform/broadcast/electron-browser/broadcastService';
 import { HashService } from 'vs/workbench/services/hash/node/hashService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 /**
  * Services that we require for the Shell
@@ -96,6 +97,7 @@ export interface ICoreServices {
 	contextService: IWorkspaceContextService;
 	configurationService: IConfigurationService;
 	environmentService: IEnvironmentService;
+	logService: ILogService;
 	timerService: ITimerService;
 	storageService: IStorageService;
 }
@@ -110,6 +112,7 @@ export class WorkbenchShell {
 	private storageService: IStorageService;
 	private messageService: MessageService;
 	private environmentService: IEnvironmentService;
+	private logService: ILogService;
 	private contextViewService: ContextViewService;
 	private configurationService: IConfigurationService;
 	private contextService: IWorkspaceContextService;
@@ -140,6 +143,7 @@ export class WorkbenchShell {
 		this.contextService = coreServices.contextService;
 		this.configurationService = coreServices.configurationService;
 		this.environmentService = coreServices.environmentService;
+		this.logService = coreServices.logService;
 		this.timerService = coreServices.timerService;
 		this.storageService = coreServices.storageService;
 
@@ -279,6 +283,7 @@ export class WorkbenchShell {
 		serviceCollection.set(IWorkspaceContextService, this.contextService);
 		serviceCollection.set(IConfigurationService, this.configurationService);
 		serviceCollection.set(IEnvironmentService, this.environmentService);
+		serviceCollection.set(ILogService, this.logService);
 		serviceCollection.set(ITimerService, this.timerService);
 		serviceCollection.set(IStorageService, this.storageService);
 		this.mainProcessServices.forEach((serviceIdentifier, serviceInstance) => {
