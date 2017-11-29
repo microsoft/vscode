@@ -41,6 +41,8 @@ import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/work
 import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { localize } from 'vs/nls';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { createInspectServer } from 'vs/base/node/simpleIpc';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 function createServices(args: ParsedArgs): IInstantiationService {
 	const services = new ServiceCollection();
@@ -220,7 +222,7 @@ function quit(accessor: ServicesAccessor, reason?: ExpectedError | Error): void 
 	lifecycleService.kill(exitCode);
 }
 
-function main() {
+async function main() {
 	let args: ParsedArgs;
 
 	try {
@@ -231,6 +233,35 @@ function main() {
 		app.exit(1);
 
 		return;
+	}
+
+	if (args['inspect-all'] && !args['inspect-all-ipc']) {
+		const processes = [];
+		for (const a of process.argv) {
+			const m = /--inspect=(\d*)/.exec(a);
+			if (m) {
+				processes.push({
+					name: 'Main',
+					debugPort: parseInt(m[1], 10),
+				});
+			}
+		}
+		if (args['remote-debugging-port']) {
+			processes.push({
+				name: 'Renderer',
+				debugPort: parseInt(args['remote-debugging-port'], 10),
+			});
+		}
+		if (args.debugSearch) {
+			processes.push({
+				name: 'Search',
+				debugPort: parseInt(args.debugSearch, 10),
+			});
+		}
+
+		const lastPort = processes.length ? Math.max(...processes.map(p => p.debugPort)) : 9222;
+		const ipc = await createInspectServer(lastPort + 1, processes);
+		args['inspect-all-ipc'] = ipc.ipcHandlePath;
 	}
 
 	const instantiationService = createServices(args);
@@ -253,4 +284,5 @@ function main() {
 	}).done(null, err => instantiationService.invokeFunction(quit, err));
 }
 
-main();
+main()
+	.catch(onUnexpectedError);

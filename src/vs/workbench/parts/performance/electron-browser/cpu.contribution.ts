@@ -37,7 +37,6 @@ CommandsRegistry.registerCommand('workbench.reload.debug', async accessor => {
 	argv.push('--inspect-all');
 	argv.push(`--inspect=${portMain}`);
 	argv.push(`--remote-debugging-port=${portRenderer}`);
-	argv.push(`--inspect-extensions=${portExthost}`);
 	argv.push(`--inspect-search=${portSearch}`);
 
 

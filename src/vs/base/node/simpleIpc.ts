@@ -9,6 +9,7 @@ import * as path from 'path';
 import * as http from 'http';
 import * as os from 'os';
 import * as crypto from 'crypto';
+import { findFreePort } from 'vs/base/node/ports';
 
 export async function createServer(ipcHandlePrefix: string, onRequest: (req: http.ServerRequest, res: http.ServerResponse) => Promise<void> | void) {
 	const buffer = await randomBytes(20);
@@ -92,34 +93,36 @@ function getIPCHandlePath(id: string): string {
 	return path.join(os.tmpdir(), `${id}.sock`);
 }
 
-export class Queue<T> {
+export async function createInspectServer(firstPort: number, existingProcesses: any[]) {
+	const processes = existingProcesses.slice();
+	let lastPort = firstPort - 1;
+	let findingFreePort: Thenable<number>;
+	const ipc = await createServer('vscode-inspect-all', async (req, res) => {
+		const message = await readJSON<any>(req);
+		// console.log(JSON.stringify(message));
 
-	private messages: T[] = [];
-	private dequeueRequest?: {
-		resolve: (value: T[]) => void;
-		reject: (err: any) => void;
-	};
+		if (message.type === 'getDebugPort') {
 
-	public push(message: T) {
-		this.messages.push(message);
-		if (this.dequeueRequest) {
-			this.dequeueRequest.resolve(this.messages);
-			this.dequeueRequest = undefined;
-			this.messages = [];
-		}
-	}
+			while (findingFreePort) {
+				await findingFreePort;
+			}
+			findingFreePort = findFreePort(lastPort + 1, 10, 6000);
+			lastPort = await findingFreePort;
+			findingFreePort = null;
 
-	public async dequeue() {
-		if (this.messages.length) {
-			const messages = this.messages;
-			this.messages = [];
-			return messages;
+			console.log(`${message.processName} process debug port: ${lastPort}`);
+			processes.push({
+				name: message.processName,
+				debugPort: lastPort,
+			});
+
+			res.write(JSON.stringify({ debugPort: lastPort }));
+			res.end();
+
+		} else if (message.type === 'getProcesses') {
+			res.write(JSON.stringify(processes));
+			res.end();
 		}
-		if (this.dequeueRequest) {
-			this.dequeueRequest.resolve([]);
-		}
-		return new Promise<T[]>((resolve, reject) => {
-			this.dequeueRequest = { resolve, reject };
-		});
-	}
+	});
+	return ipc;
 }
