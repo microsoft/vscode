@@ -1686,7 +1686,7 @@ export class ExtensionHostProfileAction extends Action {
 	static STOP_CSS_CLASS = 'extension-host-profile-stop';
 	static START_CSS_CLASS = 'extension-host-profile-start';
 
-	private profileSession: ProfileSession;
+	private profileSession: TPromise<ProfileSession>;
 
 	constructor(
 		id: string = ExtensionHostProfileAction.ID, label: string = ExtensionHostProfileAction.LABEL_START,
@@ -1708,10 +1708,12 @@ export class ExtensionHostProfileAction extends Action {
 
 	run(): TPromise<any> {
 		if (this.profileSession) {
-			return this.profileSession.stop().then(profile => {
-				// TODO@isidor need to store the profile result somewhere
-				this.profileSession = undefined;
-				this.update();
+			return this.profileSession.then((actual) => {
+				return actual.stop().then(profile => {
+					// TODO@isidor need to store the profile result somewhere
+					this.profileSession = undefined;
+					this.update();
+				});
 			});
 		}
 		this.profileSession = this.extensionService.startExtensionHostProfile();

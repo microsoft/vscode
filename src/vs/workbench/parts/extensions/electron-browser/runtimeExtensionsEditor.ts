@@ -93,7 +93,8 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				endTime: 1511954835590000,
 				deltas: [1000, 1500, 123456, 130, 1500, 1234, 100000],
 				ids: ['idle', 'self', 'vscode.git', 'vscode.emmet', 'self', 'vscode.git', 'idle'],
-				data: null
+				data: null,
+				getAggregatedTimes: undefined
 			};
 			this._profileInfo.endTime = this._profileInfo.startTime;
 			for (let i = 0, len = this._profileInfo.deltas.length; i < len; i++) {
