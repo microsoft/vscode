@@ -226,6 +226,8 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			profileContainer: HTMLElement;
 			profileTime: HTMLElement;
 
+			profileTimeline: HTMLElement;
+
 			msgIcon: HTMLElement;
 			msgLabel: HTMLElement;
 
@@ -243,16 +245,18 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				const desc = append(element, $('div.desc'));
 				const name = append(desc, $('div.name'));
 
-				const activationTimeContainer = append(desc, $('div.time'));
-				const activationTimeIcon = append(activationTimeContainer, $('span.octicon.octicon-clock'));
-				const activationTimeLabel = append(activationTimeContainer, $('span.time-label'));
-
 				const msgContainer = append(desc, $('div.msg'));
 				const msgIcon = append(msgContainer, $('.'));
 				const msgLabel = append(msgContainer, $('span.msg-label'));
 
+				const activationTimeContainer = append(element, $('div.time'));
+				const activationTimeIcon = append(activationTimeContainer, $('span.octicon.octicon-clock'));
+				const activationTimeLabel = append(activationTimeContainer, $('span.time-label'));
+
 				const profileContainer = append(element, $('div.profile'));
 				const profileTime = append(profileContainer, $('span.time'));
+
+				const profileTimeline = append(element, $('div.profile-timeline'));
 
 				const actionbar = new ActionBar(element, {
 					animated: false
@@ -273,6 +277,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					activationTimeLabel,
 					profileContainer,
 					profileTime,
+					profileTimeline,
 					msgIcon,
 					msgLabel,
 					disposables,
@@ -334,7 +339,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				if (this._profileInfo) {
 					data.profileTime.textContent = (element.profileInfo.totalTime / 1000).toFixed(2) + 'ms';
 					const elementSegments = element.profileInfo.segments;
-					let inner = '<rect x="0" y="0" width="100" height="1" />';
+					let inner = '<rect x="0" y="99" width="100" height="1" />';
 					for (let i = 0, len = elementSegments.length / 2; i < len; i++) {
 						const absoluteStart = elementSegments[2 * i];
 						const absoluteEnd = elementSegments[2 * i + 1];
@@ -349,11 +354,14 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 						inner += `<rect x="${xStart}" y="0" width="${xEnd - xStart}" height="100" />`;
 					}
-					let svg = `<svg class="profile-timeline" preserveAspectRatio="none" height="16" viewBox="0 0 100 100">${inner}</svg>`;
+					let svg = `<svg class="profile-timeline-svg" preserveAspectRatio="none" height="16" viewBox="0 0 100 100">${inner}</svg>`;
 
-					data.activationTimeLabel.innerHTML = svg;
+					data.profileTimeline.innerHTML = svg;
+					data.profileTimeline.style.display = 'inherit';
 				} else {
 					data.profileTime.textContent = '';
+					data.profileTimeline.innerHTML = '';
+					data.profileTimeline.style.display = 'none';
 				}
 			},
 

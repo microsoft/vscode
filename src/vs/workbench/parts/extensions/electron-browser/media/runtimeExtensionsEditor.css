@@ -8,6 +8,10 @@
 	padding-left: 20px;
 }
 
+.runtime-extensions-editor .extension .icon {
+	display: none;
+}
+
 .runtime-extensions-editor .extension .desc {
 	flex: 1;
 	padding: 4px 0;
@@ -17,7 +21,11 @@
 	font-weight: bold;
 }
 
-.runtime-extensions-editor .extension .desc .time.on-startup {
+.runtime-extensions-editor .extension .time {
+	margin: auto;
+	padding: 0 4px;
+}
+.runtime-extensions-editor .extension .time.on-startup {
 	color: #b7850b;
 }
 
@@ -26,7 +34,17 @@
 	padding-left: 4px;
 }
 
+.runtime-extensions-editor .extension .profile {
+	margin: auto;
+}
+
 .runtime-extensions-editor .extension .profile-timeline {
+	width: 100px;
+	margin: auto;
+	padding: 0 4px;
+}
+
+.runtime-extensions-editor .extension .profile-timeline-svg {
 	width: 100%;
 }
 
