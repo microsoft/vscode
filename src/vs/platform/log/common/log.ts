@@ -69,6 +69,8 @@ export class LegacyLogMainService implements ILogService {
 
 export function log(level: LogLevel, prefix: string, logFn?: (message: string, ...args: any[]) => string): Function {
 	return createDecorator((fn, key) => {
+		// TODO@Joao: load-time log level? return fn;
+
 		return function (this: any, ...args: any[]) {
 			let message = `${prefix} - ${key}`;
 
@@ -88,4 +90,14 @@ export function log(level: LogLevel, prefix: string, logFn?: (message: string, .
 			return fn.apply(this, args);
 		};
 	});
+}
+
+export class NoopLogService implements ILogService {
+	_serviceBrand: any;
+	trace(message: string, ...args: any[]): void { }
+	debug(message: string, ...args: any[]): void { }
+	info(message: string, ...args: any[]): void { }
+	warn(message: string, ...args: any[]): void { }
+	error(message: string | Error, ...args: any[]): void { }
+	critical(message: string | Error, ...args: any[]): void { }
 }

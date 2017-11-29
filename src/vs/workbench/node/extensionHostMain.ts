@@ -21,6 +21,8 @@ import { IInitData, IEnvironment, IWorkspaceData, MainContext } from 'vs/workben
 import * as errors from 'vs/base/common/errors';
 import * as watchdog from 'native-watchdog';
 import * as glob from 'vs/base/common/glob';
+import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 
 // const nativeExit = process.exit.bind(process);
 function patchProcess(allowExit: boolean) {
@@ -83,8 +85,11 @@ export class ExtensionHostMain {
 		// services
 		const threadService = new ExtHostThreadService(rpcProtocol);
 		const extHostWorkspace = new ExtHostWorkspace(threadService, initData.workspace);
+		const environmentService = new EnvironmentService(initData.args, initData.execPath);
+		const logService = new SpdLogService('exthost', environmentService);
+
 		this._extHostConfiguration = new ExtHostConfiguration(threadService.get(MainContext.MainThreadConfiguration), extHostWorkspace, initData.configuration);
-		this._extensionService = new ExtHostExtensionService(initData, threadService, extHostWorkspace, this._extHostConfiguration);
+		this._extensionService = new ExtHostExtensionService(initData, threadService, extHostWorkspace, this._extHostConfiguration, logService);
 
 		// error forwarding and stack trace scanning
 		const extensionErrors = new WeakMap<Error, IExtensionDescription>();

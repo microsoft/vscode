@@ -20,26 +20,26 @@ export class SpdLogService implements ILogService {
 	}
 
 	trace(message: string, ...args: any[]): void {
-		console.log('TRACE', message, ...args);
+		// console.log('TRACE', message, ...args);
 	}
 
 	debug(message: string, ...args: any[]): void {
-		console.log('DEBUG', message, ...args);
+		// console.log('DEBUG', message, ...args);
 	}
 
 	info(message: string, ...args: any[]): void {
-		console.log('INFO', message, ...args);
+		// console.log('INFO', message, ...args);
 	}
 
 	warn(message: string, ...args: any[]): void {
-		console.warn('WARN', message, ...args);
+		// console.warn('WARN', message, ...args);
 	}
 
 	error(message: string | Error, ...args: any[]): void {
-		console.error('ERROR', message, ...args);
+		// console.error('ERROR', message, ...args);
 	}
 
 	critical(message: string, ...args: any[]): void {
-		console.error('CRITICAL', message, ...args);
+		// console.error('CRITICAL', message, ...args);
 	}
 }

@@ -16,17 +16,7 @@ import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyServ
 import { SimpleConfigurationService } from 'vs/editor/standalone/browser/simpleServices';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import Event, { Emitter } from 'vs/base/common/event';
-import { ILogService } from 'vs/platform/log/common/log';
-
-class NoopLogService implements ILogService {
-	_serviceBrand: any;
-	trace(message: string, ...args: any[]): void { }
-	debug(message: string, ...args: any[]): void { }
-	info(message: string, ...args: any[]): void { }
-	warn(message: string, ...args: any[]): void { }
-	error(message: string | Error, ...args: any[]): void { }
-	critical(message: string | Error, ...args: any[]): void { }
-}
+import { NoopLogService } from 'vs/platform/log/common/log';
 
 class SimpleExtensionService implements IExtensionService {
 	_serviceBrand: any;
