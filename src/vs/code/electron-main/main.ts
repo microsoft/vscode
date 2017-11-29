@@ -16,7 +16,7 @@ import { validatePaths } from 'vs/code/node/paths';
 import { LifecycleService, ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ILaunchChannel, LaunchChannelClient } from './launch';
+import { ILaunchChannel, LaunchChannelClient, IMainProcessInfo } from 'vs/code/electron-main/launch';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -152,10 +152,10 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 
 					// Process Info
 					if (environmentService.args.ps) {
-						return service.getMainProcessId().then(mainProcessPid => {
-							return listProcesses(mainProcessPid).then(rootProcess => {
+						return service.getMainProcessInfo().then(info => {
+							return listProcesses(info.mainPID).then(rootProcess => {
 								const output: string[] = [];
-								formatProcess(output, rootProcess, 0);
+								formatProcess(info, output, rootProcess, 0);
 								console.log(output.join('\n'));
 
 								return TPromise.wrapError(new ExpectedError());
@@ -209,22 +209,32 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	return setup(true);
 }
 
-function formatProcess(output: string[], item: ProcessItem, indent: number): void {
+function formatProcess(info: IMainProcessInfo, output: string[], item: ProcessItem, indent: number): void {
 	const isRoot = (indent === 0);
 	const MB = 1024 * 1024;
 	const GB = 1024 * MB;
 
 	if (isRoot) {
 		output.push(`Version:          ${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`);
-		output.push(`OS Version:       ${os.type()} ${os.arch()} ${os.release()}`);
+		output.push(`OS Version:       ${os.type()} ${os.arch()} ${os.release()})`);
 		const cpus = os.cpus();
 		if (cpus && cpus.length > 0) {
-			output.push(`CPUs:             ${cpus[0].model} (${cpus.length} x ${cpus[0].speed}`);
+			output.push(`CPUs:             ${cpus[0].model} (${cpus.length} x ${cpus[0].speed})`);
 		}
 		output.push(`Memory (System):  ${(os.totalmem() / GB).toFixed(2)}GB (${(os.freemem() / GB).toFixed(2)}GB free)`);
 		output.push(`Load (avg):       ${os.loadavg().map(l => Math.round(l)).join(', ')}`);
 		output.push(`VM:               ${Math.round((virtualMachineHint.value() * 100))}`);
 		output.push(`Screen Reader:    ${app.isAccessibilitySupportEnabled() ? 'yes' : 'no'}`);
+		output.push('');
+		output.push('Window PID\tTitle');
+
+		info.windows.forEach(window => {
+			if (window.title === 'Shared Process') {
+				return; // skip shared process
+			}
+			output.push(`${pad(window.pid, 10, ' ')}\t${window.title}`);
+		});
+
 		output.push('');
 		output.push('CPU %\tMem MB\tProcess');
 	}
@@ -235,12 +245,16 @@ function formatProcess(output: string[], item: ProcessItem, indent: number): voi
 		name = `${product.applicationName} main`;
 	} else {
 		name = `${repeat('  ', indent)} ${item.name}`;
+
+		if (item.name === 'renderer') {
+			name = `${name} (pid: ${item.pid})`;
+		}
 	}
 	output.push(`${pad(Number(item.load.toFixed(0)), 5, ' ')}\t${pad(Number(((os.totalmem() * (item.mem / 100)) / MB).toFixed(0)), 6, ' ')}\t${name}`);
 
 	// Recurse into children if any
 	if (Array.isArray(item.children)) {
-		item.children.forEach(child => formatProcess(output, child, indent + 1));
+		item.children.forEach(child => formatProcess(info, output, child, indent + 1));
 	}
 }
 
