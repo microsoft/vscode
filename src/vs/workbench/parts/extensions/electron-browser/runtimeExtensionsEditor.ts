@@ -297,7 +297,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 				const activationTimes = element.status.activationTimes;
 				let syncTime = activationTimes.codeLoadingTime + activationTimes.activateCallTime;
-				data.activationTimeLabel.textContent = `Activation: ${syncTime}ms`;
+				data.activationTimeLabel.textContent = activationTimes.startup ? `Startup Activation: ${syncTime}ms` : `Activation: ${syncTime}ms`;
 				data.actionbar.context = element;
 
 				let title: string;
@@ -317,8 +317,6 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					title = nls.localize('workspaceGenericActivation', "Activated on {0}", activationTimes.activationEvent);
 				}
 				data.activationTimeContainer.title = title;
-
-				toggleClass(data.activationTimeContainer, 'on-startup', activationTimes.startup);
 
 				if (element.status.messages && element.status.messages.length > 0) {
 					data.msgIcon.className = 'octicon octicon-alert';
