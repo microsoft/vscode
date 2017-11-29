@@ -73,8 +73,8 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 	const mainServices = createMainProcessServices(mainProcessClient);
 
 	const environmentService = new EnvironmentService(configuration, configuration.execPath);
-	const logService = new SpdLogService('renderer', true, environmentService);
-	logService.info('openWorkbench', JSON.stringify(configuration, null, 2));
+	const logService = new SpdLogService('renderer', environmentService);
+	logService.info('openWorkbench', JSON.stringify(configuration));
 
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
 	// right before startup of the workbench shell to have its data ready for consumers

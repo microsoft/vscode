@@ -8,7 +8,7 @@
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository } from './scm';
-import { log, LogLevel } from 'vs/platform/log/common/log';
+import { log, LogLevel, ILogService } from 'vs/platform/log/common/log';
 
 class SCMInput implements ISCMInput {
 
@@ -77,7 +77,10 @@ export class SCMService implements ISCMService {
 	private _onDidRemoveProvider = new Emitter<ISCMRepository>();
 	get onDidRemoveRepository(): Event<ISCMRepository> { return this._onDidRemoveProvider.event; }
 
-	constructor() { }
+	constructor(
+		// @ts-ignore
+		@ILogService private logService: ILogService
+	) { }
 
 	@log(LogLevel.INFO, 'SCMService')
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository {

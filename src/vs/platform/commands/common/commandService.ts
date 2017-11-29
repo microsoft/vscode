@@ -11,7 +11,7 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import Event, { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { log, LogLevel } from 'vs/platform/log/common/log';
+import { log, LogLevel, ILogService } from 'vs/platform/log/common/log';
 
 export class CommandService extends Disposable implements ICommandService {
 
@@ -25,7 +25,9 @@ export class CommandService extends Disposable implements ICommandService {
 	constructor(
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IExtensionService private _extensionService: IExtensionService,
-		@IContextKeyService private _contextKeyService: IContextKeyService
+		@IContextKeyService private _contextKeyService: IContextKeyService,
+		// @ts-ignore
+		@ILogService private logService: ILogService
 	) {
 		super();
 		this._extensionService.whenInstalledExtensionsRegistered().then(value => this._extensionHostIsReady = value);

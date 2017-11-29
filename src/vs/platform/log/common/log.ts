@@ -67,28 +67,22 @@ export class LegacyLogMainService implements ILogService {
 	}
 }
 
-export let globalLogService: ILogService | undefined;
-
-export function setGlobalLogService(logService: ILogService): void {
-	globalLogService = logService;
-}
-
-export function log(level: LogLevel, prefix: string, fn?: (...args: any[]) => string): Function {
+export function log(level: LogLevel, prefix: string, logFn?: (message: string, ...args: any[]) => string): Function {
 	return createDecorator((fn, key) => {
 		return function (this: any, ...args: any[]) {
 			let message = `${prefix} - ${key}`;
 
-			if (fn) {
-				message = fn(message, ...args);
+			if (logFn) {
+				message = logFn(message, ...args);
 			}
 
 			switch (level) {
-				case LogLevel.TRACE: globalLogService.trace(message);
-				case LogLevel.DEBUG: globalLogService.debug(message);
-				case LogLevel.INFO: globalLogService.info(message);
-				case LogLevel.WARN: globalLogService.warn(message);
-				case LogLevel.ERROR: globalLogService.error(message);
-				case LogLevel.CRITICAL: globalLogService.critical(message);
+				case LogLevel.TRACE: this.logService.trace(message); break;
+				case LogLevel.DEBUG: this.logService.debug(message); break;
+				case LogLevel.INFO: this.logService.info(message); break;
+				case LogLevel.WARN: this.logService.warn(message); break;
+				case LogLevel.ERROR: this.logService.error(message); break;
+				case LogLevel.CRITICAL: this.logService.critical(message); break;
 			}
 
 			return fn.apply(this, args);
