@@ -43,6 +43,7 @@ import { localize } from 'vs/nls';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { listProcesses, ProcessItem } from 'vs/base/node/ps';
 import { repeat } from 'vs/base/common/strings';
+import { collectWorkspaceStats, WorkspaceStats } from 'vs/base/node/workspaceStats';
 
 function createServices(args: ParsedArgs): IInstantiationService {
 	const services = new ServiceCollection();
@@ -151,8 +152,14 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 					if (environmentService.args.ps) {
 						return service.getMainProcessId().then(mainProcessPid => {
 							return listProcesses(mainProcessPid).then(rootProcess => {
-								const output: string[] = [];
+								let output: string[] = [];
 								formatProcess(output, rootProcess, 0);
+								console.log(output.join('\n'));
+
+								let stats = collectWorkspaceStats('.', ['node_modules', '.git']); // TODO call for each root folder
+								output = [];
+								console.log();
+								formatWorkspaceStats(output, stats);
 								console.log(output.join('\n'));
 
 								return TPromise.wrapError(new ExpectedError());
@@ -204,6 +211,38 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	}
 
 	return setup(true);
+}
+
+function formatWorkspaceStats(output: string[], workspaceStats: WorkspaceStats): void {
+	let appendAndWrap = (index: string, value: number) => {
+		let item = ` ${index}(${value})`;
+		if (col + item.length > lineLength) {
+			output.push(line);
+			line = '    ';
+			col = line.length;
+		}
+		else {
+			col += item.length;
+		}
+		line += item;
+	};
+
+	output.push('Workspace statistics');
+	const lineLength = 60;
+	let line = '  Configuration files:';
+	let col = 0;
+	workspaceStats.configFiles.forEach((item) => {
+		appendAndWrap(item.name, item.value);
+	});
+	output.push(line);
+	line = '  File Types:';
+	col = 0;
+	workspaceStats.fileTypes.forEach((item) => {
+		if (item.value > 20) {
+			appendAndWrap(item.name, item.value);
+		}
+	});
+	output.push(line);
 }
 
 function formatProcess(output: string[], item: ProcessItem, indent: number): void {
