@@ -55,7 +55,13 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 		function findName(cmd: string): string {
 
 			const RENDERER_PROCESS_HINT = /--disable-blink-features=Auxclick/;
+			const WINDOWS_WATCHER_HINT = /\\watcher\\win32\\CodeHelper.exe/;
 			const TYPE = /--type=([a-zA-Z-]+)/;
+
+			// find windows file watcher
+			if (WINDOWS_WATCHER_HINT.exec(cmd)) {
+				return 'watcherService';
+			}
 
 			// find "--type=xxxx"
 			let matches = TYPE.exec(cmd);

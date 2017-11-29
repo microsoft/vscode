@@ -210,7 +210,7 @@ function formatProcess(output: string[], item: ProcessItem, indent: number): voi
 	} else {
 		name = `${repeat('  ', indent)} ${item.name}`;
 	}
-	output.push(`${name} \x1b[90m${item.pid}\x1b[0m`);
+	output.push(name);
 
 	// Recurse into children if any
 	if (Array.isArray(item.children)) {
