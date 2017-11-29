@@ -498,6 +498,7 @@ class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
 			this.triggerAllDiagnostics();
 		});
 
+		workspace.onDidChangeConfiguration(this.configurationChanged, this, this.disposables);
 		this.configurationChanged();
 	}
 
