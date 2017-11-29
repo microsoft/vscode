@@ -86,6 +86,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IWindowService private readonly _windowService: IWindowService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super(RuntimeExtensionsEditor.ID, telemetryService, themeService);
 
@@ -419,7 +420,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 	@memoize
 	private get extensionHostProfileAction(): IAction {
-		return new ExtensionHostProfileAction(ExtensionHostProfileAction.LABEL_START, ExtensionHostProfileAction.ID, this, this._extensionService);
+		return this._instantiationService.createInstance(ExtensionHostProfileAction, ExtensionHostProfileAction.LABEL_START, ExtensionHostProfileAction.ID, this);
 	}
 
 	public layout(dimension: Dimension): void {
@@ -538,6 +539,8 @@ class ExtensionHostProfileAction extends Action {
 		id: string = ExtensionHostProfileAction.ID, label: string = ExtensionHostProfileAction.LABEL_START,
 		private readonly _parentEditor: RuntimeExtensionsEditor,
 		@IExtensionService private readonly _extensionService: IExtensionService,
+		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super(id, label, ExtensionHostProfileAction.START_CSS_CLASS);
 		this._profileSession = null;
@@ -550,6 +553,7 @@ class ExtensionHostProfileAction extends Action {
 			this.label = ExtensionHostProfileAction.LABEL_STOP;
 			ProfileExtHostStatusbarItem.instance.show(() => {
 				this.run();
+				this._editorService.openEditor(this._instantiationService.createInstance(RuntimeExtensionsInput));
 			});
 		} else {
 			this.class = ExtensionHostProfileAction.START_CSS_CLASS;
@@ -603,7 +607,6 @@ export class ProfileExtHostStatusbarItem implements IStatusbarItem {
 	public static instance: ProfileExtHostStatusbarItem;
 
 	private toDispose: IDisposable[];
-	private container: HTMLElement;
 	private statusBarItem: HTMLElement;
 	private label: HTMLElement;
 	private timeStarted: number;
@@ -635,9 +638,8 @@ export class ProfileExtHostStatusbarItem implements IStatusbarItem {
 	}
 
 	public render(container: HTMLElement): IDisposable {
-		this.container = container;
-		if (!this.statusBarItem && this.container) {
-			this.statusBarItem = append(this.container, $('.profileExtHost-statusbar-item'));
+		if (!this.statusBarItem && container) {
+			this.statusBarItem = append(container, $('.profileExtHost-statusbar-item'));
 			this.toDispose.push(addDisposableListener(this.statusBarItem, 'click', () => {
 				if (this.clickHandler) {
 					this.clickHandler();
