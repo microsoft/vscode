@@ -7,13 +7,14 @@
 import { ITree, ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
 import { List, IListOptions } from 'vs/base/browser/ui/list/listWidget';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, toDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { PagedList, IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { debounce } from 'vs/base/common/decorators';
 
 export type ListWidget = List<any> | PagedList<any> | ITree;
 
@@ -142,7 +143,8 @@ export class WorkbenchPagedList<T> extends PagedList<T> {
 export class WorkbenchTree extends Tree {
 
 	readonly contextKeyService: IContextKeyService;
-	private disposable: IDisposable;
+	private workbenchListFocusContextKey: IContextKey<boolean>;
+	private disposables: IDisposable[] = [];
 
 	constructor(
 		container: HTMLElement,
@@ -153,16 +155,27 @@ export class WorkbenchTree extends Tree {
 		@IThemeService themeService: IThemeService
 	) {
 		super(container, configuration, options);
-		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 
-		this.disposable = combinedDisposable([
+		this.contextKeyService = contextKeyService.createScoped(this.getHTMLElement());
+		this.workbenchListFocusContextKey = WorkbenchListFocusContextKey.bindTo(this.contextKeyService);
+
+		this.disposables.push(
 			this.contextKeyService,
 			(listService as ListService).register(this),
 			attachListStyler(this, themeService)
-		]);
+		);
+
+		this.onDidFocus(this.updateContextKey, this, this.disposables);
+		this.onDidBlur(this.updateContextKey, this, this.disposables);
+		this.onDidChangeHighlight(this.updateContextKey, this, this.disposables);
+	}
+
+	@debounce(50)
+	private updateContextKey(): void {
+		this.workbenchListFocusContextKey.set(document.activeElement === this.getHTMLElement());
 	}
 
 	dispose(): void {
-		this.disposable.dispose();
+		this.disposables = dispose(this.disposables);
 	}
 }
