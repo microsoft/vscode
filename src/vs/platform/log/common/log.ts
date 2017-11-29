@@ -15,10 +15,10 @@ export interface ILogService {
 
 	trace(message: string, ...args: any[]): void;
 	debug(message: string, ...args: any[]): void;
-	verbose(message: string, ...args: any[]): void;
 	info(message: string, ...args: any[]): void;
 	warn(message: string, ...args: any[]): void;
 	error(message: string | Error, ...args: any[]): void;
+	critical(message: string | Error, ...args: any[]): void;
 }
 
 export class LegacyLogMainService implements ILogService {
@@ -38,10 +38,6 @@ export class LegacyLogMainService implements ILogService {
 		// console.log(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, ...args);
 	}
 
-	verbose(message: string, ...args: any[]): void {
-		// console.log(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, ...args);
-	}
-
 	info(message: string, ...args: any[]): void {
 		if (this.environmentService.verbose) {
 			console.log(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, ...args);
@@ -54,5 +50,9 @@ export class LegacyLogMainService implements ILogService {
 
 	warn(message: string | Error, ...args: any[]): void {
 		console.warn(`\x1b[93m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, ...args);
+	}
+
+	critical(message: string, ...args: any[]): void {
+		// console.log(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, ...args);
 	}
 }
