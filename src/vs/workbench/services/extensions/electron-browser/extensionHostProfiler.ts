@@ -16,6 +16,7 @@ import { writeFile } from 'vs/base/node/pfs';
 import * as path from 'path';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { setTimeout } from 'timers';
+import { Profile, ProfileNode } from 'v8-inspect-profiler';
 
 export class ExtensionHostProfiler {
 
@@ -29,7 +30,7 @@ export class ExtensionHostProfiler {
 					stop: () => {
 						return TPromise.wrap(session.stop()).then(profile => {
 							return this._extensionService.getExtensions().then(extensions => {
-								return this.distill(<Profile>profile['profile'], extensions);
+								return this.distill(profile.profile, extensions);
 							});
 						});
 					}
@@ -39,19 +40,19 @@ export class ExtensionHostProfiler {
 	}
 
 	private distill(profile: Profile, extensions: IExtensionDescription[]): IExtensionHostProfile {
-		const searchTree = TernarySearchTree.forPaths<IExtensionDescription>();
+		let searchTree = TernarySearchTree.forPaths<IExtensionDescription>();
 		for (let extension of extensions) {
 			searchTree.set(realpathSync(extension.extensionFolderPath), extension);
 		}
 
 		let nodes = profile.nodes;
-		let idsToNodes = new Map<number, Node>();
+		let idsToNodes = new Map<number, ProfileNode>();
 		let idsToSegmentId = new Map<number, ProfileSegmentId>();
 		for (let node of nodes) {
 			idsToNodes.set(node.id, node);
 		}
 
-		function visit(node: Node, segmentId: ProfileSegmentId) {
+		function visit(node: ProfileNode, segmentId: ProfileSegmentId) {
 			if (!segmentId) {
 				switch (node.callFrame.functionName) {
 					case '(root)':
@@ -106,6 +107,10 @@ export class ExtensionHostProfiler {
 			distilledIds.push(currSegmentId);
 			distilledDeltas.push(currSegmentTime);
 		}
+		idsToNodes = null;
+		idsToSegmentId = null;
+		searchTree = null;
+
 		return {
 			startTime: profile.startTime,
 			endTime: profile.endTime,
@@ -145,25 +150,5 @@ CommandsRegistry.registerCommand('exthost.profile.start', async accessor => {
 				handle.dispose();
 			});
 		}, 5000);
-
 	});
-
-	const searchTree = TernarySearchTree.forPaths<IExtensionDescription>();
-	for (let extension of await extensionService.getExtensions()) {
-		searchTree.set(realpathSync(extension.extensionFolderPath), extension);
-	}
 });
-
-interface Profile {
-	nodes: Node[];
-	samples: number[];
-	timeDeltas: number[];
-	startTime: number;
-	endTime: number;
-}
-
-interface Node {
-	id: number;
-	children: number[];
-	callFrame: { url: string, functionName: string; };
-}
