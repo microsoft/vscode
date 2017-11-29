@@ -12,7 +12,7 @@ import * as objects from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isWindows, isLinux } from 'vs/base/common/platform';
-import { findRandomFreePort } from 'vs/base/node/ports';
+import { findRandomFreePort, findFreePort } from 'vs/base/node/ports';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ILifecycleService, ShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
@@ -261,20 +261,19 @@ export class ExtensionHostProcessWorker {
 	 */
 	private _tryFindDebugPort(): Thenable<number> {
 		let extensionHostPort = this._environmentService.debugExtensionHost.port;
-		if (typeof extensionHostPort !== 'number') {
-			if (this._environmentService.args['inspect-all']) {
-				extensionHostPort = 9000;
-			}
+		if (typeof extensionHostPort !== 'number' && !this._environmentService.args['inspect-all']) {
 			return TPromise.wrap<number>(0);
 		}
+		const findPort = this._environmentService.args['inspect-all'] ? findRandomFreePort(9000, 20000, 10, 5000) : findFreePort(extensionHostPort, 10, 5000);
 		return new TPromise<number>((c, e) => {
-			return findRandomFreePort(extensionHostPort, extensionHostPort + 20000, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */).then(port => {
+			return findPort.then(port => {
 				if (!port) {
 					console.warn('%c[Extension Host] %cCould not find a free port for debugging', 'color: blue', 'color: black');
 					return c(void 0);
 				}
-				console.log(`Extension host running in inspect mode using port: ${port}`);
-				if (port !== extensionHostPort) {
+				if (this._environmentService.args['inspect-all']) {
+					console.log(`Extension host running in inspect mode using port: ${port}`);
+				} else if (port !== extensionHostPort) {
 					console.warn(`%c[Extension Host] %cProvided debugging port ${extensionHostPort} is not free, using ${port} instead.`, 'color: blue', 'color: black');
 				}
 				if (this._isExtensionDevDebugBrk) {
