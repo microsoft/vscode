@@ -222,8 +222,10 @@ function formatProcessList(info: IMainProcessInfo, rootProcess: ProcessItem): st
 		output.push(`CPUs:             ${cpus[0].model} (${cpus.length} x ${cpus[0].speed})`);
 	}
 	output.push(`Memory (System):  ${(os.totalmem() / GB).toFixed(2)}GB (${(os.freemem() / GB).toFixed(2)}GB free)`);
-	output.push(`Load (avg):       ${os.loadavg().map(l => Math.round(l)).join(', ')}`);
-	output.push(`VM:               ${Math.round((virtualMachineHint.value() * 100))}`);
+	if (!platform.isWindows) {
+		output.push(`Load (avg):       ${os.loadavg().map(l => Math.round(l)).join(', ')}`); // only provided on Linux/macOS
+	}
+	output.push(`VM:               ${Math.round((virtualMachineHint.value() * 100))}%`);
 	output.push(`Screen Reader:    ${app.isAccessibilitySupportEnabled() ? 'yes' : 'no'}`);
 	output.push('');
 	output.push('CPU %\tMem MB\tProcess');
