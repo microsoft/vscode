@@ -12,6 +12,8 @@ export interface ProcessItem {
 	cmd: string;
 	pid: number;
 	ppid: number;
+	load: number;
+	mem: number;
 
 	children?: ProcessItem[];
 }
@@ -23,7 +25,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 		let rootItem: ProcessItem;
 		const map = new Map<number, ProcessItem>();
 
-		function addToTree(pid: number, ppid: number, cmd: string) {
+		function addToTree(pid: number, ppid: number, cmd: string, load: number, mem: number) {
 
 			const parent = map.get(ppid);
 			if (pid === rootPid || parent) {
@@ -32,7 +34,9 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 					name: findName(cmd),
 					cmd,
 					pid,
-					ppid
+					ppid,
+					load,
+					mem
 				};
 				map.set(pid, item);
 
@@ -125,7 +129,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 					for (const line of lines) {
 						let matches = CMD_PID.exec(line.trim());
 						if (matches && matches.length === 4) {
-							addToTree(parseInt(matches[3]), parseInt(matches[2]), matches[1].trim());
+							addToTree(parseInt(matches[3]), parseInt(matches[2]), matches[1].trim(), 0.0, 0.0);
 						}
 					}
 
@@ -138,8 +142,8 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 		} else {	// OS X & Linux
 
-			const CMD = 'ps -ax -o pid=,ppid=,command=';
-			const PID_CMD = /^\s*([0-9]+)\s+([0-9]+)\s+(.+)$/;
+			const CMD = 'ps -ax -o pid=,ppid=,pcpu=,pmem=,command=';
+			const PID_CMD = /^\s*([0-9]+)\s+([0-9]+)\s+([0-9]+\.[0-9]+)\s+([0-9]+\.[0-9]+)\s+(.+)$/;
 
 			exec(CMD, { maxBuffer: 1000 * 1024 }, (err, stdout, stderr) => {
 
@@ -150,8 +154,8 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 					const lines = stdout.toString().split('\n');
 					for (const line of lines) {
 						let matches = PID_CMD.exec(line.trim());
-						if (matches && matches.length === 4) {
-							addToTree(parseInt(matches[1]), parseInt(matches[2]), matches[3]);
+						if (matches && matches.length === 6) {
+							addToTree(parseInt(matches[1]), parseInt(matches[2]), matches[5], parseFloat(matches[3]), parseFloat(matches[4]));
 						}
 					}
 
