@@ -24,16 +24,13 @@
 .runtime-extensions-editor .extension .time {
 	margin: auto;
 	padding: 0 4px;
+	text-align: right;
 }
 
-.runtime-extensions-editor .extension .desc .time-label,
 .runtime-extensions-editor .extension .desc .msg-label {
 	padding-left: 4px;
 }
 
-.runtime-extensions-editor .extension .profile {
-	margin: auto;
-}
 
 .runtime-extensions-editor .extension .profile-timeline {
 	width: 100px;

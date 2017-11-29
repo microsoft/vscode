@@ -219,10 +219,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			icon: HTMLImageElement;
 			name: HTMLElement;
 
-			activationTimeContainer: HTMLElement;
-			activationTimeLabel: HTMLElement;
-
-			profileContainer: HTMLElement;
+			activationTime: HTMLElement;
 			profileTime: HTMLElement;
 
 			profileTimeline: HTMLElement;
@@ -248,11 +245,9 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				const msgIcon = append(msgContainer, $('.'));
 				const msgLabel = append(msgContainer, $('span.msg-label'));
 
-				const activationTimeContainer = append(element, $('div.time'));
-				const activationTimeLabel = append(activationTimeContainer, $('span.time-label'));
-
-				const profileContainer = append(element, $('div.profile'));
-				const profileTime = append(profileContainer, $('span.time'));
+				const timeContainer = append(element, $('.time'));
+				const activationTime = append(timeContainer, $('div.activation-time'));
+				const profileTime = append(timeContainer, $('div.profile-time'));
 
 				const profileTimeline = append(element, $('div.profile-timeline'));
 
@@ -270,9 +265,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					icon,
 					name,
 					actionbar,
-					activationTimeContainer,
-					activationTimeLabel,
-					profileContainer,
+					activationTime,
 					profileTime,
 					profileTimeline,
 					msgIcon,
@@ -297,7 +290,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 				const activationTimes = element.status.activationTimes;
 				let syncTime = activationTimes.codeLoadingTime + activationTimes.activateCallTime;
-				data.activationTimeLabel.textContent = activationTimes.startup ? `Startup Activation: ${syncTime}ms` : `Activation: ${syncTime}ms`;
+				data.activationTime.textContent = activationTimes.startup ? `Startup Activation: ${syncTime}ms` : `Activation: ${syncTime}ms`;
 				data.actionbar.context = element;
 
 				let title: string;
@@ -316,7 +309,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				} else {
 					title = nls.localize('workspaceGenericActivation', "Activated on {0}", activationTimes.activationEvent);
 				}
-				data.activationTimeContainer.title = title;
+				data.activationTime.title = title;
 
 				if (element.status.messages && element.status.messages.length > 0) {
 					data.msgIcon.className = 'octicon octicon-alert';
@@ -351,7 +344,6 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				} else {
 					data.profileTime.textContent = '';
 					data.profileTimeline.innerHTML = '';
-					data.profileTimeline.style.display = 'none';
 				}
 			},
 
