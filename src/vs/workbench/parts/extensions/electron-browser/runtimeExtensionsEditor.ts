@@ -33,6 +33,9 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { clipboard } from 'electron';
 import { LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IWindowService } from 'vs/platform/windows/common/windows';
+import { writeFile } from 'vs/base/node/pfs';
 
 interface IExtensionProfileInformation {
 	/**
@@ -75,7 +78,8 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		@IListService private readonly _listService: IListService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IMessageService private readonly _messageService: IMessageService,
-
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IWindowService private readonly _windowService: IWindowService,
 	) {
 		super(RuntimeExtensionsEditor.ID, telemetryService, themeService);
 
@@ -357,10 +361,38 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		}, this._contextKeyService, this._listService, this.themeService);
 
 		this._list.splice(0, this._list.length, this._elements);
+
+		this._list.onContextMenu((e) => {
+			const actions: IAction[] = [];
+
+			actions.push(new Action('save', 'Save Extension Host Profile', '', !!this._profileInfo, () => {
+				let picked = this._windowService.showSaveDialog({
+					title: 'Save Extension Host Profile',
+					buttonLabel: 'Save',
+					defaultPath: `CPU-${new Date().toISOString().replace(/[\-:]/g, '')}.cpuprofile`,
+					filters: [{
+						name: 'CPU Profiles',
+						extensions: ['cpuprofile', 'txt']
+					}]
+				});
+
+				if (picked) {
+					return writeFile(picked, JSON.stringify(this._profileInfo.data, null, '\t'));
+				}
+				return TPromise.as(null);
+			}));
+
+			this._contextMenuService.showContextMenu({
+				getAnchor: () => e.anchor,
+				getActions: () => TPromise.as(actions)
+			});
+		});
 	}
 
 	public getActions(): IAction[] {
-		return [new ExtensionHostProfileAction(ExtensionHostProfileAction.LABEL_START, ExtensionHostProfileAction.ID, this, this._extensionService)];
+		return [
+			new ExtensionHostProfileAction(ExtensionHostProfileAction.LABEL_START, ExtensionHostProfileAction.ID, this, this._extensionService)
+		];
 	}
 
 	public layout(dimension: Dimension): void {
