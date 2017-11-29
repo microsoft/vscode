@@ -5,10 +5,20 @@
 
 'use strict';
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { createDecorator as createServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/base/common/decorators';
 
-export const ILogService = createDecorator<ILogService>('logService');
+export const ILogService = createServiceDecorator<ILogService>('logService');
+
+export enum LogLevel {
+	TRACE,
+	DEBUG,
+	INFO,
+	WARN,
+	ERROR,
+	CRITICAL
+}
 
 export interface ILogService {
 	_serviceBrand: any;
@@ -55,4 +65,33 @@ export class LegacyLogMainService implements ILogService {
 	critical(message: string, ...args: any[]): void {
 		// console.log(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, ...args);
 	}
+}
+
+export let globalLogService: ILogService | undefined;
+
+export function setGlobalLogService(logService: ILogService): void {
+	globalLogService = logService;
+}
+
+export function log(level: LogLevel, prefix: string, fn?: (...args: any[]) => string): Function {
+	return createDecorator((fn, key) => {
+		return function (this: any, ...args: any[]) {
+			let message = `${prefix} - ${key}`;
+
+			if (fn) {
+				message = fn(message, ...args);
+			}
+
+			switch (level) {
+				case LogLevel.TRACE: globalLogService.trace(message);
+				case LogLevel.DEBUG: globalLogService.debug(message);
+				case LogLevel.INFO: globalLogService.info(message);
+				case LogLevel.WARN: globalLogService.warn(message);
+				case LogLevel.ERROR: globalLogService.error(message);
+				case LogLevel.CRITICAL: globalLogService.critical(message);
+			}
+
+			return fn.apply(this, args);
+		};
+	});
 }

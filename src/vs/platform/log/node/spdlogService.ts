@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, setGlobalLogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export class SpdLogService implements ILogService {
@@ -14,9 +14,14 @@ export class SpdLogService implements ILogService {
 
 	constructor(
 		processName: string,
+		setGlobal: boolean,
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		// TODO create logger
+
+		if (setGlobal) {
+			setGlobalLogService(this);
+		}
 	}
 
 	trace(message: string, ...args: any[]): void {
