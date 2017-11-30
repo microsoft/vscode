@@ -35,14 +35,7 @@ import FormattingConfigurationManager from './features/formattingConfigurationMa
 import * as languageConfigurations from './utils/languageConfigurations';
 import { CommandManager, Command } from './utils/commandManager';
 import DiagnosticsManager from './features/diagnostics';
-
-export interface LanguageDescription {
-	id: string;
-	diagnosticSource: string;
-	modeIds: string[];
-	configFile?: string;
-	isExternal?: boolean;
-}
+import { LanguageDescription } from './utils/languageDescription';
 
 export class ReloadTypeScriptProjectsCommand implements Command {
 	public readonly id = 'typescript.reloadProjects';

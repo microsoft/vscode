@@ -5,27 +5,13 @@
 
 import * as vscode from 'vscode';
 import { CommandManager } from './utils/commandManager';
-import { ReloadTypeScriptProjectsCommand, SelectTypeScriptVersionCommand, ReloadJavaScriptProjectsCommand, RestartTsServerCommand, OpenTsServerLogCommand, TypeScriptGoToProjectConfigCommand, JavaScriptGoToProjectConfigCommand, LanguageDescription, TypeScriptServiceClientHost } from './typescriptMain';
+import { ReloadTypeScriptProjectsCommand, SelectTypeScriptVersionCommand, ReloadJavaScriptProjectsCommand, RestartTsServerCommand, OpenTsServerLogCommand, TypeScriptGoToProjectConfigCommand, JavaScriptGoToProjectConfigCommand, TypeScriptServiceClientHost } from './typescriptMain';
 import TypeScriptTaskProviderManager from './features/taskProvider';
 import { getContributedTypeScriptServerPlugins } from './utils/plugins';
 import * as ProjectStatus from './utils/projectStatus';
 import * as languageModeIds from './utils/languageModeIds';
 import * as languageConfigurations from './utils/languageConfigurations';
-
-export const standardLanguageDescriptions: LanguageDescription[] = [
-	{
-		id: 'typescript',
-		diagnosticSource: 'ts',
-		modeIds: [languageModeIds.typescript, languageModeIds.typescriptreact],
-		configFile: 'tsconfig.json'
-	}, {
-		id: 'javascript',
-		diagnosticSource: 'js',
-		modeIds: [languageModeIds.javascript, languageModeIds.javascriptreact],
-		configFile: 'jsconfig.json'
-	}
-];
-
+import { standardLanguageDescriptions } from './utils/languageDescription';
 
 export function activate(context: vscode.ExtensionContext): void {
 	const plugins = getContributedTypeScriptServerPlugins();
