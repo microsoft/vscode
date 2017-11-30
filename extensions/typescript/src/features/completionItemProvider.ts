@@ -415,13 +415,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			}
 		}
 
-		let codeSnippet = detail.name;
-		if (suggestionArgumentNames.length > 0) {
-			codeSnippet += '(' + suggestionArgumentNames.join(', ') + ')$0';
-		} else {
-			codeSnippet += '()';
-		}
-
+		const codeSnippet = `${detail.name}(${suggestionArgumentNames.join(', ')})$0`;
 		return new SnippetString(codeSnippet);
 	}
 
