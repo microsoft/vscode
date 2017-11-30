@@ -37,6 +37,9 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { ContributableActionProvider } from 'vs/workbench/browser/actions';
+import { memoize } from 'vs/base/common/decorators';
 
 const $ = dom.$;
 
@@ -191,6 +194,11 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		}
 	}
 
+	@memoize
+	private get actionProvider(): ActionProvider {
+		return new ActionProvider(this.instantiationService, this.textFileService, this.untitledEditorService);
+	}
+
 	private get elements(): (IEditorGroup | OpenEditor)[] {
 		const result: (IEditorGroup | OpenEditor)[] = [];
 		this.model.groups.forEach(g => {
@@ -262,89 +270,10 @@ export class OpenEditorsView extends ViewsViewletPanel {
 	}
 
 	private onListContextMenu(e: IListContextMenuEvent<OpenEditor | IEditorGroup>): void {
-		// TODO@isidor contributable actions
-		const autoSaveEnabled = this.textFileService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY;
-		const element = e.element;
-		const actions: IAction[] = [];
-		if (element instanceof EditorGroup) {
-			if (!autoSaveEnabled) {
-				actions.push(this.instantiationService.createInstance(SaveAllInGroupAction, SaveAllInGroupAction.ID, nls.localize('saveAll', "Save All")));
-				actions.push(new Separator());
-			}
-
-			actions.push(this.instantiationService.createInstance(CloseUnmodifiedEditorsInGroupAction, CloseUnmodifiedEditorsInGroupAction.ID, nls.localize('closeAllUnmodified', "Close Unmodified")));
-			actions.push(this.instantiationService.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, nls.localize('closeAll', "Close All")));
-		} else {
-			const openEditor = <OpenEditor>element;
-			const resource = openEditor.getResource();
-			if (resource) {
-				// Open to side
-				actions.unshift(this.instantiationService.createInstance(OpenToSideAction, undefined, resource, false));
-
-				if (!openEditor.isUntitled()) {
-
-					// Files: Save / Revert
-					if (!autoSaveEnabled) {
-						actions.push(new Separator());
-
-						const saveAction = this.instantiationService.createInstance(SaveFileAction, SaveFileAction.ID, SaveFileAction.LABEL);
-						saveAction.setResource(resource);
-						saveAction.enabled = openEditor.isDirty();
-						actions.push(saveAction);
-
-						const revertAction = this.instantiationService.createInstance(RevertFileAction, RevertFileAction.ID, RevertFileAction.LABEL);
-						revertAction.setResource(resource);
-						revertAction.enabled = openEditor.isDirty();
-						actions.push(revertAction);
-					}
-				}
-
-				// Untitled: Save / Save As
-				if (openEditor.isUntitled()) {
-					actions.push(new Separator());
-
-					if (this.untitledEditorService.hasAssociatedFilePath(resource)) {
-						let saveUntitledAction = this.instantiationService.createInstance(SaveFileAction, SaveFileAction.ID, SaveFileAction.LABEL);
-						saveUntitledAction.setResource(resource);
-						actions.push(saveUntitledAction);
-					}
-
-					let saveAsAction = this.instantiationService.createInstance(SaveFileAsAction, SaveFileAsAction.ID, SaveFileAsAction.LABEL);
-					saveAsAction.setResource(resource);
-					actions.push(saveAsAction);
-				}
-
-				// Compare Actions
-				actions.push(new Separator());
-
-				if (!openEditor.isUntitled()) {
-					const compareWithSavedAction = this.instantiationService.createInstance(CompareWithSavedAction, CompareWithSavedAction.ID, nls.localize('compareWithSaved', "Compare with Saved"));
-					compareWithSavedAction.setResource(resource);
-					compareWithSavedAction.enabled = openEditor.isDirty();
-					actions.push(compareWithSavedAction);
-				}
-
-				const runCompareAction = this.instantiationService.createInstance(CompareResourcesAction, resource, undefined);
-				if (runCompareAction._isEnabled()) {
-					actions.push(runCompareAction);
-				}
-				actions.push(this.instantiationService.createInstance(SelectResourceForCompareAction, resource, undefined));
-
-				actions.push(new Separator());
-			}
-
-			actions.push(this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, nls.localize('close', "Close")));
-			const closeOtherEditorsInGroupAction = this.instantiationService.createInstance(CloseOtherEditorsInGroupAction, CloseOtherEditorsInGroupAction.ID, nls.localize('closeOthers', "Close Others"));
-			closeOtherEditorsInGroupAction.enabled = openEditor.editorGroup.count > 1;
-			actions.push(closeOtherEditorsInGroupAction);
-			actions.push(this.instantiationService.createInstance(CloseUnmodifiedEditorsInGroupAction, CloseUnmodifiedEditorsInGroupAction.ID, nls.localize('closeAllUnmodified', "Close Unmodified")));
-			actions.push(this.instantiationService.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, nls.localize('closeAll', "Close All")));
-		}
-
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
-			getActions: () => TPromise.as(actions),
-			getActionsContext: () => element
+			getActions: () => this.actionProvider.getSecondaryActions(e.element),
+			getActionsContext: () => e.element
 		});
 	}
 
@@ -448,6 +377,7 @@ interface IOpenEditorTemplateData {
 	container: HTMLElement;
 	root: EditorLabel;
 	actionBar: ActionBar;
+	toDispose: IDisposable[];
 }
 
 interface IEditorGroupTemplateData {
@@ -542,6 +472,8 @@ class OpenEditorRenderer implements IRenderer<OpenEditor, IOpenEditorTemplateDat
 
 		editorTemplate.root = this.instantiationService.createInstance(EditorLabel, container, void 0);
 
+		editorTemplate.toDispose = [];
+
 		return editorTemplate;
 	}
 
@@ -558,6 +490,101 @@ class OpenEditorRenderer implements IRenderer<OpenEditor, IOpenEditorTemplateDat
 	disposeTemplate(templateData: IOpenEditorTemplateData): void {
 		templateData.actionBar.dispose();
 		templateData.root.dispose();
+		dispose(templateData.toDispose);
+	}
+}
+
+export class ActionProvider extends ContributableActionProvider {
+
+	constructor(
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@ITextFileService private textFileService: ITextFileService,
+		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+	) {
+		super();
+	}
+
+	public getSecondaryActions(element: any): TPromise<IAction[]> {
+		return super.getSecondaryActions(undefined, element).then(result => {
+			const autoSaveEnabled = this.textFileService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY;
+
+			if (element instanceof EditorGroup) {
+				if (!autoSaveEnabled) {
+					result.push(this.instantiationService.createInstance(SaveAllInGroupAction, SaveAllInGroupAction.ID, nls.localize('saveAll', "Save All")));
+					result.push(new Separator());
+				}
+
+				result.push(this.instantiationService.createInstance(CloseUnmodifiedEditorsInGroupAction, CloseUnmodifiedEditorsInGroupAction.ID, nls.localize('closeAllUnmodified', "Close Unmodified")));
+				result.push(this.instantiationService.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, nls.localize('closeAll', "Close All")));
+			} else {
+				const openEditor = <OpenEditor>element;
+				const resource = openEditor.getResource();
+				if (resource) {
+					// Open to side
+					result.unshift(this.instantiationService.createInstance(OpenToSideAction, undefined, resource, false));
+
+					if (!openEditor.isUntitled()) {
+
+						// Files: Save / Revert
+						if (!autoSaveEnabled) {
+							result.push(new Separator());
+
+							const saveAction = this.instantiationService.createInstance(SaveFileAction, SaveFileAction.ID, SaveFileAction.LABEL);
+							saveAction.setResource(resource);
+							saveAction.enabled = openEditor.isDirty();
+							result.push(saveAction);
+
+							const revertAction = this.instantiationService.createInstance(RevertFileAction, RevertFileAction.ID, RevertFileAction.LABEL);
+							revertAction.setResource(resource);
+							revertAction.enabled = openEditor.isDirty();
+							result.push(revertAction);
+						}
+					}
+
+					// Untitled: Save / Save As
+					if (openEditor.isUntitled()) {
+						result.push(new Separator());
+
+						if (this.untitledEditorService.hasAssociatedFilePath(resource)) {
+							let saveUntitledAction = this.instantiationService.createInstance(SaveFileAction, SaveFileAction.ID, SaveFileAction.LABEL);
+							saveUntitledAction.setResource(resource);
+							result.push(saveUntitledAction);
+						}
+
+						let saveAsAction = this.instantiationService.createInstance(SaveFileAsAction, SaveFileAsAction.ID, SaveFileAsAction.LABEL);
+						saveAsAction.setResource(resource);
+						result.push(saveAsAction);
+					}
+
+					// Compare Actions
+					result.push(new Separator());
+
+					if (!openEditor.isUntitled()) {
+						const compareWithSavedAction = this.instantiationService.createInstance(CompareWithSavedAction, CompareWithSavedAction.ID, nls.localize('compareWithSaved', "Compare with Saved"));
+						compareWithSavedAction.setResource(resource);
+						compareWithSavedAction.enabled = openEditor.isDirty();
+						result.push(compareWithSavedAction);
+					}
+
+					const runCompareAction = this.instantiationService.createInstance(CompareResourcesAction, resource, undefined);
+					if (runCompareAction._isEnabled()) {
+						result.push(runCompareAction);
+					}
+					result.push(this.instantiationService.createInstance(SelectResourceForCompareAction, resource, undefined));
+
+					result.push(new Separator());
+				}
+
+				result.push(this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, nls.localize('close', "Close")));
+				const closeOtherEditorsInGroupAction = this.instantiationService.createInstance(CloseOtherEditorsInGroupAction, CloseOtherEditorsInGroupAction.ID, nls.localize('closeOthers', "Close Others"));
+				closeOtherEditorsInGroupAction.enabled = openEditor.editorGroup.count > 1;
+				result.push(closeOtherEditorsInGroupAction);
+				result.push(this.instantiationService.createInstance(CloseUnmodifiedEditorsInGroupAction, CloseUnmodifiedEditorsInGroupAction.ID, nls.localize('closeAllUnmodified', "Close Unmodified")));
+				result.push(this.instantiationService.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, nls.localize('closeAll', "Close All")));
+			}
+
+			return result;
+		});
 	}
 }
 
