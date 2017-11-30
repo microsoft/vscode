@@ -19,6 +19,10 @@
             "scopeName": "source.css.scss",
             "path": "./syntaxes/scss.json"
         }],
+		"snippets": [{
+			"language": "scss",
+			"path": "./snippets/scss.snippets.json"
+		}],
         "problemMatchers": [{
             "name": "node-sass",
             "label": "Node Sass Compiler",
