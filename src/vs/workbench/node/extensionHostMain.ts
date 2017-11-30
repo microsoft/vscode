@@ -86,7 +86,8 @@ export class ExtensionHostMain {
 		const threadService = new ExtHostThreadService(rpcProtocol);
 		const extHostWorkspace = new ExtHostWorkspace(threadService, initData.workspace);
 		const environmentService = new EnvironmentService(initData.args, initData.execPath);
-		const logService = new SpdLogService('exthost', environmentService);
+		const logService = new SpdLogService(`exthost${initData.windowId}`, environmentService);
+		logService.info('main', JSON.stringify(initData));
 
 		this._extHostConfiguration = new ExtHostConfiguration(threadService.get(MainContext.MainThreadConfiguration), extHostWorkspace, initData.configuration);
 		this._extensionService = new ExtHostExtensionService(initData, threadService, extHostWorkspace, this._extHostConfiguration, logService);
