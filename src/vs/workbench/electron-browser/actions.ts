@@ -25,7 +25,7 @@ import { IExtensionManagementService, LocalExtensionType, ILocalExtension, IExte
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import paths = require('vs/base/common/paths');
 import { isMacintosh, isLinux, language } from 'vs/base/common/platform';
-import { IQuickOpenService, IFilePickOpenEntry, ISeparator, IPickOpenAction, IPickOpenItem } from 'vs/platform/quickOpen/common/quickOpen';
+import { IQuickOpenService, IFilePickOpenEntry, ISeparator, IPickOpenAction, IPickOpenItem, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import * as browser from 'vs/base/browser/browser';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
@@ -1673,5 +1673,52 @@ export class ConfigureLocaleAction extends Action {
 		}, (error) => {
 			throw new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", getPathLabel(file, this.contextService), error));
 		});
+	}
+}
+
+export class OpenLogsFlderAction extends Action {
+
+	static ID = 'workbench.action.openLogsFolder';
+	static LABEL = nls.localize('openLogsFolder', "Open Logs Folder");
+
+	constructor(id: string, label: string,
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IWindowsService private windowsService: IWindowsService,
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<void> {
+		return this.windowsService.showItemInFolder(paths.join(this.environmentService.logsPath, 'main.log'));
+	}
+}
+
+export class ShowLogsAction extends Action {
+
+	static ID = 'workbench.action.showLogs';
+	static LABEL = nls.localize('showLogs', "Show Logs...");
+
+	constructor(id: string, label: string,
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IWindowService private windowService: IWindowService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<void> {
+		const entries: IPickOpenEntry[] = [
+			{ id: 'main', label: nls.localize('mainProcess', "Main"), run: () => this.editorService.openEditor({ resource: URI.file(paths.join(this.environmentService.logsPath, 'main.log')) }) },
+			{ id: 'shared', label: nls.localize('sharedProcess', "Shared"), run: () => this.editorService.openEditor({ resource: URI.file(paths.join(this.environmentService.logsPath, 'sharedprocess.log')) }) },
+			{ id: 'renderer', label: nls.localize('rendererProcess', "Renderer"), run: () => this.editorService.openEditor({ resource: URI.file(paths.join(this.environmentService.logsPath, `renderer${this.windowService.getCurrentWindowId()}.log`)) }) },
+			{ id: 'extenshionHost', label: nls.localize('extensionHost', "Extension Host"), run: () => this.editorService.openEditor({ resource: URI.file(paths.join(this.environmentService.logsPath, `exthost${this.windowService.getCurrentWindowId()}.log`)) }) }
+		];
+		return this.quickOpenService.pick(entries, { placeHolder: nls.localize('selectProcess', "Select process") })
+			.then(entry => {
+				if (entry) {
+					entry.run(null);
+				}
+			});
 	}
 }

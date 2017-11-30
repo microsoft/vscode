@@ -22,7 +22,7 @@ export class SpdLogService implements ILogService {
 	) {
 		setAsyncMode(8192, 2000);
 
-		const logfilePath = path.join(environmentService.logsPath, `${processName}.txt`);
+		const logfilePath = path.join(environmentService.logsPath, `${processName}.log`);
 		this.logger = new RotatingLogger(processName, logfilePath, 1024 * 1024 * 5, 6);
 	}
 
