@@ -108,7 +108,9 @@ export class BreakpointsView extends ViewsViewletPanel {
 	}
 
 	protected layoutBody(size: number): void {
-		this.list.layout(size);
+		if (this.list) {
+			this.list.layout(size);
+		}
 	}
 
 	private onListContextMenu(e: IListContextMenuEvent<IEnablement>): void {

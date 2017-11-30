@@ -53,7 +53,7 @@
 		"snippets": [
 			{
 				"language": "php",
-				"path": "./snippets/php.json"
+				"path": "./snippets/php.snippets.json"
 			}
 		],
 		"configuration": {

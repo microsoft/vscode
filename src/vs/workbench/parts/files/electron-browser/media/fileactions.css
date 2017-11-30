@@ -104,20 +104,20 @@
 	background: url("action-close.svg") center center no-repeat;
 }
 
-.explorer-viewlet .explorer-open-editors .focused .monaco-tree-row.selected:not(.highlighted) > .content .close-editor-action {
+.explorer-viewlet .explorer-open-editors .focused .monaco-list-row.selected:not(.highlighted) .close-editor-action {
 	background: url("action-close-focus.svg") center center no-repeat;
 }
 
-.explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row:not(:hover) > .content.dirty > .monaco-action-bar .close-editor-action {
+.explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .close-editor-action {
 	background: url("action-close-dirty.svg") center center no-repeat;
 }
 
-.vs-dark .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row:not(:hover) > .content.dirty > .monaco-action-bar .close-editor-action,
-.hc-black .monaco-workbench .explorer-viewlet .explorer-open-editors .monaco-tree .monaco-tree-row:not(:hover) > .content.dirty > .monaco-action-bar .close-editor-action {
+.vs-dark .explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .close-editor-action,
+.hc-black .monaco-workbench .explorer-viewlet .explorer-open-editors .monaco-list .monaco-list-row.dirty:not(:hover) > .monaco-action-bar .close-editor-action {
 	background: url("action-close-dirty-dark.svg") center center no-repeat;
 }
 
-.explorer-viewlet .explorer-open-editors .monaco-tree.focused .monaco-tree-row.selected:not(:hover) > .content.dirty > .monaco-action-bar .close-editor-action {
+.explorer-viewlet .explorer-open-editors .monaco-list.focused .monaco-list-row.selected.dirty:not(:hover) > .monaco-action-bar .close-editor-action {
 	background: url("action-close-dirty-focus.svg") center center no-repeat;
 }
 

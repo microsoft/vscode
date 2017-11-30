@@ -15,12 +15,12 @@ import { validatePaths } from 'vs/code/node/paths';
 import { LifecycleService, ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ILaunchChannel, LaunchChannelClient } from './launch';
+import { ILaunchChannel, LaunchChannelClient } from 'vs/code/electron-main/launch';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ILogService, LogMainService } from 'vs/platform/log/common/log';
+import { ILogService, LegacyLogMainService } from 'vs/platform/log/common/log';
 import { StateService } from 'vs/platform/state/node/stateService';
 import { IStateService } from 'vs/platform/state/common/state';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
@@ -41,12 +41,13 @@ import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/work
 import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { localize } from 'vs/nls';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { printDiagnostics } from 'vs/code/electron-main/diagnostics';
 
 function createServices(args: ParsedArgs): IInstantiationService {
 	const services = new ServiceCollection();
 
 	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, args, process.execPath));
-	services.set(ILogService, new SyncDescriptor(LogMainService));
+	services.set(ILogService, new SyncDescriptor(LegacyLogMainService, 'main'));
 	services.set(IWorkspacesMainService, new SyncDescriptor(WorkspacesMainService));
 	services.set(IHistoryMainService, new SyncDescriptor(HistoryMainService));
 	services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
@@ -81,7 +82,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 		if (platform.isWindows) {
 			promise = service.getMainProcessId()
 				.then(processId => {
-					logService.log('Sending some foreground love to the running instance:', processId);
+					logService.info('Sending some foreground love to the running instance:', processId);
 
 					try {
 						const { allowSetForegroundWindow } = <any>require.__$__nodeRequire('windows-foreground-love');
@@ -99,6 +100,11 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 		return serve(environmentService.mainIPCHandle).then(server => {
 			if (platform.isMacintosh) {
 				app.dock.show(); // dock might be hidden at this case due to a retry
+			}
+
+			// Print --ps usage info
+			if (environmentService.args.ps) {
+				console.log('Warning: The --ps argument can only be used if Code is already running. Please run it again after Code has started.');
 			}
 
 			return server;
@@ -125,8 +131,6 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 						return TPromise.wrapError<Server>(new Error(msg));
 					}
 
-					logService.log('Sending env to running instance...');
-
 					// Show a warning dialog after some timeout if it takes long to talk to the other instance
 					// Skip this if we are running with --wait where it is expected that we wait for a while
 					let startupWarningDialogHandle: number;
@@ -141,6 +145,15 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 
 					const channel = client.getChannel<ILaunchChannel>('launch');
 					const service = new LaunchChannelClient(channel);
+
+					// Process Info
+					if (environmentService.args.ps) {
+						return service.getMainProcessInfo().then(info => {
+							return printDiagnostics(info).then(() => TPromise.wrapError(new ExpectedError()));
+						});
+					}
+
+					logService.info('Sending env to running instance...');
 
 					return allowSetForegroundWindow(service)
 						.then(() => service.start(environmentService.args, process.env))
@@ -173,7 +186,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 					try {
 						fs.unlinkSync(environmentService.mainIPCHandle);
 					} catch (e) {
-						logService.log('Fatal error deleting obsolete instance handle', e);
+						logService.info('Fatal error deleting obsolete instance handle', e);
 						return TPromise.wrapError<Server>(e);
 					}
 
@@ -205,7 +218,7 @@ function quit(accessor: ServicesAccessor, reason?: ExpectedError | Error): void 
 
 	if (reason) {
 		if ((reason as ExpectedError).isExpected) {
-			logService.log(reason.message);
+			logService.info(reason.message);
 		} else {
 			exitCode = 1; // signal error to the outside
 
