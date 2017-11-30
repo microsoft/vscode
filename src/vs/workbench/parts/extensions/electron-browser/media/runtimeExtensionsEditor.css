@@ -72,6 +72,15 @@
 	-webkit-animation:fade 1000ms infinite;
 }
 
+.monaco-action-bar .save-extension-host-profile {
+	background: url('save.svg') center center no-repeat;
+}
+
+.vs-dark .monaco-action-bar .save-extension-host-profile,
+.hc-black .monaco-action-bar .save-extension-host-profile {
+	background: url('save-inverse.svg') center center no-repeat;
+}
+
 .runtime-extensions-editor .monaco-action-bar {
 	padding-top: 21px;
 }

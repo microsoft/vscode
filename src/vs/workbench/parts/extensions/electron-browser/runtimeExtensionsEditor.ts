@@ -84,8 +84,6 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IMessageService private readonly _messageService: IMessageService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@IWindowService private readonly _windowService: IWindowService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super(RuntimeExtensionsEditor.ID, telemetryService, themeService);
@@ -126,7 +124,12 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 	public setProfileInfo(profileInfo: IExtensionHostProfile): void {
 		this._profileInfo = profileInfo;
+		this.saveExtensionHostProfileAction.enabled = true;
 		this._updateExtensions();
+	}
+
+	public getProfileInfo(): IExtensionHostProfile {
+		return this._profileInfo;
 	}
 
 	private _updateExtensions(): void {
@@ -372,38 +375,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		this._list.onContextMenu((e) => {
 			const actions: IAction[] = [];
 
-			actions.push(new Action('save', 'Save Extension Host Profile', '', !!this._profileInfo, async (): TPromise<any> => {
-				let picked = this._windowService.showSaveDialog({
-					title: 'Save Extension Host Profile',
-					buttonLabel: 'Save',
-					defaultPath: `CPU-${new Date().toISOString().replace(/[\-:]/g, '')}.cpuprofile`,
-					filters: [{
-						name: 'CPU Profiles',
-						extensions: ['cpuprofile', 'txt']
-					}]
-				});
-
-				if (!picked) {
-					return;
-				}
-
-				let dataToWrite: object = this._profileInfo.data;
-
-				if (this._environmentService.isBuilt) {
-					const profiler = await import('v8-inspect-profiler');
-					// when running from a not-development-build we remove
-					// absolute filenames because we don't want to reveal anything
-					// about users. We also append the `.txt` suffix to make it
-					// easier to attach these files to GH issues
-
-					let tmp = profiler.rewriteAbsolutePaths({ profile: dataToWrite }, 'piiRemoved');
-					dataToWrite = tmp.profile;
-
-					picked = picked + '.txt';
-				}
-
-				await writeFile(picked, JSON.stringify(this._profileInfo.data, null, '\t'));
-			}), this.extensionHostProfileAction);
+			actions.push(this.saveExtensionHostProfileAction, this.extensionHostProfileAction);
 
 			this._contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
@@ -414,13 +386,19 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 	public getActions(): IAction[] {
 		return [
+			this.saveExtensionHostProfileAction,
 			this.extensionHostProfileAction
 		];
 	}
 
 	@memoize
 	private get extensionHostProfileAction(): IAction {
-		return this._instantiationService.createInstance(ExtensionHostProfileAction, ExtensionHostProfileAction.LABEL_START, ExtensionHostProfileAction.ID, this);
+		return this._instantiationService.createInstance(ExtensionHostProfileAction, ExtensionHostProfileAction.ID, ExtensionHostProfileAction.LABEL_START, this);
+	}
+
+	@memoize
+	private get saveExtensionHostProfileAction(): IAction {
+		return this._instantiationService.createInstance(SaveExtensionHostProfileAction, SaveExtensionHostProfileAction.ID, SaveExtensionHostProfileAction.LABEL, this);
 	}
 
 	public layout(dimension: Dimension): void {
@@ -585,8 +563,6 @@ class ExtensionHostProfileAction extends Action {
 				this._setState(ProfileSessionState.Stopping);
 				this._profileSession.stop().then((result) => {
 					this._parentEditor.setProfileInfo(result);
-					console.log(result);
-					console.log(`here here`);
 					this._setState(ProfileSessionState.None);
 				}, (err) => {
 					onUnexpectedError(err);
@@ -599,6 +575,55 @@ class ExtensionHostProfileAction extends Action {
 		}
 
 		return TPromise.as(null);
+	}
+}
+
+class SaveExtensionHostProfileAction extends Action {
+
+	static LABEL = nls.localize('saveExtensionHostProfile', "Save Extension Host Profile");
+	static ID = 'workbench.extensions.action.saveExtensionHostProfile';
+
+	constructor(
+		id: string = SaveExtensionHostProfileAction.ID, label: string = SaveExtensionHostProfileAction.LABEL,
+		private readonly _parentEditor: RuntimeExtensionsEditor,
+		@IWindowService private readonly _windowService: IWindowService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+	) {
+		super(id, label, 'save-extension-host-profile', false);
+	}
+
+	async run(): TPromise<any> {
+		let picked = this._windowService.showSaveDialog({
+			title: 'Save Extension Host Profile',
+			buttonLabel: 'Save',
+			defaultPath: `CPU-${new Date().toISOString().replace(/[\-:]/g, '')}.cpuprofile`,
+			filters: [{
+				name: 'CPU Profiles',
+				extensions: ['cpuprofile', 'txt']
+			}]
+		});
+
+		if (!picked) {
+			return;
+		}
+
+		const profileInfo = this._parentEditor.getProfileInfo();
+		let dataToWrite: object = profileInfo.data;
+
+		if (this._environmentService.isBuilt) {
+			const profiler = await import('v8-inspect-profiler');
+			// when running from a not-development-build we remove
+			// absolute filenames because we don't want to reveal anything
+			// about users. We also append the `.txt` suffix to make it
+			// easier to attach these files to GH issues
+
+			let tmp = profiler.rewriteAbsolutePaths({ profile: dataToWrite }, 'piiRemoved');
+			dataToWrite = tmp.profile;
+
+			picked = picked + '.txt';
+		}
+
+		return writeFile(picked, JSON.stringify(profileInfo.data, null, '\t'));
 	}
 }
 
