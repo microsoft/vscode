@@ -6,9 +6,9 @@
 'use strict';
 
 import * as path from 'path';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { RotatingLogger, setAsyncMode } from 'spdlog';
+import { RotatingLogger, setAsyncMode, LogLevel as SpdLogLevel } from 'spdlog';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { fromNodeEventEmitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -29,7 +29,7 @@ export class SpdLogService implements ILogService {
 
 		const logfilePath = path.join(environmentService.logsPath, `${processName}.log`);
 		this.logger = new RotatingLogger(processName, logfilePath, 1024 * 1024 * 5, 6);
-		this.logger.setLevel(environmentService.logLevel);
+		this.setLevel(environmentService.logLevel);
 
 		fromNodeEventEmitter(process, 'exit')(() => this.logger.flush(), null, this.disposables);
 	}
@@ -46,6 +46,10 @@ export class SpdLogService implements ILogService {
 		const toDelete = oldSessions.slice(0, Math.max(0, oldSessions.length - 9));
 
 		await TPromise.join(toDelete.map(name => rimraf(path.join(logsRoot, name))));
+	}
+
+	setLevel(logLevel: LogLevel): void {
+		this.logger.setLevel(this.getLogLevel(logLevel));
 	}
 
 	// TODO, what about ARGS?
@@ -76,5 +80,24 @@ export class SpdLogService implements ILogService {
 
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
+	}
+
+	private getLogLevel(logLevel: LogLevel): SpdLogLevel {
+		switch (logLevel) {
+			case LogLevel.CRITICAL:
+				return SpdLogLevel.CRITICAL;
+			case LogLevel.ERROR:
+				return SpdLogLevel.ERROR;
+			case LogLevel.WARN:
+				return SpdLogLevel.WARN;
+			case LogLevel.INFO:
+				return SpdLogLevel.INFO;
+			case LogLevel.DEBUG:
+				return SpdLogLevel.DEBUG;
+			case LogLevel.TRACE:
+				return SpdLogLevel.TRACE;
+			case LogLevel.OFF:
+				return SpdLogLevel.OFF;
+		}
 	}
 }

@@ -8,6 +8,16 @@ declare module 'spdlog' {
 	export const version: string;
 	export function setAsyncMode(bufferSize: number, flushInterval: number);
 
+	export enum LogLevel {
+		CRITICAL,
+		ERROR,
+		WARN,
+		INFO,
+		DEBUG,
+		TRACE,
+		OFF
+	}
+
 	export class RotatingLogger {
 		constructor(name: string, filename: string, filesize: number, filecount: number);
 
@@ -17,7 +27,7 @@ declare module 'spdlog' {
 		warn(message: string);
 		error(message: string);
 		critical(message: string);
-		setLevel(level: number);
+		setLevel(level: LogLevel);
 		flush(): void;
 	}
 }
