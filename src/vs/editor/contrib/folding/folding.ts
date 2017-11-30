@@ -181,7 +181,10 @@ export class FoldingController implements IEditorContribution {
 		if (this.updateScheduler) {
 			this.foldingModelPromise = this.updateScheduler.trigger(() => {
 				if (this.foldingModel) { // null if editor has been disposed, or folding turned off
-					this.foldingModel.update(this.computeRanges(this.foldingModel.textModel));
+					// some cursors might have moved into hidden regions, make sure they are in expanded regions
+					let selections = this.editor.getSelections();
+					let selectionLineNumbers = selections ? selections.map(s => s.startLineNumber) : [];
+					this.foldingModel.update(this.computeRanges(this.foldingModel.textModel), selectionLineNumbers);
 				}
 				return this.foldingModel;
 			});
