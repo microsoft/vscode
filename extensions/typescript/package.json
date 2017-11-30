@@ -38,7 +38,7 @@
     "onCommand:typescript.openTsServerLog",
     "onCommand:workbench.action.tasks.runTask"
   ],
-  "main": "./out/typescriptMain",
+  "main": "./out/extension",
   "contributes": {
     "languages": [
       {

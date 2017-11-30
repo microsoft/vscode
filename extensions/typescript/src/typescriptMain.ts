@@ -8,7 +8,7 @@
  * https://github.com/Microsoft/TypeScript-Sublime-Plugin/blob/master/TypeScript%20Indent.tmPreferences
  * ------------------------------------------------------------------------------------------ */
 
-import { env, languages, commands, workspace, window, ExtensionContext, Memento, Diagnostic, Range, Disposable, Uri, MessageItem, DiagnosticSeverity, TextDocument } from 'vscode';
+import { env, languages, commands, workspace, window, Memento, Diagnostic, Range, Disposable, Uri, MessageItem, DiagnosticSeverity, TextDocument } from 'vscode';
 
 // This must be the first statement otherwise modules might got loaded with
 // the wrong locale.
@@ -25,21 +25,18 @@ import TypeScriptServiceClient from './typescriptServiceClient';
 import { ITypeScriptServiceClientHost } from './typescriptService';
 
 import BufferSyncSupport from './features/bufferSyncSupport';
-import TypeScriptTaskProviderManager from './features/taskProvider';
 
-import * as ProjectStatus from './utils/projectStatus';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
 import VersionStatus from './utils/versionStatus';
-import { getContributedTypeScriptServerPlugins, TypeScriptServerPlugin } from './utils/plugins';
+import { TypeScriptServerPlugin } from './utils/plugins';
 import { openOrCreateConfigFile, isImplicitProjectConfigFile } from './utils/tsconfig';
 import { tsLocationToVsPosition } from './utils/convert';
 import FormattingConfigurationManager from './features/formattingConfigurationManager';
-import * as languageModeIds from './utils/languageModeIds';
 import * as languageConfigurations from './utils/languageConfigurations';
 import { CommandManager, Command } from './utils/commandManager';
 import DiagnosticsManager from './features/diagnostics';
 
-interface LanguageDescription {
+export interface LanguageDescription {
 	id: string;
 	diagnosticSource: string;
 	modeIds: string[];
@@ -47,21 +44,7 @@ interface LanguageDescription {
 	isExternal?: boolean;
 }
 
-const standardLanguageDescriptions: LanguageDescription[] = [
-	{
-		id: 'typescript',
-		diagnosticSource: 'ts',
-		modeIds: [languageModeIds.typescript, languageModeIds.typescriptreact],
-		configFile: 'tsconfig.json'
-	}, {
-		id: 'javascript',
-		diagnosticSource: 'js',
-		modeIds: [languageModeIds.javascript, languageModeIds.javascriptreact],
-		configFile: 'jsconfig.json'
-	}
-];
-
-class ReloadTypeScriptProjectsCommand implements Command {
+export class ReloadTypeScriptProjectsCommand implements Command {
 	public readonly id = 'typescript.reloadProjects';
 
 	public constructor(
@@ -73,7 +56,7 @@ class ReloadTypeScriptProjectsCommand implements Command {
 	}
 }
 
-class ReloadJavaScriptProjectsCommand implements Command {
+export class ReloadJavaScriptProjectsCommand implements Command {
 	public readonly id = 'javascript.reloadProjects';
 
 	public constructor(
@@ -85,7 +68,7 @@ class ReloadJavaScriptProjectsCommand implements Command {
 	}
 }
 
-class SelectTypeScriptVersionCommand implements Command {
+export class SelectTypeScriptVersionCommand implements Command {
 	public readonly id = 'typescript.selectTypeScriptVersion';
 
 	public constructor(
@@ -97,7 +80,7 @@ class SelectTypeScriptVersionCommand implements Command {
 	}
 }
 
-class OpenTsServerLogCommand implements Command {
+export class OpenTsServerLogCommand implements Command {
 	public readonly id = 'typescript.openTsServerLog';
 
 	public constructor(
@@ -109,7 +92,7 @@ class OpenTsServerLogCommand implements Command {
 	}
 }
 
-class RestartTsServerCommand implements Command {
+export class RestartTsServerCommand implements Command {
 	public readonly id = 'typescript.restartTsServer';
 
 	public constructor(
@@ -121,7 +104,7 @@ class RestartTsServerCommand implements Command {
 	}
 }
 
-class TypeScriptGoToProjectConfigCommand implements Command {
+export class TypeScriptGoToProjectConfigCommand implements Command {
 	public readonly id = 'typescript.goToProjectConfig';
 
 	public constructor(
@@ -136,7 +119,7 @@ class TypeScriptGoToProjectConfigCommand implements Command {
 	}
 }
 
-class JavaScriptGoToProjectConfigCommand implements Command {
+export class JavaScriptGoToProjectConfigCommand implements Command {
 	public readonly id = 'javascript.goToProjectConfig';
 
 	public constructor(
@@ -150,63 +133,6 @@ class JavaScriptGoToProjectConfigCommand implements Command {
 		}
 	}
 }
-
-export function activate(context: ExtensionContext): void {
-	const plugins = getContributedTypeScriptServerPlugins();
-
-	const commandManager = new CommandManager();
-	context.subscriptions.push(commandManager);
-
-	const lazyClientHost = (() => {
-		let clientHost: TypeScriptServiceClientHost | undefined;
-		return () => {
-			if (!clientHost) {
-				clientHost = new TypeScriptServiceClientHost(standardLanguageDescriptions, context.workspaceState, plugins, commandManager);
-				context.subscriptions.push(clientHost);
-
-				const host = clientHost;
-				clientHost.serviceClient.onReady().then(() => {
-					context.subscriptions.push(ProjectStatus.create(host.serviceClient, host.serviceClient.telemetryReporter,
-						path => new Promise<boolean>(resolve => setTimeout(() => resolve(host.handles(path)), 750)),
-						context.workspaceState));
-				}, () => {
-					// Nothing to do here. The client did show a message;
-				});
-			}
-			return clientHost;
-		};
-	})();
-
-	commandManager.register(new ReloadTypeScriptProjectsCommand(lazyClientHost));
-	commandManager.register(new ReloadJavaScriptProjectsCommand(lazyClientHost));
-	commandManager.register(new SelectTypeScriptVersionCommand(lazyClientHost));
-	commandManager.register(new OpenTsServerLogCommand(lazyClientHost));
-	commandManager.register(new RestartTsServerCommand(lazyClientHost));
-	commandManager.register(new TypeScriptGoToProjectConfigCommand(lazyClientHost));
-	commandManager.register(new JavaScriptGoToProjectConfigCommand(lazyClientHost));
-
-	context.subscriptions.push(new TypeScriptTaskProviderManager(() => lazyClientHost().serviceClient));
-
-	context.subscriptions.push(languages.setLanguageConfiguration(languageModeIds.jsxTags, languageConfigurations.jsxTags));
-
-	const supportedLanguage = [].concat.apply([], standardLanguageDescriptions.map(x => x.modeIds).concat(plugins.map(x => x.languages)));
-	function didOpenTextDocument(textDocument: TextDocument): boolean {
-		if (supportedLanguage.indexOf(textDocument.languageId) >= 0) {
-			openListener.dispose();
-			// Force activation
-			void lazyClientHost();
-			return true;
-		}
-		return false;
-	}
-	const openListener = workspace.onDidOpenTextDocument(didOpenTextDocument);
-	for (let textDocument of workspace.textDocuments) {
-		if (didOpenTextDocument(textDocument)) {
-			break;
-		}
-	}
-}
-
 
 const validateSetting = 'validate.enable';
 
@@ -422,7 +348,7 @@ const styleCheckDiagnostics = [
 	7030	// not all code paths return a value
 ];
 
-class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
+export class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
 	private readonly ataProgressReporter: AtaProgressReporter;
 	private readonly typingsStatus: TypingsStatus;
 	private readonly client: TypeScriptServiceClient;
@@ -453,7 +379,7 @@ class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
 		configFileWatcher.onDidDelete(handleProjectCreateOrDelete, this, this.disposables);
 		configFileWatcher.onDidChange(handleProjectChange, this, this.disposables);
 
-		this.versionStatus = new VersionStatus(resource => this.client.normalizePath(resource));
+		this.versionStatus = new VersionStatus(resource => this.client ? this.client.normalizePath(resource) : null);
 		this.disposables.push(this.versionStatus);
 
 		this.client = new TypeScriptServiceClient(this, workspaceState, this.versionStatus, plugins);
