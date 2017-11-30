@@ -40,13 +40,15 @@ import { adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/commo
 import { GalleryExtensionsHandler, ExtensionsHandler } from 'vs/workbench/parts/extensions/browser/extensionsQuickOpen';
 import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { RuntimeExtensionsEditor, RuntimeExtensionsInput, ShowRuntimeExtensionsAction } from 'vs/workbench/parts/extensions/electron-browser/runtimeExtensionsEditor';
+import { RuntimeExtensionsEditor, RuntimeExtensionsInput, ShowRuntimeExtensionsAction, IExtensionHostProfileService } from 'vs/workbench/parts/extensions/electron-browser/runtimeExtensionsEditor';
 import { EditorInput, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
+import { ExtensionHostProfileService } from 'vs/workbench/parts/extensions/electron-browser/extensionProfileService';
 
 // Singletons
 registerSingleton(IExtensionGalleryService, ExtensionGalleryService);
 registerSingleton(IExtensionTipsService, ExtensionTipsService);
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
+registerSingleton(IExtensionHostProfileService, ExtensionHostProfileService);
 
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchRegistry.registerWorkbenchContribution(StatusUpdater, LifecyclePhase.Running);

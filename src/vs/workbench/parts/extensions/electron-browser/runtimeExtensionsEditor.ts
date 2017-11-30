@@ -17,12 +17,12 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { Builder, Dimension } from 'vs/base/browser/builder';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/parts/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IExtensionService, IExtensionDescription, IExtensionsStatus, IExtensionHostProfile, ProfileSession } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService, IExtensionDescription, IExtensionsStatus, IExtensionHostProfile } from 'vs/platform/extensions/common/extensions';
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { WorkbenchList, IListService } from 'vs/platform/list/browser/listService';
 import { append, $, addDisposableListener, addClass } from 'vs/base/browser/dom';
@@ -32,16 +32,37 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { clipboard } from 'electron';
 import { LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { memoize } from 'vs/base/common/decorators';
-import { StatusbarAlignment, IStatusbarRegistry, StatusbarItemDescriptor, Extensions, IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import Event from 'vs/base/common/event';
 
+export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
+
+export const enum ProfileSessionState {
+	None = 0,
+	Starting = 1,
+	Running = 2,
+	Stopping = 3
+}
+
+export interface IExtensionHostProfileService {
+	_serviceBrand: any;
+
+	readonly onDidChangeState: Event<void>;
+	readonly onDidChangeLastProfile: Event<void>;
+
+	readonly state: ProfileSessionState;
+	readonly lastProfile: IExtensionHostProfile;
+
+	startProfiling(): void;
+	stopProfiling(): void;
+
+	clearLastProfile(): void;
+}
 
 interface IExtensionProfileInformation {
 	/**
@@ -86,11 +107,17 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		@IMessageService private readonly _messageService: IMessageService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
 	) {
 		super(RuntimeExtensionsEditor.ID, telemetryService, themeService);
 
 		this._list = null;
-		this._profileInfo = null;
+		this._profileInfo = this._extensionHostProfileService.lastProfile;
+		this._register(this._extensionHostProfileService.onDidChangeLastProfile(() => {
+			this._profileInfo = this._extensionHostProfileService.lastProfile;
+			this._updateExtensions();
+		}));
+
 		this._elements = null;
 
 		this._extensionsDescriptions = [];
@@ -103,34 +130,9 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			this._extensionsDescriptions = extensions.filter((extension) => {
 				return !!extension.main;
 			});
-			// this._profileInfo = {
-			// 	startTime: 1511954813493000,
-			// 	endTime: 1511954835590000,
-			// 	deltas: [1000, 1500, 123456, 130, 1500, 1234, 100000],
-			// 	ids: ['idle', 'self', 'vscode.git', 'vscode.emmet', 'self', 'vscode.git', 'idle'],
-			// 	data: null,
-			// 	getAggregatedTimes: undefined
-			// };
-			// this._profileInfo.endTime = this._profileInfo.startTime;
-			// for (let i = 0, len = this._profileInfo.deltas.length; i < len; i++) {
-			// 	this._profileInfo.endTime += this._profileInfo.deltas[i];
-			// }
 			this._updateExtensions();
 		});
 		this._register(this._extensionService.onDidChangeExtensionsStatus(() => this._updateSoon.schedule()));
-
-		// TODO@Alex TODO@Isi ????
-		// this._extensionsWorkbenchService.onChange(() => this._updateExtensions());
-	}
-
-	public setProfileInfo(profileInfo: IExtensionHostProfile): void {
-		this._profileInfo = profileInfo;
-		this.saveExtensionHostProfileAction.enabled = true;
-		this._updateExtensions();
-	}
-
-	public getProfileInfo(): IExtensionHostProfile {
-		return this._profileInfo;
 	}
 
 	private _updateExtensions(): void {
@@ -396,12 +398,12 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 	@memoize
 	private get extensionHostProfileAction(): IAction {
-		return this._instantiationService.createInstance(ExtensionHostProfileAction, ExtensionHostProfileAction.ID, ExtensionHostProfileAction.LABEL_START, this);
+		return this._instantiationService.createInstance(ExtensionHostProfileAction, ExtensionHostProfileAction.ID, ExtensionHostProfileAction.LABEL_START);
 	}
 
 	@memoize
 	private get saveExtensionHostProfileAction(): IAction {
-		return this._instantiationService.createInstance(SaveExtensionHostProfileAction, SaveExtensionHostProfileAction.ID, SaveExtensionHostProfileAction.LABEL, this);
+		return this._instantiationService.createInstance(SaveExtensionHostProfileAction, SaveExtensionHostProfileAction.ID, SaveExtensionHostProfileAction.LABEL);
 	}
 
 	public layout(dimension: Dimension): void {
@@ -499,13 +501,6 @@ class ReportExtensionIssueAction extends Action {
 	}
 }
 
-const enum ProfileSessionState {
-	None = 0,
-	Starting = 1,
-	Running = 2,
-	Stopping = 3
-}
-
 class ExtensionHostProfileAction extends Action {
 	static ID = 'workbench.extensions.action.extensionHostProfile';
 	static LABEL_START = nls.localize('extensionHostProfileStart', "Start Extension Host Profile");
@@ -513,68 +508,34 @@ class ExtensionHostProfileAction extends Action {
 	static STOP_CSS_CLASS = 'extension-host-profile-stop';
 	static START_CSS_CLASS = 'extension-host-profile-start';
 
-	private _profileSession: ProfileSession;
-	private _state: ProfileSessionState;
-
 	constructor(
 		id: string = ExtensionHostProfileAction.ID, label: string = ExtensionHostProfileAction.LABEL_START,
-		private readonly _parentEditor: RuntimeExtensionsEditor,
-		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
 	) {
 		super(id, label, ExtensionHostProfileAction.START_CSS_CLASS);
-		this._profileSession = null;
-		this._setState(ProfileSessionState.None);
+
+		this._extensionHostProfileService.onDidChangeState(() => this._update());
 	}
 
-	private update(): void {
-		if (this._profileSession) {
+	private _update(): void {
+		const state = this._extensionHostProfileService.state;
+
+		if (state === ProfileSessionState.Running) {
 			this.class = ExtensionHostProfileAction.STOP_CSS_CLASS;
 			this.label = ExtensionHostProfileAction.LABEL_STOP;
-			ProfileExtHostStatusbarItem.instance.show(() => {
-				this.run();
-				this._editorService.openEditor(this._instantiationService.createInstance(RuntimeExtensionsInput));
-			});
 		} else {
 			this.class = ExtensionHostProfileAction.START_CSS_CLASS;
 			this.label = ExtensionHostProfileAction.LABEL_START;
-			ProfileExtHostStatusbarItem.instance.hide();
 		}
 	}
 
-	private _setState(state: ProfileSessionState): void {
-		this._state = state;
-		this.update();
-	}
-
 	run(): TPromise<any> {
-		switch (this._state) {
-			case ProfileSessionState.None:
-				this._setState(ProfileSessionState.Starting);
-				this._extensionService.startExtensionHostProfile().then((value) => {
-					this._profileSession = value;
-					this._setState(ProfileSessionState.Running);
-				}, (err) => {
-					onUnexpectedError(err);
-					this._setState(ProfileSessionState.None);
-				});
-				break;
-			case ProfileSessionState.Starting:
-				break;
-			case ProfileSessionState.Running:
-				this._setState(ProfileSessionState.Stopping);
-				this._profileSession.stop().then((result) => {
-					this._parentEditor.setProfileInfo(result);
-					this._setState(ProfileSessionState.None);
-				}, (err) => {
-					onUnexpectedError(err);
-					this._setState(ProfileSessionState.None);
-				});
-				this._profileSession = null;
-				break;
-			case ProfileSessionState.Stopping:
-				break;
+		const state = this._extensionHostProfileService.state;
+
+		if (state === ProfileSessionState.Running) {
+			this._extensionHostProfileService.stopProfiling();
+		} else if (state === ProfileSessionState.None) {
+			this._extensionHostProfileService.startProfiling();
 		}
 
 		return TPromise.as(null);
@@ -588,11 +549,15 @@ class SaveExtensionHostProfileAction extends Action {
 
 	constructor(
 		id: string = SaveExtensionHostProfileAction.ID, label: string = SaveExtensionHostProfileAction.LABEL,
-		private readonly _parentEditor: RuntimeExtensionsEditor,
 		@IWindowService private readonly _windowService: IWindowService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IExtensionHostProfileService private readonly _extensionHostProfileService: IExtensionHostProfileService,
 	) {
 		super(id, label, 'save-extension-host-profile', false);
+		this.enabled = (this._extensionHostProfileService.lastProfile !== null);
+		this._extensionHostProfileService.onDidChangeLastProfile(() => {
+			this.enabled = (this._extensionHostProfileService.lastProfile !== null);
+		});
 	}
 
 	async run(): TPromise<any> {
@@ -610,7 +575,7 @@ class SaveExtensionHostProfileAction extends Action {
 			return;
 		}
 
-		const profileInfo = this._parentEditor.getProfileInfo();
+		const profileInfo = this._extensionHostProfileService.lastProfile;
 		let dataToWrite: object = profileInfo.data;
 
 		if (this._environmentService.isBuilt) {
@@ -629,74 +594,3 @@ class SaveExtensionHostProfileAction extends Action {
 		return writeFile(picked, JSON.stringify(profileInfo.data, null, '\t'));
 	}
 }
-
-export class ProfileExtHostStatusbarItem implements IStatusbarItem {
-
-	public static instance: ProfileExtHostStatusbarItem;
-
-	private toDispose: IDisposable[];
-	private statusBarItem: HTMLElement;
-	private label: HTMLElement;
-	private timeStarted: number;
-	private labelUpdater: number;
-	private clickHandler: () => void;
-
-	constructor() {
-		ProfileExtHostStatusbarItem.instance = this;
-		this.toDispose = [];
-	}
-
-	public show(clickHandler: () => void) {
-		this.clickHandler = clickHandler;
-		if (this.timeStarted === 0) {
-			this.timeStarted = new Date().getTime();
-			this.statusBarItem.hidden = false;
-			this.labelUpdater = setInterval(() => {
-				this.updateLabel();
-			}, 1000);
-		}
-	}
-
-	public hide() {
-		this.clickHandler = null;
-		this.statusBarItem.hidden = true;
-		this.timeStarted = 0;
-		clearInterval(this.labelUpdater);
-		this.labelUpdater = null;
-	}
-
-	public render(container: HTMLElement): IDisposable {
-		if (!this.statusBarItem && container) {
-			this.statusBarItem = append(container, $('.profileExtHost-statusbar-item'));
-			this.toDispose.push(addDisposableListener(this.statusBarItem, 'click', () => {
-				if (this.clickHandler) {
-					this.clickHandler();
-				}
-			}));
-			this.statusBarItem.title = nls.localize('selectAndStartDebug', "Click to stop profiling.");
-			const a = append(this.statusBarItem, $('a'));
-			append(a, $('.icon'));
-			this.label = append(a, $('span.label'));
-			this.updateLabel();
-			this.statusBarItem.hidden = true;
-		}
-		return this;
-	}
-
-	private updateLabel() {
-		let label = 'Profiling Extension Host';
-		if (this.timeStarted > 0) {
-			let secondsRecoreded = (new Date().getTime() - this.timeStarted) / 1000;
-			label = `Profiling Extension Host (${Math.round(secondsRecoreded)} sec)`;
-		}
-		this.label.textContent = label;
-	}
-
-	public dispose(): void {
-		this.toDispose = dispose(this.toDispose);
-	}
-}
-
-Registry.as<IStatusbarRegistry>(Extensions.Statusbar).registerStatusbarItem(
-	new StatusbarItemDescriptor(ProfileExtHostStatusbarItem, StatusbarAlignment.RIGHT)
-);
