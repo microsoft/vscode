@@ -7,7 +7,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import Event, { Emitter } from 'vs/base/common/event';
 import { ISettingsEditorModel, IFilterResult, ISetting, ISettingsGroup, IWorkbenchSettingsConfiguration, IFilterMetadata, IPreferencesSearchService } from 'vs/workbench/parts/preferences/common/preferences';
-import { IRange, Range } from 'vs/editor/common/core/range';
+import { IRange } from 'vs/editor/common/core/range';
 import { distinct } from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
