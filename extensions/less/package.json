@@ -19,6 +19,10 @@
 			"scopeName": "source.css.less",
 			"path": "./syntaxes/less.tmLanguage.json"
 		}],
+		"snippets": [{
+			"language": "less",
+			"path": "./snippets/less.snippets.json"
+		}],
 		"problemMatchers": [
 			{
 				"name": "lessc",
