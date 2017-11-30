@@ -13,7 +13,9 @@ import * as languageModeIds from './utils/languageModeIds';
 import * as languageConfigurations from './utils/languageConfigurations';
 import { standardLanguageDescriptions } from './utils/languageDescription';
 
-export function activate(context: vscode.ExtensionContext): void {
+export function activate(
+	context: vscode.ExtensionContext
+): void {
 	const plugins = getContributedTypeScriptServerPlugins();
 
 	const commandManager = new CommandManager();
@@ -22,9 +24,7 @@ export function activate(context: vscode.ExtensionContext): void {
 	const lazyClientHost = createLazyClientHost(context, plugins, commandManager);
 
 	registerCommands(commandManager, lazyClientHost);
-
 	context.subscriptions.push(new TypeScriptTaskProviderManager(() => lazyClientHost().serviceClient));
-
 	context.subscriptions.push(vscode.languages.setLanguageConfiguration(languageModeIds.jsxTags, languageConfigurations.jsxTags));
 
 	const supportedLanguage = [].concat.apply([], standardLanguageDescriptions.map(x => x.modeIds).concat(plugins.map(x => x.languages)));
@@ -37,7 +37,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		}
 		return false;
 	}
-	const openListener = vscode.workspace.onDidOpenTextDocument(didOpenTextDocument);
+	const openListener = vscode.workspace.onDidOpenTextDocument(didOpenTextDocument, undefined, context.subscriptions);
 	for (let textDocument of vscode.workspace.textDocuments) {
 		if (didOpenTextDocument(textDocument)) {
 			break;
@@ -50,7 +50,7 @@ function createLazyClientHost(
 	plugins: TypeScriptServerPlugin[],
 	commandManager: CommandManager
 ) {
-	let clientHost: TypeScriptServiceClientHost | undefined;
+	let clientHost: TypeScriptServiceClientHost | undefined = undefined;
 	return () => {
 		if (!clientHost) {
 			clientHost = new TypeScriptServiceClientHost(standardLanguageDescriptions, context.workspaceState, plugins, commandManager);
