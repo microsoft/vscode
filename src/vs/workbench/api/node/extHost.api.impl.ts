@@ -56,6 +56,7 @@ import { ExtHostFileSystem } from 'vs/workbench/api/node/extHostFileSystem';
 import { FileChangeType, FileType } from 'vs/platform/files/common/files';
 import { ExtHostDecorations } from 'vs/workbench/api/node/extHostDecorations';
 import { toGlobPattern, toLanguageSelector } from 'vs/workbench/api/node/extHostTypeConverters';
+import { ExtensionActivatedByAPI } from 'vs/workbench/api/node/extHostExtensionActivator';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export interface IExtensionApiFactory {
@@ -124,6 +125,8 @@ export function createApiFactory(
 	ExtHostApiCommands.register(extHostCommands);
 
 	return function (extension: IExtensionDescription): typeof vscode {
+
+		const EXTENSION_ID = extension.id;
 
 		if (extension.enableProposedApi && !extension.isBuiltin) {
 
@@ -385,8 +388,13 @@ export function createApiFactory(
 		};
 
 		// namespace: workspace
+		let warnedRootPath = false;
 		const workspace: typeof vscode.workspace = {
 			get rootPath() {
+				if (!warnedRootPath) {
+					warnedRootPath = true;
+					extensionService.addMessage(EXTENSION_ID, Severity.Warning, 'workspace.rootPath is deprecated');
+				}
 				return extHostWorkspace.getPath();
 			},
 			set rootPath(value) {
@@ -622,7 +630,7 @@ class Extension<T> implements vscode.Extension<T> {
 	}
 
 	activate(): Thenable<T> {
-		return this._extensionService.activateById(this.id, false).then(() => this.exports);
+		return this._extensionService.activateById(this.id, new ExtensionActivatedByAPI(false)).then(() => this.exports);
 	}
 }
 

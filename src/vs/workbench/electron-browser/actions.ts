@@ -43,7 +43,7 @@ import { IPanel } from 'vs/workbench/common/panel';
 import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { FileKind, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService, ActivationTimes } from 'vs/platform/extensions/common/extensions';
 import { getEntries } from 'vs/base/common/performance';
 import { IEditor } from 'vs/platform/editor/common/editor';
 
@@ -359,7 +359,15 @@ export class ShowStartupPerformance extends Action {
 			(<any>console).groupEnd();
 
 			(<any>console).group('Extension Activation Stats');
-			(<any>console).table(this.extensionService.getExtensionsActivationTimes());
+			let extensionsActivationTimes: { [id: string]: ActivationTimes; } = {};
+			let extensionsStatus = this.extensionService.getExtensionsStatus();
+			for (let id in extensionsStatus) {
+				const status = extensionsStatus[id];
+				if (status.activationTimes) {
+					extensionsActivationTimes[id] = status.activationTimes;
+				}
+			}
+			(<any>console).table(extensionsActivationTimes);
 			(<any>console).groupEnd();
 
 			(<any>console).group('Raw Startup Timers (CSV)');
