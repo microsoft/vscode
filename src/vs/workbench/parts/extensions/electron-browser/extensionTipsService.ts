@@ -353,7 +353,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 			this.extensionsService.getInstalled(LocalExtensionType.User).done(local => {
 				const recommendations = allRecommendations
-					.filter(id => local.every(local => `${local.manifest.publisher}.${local.manifest.name}` !== id));
+					.filter(id => local.every(local => `${local.manifest.publisher.toLowerCase()}.${local.manifest.name.toLowerCase()}` !== id));
 
 				if (!recommendations.length) {
 					return;
