@@ -536,6 +536,54 @@ class FoldAllBlockCommentsAction extends FoldingAction<void> {
 	}
 }
 
+class FoldAllRegionsAction extends FoldingAction<void> {
+
+	constructor() {
+		super({
+			id: 'editor.foldAllRegions',
+			label: nls.localize('foldAllRegions.label', "Fold All Regions"),
+			alias: 'Fold All Regions',
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.textFocus,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_8)
+			}
+		});
+	}
+
+	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
+		let foldingRules = LanguageConfigurationRegistry.getFoldingRules(editor.getModel().getLanguageIdentifier().id);
+		if (foldingRules && foldingRules.markers && foldingRules.markers.start) {
+			let regExp = new RegExp(foldingRules.markers.start);
+			setCollapseStateForMatchingLines(foldingModel, regExp, true);
+		}
+	}
+}
+
+class UnfoldAllRegionsAction extends FoldingAction<void> {
+
+	constructor() {
+		super({
+			id: 'editor.unfoldAllRegions',
+			label: nls.localize('unfoldAllRegions.label', "Unfold All Regions"),
+			alias: 'Unfold All Regions',
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.textFocus,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_9)
+			}
+		});
+	}
+
+	invoke(foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor): void {
+		let foldingRules = LanguageConfigurationRegistry.getFoldingRules(editor.getModel().getLanguageIdentifier().id);
+		if (foldingRules && foldingRules.markers && foldingRules.markers.start) {
+			let regExp = new RegExp(foldingRules.markers.start);
+			setCollapseStateForMatchingLines(foldingModel, regExp, false);
+		}
+	}
+}
+
 class FoldAllAction extends FoldingAction<void> {
 
 	constructor() {
@@ -597,8 +645,10 @@ registerEditorAction(FoldRecursivelyAction);
 registerEditorAction(FoldAllAction);
 registerEditorAction(UnfoldAllAction);
 registerEditorAction(FoldAllBlockCommentsAction);
+registerEditorAction(FoldAllRegionsAction);
+registerEditorAction(UnfoldAllRegionsAction);
 
-for (let i = 1; i <= 9; i++) {
+for (let i = 1; i <= 7; i++) {
 	registerInstantiatedEditorAction(
 		new FoldLevelAction({
 			id: FoldLevelAction.ID(i),
