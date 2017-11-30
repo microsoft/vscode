@@ -379,11 +379,11 @@ export class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost
 		configFileWatcher.onDidDelete(handleProjectCreateOrDelete, this, this.disposables);
 		configFileWatcher.onDidChange(handleProjectChange, this, this.disposables);
 
-		this.versionStatus = new VersionStatus(resource => this.client ? this.client.normalizePath(resource) : null);
-		this.disposables.push(this.versionStatus);
-
-		this.client = new TypeScriptServiceClient(this, workspaceState, this.versionStatus, plugins);
+		this.client = new TypeScriptServiceClient(this, workspaceState, version => this.versionStatus.onDidChangeTypeScriptVersion(version), plugins);
 		this.disposables.push(this.client);
+
+		this.versionStatus = new VersionStatus(resource => this.client.normalizePath(resource));
+		this.disposables.push(this.versionStatus);
 
 		this.typingsStatus = new TypingsStatus(this.client);
 		this.ataProgressReporter = new AtaProgressReporter(this.client);
@@ -395,6 +395,7 @@ export class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost
 			this.languagePerId.set(description.id, manager);
 		}
 
+		this.client.startService();
 		this.client.onReady().then(() => {
 			if (!this.client.apiVersion.has230Features()) {
 				return;
