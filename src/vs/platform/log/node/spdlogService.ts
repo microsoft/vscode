@@ -8,7 +8,7 @@
 import * as path from 'path';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { RotatingLogger } from 'spdlog';
+import { RotatingLogger, setAsyncMode } from 'spdlog';
 
 export class SpdLogService implements ILogService {
 
@@ -20,7 +20,9 @@ export class SpdLogService implements ILogService {
 		processName: string,
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
-		const logfilePath = path.join(environmentService.userDataPath, 'logs', processName);
+		setAsyncMode(8192, 2000);
+
+		const logfilePath = path.join(environmentService.logsPath, processName);
 		this.logger = new RotatingLogger(processName, logfilePath, 1024 * 1024 * 5, 6);
 	}
 

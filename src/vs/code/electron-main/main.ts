@@ -68,7 +68,8 @@ function createPaths(environmentService: IEnvironmentService): TPromise<any> {
 	const paths = [
 		environmentService.appSettingsHome,
 		environmentService.extensionsPath,
-		environmentService.nodeCachedDataDir
+		environmentService.nodeCachedDataDir,
+		environmentService.logsPath
 	];
 	return TPromise.join(paths.map(p => p && mkdirp(p))) as TPromise<any>;
 }

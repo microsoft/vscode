@@ -72,6 +72,7 @@ export interface IEnvironmentService {
 
 	userHome: string;
 	userDataPath: string;
+	logsPath: string;
 
 	appNameLong: string;
 	appQuality: string;

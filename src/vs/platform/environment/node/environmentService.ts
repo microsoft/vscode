@@ -51,6 +51,8 @@ export class EnvironmentService implements IEnvironmentService {
 
 	get execPath(): string { return this._execPath; }
 
+	readonly logsPath: string;
+
 	@memoize
 	get userHome(): string { return os.homedir(); }
 
@@ -134,6 +136,13 @@ export class EnvironmentService implements IEnvironmentService {
 	readonly machineUUID: string;
 
 	constructor(private _args: ParsedArgs, private _execPath: string) {
+		if (!process.env['VSCODE_LOGS']) {
+			const key = new Date().toISOString().replace(/-|:|\.\d+Z$/g, '');
+			process.env['VSCODE_LOGS'] = path.join(this.userDataPath, 'logs', key);
+		}
+
+		this.logsPath = process.env['VSCODE_LOGS'];
+
 		const machineIdPath = path.join(this.userDataPath, 'machineid');
 
 		try {

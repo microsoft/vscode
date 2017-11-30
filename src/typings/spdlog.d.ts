@@ -6,6 +6,7 @@
 declare module 'spdlog' {
 
 	export const version: string;
+	export function setAsyncMode(bufferSize: number, flushInterval: number);
 
 	export class RotatingLogger {
 		constructor(name: string, filename: string, filesize: number, filecount: number);

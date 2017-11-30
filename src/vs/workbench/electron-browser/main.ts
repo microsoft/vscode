@@ -39,9 +39,9 @@ import { URLChannelClient } from 'vs/platform/url/common/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
 import { WorkspacesChannelClient } from 'vs/platform/workspaces/common/workspacesIpc';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 
 import fs = require('fs');
-import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
 const currentWindowId = remote.getCurrentWindow().id;
