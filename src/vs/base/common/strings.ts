@@ -22,7 +22,7 @@ export function isFalsyOrWhitespace(str: string): boolean {
 /**
  * @returns the provided number with the given number of preceding zeros.
  */
-export function pad(n: number, l: number, char: string = '0'): string {
+export function pad(n: number | string, l: number, char: string = '0'): string {
 	let str = '' + n;
 	let r = [str];
 

@@ -17,6 +17,8 @@ import { isWindows } from 'vs/base/common/platform';
 import { app } from 'electron';
 import { basename } from 'path';
 
+const DEBUG_FLAGS_PATTERN = /\s--(inspect|debug)(-brk)?(=([0-9]+))/;
+
 export function printDiagnostics(info: IMainProcessInfo): Promise<any> {
 	return listProcesses(info.mainPID).then(rootProcess => {
 
@@ -145,7 +147,7 @@ function formatProcessList(info: IMainProcessInfo, rootProcess: ProcessItem): st
 
 	const output: string[] = [];
 
-	output.push('CPU %\tMem MB\tProcess');
+	output.push('CPU %\tMem MB\tDbg Prt\tProcess');
 
 	formatProcessItem(mapPidToWindowTitle, output, rootProcess, 0);
 
@@ -168,8 +170,15 @@ function formatProcessItem(mapPidToWindowTitle: Map<number, string>, output: str
 			name = `${name} (${mapPidToWindowTitle.get(item.pid)})`;
 		}
 	}
+
+	const matches = DEBUG_FLAGS_PATTERN.exec(item.cmd);
+	let debugPort = '';
+	if (matches && matches.length === 5 && matches[4]) {
+		debugPort = matches[4];
+	}
+
 	const memory = process.platform === 'win32' ? item.mem : (os.totalmem() * (item.mem / 100));
-	output.push(`${pad(Number(item.load.toFixed(0)), 5, ' ')}\t${pad(Number((memory / MB).toFixed(0)), 6, ' ')}\t${name}`);
+	output.push(`${pad(Number(item.load.toFixed(0)), 5, ' ')}\t${pad(Number((memory / MB).toFixed(0)), 6, ' ')}\t${pad(debugPort, 7, ' ')}\t${name}`);
 
 	// Recurse into children if any
 	if (Array.isArray(item.children)) {
