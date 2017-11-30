@@ -5,7 +5,9 @@
 
 import * as vscode from 'vscode';
 import { CommandManager } from './utils/commandManager';
-import { ReloadTypeScriptProjectsCommand, SelectTypeScriptVersionCommand, ReloadJavaScriptProjectsCommand, RestartTsServerCommand, OpenTsServerLogCommand, TypeScriptGoToProjectConfigCommand, JavaScriptGoToProjectConfigCommand, TypeScriptServiceClientHost } from './typescriptMain';
+import { TypeScriptServiceClientHost } from './typescriptMain';
+import * as commands from './commands';
+
 import TypeScriptTaskProviderManager from './features/taskProvider';
 import { getContributedTypeScriptServerPlugins, TypeScriptServerPlugin } from './utils/plugins';
 import * as ProjectStatus from './utils/projectStatus';
@@ -70,11 +72,11 @@ function registerCommands(
 	commandManager: CommandManager,
 	lazyClientHost: () => TypeScriptServiceClientHost
 ) {
-	commandManager.register(new ReloadTypeScriptProjectsCommand(lazyClientHost));
-	commandManager.register(new ReloadJavaScriptProjectsCommand(lazyClientHost));
-	commandManager.register(new SelectTypeScriptVersionCommand(lazyClientHost));
-	commandManager.register(new OpenTsServerLogCommand(lazyClientHost));
-	commandManager.register(new RestartTsServerCommand(lazyClientHost));
-	commandManager.register(new TypeScriptGoToProjectConfigCommand(lazyClientHost));
-	commandManager.register(new JavaScriptGoToProjectConfigCommand(lazyClientHost));
+	commandManager.register(new commands.ReloadTypeScriptProjectsCommand(lazyClientHost));
+	commandManager.register(new commands.ReloadJavaScriptProjectsCommand(lazyClientHost));
+	commandManager.register(new commands.SelectTypeScriptVersionCommand(lazyClientHost));
+	commandManager.register(new commands.OpenTsServerLogCommand(lazyClientHost));
+	commandManager.register(new commands.RestartTsServerCommand(lazyClientHost));
+	commandManager.register(new commands.TypeScriptGoToProjectConfigCommand(lazyClientHost));
+	commandManager.register(new commands.JavaScriptGoToProjectConfigCommand(lazyClientHost));
 }
