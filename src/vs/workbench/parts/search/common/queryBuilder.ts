@@ -12,9 +12,11 @@ import * as glob from 'vs/base/common/glob';
 import * as paths from 'vs/base/common/paths';
 import * as strings from 'vs/base/common/strings';
 import uri from 'vs/base/common/uri';
+import { untildify } from 'vs/base/common/labels';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IPatternInfo, IQueryOptions, IFolderQuery, ISearchQuery, QueryType, ISearchConfiguration, getExcludes, pathIncludedInQuery } from 'vs/platform/search/common/search';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export interface ISearchPathPattern {
 	searchPath: uri;
@@ -30,8 +32,9 @@ export class QueryBuilder {
 
 	constructor(
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService) {
-	}
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
+		@IEnvironmentService private environmentService: IEnvironmentService
+	) { }
 
 	public text(contentPattern: IPatternInfo, folderResources?: uri[], options?: IQueryOptions): ISearchQuery {
 		return this.query(QueryType.Text, contentPattern, folderResources, options);
@@ -105,7 +108,8 @@ export class QueryBuilder {
 			return paths.isAbsolute(segment) || strings.startsWith(segment, './') || strings.startsWith(segment, '.\\');
 		};
 
-		const segments = splitGlobPattern(pattern);
+		const segments = splitGlobPattern(pattern)
+			.map(segment => untildify(segment, this.environmentService.userHome));
 		const groups = collections.groupBy(segments,
 			segment => isSearchPath(segment) ? 'searchPaths' : 'exprSegments');
 
