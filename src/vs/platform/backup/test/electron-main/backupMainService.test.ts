@@ -34,7 +34,7 @@ suite('BackupMainService', () => {
 	class TestBackupMainService extends BackupMainService {
 
 		constructor(backupHome: string, backupWorkspacesPath: string, configService: TestConfigurationService) {
-			super(environmentService, configService, new LegacyLogMainService('test', environmentService));
+			super(environmentService, configService, new LegacyLogMainService(environmentService));
 
 			this.backupHome = backupHome;
 			this.workspacesJsonPath = backupWorkspacesPath;

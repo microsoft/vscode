@@ -21,7 +21,7 @@ import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiati
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ILogService, LegacyLogMainService } from 'vs/platform/log/common/log';
+import { ILogService, LegacyLogMainService, MultiplexLogService } from 'vs/platform/log/common/log';
 import { StateService } from 'vs/platform/state/node/stateService';
 import { IStateService } from 'vs/platform/state/common/state';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
@@ -46,12 +46,18 @@ import { localize } from 'vs/nls';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { listProcesses, ProcessItem } from 'vs/base/node/ps';
 import { repeat, pad } from 'vs/base/common/strings';
+import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 
 function createServices(args: ParsedArgs): IInstantiationService {
 	const services = new ServiceCollection();
 
-	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, args, process.execPath));
-	services.set(ILogService, new SyncDescriptor(LegacyLogMainService, 'main'));
+	const environmentService = new EnvironmentService(args, process.execPath);
+	const spdlogService = new SpdLogService('main', environmentService);
+	const legacyLogService = new LegacyLogMainService(environmentService);
+	const logService = new MultiplexLogService([legacyLogService, spdlogService]);
+
+	services.set(IEnvironmentService, environmentService);
+	services.set(ILogService, logService);
 	services.set(IWorkspacesMainService, new SyncDescriptor(WorkspacesMainService));
 	services.set(IHistoryMainService, new SyncDescriptor(HistoryMainService));
 	services.set(ILifecycleService, new SyncDescriptor(LifecycleService));

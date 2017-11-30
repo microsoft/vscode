@@ -35,10 +35,7 @@ export class LegacyLogMainService implements ILogService {
 
 	_serviceBrand: any;
 
-	constructor(
-		processName: string,
-		@IEnvironmentService private environmentService: IEnvironmentService
-	) { }
+	constructor( @IEnvironmentService private environmentService: IEnvironmentService) { }
 
 	trace(message: string, ...args: any[]): void {
 		// console.log(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, ...args);
@@ -64,6 +61,48 @@ export class LegacyLogMainService implements ILogService {
 
 	critical(message: string, ...args: any[]): void {
 		// console.log(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, ...args);
+	}
+}
+
+export class MultiplexLogService implements ILogService {
+	_serviceBrand: any;
+
+	constructor(private logServices: ILogService[]) { }
+
+	trace(message: string, ...args: any[]): void {
+		for (const logService of this.logServices) {
+			logService.trace(message, ...args);
+		}
+	}
+
+	debug(message: string, ...args: any[]): void {
+		for (const logService of this.logServices) {
+			logService.debug(message, ...args);
+		}
+	}
+
+	info(message: string, ...args: any[]): void {
+		for (const logService of this.logServices) {
+			logService.info(message, ...args);
+		}
+	}
+
+	warn(message: string, ...args: any[]): void {
+		for (const logService of this.logServices) {
+			logService.warn(message, ...args);
+		}
+	}
+
+	error(message: string | Error, ...args: any[]): void {
+		for (const logService of this.logServices) {
+			logService.error(message, ...args);
+		}
+	}
+
+	critical(message: string | Error, ...args: any[]): void {
+		for (const logService of this.logServices) {
+			logService.critical(message, ...args);
+		}
 	}
 }
 
