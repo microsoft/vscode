@@ -326,7 +326,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				}
 				data.activationTime.title = title;
 				if (!isFalsyOrEmpty(element.status.runtimeErrors)) {
-					data.msgIcon.className = 'octicon octicon-error';
+					data.msgIcon.className = 'octicon octicon-bug';
 					data.msgLabel.textContent = nls.localize('errors', "{0} uncaught errors", element.status.runtimeErrors.length);
 				} else if (element.status.messages && element.status.messages.length > 0) {
 					data.msgIcon.className = 'octicon octicon-alert';
