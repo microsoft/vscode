@@ -142,6 +142,7 @@ export class RatingsWidget implements IDisposable {
 
 			const count = append(this.container, $('span.count'));
 			count.textContent = String(rating);
+			this.container.title = `Rated by ${this.extension.ratingCount} users`;
 		} else {
 			for (let i = 1; i <= 5; i++) {
 				if (rating >= i) {
