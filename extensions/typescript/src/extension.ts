@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { CommandManager } from './utils/commandManager';
 import { ReloadTypeScriptProjectsCommand, SelectTypeScriptVersionCommand, ReloadJavaScriptProjectsCommand, RestartTsServerCommand, OpenTsServerLogCommand, TypeScriptGoToProjectConfigCommand, JavaScriptGoToProjectConfigCommand, TypeScriptServiceClientHost } from './typescriptMain';
 import TypeScriptTaskProviderManager from './features/taskProvider';
-import { getContributedTypeScriptServerPlugins } from './utils/plugins';
+import { getContributedTypeScriptServerPlugins, TypeScriptServerPlugin } from './utils/plugins';
 import * as ProjectStatus from './utils/projectStatus';
 import * as languageModeIds from './utils/languageModeIds';
 import * as languageConfigurations from './utils/languageConfigurations';
@@ -19,33 +19,9 @@ export function activate(context: vscode.ExtensionContext): void {
 	const commandManager = new CommandManager();
 	context.subscriptions.push(commandManager);
 
-	const lazyClientHost = (() => {
-		let clientHost: TypeScriptServiceClientHost | undefined;
-		return () => {
-			if (!clientHost) {
-				clientHost = new TypeScriptServiceClientHost(standardLanguageDescriptions, context.workspaceState, plugins, commandManager);
-				context.subscriptions.push(clientHost);
+	const lazyClientHost = createLazyClientHost(context, plugins, commandManager);
 
-				const host = clientHost;
-				clientHost.serviceClient.onReady().then(() => {
-					context.subscriptions.push(ProjectStatus.create(host.serviceClient, host.serviceClient.telemetryReporter,
-						path => new Promise<boolean>(resolve => setTimeout(() => resolve(host.handles(path)), 750)),
-						context.workspaceState));
-				}, () => {
-					// Nothing to do here. The client did show a message;
-				});
-			}
-			return clientHost;
-		};
-	})();
-
-	commandManager.register(new ReloadTypeScriptProjectsCommand(lazyClientHost));
-	commandManager.register(new ReloadJavaScriptProjectsCommand(lazyClientHost));
-	commandManager.register(new SelectTypeScriptVersionCommand(lazyClientHost));
-	commandManager.register(new OpenTsServerLogCommand(lazyClientHost));
-	commandManager.register(new RestartTsServerCommand(lazyClientHost));
-	commandManager.register(new TypeScriptGoToProjectConfigCommand(lazyClientHost));
-	commandManager.register(new JavaScriptGoToProjectConfigCommand(lazyClientHost));
+	registerCommands(commandManager, lazyClientHost);
 
 	context.subscriptions.push(new TypeScriptTaskProviderManager(() => lazyClientHost().serviceClient));
 
@@ -67,4 +43,38 @@ export function activate(context: vscode.ExtensionContext): void {
 			break;
 		}
 	}
+}
+
+function createLazyClientHost(
+	context: vscode.ExtensionContext,
+	plugins: TypeScriptServerPlugin[],
+	commandManager: CommandManager
+) {
+	let clientHost: TypeScriptServiceClientHost | undefined;
+	return () => {
+		if (!clientHost) {
+			clientHost = new TypeScriptServiceClientHost(standardLanguageDescriptions, context.workspaceState, plugins, commandManager);
+			context.subscriptions.push(clientHost);
+			const host = clientHost;
+			clientHost.serviceClient.onReady().then(() => {
+				context.subscriptions.push(ProjectStatus.create(host.serviceClient, host.serviceClient.telemetryReporter, path => new Promise<boolean>(resolve => setTimeout(() => resolve(host.handles(path)), 750)), context.workspaceState));
+			}, () => {
+				// Nothing to do here. The client did show a message;
+			});
+		}
+		return clientHost;
+	};
+}
+
+function registerCommands(
+	commandManager: CommandManager,
+	lazyClientHost: () => TypeScriptServiceClientHost
+) {
+	commandManager.register(new ReloadTypeScriptProjectsCommand(lazyClientHost));
+	commandManager.register(new ReloadJavaScriptProjectsCommand(lazyClientHost));
+	commandManager.register(new SelectTypeScriptVersionCommand(lazyClientHost));
+	commandManager.register(new OpenTsServerLogCommand(lazyClientHost));
+	commandManager.register(new RestartTsServerCommand(lazyClientHost));
+	commandManager.register(new TypeScriptGoToProjectConfigCommand(lazyClientHost));
+	commandManager.register(new JavaScriptGoToProjectConfigCommand(lazyClientHost));
 }
