@@ -314,7 +314,7 @@ export class TabsTitleControl extends TitleControl {
 
 			const tabOptions = this.editorGroupService.getTabOptions();
 
-			['off', 'left'].forEach(option => {
+			['off', 'left', 'right'].forEach(option => {
 				const domAction = tabOptions.tabCloseButton === option ? DOM.addClass : DOM.removeClass;
 				domAction(tabContainer, `close-button-${option}`);
 			});

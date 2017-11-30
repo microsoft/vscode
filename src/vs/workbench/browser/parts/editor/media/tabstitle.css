@@ -51,14 +51,14 @@
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-shrink {
-	min-width: 80px;
+	min-width: 60px;
 	flex-basis: 0; /* all tabs are even */
 	flex-grow: 1; /* all tabs grow even */
 	max-width: fit-content;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-shrink.tab.close-button-off {
-	min-width: 60px;
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-shrink.close-button-left {
+	min-width: 80px; /* make more room for close button when it shows to the left */
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.dragged {
@@ -97,6 +97,15 @@
 	margin-top: auto;
 	margin-bottom: auto;
 	width: 28px;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-right.sizing-shrink > .tab-close {
+	flex: 0;
+	overflow: hidden; /* let the close button be pushed out of view when sizing is set to shrink to make more room... */
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-right.sizing-shrink:hover > .tab-close {
+	overflow: visible; /* ...but still show the close button on hover */
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-off > .tab-close {
@@ -150,8 +159,11 @@
 /* No Tab Close Button */
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-off {
-	padding-right: 12px;
-	transition: padding-right ease-in-out 100ms;
+	padding-right: 12px; /* give a little bit more room if close button is off... */
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-off.sizing-shrink {
+	padding-right: 0; /* ...but not when shrinking is enabled */
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-off.dirty {
