@@ -156,7 +156,9 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 						return service.getMainProcessInfo().then(info => {
 							return listProcesses(info.mainPID).then(rootProcess => {
 								console.log(formatProcessList(info, rootProcess));
-								console.log();
+
+								console.log('\n');
+								console.log('\n');
 
 								let stats = collectWorkspaceStats('.', ['node_modules', '.git']); // TODO call for each root folder
 								console.log(formatWorkspaceStats(stats));
@@ -228,20 +230,22 @@ function formatWorkspaceStats(workspaceStats: WorkspaceStats): string {
 		line += item;
 	};
 
-	output.push('Workspace statistics');
+	output.push('Workspace:');
 	const lineLength = 60;
-	let line = '  Configuration files:';
+
+	let line = '  File types:';
 	let col = 0;
-	workspaceStats.configFiles.forEach((item) => {
-		appendAndWrap(item.name, item.value);
-	});
-	output.push(line);
-	line = '  File Types:';
-	col = 0;
 	workspaceStats.fileTypes.forEach((item) => {
 		if (item.value > 20) {
 			appendAndWrap(item.name, item.value);
 		}
+	});
+	output.push(line);
+	output.push('');
+	line = '  Configuration files:';
+	col = 0;
+	workspaceStats.configFiles.forEach((item) => {
+		appendAndWrap(item.name, item.value);
 	});
 	output.push(line);
 	return output.join('\n');
