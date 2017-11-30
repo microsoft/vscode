@@ -126,18 +126,18 @@ export class EnvironmentService implements IEnvironmentService {
 		if (this._args.log) {
 			const logLevel = this._args.log.toLowerCase();
 			switch (logLevel) {
-				case 'critical':
-					return LogLevel.CRITICAL;
-				case 'error':
-					return LogLevel.ERROR;
-				case 'warn':
-					return LogLevel.WARN;
-				case 'info':
-					return LogLevel.INFO;
-				case 'debug':
-					return LogLevel.DEBUG;
 				case 'verbose':
 					return LogLevel.TRACE;
+				case 'debug':
+					return LogLevel.DEBUG;
+				case 'info':
+					return LogLevel.INFO;
+				case 'warn':
+					return LogLevel.WARN;
+				case 'error':
+					return LogLevel.ERROR;
+				case 'critical':
+					return LogLevel.CRITICAL;
 				case 'off':
 					return LogLevel.OFF;
 			}

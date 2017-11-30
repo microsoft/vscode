@@ -12,12 +12,12 @@ import { createDecorator } from 'vs/base/common/decorators';
 export const ILogService = createServiceDecorator<ILogService>('logService');
 
 export enum LogLevel {
-	CRITICAL,
-	ERROR,
-	WARN,
-	INFO,
-	DEBUG,
 	TRACE,
+	DEBUG,
+	INFO,
+	WARN,
+	ERROR,
+	CRITICAL,
 	OFF
 }
 
