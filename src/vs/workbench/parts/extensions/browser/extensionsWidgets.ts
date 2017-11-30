@@ -10,6 +10,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IExtension, IExtensionsWorkbenchService } from '../common/extensions';
 import { append, $, addClass } from 'vs/base/browser/dom';
 import * as platform from 'vs/base/common/platform';
+import { localize } from 'vs/nls';
 
 export interface IOptions {
 	extension?: IExtension;
@@ -142,7 +143,7 @@ export class RatingsWidget implements IDisposable {
 
 			const count = append(this.container, $('span.count'));
 			count.textContent = String(rating);
-			this.container.title = `Rated by ${this.extension.ratingCount} users`;
+			this.container.title = localize('ratedByUsers', "Rated by {0} users", this.extension.ratingCount);
 		} else {
 			for (let i = 1; i <= 5; i++) {
 				if (rating >= i) {
