@@ -56,6 +56,9 @@ function createServices(args: ParsedArgs): IInstantiationService {
 	const legacyLogService = new LegacyLogMainService(environmentService);
 	const logService = new MultiplexLogService([legacyLogService, spdlogService]);
 
+	// Eventually cleanup
+	setTimeout(() => spdlogService.cleanup().then(null, err => console.error(err)), 10000);
+
 	services.set(IEnvironmentService, environmentService);
 	services.set(ILogService, logService);
 	services.set(IWorkspacesMainService, new SyncDescriptor(WorkspacesMainService));

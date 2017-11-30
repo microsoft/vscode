@@ -11,6 +11,8 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { RotatingLogger, setAsyncMode } from 'spdlog';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { fromNodeEventEmitter } from 'vs/base/common/event';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { readdir, rimraf } from 'vs/base/node/pfs';
 
 export class SpdLogService implements ILogService {
 
@@ -21,7 +23,7 @@ export class SpdLogService implements ILogService {
 
 	constructor(
 		processName: string,
-		@IEnvironmentService environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		setAsyncMode(8192, 2000);
 
@@ -29,6 +31,20 @@ export class SpdLogService implements ILogService {
 		this.logger = new RotatingLogger(processName, logfilePath, 1024 * 1024 * 5, 6);
 
 		fromNodeEventEmitter(process, 'exit')(() => this.logger.flush(), null, this.disposables);
+	}
+
+	/**
+	 * Cleans up older logs, while keeping the 10 most recent ones.
+	 */
+	async cleanup(): TPromise<void> {
+		const currentLog = path.basename(this.environmentService.logsPath);
+		const logsRoot = path.dirname(this.environmentService.logsPath);
+		const children = await readdir(logsRoot);
+		const allSessions = children.filter(name => /^\d{8}T\d{6}$/.test(name));
+		const oldSessions = allSessions.sort().filter((d, i) => d !== currentLog);
+		const toDelete = oldSessions.slice(0, Math.max(0, oldSessions.length - 9));
+
+		await TPromise.join(toDelete.map(name => rimraf(path.join(logsRoot, name))));
 	}
 
 	// TODO, what about ARGS?
