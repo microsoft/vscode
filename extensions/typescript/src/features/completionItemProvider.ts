@@ -378,13 +378,13 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		});
 	}
 
-	private isValidFunctionCompletionContext(filepath: string, position: Position): Promise<boolean> {
-		const args = vsPositionToTsFileLocation(filepath, position);
+	private async isValidFunctionCompletionContext(filepath: string, position: Position): Promise<boolean> {
 		// Workaround for https://github.com/Microsoft/TypeScript/issues/12677
 		// Don't complete function calls inside of destructive assigments or imports
-		return this.client.execute('quickinfo', args).then(infoResponse => {
+		try {
+			const infoResponse = await this.client.execute('quickinfo', vsPositionToTsFileLocation(filepath, position));
 			const info = infoResponse.body;
-			switch (info && info.kind as string) {
+			switch (info && info.kind) {
 				case 'var':
 				case 'let':
 				case 'const':
@@ -393,9 +393,9 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 				default:
 					return true;
 			}
-		}, () => {
+		} catch (e) {
 			return true;
-		});
+		}
 	}
 
 	private snippetForFunctionCall(detail: CompletionEntryDetails): SnippetString {
