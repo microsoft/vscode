@@ -132,7 +132,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		this.updateSize();
 		this.list = new WorkbenchList<OpenEditor | IEditorGroup>(container, delegate, [
 			new EditorGroupRenderer(this.keybindingService, this.instantiationService),
-			new OpenEditorRenderer(this.instantiationService, this.keybindingService, this.configurationService)
+			new OpenEditorRenderer(this.instantiationService, this.keybindingService, this.configurationService, this.editorGroupService)
 		], {
 				identityProvider: element => element instanceof OpenEditor ? element.getId() : element.id.toString(),
 				multipleSelectionSupport: false
@@ -377,6 +377,7 @@ interface IOpenEditorTemplateData {
 	container: HTMLElement;
 	root: EditorLabel;
 	actionBar: ActionBar;
+	openEditor: OpenEditor;
 	toDispose: IDisposable[];
 }
 
@@ -448,11 +449,13 @@ class EditorGroupRenderer implements IRenderer<IEditorGroup, IEditorGroupTemplat
 
 class OpenEditorRenderer implements IRenderer<OpenEditor, IOpenEditorTemplateData> {
 	static ID = 'openeditor';
+	public static DRAGGED_OPEN_EDITOR: OpenEditor;
 
 	constructor(
 		private instantiationService: IInstantiationService,
 		private keybindingService: IKeybindingService,
-		private configurationService: IConfigurationService
+		private configurationService: IConfigurationService,
+		private editorGroupService: IEditorGroupService
 	) {
 		// noop
 	}
@@ -465,6 +468,7 @@ class OpenEditorRenderer implements IRenderer<OpenEditor, IOpenEditorTemplateDat
 		const editorTemplate: IOpenEditorTemplateData = Object.create(null);
 		editorTemplate.container = container;
 		editorTemplate.actionBar = new ActionBar(container);
+		container.draggable = true;
 
 		const closeEditorAction = this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL);
 		const key = this.keybindingService.lookupKeybinding(closeEditorAction.id);
@@ -474,10 +478,35 @@ class OpenEditorRenderer implements IRenderer<OpenEditor, IOpenEditorTemplateDat
 
 		editorTemplate.toDispose = [];
 
+		editorTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_START, (e: DragEvent) => {
+			OpenEditorRenderer.DRAGGED_OPEN_EDITOR = editorTemplate.openEditor;
+		}));
+		editorTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_OVER, (e: DragEvent) => {
+			dom.addClass(container, 'focused');
+		}));
+		editorTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_LEAVE, (e: DragEvent) => {
+			dom.removeClass(container, 'focused');
+		}));
+		editorTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DROP, () => {
+			dom.removeClass(container, 'focused');
+			if (OpenEditorRenderer.DRAGGED_OPEN_EDITOR) {
+				const model = this.editorGroupService.getStacksModel();
+				const positionOfTargetGroup = model.positionOfGroup(editorTemplate.openEditor.editorGroup);
+				const index = editorTemplate.openEditor.editorGroup.indexOf(editorTemplate.openEditor.editorInput);
+
+				this.editorGroupService.moveEditor(OpenEditorRenderer.DRAGGED_OPEN_EDITOR.editorInput,
+					model.positionOfGroup(OpenEditorRenderer.DRAGGED_OPEN_EDITOR.editorGroup), positionOfTargetGroup, { index });
+			}
+		}));
+		editorTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_END, () => {
+			OpenEditorRenderer.DRAGGED_OPEN_EDITOR = undefined;
+		}));
+
 		return editorTemplate;
 	}
 
 	renderElement(editor: OpenEditor, index: number, templateData: IOpenEditorTemplateData): void {
+		templateData.openEditor = editor;
 		editor.isDirty() ? dom.addClass(templateData.container, 'dirty') : dom.removeClass(templateData.container, 'dirty');
 		templateData.root.setEditor(editor.editorInput, {
 			italic: editor.isPreview(),
@@ -587,86 +616,3 @@ export class ActionProvider extends ContributableActionProvider {
 		});
 	}
 }
-
-// export class DragAndDrop extends DefaultDragAndDrop {
-
-// 	constructor(
-// 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-// 		@IEditorGroupService private editorGroupService: IEditorGroupService
-// 	) {
-// 		super();
-// 	}
-
-// 	public getDragURI(tree: ITree, element: OpenEditor): string {
-// 		if (!(element instanceof OpenEditor)) {
-// 			return null;
-// 		}
-
-// 		const resource = element.getResource();
-// 		// Some open editors do not have a resource so use the name as drag identifier instead #7021
-// 		return resource ? resource.toString() : element.editorInput.getName();
-// 	}
-
-// 	public getDragLabel(tree: ITree, elements: OpenEditor[]): string {
-// 		if (elements.length > 1) {
-// 			return String(elements.length);
-// 		}
-
-// 		return elements[0].editorInput.getName();
-// 	}
-
-// 	public onDragOver(tree: ITree, data: IDragAndDropData, target: OpenEditor | EditorGroup, originalEvent: DragMouseEvent): IDragOverReaction {
-// 		if (!(target instanceof OpenEditor) && !(target instanceof EditorGroup)) {
-// 			return DRAG_OVER_REJECT;
-// 		}
-
-// 		if (data instanceof ExternalElementsDragAndDropData) {
-// 			let resource = explorerItemToFileResource(data.getData()[0]);
-
-// 			if (!resource) {
-// 				return DRAG_OVER_REJECT;
-// 			}
-
-// 			return resource.isDirectory ? DRAG_OVER_REJECT : DRAG_OVER_ACCEPT;
-// 		}
-
-// 		if (data instanceof DesktopDragAndDropData) {
-// 			return DRAG_OVER_REJECT;
-// 		}
-
-// 		if (!(data instanceof ElementsDragAndDropData)) {
-// 			return DRAG_OVER_REJECT;
-// 		}
-
-// 		return DRAG_OVER_ACCEPT;
-// 	}
-
-// 	public drop(tree: ITree, data: IDragAndDropData, target: OpenEditor | EditorGroup, originalEvent: DragMouseEvent): void {
-// 		let draggedElement: OpenEditor | EditorGroup;
-// 		const model = this.editorGroupService.getStacksModel();
-// 		const positionOfTargetGroup = model.positionOfGroup(target instanceof EditorGroup ? target : target.editorGroup);
-// 		const index = target instanceof OpenEditor ? target.editorGroup.indexOf(target.editorInput) : undefined;
-// 		// Support drop from explorer viewer
-// 		if (data instanceof ExternalElementsDragAndDropData) {
-// 			let resource = explorerItemToFileResource(data.getData()[0]);
-// 			(resource as IResourceInput).options = { index, pinned: true };
-// 			this.editorService.openEditor(resource, positionOfTargetGroup).done(null, errors.onUnexpectedError);
-// 		}
-
-// 		// Drop within viewer
-// 		else {
-// 			let source: OpenEditor | EditorGroup[] = data.getData();
-// 			if (Array.isArray(source)) {
-// 				draggedElement = source[0];
-// 			}
-// 		}
-
-// 		if (draggedElement) {
-// 			if (draggedElement instanceof OpenEditor) {
-// 				this.editorGroupService.moveEditor(draggedElement.editorInput, model.positionOfGroup(draggedElement.editorGroup), positionOfTargetGroup, { index });
-// 			} else {
-// 				this.editorGroupService.moveGroup(model.positionOfGroup(draggedElement), positionOfTargetGroup);
-// 			}
-// 		}
-// 	}
-// }
