@@ -8,7 +8,7 @@
 import * as path from 'path';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { RotatingLogger, setAsyncMode, LogLevel as SpdLogLevel } from 'spdlog';
+import { RotatingLogger, setAsyncMode } from 'spdlog';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { fromNodeEventEmitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -20,6 +20,7 @@ export class SpdLogService implements ILogService {
 
 	private logger: RotatingLogger;
 	private disposables: IDisposable[] = [];
+	private formatRegexp = /{(\d+)}/g;
 
 	constructor(
 		processName: string,
@@ -49,55 +50,57 @@ export class SpdLogService implements ILogService {
 	}
 
 	setLevel(logLevel: LogLevel): void {
-		this.logger.setLevel(this.getLogLevel(logLevel));
+		this.logger.setLevel(logLevel);
 	}
 
 	// TODO, what about ARGS?
 	trace(message: string, ...args: any[]): void {
-		this.logger.trace(message);
+		this.logger.trace(this.format(message, args));
 	}
 
 	debug(message: string, ...args: any[]): void {
-		this.logger.debug(message);
+		this.logger.debug(this.format(message, args));
 	}
 
 	info(message: string, ...args: any[]): void {
-		this.logger.info(message);
+		this.logger.info(this.format(message, args));
 	}
 
 	warn(message: string, ...args: any[]): void {
-		this.logger.warn(message);
+		this.logger.warn(this.format(message, args));
 	}
 
 	error(arg: string | Error, ...args: any[]): void {
 		const message = arg instanceof Error ? arg.stack : arg;
-		this.logger.error(message);
+		this.logger.error(this.format(message, args));
 	}
 
 	critical(message: string, ...args: any[]): void {
-		this.logger.critical(message);
+		this.logger.critical(this.format(message, args));
 	}
 
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
 	}
 
-	private getLogLevel(logLevel: LogLevel): SpdLogLevel {
-		switch (logLevel) {
-			case LogLevel.CRITICAL:
-				return SpdLogLevel.CRITICAL;
-			case LogLevel.ERROR:
-				return SpdLogLevel.ERROR;
-			case LogLevel.WARN:
-				return SpdLogLevel.WARN;
-			case LogLevel.INFO:
-				return SpdLogLevel.INFO;
-			case LogLevel.DEBUG:
-				return SpdLogLevel.DEBUG;
-			case LogLevel.TRACE:
-				return SpdLogLevel.TRACE;
-			case LogLevel.OFF:
-				return SpdLogLevel.OFF;
+	private format(value: string, ...args: any[]): string {
+		if (args.length) {
+			value = value.replace(this.formatRegexp, (match, group) => {
+				let idx = parseInt(group, 10);
+				return isNaN(idx) || idx < 0 || idx >= args.length ?
+					match :
+					this.toStringValue(args[idx]);
+			});
 		}
+		return value;
+	}
+
+	private toStringValue(value: any): string {
+		if (typeof value === 'object') {
+			try {
+				return JSON.stringify(value);
+			} catch (e) { }
+		}
+		return value;
 	}
 }
