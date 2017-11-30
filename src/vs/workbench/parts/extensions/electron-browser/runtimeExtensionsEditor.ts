@@ -40,6 +40,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { memoize } from 'vs/base/common/decorators';
 import { StatusbarAlignment, IStatusbarRegistry, StatusbarItemDescriptor, Extensions, IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 
 
 interface IExtensionProfileInformation {
@@ -324,8 +325,10 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					title = nls.localize('workspaceGenericActivation', "Activated on {0}", activationTimes.activationEvent);
 				}
 				data.activationTime.title = title;
-
-				if (element.status.messages && element.status.messages.length > 0) {
+				if (!isFalsyOrEmpty(element.status.runtimeErrors)) {
+					data.msgIcon.className = 'octicon octicon-error';
+					data.msgLabel.textContent = nls.localize('errors', "{0} uncaught errors", element.status.runtimeErrors.length);
+				} else if (element.status.messages && element.status.messages.length > 0) {
 					data.msgIcon.className = 'octicon octicon-alert';
 					data.msgLabel.textContent = element.status.messages[0].message;
 				} else {
