@@ -29,6 +29,7 @@ export class SpdLogService implements ILogService {
 
 		const logfilePath = path.join(environmentService.logsPath, `${processName}.log`);
 		this.logger = new RotatingLogger(processName, logfilePath, 1024 * 1024 * 5, 6);
+		this.logger.setLevel(environmentService.logLevel);
 
 		fromNodeEventEmitter(process, 'exit')(() => this.logger.flush(), null, this.disposables);
 	}

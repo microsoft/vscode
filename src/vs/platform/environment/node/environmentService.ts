@@ -14,6 +14,7 @@ import { generateUuid, isUUID } from 'vs/base/common/uuid';
 import { memoize } from 'vs/base/common/decorators';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
+import { LogLevel } from 'vs/platform/log/common/log';
 
 // Read this before there's any chance it is overwritten
 // Related to https://github.com/Microsoft/vscode/issues/30624
@@ -116,6 +117,34 @@ export class EnvironmentService implements IEnvironmentService {
 
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
 	get verbose(): boolean { return this._args.verbose; }
+
+	@memoize
+	get logLevel(): LogLevel {
+		if (this.verbose) {
+			return LogLevel.TRACE;
+		}
+		if (this._args.log) {
+			const logLevel = this._args.log.toLowerCase();
+			switch (logLevel) {
+				case 'critical':
+					return LogLevel.CRITICAL;
+				case 'error':
+					return LogLevel.ERROR;
+				case 'warn':
+					return LogLevel.WARN;
+				case 'info':
+					return LogLevel.INFO;
+				case 'debug':
+					return LogLevel.DEBUG;
+				case 'verbose':
+					return LogLevel.TRACE;
+				case 'off':
+					return LogLevel.OFF;
+			}
+		}
+		return LogLevel.INFO;
+	}
+
 	get wait(): boolean { return this._args.wait; }
 	get logExtensionHostCommunication(): boolean { return this._args.logExtensionHostCommunication; }
 
