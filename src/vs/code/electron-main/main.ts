@@ -9,14 +9,13 @@ import { app, dialog } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import product from 'vs/platform/node/product';
-import pkg from 'vs/platform/node/package';
 import { parseMainProcessArgv } from 'vs/platform/environment/node/argv';
 import { mkdirp } from 'vs/base/node/pfs';
 import { validatePaths } from 'vs/code/node/paths';
 import { LifecycleService, ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ILaunchChannel, LaunchChannelClient, IMainProcessInfo } from 'vs/code/electron-main/launch';
+import { ILaunchChannel, LaunchChannelClient } from 'vs/code/electron-main/launch';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -35,8 +34,6 @@ import { RequestService } from 'vs/platform/request/electron-main/requestService
 import { IURLService } from 'vs/platform/url/common/url';
 import { URLService } from 'vs/platform/url/electron-main/urlService';
 import * as fs from 'original-fs';
-import * as os from 'os';
-import { virtualMachineHint } from 'vs/base/node/id';
 import { CodeApplication } from 'vs/code/electron-main/app';
 import { HistoryMainService } from 'vs/platform/history/electron-main/historyMainService';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
@@ -44,9 +41,7 @@ import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/work
 import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { localize } from 'vs/nls';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { listProcesses, ProcessItem } from 'vs/base/node/ps';
-import { collectWorkspaceStats, WorkspaceStats } from 'vs/base/node/workspaceStats';
-import { repeat, pad } from 'vs/base/common/strings';
+import { printDiagnostics } from 'vs/code/electron-main/diagnostics';
 
 function createServices(args: ParsedArgs): IInstantiationService {
 	const services = new ServiceCollection();
@@ -154,17 +149,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 					// Process Info
 					if (environmentService.args.ps) {
 						return service.getMainProcessInfo().then(info => {
-							return listProcesses(info.mainPID).then(rootProcess => {
-								console.log(formatProcessList(info, rootProcess));
-
-								console.log('\n');
-								console.log('\n');
-
-								let stats = collectWorkspaceStats('.', ['node_modules', '.git']); // TODO call for each root folder
-								console.log(formatWorkspaceStats(stats));
-
-								return TPromise.wrapError(new ExpectedError());
-							});
+							return printDiagnostics(info).then(() => TPromise.wrapError(new ExpectedError()));
 						});
 					}
 
@@ -212,95 +197,6 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	}
 
 	return setup(true);
-}
-
-function formatWorkspaceStats(workspaceStats: WorkspaceStats): string {
-	let output: string[] = [];
-
-	let appendAndWrap = (index: string, value: number) => {
-		let item = ` ${index}(${value})`;
-		if (col + item.length > lineLength) {
-			output.push(line);
-			line = '    ';
-			col = line.length;
-		}
-		else {
-			col += item.length;
-		}
-		line += item;
-	};
-
-	output.push('Workspace:');
-	const lineLength = 60;
-
-	let line = '  File types:';
-	let col = 0;
-	workspaceStats.fileTypes.forEach((item) => {
-		if (item.value > 20) {
-			appendAndWrap(item.name, item.value);
-		}
-	});
-	output.push(line);
-	output.push('');
-	line = '  Configuration files:';
-	col = 0;
-	workspaceStats.configFiles.forEach((item) => {
-		appendAndWrap(item.name, item.value);
-	});
-	output.push(line);
-	return output.join('\n');
-}
-
-function formatProcessList(info: IMainProcessInfo, rootProcess: ProcessItem): string {
-	const mapPidToWindowTitle = new Map<number, string>();
-	info.windows.forEach(window => mapPidToWindowTitle.set(window.pid, window.title));
-
-	const MB = 1024 * 1024;
-	const GB = 1024 * MB;
-
-	const output: string[] = [];
-	output.push(`Version:          ${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`);
-	output.push(`OS Version:       ${os.type()} ${os.arch()} ${os.release()})`);
-	const cpus = os.cpus();
-	if (cpus && cpus.length > 0) {
-		output.push(`CPUs:             ${cpus[0].model} (${cpus.length} x ${cpus[0].speed})`);
-	}
-	output.push(`Memory (System):  ${(os.totalmem() / GB).toFixed(2)}GB (${(os.freemem() / GB).toFixed(2)}GB free)`);
-	if (!platform.isWindows) {
-		output.push(`Load (avg):       ${os.loadavg().map(l => Math.round(l)).join(', ')}`); // only provided on Linux/macOS
-	}
-	output.push(`VM:               ${Math.round((virtualMachineHint.value() * 100))}%`);
-	output.push(`Screen Reader:    ${app.isAccessibilitySupportEnabled() ? 'yes' : 'no'}`);
-	output.push('');
-	output.push('CPU %\tMem MB\tProcess');
-
-	formatProcessItem(mapPidToWindowTitle, output, rootProcess, 0);
-
-	return output.join('\n');
-}
-
-function formatProcessItem(mapPidToWindowTitle: Map<number, string>, output: string[], item: ProcessItem, indent: number): void {
-	const isRoot = (indent === 0);
-
-	const MB = 1024 * 1024;
-
-	// Format name with indent
-	let name: string;
-	if (isRoot) {
-		name = `${product.applicationName} main`;
-	} else {
-		name = `${repeat('  ', indent)} ${item.name}`;
-
-		if (item.name === 'renderer') {
-			name = `${name} (${mapPidToWindowTitle.get(item.pid)})`;
-		}
-	}
-	output.push(`${pad(Number(item.load.toFixed(0)), 5, ' ')}\t${pad(Number(((os.totalmem() * (item.mem / 100)) / MB).toFixed(0)), 6, ' ')}\t${name}`);
-
-	// Recurse into children if any
-	if (Array.isArray(item.children)) {
-		item.children.forEach(child => formatProcessItem(mapPidToWindowTitle, output, child, indent + 1));
-	}
 }
 
 function showStartupWarningDialog(message: string, detail: string): void {
