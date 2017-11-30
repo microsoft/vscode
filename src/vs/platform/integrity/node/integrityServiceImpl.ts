@@ -22,7 +22,7 @@ interface IStorageData {
 }
 
 class IntegrityStorage {
-	private static KEY = 'integrityService';
+	private static readonly KEY = 'integrityService';
 
 	private _storageService: IStorageService;
 	private _value: IStorageData;

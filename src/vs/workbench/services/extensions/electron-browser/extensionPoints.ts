@@ -16,7 +16,7 @@ import json = require('vs/base/common/json');
 import Types = require('vs/base/common/types');
 import { isValidExtensionDescription } from 'vs/platform/extensions/node/extensionValidator';
 import * as semver from 'semver';
-import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 
 const MANIFEST_FILE = 'package.json';
@@ -59,7 +59,12 @@ class ExtensionManifestParser extends ExtensionManifestHandler {
 	public parse(): TPromise<IExtensionDescription> {
 		return pfs.readFile(this._absoluteManifestPath).then((manifestContents) => {
 			try {
-				return JSON.parse(manifestContents.toString());
+				const manifest = JSON.parse(manifestContents.toString());
+				if (manifest.__metadata) {
+					manifest.uuid = manifest.__metadata.id;
+				}
+				delete manifest.__metadata;
+				return manifest;
 			} catch (e) {
 				this._log.error(this._absoluteFolderPath, nls.localize('jsonParseFail', "Failed to parse {0}: {1}.", this._absoluteManifestPath, getParseErrorMessage(e.message)));
 			}
@@ -196,7 +201,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 			if (literal.hasOwnProperty(key)) {
 				processEntry(literal, key);
 			}
-		};
+		}
 	}
 }
 

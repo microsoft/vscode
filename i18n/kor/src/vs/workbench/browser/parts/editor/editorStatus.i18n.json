@@ -52,6 +52,5 @@
 	"screenReaderDetectedExplanation.question": "VS Code를 작동하기 위해 화면 읽기 프로그램을 사용하십니까?",
 	"screenReaderDetectedExplanation.answerYes": "예",
 	"screenReaderDetectedExplanation.answerNo": "아니요",
-	"screenReaderDetectedExplanation.body1": "VS Code가 이제 화면 읽기 프로그램과 사용하는 데 최적화되었습니다.",
-	"screenReaderDetectedExplanation.body2": "일부 편집기 기능에는 자동 줄바꿈, 접기, 자동 닫는 대괄호 등 여러 가지 동작이 있습니다. "
+	"screenReaderDetectedExplanation.body1": "VS Code가 이제 화면 읽기 프로그램과 사용하는 데 최적화되었습니다."
 }

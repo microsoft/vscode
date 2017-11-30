@@ -11,7 +11,7 @@ import Event from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { StrictResourceMap } from 'vs/base/common/map';
 
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
@@ -57,12 +57,18 @@ export interface IConfigurationService {
 
 	getConfigurationData(): IConfigurationData;
 
-	getConfiguration<T>(): T;
-	getConfiguration<T>(section: string): T;
-	getConfiguration<T>(overrides: IConfigurationOverrides): T;
-	getConfiguration<T>(section: string, overrides: IConfigurationOverrides): T;
-
-	getValue<T>(key: string, overrides?: IConfigurationOverrides): T;
+	/**
+	 * Fetches the value of the section for the given overrides.
+	 * Value can be of native type or an object keyed off the section name.
+	 *
+	 * @param section - Section of the configuraion. Can be `null` or `undefined`.
+	 * @param overrides - Overrides that has to be applied while fetching
+	 *
+	 */
+	getValue<T>(): T;
+	getValue<T>(section: string): T;
+	getValue<T>(overrides: IConfigurationOverrides): T;
+	getValue<T>(section: string, overrides: IConfigurationOverrides): T;
 
 	updateValue(key: string, value: any): TPromise<void>;
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides): TPromise<void>;
@@ -72,7 +78,7 @@ export interface IConfigurationService {
 	reloadConfiguration(): TPromise<void>;
 	reloadConfiguration(folder: IWorkspaceFolder): TPromise<void>;
 
-	inspect<T>(key: string): {
+	inspect<T>(key: string, overrides?: IConfigurationOverrides): {
 		default: T,
 		user: T,
 		workspace: T,
@@ -124,6 +130,26 @@ export function compare(from: IConfigurationModel, to: IConfigurationModel): { a
 	return { added, removed, updated };
 }
 
+export function toOverrides(raw: any, conflictReporter: (message: string) => void): IOverrides[] {
+	const overrides: IOverrides[] = [];
+	const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
+	for (const key of Object.keys(raw)) {
+		if (OVERRIDE_PROPERTY_PATTERN.test(key)) {
+			const overrideRaw = {};
+			for (const keyInOverrideRaw in raw[key]) {
+				if (configurationProperties[keyInOverrideRaw] && configurationProperties[keyInOverrideRaw].overridable) {
+					overrideRaw[keyInOverrideRaw] = raw[key][keyInOverrideRaw];
+				}
+			}
+			overrides.push({
+				identifiers: [overrideIdentifierFromKey(key).trim()],
+				contents: toValuesTree(overrideRaw, conflictReporter)
+			});
+		}
+	}
+	return overrides;
+}
+
 export function toValuesTree(properties: { [qualifiedKey: string]: any }, conflictReporter: (message: string) => void): any {
 	const root = Object.create(null);
 
@@ -153,7 +179,7 @@ export function addToValueTree(settingsTreeRoot: any, key: string, value: any, c
 				return;
 		}
 		curr = obj;
-	};
+	}
 
 	if (typeof curr === 'object') {
 		curr[last] = value; // workaround https://github.com/Microsoft/vscode/issues/13606

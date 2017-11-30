@@ -111,7 +111,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 					orderLoop: for (let i = 0; i < 4; i++) {
 						for (let diagnostic of diagnostics) {
 							if (diagnostic.severity === order[i]) {
-								const len = marker.push(DiagnosticCollection._toMarkerData(diagnostic));
+								const len = marker.push(DiagnosticCollection.toMarkerData(diagnostic));
 								if (len === DiagnosticCollection._maxDiagnosticsPerFile) {
 									break orderLoop;
 								}
@@ -129,7 +129,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 						endColumn: marker[marker.length - 1].endColumn
 					});
 				} else {
-					marker = diagnostics.map(DiagnosticCollection._toMarkerData);
+					marker = diagnostics.map(DiagnosticCollection.toMarkerData);
 				}
 			}
 
@@ -179,7 +179,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		}
 	}
 
-	private static _toMarkerData(diagnostic: vscode.Diagnostic): IMarkerData {
+	public static toMarkerData(diagnostic: vscode.Diagnostic): IMarkerData {
 
 		let range = diagnostic.range;
 

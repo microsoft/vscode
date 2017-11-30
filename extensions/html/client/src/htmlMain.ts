@@ -12,7 +12,6 @@ import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
-import { ConfigurationFeature } from 'vscode-languageclient/lib/configuration.proposed';
 import { DocumentColorRequest, DocumentColorParams, ColorPresentationRequest, ColorPresentationParams } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
 import * as nls from 'vscode-nls';
@@ -32,7 +31,7 @@ export function activate(context: ExtensionContext) {
 	let toDispose = context.subscriptions;
 
 	let packageInfo = getPackageInfo(context);
-	let telemetryReporter: TelemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
+	let telemetryReporter: TelemetryReporter | null = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
 	if (telemetryReporter) {
 		toDispose.push(telemetryReporter);
 	}
@@ -65,7 +64,7 @@ export function activate(context: ExtensionContext) {
 
 	// Create the language client and start the client.
 	let client = new LanguageClient('html', localize('htmlserver.name', 'HTML Language Server'), serverOptions, clientOptions);
-	client.registerFeature(new ConfigurationFeature(client));
+	client.registerProposedFeatures();
 
 	let disposable = client.start();
 	toDispose.push(disposable);
@@ -86,7 +85,8 @@ export function activate(context: ExtensionContext) {
 			provideColorPresentations(color, context): Thenable<ColorPresentation[]> {
 				let params: ColorPresentationParams = {
 					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(context.document),
-					colorInfo: { range: client.code2ProtocolConverter.asRange(context.range), color }
+					color,
+					range: client.code2ProtocolConverter.asRange(context.range)
 				};
 				return client.sendRequest(ColorPresentationRequest.type, params).then(presentations => {
 					return presentations.map(p => {
@@ -124,7 +124,7 @@ export function activate(context: ExtensionContext) {
 		onEnterRules: [
 			{
 				beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
-				afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>$/i,
+				afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>/i,
 				action: { indentAction: IndentAction.IndentOutdent }
 			},
 			{
@@ -139,7 +139,7 @@ export function activate(context: ExtensionContext) {
 		onEnterRules: [
 			{
 				beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
-				afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>$/i,
+				afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>/i,
 				action: { indentAction: IndentAction.IndentOutdent }
 			},
 			{
@@ -154,7 +154,7 @@ export function activate(context: ExtensionContext) {
 		onEnterRules: [
 			{
 				beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
-				afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>$/i,
+				afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>/i,
 				action: { indentAction: IndentAction.IndentOutdent }
 			},
 			{
@@ -165,7 +165,7 @@ export function activate(context: ExtensionContext) {
 	});
 }
 
-function getPackageInfo(context: ExtensionContext): IPackageInfo {
+function getPackageInfo(context: ExtensionContext): IPackageInfo | null {
 	let extensionPackage = require(context.asAbsolutePath('./package.json'));
 	if (extensionPackage) {
 		return {

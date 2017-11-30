@@ -25,7 +25,7 @@ const CACHE_STACK_DEPTH = 5;
  */
 class MonarchStackElementFactory {
 
-	private static _INSTANCE = new MonarchStackElementFactory(CACHE_STACK_DEPTH);
+	private static readonly _INSTANCE = new MonarchStackElementFactory(CACHE_STACK_DEPTH);
 	public static create(parent: MonarchStackElement, state: string): MonarchStackElement {
 		return this._INSTANCE.create(parent, state);
 	}
@@ -156,7 +156,7 @@ class EmbeddedModeData {
  */
 class MonarchLineStateFactory {
 
-	private static _INSTANCE = new MonarchLineStateFactory(CACHE_STACK_DEPTH);
+	private static readonly _INSTANCE = new MonarchLineStateFactory(CACHE_STACK_DEPTH);
 	public static create(stack: MonarchStackElement, embeddedModeData: EmbeddedModeData): MonarchLineState {
 		return this._INSTANCE.create(stack, embeddedModeData);
 	}

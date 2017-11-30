@@ -23,6 +23,11 @@
     "commands": [
       {
         "category": "%command.category%",
+        "title": "%command.accept.all-current%",
+        "command": "merge-conflict.accept.all-current"
+      },
+      {
+        "category": "%command.category%",
         "title": "%command.accept.all-incoming%",
         "command": "merge-conflict.accept.all-incoming"
       },

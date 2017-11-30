@@ -6,188 +6,248 @@
 'use strict';
 
 import { compareAnything } from 'vs/base/common/comparers';
-import { matchesPrefix, IMatch, createMatches, matchesCamelCase, isSeparatorAtPos, isUpper } from 'vs/base/common/filters';
+import { matchesPrefix, IMatch, createMatches, matchesCamelCase, isUpper } from 'vs/base/common/filters';
 import { isEqual, nativeSep } from 'vs/base/common/paths';
 import { isWindows } from 'vs/base/common/platform';
 import { stripWildcards } from 'vs/base/common/strings';
+import { CharCode } from 'vs/base/common/charCode';
 
 export type Score = [number /* score */, number[] /* match positions */];
 export type ScorerCache = { [key: string]: IItemScore };
 
-const NO_SCORE: Score = [0, []];
+const NO_MATCH = 0;
+const NO_SCORE: Score = [NO_MATCH, []];
 
-export function _doScore(target: string, query: string, queryLower: string, fuzzy: boolean): Score {
+// const DEBUG = false;
+// const DEBUG_MATRIX = false;
+
+export function score(target: string, query: string, queryLower: string, fuzzy: boolean): Score {
 	if (!target || !query) {
 		return NO_SCORE; // return early if target or query are undefined
 	}
 
-	if (target.length < query.length) {
+	const targetLength = target.length;
+	const queryLength = query.length;
+
+	if (targetLength < queryLength) {
 		return NO_SCORE; // impossible for query to be contained in target
 	}
 
-	// console.group(`Target: ${target}, Query: ${query}`);
+	// if (DEBUG) {
+	// 	console.group(`Target: ${target}, Query: ${query}`);
+	// }
 
-	const queryLen = query.length;
 	const targetLower = target.toLowerCase();
 
-	let res = NO_SCORE;
-
 	// When not searching fuzzy, we require the query to be contained fully
-	// in the target string. We set the offset to search from to that location.
+	// in the target string contiguously.
 	if (!fuzzy) {
 		const indexOfQueryInTarget = targetLower.indexOf(queryLower);
 		if (indexOfQueryInTarget === -1) {
-			// console.log(`Characters not matching consecutively ${queryLower} within ${targetLower}`);
+			// if (DEBUG) {
+			// 	console.log(`Characters not matching consecutively ${queryLower} within ${targetLower}`);
+			// }
 
 			return NO_SCORE;
 		}
-
-		res = _doScoreFromOffset(target, query, targetLower, queryLower, queryLen, indexOfQueryInTarget);
 	}
 
-	// When searching fuzzy we run the scorer for each location of the first query
-	// character so that we can produce better results in case the pattern matches
-	// multiple times on the target (prevent scattering of matching positions).
-	else {
-		const queryFirstCharacter = queryLower[0];
+	const res = doScore(query, queryLower, queryLength, target, targetLower, targetLength);
 
-		let offset = 0;
-		while ((offset = targetLower.indexOf(queryFirstCharacter, offset)) !== -1) {
-			const scoreFromOffset = _doScoreFromOffset(target, query, targetLower, queryLower, queryLen, offset);
-			if (isBetterScore(res, scoreFromOffset)) {
-				res = scoreFromOffset;
+	// if (DEBUG) {
+	// 	console.log(`%cFinal Score: ${res[0]}`, 'font-weight: bold');
+	// 	console.groupEnd();
+	// }
+
+	return res;
+}
+
+function doScore(query: string, queryLower: string, queryLength: number, target: string, targetLower: string, targetLength: number): [number, number[]] {
+	const scores = [];
+	const matches = [];
+
+	//
+	// Build Scorer Matrix:
+	//
+	// The matrix is composed of query q and target t. For each index we score
+	// q[i] with t[i] and compare that with the previous score. If the score is
+	// equal or larger, we keep the match. In addition to the score, we also keep
+	// the length of the consecutive matches to use as boost for the score.
+	//
+	//      t   a   r   g   e   t
+	//  q
+	//  u
+	//  e
+	//  r
+	//  y
+	//
+	for (let queryIndex = 0; queryIndex < queryLength; queryIndex++) {
+		for (let targetIndex = 0; targetIndex < targetLength; targetIndex++) {
+			const currentIndex = queryIndex * targetLength + targetIndex;
+			const leftIndex = currentIndex - 1;
+			const diagIndex = (queryIndex - 1) * targetLength + targetIndex - 1;
+
+			const leftScore = targetIndex > 0 ? scores[leftIndex] : 0;
+			const diagScore = queryIndex > 0 && targetIndex > 0 ? scores[diagIndex] : 0;
+
+			const matchesSequenceLength = queryIndex > 0 && targetIndex > 0 ? matches[diagIndex] : 0;
+
+			// If we are not matching on the first query character any more, we only produce a
+			// score if we had a score previously for the last query index (by looking at the diagScore).
+			// This makes sure that the query always matches in sequence on the target. For example
+			// given a target of "ede" and a query of "de", we would otherwise produce a wrong high score
+			// for query[1] ("e") matching on target[0] ("e") because of the "beginning of word" boost.
+			let score: number;
+			if (!diagScore && queryIndex > 0) {
+				score = 0;
+			} else {
+				score = computeCharScore(query, queryLower, queryIndex, target, targetLower, targetIndex, matchesSequenceLength);
 			}
 
-			offset++;
+			// We have a score and its equal or larger than the left score
+			// Match: sequence continues growing from previous diag value
+			// Score: increases by diag score value
+			if (score && diagScore + score >= leftScore) {
+				matches[currentIndex] = matchesSequenceLength + 1;
+				scores[currentIndex] = diagScore + score;
+			}
+
+			// We either have no score or the score is lower than the left score
+			// Match: reset to 0
+			// Score: pick up from left hand side
+			else {
+				matches[currentIndex] = NO_MATCH;
+				scores[currentIndex] = leftScore;
+			}
 		}
 	}
 
-	// console.log(`%cFinal Score: ${score}`, 'font-weight: bold');
-	// console.groupEnd();
+	// Restore Positions (starting from bottom right of matrix)
+	const positions = [];
+	let queryIndex = queryLength - 1;
+	let targetIndex = targetLength - 1;
+	while (queryIndex >= 0 && targetIndex >= 0) {
+		const currentIndex = queryIndex * targetLength + targetIndex;
+		const match = matches[currentIndex];
+		if (match === NO_MATCH) {
+			targetIndex--; // go left
+		} else {
+			positions.push(targetIndex);
 
-	return res;
+			// go up and left
+			queryIndex--;
+			targetIndex--;
+		}
+	}
+
+	// Print matrix
+	// if (DEBUG_MATRIX) {
+	// printMatrix(query, target, matches, scores);
+	// }
+
+	return [scores[queryLength * targetLength - 1], positions.reverse()];
 }
 
-function isBetterScore(score: Score, candidate: Score): boolean {
-	if (candidate[0] > score[0]) {
-		return true; // candidate has higher score
-	}
-
-	if (score[0] > candidate[0]) {
-		return false; // candidate has lower score
-	}
-
-	// Score is the same, check by match compactness
-	const matchStart = score[1][0];
-	const matchEnd = score[1][score[1].length - 1];
-	const matchLength = matchEnd - matchStart;
-
-	const candidateMatchStart = candidate[1][0];
-	const candidateMatchEnd = candidate[1][candidate[1].length - 1];
-	const candidateMatchLength = candidateMatchEnd - candidateMatchStart;
-
-	if (candidateMatchLength < matchLength) {
-		return true; // candidate has more compact matches
-	}
-
-	return false;
-}
-
-// Based on material from:
-/*!
-BEGIN THIRD PARTY
-*/
-/*!
-* string_score.js: String Scoring Algorithm 0.1.22
-*
-* http://joshaven.com/string_score
-* https://github.com/joshaven/string_score
-*
-* Copyright (C) 2009-2014 Joshaven Potter <yourtech@gmail.com>
-* Special thanks to all of the contributors listed here https://github.com/joshaven/string_score
-* MIT License: http://opensource.org/licenses/MIT
-*
-* Date: Tue Mar 1 2011
-* Updated: Tue Mar 10 2015
-*/
-function _doScoreFromOffset(target: string, query: string, targetLower: string, queryLower: string, queryLen: number, offset: number): Score {
-	const matchingPositions: number[] = [];
-
-	let targetIndex = offset;
-	let queryIndex = 0;
+function computeCharScore(query: string, queryLower: string, queryIndex: number, target: string, targetLower: string, targetIndex: number, matchesSequenceLength: number): number {
 	let score = 0;
-	while (queryIndex < queryLen) {
 
-		// Check for query character being contained in target
-		const indexOfQueryInTarget = targetLower.indexOf(queryLower[queryIndex], targetIndex);
+	if (queryLower[queryIndex] !== targetLower[targetIndex]) {
+		return score; // no match of characters
+	}
 
-		if (indexOfQueryInTarget < 0) {
-			// console.log(`Character not part of target ${query[index]}`);
+	// Character match bonus
+	score += 1;
 
-			score = 0;
-			break;
-		}
+	// if (DEBUG) {
+	// 	console.groupCollapsed(`%cCharacter match bonus: +1 (char: ${queryLower[queryIndex]} at index ${targetIndex}, total score: ${score})`, 'font-weight: normal');
+	// }
 
-		// Fill into positions array
-		matchingPositions.push(indexOfQueryInTarget);
+	// Consecutive match bonus
+	if (matchesSequenceLength > 0) {
+		score += (matchesSequenceLength * 5);
 
-		// Character match bonus
+		// if (DEBUG) {
+		// 	console.log('Consecutive match bonus: ' + (matchesSequenceLength * 5));
+		// }
+	}
+
+	// Same case bonus
+	if (query[queryIndex] === target[targetIndex]) {
 		score += 1;
 
-		// console.groupCollapsed(`%cCharacter match bonus: +1 (char: ${query[index]} at index ${indexOf}, total score: ${score})`, 'font-weight: normal');
-
-		// Consecutive match bonus
-		if (targetIndex === indexOfQueryInTarget && queryIndex > 0) {
-			score += 5;
-
-			// console.log('Consecutive match bonus: +5');
-		}
-
-		// Same case bonus
-		if (target[indexOfQueryInTarget] === query[queryIndex]) {
-			score += 1;
-
-			// console.log('Same case bonus: +1');
-		}
-
-		// Start of word bonus
-		if (indexOfQueryInTarget === 0) {
-			score += 8;
-
-			// console.log('Start of word bonus: +8');
-		}
-
-		// After separator bonus
-		else if (isSeparatorAtPos(target, indexOfQueryInTarget - 1)) {
-			score += 7;
-
-			// console.log('After separtor bonus: +7');
-		}
-
-		// Inside word upper case bonus
-		else if (isUpper(target.charCodeAt(indexOfQueryInTarget))) {
-			score += 1;
-
-			// console.log('Inside word upper case bonus: +1');
-		}
-
-		// console.groupEnd();
-
-		targetIndex = indexOfQueryInTarget + 1;
-		queryIndex++;
+		// if (DEBUG) {
+		// 	console.log('Same case bonus: +1');
+		// }
 	}
 
-	const res: Score = (score > 0) ? [score, matchingPositions] : NO_SCORE;
+	// Start of word bonus
+	if (targetIndex === 0) {
+		score += 8;
 
-	// console.log(`%cFinal Score: ${score}`, 'font-weight: bold');
-	// console.groupEnd();
+		// if (DEBUG) {
+		// 	console.log('Start of word bonus: +8');
+		// }
+	}
 
-	return res;
+	else {
+
+		// After separator bonus
+		const separatorBonus = scoreSeparatorAtPos(target.charCodeAt(targetIndex - 1));
+		if (separatorBonus) {
+			score += separatorBonus;
+
+			// if (DEBUG) {
+			// 	console.log('After separtor bonus: +4');
+			// }
+		}
+
+		// Inside word upper case bonus (camel case)
+		else if (isUpper(target.charCodeAt(targetIndex))) {
+			score += 1;
+
+			// if (DEBUG) {
+			// 	console.log('Inside word upper case bonus: +1');
+			// }
+		}
+	}
+
+	// if (DEBUG) {
+	// 	console.groupEnd();
+	// }
+
+	return score;
 }
 
-/*!
-END THIRD PARTY
-*/
+function scoreSeparatorAtPos(charCode: number): number {
+	switch (charCode) {
+		case CharCode.Slash:
+		case CharCode.Backslash:
+			return 5; // prefer path separators...
+		case CharCode.Underline:
+		case CharCode.Dash:
+		case CharCode.Period:
+		case CharCode.Space:
+		case CharCode.SingleQuote:
+		case CharCode.DoubleQuote:
+		case CharCode.Colon:
+			return 4; // ...over other separators
+		default:
+			return 0;
+	}
+}
+
+// function printMatrix(query: string, target: string, matches: number[], scores: number[]): void {
+// 	console.log('\t' + target.split('').join('\t'));
+// 	for (let queryIndex = 0; queryIndex < query.length; queryIndex++) {
+// 		let line = query[queryIndex] + '\t';
+// 		for (let targetIndex = 0; targetIndex < target.length; targetIndex++) {
+// 			const currentIndex = queryIndex * target.length + targetIndex;
+// 			line = line + 'M' + matches[currentIndex] + '/' + 'S' + scores[currentIndex] + '\t';
+// 		}
+
+// 		console.log(line);
+// 	}
+// }
 
 /**
  * Scoring on structural items that have a label and optional description.
@@ -291,7 +351,7 @@ export function scoreItem<T>(item: T, query: IPreparedQuery, fuzzy: boolean, acc
 	return itemScore;
 }
 
-function doScoreItem<T>(label: string, description: string, path: string, query: IPreparedQuery, fuzzy: boolean): IItemScore {
+function doScoreItem(label: string, description: string, path: string, query: IPreparedQuery, fuzzy: boolean): IItemScore {
 
 	// 1.) treat identity matches on full path highest
 	if (path && isEqual(query.value, path, true)) {
@@ -315,7 +375,7 @@ function doScoreItem<T>(label: string, description: string, path: string, query:
 		}
 
 		// 4.) prefer scores on the label if any
-		const [labelScore, labelPositions] = _doScore(label, query.value, query.lowercase, fuzzy);
+		const [labelScore, labelPositions] = score(label, query.value, query.lowercase, fuzzy);
 		if (labelScore) {
 			return { score: labelScore + LABEL_SCORE_THRESHOLD, labelMatch: createMatches(labelPositions) };
 		}
@@ -331,7 +391,7 @@ function doScoreItem<T>(label: string, description: string, path: string, query:
 		const descriptionPrefixLength = descriptionPrefix.length;
 		const descriptionAndLabel = `${descriptionPrefix}${label}`;
 
-		const [labelDescriptionScore, labelDescriptionPositions] = _doScore(descriptionAndLabel, query.value, query.lowercase, fuzzy);
+		const [labelDescriptionScore, labelDescriptionPositions] = score(descriptionAndLabel, query.value, query.lowercase, fuzzy);
 		if (labelDescriptionScore) {
 			const labelDescriptionMatches = createMatches(labelDescriptionPositions);
 			const labelMatch: IMatch[] = [];

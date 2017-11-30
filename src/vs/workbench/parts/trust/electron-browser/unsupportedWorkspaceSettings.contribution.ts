@@ -11,23 +11,25 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 
 
 class UnsupportedWorkspaceSettingsContribution implements IWorkbenchContribution {
 
-	private static storageKey = 'workspace.settings.unsupported.warning';
+	private static readonly storageKey = 'workspace.settings.unsupported.warning';
 	private toDispose: IDisposable[] = [];
 	private isUntrusted = false;
 
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceConfigurationService private workspaceConfigurationService: IWorkspaceConfigurationService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IMessageService private messageService: IMessageService,
@@ -36,10 +38,7 @@ class UnsupportedWorkspaceSettingsContribution implements IWorkbenchContribution
 	) {
 		lifecycleService.onShutdown(this.dispose, this);
 		this.toDispose.push(this.workspaceConfigurationService.onDidChangeConfiguration(e => this.checkWorkspaceSettings()));
-	}
-
-	getId(): string {
-		return 'unsupportedWorkspaceSettings';
+		this.toDispose.push(workspaceContextService.onDidChangeWorkspaceFolders(e => this.checkWorkspaceSettings()));
 	}
 
 	public dispose(): void {
@@ -107,4 +106,4 @@ class UnsupportedWorkspaceSettingsContribution implements IWorkbenchContribution
 }
 
 const workbenchRegistry = <IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(UnsupportedWorkspaceSettingsContribution);
+workbenchRegistry.registerWorkbenchContribution(UnsupportedWorkspaceSettingsContribution, LifecyclePhase.Running);

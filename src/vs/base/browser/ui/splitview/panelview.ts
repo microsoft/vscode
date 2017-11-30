@@ -32,7 +32,7 @@ export interface IPanelStyles {
 
 export abstract class Panel implements IView {
 
-	private static HEADER_SIZE = 22;
+	private static readonly HEADER_SIZE = 22;
 
 	protected _expanded: boolean;
 	private expandedSize: number | undefined = undefined;
@@ -146,8 +146,8 @@ export abstract class Panel implements IView {
 		this.renderHeader(this.header);
 
 		const focusTracker = trackFocus(this.header);
-		focusTracker.addFocusListener(() => addClass(this.header, 'focused'));
-		focusTracker.addBlurListener(() => removeClass(this.header, 'focused'));
+		focusTracker.onDidFocus(() => addClass(this.header, 'focused'));
+		focusTracker.onDidBlur(() => removeClass(this.header, 'focused'));
 
 		this.updateHeader();
 
@@ -226,7 +226,7 @@ interface IDndContext {
 
 class PanelDraggable implements IDisposable {
 
-	private static DefaultDragOverBackgroundColor = new Color(new RGBA(128, 128, 128, 0.5));
+	private static readonly DefaultDragOverBackgroundColor = new Color(new RGBA(128, 128, 128, 0.5));
 
 	// see https://github.com/Microsoft/vscode/issues/14470
 	private dragOverCounter = 0;
@@ -336,10 +336,13 @@ export class PanelView implements IDisposable {
 	private _onDidDrop = new Emitter<{ from: Panel, to: Panel }>();
 	readonly onDidDrop: Event<{ from: Panel, to: Panel }> = this._onDidDrop.event;
 
-	constructor(private container: HTMLElement, options: IPanelViewOptions = {}) {
+	readonly onDidSashChange: Event<void>;
+
+	constructor(container: HTMLElement, options: IPanelViewOptions = {}) {
 		this.dnd = !!options.dnd;
 		this.el = append(container, $('.monaco-panel-view'));
 		this.splitview = new SplitView(this.el);
+		this.onDidSashChange = this.splitview.onDidSashChange;
 	}
 
 	addPanel(panel: Panel, size: number, index = this.splitview.length): void {

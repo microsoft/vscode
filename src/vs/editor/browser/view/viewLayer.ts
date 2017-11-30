@@ -12,12 +12,9 @@ import { createStringBuilder, IStringBuilder } from 'vs/editor/common/core/strin
 /**
  * Represents a visible line
  */
-export interface IVisibleLine {
+export interface IVisibleLine extends ILine {
 	getDomNode(): HTMLElement;
 	setDomNode(domNode: HTMLElement): void;
-
-	onContentChanged(): void;
-	onTokensChanged(): void;
 
 	/**
 	 * Return null if the HTML should not be touched.
@@ -538,7 +535,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 		}
 	}
 
-	private static _sb = createStringBuilder(100000);
+	private static readonly _sb = createStringBuilder(100000);
 
 	private _finishRendering(ctx: IRendererContext<T>, domNodeIsEmpty: boolean, deltaTop: number[]): void {
 

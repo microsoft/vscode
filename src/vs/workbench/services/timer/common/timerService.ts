@@ -49,13 +49,7 @@ export interface IMemoryInfo {
 		"hasAccessibilitySupport" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"isVMLikelyhood" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"emptyWorkbench" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-		"loadavg" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-		"${wildcard}": [
-			{
-				"${prefix}": "timers2.",
-				"${classification}": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-			}
-		]
+		"loadavg" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 	}
 */
 export interface IStartupMetrics {
@@ -73,7 +67,6 @@ export interface IStartupMetrics {
 		ellapsedWorkbench: number;
 		ellapsedTimersToTimersComputed: number;
 	};
-	timers2: { [name: string]: number };
 	platform: string;
 	release: string;
 	arch: string;

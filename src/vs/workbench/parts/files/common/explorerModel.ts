@@ -14,12 +14,7 @@ import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEditorGroup, toResource } from 'vs/workbench/common/editor';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-
-export enum StatType {
-	FILE,
-	FOLDER,
-	ANY
-}
+import { getPathLabel } from 'vs/base/common/labels';
 
 export class Model {
 
@@ -77,14 +72,14 @@ export class FileStat implements IFileStat {
 	public name: string;
 	public mtime: number;
 	public etag: string;
-	public isDirectory: boolean;
+	private _isDirectory: boolean;
 	public hasChildren: boolean;
 	public children: FileStat[];
 	public parent: FileStat;
 
 	public isDirectoryResolved: boolean;
 
-	constructor(resource: URI, public root: FileStat, isDirectory?: boolean, hasChildren?: boolean, name: string = paths.basename(resource.fsPath), mtime?: number, etag?: string) {
+	constructor(resource: URI, public root: FileStat, isDirectory?: boolean, hasChildren?: boolean, name: string = getPathLabel(resource), mtime?: number, etag?: string) {
 		this.resource = resource;
 		this.name = name;
 		this.isDirectory = !!isDirectory;
@@ -92,10 +87,6 @@ export class FileStat implements IFileStat {
 		this.etag = etag;
 		this.mtime = mtime;
 
-		// Prepare child stat array
-		if (this.isDirectory) {
-			this.children = [];
-		}
 		if (!this.root) {
 			this.root = this;
 		}
@@ -103,8 +94,24 @@ export class FileStat implements IFileStat {
 		this.isDirectoryResolved = false;
 	}
 
+	public get isDirectory(): boolean {
+		return this._isDirectory;
+	}
+
+	public set isDirectory(value: boolean) {
+		if (value !== this._isDirectory) {
+			this._isDirectory = value;
+			if (this._isDirectory) {
+				this.children = [];
+			} else {
+				this.children = undefined;
+			}
+		}
+
+	}
+
 	public get nonexistentRoot(): boolean {
-		return this.isRoot && !this.isDirectoryResolved;
+		return this.isRoot && !this.isDirectoryResolved && this.isDirectory;
 	}
 
 	public getId(): string {
@@ -214,33 +221,6 @@ export class FileStat implements IFileStat {
 	}
 
 	/**
-	 * Returns true if this stat is a directory that contains a child with the given name.
-	 *
-	 * @param ignoreCase if true, will check for the name ignoring case.
-	 * @param type the type of stat to check for.
-	 */
-	public hasChild(name: string, ignoreCase?: boolean, type: StatType = StatType.ANY): boolean {
-		for (let i = 0; i < this.children.length; i++) {
-			const child = this.children[i];
-			if ((type === StatType.FILE && child.isDirectory) || (type === StatType.FOLDER && !child.isDirectory)) {
-				continue;
-			}
-
-			// Check for Identity
-			if (child.name === name) {
-				return true;
-			}
-
-			// Also consider comparing without case
-			if (ignoreCase && child.name.toLowerCase() === name.toLowerCase()) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	/**
 	 * Removes a child element from this folder.
 	 */
 	public removeChild(child: FileStat): void {
@@ -342,7 +322,7 @@ export class NewStatPlaceholder extends FileStat {
 	private directoryPlaceholder: boolean;
 
 	constructor(isDirectory: boolean, root: FileStat) {
-		super(URI.file(''), root);
+		super(URI.file(''), root, false, false, '');
 
 		this.id = NewStatPlaceholder.ID++;
 		this.isDirectoryResolved = isDirectory;
@@ -369,10 +349,6 @@ export class NewStatPlaceholder extends FileStat {
 
 	public addChild(child: NewStatPlaceholder): void {
 		throw new Error('Can\'t perform operations in NewStatPlaceholder.');
-	}
-
-	public hasChild(name: string, ignoreCase?: boolean): boolean {
-		return false;
 	}
 
 	public removeChild(child: NewStatPlaceholder): void {

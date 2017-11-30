@@ -7,12 +7,12 @@
 
 import * as arrays from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
-import Event, { chain, any, debounceEvent } from 'vs/base/common/event';
+import Event, { chain, anyEvent, debounceEvent } from 'vs/base/common/event';
 import { onUnexpectedError, canceled } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionManagementService, ILocalExtension, IExtensionEnablementService, IExtensionTipsService, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, ILocalExtension, IExtensionEnablementService, IExtensionTipsService, LocalExtensionType, IExtensionIdentifier, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -20,10 +20,11 @@ import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiati
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IMessageService, Severity, IChoiceService } from 'vs/platform/message/common/message';
 import { Action } from 'vs/base/common/actions';
-import { BetterMergeDisabledNowKey, BetterMergeId, getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { BetterMergeDisabledNowKey, BetterMergeId, areSameExtensions, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 
 export interface IExtensionStatus {
-	identifier: string;
+	identifier: IExtensionIdentifier;
 	local: ILocalExtension;
 	globallyEnabled: boolean;
 }
@@ -42,23 +43,19 @@ export class KeymapExtensions implements IWorkbenchContribution {
 	) {
 		this.disposables.push(
 			lifecycleService.onShutdown(() => this.dispose()),
-			instantiationService.invokeFunction(onExtensionChanged)((ids => {
-				TPromise.join(ids.map(id => this.checkForOtherKeymaps(id)))
+			instantiationService.invokeFunction(onExtensionChanged)((identifiers => {
+				TPromise.join(identifiers.map(identifier => this.checkForOtherKeymaps(identifier)))
 					.then(null, onUnexpectedError);
 			}))
 		);
 	}
 
-	getId(): string {
-		return 'vs.extensions.keymapExtensions';
-	}
-
-	private checkForOtherKeymaps(extensionId: string): TPromise<void> {
+	private checkForOtherKeymaps(extensionIdentifier: IExtensionIdentifier): TPromise<void> {
 		return this.instantiationService.invokeFunction(getInstalledExtensions).then(extensions => {
 			const keymaps = extensions.filter(extension => isKeymapExtension(this.tipsService, extension));
-			const extension = arrays.first(keymaps, extension => extension.identifier === extensionId);
+			const extension = arrays.first(keymaps, extension => extension.identifier.id === extensionIdentifier.id);
 			if (extension && extension.globallyEnabled) {
-				const otherKeymaps = keymaps.filter(extension => extension.identifier !== extensionId && extension.globallyEnabled);
+				const otherKeymaps = keymaps.filter(extension => extension.identifier.id !== extensionIdentifier.id && extension.globallyEnabled);
 				if (otherKeymaps.length) {
 					return this.promptForDisablingOtherKeymaps(extension, otherKeymaps);
 				}
@@ -107,7 +104,7 @@ export class KeymapExtensions implements IWorkbenchContribution {
 				this.telemetryService.publicLog('disableOtherKeymaps', telemetryData);
 				if (confirmed) {
 					return TPromise.join(oldKeymaps.map(keymap => {
-						return this.extensionEnablementService.setEnablement(keymap.identifier, false);
+						return this.extensionEnablementService.setEnablement(keymap.local.identifier, EnablementState.Disabled);
 					}));
 				}
 				return undefined;
@@ -120,18 +117,18 @@ export class KeymapExtensions implements IWorkbenchContribution {
 	}
 }
 
-export function onExtensionChanged(accessor: ServicesAccessor): Event<string[]> {
+export function onExtensionChanged(accessor: ServicesAccessor): Event<IExtensionIdentifier[]> {
 	const extensionService = accessor.get(IExtensionManagementService);
 	const extensionEnablementService = accessor.get(IExtensionEnablementService);
-	return debounceEvent<string, string[]>(any(
-		chain(any(extensionService.onDidInstallExtension, extensionService.onDidUninstallExtension))
-			.map(e => stripVersion(e.id))
+	return debounceEvent<IExtensionIdentifier, IExtensionIdentifier[]>(anyEvent(
+		chain(anyEvent(extensionService.onDidInstallExtension, extensionService.onDidUninstallExtension))
+			.map(e => ({ id: stripVersion(e.identifier.id), uuid: e.identifier.uuid }))
 			.event,
 		extensionEnablementService.onEnablementChanged
 	), (list, id) => {
 		if (!list) {
 			return [id];
-		} else if (list.indexOf(id) === -1) {
+		} else if (list.some(l => !areSameExtensions(l, id))) {
 			list.push(id);
 		}
 		return list;
@@ -142,21 +139,22 @@ export function getInstalledExtensions(accessor: ServicesAccessor): TPromise<IEx
 	const extensionService = accessor.get(IExtensionManagementService);
 	const extensionEnablementService = accessor.get(IExtensionEnablementService);
 	return extensionService.getInstalled().then(extensions => {
-		const globallyDisabled = extensionEnablementService.getGloballyDisabledExtensions();
-		return extensions.map(extension => {
-			const identifier = stripVersion(extension.id);
-			return {
-				identifier,
-				local: extension,
-				globallyEnabled: globallyDisabled.indexOf(identifier) === -1
-			};
-		});
+		return extensionEnablementService.getDisabledExtensions()
+			.then(disabledExtensions => {
+				return extensions.map(extension => {
+					return {
+						identifier: { id: adoptToGalleryExtensionId(extension.identifier.id), uuid: extension.identifier.uuid },
+						local: extension,
+						globallyEnabled: disabledExtensions.every(disabled => !areSameExtensions(disabled, extension.identifier))
+					};
+				});
+			});
 	});
 }
 
 export function isKeymapExtension(tipsService: IExtensionTipsService, extension: IExtensionStatus): boolean {
 	const cats = extension.local.manifest.categories;
-	return cats && cats.indexOf('Keymaps') !== -1 || tipsService.getKeymapRecommendations().indexOf(extension.identifier) !== -1;
+	return cats && cats.indexOf('Keymaps') !== -1 || tipsService.getKeymapRecommendations().indexOf(extension.identifier.id) !== -1;
 }
 
 function stripVersion(id: string): string {
@@ -172,7 +170,7 @@ export class BetterMergeDisabled implements IWorkbenchContribution {
 		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		extensionService.onReady().then(() => {
+		extensionService.whenInstalledExtensionsRegistered().then(() => {
 			if (storageService.getBoolean(BetterMergeDisabledNowKey, StorageScope.GLOBAL, false)) {
 				storageService.remove(BetterMergeDisabledNowKey, StorageScope.GLOBAL);
 				/* __GDPR__
@@ -192,7 +190,7 @@ export class BetterMergeDisabled implements IWorkbenchContribution {
 								outcome: 'uninstall',
 							});
 							return extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
-								return Promise.all(extensions.filter(e => stripVersion(e.id) === BetterMergeId)
+								return Promise.all(extensions.filter(e => stripVersion(e.identifier.id) === BetterMergeId)
 									.map(e => extensionManagementService.uninstall(e, true)));
 							});
 						}),
@@ -211,9 +209,5 @@ export class BetterMergeDisabled implements IWorkbenchContribution {
 				});
 			}
 		});
-	}
-
-	getId(): string {
-		return 'vs.extensions.betterMergeDisabled';
 	}
 }

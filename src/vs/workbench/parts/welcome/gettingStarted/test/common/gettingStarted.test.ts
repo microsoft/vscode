@@ -18,7 +18,7 @@ suite('Workbench - GettingStarted', () => {
 
 	suiteSetup(() => {
 		instantiation = new TestInstantiationService();
-		instantiation.stub(IWorkspaceContextService, <any>{
+		instantiation.stub(IWorkspaceContextService, {
 			getConfiguration: () => {
 				return {
 					env: {
@@ -28,7 +28,7 @@ suite('Workbench - GettingStarted', () => {
 				};
 			}
 		});
-		instantiation.stub(IStorageService, <any>{
+		instantiation.stub(IStorageService, {
 			get: () => hideWelcomeSettingsValue,
 			store: (value) => hideWelcomeSettingsValue = value
 		});

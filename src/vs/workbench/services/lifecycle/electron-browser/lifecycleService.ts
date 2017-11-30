@@ -13,6 +13,8 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { ipcRenderer as ipc } from 'electron';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IWindowService } from 'vs/platform/windows/common/windows';
+import { mark } from 'vs/base/common/performance';
+import { Barrier } from 'vs/base/common/async';
 
 export class LifecycleService implements ILifecycleService {
 
@@ -20,12 +22,12 @@ export class LifecycleService implements ILifecycleService {
 
 	public _serviceBrand: any;
 
-	private readonly _onDidChangePhase = new Emitter<LifecyclePhase>();
 	private readonly _onWillShutdown = new Emitter<ShutdownEvent>();
 	private readonly _onShutdown = new Emitter<ShutdownReason>();
 	private readonly _startupKind: StartupKind;
 
 	private _phase: LifecyclePhase = LifecyclePhase.Starting;
+	private _phaseWhen = new Map<LifecyclePhase, Barrier>();
 
 	constructor(
 		@IMessageService private _messageService: IMessageService,
@@ -50,18 +52,36 @@ export class LifecycleService implements ILifecycleService {
 	}
 
 	public set phase(value: LifecyclePhase) {
-		if (this._phase !== value) {
-			this._phase = value;
-			this._onDidChangePhase.fire(value);
+		if (value < this.phase) {
+			throw new Error('Lifecycle cannot go backwards');
 		}
+		if (this._phase === value) {
+			return;
+		}
+
+		this._phase = value;
+		mark(`LifecyclePhase/${LifecyclePhase[value]}`);
+
+		if (this._phaseWhen.has(this._phase)) {
+			this._phaseWhen.get(this._phase).open();
+			this._phaseWhen.delete(this._phase);
+		}
+	}
+
+	public when(phase: LifecyclePhase): Thenable<any> {
+		if (phase <= this._phase) {
+			return Promise.resolve();
+		}
+		let barrier = this._phaseWhen.get(phase);
+		if (!barrier) {
+			barrier = new Barrier();
+			this._phaseWhen.set(phase, barrier);
+		}
+		return barrier.wait();
 	}
 
 	public get startupKind(): StartupKind {
 		return this._startupKind;
-	}
-
-	public get onDidChangePhase(): Event<LifecyclePhase> {
-		return this._onDidChangePhase.event;
 	}
 
 	public get onWillShutdown(): Event<ShutdownEvent> {
@@ -77,14 +97,12 @@ export class LifecycleService implements ILifecycleService {
 
 		// Main side indicates that window is about to unload, check for vetos
 		ipc.on('vscode:beforeUnload', (event, reply: { okChannel: string, cancelChannel: string, reason: ShutdownReason, payload: object }) => {
-			this.phase = LifecyclePhase.ShuttingDown;
 			this._storageService.store(LifecycleService._lastShutdownReasonKey, JSON.stringify(reply.reason), StorageScope.WORKSPACE);
 
 			// trigger onWillShutdown events and veto collecting
 			this.onBeforeUnload(reply.reason, reply.payload).done(veto => {
 				if (veto) {
 					this._storageService.remove(LifecycleService._lastShutdownReasonKey, StorageScope.WORKSPACE);
-					this.phase = LifecyclePhase.Running; // reset this flag since the shutdown has been vetoed!
 					ipc.send(reply.cancelChannel, windowId);
 				} else {
 					this._onShutdown.fire(reply.reason);

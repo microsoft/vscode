@@ -10,6 +10,9 @@
 	"dropFolder": "Você quer adicionar a pasta no espaço de trabalho?",
 	"addFolders": "&& Adicionar pastas",
 	"addFolder": "&& Adicionar pasta",
+	"confirmMove": "Tem certeza que deseja mover '{0}'?",
+	"doNotAskAgain": "Não me pergunte novamente",
+	"moveButtonLabel": "&&Mover",
 	"confirmOverwriteMessage": "'{0}' já existe na pasta de destino. Deseja substituí-lo?",
 	"irreversible": "Esta ação é irreversível!",
 	"replaceButtonLabel": "&&Substituir"

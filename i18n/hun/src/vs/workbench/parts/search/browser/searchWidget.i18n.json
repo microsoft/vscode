@@ -11,5 +11,6 @@
 	"search.placeHolder": "Keresés",
 	"label.Replace": "Csere: adja meg a cerekifejezést, majd nyomjon Entert a kereséshez vagy Escape-et a megszakításhoz",
 	"search.replace.placeHolder": "Csere",
-	"regexp.validationFailure": "A kifejezés mindenre illeszkedik"
+	"regexp.validationFailure": "A kifejezés mindenre illeszkedik",
+	"regexp.backreferenceValidationFailure": "A visszahivatkozás nem támogatott"
 }

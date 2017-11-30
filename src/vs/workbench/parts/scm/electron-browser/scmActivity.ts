@@ -8,7 +8,7 @@
 import { localize } from 'vs/nls';
 import { basename } from 'vs/base/common/paths';
 import { IDisposable, dispose, empty as EmptyDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import { filterEvent, any as anyEvent } from 'vs/base/common/event';
+import { filterEvent, anyEvent as anyEvent } from 'vs/base/common/event';
 import { VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
 import { ISCMService, ISCMRepository } from 'vs/workbench/services/scm/common/scm';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
@@ -17,8 +17,6 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { IStatusbarService, StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
 
 export class StatusUpdater implements IWorkbenchContribution {
-
-	private static ID = 'vs.scm.statusUpdater';
 
 	private badgeDisposable: IDisposable = EmptyDisposable;
 	private disposables: IDisposable[] = [];
@@ -47,10 +45,6 @@ export class StatusUpdater implements IWorkbenchContribution {
 		this.disposables.push(disposable);
 	}
 
-	getId(): string {
-		return StatusUpdater.ID;
-	}
-
 	private render(): void {
 		this.badgeDisposable.dispose();
 
@@ -58,7 +52,7 @@ export class StatusUpdater implements IWorkbenchContribution {
 			if (typeof repository.provider.count === 'number') {
 				return r + repository.provider.count;
 			} else {
-				return r + repository.provider.resources.reduce<number>((r, g) => r + g.resourceCollection.resources.length, 0);
+				return r + repository.provider.groups.elements.reduce<number>((r, g) => r + g.elements.length, 0);
 			}
 		}, 0);
 
@@ -78,8 +72,6 @@ export class StatusUpdater implements IWorkbenchContribution {
 
 export class StatusBarController implements IWorkbenchContribution {
 
-	private static ID = 'vs.scm.statusBarController';
-
 	private statusBarDisposable: IDisposable = EmptyDisposable;
 	private focusDisposable: IDisposable = EmptyDisposable;
 	private focusedRepository: ISCMRepository | undefined = undefined;
@@ -97,10 +89,6 @@ export class StatusBarController implements IWorkbenchContribution {
 		if (this.scmService.repositories.length > 0) {
 			this.onDidFocusRepository(this.scmService.repositories[0]);
 		}
-	}
-
-	getId(): string {
-		return StatusBarController.ID;
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {

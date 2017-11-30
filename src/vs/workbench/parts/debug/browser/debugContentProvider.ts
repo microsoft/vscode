@@ -13,6 +13,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { DEBUG_SCHEME, IDebugService, IProcess } from 'vs/workbench/parts/debug/common/debug';
+import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
 /**
  * Debug URI format
@@ -38,30 +39,15 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 		textModelResolverService.registerTextModelContentProvider(DEBUG_SCHEME, this);
 	}
 
-	public getId(): string {
-		return 'debug.contentprovider';
-	}
-
 	public provideTextContent(resource: uri): TPromise<IModel> {
 
 		let process: IProcess;
 		let sourceRef: number;
 
 		if (resource.query) {
-			const keyvalues = resource.query.split('&');
-			for (let keyvalue of keyvalues) {
-				const pair = keyvalue.split('=');
-				if (pair.length === 2) {
-					switch (pair[0]) {
-						case 'session':
-							process = this.debugService.findProcessByUUID(decodeURIComponent(pair[1]));
-							break;
-						case 'ref':
-							sourceRef = parseInt(pair[1]);
-							break;
-					}
-				}
-			}
+			const data = Source.getEncodedDebugData(resource);
+			process = this.debugService.getModel().getProcesses().filter(p => p.getId() === data.processId).pop();
+			sourceRef = data.sourceReference;
 		}
 
 		if (!process) {

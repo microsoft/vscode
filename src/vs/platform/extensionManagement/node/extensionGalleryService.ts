@@ -10,14 +10,13 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as uuid from 'vs/base/common/uuid';
 import { distinct } from 'vs/base/common/arrays';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
-import { StatisticType, IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionManifest } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { StatisticType, IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionManifest, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId, getGalleryExtensionTelemetryData, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { assign, getOrDefault } from 'vs/base/common/objects';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPager } from 'vs/base/common/paging';
 import { IRequestOptions, IRequestContext, download, asJson, asText } from 'vs/base/node/request';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
 import { isVersionValid } from 'vs/platform/extensions/node/extensionValidator';
@@ -55,6 +54,7 @@ interface IRawGalleryExtension {
 	publisher: { displayName: string, publisherId: string, publisherName: string; };
 	versions: IRawGalleryExtensionVersion[];
 	statistics: IRawGalleryExtensionStatistics[];
+	flags: string;
 }
 
 interface IRawGalleryQueryResult {
@@ -107,6 +107,7 @@ const AssetType = {
 	Manifest: 'Microsoft.VisualStudio.Code.Manifest',
 	VSIX: 'Microsoft.VisualStudio.Services.VSIXPackage',
 	License: 'Microsoft.VisualStudio.Services.Content.License',
+	Repository: 'Microsoft.VisualStudio.Services.Links.Source'
 };
 
 const PropertyType = {
@@ -200,6 +201,26 @@ function getStatistic(statistics: IRawGalleryExtensionStatistics[], name: string
 function getVersionAsset(version: IRawGalleryExtensionVersion, type: string): IGalleryExtensionAsset {
 	const result = version.files.filter(f => f.assetType === type)[0];
 
+	if (type === AssetType.Repository) {
+		if (version.properties) {
+			const results = version.properties.filter(p => p.key === type);
+			const gitRegExp = new RegExp('((git|ssh|http(s)?)|(git@[\w\.]+))(:(//)?)([\w\.@\:/\-~]+)(\.git)(/)?');
+
+			const uri = results.filter(r => gitRegExp.test(r.value))[0];
+			if (!uri) {
+				return {
+					uri: null,
+					fallbackUri: null
+				};
+			}
+
+			return {
+				uri: uri.value,
+				fallbackUri: uri.value,
+			};
+		}
+	}
+
 	if (!result) {
 		if (type === AssetType.Icon) {
 			const uri = require.toUrl('./media/defaultIcon.png');
@@ -233,6 +254,10 @@ function getEngine(version: IRawGalleryExtensionVersion): string {
 	return (values.length > 0 && values[0].value) || '';
 }
 
+function getIsPreview(flags: string): boolean {
+	return flags.indexOf('preview') !== -1;
+}
+
 function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUrl: string, index: number, query: Query, querySource?: string): IGalleryExtension {
 	const [version] = galleryExtension.versions;
 	const assets = {
@@ -241,12 +266,15 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 		changelog: getVersionAsset(version, AssetType.Changelog),
 		download: getVersionAsset(version, AssetType.VSIX),
 		icon: getVersionAsset(version, AssetType.Icon),
-		license: getVersionAsset(version, AssetType.License)
+		license: getVersionAsset(version, AssetType.License),
+		repository: getVersionAsset(version, AssetType.Repository),
 	};
 
 	return {
-		uuid: galleryExtension.extensionId,
-		id: getGalleryExtensionId(galleryExtension.publisher.publisherName, galleryExtension.extensionName),
+		identifier: {
+			id: getGalleryExtensionId(galleryExtension.publisher.publisherName, galleryExtension.extensionName),
+			uuid: galleryExtension.extensionId
+		},
 		name: galleryExtension.extensionName,
 		version: version.version,
 		date: version.lastUpdated,
@@ -274,7 +302,8 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 			index: ((query.pageNumber - 1) * query.pageSize) + index,
 			searchText: query.searchText,
 			querySource
-		}
+		},
+		preview: getIsPreview(galleryExtension.flags)
 	};
 }
 
@@ -289,8 +318,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	constructor(
 		@IRequestService private requestService: IRequestService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		const config = product.extensionsGallery;
 		this.extensionsGalleryUrl = config && config.serviceUrl;
@@ -383,8 +411,8 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		});
 	}
 
-	private async queryGallery(query: Query): TPromise<{ galleryExtensions: IRawGalleryExtension[], total: number; }> {
-		const commonHeaders = await this.commonHTTPHeaders;
+	private queryGallery(query: Query): TPromise<{ galleryExtensions: IRawGalleryExtension[], total: number; }> {
+		const commonHeaders = this.commonHTTPHeaders;
 		const data = JSON.stringify(query.raw);
 		const headers = assign({}, commonHeaders, {
 			'Content-Type': 'application/json',
@@ -393,67 +421,66 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			'Content-Length': data.length
 		});
 
-		const context = await this.requestService.request({
+		return this.requestService.request({
 			type: 'POST',
 			url: this.api('/extensionquery'),
 			data,
 			headers
+		}).then(context => {
+
+			if (context.res.statusCode >= 400 && context.res.statusCode < 500) {
+				return { galleryExtensions: [], total: 0 };
+			}
+
+			return asJson<IRawGalleryQueryResult>(context).then(result => {
+				const r = result.results[0];
+				const galleryExtensions = r.extensions;
+				const resultCount = r.resultMetadata && r.resultMetadata.filter(m => m.metadataType === 'ResultCount')[0];
+				const total = resultCount && resultCount.metadataItems.filter(i => i.name === 'TotalCount')[0].count || 0;
+
+				return { galleryExtensions, total };
+			});
 		});
-
-		if (context.res.statusCode >= 400 && context.res.statusCode < 500) {
-			return { galleryExtensions: [], total: 0 };
-		}
-
-		const result = await asJson<IRawGalleryQueryResult>(context);
-		const r = result.results[0];
-		const galleryExtensions = r.extensions;
-		const resultCount = r.resultMetadata && r.resultMetadata.filter(m => m.metadataType === 'ResultCount')[0];
-		const total = resultCount && resultCount.metadataItems.filter(i => i.name === 'TotalCount')[0].count || 0;
-
-		return { galleryExtensions, total };
 	}
 
-	async reportStatistic(publisher: string, name: string, version: string, type: StatisticType): TPromise<void> {
+	reportStatistic(publisher: string, name: string, version: string, type: StatisticType): TPromise<void> {
 		if (!this.isEnabled()) {
-			return;
+			return TPromise.as(null);
 		}
 
-		try {
-			const headers = {
-				...await this.commonHTTPHeaders,
-				Accept: '*/*;api-version=4.0-preview.1'
-			};
+		const headers = { ...this.commonHTTPHeaders, Accept: '*/*;api-version=4.0-preview.1' };
 
-			await this.requestService.request({
-				type: 'POST',
-				url: this.api(`/publishers/${publisher}/extensions/${name}/${version}/stats?statType=${type}`),
-				headers
-			});
-		} catch (err) {
-			// noop
-		}
+		return this.requestService.request({
+			type: 'POST',
+			url: this.api(`/publishers/${publisher}/extensions/${name}/${version}/stats?statType=${type}`),
+			headers
+		}).then(null, () => null);
 	}
 
 	download(extension: IGalleryExtension): TPromise<string> {
-		return this.loadCompatibleVersion(extension).then(extension => {
-			const zipPath = path.join(tmpdir(), uuid.generateUuid());
-			const data = getGalleryExtensionTelemetryData(extension);
-			const startTime = new Date().getTime();
-			/* __GDPR__
-				"galleryService:downloadVSIX" : {
-					"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-					"${include}": [
-						"${GalleryExtensionTelemetryData}"
-					]
+		return this.loadCompatibleVersion(extension)
+			.then(extension => {
+				if (!extension) {
+					return TPromise.wrapError(new Error(localize('notCompatibleDownload', "Unable to download because the extension compatible with current version '{0}' of VS Code is not found.", pkg.version)));
 				}
-			*/
-			const log = (duration: number) => this.telemetryService.publicLog('galleryService:downloadVSIX', assign(data, { duration }));
+				const zipPath = path.join(tmpdir(), uuid.generateUuid());
+				const data = getGalleryExtensionTelemetryData(extension);
+				const startTime = new Date().getTime();
+				/* __GDPR__
+					"galleryService:downloadVSIX" : {
+						"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+						"${include}": [
+							"${GalleryExtensionTelemetryData}"
+						]
+					}
+				*/
+				const log = (duration: number) => this.telemetryService.publicLog('galleryService:downloadVSIX', assign(data, { duration }));
 
-			return this.getAsset(extension.assets.download)
-				.then(context => download(zipPath, context))
-				.then(() => log(new Date().getTime() - startTime))
-				.then(() => zipPath);
-		});
+				return this.getAsset(extension.assets.download)
+					.then(context => download(zipPath, context))
+					.then(() => log(new Date().getTime() - startTime))
+					.then(() => zipPath);
+			});
 	}
 
 	getReadme(extension: IGalleryExtension): TPromise<string> {
@@ -472,9 +499,8 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			.then(asText);
 	}
 
-	getAllDependencies(extension: IGalleryExtension): TPromise<IGalleryExtension[]> {
-		return this.loadCompatibleVersion(<IGalleryExtension>extension)
-			.then(compatible => this.getDependenciesReccursively(compatible.properties.dependencies, [], extension));
+	loadAllDependencies(extensions: IExtensionIdentifier[]): TPromise<IGalleryExtension[]> {
+		return this.getDependenciesReccursively(extensions.map(e => e.id), []);
 	}
 
 	loadCompatibleVersion(extension: IGalleryExtension): TPromise<IGalleryExtension> {
@@ -488,24 +514,28 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
 			.withFilter(FilterType.ExcludeWithFlags, flagsToString(Flags.Unpublished))
 			.withAssetTypes(AssetType.Manifest, AssetType.VSIX)
-			.withFilter(FilterType.ExtensionId, extension.uuid);
+			.withFilter(FilterType.ExtensionId, extension.identifier.uuid);
 
-		return this.queryGallery(query).then(({ galleryExtensions }) => {
-			const [rawExtension] = galleryExtensions;
+		return this.queryGallery(query)
+			.then(({ galleryExtensions }) => {
+				const [rawExtension] = galleryExtensions;
 
-			if (!rawExtension) {
-				return TPromise.wrapError<IGalleryExtension>(new Error(localize('notFound', "Extension not found")));
-			}
+				if (!rawExtension) {
+					return null;
+				}
 
-			return this.getLastValidExtensionVersion(rawExtension, rawExtension.versions)
-				.then(rawVersion => {
-					extension.properties.dependencies = getDependencies(rawVersion);
-					extension.properties.engine = getEngine(rawVersion);
-					extension.assets.download = getVersionAsset(rawVersion, AssetType.VSIX);
-					extension.version = rawVersion.version;
-					return extension;
-				});
-		});
+				return this.getLastValidExtensionVersion(rawExtension, rawExtension.versions)
+					.then(rawVersion => {
+						if (rawVersion) {
+							extension.properties.dependencies = getDependencies(rawVersion);
+							extension.properties.engine = getEngine(rawVersion);
+							extension.assets.download = getVersionAsset(rawVersion, AssetType.VSIX);
+							extension.version = rawVersion.version;
+							return extension;
+						}
+						return null;
+					});
+			});
 	}
 
 	private loadDependencies(extensionNames: string[]): TPromise<IGalleryExtension[]> {
@@ -536,12 +566,9 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		});
 	}
 
-	private getDependenciesReccursively(toGet: string[], result: IGalleryExtension[], root: IGalleryExtension): TPromise<IGalleryExtension[]> {
+	private getDependenciesReccursively(toGet: string[], result: IGalleryExtension[]): TPromise<IGalleryExtension[]> {
 		if (!toGet || !toGet.length) {
 			return TPromise.wrap(result);
-		}
-		if (toGet.indexOf(`${root.publisher}.${root.name}`) !== -1 && result.indexOf(root) === -1) {
-			result.push(root);
 		}
 		toGet = result.length ? toGet.filter(e => !ExtensionGalleryService.hasExtensionByName(result, e)) : toGet;
 		if (!toGet.length) {
@@ -556,10 +583,10 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 						dep.properties.dependencies.forEach(d => dependenciesSet.add(d));
 					}
 				}
-				result = distinct(result.concat(loadedDependencies), d => d.uuid);
+				result = distinct(result.concat(loadedDependencies), d => d.identifier.uuid);
 				const dependencies: string[] = [];
 				dependenciesSet.forEach(d => !ExtensionGalleryService.hasExtensionByName(result, d) && dependencies.push(d));
-				return this.getDependenciesReccursively(dependencies, result, root);
+				return this.getDependenciesReccursively(dependencies, result);
 			});
 	}
 
@@ -646,7 +673,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 	private getLastValidExtensionVersionReccursively(extension: IRawGalleryExtension, versions: IRawGalleryExtensionVersion[]): TPromise<IRawGalleryExtensionVersion> {
 		if (!versions.length) {
-			return TPromise.wrapError<IRawGalleryExtensionVersion>(new Error(localize('noCompatible', "Couldn't find a compatible version of {0} with this version of Code.", extension.displayName || extension.extensionName)));
+			return null;
 		}
 
 		const version = versions[0];

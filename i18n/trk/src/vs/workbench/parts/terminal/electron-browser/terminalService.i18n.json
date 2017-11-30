@@ -10,6 +10,5 @@
 	"never again": "Tamam, Tekrar Gösterme",
 	"terminal.integrated.chooseWindowsShell": "Tercih ettiğiniz terminal kabuğunu seçin, bunu daha sonra ayarlarınızdan değiştirebilirsiniz",
 	"terminalService.terminalCloseConfirmationSingular": "Aktif bir terminal oturumu var, sonlandırmak istiyor musunuz?",
-	"terminalService.terminalCloseConfirmationPlural": "{0} aktif terminal oturumu var, bunları sonlandırmak istiyor musunuz?",
-	"yes": "Evet"
+	"terminalService.terminalCloseConfirmationPlural": "{0} aktif terminal oturumu var, bunları sonlandırmak istiyor musunuz?"
 }

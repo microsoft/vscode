@@ -17,6 +17,7 @@
 	"terminal.integrated.fontFamily": "Controlla la famiglia di caratteri del terminale. L'impostazione predefinita è il valore di editor.fontFamily.",
 	"terminal.integrated.fontSize": "Consente di controllare le dimensioni del carattere in pixel del terminale.",
 	"terminal.integrated.lineHeight": "Controlla l'altezza della riga del terminale. Questo numero è moltiplicato dalle dimensioni del carattere del terminale per ottenere l'altezza di riga effettiva in pixel.",
+	"terminal.integrated.enableBold": "Per abilitare il grassetto del testo all'interno del terminale, è necessario il supporto della shell del terminale.",
 	"terminal.integrated.cursorBlinking": "Controlla se il cursore del terminale è intermittente o meno.",
 	"terminal.integrated.cursorStyle": "Controlla lo stile del cursore del terminale.",
 	"terminal.integrated.scrollback": "Consente di controllare il numero massimo di righe che il terminale mantiene nel buffer.",

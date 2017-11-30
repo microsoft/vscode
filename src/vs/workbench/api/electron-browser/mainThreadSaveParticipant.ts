@@ -8,30 +8,25 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { sequence } from 'vs/base/common/async';
 import * as strings from 'vs/base/common/strings';
-import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ISaveParticipant, ITextFileEditorModel, SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IModel, ICommonCodeEditor, ISingleEditOperation, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
+import { IModel, ISingleEditOperation, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
 import { trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
-import { getDocumentFormattingEdits } from 'vs/editor/contrib/format/common/format';
-import { EditOperationsCommand } from 'vs/editor/contrib/format/common/formatCommand';
+import { getDocumentFormattingEdits } from 'vs/editor/contrib/format/format';
+import { EditOperationsCommand } from 'vs/editor/contrib/format/formatCommand';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ExtHostContext, ExtHostDocumentSaveParticipantShape, IExtHostContext } from '../node/extHost.protocol';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { extHostCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
-export interface INamedSaveParticpant extends ISaveParticipant {
-	readonly name: string;
-}
-
-class TrimWhitespaceParticipant implements INamedSaveParticpant {
-
-	readonly name = 'TrimWhitespaceParticipant';
+class TrimWhitespaceParticipant implements ISaveParticipant {
 
 	constructor(
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -69,8 +64,8 @@ class TrimWhitespaceParticipant implements INamedSaveParticpant {
 	}
 }
 
-function findEditor(model: IModel, codeEditorService: ICodeEditorService): ICommonCodeEditor {
-	let candidate: ICommonCodeEditor = null;
+function findEditor(model: IModel, codeEditorService: ICodeEditorService): ICodeEditor {
+	let candidate: ICodeEditor = null;
 
 	if (model.isAttachedToEditor()) {
 		for (const editor of codeEditorService.listCodeEditors()) {
@@ -87,9 +82,7 @@ function findEditor(model: IModel, codeEditorService: ICodeEditorService): IComm
 	return candidate;
 }
 
-export class FinalNewLineParticipant implements INamedSaveParticpant {
-
-	readonly name = 'FinalNewLineParticipant';
+export class FinalNewLineParticipant implements ISaveParticipant {
 
 	constructor(
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -127,9 +120,7 @@ export class FinalNewLineParticipant implements INamedSaveParticpant {
 	}
 }
 
-export class TrimFinalNewLinesParticipant implements INamedSaveParticpant {
-
-	readonly name = 'TrimFinalNewLinesParticipant';
+export class TrimFinalNewLinesParticipant implements ISaveParticipant {
 
 	constructor(
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -174,12 +165,11 @@ export class TrimFinalNewLinesParticipant implements INamedSaveParticpant {
 	}
 }
 
-class FormatOnSaveParticipant implements INamedSaveParticpant {
-
-	readonly name = 'FormatOnSaveParticipant';
+class FormatOnSaveParticipant implements ISaveParticipant {
 
 	constructor(
 		@ICodeEditorService private _editorService: ICodeEditorService,
+		@IEditorWorkerService private _editorWorkerService: IEditorWorkerService,
 		@IConfigurationService private _configurationService: IConfigurationService
 	) {
 		// Nothing
@@ -198,7 +188,9 @@ class FormatOnSaveParticipant implements INamedSaveParticpant {
 
 		return new TPromise<ISingleEditOperation[]>((resolve, reject) => {
 			setTimeout(reject, 750);
-			getDocumentFormattingEdits(model, { tabSize, insertSpaces }).then(resolve, reject);
+			getDocumentFormattingEdits(model, { tabSize, insertSpaces })
+				.then(edits => this._editorWorkerService.computeMoreMinimalEdits(model.uri, edits))
+				.then(resolve, reject);
 
 		}).then(edits => {
 			if (edits && versionNow === model.getVersionId()) {
@@ -212,7 +204,7 @@ class FormatOnSaveParticipant implements INamedSaveParticpant {
 		});
 	}
 
-	private _editsWithEditor(editor: ICommonCodeEditor, edits: ISingleEditOperation[]): void {
+	private _editsWithEditor(editor: ICodeEditor, edits: ISingleEditOperation[]): void {
 		EditOperationsCommand.execute(editor, edits);
 	}
 
@@ -241,11 +233,9 @@ class FormatOnSaveParticipant implements INamedSaveParticpant {
 	}
 }
 
-class ExtHostSaveParticipant implements INamedSaveParticpant {
+class ExtHostSaveParticipant implements ISaveParticipant {
 
 	private _proxy: ExtHostDocumentSaveParticipantShape;
-
-	readonly name = 'ExtHostSaveParticipant';
 
 	constructor(extHostContext: IExtHostContext) {
 		this._proxy = extHostContext.get(ExtHostContext.ExtHostDocumentSaveParticipant);
@@ -270,19 +260,19 @@ class ExtHostSaveParticipant implements INamedSaveParticpant {
 @extHostCustomer
 export class SaveParticipant implements ISaveParticipant {
 
-	private _saveParticipants: INamedSaveParticpant[];
+	private _saveParticipants: ISaveParticipant[];
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@ITelemetryService private _telemetryService: ITelemetryService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@ICodeEditorService codeEditorService: ICodeEditorService
+		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@IEditorWorkerService editorWorkerService: IEditorWorkerService
 	) {
 
 		this._saveParticipants = [
 			new TrimWhitespaceParticipant(configurationService, codeEditorService),
-			new FormatOnSaveParticipant(codeEditorService, configurationService),
+			new FormatOnSaveParticipant(codeEditorService, editorWorkerService, configurationService),
 			new FinalNewLineParticipant(configurationService, codeEditorService),
 			new TrimFinalNewLinesParticipant(configurationService, codeEditorService),
 			new ExtHostSaveParticipant(extHostContext)
@@ -297,38 +287,10 @@ export class SaveParticipant implements ISaveParticipant {
 	}
 
 	participate(model: ITextFileEditorModel, env: { reason: SaveReason }): TPromise<void> {
-
-		const stats: { [name: string]: number } = Object.create(null);
-
 		const promiseFactory = this._saveParticipants.map(p => () => {
-
-			const { name } = p;
-			const t1 = Date.now();
-
-			return TPromise.as(p.participate(model, env)).then(() => {
-				stats[`Success-${name}`] = Date.now() - t1;
-			}, err => {
-				stats[`Failure-${name}`] = Date.now() - t1;
-				// console.error(err);
-			});
+			return TPromise.as(p.participate(model, env));
 		});
 
-		return sequence(promiseFactory).then(() => {
-			/* __GDPR__
-				"saveParticipantStats" : {
-					"${wildcard}": [
-						{
-							"${prefix}": "Success-",
-							"${classification}": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-						},
-						{
-							"${prefix}": "Failure-",
-							"${classification}": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-						}
-					]
-				}
-			*/
-			this._telemetryService.publicLog('saveParticipantStats', stats);
-		});
+		return sequence(promiseFactory).then(() => { });
 	}
 }

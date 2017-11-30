@@ -10,7 +10,7 @@
 	"searchScope.excludes": "archivos para excluir",
 	"label.excludes": "Buscar patrones de exclusión",
 	"replaceAll.confirmation.title": "Reemplazar todo",
-	"replaceAll.confirm.button": "Reemplazar",
+	"replaceAll.confirm.button": "&&Reemplazar",
 	"replaceAll.occurrence.file.message": "{0} aparición reemplazada en {1} archivo por \"{2}\".",
 	"removeAll.occurrence.file.message": "{0} aparición reemplazada en {1} archivo.",
 	"replaceAll.occurrence.files.message": "{0} aparición reemplazada en {1} archivos por \"{2}\".",

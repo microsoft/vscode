@@ -5,7 +5,8 @@
 			"es2015"
 		],
 		"module": "commonjs",
-		"outDir": "./out"
+		"outDir": "./out",
+		"strict": true
 	},
 	"include": [
 		"src/**/*"

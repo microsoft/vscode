@@ -12,7 +12,6 @@ import { IMatch, IFilter, or, matchesContiguousSubString, matchesPrefix, matches
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ResolvedKeybinding, ResolvedKeybindingPart } from 'vs/base/common/keyCodes';
 import { AriaLabelProvider, UserSettingsLabelProvider, UILabelProvider, ModifierLabels as ModLabels } from 'vs/base/common/keybindingLabels';
-import { CommonEditorRegistry, EditorAction } from 'vs/editor/common/editorCommonExtensions';
 import { MenuRegistry, ILocalizedString, ICommandAction } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { EditorModel } from 'vs/workbench/common/editor';
@@ -77,7 +76,7 @@ export class KeybindingsEditorModel extends EditorModel {
 	private modifierLabels: ModifierLabels;
 
 	constructor(
-		private os: OperatingSystem,
+		os: OperatingSystem,
 		@IKeybindingService private keybindingsService: IKeybindingService,
 		@IExtensionService private extensionService: IExtensionService
 	) {
@@ -143,20 +142,16 @@ export class KeybindingsEditorModel extends EditorModel {
 		return result;
 	}
 
-	public resolve(): TPromise<EditorModel> {
-		return this.extensionService.onReady()
+	public resolve(editorActionsLabels: { [id: string]: string; }): TPromise<EditorModel> {
+		return this.extensionService.whenInstalledExtensionsRegistered()
 			.then(() => {
 				const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-				const editorActions = CommonEditorRegistry.getEditorActions().reduce((editorActions, editorAction) => {
-					editorActions[editorAction.id] = editorAction;
-					return editorActions;
-				}, {});
 
 				this._keybindingItemsSortedByPrecedence = [];
 				const boundCommands: Map<string, boolean> = new Map<string, boolean>();
 				for (const keybinding of this.keybindingsService.getKeybindings()) {
 					if (keybinding.command) { // Skip keybindings without commands
-						this._keybindingItemsSortedByPrecedence.push(KeybindingsEditorModel.toKeybindingEntry(keybinding.command, keybinding, workbenchActionsRegistry, editorActions));
+						this._keybindingItemsSortedByPrecedence.push(KeybindingsEditorModel.toKeybindingEntry(keybinding.command, keybinding, workbenchActionsRegistry, editorActionsLabels));
 						boundCommands.set(keybinding.command, true);
 					}
 				}
@@ -164,7 +159,7 @@ export class KeybindingsEditorModel extends EditorModel {
 				const commandsWithDefaultKeybindings = this.keybindingsService.getDefaultKeybindings().map(keybinding => keybinding.command);
 				for (const command of KeybindingResolver.getAllUnboundCommands(boundCommands)) {
 					const keybindingItem = new ResolvedKeybindingItem(null, command, null, null, commandsWithDefaultKeybindings.indexOf(command) === -1);
-					this._keybindingItemsSortedByPrecedence.push(KeybindingsEditorModel.toKeybindingEntry(command, keybindingItem, workbenchActionsRegistry, editorActions));
+					this._keybindingItemsSortedByPrecedence.push(KeybindingsEditorModel.toKeybindingEntry(command, keybindingItem, workbenchActionsRegistry, editorActionsLabels));
 				}
 				this._keybindingItems = this._keybindingItemsSortedByPrecedence.slice(0).sort((a, b) => KeybindingsEditorModel.compareKeybindingData(a, b));
 				return this;
@@ -199,14 +194,14 @@ export class KeybindingsEditorModel extends EditorModel {
 		return a.command.localeCompare(b.command);
 	}
 
-	private static toKeybindingEntry(command: string, keybindingItem: ResolvedKeybindingItem, workbenchActionsRegistry: IWorkbenchActionRegistry, editorActions: {}): IKeybindingItem {
+	private static toKeybindingEntry(command: string, keybindingItem: ResolvedKeybindingItem, workbenchActionsRegistry: IWorkbenchActionRegistry, editorActions: { [id: string]: string; }): IKeybindingItem {
 		const menuCommand = MenuRegistry.getCommand(command);
-		const editorAction: EditorAction = editorActions[command];
+		const editorActionLabel = editorActions[command];
 		return <IKeybindingItem>{
 			keybinding: keybindingItem.resolvedKeybinding,
 			keybindingItem,
 			command,
-			commandLabel: KeybindingsEditorModel.getCommandLabel(menuCommand, editorAction),
+			commandLabel: KeybindingsEditorModel.getCommandLabel(menuCommand, editorActionLabel),
 			commandDefaultLabel: KeybindingsEditorModel.getCommandDefaultLabel(menuCommand, workbenchActionsRegistry),
 			when: keybindingItem.when ? keybindingItem.when.serialize() : '',
 			source: keybindingItem.isDefault ? localize('default', "Default") : localize('user', "User")
@@ -222,13 +217,13 @@ export class KeybindingsEditorModel extends EditorModel {
 		return null;
 	}
 
-	private static getCommandLabel(menuCommand: ICommandAction, editorAction: EditorAction): string {
+	private static getCommandLabel(menuCommand: ICommandAction, editorActionLabel: string): string {
 		if (menuCommand) {
 			return typeof menuCommand.title === 'string' ? menuCommand.title : menuCommand.title.value;
 		}
 
-		if (editorAction) {
-			return editorAction.label;
+		if (editorActionLabel) {
+			return editorActionLabel;
 		}
 
 		return '';
@@ -244,7 +239,7 @@ class KeybindingItemMatches {
 	public readonly whenMatches: IMatch[] = null;
 	public readonly keybindingMatches: KeybindingMatches = null;
 
-	constructor(private modifierLabels: ModifierLabels, keybindingItem: IKeybindingItem, private searchValue: string, private words: string[], private keybindingWords: string[], private completeMatch: boolean) {
+	constructor(private modifierLabels: ModifierLabels, keybindingItem: IKeybindingItem, searchValue: string, words: string[], keybindingWords: string[], private completeMatch: boolean) {
 		this.commandIdMatches = this.matches(searchValue, keybindingItem.command, or(matchesWords, matchesCamelCase), words);
 		this.commandLabelMatches = keybindingItem.commandLabel ? this.matches(searchValue, keybindingItem.commandLabel, (word, wordToMatchAgainst) => matchesWords(word, keybindingItem.commandLabel, true), words) : null;
 		this.commandDefaultLabelMatches = keybindingItem.commandDefaultLabel ? this.matches(searchValue, keybindingItem.commandDefaultLabel, (word, wordToMatchAgainst) => matchesWords(word, keybindingItem.commandDefaultLabel, true), words) : null;

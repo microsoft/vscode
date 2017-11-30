@@ -21,12 +21,25 @@ import { IInitData, IEnvironment, IWorkspaceData, MainContext } from 'vs/workben
 import * as errors from 'vs/base/common/errors';
 import * as watchdog from 'native-watchdog';
 import * as glob from 'vs/base/common/glob';
+import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 
 // const nativeExit = process.exit.bind(process);
-process.exit = function () {
-	const err = new Error('An extension called process.exit() and this was prevented.');
-	console.warn(err.stack);
-};
+function patchProcess(allowExit: boolean) {
+	process.exit = function (code) {
+		if (allowExit) {
+			exit(code);
+		} else {
+			const err = new Error('An extension called process.exit() and this was prevented.');
+			console.warn(err.stack);
+		}
+	};
+
+	process.crash = function () {
+		const err = new Error('An extension called process.crash() and this was prevented.');
+		console.warn(err.stack);
+	};
+}
 export function exit(code?: number) {
 	//nativeExit(code);
 
@@ -66,11 +79,17 @@ export class ExtensionHostMain {
 		this._environment = initData.environment;
 		this._workspace = initData.workspace;
 
+		const allowExit = !!this._environment.extensionTestsPath; // to support other test frameworks like Jasmin that use process.exit (https://github.com/Microsoft/vscode/issues/37708)
+		patchProcess(allowExit);
+
 		// services
 		const threadService = new ExtHostThreadService(rpcProtocol);
 		const extHostWorkspace = new ExtHostWorkspace(threadService, initData.workspace);
+		const environmentService = new EnvironmentService(initData.args, initData.execPath);
+		const logService = new SpdLogService('exthost', environmentService);
+
 		this._extHostConfiguration = new ExtHostConfiguration(threadService.get(MainContext.MainThreadConfiguration), extHostWorkspace, initData.configuration);
-		this._extensionService = new ExtHostExtensionService(initData, threadService, extHostWorkspace, this._extHostConfiguration);
+		this._extensionService = new ExtHostExtensionService(initData, threadService, extHostWorkspace, this._extHostConfiguration, logService);
 
 		// error forwarding and stack trace scanning
 		const extensionErrors = new WeakMap<Error, IExtensionDescription>();
@@ -224,17 +243,17 @@ export class ExtensionHostMain {
 		});
 
 		const folderQueries = this._workspace.folders.map(folder => ({ folder: folder.uri }));
-		const useRipgrep = folderQueries.every(folderQuery => {
-			const folderConfig = this._extHostConfiguration.getConfiguration('search', folderQuery.folder);
-			return folderConfig.get('useRipgrep', true);
-		});
+		const config = this._extHostConfiguration.getConfiguration('search');
+		const useRipgrep = config.get('useRipgrep', true);
+		const followSymlinks = config.get('followSymlinks', true);
 
 		const query: ISearchQuery = {
 			folderQueries,
 			type: QueryType.File,
 			exists: true,
 			includePattern: includes,
-			useRipgrep
+			useRipgrep,
+			ignoreSymlinks: !followSymlinks
 		};
 
 		let result = await this._diskSearch.search(query);

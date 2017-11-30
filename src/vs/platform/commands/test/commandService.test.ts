@@ -15,13 +15,19 @@ import { IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistr
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { SimpleConfigurationService } from 'vs/editor/standalone/browser/simpleServices';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import Event, { Emitter } from 'vs/base/common/event';
+import { NoopLogService } from 'vs/platform/log/common/log';
 
 class SimpleExtensionService implements IExtensionService {
 	_serviceBrand: any;
-	activateByEvent(activationEvent: string): TPromise<void> {
-		return this.onReady().then(() => { });
+	private _onDidRegisterExtensions = new Emitter<IExtensionDescription[]>();
+	get onDidRegisterExtensions(): Event<IExtensionDescription[]> {
+		return this._onDidRegisterExtensions.event;
 	}
-	onReady(): TPromise<boolean> {
+	activateByEvent(activationEvent: string): TPromise<void> {
+		return this.whenInstalledExtensionsRegistered().then(() => { });
+	}
+	whenInstalledExtensionsRegistered(): TPromise<boolean> {
 		return TPromise.as(true);
 	}
 	readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]> {
@@ -65,7 +71,7 @@ suite('CommandService', function () {
 				lastEvent = activationEvent;
 				return super.activateByEvent(activationEvent);
 			}
-		}, new ContextKeyService(new SimpleConfigurationService()));
+		}, new ContextKeyService(new SimpleConfigurationService()), new NoopLogService());
 
 		return service.executeCommand('foo').then(() => {
 			assert.ok(lastEvent, 'onCommand:foo');
@@ -83,7 +89,7 @@ suite('CommandService', function () {
 			activateByEvent(activationEvent: string): TPromise<void> {
 				return TPromise.wrapError<void>(new Error('bad_activate'));
 			}
-		}, new ContextKeyService(new SimpleConfigurationService()));
+		}, new ContextKeyService(new SimpleConfigurationService()), new NoopLogService());
 
 		return service.executeCommand('foo').then(() => assert.ok(false), err => {
 			assert.equal(err.message, 'bad_activate');
@@ -95,14 +101,36 @@ suite('CommandService', function () {
 		let callCounter = 0;
 		let reg = CommandsRegistry.registerCommand('bar', () => callCounter += 1);
 
-		let resolve: Function;
 		let service = new CommandService(new InstantiationService(), new class extends SimpleExtensionService {
-			onReady() {
-				return new TPromise<boolean>(_resolve => { resolve = _resolve; });
+			whenInstalledExtensionsRegistered() {
+				return new TPromise<boolean>(_resolve => { /*ignore*/ });
 			}
-		}, new ContextKeyService(new SimpleConfigurationService()));
+		}, new ContextKeyService(new SimpleConfigurationService()), new NoopLogService());
 
-		return service.executeCommand('bar').then(() => {
+		service.executeCommand('bar');
+		assert.equal(callCounter, 1);
+		reg.dispose();
+	});
+
+	test('issue #34913: !onReady, unknown command', function () {
+
+		let callCounter = 0;
+		let resolveFunc: Function;
+		// let reg = CommandsRegistry.registerCommand('bar', () => callCounter += 1);
+
+		let service = new CommandService(new InstantiationService(), new class extends SimpleExtensionService {
+			whenInstalledExtensionsRegistered() {
+				return new TPromise<boolean>(_resolve => { resolveFunc = _resolve; });
+			}
+		}, new ContextKeyService(new SimpleConfigurationService()), new NoopLogService());
+
+		let r = service.executeCommand('bar');
+		assert.equal(callCounter, 0);
+
+		let reg = CommandsRegistry.registerCommand('bar', () => callCounter += 1);
+		resolveFunc(true);
+
+		return r.then(() => {
 			reg.dispose();
 			assert.equal(callCounter, 1);
 		});
@@ -113,7 +141,8 @@ suite('CommandService', function () {
 		let commandService = new CommandService(
 			new InstantiationService(),
 			new SimpleExtensionService(),
-			contextKeyService
+			contextKeyService,
+			new NoopLogService()
 		);
 
 		let counter = 0;

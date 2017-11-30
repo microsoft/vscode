@@ -184,6 +184,7 @@ export function tokenColorsSchema(description: string): IJSONSchema {
 const schemaId = 'vscode://schemas/color-theme';
 const schema: IJSONSchema = {
 	type: 'object',
+	allowComments: true,
 	properties: {
 		colors: colorsSchema,
 		tokenColors: {

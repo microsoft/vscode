@@ -12,8 +12,8 @@ import { WalkThroughPart } from 'vs/workbench/parts/welcome/walkThrough/electron
 
 export class WalkThroughArrowUpAction extends Action {
 
-	public static ID = 'workbench.action.interactivePlayground.arrowUp';
-	public static LABEL = localize('editorWalkThrough.arrowUp', "Scroll Up (Line)");
+	public static readonly ID = 'workbench.action.interactivePlayground.arrowUp';
+	public static readonly LABEL = localize('editorWalkThrough.arrowUp', "Scroll Up (Line)");
 
 	constructor(
 		id: string,
@@ -34,8 +34,8 @@ export class WalkThroughArrowUpAction extends Action {
 
 export class WalkThroughArrowDownAction extends Action {
 
-	public static ID = 'workbench.action.interactivePlayground.arrowDown';
-	public static LABEL = localize('editorWalkThrough.arrowDown', "Scroll Down (Line)");
+	public static readonly ID = 'workbench.action.interactivePlayground.arrowDown';
+	public static readonly LABEL = localize('editorWalkThrough.arrowDown', "Scroll Down (Line)");
 
 	constructor(
 		id: string,
@@ -56,8 +56,8 @@ export class WalkThroughArrowDownAction extends Action {
 
 export class WalkThroughPageUpAction extends Action {
 
-	public static ID = 'workbench.action.interactivePlayground.pageUp';
-	public static LABEL = localize('editorWalkThrough.pageUp', "Scroll Up (Page)");
+	public static readonly ID = 'workbench.action.interactivePlayground.pageUp';
+	public static readonly LABEL = localize('editorWalkThrough.pageUp', "Scroll Up (Page)");
 
 	constructor(
 		id: string,
@@ -78,8 +78,8 @@ export class WalkThroughPageUpAction extends Action {
 
 export class WalkThroughPageDownAction extends Action {
 
-	public static ID = 'workbench.action.interactivePlayground.pageDown';
-	public static LABEL = localize('editorWalkThrough.pageDown', "Scroll Down (Page)");
+	public static readonly ID = 'workbench.action.interactivePlayground.pageDown';
+	public static readonly LABEL = localize('editorWalkThrough.pageDown', "Scroll Down (Page)");
 
 	constructor(
 		id: string,

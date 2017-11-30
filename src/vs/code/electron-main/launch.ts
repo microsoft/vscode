@@ -15,6 +15,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { OpenContext } from 'vs/platform/windows/common/windows';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { whenDeleted } from 'vs/base/node/pfs';
+import { BrowserWindow } from 'electron';
 
 export const ID = 'launchService';
 export const ILaunchService = createDecorator<ILaunchService>(ID);
@@ -24,15 +25,22 @@ export interface IStartArguments {
 	userEnv: IProcessEnvironment;
 }
 
+export interface IMainProcessInfo {
+	mainPID: number;
+	windows: { pid: number; title: string; }[];
+}
+
 export interface ILaunchService {
 	_serviceBrand: any;
 	start(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void>;
 	getMainProcessId(): TPromise<number>;
+	getMainProcessInfo(): TPromise<IMainProcessInfo>;
 }
 
 export interface ILaunchChannel extends IChannel {
 	call(command: 'start', arg: IStartArguments): TPromise<void>;
 	call(command: 'get-main-process-id', arg: null): TPromise<any>;
+	call(command: 'get-main-process-info', arg: null): TPromise<any>;
 	call(command: string, arg: any): TPromise<any>;
 }
 
@@ -48,6 +56,9 @@ export class LaunchChannel implements ILaunchChannel {
 
 			case 'get-main-process-id':
 				return this.service.getMainProcessId();
+
+			case 'get-main-process-info':
+				return this.service.getMainProcessInfo();
 		}
 
 		return undefined;
@@ -67,6 +78,10 @@ export class LaunchChannelClient implements ILaunchService {
 	public getMainProcessId(): TPromise<number> {
 		return this.channel.call('get-main-process-id', null);
 	}
+
+	public getMainProcessInfo(): TPromise<IMainProcessInfo> {
+		return this.channel.call('get-main-process-info', null);
+	}
 }
 
 export class LaunchService implements ILaunchService {
@@ -75,12 +90,12 @@ export class LaunchService implements ILaunchService {
 
 	constructor(
 		@ILogService private logService: ILogService,
-		@IWindowsMainService private windowsService: IWindowsMainService,
+		@IWindowsMainService private windowsMainService: IWindowsMainService,
 		@IURLService private urlService: IURLService
 	) { }
 
 	public start(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void> {
-		this.logService.log('Received data from other instance: ', args, userEnv);
+		this.logService.info('Received data from other instance: ', args, userEnv);
 
 		// Check early for open-url which is handled in URL service
 		const openUrlArg = args['open-url'] || [];
@@ -95,13 +110,13 @@ export class LaunchService implements ILaunchService {
 		const context = !!userEnv['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.DESKTOP;
 		let usedWindows: ICodeWindow[];
 		if (!!args.extensionDevelopmentPath) {
-			this.windowsService.openExtensionDevelopmentHostWindow({ context, cli: args, userEnv });
+			this.windowsMainService.openExtensionDevelopmentHostWindow({ context, cli: args, userEnv });
 		} else if (args._.length === 0 && (args['new-window'] || args['unity-launch'])) {
-			usedWindows = this.windowsService.open({ context, cli: args, userEnv, forceNewWindow: true, forceEmpty: true });
+			usedWindows = this.windowsMainService.open({ context, cli: args, userEnv, forceNewWindow: true, forceEmpty: true });
 		} else if (args._.length === 0) {
-			usedWindows = [this.windowsService.focusLastActive(args, context)];
+			usedWindows = [this.windowsMainService.focusLastActive(args, context)];
 		} else {
-			usedWindows = this.windowsService.open({
+			usedWindows = this.windowsMainService.open({
 				context,
 				cli: args,
 				userEnv,
@@ -118,7 +133,7 @@ export class LaunchService implements ILaunchService {
 		// In addition, we poll for the wait marker file to be deleted to return.
 		if (args.wait && usedWindows.length === 1 && usedWindows[0]) {
 			return TPromise.any([
-				this.windowsService.waitForWindowCloseOrLoad(usedWindows[0].id),
+				this.windowsMainService.waitForWindowCloseOrLoad(usedWindows[0].id),
 				whenDeleted(args.waitMarkerFilePath)
 			]).then(() => void 0, () => void 0);
 		}
@@ -127,8 +142,22 @@ export class LaunchService implements ILaunchService {
 	}
 
 	public getMainProcessId(): TPromise<number> {
-		this.logService.log('Received request for process ID from other instance.');
+		this.logService.info('Received request for process ID from other instance.');
 
 		return TPromise.as(process.pid);
+	}
+
+	public getMainProcessInfo(): TPromise<IMainProcessInfo> {
+		this.logService.info('Received request for main process info from other instance.');
+
+		return TPromise.as({
+			mainPID: process.pid,
+			windows: BrowserWindow.getAllWindows().map(window => {
+				return {
+					pid: window.webContents.getOSProcessId(),
+					title: window.getTitle()
+				};
+			})
+		} as IMainProcessInfo);
 	}
 }

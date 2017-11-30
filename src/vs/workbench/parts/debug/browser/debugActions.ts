@@ -14,7 +14,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IMessageService } from 'vs/platform/message/common/message';
-import { IDebugService, State, IProcess, IThread, IEnablement, IBreakpoint, IStackFrame, IFunctionBreakpoint, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, IExpression, REPL_ID, ProcessState }
+import { IDebugService, State, IProcess, IThread, IEnablement, IBreakpoint, IStackFrame, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, IExpression, REPL_ID, ProcessState }
 	from 'vs/workbench/parts/debug/common/debug';
 import { Variable, Expression, Thread, Breakpoint, Process } from 'vs/workbench/parts/debug/common/debugModel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
@@ -77,7 +77,6 @@ export class ConfigureAction extends AbstractDebugAction {
 	constructor(id: string, label: string,
 		@IDebugService debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IMessageService private messageService: IMessageService
 	) {
 		super(id, label, 'debug-action configure', debugService, keybindingService);
@@ -133,27 +132,30 @@ export class StartAction extends AbstractDebugAction {
 		return false;
 	}
 
-	// Disabled if the launch drop down shows the launch config that is already running.
-	protected isEnabled(state: State): boolean {
-		const processes = this.debugService.getModel().getProcesses();
-		const selectedName = this.debugService.getConfigurationManager().selectedName;
-		const launch = this.debugService.getConfigurationManager().selectedLaunch;
+	public static isEnabled(debugService: IDebugService, contextService: IWorkspaceContextService, configName: string) {
+		const processes = debugService.getModel().getProcesses();
+		const launch = debugService.getConfigurationManager().selectedLaunch;
 
-		if (state === State.Initializing) {
+		if (debugService.state === State.Initializing) {
 			return false;
 		}
-		if (this.contextService && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && processes.length > 0) {
+		if (contextService && contextService.getWorkbenchState() === WorkbenchState.EMPTY && processes.length > 0) {
 			return false;
 		}
-		if (processes.some(p => p.getName(false) === selectedName && (!launch || p.session.root.uri.toString() === launch.workspace.uri.toString()))) {
+		if (processes.some(p => p.getName(false) === configName && (!launch || p.session.root.uri.toString() === launch.workspace.uri.toString()))) {
 			return false;
 		}
-		const compound = launch && launch.getCompound(selectedName);
+		const compound = launch && launch.getCompound(configName);
 		if (compound && compound.configurations && processes.some(p => compound.configurations.indexOf(p.getName(false)) !== -1)) {
 			return false;
 		}
 
 		return true;
+	}
+
+	// Disabled if the launch drop down shows the launch config that is already running.
+	protected isEnabled(state: State): boolean {
+		return StartAction.isEnabled(this.debugService, this.contextService, this.debugService.getConfigurationManager().selectedName);
 	}
 }
 
@@ -529,25 +531,17 @@ export class AddFunctionBreakpointAction extends AbstractDebugAction {
 
 	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action add-function-breakpoint', debugService, keybindingService);
+		this.toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(() => this.updateEnablement()));
 	}
 
 	public run(): TPromise<any> {
 		this.debugService.addFunctionBreakpoint();
 		return TPromise.as(null);
 	}
-}
 
-export class RenameFunctionBreakpointAction extends AbstractDebugAction {
-	static ID = 'workbench.debug.viewlet.action.renameFunctionBreakpointAction';
-	static LABEL = nls.localize('renameFunctionBreakpoint', "Rename Function Breakpoint");
-
-	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
-		super(id, label, null, debugService, keybindingService);
-	}
-
-	public run(fbp: IFunctionBreakpoint): TPromise<any> {
-		this.debugService.getViewModel().setSelectedFunctionBreakpoint(fbp);
-		return TPromise.as(null);
+	protected isEnabled(state: State): boolean {
+		return !this.debugService.getViewModel().getSelectedFunctionBreakpoint()
+			&& this.debugService.getModel().getFunctionBreakpoints().every(fbp => !!fbp.name);
 	}
 }
 

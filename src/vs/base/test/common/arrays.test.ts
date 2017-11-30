@@ -102,12 +102,12 @@ suite('Arrays', () => {
 
 		let d = arrays.sortedDiff([1, 2, 4], [], compare);
 		assert.deepEqual(d, [
-			{ start: 0, deleteCount: 3, inserted: [] }
+			{ start: 0, deleteCount: 3, toInsert: [] }
 		]);
 
 		d = arrays.sortedDiff([], [1, 2, 4], compare);
 		assert.deepEqual(d, [
-			{ start: 0, deleteCount: 0, inserted: [1, 2, 4] }
+			{ start: 0, deleteCount: 0, toInsert: [1, 2, 4] }
 		]);
 
 		d = arrays.sortedDiff([1, 2, 4], [1, 2, 4], compare);
@@ -115,27 +115,27 @@ suite('Arrays', () => {
 
 		d = arrays.sortedDiff([1, 2, 4], [2, 3, 4, 5], compare);
 		assert.deepEqual(d, [
-			{ start: 0, deleteCount: 1, inserted: [] },
-			{ start: 2, deleteCount: 0, inserted: [3] },
-			{ start: 3, deleteCount: 0, inserted: [5] },
+			{ start: 0, deleteCount: 1, toInsert: [] },
+			{ start: 2, deleteCount: 0, toInsert: [3] },
+			{ start: 3, deleteCount: 0, toInsert: [5] },
 		]);
 
 		d = arrays.sortedDiff([2, 3, 4, 5], [1, 2, 4], compare);
 		assert.deepEqual(d, [
-			{ start: 0, deleteCount: 0, inserted: [1] },
-			{ start: 1, deleteCount: 1, inserted: [] },
-			{ start: 3, deleteCount: 1, inserted: [] },
+			{ start: 0, deleteCount: 0, toInsert: [1] },
+			{ start: 1, deleteCount: 1, toInsert: [] },
+			{ start: 3, deleteCount: 1, toInsert: [] },
 		]);
 
 		d = arrays.sortedDiff([1, 3, 5, 7], [5, 9, 11], compare);
 		assert.deepEqual(d, [
-			{ start: 0, deleteCount: 2, inserted: [] },
-			{ start: 3, deleteCount: 1, inserted: [9, 11] }
+			{ start: 0, deleteCount: 2, toInsert: [] },
+			{ start: 3, deleteCount: 1, toInsert: [9, 11] }
 		]);
 
 		d = arrays.sortedDiff([1, 3, 7], [5, 9, 11], compare);
 		assert.deepEqual(d, [
-			{ start: 0, deleteCount: 3, inserted: [5, 9, 11] }
+			{ start: 0, deleteCount: 3, toInsert: [5, 9, 11] }
 		]);
 	});
 
@@ -202,7 +202,7 @@ suite('Arrays', () => {
 	});
 
 	test('top', function () {
-		const cmp = (a, b) => {
+		const cmp = (a: number, b: number) => {
 			assert.strictEqual(typeof a, 'number', 'typeof a');
 			assert.strictEqual(typeof b, 'number', 'typeof b');
 			return a - b;
@@ -218,7 +218,7 @@ suite('Arrays', () => {
 	});
 
 	test('topAsync', function (done) {
-		const cmp = (a, b) => {
+		const cmp = (a: number, b: number) => {
 			assert.strictEqual(typeof a, 'number', 'typeof a');
 			assert.strictEqual(typeof b, 'number', 'typeof b');
 			return a - b;

@@ -15,7 +15,15 @@ import { memoize } from 'vs/base/common/decorators';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
 
+// Read this before there's any chance it is overwritten
+// Related to https://github.com/Microsoft/vscode/issues/30624
+const xdgRuntimeDir = process.env['XDG_RUNTIME_DIR'];
+
 function getNixIPCHandle(userDataPath: string, type: string): string {
+	if (xdgRuntimeDir) {
+		return path.join(xdgRuntimeDir, `${pkg.name}-${pkg.version}-${type}.sock`);
+	}
+
 	return path.join(userDataPath, `${pkg.version}-${type}.sock`);
 }
 
@@ -30,10 +38,6 @@ function getIPCHandle(userDataPath: string, type: string): string {
 	} else {
 		return getNixIPCHandle(userDataPath, type);
 	}
-}
-
-export function getInstallSourcePath(userDataPath: string): string {
-	return path.join(userDataPath, 'installSource');
 }
 
 export class EnvironmentService implements IEnvironmentService {
@@ -64,6 +68,12 @@ export class EnvironmentService implements IEnvironmentService {
 	get appSettingsPath(): string { return path.join(this.appSettingsHome, 'settings.json'); }
 
 	@memoize
+	get settingsSearchBuildId(): number { return product.settingsSearchBuildId; }
+
+	@memoize
+	get settingsSearchUrl(): string { return product.settingsSearchUrl; }
+
+	@memoize
 	get appKeybindingsPath(): string { return path.join(this.appSettingsHome, 'keybindings.json'); }
 
 	@memoize
@@ -79,6 +89,9 @@ export class EnvironmentService implements IEnvironmentService {
 	get workspacesHome(): string { return path.join(this.userDataPath, 'Workspaces'); }
 
 	@memoize
+	get installSourcePath(): string { return path.join(this.userDataPath, 'installSource'); }
+
+	@memoize
 	get extensionsPath(): string { return parsePathArg(this._args['extensions-dir'], process) || process.env['VSCODE_EXTENSIONS'] || path.join(this.userHome, product.dataFolderName, 'extensions'); }
 
 	@memoize
@@ -90,6 +103,8 @@ export class EnvironmentService implements IEnvironmentService {
 	get disableExtensions(): boolean { return this._args['disable-extensions']; }
 
 	get skipGettingStarted(): boolean { return this._args['skip-getting-started']; }
+
+	get skipAddToRecentlyOpened(): boolean { return this._args['skip-add-to-recently-opened']; }
 
 	@memoize
 	get debugExtensionHost(): IExtensionHostDebugParams { return parseExtensionHostPort(this._args, this.isBuilt); }
@@ -105,18 +120,6 @@ export class EnvironmentService implements IEnvironmentService {
 	get performance(): boolean { return this._args.performance; }
 
 	@memoize
-	get profileStartup(): { prefix: string, dir: string } | undefined {
-		if (this._args['prof-startup']) {
-			return {
-				prefix: process.env.VSCODE_PROFILES_PREFIX,
-				dir: os.homedir()
-			};
-		} else {
-			return undefined;
-		}
-	}
-
-	@memoize
 	get mainIPCHandle(): string { return getIPCHandle(this.userDataPath, 'main'); }
 
 	@memoize
@@ -126,10 +129,9 @@ export class EnvironmentService implements IEnvironmentService {
 	get nodeCachedDataDir(): string { return this.isBuilt ? path.join(this.userDataPath, 'CachedData', product.commit || new Array(41).join('0')) : undefined; }
 
 	get disableUpdates(): boolean { return !!this._args['disable-updates']; }
+	get disableCrashReporter(): boolean { return !!this._args['disable-crash-reporter']; }
 
 	readonly machineUUID: string;
-
-	readonly installSource: string;
 
 	constructor(private _args: ParsedArgs, private _execPath: string) {
 		const machineIdPath = path.join(this.userDataPath, 'machineid');
@@ -148,12 +150,6 @@ export class EnvironmentService implements IEnvironmentService {
 			} catch (err) {
 				// noop
 			}
-		}
-
-		try {
-			this.installSource = fs.readFileSync(getInstallSourcePath(this.userDataPath), 'utf8').slice(0, 30);
-		} catch (err) {
-			this.installSource = '';
 		}
 	}
 }

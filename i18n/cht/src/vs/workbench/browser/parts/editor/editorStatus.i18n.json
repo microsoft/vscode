@@ -53,5 +53,5 @@
 	"screenReaderDetectedExplanation.answerYes": "是",
 	"screenReaderDetectedExplanation.answerNo": "否",
 	"screenReaderDetectedExplanation.body1": "已將 VS Code 最佳化，現在可搭配螢幕助讀程式使用。",
-	"screenReaderDetectedExplanation.body2": "某些編輯器功能會具有不同的行為: 例如文字換行、折疊、自動括上括號等。"
+	"screenReaderDetectedExplanation.body2": "某些編輯器功能會具有不同的行為: 例如文字換行、折疊等。"
 }

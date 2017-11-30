@@ -24,26 +24,27 @@ import { MainThreadCommands } from 'vs/workbench/api/electron-browser/mainThread
 import { IHeapService } from 'vs/workbench/api/electron-browser/mainThreadHeapService';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
-import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/common/quickOpen';
+import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/quickOpen';
 import { DocumentSymbolProviderRegistry, DocumentHighlightKind, Hover } from 'vs/editor/common/modes';
-import { getCodeLensData } from 'vs/editor/contrib/codelens/browser/codelens';
-import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition } from 'vs/editor/contrib/goToDeclaration/browser/goToDeclaration';
-import { getHover } from 'vs/editor/contrib/hover/common/hover';
-import { getOccurrencesAtPosition } from 'vs/editor/contrib/wordHighlighter/common/wordHighlighter';
-import { provideReferences } from 'vs/editor/contrib/referenceSearch/browser/referenceSearch';
-import { getCodeActions } from 'vs/editor/contrib/quickFix/browser/quickFix';
+import { getCodeLensData } from 'vs/editor/contrib/codelens/codelens';
+import { getDefinitionsAtPosition, getImplementationsAtPosition, getTypeDefinitionsAtPosition } from 'vs/editor/contrib/goToDeclaration/goToDeclaration';
+import { getHover } from 'vs/editor/contrib/hover/getHover';
+import { getOccurrencesAtPosition } from 'vs/editor/contrib/wordHighlighter/wordHighlighter';
+import { provideReferences } from 'vs/editor/contrib/referenceSearch/referenceSearch';
+import { getCodeActions } from 'vs/editor/contrib/quickFix/quickFix';
 import { getWorkspaceSymbols } from 'vs/workbench/parts/search/common/search';
-import { rename } from 'vs/editor/contrib/rename/browser/rename';
-import { provideSignatureHelp } from 'vs/editor/contrib/parameterHints/common/parameterHints';
-import { provideSuggestionItems } from 'vs/editor/contrib/suggest/browser/suggest';
-import { getDocumentFormattingEdits, getDocumentRangeFormattingEdits, getOnTypeFormattingEdits } from 'vs/editor/contrib/format/common/format';
-import { getLinks } from 'vs/editor/contrib/links/common/links';
+import { rename } from 'vs/editor/contrib/rename/rename';
+import { provideSignatureHelp } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
+import { provideSuggestionItems } from 'vs/editor/contrib/suggest/suggest';
+import { getDocumentFormattingEdits, getDocumentRangeFormattingEdits, getOnTypeFormattingEdits } from 'vs/editor/contrib/format/format';
+import { getLinks } from 'vs/editor/contrib/links/getLinks';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { MainContext, ExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import * as vscode from 'vscode';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { NoopLogService } from 'vs/platform/log/common/log';
 
 const defaultSelector = { scheme: 'far' };
 const model: EditorCommon.IModel = EditorModel.createFromString(
@@ -102,7 +103,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		const heapService = new ExtHostHeapService();
 
-		const commands = new ExtHostCommands(threadService, heapService);
+		const commands = new ExtHostCommands(threadService, heapService, new NoopLogService());
 		threadService.set(ExtHostContext.ExtHostCommands, commands);
 		threadService.setTestInstance(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, threadService));
 
@@ -118,6 +119,7 @@ suite('ExtHostLanguageFeatures', function () {
 	suiteTeardown(() => {
 		setUnexpectedErrorHandler(originalErrorHandler);
 		model.dispose();
+		mainThread.dispose();
 	});
 
 	teardown(function () {
@@ -641,11 +643,11 @@ suite('ExtHostLanguageFeatures', function () {
 
 	test('Quick Fix, data conversion', function () {
 
-		disposables.push(extHost.registerCodeActionProvider(defaultSelector, <vscode.CodeActionProvider>{
-			provideCodeActions(): any {
+		disposables.push(extHost.registerCodeActionProvider(defaultSelector, {
+			provideCodeActions(): vscode.Command[] {
 				return [
-					<vscode.Command>{ command: 'test1', title: 'Testing1' },
-					<vscode.Command>{ command: 'test2', title: 'Testing2' }
+					{ command: 'test1', title: 'Testing1' },
+					{ command: 'test2', title: 'Testing2' }
 				];
 			}
 		}));
@@ -654,11 +656,11 @@ suite('ExtHostLanguageFeatures', function () {
 			return getCodeActions(model, model.getFullModelRange()).then(value => {
 				assert.equal(value.length, 2);
 
-				let [first, second] = value;
+				const [first, second] = value;
 				assert.equal(first.title, 'Testing1');
-				assert.equal(first.id, 'test1');
+				assert.equal(first.command.id, 'test1');
 				assert.equal(second.title, 'Testing2');
-				assert.equal(second.id, 'test2');
+				assert.equal(second.command.id, 'test2');
 			});
 		});
 	});
@@ -732,6 +734,24 @@ suite('ExtHostLanguageFeatures', function () {
 
 	// --- rename
 
+	test('Rename, evil provider 0/2', function () {
+
+		disposables.push(extHost.registerRenameProvider(defaultSelector, <vscode.RenameProvider>{
+			provideRenameEdits(): any {
+				throw new class Foo { };
+			}
+		}));
+
+		return threadService.sync().then(() => {
+
+			return rename(model, new EditorPosition(1, 1), 'newName').then(value => {
+				throw Error();
+			}, err => {
+				// expected
+			});
+		});
+	});
+
 	test('Rename, evil provider 1/2', function () {
 
 		disposables.push(extHost.registerRenameProvider(defaultSelector, <vscode.RenameProvider>{
@@ -743,9 +763,7 @@ suite('ExtHostLanguageFeatures', function () {
 		return threadService.sync().then(() => {
 
 			return rename(model, new EditorPosition(1, 1), 'newName').then(value => {
-				throw new Error('');
-			}, err => {
-				// expected
+				assert.equal(value.rejectReason, 'evil');
 			});
 		});
 	});

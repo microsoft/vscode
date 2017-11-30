@@ -22,5 +22,5 @@
 	"keybindings.json.when": "Condition quand la touche est active.",
 	"keybindings.json.args": "Arguments à passer à la commande à exécuter.",
 	"keyboardConfigurationTitle": "Clavier",
-	"dispatch": "Spécifie l'utilisation de `keydown.code` (recommandé) ou de `keydown.keyCode` dans le cadre de la logique de dispatch associée aux appuis sur les touches."
+	"dispatch": "Contrôle la logique de distribution des appuis sur les touches pour utiliser soit 'code' (recommandé), soit 'keyCode'."
 }

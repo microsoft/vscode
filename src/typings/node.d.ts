@@ -2718,9 +2718,9 @@ declare module "fs" {
     export function writeFile(filename: string | number, data: any, encoding: string, callback: (err: NodeJS.ErrnoException) => void): void;
     export function writeFile(filename: string | number, data: any, options: { encoding?: string; mode?: number; flag?: string; }, callback?: (err: NodeJS.ErrnoException) => void): void;
     export function writeFile(filename: string | number, data: any, options: { encoding?: string; mode?: string; flag?: string; }, callback?: (err: NodeJS.ErrnoException) => void): void;
-    export function writeFileSync(filename: string, data: any, encoding: string): void;
-    export function writeFileSync(filename: string, data: any, options?: { encoding?: string; mode?: number; flag?: string; }): void;
-    export function writeFileSync(filename: string, data: any, options?: { encoding?: string; mode?: string; flag?: string; }): void;
+    export function writeFileSync(filename: string | number, data: any, encoding: string): void;
+    export function writeFileSync(filename: string | number, data: any, options?: { encoding?: string; mode?: number; flag?: string; }): void;
+    export function writeFileSync(filename: string | number, data: any, options?: { encoding?: string; mode?: string; flag?: string; }): void;
     export function appendFile(filename: string, data: any, encoding: string, callback: (err: NodeJS.ErrnoException) => void): void;
     export function appendFile(filename: string, data: any, options: { encoding?: string; mode?: number; flag?: string; }, callback?: (err: NodeJS.ErrnoException) => void): void;
     export function appendFile(filename: string, data: any, options: { encoding?: string; mode?: string; flag?: string; }, callback?: (err: NodeJS.ErrnoException) => void): void;

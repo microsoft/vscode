@@ -12,5 +12,6 @@
 	"groupTwoPicker": "在第二组中显示编辑器",
 	"groupThreePicker": "在第三组中显示编辑器",
 	"allEditorsPicker": "显示所有已打开的编辑器",
-	"view": "查看"
+	"view": "查看",
+	"file": "文件"
 }

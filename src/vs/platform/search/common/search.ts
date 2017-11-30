@@ -37,6 +37,7 @@ export interface IFolderQuery {
 	excludePattern?: glob.IExpression;
 	includePattern?: glob.IExpression;
 	fileEncoding?: string;
+	disregardIgnoreFiles?: boolean;
 }
 
 export interface ICommonQueryOptions {
@@ -55,6 +56,7 @@ export interface ICommonQueryOptions {
 	useRipgrep?: boolean;
 	disregardIgnoreFiles?: boolean;
 	disregardExcludeSettings?: boolean;
+	ignoreSymlinks?: boolean;
 }
 
 export interface IQueryOptions extends ICommonQueryOptions {
@@ -172,7 +174,11 @@ export interface ISearchConfiguration extends IFilesConfiguration {
 	search: {
 		exclude: glob.IExpression;
 		useRipgrep: boolean;
-		useIgnoreFilesByDefault: boolean;
+		/**
+		 * Use ignore file for file search.
+		 */
+		useIgnoreFiles: boolean;
+		followSymlinks: boolean;
 	};
 	editor: {
 		wordSeparators: string;
@@ -192,8 +198,9 @@ export function getExcludes(configuration: ISearchConfiguration): glob.IExpressi
 	}
 
 	let allExcludes: glob.IExpression = Object.create(null);
-	allExcludes = objects.mixin(allExcludes, fileExcludes);
-	allExcludes = objects.mixin(allExcludes, searchExcludes, true);
+	// clone the config as it could be frozen
+	allExcludes = objects.mixin(allExcludes, objects.deepClone(fileExcludes));
+	allExcludes = objects.mixin(allExcludes, objects.deepClone(searchExcludes), true);
 
 	return allExcludes;
 }

@@ -205,10 +205,6 @@ export class PrefixSumComputerWithCache {
 		this._cache = null;
 	}
 
-	public getCount(): number {
-		return this._actual.getCount();
-	}
-
 	public insertValues(insertIndex: number, insertValues: Uint32Array): void {
 		if (this._actual.insertValues(insertIndex, insertValues)) {
 			this._bustCache();

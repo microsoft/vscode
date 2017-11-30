@@ -16,6 +16,7 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import Event from 'vs/base/common/event';
 import { TokenizationRegistryImpl } from 'vs/editor/common/modes/tokenizationRegistry';
 import { Color } from 'vs/base/common/color';
+import { IMarkerData } from 'vs/platform/markers/common/markers';
 
 /**
  * Open ended enum at runtime
@@ -275,6 +276,13 @@ export interface ISuggestSupport {
 	resolveCompletionItem?(model: editorCommon.IModel, position: Position, item: ISuggestion, token: CancellationToken): ISuggestion | Thenable<ISuggestion>;
 }
 
+export interface CodeAction {
+	title: string;
+	command?: Command;
+	edits?: WorkspaceEdit;
+	diagnostics?: IMarkerData[];
+}
+
 /**
  * The code action interface defines the contract between extensions and
  * the [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action) feature.
@@ -284,7 +292,7 @@ export interface CodeActionProvider {
 	/**
 	 * Provide commands for the given document and range.
 	 */
-	provideCodeActions(model: editorCommon.IReadOnlyModel, range: Range, token: CancellationToken): Command[] | Thenable<Command[]>;
+	provideCodeActions(model: editorCommon.IReadOnlyModel, range: Range, token: CancellationToken): CodeAction[] | Thenable<CodeAction[]>;
 }
 
 /**
@@ -908,7 +916,7 @@ export interface ITokenizationRegistry {
 	setColorMap(colorMap: Color[]): void;
 
 	getColorMap(): Color[];
-	getDefaultForeground(): Color;
+
 	getDefaultBackground(): Color;
 }
 

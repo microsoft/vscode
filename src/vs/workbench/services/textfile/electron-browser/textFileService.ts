@@ -18,7 +18,6 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { IFileService, IResolveContentOptions } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ModelBuilder } from 'vs/workbench/services/textfile/electron-browser/modelBuilder';
@@ -33,7 +32,7 @@ import { mnemonicButtonLabel } from 'vs/base/common/labels';
 
 export class TextFileService extends AbstractTextFileService {
 
-	private static MAX_CONFIRM_FILES = 10;
+	private static readonly MAX_CONFIRM_FILES = 10;
 
 	constructor(
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
@@ -41,7 +40,6 @@ export class TextFileService extends AbstractTextFileService {
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IModeService private modeService: IModeService,
 		@IWindowService private windowService: IWindowService,
@@ -51,7 +49,7 @@ export class TextFileService extends AbstractTextFileService {
 		@IWindowsService windowsService: IWindowsService,
 		@IHistoryService historyService: IHistoryService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, fileService, untitledEditorService, instantiationService, messageService, environmentService, backupFileService, windowsService, historyService);
+		super(lifecycleService, contextService, configurationService, fileService, untitledEditorService, instantiationService, messageService, environmentService, backupFileService, windowsService, historyService);
 	}
 
 	public resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent> {
@@ -138,13 +136,11 @@ export class TextFileService extends AbstractTextFileService {
 	}
 
 	public promptForPath(defaultPath?: string): string {
-		return this.windowService.showSaveDialog(this.getSaveDialogOptions(defaultPath ? paths.normalize(defaultPath, true) : void 0));
+		return this.windowService.showSaveDialog(this.getSaveDialogOptions(defaultPath));
 	}
 
 	private getSaveDialogOptions(defaultPath?: string): Electron.SaveDialogOptions {
-		const options: Electron.SaveDialogOptions = {
-			defaultPath: defaultPath
-		};
+		const options: Electron.SaveDialogOptions = { defaultPath };
 
 		// Filters are only enabled on Windows where they work properly
 		if (!isWindows) {
@@ -154,7 +150,7 @@ export class TextFileService extends AbstractTextFileService {
 		interface IFilter { name: string; extensions: string[]; }
 
 		// Build the file filter by using our known languages
-		const ext: string = paths.extname(defaultPath);
+		const ext: string = defaultPath ? paths.extname(defaultPath) : void 0;
 		let matchingFilter: IFilter;
 		const filters: IFilter[] = this.modeService.getRegisteredLanguageNames().map(languageName => {
 			const extensions = this.modeService.getExtensions(languageName);

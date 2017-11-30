@@ -5,10 +5,8 @@
 'use strict';
 
 import * as assert from 'assert';
-import { ISimpleModel, TextAreaState, ITextAreaWrapper, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/textAreaState';
-import { Range } from 'vs/editor/common/core/range';
+import { TextAreaState, ITextAreaWrapper, PagedScreenReaderStrategy } from 'vs/editor/browser/controller/textAreaState';
 import { Position } from 'vs/editor/common/core/position';
-import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Model } from 'vs/editor/common/model/model';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -62,11 +60,21 @@ export class MockTextAreaWrapper extends Disposable implements ITextAreaWrapper 
 	}
 }
 
+function equalsTextAreaState(a: TextAreaState, b: TextAreaState): boolean {
+	return (
+		a.value === b.value
+		&& a.selectionStart === b.selectionStart
+		&& a.selectionEnd === b.selectionEnd
+		&& Position.equals(a.selectionStartPosition, b.selectionStartPosition)
+		&& Position.equals(a.selectionEndPosition, b.selectionEndPosition)
+	);
+}
+
 suite('TextAreaState', () => {
 
 	function assertTextAreaState(actual: TextAreaState, value: string, selectionStart: number, selectionEnd: number): void {
 		let desired = new TextAreaState(value, selectionStart, selectionEnd, null, null);
-		assert.ok(desired.equals(actual), desired.toString() + ' == ' + actual.toString());
+		assert.ok(equalsTextAreaState(desired, actual), desired.toString() + ' == ' + actual.toString());
 	}
 
 	test('fromTextArea', () => {
@@ -501,7 +509,7 @@ suite('TextAreaState', () => {
 		function testPagedScreenReaderStrategy(lines: string[], selection: Selection, expected: TextAreaState): void {
 			const model = Model.createFromString(lines.join('\n'));
 			const actual = PagedScreenReaderStrategy.fromEditorSelection(TextAreaState.EMPTY, model, selection, true);
-			assert.ok(actual.equals(expected));
+			assert.ok(equalsTextAreaState(actual, expected));
 			model.dispose();
 		}
 
@@ -587,57 +595,3 @@ suite('TextAreaState', () => {
 
 	});
 });
-
-class SimpleModel implements ISimpleModel {
-
-	private _lines: string[];
-	private _eol: string;
-
-	constructor(lines: string[], eol: string) {
-		this._lines = lines;
-		this._eol = eol;
-	}
-
-	public getLineMaxColumn(lineNumber: number): number {
-		return this._lines[lineNumber - 1].length + 1;
-	}
-
-	private _getEndOfLine(eol: EndOfLinePreference): string {
-		switch (eol) {
-			case EndOfLinePreference.LF:
-				return '\n';
-			case EndOfLinePreference.CRLF:
-				return '\r\n';
-			case EndOfLinePreference.TextDefined:
-				return this._eol;
-		}
-		throw new Error('Unknown EOL preference');
-	}
-
-	public getValueInRange(range: Range, eol: EndOfLinePreference): string {
-		if (Range.isEmpty(range)) {
-			return '';
-		}
-
-		if (range.startLineNumber === range.endLineNumber) {
-			return this._lines[range.startLineNumber - 1].substring(range.startColumn - 1, range.endColumn - 1);
-		}
-
-		var lineEnding = this._getEndOfLine(eol),
-			startLineIndex = range.startLineNumber - 1,
-			endLineIndex = range.endLineNumber - 1,
-			resultLines: string[] = [];
-
-		resultLines.push(this._lines[startLineIndex].substring(range.startColumn - 1));
-		for (var i = startLineIndex + 1; i < endLineIndex; i++) {
-			resultLines.push(this._lines[i]);
-		}
-		resultLines.push(this._lines[endLineIndex].substring(0, range.endColumn - 1));
-
-		return resultLines.join(lineEnding);
-	}
-
-	public getLineCount(): number {
-		return this._lines.length;
-	}
-}

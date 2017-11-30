@@ -52,6 +52,5 @@
 	"screenReaderDetectedExplanation.question": "Verwenden Sie eine Sprachausgabe zum Bedienen von VS Code?",
 	"screenReaderDetectedExplanation.answerYes": "Ja",
 	"screenReaderDetectedExplanation.answerNo": "Nein",
-	"screenReaderDetectedExplanation.body1": "VS Code ist jetzt für die Verwendung mit einer Sprachausgabe optimiert. ",
-	"screenReaderDetectedExplanation.body2": "Einige Editorfunktionen weisen ein anderes Verhalten auf, z. B. in Bezug auf den Zeilenumbruch, Faltung, automatisches Schließen von Klammern usw."
+	"screenReaderDetectedExplanation.body1": "VS Code ist jetzt für die Verwendung mit einer Sprachausgabe optimiert. "
 }

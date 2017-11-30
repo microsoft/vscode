@@ -16,6 +16,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { IFileService } from 'vs/platform/files/common/files';
 import URI from 'vs/base/common/uri';
+import { mnemonicButtonLabel } from 'vs/base/common/labels';
 
 export class OpenExtensionsFolderAction extends Action {
 
@@ -46,10 +47,6 @@ export class OpenExtensionsFolderAction extends Action {
 			return this.windowsService.showItemInFolder(itemToShow);
 		});
 	}
-
-	protected isEnabled(): boolean {
-		return true;
-	}
 }
 
 export class InstallVSIXAction extends Action {
@@ -70,8 +67,10 @@ export class InstallVSIXAction extends Action {
 
 	run(): TPromise<any> {
 		const result = this.windowsService.showOpenDialog({
+			title: localize('installFromVSIX', "Install from VSIX"),
 			filters: [{ name: 'VSIX Extensions', extensions: ['vsix'] }],
-			properties: ['openFile']
+			properties: ['openFile'],
+			buttonLabel: mnemonicButtonLabel(localize({ key: 'installButton', comment: ['&& denotes a mnemonic'] }, "&&Install"))
 		});
 
 		if (!result) {

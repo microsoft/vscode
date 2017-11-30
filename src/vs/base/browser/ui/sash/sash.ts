@@ -12,8 +12,7 @@ import { isIPad } from 'vs/base/browser/browser';
 import { isMacintosh } from 'vs/base/common/platform';
 import types = require('vs/base/common/types');
 import DOM = require('vs/base/browser/dom');
-import { Gesture, EventType, GestureEvent } from 'vs/base/browser/touch';
-import { EventEmitter } from 'vs/base/common/eventEmitter';
+import { EventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import Event, { Emitter } from 'vs/base/common/event';
 
@@ -48,18 +47,21 @@ export enum Orientation {
 	HORIZONTAL
 }
 
-export class Sash extends EventEmitter {
+export class Sash {
 
 	private $e: Builder;
-	private gesture: Gesture;
 	private layoutProvider: ISashLayoutProvider;
 	private isDisabled: boolean;
 	private hidden: boolean;
 	private orientation: Orientation;
 	private size: number;
 
+	private _onDidStart = new Emitter<ISashEvent>();
+	private _onDidChange = new Emitter<ISashEvent>();
+	private _onDidReset = new Emitter<void>();
+	private _onDidEnd = new Emitter<void>();
+
 	constructor(container: HTMLElement, layoutProvider: ISashLayoutProvider, options: ISashOptions = {}) {
-		super();
 
 		this.$e = $('.monaco-sash').appendTo(container);
 
@@ -67,11 +69,10 @@ export class Sash extends EventEmitter {
 			this.$e.addClass('mac');
 		}
 
-		this.gesture = new Gesture(this.$e.getHTMLElement());
-
-		this.$e.on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => { this.onMouseDown(e); });
-		this.$e.on(DOM.EventType.DBLCLICK, (e: MouseEvent) => { this.emit('reset', e); });
-		this.$e.on(EventType.Start, (e: GestureEvent) => { this.onTouchStart(e); });
+		this.$e.on(DOM.EventType.MOUSE_DOWN, (e) => { this.onMouseDown(e as MouseEvent); });
+		this.$e.on(DOM.EventType.DBLCLICK, (e) => this._onDidReset.fire());
+		Gesture.addTarget(this.$e.getHTMLElement());
+		this.$e.on(EventType.Start, (e) => { this.onTouchStart(e as GestureEvent); });
 
 		this.size = options.baseSize || 5;
 
@@ -87,8 +88,20 @@ export class Sash extends EventEmitter {
 		this.layoutProvider = layoutProvider;
 	}
 
-	public getHTMLElement(): HTMLElement {
-		return this.$e.getHTMLElement();
+	public get onDidStart(): Event<ISashEvent> {
+		return this._onDidStart.event;
+	}
+
+	public get onDidChange(): Event<ISashEvent> {
+		return this._onDidChange.event;
+	}
+
+	public get onDidReset(): Event<void> {
+		return this._onDidReset.event;
+	}
+
+	public get onDidEnd(): Event<void> {
+		return this._onDidEnd.event;
 	}
 
 	public setOrientation(orientation: Orientation): void {
@@ -136,17 +149,14 @@ export class Sash extends EventEmitter {
 		};
 
 		this.$e.addClass('active');
-		this.emit('start', startEvent);
+		this._onDidStart.fire(startEvent);
 
 		let $window = $(window);
 		let containerCSSClass = `${this.getOrientation()}-cursor-container${isMacintosh ? '-mac' : ''}`;
 
-		let lastCurrentX = startX;
-		let lastCurrentY = startY;
-
-		$window.on('mousemove', (e: MouseEvent) => {
+		$window.on('mousemove', (e) => {
 			DOM.EventHelper.stop(e, false);
-			let mouseMoveEvent = new StandardMouseEvent(e);
+			let mouseMoveEvent = new StandardMouseEvent(e as MouseEvent);
 
 			let event: ISashEvent = {
 				startX: startX,
@@ -155,14 +165,11 @@ export class Sash extends EventEmitter {
 				currentY: mouseMoveEvent.posy
 			};
 
-			lastCurrentX = mouseMoveEvent.posx;
-			lastCurrentY = mouseMoveEvent.posy;
-
-			this.emit('change', event);
-		}).once('mouseup', (e: MouseEvent) => {
+			this._onDidChange.fire(event);
+		}).once('mouseup', (e) => {
 			DOM.EventHelper.stop(e, false);
 			this.$e.removeClass('active');
-			this.emit('end');
+			this._onDidEnd.fire();
 
 			$window.off('mousemove');
 			document.body.classList.remove(containerCSSClass);
@@ -184,32 +191,26 @@ export class Sash extends EventEmitter {
 		let startX = event.pageX;
 		let startY = event.pageY;
 
-		this.emit('start', {
+		this._onDidStart.fire({
 			startX: startX,
 			currentX: startX,
 			startY: startY,
 			currentY: startY
 		});
 
-		let lastCurrentX = startX;
-		let lastCurrentY = startY;
-
 		listeners.push(DOM.addDisposableListener(this.$e.getHTMLElement(), EventType.Change, (event: GestureEvent) => {
 			if (types.isNumber(event.pageX) && types.isNumber(event.pageY)) {
-				this.emit('change', {
+				this._onDidChange.fire({
 					startX: startX,
 					currentX: event.pageX,
 					startY: startY,
 					currentY: event.pageY
 				});
-
-				lastCurrentX = event.pageX;
-				lastCurrentY = event.pageY;
 			}
 		}));
 
 		listeners.push(DOM.addDisposableListener(this.$e.getHTMLElement(), EventType.End, (event: GestureEvent) => {
-			this.emit('end');
+			this._onDidEnd.fire();
 			dispose(listeners);
 		}));
 	}
@@ -277,8 +278,6 @@ export class Sash extends EventEmitter {
 			this.$e.destroy();
 			this.$e = null;
 		}
-
-		super.dispose();
 	}
 }
 
@@ -302,10 +301,10 @@ export class VSash extends Disposable implements IVerticalSashLayoutProvider {
 		this.ratio = 0.5;
 		this.sash = new Sash(container, this);
 
-		this._register(this.sash.addListener('start', () => this.onSashDragStart()));
-		this._register(this.sash.addListener('change', (e: ISashEvent) => this.onSashDrag(e)));
-		this._register(this.sash.addListener('end', () => this.onSashDragEnd()));
-		this._register(this.sash.addListener('reset', () => this.onSashReset()));
+		this._register(this.sash.onDidStart(() => this.onSashDragStart()));
+		this._register(this.sash.onDidChange((e: ISashEvent) => this.onSashDrag(e)));
+		this._register(this.sash.onDidEnd(() => this.onSashDragEnd()));
+		this._register(this.sash.onDidReset(() => this.onSashReset()));
 	}
 
 	public getVerticalSashTop(): number {
@@ -344,7 +343,7 @@ export class VSash extends Disposable implements IVerticalSashLayoutProvider {
 	}
 
 	private onSashReset(): void {
-		this.ratio = 0.5;
+		this.compute(0.5);
 		this._onPositionChange.fire(this.position);
 		this.sash.layout();
 	}

@@ -36,9 +36,9 @@ export const CONTEXT_NOT_IN_DEBUG_REPL: ContextKeyExpr = CONTEXT_IN_DEBUG_REPL.t
 export const CONTEXT_ON_FIRST_DEBUG_REPL_LINE = new RawContextKey<boolean>('onFirsteDebugReplLine', false);
 export const CONTEXT_ON_LAST_DEBUG_REPL_LINE = new RawContextKey<boolean>('onLastDebugReplLine', false);
 export const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = new RawContextKey<boolean>('breakpointWidgetVisible', false);
-export const CONTEXT_BREAKPOINTS_FOCUSED = new RawContextKey<boolean>('breakpointsFocused', false);
-export const CONTEXT_WATCH_EXPRESSIONS_FOCUSED = new RawContextKey<boolean>('watchExpressionsFocused', false);
-export const CONTEXT_VARIABLES_FOCUSED = new RawContextKey<boolean>('variablesFocused', false);
+export const CONTEXT_BREAKPOINTS_FOCUSED = new RawContextKey<boolean>('breakpointsFocused', true);
+export const CONTEXT_WATCH_EXPRESSIONS_FOCUSED = new RawContextKey<boolean>('watchExpressionsFocused', true);
+export const CONTEXT_VARIABLES_FOCUSED = new RawContextKey<boolean>('variablesFocused', true);
 
 export const EDITOR_CONTRIBUTION_ID = 'editor.contrib.debug';
 export const DEBUG_SCHEME = 'debug';
@@ -288,7 +288,6 @@ export interface IViewModel extends ITreeElement {
 	onDidFocusProcess: Event<IProcess | undefined>;
 	onDidFocusStackFrame: Event<{ stackFrame: IStackFrame, explicit: boolean }>;
 	onDidSelectExpression: Event<IExpression>;
-	onDidSelectFunctionBreakpoint: Event<IFunctionBreakpoint>;
 }
 
 export interface IModel extends ITreeElement {
@@ -304,7 +303,7 @@ export interface IModel extends ITreeElement {
 	onDidChangeCallStack: Event<void>;
 	onDidChangeWatchExpressions: Event<IExpression>;
 	onDidChangeReplElements: Event<void>;
-};
+}
 
 // Debug enums
 
@@ -319,9 +318,11 @@ export enum State {
 
 export interface IDebugConfiguration {
 	allowBreakpointsEverywhere: boolean;
+	openDebug: string;
 	openExplorerOnEnd: boolean;
 	inlineValues: boolean;
 	hideActionBar: boolean;
+	showInStatusBar: string;
 	internalConsoleOptions: string;
 }
 
@@ -510,6 +511,11 @@ export interface IDebugService {
 	addBreakpoints(uri: uri, rawBreakpoints: IRawBreakpoint[]): TPromise<void>;
 
 	/**
+	 * Updates the breakpoints and notifies the debug adapter of breakpoint changes.
+	 */
+	updateBreakpoints(uri: uri, data: { [id: string]: DebugProtocol.Breakpoint }): TPromise<void>;
+
+	/**
 	 * Enables or disables all breakpoints. If breakpoint is passed only enables or disables the passed breakpoint.
 	 * Notifies debug adapter of breakpoint changes.
 	 */
@@ -590,11 +596,6 @@ export interface IDebugService {
 	 * and resolveds configurations via DebugConfigurationProviders.
 	 */
 	startDebugging(root: IWorkspaceFolder, configOrName?: IConfig | string, noDebug?: boolean): TPromise<any>;
-
-	/**
-	 * Find process by ID.
-	 */
-	findProcessByUUID(uuid: string): IProcess | null;
 
 	/**
 	 * Restarts a process or creates a new one if there is no active session.

@@ -13,8 +13,8 @@ import * as path from 'path';
 import URI from 'vs/base/common/uri';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import { IMessage, IExtensionDescription, IExtensionsStatus, IExtensionService, ExtensionPointContribution, ActivationTimes } from 'vs/platform/extensions/common/extensions';
-import { IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { areSameExtensions, getGloballyDisabledExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { IExtensionEnablementService, IExtensionIdentifier, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { areSameExtensions, BetterMergeId, BetterMergeDisabledNowKey } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionsRegistry, ExtensionPoint, IExtensionPointUser, ExtensionMessageCollector, IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ExtensionScanner, ILog } from 'vs/workbench/services/extensions/electron-browser/extensionPoints';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -26,13 +26,15 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ExtensionHostProcessWorker } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
 import { MainThreadService } from 'vs/workbench/services/thread/electron-browser/threadService';
-import { Barrier } from 'vs/workbench/services/extensions/node/barrier';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { ExtHostCustomersRegistry } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { Action } from 'vs/base/common/actions';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { startTimer } from 'vs/base/node/startupTimers';
+import { mark, time } from 'vs/base/common/performance';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { Barrier } from 'vs/base/common/async';
+import Event, { Emitter } from 'vs/base/common/event';
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
 
@@ -48,13 +50,15 @@ function messageWithSource2(source: string, message: string): string {
 }
 
 const hasOwnProperty = Object.hasOwnProperty;
-const NO_OP_VOID_PROMISE = TPromise.as<void>(void 0);
+const NO_OP_VOID_PROMISE = TPromise.wrap<void>(void 0);
 
 export class ExtensionService implements IExtensionService {
 	public _serviceBrand: any;
 
+	private _onDidRegisterExtensions: Emitter<IExtensionDescription[]>;
+
 	private _registry: ExtensionDescriptionRegistry;
-	private readonly _barrier: Barrier;
+	private readonly _installedExtensionsReady: Barrier;
 	private readonly _isDev: boolean;
 	private readonly _extensionsStatus: { [id: string]: IExtensionsStatus };
 	private _allRequestedActivateEvents: { [activationEvent: string]: boolean; };
@@ -82,13 +86,16 @@ export class ExtensionService implements IExtensionService {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IExtensionEnablementService private readonly _extensionEnablementService: IExtensionEnablementService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IWindowService private readonly _windowService: IWindowService
+		@IWindowService private readonly _windowService: IWindowService,
+		@ILifecycleService lifecycleService: ILifecycleService
 	) {
 		this._registry = null;
-		this._barrier = new Barrier();
+		this._installedExtensionsReady = new Barrier();
 		this._isDev = !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment;
 		this._extensionsStatus = {};
 		this._allRequestedActivateEvents = Object.create(null);
+
+		this._onDidRegisterExtensions = new Emitter<IExtensionDescription[]>();
 
 		this._extensionHostProcessFinishedActivateEvents = Object.create(null);
 		this._extensionHostProcessActivationTimes = Object.create(null);
@@ -97,8 +104,16 @@ export class ExtensionService implements IExtensionService {
 		this._extensionHostProcessCustomers = [];
 		this._extensionHostProcessProxy = null;
 
-		this._startExtensionHostProcess([]);
-		this._scanAndHandleExtensions();
+		lifecycleService.when(LifecyclePhase.Running).then(() => {
+			// delay extension host creation and extension scanning
+			// until after workbench is running
+			this._startExtensionHostProcess([]);
+			this._scanAndHandleExtensions();
+		});
+	}
+
+	public get onDidRegisterExtensions(): Event<IExtensionDescription[]> {
+		return this._onDidRegisterExtensions.event;
 	}
 
 	public restartExtensionHost(): void {
@@ -216,7 +231,7 @@ export class ExtensionService implements IExtensionService {
 	// ---- begin IExtensionService
 
 	public activateByEvent(activationEvent: string): TPromise<void> {
-		if (this._barrier.isOpen()) {
+		if (this._installedExtensionsReady.isOpen()) {
 			// Extensions have been scanned and interpreted
 
 			if (!this._registry.containsActivationEvent(activationEvent)) {
@@ -234,7 +249,7 @@ export class ExtensionService implements IExtensionService {
 			// Record the fact that this activationEvent was requested (in case of a restart)
 			this._allRequestedActivateEvents[activationEvent] = true;
 
-			return this._barrier.wait().then(() => this._activateByEvent(activationEvent));
+			return this._installedExtensionsReady.wait().then(() => this._activateByEvent(activationEvent));
 		}
 	}
 
@@ -249,18 +264,18 @@ export class ExtensionService implements IExtensionService {
 		});
 	}
 
-	public onReady(): TPromise<boolean> {
-		return this._barrier.wait();
+	public whenInstalledExtensionsRegistered(): TPromise<boolean> {
+		return this._installedExtensionsReady.wait();
 	}
 
 	public getExtensions(): TPromise<IExtensionDescription[]> {
-		return this.onReady().then(() => {
+		return this._installedExtensionsReady.wait().then(() => {
 			return this._registry.getAllExtensionDescriptions();
 		});
 	}
 
 	public readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]> {
-		return this.onReady().then(() => {
+		return this._installedExtensionsReady.wait().then(() => {
 			let availableExtensions = this._registry.getAllExtensionDescriptions();
 
 			let result: ExtensionPointContribution<T>[] = [], resultLen = 0;
@@ -290,51 +305,91 @@ export class ExtensionService implements IExtensionService {
 
 	private _scanAndHandleExtensions(): void {
 
+		this._getRuntimeExtension()
+			.then(runtimeExtensons => {
+				this._registry = new ExtensionDescriptionRegistry(runtimeExtensons);
+
+				let availableExtensions = this._registry.getAllExtensionDescriptions();
+				let extensionPoints = ExtensionsRegistry.getExtensionPoints();
+
+				let messageHandler = (msg: IMessage) => this._handleExtensionPointMessage(msg);
+
+				for (let i = 0, len = extensionPoints.length; i < len; i++) {
+					const clock = time(`handleExtensionPoint:${extensionPoints[i].name}`);
+					try {
+						ExtensionService._handleExtensionPoint(extensionPoints[i], availableExtensions, messageHandler);
+					} finally {
+						clock.stop();
+					}
+				}
+
+				mark('extensionHostReady');
+				this._installedExtensionsReady.open();
+				this._onDidRegisterExtensions.fire(availableExtensions);
+			});
+	}
+
+	private _getRuntimeExtension(): TPromise<IExtensionDescription[]> {
 		const log = new Logger((severity, source, message) => {
 			this._logOrShowMessage(severity, this._isDev ? messageWithSource2(source, message) : message);
 		});
 
-		ExtensionService._scanInstalledExtensions(this._environmentService, log).then((installedExtensions) => {
-			const disabledExtensions = [
-				...getGloballyDisabledExtensions(this._extensionEnablementService, this._storageService, installedExtensions),
-				...this._extensionEnablementService.getWorkspaceDisabledExtensions()
-			];
+		return ExtensionService._scanInstalledExtensions(this._environmentService, log)
+			.then(({ system, user, development }) => {
+				this._extensionEnablementService.migrateToIdentifiers(user); // TODO: @sandy Remove it after couple of milestones
+				return this._extensionEnablementService.getDisabledExtensions()
+					.then(disabledExtensions => {
+						let result: { [extensionId: string]: IExtensionDescription; } = {};
+						let extensionsToDisable: IExtensionIdentifier[] = [];
+						let userMigratedSystemExtensions: IExtensionIdentifier[] = [{ id: BetterMergeId }];
 
-			/* __GDPR__
-				"extensionsScanned" : {
-					"totalCount" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-					"disabledCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
-				}
-			*/
-			this._telemetryService.publicLog('extensionsScanned', {
-				totalCount: installedExtensions.length,
-				disabledCount: disabledExtensions.length
+						system.forEach((systemExtension) => {
+							// Disabling system extensions is not supported
+							result[systemExtension.id] = systemExtension;
+						});
+
+						user.forEach((userExtension) => {
+							if (result.hasOwnProperty(userExtension.id)) {
+								log.warn(userExtension.extensionFolderPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", result[userExtension.id].extensionFolderPath, userExtension.extensionFolderPath));
+							}
+							if (disabledExtensions.every(disabled => !areSameExtensions(disabled, userExtension))) {
+								// Check if the extension is changed to system extension
+								let userMigratedSystemExtension = userMigratedSystemExtensions.filter(userMigratedSystemExtension => areSameExtensions(userMigratedSystemExtension, { id: userExtension.id }))[0];
+								if (userMigratedSystemExtension) {
+									extensionsToDisable.push(userMigratedSystemExtension);
+								} else {
+									result[userExtension.id] = userExtension;
+								}
+							}
+						});
+
+						development.forEach(developedExtension => {
+							log.info('', nls.localize('extensionUnderDevelopment', "Loading development extension at {0}", developedExtension.extensionFolderPath));
+							if (result.hasOwnProperty(developedExtension.id)) {
+								log.warn(developedExtension.extensionFolderPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", result[developedExtension.id].extensionFolderPath, developedExtension.extensionFolderPath));
+							}
+							// Do not disable extensions under development
+							result[developedExtension.id] = developedExtension;
+						});
+
+						const runtimeExtensions = Object.keys(result).map(name => result[name]);
+
+						this._telemetryService.publicLog('extensionsScanned', {
+							totalCount: runtimeExtensions.length,
+							disabledCount: disabledExtensions.length
+						});
+
+						if (extensionsToDisable.length) {
+							return TPromise.join(extensionsToDisable.map(e => this._extensionEnablementService.setEnablement(e, EnablementState.Disabled)))
+								.then(() => {
+									this._storageService.store(BetterMergeDisabledNowKey, true);
+									return runtimeExtensions;
+								});
+						} else {
+							return runtimeExtensions;
+						}
+					});
 			});
-
-			if (disabledExtensions.length === 0) {
-				return installedExtensions;
-			}
-			return installedExtensions.filter(e => disabledExtensions.every(id => !areSameExtensions({ id }, e)));
-
-		}).then((extensionDescriptions) => {
-			this._registry = new ExtensionDescriptionRegistry(extensionDescriptions);
-
-			let availableExtensions = this._registry.getAllExtensionDescriptions();
-			let extensionPoints = ExtensionsRegistry.getExtensionPoints();
-
-			let messageHandler = (msg: IMessage) => this._handleExtensionPointMessage(msg);
-
-			for (let i = 0, len = extensionPoints.length; i < len; i++) {
-				const clock = startTimer(`handleExtensionPoint:${extensionPoints[i].name}`);
-				try {
-					ExtensionService._handleExtensionPoint(extensionPoints[i], availableExtensions, messageHandler);
-				} finally {
-					clock.stop();
-				}
-			}
-
-			this._barrier.open();
-		});
 	}
 
 	private _handleExtensionPointMessage(msg: IMessage) {
@@ -367,40 +422,23 @@ export class ExtensionService implements IExtensionService {
 		}
 	}
 
-	private static _scanInstalledExtensions(environmentService: IEnvironmentService, log: ILog): TPromise<IExtensionDescription[]> {
+	private static _scanInstalledExtensions(environmentService: IEnvironmentService, log: ILog): TPromise<{ system: IExtensionDescription[], user: IExtensionDescription[], development: IExtensionDescription[] }> {
 		const version = pkg.version;
 		const builtinExtensions = ExtensionScanner.scanExtensions(version, log, SystemExtensionsRoot, true);
 		const userExtensions = environmentService.disableExtensions || !environmentService.extensionsPath ? TPromise.as([]) : ExtensionScanner.scanExtensions(version, log, environmentService.extensionsPath, false);
-		const developedExtensions = environmentService.disableExtensions || !environmentService.isExtensionDevelopment ? TPromise.as([]) : ExtensionScanner.scanOneOrMultipleExtensions(version, log, environmentService.extensionDevelopmentPath, false);
+		// Always load developed extensions while extensions development
+		const developedExtensions = environmentService.isExtensionDevelopment ? ExtensionScanner.scanOneOrMultipleExtensions(version, log, environmentService.extensionDevelopmentPath, false) : TPromise.as([]);
 
-		return TPromise.join([builtinExtensions, userExtensions, developedExtensions]).then<IExtensionDescription[]>((extensionDescriptions: IExtensionDescription[][]) => {
-			const builtinExtensions = extensionDescriptions[0];
-			const userExtensions = extensionDescriptions[1];
-			const developedExtensions = extensionDescriptions[2];
-
-			let result: { [extensionId: string]: IExtensionDescription; } = {};
-			builtinExtensions.forEach((builtinExtension) => {
-				result[builtinExtension.id] = builtinExtension;
+		return TPromise.join([builtinExtensions, userExtensions, developedExtensions])
+			.then((extensionDescriptions: IExtensionDescription[][]) => {
+				const system = extensionDescriptions[0];
+				const user = extensionDescriptions[1];
+				const development = extensionDescriptions[2];
+				return { system, user, development };
+			}).then(null, err => {
+				log.error('', err);
+				return { system: [], user: [], development: [] };
 			});
-			userExtensions.forEach((userExtension) => {
-				if (result.hasOwnProperty(userExtension.id)) {
-					log.warn(userExtension.extensionFolderPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", result[userExtension.id].extensionFolderPath, userExtension.extensionFolderPath));
-				}
-				result[userExtension.id] = userExtension;
-			});
-			developedExtensions.forEach(developedExtension => {
-				log.info('', nls.localize('extensionUnderDevelopment', "Loading development extension at {0}", developedExtension.extensionFolderPath));
-				if (result.hasOwnProperty(developedExtension.id)) {
-					log.warn(developedExtension.extensionFolderPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", result[developedExtension.id].extensionFolderPath, developedExtension.extensionFolderPath));
-				}
-				result[developedExtension.id] = developedExtension;
-			});
-
-			return Object.keys(result).map(name => result[name]);
-		}).then(null, err => {
-			log.error('', err);
-			return [];
-		});
 	}
 
 	private static _handleExtensionPoint<T>(extensionPoint: ExtensionPoint<T>, availableExtensions: IExtensionDescription[], messageHandler: (msg: IMessage) => void): void {

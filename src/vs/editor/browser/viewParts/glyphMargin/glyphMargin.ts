@@ -145,7 +145,7 @@ export class GlyphMarginOverlay extends DedupOverlay {
 		let r: DecorationToRender[] = [], rLen = 0;
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			let d = decorations[i];
-			let glyphMarginClassName = d.source.options.glyphMarginClassName;
+			let glyphMarginClassName = d.options.glyphMarginClassName;
 			if (glyphMarginClassName) {
 				r[rLen++] = new DecorationToRender(d.range.startLineNumber, d.range.endLineNumber, glyphMarginClassName);
 			}

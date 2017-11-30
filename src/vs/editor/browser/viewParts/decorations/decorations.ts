@@ -78,15 +78,15 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 		let decorations: ViewModelDecoration[] = [], decorationsLen = 0;
 		for (let i = 0, len = _decorations.length; i < len; i++) {
 			let d = _decorations[i];
-			if (d.source.options.className) {
+			if (d.options.className) {
 				decorations[decorationsLen++] = d;
 			}
 		}
 
 		// Sort decorations for consistent render output
 		decorations = decorations.sort((a, b) => {
-			let aClassName = a.source.options.className;
-			let bClassName = b.source.options.className;
+			let aClassName = a.options.className;
+			let bClassName = b.options.className;
 
 			if (aClassName < bClassName) {
 				return -1;
@@ -120,13 +120,13 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 		for (let i = 0, lenI = decorations.length; i < lenI; i++) {
 			let d = decorations[i];
 
-			if (!d.source.options.isWholeLine) {
+			if (!d.options.isWholeLine) {
 				continue;
 			}
 
 			let decorationOutput = (
 				'<div class="cdr '
-				+ d.source.options.className
+				+ d.options.className
 				+ '" style="left:0;width:100%;height:'
 				+ lineHeight
 				+ 'px;"></div>'
@@ -148,12 +148,12 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 		for (let i = 0, lenI = decorations.length; i < lenI; i++) {
 			const d = decorations[i];
 
-			if (d.source.options.isWholeLine) {
+			if (d.options.isWholeLine) {
 				continue;
 			}
 
-			const className = d.source.options.className;
-			const showIfCollapsed = d.source.options.showIfCollapsed;
+			const className = d.options.className;
+			const showIfCollapsed = d.options.showIfCollapsed;
 
 			let range = d.range;
 			if (showIfCollapsed && range.endColumn === 1 && range.endLineNumber !== range.startLineNumber) {

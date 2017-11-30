@@ -54,12 +54,12 @@ export class MainThreadTask implements MainThreadTaskShape {
 			}
 		});
 		this._activeHandles[handle] = true;
-		return TPromise.as<void>(undefined);
+		return TPromise.wrap<void>(undefined);
 	}
 
 	public $unregisterTaskProvider(handle: number): TPromise<any> {
 		this._taskService.unregisterTaskProvider(handle);
 		delete this._activeHandles[handle];
-		return TPromise.as<void>(undefined);
+		return TPromise.wrap<void>(undefined);
 	}
 }

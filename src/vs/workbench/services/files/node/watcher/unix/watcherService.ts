@@ -16,7 +16,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { normalize } from 'path';
 
 export class FileWatcher {
-	private static MAX_RESTARTS = 5;
+	private static readonly MAX_RESTARTS = 5;
 
 	private isDisposed: boolean;
 	private restartCounter: number;

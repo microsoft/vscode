@@ -1074,6 +1074,7 @@
 		"pxm": "_image",
 		"svg": "_svg",
 		"svgx": "_image",
+		"webp": "_image",
 		"sublime-project": "_sublime",
 		"sublime-workspace": "_sublime",
 		"component": "_salesforce",

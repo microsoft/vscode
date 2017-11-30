@@ -15,12 +15,13 @@ import { ExtHostStorage } from 'vs/workbench/api/node/extHostStorage';
 import { createApiFactory, initializeExtensionApi } from 'vs/workbench/api/node/extHost.api.impl';
 import { MainContext, MainThreadExtensionServiceShape, IWorkspaceData, IEnvironment, IInitData, ExtHostExtensionServiceShape, MainThreadTelemetryShape } from './extHost.protocol';
 import { IExtensionMemento, ExtensionsActivator, ActivatedExtension, IExtensionAPI, IExtensionContext, EmptyExtension, IExtensionModule, ExtensionActivationTimesBuilder, ExtensionActivationTimes } from 'vs/workbench/api/node/extHostExtensionActivator';
-import { Barrier } from 'vs/workbench/services/extensions/node/barrier';
 import { ExtHostThreadService } from 'vs/workbench/services/thread/node/extHostThreadService';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { realpath } from 'fs';
 import { TernarySearchTree } from 'vs/base/common/map';
+import { Barrier } from 'vs/base/common/async';
+import { ILogService } from 'vs/platform/log/common/log';
 
 class ExtensionMemento implements IExtensionMemento {
 
@@ -125,7 +126,8 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	constructor(initData: IInitData,
 		threadService: ExtHostThreadService,
 		extHostWorkspace: ExtHostWorkspace,
-		extHostConfiguration: ExtHostConfiguration
+		extHostConfiguration: ExtHostConfiguration,
+		logService: ILogService
 	) {
 		this._barrier = new Barrier();
 		this._registry = new ExtensionDescriptionRegistry(initData.extensions);
@@ -137,7 +139,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		this._activator = null;
 
 		// initialize API first (i.e. do not release barrier until the API is initialized)
-		const apiFactory = createApiFactory(initData, threadService, extHostWorkspace, extHostConfiguration, this);
+		const apiFactory = createApiFactory(initData, threadService, extHostWorkspace, extHostConfiguration, this, logService);
 
 		initializeExtensionApi(this, apiFactory).then(() => {
 
@@ -339,7 +341,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		});
 	}
 
-	private static _callActivate(extensionModule: IExtensionModule, context: IExtensionContext, activationTimesBuilder: ExtensionActivationTimesBuilder): TPromise<ActivatedExtension> {
+	private static _callActivate(extensionModule: IExtensionModule, context: IExtensionContext, activationTimesBuilder: ExtensionActivationTimesBuilder): Thenable<ActivatedExtension> {
 		// Make sure the extension's surface is not undefined
 		extensionModule = extensionModule || {
 			activate: undefined,
@@ -351,7 +353,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		});
 	}
 
-	private static _callActivateOptional(extensionModule: IExtensionModule, context: IExtensionContext, activationTimesBuilder: ExtensionActivationTimesBuilder): TPromise<IExtensionAPI> {
+	private static _callActivateOptional(extensionModule: IExtensionModule, context: IExtensionContext, activationTimesBuilder: ExtensionActivationTimesBuilder): Thenable<IExtensionAPI> {
 		if (typeof extensionModule.activate === 'function') {
 			try {
 				activationTimesBuilder.activateCallStart();
