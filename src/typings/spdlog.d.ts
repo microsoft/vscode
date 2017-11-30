@@ -7,6 +7,7 @@ declare module 'spdlog' {
 
 	export const version: string;
 	export function setAsyncMode(bufferSize: number, flushInterval: number);
+	export function setLevel(level: number);
 
 	export enum LogLevel {
 		CRITICAL,

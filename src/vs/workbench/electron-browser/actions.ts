@@ -8,6 +8,7 @@
 import 'vs/css!./media/actions';
 
 import URI from 'vs/base/common/uri';
+import { setLevel } from 'spdlog';
 import * as collections from 'vs/base/common/collections';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
@@ -1676,7 +1677,7 @@ export class ConfigureLocaleAction extends Action {
 	}
 }
 
-export class OpenLogsFlderAction extends Action {
+export class OpenLogsFolderAction extends Action {
 
 	static ID = 'workbench.action.openLogsFolder';
 	static LABEL = nls.localize('openLogsFolder', "Open Logs Folder");
@@ -1718,6 +1719,36 @@ export class ShowLogsAction extends Action {
 			.then(entry => {
 				if (entry) {
 					entry.run(null);
+				}
+			});
+	}
+}
+
+export class SetLogLevelAction extends Action {
+
+	static ID = 'workbench.action.setLogLevel';
+	static LABEL = nls.localize('setLogLevel', "Set Log Level");
+
+	constructor(id: string, label: string,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<void> {
+		const entries: IPickOpenEntry[] = [
+			{ id: '0', label: nls.localize('verbose', "Verbose") },
+			{ id: '1', label: nls.localize('debug', "Debug") },
+			{ id: '2', label: nls.localize('info', "Info") },
+			{ id: '3', label: nls.localize('warn', "Warning") },
+			{ id: '4', label: nls.localize('err', "Error") },
+			{ id: '5', label: nls.localize('critical', "Critical") },
+			{ id: '6', label: nls.localize('off', "Off") }
+		];
+		return this.quickOpenService.pick(entries, { placeHolder: nls.localize('selectProcess', "Select process") })
+			.then(entry => {
+				if (entry) {
+					setLevel(parseInt(entry.id));
 				}
 			});
 	}
