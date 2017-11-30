@@ -15,7 +15,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { OpenContext } from 'vs/platform/windows/common/windows';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { whenDeleted } from 'vs/base/node/pfs';
-import { BrowserWindow } from 'electron';
 
 export const ID = 'launchService';
 export const ILaunchService = createDecorator<ILaunchService>(ID);
@@ -152,10 +151,10 @@ export class LaunchService implements ILaunchService {
 
 		return TPromise.as({
 			mainPID: process.pid,
-			windows: BrowserWindow.getAllWindows().map(window => {
+			windows: this.windowsMainService.getWindows().map(window => {
 				return {
-					pid: window.webContents.getOSProcessId(),
-					title: window.getTitle()
+					pid: window.win.webContents.getOSProcessId(),
+					title: window.win.getTitle()
 				};
 			})
 		} as IMainProcessInfo);
