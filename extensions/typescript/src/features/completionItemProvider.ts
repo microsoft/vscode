@@ -400,22 +400,33 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 
 	private snippetForFunctionCall(detail: CompletionEntryDetails): SnippetString {
 		const suggestionArgumentNames: string[] = [];
+		let hasOptionalParemters = false;
 		let parenCount = 0;
-		for (let i = 0; i < detail.displayParts.length; ++i) {
+		let i = 0;
+		for (; i < detail.displayParts.length; ++i) {
 			const part = detail.displayParts[i];
 			// Only take top level paren names
 			if (part.kind === 'parameterName' && parenCount === 1) {
-				suggestionArgumentNames.push(`\${${i + 1}:${part.text}}`);
+				const next = detail.displayParts[i + 1];
+				// Skip optional parameters
+				const nameIsFollowedByOptionalIndicator = next && next.text === '?';
+				if (!nameIsFollowedByOptionalIndicator) {
+					suggestionArgumentNames.push(`\${${i + 1}:${part.text}}`);
+				}
+				hasOptionalParemters = hasOptionalParemters || nameIsFollowedByOptionalIndicator;
 			} else if (part.kind === 'punctuation') {
 				if (part.text === '(') {
 					++parenCount;
 				} else if (part.text === ')') {
 					--parenCount;
+				} else if (part.text === '...' && parenCount === 1) {
+					// Found rest parmeter. Do not fill in any further arguments
+					hasOptionalParemters = true;
+					break;
 				}
 			}
 		}
-
-		const codeSnippet = `${detail.name}(${suggestionArgumentNames.join(', ')})$0`;
+		const codeSnippet = `${detail.name}(${suggestionArgumentNames.join(', ')}${hasOptionalParemters ? '${' + i + '}' : ''})$0`;
 		return new SnippetString(codeSnippet);
 	}
 
