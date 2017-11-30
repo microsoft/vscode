@@ -15,6 +15,7 @@ import { virtualMachineHint } from 'vs/base/node/id';
 import { repeat, pad } from 'vs/base/common/strings';
 import { isWindows } from 'vs/base/common/platform';
 import { app } from 'electron';
+import { basename } from 'path';
 
 export function printDiagnostics(info: IMainProcessInfo): Promise<any> {
 	return listProcesses(info.mainPID).then(rootProcess => {
@@ -39,7 +40,7 @@ export function printDiagnostics(info: IMainProcessInfo): Promise<any> {
 				console.log(`|  Renderer (${window.title})`);
 
 				window.folders.forEach(folder => {
-					console.log(`|    Folder (${folder})`);
+					console.log(`|    Folder (${basename(folder)})`);
 					const stats = collectWorkspaceStats(folder, ['node_modules', '.git']);
 					console.log(formatWorkspaceStats(stats));
 				});
