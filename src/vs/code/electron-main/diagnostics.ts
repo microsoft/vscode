@@ -18,24 +18,48 @@ import { app } from 'electron';
 
 export function printDiagnostics(info: IMainProcessInfo): Promise<any> {
 	return listProcesses(info.mainPID).then(rootProcess => {
+
+		// Environment Info
+		console.log('');
+		console.log(formatEnvironment(info));
+
+		// Process List
+		console.log('');
 		console.log(formatProcessList(info, rootProcess));
 
-		console.log('\n');
-		console.log('\n');
+		// Workspace Stats
+		if (info.windows.some(window => window.folders.length > 0)) {
+			console.log('');
+			console.log('Workspace Stats: ');
+			info.windows.forEach(window => {
+				if (window.folders.length === 0) {
+					return;
+				}
 
-		let stats = collectWorkspaceStats('.', ['node_modules', '.git']); // TODO call for each root folder
-		console.log(formatWorkspaceStats(stats));
+				console.log(`|  Renderer (${window.title})`);
+
+				window.folders.forEach(folder => {
+					console.log(`|    Folder (${folder})`);
+					const stats = collectWorkspaceStats(folder, ['node_modules', '.git']);
+					console.log(formatWorkspaceStats(stats));
+				});
+			});
+		}
+		console.log('');
+		console.log('');
 	});
 }
 
 function formatWorkspaceStats(workspaceStats: WorkspaceStats): string {
-	let output: string[] = [];
+	const output: string[] = [];
+	const lineLength = 60;
+	let col = 0;
 
-	let appendAndWrap = (index: string, value: number) => {
-		let item = ` ${index}(${value})`;
+	const appendAndWrap = (index: string, value: number) => {
+		const item = ` ${index}(${value})`;
 		if (col + item.length > lineLength) {
 			output.push(line);
-			line = '    ';
+			line = '|                 ';
 			col = line.length;
 		}
 		else {
@@ -44,31 +68,38 @@ function formatWorkspaceStats(workspaceStats: WorkspaceStats): string {
 		line += item;
 	};
 
-	output.push('Workspace:');
-	const lineLength = 60;
 
-	let line = '  File types:';
-	let col = 0;
+	// File Types
+	let line = '|      File types:';
+	let hasFileTypes = false;
 	workspaceStats.fileTypes.forEach((item) => {
 		if (item.value > 20) {
+			hasFileTypes = true;
 			appendAndWrap(item.name, item.value);
 		}
 	});
+	if (!hasFileTypes) {
+		line = `${line} <not enough data>`;
+	}
 	output.push(line);
-	output.push('');
-	line = '  Configuration files:';
+
+	// Conf Files
+	line = '|      Conf files:';
 	col = 0;
+	let hasConfFiles = false;
 	workspaceStats.configFiles.forEach((item) => {
+		hasConfFiles = true;
 		appendAndWrap(item.name, item.value);
 	});
+	if (!hasConfFiles) {
+		line = `${line} <not enough data>`;
+	}
 	output.push(line);
+
 	return output.join('\n');
 }
 
-function formatProcessList(info: IMainProcessInfo, rootProcess: ProcessItem): string {
-	const mapPidToWindowTitle = new Map<number, string>();
-	info.windows.forEach(window => mapPidToWindowTitle.set(window.pid, window.title));
-
+function formatEnvironment(info: IMainProcessInfo): string {
 	const MB = 1024 * 1024;
 	const GB = 1024 * MB;
 
@@ -85,7 +116,16 @@ function formatProcessList(info: IMainProcessInfo, rootProcess: ProcessItem): st
 	}
 	output.push(`VM:               ${Math.round((virtualMachineHint.value() * 100))}%`);
 	output.push(`Screen Reader:    ${app.isAccessibilitySupportEnabled() ? 'yes' : 'no'}`);
-	output.push('');
+
+	return output.join('\n');
+}
+
+function formatProcessList(info: IMainProcessInfo, rootProcess: ProcessItem): string {
+	const mapPidToWindowTitle = new Map<number, string>();
+	info.windows.forEach(window => mapPidToWindowTitle.set(window.pid, window.title));
+
+	const output: string[] = [];
+
 	output.push('CPU %\tMem MB\tProcess');
 
 	formatProcessItem(mapPidToWindowTitle, output, rootProcess, 0);

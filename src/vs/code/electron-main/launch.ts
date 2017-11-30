@@ -15,6 +15,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { OpenContext } from 'vs/platform/windows/common/windows';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { whenDeleted } from 'vs/base/node/pfs';
+import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 
 export const ID = 'launchService';
 export const ILaunchService = createDecorator<ILaunchService>(ID);
@@ -24,9 +25,15 @@ export interface IStartArguments {
 	userEnv: IProcessEnvironment;
 }
 
+export interface IWindowInfo {
+	pid: number;
+	title: string;
+	folders: string[];
+}
+
 export interface IMainProcessInfo {
 	mainPID: number;
-	windows: { pid: number; title: string; }[];
+	windows: IWindowInfo[];
 }
 
 export interface ILaunchService {
@@ -90,7 +97,8 @@ export class LaunchService implements ILaunchService {
 	constructor(
 		@ILogService private logService: ILogService,
 		@IWindowsMainService private windowsMainService: IWindowsMainService,
-		@IURLService private urlService: IURLService
+		@IURLService private urlService: IURLService,
+		@IWorkspacesMainService private workspacesMainService: IWorkspacesMainService
 	) { }
 
 	public start(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void> {
@@ -149,14 +157,32 @@ export class LaunchService implements ILaunchService {
 	public getMainProcessInfo(): TPromise<IMainProcessInfo> {
 		this.logService.info('Received request for main process info from other instance.');
 
-		return TPromise.as({
+		return TPromise.wrap({
 			mainPID: process.pid,
 			windows: this.windowsMainService.getWindows().map(window => {
-				return {
-					pid: window.win.webContents.getOSProcessId(),
-					title: window.win.getTitle()
-				};
+				return this.getWindowInfo(window);
 			})
 		} as IMainProcessInfo);
+	}
+
+	private getWindowInfo(window: ICodeWindow): IWindowInfo {
+		const folders: string[] = [];
+
+		if (window.openedFolderPath) {
+			folders.push(window.openedFolderPath);
+		} else if (window.openedWorkspace) {
+			const rootFolders = this.workspacesMainService.resolveWorkspaceSync(window.openedWorkspace.configPath).folders;
+			rootFolders.forEach(root => {
+				if (root.uri.scheme === 'file') {
+					folders.push(root.uri.fsPath);
+				}
+			});
+		}
+
+		return {
+			pid: window.win.webContents.getOSProcessId(),
+			title: window.win.getTitle(),
+			folders
+		} as IWindowInfo;
 	}
 }
