@@ -45,6 +45,7 @@ import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces
 import { localize } from 'vs/nls';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { listProcesses, ProcessItem } from 'vs/base/node/ps';
+import { collectWorkspaceStats, WorkspaceStats } from 'vs/base/node/workspaceStats';
 import { repeat, pad } from 'vs/base/common/strings';
 
 function createServices(args: ParsedArgs): IInstantiationService {
@@ -156,6 +157,12 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 							return listProcesses(info.mainPID).then(rootProcess => {
 								console.log(formatProcessList(info, rootProcess));
 
+								console.log('\n');
+								console.log('\n');
+
+								let stats = collectWorkspaceStats('.', ['node_modules', '.git']); // TODO call for each root folder
+								console.log(formatWorkspaceStats(stats));
+
 								return TPromise.wrapError(new ExpectedError());
 							});
 						});
@@ -205,6 +212,43 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	}
 
 	return setup(true);
+}
+
+function formatWorkspaceStats(workspaceStats: WorkspaceStats): string {
+	let output: string[] = [];
+
+	let appendAndWrap = (index: string, value: number) => {
+		let item = ` ${index}(${value})`;
+		if (col + item.length > lineLength) {
+			output.push(line);
+			line = '    ';
+			col = line.length;
+		}
+		else {
+			col += item.length;
+		}
+		line += item;
+	};
+
+	output.push('Workspace:');
+	const lineLength = 60;
+
+	let line = '  File types:';
+	let col = 0;
+	workspaceStats.fileTypes.forEach((item) => {
+		if (item.value > 20) {
+			appendAndWrap(item.name, item.value);
+		}
+	});
+	output.push(line);
+	output.push('');
+	line = '  Configuration files:';
+	col = 0;
+	workspaceStats.configFiles.forEach((item) => {
+		appendAndWrap(item.name, item.value);
+	});
+	output.push(line);
+	return output.join('\n');
 }
 
 function formatProcessList(info: IMainProcessInfo, rootProcess: ProcessItem): string {
