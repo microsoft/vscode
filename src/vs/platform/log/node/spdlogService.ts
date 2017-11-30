@@ -9,12 +9,15 @@ import * as path from 'path';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { RotatingLogger, setAsyncMode } from 'spdlog';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { fromNodeEventEmitter } from 'vs/base/common/event';
 
 export class SpdLogService implements ILogService {
 
 	_serviceBrand: any;
 
 	private logger: RotatingLogger;
+	private disposables: IDisposable[] = [];
 
 	constructor(
 		processName: string,
@@ -24,6 +27,8 @@ export class SpdLogService implements ILogService {
 
 		const logfilePath = path.join(environmentService.logsPath, `${processName}.log`);
 		this.logger = new RotatingLogger(processName, logfilePath, 1024 * 1024 * 5, 6);
+
+		fromNodeEventEmitter(process, 'exit')(() => this.logger.flush(), null, this.disposables);
 	}
 
 	// TODO, what about ARGS?
@@ -50,5 +55,9 @@ export class SpdLogService implements ILogService {
 
 	critical(message: string, ...args: any[]): void {
 		this.logger.critical(message);
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
 	}
 }
