@@ -877,7 +877,7 @@ export class CloseMessagesAction extends Action {
 export class ReportIssueAction extends Action {
 
 	public static readonly ID = 'workbench.action.reportIssues';
-	public static readonly LABEL = nls.localize('reportIssues', "Report Issues");
+	public static readonly LABEL = nls.localize({ key: 'reportIssueInEnglish', comment: ['Translate this to "Report Issue in English" in all languages please!'] }, "Report Issue");
 
 	constructor(
 		id: string,
