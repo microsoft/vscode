@@ -453,7 +453,7 @@ class TypeScriptServiceClientHost implements ITypeScriptServiceClientHost {
 		configFileWatcher.onDidDelete(handleProjectCreateOrDelete, this, this.disposables);
 		configFileWatcher.onDidChange(handleProjectChange, this, this.disposables);
 
-		this.versionStatus = new VersionStatus();
+		this.versionStatus = new VersionStatus(resource => this.client.normalizePath(resource));
 		this.disposables.push(this.versionStatus);
 
 		this.client = new TypeScriptServiceClient(this, workspaceState, this.versionStatus, plugins);
