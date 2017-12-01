@@ -407,13 +407,7 @@ function getTelemetryActivationEvent(extensionDescription: IExtensionDescription
 			"name": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 			"publisherDisplayName": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 			"activationEvents": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"${wildcard}": [
-				{
-					"${prefix}": "contribution.",
-					"${classification}": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			]
+			"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 		}
 	*/
 	let event = {
@@ -423,35 +417,6 @@ function getTelemetryActivationEvent(extensionDescription: IExtensionDescription
 		activationEvents: extensionDescription.activationEvents ? extensionDescription.activationEvents.join(',') : null,
 		isBuiltin: extensionDescription.isBuiltin
 	};
-
-	for (let contribution in extensionDescription.contributes) {
-		let contributionDetails = extensionDescription.contributes[contribution];
-
-		if (!contributionDetails) {
-			continue;
-		}
-
-		switch (contribution) {
-			case 'debuggers':
-				let types = contributionDetails.reduce((p, c) => p ? p + ',' + c['type'] : c['type'], '');
-				event['contribution.debuggers'] = types;
-				break;
-			case 'grammars':
-				let grammers = contributionDetails.reduce((p, c) => p ? p + ',' + c['language'] : c['language'], '');
-				event['contribution.grammars'] = grammers;
-				break;
-			case 'languages':
-				let languages = contributionDetails.reduce((p, c) => p ? p + ',' + c['id'] : c['id'], '');
-				event['contribution.languages'] = languages;
-				break;
-			case 'tmSnippets':
-				let tmSnippets = contributionDetails.reduce((p, c) => p ? p + ',' + c['languageId'] : c['languageId'], '');
-				event['contribution.tmSnippets'] = tmSnippets;
-				break;
-			default:
-				event[`contribution.${contribution}`] = true;
-		}
-	}
 
 	return event;
 }
