@@ -119,47 +119,47 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 	});
 
 	test('Expand snippets (HTML)', () => {
-		return testHtmlExpandAbbreviation(new Selection(3, 23, 3, 23), 'img', '<img src=\"\" alt=\"\">');
+		return testExpandAbbreviation('html', new Selection(3, 23, 3, 23), 'img', '<img src=\"\" alt=\"\">');
 	});
 
 	test('Expand abbreviation (HTML)', () => {
-		return testHtmlExpandAbbreviation(new Selection(5, 25, 5, 25), 'ul>li', '<ul>\n\t\t\t<li></li>\n\t\t</ul>');
+		return testExpandAbbreviation('html', new Selection(5, 25, 5, 25), 'ul>li', '<ul>\n\t\t\t<li></li>\n\t\t</ul>');
 	});
 
 	test('Expand text that is neither an abbreviation nor a snippet to tags (HTML)', () => {
-		return testHtmlExpandAbbreviation(new Selection(4, 20, 4, 27), 'hithere', '<hithere></hithere>');
+		return testExpandAbbreviation('html', new Selection(4, 20, 4, 27), 'hithere', '<hithere></hithere>');
 	});
 
 	test('Expand abbreviation with repeaters (HTML)', () => {
-		return testHtmlExpandAbbreviation(new Selection(6, 27, 6, 27), 'ul>li*2', '<ul>\n\t\t\t<li></li>\n\t\t\t<li></li>\n\t\t</ul>');
+		return testExpandAbbreviation('html', new Selection(6, 27, 6, 27), 'ul>li*2', '<ul>\n\t\t\t<li></li>\n\t\t\t<li></li>\n\t\t</ul>');
 	});
 
 	test('Expand abbreviation with numbered repeaters (HTML)', () => {
-		return testHtmlExpandAbbreviation(new Selection(7, 33, 7, 33), 'ul>li.item$*2', '<ul>\n\t\t\t<li class="item1"></li>\n\t\t\t<li class="item2"></li>\n\t\t</ul>');
+		return testExpandAbbreviation('html', new Selection(7, 33, 7, 33), 'ul>li.item$*2', '<ul>\n\t\t\t<li class="item1"></li>\n\t\t\t<li class="item2"></li>\n\t\t</ul>');
 	});
 
 	test('Expand abbreviation with numbered repeaters with offset (HTML)', () => {
-		return testHtmlExpandAbbreviation(new Selection(8, 36, 8, 36), 'ul>li.item$@44*2', '<ul>\n\t\t\t<li class="item44"></li>\n\t\t\t<li class="item45"></li>\n\t\t</ul>');
+		return testExpandAbbreviation('html', new Selection(8, 36, 8, 36), 'ul>li.item$@44*2', '<ul>\n\t\t\t<li class="item44"></li>\n\t\t\t<li class="item45"></li>\n\t\t</ul>');
 	});
 
 	test('Expand abbreviation with numbered repeaters in groups (HTML)', () => {
-		return testHtmlExpandAbbreviation(new Selection(17, 16, 17, 16), '(ul>li.item$)*2', '<ul>\n\t\t<li class="item1"></li>\n\t</ul>\n\t<ul>\n\t\t<li class="item2"></li>\n\t</ul>');
+		return testExpandAbbreviation('html', new Selection(17, 16, 17, 16), '(ul>li.item$)*2', '<ul>\n\t\t<li class="item1"></li>\n\t</ul>\n\t<ul>\n\t\t<li class="item2"></li>\n\t</ul>');
 	});
 
 	test('Expand abbreviation with numbered repeaters in groups with sibling in the end (HTML)', () => {
-		return testHtmlExpandAbbreviation(new Selection(18, 21, 18, 21), '(ul>li.item$)*2+span', '<ul>\n\t\t<li class="item1"></li>\n\t</ul>\n\t<ul>\n\t\t<li class="item2"></li>\n\t</ul>\n\t<span></span>');
+		return testExpandAbbreviation('html', new Selection(18, 21, 18, 21), '(ul>li.item$)*2+span', '<ul>\n\t\t<li class="item1"></li>\n\t</ul>\n\t<ul>\n\t\t<li class="item2"></li>\n\t</ul>\n\t<span></span>');
 	});
 
 	test('Expand abbreviation with nested groups (HTML)', () => {
-		return testHtmlExpandAbbreviation(new Selection(19, 19, 19, 19), '(div>dl>(dt+dd)*2)', '<div>\n\t\t<dl>\n\t\t\t<dt></dt>\n\t\t\t<dd></dd>\n\t\t\t<dt></dt>\n\t\t\t<dd></dd>\n\t\t</dl>\n\t</div>');
+		return testExpandAbbreviation('html', new Selection(19, 19, 19, 19), '(div>dl>(dt+dd)*2)', '<div>\n\t\t<dl>\n\t\t\t<dt></dt>\n\t\t\t<dd></dd>\n\t\t\t<dt></dt>\n\t\t\t<dd></dd>\n\t\t</dl>\n\t</div>');
 	});
 
 	test('Expand tag that is opened, but not closed (HTML)', () => {
-		return testHtmlExpandAbbreviation(new Selection(9, 6, 9, 6), '<div', '<div></div>');
+		return testExpandAbbreviation('html', new Selection(9, 6, 9, 6), '<div', '<div></div>');
 	});
 
 	test('No expanding text inside open tag (HTML)', () => {
-		return testHtmlExpandAbbreviation(new Selection(2, 4, 2, 4), '', '', true);
+		return testExpandAbbreviation('html', new Selection(2, 4, 2, 4), '', '', true);
 	});
 
 	test('Expand css when inside style tag (HTML)', () => {
@@ -178,11 +178,20 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 
 	test('No expanding when html is excluded in the settings', () => {
 		return workspace.getConfiguration('emmet').update('excludeLanguages', ['html']).then(() => {
-			return testHtmlExpandAbbreviation(new Selection(9, 6, 9, 6), '', '', true).then(() => {
+			return testExpandAbbreviation('html', new Selection(9, 6, 9, 6), '', '', true).then(() => {
 				return workspace.getConfiguration('emmet').update('excludeLanguages', []);
 			});
 		});
 	});
+
+	test('No expanding when php (mapped syntax) is excluded in the settings', () => {
+		return workspace.getConfiguration('emmet').update('excludeLanguages', ['php']).then(() => {
+			return testExpandAbbreviation('php', new Selection(9, 6, 9, 6), '', '', true).then(() => {
+				return workspace.getConfiguration('emmet').update('excludeLanguages', []);
+			});
+		});
+	});
+
 
 });
 
@@ -399,8 +408,8 @@ suite('Tests for jsx, xml and xsl', () => {
 
 });
 
-function testHtmlExpandAbbreviation(selection: Selection, abbreviation: string, expandedText: string, shouldFail?: boolean): Thenable<any> {
-	return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
+function testExpandAbbreviation(syntax: string, selection: Selection, abbreviation: string, expandedText: string, shouldFail?: boolean): Thenable<any> {
+	return withRandomFileEditor(htmlContents, syntax, (editor, doc) => {
 		editor.selection = selection;
 		let expandPromise = expandEmmetAbbreviation(null);
 		if (!expandPromise) {
