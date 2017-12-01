@@ -184,6 +184,7 @@
 	"miDownloadingUpdate": "Descargando actualización...",
 	"miInstallingUpdate": "Instalando actualización...",
 	"miCheckForUpdates": "Buscar actualizaciones...",
-	"aboutDetail": "\nVersión: {0}\nConfirmación: {1}\nFecha: {2}\nShell: {3}\nRepresentador: {4}\nNodo {5}\nArquitectura {6}",
-	"okButton": "Aceptar"
+	"aboutDetail": "Versión: {0}\nConfirmación: {1}\nFecha: {2}\nShell: {3}\nRepresentador: {4}\nNodo {5}\nArquitectura {6}",
+	"okButton": "Aceptar",
+	"copy": "&&Copiar"
 }

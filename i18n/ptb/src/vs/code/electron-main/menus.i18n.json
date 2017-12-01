@@ -26,7 +26,7 @@
 	"miOpenFolder": "Abrir &&Pasta",
 	"miOpenFile": "&&Abrir Arquivo",
 	"miOpenRecent": "Abrir &&Recente",
-	"miSaveWorkspaceAs": "Sal&&var Espaço de Trabalho como...",
+	"miSaveWorkspaceAs": "Salvar Espaço de Trabalho Como...",
 	"miAddFolderToWorkspace": "A&&dicionar Pasta para o Espaço de Trabalho...",
 	"miSave": "&&Salvar",
 	"miSaveAs": "Salvar &&Como...",
@@ -184,6 +184,7 @@
 	"miDownloadingUpdate": "Baixando Atualização...",
 	"miInstallingUpdate": "Instalando Atualização...",
 	"miCheckForUpdates": "Verificar Atualizações...",
-	"aboutDetail": "\nVersão {0}\nConfirmação {1}\nData {2}\nShell {3}\nRenderizador {4}\nNó {5}\nArquitetura {6}",
-	"okButton": "OK"
+	"aboutDetail": "Versão {0}\nConfirmação {1}\nData {2}\nShell {3}\nRenderizador {4}\nNó {5}\nArquitetura {6}",
+	"okButton": "OK",
+	"copy": "&&Copiar"
 }

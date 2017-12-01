@@ -26,6 +26,7 @@
 	"editKeybindingLabel": "變更按鍵繫結關係",
 	"addKeybindingLabelWithKey": "新增按鍵繫結關係 {0}",
 	"addKeybindingLabel": "新增按鍵繫結關係",
+	"title": "{0} ({1})",
 	"commandAriaLabel": "命令為 {0}。",
 	"keybindingAriaLabel": "按鍵繫結關係為 {0}。",
 	"noKeybinding": "未指派任何按鍵繫結關係。",

@@ -20,5 +20,7 @@
 	"openExplorerOnEnd": "Bir hata ayıklama oturumunun sonunda otomatik olarak gezgin görünümünü açın",
 	"inlineValues": "Hata ayıklama sırasında değişken değerlerini düzenleyicide satır içinde göster",
 	"hideActionBar": "Dolaştırılabilir hata ayıklama eylem çubuğunun gizlenip gizlenmeyeceğini denetler",
+	"showInStatusBar": "Hata ayıklama durum çubuğunun ne zaman görünür olacağını denetler",
+	"openDebug": "Hata ayıklama viewlet'ının, hata ayıklama oturumu başlangıcında açılıp açılmayacağını denetler.",
 	"launch": "Global hata ayıklama başlatma yapılandırması. Çalışma alanlarında paylaşılan 'launch.json'a alternatif olarak kullanılmalıdır"
 }

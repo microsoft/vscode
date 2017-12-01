@@ -22,9 +22,12 @@
 	"miQuit": "Kilépés innen: {0}",
 	"miNewFile": "Ú&&j fájl",
 	"miOpen": "&&Megnyitás",
+	"miOpenWorkspace": "&&Munkaterület megnyitása...",
 	"miOpenFolder": "Ma&&ppa megnyitása",
 	"miOpenFile": "&&Fájl megnyitása",
 	"miOpenRecent": "&&Legutóbbi megnyitása",
+	"miSaveWorkspaceAs": "Munkaterület mentése másként...",
+	"miAddFolderToWorkspace": "Mappa hozzáa&&dása a munkaterülethez...",
 	"miSave": "Menté&&s",
 	"miSaveAs": "M&&entés másként",
 	"miSaveAll": "Összes men&&tése",
@@ -181,6 +184,7 @@
 	"miDownloadingUpdate": "Frissítés letöltése...",
 	"miInstallingUpdate": "Frissítés telepítése...",
 	"miCheckForUpdates": "Frissítések keresése...",
-	"aboutDetail": "\nVerzió: {0}\nCommit: {1}\nDátum: {2}\nShell: {3}\nRendelő: {4}\nNode: {5}\nArchitektúra: {6}",
-	"okButton": "OK"
+	"aboutDetail": "Verzió: {0}\nCommit: {1}\nDátum: {2}\nShell: {3}\nRendelő: {4}\nNode: {5}\nArchitektúra: {6}",
+	"okButton": "OK",
+	"copy": "&&Másolás"
 }
