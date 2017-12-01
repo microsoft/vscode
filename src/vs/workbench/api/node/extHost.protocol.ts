@@ -238,7 +238,7 @@ export interface MainThreadEditorsShape extends IDisposable {
 
 export interface MainThreadTreeViewsShape extends IDisposable {
 	$registerView(treeViewId: string): void;
-	$refresh(treeViewId: string, treeItemHandles: number[]): void;
+	$refresh(treeViewId: string, treeItemHandles: string[]): void;
 }
 
 export interface MainThreadErrorsShape extends IDisposable {
@@ -493,7 +493,7 @@ export interface ExtHostDocumentsAndEditorsShape {
 
 export interface ExtHostTreeViewsShape {
 	$getElements(treeViewId: string): TPromise<ITreeItem[]>;
-	$getChildren(treeViewId: string, treeItemHandle: number): TPromise<ITreeItem[]>;
+	$getChildren(treeViewId: string, treeItemHandle: string): TPromise<ITreeItem[]>;
 }
 
 export interface ExtHostWorkspaceShape {

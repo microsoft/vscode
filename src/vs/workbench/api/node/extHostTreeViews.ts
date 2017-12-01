@@ -17,7 +17,7 @@ import { TreeItemCollapsibleState } from './extHostTypes';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
 import { asWinJsPromise } from 'vs/base/common/async';
 
-type TreeItemHandle = number;
+type TreeItemHandle = string;
 
 export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 
@@ -56,7 +56,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		return treeView.getTreeItems();
 	}
 
-	$getChildren(treeViewId: string, treeItemHandle?: number): TPromise<ITreeItem[]> {
+	$getChildren(treeViewId: string, treeItemHandle?: string): TPromise<ITreeItem[]> {
 		const treeView = this.treeViews.get(treeViewId);
 		if (!treeView) {
 			return TPromise.wrapError<ITreeItem[]>(new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId)));
@@ -71,8 +71,6 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 }
 
 class ExtHostTreeView<T> extends Disposable {
-
-	private _itemHandlePool = 0;
 
 	private extElementsMap: Map<TreeItemHandle, T> = new Map<TreeItemHandle, T>();
 	private itemHandlesMap: Map<T, TreeItemHandle> = new Map<T, TreeItemHandle>();
@@ -92,7 +90,7 @@ class ExtHostTreeView<T> extends Disposable {
 		this.itemHandlesMap.clear();
 
 		return asWinJsPromise(() => this.dataProvider.getChildren())
-			.then(elements => this.processAndMapElements(elements));
+			.then(elements => this.processAndMapElements(elements, '0'));
 	}
 
 	getChildren(treeItemHandle: TreeItemHandle): TPromise<ITreeItem[]> {
@@ -104,7 +102,7 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 
 		return asWinJsPromise(() => this.dataProvider.getChildren(extElement))
-			.then(childrenElements => this.processAndMapElements(childrenElements));
+			.then(childrenElements => this.processAndMapElements(childrenElements, treeItemHandle));
 	}
 
 	getExtensionElement(treeItemHandle: TreeItemHandle): T {
@@ -124,25 +122,25 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 	}
 
-	private processAndMapElements(elements: T[]): TPromise<ITreeItem[]> {
+	private processAndMapElements(elements: T[], parentHandle: TreeItemHandle): TPromise<ITreeItem[]> {
 		if (elements && elements.length) {
 			return TPromise.join(
 				elements.filter(element => !!element)
-					.map(element => {
+					.map((element, index) => {
 						if (this.extChildrenElementsMap.has(element)) {
 							return TPromise.wrapError<ITreeItem>(new Error(localize('treeView.duplicateElement', 'Element {0} is already registered', element)));
 						}
-						return this.resolveElement(element);
+						return this.resolveElement(element, index, parentHandle);
 					}))
 				.then(treeItems => treeItems.filter(treeItem => !!treeItem));
 		}
 		return TPromise.as([]);
 	}
 
-	private resolveElement(element: T): TPromise<ITreeItem> {
+	private resolveElement(element: T, index: number, parentHandle: TreeItemHandle): TPromise<ITreeItem> {
 		return asWinJsPromise(() => this.dataProvider.getTreeItem(element))
 			.then(extTreeItem => {
-				const treeItem = this.massageTreeItem(extTreeItem);
+				const treeItem = this.massageTreeItem(extTreeItem, index, parentHandle);
 				if (treeItem) {
 					this.itemHandlesMap.set(element, treeItem.handle);
 					this.extElementsMap.set(treeItem.handle, element);
@@ -159,13 +157,13 @@ class ExtHostTreeView<T> extends Disposable {
 			});
 	}
 
-	private massageTreeItem(extensionTreeItem: vscode.TreeItem): ITreeItem {
+	private massageTreeItem(extensionTreeItem: vscode.TreeItem, index: number, parentHandle: TreeItemHandle): ITreeItem {
 		if (!extensionTreeItem) {
 			return null;
 		}
 		const icon = this.getLightIconPath(extensionTreeItem);
 		return {
-			handle: ++this._itemHandlePool,
+			handle: `${parentHandle}/${index}:${extensionTreeItem.label}`,
 			label: extensionTreeItem.label,
 			command: extensionTreeItem.command ? this.commands.toInternal(extensionTreeItem.command) : void 0,
 			contextValue: extensionTreeItem.contextValue,
