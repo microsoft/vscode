@@ -15,6 +15,7 @@ import TsConfigProvider, { TSConfig } from '../utils/tsconfigProvider';
 import { isImplicitProjectConfigFile } from '../utils/tsconfig';
 
 import * as nls from 'vscode-nls';
+import { Lazy } from '../utils/lazy';
 const localize = nls.loadMessageBundle();
 
 type AutoDetect = 'on' | 'off' | 'build' | 'watch';
@@ -42,7 +43,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 	private readonly disposables: vscode.Disposable[] = [];
 
 	public constructor(
-		private readonly lazyClient: () => ITypeScriptServiceClient
+		private readonly client: Lazy<ITypeScriptServiceClient>
 	) {
 		this.tsconfigProvider = new TsConfigProvider();
 
@@ -104,7 +105,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 		}
 
 		try {
-			const res: Proto.ProjectInfoResponse = await this.lazyClient().execute(
+			const res: Proto.ProjectInfoResponse = await this.client.value.execute(
 				'projectInfo',
 				{ file, needFileNameList: false },
 				token);
@@ -166,7 +167,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 		if (editor) {
 			const document = editor.document;
 			if (document && (document.languageId === 'typescript' || document.languageId === 'typescriptreact')) {
-				return this.lazyClient().normalizePath(document.uri);
+				return this.client.value.normalizePath(document.uri);
 			}
 		}
 		return null;
@@ -242,7 +243,7 @@ export default class TypeScriptTaskProviderManager {
 	private readonly disposables: vscode.Disposable[] = [];
 
 	constructor(
-		private readonly lazyClient: () => ITypeScriptServiceClient
+		private readonly client: Lazy<ITypeScriptServiceClient>
 	) {
 		vscode.workspace.onDidChangeConfiguration(this.onConfigurationChanged, this, this.disposables);
 		this.onConfigurationChanged();
@@ -262,7 +263,7 @@ export default class TypeScriptTaskProviderManager {
 			this.taskProviderSub.dispose();
 			this.taskProviderSub = undefined;
 		} else if (!this.taskProviderSub && autoDetect !== 'off') {
-			this.taskProviderSub = vscode.workspace.registerTaskProvider('typescript', new TscTaskProvider(this.lazyClient));
+			this.taskProviderSub = vscode.workspace.registerTaskProvider('typescript', new TscTaskProvider(this.client));
 		}
 	}
 }

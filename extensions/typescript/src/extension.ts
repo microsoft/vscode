@@ -15,6 +15,7 @@ import * as languageModeIds from './utils/languageModeIds';
 import * as languageConfigurations from './utils/languageConfigurations';
 import { standardLanguageDescriptions } from './utils/languageDescription';
 import ManagedFileContextManager from './utils/managedFileContext';
+import { lazy, Lazy } from './utils/lazy';
 
 export function activate(
 	context: vscode.ExtensionContext
@@ -26,9 +27,9 @@ export function activate(
 
 	const lazyClientHost = createLazyClientHost(context, plugins, commandManager);
 
-	context.subscriptions.push(new ManagedFileContextManager(resource => lazyClientHost().serviceClient.normalizePath(resource)));
+	context.subscriptions.push(new ManagedFileContextManager(resource => lazyClientHost.value.serviceClient.normalizePath(resource)));
 	registerCommands(commandManager, lazyClientHost);
-	context.subscriptions.push(new TypeScriptTaskProviderManager(() => lazyClientHost().serviceClient));
+	context.subscriptions.push(new TypeScriptTaskProviderManager(lazyClientHost.map(x => x.serviceClient)));
 	context.subscriptions.push(vscode.languages.setLanguageConfiguration(languageModeIds.jsxTags, languageConfigurations.jsxTags));
 
 
@@ -37,7 +38,8 @@ export function activate(
 		if (supportedLanguage.indexOf(textDocument.languageId) >= 0) {
 			openListener.dispose();
 			// Force activation
-			void lazyClientHost();
+			// tslint:disable-next-line:no-unused-expression
+			void lazyClientHost.value;
 			return true;
 		}
 		return false;
@@ -54,26 +56,23 @@ function createLazyClientHost(
 	context: vscode.ExtensionContext,
 	plugins: TypeScriptServerPlugin[],
 	commandManager: CommandManager
-) {
-	let clientHost: TypeScriptServiceClientHost | undefined = undefined;
-	return () => {
-		if (!clientHost) {
-			clientHost = new TypeScriptServiceClientHost(standardLanguageDescriptions, context.workspaceState, plugins, commandManager);
-			context.subscriptions.push(clientHost);
-			const host = clientHost;
-			clientHost.serviceClient.onReady().then(() => {
-				context.subscriptions.push(ProjectStatus.create(host.serviceClient, host.serviceClient.telemetryReporter, path => new Promise<boolean>(resolve => setTimeout(() => resolve(host.handles(path)), 750)), context.workspaceState));
-			}, () => {
-				// Nothing to do here. The client did show a message;
-			});
-		}
+): Lazy<TypeScriptServiceClientHost> {
+	return lazy(() => {
+		const clientHost = new TypeScriptServiceClientHost(standardLanguageDescriptions, context.workspaceState, plugins, commandManager);
+		context.subscriptions.push(clientHost);
+		const host = clientHost;
+		clientHost.serviceClient.onReady().then(() => {
+			context.subscriptions.push(ProjectStatus.create(host.serviceClient, host.serviceClient.telemetryReporter, path => new Promise<boolean>(resolve => setTimeout(() => resolve(host.handles(path)), 750)), context.workspaceState));
+		}, () => {
+			// Nothing to do here. The client did show a message;
+		});
 		return clientHost;
-	};
+	});
 }
 
 function registerCommands(
 	commandManager: CommandManager,
-	lazyClientHost: () => TypeScriptServiceClientHost
+	lazyClientHost: Lazy<TypeScriptServiceClientHost>
 ) {
 	commandManager.register(new commands.ReloadTypeScriptProjectsCommand(lazyClientHost));
 	commandManager.register(new commands.ReloadJavaScriptProjectsCommand(lazyClientHost));
