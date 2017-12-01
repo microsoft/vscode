@@ -27,7 +27,14 @@ export function activate(
 
 	const lazyClientHost = createLazyClientHost(context, plugins, commandManager);
 
-	context.subscriptions.push(new ManagedFileContextManager(resource => lazyClientHost.value.serviceClient.normalizePath(resource)));
+	context.subscriptions.push(new ManagedFileContextManager(resource => {
+		// Don't force evaluation here.
+		if (lazyClientHost.hasValue) {
+			return lazyClientHost.value.serviceClient.normalizePath(resource);
+		}
+		return null;
+	}));
+
 	registerCommands(commandManager, lazyClientHost);
 	context.subscriptions.push(new TypeScriptTaskProviderManager(lazyClientHost.map(x => x.serviceClient)));
 	context.subscriptions.push(vscode.languages.setLanguageConfiguration(languageModeIds.jsxTags, languageConfigurations.jsxTags));
