@@ -235,7 +235,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 }
 
 /**
- * Manages registrations of TypeScript task provides with VScode.
+ * Manages registrations of TypeScript task providers with VS Code.
  */
 export default class TypeScriptTaskProviderManager {
 	private taskProviderSub: vscode.Disposable | undefined = undefined;

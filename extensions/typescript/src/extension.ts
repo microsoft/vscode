@@ -14,6 +14,7 @@ import * as ProjectStatus from './utils/projectStatus';
 import * as languageModeIds from './utils/languageModeIds';
 import * as languageConfigurations from './utils/languageConfigurations';
 import { standardLanguageDescriptions } from './utils/languageDescription';
+import ManagedFileContextManager from './utils/managedFileContext';
 
 export function activate(
 	context: vscode.ExtensionContext
@@ -25,9 +26,11 @@ export function activate(
 
 	const lazyClientHost = createLazyClientHost(context, plugins, commandManager);
 
+	context.subscriptions.push(new ManagedFileContextManager(resource => lazyClientHost().serviceClient.normalizePath(resource)));
 	registerCommands(commandManager, lazyClientHost);
 	context.subscriptions.push(new TypeScriptTaskProviderManager(() => lazyClientHost().serviceClient));
 	context.subscriptions.push(vscode.languages.setLanguageConfiguration(languageModeIds.jsxTags, languageConfigurations.jsxTags));
+
 
 	const supportedLanguage = [].concat.apply([], standardLanguageDescriptions.map(x => x.modeIds).concat(plugins.map(x => x.languages)));
 	function didOpenTextDocument(textDocument: vscode.TextDocument): boolean {
