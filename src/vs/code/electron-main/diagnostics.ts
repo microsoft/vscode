@@ -72,15 +72,11 @@ function formatWorkspaceStats(workspaceStats: WorkspaceStats): string {
 
 	// File Types
 	let line = '|      File types:';
-	let hasFileTypes = false;
-	workspaceStats.fileTypes.forEach((item) => {
-		if (item.value > 20) {
-			hasFileTypes = true;
-			appendAndWrap(item.name, item.value);
-		}
-	});
-	if (!hasFileTypes) {
-		line = `${line} <not enough data>`;
+	const maxShown = 10;
+	let max = workspaceStats.fileTypes.length > maxShown ? maxShown : workspaceStats.fileTypes.length;
+	for (let i = 0; i < max; i++) {
+		const item = workspaceStats.fileTypes[i];
+		appendAndWrap(item.name, item.count);
 	}
 	output.push(line);
 
