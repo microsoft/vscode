@@ -6,9 +6,7 @@
 {
 	"tasksCategory": "Görevler",
 	"ConfigureTaskRunnerAction.label": "Görevi Yapılandır",
-	"ConfigureBuildTaskAction.label": "Derleme Görevini Yapılandır",
 	"CloseMessageAction.label": "Kapat",
-	"ShowTerminalAction.label": "Terminali Görüntüle",
 	"problems": "Sorunlar",
 	"manyMarkers": "99+",
 	"runningTasks": "Çalışan Görevleri Göster",
@@ -52,7 +50,6 @@
 	"TaslService.noEntryToRun": "Çalıştırılacak hiçbir görev bulunamadı. Görevleri Yapılandır...",
 	"TaskService.fetchingBuildTasks": "Derleme görevleri alınıyor...",
 	"TaskService.pickBuildTask": "Çalıştırılacak derleme görevini seçin",
-	"TaskService.noBuildTask": "Çalıştırılacak hiçbir derleme görevi bulunamadı. Görevleri Yapılandır...",
 	"TaskService.fetchingTestTasks": "Test görevleri alınıyor...",
 	"TaskService.pickTestTask": "Çalıştırılacak test görevini seçin",
 	"TaskService.noTestTaskTerminal": "Çalıştırılacak hiçbir test görevi bulunamadı. Görevleri Yapılandır...",

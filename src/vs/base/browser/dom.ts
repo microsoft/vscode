@@ -477,21 +477,12 @@ const sizeUtils = {
 	getBorderTopWidth: function (element: HTMLElement): number {
 		return getDimension(element, 'border-top-width', 'borderTopWidth');
 	},
-	getBorderRightWidth: function (element: HTMLElement): number {
-		return getDimension(element, 'border-right-width', 'borderRightWidth');
-	},
 	getBorderBottomWidth: function (element: HTMLElement): number {
 		return getDimension(element, 'border-bottom-width', 'borderBottomWidth');
 	},
 
-	getPaddingLeft: function (element: HTMLElement): number {
-		return getDimension(element, 'padding-left', 'paddingLeft');
-	},
 	getPaddingTop: function (element: HTMLElement): number {
 		return getDimension(element, 'padding-top', 'paddingTop');
-	},
-	getPaddingRight: function (element: HTMLElement): number {
-		return getDimension(element, 'padding-right', 'paddingRight');
 	},
 	getPaddingBottom: function (element: HTMLElement): number {
 		return getDimension(element, 'padding-bottom', 'paddingBottom');
@@ -587,14 +578,6 @@ export const StandardWindow: IStandardWindow = new class {
 		}
 	}
 };
-
-// Adapted from WinJS
-// Gets the width of the content of the specified element. The content width does not include borders or padding.
-export function getContentWidth(element: HTMLElement): number {
-	let border = sizeUtils.getBorderLeftWidth(element) + sizeUtils.getBorderRightWidth(element);
-	let padding = sizeUtils.getPaddingLeft(element) + sizeUtils.getPaddingRight(element);
-	return element.offsetWidth - border - padding;
-}
 
 // Adapted from WinJS
 // Gets the width of the element, including margins.

@@ -6,9 +6,7 @@
 {
 	"tasksCategory": "Aufgaben",
 	"ConfigureTaskRunnerAction.label": "Aufgabe konfigurieren",
-	"ConfigureBuildTaskAction.label": "Buildtask konfigurieren",
 	"CloseMessageAction.label": "Schließen",
-	"ShowTerminalAction.label": "Terminal anzeigen",
 	"problems": "Probleme",
 	"manyMarkers": "mehr als 99",
 	"runningTasks": "Aktive Aufgaben anzeigen",
@@ -52,7 +50,6 @@
 	"TaslService.noEntryToRun": "Es wurde keine auszuführende Aufgabe gefunden. Aufgaben konfigurieren...",
 	"TaskService.fetchingBuildTasks": "Buildaufgaben werden abgerufen...",
 	"TaskService.pickBuildTask": "Auszuführende Buildaufgabe auswählen",
-	"TaskService.noBuildTask": "Es wurde keine auszuführende Buildaufgabe gefunden. Aufgaben konfigurieren...",
 	"TaskService.fetchingTestTasks": "Testaufgaben werden abgerufen...",
 	"TaskService.pickTestTask": "Auszuführende Testaufgabe auswählen",
 	"TaskService.noTestTaskTerminal": "Es wurde keine auszuführende Testaufgabe gefunden. Aufgaben konfigurieren...",

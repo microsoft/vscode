@@ -9,7 +9,7 @@ import { Command } from 'vs/editor/common/modes';
 
 export type TreeViewItemHandleArg = {
 	$treeViewId: string,
-	$treeItemHandle: number
+	$treeItemHandle: string
 };
 
 export enum TreeItemCollapsibleState {
@@ -20,7 +20,7 @@ export enum TreeItemCollapsibleState {
 
 export interface ITreeItem {
 
-	handle: number;
+	handle: string;
 
 	label: string;
 

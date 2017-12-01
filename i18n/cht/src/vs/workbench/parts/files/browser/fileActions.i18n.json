@@ -69,5 +69,7 @@
 	"invalidFileNameError": "名稱 **{0}** 不能作為檔案或資料夾名稱。請選擇不同的名稱。",
 	"filePathTooLongError": "名稱 **{0}** 導致路徑太長。請選擇較短的名稱。",
 	"compareWithSaved": "比較使用中的檔案和已儲存的檔案",
-	"modifiedLabel": "{0} (在磁碟上) ↔ {1}"
+	"modifiedLabel": "{0} (在磁碟上) ↔ {1}",
+	"compareWithClipboard": "比較使用中的檔案和剪貼簿的檔案",
+	"clipboardComparisonLabel": "剪貼簿 ↔ {0}"
 }

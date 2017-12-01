@@ -365,12 +365,17 @@ export class EventBufferer {
 export interface IChainableEvent<T> {
 	event: Event<T>;
 	map<O>(fn: (i: T) => O): IChainableEvent<O>;
+	forEach(fn: (i: T) => void): IChainableEvent<T>;
 	filter(fn: (e: T) => boolean): IChainableEvent<T>;
 	on(listener: (e: T) => any, thisArgs?: any, disposables?: IDisposable[]): IDisposable;
 }
 
 export function mapEvent<I, O>(event: Event<I>, map: (i: I) => O): Event<O> {
 	return (listener, thisArgs = null, disposables?) => event(i => listener.call(thisArgs, map(i)), null, disposables);
+}
+
+export function forEach<I>(event: Event<I>, each: (i: I) => void): Event<I> {
+	return (listener, thisArgs = null, disposables?) => event(i => { each(i); listener.call(thisArgs, i); }, null, disposables);
 }
 
 export function filterEvent<T>(event: Event<T>, filter: (e: T) => boolean): Event<T> {
@@ -385,6 +390,10 @@ class ChainableEvent<T> implements IChainableEvent<T> {
 
 	map<O>(fn: (i: T) => O): IChainableEvent<O> {
 		return new ChainableEvent(mapEvent(this._event, fn));
+	}
+
+	forEach(fn: (i: T) => void): IChainableEvent<T> {
+		return new ChainableEvent(forEach(this._event, fn));
 	}
 
 	filter(fn: (e: T) => boolean): IChainableEvent<T> {

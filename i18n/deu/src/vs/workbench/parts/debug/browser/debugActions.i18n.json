@@ -30,7 +30,6 @@
 	"deactivateBreakpoints": "Haltepunkte deaktivieren",
 	"reapplyAllBreakpoints": "Alle Haltepunkte erneut anwenden",
 	"addFunctionBreakpoint": "Funktionshaltepunkt hinzufügen",
-	"renameFunctionBreakpoint": "Funktionshaltepunkt umbenennen",
 	"addConditionalBreakpoint": "Bedingten Haltepunkt hinzufügen...",
 	"editConditionalBreakpoint": "Haltepunkt bearbeiten...",
 	"setValue": "Wert festlegen",

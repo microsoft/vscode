@@ -47,5 +47,10 @@
 	"showNextWindowTab": "Sonraki Pencere Sekmesini Göster",
 	"moveWindowTabToNewWindow": "Pencere Sekmesini Yeni Pencereye Taşı",
 	"mergeAllWindowTabs": "Tüm Pencereleri Birleştir",
-	"toggleWindowTabsBar": "Pencere Sekmeleri Çubuğunu Gizle/Göster"
+	"toggleWindowTabsBar": "Pencere Sekmeleri Çubuğunu Gizle/Göster",
+	"configureLocale": "Dili Yapılandır",
+	"displayLanguage": "VSCode'un görüntüleme dilini tanımlar.",
+	"doc": "Desteklenen dillerin listesi için göz atın: {0}",
+	"restart": "Değeri değiştirirseniz VSCode'u yeniden başlatmanız gerekir.",
+	"fail.createSettings": " '{0}' oluşturulamadı ({1})."
 }

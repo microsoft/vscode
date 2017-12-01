@@ -75,5 +75,6 @@
 	"zenMode.hideTabs": "控制打开 Zen 模式是否也会隐藏工作台选项卡。",
 	"zenMode.hideStatusBar": "控制打开 Zen 模式是否也会隐藏工作台底部的状态栏。",
 	"zenMode.hideActivityBar": "控制打开 Zen 模式是否也会隐藏工作台左侧的活动栏。",
-	"zenMode.restore": "控制如果某窗口已退出 zen 模式，是否应还原到 zen 模式。"
+	"zenMode.restore": "控制如果某窗口已退出 zen 模式，是否应还原到 zen 模式。",
+	"JsonSchema.locale": "要使用的 UI 语言。"
 }

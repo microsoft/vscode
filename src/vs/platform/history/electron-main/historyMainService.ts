@@ -281,7 +281,7 @@ export class HistoryMainService implements IHistoryMainService {
 		try {
 			app.setJumpList(jumpList);
 		} catch (error) {
-			this.logService.log('#setJumpList', error); // since setJumpList is relatively new API, make sure to guard for errors
+			this.logService.info('#setJumpList', error); // since setJumpList is relatively new API, make sure to guard for errors
 		}
 	}
 }

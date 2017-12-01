@@ -51,7 +51,9 @@ const options: minimist.Opts = {
 		'sticky-quickopen',
 		'disable-telemetry',
 		'disable-updates',
-		'disable-crash-reporter'
+		'disable-crash-reporter',
+		'skip-add-to-recently-opened',
+		'status'
 	],
 	alias: {
 		add: 'a',
@@ -60,6 +62,7 @@ const options: minimist.Opts = {
 		wait: 'w',
 		diff: 'd',
 		goto: 'g',
+		status: 's',
 		'new-window': 'n',
 		'reuse-window': 'r',
 		performance: 'p',
@@ -145,6 +148,7 @@ export const optionsHelp: { [name: string]: string; } = {
 	'--enable-proposed-api <extension-id>': localize('experimentalApis', "Enables proposed api features for an extension."),
 	'--disable-extensions': localize('disableExtensions', "Disable all installed extensions."),
 	'--disable-gpu': localize('disableGPU', "Disable GPU hardware acceleration."),
+	'-s, --status': localize('status', "Print process usage and diagnostics information."),
 	'-v, --version': localize('version', "Print version."),
 	'-h, --help': localize('help', "Print usage.")
 };

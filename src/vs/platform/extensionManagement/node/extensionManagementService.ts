@@ -32,6 +32,7 @@ import { groupBy, values } from 'vs/base/common/collections';
 import URI from 'vs/base/common/uri';
 import { IChoiceService, Severity } from 'vs/platform/message/common/message';
 import pkg from 'vs/platform/node/package';
+import { isMacintosh } from 'vs/base/common/platform';
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
 const INSTALL_ERROR_OBSOLETE = 'obsolete';
@@ -244,7 +245,15 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private checkForObsolete(extensionsToInstall: IGalleryExtension[]): TPromise<IGalleryExtension[]> {
 		return this.filterObsolete(...extensionsToInstall.map(i => getLocalExtensionIdFromGallery(i, i.version)))
-			.then(obsolete => obsolete.length ? TPromise.wrapError<IGalleryExtension[]>(new Error(nls.localize('restartCodeGallery', "Please restart Code before reinstalling."))) : extensionsToInstall);
+			.then(obsolete => {
+				if (obsolete.length) {
+					if (isMacintosh) {
+						return TPromise.wrapError<IGalleryExtension[]>(new Error(nls.localize('quitCode', "Unable to install because an obsolete instance of the extension is still running. Please Quit and Start VS Code before reinstalling.")));
+					}
+					return TPromise.wrapError<IGalleryExtension[]>(new Error(nls.localize('exitCode', "Unable to install because an obsolete instance of the extension is still running. Please Exit and Start VS Code before reinstalling.")));
+				}
+				return extensionsToInstall;
+			});
 	}
 
 	private downloadInstallableExtension(extension: IGalleryExtension, installed: ILocalExtension[]): TPromise<InstallableExtension> {
@@ -297,7 +306,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 				this._onDidInstallExtension.fire({ identifier, gallery, local: local[index] });
 			}
 		});
-		return error ? TPromise.wrapError(Array.isArray(error) ? this.joinErrors(error) : error) : TPromise.as(null);
+		return error ? TPromise.wrapError(this.joinErrors(error)) : TPromise.as(null);
 	}
 
 	private getDependenciesToInstall(dependencies: string[]): TPromise<IGalleryExtension[]> {
@@ -354,7 +363,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 						const promises = installed
 							.filter(e => e.manifest.publisher === extension.manifest.publisher && e.manifest.name === extension.manifest.name)
 							.map(e => this.checkForDependenciesAndUninstall(e, installed, force));
-						return TPromise.join(promises).then(null, error => TPromise.wrapError(Array.isArray(error) ? this.joinErrors(error) : error));
+						return TPromise.join(promises).then(null, error => TPromise.wrapError(this.joinErrors(error)));
 					}))
 			.then(() => { /* drop resolved value */ });
 	}
@@ -393,11 +402,11 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		return TPromise.as(null);
 	}
 
-	private joinErrors(errors: (Error | string)[]): Error {
+	private joinErrors(errorOrErrors: (Error | string) | ((Error | string)[])): Error {
+		const errors = Array.isArray(errorOrErrors) ? errorOrErrors : [errorOrErrors];
 		if (errors.length === 1) {
 			return errors[0] instanceof Error ? <Error>errors[0] : new Error(<string>errors[0]);
 		}
-
 		return errors.reduce<Error>((previousValue: Error, currentValue: Error | string) => {
 			return new Error(`${previousValue.message}${previousValue.message ? ',' : ''}${currentValue instanceof Error ? currentValue.message : currentValue}`);
 		}, new Error(''));

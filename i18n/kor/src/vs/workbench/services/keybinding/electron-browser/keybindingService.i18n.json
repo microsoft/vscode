@@ -21,6 +21,5 @@
 	"keybindings.json.command": "실행할 명령의 이름",
 	"keybindings.json.when": "키가 활성화되는 조건입니다.",
 	"keybindings.json.args": "실행할 명령에 전달할 인수입니다.",
-	"keyboardConfigurationTitle": "키보드",
-	"dispatch": "`keydown.code`(권장) 또는 `keydown.keyCode`를 사용하는 키 누름에 대한 디스패치 논리를 제어합니다."
+	"keyboardConfigurationTitle": "키보드"
 }

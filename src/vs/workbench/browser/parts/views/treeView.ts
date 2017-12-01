@@ -192,7 +192,7 @@ export class TreeView extends TreeViewsViewletPanel {
 
 class Root implements ITreeItem {
 	label = 'root';
-	handle = -1;
+	handle = '0';
 	collapsibleState = TreeItemCollapsibleState.Expanded;
 }
 
@@ -205,7 +205,7 @@ class TreeDataSource implements IDataSource {
 	}
 
 	public getId(tree: ITree, node: ITreeItem): string {
-		return '' + node.handle;
+		return node.handle;
 	}
 
 	public hasChildren(tree: ITree, node: ITreeItem): boolean {

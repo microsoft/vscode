@@ -199,10 +199,8 @@ export class Resource implements SourceControlResourceState {
 	}
 
 	get decorations(): SourceControlResourceDecorations {
-		// TODO@joh, still requires restart/redraw in the SCM viewlet
-		const decorations = workspace.getConfiguration().get<boolean>('git.decorations.enabled');
-		const light = !decorations ? { iconPath: this.getIconPath('light') } : undefined;
-		const dark = !decorations ? { iconPath: this.getIconPath('dark') } : undefined;
+		const light = this._useIcons ? { iconPath: this.getIconPath('light') } : undefined;
+		const dark = this._useIcons ? { iconPath: this.getIconPath('dark') } : undefined;
 		const tooltip = this.tooltip;
 		const strikeThrough = this.strikeThrough;
 		const faded = this.faded;
@@ -311,6 +309,7 @@ export class Resource implements SourceControlResourceState {
 		private _resourceGroupType: ResourceGroupType,
 		private _resourceUri: Uri,
 		private _type: Status,
+		private _useIcons: boolean,
 		private _renameResourceUri?: Uri,
 		private _compare?: Compare
 	) { }
@@ -937,6 +936,7 @@ export class Repository implements Disposable {
 		const compareStatus = await (async () => this.compare && this.repository.getStatus(this.compare))();
 		const config = workspace.getConfiguration('git');
 		const shouldIgnore = config.get<boolean>('ignoreLimitWarning') === true;
+		const useIcons = config.get<boolean>('decorations.enabled', true);
 
 		this.isRepositoryHuge = status.didHitLimit || (!!compareStatus && compareStatus.didHitLimit);
 
@@ -967,28 +967,28 @@ export class Repository implements Disposable {
 			const renameUri = raw.rename ? Uri.file(path.join(this.repository.root, raw.rename)) : undefined;
 
 			switch (raw.x + raw.y) {
-				case '??': return workingTree.push(new Resource(ResourceGroupType.WorkingTree, uri, Status.UNTRACKED));
-				case '!!': return workingTree.push(new Resource(ResourceGroupType.WorkingTree, uri, Status.IGNORED));
-				case 'DD': return merge.push(new Resource(ResourceGroupType.Merge, uri, Status.BOTH_DELETED));
-				case 'AU': return merge.push(new Resource(ResourceGroupType.Merge, uri, Status.ADDED_BY_US));
-				case 'UD': return merge.push(new Resource(ResourceGroupType.Merge, uri, Status.DELETED_BY_THEM));
-				case 'UA': return merge.push(new Resource(ResourceGroupType.Merge, uri, Status.ADDED_BY_THEM));
-				case 'DU': return merge.push(new Resource(ResourceGroupType.Merge, uri, Status.DELETED_BY_US));
-				case 'AA': return merge.push(new Resource(ResourceGroupType.Merge, uri, Status.BOTH_ADDED));
-				case 'UU': return merge.push(new Resource(ResourceGroupType.Merge, uri, Status.BOTH_MODIFIED));
+				case '??': return workingTree.push(new Resource(ResourceGroupType.WorkingTree, uri, Status.UNTRACKED, useIcons));
+				case '!!': return workingTree.push(new Resource(ResourceGroupType.WorkingTree, uri, Status.IGNORED, useIcons));
+				case 'DD': return merge.push(new Resource(ResourceGroupType.Merge, uri, Status.BOTH_DELETED, useIcons));
+				case 'AU': return merge.push(new Resource(ResourceGroupType.Merge, uri, Status.ADDED_BY_US, useIcons));
+				case 'UD': return merge.push(new Resource(ResourceGroupType.Merge, uri, Status.DELETED_BY_THEM, useIcons));
+				case 'UA': return merge.push(new Resource(ResourceGroupType.Merge, uri, Status.ADDED_BY_THEM, useIcons));
+				case 'DU': return merge.push(new Resource(ResourceGroupType.Merge, uri, Status.DELETED_BY_US, useIcons));
+				case 'AA': return merge.push(new Resource(ResourceGroupType.Merge, uri, Status.BOTH_ADDED, useIcons));
+				case 'UU': return merge.push(new Resource(ResourceGroupType.Merge, uri, Status.BOTH_MODIFIED, useIcons));
 			}
 
 			switch (raw.x) {
-				case 'M': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_MODIFIED)); break;
-				case 'A': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_ADDED)); break;
-				case 'D': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_DELETED)); break;
-				case 'R': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_RENAMED, renameUri)); break;
-				case 'C': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_COPIED, renameUri)); break;
+				case 'M': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_MODIFIED, useIcons)); break;
+				case 'A': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_ADDED, useIcons)); break;
+				case 'D': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_DELETED, useIcons)); break;
+				case 'R': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_RENAMED, useIcons, renameUri)); break;
+				case 'C': index.push(new Resource(ResourceGroupType.Index, uri, Status.INDEX_COPIED, useIcons, renameUri)); break;
 			}
 
 			switch (raw.y) {
-				case 'M': workingTree.push(new Resource(ResourceGroupType.WorkingTree, uri, Status.MODIFIED, renameUri)); break;
-				case 'D': workingTree.push(new Resource(ResourceGroupType.WorkingTree, uri, Status.DELETED, renameUri)); break;
+				case 'M': workingTree.push(new Resource(ResourceGroupType.WorkingTree, uri, Status.MODIFIED, useIcons, renameUri)); break;
+				case 'D': workingTree.push(new Resource(ResourceGroupType.WorkingTree, uri, Status.DELETED, useIcons, renameUri)); break;
 			}
 		});
 
@@ -997,11 +997,11 @@ export class Repository implements Disposable {
 			const uri = Uri.file(path.join(this.repository.root, status.path));
 			const renameUri = status.rename ? Uri.file(path.join(this.repository.root, status.rename)) : undefined;
 			switch (status.x) {
-				case 'A': compare.push(new Resource(ResourceGroupType.Compare, uri, Status.COMPARE_ADDED, renameUri, this.compare)); break;
-				case 'C': compare.push(new Resource(ResourceGroupType.Compare, uri, Status.COMPARE_COPIED, renameUri, this.compare)); break;
-				case 'D': compare.push(new Resource(ResourceGroupType.Compare, uri, Status.COMPARE_DELETED, renameUri, this.compare)); break;
-				case 'M': compare.push(new Resource(ResourceGroupType.Compare, uri, Status.COMPARE_MODIFIED, renameUri, this.compare)); break;
-				case 'R': compare.push(new Resource(ResourceGroupType.Compare, uri, Status.COMPARE_RENAMED, renameUri, this.compare)); break;
+				case 'A': compare.push(new Resource(ResourceGroupType.Compare, uri, Status.COMPARE_ADDED, useIcons, renameUri, this.compare)); break;
+				case 'C': compare.push(new Resource(ResourceGroupType.Compare, uri, Status.COMPARE_COPIED, useIcons, renameUri, this.compare)); break;
+				case 'D': compare.push(new Resource(ResourceGroupType.Compare, uri, Status.COMPARE_DELETED, useIcons, renameUri, this.compare)); break;
+				case 'M': compare.push(new Resource(ResourceGroupType.Compare, uri, Status.COMPARE_MODIFIED, useIcons, renameUri, this.compare)); break;
+				case 'R': compare.push(new Resource(ResourceGroupType.Compare, uri, Status.COMPARE_RENAMED, useIcons, renameUri, this.compare)); break;
 			}
 		}
 

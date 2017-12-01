@@ -20,6 +20,7 @@
 	"findInWorkspace": "작업 영역에서 찾기...",
 	"findInFolder": "폴더에서 찾기...",
 	"RefreshAction.label": "새로 고침",
+	"collapse": "축소",
 	"ClearSearchResultsAction.label": "검색 결과 지우기",
 	"FocusNextSearchResult.label": "다음 검색 결과에 포커스",
 	"FocusPreviousSearchResult.label": "이전 검색 결과에 포커스",

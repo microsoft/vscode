@@ -70,30 +70,6 @@ let DATA_BINDING_ID = '__$binding';
 let LISTENER_BINDING_ID = '__$listeners';
 let VISIBILITY_BINDING_ID = '__$visibility';
 
-export class Position {
-	public x: number;
-	public y: number;
-
-	constructor(x: number, y: number) {
-		this.x = x;
-		this.y = y;
-	}
-}
-
-export class Box {
-	public top: number;
-	public right: number;
-	public bottom: number;
-	public left: number;
-
-	constructor(top: number, right: number, bottom: number, left: number) {
-		this.top = top;
-		this.right = right;
-		this.bottom = bottom;
-		this.left = left;
-	}
-}
-
 export class Dimension {
 	public width: number;
 	public height: number;
@@ -102,11 +78,6 @@ export class Dimension {
 		this.width = width;
 		this.height = height;
 	}
-}
-
-export interface IRange {
-	start: number;
-	end: number;
 }
 
 function data(element: any): any {
@@ -1270,13 +1241,6 @@ export class Builder implements IDisposable {
 	}
 
 	/**
-	 *  Returns true if the current element of the builder has no children.
-	 */
-	public isEmpty(): boolean {
-		return !this.currentElement.childNodes || this.currentElement.childNodes.length === 0;
-	}
-
-	/**
 	 * Recurse through all descendant nodes and remove their data binding.
 	 */
 	private unbindDescendants(current: HTMLElement): void {
@@ -1326,6 +1290,7 @@ export class Builder implements IDisposable {
 	 *  Removes all HTML elements from the current element of the builder.
 	 */
 	public clearChildren(): Builder {
+
 		// Remove Elements
 		if (this.currentElement) {
 			DOM.clearNode(this.currentElement);
@@ -1580,44 +1545,12 @@ export function getPropertyFromElement(element: HTMLElement, key: string, fallba
 }
 
 /**
- *  Removes a property from an element.
- */
-export function removePropertyFromElement(element: HTMLElement, key: string): void {
-	if (hasData(element)) {
-		delete data(element)[key];
-	}
-}
-
-/**
  *  Adds the provided object as property to the given element. Call getBinding()
  *  to retrieve it again.
  */
 export function bindElement(element: HTMLElement, object: any): void {
 	setPropertyOnElement(element, DATA_BINDING_ID, object);
 }
-
-/**
- *  Removes the binding of the given element.
- */
-export function unbindElement(element: HTMLElement): void {
-	removePropertyFromElement(element, DATA_BINDING_ID);
-}
-
-/**
- *  Returns the object that was passed into the bind() call for the element.
- */
-export function getBindingFromElement(element: HTMLElement): any {
-	return getPropertyFromElement(element, DATA_BINDING_ID);
-}
-
-export const Binding = {
-	setPropertyOnElement: setPropertyOnElement,
-	getPropertyFromElement: getPropertyFromElement,
-	removePropertyFromElement: removePropertyFromElement,
-	bindElement: bindElement,
-	unbindElement: unbindElement,
-	getBindingFromElement: getBindingFromElement
-};
 
 let SELECTOR_REGEX = /([\w\-]+)?(#([\w\-]+))?((.([\w\-]+))*)/;
 
@@ -1711,10 +1644,6 @@ export const $: QuickBuilder = function (arg?: any): Builder {
 	}
 };
 
-(<any>$).Box = Box;
 (<any>$).Dimension = Dimension;
-(<any>$).Position = Position;
 (<any>$).Builder = Builder;
-(<any>$).MultiBuilder = MultiBuilder;
 (<any>$).Build = Build;
-(<any>$).Binding = Binding;

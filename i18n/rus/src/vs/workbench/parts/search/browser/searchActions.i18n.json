@@ -20,6 +20,7 @@
 	"findInWorkspace": "Найти в рабочей области...",
 	"findInFolder": "Найти в папке...",
 	"RefreshAction.label": "Обновить",
+	"collapse": "Свернуть",
 	"ClearSearchResultsAction.label": "Очистить результаты поиска",
 	"FocusNextSearchResult.label": "Перейти к следующему результату поиска.",
 	"FocusPreviousSearchResult.label": "Перейти к предыдущему результату поиска.",

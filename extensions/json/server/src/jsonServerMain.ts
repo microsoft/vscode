@@ -161,7 +161,7 @@ connection.onDidChangeConfiguration((change) => {
 		let enableFormatter = settings && settings.json && settings.json.format && settings.json.format.enable;
 		if (enableFormatter) {
 			if (!formatterRegistration) {
-				formatterRegistration = connection.client.register(DocumentRangeFormattingRequest.type, { documentSelector: [{ language: 'json' }] });
+				formatterRegistration = connection.client.register(DocumentRangeFormattingRequest.type, { documentSelector: [{ language: 'json' }, { language: 'jsonc' }] });
 			}
 		} else if (formatterRegistration) {
 			formatterRegistration.then(r => r.dispose());

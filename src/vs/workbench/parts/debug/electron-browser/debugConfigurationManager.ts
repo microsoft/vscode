@@ -379,7 +379,7 @@ export class ConfigurationManager implements IConfigurationManager {
 
 	public canSetBreakpointsIn(model: IModel): boolean {
 		const modeId = model ? model.getLanguageIdentifier().language : null;
-		if (!modeId || modeId === 'json') {
+		if (!modeId || modeId === 'jsonc') {
 			// do not allow breakpoints in our settings files
 			return false;
 		}
@@ -514,7 +514,7 @@ class Launch implements ILaunch {
 	}
 
 	public openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor> {
-		return this.extensionService.activateByEvent('onDebug').then(() => {
+		return this.extensionService.activateByEvent('onDebugInitialConfigurations').then(() => this.extensionService.activateByEvent('onDebug').then(() => {
 			const resource = this.uri;
 			let configFileCreated = false;
 
@@ -567,6 +567,6 @@ class Launch implements ILaunch {
 			}, (error) => {
 				throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error));
 			});
-		});
+		}));
 	}
 }

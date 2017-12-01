@@ -21,6 +21,5 @@
 	"keybindings.json.command": "所要執行命令的名稱",
 	"keybindings.json.when": "按鍵為使用中時的條件。",
 	"keybindings.json.args": "要傳遞至命令加以執行的引數。",
-	"keyboardConfigurationTitle": "鍵盤",
-	"dispatch": "控制按下按鍵時的分派邏輯 (使用 'keydown.code' (建議使用) 或 'keydown.keyCode')。"
+	"keyboardConfigurationTitle": "鍵盤"
 }

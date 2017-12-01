@@ -20,6 +20,7 @@
 	"findInWorkspace": "In Arbeitsbereich suchen...",
 	"findInFolder": "In Ordner suchen...",
 	"RefreshAction.label": "Aktualisieren",
+	"collapse": "Zuklappen",
 	"ClearSearchResultsAction.label": "Suchergebnisse löschen",
 	"FocusNextSearchResult.label": "Fokus auf nächstes Suchergebnis",
 	"FocusPreviousSearchResult.label": "Fokus auf vorheriges Suchergebnis",

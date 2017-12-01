@@ -17,7 +17,6 @@ import { ITypeScriptServiceClient, ITypeScriptServiceClientHost } from './typesc
 import { TypeScriptServerPlugin } from './utils/plugins';
 import Logger from './utils/logger';
 
-import VersionStatus from './utils/versionStatus';
 import * as is from './utils/is';
 import TelemetryReporter from './utils/telemetry';
 import Tracer from './utils/tracer';
@@ -153,7 +152,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	constructor(
 		private readonly host: ITypeScriptServiceClientHost,
 		private readonly workspaceState: Memento,
-		private readonly versionStatus: VersionStatus,
+		private readonly onDidChangeTypeScriptVersion: (version: TypeScriptVersion) => void,
 		public readonly plugins: TypeScriptServerPlugin[]
 	) {
 		this.pathSeparator = path.sep;
@@ -199,7 +198,6 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		}, this, this.disposables);
 		this.telemetryReporter = new TelemetryReporter(() => this._tsserverVersion || this._apiVersion.versionString);
 		this.disposables.push(this.telemetryReporter);
-		this.startService();
 	}
 
 	public get configuration() {
@@ -301,7 +299,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		return Promise.reject<cp.ChildProcess>(new Error('Could not create TS service'));
 	}
 
-	private startService(resendModels: boolean = false): Thenable<cp.ChildProcess> {
+	public startService(resendModels: boolean = false): Thenable<cp.ChildProcess> {
 		let currentVersion = this.versionPicker.currentVersion;
 
 		return this.servicePromise = new Promise<cp.ChildProcess>((resolve, reject) => {
@@ -314,7 +312,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 			}
 
 			this._apiVersion = this.versionPicker.currentVersion.version || API.defaultVersion;
-			this.versionStatus.onDidChangeTypeScriptVersion(currentVersion);
+			this.onDidChangeTypeScriptVersion(currentVersion);
 
 			this.requestQueue = new RequestQueue();
 			this.callbacks = new CallbackMap();

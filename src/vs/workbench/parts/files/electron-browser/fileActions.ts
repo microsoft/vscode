@@ -1141,7 +1141,9 @@ export class OpenToSideAction extends Action {
 	public run(): TPromise<any> {
 
 		// Remove highlight
-		this.tree.clearHighlight();
+		if (this.tree) {
+			this.tree.clearHighlight();
+		}
 
 		// Set side input
 		return this.editorService.openEditor({
@@ -1713,7 +1715,7 @@ export class FocusOpenEditorsView extends Action {
 			const openEditorsView = viewlet.getOpenEditorsView();
 			if (openEditorsView) {
 				openEditorsView.setExpanded(true);
-				openEditorsView.getViewer().DOMFocus();
+				openEditorsView.getList().domFocus();
 			}
 		});
 	}

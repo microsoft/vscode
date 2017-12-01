@@ -55,6 +55,7 @@ export class ExtensionHostProcessWorker {
 
 	// Resources, in order they get acquired/created when .start() is called:
 	private _namedPipeServer: Server;
+	private _inspectPort: number;
 	private _extensionHostProcess: ChildProcess;
 	private _extensionHostConnection: Socket;
 	private _messageProtocol: TPromise<IMessagePassingProtocol>;
@@ -216,6 +217,7 @@ export class ExtensionHostProcessWorker {
 						}
 					});
 				}
+				this._inspectPort = port;
 
 				// Help in case we fail to start it
 				let startupTimeoutHandle: number;
@@ -363,7 +365,9 @@ export class ExtensionHostProcessWorker {
 				extensions: extensionDescriptions,
 				// Send configurations scopes only in development mode.
 				configuration: !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment ? { ...configurationData, configurationScopes: getScopes(this._configurationService.keys().default) } : configurationData,
-				telemetryInfo
+				telemetryInfo,
+				args: this._environmentService.args,
+				execPath: this._environmentService.execPath
 			};
 			return r;
 		});
@@ -424,6 +428,10 @@ export class ExtensionHostProcessWorker {
 		else {
 			ipc.send('vscode:exit', code);
 		}
+	}
+
+	public getInspectPort(): number {
+		return this._inspectPort;
 	}
 
 	public terminate(): void {

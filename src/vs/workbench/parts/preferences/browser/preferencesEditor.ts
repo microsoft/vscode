@@ -25,7 +25,7 @@ import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import {
 	IPreferencesService, ISettingsGroup, ISetting, IFilterResult, IPreferencesSearchService,
-	CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, SETTINGS_EDITOR_COMMAND_SEARCH, SETTINGS_EDITOR_COMMAND_FOCUS_FILE, ISettingsEditorModel, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING, IFilterMetadata
+	CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, SETTINGS_EDITOR_COMMAND_SEARCH, SETTINGS_EDITOR_COMMAND_FOCUS_FILE, ISettingsEditorModel, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING, IFilterMetadata, IPreferencesSearchModel
 } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -387,6 +387,7 @@ class PreferencesRenderers extends Disposable {
 	private _settingsNavigator: SettingsNavigator;
 	private _filtersInProgress: TPromise<any>[];
 	private _searchCriteria: ISearchCriteria;
+	private _currentSearchModel: IPreferencesSearchModel;
 
 	private _onTriggeredFuzzy: Emitter<void> = this._register(new Emitter<void>());
 	public onTriggeredFuzzy: Event<void> = this._onTriggeredFuzzy.event;
@@ -402,6 +403,10 @@ class PreferencesRenderers extends Disposable {
 
 	get defaultPreferencesRenderer(): IPreferencesRenderer<ISetting> {
 		return this._defaultPreferencesRenderer;
+	}
+
+	get editablePreferencesRenderer(): IPreferencesRenderer<ISetting> {
+		return this._editablePreferencesRenderer;
 	}
 
 	set defaultPreferencesRenderer(defaultPreferencesRenderer: IPreferencesRenderer<ISetting>) {
@@ -427,11 +432,13 @@ class PreferencesRenderers extends Disposable {
 			this._editablePreferencesRendererDisposables = dispose(this._editablePreferencesRendererDisposables);
 			if (this._editablePreferencesRenderer) {
 				(<ISettingsEditorModel>this._editablePreferencesRenderer.preferencesModel).onDidChangeGroups(() => {
-					this._filterEditablePreferences()
-						.then(() => {
-							const count = this.consolidateAndUpdate();
-							this._onDidFilterResultsCountChange.fire(count);
-						});
+					if (this._currentSearchModel) {
+						this._filterEditablePreferences()
+							.then(() => {
+								const count = this.consolidateAndUpdate();
+								this._onDidFilterResultsCountChange.fire(count);
+							});
+					}
 				}, this, this._editablePreferencesRendererDisposables);
 			}
 		}
@@ -445,6 +452,7 @@ class PreferencesRenderers extends Disposable {
 			this._filtersInProgress.forEach(p => p.cancel && p.cancel());
 		}
 
+		this._currentSearchModel = this.preferencesSearchService.startSearch(this._searchCriteria.filter, criteria.fuzzy);
 		this._filtersInProgress = [this._filterDefaultPreferences(), this._filterEditablePreferences()];
 
 		return TPromise.join<IFilterResult>(this._filtersInProgress).then(() => {
@@ -473,7 +481,7 @@ class PreferencesRenderers extends Disposable {
 
 	private _filterDefaultPreferences(): TPromise<void> {
 		if (this._searchCriteria && this._defaultPreferencesRenderer) {
-			return this._filterPreferences(this._searchCriteria, this._defaultPreferencesRenderer)
+			return this._filterPreferences(this._searchCriteria, this._defaultPreferencesRenderer, this._currentSearchModel)
 				.then(filterResult => { this._defaultPreferencesFilterResult = filterResult; });
 		}
 		return TPromise.wrap(null);
@@ -481,7 +489,7 @@ class PreferencesRenderers extends Disposable {
 
 	private _filterEditablePreferences(): TPromise<void> {
 		if (this._searchCriteria && this._editablePreferencesRenderer) {
-			return this._filterPreferences({ filter: this._searchCriteria.filter, fuzzy: false }, this._editablePreferencesRenderer)
+			return this._filterPreferences(this._searchCriteria, this._editablePreferencesRenderer, this._currentSearchModel)
 				.then(filterResult => { this._editablePreferencesFilterResult = filterResult; });
 		}
 		return TPromise.wrap(null);
@@ -500,9 +508,8 @@ class PreferencesRenderers extends Disposable {
 		return preferencesRenderer ? (<ISettingsEditorModel>preferencesRenderer.preferencesModel).settingsGroups : [];
 	}
 
-	private _filterPreferences(searchCriteria: ISearchCriteria, preferencesRenderer: IPreferencesRenderer<ISetting>): TPromise<IFilterResult> {
-		if (preferencesRenderer) {
-			const searchModel = this.preferencesSearchService.startSearch(searchCriteria.filter, searchCriteria.fuzzy);
+	private _filterPreferences(searchCriteria: ISearchCriteria, preferencesRenderer: IPreferencesRenderer<ISetting>, searchModel: IPreferencesSearchModel): TPromise<IFilterResult> {
+		if (preferencesRenderer && searchCriteria) {
 			const prefSearchP = searchModel.filterPreferences(<ISettingsEditorModel>preferencesRenderer.preferencesModel);
 
 			return prefSearchP.then(filterResult => {

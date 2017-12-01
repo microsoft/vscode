@@ -21,6 +21,5 @@
 	"keybindings.json.command": "Yürütülecek komutun adı",
 	"keybindings.json.when": "Tuşun aktif olacağı koşul",
 	"keybindings.json.args": "Yürütülecek komuta iletilecek argümanlar.",
-	"keyboardConfigurationTitle": "Klavye",
-	"dispatch": "Tuş basımlarının ya `keydown.code` (önerilen) ya da ` keydown.keyCode` kullanarak gönderilmesini denetler."
+	"keyboardConfigurationTitle": "Klavye"
 }

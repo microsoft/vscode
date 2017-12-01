@@ -53,5 +53,5 @@
 	"screenReaderDetectedExplanation.answerYes": "Oui",
 	"screenReaderDetectedExplanation.answerNo": "Non",
 	"screenReaderDetectedExplanation.body1": "VS Code est maintenant optimisé pour une utilisation avec un lecteur d’écran.",
-	"screenReaderDetectedExplanation.body2": "Certaines fonctionnalités de l’éditeur auront des comportements différents : par exemple l'encapsulation, le repliage, l'auto-fermeture des parenthèses, etc..."
+	"screenReaderDetectedExplanation.body2": "Certaines fonctionnalités de l’éditeur auront des comportements différents : par exemple encapsulation, repliage, etc.."
 }

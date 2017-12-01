@@ -12,18 +12,21 @@ import { NullCommandService } from 'vs/platform/commands/common/commands';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ExtensionPointContribution, IExtensionDescription, IExtensionsStatus, IExtensionService, ActivationTimes } from 'vs/platform/extensions/common/extensions';
+import { ExtensionPointContribution, IExtensionDescription, IExtensionsStatus, IExtensionService, ProfileSession } from 'vs/platform/extensions/common/extensions';
 import Event, { Emitter } from 'vs/base/common/event';
 
 // --- service instances
 
 class MockExtensionService implements IExtensionService {
+
 	public _serviceBrand: any;
 
 	private _onDidRegisterExtensions = new Emitter<IExtensionDescription[]>();
 	public get onDidRegisterExtensions(): Event<IExtensionDescription[]> {
 		return this._onDidRegisterExtensions.event;
 	}
+
+	onDidChangeExtensionsStatus = null;
 
 	public activateByEvent(activationEvent: string): TPromise<void> {
 		throw new Error('Not implemented');
@@ -45,7 +48,7 @@ class MockExtensionService implements IExtensionService {
 		throw new Error('Not implemented');
 	}
 
-	public getExtensionsActivationTimes(): { [id: string]: ActivationTimes; } {
+	public startExtensionHostProfile(): TPromise<ProfileSession> {
 		throw new Error('Not implemented');
 	}
 
@@ -58,6 +61,10 @@ class MockExtensionService implements IExtensionService {
 	}
 
 	public stopExtensionHost(): void {
+		throw new Error('Method not implemented.');
+	}
+
+	public getExtensionHostInformation(): any {
 		throw new Error('Method not implemented.');
 	}
 }

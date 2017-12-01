@@ -17,6 +17,7 @@ import { sortedDiff } from 'vs/base/common/arrays';
 import { comparePaths } from 'vs/base/common/comparers';
 import * as vscode from 'vscode';
 import { ISplice } from 'vs/base/common/sequence';
+import { log, LogLevel, ILogService } from 'vs/platform/log/common/log';
 
 type ProviderHandle = number;
 type GroupHandle = number;
@@ -443,7 +444,9 @@ export class ExtHostSCM {
 
 	constructor(
 		mainContext: IMainContext,
-		private _commands: ExtHostCommands
+		private _commands: ExtHostCommands,
+		// @ts-ignore
+		@ILogService private logService: ILogService
 	) {
 		this._proxy = mainContext.get(MainContext.MainThreadSCM);
 
@@ -486,6 +489,7 @@ export class ExtHostSCM {
 		});
 	}
 
+	@log(LogLevel.TRACE, 'ExtHostSCM', (msg, extension, id, label, rootUri) => `${msg}(${extension.id}, ${id}, ${label}, ${rootUri})`)
 	createSourceControl(extension: IExtensionDescription, id: string, label: string, rootUri: vscode.Uri | undefined): vscode.SourceControl {
 		const handle = ExtHostSCM._handlePool++;
 		const sourceControl = new ExtHostSourceControl(this._proxy, this._commands, id, label, rootUri);
@@ -499,6 +503,7 @@ export class ExtHostSCM {
 	}
 
 	// Deprecated
+	@log(LogLevel.TRACE, 'ExtHostSCM', (msg, extension) => `${msg}(${extension.id})`)
 	getLastInputBox(extension: IExtensionDescription): ExtHostSCMInputBox {
 		const sourceControls = this._sourceControlsByExtension.get(extension.id);
 		const sourceControl = sourceControls && sourceControls[sourceControls.length - 1];
@@ -507,6 +512,7 @@ export class ExtHostSCM {
 		return inputBox;
 	}
 
+	@log(LogLevel.TRACE, 'ExtHostSCM', (msg, handle, uri) => `${msg}(${handle}, ${uri})`)
 	$provideOriginalResource(sourceControlHandle: number, uri: URI): TPromise<URI> {
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
@@ -520,6 +526,7 @@ export class ExtHostSCM {
 		});
 	}
 
+	@log(LogLevel.TRACE, 'ExtHostSCM', (msg, handle) => `${msg}(${handle})`)
 	$onInputBoxValueChange(sourceControlHandle: number, value: string): TPromise<void> {
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
@@ -531,6 +538,7 @@ export class ExtHostSCM {
 		return TPromise.as(null);
 	}
 
+	@log(LogLevel.TRACE, 'ExtHostSCM', (msg, h1, h2, h3) => `${msg}(${h1}, ${h2}, ${h3})`)
 	async $executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): TPromise<void> {
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 

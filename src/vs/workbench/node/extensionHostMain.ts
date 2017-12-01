@@ -21,9 +21,12 @@ import { IInitData, IEnvironment, IWorkspaceData, MainContext } from 'vs/workben
 import * as errors from 'vs/base/common/errors';
 import * as watchdog from 'native-watchdog';
 import * as glob from 'vs/base/common/glob';
+import { ExtensionActivatedByEvent } from 'vs/workbench/api/node/extHostExtensionActivator';
+import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 
 // const nativeExit = process.exit.bind(process);
-function patchExit(allowExit: boolean) {
+function patchProcess(allowExit: boolean) {
 	process.exit = function (code) {
 		if (allowExit) {
 			exit(code);
@@ -31,6 +34,11 @@ function patchExit(allowExit: boolean) {
 			const err = new Error('An extension called process.exit() and this was prevented.');
 			console.warn(err.stack);
 		}
+	};
+
+	process.crash = function () {
+		const err = new Error('An extension called process.crash() and this was prevented.');
+		console.warn(err.stack);
 	};
 }
 export function exit(code?: number) {
@@ -73,13 +81,16 @@ export class ExtensionHostMain {
 		this._workspace = initData.workspace;
 
 		const allowExit = !!this._environment.extensionTestsPath; // to support other test frameworks like Jasmin that use process.exit (https://github.com/Microsoft/vscode/issues/37708)
-		patchExit(allowExit);
+		patchProcess(allowExit);
 
 		// services
 		const threadService = new ExtHostThreadService(rpcProtocol);
 		const extHostWorkspace = new ExtHostWorkspace(threadService, initData.workspace);
+		const environmentService = new EnvironmentService(initData.args, initData.execPath);
+		const logService = new SpdLogService('exthost', environmentService);
+
 		this._extHostConfiguration = new ExtHostConfiguration(threadService.get(MainContext.MainThreadConfiguration), extHostWorkspace, initData.configuration);
-		this._extensionService = new ExtHostExtensionService(initData, threadService, extHostWorkspace, this._extHostConfiguration);
+		this._extensionService = new ExtHostExtensionService(initData, threadService, extHostWorkspace, this._extHostConfiguration, logService);
 
 		// error forwarding and stack trace scanning
 		const extensionErrors = new WeakMap<Error, IExtensionDescription>();
@@ -100,11 +111,16 @@ export class ExtensionHostMain {
 				return `${error.name || 'Error'}: ${error.message || ''}${stackTraceMessage}`;
 			};
 		});
+		const mainThreadExtensions = threadService.get(MainContext.MainThreadExtensionService);
 		const mainThreadErrors = threadService.get(MainContext.MainThreadErrors);
 		errors.setUnexpectedErrorHandler(err => {
 			const data = errors.transformErrorForSerialization(err);
 			const extension = extensionErrors.get(err);
-			mainThreadErrors.$onUnexpectedError(data, extension && extension.id);
+			if (extension) {
+				mainThreadExtensions.$onExtensionRuntimeError(extension.id, data);
+			} else {
+				mainThreadErrors.$onUnexpectedError(data);
+			}
 		});
 
 		// Configure the watchdog to kill our process if the JS event loop is unresponsive for more than 10s
@@ -208,7 +224,7 @@ export class ExtensionHostMain {
 			if (await pfs.exists(join(uri.fsPath, fileName))) {
 				// the file was found
 				return (
-					this._extensionService.activateById(extensionId, true)
+					this._extensionService.activateById(extensionId, new ExtensionActivatedByEvent(true, `workspaceContains:${fileName}`))
 						.done(null, err => console.error(err))
 				);
 			}
@@ -250,7 +266,7 @@ export class ExtensionHostMain {
 		if (result.limitHit) {
 			// a file was found matching one of the glob patterns
 			return (
-				this._extensionService.activateById(extensionId, true)
+				this._extensionService.activateById(extensionId, new ExtensionActivatedByEvent(true, `workspaceContains:${globPatterns.join(',')}`))
 					.done(null, err => console.error(err))
 			);
 		}

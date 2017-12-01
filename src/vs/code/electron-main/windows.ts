@@ -203,7 +203,7 @@ export class WindowsManager implements IWindowsMainService {
 
 		// React to workbench loaded events from windows
 		ipc.on('vscode:workbenchLoaded', (_event: any, windowId: number) => {
-			this.logService.log('IPC#vscode-workbenchLoaded');
+			this.logService.info('IPC#vscode-workbenchLoaded');
 
 			const win = this.getWindowById(windowId);
 			if (win) {
@@ -476,7 +476,9 @@ export class WindowsManager implements IWindowsMainService {
 				}
 			});
 
-			this.historyMainService.addRecentlyOpened(recentlyOpenedWorkspaces, recentlyOpenedFiles);
+			if (!this.environmentService.skipAddToRecentlyOpened) {
+				this.historyMainService.addRecentlyOpened(recentlyOpenedWorkspaces, recentlyOpenedFiles);
+			}
 		}
 
 		// If we got started with --wait from the CLI, we need to signal to the outside when the window

@@ -448,6 +448,7 @@ const schemaId = 'vscode://schemas/locale';
 const schema: IJSONSchema =
 	{
 		id: schemaId,
+		allowComments: true,
 		description: 'Locale Definition file',
 		type: 'object',
 		default: {

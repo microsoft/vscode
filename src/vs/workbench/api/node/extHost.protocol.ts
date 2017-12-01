@@ -49,6 +49,7 @@ import { SerializedError } from 'vs/base/common/errors';
 import { IWorkspaceFolderData } from 'vs/platform/workspace/common/workspace';
 import { IStat, IFileChange } from 'vs/platform/files/common/files';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -75,6 +76,8 @@ export interface IInitData {
 	extensions: IExtensionDescription[];
 	configuration: IConfigurationInitData;
 	telemetryInfo: ITelemetryInfo;
+	args: ParsedArgs;
+	execPath: string;
 }
 
 export interface IConfigurationInitData extends IConfigurationData {
@@ -235,11 +238,11 @@ export interface MainThreadEditorsShape extends IDisposable {
 
 export interface MainThreadTreeViewsShape extends IDisposable {
 	$registerView(treeViewId: string): void;
-	$refresh(treeViewId: string, treeItemHandles: number[]): void;
+	$refresh(treeViewId: string, treeItemHandles: string[]): void;
 }
 
 export interface MainThreadErrorsShape extends IDisposable {
-	$onUnexpectedError(err: any | SerializedError, extensionId: string | undefined): void;
+	$onUnexpectedError(err: any | SerializedError): void;
 }
 
 export interface MainThreadLanguageFeaturesShape extends IDisposable {
@@ -350,8 +353,10 @@ export interface MainThreadTaskShape extends IDisposable {
 
 export interface MainThreadExtensionServiceShape extends IDisposable {
 	$localShowMessage(severity: Severity, msg: string): void;
-	$onExtensionActivated(extensionId: string, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number): void;
+	$onExtensionActivated(extensionId: string, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void;
 	$onExtensionActivationFailed(extensionId: string): void;
+	$onExtensionRuntimeError(extensionId: string, error: SerializedError): void;
+	$addMessage(extensionId: string, severity: Severity, message: string): void;
 }
 
 export interface SCMProviderFeatures {
@@ -488,7 +493,7 @@ export interface ExtHostDocumentsAndEditorsShape {
 
 export interface ExtHostTreeViewsShape {
 	$getElements(treeViewId: string): TPromise<ITreeItem[]>;
-	$getChildren(treeViewId: string, treeItemHandle: number): TPromise<ITreeItem[]>;
+	$getChildren(treeViewId: string, treeItemHandle: string): TPromise<ITreeItem[]>;
 }
 
 export interface ExtHostWorkspaceShape {

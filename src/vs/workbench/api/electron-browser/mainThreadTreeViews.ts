@@ -30,7 +30,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		ViewsRegistry.registerTreeViewDataProvider(treeViewId, this._register(new TreeViewDataProvider(treeViewId, this._proxy, this.messageService)));
 	}
 
-	$refresh(treeViewId: string, treeItemHandles: number[]): void {
+	$refresh(treeViewId: string, treeItemHandles: string[]): void {
 		const treeViewDataProvider: TreeViewDataProvider = <TreeViewDataProvider>ViewsRegistry.getTreeViewDataProvider(treeViewId);
 		if (treeViewDataProvider) {
 			treeViewDataProvider.refresh(treeItemHandles);
@@ -43,7 +43,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 	}
 }
 
-type TreeItemHandle = number;
+type TreeItemHandle = string;
 
 class TreeViewDataProvider implements ITreeViewDataProvider {
 
@@ -87,7 +87,7 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 			});
 	}
 
-	refresh(treeItemHandles: number[]) {
+	refresh(treeItemHandles: string[]) {
 		if (treeItemHandles && treeItemHandles.length) {
 			let treeItems = treeItemHandles.map(treeItemHandle => this.itemsMap.get(treeItemHandle))
 				.filter(treeItem => !!treeItem);

@@ -60,12 +60,24 @@ export class FoldingModel {
 		this._updateEventEmitter.fire({ model: this, collapseStateChanged: regions });
 	}
 
-	public update(newRanges: FoldingRanges): void {
+	public update(newRanges: FoldingRanges, blockedLineNumers: number[] = []): void {
 		let newEditorDecorations = [];
 
+		let isBlocked = (startLineNumber, endLineNumber) => {
+			for (let blockedLineNumber of blockedLineNumers) {
+				if (startLineNumber < blockedLineNumber && blockedLineNumber <= endLineNumber) { // first line is visible
+					return true;
+				}
+			}
+			return false;
+		};
+
 		let initRange = (index: number, isCollapsed: boolean) => {
-			newRanges.setCollapsed(index, isCollapsed);
 			let startLineNumber = newRanges.getStartLineNumber(index);
+			if (isCollapsed && isBlocked(startLineNumber, newRanges.getEndLineNumber(index))) {
+				isCollapsed = false;
+			}
+			newRanges.setCollapsed(index, isCollapsed);
 			let maxColumn = this._textModel.getLineMaxColumn(startLineNumber);
 			let decorationRange = {
 				startLineNumber: startLineNumber,

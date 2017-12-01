@@ -8,9 +8,7 @@ import * as crypto from 'crypto';
 import * as paths from 'vs/base/node/paths';
 import * as os from 'os';
 import * as path from 'path';
-import * as fs from 'fs';
 import URI from 'vs/base/common/uri';
-import { generateUuid, isUUID } from 'vs/base/common/uuid';
 import { memoize } from 'vs/base/common/decorators';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
@@ -104,6 +102,8 @@ export class EnvironmentService implements IEnvironmentService {
 
 	get skipGettingStarted(): boolean { return this._args['skip-getting-started']; }
 
+	get skipAddToRecentlyOpened(): boolean { return this._args['skip-add-to-recently-opened']; }
+
 	@memoize
 	get debugExtensionHost(): IExtensionHostDebugParams { return parseExtensionHostPort(this._args, this.isBuilt); }
 
@@ -129,40 +129,20 @@ export class EnvironmentService implements IEnvironmentService {
 	get disableUpdates(): boolean { return !!this._args['disable-updates']; }
 	get disableCrashReporter(): boolean { return !!this._args['disable-crash-reporter']; }
 
-	readonly machineUUID: string;
-
-	constructor(private _args: ParsedArgs, private _execPath: string) {
-		const machineIdPath = path.join(this.userDataPath, 'machineid');
-
-		try {
-			this.machineUUID = fs.readFileSync(machineIdPath, 'utf8');
-
-			if (!isUUID(this.machineUUID)) {
-				throw new Error('Not a UUID');
-			}
-		} catch (err) {
-			this.machineUUID = generateUuid();
-
-			try {
-				fs.writeFileSync(machineIdPath, this.machineUUID, 'utf8');
-			} catch (err) {
-				// noop
-			}
-		}
-	}
+	constructor(private _args: ParsedArgs, private _execPath: string) { }
 }
 
 export function parseExtensionHostPort(args: ParsedArgs, isBuild: boolean): IExtensionHostDebugParams {
-	return parseDebugPort(args.debugPluginHost, args.debugBrkPluginHost, 5870, isBuild, args.debugId);
+	return parseDebugPort(args.debugPluginHost, args.debugBrkPluginHost, 5870, args.debugId);
 }
 
 export function parseSearchPort(args: ParsedArgs, isBuild: boolean): IDebugParams {
-	return parseDebugPort(args.debugSearch, args.debugBrkSearch, 5876, isBuild);
+	return parseDebugPort(args.debugSearch, args.debugBrkSearch, !isBuild ? 5876 : null);
 }
 
-export function parseDebugPort(debugArg: string, debugBrkArg: string, defaultBuildPort: number, isBuild: boolean, debugId?: string): IExtensionHostDebugParams {
+export function parseDebugPort(debugArg: string, debugBrkArg: string, defaultBuildPort: number, debugId?: string): IExtensionHostDebugParams {
 	const portStr = debugBrkArg || debugArg;
-	const port = Number(portStr) || (!isBuild ? defaultBuildPort : null);
+	const port = Number(portStr) || defaultBuildPort;
 	const brk = port ? Boolean(!!debugBrkArg) : false;
 	return { port, break: brk, debugId };
 }

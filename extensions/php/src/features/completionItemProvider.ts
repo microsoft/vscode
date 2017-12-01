@@ -5,12 +5,12 @@
 
 'use strict';
 
-import { CompletionItemProvider, CompletionItem, CompletionItemKind, CancellationToken, TextDocument, Position, Range, TextEdit, workspace } from 'vscode';
+import { CompletionItemProvider, CompletionItem, CompletionItemKind, CancellationToken, TextDocument, Position, Range, TextEdit, workspace, CompletionContext } from 'vscode';
 import phpGlobals = require('./phpGlobals');
 
 export default class PHPCompletionItemProvider implements CompletionItemProvider {
 
-	public provideCompletionItems(document: TextDocument, position: Position, _token: CancellationToken): Promise<CompletionItem[]> {
+	public provideCompletionItems(document: TextDocument, position: Position, _token: CancellationToken, context: CompletionContext): Promise<CompletionItem[]> {
 		let result: CompletionItem[] = [];
 
 		let shouldProvideCompletionItems = workspace.getConfiguration('php').get<boolean>('suggest.basic', true);
@@ -22,6 +22,14 @@ export default class PHPCompletionItemProvider implements CompletionItemProvider
 		var prefix = range ? document.getText(range) : '';
 		if (!range) {
 			range = new Range(position, position);
+		}
+
+		if (context.triggerCharacter === '>') {
+			const twoBeforeCursor = new Position(position.line, Math.max(0, position.character - 2));
+			const previousTwoChars = document.getText(new Range(twoBeforeCursor, position));
+			if (previousTwoChars !== '->') {
+				return Promise.resolve(result);
+			}
 		}
 
 		var added: any = {};
