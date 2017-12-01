@@ -37,7 +37,7 @@ export function printDiagnostics(info: IMainProcessInfo): Promise<any> {
 					return;
 				}
 
-				console.log(`|  Renderer (${window.title})`);
+				console.log(`|  Window (${window.title})`);
 
 				window.folders.forEach(folder => {
 					console.log(`|    Folder (${basename(folder)})`);
@@ -156,7 +156,7 @@ function formatProcessItem(mapPidToWindowTitle: Map<number, string>, output: str
 	} else {
 		name = `${repeat('  ', indent)} ${item.name}`;
 
-		if (item.name === 'renderer') {
+		if (item.name === 'window') {
 			name = `${name} (${mapPidToWindowTitle.get(item.pid)})`;
 		}
 	}

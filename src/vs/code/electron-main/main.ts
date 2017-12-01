@@ -102,9 +102,9 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 				app.dock.show(); // dock might be hidden at this case due to a retry
 			}
 
-			// Print --ps usage info
-			if (environmentService.args.ps) {
-				console.log('Warning: The --ps argument can only be used if Code is already running. Please run it again after Code has started.');
+			// Print --status usage info
+			if (environmentService.args.status) {
+				console.log('Warning: The --status argument can only be used if Code is already running. Please run it again after Code has started.');
 			}
 
 			return server;
@@ -147,7 +147,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 					const service = new LaunchChannelClient(channel);
 
 					// Process Info
-					if (environmentService.args.ps) {
+					if (environmentService.args.status) {
 						return service.getMainProcessInfo().then(info => {
 							return printDiagnostics(info).then(() => TPromise.wrapError(new ExpectedError()));
 						});

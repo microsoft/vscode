@@ -10,6 +10,7 @@ export interface ParsedArgs {
 	_: string[];
 	help?: boolean;
 	version?: boolean;
+	status?: boolean;
 	wait?: boolean;
 	waitMarkerFilePath?: string;
 	diff?: boolean;
@@ -48,7 +49,6 @@ export interface ParsedArgs {
 	'disable-updates'?: string;
 	'disable-crash-reporter'?: string;
 	'skip-add-to-recently-opened'?: boolean;
-	'ps'?: boolean;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');

@@ -65,7 +65,7 @@ export async function main(argv: string[]): TPromise<any> {
 
 		let processCallbacks: ((child: ChildProcess) => Thenable<any>)[] = [];
 
-		const verbose = args.verbose || args.ps;
+		const verbose = args.verbose || args.status;
 
 		if (verbose) {
 			env['ELECTRON_ENABLE_LOGGING'] = '1';
