@@ -133,7 +133,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 
 		const delegate = new OpenEditorsDelegate();
 		this.list = new WorkbenchList<OpenEditor | IEditorGroup>(container, delegate, [
-			new EditorGroupRenderer(this.keybindingService, this.instantiationService),
+			new EditorGroupRenderer(this.keybindingService, this.instantiationService, this.editorGroupService),
 			new OpenEditorRenderer(this.instantiationService, this.keybindingService, this.configurationService, this.editorGroupService)
 		], {
 				identityProvider: element => element instanceof OpenEditor ? element.getId() : element.id.toString(),
@@ -380,6 +380,8 @@ interface IEditorGroupTemplateData {
 	root: HTMLElement;
 	name: HTMLSpanElement;
 	actionBar: ActionBar;
+	editorGroup: IEditorGroup;
+	toDispose: IDisposable[];
 }
 
 class OpenEditorsDelegate implements IDelegate<OpenEditor | IEditorGroup> {
@@ -404,7 +406,8 @@ class EditorGroupRenderer implements IRenderer<IEditorGroup, IEditorGroupTemplat
 
 	constructor(
 		private keybindingService: IKeybindingService,
-		private instantiationService: IInstantiationService
+		private instantiationService: IInstantiationService,
+		private editorGroupService: IEditorGroupService
 	) {
 		// noop
 	}
@@ -429,16 +432,34 @@ class EditorGroupRenderer implements IRenderer<IEditorGroup, IEditorGroupTemplat
 			editorGroupTemplate.actionBar.push(a, { icon: true, label: false, keybinding: key ? key.getLabel() : void 0 });
 		});
 
+		editorGroupTemplate.toDispose = [];
+		editorGroupTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_OVER, (e: DragEvent) => {
+			dom.addClass(container, 'focused');
+		}));
+		editorGroupTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_LEAVE, (e: DragEvent) => {
+			dom.removeClass(container, 'focused');
+		}));
+		editorGroupTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DROP, () => {
+			dom.removeClass(container, 'focused');
+			if (OpenEditorRenderer.DRAGGED_OPEN_EDITOR) {
+				const model = this.editorGroupService.getStacksModel();
+				const positionOfTargetGroup = model.positionOfGroup(editorGroupTemplate.editorGroup);
+				this.editorGroupService.moveEditor(OpenEditorRenderer.DRAGGED_OPEN_EDITOR.editorInput, model.positionOfGroup(OpenEditorRenderer.DRAGGED_OPEN_EDITOR.editorGroup), positionOfTargetGroup);
+			}
+		}));
+
 		return editorGroupTemplate;
 	}
 
 	renderElement(editorGroup: IEditorGroup, index: number, templateData: IEditorGroupTemplateData): void {
+		templateData.editorGroup = editorGroup;
 		templateData.name.textContent = editorGroup.label;
 		templateData.actionBar.context = { group: editorGroup };
 	}
 
 	disposeTemplate(templateData: IEditorGroupTemplateData): void {
 		templateData.actionBar.dispose();
+		dispose(templateData.toDispose);
 	}
 }
 
