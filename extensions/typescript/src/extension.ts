@@ -43,7 +43,7 @@ export function activate(
 		return false;
 	}
 	const openListener = vscode.workspace.onDidOpenTextDocument(didOpenTextDocument, undefined, context.subscriptions);
-	for (let textDocument of vscode.workspace.textDocuments) {
+	for (const textDocument of vscode.workspace.textDocuments) {
 		if (didOpenTextDocument(textDocument)) {
 			break;
 		}
