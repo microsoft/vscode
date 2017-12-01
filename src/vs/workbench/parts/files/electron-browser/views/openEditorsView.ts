@@ -81,9 +81,12 @@ export class OpenEditorsView extends ViewsViewletPanel {
 
 		this.structuralRefreshDelay = 0;
 		this.listRefreshScheduler = new RunOnceScheduler(() => {
+			const previousLength = this.list.length;
 			this.list.splice(0, this.list.length, this.elements);
 			this.focusActiveEditor();
-			this.updateSize();
+			if (previousLength !== this.list.length) {
+				this.updateSize();
+			}
 			this.needsRefresh = false;
 		}, this.structuralRefreshDelay);
 
@@ -129,7 +132,6 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		dom.addClass(container, 'show-file-icons');
 
 		const delegate = new OpenEditorsDelegate();
-		this.updateSize();
 		this.list = new WorkbenchList<OpenEditor | IEditorGroup>(container, delegate, [
 			new EditorGroupRenderer(this.keybindingService, this.instantiationService),
 			new OpenEditorRenderer(this.instantiationService, this.keybindingService, this.configurationService, this.editorGroupService)
@@ -138,6 +140,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 				multipleSelectionSupport: false
 			}, this.contextKeyService, this.listService, this.themeService);
 
+		this.updateSize();
 		// Bind context keys
 		OpenEditorsFocusedContext.bindTo(this.list.contextKeyService);
 		ExplorerFocusedContext.bindTo(this.list.contextKeyService);
@@ -282,7 +285,12 @@ export class OpenEditorsView extends ViewsViewletPanel {
 
 			const newElement = e.editor ? new OpenEditor(e.editor, e.group) : e.group;
 			const index = this.getIndex(e.group, e.editor);
+			const previousLength = this.list.length;
 			this.list.splice(index, 1, [newElement]);
+
+			if (previousLength !== this.list.length) {
+				this.updateSize();
+			}
 			this.focusActiveEditor();
 		}
 	}
@@ -333,19 +341,14 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		if (typeof dynamicHeight !== 'boolean') {
 			dynamicHeight = OpenEditorsView.DEFAULT_DYNAMIC_HEIGHT;
 		}
-		return OpenEditorsView.computeExpandedBodySize(model, visibleOpenEditors, dynamicHeight);
+
+		return this.computeExpandedBodySize(visibleOpenEditors, dynamicHeight);
 	}
 
-	private static computeExpandedBodySize(model: IEditorStacksModel, visibleOpenEditors = OpenEditorsView.DEFAULT_VISIBLE_OPEN_EDITORS, dynamicHeight = OpenEditorsView.DEFAULT_DYNAMIC_HEIGHT): number {
-		let entryCount = model.groups.reduce((sum, group) => sum + group.count, 0);
-		// We only show the group labels if there is more than 1 group
-		if (model.groups.length > 1) {
-			entryCount += model.groups.length;
-		}
-
+	private computeExpandedBodySize(visibleOpenEditors = OpenEditorsView.DEFAULT_VISIBLE_OPEN_EDITORS, dynamicHeight = OpenEditorsView.DEFAULT_DYNAMIC_HEIGHT): number {
 		let itemsToShow: number;
 		if (dynamicHeight) {
-			itemsToShow = Math.min(Math.max(visibleOpenEditors, 1), entryCount);
+			itemsToShow = Math.min(Math.max(visibleOpenEditors, 1), this.list.length);
 		} else {
 			itemsToShow = Math.max(visibleOpenEditors, 1);
 		}
