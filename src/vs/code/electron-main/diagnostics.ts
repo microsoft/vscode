@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { WorkspaceStats, collectWorkspaceStats } from 'vs/base/node/stats';
+import { WorkspaceStats, collectWorkspaceStats, collectLaunchConfigs, WorkspaceStatItem } from 'vs/base/node/stats';
 import { IMainProcessInfo } from 'vs/code/electron-main/launch';
 import { ProcessItem, listProcesses } from 'vs/base/node/ps';
 import product from 'vs/platform/node/product';
@@ -43,6 +43,11 @@ export function printDiagnostics(info: IMainProcessInfo): Promise<any> {
 					console.log(`|    Folder (${basename(folder)})`);
 					const stats = collectWorkspaceStats(folder, ['node_modules', '.git']);
 					console.log(formatWorkspaceStats(stats));
+
+					const launchConfigs = collectLaunchConfigs(folder);
+					if (launchConfigs.length > 0) {
+						console.log(formatLaunchConfigs(launchConfigs));
+					}
 				});
 			});
 		}
@@ -56,8 +61,9 @@ function formatWorkspaceStats(workspaceStats: WorkspaceStats): string {
 	const lineLength = 60;
 	let col = 0;
 
-	const appendAndWrap = (index: string, value: number) => {
-		const item = ` ${index}(${value})`;
+	const appendAndWrap = (name: string, count: number) => {
+		const item = count > 1 ? ` ${name}(${count})` : ` ${name}`;
+
 		if (col + item.length > lineLength) {
 			output.push(line);
 			line = '|                 ';
@@ -81,18 +87,26 @@ function formatWorkspaceStats(workspaceStats: WorkspaceStats): string {
 	output.push(line);
 
 	// Conf Files
-	line = '|      Conf files:';
-	col = 0;
-	let hasConfFiles = false;
-	workspaceStats.configFiles.forEach((item) => {
-		hasConfFiles = true;
-		appendAndWrap(item.name, item.value);
-	});
-	if (!hasConfFiles) {
-		line = `${line} <not enough data>`;
+	if (workspaceStats.configFiles.length >= 0) {
+		line = '|      Conf files:';
+		col = 0;
+		workspaceStats.configFiles.forEach((item) => {
+			appendAndWrap(item.name, item.count);
+		});
+		output.push(line);
 	}
-	output.push(line);
 
+	return output.join('\n');
+}
+
+function formatLaunchConfigs(configs: WorkspaceStatItem[]): string {
+	const output: string[] = [];
+	let line = '|      Launch Configs:';
+	configs.forEach(each => {
+		const item = each.count > 1 ? ` ${each.name}(${each.count})` : ` ${each.name}`;
+		line += item;
+	});
+	output.push(line);
 	return output.join('\n');
 }
 
