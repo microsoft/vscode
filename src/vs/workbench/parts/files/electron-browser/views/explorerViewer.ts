@@ -369,21 +369,36 @@ export class FileRenderer implements IRenderer {
 		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
 		inputBox.focus();
 
-		const done = once((commit: boolean) => {
-			tree.clearHighlight();
-
-			if (commit && inputBox.value) {
-				this.state.actionProvider.runAction(tree, stat, editableData.action, { value: inputBox.value });
+		const done = once((commit: boolean, renameNext?: boolean) => {
+			const renameNextSet = typeof renameNext === 'boolean';
+			var renameItem = tree.getFocus();
+			if (renameNextSet) {
+				const nav = tree.getNavigator(renameItem, false);
+				if (renameNext) {
+					renameItem = nav.next() || renameItem;
+				} else {
+					renameItem = nav.previous() || renameItem;
+				}
 			}
 
+			tree.clearHighlight();
+
 			const restoreFocus = document.activeElement === inputBox.inputElement; // https://github.com/Microsoft/vscode/issues/20269
-			setTimeout(() => {
-				if (restoreFocus) {
-					tree.DOMFocus();
-				}
-				lifecycle.dispose(toDispose);
-				container.removeChild(label.element);
-			}, 0);
+			const donePromise = commit && inputBox.value ? this.state.actionProvider.runAction(tree, stat, editableData.action, { value: inputBox.value }) : TPromise.as(null);
+			donePromise.then(() => {
+				setTimeout(() => {
+					if (restoreFocus) {
+						tree.DOMFocus();
+					}
+					lifecycle.dispose(toDispose);
+					container.removeChild(label.element);
+
+					if (renameNextSet) {
+						tree.setFocus(renameItem);
+						this.state.actionProvider.runAction(tree, renameItem, 'renameFile', null).done(null, errors.onUnexpectedError);
+					}
+				}, 0);
+			});
 		});
 
 		const toDispose = [
@@ -392,6 +407,10 @@ export class FileRenderer implements IRenderer {
 				if (e.equals(KeyCode.Enter)) {
 					if (inputBox.validate()) {
 						done(true);
+					}
+				} else if (e.keyCode === KeyCode.Tab) {
+					if (inputBox.validate()) {
+						done(true, !e.shiftKey);
 					}
 				} else if (e.equals(KeyCode.Escape)) {
 					done(false);
