@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/8361b1a232501c67911c81a4664a9460d7922c6b",
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/9cdd3469119440f130fae342e0b1d843f98c6632",
 	"name": "TypeScript",
 	"scopeName": "source.ts",
 	"fileTypes": [
@@ -2141,7 +2141,7 @@
 			"patterns": [
 				{
 					"name": "cast.expr.ts",
-					"begin": "(?:(?<=return|throw|yield|await|default|[=(,:>*?]|[^+]\\+))\\s*(<)(?!<?\\=)",
+					"begin": "(?:(?<=return|throw|yield|await|default|[=(,:>*?\\&\\|\\^]|[^_$[:alnum:]](?:\\+\\+|\\-\\-)|[^\\+]\\+|[^\\-]\\-))\\s*(<)(?!<?\\=)",
 					"beginCaptures": {
 						"1": {
 							"name": "meta.brace.angle.ts"
