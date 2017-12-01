@@ -731,7 +731,7 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	private createProcess(root: IWorkspaceFolder, config: debug.IConfig, sessionId: string): TPromise<void> {
-		return this.textFileService.saveAll().then(() =>
+		return this.extensionService.activateByEvent(`onDebugResolve:${config.type}`).then(() => this.textFileService.saveAll().then(() =>
 			(this.configurationManager.selectedLaunch ? this.configurationManager.selectedLaunch.resolveConfiguration(config) : TPromise.as(config)).then(resolvedConfig => {
 				if (!resolvedConfig) {
 					// User canceled resolving of interactive variables, silently return
@@ -801,7 +801,7 @@ export class DebugService implements debug.IDebugService {
 					return undefined;
 				});
 			})
-		);
+		));
 	}
 
 	private doCreateProcess(root: IWorkspaceFolder, configuration: debug.IConfig, sessionId: string): TPromise<debug.IProcess> {
