@@ -6,7 +6,7 @@
 
 import * as path from 'path';
 
-import { languages, ExtensionContext, IndentAction, Position, TextDocument, Color, ColorInformation, ColorPresentation, Range, CompletionItem, CompletionItemKind, TextEdit, SnippetString } from 'vscode';
+import { languages, ExtensionContext, IndentAction, Position, TextDocument, Color, ColorInformation, ColorPresentation, Range, CompletionItem, CompletionItemKind, SnippetString } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams } from 'vscode-languageclient';
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
