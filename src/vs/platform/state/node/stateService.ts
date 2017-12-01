@@ -18,10 +18,14 @@ export class FileStorage {
 
 	constructor(private dbPath: string, private verbose?: boolean) { }
 
-	public getItem<T>(key: string, defaultValue?: T): T {
+	private ensureLoaded(): void {
 		if (!this.database) {
-			this.database = this.load();
+			this.database = this.loadSync();
 		}
+	}
+
+	public getItem<T>(key: string, defaultValue?: T): T {
+		this.ensureLoaded();
 
 		const res = this.database[key];
 		if (isUndefinedOrNull(res)) {
@@ -32,9 +36,7 @@ export class FileStorage {
 	}
 
 	public setItem(key: string, data: any): void {
-		if (!this.database) {
-			this.database = this.load();
-		}
+		this.ensureLoaded();
 
 		// Remove an item when it is undefined or null
 		if (isUndefinedOrNull(data)) {
@@ -49,22 +51,20 @@ export class FileStorage {
 		}
 
 		this.database[key] = data;
-		this.save();
+		this.saveSync();
 	}
 
 	public removeItem(key: string): void {
-		if (!this.database) {
-			this.database = this.load();
-		}
+		this.ensureLoaded();
 
 		// Only update if the key is actually present (not undefined)
 		if (!isUndefined(this.database[key])) {
 			this.database[key] = void 0;
-			this.save();
+			this.saveSync();
 		}
 	}
 
-	private load(): object {
+	private loadSync(): object {
 		try {
 			return JSON.parse(fs.readFileSync(this.dbPath).toString()); // invalid JSON or permission issue can happen here
 		} catch (error) {
@@ -76,7 +76,7 @@ export class FileStorage {
 		}
 	}
 
-	private save(): void {
+	private saveSync(): void {
 		try {
 			writeFileAndFlushSync(this.dbPath, JSON.stringify(this.database, null, 4)); // permission issue can happen here
 		} catch (error) {
