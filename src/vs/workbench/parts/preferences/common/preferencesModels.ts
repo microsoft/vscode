@@ -390,13 +390,13 @@ export class DefaultSettings extends Disposable {
 		this.initAllSettingsMap(settingsGroups);
 		const mostCommonlyUsed = this.getMostCommonlyUsedSettings(settingsGroups);
 		this._allSettingsGroups = [mostCommonlyUsed, ...settingsGroups];
-		this._content = this.toContent(this._allSettingsGroups, true);
+		this._content = this.toContent(true, [mostCommonlyUsed], settingsGroups);
 		return this._content;
 	}
 
 	get raw(): string {
 		if (!DefaultSettings._RAW) {
-			DefaultSettings._RAW = this.toContent(this.getRegisteredGroups(), false);
+			DefaultSettings._RAW = this.toContent(false, this.getRegisteredGroups());
 		}
 		return DefaultSettings._RAW;
 	}
@@ -534,12 +534,18 @@ export class DefaultSettings extends Disposable {
 		return c1.order - c2.order;
 	}
 
-	private toContent(settingsGroups: ISettingsGroup[], asArray: boolean): string {
+	private toContent(asArray: boolean, ...settingsGroups: ISettingsGroup[][]): string {
 		const builder = new SettingsContentBuilder();
 		if (asArray) {
 			builder.pushLine('[');
 		}
-		builder.pushGroups(settingsGroups);
+		settingsGroups.forEach((settingsGroup, i) => {
+			builder.pushGroups(settingsGroup);
+
+			if (i !== settingsGroups.length - 1) {
+				builder.pushLine(',');
+			}
+		});
 		if (asArray) {
 			builder.pushLine(']');
 		}
