@@ -201,6 +201,8 @@ export class Gesture implements IDisposable {
 				);
 			}
 
+
+			this.dispatchEvent(this.newGestureEvent(EventType.End, data.initialTarget));
 			// forget about this touch
 			delete this.activeTouches[touch.identifier];
 		}
