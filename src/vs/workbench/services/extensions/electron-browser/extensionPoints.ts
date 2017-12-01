@@ -256,12 +256,7 @@ export class ExtensionScanner {
 	/**
 	 * Read the extension defined in `absoluteFolderPath`
 	 */
-	public static scanExtension(
-		version: string,
-		log: ILog,
-		absoluteFolderPath: string,
-		isBuiltin: boolean
-	): TPromise<IExtensionDescription> {
+	public static scanExtension(version: string, log: ILog, absoluteFolderPath: string, isBuiltin: boolean): TPromise<IExtensionDescription> {
 		absoluteFolderPath = normalize(absoluteFolderPath);
 
 		let parser = new ExtensionManifestParser(version, log, absoluteFolderPath, isBuiltin);
@@ -285,59 +280,56 @@ export class ExtensionScanner {
 	/**
 	 * Scan a list of extensions defined in `absoluteFolderPath`
 	 */
-	public static scanExtensions(
-		version: string,
-		log: ILog,
-		absoluteFolderPath: string,
-		isBuiltin: boolean
-	): TPromise<IExtensionDescription[]> {
-		let obsolete = TPromise.as({});
+	public static async scanExtensions(version: string, log: ILog, absoluteFolderPath: string, isBuiltin: boolean): TPromise<IExtensionDescription[]> {
+		try {
+			let obsolete: { [folderName: string]: boolean; } = {};
+			if (!isBuiltin) {
+				try {
+					const obsoleteFileContents = await pfs.readFile(join(absoluteFolderPath, '.obsolete'), 'utf8');
+					obsolete = JSON.parse(obsoleteFileContents);
+				} catch (err) {
+					// Don't care
+				}
+			}
 
-		if (!isBuiltin) {
-			obsolete = pfs.readFile(join(absoluteFolderPath, '.obsolete'), 'utf8')
-				.then(raw => JSON.parse(raw))
-				.then(null, err => ({}));
-		}
+			const rawFolders = await pfs.readDirsInDir(absoluteFolderPath);
+			let folders: string[] = null;
+			if (isBuiltin) {
+				folders = rawFolders;
+			} else {
+				// TODO: align with extensionsService
+				const nonGallery: string[] = [];
+				const gallery: { folder: string; id: string; version: string; }[] = [];
 
-		return obsolete.then(obsolete => {
-			return pfs.readDirsInDir(absoluteFolderPath)
-				.then(folders => {
-					if (isBuiltin) {
-						return folders;
+				rawFolders.forEach(folder => {
+					if (obsolete[folder]) {
+						return;
 					}
 
-					// TODO: align with extensionsService
-					const nonGallery: string[] = [];
-					const gallery: { folder: string; id: string; version: string; }[] = [];
+					const { id, version } = getIdAndVersionFromLocalExtensionId(folder);
 
-					folders.forEach(folder => {
-						if (obsolete[folder]) {
-							return;
-						}
+					if (!id || !version) {
+						nonGallery.push(folder);
+						return;
+					}
 
-						const { id, version } = getIdAndVersionFromLocalExtensionId(folder);
-
-						if (!id || !version) {
-							nonGallery.push(folder);
-							return;
-						}
-
-						gallery.push({ folder, id, version });
-					});
-
-					const byId = values(groupBy(gallery, p => p.id));
-					const latest = byId.map(p => p.sort((a, b) => semver.rcompare(a.version, b.version))[0])
-						.map(a => a.folder);
-
-					return [...nonGallery, ...latest];
-				})
-				.then(folders => TPromise.join(folders.map(f => this.scanExtension(version, log, join(absoluteFolderPath, f), isBuiltin))))
-				.then(extensionDescriptions => extensionDescriptions.filter(item => item !== null))
-				.then(null, err => {
-					log.error(absoluteFolderPath, err);
-					return [];
+					gallery.push({ folder, id, version });
 				});
-		});
+
+				const byId = values(groupBy(gallery, p => p.id));
+				const latest = byId.map(p => p.sort((a, b) => semver.rcompare(a.version, b.version))[0])
+					.map(a => a.folder);
+
+				folders = [...nonGallery, ...latest];
+			}
+
+			const extensionDescriptions = await TPromise.join(folders.map(f => this.scanExtension(version, log, join(absoluteFolderPath, f), isBuiltin)));
+			return extensionDescriptions.filter(item => item !== null);
+
+		} catch (err) {
+			log.error(absoluteFolderPath, err);
+			return [];
+		}
 	}
 
 	/**
