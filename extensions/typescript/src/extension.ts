@@ -16,6 +16,7 @@ import * as languageConfigurations from './utils/languageConfigurations';
 import { standardLanguageDescriptions } from './utils/languageDescription';
 import ManagedFileContextManager from './utils/managedFileContext';
 import { lazy, Lazy } from './utils/lazy';
+import TypeScriptServiceClient from './typescriptServiceClient';
 
 export function activate(
 	context: vscode.ExtensionContext
@@ -27,26 +28,21 @@ export function activate(
 
 	const lazyClientHost = createLazyClientHost(context, plugins, commandManager);
 
-	context.subscriptions.push(new ManagedFileContextManager(resource => {
-		// Don't force evaluation here.
-		if (lazyClientHost.hasValue) {
-			return lazyClientHost.value.serviceClient.normalizePath(resource);
-		}
-		return null;
-	}));
-
 	registerCommands(commandManager, lazyClientHost);
 	context.subscriptions.push(new TypeScriptTaskProviderManager(lazyClientHost.map(x => x.serviceClient)));
 	context.subscriptions.push(vscode.languages.setLanguageConfiguration(languageModeIds.jsxTags, languageConfigurations.jsxTags));
 
-
 	const supportedLanguage = [].concat.apply([], standardLanguageDescriptions.map(x => x.modeIds).concat(plugins.map(x => x.languages)));
 	function didOpenTextDocument(textDocument: vscode.TextDocument): boolean {
-		if (supportedLanguage.indexOf(textDocument.languageId) >= 0) {
+		if (isSupportedDocument(supportedLanguage, textDocument)) {
 			openListener.dispose();
 			// Force activation
 			// tslint:disable-next-line:no-unused-expression
 			void lazyClientHost.value;
+
+			context.subscriptions.push(new ManagedFileContextManager(resource => {
+				return lazyClientHost.value.serviceClient.normalizePath(resource);
+			}));
 			return true;
 		}
 		return false;
@@ -88,4 +84,20 @@ function registerCommands(
 	commandManager.register(new commands.RestartTsServerCommand(lazyClientHost));
 	commandManager.register(new commands.TypeScriptGoToProjectConfigCommand(lazyClientHost));
 	commandManager.register(new commands.JavaScriptGoToProjectConfigCommand(lazyClientHost));
+}
+
+
+function isSupportedDocument(
+	supportedLanguage: string[],
+	document: vscode.TextDocument
+): boolean {
+	if (supportedLanguage.indexOf(document.languageId) < 0) {
+		return false;
+	}
+	const scheme = document.uri.scheme;
+	return (
+		scheme === TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME
+		|| scheme === 'untitled'
+		|| scheme === 'file'
+	);
 }

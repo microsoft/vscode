@@ -107,7 +107,7 @@ class RequestQueue {
 }
 
 export default class TypeScriptServiceClient implements ITypeScriptServiceClient {
-	private static readonly WALK_THROUGH_SNIPPET_SCHEME = 'walkThroughSnippet';
+	public static readonly WALK_THROUGH_SNIPPET_SCHEME = 'walkThroughSnippet';
 	private static readonly WALK_THROUGH_SNIPPET_SCHEME_COLON = `${TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME}:`;
 
 	private pathSeparator: string;
