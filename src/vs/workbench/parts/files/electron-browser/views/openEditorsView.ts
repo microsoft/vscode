@@ -281,7 +281,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		// Do a minimal tree update based on if the change is structural or not #6670
 		if (e.structural) {
 			this.listRefreshScheduler.schedule(this.structuralRefreshDelay);
-		} else {
+		} else if (!this.listRefreshScheduler.isScheduled()) {
 
 			const newElement = e.editor ? new OpenEditor(e.editor, e.group) : e.group;
 			const index = this.getIndex(e.group, e.editor);
