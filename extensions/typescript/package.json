@@ -512,6 +512,18 @@
         {
           "command": "javascript.goToProjectConfig",
           "when": "editorLangId == javascriptreact && typescript.isManagedFile"
+        },
+        {
+          "command": "typescript.selectTypeScriptVersion",
+          "when": "typescript.isManagedFile"
+        },
+        {
+          "command": "typescript.openTsServerLog",
+          "when": "typescript.isManagedFile"
+        },
+        {
+          "command": "typescript.restartTsServer",
+          "when": "typescript.isManagedFile"
         }
       ]
     },
