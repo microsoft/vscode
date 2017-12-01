@@ -40,6 +40,8 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 		error.message = data.message;
 		error.stack = data.stack;
 		this._extensionService._onExtensionRuntimeError(extensionId, error);
+		console.error(`[${extensionId}]${error.message}`);
+		console.error(error.stack);
 	}
 	$onExtensionActivationFailed(extensionId: string): void {
 	}
