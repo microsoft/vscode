@@ -19,38 +19,43 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { NoopLogService } from 'vs/platform/log/common/log';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { TreeItemCollapsibleState } from 'vs/workbench/common/views';
+import { TreeItemCollapsibleState, ITreeItem } from 'vs/workbench/common/views';
 
 suite('ExtHostTreeView', function () {
 
 
 	class RecordingShape extends mock<MainThreadTreeViewsShape>() {
 
-		onRefresh = new Emitter<string[]>();
+		onRefresh = new Emitter<{ [treeItemHandle: string]: ITreeItem }>();
 
 		$registerView(treeViewId: string): void {
 		}
 
-		$refresh(viewId: string, itemHandles: string[]): void {
-			this.onRefresh.fire(itemHandles);
+		$refresh(viewId: string, itemsToRefresh?: { [treeItemHandle: string]: ITreeItem }): void {
+			this.onRefresh.fire(itemsToRefresh);
 		}
 	}
 
 	let testObject: ExtHostTreeViews;
 	let target: RecordingShape;
 	let onDidChangeTreeData: Emitter<string>;
-	let tree = {
-		'a': {
-			'aa': {},
-			'ab': {}
-		},
-		'b': {
-			'ba': {},
-			'bb': {}
-		}
-	};
+	let tree;
+	let labels;
 
 	setup(() => {
+		tree = {
+			'a': {
+				'aa': {},
+				'ab': {}
+			},
+			'b': {
+				'ba': {},
+				'bb': {}
+			}
+		};
+
+		labels = {};
+
 		let threadService = new TestThreadService();
 		// Use IInstantiationService to get typechecking when instantiating
 		let inst: IInstantiationService;
@@ -102,23 +107,34 @@ suite('ExtHostTreeView', function () {
 
 	test('refresh root', function (done) {
 		target.onRefresh.event(actuals => {
-			assert.equal(0, actuals.length);
+			assert.equal(undefined, actuals);
 			done();
 		});
 		onDidChangeTreeData.fire();
 	});
 
-	test('refresh a parent node', function (done) {
-		target.onRefresh.event(actuals => {
-			assert.deepEqual(['0/1:b'], actuals);
-			done();
+	test('refresh a parent node', () => {
+		return new TPromise((c, e) => {
+			target.onRefresh.event(actuals => {
+				assert.deepEqual(['0/1:b'], Object.keys(actuals));
+				assert.deepEqual(removeUnsetKeys(actuals['0/1:b']), {
+					handle: '0/1:b',
+					label: 'b',
+				});
+				c(null);
+			});
+			onDidChangeTreeData.fire('b');
 		});
-		onDidChangeTreeData.fire('b');
 	});
 
 	test('refresh a leaf node', function (done) {
 		target.onRefresh.event(actuals => {
-			assert.deepEqual(['0/1:b/1:bb'], actuals);
+			assert.deepEqual(['0/1:b/1:bb'], Object.keys(actuals));
+			assert.deepEqual(removeUnsetKeys(actuals['0/1:b/1:bb']), {
+				handle: '0/1:b/1:bb',
+				parentHandle: '0/1:b',
+				label: 'bb'
+			});
 			done();
 		});
 		onDidChangeTreeData.fire('bb');
@@ -126,7 +142,16 @@ suite('ExtHostTreeView', function () {
 
 	test('refresh parent and child node trigger refresh only on parent - scenario 1', function (done) {
 		target.onRefresh.event(actuals => {
-			assert.deepEqual(['0/1:b', '0/0:a/0:aa'], actuals);
+			assert.deepEqual(['0/1:b', '0/0:a/0:aa'], Object.keys(actuals));
+			assert.deepEqual(removeUnsetKeys(actuals['0/1:b']), {
+				handle: '0/1:b',
+				label: 'b',
+			});
+			assert.deepEqual(removeUnsetKeys(actuals['0/0:a/0:aa']), {
+				handle: '0/0:a/0:aa',
+				parentHandle: '0/0:a',
+				label: 'aa',
+			});
 			done();
 		});
 		onDidChangeTreeData.fire('b');
@@ -136,7 +161,16 @@ suite('ExtHostTreeView', function () {
 
 	test('refresh parent and child node trigger refresh only on parent - scenario 2', function (done) {
 		target.onRefresh.event(actuals => {
-			assert.deepEqual(['0/0:a/0:aa', '0/1:b'], actuals);
+			assert.deepEqual(['0/0:a/0:aa', '0/1:b'], Object.keys(actuals));
+			assert.deepEqual(removeUnsetKeys(actuals['0/1:b']), {
+				handle: '0/1:b',
+				label: 'b',
+			});
+			assert.deepEqual(removeUnsetKeys(actuals['0/0:a/0:aa']), {
+				handle: '0/0:a/0:aa',
+				parentHandle: '0/0:a',
+				label: 'aa',
+			});
 			done();
 		});
 		onDidChangeTreeData.fire('bb');
@@ -144,9 +178,22 @@ suite('ExtHostTreeView', function () {
 		onDidChangeTreeData.fire('b');
 	});
 
+	test('refresh an element for label change', function (done) {
+		labels['a'] = 'aa';
+		target.onRefresh.event(actuals => {
+			assert.deepEqual(['0/0:a'], Object.keys(actuals));
+			assert.deepEqual(removeUnsetKeys(actuals['0/0:a']), {
+				handle: '0/0:aa',
+				label: 'aa',
+			});
+			done();
+		});
+		onDidChangeTreeData.fire('a');
+	});
+
 	test('refresh calls are throttled on roots', function (done) {
 		target.onRefresh.event(actuals => {
-			assert.equal(0, actuals.length);
+			assert.equal(undefined, actuals);
 			done();
 		});
 		onDidChangeTreeData.fire();
@@ -157,7 +204,7 @@ suite('ExtHostTreeView', function () {
 
 	test('refresh calls are throttled on elements', function (done) {
 		target.onRefresh.event(actuals => {
-			assert.deepEqual(['0/0:a', '0/1:b'], actuals);
+			assert.deepEqual(['0/0:a', '0/1:b'], Object.keys(actuals));
 			done();
 		});
 
@@ -169,7 +216,7 @@ suite('ExtHostTreeView', function () {
 
 	test('refresh calls are throttled on unknown elements', function (done) {
 		target.onRefresh.event(actuals => {
-			assert.deepEqual(['0/0:a', '0/1:b'], actuals);
+			assert.deepEqual(['0/0:a', '0/1:b'], Object.keys(actuals));
 			done();
 		});
 
@@ -181,7 +228,7 @@ suite('ExtHostTreeView', function () {
 
 	test('refresh calls are throttled on unknown elements and root', function (done) {
 		target.onRefresh.event(actuals => {
-			assert.equal(0, actuals.length);
+			assert.equal(undefined, actuals);
 			done();
 		});
 
@@ -193,7 +240,7 @@ suite('ExtHostTreeView', function () {
 
 	test('refresh calls are throttled on elements and root', function (done) {
 		target.onRefresh.event(actuals => {
-			assert.equal(0, actuals.length);
+			assert.equal(undefined, actuals);
 			done();
 		});
 
@@ -202,6 +249,16 @@ suite('ExtHostTreeView', function () {
 		onDidChangeTreeData.fire();
 		onDidChangeTreeData.fire('a');
 	});
+
+	function removeUnsetKeys(obj: any): any {
+		const result = {};
+		for (const key of Object.keys(obj)) {
+			if (obj[key] !== void 0) {
+				result[key] = obj[key];
+			}
+		}
+		return result;
+	}
 
 	function aTreeDataProvider(): TreeDataProvider<string> {
 		const getTreeElement = (element) => {
@@ -233,7 +290,7 @@ suite('ExtHostTreeView', function () {
 			getTreeItem: (element: string): TreeItem => {
 				const treeElement = getTreeElement(element);
 				return {
-					label: element,
+					label: labels[element] || element,
 					collapsibleState: treeElement ? treeElement['collapsibleState'] : TreeItemCollapsibleState.Collapsed
 				};
 			},

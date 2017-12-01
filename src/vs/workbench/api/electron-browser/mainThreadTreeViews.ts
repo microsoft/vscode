@@ -31,10 +31,10 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		ViewsRegistry.registerTreeViewDataProvider(treeViewId, this._register(new TreeViewDataProvider(treeViewId, this._proxy, this.messageService)));
 	}
 
-	$refresh(treeViewId: string, treeItemHandles: string[]): void {
+	$refresh(treeViewId: string, itemsToRefresh: { [treeItemHandle: string]: ITreeItem }): void {
 		const treeViewDataProvider: TreeViewDataProvider = <TreeViewDataProvider>ViewsRegistry.getTreeViewDataProvider(treeViewId);
 		if (treeViewDataProvider) {
-			treeViewDataProvider.refresh(treeItemHandles);
+			treeViewDataProvider.refresh(itemsToRefresh);
 		}
 	}
 
@@ -54,7 +54,6 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 	private _onDispose: Emitter<void> = new Emitter<void>();
 	readonly onDispose: Event<void> = this._onDispose.event;
 
-	private childrenMap: Map<TreeItemHandle, TreeItemHandle[]> = new Map<TreeItemHandle, TreeItemHandle[]>();
 	private itemsMap: Map<TreeItemHandle, ITreeItem> = new Map<TreeItemHandle, ITreeItem>();
 
 	constructor(private treeViewId: string,
@@ -66,8 +65,7 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 	getElements(): TPromise<ITreeItem[]> {
 		return this._proxy.$getElements(this.treeViewId)
 			.then(elements => {
-				this.postGetElements(null, elements);
-				return elements;
+				return this.postGetElements(elements);
 			}, err => {
 				this.messageService.show(Severity.Error, err);
 				return null;
@@ -80,28 +78,35 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 		}
 		return this._proxy.$getChildren(this.treeViewId, treeItem.handle)
 			.then(children => {
-				this.postGetElements(treeItem.handle, children);
-				return children;
+				return this.postGetElements(children);
 			}, err => {
 				this.messageService.show(Severity.Error, err);
 				return null;
 			});
 	}
 
-	refresh(treeItemHandles: string[]) {
-		if (treeItemHandles && treeItemHandles.length) {
-			let treeItems = treeItemHandles.map(treeItemHandle => this.itemsMap.get(treeItemHandle))
-				.filter(treeItem => !!treeItem);
-			if (treeItems.length) {
-				this._onDidChange.fire(treeItems);
-			}
-			/*this._proxy.$resolveHandles(this.treeViewId, treeItemHandles)
-				.then(treeItems => {
-					treeItems = coalesce(treeItems.map(treeItem => this.updateTreeItem(treeItem)));
-					if (treeItems.length) {
-						this._onDidChange.fire(treeItems);
+	refresh(itemsToRefreshByHandle: { [treeItemHandle: string]: ITreeItem }) {
+		if (itemsToRefreshByHandle) {
+			const itemsToRefresh: ITreeItem[] = [];
+			for (const treeItemHandle of Object.keys(itemsToRefreshByHandle)) {
+				const currentTreeItem = this.itemsMap.get(treeItemHandle);
+				if (currentTreeItem) { // Refresh only if the item exists
+					const treeItem = itemsToRefreshByHandle[treeItemHandle];
+					// Update the current item with refreshed item
+					this.updateTreeItem(currentTreeItem, treeItem);
+					if (treeItemHandle === treeItem.handle) {
+						itemsToRefresh.push(currentTreeItem);
+					} else {
+						// Update maps when handle is changed and refresh parent
+						this.itemsMap.delete(treeItemHandle);
+						this.itemsMap.set(currentTreeItem.handle, currentTreeItem);
+						itemsToRefresh.push(this.itemsMap.get(treeItem.parentHandle));
 					}
-				}); */
+				}
+				if (itemsToRefresh.length) {
+					this._onDidChange.fire(itemsToRefresh);
+				}
+			}
 		} else {
 			this._onDidChange.fire();
 		}
@@ -111,33 +116,28 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 		this._onDispose.fire();
 	}
 
-	private postGetElements(parent: TreeItemHandle, children: ITreeItem[]) {
-		this.setElements(parent, children);
-	}
-
-	private setElements(parent: TreeItemHandle, children: ITreeItem[]) {
-		if (children && children.length) {
-			for (const child of children) {
-				if (!this.updateTreeItem(child)) {
-					this.itemsMap.set(child.handle, child);
+	private postGetElements(elements: ITreeItem[]): ITreeItem[] {
+		const result = [];
+		if (elements) {
+			for (const element of elements) {
+				const currentTreeItem = this.itemsMap.get(element.handle);
+				if (currentTreeItem) {
+					// Update the current item with new item
+					this.updateTreeItem(currentTreeItem, element);
+				} else {
+					this.itemsMap.set(element.handle, element);
 				}
-				if (child.children && child.children.length) {
-					this.setElements(child.handle, child.children);
-				}
-			}
-			if (parent) {
-				this.childrenMap.set(parent, children.map(child => child.handle));
+				// Always use the existing items
+				result.push(this.itemsMap.get(element.handle));
 			}
 		}
+		return result;
 	}
 
-	private updateTreeItem(treeItem: ITreeItem): ITreeItem {
-		const current = this.itemsMap.get(treeItem.handle);
+	private updateTreeItem(current: ITreeItem, treeItem: ITreeItem): void {
 		treeItem.children = treeItem.children ? treeItem.children : null;
 		if (current) {
 			assign(current, treeItem);
-			return current;
 		}
-		return null;
 	}
 }
