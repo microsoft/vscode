@@ -31,9 +31,11 @@ export default class ManagedFileContextManager {
 		this.onDidChangeActiveTextEditorSub.dispose();
 	}
 
-	private onDidChangeActiveTextEditor(editor: vscode.TextEditor): any {
-		const isManagedFile = isSupportedLanguageMode(editor.document) && this.normalizePath(editor.document.uri) !== null;
-		this.updateContext(isManagedFile);
+	private onDidChangeActiveTextEditor(editor?: vscode.TextEditor): any {
+		if (editor) {
+			const isManagedFile = isSupportedLanguageMode(editor.document) && this.normalizePath(editor.document.uri) !== null;
+			this.updateContext(isManagedFile);
+		}
 	}
 
 	private updateContext(newValue: boolean) {
