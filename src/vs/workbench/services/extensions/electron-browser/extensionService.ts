@@ -11,12 +11,13 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import pkg from 'vs/platform/node/package';
 import * as path from 'path';
 import URI from 'vs/base/common/uri';
+import * as platform from 'vs/base/common/platform';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import { IMessage, IExtensionDescription, IExtensionsStatus, IExtensionService, ExtensionPointContribution, ActivationTimes, IExtensionHostInformation, ProfileSession } from 'vs/platform/extensions/common/extensions';
 import { IExtensionEnablementService, IExtensionIdentifier, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, BetterMergeId, BetterMergeDisabledNowKey } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionsRegistry, ExtensionPoint, IExtensionPointUser, ExtensionMessageCollector, IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
-import { ExtensionScanner, ILog } from 'vs/workbench/services/extensions/electron-browser/extensionPoints';
+import { ExtensionScanner, ILog, ExtensionScannerInput } from 'vs/workbench/services/extensions/electron-browser/extensionPoints';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { ProxyIdentifier } from 'vs/workbench/services/thread/common/threadService';
 import { ExtHostContext, ExtHostExtensionServiceShape, IExtHostContext, MainContext } from 'vs/workbench/api/node/extHost.protocol';
@@ -468,10 +469,29 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 	private static _scanInstalledExtensions(environmentService: IEnvironmentService, log: ILog): TPromise<{ system: IExtensionDescription[], user: IExtensionDescription[], development: IExtensionDescription[] }> {
 		const version = pkg.version;
-		const builtinExtensions = ExtensionScanner.scanExtensions(version, log, SystemExtensionsRoot, true);
-		const userExtensions = environmentService.disableExtensions || !environmentService.extensionsPath ? TPromise.as([]) : ExtensionScanner.scanExtensions(version, log, environmentService.extensionsPath, false);
+		const devMode = !!process.env['VSCODE_DEV'];
+		const locale = platform.locale;
+
+		const builtinExtensions = ExtensionScanner.scanExtensions(
+			new ExtensionScannerInput(version, locale, devMode, SystemExtensionsRoot, true), log
+		);
+
+		const userExtensions = (
+			environmentService.disableExtensions || !environmentService.extensionsPath
+				? TPromise.as([])
+				: ExtensionScanner.scanExtensions(
+					new ExtensionScannerInput(version, locale, devMode, environmentService.extensionsPath, false), log
+				)
+		);
+
 		// Always load developed extensions while extensions development
-		const developedExtensions = environmentService.isExtensionDevelopment ? ExtensionScanner.scanOneOrMultipleExtensions(version, log, environmentService.extensionDevelopmentPath, false) : TPromise.as([]);
+		const developedExtensions = (
+			environmentService.isExtensionDevelopment
+				? ExtensionScanner.scanOneOrMultipleExtensions(
+					new ExtensionScannerInput(version, locale, devMode, environmentService.extensionDevelopmentPath, false), log
+				)
+				: TPromise.as([])
+		);
 
 		return TPromise.join([builtinExtensions, userExtensions, developedExtensions])
 			.then((extensionDescriptions: IExtensionDescription[][]) => {
