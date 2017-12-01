@@ -12,6 +12,7 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ViewsRegistry } from 'vs/workbench/browser/parts/views/viewsRegistry';
 import { ITreeViewDataProvider, ITreeItem } from 'vs/workbench/common/views';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { assign } from 'vs/base/common/objects';
 
 @extHostNamedCustomer(MainContext.MainThreadTreeViews)
 export class MainThreadTreeViews extends Disposable implements MainThreadTreeViewsShape {
@@ -94,6 +95,13 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 			if (treeItems.length) {
 				this._onDidChange.fire(treeItems);
 			}
+			/*this._proxy.$resolveHandles(this.treeViewId, treeItemHandles)
+				.then(treeItems => {
+					treeItems = coalesce(treeItems.map(treeItem => this.updateTreeItem(treeItem)));
+					if (treeItems.length) {
+						this._onDidChange.fire(treeItems);
+					}
+				}); */
 		} else {
 			this._onDidChange.fire();
 		}
@@ -110,7 +118,9 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 	private setElements(parent: TreeItemHandle, children: ITreeItem[]) {
 		if (children && children.length) {
 			for (const child of children) {
-				this.itemsMap.set(child.handle, child);
+				if (!this.updateTreeItem(child)) {
+					this.itemsMap.set(child.handle, child);
+				}
 				if (child.children && child.children.length) {
 					this.setElements(child.handle, child.children);
 				}
@@ -119,5 +129,15 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 				this.childrenMap.set(parent, children.map(child => child.handle));
 			}
 		}
+	}
+
+	private updateTreeItem(treeItem: ITreeItem): ITreeItem {
+		const current = this.itemsMap.get(treeItem.handle);
+		treeItem.children = treeItem.children ? treeItem.children : null;
+		if (current) {
+			assign(current, treeItem);
+			return current;
+		}
+		return null;
 	}
 }

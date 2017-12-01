@@ -495,6 +495,7 @@ export interface ExtHostDocumentsAndEditorsShape {
 export interface ExtHostTreeViewsShape {
 	$getElements(treeViewId: string): TPromise<ITreeItem[]>;
 	$getChildren(treeViewId: string, treeItemHandle: string): TPromise<ITreeItem[]>;
+	// $resolveHandles(treeViewId: string, treeItemHandles: string[]): TPromise<ITreeItem[]>;
 }
 
 export interface ExtHostWorkspaceShape {

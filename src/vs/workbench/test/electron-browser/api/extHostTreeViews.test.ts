@@ -100,31 +100,6 @@ suite('ExtHostTreeView', function () {
 			});
 	});
 
-	test('children are fetched immediately if state is expanded', () => {
-		tree['c'] = {
-			'ca': {
-				'caa': {
-					'collapsibleState': TreeItemCollapsibleState.None
-				},
-				'collapsibleState': TreeItemCollapsibleState.Expanded,
-			},
-			'cb': {
-				'cba': {},
-				'collapsibleState': TreeItemCollapsibleState.Collapsed,
-			},
-			'collapsibleState': TreeItemCollapsibleState.Expanded,
-		};
-		return testObject.$getElements('testDataProvider')
-			.then(elements => {
-				const actuals = elements.map(e => e.handle);
-				assert.deepEqual(actuals, ['0/0:a', '0/1:b', '0/2:c']);
-				assert.deepEqual(elements[2].children.map(e => e.handle), ['0/2:c/0:ca', '0/2:c/1:cb']);
-				assert.deepEqual(elements[2].children[0].children.map(e => e.handle), ['0/2:c/0:ca/0:caa']);
-				assert.deepEqual(elements[2].children[0].children[0].children, undefined);
-				assert.deepEqual(elements[2].children[1].children, undefined);
-			});
-	});
-
 	test('refresh root', function (done) {
 		target.onRefresh.event(actuals => {
 			assert.equal(0, actuals.length);
@@ -147,6 +122,26 @@ suite('ExtHostTreeView', function () {
 			done();
 		});
 		onDidChangeTreeData.fire('bb');
+	});
+
+	test('refresh parent and child node trigger refresh only on parent - scenario 1', function (done) {
+		target.onRefresh.event(actuals => {
+			assert.deepEqual(['0/1:b', '0/0:a/0:aa'], actuals);
+			done();
+		});
+		onDidChangeTreeData.fire('b');
+		onDidChangeTreeData.fire('aa');
+		onDidChangeTreeData.fire('bb');
+	});
+
+	test('refresh parent and child node trigger refresh only on parent - scenario 2', function (done) {
+		target.onRefresh.event(actuals => {
+			assert.deepEqual(['0/0:a/0:aa', '0/1:b'], actuals);
+			done();
+		});
+		onDidChangeTreeData.fire('bb');
+		onDidChangeTreeData.fire('aa');
+		onDidChangeTreeData.fire('b');
 	});
 
 	test('refresh calls are throttled on roots', function (done) {
