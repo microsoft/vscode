@@ -10,7 +10,6 @@ import * as objects from 'vs/base/common/objects';
 import * as collections from 'vs/base/common/collections';
 import * as glob from 'vs/base/common/glob';
 import * as paths from 'vs/base/common/paths';
-import * as strings from 'vs/base/common/strings';
 import uri from 'vs/base/common/uri';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IPatternInfo, IQueryOptions, IFolderQuery, ISearchQuery, QueryType, ISearchConfiguration, getExcludes, pathIncludedInQuery } from 'vs/platform/search/common/search';
@@ -101,8 +100,8 @@ export class QueryBuilder {
 	 */
 	public parseSearchPaths(pattern: string): ISearchPathsResult {
 		const isSearchPath = (segment: string) => {
-			// A segment is a search path if it is an absolute path or starts with ./
-			return paths.isAbsolute(segment) || strings.startsWith(segment, './') || strings.startsWith(segment, '.\\');
+			// A segment is a search path if it is an absolute path or starts with ./, ../, .\, or ..\
+			return paths.isAbsolute(segment) || /^\.\.?[\/\\]/.test(segment);
 		};
 
 		const segments = splitGlobPattern(pattern);
