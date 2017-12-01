@@ -212,24 +212,16 @@ export class OpenEditorsView extends ViewsViewletPanel {
 	}
 
 	private getIndex(group: IEditorGroup, editor: IEditorInput): number {
-		let index = 0;
+		let index = editor ? group.indexOf(editor) : 0;
+		if (this.model.groups.length === 1) {
+			return index;
+		}
+
 		for (let g of this.model.groups) {
-			if (this.model.groups.length > 1) {
-				index++;
-			}
-			if (g.id !== group.id) {
-				index += g.getEditors().length;
+			if (g.id === group.id) {
+				return index + 1;
 			} else {
-				if (!editor) {
-					return index - 1;
-				}
-				for (let e of g.getEditors()) {
-					if (e.getResource().toString() !== editor.getResource().toString()) {
-						index++;
-					} else {
-						return index;
-					}
-				}
+				index += g.count + 1;
 			}
 		}
 
