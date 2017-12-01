@@ -213,6 +213,9 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	public layout(dimension: Dimension): Dimension[] {
+		if (!this.partService.isVisible(Parts.PANEL_PART)) {
+			return [dimension];
+		}
 
 		if (this.partService.getPanelPosition() === Position.RIGHT) {
 			// Take into account the 1px border when layouting
