@@ -298,14 +298,14 @@ suite('Tests for Wrap with Abbreviations', () => {
 		const contents = `
 	<ul class="nav main">
 		<li class="item1">img</li>
-		<li class="item2">hithere</li>
+		<li class="item2">hi.there</li>
 	</ul>
 `;
 		const wrapIndividualLinesExpected = `
 	<ul class="nav main">
 		<ul>
 			<li class="hello1"><li class="item1">img</li></li>
-			<li class="hello2"><li class="item2">hithere</li></li>
+			<li class="hello2"><li class="item2">hi.there</li></li>
 		</ul>
 	</ul>
 `;
