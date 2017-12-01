@@ -29,7 +29,7 @@ export function printDiagnostics(info: IMainProcessInfo): Promise<any> {
 		console.log(formatProcessList(info, rootProcess));
 
 		// Workspace Stats
-		if (info.windows.some(window => window.folders.length > 0)) {
+		if (info.windows.some(window => window.folders && window.folders.length > 0)) {
 			console.log('');
 			console.log('Workspace Stats: ');
 			info.windows.forEach(window => {
