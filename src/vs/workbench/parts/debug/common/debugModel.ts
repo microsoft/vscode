@@ -20,7 +20,7 @@ import { ISuggestion } from 'vs/editor/common/modes';
 import { Position } from 'vs/editor/common/core/position';
 import {
 	ITreeElement, IExpression, IExpressionContainer, IProcess, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IModel, IReplElementSource,
-	IConfig, ISession, IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IRawBreakpoint, IExceptionInfo, IReplElement, ProcessState
+	IConfig, ISession, IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IRawBreakpoint, IExceptionInfo, IReplElement, ProcessState, IBreakpointsChangeEvent
 } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -739,7 +739,7 @@ export class Model implements IModel {
 	private toDispose: lifecycle.IDisposable[];
 	private replElements: IReplElement[];
 	private schedulers = new Map<string, RunOnceScheduler>();
-	private _onDidChangeBreakpoints: Emitter<void>;
+	private _onDidChangeBreakpoints: Emitter<IBreakpointsChangeEvent>;
 	private _onDidChangeCallStack: Emitter<void>;
 	private _onDidChangeWatchExpressions: Emitter<IExpression>;
 	private _onDidChangeREPLElements: Emitter<void>;
@@ -754,7 +754,7 @@ export class Model implements IModel {
 		this.processes = [];
 		this.replElements = [];
 		this.toDispose = [];
-		this._onDidChangeBreakpoints = new Emitter<void>();
+		this._onDidChangeBreakpoints = new Emitter<IBreakpointsChangeEvent>();
 		this._onDidChangeCallStack = new Emitter<void>();
 		this._onDidChangeWatchExpressions = new Emitter<IExpression>();
 		this._onDidChangeREPLElements = new Emitter<void>();
@@ -780,7 +780,7 @@ export class Model implements IModel {
 		this._onDidChangeCallStack.fire();
 	}
 
-	public get onDidChangeBreakpoints(): Event<void> {
+	public get onDidChangeBreakpoints(): Event<IBreakpointsChangeEvent> {
 		return this._onDidChangeBreakpoints.event;
 	}
 
@@ -868,8 +868,9 @@ export class Model implements IModel {
 		this.breakpoints = this.breakpoints.concat(newBreakpoints);
 		this.breakpointsActivated = true;
 		this.sortAndDeDup();
+
 		if (fireEvent) {
-			this._onDidChangeBreakpoints.fire();
+			this._onDidChangeBreakpoints.fire({ added: newBreakpoints });
 		}
 
 		return newBreakpoints;
@@ -877,10 +878,11 @@ export class Model implements IModel {
 
 	public removeBreakpoints(toRemove: IBreakpoint[]): void {
 		this.breakpoints = this.breakpoints.filter(bp => !toRemove.some(toRemove => toRemove.getId() === bp.getId()));
-		this._onDidChangeBreakpoints.fire();
+		this._onDidChangeBreakpoints.fire({ removed: toRemove });
 	}
 
 	public updateBreakpoints(data: { [id: string]: DebugProtocol.Breakpoint }): void {
+		const updated: IBreakpoint[] = [];
 		this.breakpoints.forEach(bp => {
 			const bpData = data[bp.getId()];
 			if (bpData) {
@@ -892,10 +894,11 @@ export class Model implements IModel {
 				bp.idFromAdapter = bpData.id;
 				bp.message = bpData.message;
 				bp.adapterData = bpData.source ? bpData.source.adapterData : bp.adapterData;
+				updated.push(bp);
 			}
 		});
 		this.sortAndDeDup();
-		this._onDidChangeBreakpoints.fire();
+		this._onDidChangeBreakpoints.fire({ changed: updated });
 	}
 
 	private sortAndDeDup(): void {
@@ -913,36 +916,56 @@ export class Model implements IModel {
 	}
 
 	public setEnablement(element: IEnablement, enable: boolean): void {
+
+		const changed: (IBreakpoint | IFunctionBreakpoint)[] = [];
+		if (element.enabled !== enable && (element instanceof Breakpoint || element instanceof FunctionBreakpoint)) {
+			changed.push(element);
+		}
+
 		element.enabled = enable;
 		if (element instanceof Breakpoint && !element.enabled) {
 			const breakpoint = <Breakpoint>element;
 			breakpoint.verified = false;
 		}
 
-		this._onDidChangeBreakpoints.fire();
+		this._onDidChangeBreakpoints.fire({ changed: changed });
 	}
 
 	public enableOrDisableAllBreakpoints(enable: boolean): void {
+
+		const changed: (IBreakpoint | IFunctionBreakpoint)[] = [];
+
 		this.breakpoints.forEach(bp => {
+			if (bp.enabled !== enable) {
+				changed.push(bp);
+			}
 			bp.enabled = enable;
 			if (!enable) {
 				bp.verified = false;
 			}
 		});
-		this.functionBreakpoints.forEach(fbp => fbp.enabled = enable);
+		this.functionBreakpoints.forEach(fbp => {
+			if (fbp.enabled !== enable) {
+				changed.push(fbp);
+			}
+			fbp.enabled = enable;
+		});
 
-		this._onDidChangeBreakpoints.fire();
+		this._onDidChangeBreakpoints.fire({ changed: changed });
 	}
 
 	public addFunctionBreakpoint(functionName: string): FunctionBreakpoint {
 		const newFunctionBreakpoint = new FunctionBreakpoint(functionName, true, null);
 		this.functionBreakpoints.push(newFunctionBreakpoint);
-		this._onDidChangeBreakpoints.fire();
+		this._onDidChangeBreakpoints.fire({ added: [newFunctionBreakpoint] });
 
 		return newFunctionBreakpoint;
 	}
 
 	public updateFunctionBreakpoints(data: { [id: string]: { name?: string, verified?: boolean; id?: number; hitCondition?: string } }): void {
+
+		const changed: IFunctionBreakpoint[] = [];
+
 		this.functionBreakpoints.forEach(fbp => {
 			const fbpData = data[fbp.getId()];
 			if (fbpData) {
@@ -950,15 +973,25 @@ export class Model implements IModel {
 				fbp.verified = fbpData.verified;
 				fbp.idFromAdapter = fbpData.id;
 				fbp.hitCondition = fbpData.hitCondition;
+
+				changed.push(fbp);
 			}
 		});
 
-		this._onDidChangeBreakpoints.fire();
+		this._onDidChangeBreakpoints.fire({ changed: changed });
 	}
 
 	public removeFunctionBreakpoints(id?: string): void {
-		this.functionBreakpoints = id ? this.functionBreakpoints.filter(fbp => fbp.getId() !== id) : [];
-		this._onDidChangeBreakpoints.fire();
+
+		let removed: IFunctionBreakpoint[];
+		if (id) {
+			removed = this.functionBreakpoints.filter(fbp => fbp.getId() === id);
+			this.functionBreakpoints = this.functionBreakpoints.filter(fbp => fbp.getId() !== id);
+		} else {
+			removed = this.functionBreakpoints;
+			this.functionBreakpoints = [];
+		}
+		this._onDidChangeBreakpoints.fire({ removed: removed });
 	}
 
 	public getReplElements(): IReplElement[] {

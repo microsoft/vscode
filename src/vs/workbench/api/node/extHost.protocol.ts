@@ -419,6 +419,7 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$startDebugging(folder: URI | undefined, nameOrConfig: string | vscode.DebugConfiguration): TPromise<boolean>;
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): TPromise<any>;
 	$appendDebugConsole(value: string): TPromise<any>;
+	$startBreakpointEvents(): TPromise<any>;
 }
 
 export interface MainThreadWindowShape extends IDisposable {
@@ -623,6 +624,31 @@ export interface ExtHostTaskShape {
 	$provideTasks(handle: number): TPromise<TaskSet>;
 }
 
+export interface IBreakpointData {
+	type: 'source' | 'function';
+	id: string;
+	enabled: boolean;
+	condition?: string;
+	hitCondition?: string;
+}
+
+export interface ISourceBreakpointData extends IBreakpointData {
+	type: 'source';
+	sourceUriStr: string;
+	location: vscode.Position;
+}
+
+export interface IFunctionBreakpointData extends IBreakpointData {
+	type: 'function';
+	functionName: string;
+}
+
+export interface IBreakpointsDelta {
+	added?: (ISourceBreakpointData | IFunctionBreakpointData)[];
+	removed?: string[];
+	changed?: (ISourceBreakpointData | IFunctionBreakpointData)[];
+}
+
 export interface ExtHostDebugServiceShape {
 	$resolveDebugConfiguration(handle: number, folder: URI | undefined, debugConfiguration: any): TPromise<any>;
 	$provideDebugConfigurations(handle: number, folder: URI | undefined): TPromise<any[]>;
@@ -630,6 +656,7 @@ export interface ExtHostDebugServiceShape {
 	$acceptDebugSessionTerminated(id: DebugSessionUUID, type: string, name: string): void;
 	$acceptDebugSessionActiveChanged(id: DebugSessionUUID | undefined, type?: string, name?: string): void;
 	$acceptDebugSessionCustomEvent(id: DebugSessionUUID, type: string, name: string, event: any): void;
+	$acceptBreakpointsDelta(delat: IBreakpointsDelta): void;
 }
 
 
