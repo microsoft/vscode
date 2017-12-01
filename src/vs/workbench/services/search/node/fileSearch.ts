@@ -26,6 +26,7 @@ import extfs = require('vs/base/node/extfs');
 import flow = require('vs/base/node/flow');
 import { IRawFileMatch, ISerializedSearchComplete, IRawSearch, ISearchEngine, IFolderSearch } from './search';
 import { spawnRipgrepCmd } from './ripgrepFileSearch';
+import { rgErrorMsgForDisplay } from './ripgrepTextSearch';
 
 enum Traversal {
 	Node = 1,
@@ -389,13 +390,17 @@ export class FileWalker {
 		this.forwardData(cmd.stdout, encoding, done);
 		const stderr = this.collectData(cmd.stderr);
 
+		let gotData = false;
+		cmd.stdout.once('data', () => gotData = true);
+
 		cmd.on('error', (err: Error) => {
 			done(err);
 		});
 
 		cmd.on('close', (code: number) => {
 			// ripgrep returns code=1 when no results are found
-			if (code !== 0 && (!isRipgrep || code !== 1)) {
+			let stderrText, displayMsg: string;
+			if (isRipgrep ? (!gotData && (stderrText = this.decodeData(stderr, encoding)) && (displayMsg = rgErrorMsgForDisplay(stderrText))) : code !== 0) {
 				done(new Error(`command failed with error code ${code}: ${this.decodeData(stderr, encoding)}`));
 			} else {
 				if (isRipgrep && this.exists && code === 0) {
