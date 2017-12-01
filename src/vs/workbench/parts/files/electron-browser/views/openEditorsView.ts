@@ -222,7 +222,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 
 		for (let g of this.model.groups) {
 			if (g.id === group.id) {
-				return index + 1;
+				return index + (!!editor ? 1 : 0);
 			} else {
 				index += g.count + 1;
 			}
