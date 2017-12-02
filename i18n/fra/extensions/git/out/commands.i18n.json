@@ -59,6 +59,7 @@
 	"provide tag name": "Spécifiez un nom de balise",
 	"tag message": "Message",
 	"provide tag message": "Spécifiez un message pour annoter la balise",
+	"no remotes to fetch": "Ce dépôt n'a aucun dépôt distant configuré pour rappatrier.",
 	"no remotes to pull": "Votre dépôt n'a aucun dépôt distant configuré pour un Pull.",
 	"pick remote pull repo": "Choisir un dépôt distant duquel extraire la branche",
 	"no remotes to push": "Votre dépôt n'a aucun dépôt distant configuré pour un Push.",
@@ -75,7 +76,7 @@
 	"no stashes": "Aucune remise (stash) à restaurer.",
 	"pick stash to pop": "Choisir une remise (stash) à appliquer et supprimer",
 	"clean repo": "Nettoyez l'arborescence de travail de votre dépôt avant l'extraction.",
-	"cant push": "Push impossible des références vers la branche distante. Exécutez d'abord 'Extraire' pour intégrer vos modifications.",
+	"cant push": "impossible de pousser les références vers la branche distante. Exécutez d'abord 'Récupérer' pour intégrer vos modifications.",
 	"git error details": "Git : {0}",
 	"git error": "Erreur Git",
 	"open git log": "Ouvrir le journal Git"

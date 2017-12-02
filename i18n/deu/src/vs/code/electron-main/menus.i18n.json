@@ -25,6 +25,7 @@
 	"miOpenFolder": "&&Ordner öffnen...",
 	"miOpenFile": "Datei &&öffnen...",
 	"miOpenRecent": "&&Zuletzt verwendete öffnen",
+	"miSaveWorkspaceAs": "Arbeitsbereich speichern unter...",
 	"miSave": "&&Speichern",
 	"miSaveAs": "Speichern &&unter...",
 	"miSaveAll": "A&&lles speichern",
@@ -106,7 +107,7 @@
 	"miZoomOut": "Ver&&kleinern",
 	"miZoomReset": "&&Zoom zurücksetzen",
 	"miBack": "&&Zurück",
-	"miForward": "&&Weiterleiten",
+	"miForward": "&&Vorwärts",
 	"miNextEditor": "&&Nächster Editor",
 	"miPreviousEditor": "&&Vorheriger Editor",
 	"miNextEditorInGroup": "&&Nächster verwendeter Editor in der Gruppe",
@@ -181,6 +182,6 @@
 	"miDownloadingUpdate": "Das Update wird heruntergeladen...",
 	"miInstallingUpdate": "Update wird installiert...",
 	"miCheckForUpdates": "Nach Aktualisierungen suchen...",
-	"aboutDetail": "\nVersion {0}\nCommit {1}\nDatum {2}\nShell {3}\nRenderer {4}\nNode {5}\nArchitektur {6}",
-	"okButton": "OK"
+	"okButton": "OK",
+	"copy": "&&Kopieren"
 }

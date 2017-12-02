@@ -71,7 +71,6 @@
 	"no stashes": "복원할 스태시가 없습니다.",
 	"pick stash to pop": "표시할 스태시 선택",
 	"clean repo": "체크 아웃하기 전에 리포지토리 작업 트리를 정리하세요.",
-	"cant push": "참조를 원격에 푸시할 수 없습니다. 먼저 '풀'을 실행하여 변경 내용을 통합하세요.",
 	"git error details": "Git: {0}",
 	"git error": "Git 오류",
 	"open git log": "Git 로그 열기"

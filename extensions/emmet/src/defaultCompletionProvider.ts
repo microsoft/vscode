@@ -13,11 +13,14 @@ const allowedMimeTypesInScriptTag = ['text/html', 'text/plain', 'text/x-template
 export class DefaultCompletionItemProvider implements vscode.CompletionItemProvider {
 
 	public provideCompletionItems(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Thenable<vscode.CompletionList | undefined> | undefined {
-		const mappedLanguages = getMappingForIncludedLanguages();
 		const emmetConfig = vscode.workspace.getConfiguration('emmet');
+		const excludedLanguages = emmetConfig['excludeLanguages'] ? emmetConfig['excludeLanguages'] : [];
+		if (excludedLanguages.indexOf(document.languageId) > -1) {
+			return;
+		}
 
-		let isSyntaxMapped = mappedLanguages[document.languageId] ? true : false;
-		let excludedLanguages = emmetConfig['excludeLanguages'] ? emmetConfig['excludeLanguages'] : [];
+		const mappedLanguages = getMappingForIncludedLanguages();
+		const isSyntaxMapped = mappedLanguages[document.languageId] ? true : false;
 		let syntax = getEmmetMode((isSyntaxMapped ? mappedLanguages[document.languageId] : document.languageId), excludedLanguages);
 
 		if (document.languageId === 'html' || isStyleSheet(document.languageId)) {

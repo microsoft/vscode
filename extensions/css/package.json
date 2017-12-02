@@ -43,10 +43,6 @@
         "path": "./syntaxes/css.tmLanguage.json"
       }
     ],
-		"snippets": [{
-			"language": "css",
-			"path": "./snippets/css.snippets.json"
-		}],
     "configuration": [
       {
         "order": 22,

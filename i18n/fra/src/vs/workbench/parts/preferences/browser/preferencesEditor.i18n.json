@@ -11,6 +11,8 @@
 	"oneSettingFound": "1 paramètre correspondant",
 	"settingsFound": "{0} paramètres correspondants",
 	"totalSettingsMessage": "Total de {0} paramètres",
+	"defaultSettings": "Paramètres par défaut",
+	"defaultFolderSettings": "Paramètres de dossier par défaut",
 	"defaultEditorReadonly": "Modifier dans l’éditeur du côté droit pour substituer les valeurs par défaut.",
 	"preferencesAriaLabel": "Préférences par défaut. Éditeur de texte en lecture seule."
 }

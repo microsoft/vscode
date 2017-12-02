@@ -7,7 +7,6 @@
 	"viewCategory": "Ver",
 	"problems.view.toggle.label": "Alternar Problemas ",
 	"problems.view.focus.label": "Problemas de enfoque",
-	"problems.view.hide.label": "Ocultar problemas",
 	"problems.panel.configuration.title": "Vista Problemas",
 	"problems.panel.configuration.autoreveal": "Controla si la vista Problemas debe revelar automáticamente los archivos cuando los abre",
 	"markers.panel.title.problems": "Problemas",

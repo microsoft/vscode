@@ -214,7 +214,7 @@ export class TestTextFileService extends TextFileService {
 		});
 	}
 
-	public promptForPath(defaultPath?: string): string {
+	public promptForPath(defaultPath: string): string {
 		return this.promptPath;
 	}
 

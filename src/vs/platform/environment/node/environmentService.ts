@@ -8,9 +8,7 @@ import * as crypto from 'crypto';
 import * as paths from 'vs/base/node/paths';
 import * as os from 'os';
 import * as path from 'path';
-import * as fs from 'fs';
 import URI from 'vs/base/common/uri';
-import { generateUuid, isUUID } from 'vs/base/common/uuid';
 import { memoize } from 'vs/base/common/decorators';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
@@ -131,27 +129,7 @@ export class EnvironmentService implements IEnvironmentService {
 	get disableUpdates(): boolean { return !!this._args['disable-updates']; }
 	get disableCrashReporter(): boolean { return !!this._args['disable-crash-reporter']; }
 
-	readonly machineUUID: string;
-
-	constructor(private _args: ParsedArgs, private _execPath: string) {
-		const machineIdPath = path.join(this.userDataPath, 'machineid');
-
-		try {
-			this.machineUUID = fs.readFileSync(machineIdPath, 'utf8');
-
-			if (!isUUID(this.machineUUID)) {
-				throw new Error('Not a UUID');
-			}
-		} catch (err) {
-			this.machineUUID = generateUuid();
-
-			try {
-				fs.writeFileSync(machineIdPath, this.machineUUID, 'utf8');
-			} catch (err) {
-				// noop
-			}
-		}
-	}
+	constructor(private _args: ParsedArgs, private _execPath: string) { }
 }
 
 export function parseExtensionHostPort(args: ParsedArgs, isBuild: boolean): IExtensionHostDebugParams {

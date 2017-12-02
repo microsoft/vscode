@@ -184,6 +184,7 @@
 	"miDownloadingUpdate": "Téléchargement de la mise à jour...",
 	"miInstallingUpdate": "Installation de la mise à jour...",
 	"miCheckForUpdates": "Rechercher les mises à jour...",
-	"aboutDetail": "\nVersion {0}\nCommit {1}\nDate {2}\nShell {3}\nRenderer {4}\nNode {5}\nArchitecture {6}",
-	"okButton": "OK"
+	"aboutDetail": "Version {0}\nCommit {1}\nDate {2}\nShell {3}\nRenderer {4}\nNode {5}\nArchitecture {6}",
+	"okButton": "OK",
+	"copy": "&&Copier"
 }

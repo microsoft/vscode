@@ -70,6 +70,7 @@ export class Gesture implements IDisposable {
 	private static INSTANCE: Gesture;
 	private static HOLD_DELAY = 700;
 
+	private dispatched: boolean;
 	private targets: HTMLElement[];
 	private toDispose: IDisposable[];
 	private handle: IDisposable;
@@ -137,6 +138,12 @@ export class Gesture implements IDisposable {
 			evt.pageY = touch.pageY;
 			this.dispatchEvent(evt);
 		}
+
+		if (this.dispatched) {
+			e.preventDefault();
+			e.stopPropagation();
+			this.dispatched = false;
+		}
 	}
 
 	private onTouchEnd(e: TouchEvent): void {
@@ -194,8 +201,16 @@ export class Gesture implements IDisposable {
 				);
 			}
 
+
+			this.dispatchEvent(this.newGestureEvent(EventType.End, data.initialTarget));
 			// forget about this touch
 			delete this.activeTouches[touch.identifier];
+		}
+
+		if (this.dispatched) {
+			e.preventDefault();
+			e.stopPropagation();
+			this.dispatched = false;
 		}
 	}
 
@@ -210,6 +225,7 @@ export class Gesture implements IDisposable {
 		this.targets.forEach(target => {
 			if (event.initialTarget instanceof Node && target.contains(event.initialTarget)) {
 				target.dispatchEvent(event);
+				this.dispatched = true;
 			}
 		});
 	}
@@ -279,6 +295,12 @@ export class Gesture implements IDisposable {
 			data.rollingPageX.push(touch.pageX);
 			data.rollingPageY.push(touch.pageY);
 			data.rollingTimestamps.push(timestamp);
+		}
+
+		if (this.dispatched) {
+			e.preventDefault();
+			e.stopPropagation();
+			this.dispatched = false;
 		}
 	}
 }

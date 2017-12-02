@@ -34,6 +34,7 @@ import { editorFindRangeHighlight, editorFindMatch, editorFindMatchHighlight, ac
 export interface IFindController {
 	replace(): void;
 	replaceAll(): void;
+	getGlobalBufferTerm(): string;
 }
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
@@ -169,6 +170,10 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 						this._state.change({ searchScope: selection }, true);
 					}
 				}
+			}
+			let globalBufferTerm = this._controller.getGlobalBufferTerm();
+			if (globalBufferTerm) {
+				this._state.change({ searchString: globalBufferTerm }, true);
 			}
 		}));
 		this._register(this._focusTracker.onDidBlur(() => {

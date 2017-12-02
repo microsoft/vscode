@@ -33,6 +33,7 @@
 	"openPreviousEditor": "Önceki Düzenleyiciyi Aç",
 	"nextEditorInGroup": "Gruptaki Sonraki Düzenleyiciyi Aç",
 	"openPreviousEditorInGroup": "Gruptaki Önceki Düzenleyiciyi Aç",
+	"lastEditorInGroup": "Gruptaki Son Düzenleyiciyi Aç",
 	"navigateNext": "İleri Git",
 	"navigatePrevious": "Geri Dön",
 	"navigateLast": "Bir Öncekine Git",

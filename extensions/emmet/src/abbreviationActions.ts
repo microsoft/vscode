@@ -105,6 +105,11 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 	args = args || {};
 	if (!args['language']) {
 		args['language'] = vscode.window.activeTextEditor.document.languageId;
+	} else {
+		const excludedLanguages = vscode.workspace.getConfiguration('emmet')['excludeLanguages'] ? vscode.workspace.getConfiguration('emmet')['excludeLanguages'] : [];
+		if (excludedLanguages.indexOf(vscode.window.activeTextEditor.document.languageId) > -1) {
+			return fallbackTab();
+		}
 	}
 	const syntax = getSyntaxFromArgs(args);
 	if (!syntax) {
@@ -343,9 +348,13 @@ function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 
 function getSyntaxFromArgs(args: Object): string | undefined {
 	const mappedModes = getMappingForIncludedLanguages();
-	let language: string = args['language'];
-	let parentMode: string = args['parentMode'];
-	let excludedLanguages = vscode.workspace.getConfiguration('emmet')['excludeLanguages'] ? vscode.workspace.getConfiguration('emmet')['excludeLanguages'] : [];
+	const language: string = args['language'];
+	const parentMode: string = args['parentMode'];
+	const excludedLanguages = vscode.workspace.getConfiguration('emmet')['excludeLanguages'] ? vscode.workspace.getConfiguration('emmet')['excludeLanguages'] : [];
+	if (excludedLanguages.indexOf(language) > -1) {
+		return;
+	}
+
 	let syntax = getEmmetMode((mappedModes[language] ? mappedModes[language] : language), excludedLanguages);
 	if (!syntax) {
 		syntax = getEmmetMode((mappedModes[parentMode] ? mappedModes[parentMode] : parentMode), excludedLanguages);

@@ -39,6 +39,7 @@
 	"typescript.openTsServerLog.title": "TS-szervernapló megnyitása",
 	"typescript.restartTsServer": "TS-szerver újraindítása",
 	"typescript.selectTypeScriptVersion.title": "TypeScript-verzió kiválasztása",
+	"typescript.reportStyleChecksAsWarnings": "Stílusellenőrzés során talált esetek figyelmeztetésként legyenek jelentve",
 	"jsDocCompletion.enabled": "Automatikus JSDoc-megjegyzések engedélyezése vagy letiltása",
 	"javascript.implicitProjectConfig.checkJs": "JavaScript-fájlok szemantikai ellenőrzésének engedélyezése vagy letiltása. A meglévő jsconfig.json vagy tsconfig.json fájlok felülírják ezt a beállítást. TypeScript >= 2.3.1-et igényel.",
 	"typescript.npm": "Az automatikus típusdefiníció-letöltéshez használt NPM végrehajtható fájl elérési útja. TypeScript 2.3.4-et igényel.",

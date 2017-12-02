@@ -18,7 +18,7 @@ import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common
 import { createScopedLineTokens } from 'vs/editor/common/modes/supports';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Range } from 'vs/editor/common/core/range';
-import { IndentAction, EnterAction, IAutoClosingPair, LanguageConfiguration, IndentationRule, FoldingRules } from 'vs/editor/common/modes/languageConfiguration';
+import { IndentAction, EnterAction, IAutoClosingPair, LanguageConfiguration, IndentationRule, FoldingRules, IAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageIdentifier, LanguageId } from 'vs/editor/common/modes';
 
 /**
@@ -96,7 +96,16 @@ export class RichEditSupport {
 
 	public get electricCharacter(): BracketElectricCharacterSupport {
 		if (!this._electricCharacter) {
-			this._electricCharacter = new BracketElectricCharacterSupport(this.brackets, this.characterPair.getAutoClosingPairs(), this._conf.__electricCharacterSupport);
+			let autoClosingPairs: IAutoClosingPairConditional[] = [];
+			if (this._conf.autoClosingPairs) {
+				autoClosingPairs = this._conf.autoClosingPairs;
+			} else if (this._conf.brackets) {
+				autoClosingPairs = this._conf.brackets.map(b => {
+					return { open: b[0], close: b[1] };
+				});
+			}
+
+			this._electricCharacter = new BracketElectricCharacterSupport(this.brackets, autoClosingPairs, this._conf.__electricCharacterSupport);
 		}
 		return this._electricCharacter;
 	}

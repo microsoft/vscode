@@ -26,6 +26,7 @@
 	"editKeybindingLabel": "キー バインドの変更",
 	"addKeybindingLabelWithKey": "キー バインドの追加 {0}",
 	"addKeybindingLabel": "キー バインドの追加",
+	"title": "{0} ({1})",
 	"commandAriaLabel": "コマンドは {0} です。",
 	"keybindingAriaLabel": "キー バインドは {0} です。",
 	"noKeybinding": "キー バインドが割り当てられていません。",

@@ -74,7 +74,6 @@
 	"no stashes": "沒有要隱藏可供還原。",
 	"pick stash to pop": "請挑選要快顯的隱藏",
 	"clean repo": "請先清除您的本地儲存庫工作區再簽出。",
-	"cant push": "無法將參考推送到遠端。請先執行 [提取] 以整合您的變更。",
 	"git error details": "Git: {0}",
 	"git error": "Git 錯誤",
 	"open git log": "開啟 Git 記錄"

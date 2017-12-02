@@ -58,6 +58,7 @@ import { ExtHostDecorations } from 'vs/workbench/api/node/extHostDecorations';
 import { toGlobPattern, toLanguageSelector } from 'vs/workbench/api/node/extHostTypeConverters';
 import { ExtensionActivatedByAPI } from 'vs/workbench/api/node/extHostExtensionActivator';
 import { ILogService } from 'vs/platform/log/common/log';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription): typeof vscode;
@@ -128,8 +129,14 @@ export function createApiFactory(
 
 		const EXTENSION_ID = extension.id;
 
-		if (extension.enableProposedApi && !extension.isBuiltin) {
+		if (!isFalsyOrEmpty(product.extensionAllowedProposedApi)
+			&& product.extensionAllowedProposedApi.indexOf(extension.id) >= 0
+		) {
+			// fast lane -> proposed api is available to all extensions
+			// that are listed in product.json-files
+			extension.enableProposedApi = true;
 
+		} else if (extension.enableProposedApi && !extension.isBuiltin) {
 			if (
 				!initData.environment.enableProposedApiForAll &&
 				initData.environment.enableProposedApiFor.indexOf(extension.id) < 0
@@ -508,8 +515,8 @@ export function createApiFactory(
 			get activeDebugConsole() {
 				return extHostDebugService.activeDebugConsole;
 			},
-			startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration) {
-				return extHostDebugService.startDebugging(folder, nameOrConfig);
+			get breakpoints() {
+				return extHostDebugService.breakpoints;
 			},
 			onDidStartDebugSession(listener, thisArg?, disposables?) {
 				return extHostDebugService.onDidStartDebugSession(listener, thisArg, disposables);
@@ -522,6 +529,12 @@ export function createApiFactory(
 			},
 			onDidReceiveDebugSessionCustomEvent(listener, thisArg?, disposables?) {
 				return extHostDebugService.onDidReceiveDebugSessionCustomEvent(listener, thisArg, disposables);
+			},
+			onDidChangeBreakpoints: proposedApiFunction(extension, (listener, thisArgs?, disposables?) => {
+				return extHostDebugService.onDidChangeBreakpoints(listener, thisArgs, disposables);
+			}),
+			startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration) {
+				return extHostDebugService.startDebugging(folder, nameOrConfig);
 			},
 			registerDebugConfigurationProvider(debugType: string, provider: vscode.DebugConfigurationProvider) {
 				return extHostDebugService.registerDebugConfigurationProvider(debugType, provider);

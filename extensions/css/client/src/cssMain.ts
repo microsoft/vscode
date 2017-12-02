@@ -6,8 +6,8 @@
 
 import * as path from 'path';
 
-import { languages, window, commands, ExtensionContext, TextDocument, ColorInformation, ColorPresentation, Color } from 'vscode';
-import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, TextEdit } from 'vscode-languageclient';
+import { languages, window, commands, ExtensionContext, TextDocument, ColorInformation, ColorPresentation, Color, Range, Position, CompletionItem, CompletionItemKind, TextEdit, SnippetString } from 'vscode';
+import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient';
 
 import { ConfigurationFeature } from 'vscode-languageclient/lib/configuration.proposed';
 import { DocumentColorRequest, DocumentColorParams, ColorPresentationRequest, ColorPresentationParams } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
@@ -102,6 +102,31 @@ export function activate(context: ExtensionContext) {
 	languages.setLanguageConfiguration('scss', {
 		wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@$#.!])?[\w-?]+%?|[@#!$.])/g,
 		indentationRules: indentationRules
+	});
+
+	const regionCompletionRegExpr = /^(\s*)(\/(\*\s*(#\w*)?)?)?/;
+	languages.registerCompletionItemProvider(documentSelector, {
+		provideCompletionItems(doc, pos) {
+			let lineUntilPos = doc.getText(new Range(new Position(pos.line, 0), pos));
+			let match = lineUntilPos.match(regionCompletionRegExpr);
+			if (match) {
+				let range = new Range(new Position(pos.line, match[1].length), pos);
+				let beginProposal = new CompletionItem('#region', CompletionItemKind.Snippet);
+				beginProposal.range = range; TextEdit.replace(range, '/* #region */');
+				beginProposal.insertText = new SnippetString('/* #region $1*/');
+				beginProposal.documentation = localize('folding.start', 'Folding Region Start');
+				beginProposal.filterText = match[2];
+				beginProposal.sortText = 'za';
+				let endProposal = new CompletionItem('#endregion', CompletionItemKind.Snippet);
+				endProposal.range = range;
+				endProposal.insertText = '/* #endregion */';
+				endProposal.documentation = localize('folding.end', 'Folding Region End');
+				endProposal.sortText = 'zb';
+				endProposal.filterText = match[2];
+				return [beginProposal, endProposal];
+			}
+			return null;
+		}
 	});
 
 	commands.registerCommand('_css.applyCodeAction', applyCodeAction);

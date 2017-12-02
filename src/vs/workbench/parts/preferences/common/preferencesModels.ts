@@ -14,7 +14,7 @@ import { visit, JSONVisitor } from 'vs/base/common/json';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { EditorModel } from 'vs/workbench/common/editor';
 import { IConfigurationNode, IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN, IConfigurationPropertySchema, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting, IFilterResult, ISettingsSection, IGroupFilter, ISettingFilter } from 'vs/workbench/parts/preferences/common/preferences';
+import { ISettingsEditorModel, IKeybindingsEditorModel, ISettingsGroup, ISetting, IFilterResult, ISettingsSection, IGroupFilter, ISettingMatcher } from 'vs/workbench/parts/preferences/common/preferences';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -26,7 +26,7 @@ export abstract class AbstractSettingsModel extends EditorModel {
 		return this.settingsGroups.map(group => '@' + group.id);
 	}
 
-	protected doFilterSettings(filter: string, groupFilter: IGroupFilter, settingFilter: ISettingFilter): IFilterResult {
+	protected doFilterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher): IFilterResult {
 		const allGroups = this.settingsGroups;
 
 		if (!filter) {
@@ -56,7 +56,7 @@ export abstract class AbstractSettingsModel extends EditorModel {
 			for (const section of group.sections) {
 				const settings: ISetting[] = [];
 				for (const setting of section.settings) {
-					const settingMatches = settingFilter(setting);
+					const settingMatches = settingMatcher(setting);
 					if (groupMatched || settingMatches && settingMatches.length) {
 						settings.push(setting);
 					}
@@ -108,6 +108,8 @@ export abstract class AbstractSettingsModel extends EditorModel {
 	}
 
 	public abstract settingsGroups: ISettingsGroup[];
+
+	public abstract findValueMatches(filter: string, setting: ISetting): IRange[];
 }
 
 export class SettingsEditorModel extends AbstractSettingsModel implements ISettingsEditorModel {
@@ -147,8 +149,8 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 		return this.settingsModel.getValue();
 	}
 
-	public filterSettings(filter: string, groupFilter: IGroupFilter, settingFilter: ISettingFilter): IFilterResult {
-		return this.doFilterSettings(filter, groupFilter, settingFilter);
+	public filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher): IFilterResult {
+		return this.doFilterSettings(filter, groupFilter, settingMatcher);
 	}
 
 	public findValueMatches(filter: string, setting: ISetting): IRange[] {
@@ -388,24 +390,13 @@ export class DefaultSettings extends Disposable {
 		this.initAllSettingsMap(settingsGroups);
 		const mostCommonlyUsed = this.getMostCommonlyUsedSettings(settingsGroups);
 		this._allSettingsGroups = [mostCommonlyUsed, ...settingsGroups];
-
-		const builder = new SettingsContentBuilder();
-		builder.pushLine('[');
-		builder.pushGroups([mostCommonlyUsed]);
-		builder.pushLine(',');
-		builder.pushGroups(settingsGroups);
-		builder.pushLine(']');
-		this._content = builder.getContent();
-
+		this._content = this.toContent(true, [mostCommonlyUsed], settingsGroups);
 		return this._content;
 	}
 
 	get raw(): string {
 		if (!DefaultSettings._RAW) {
-			const settingsGroups = this.getRegisteredGroups();
-			const builder = new SettingsContentBuilder();
-			builder.pushGroups(settingsGroups);
-			DefaultSettings._RAW = builder.getContent();
+			DefaultSettings._RAW = this.toContent(false, this.getRegisteredGroups());
 		}
 		return DefaultSettings._RAW;
 	}
@@ -543,6 +534,24 @@ export class DefaultSettings extends Disposable {
 		return c1.order - c2.order;
 	}
 
+	private toContent(asArray: boolean, ...settingsGroups: ISettingsGroup[][]): string {
+		const builder = new SettingsContentBuilder();
+		if (asArray) {
+			builder.pushLine('[');
+		}
+		settingsGroups.forEach((settingsGroup, i) => {
+			builder.pushGroups(settingsGroup);
+
+			if (i !== settingsGroups.length - 1) {
+				builder.pushLine(',');
+			}
+		});
+		if (asArray) {
+			builder.pushLine(']');
+		}
+		return builder.getContent();
+	}
+
 }
 
 export class DefaultSettingsEditorModel extends AbstractSettingsModel implements ISettingsEditorModel {
@@ -576,20 +585,25 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return this.defaultSettings.settingsGroups;
 	}
 
-	public filterSettings(filter: string, groupFilter: IGroupFilter, settingFilter: ISettingFilter, mostRelevantSettings?: string[]): IFilterResult {
+	public filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher, mostRelevantSettings?: string[]): IFilterResult {
 		if (mostRelevantSettings) {
 			const mostRelevantGroup = this.renderMostRelevantSettings(mostRelevantSettings);
+
+			// calculate match ranges
+			const matches = mostRelevantGroup.sections[0].settings.reduce((prev, s) => {
+				return prev.concat(settingMatcher(s));
+			}, []);
 
 			return {
 				allGroups: [...this.settingsGroups, mostRelevantGroup],
 				filteredGroups: mostRelevantGroup.sections[0].settings.length ? [mostRelevantGroup] : [],
-				matches: [],
+				matches,
 				query: filter
 			};
 		} else {
 			// Do local search and add empty 'most relevant' group
 			const mostRelevantGroup = this.renderMostRelevantSettings([]);
-			const result = this.doFilterSettings(filter, groupFilter, settingFilter);
+			const result = this.doFilterSettings(filter, groupFilter, settingMatcher);
 			result.allGroups = [...result.allGroups, mostRelevantGroup];
 			return result;
 		}
