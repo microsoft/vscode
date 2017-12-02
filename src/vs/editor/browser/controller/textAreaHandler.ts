@@ -57,6 +57,7 @@ export class TextAreaHandler extends ViewPart {
 	private readonly _viewHelper: ITextAreaHandlerHelper;
 	private _accessibilitySupport: platform.AccessibilitySupport;
 	private _contentLeft: number;
+	private _contentTop: number;
 	private _contentWidth: number;
 	private _contentHeight: number;
 	private _scrollLeft: number;
@@ -87,6 +88,7 @@ export class TextAreaHandler extends ViewPart {
 
 		this._accessibilitySupport = conf.accessibilitySupport;
 		this._contentLeft = conf.layoutInfo.contentLeft;
+		this._contentTop = conf.layoutInfo.contentTop;
 		this._contentWidth = conf.layoutInfo.contentWidth;
 		this._contentHeight = conf.layoutInfo.contentHeight;
 		this._scrollLeft = 0;
@@ -298,6 +300,7 @@ export class TextAreaHandler extends ViewPart {
 		}
 		if (e.layoutInfo) {
 			this._contentLeft = conf.layoutInfo.contentLeft;
+			this._contentTop = conf.layoutInfo.contentTop;
 			this._contentWidth = conf.layoutInfo.contentWidth;
 			this._contentHeight = conf.layoutInfo.contentHeight;
 		}
@@ -380,7 +383,7 @@ export class TextAreaHandler extends ViewPart {
 		if (this._visibleTextArea) {
 			// The text area is visible for composition reasons
 			this._renderInsideEditor(
-				this._visibleTextArea.top - this._scrollTop,
+				this._contentTop + this._visibleTextArea.top - this._scrollTop,
 				this._contentLeft + this._visibleTextArea.left - this._scrollLeft,
 				this._visibleTextArea.width,
 				this._lineHeight,
@@ -402,7 +405,7 @@ export class TextAreaHandler extends ViewPart {
 			return;
 		}
 
-		const top = this._context.viewLayout.getVerticalOffsetForLineNumber(this._selections[0].positionLineNumber) - this._scrollTop;
+		const top = this._contentTop + this._context.viewLayout.getVerticalOffsetForLineNumber(this._selections[0].positionLineNumber) - this._scrollTop;
 		if (top < 0 || top > this._contentHeight) {
 			// cursor is outside the viewport
 			this._renderAtTopLeft();
