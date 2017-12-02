@@ -471,14 +471,14 @@
 			"settings": {
 			  "foreground": "#91B3E0"
 			}
-      },
-      {
+      	},
+      	{
 			"name": "JSX: InnerText",
 			"scope": "meta.jsx.children.js",
 			"settings": {
 			  "foreground": "#333333ff"
 			}
-      }
+      	}
 	],
 	"colors": {
 		"focusBorder": "#A6B39B",
