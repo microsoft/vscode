@@ -80,7 +80,7 @@ export class ViewEdgeWidgets extends ViewPart {
 
 	public setWidgetPosition(widget: IEdgeWidget, edge: EdgeWidgetPositionEdge, size: number): boolean {
 		let widgetData = this._widgets[widget.getId()];
-		if (widgetData.edge === edge) {
+		if (widgetData.edge === edge && widgetData.size === size) {
 			return false;
 		}
 

@@ -81,6 +81,8 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 	private overlayWidgets: { [key: string]: IOverlayWidgetData; };
 	private edgeWidgets: { [key: string]: IEdgeWidgetData; };
 
+	private _edgePaddings: IEdgePaddings;
+
 	_view: View;
 
 	constructor(
@@ -153,12 +155,13 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 	}
 
 	private _getEdgePadding(): IEdgePaddings {
-		// TODO: cache the edge padding metrics in view
-		let topPadding = 0;
-		let bottomPadding = 0;
-		for (let key in this.edgeWidgets) {
-			if (Object.prototype.hasOwnProperty.apply(null, [key])) {
-				const edgew = this.edgeWidgets[key];
+		if (!this._edgePaddings) {
+			let topPadding = 0;
+			let bottomPadding = 0;
+
+			let keys = Object.keys(this.edgeWidgets);
+			for (let i = 0; i < keys.length; i++) {
+				const edgew = this.edgeWidgets[keys[i]];
 				const posn = edgew.position;
 				if (posn.edge === editorBrowser.EdgeWidgetPositionEdge.TOP) {
 					topPadding += posn.size; // TODO: sanitize
@@ -167,12 +170,14 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 					bottomPadding += posn.size; // TODO: sanitize
 				}
 			}
+
+			this._edgePaddings = {
+				top: topPadding,
+				bottom: bottomPadding
+			};
 		}
 
-		return {
-			top: topPadding,
-			bottom: bottomPadding
-		};
+		return this._edgePaddings;
 	}
 
 	public dispose(): void {
@@ -322,6 +327,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 	public layoutEdgeWidget(widget: editorBrowser.IEdgeWidget): void {
 		let widgetId = widget.getId();
 		if (this.edgeWidgets.hasOwnProperty(widgetId)) {
+			this._edgePaddings = null; // invalidate edge padding
 			let widgetData = this.edgeWidgets[widgetId];
 			widgetData.position = widget.getPosition();
 			if (this.hasView) {
