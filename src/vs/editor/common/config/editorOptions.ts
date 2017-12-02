@@ -1336,6 +1336,8 @@ export interface IConfigurationChangedEvent {
  * @internal
  */
 export interface IEnvironmentalOptions {
+	readonly paddingTop: number;
+	readonly paddingBottom: number;
 	readonly outerWidth: number;
 	readonly outerHeight: number;
 	readonly fontInfo: FontInfo;
@@ -1821,6 +1823,8 @@ export class InternalEditorOptionsFactory {
 		}
 
 		const layoutInfo = EditorLayoutProvider.compute({
+			paddingTop: env.paddingTop,
+			paddingBottom: env.paddingBottom,
 			outerWidth: env.outerWidth,
 			outerHeight: env.outerHeight,
 			showGlyphMargin: opts.viewInfo.glyphMargin,
@@ -1947,6 +1951,9 @@ export class InternalEditorOptionsFactory {
  * @internal
  */
 export interface IEditorLayoutProviderOpts {
+	paddingTop: number;
+	paddingBottom: number;
+
 	outerWidth: number;
 	outerHeight: number;
 
@@ -1978,6 +1985,8 @@ export interface IEditorLayoutProviderOpts {
  */
 export class EditorLayoutProvider {
 	public static compute(_opts: IEditorLayoutProviderOpts): EditorLayoutInfo {
+		const paddingTop = _opts.paddingTop | 0;
+		const paddingBottom = _opts.paddingBottom | 0;
 		const outerWidth = _opts.outerWidth | 0;
 		const outerHeight = _opts.outerHeight | 0;
 		const showGlyphMargin = _opts.showGlyphMargin;
@@ -2057,6 +2066,8 @@ export class EditorLayoutProvider {
 
 		const verticalArrowSize = (verticalScrollbarHasArrows ? scrollbarArrowSize : 0);
 
+		const contentHeight = outerHeight - paddingTop - paddingBottom;
+
 		return {
 			width: outerWidth,
 			height: outerHeight,
@@ -2076,7 +2087,7 @@ export class EditorLayoutProvider {
 			contentLeft: contentLeft,
 			contentTop: contentTop,
 			contentWidth: contentWidth,
-			contentHeight: outerHeight,
+			contentHeight: contentHeight,
 
 			renderMinimap: renderMinimap,
 			minimapWidth: minimapWidth,

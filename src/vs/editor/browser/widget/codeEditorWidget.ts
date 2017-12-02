@@ -17,7 +17,7 @@ import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorC
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditorAction, EditorExtensionsRegistry, IEditorContributionCtor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { Configuration } from 'vs/editor/browser/config/configuration';
+import { Configuration, IEdgePaddings } from 'vs/editor/browser/config/configuration';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { View, IOverlayWidgetData, IContentWidgetData, IEdgeWidgetData } from 'vs/editor/browser/view/viewImpl';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -110,6 +110,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 
 		this.contentWidgets = {};
 		this.overlayWidgets = {};
+		this.edgeWidgets = {};
 
 		let contributions = this._getContributions();
 		for (let i = 0, len = contributions.length; i < len; i++) {
@@ -145,7 +146,29 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 	protected abstract _getActions(): EditorAction[];
 
 	protected _createConfiguration(options: IEditorOptions): CommonEditorConfiguration {
-		return new Configuration(options, this.domElement);
+		return new Configuration(
+			options,
+			this.domElement,
+			{ getEdgePadding: () => this._getEdgePadding()});
+	}
+
+	private _getEdgePadding(): IEdgePaddings {
+		// TODO: cache the edge padding metrics in view
+		let topPadding = 0;
+		let bottomPadding = 0;
+		for (let key in this.edgeWidgets) if (Object.prototype.hasOwnProperty.apply(null, [key])) {
+			const edgew = this.edgeWidgets[key];
+			const posn = edgew.position;
+			if (posn.edge === editorBrowser.EdgeWidgetPositionEdge.TOP)
+				topPadding += posn.size; // TODO: sanitize
+			else if (posn.edge === editorBrowser.EdgeWidgetPositionEdge.BOTTOM)
+				bottomPadding += posn.size; // TODO: sanitize
+		}
+
+		return {
+			top: topPadding,
+			bottom: bottomPadding
+		};
 	}
 
 	public dispose(): void {
@@ -153,6 +176,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 
 		this.contentWidgets = {};
 		this.overlayWidgets = {};
+		this.edgeWidgets = {};
 
 		this._focusTracker.dispose();
 		super.dispose();

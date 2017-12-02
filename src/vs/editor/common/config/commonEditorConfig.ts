@@ -53,6 +53,8 @@ export const TabFocus: ITabFocus = new class implements ITabFocus {
 
 export interface IEnvConfiguration {
 	extraEditorClassName: string;
+	paddingTop: number;
+	paddingBottom: number;
 	outerWidth: number;
 	outerHeight: number;
 	emptySelectionClipboard: boolean;
@@ -118,6 +120,8 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		const partialEnv = this._getEnvConfiguration();
 		const bareFontInfo = BareFontInfo.createFromRawSettings(this._rawOptions, partialEnv.zoomLevel);
 		const env: editorOptions.IEnvironmentalOptions = {
+			paddingTop: partialEnv.paddingTop,
+			paddingBottom: partialEnv.paddingBottom,
 			outerWidth: partialEnv.outerWidth,
 			outerHeight: partialEnv.outerHeight,
 			fontInfo: this.readConfiguration(bareFontInfo),
