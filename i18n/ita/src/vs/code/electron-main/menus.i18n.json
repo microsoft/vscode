@@ -26,7 +26,6 @@
 	"miOpenFolder": "Apri &&cartella...",
 	"miOpenFile": "&&Apri file...",
 	"miOpenRecent": "Apri &&recenti",
-	"miSaveWorkspaceAs": "Sa&&lvare Workspace come...",
 	"miAddFolderToWorkspace": "A&&ggiungere cartella all'area di lavoro...",
 	"miSave": "&&Salva",
 	"miSaveAs": "Salva con nome...",
@@ -184,6 +183,6 @@
 	"miDownloadingUpdate": "Download dell'aggiornamento...",
 	"miInstallingUpdate": "Installazione dell'aggiornamento...",
 	"miCheckForUpdates": "Verifica disponibilità aggiornamenti...",
-	"aboutDetail": "\nVersione {0}\nCommit {1}\nData {2}\nShell {3}\nRenderer {4}\nNodo {5}\nArchitettura {6}",
-	"okButton": "OK"
+	"okButton": "OK",
+	"copy": "&&Copia"
 }

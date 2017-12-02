@@ -8,6 +8,7 @@
 	"unFoldRecursivelyAction.label": "再帰的に展開",
 	"foldAction.label": "折りたたみ",
 	"foldRecursivelyAction.label": "再帰的に折りたたむ",
+	"foldAllBlockComments.label": "すべてのブロック コメントの折りたたみ",
 	"foldAllAction.label": "すべて折りたたみ",
 	"unfoldAllAction.label": "すべて展開",
 	"foldLevelAction.label": "折りたたみレベル {0}"

@@ -11,6 +11,8 @@
 	"oneSettingFound": "1 つの設定が一致します",
 	"settingsFound": "{0} 個の設定が一致します",
 	"totalSettingsMessage": "合計 {0} 個の設定",
+	"defaultSettings": "既定の設定",
+	"defaultFolderSettings": "既定のフォルダー設定",
 	"defaultEditorReadonly": "既定値を上書きするには、右側のエディターを編集します。",
 	"preferencesAriaLabel": "既定の基本設定。読み取り専用のテキスト エディター。"
 }

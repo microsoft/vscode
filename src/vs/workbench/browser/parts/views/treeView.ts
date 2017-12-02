@@ -173,10 +173,14 @@ export class TreeView extends TreeViewsViewletPanel {
 	}
 
 	private refresh(elements: ITreeItem[]): void {
-		elements = elements ? elements : [this.tree.getInput()];
-		for (const element of elements) {
-			element.children = null;
-			this.tree.refresh(element);
+		if (elements) {
+			for (const element of elements) {
+				this.tree.refresh(element);
+			}
+		} else {
+			const root: ITreeItem = this.tree.getInput();
+			root.children = null; // reset children
+			this.tree.refresh(root);
 		}
 	}
 
@@ -192,7 +196,8 @@ export class TreeView extends TreeViewsViewletPanel {
 
 class Root implements ITreeItem {
 	label = 'root';
-	handle = -1;
+	handle = '0';
+	parentHandle = null;
 	collapsibleState = TreeItemCollapsibleState.Expanded;
 }
 
@@ -205,7 +210,7 @@ class TreeDataSource implements IDataSource {
 	}
 
 	public getId(tree: ITree, node: ITreeItem): string {
-		return '' + node.handle;
+		return node.handle;
 	}
 
 	public hasChildren(tree: ITree, node: ITreeItem): boolean {

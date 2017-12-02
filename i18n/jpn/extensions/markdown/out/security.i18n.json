@@ -11,5 +11,8 @@
 	"disable.title": "無効にする",
 	"disable.description": "すべてのコンテンツとスクリプトの実行を許可します。推奨されません。",
 	"moreInfo.title": "詳細情報",
+	"enableSecurityWarning.title": "このワークスペースでプレビューのセキュリティ警告を有効にする",
+	"disableSecurityWarning.title": "このワークスペースでプレビューのセキュリティ警告を有効にする",
+	"toggleSecurityWarning.description": "コンテンツのセキュリティ レベルに影響しません",
 	"preview.showPreviewSecuritySelector.title": "ワークスペースのマークダウン プレビューに関するセキュリティ設定を選択 "
 }

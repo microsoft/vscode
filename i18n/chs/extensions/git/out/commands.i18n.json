@@ -59,6 +59,7 @@
 	"provide tag name": "请提供标签名称",
 	"tag message": "消息",
 	"provide tag message": "请提供消息以对标签进行注释",
+	"no remotes to fetch": "此存储库未配置可以从中抓取的远程存储库。",
 	"no remotes to pull": "存储库未配置任何从其中进行拉取的远程存储库。",
 	"pick remote pull repo": "选择要从其拉取分支的远程位置",
 	"no remotes to push": "存储库未配置任何要推送到的远程存储库。",
@@ -75,7 +76,7 @@
 	"no stashes": "没有可以恢复的储藏。",
 	"pick stash to pop": "选择要弹出的储藏",
 	"clean repo": "在签出前，请清理存储库工作树。",
-	"cant push": "无法推送 refs 到远端。请先运行“拉取”功能以整合你的更改。",
+	"cant push": "无法推送 refs 到远端。您可以试着运行“拉取”功能，整合您的更改。",
 	"git error details": "Git:{0}",
 	"git error": "Git 错误",
 	"open git log": "打开 GIT 日志"

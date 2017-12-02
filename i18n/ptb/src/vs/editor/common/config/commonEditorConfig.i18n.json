@@ -17,7 +17,7 @@
 	"lineNumbers": "Controla a exibição dos números de linha. Os valores possíveis são 'on', 'off' e 'relative'.",
 	"rulers": "Renderiza réguas verticais após um certo número de caracteres de espaço. Use vários valores para várias réguas. Réguas não serão desenhadas se a matriz estiver vazia",
 	"wordSeparators": "Caracteres que serão usados como separadores de palavras ao fazer navegação relacionada a palavras ou operações",
-	"tabSize": "O número de espaços equivalentes a uma tabulação. Esta configuração é sobreposta no conteúdo do arquivo quando `editor.detectIndentation` está ligado.",
+	"tabSize": "O número de espaços equivalentes a uma tabulação. Esta configuração é sobreposta com base no conteúdo do arquivo quando `editor.detectIndentation` está ligado.",
 	"tabSize.errorMessage": "Esperado 'número'. Note que o valor \"auto\" foi alterado pela configuração 'editor.detectIndentation'.",
 	"insertSpaces": "Insere espaços quanto pressionado Tab. Esta configuração é sobrescrita com base no conteúdo do arquivo quando 'editor.detectIndentation' está habilitado.",
 	"insertSpaces.errorMessage": "Esperado 'booleano'. Note que o valor \"auto\" foi alterado pela configuração 'editor.detectIndentation'.",

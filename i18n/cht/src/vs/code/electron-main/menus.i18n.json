@@ -25,6 +25,7 @@
 	"miOpenFolder": "開啟資料夾(&&F)...",
 	"miOpenFile": "開啟檔案(&&O)...",
 	"miOpenRecent": "開啟最近的檔案(&&R)",
+	"miSaveWorkspaceAs": "另存工作區為...",
 	"miSave": "儲存(&&S)",
 	"miSaveAs": "另存新檔(&&A)...",
 	"miSaveAll": "全部儲存(&&L)",
@@ -181,6 +182,6 @@
 	"miDownloadingUpdate": "正在下載更新...",
 	"miInstallingUpdate": "正在安裝更新...",
 	"miCheckForUpdates": "查看是否有更新",
-	"aboutDetail": "\n版本 {0}\n認可 {1}\n日期 {2}\nShell {3}\n轉譯器 {4}\n節點 {5}\n架構 {6}",
-	"okButton": "確定"
+	"okButton": "確定",
+	"copy": "複製(&&C)"
 }

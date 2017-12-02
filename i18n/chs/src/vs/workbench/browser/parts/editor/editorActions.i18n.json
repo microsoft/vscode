@@ -33,6 +33,7 @@
 	"openPreviousEditor": "打开上一个编辑器",
 	"nextEditorInGroup": "打开组中的下一个编辑器",
 	"openPreviousEditorInGroup": "打开组中上一个编辑器",
+	"lastEditorInGroup": "打开组中上一个编辑器",
 	"navigateNext": "前进",
 	"navigatePrevious": "后退",
 	"navigateLast": "转到最后",

@@ -31,6 +31,7 @@ import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/composit
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
+import { memoize } from 'vs/base/common/decorators';
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
@@ -213,6 +214,9 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	public layout(dimension: Dimension): Dimension[] {
+		if (!this.partService.isVisible(Parts.PANEL_PART)) {
+			return [dimension];
+		}
 
 		if (this.partService.getPanelPosition() === Position.RIGHT) {
 			// Take into account the 1px border when layouting
@@ -231,10 +235,15 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			let availableWidth = this.dimension.width - 8; // take padding into account
 			if (this.toolBar) {
 				// adjust height for global actions showing
-				availableWidth = Math.max(PanelPart.MIN_COMPOSITE_BAR_WIDTH, availableWidth - this.toolBar.getContainer().getHTMLElement().offsetWidth);
+				availableWidth = Math.max(PanelPart.MIN_COMPOSITE_BAR_WIDTH, availableWidth - this.toolbarWidth);
 			}
 			this.compositeBar.layout(new Dimension(availableWidth, this.dimension.height));
 		}
+	}
+
+	@memoize
+	private get toolbarWidth(): number {
+		return this.toolBar.getContainer().getHTMLElement().offsetWidth;
 	}
 
 	public shutdown(): void {

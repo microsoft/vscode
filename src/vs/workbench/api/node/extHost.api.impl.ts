@@ -56,7 +56,9 @@ import { ExtHostFileSystem } from 'vs/workbench/api/node/extHostFileSystem';
 import { FileChangeType, FileType } from 'vs/platform/files/common/files';
 import { ExtHostDecorations } from 'vs/workbench/api/node/extHostDecorations';
 import { toGlobPattern, toLanguageSelector } from 'vs/workbench/api/node/extHostTypeConverters';
+import { ExtensionActivatedByAPI } from 'vs/workbench/api/node/extHostExtensionActivator';
 import { ILogService } from 'vs/platform/log/common/log';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription): typeof vscode;
@@ -125,8 +127,16 @@ export function createApiFactory(
 
 	return function (extension: IExtensionDescription): typeof vscode {
 
-		if (extension.enableProposedApi && !extension.isBuiltin) {
+		const EXTENSION_ID = extension.id;
 
+		if (!isFalsyOrEmpty(product.extensionAllowedProposedApi)
+			&& product.extensionAllowedProposedApi.indexOf(extension.id) >= 0
+		) {
+			// fast lane -> proposed api is available to all extensions
+			// that are listed in product.json-files
+			extension.enableProposedApi = true;
+
+		} else if (extension.enableProposedApi && !extension.isBuiltin) {
 			if (
 				!initData.environment.enableProposedApiForAll &&
 				initData.environment.enableProposedApiFor.indexOf(extension.id) < 0
@@ -385,8 +395,13 @@ export function createApiFactory(
 		};
 
 		// namespace: workspace
+		let warnedRootPath = false;
 		const workspace: typeof vscode.workspace = {
 			get rootPath() {
+				if (!warnedRootPath) {
+					warnedRootPath = true;
+					extensionService.addMessage(EXTENSION_ID, Severity.Warning, 'workspace.rootPath is deprecated');
+				}
 				return extHostWorkspace.getPath();
 			},
 			set rootPath(value) {
@@ -500,8 +515,8 @@ export function createApiFactory(
 			get activeDebugConsole() {
 				return extHostDebugService.activeDebugConsole;
 			},
-			startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration) {
-				return extHostDebugService.startDebugging(folder, nameOrConfig);
+			get breakpoints() {
+				return extHostDebugService.breakpoints;
 			},
 			onDidStartDebugSession(listener, thisArg?, disposables?) {
 				return extHostDebugService.onDidStartDebugSession(listener, thisArg, disposables);
@@ -514,6 +529,12 @@ export function createApiFactory(
 			},
 			onDidReceiveDebugSessionCustomEvent(listener, thisArg?, disposables?) {
 				return extHostDebugService.onDidReceiveDebugSessionCustomEvent(listener, thisArg, disposables);
+			},
+			onDidChangeBreakpoints: proposedApiFunction(extension, (listener, thisArgs?, disposables?) => {
+				return extHostDebugService.onDidChangeBreakpoints(listener, thisArgs, disposables);
+			}),
+			startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration) {
+				return extHostDebugService.startDebugging(folder, nameOrConfig);
 			},
 			registerDebugConfigurationProvider(debugType: string, provider: vscode.DebugConfigurationProvider) {
 				return extHostDebugService.registerDebugConfigurationProvider(debugType, provider);
@@ -622,7 +643,7 @@ class Extension<T> implements vscode.Extension<T> {
 	}
 
 	activate(): Thenable<T> {
-		return this._extensionService.activateById(this.id, false).then(() => this.exports);
+		return this._extensionService.activateById(this.id, new ExtensionActivatedByAPI(false)).then(() => this.exports);
 	}
 }
 

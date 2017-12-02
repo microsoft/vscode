@@ -11,6 +11,8 @@
 	"oneSettingFound": "1 illeszkedő beállítás",
 	"settingsFound": "{0} illeszkedő beállítás",
 	"totalSettingsMessage": "Összesen {0} beállítás",
+	"defaultSettings": "Alapértelmezett beállítások",
+	"defaultFolderSettings": "Alapértelmezett mappabeállítások",
 	"defaultEditorReadonly": "A jobb oldalon lévő szerkesztőablak tartalmának módosításával írhatja felül az alapértelmezett beállításokat.",
 	"preferencesAriaLabel": "Az alapértelmezett beállítások. Írásvédett szerkesztőablak."
 }

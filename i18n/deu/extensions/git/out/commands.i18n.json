@@ -75,7 +75,6 @@
 	"no stashes": "Es ist kein Stash zum Wiederherstellen vorhanden.",
 	"pick stash to pop": "Wählen Sie einen Stash aus, für den ein Pop ausgeführt werden soll.",
 	"clean repo": "Bereinigen Sie Ihre Repository-Arbeitsstruktur vor Auftragsabschluss.",
-	"cant push": "Verweise können nicht per Push an einen Remotespeicherort übertragen werden. Führen Sie zuerst \"Pull\" aus, um Ihre Änderungen zu integrieren.",
 	"git error details": "Git: {0}",
 	"git error": "Git-Fehler",
 	"open git log": "Git-Protokoll öffnen"

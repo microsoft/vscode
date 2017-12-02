@@ -53,9 +53,9 @@ export class KeymapExtensions implements IWorkbenchContribution {
 	private checkForOtherKeymaps(extensionIdentifier: IExtensionIdentifier): TPromise<void> {
 		return this.instantiationService.invokeFunction(getInstalledExtensions).then(extensions => {
 			const keymaps = extensions.filter(extension => isKeymapExtension(this.tipsService, extension));
-			const extension = arrays.first(keymaps, extension => extension.identifier.id === extensionIdentifier.id);
+			const extension = arrays.first(keymaps, extension => stripVersion(extension.identifier.id) === extensionIdentifier.id);
 			if (extension && extension.globallyEnabled) {
-				const otherKeymaps = keymaps.filter(extension => extension.identifier.id !== extensionIdentifier.id && extension.globallyEnabled);
+				const otherKeymaps = keymaps.filter(extension => stripVersion(extension.identifier.id) !== extensionIdentifier.id && extension.globallyEnabled);
 				if (otherKeymaps.length) {
 					return this.promptForDisablingOtherKeymaps(extension, otherKeymaps);
 				}
@@ -143,7 +143,7 @@ export function getInstalledExtensions(accessor: ServicesAccessor): TPromise<IEx
 			.then(disabledExtensions => {
 				return extensions.map(extension => {
 					return {
-						identifier: { id: adoptToGalleryExtensionId(extension.identifier.id), uuid: extension.identifier.uuid },
+						identifier: { id: adoptToGalleryExtensionId(stripVersion(extension.identifier.id)), uuid: extension.identifier.uuid },
 						local: extension,
 						globallyEnabled: disabledExtensions.every(disabled => !areSameExtensions(disabled, extension.identifier))
 					};
@@ -154,7 +154,7 @@ export function getInstalledExtensions(accessor: ServicesAccessor): TPromise<IEx
 
 export function isKeymapExtension(tipsService: IExtensionTipsService, extension: IExtensionStatus): boolean {
 	const cats = extension.local.manifest.categories;
-	return cats && cats.indexOf('Keymaps') !== -1 || tipsService.getKeymapRecommendations().indexOf(extension.identifier.id) !== -1;
+	return cats && cats.indexOf('Keymaps') !== -1 || tipsService.getKeymapRecommendations().indexOf(stripVersion(extension.identifier.id)) !== -1;
 }
 
 function stripVersion(id: string): string {

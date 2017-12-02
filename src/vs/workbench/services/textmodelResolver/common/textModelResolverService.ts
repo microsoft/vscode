@@ -49,6 +49,8 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 			} else {
 				model.dispose();
 			}
+		}, err => {
+			// ignore
 		});
 	}
 

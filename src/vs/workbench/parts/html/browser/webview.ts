@@ -16,22 +16,6 @@ import { WebviewFindWidget } from './webviewFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
-export declare interface WebviewElement extends HTMLElement {
-	src: string;
-	preload: string;
-	send(channel: string, ...args: any[]);
-	openDevTools(): any;
-	getWebContents(): any;
-	findInPage(value: string, options?: WebviewElementFindInPageOptions);
-	stopFindInPage(action: string);
-}
-
-export class StopFindInPageActions {
-	static clearSelection = 'clearSelection';
-	static keepSelection = 'keepSelection';
-	static activateSelection = 'activateSelection';
-}
-
 export interface WebviewElementFindInPageOptions {
 	forward?: boolean;
 	findNext?: boolean;
@@ -58,7 +42,7 @@ export interface WebviewOptions {
 export default class Webview {
 	private static index: number = 0;
 
-	private _webview: WebviewElement;
+	private readonly _webview: Electron.WebviewTag;
 	private _ready: TPromise<this>;
 	private _disposables: IDisposable[] = [];
 	private _onDidClickLink = new Emitter<URI>();
@@ -70,14 +54,14 @@ export default class Webview {
 	private _findStarted: boolean = false;
 
 	constructor(
-		private parent: HTMLElement,
-		private _styleElement: Element,
-		@IContextViewService private _contextViewService: IContextViewService,
-		private _contextKey: IContextKey<boolean>,
-		private _findInputContextKey: IContextKey<boolean>,
+		private readonly parent: HTMLElement,
+		private readonly _styleElement: Element,
+		@IContextViewService private readonly _contextViewService: IContextViewService,
+		private readonly _contextKey: IContextKey<boolean>,
+		private readonly _findInputContextKey: IContextKey<boolean>,
 		private _options: WebviewOptions = {},
 	) {
-		this._webview = <any>document.createElement('webview');
+		this._webview = document.createElement('webview');
 		this._webview.setAttribute('partition', this._options.allowSvgs ? 'webview' : `webview${Webview.index++}`);
 
 		// disable auxclick events (see https://developers.google.com/web/updates/2016/10/auxclick)
@@ -119,7 +103,7 @@ export default class Webview {
 					return;
 				}
 
-				contents.session.webRequest.onBeforeRequest((details, callback) => {
+				(contents.session.webRequest as any).onBeforeRequest((details, callback) => {
 					if (details.url.indexOf('.svg') > 0) {
 						const uri = URI.parse(details.url);
 						if (uri && !uri.scheme.match(/file/i) && (uri.path as any).endsWith('.svg') && !this.isAllowedSvg(uri)) {
@@ -130,7 +114,7 @@ export default class Webview {
 					return callback({});
 				});
 
-				contents.session.webRequest.onHeadersReceived((details, callback) => {
+				(contents.session.webRequest as any).onHeadersReceived((details, callback) => {
 					const contentType: string[] = (details.responseHeaders['content-type'] || details.responseHeaders['Content-Type']) as any;
 					if (contentType && Array.isArray(contentType) && contentType.some(x => x.toLowerCase().indexOf('image/svg') >= 0)) {
 						const uri = URI.parse(details.url);
@@ -276,87 +260,33 @@ export default class Webview {
 	style(theme: ITheme): void {
 		const { fontFamily, fontWeight, fontSize } = window.getComputedStyle(this._styleElement); // TODO@theme avoid styleElement
 
-		let value = `
-		:root {
-			--background-color: ${theme.getColor(editorBackground)};
-			--color: ${theme.getColor(editorForeground)};
-			--font-family: ${fontFamily};
-			--font-weight: ${fontWeight};
-			--font-size: ${fontSize};
-		}
-		body {
-			background-color: var(--background-color);
-			color: var(--color);
-			font-family: var(--font-family);
-			font-weight: var(--font-weight);
-			font-size: var(--font-size);
-			margin: 0;
-			padding: 0 20px;
-		}
-
-		img {
-			max-width: 100%;
-			max-height: 100%;
-		}
-		a:focus,
-		input:focus,
-		select:focus,
-		textarea:focus {
-			outline: 1px solid -webkit-focus-ring-color;
-			outline-offset: -1px;
-		}
-		::-webkit-scrollbar {
-			width: 10px;
-			height: 10px;
-		}`;
-
+		const styles = {
+			'background-color': theme.getColor(editorBackground).toString(),
+			'color': theme.getColor(editorForeground).toString(),
+			'font-family': fontFamily,
+			'font-weight': fontWeight,
+			'font-size': fontSize,
+		};
 
 		let activeTheme: ApiThemeClassName;
-
 		if (theme.type === LIGHT) {
-			value += `
-			::-webkit-scrollbar-thumb {
-				background-color: rgba(100, 100, 100, 0.4);
-			}
-			::-webkit-scrollbar-thumb:hover {
-				background-color: rgba(100, 100, 100, 0.7);
-			}
-			::-webkit-scrollbar-thumb:active {
-				background-color: rgba(0, 0, 0, 0.6);
-			}`;
-
+			styles['scrollbar-thumb'] = 'rgba(100, 100, 100, 0.4)';
+			styles['scrollbar-thumb-hover'] = 'rgba(100, 100, 100, 0.7)';
+			styles['scrollbar-thumb-active'] = 'rgba(0, 0, 0, 0.6)';
 			activeTheme = 'vscode-light';
-
 		} else if (theme.type === DARK) {
-			value += `
-			::-webkit-scrollbar-thumb {
-				background-color: rgba(121, 121, 121, 0.4);
-			}
-			::-webkit-scrollbar-thumb:hover {
-				background-color: rgba(100, 100, 100, 0.7);
-			}
-			::-webkit-scrollbar-thumb:active {
-				background-color: rgba(85, 85, 85, 0.8);
-			}`;
-
+			styles['scrollbar-thumb'] = 'rgba(121, 121, 121, 0.4)';
+			styles['scrollbar-thumb-hover'] = 'rgba(100, 100, 100, 0.7)';
+			styles['scrollbar-thumb-active'] = 'rgba(85, 85, 85, 0.8)';
 			activeTheme = 'vscode-dark';
-
 		} else {
-			value += `
-			::-webkit-scrollbar-thumb {
-				background-color: rgba(111, 195, 223, 0.3);
-			}
-			::-webkit-scrollbar-thumb:hover {
-				background-color: rgba(111, 195, 223, 0.8);
-			}
-			::-webkit-scrollbar-thumb:active {
-				background-color: rgba(111, 195, 223, 0.8);
-			}`;
-
+			styles['scrollbar-thumb'] = 'rgba(111, 195, 223, 0.3)';
+			styles['scrollbar-thumb-hover'] = 'rgba(111, 195, 223, 0.8)';
+			styles['scrollbar-thumb-active'] = 'rgba(111, 195, 223, 0.8)';
 			activeTheme = 'vscode-high-contrast';
 		}
 
-		this._send('styles', value, activeTheme);
+		this._send('styles', styles, activeTheme);
 
 		this._webviewFindWidget.updateTheme(theme);
 	}
@@ -445,7 +375,7 @@ export default class Webview {
 
 	public stopFind(keepSelection?: boolean): void {
 		this._findStarted = false;
-		this._webview.stopFindInPage(keepSelection ? StopFindInPageActions.keepSelection : StopFindInPageActions.clearSelection);
+		this._webview.stopFindInPage(keepSelection ? 'keepSelection' : 'clearSelection');
 	}
 
 	public showFind() {

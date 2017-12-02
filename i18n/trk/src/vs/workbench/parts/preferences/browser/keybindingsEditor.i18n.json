@@ -26,6 +26,7 @@
 	"editKeybindingLabel": "Tuş Bağını Değiştir",
 	"addKeybindingLabelWithKey": "{0} Tuş Bağını Ekle",
 	"addKeybindingLabel": "Tuş Bağını Ekle",
+	"title": "{0} ({1})",
 	"commandAriaLabel": "Komut {0}'dır.",
 	"keybindingAriaLabel": "Tuş bağı {0}'dır.",
 	"noKeybinding": "Tuş bağı atanmamış.",

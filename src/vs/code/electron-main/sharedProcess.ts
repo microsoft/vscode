@@ -30,7 +30,6 @@ export class SharedProcess implements ISharedProcess {
 	private get _whenReady(): TPromise<void> {
 		this.window = new BrowserWindow({
 			show: false,
-			title: 'Shared Process',
 			webPreferences: {
 				images: false,
 				webaudio: false,
