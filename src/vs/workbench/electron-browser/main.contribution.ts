@@ -359,32 +359,32 @@ configurationRegistry.registerConfiguration({
 			],
 			'default': 'default',
 			'description': nls.localize('menuBarVisibility', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and a single press of the Alt key will show it. By default, the menu bar will be visible, unless the window is full screen."),
-			'excluded': !isWindows && !isLinux
+			'included': isWindows || isLinux
 		},
 		'window.enableMenuBarMnemonics': {
 			'type': 'boolean',
 			'default': true,
 			'description': nls.localize('enableMenuBarMnemonics', "If enabled, the main menus can be opened via Alt-key shortcuts. Disabling mnemonics allows to bind these Alt-key shortcuts to editor commands instead."),
-			'excluded': !isWindows && !isLinux
+			'included': isWindows || isLinux
 		},
 		'window.autoDetectHighContrast': {
 			'type': 'boolean',
 			'default': true,
 			'description': nls.localize('autoDetectHighContrast', "If enabled, will automatically change to high contrast theme if Windows is using a high contrast theme, and to dark theme when switching away from a Windows high contrast theme."),
-			'excluded': !isWindows
+			'included': !isWindows
 		},
 		'window.titleBarStyle': {
 			'type': 'string',
 			'enum': ['native', 'custom'],
 			'default': 'custom',
 			'description': nls.localize('titleBarStyle', "Adjust the appearance of the window title bar. Changes require a full restart to apply."),
-			'excluded': !isMacintosh
+			'included': isMacintosh
 		},
 		'window.nativeTabs': {
 			'type': 'boolean',
 			'default': false,
 			'description': nls.localize('window.nativeTabs', "Enables macOS Sierra window tabs. Note that changes require a full restart to apply and that native tabs will disable a custom title bar style if configured."),
-			'excluded': !isMacintosh || parseFloat(os.release()) < 16 // Minimum: macOS Sierra (10.12.x = darwin 16.x)
+			'included': isMacintosh && parseFloat(os.release()) >= 16 // Minimum: macOS Sierra (10.12.x = darwin 16.x)
 		}
 	}
 });

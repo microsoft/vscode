@@ -613,7 +613,7 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.selectionClipboard,
 			'description': nls.localize('selectionClipboard', "Controls if the Linux primary clipboard should be supported."),
-			'excluded': !platform.isLinux
+			'included': platform.isLinux
 		},
 		'diffEditor.renderSideBySide': {
 			'type': 'boolean',

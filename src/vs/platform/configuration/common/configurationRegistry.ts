@@ -72,7 +72,7 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	isExecutable?: boolean;
 	scope?: ConfigurationScope;
 	notMultiRootAdopted?: boolean;
-	excluded?: boolean;
+	included?: boolean;
 }
 
 export interface IConfigurationNode {
@@ -200,8 +200,9 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 					property.scope = scope;
 				}
 
-				// add to properties maps
-				if (properties[key].excluded) {
+				// Add to properties maps
+				// Property is included by default if 'included' is unspecified
+				if (properties[key].hasOwnProperty('included') && !properties[key].included) {
 					this.excludedConfigurationProperties[key] = properties[key];
 					delete properties[key];
 					continue;

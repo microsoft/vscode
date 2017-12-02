@@ -582,7 +582,7 @@ const keyboardConfiguration: IConfigurationNode = {
 			'enum': ['code', 'keyCode'],
 			'default': 'code',
 			'description': nls.localize('dispatch', "Controls the dispatching logic for key presses to use either `code` (recommended) or `keyCode`."),
-			'excluded': OS !== OperatingSystem.Macintosh && OS !== OperatingSystem.Linux
+			'included': OS === OperatingSystem.Macintosh || OS === OperatingSystem.Linux
 		}
 	}
 };
