@@ -15,6 +15,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { replHistory } from 'vs/workbench/parts/debug/common/replHistory';
 
 class ToggleBreakpointAction extends EditorAction {
 	constructor() {
@@ -191,6 +192,7 @@ class SelectionToReplAction extends EditorAction {
 
 		const text = editor.getModel().getValueInRange(editor.getSelection());
 		return debugService.addReplExpression(text)
+			.then(() => replHistory.evaluated(text))
 			.then(() => panelService.openPanel(REPL_ID, true))
 			.then(_ => void 0);
 	}
