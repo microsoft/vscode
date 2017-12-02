@@ -244,6 +244,7 @@ export class View extends ViewEventHandler {
 		this.overflowGuardContainer.appendChild(minimap.getDomNode());
 		this.domNode.appendChild(this.overflowGuardContainer);
 		this.domNode.appendChild(this.contentWidgets.overflowingContentWidgetsDomNode);
+		this.domNode.appendChild(this.edgeWidgets.getDomNode());
 	}
 
 	private _flushAccumulatedAndRenderNow(): void {

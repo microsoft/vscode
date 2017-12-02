@@ -2021,7 +2021,7 @@ export class EditorLayoutProvider {
 		const lineNumbersLeft = glyphMarginLeft + glyphMarginWidth;
 		const decorationsLeft = lineNumbersLeft + lineNumbersWidth;
 		const contentLeft = decorationsLeft + lineDecorationsWidth;
-		const contentTop = 0;
+		const contentTop = _opts.paddingTop;
 
 		const remainingWidth = outerWidth - glyphMarginWidth - lineNumbersWidth - lineDecorationsWidth;
 
