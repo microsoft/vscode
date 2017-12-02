@@ -314,6 +314,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		}
 
 		this.edgeWidgets[widget.getId()] = widgetData;
+		this._edgePaddings = null; // invalidate edge padding
 
 		if (this.hasView) {
 			this._view.addEdgeWidget(widgetData);
@@ -335,6 +336,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 	public removeEdgeWidget(widget: editorBrowser.IEdgeWidget): void {
 		let widgetId = widget.getId();
 		if (this.edgeWidgets.hasOwnProperty(widgetId)) {
+			this._edgePaddings = null; // invalidate edge padding
 			let widgetData = this.edgeWidgets[widgetId];
 			delete this.edgeWidgets[widgetId];
 			if (this.hasView) {
