@@ -77,9 +77,9 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 
 	_configuration: Configuration;
 
-	private contentWidgets: { [key: string]: IContentWidgetData; };
-	private overlayWidgets: { [key: string]: IOverlayWidgetData; };
-	private edgeWidgets: { [key: string]: IEdgeWidgetData; };
+	private contentWidgets: { [key: string]: IContentWidgetData; } = {};
+	private overlayWidgets: { [key: string]: IOverlayWidgetData; } = {};
+	private edgeWidgets: { [key: string]: IEdgeWidgetData; } = {};
 
 	private _edgePaddings: IEdgePaddings;
 
@@ -109,10 +109,6 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 				this._onDidBlurEditor.fire();
 			}
 		});
-
-		this.contentWidgets = {};
-		this.overlayWidgets = {};
-		this.edgeWidgets = {};
 
 		let contributions = this._getContributions();
 		for (let i = 0, len = contributions.length; i < len; i++) {
@@ -159,7 +155,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 			let topPadding = 0;
 			let bottomPadding = 0;
 
-			let keys = Object.keys(this.edgeWidgets);
+			let keys = Object.keys(this.edgeWidgets || {}); // in case it's called before the constructor!
 			for (let i = 0; i < keys.length; i++) {
 				const edgew = this.edgeWidgets[keys[i]];
 				const posn = edgew.position;
