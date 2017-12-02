@@ -996,6 +996,7 @@ export class InternalEditorOptions {
 			&& a.glyphMarginWidth === b.glyphMarginWidth
 			&& a.glyphMarginHeight === b.glyphMarginHeight
 			&& a.lineNumbersLeft === b.lineNumbersLeft
+			&& a.lineNumbersLeft === b.lineNumbersLeft
 			&& a.lineNumbersWidth === b.lineNumbersWidth
 			&& a.lineNumbersHeight === b.lineNumbersHeight
 			&& a.decorationsLeft === b.decorationsLeft
@@ -1238,6 +1239,10 @@ export interface EditorLayoutInfo {
 	 * Left position for the line numbers.
 	 */
 	readonly lineNumbersLeft: number;
+	/**
+	 * Top position for the line numbers.
+	 */
+	readonly lineNumbersTop: number;
 	/**
 	 * The width of the line numbers.
 	 */
@@ -2019,6 +2024,7 @@ export class EditorLayoutProvider {
 
 		const glyphMarginLeft = 0;
 		const lineNumbersLeft = glyphMarginLeft + glyphMarginWidth;
+		const lineNumbersTop = _opts.paddingTop;
 		const decorationsLeft = lineNumbersLeft + lineNumbersWidth;
 		const contentLeft = decorationsLeft + lineDecorationsWidth;
 		const contentTop = _opts.paddingTop;
@@ -2077,8 +2083,9 @@ export class EditorLayoutProvider {
 			glyphMarginHeight: outerHeight,
 
 			lineNumbersLeft: lineNumbersLeft,
+			lineNumbersTop: lineNumbersTop,
 			lineNumbersWidth: lineNumbersWidth,
-			lineNumbersHeight: outerHeight,
+			lineNumbersHeight: contentHeight,
 
 			decorationsLeft: decorationsLeft,
 			decorationsWidth: lineDecorationsWidth,

@@ -3162,6 +3162,10 @@ declare module monaco.editor {
 		 */
 		readonly lineNumbersLeft: number;
 		/**
+		 * Top position for the line numbers.
+		 */
+		readonly lineNumbersTop: number;
+		/**
 		 * The width of the line numbers.
 		 */
 		readonly lineNumbersWidth: number;
