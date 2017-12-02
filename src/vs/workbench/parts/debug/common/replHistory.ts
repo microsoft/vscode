@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
+
+const HISTORY_STORAGE_KEY = 'debug.repl.history';
 const MAX_HISTORY_ENTRIES = 50;
 
 /**
@@ -15,14 +18,29 @@ const MAX_HISTORY_ENTRIES = 50;
  */
 export class ReplHistory {
 
+	private history: string[];
 	private historyPointer: number;
 	private currentExpressionStoredMarkers: boolean;
 	private historyOverwrites: Map<string, string>;
+	public loaded: boolean;
 
-	constructor(private history: string[]) {
+	constructor() {
+		this.history = [];
 		this.historyPointer = this.history.length;
 		this.currentExpressionStoredMarkers = false;
 		this.historyOverwrites = new Map<string, string>();
+	}
+
+	public load(storageService: IStorageService): void {
+		this.loadJSON(JSON.parse(storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')));
+	}
+
+	public loadJSON(history: string[]): void {
+		this.history = history;
+		this.historyPointer = this.history.length;
+		this.currentExpressionStoredMarkers = false;
+		this.historyOverwrites = new Map<string, string>();
+		this.loaded = true;
 	}
 
 	public next(): string {
@@ -103,7 +121,7 @@ export class ReplHistory {
 		this.historyOverwrites.clear();
 	}
 
-	public save(): string[] {
+	public save(storageService: IStorageService): string[] {
 		// remove current expression from history since it was not evaluated
 		if (this.currentExpressionStoredMarkers) {
 			this.history.pop();
@@ -112,6 +130,14 @@ export class ReplHistory {
 			this.history = this.history.splice(this.history.length - MAX_HISTORY_ENTRIES, MAX_HISTORY_ENTRIES);
 		}
 
+		if (this.history.length) {
+			storageService.store(HISTORY_STORAGE_KEY, JSON.stringify(this.history), StorageScope.WORKSPACE);
+		} else {
+			storageService.remove(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
+		}
+
 		return this.history;
 	}
 }
+
+export const replHistory = new ReplHistory();
