@@ -198,8 +198,8 @@ export class BracketMatchingController extends Disposable implements editorCommo
 			let newCursorPosition: Position = null;
 
 			if (brackets) {
-				const betweenBrackets = this._getRange(brackets);
-				if (betweenBrackets.containsPosition(position)) {
+				const rangeBetweenBrackets = this._getRangeBetweenBrackets(brackets);
+				if (rangeBetweenBrackets.containsPosition(position)) {
 					if (brackets[0].startLineNumber === brackets[1].startLineNumber) {
 						newCursorPosition = brackets[1].startColumn < brackets[0].startColumn ?
 							brackets[0].getEndPosition() : brackets[1].getEndPosition();
@@ -225,7 +225,7 @@ export class BracketMatchingController extends Disposable implements editorCommo
 		className: 'bracket-match'
 	});
 
-	private _getRange(brackets): Range {
+	private _getRangeBetweenBrackets(brackets): Range {
 
 		let openBracket: Position = null;
 		let closeBracket: Position = null;
