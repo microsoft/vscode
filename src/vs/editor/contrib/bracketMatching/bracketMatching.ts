@@ -16,10 +16,19 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorBracketMatchBackground, editorBracketMatchBorder } from 'vs/editor/common/view/editorColorRegistry';
+import { registerThemingParticipant, themeColorFromId} from 'vs/platform/theme/common/themeService';
+import { editorBracketMatchBackground, editorBracketMatchBorder} from 'vs/editor/common/view/editorColorRegistry';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { registerColor,   overviewRulerSelectionHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
+
+
+export const editorWordHighlight = registerColor('editor.wordHighlightBackground', { dark: '#575757B8', light: '#57575740', hc: null }, nls.localize('wordHighlight', 'Background color of a symbol during read-access, like reading a variable.'));
+export const editorWordHighlightStrong = registerColor('editor.wordHighlightStrongBackground', { dark: '#004972B8', light: '#0e639c40', hc: null }, nls.localize('wordHighlightStrong', 'Background color of a symbol during write-access, like writing to a variable.'));
+
+export const overviewRulerWordHighlightForeground = registerColor('editorOverviewRuler.wordHighlightForeground', { dark: '#A0A0A0', light: '#A0A0A0', hc: '#A0A0A0' }, nls.localize('overviewRulerWordHighlightForeground', 'Overview ruler marker color for symbol highlights.'));
+export const overviewRulerWordHighlightStrongForeground = registerColor('editorOverviewRuler.wordHighlightStrongForeground', { dark: '#C0A0C0', light: '#C0A0C0', hc: '#C0A0C0' }, nls.localize('overviewRulerWordHighlightStrongForeground', 'Overview ruler marker color for write-access symbol highlights.'));
+
 
 class SelectBracketAction extends EditorAction {
 	constructor() {
@@ -150,7 +159,12 @@ export class BracketMatchingController extends Disposable implements editorCommo
 
 	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({
 		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		className: 'bracket-match'
+		className: 'bracket-match',
+		overviewRuler: {
+			color: themeColorFromId(overviewRulerSelectionHighlightForeground),
+			darkColor: themeColorFromId(overviewRulerSelectionHighlightForeground),
+			position: editorCommon.OverviewRulerLane.Center
+		}
 	});
 
 	private _updateBrackets(): void {
