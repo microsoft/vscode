@@ -16,7 +16,8 @@ import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import { ITextSource } from 'vs/editor/common/model/textSource';
 import {
 	ModelRawContentChangedEvent, IModelContentChangedEvent, IModelDecorationsChangedEvent,
-	IModelLanguageChangedEvent, IModelOptionsChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent
+	IModelLanguageChangedEvent, IModelOptionsChangedEvent, IModelLanguageConfigurationChangedEvent,
+	IModelTokensChangedEvent, HistoryEvent
 } from 'vs/editor/common/model/textModelEvents';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
@@ -1008,6 +1009,20 @@ export interface ITextModelWithDecorations {
 	_setTrackedRange(id: string, newRange: Range, newStickiness: TrackedRangeStickiness): string;
 }
 
+export interface IHistoryElement {
+	readonly index: number;
+	readonly timestamp: number;
+
+	readonly past: IHistoryElement | undefined;
+	readonly futures: IHistoryElement[];
+	readonly future: IHistoryElement;
+}
+
+export interface IHistory {
+	readonly root: IHistoryElement;
+	readonly now: IHistoryElement;
+}
+
 /**
  * An editable text model.
  */
@@ -1071,6 +1086,19 @@ export interface IEditableTextModel extends ITextModel {
 	 * @internal
 	 */
 	redo(): Selection[];
+
+	/**
+	 * Move to an index in the history tree.
+	 */
+	moveTo(index: number): void;
+
+	getHistory(): IHistory;
+
+	/**
+	 * An event emitted when the history is changed.
+	 * @event
+	 */
+	onDidChangeHistory(listener: (e: HistoryEvent) => void): IDisposable;
 
 	/**
 	 * Set an editable range on the model.
@@ -1673,4 +1701,5 @@ export var Handler = {
 
 	Undo: 'undo',
 	Redo: 'redo',
+	HistoryTree: 'HistoryTree',
 };

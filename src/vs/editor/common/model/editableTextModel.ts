@@ -14,7 +14,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { Selection } from 'vs/editor/common/core/selection';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { ITextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
-import { ModelRawContentChangedEvent, ModelRawChange, IModelContentChange, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
+import { ModelRawContentChangedEvent, ModelRawChange, IModelContentChange, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted, HistoryEvent } from 'vs/editor/common/model/textModelEvents';
 
 export interface IValidatedEditOperation {
 	sortIndex: number;
@@ -48,7 +48,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 	constructor(rawTextSource: IRawTextSource, creationOptions: editorCommon.ITextModelCreationOptions, languageIdentifier: LanguageIdentifier) {
 		super(rawTextSource, creationOptions, languageIdentifier);
 
-		this._commandManager = new EditStack(this);
+		this._commandManager = new EditStack(this, (e) => this.notifyHistory(e));
 
 		this._isUndoing = false;
 		this._isRedoing = false;
@@ -67,7 +67,7 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		super._resetValue(newValue);
 
 		// Destroy my edit history and settings
-		this._commandManager = new EditStack(this);
+		this._commandManager = new EditStack(this, (e) => this.notifyHistory(e));
 		this._hasEditableRange = false;
 		this._editableRangeId = null;
 		this._trimAutoWhitespaceLines = null;
@@ -650,7 +650,8 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 					isUndoing: this._isUndoing,
 					isRedoing: this._isRedoing,
 					isFlush: false
-				}
+				},
+				undefined,
 			);
 		}
 	}
@@ -703,6 +704,41 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 			this._onDidChangeDecorations.endDeferredEmit();
 			this._eventEmitter.endDeferredEmit();
 		}
+	}
+
+	public moveTo(index: number): Selection[] {
+		try {
+			this._eventEmitter.beginDeferredEmit();
+			this._onDidChangeDecorations.beginDeferredEmit();
+			return this._moveTo(index);
+		} finally {
+			this._onDidChangeDecorations.endDeferredEmit();
+			this._eventEmitter.endDeferredEmit();
+		}
+	}
+
+	private _moveTo(index: number): Selection[] {
+		this._isRedoing = true;
+		this._isUndoing = true;
+		const r = this._commandManager.moveTo(index);
+		this._isRedoing = false;
+		this._isUndoing = false;
+
+		if (!r) {
+			return null;
+		}
+
+		this._overwriteAlternativeVersionId(r.recordedVersionId);
+
+		return r.selections;
+	}
+
+	public notifyHistory(e: HistoryEvent) {
+		this._emitContentChangedEvent(undefined, undefined, e);
+	}
+
+	public getHistory(): editorCommon.IHistory {
+		return this._commandManager.getHistory();
 	}
 
 	public setEditableRange(range: IRange): void {

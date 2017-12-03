@@ -241,7 +241,13 @@ export class ModelRawContentChangedEvent {
  */
 export class InternalModelContentChangeEvent {
 	constructor(
-		public readonly rawContentChangedEvent: ModelRawContentChangedEvent,
-		public readonly contentChangedEvent: IModelContentChangedEvent,
+		public readonly rawContentChangedEvent: ModelRawContentChangedEvent | undefined,
+		public readonly contentChangedEvent: IModelContentChangedEvent | undefined,
+		public readonly historyChangedEvent: HistoryEvent | undefined,
 	) { }
+}
+
+export enum HistoryEvent {
+	Move,
+	Change
 }

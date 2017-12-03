@@ -16,7 +16,7 @@ import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { TextModelSearch, SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { TextSource, ITextSource, IRawTextSource, RawTextSource } from 'vs/editor/common/model/textSource';
-import { IModelContentChangedEvent, ModelRawContentChangedEvent, ModelRawFlush, ModelRawEOLChanged, IModelOptionsChangedEvent, InternalModelContentChangeEvent } from 'vs/editor/common/model/textModelEvents';
+import { IModelContentChangedEvent, ModelRawContentChangedEvent, ModelRawFlush, ModelRawEOLChanged, IModelOptionsChangedEvent, InternalModelContentChangeEvent, HistoryEvent } from 'vs/editor/common/model/textModelEvents';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 
 const LIMIT_FIND_COUNT = 999;
@@ -77,10 +77,28 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 	protected readonly _eventEmitter: DidChangeContentEmitter = this._register(new DidChangeContentEmitter());
 
 	public onDidChangeRawContent(listener: (e: ModelRawContentChangedEvent) => void): IDisposable {
-		return this._eventEmitter.event((e: InternalModelContentChangeEvent) => listener(e.rawContentChangedEvent));
+		return this._eventEmitter.event((e: InternalModelContentChangeEvent) => {
+			const rawContentChangedEvent = e.rawContentChangedEvent;
+			if (rawContentChangedEvent) {
+				listener(rawContentChangedEvent);
+			}
+		});
 	}
 	public onDidChangeContent(listener: (e: IModelContentChangedEvent) => void): IDisposable {
-		return this._eventEmitter.event((e: InternalModelContentChangeEvent) => listener(e.contentChangedEvent));
+		return this._eventEmitter.event((e: InternalModelContentChangeEvent) => {
+			const contentChangedEvent = e.contentChangedEvent;
+			if (contentChangedEvent) {
+				listener(e.contentChangedEvent);
+			}
+		});
+	}
+	public onDidChangeHistory(listener: (e: HistoryEvent) => void): IDisposable {
+		return this._eventEmitter.event((e: InternalModelContentChangeEvent) => {
+			const historyChangedEvent = e.historyChangedEvent;
+			if (historyChangedEvent) {
+				listener(e.historyChangedEvent)
+			}
+		});
 	}
 
 	/*protected*/ _lines: IModelLine[];
@@ -376,7 +394,8 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 				false,
 				false
 			),
-			this._createContentChanged2(1, 1, endLineNumber, endColumn, oldModelValueLength, this.getValue(), false, false, true)
+			this._createContentChanged2(1, 1, endLineNumber, endColumn, oldModelValueLength, this.getValue(), false, false, true),
+			undefined
 		);
 	}
 
@@ -530,7 +549,8 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 				false,
 				false
 			),
-			this._createContentChanged2(1, 1, endLineNumber, endColumn, oldModelValueLength, this.getValue(), false, false, false)
+			this._createContentChanged2(1, 1, endLineNumber, endColumn, oldModelValueLength, this.getValue(), false, false, false),
+			undefined,
 		);
 	}
 
@@ -740,12 +760,15 @@ export class TextModel extends Disposable implements editorCommon.ITextModel {
 		return new Range(1, 1, lineCount, this.getLineMaxColumn(lineCount));
 	}
 
-	protected _emitContentChangedEvent(rawChange: ModelRawContentChangedEvent, change: IModelContentChangedEvent): void {
+	protected _emitContentChangedEvent(
+		rawChange: ModelRawContentChangedEvent | undefined,
+		change: IModelContentChangedEvent | undefined,
+		history: HistoryEvent | undefined): void {
 		if (this._isDisposing) {
 			// Do not confuse listeners by emitting any event after disposing
 			return;
 		}
-		this._eventEmitter.fire(new InternalModelContentChangeEvent(rawChange, change));
+		this._eventEmitter.fire(new InternalModelContentChangeEvent(rawChange, change, history));
 	}
 
 	private _constructLines(textSource: ITextSource): void {

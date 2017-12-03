@@ -37,6 +37,7 @@ import { FontInfo, BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { IMessageService } from 'vs/platform/message/common/message';
+import { HistoryEvent } from 'vs/editor/common/model/textModelEvents';
 
 function withAllStandaloneServices<T extends editorCommon.IEditor>(domElement: HTMLElement, override: IEditorOverrideServices, callback: (services: DynamicStandaloneServices) => T): T {
 	let services = new DynamicStandaloneServices(domElement, override);
@@ -391,6 +392,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		RenderMinimap: editorOptions.RenderMinimap,
 		ScrollType: <any>ScrollType,
 		RenderLineNumbersType: <any>RenderLineNumbersType,
+		HistoryEvent: HistoryEvent,
 
 		// classes
 		InternalEditorOptions: <any>editorOptions.InternalEditorOptions,
