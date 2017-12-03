@@ -214,7 +214,7 @@ export abstract class TreeViewsViewletPanel extends ViewsViewletPanel {
 		super.dispose();
 	}
 
-	private updateTreeVisibility(tree: WorkbenchTree, isVisible: boolean): void {
+	protected updateTreeVisibility(tree: WorkbenchTree, isVisible: boolean): void {
 		if (!tree) {
 			return;
 		}
