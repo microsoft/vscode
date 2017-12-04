@@ -154,7 +154,7 @@ export class LaunchService implements ILaunchService {
 		return TPromise.as(process.pid);
 	}
 
-	public getMainProcesstrace(): TPromise<IMainProcessInfo> {
+	public getMainProcessInfo(): TPromise<IMainProcessInfo> {
 		this.logService.trace('Received request for main process info from other instance.');
 
 		return TPromise.wrap({
