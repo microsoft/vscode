@@ -331,60 +331,103 @@ export class CloseReplaceAction extends Action {
 	}
 }
 
-export class RefreshAction extends Action {
+export abstract class SearchAction extends Action {
 
-	constructor(private viewlet: SearchViewlet) {
-		super('refresh');
-
-		this.label = nls.localize('RefreshAction.label', "Refresh");
-		this.enabled = false;
-		this.class = 'search-action refresh';
+	constructor(id: string, label: string, @IViewletService protected viewletService: IViewletService) {
+		super(id, label);
 	}
 
-	public run(): TPromise<void> {
-		this.viewlet.onQueryChanged(true);
+	abstract update(): void;
 
-		return TPromise.as(null);
-	}
-}
-
-export class CollapseDeepestExpandedLevelAction extends Action {
-	private viewer: ITree;
-
-	constructor(viewlet: SearchViewlet, enabled: boolean = false) {
-		super('vs.tree.collapse', nls.localize('collapse', "Collapse"), 'monaco-tree-action collapse-all', enabled);
-		this.viewer = viewlet.getControl();
-		this.class = 'search-action collapse';
-	}
-
-	public run(context?: any): TPromise<any> {
-		if (this.viewer.getHighlight()) {
-			return TPromise.as(null); // Global action disabled if user is in edit mode from another action
+	protected getSearchViewlet(): SearchViewlet {
+		const activeViewlet = this.viewletService.getActiveViewlet();
+		if (activeViewlet && activeViewlet.getId() === Constants.VIEWLET_ID) {
+			return activeViewlet as SearchViewlet;
 		}
+		return null;
+	}
+}
 
-		this.viewer.collapseDeepestExpandedLevel();
-		this.viewer.clearSelection();
-		this.viewer.clearFocus();
-		this.viewer.DOMFocus();
-		this.viewer.focusFirst();
+export class RefreshAction extends SearchAction {
 
+	static ID: string = 'search.action.refreshSearchResults';
+	static LABEL: string = nls.localize('RefreshAction.label', "Refresh");
+
+	constructor(id: string, label: string, @IViewletService viewletService: IViewletService) {
+		super(id, label, viewletService);
+		this.class = 'search-action refresh';
+		this.update();
+	}
+
+	update(): void {
+		const searchViewlet = this.getSearchViewlet();
+		this.enabled = searchViewlet && searchViewlet.isSearchSubmitted();
+	}
+
+	public run(): TPromise<void> {
+		const searchViewlet = this.getSearchViewlet();
+		if (searchViewlet) {
+			searchViewlet.onQueryChanged(true);
+		}
 		return TPromise.as(null);
 	}
 }
 
-export class ClearSearchResultsAction extends Action {
+export class CollapseDeepestExpandedLevelAction extends SearchAction {
 
-	constructor(private viewlet: SearchViewlet) {
-		super('clearSearchResults');
+	static ID: string = 'search.action.collapseSearchResults';
+	static LABEL: string = nls.localize('CollapseDeepestExpandedLevelAction.label', "Collapse All");
 
-		this.label = nls.localize('ClearSearchResultsAction.label', "Clear Search Results");
-		this.enabled = false;
-		this.class = 'search-action clear-search-results';
+	constructor(id: string, label: string, @IViewletService viewletService: IViewletService) {
+		super(id, label, viewletService);
+		this.class = 'search-action collapse';
+		this.update();
+	}
+
+	update(): void {
+		const searchViewlet = this.getSearchViewlet();
+		this.enabled = searchViewlet && searchViewlet.hasSearchResults();
 	}
 
 	public run(): TPromise<void> {
-		this.viewlet.clearSearchResults();
+		const searchViewlet = this.getSearchViewlet();
+		if (searchViewlet) {
+			const viewer = searchViewlet.getControl();
+			if (viewer.getHighlight()) {
+				return TPromise.as(null); // Global action disabled if user is in edit mode from another action
+			}
 
+			viewer.collapseDeepestExpandedLevel();
+			viewer.clearSelection();
+			viewer.clearFocus();
+			viewer.DOMFocus();
+			viewer.focusFirst();
+		}
+		return TPromise.as(null);
+	}
+}
+
+export class ClearSearchResultsAction extends SearchAction {
+
+	static ID: string = 'search.action.clearSearchResults';
+	static LABEL: string = nls.localize('ClearSearchResultsAction.label', "Clear");
+
+	constructor(id: string, label: string, @IViewletService viewletService: IViewletService) {
+		super(id, label, viewletService);
+		this.class = 'search-action clear-search-results';
+		this.update();
+	}
+
+	update(): void {
+		const searchViewlet = this.getSearchViewlet();
+		this.enabled = searchViewlet && searchViewlet.hasSearchResults();
+	}
+
+	public run(): TPromise<void> {
+		const searchViewlet = this.getSearchViewlet();
+		if (searchViewlet) {
+			searchViewlet.clearSearchResults();
+		}
 		return TPromise.as(null);
 	}
 }

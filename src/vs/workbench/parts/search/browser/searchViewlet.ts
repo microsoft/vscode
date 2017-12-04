@@ -17,7 +17,7 @@ import URI from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import * as paths from 'vs/base/common/paths';
 import dom = require('vs/base/browser/dom');
-import { IAction, Action } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
 import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
@@ -45,7 +45,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { PatternInputWidget, ExcludePatternInputWidget } from 'vs/workbench/parts/search/browser/patternInputWidget';
 import { SearchRenderer, SearchDataSource, SearchSorter, SearchAccessibilityProvider, SearchFilter } from 'vs/workbench/parts/search/browser/searchResultsView';
 import { SearchWidget, ISearchWidgetOptions } from 'vs/workbench/parts/search/browser/searchWidget';
-import { RefreshAction, CollapseDeepestExpandedLevelAction, ClearSearchResultsAction } from 'vs/workbench/parts/search/browser/searchActions';
+import { RefreshAction, CollapseDeepestExpandedLevelAction, ClearSearchResultsAction, SearchAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import Severity from 'vs/base/common/severity';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -80,8 +80,9 @@ export class SearchViewlet extends Viewlet {
 	private fileMatchFocused: IContextKey<boolean>;
 	private folderMatchFocused: IContextKey<boolean>;
 	private matchFocused: IContextKey<boolean>;
+	private searchSubmitted: boolean;
 
-	private actionRegistry: { [key: string]: Action; };
+	private actions: SearchAction[] = [];
 	private tree: ITree;
 	private viewletSettings: any;
 	private messages: Builder;
@@ -247,11 +248,11 @@ export class SearchViewlet extends Viewlet {
 
 		this.createSearchResultsView(builder);
 
-		this.actionRegistry = {};
-		let actions: Action[] = [new CollapseDeepestExpandedLevelAction(this), new RefreshAction(this), new ClearSearchResultsAction(this)];
-		actions.forEach((action) => {
-			this.actionRegistry[action.id] = action;
-		});
+		this.actions = [
+			this.instantiationService.createInstance(RefreshAction, RefreshAction.ID, RefreshAction.LABEL),
+			this.instantiationService.createInstance(CollapseDeepestExpandedLevelAction, CollapseDeepestExpandedLevelAction.ID, CollapseDeepestExpandedLevelAction.LABEL),
+			this.instantiationService.createInstance(ClearSearchResultsAction, ClearSearchResultsAction.ID, ClearSearchResultsAction.LABEL)
+		];
 
 		if (filePatterns !== '' || patternExclusions !== '' || patternIncludes !== '' || queryDetailsExpanded !== '' || !useExcludesAndIgnoreFiles) {
 			this.toggleQueryDetails(true, true, true);
@@ -272,6 +273,12 @@ export class SearchViewlet extends Viewlet {
 
 	public get searchExcludePattern(): PatternInputWidget {
 		return this.inputPatternExcludes;
+	}
+
+	private updateActions(): void {
+		for (const action of this.actions) {
+			action.update();
+		}
 	}
 
 	private createSearchWidget(builder: Builder): void {
@@ -772,6 +779,14 @@ export class SearchViewlet extends Viewlet {
 		return this.tree;
 	}
 
+	public isSearchSubmitted(): boolean {
+		return this.searchSubmitted;
+	}
+
+	public hasSearchResults(): boolean {
+		return !this.viewModel.searchResult.isEmpty();
+	}
+
 	public clearSearchResults(): void {
 		this.viewModel.searchResult.clear();
 		this.showEmptyStage();
@@ -1080,9 +1095,8 @@ export class SearchViewlet extends Viewlet {
 
 			let hasResults = !this.viewModel.searchResult.isEmpty();
 
-			this.actionRegistry['refresh'].enabled = true;
-			this.actionRegistry['vs.tree.collapse'].enabled = hasResults;
-			this.actionRegistry['clearSearchResults'].enabled = hasResults;
+			this.searchSubmitted = true;
+			this.updateActions();
 
 			if (completed && completed.limitHit) {
 				this.searchWidget.searchInput.showMessage({
@@ -1254,10 +1268,7 @@ export class SearchViewlet extends Viewlet {
 				this.updateSearchResultCount();
 			}
 			if (fileCount > 0) {
-				// since we have results now, enable some actions
-				if (!this.actionRegistry['vs.tree.collapse'].enabled) {
-					this.actionRegistry['vs.tree.collapse'].enabled = true;
-				}
+				this.updateActions();
 			}
 		}, 100);
 
@@ -1317,9 +1328,8 @@ export class SearchViewlet extends Viewlet {
 	private showEmptyStage(): void {
 
 		// disable 'result'-actions
-		this.actionRegistry['refresh'].enabled = false;
-		this.actionRegistry['vs.tree.collapse'].enabled = false;
-		this.actionRegistry['clearSearchResults'].enabled = false;
+		this.searchSubmitted = false;
+		this.updateActions();
 
 		// clean up ui
 		// this.replaceService.disposeAllReplacePreviews();
@@ -1423,11 +1433,7 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	public getActions(): IAction[] {
-		return [
-			this.actionRegistry['refresh'],
-			this.actionRegistry['vs.tree.collapse'],
-			this.actionRegistry['clearSearchResults']
-		];
+		return this.actions;
 	}
 
 	public shutdown(): void {

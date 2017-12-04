@@ -301,6 +301,10 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.FocusNextSearchResultAction, searchActions.FocusNextSearchResultAction.ID, searchActions.FocusNextSearchResultAction.LABEL, { primary: KeyCode.F4 }), 'Focus Next Search Result', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.FocusPreviousSearchResultAction, searchActions.FocusPreviousSearchResultAction.ID, searchActions.FocusPreviousSearchResultAction.LABEL, { primary: KeyMod.Shift | KeyCode.F4 }), 'Focus Previous Search Result', category);
 
+registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.RefreshAction, searchActions.RefreshAction.ID, searchActions.RefreshAction.LABEL), 'Refresh', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.CollapseDeepestExpandedLevelAction, searchActions.CollapseDeepestExpandedLevelAction.ID, searchActions.CollapseDeepestExpandedLevelAction.LABEL), 'Collapse All', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(searchActions.ClearSearchResultsAction, searchActions.ClearSearchResultsAction.ID, searchActions.ClearSearchResultsAction.LABEL), 'Clear', category);
+
 KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
 	id: Constants.ToggleCaseSensitiveCommandId,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
