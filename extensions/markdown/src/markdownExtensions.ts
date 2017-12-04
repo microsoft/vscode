@@ -28,34 +28,59 @@ export function loadMarkdownExtensions(
 			continue;
 		}
 
-		const styles = contributes['markdown.previewStyles'];
-		if (styles && Array.isArray(styles)) {
-			for (const style of styles) {
-				try {
-					contentProvider.addStyle(resolveExtensionResources(extension, style));
-				} catch (e) {
-					// noop
-				}
-			}
-		}
+		tryLoadPreviewStyles(contributes, contentProvider, extension);
+		tryLoadPreviewScripts(contributes, contentProvider, extension);
+		tryLoadMarkdownItPlugins(contributes, extension, engine);
+	}
+}
 
-		const scripts = contributes['markdown.previewScripts'];
-		if (scripts && Array.isArray(scripts)) {
-			for (const script of scripts) {
-				try {
-					contentProvider.addScript(resolveExtensionResources(extension, script));
-				} catch (e) {
-					// noop
-				}
+function tryLoadMarkdownItPlugins(
+	contributes: any,
+	extension: vscode.Extension<any>,
+	engine: MarkdownEngine
+) {
+	if (contributes['markdown.markdownItPlugins']) {
+		extension.activate().then(() => {
+			if (extension.exports && extension.exports.extendMarkdownIt) {
+				engine.addPlugin((md: any) => extension.exports.extendMarkdownIt(md));
 			}
-		}
+		});
+	}
+}
 
-		if (contributes['markdown.markdownItPlugins']) {
-			extension.activate().then(() => {
-				if (extension.exports && extension.exports.extendMarkdownIt) {
-					engine.addPlugin((md: any) => extension.exports.extendMarkdownIt(md));
-				}
-			});
+function tryLoadPreviewScripts(
+	contributes: any,
+	contentProvider: MDDocumentContentProvider,
+	extension: vscode.Extension<any>
+) {
+	const scripts = contributes['markdown.previewScripts'];
+	if (scripts && Array.isArray(scripts)) {
+		for (const script of scripts) {
+			try {
+				contentProvider.addScript(resolveExtensionResources(extension, script));
+			}
+			catch (e) {
+				// noop
+			}
 		}
 	}
 }
+
+function tryLoadPreviewStyles(
+	contributes: any,
+	contentProvider: MDDocumentContentProvider,
+	extension: vscode.Extension<any>
+) {
+	const styles = contributes['markdown.previewStyles'];
+	if (styles && Array.isArray(styles)) {
+		for (const style of styles) {
+			try {
+				contentProvider.addStyle(resolveExtensionResources(extension, style));
+			}
+			catch (e) {
+				// noop
+			}
+		}
+	}
+}
+
