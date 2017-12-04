@@ -2150,9 +2150,9 @@ grunt@0.4:
     underscore.string "~2.2.1"
     which "~1.0.5"
 
-gulp-atom-electron@^1.15.0:
-  version "1.15.0"
-  resolved "https://registry.yarnpkg.com/gulp-atom-electron/-/gulp-atom-electron-1.15.0.tgz#dcf9e6681c09b71edc2bce6d7872c31c16617f1a"
+gulp-atom-electron@1.15.1:
+  version "1.15.1"
+  resolved "https://registry.yarnpkg.com/gulp-atom-electron/-/gulp-atom-electron-1.15.1.tgz#ae13a4107a52e249d3335f584794981f5dcbf9be"
   dependencies:
     event-stream "^3.1.7"
     github-releases "^0.2.0"
