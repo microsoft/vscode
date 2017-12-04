@@ -93,7 +93,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 		if (platform.isWindows) {
 			promise = service.getMainProcessId()
 				.then(processId => {
-					logService.info('Sending some foreground love to the running instance:', processId);
+					logService.trace('Sending some foreground love to the running instance:', processId);
 
 					try {
 						const { allowSetForegroundWindow } = <any>require.__$__nodeRequire('windows-foreground-love');
@@ -168,7 +168,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 						});
 					}
 
-					logService.info('Sending env to running instance...');
+					logService.trace('Sending env to running instance...');
 
 					return allowSetForegroundWindow(service)
 						.then(() => service.start(environmentService.args, process.env))
@@ -201,7 +201,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 					try {
 						fs.unlinkSync(environmentService.mainIPCHandle);
 					} catch (e) {
-						logService.info('Fatal error deleting obsolete instance handle', e);
+						logService.warn('Could not delete obsolete instance handle', e);
 						return TPromise.wrapError<Server>(e);
 					}
 

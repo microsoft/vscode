@@ -141,7 +141,7 @@ export class EnvironmentService implements IEnvironmentService {
 					return LogLevel.Off;
 			}
 		}
-		return LogLevel.Warning;
+		return LogLevel.Info;
 	}
 
 	get wait(): boolean { return this._args.wait; }

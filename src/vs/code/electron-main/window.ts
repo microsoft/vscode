@@ -207,7 +207,7 @@ export class CodeWindow implements ICodeWindow {
 					}
 				}
 			} catch (err) {
-				this.logService.info(`Unexpected error fixing window position on windows with multiple windows: ${err}\n${err.stack}`);
+				this.logService.warn(`Unexpected error fixing window position on windows with multiple windows: ${err}\n${err.stack}`);
 			}
 		}
 
@@ -680,7 +680,7 @@ export class CodeWindow implements ICodeWindow {
 			try {
 				state = this.validateWindowState(state);
 			} catch (err) {
-				this.logService.info(`Unexpected error validating window state: ${err}\n${err.stack}`); // somehow display API can be picky about the state to validate
+				this.logService.warn(`Unexpected error validating window state: ${err}\n${err.stack}`); // somehow display API can be picky about the state to validate
 			}
 		}
 

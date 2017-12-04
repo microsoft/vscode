@@ -270,10 +270,10 @@ export class UpdateService implements IUpdateService {
 			return TPromise.as(null);
 		}
 
-		this.logService.info('update#quitAndInstall(): before lifecycle quit()');
+		this.logService.trace('update#quitAndInstall(): before lifecycle quit()');
 
 		this.lifecycleService.quit(true /* from update */).done(vetod => {
-			this.logService.info(`update#quitAndInstall(): after lifecycle quit() with veto: ${vetod}`);
+			this.logService.trace(`update#quitAndInstall(): after lifecycle quit() with veto: ${vetod}`);
 			if (vetod) {
 				return;
 			}
@@ -282,11 +282,11 @@ export class UpdateService implements IUpdateService {
 			// we workaround this issue by forcing an explicit flush of the storage data.
 			// see also https://github.com/Microsoft/vscode/issues/172
 			if (process.platform === 'darwin') {
-				this.logService.info('update#quitAndInstall(): calling flushStorageData()');
+				this.logService.trace('update#quitAndInstall(): calling flushStorageData()');
 				electron.session.defaultSession.flushStorageData();
 			}
 
-			this.logService.info('update#quitAndInstall(): running raw#quitAndInstall()');
+			this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 			this.raw.quitAndInstall();
 		});
 
