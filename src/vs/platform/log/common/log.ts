@@ -48,37 +48,37 @@ export class LegacyLogMainService implements ILogService {
 
 	trace(message: string, ...args: any[]): void {
 		if (this.level <= LogLevel.Trace) {
-			console.log(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, ...args);
+			console.log(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, message, ...args);
 		}
 	}
 
 	debug(message: string, ...args: any[]): void {
 		if (this.level <= LogLevel.Debug) {
-			console.log(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, ...args);
+			console.log(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, message, ...args);
 		}
 	}
 
 	info(message: string, ...args: any[]): void {
 		if (this.level <= LogLevel.Info) {
-			console.log(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, ...args);
+			console.log(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, message, ...args);
 		}
 	}
 
 	warn(message: string | Error, ...args: any[]): void {
 		if (this.level <= LogLevel.Warning) {
-			console.warn(`\x1b[93m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, ...args);
+			console.warn(`\x1b[93m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, message, ...args);
 		}
 	}
 
 	error(message: string, ...args: any[]): void {
 		if (this.level <= LogLevel.Error) {
-			console.error(`\x1b[91m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, ...args);
+			console.error(`\x1b[91m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, message, ...args);
 		}
 	}
 
 	critical(message: string, ...args: any[]): void {
 		if (this.level <= LogLevel.Critical) {
-			console.error(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, ...args);
+			console.error(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, message, ...args);
 		}
 	}
 }
