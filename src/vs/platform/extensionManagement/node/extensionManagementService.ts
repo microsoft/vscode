@@ -41,6 +41,7 @@ const INSTALL_ERROR_DOWNLOADING = 'downloading';
 const INSTALL_ERROR_VALIDATING = 'validating';
 const INSTALL_ERROR_GALLERY = 'gallery';
 const INSTALL_ERROR_LOCAL = 'local';
+const INSTALL_ERROR_EXTRACTING = 'extracting';
 const INSTALL_ERROR_UNKNOWN = 'unknown';
 
 export class InstallationError extends Error {
@@ -201,16 +202,10 @@ export class ExtensionManagementService implements IExtensionManagementService {
 				}
 				return this.downloadAndInstallExtensions(extensionsToInstall)
 					.then(
-					local => this.onDidInstallExtensions(extensionsToInstall, local),
-					error => {
-						const errorCode = error instanceof InstallationError ? error.code : INSTALL_ERROR_UNKNOWN;
-						return this.onDidInstallExtensions(extensionsToInstall, null, errorCode, error);
-					});
+					locals => this.onDidInstallExtensions(extensionsToInstall, locals, []),
+					errors => this.onDidInstallExtensions(extensionsToInstall, [], errors));
 			},
-			error => {
-				const errorCode = error instanceof InstallationError ? error.code : INSTALL_ERROR_UNKNOWN;
-				return this.onDidInstallExtensions([extension], null, errorCode, error);
-			});
+			error => this.onDidInstallExtensions([extension], [], [error]));
 	}
 
 	private collectExtensionsToInstall(extension: IGalleryExtension): TPromise<IGalleryExtension[]> {
@@ -236,11 +231,12 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private downloadAndInstallExtensions(extensions: IGalleryExtension[]): TPromise<ILocalExtension[]> {
 		return this.getInstalled(LocalExtensionType.User)
-			.then(installed => TPromise.join(extensions.map(extensionToInstall => this.downloadInstallableExtension(extensionToInstall, installed)))
-				.then(
-				installableExtensions => TPromise.join(installableExtensions.map(installableExtension => this.installExtension(installableExtension)))
-					.then(null, error => this.rollback(extensions).then(() => TPromise.wrapError(error))),
-				error => this.onDidInstallExtensions(extensions, null, INSTALL_ERROR_GALLERY, error)));
+			.then(
+			installed => TPromise.join(extensions.map(extensionToInstall =>
+				this.downloadInstallableExtension(extensionToInstall, installed)
+					.then(installableExtension => this.installExtension(installableExtension).then(null, e => TPromise.wrapError(new InstallationError(this.joinErrors(e).message, INSTALL_ERROR_EXTRACTING))))
+			)).then(null, errors => this.rollback(extensions).then(() => TPromise.wrapError(errors), () => TPromise.wrapError(errors))),
+			error => TPromise.wrapError<ILocalExtension[]>(new InstallationError(this.joinErrors(error).message, INSTALL_ERROR_LOCAL)));
 	}
 
 	private checkForObsolete(extensionsToInstall: IGalleryExtension[]): TPromise<IGalleryExtension[]> {
@@ -297,16 +293,19 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		}
 	}
 
-	private onDidInstallExtensions(extensions: IGalleryExtension[], local: ILocalExtension[], errorCode?: string, error?: any): TPromise<any> {
+	private onDidInstallExtensions(extensions: IGalleryExtension[], locals: ILocalExtension[], errors: Error[]): TPromise<any> {
 		extensions.forEach((gallery, index) => {
 			const identifier = { id: getLocalExtensionIdFromGallery(gallery, gallery.version), uuid: gallery.identifier.uuid };
-			if (errorCode) {
-				this._onDidInstallExtension.fire({ identifier, gallery, error: errorCode });
+			const local = locals[index];
+			const error = errors[index];
+			if (local) {
+				this._onDidInstallExtension.fire({ identifier, gallery, local });
 			} else {
-				this._onDidInstallExtension.fire({ identifier, gallery, local: local[index] });
+				const errorCode = error && error instanceof InstallationError ? error.code : INSTALL_ERROR_UNKNOWN;
+				this._onDidInstallExtension.fire({ identifier, gallery, error: errorCode });
 			}
 		});
-		return error ? TPromise.wrapError(this.joinErrors(error)) : TPromise.as(null);
+		return errors.length ? TPromise.wrapError(this.joinErrors(errors)) : TPromise.as(null);
 	}
 
 	private getDependenciesToInstall(dependencies: string[]): TPromise<IGalleryExtension[]> {
@@ -399,7 +398,6 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	private checkForRename(currentExtension: ILocalExtension, newExtension: ILocalExtension): TPromise<void> {
 		// Check if the gallery id for current and new exensions are same, if not, remove the current one.
 		if (currentExtension && getGalleryExtensionIdFromLocal(currentExtension) !== getGalleryExtensionIdFromLocal(newExtension)) {
-			// return this.uninstallExtension(currentExtension.identifier);
 			return this.setObsolete(currentExtension.identifier.id);
 		}
 		return TPromise.as(null);
