@@ -46,7 +46,7 @@ $processId2CpuLoad = @{}
 function Get-PerformanceCounters ($logicalProcessors) {
 	$counterError
 	# In a first round we get the performance counters and the process ids.
-	$counters =  (Get-Counter ("\Process(*)\% Processor Time", "\Process(*)\ID Process")).CounterSamples
+	$counters =  (Get-Counter ("\Process(*)\% Processor Time", "\Process(*)\ID Process") -ErrorAction SilentlyContinue).CounterSamples
 	$processKey2Id = @{}
 	foreach ($counter in $counters) {
 		if ($counter.Status -ne 0) {
@@ -78,7 +78,7 @@ function Get-PerformanceCounters ($logicalProcessors) {
 		}
 	}
 	# Now lets sample another 10 times but only the processor time
-	$samples = Get-Counter "\Process(*)\% Processor Time" -SampleInterval 1 -MaxSamples $MaxSamples
+	$samples = Get-Counter "\Process(*)\% Processor Time" -SampleInterval 1 -MaxSamples $MaxSamples -ErrorAction SilentlyContinue
 	for ($s = 0; $s -lt $samples.Count; $s++) {
 		$counters = $samples[$s].CounterSamples;
 		foreach ($counter in $counters) {
