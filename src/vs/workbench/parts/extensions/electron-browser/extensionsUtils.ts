@@ -173,38 +173,16 @@ export class BetterMergeDisabled implements IWorkbenchContribution {
 		extensionService.whenInstalledExtensionsRegistered().then(() => {
 			if (storageService.getBoolean(BetterMergeDisabledNowKey, StorageScope.GLOBAL, false)) {
 				storageService.remove(BetterMergeDisabledNowKey, StorageScope.GLOBAL);
-				/* __GDPR__
-					"betterMergeDisabled" : {}
-				*/
-				telemetryService.publicLog('betterMergeDisabled');
 				messageService.show(Severity.Info, {
 					message: localize('betterMergeDisabled', "The Better Merge extension is now built-in, the installed extension was disabled and can be uninstalled."),
 					actions: [
 						new Action('uninstall', localize('uninstall', "Uninstall"), null, true, () => {
-							/* __GDPR__
-								"betterMergeUninstall" : {
-									"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-								}
-							*/
-							telemetryService.publicLog('betterMergeUninstall', {
-								outcome: 'uninstall',
-							});
 							return extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
 								return Promise.all(extensions.filter(e => stripVersion(e.identifier.id) === BetterMergeId)
 									.map(e => extensionManagementService.uninstall(e, true)));
 							});
 						}),
-						new Action('later', localize('later', "Later"), null, true, () => {
-							/* __GDPR__
-								"betterMergeUninstall" : {
-									"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-								}
-							*/
-							telemetryService.publicLog('betterMergeUninstall', {
-								outcome: 'later',
-							});
-							return TPromise.as(true);
-						})
+						new Action('later', localize('later', "Later"), null, true)
 					]
 				});
 			}
