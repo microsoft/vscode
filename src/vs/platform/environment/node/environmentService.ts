@@ -12,6 +12,8 @@ import URI from 'vs/base/common/uri';
 import { memoize } from 'vs/base/common/decorators';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
+import { LogLevel } from 'vs/platform/log/common/log';
+import { toLocalISOString } from 'vs/base/common/date';
 
 // Read this before there's any chance it is overwritten
 // Related to https://github.com/Microsoft/vscode/issues/30624
@@ -48,6 +50,8 @@ export class EnvironmentService implements IEnvironmentService {
 	get appRoot(): string { return path.dirname(URI.parse(require.toUrl('')).fsPath); }
 
 	get execPath(): string { return this._execPath; }
+
+	readonly logsPath: string;
 
 	@memoize
 	get userHome(): string { return os.homedir(); }
@@ -112,6 +116,34 @@ export class EnvironmentService implements IEnvironmentService {
 
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
 	get verbose(): boolean { return this._args.verbose; }
+
+	@memoize
+	get logLevel(): LogLevel {
+		if (this.verbose) {
+			return LogLevel.Trace;
+		}
+		if (typeof this._args.log === 'string') {
+			const logLevel = this._args.log.toLowerCase();
+			switch (logLevel) {
+				case 'trace':
+					return LogLevel.Trace;
+				case 'debug':
+					return LogLevel.Debug;
+				case 'info':
+					return LogLevel.Info;
+				case 'warn':
+					return LogLevel.Warning;
+				case 'error':
+					return LogLevel.Error;
+				case 'critical':
+					return LogLevel.Critical;
+				case 'off':
+					return LogLevel.Off;
+			}
+		}
+		return LogLevel.Info;
+	}
+
 	get wait(): boolean { return this._args.wait; }
 	get logExtensionHostCommunication(): boolean { return this._args.logExtensionHostCommunication; }
 
@@ -129,7 +161,14 @@ export class EnvironmentService implements IEnvironmentService {
 	get disableUpdates(): boolean { return !!this._args['disable-updates']; }
 	get disableCrashReporter(): boolean { return !!this._args['disable-crash-reporter']; }
 
-	constructor(private _args: ParsedArgs, private _execPath: string) { }
+	constructor(private _args: ParsedArgs, private _execPath: string) {
+		if (!process.env['VSCODE_LOGS']) {
+			const key = toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '');
+			process.env['VSCODE_LOGS'] = path.join(this.userDataPath, 'logs', key);
+		}
+
+		this.logsPath = process.env['VSCODE_LOGS'];
+	}
 }
 
 export function parseExtensionHostPort(args: ParsedArgs, isBuild: boolean): IExtensionHostDebugParams {

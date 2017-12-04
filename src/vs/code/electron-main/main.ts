@@ -20,7 +20,7 @@ import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiati
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ILogService, LegacyLogMainService } from 'vs/platform/log/common/log';
+import { ILogService, LegacyLogMainService, MultiplexLogService, registerGlobalLogService } from 'vs/platform/log/common/log';
 import { StateService } from 'vs/platform/state/node/stateService';
 import { IStateService } from 'vs/platform/state/common/state';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
@@ -41,13 +41,23 @@ import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/work
 import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { localize } from 'vs/nls';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 import { printDiagnostics } from 'vs/code/electron-main/diagnostics';
 
 function createServices(args: ParsedArgs): IInstantiationService {
 	const services = new ServiceCollection();
 
-	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, args, process.execPath));
-	services.set(ILogService, new SyncDescriptor(LegacyLogMainService, 'main'));
+	const environmentService = new EnvironmentService(args, process.execPath);
+	const spdlogService = new SpdLogService('main', environmentService);
+	const legacyLogService = new LegacyLogMainService(environmentService);
+	const logService = new MultiplexLogService([legacyLogService, spdlogService]);
+	registerGlobalLogService(logService);
+
+	// Eventually cleanup
+	setTimeout(() => spdlogService.cleanup().then(null, err => console.error(err)), 10000);
+
+	services.set(IEnvironmentService, environmentService);
+	services.set(ILogService, logService);
 	services.set(IWorkspacesMainService, new SyncDescriptor(WorkspacesMainService));
 	services.set(IHistoryMainService, new SyncDescriptor(HistoryMainService));
 	services.set(ILifecycleService, new SyncDescriptor(LifecycleService));
@@ -64,7 +74,8 @@ function createPaths(environmentService: IEnvironmentService): TPromise<any> {
 	const paths = [
 		environmentService.appSettingsHome,
 		environmentService.extensionsPath,
-		environmentService.nodeCachedDataDir
+		environmentService.nodeCachedDataDir,
+		environmentService.logsPath
 	];
 	return TPromise.join(paths.map(p => p && mkdirp(p))) as TPromise<any>;
 }
@@ -82,7 +93,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 		if (platform.isWindows) {
 			promise = service.getMainProcessId()
 				.then(processId => {
-					logService.info('Sending some foreground love to the running instance:', processId);
+					logService.trace('Sending some foreground love to the running instance:', processId);
 
 					try {
 						const { allowSetForegroundWindow } = <any>require.__$__nodeRequire('windows-foreground-love');
@@ -157,7 +168,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 						});
 					}
 
-					logService.info('Sending env to running instance...');
+					logService.trace('Sending env to running instance...');
 
 					return allowSetForegroundWindow(service)
 						.then(() => service.start(environmentService.args, process.env))
@@ -190,7 +201,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 					try {
 						fs.unlinkSync(environmentService.mainIPCHandle);
 					} catch (e) {
-						logService.info('Fatal error deleting obsolete instance handle', e);
+						logService.warn('Could not delete obsolete instance handle', e);
 						return TPromise.wrapError<Server>(e);
 					}
 
@@ -258,7 +269,8 @@ function main() {
 		const environmentService = accessor.get(IEnvironmentService);
 		const instanceEnv: typeof process.env = {
 			VSCODE_IPC_HOOK: environmentService.mainIPCHandle,
-			VSCODE_NLS_CONFIG: process.env['VSCODE_NLS_CONFIG']
+			VSCODE_NLS_CONFIG: process.env['VSCODE_NLS_CONFIG'],
+			VSCODE_LOGS: process.env['VSCODE_LOGS']
 		};
 		assign(process.env, instanceEnv);
 

@@ -76,6 +76,7 @@ export interface IInitData {
 	extensions: IExtensionDescription[];
 	configuration: IConfigurationInitData;
 	telemetryInfo: ITelemetryInfo;
+	windowId: number;
 	args: ParsedArgs;
 	execPath: string;
 }

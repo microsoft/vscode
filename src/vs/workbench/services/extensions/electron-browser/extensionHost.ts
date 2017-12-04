@@ -367,7 +367,8 @@ export class ExtensionHostProcessWorker {
 				configuration: !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment ? { ...configurationData, configurationScopes: getScopes(this._configurationService.keys().default) } : configurationData,
 				telemetryInfo,
 				args: this._environmentService.args,
-				execPath: this._environmentService.execPath
+				execPath: this._environmentService.execPath,
+				windowId: this._windowService.getCurrentWindowId()
 			};
 			return r;
 		});

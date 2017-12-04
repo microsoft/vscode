@@ -11,7 +11,7 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import Event, { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { log, LogLevel, ILogService } from 'vs/platform/log/common/log';
+import { log, LogLevel } from 'vs/platform/log/common/log';
 
 export class CommandService extends Disposable implements ICommandService {
 
@@ -25,15 +25,13 @@ export class CommandService extends Disposable implements ICommandService {
 	constructor(
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IExtensionService private _extensionService: IExtensionService,
-		@IContextKeyService private _contextKeyService: IContextKeyService,
-		// @ts-ignore
-		@ILogService private logService: ILogService
+		@IContextKeyService private _contextKeyService: IContextKeyService
 	) {
 		super();
 		this._extensionService.whenInstalledExtensionsRegistered().then(value => this._extensionHostIsReady = value);
 	}
 
-	@log(LogLevel.INFO, 'CommandService', (msg, id) => `${msg}(${id})`)
+	@log(LogLevel.Info, 'CommandService', (msg, id) => `${msg}(${id})`)
 	executeCommand<T>(id: string, ...args: any[]): TPromise<T> {
 		// we always send an activation event, but
 		// we don't wait for it when the extension

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { LogLevel } from 'vs/platform/log/common/log';
 
 export interface ParsedArgs {
 	[arg: string]: any;
@@ -25,6 +26,7 @@ export interface ParsedArgs {
 	'prof-startup'?: string;
 	'prof-startup-prefix'?: string;
 	verbose?: boolean;
+	log?: string;
 	logExtensionHostCommunication?: boolean;
 	'disable-extensions'?: boolean;
 	'extensions-dir'?: string;
@@ -100,9 +102,13 @@ export interface IEnvironmentService {
 	logExtensionHostCommunication: boolean;
 
 	isBuilt: boolean;
-	verbose: boolean;
 	wait: boolean;
 	performance: boolean;
+
+	// logging
+	logsPath: string;
+	verbose: boolean;
+	logLevel: LogLevel;
 
 	skipGettingStarted: boolean | undefined;
 
