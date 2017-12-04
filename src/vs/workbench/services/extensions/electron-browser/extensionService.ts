@@ -6,6 +6,7 @@
 
 import * as nls from 'vs/nls';
 import * as errors from 'vs/base/common/errors';
+import * as objects from 'vs/base/common/objects';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import pkg from 'vs/platform/node/package';
@@ -19,7 +20,7 @@ import { IExtensionEnablementService, IExtensionIdentifier, EnablementState } fr
 import { areSameExtensions, BetterMergeId, BetterMergeDisabledNowKey } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionsRegistry, ExtensionPoint, IExtensionPointUser, ExtensionMessageCollector, IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ExtensionScanner, ILog, ExtensionScannerInput } from 'vs/workbench/services/extensions/electron-browser/extensionPoints';
-import { IMessageService } from 'vs/platform/message/common/message';
+import { IMessageService, CloseAction } from 'vs/platform/message/common/message';
 import { ProxyIdentifier } from 'vs/workbench/services/thread/common/threadService';
 import { ExtHostContext, ExtHostExtensionServiceShape, IExtHostContext, MainContext } from 'vs/workbench/api/node/extHost.protocol';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -38,6 +39,7 @@ import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/
 import { Barrier } from 'vs/base/common/async';
 import Event, { Emitter } from 'vs/base/common/event';
 import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-browser/extensionHostProfiler';
+import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
 
@@ -380,7 +382,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			this._logOrShowMessage(severity, this._isDev ? messageWithSource2(source, message) : message);
 		});
 
-		return ExtensionService._scanInstalledExtensions(this._environmentService, log)
+		return ExtensionService._scanInstalledExtensions(this._instantiationService, this._messageService, this._environmentService, log)
 			.then(({ system, user, development }) => {
 				this._extensionEnablementService.migrateToIdentifiers(user); // TODO: @sandy Remove it after couple of milestones
 				return this._extensionEnablementService.getDisabledExtensions()
@@ -468,46 +470,104 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		}
 	}
 
-	private static async _scanExtensionsCached(environmentService: IEnvironmentService, cacheKey: string, input: ExtensionScannerInput, log: ILog): TPromise<IExtensionDescription[]> {
+	private static async _validateExtensionsCache(instantiationService: IInstantiationService, messageService: IMessageService, environmentService: IEnvironmentService, cacheKey: string, input: ExtensionScannerInput): TPromise<void> {
+		const cacheFolder = path.join(environmentService.userDataPath, 'CachedExtensions');
+		const cacheFile = path.join(cacheFolder, cacheKey);
+
+		const expected = await ExtensionScanner.scanExtensions(input, new NullLogger());
+
+		const cacheContents = await this._readExtensionCache(environmentService, cacheKey);
+		const actual = cacheContents.result;
+
+		if (objects.equals(expected, actual)) {
+			// Cache is valid and running with it is perfectly fine...
+			return;
+		}
+
+		try {
+			await pfs.del(cacheFile);
+		} catch (err) {
+			errors.onUnexpectedError(err);
+			console.error(err);
+		}
+
+		let message = nls.localize('extensionCache.invalid', "Extensions have been modified on disk. Please reload the window.");
+		messageService.show(Severity.Info, {
+			message: message,
+			actions: [
+				instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, ReloadWindowAction.LABEL),
+				CloseAction
+			]
+		});
+	}
+
+	private static async _readExtensionCache(environmentService: IEnvironmentService, cacheKey: string): TPromise<IExtensionCacheData> {
 		const cacheFolder = path.join(environmentService.userDataPath, 'CachedExtensions');
 		const cacheFile = path.join(cacheFolder, cacheKey);
 
 		try {
 			const cacheRawContents = await pfs.readFile(cacheFile, 'utf8');
-			const cacheContents: IExtensionCacheData = JSON.parse(cacheRawContents);
-			if (ExtensionScannerInput.equals(cacheContents.input, input)) {
-				// TODO: async validate cache!!!
-				return cacheContents.result;
-			}
+			return JSON.parse(cacheRawContents);
 		} catch (err) {
 			// That's ok...
+		}
+
+		return null;
+	}
+
+	private static async _writeExtensionCache(environmentService: IEnvironmentService, cacheKey: string, cacheContents: IExtensionCacheData): TPromise<void> {
+		const cacheFolder = path.join(environmentService.userDataPath, 'CachedExtensions');
+		const cacheFile = path.join(cacheFolder, cacheKey);
+
+		try {
+			await pfs.mkdirp(cacheFolder);
+		} catch (err) {
+			// That's ok...
+		}
+
+		try {
+			await pfs.writeFile(cacheFile, JSON.stringify(cacheContents));
+		} catch (err) {
+			// That's ok...
+		}
+	}
+
+	private static async _scanExtensionsWithCache(instantiationService: IInstantiationService, messageService: IMessageService, environmentService: IEnvironmentService, cacheKey: string, input: ExtensionScannerInput, log: ILog): TPromise<IExtensionDescription[]> {
+		const cacheContents = await this._readExtensionCache(environmentService, cacheKey);
+		if (cacheContents && ExtensionScannerInput.equals(cacheContents.input, input)) {
+			// Validate the cache asynchronously after 5s
+			setTimeout(async () => {
+				try {
+					await this._validateExtensionsCache(instantiationService, messageService, environmentService, cacheKey, input);
+				} catch (err) {
+					errors.onUnexpectedError(err);
+				}
+			}, 5000);
+			return cacheContents.result;
 		}
 
 		const counterLogger = new CounterLogger(log);
 		const result = await ExtensionScanner.scanExtensions(input, counterLogger);
 		if (!true && counterLogger.errorCnt === 0) {
 			// Nothing bad happened => cache the result
-			try {
-				const cacheContents: IExtensionCacheData = {
-					input: input,
-					result: result
-				};
-				await pfs.mkdirp(cacheFolder);
-				await pfs.writeFile(cacheFile, JSON.stringify(cacheContents));
-			} catch (err) {
-				// That's ok...
-			}
+			const cacheContents: IExtensionCacheData = {
+				input: input,
+				result: result
+			};
+			await this._writeExtensionCache(environmentService, cacheKey, cacheContents);
 		}
 
 		return result;
 	}
 
-	private static _scanInstalledExtensions(environmentService: IEnvironmentService, log: ILog): TPromise<{ system: IExtensionDescription[], user: IExtensionDescription[], development: IExtensionDescription[] }> {
+	private static _scanInstalledExtensions(instantiationService: IInstantiationService, messageService: IMessageService, environmentService: IEnvironmentService, log: ILog): TPromise<{ system: IExtensionDescription[], user: IExtensionDescription[], development: IExtensionDescription[] }> {
 		const version = pkg.version;
 		const devMode = !!process.env['VSCODE_DEV'];
 		const locale = platform.locale;
 
-		const builtinExtensions = this._scanExtensionsCached(
+		const builtinExtensions = this._scanExtensionsWithCache(
+			instantiationService,
+			messageService,
 			environmentService,
 			'builtin',
 			new ExtensionScannerInput(version, locale, devMode, SystemExtensionsRoot, true),
@@ -517,7 +577,9 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		const userExtensions = (
 			environmentService.disableExtensions || !environmentService.extensionsPath
 				? TPromise.as([])
-				: this._scanExtensionsCached(
+				: this._scanExtensionsWithCache(
+					instantiationService,
+					messageService,
 					environmentService,
 					'user',
 					new ExtensionScannerInput(version, locale, devMode, environmentService.extensionsPath, false),
@@ -647,7 +709,7 @@ export class Logger implements ILog {
 	}
 }
 
-export class CounterLogger implements ILog {
+class CounterLogger implements ILog {
 
 	public errorCnt = 0;
 	public warnCnt = 0;
@@ -666,5 +728,14 @@ export class CounterLogger implements ILog {
 
 	public info(source: string, message: string): void {
 		this._actual.info(source, message);
+	}
+}
+
+class NullLogger implements ILog {
+	public error(source: string, message: string): void {
+	}
+	public warn(source: string, message: string): void {
+	}
+	public info(source: string, message: string): void {
 	}
 }

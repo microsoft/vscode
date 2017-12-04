@@ -359,9 +359,15 @@ export class ExtensionScanner {
 			}
 
 			const nlsConfig = ExtensionScannerInput.createNLSConfig(input);
-			const extensionDescriptions = await TPromise.join(folders.map(f => this.scanExtension(input.ourVersion, log, join(absoluteFolderPath, f), isBuiltin, nlsConfig)));
-			return extensionDescriptions.filter(item => item !== null);
-
+			let extensionDescriptions = await TPromise.join(folders.map(f => this.scanExtension(input.ourVersion, log, join(absoluteFolderPath, f), isBuiltin, nlsConfig)));
+			extensionDescriptions = extensionDescriptions.filter(item => item !== null);
+			extensionDescriptions.sort((a, b) => {
+				if (a.extensionFolderPath < b.extensionFolderPath) {
+					return -1;
+				}
+				return 1;
+			});
+			return extensionDescriptions;
 		} catch (err) {
 			log.error(absoluteFolderPath, err);
 			return [];
