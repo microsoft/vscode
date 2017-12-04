@@ -107,6 +107,10 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 				console.log('Warning: The --status argument can only be used if Code is already running. Please run it again after Code has started.');
 			}
 
+			// Set the VSCODE_PID variable here when we are sure we are the first
+			// instance to startup. Otherwise we would wrongly overwrite the PID
+			process.env['VSCODE_PID'] = String(process.pid);
+
 			return server;
 		}, err => {
 			if (err.code !== 'EADDRINUSE') {
@@ -253,7 +257,6 @@ function main() {
 		// Patch `process.env` with the instance's environment
 		const environmentService = accessor.get(IEnvironmentService);
 		const instanceEnv: typeof process.env = {
-			VSCODE_PID: String(process.pid),
 			VSCODE_IPC_HOOK: environmentService.mainIPCHandle,
 			VSCODE_NLS_CONFIG: process.env['VSCODE_NLS_CONFIG']
 		};
