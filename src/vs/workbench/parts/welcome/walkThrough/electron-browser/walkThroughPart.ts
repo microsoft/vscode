@@ -210,18 +210,6 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	private open(uri: URI) {
-		if (uri.scheme === 'http' || uri.scheme === 'https') {
-			/* __GDPR__
-				"openExternal" : {
-					"uri" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			this.telemetryService.publicLog('openExternal', {
-				uri: uri.toString(true),
-				from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined
-			});
-		}
 		if (uri.scheme === 'command' && uri.path === 'git.clone' && !CommandsRegistry.getCommand('git.clone')) {
 			this.messageService.show(Severity.Info, localize('walkThrough.gitNotFound', "It looks like Git is not installed on your system."));
 			return;
