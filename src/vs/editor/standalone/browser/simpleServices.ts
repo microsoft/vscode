@@ -260,7 +260,7 @@ export class SimpleMessageService implements IMessageService {
 		// No-op
 	}
 
-	public confirmSync(confirmation: IConfirmation): boolean {
+	public confirm(confirmation: IConfirmation): boolean {
 		let messageText = confirmation.message;
 		if (confirmation.detail) {
 			messageText = messageText + '\n\n' + confirmation.detail;
@@ -269,8 +269,8 @@ export class SimpleMessageService implements IMessageService {
 		return window.confirm(messageText);
 	}
 
-	public confirm(confirmation: IConfirmation): TPromise<IConfirmationResult> {
-		return TPromise.as({ confirmed: this.confirmSync(confirmation) } as IConfirmationResult);
+	public confirmWithCheckbox(confirmation: IConfirmation): TPromise<IConfirmationResult> {
+		return TPromise.as({ confirmed: this.confirm(confirmation), checkboxChecked: false /* unsupported */ } as IConfirmationResult);
 	}
 }
 

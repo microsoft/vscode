@@ -21,5 +21,6 @@
 	"keybindings.json.command": "A végrehajtandó parancs neve",
 	"keybindings.json.when": "A billentyűparancs aktiválási feltétele.",
 	"keybindings.json.args": "A végrehajtandó parancs számára átadott argumentumok",
-	"keyboardConfigurationTitle": "Billentyűzet"
+	"keyboardConfigurationTitle": "Billentyűzet",
+	"dispatch": "Meghatározza, hogy a billentyűleütések észleléséhez a `code` (ajánlott) vagy `keyCode` esemény legyen használva."
 }

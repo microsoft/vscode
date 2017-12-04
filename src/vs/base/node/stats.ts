@@ -5,15 +5,50 @@
 
 'use strict';
 
-import { readdirSync, statSync } from 'fs';
+import { readdirSync, statSync, existsSync, readFileSync } from 'fs';
+import { join } from 'path';
 
 export interface WorkspaceStatItem {
 	name: string;
-	value: number;
+	count: number;
 }
+
 export interface WorkspaceStats {
 	fileTypes: WorkspaceStatItem[];
 	configFiles: WorkspaceStatItem[];
+}
+
+function asSortedItems(map: Map<string, number>): WorkspaceStatItem[] {
+	let a: WorkspaceStatItem[] = [];
+	map.forEach((value, index) => a.push({ name: index, count: value }));
+	return a.sort((a, b) => b.count - a.count);
+}
+
+export function collectLaunchConfigs(folder: string): WorkspaceStatItem[] {
+	let launchConfigs = new Map<string, number>();
+
+	let launchConfig = join(folder, '.vscode', 'launch.json');
+	if (existsSync(launchConfig)) {
+		try {
+			const contents = readFileSync(launchConfig).toString();
+			const json = JSON.parse(contents);
+			if (json['configurations']) {
+				for (const each of json['configurations']) {
+					const type = each['type'];
+					if (type) {
+						if (launchConfigs.has(type)) {
+							launchConfigs.set(type, launchConfigs.get(type) + 1);
+						}
+						else {
+							launchConfigs.set(type, 1);
+						}
+					}
+				}
+			}
+		} catch {
+		}
+	}
+	return asSortedItems(launchConfigs);
 }
 
 export function collectWorkspaceStats(folder: string, filter: string[]): WorkspaceStats {
@@ -42,9 +77,9 @@ export function collectWorkspaceStats(folder: string, filter: string[]): Workspa
 	let walkSync = (dir: string, acceptFile: (fileName: string) => void, filter: string[]) => {
 		let files = readdirSync(dir);
 		for (const file of files) {
-			if (statSync(dir + '/' + file).isDirectory()) {
+			if (statSync(join(dir, file)).isDirectory()) {
 				if (filter.indexOf(file) === -1) {
-					walkSync(dir + '/' + file, acceptFile, filter);
+					walkSync(join(dir, file), acceptFile, filter);
 				}
 			}
 			else {
@@ -82,12 +117,6 @@ export function collectWorkspaceStats(folder: string, filter: string[]): Workspa
 			}
 		}
 		addConfigFiles(name);
-	};
-
-	let asSortedItems = (map: Map<string, number>): WorkspaceStatItem[] => {
-		let a: WorkspaceStatItem[] = [];
-		map.forEach((value, index) => a.push({ name: index, value: value }));
-		return a.sort((a, b) => b.value - a.value);
 	};
 
 	walkSync(folder, acceptFile, filter);

@@ -693,7 +693,7 @@ export class BaseDeleteFileAction extends BaseFileAction {
 				message = nls.localize('dirtyMessageFileDelete', "You are deleting a file with unsaved changes. Do you want to continue?");
 			}
 
-			const res = this.messageService.confirmSync({
+			const res = this.messageService.confirm({
 				message,
 				type: 'warning',
 				detail: nls.localize('dirtyWarning', "Your changes will be lost if you don't save them."),
@@ -719,7 +719,7 @@ export class BaseDeleteFileAction extends BaseFileAction {
 
 			// Confirm for moving to trash
 			else if (this.useTrash) {
-				confirmPromise = this.messageService.confirm({
+				confirmPromise = this.messageService.confirmWithCheckbox({
 					message: this.element.isDirectory ? nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", this.element.name) : nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", this.element.name),
 					detail: isWindows ? nls.localize('undoBin', "You can restore from the recycle bin.") : nls.localize('undoTrash', "You can restore from the trash."),
 					primaryButton,
@@ -732,7 +732,7 @@ export class BaseDeleteFileAction extends BaseFileAction {
 
 			// Confirm for deleting permanently
 			else {
-				confirmPromise = this.messageService.confirm({
+				confirmPromise = this.messageService.confirmWithCheckbox({
 					message: this.element.isDirectory ? nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", this.element.name) : nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", this.element.name),
 					detail: nls.localize('irreversible', "This action is irreversible!"),
 					primaryButton,
@@ -861,7 +861,7 @@ export class ImportFileAction extends BaseFileAction {
 							type: 'warning'
 						};
 
-						overwrite = this.messageService.confirmSync(confirm);
+						overwrite = this.messageService.confirm(confirm);
 					}
 
 					if (!overwrite) {
@@ -1141,7 +1141,9 @@ export class OpenToSideAction extends Action {
 	public run(): TPromise<any> {
 
 		// Remove highlight
-		this.tree.clearHighlight();
+		if (this.tree) {
+			this.tree.clearHighlight();
+		}
 
 		// Set side input
 		return this.editorService.openEditor({
@@ -1713,7 +1715,7 @@ export class FocusOpenEditorsView extends Action {
 			const openEditorsView = viewlet.getOpenEditorsView();
 			if (openEditorsView) {
 				openEditorsView.setExpanded(true);
-				openEditorsView.getViewer().DOMFocus();
+				openEditorsView.getList().domFocus();
 			}
 		});
 	}

@@ -9,7 +9,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/platform/commands/common/commandService';
-import { IExtensionService, ExtensionPointContribution, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService, ExtensionPointContribution, IExtensionDescription, IExtensionHostInformation, ProfileSession } from 'vs/platform/extensions/common/extensions';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
@@ -24,6 +24,7 @@ class SimpleExtensionService implements IExtensionService {
 	get onDidRegisterExtensions(): Event<IExtensionDescription[]> {
 		return this._onDidRegisterExtensions.event;
 	}
+	onDidChangeExtensionsStatus = null;
 	activateByEvent(activationEvent: string): TPromise<void> {
 		return this.whenInstalledExtensionsRegistered().then(() => { });
 	}
@@ -36,11 +37,14 @@ class SimpleExtensionService implements IExtensionService {
 	getExtensionsStatus() {
 		return undefined;
 	}
-	getExtensionsActivationTimes() {
+	getExtensionHostInformation(): IExtensionHostInformation {
 		return undefined;
 	}
 	getExtensions(): TPromise<IExtensionDescription[]> {
 		return TPromise.wrap([]);
+	}
+	startExtensionHostProfile(): TPromise<ProfileSession> {
+		throw new Error('Not implemented');
 	}
 	restartExtensionHost(): void {
 	}

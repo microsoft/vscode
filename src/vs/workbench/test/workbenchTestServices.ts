@@ -214,7 +214,7 @@ export class TestTextFileService extends TextFileService {
 		});
 	}
 
-	public promptForPath(defaultPath?: string): string {
+	public promptForPath(defaultPath: string): string {
 		return this.promptPath;
 	}
 
@@ -328,11 +328,11 @@ export class TestMessageService implements IMessageService {
 		// No-op
 	}
 
-	public confirmSync(confirmation: IConfirmation): boolean {
+	public confirm(confirmation: IConfirmation): boolean {
 		return false;
 	}
 
-	public confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
+	public confirmWithCheckbox(confirmation: IConfirmation): Promise<IConfirmationResult> {
 		return TPromise.as({ confirmed: false });
 	}
 }

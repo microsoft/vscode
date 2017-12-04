@@ -11,6 +11,8 @@
 	"oneSettingFound": "1 个设置匹配",
 	"settingsFound": "{0} 个设置匹配",
 	"totalSettingsMessage": "总计 {0} 个设置",
+	"defaultSettings": "默认设置",
+	"defaultFolderSettings": "默认文件夹设置",
 	"defaultEditorReadonly": "在右侧编辑器中编辑以覆盖默认值。",
 	"preferencesAriaLabel": "默认首选项。只读文本编辑器。"
 }

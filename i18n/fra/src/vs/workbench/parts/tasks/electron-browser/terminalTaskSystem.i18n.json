@@ -7,6 +7,7 @@
 	"TerminalTaskSystem.unknownError": "Une erreur inconnue s'est produite durant l'exécution d'une tâche. Pour plus d'informations, consultez le journal de sortie des tâches.",
 	"dependencyFailed": "Impossible de résoudre la tâche dépendante '{0}' dans le dossier de l’espace de travail '{1}'",
 	"TerminalTaskSystem.terminalName": "Tâche - {0}",
+	"closeTerminal": "Appuyez sur n’importe quelle touche pour fermer le terminal.",
 	"reuseTerminal": "Le terminal sera réutilisé par les tâches, appuyez sur une touche pour le fermer.",
 	"TerminalTaskSystem": "Impossible d'exécuter une commande d'interpréteur de commandes sur un lecteur UNC.",
 	"unkownProblemMatcher": "Impossible de résoudre le détecteur de problèmes {0}. Le détecteur est ignoré"

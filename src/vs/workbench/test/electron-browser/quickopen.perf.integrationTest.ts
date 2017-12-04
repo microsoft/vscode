@@ -54,7 +54,7 @@ declare var __dirname: string;
 // git clone --separate-git-dir=testGit --no-checkout --single-branch https://chromium.googlesource.com/chromium/src testWorkspace
 // cd testWorkspace; git checkout 39a7f93d67f7
 // Run from repository root folder with (test.bat on Windows): ./scripts/test.sh --grep QuickOpen.performance --timeout 180000 --testWorkspace <path>
-suite('QuickOpen performance (integration)', () => {
+suite.skip('QuickOpen performance (integration)', () => {
 
 	test('Measure', () => {
 		if (process.env['VSCODE_PID']) {

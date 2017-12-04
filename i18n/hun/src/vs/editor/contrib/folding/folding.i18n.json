@@ -8,6 +8,7 @@
 	"unFoldRecursivelyAction.label": "Kibontás rekurzívan",
 	"foldAction.label": "Bezárás",
 	"foldRecursivelyAction.label": "Bezárás rekurzívan",
+	"foldAllBlockComments.label": "Összes megjegyzésblokk bezárása",
 	"foldAllAction.label": "Az összes bezárása",
 	"unfoldAllAction.label": "Az összes kinyitása",
 	"foldLevelAction.label": "{0} szintű blokkok bezárása"

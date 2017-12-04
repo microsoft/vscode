@@ -1457,48 +1457,48 @@ export class WindowsManager implements IWindowsMainService {
 
 		// Unresponsive
 		if (error === WindowError.UNRESPONSIVE) {
-			dialog.showMessageBox(window.win, {
+			const result = dialog.showMessageBox(window.win, {
 				title: product.nameLong,
 				type: 'warning',
 				buttons: [mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")), mnemonicButtonLabel(localize({ key: 'wait', comment: ['&& denotes a mnemonic'] }, "&&Keep Waiting")), mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
 				message: localize('appStalled', "The window is no longer responding"),
 				detail: localize('appStalledDetail', "You can reopen or close the window or keep waiting."),
 				noLink: true
-			}, result => {
-				if (!window.win) {
-					return; // Return early if the window has been going down already
-				}
-
-				if (result === 0) {
-					window.reload();
-				} else if (result === 2) {
-					this.onBeforeWindowClose(window); // 'close' event will not be fired on destroy(), so run it manually
-					window.win.destroy(); // make sure to destroy the window as it is unresponsive
-				}
 			});
+
+			if (!window.win) {
+				return; // Return early if the window has been going down already
+			}
+
+			if (result === 0) {
+				window.reload();
+			} else if (result === 2) {
+				this.onBeforeWindowClose(window); // 'close' event will not be fired on destroy(), so run it manually
+				window.win.destroy(); // make sure to destroy the window as it is unresponsive
+			}
 		}
 
 		// Crashed
 		else {
-			dialog.showMessageBox(window.win, {
+			const result = dialog.showMessageBox(window.win, {
 				title: product.nameLong,
 				type: 'warning',
 				buttons: [mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")), mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
 				message: localize('appCrashed', "The window has crashed"),
 				detail: localize('appCrashedDetail', "We are sorry for the inconvenience! You can reopen the window to continue where you left off."),
 				noLink: true
-			}, result => {
-				if (!window.win) {
-					return; // Return early if the window has been going down already
-				}
-
-				if (result === 0) {
-					window.reload();
-				} else if (result === 1) {
-					this.onBeforeWindowClose(window); // 'close' event will not be fired on destroy(), so run it manually
-					window.win.destroy(); // make sure to destroy the window as it has crashed
-				}
 			});
+
+			if (!window.win) {
+				return; // Return early if the window has been going down already
+			}
+
+			if (result === 0) {
+				window.reload();
+			} else if (result === 1) {
+				this.onBeforeWindowClose(window); // 'close' event will not be fired on destroy(), so run it manually
+				window.win.destroy(); // make sure to destroy the window as it has crashed
+			}
 		}
 	}
 
@@ -1654,21 +1654,20 @@ class FileDialog {
 
 		// Show Dialog
 		const focusedWindow = this.windowsMainService.getWindowById(options.windowId) || this.windowsMainService.getFocusedWindow();
-		dialog.showOpenDialog(focusedWindow && focusedWindow.win, options.dialogOptions, paths => {
-			if (paths && paths.length > 0) {
-				if (isMacintosh) {
-					paths = paths.map(path => normalizeNFC(path)); // normalize paths returned from the OS
-				}
-
-				// Remember path in storage for next time
-				this.stateService.setItem(FileDialog.workingDirPickerStorageKey, dirname(paths[0]));
-
-				// Return
-				return clb(paths);
+		let paths = dialog.showOpenDialog(focusedWindow && focusedWindow.win, options.dialogOptions);
+		if (paths && paths.length > 0) {
+			if (isMacintosh) {
+				paths = paths.map(path => normalizeNFC(path)); // normalize paths returned from the OS
 			}
 
-			return clb(void (0));
-		});
+			// Remember path in storage for next time
+			this.stateService.setItem(FileDialog.workingDirPickerStorageKey, dirname(paths[0]));
+
+			// Return
+			return clb(paths);
+		}
+
+		return clb(void (0));
 	}
 }
 

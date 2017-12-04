@@ -7,7 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
 import { asWinJsPromise } from 'vs/base/common/async';
-import { MainContext, MainThreadDebugServiceShape, ExtHostDebugServiceShape, DebugSessionUUID, IMainContext } from 'vs/workbench/api/node/extHost.protocol';
+import { MainContext, MainThreadDebugServiceShape, ExtHostDebugServiceShape, DebugSessionUUID, IMainContext, IBreakpointsDelta, ISourceBreakpointData, IFunctionBreakpointData } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 
 import * as vscode from 'vscode';
@@ -43,6 +43,11 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 	private _activeDebugConsole: ExtHostDebugConsole;
 	get activeDebugConsole(): ExtHostDebugConsole { return this._activeDebugConsole; }
 
+	private _breakpoints: Map<string, vscode.Breakpoint>;
+	private _breakpointEventsActive: boolean;
+
+	private _onDidChangeBreakpoints: Emitter<vscode.BreakpointsChangeEvent>;
+
 
 	constructor(mainContext: IMainContext, workspace: ExtHostWorkspace) {
 
@@ -58,7 +63,84 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 		this._debugServiceProxy = mainContext.get(MainContext.MainThreadDebugService);
 
+		this._onDidChangeBreakpoints = new Emitter<vscode.BreakpointsChangeEvent>({
+			onFirstListenerAdd: () => {
+				this.startBreakpoints();
+			}
+		});
+
 		this._activeDebugConsole = new ExtHostDebugConsole(this._debugServiceProxy);
+
+		this._breakpoints = new Map<string, vscode.Breakpoint>();
+		this._breakpointEventsActive = false;
+	}
+
+	private startBreakpoints() {
+		if (!this._breakpointEventsActive) {
+			this._breakpointEventsActive = true;
+			this._debugServiceProxy.$startBreakpointEvents();
+		}
+	}
+
+	get onDidChangeBreakpoints(): Event<vscode.BreakpointsChangeEvent> {
+		return this._onDidChangeBreakpoints.event;
+	}
+
+	get breakpoints(): vscode.Breakpoint[] {
+
+		this.startBreakpoints();
+
+		const result: vscode.Breakpoint[] = [];
+		this._breakpoints.forEach(bp => result.push(bp));
+		return result;
+	}
+
+	public $acceptBreakpointsDelta(delta: IBreakpointsDelta): void {
+
+		let a: vscode.Breakpoint[] = [];
+		let r: vscode.Breakpoint[] = [];
+		let c: vscode.Breakpoint[] = [];
+
+		if (delta.added) {
+			a = delta.added.map(bpd => {
+				const id = bpd.id;
+				this._breakpoints.set(id, this.fromWire(bpd));
+				return bpd;
+			});
+		}
+
+		if (delta.removed) {
+			r = delta.removed.map(id => {
+				const bp = this._breakpoints.get(id);
+				if (bp) {
+					this._breakpoints.delete(id);
+				}
+				return bp;
+			});
+		}
+
+		if (delta.changed) {
+			c = delta.changed.map(bpd => {
+				const id = bpd.id;
+				this._breakpoints.set(id, this.fromWire(bpd));
+				return bpd;
+			});
+		}
+
+		this._onDidChangeBreakpoints.fire(Object.freeze({
+			added: Object.freeze<vscode.Breakpoint[]>(a || []),
+			removed: Object.freeze<vscode.Breakpoint[]>(r || []),
+			changed: Object.freeze<vscode.Breakpoint[]>(c || [])
+		}));
+	}
+
+	private fromWire(bp: ISourceBreakpointData | IFunctionBreakpointData): vscode.Breakpoint {
+		delete bp.id;
+		if (bp.type === 'source') {
+			(<any>bp).source = URI.parse(bp.sourceUriStr);
+			delete bp.sourceUriStr;
+		}
+		return bp;
 	}
 
 	public registerDebugConfigurationProvider(type: string, provider: vscode.DebugConfigurationProvider): vscode.Disposable {
@@ -86,7 +168,6 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		}
 		return asWinJsPromise(token => handler.provideDebugConfigurations(this.getFolder(folderUri), token));
 	}
-
 
 	public $resolveDebugConfiguration(handle: number, folderUri: URI | undefined, debugConfiguration: vscode.DebugConfiguration): TPromise<vscode.DebugConfiguration> {
 		let handler = this._handlers.get(handle);

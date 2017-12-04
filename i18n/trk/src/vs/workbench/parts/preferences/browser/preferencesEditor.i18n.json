@@ -11,6 +11,8 @@
 	"oneSettingFound": "1 ayar eşleşti",
 	"settingsFound": "{0} ayar eşleşti",
 	"totalSettingsMessage": "Toplam {0} Ayar",
+	"defaultSettings": "Varsayılan Ayarlar",
+	"defaultFolderSettings": "Varsayılan Klasör Ayarları",
 	"defaultEditorReadonly": "Varsayılan ayarları geçersiz kılmak için sağ taraftaki düzeyicide düzenleme yapın.",
 	"preferencesAriaLabel": "Varsayılan tercihler. Salt okunabilir metin editörü."
 }

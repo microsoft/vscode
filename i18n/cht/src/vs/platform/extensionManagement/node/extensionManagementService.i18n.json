@@ -6,11 +6,10 @@
 {
 	"invalidManifest": "擴充功能無效: package.json 不是 JSON 檔案。",
 	"restartCodeLocal": "請先重新啟動 Code，再重新安裝 {0}。",
-	"restartCodeGallery": "重新安裝之前，請先重新啟動 Code。",
+	"cancel": "取消",
 	"uninstallDependeciesConfirmation": "只要將 '{0}' 解除安裝，或要包含其相依性?",
 	"uninstallOnly": "只有",
 	"uninstallAll": "全部",
-	"cancel": "取消",
 	"uninstallConfirmation": "確定要將 '{0}' 解除安裝嗎?",
 	"ok": "確定",
 	"singleDependentError": "無法將延伸模組 '{0}' 解除安裝。其為延伸模組 '{1}' 的相依對象。",

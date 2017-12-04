@@ -540,9 +540,9 @@ class FoldAllRegionsAction extends FoldingAction<void> {
 
 	constructor() {
 		super({
-			id: 'editor.foldAllRegions',
-			label: nls.localize('foldAllRegions.label', "Fold All Regions"),
-			alias: 'Fold All Regions',
+			id: 'editor.foldAllMarkerRegions',
+			label: nls.localize('foldAllMarkerRegions.label', "Fold All Marker Regions"),
+			alias: 'Fold All Marker Regions',
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textFocus,
@@ -564,9 +564,9 @@ class UnfoldAllRegionsAction extends FoldingAction<void> {
 
 	constructor() {
 		super({
-			id: 'editor.unfoldAllRegions',
-			label: nls.localize('unfoldAllRegions.label', "Unfold All Regions"),
-			alias: 'Unfold All Regions',
+			id: 'editor.unfoldAllMarkerRegions',
+			label: nls.localize('unfoldAllMarkerRegions.label', "Unfold All Marker Regions"),
+			alias: 'Unfold All Marker Regions',
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textFocus,

@@ -26,6 +26,7 @@
 	"editKeybindingLabel": "Billentyűparancs módosítása",
 	"addKeybindingLabelWithKey": "{0} billentyűparancs hozzáadása",
 	"addKeybindingLabel": "Billentyűparancs hozzáadása",
+	"title": "{0} ({1})",
 	"commandAriaLabel": "Parancs: {0}.",
 	"keybindingAriaLabel": "Billentyűparancs: {0}.",
 	"noKeybinding": "Nincs billentyűparancs hozzárendelve.",

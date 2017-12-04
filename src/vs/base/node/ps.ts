@@ -75,7 +75,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 						return 'shared-process';
 					}
 
-					return `renderer`;
+					return `window`;
 				}
 				return matches[1];
 			}

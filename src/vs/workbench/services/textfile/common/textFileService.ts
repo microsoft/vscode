@@ -94,7 +94,7 @@ export abstract class TextFileService implements ITextFileService {
 
 	abstract resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent>;
 
-	abstract promptForPath(defaultPath?: string): string;
+	abstract promptForPath(defaultPath: string): string;
 
 	abstract confirmSave(resources?: URI[]): ConfirmResult;
 
@@ -624,6 +624,11 @@ export abstract class TextFileService implements ITextFileService {
 		const lastActiveFile = this.historyService.getLastActiveFile();
 		if (lastActiveFile) {
 			return URI.file(paths.join(paths.dirname(lastActiveFile.fsPath), untitledFileName)).fsPath;
+		}
+
+		const lastActiveFolder = this.historyService.getLastActiveWorkspaceRoot('file');
+		if (lastActiveFolder) {
+			return URI.file(paths.join(lastActiveFolder.fsPath, untitledFileName)).fsPath;
 		}
 
 		return untitledFileName;

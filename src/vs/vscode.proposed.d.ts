@@ -247,4 +247,84 @@ declare module 'vscode' {
 		 */
 		provideCodeActions2?(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): ProviderResult<(Command | CodeAction)[]>;
 	}
+
+	export namespace debug {
+
+		/**
+		 * List of breakpoints.
+		 *
+		 * @readonly
+		 */
+		export let breakpoints: Breakpoint[];
+
+		/**
+		 * An event that is emitted when a breakpoint is added, removed, or changed.
+		 */
+		export const onDidChangeBreakpoints: Event<BreakpointsChangeEvent>;
+	}
+
+	/**
+	 * An event describing a change to the set of [breakpoints](#debug.Breakpoint).
+	 */
+	export interface BreakpointsChangeEvent {
+		/**
+		 * Added breakpoints.
+		 */
+		readonly added: Breakpoint[];
+
+		/**
+		 * Removed breakpoints.
+		 */
+		readonly removed: Breakpoint[];
+
+		/**
+		 * Changed breakpoints.
+		 */
+		readonly changed: Breakpoint[];
+	}
+
+	export interface Breakpoint {
+		/**
+		 * Type of breakpoint.
+		 */
+		readonly type: 'source' | 'function';
+		/**
+		 * Is breakpoint enabled.
+		 */
+		readonly enabled: boolean;
+		/**
+		 * An optional expression for conditional breakpoints.
+		 */
+		readonly condition?: string;
+		/**
+		 * An optional expression that controls how many hits of the breakpoint are ignored.
+		 */
+		readonly hitCondition?: string;
+	}
+
+	export interface SourceBreakpoint extends Breakpoint {
+		/**
+		 * Breakpoint type 'source'.
+		 */
+		readonly type: 'source';
+		/**
+		 * The source to which this breakpoint is attached.
+		 */
+		readonly source: Uri;
+		/**
+		 * The line and character position of the breakpoint.
+		 */
+		readonly location: Position;
+	}
+
+	export interface FunctionBreakpoint extends Breakpoint {
+		/**
+		 * Breakpoint type 'function'.
+		 */
+		readonly type: 'function';
+		/**
+		 * The name of the function to which this breakpoint is attached.
+		 */
+		readonly functionName: string;
+	}
 }

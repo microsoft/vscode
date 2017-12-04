@@ -17,7 +17,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/node/product';
-import pkg from 'vs/platform/node/package';
 import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState, IRunActionInWindowRequest } from 'vs/platform/windows/common/windows';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
@@ -26,6 +25,7 @@ import { IWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/worksp
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
 import { mark, exportEntries } from 'vs/base/common/performance';
+import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 
 export interface IWindowState {
 	width?: number;
@@ -97,6 +97,8 @@ export class CodeWindow implements ICodeWindow {
 	private currentConfig: IWindowConfiguration;
 	private pendingLoadConfig: IWindowConfiguration;
 
+	private marketplaceHeadersPromise: TPromise<object>;
+
 	private touchBarGroups: Electron.TouchBarSegmentedControl[];
 
 	constructor(
@@ -122,6 +124,9 @@ export class CodeWindow implements ICodeWindow {
 
 		// macOS: touch bar support
 		this.createTouchBar();
+
+		// Request handling
+		this.handleMarketplaceRequests();
 
 		// Eventing
 		this.registerListeners();
@@ -330,17 +335,21 @@ export class CodeWindow implements ICodeWindow {
 		return this._readyState;
 	}
 
-	private registerListeners(): void {
-		const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
-		const headers = {
-			'X-Market-Client-Id': `VSCode ${pkg.version}`,
-			'User-Agent': `VSCode ${pkg.version}`,
-			'X-Market-User-Id': this.environmentService.machineUUID
-		};
+	private handleMarketplaceRequests(): void {
 
+		// Resolve marketplace headers
+		this.marketplaceHeadersPromise = resolveMarketplaceHeaders(this.environmentService);
+
+		// Inject headers when requests are incoming
+		const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
 		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, (details: any, cb: any) => {
-			cb({ cancel: false, requestHeaders: objects.assign(details.requestHeaders, headers) });
+			this.marketplaceHeadersPromise.done(headers => {
+				cb({ cancel: false, requestHeaders: objects.assign(details.requestHeaders, headers) });
+			});
 		});
+	}
+
+	private registerListeners(): void {
 
 		// Prevent loading of svgs
 		this._win.webContents.session.webRequest.onBeforeRequest(null, (details, callback) => {

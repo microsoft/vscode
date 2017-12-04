@@ -26,6 +26,7 @@
 	"editKeybindingLabel": "Tastenzuordnung ändern",
 	"addKeybindingLabelWithKey": "Tastenbindung hinzufügen {0}",
 	"addKeybindingLabel": "Tastenzuordnung hinzufügen",
+	"title": "{0} ({1})",
 	"commandAriaLabel": "Befehl: {0}.",
 	"keybindingAriaLabel": "Tastenzuordnung: {0}.",
 	"noKeybinding": "Keine Tastenzuordnung zugewiesen.",

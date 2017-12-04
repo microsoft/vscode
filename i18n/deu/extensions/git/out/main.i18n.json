@@ -6,7 +6,7 @@
 {
 	"looking": "Suchen nach Git in: {0}",
 	"using git": "Verwenden von Git {0} von {1}",
-	"updateGit": "Git aktualisieren",
 	"neverShowAgain": "Nicht mehr anzeigen",
+	"updateGit": "Git aktualisieren",
 	"git20": "Sie haben anscheinend Git {0} installiert. Code funktioniert am besten mit Git 2 oder neuer"
 }

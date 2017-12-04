@@ -75,7 +75,7 @@ export class TypeScriptFormattingProvider implements DocumentRangeFormattingEdit
 		if (!filepath) {
 			return [];
 		}
-		let args: Proto.FormatOnKeyRequestArgs = {
+		const args: Proto.FormatOnKeyRequestArgs = {
 			file: filepath,
 			line: position.line + 1,
 			offset: position.character + 1,

@@ -220,7 +220,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 			message = nls.localize('terminalService.terminalCloseConfirmationPlural', "There are {0} active terminal sessions, do you want to kill them?", this.terminalInstances.length);
 		}
 
-		return !this._messageService.confirmSync({
+		return !this._messageService.confirm({
 			message,
 			type: 'warning',
 		});

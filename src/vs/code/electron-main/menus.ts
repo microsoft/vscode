@@ -939,7 +939,7 @@ export class CodeMenu {
 
 		let reportIssuesItem: Electron.MenuItem = null;
 		if (product.reportIssueUrl) {
-			const label = nls.localize({ key: 'miReportIssues', comment: ['&& denotes a mnemonic'] }, "Report &&Issues");
+			const label = nls.localize({ key: 'miReportIssue', comment: ['&& denotes a mnemonic', 'Translate this to "Report Issue in English" in all languages please!'] }, "Report &&Issue");
 
 			if (this.windowsMainService.getWindowCount() > 0) {
 				reportIssuesItem = this.createMenuItem(label, 'workbench.action.reportIssues');
@@ -1215,18 +1215,18 @@ export class CodeMenu {
 			buttons.push(mnemonicButtonLabel(nls.localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"))); // https://github.com/Microsoft/vscode/issues/37608
 		}
 
-		dialog.showMessageBox(lastActiveWindow && lastActiveWindow.win, {
+		const result = dialog.showMessageBox(lastActiveWindow && lastActiveWindow.win, {
 			title: product.nameLong,
 			type: 'info',
 			message: product.nameLong,
 			detail: `\n${detail}`,
 			buttons,
 			noLink: true
-		}, result => {
-			if (isWindows && result === 1) {
-				clipboard.writeText(detail);
-			}
 		});
+
+		if (isWindows && result === 1) {
+			clipboard.writeText(detail);
+		}
 
 		this.reportMenuActionTelemetry('showAboutDialog');
 	}
