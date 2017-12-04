@@ -15,7 +15,6 @@ import { Match, FileMatch, FileMatchOrMatch, FolderMatch, RenderableMatch } from
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ResolvedKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -563,17 +562,12 @@ export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 export class ReplaceAllInFolderAction extends AbstractSearchAndReplaceAction {
 
 	constructor(private viewer: ITree, private folderMatch: FolderMatch,
-		@IKeybindingService keyBindingService: IKeybindingService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@IKeybindingService keyBindingService: IKeybindingService
 	) {
 		super(Constants.ReplaceAllInFolderActionId, nls.localize('file.replaceAll.label', "Replace All"), 'action-replace-all');
 	}
 
 	public async run(): TPromise<any> {
-		/* __GDPR__
-			"replaceAllInFolder.action.selected" : {}
-		*/
-		this.telemetryService.publicLog('replaceAllInFolder.action.selected');
 		let nextFocusElement = this.getElementToFocusAfterRemoved(this.viewer, this.folderMatch);
 		await this.folderMatch.replaceAll();
 
