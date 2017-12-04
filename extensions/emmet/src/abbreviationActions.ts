@@ -272,12 +272,16 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 		start = lastChildBeforePosition.end;
 		lastChildBeforePosition = lastChildBeforePosition.nextSibling;
 	}
-	let textToBackTrack = document.getText(new vscode.Range(start, abbreviationRange.start));
+	let textToBackTrack = document.getText(new vscode.Range(start.line, start.character, abbreviationRange.start.line, abbreviationRange.start.character));
 
 	// Worse case scenario is when cursor is inside a big chunk of text which needs to backtracked
 	// Backtrack only 500 offsets to ensure we dont waste time doing this
 	if (textToBackTrack.length > 500) {
 		textToBackTrack = textToBackTrack.substr(textToBackTrack.length - 500);
+	}
+
+	if (!textToBackTrack.trim()) {
+		return true;
 	}
 
 	let valid = true;
