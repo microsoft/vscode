@@ -594,17 +594,12 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	constructor(private viewer: ITree, private element: Match, private viewlet: SearchViewlet,
 		@IReplaceService private replaceService: IReplaceService,
 		@IKeybindingService keyBindingService: IKeybindingService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@ITelemetryService private telemetryService: ITelemetryService) {
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 		super(Constants.ReplaceActionId, appendKeyBindingLabel(nls.localize('match.replace.label', "Replace"), keyBindingService.lookupKeybinding(Constants.ReplaceActionId), keyBindingService), 'action-replace');
 	}
 
 	public run(): TPromise<any> {
 		this.enabled = false;
-		/* __GDPR__
-			"replace.action.selected" : {}
-		*/
-		this.telemetryService.publicLog('replace.action.selected');
 
 		return this.element.parent().replace(this.element).then(() => {
 			let elementToFocus = this.getElementToFocusAfterReplace();
