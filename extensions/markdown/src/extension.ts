@@ -5,8 +5,6 @@
 
 'use strict';
 
-import * as nls from 'vscode-nls';
-const localize = nls.config(process.env.VSCODE_NLS_CONFIG)();
 import * as vscode from 'vscode';
 import * as path from 'path';
 import TelemetryReporter from 'vscode-extension-telemetry';
@@ -15,7 +13,6 @@ import LinkProvider from './documentLinkProvider';
 import MDDocumentSymbolProvider from './documentSymbolProvider';
 import { ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from './security';
 import { MDDocumentContentProvider, getMarkdownUri, isMarkdownFile } from './previewContentProvider';
-import { TableOfContentsProvider } from './tableOfContentsProvider';
 import { Logger } from './logger';
 import { CommandManager } from './commandManager';
 import * as commands from './commands';
@@ -24,11 +21,6 @@ interface IPackageInfo {
 	name: string;
 	version: string;
 	aiKey: string;
-}
-
-interface OpenDocumentLinkArgs {
-	path: string;
-	fragment: string;
 }
 
 const resolveExtensionResources = (extension: vscode.Extension<any>, stylePath: string): vscode.Uri => {
@@ -109,72 +101,10 @@ export function activate(context: vscode.ExtensionContext) {
 	commandManager.register(new commands.RefreshPreviewCommand(contentProvider));
 	commandManager.register(new commands.RevealLineCommand(logger));
 	commandManager.register(new commands.MoveCursorToPositionCommand());
-
-	context.subscriptions.push(vscode.commands.registerCommand('_markdown.didClick', (uri: string, line) => {
-		const sourceUri = vscode.Uri.parse(decodeURIComponent(uri));
-		return vscode.workspace.openTextDocument(sourceUri)
-			.then(document => vscode.window.showTextDocument(document))
-			.then(editor =>
-				vscode.commands.executeCommand('revealLine', { lineNumber: Math.floor(line), at: 'center' })
-					.then(() => editor))
-			.then(editor => {
-				if (editor) {
-					editor.selection = new vscode.Selection(
-						new vscode.Position(Math.floor(line), 0),
-						new vscode.Position(Math.floor(line), 0));
-				}
-			});
-	}));
-
-	context.subscriptions.push(vscode.commands.registerCommand('_markdown.openDocumentLink', (args: OpenDocumentLinkArgs) => {
-		const tryRevealLine = async (editor: vscode.TextEditor) => {
-			if (editor && args.fragment) {
-				const toc = new TableOfContentsProvider(engine, editor.document);
-				const line = await toc.lookup(args.fragment);
-				if (!isNaN(line)) {
-					return editor.revealRange(
-						new vscode.Range(line, 0, line, 0),
-						vscode.TextEditorRevealType.AtTop);
-				}
-			}
-		};
-
-		const tryOpen = async (path: string) => {
-			if (vscode.window.activeTextEditor && isMarkdownFile(vscode.window.activeTextEditor.document) && vscode.window.activeTextEditor.document.uri.fsPath === path) {
-				return tryRevealLine(vscode.window.activeTextEditor);
-			} else {
-				const resource = vscode.Uri.file(path);
-				return vscode.workspace.openTextDocument(resource)
-					.then(vscode.window.showTextDocument)
-					.then(tryRevealLine);
-			}
-		};
-
-		return tryOpen(args.path).catch(() => {
-			if (path.extname(args.path) === '') {
-				return tryOpen(args.path + '.md');
-			}
-			const resource = vscode.Uri.file(args.path);
-			return Promise.resolve(void 0)
-				.then(() => vscode.commands.executeCommand('vscode.open', resource))
-				.then(() => void 0);
-		});
-	}));
-
-	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreviewSecuritySelector', (resource: string | undefined) => {
-		if (resource) {
-			const source = vscode.Uri.parse(resource).query;
-			previewSecuritySelector.showSecutitySelectorForResource(vscode.Uri.parse(source));
-		} else {
-			if (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document.languageId === 'markdown') {
-				previewSecuritySelector.showSecutitySelectorForResource(vscode.window.activeTextEditor.document.uri);
-			}
-		}
-	}));
-
-	context.subscriptions.push(vscode.commands.registerCommand('_markdown.onPreviewStyleLoadError', (resources: string[]) => {
-		vscode.window.showWarningMessage(localize('onPreviewStyleLoadError', "Could not load 'markdown.styles': {0}", resources.join(', ')));
-	}));
+	commandManager.register(new commands.ShowPreviewSecuritySelectorCommand(previewSecuritySelector));
+	commandManager.register(new commands.OnPreviewStyleLoadErrorCommand());
+	commandManager.register(new commands.DidClickCommand());
+	commandManager.register(new commands.OpenDocumentLinkCommand(engine));
 
 	context.subscriptions.push(vscode.workspace.onDidSaveTextDocument(document => {
 		if (isMarkdownFile(document)) {

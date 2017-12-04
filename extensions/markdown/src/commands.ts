@@ -10,10 +10,12 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 
 import { Command } from './commandManager';
-import { ExtensionContentSecurityPolicyArbiter } from './security';
+import { ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from './security';
 import { getMarkdownUri, MDDocumentContentProvider, isMarkdownFile } from './previewContentProvider';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { Logger } from './logger';
+import { TableOfContentsProvider } from './tableOfContentsProvider';
+import { MarkdownEngine } from './markdownEngine';
 
 
 function getViewColumn(sideBySide: boolean): vscode.ViewColumn | undefined {
@@ -88,8 +90,8 @@ export class ShowPreviewCommand implements Command {
 	public readonly id = 'markdown.showPreview';
 
 	public constructor(
-		private cspArbiter: ExtensionContentSecurityPolicyArbiter,
-		private telemetryReporter: TelemetryReporter | null
+		private readonly cspArbiter: ExtensionContentSecurityPolicyArbiter,
+		private readonly telemetryReporter: TelemetryReporter | null
 	) { }
 
 	public execute(uri?: vscode.Uri) {
@@ -101,8 +103,8 @@ export class ShowPreviewToSideCommand implements Command {
 	public readonly id = 'markdown.showPreviewToSide';
 
 	public constructor(
-		private cspArbiter: ExtensionContentSecurityPolicyArbiter,
-		private telemetryReporter: TelemetryReporter | null
+		private readonly cspArbiter: ExtensionContentSecurityPolicyArbiter,
+		private readonly telemetryReporter: TelemetryReporter | null
 	) { }
 
 	public execute(uri?: vscode.Uri) {
@@ -134,7 +136,7 @@ export class RefreshPreviewCommand implements Command {
 	public readonly id = 'markdown.refreshPreview';
 
 	public constructor(
-		private contentProvider: MDDocumentContentProvider
+		private readonly contentProvider: MDDocumentContentProvider
 	) { }
 
 	public execute(resource: string | undefined) {
@@ -149,6 +151,25 @@ export class RefreshPreviewCommand implements Command {
 				if (document.uri.scheme === 'markdown') {
 					this.contentProvider.update(document.uri);
 				}
+			}
+		}
+	}
+}
+
+export class ShowPreviewSecuritySelectorCommand implements Command {
+	public readonly id = 'markdown.showPreviewSecuritySelector';
+
+	public constructor(
+		private readonly previewSecuritySelector: PreviewSecuritySelector
+	) { }
+
+	public execute(resource: string | undefined) {
+		if (resource) {
+			const source = vscode.Uri.parse(resource).query;
+			this.previewSecuritySelector.showSecutitySelectorForResource(vscode.Uri.parse(source));
+		} else {
+			if (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document.languageId === 'markdown') {
+				this.previewSecuritySelector.showSecutitySelectorForResource(vscode.window.activeTextEditor.document.uri);
 			}
 		}
 	}
@@ -179,6 +200,26 @@ export class RevealLineCommand implements Command {
 	}
 }
 
+export class DidClickCommand implements Command {
+	public readonly id = '_markdown.didClick';
+
+	public execute(uri: string, line: number) {
+		const sourceUri = vscode.Uri.parse(decodeURIComponent(uri));
+		return vscode.workspace.openTextDocument(sourceUri)
+			.then(document => vscode.window.showTextDocument(document))
+			.then(editor =>
+				vscode.commands.executeCommand('revealLine', { lineNumber: Math.floor(line), at: 'center' })
+					.then(() => editor))
+			.then(editor => {
+				if (editor) {
+					editor.selection = new vscode.Selection(
+						new vscode.Position(Math.floor(line), 0),
+						new vscode.Position(Math.floor(line), 0));
+				}
+			});
+	}
+}
+
 export class MoveCursorToPositionCommand implements Command {
 	public readonly id = '_markdown.moveCursorToPosition';
 
@@ -190,5 +231,61 @@ export class MoveCursorToPositionCommand implements Command {
 		const selection = new vscode.Selection(position, position);
 		vscode.window.activeTextEditor.revealRange(selection);
 		vscode.window.activeTextEditor.selection = selection;
+	}
+}
+
+export class OnPreviewStyleLoadErrorCommand implements Command {
+	public readonly id = '_markdown.onPreviewStyleLoadError';
+
+	public execute(resources: string[]) {
+		vscode.window.showWarningMessage(localize('onPreviewStyleLoadError', "Could not load 'markdown.styles': {0}", resources.join(', ')));
+	}
+}
+
+export interface OpenDocumentLinkArgs {
+	path: string;
+	fragment: string;
+}
+
+export class OpenDocumentLinkCommand implements Command {
+	public readonly id = '_markdown.openDocumentLink';
+
+	public constructor(
+		private readonly engine: MarkdownEngine
+	) { }
+
+	public execute(args: OpenDocumentLinkArgs) {
+		const tryRevealLine = async (editor: vscode.TextEditor) => {
+			if (editor && args.fragment) {
+				const toc = new TableOfContentsProvider(this.engine, editor.document);
+				const line = await toc.lookup(args.fragment);
+				if (!isNaN(line)) {
+					return editor.revealRange(
+						new vscode.Range(line, 0, line, 0),
+						vscode.TextEditorRevealType.AtTop);
+				}
+			}
+		};
+
+		const tryOpen = async (path: string) => {
+			if (vscode.window.activeTextEditor && isMarkdownFile(vscode.window.activeTextEditor.document) && vscode.window.activeTextEditor.document.uri.fsPath === path) {
+				return tryRevealLine(vscode.window.activeTextEditor);
+			} else {
+				const resource = vscode.Uri.file(path);
+				return vscode.workspace.openTextDocument(resource)
+					.then(vscode.window.showTextDocument)
+					.then(tryRevealLine);
+			}
+		};
+
+		return tryOpen(args.path).catch(() => {
+			if (path.extname(args.path) === '') {
+				return tryOpen(args.path + '.md');
+			}
+			const resource = vscode.Uri.file(args.path);
+			return Promise.resolve(void 0)
+				.then(() => vscode.commands.executeCommand('vscode.open', resource))
+				.then(() => void 0);
+		});
 	}
 }
