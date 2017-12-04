@@ -77,7 +77,7 @@ export class SCMService implements ISCMService {
 	private _onDidRemoveProvider = new Emitter<ISCMRepository>();
 	get onDidRemoveRepository(): Event<ISCMRepository> { return this._onDidRemoveProvider.event; }
 
-	@log(LogLevel.INFO, 'SCMService')
+	@log(LogLevel.Info, 'SCMService')
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository {
 		if (this._providerIds.has(provider.id)) {
 			throw new Error(`SCM Provider ${provider.id} already exists.`);

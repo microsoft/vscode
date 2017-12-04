@@ -120,28 +120,28 @@ export class EnvironmentService implements IEnvironmentService {
 	@memoize
 	get logLevel(): LogLevel {
 		if (this.verbose) {
-			return LogLevel.TRACE;
+			return LogLevel.Trace;
 		}
-		if (this._args.log) {
+		if (typeof this._args.log === 'string') {
 			const logLevel = this._args.log.toLowerCase();
 			switch (logLevel) {
-				case 'verbose':
-					return LogLevel.TRACE;
+				case 'trace':
+					return LogLevel.Trace;
 				case 'debug':
-					return LogLevel.DEBUG;
+					return LogLevel.Debug;
 				case 'info':
-					return LogLevel.INFO;
+					return LogLevel.Info;
 				case 'warn':
-					return LogLevel.WARN;
+					return LogLevel.Warning;
 				case 'error':
-					return LogLevel.ERROR;
+					return LogLevel.Error;
 				case 'critical':
-					return LogLevel.CRITICAL;
+					return LogLevel.Critical;
 				case 'off':
-					return LogLevel.OFF;
+					return LogLevel.Off;
 			}
 		}
-		return LogLevel.INFO;
+		return LogLevel.Warning;
 	}
 
 	get wait(): boolean { return this._args.wait; }

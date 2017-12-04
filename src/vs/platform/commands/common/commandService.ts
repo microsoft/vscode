@@ -31,7 +31,7 @@ export class CommandService extends Disposable implements ICommandService {
 		this._extensionService.whenInstalledExtensionsRegistered().then(value => this._extensionHostIsReady = value);
 	}
 
-	@log(LogLevel.INFO, 'CommandService', (msg, id) => `${msg}(${id})`)
+	@log(LogLevel.Info, 'CommandService', (msg, id) => `${msg}(${id})`)
 	executeCommand<T>(id: string, ...args: any[]): TPromise<T> {
 		// we always send an activation event, but
 		// we don't wait for it when the extension

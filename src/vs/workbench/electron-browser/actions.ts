@@ -8,7 +8,6 @@
 import 'vs/css!./media/actions';
 
 import URI from 'vs/base/common/uri';
-import { setLevel } from 'spdlog';
 import * as collections from 'vs/base/common/collections';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
@@ -47,6 +46,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IExtensionService, ActivationTimes } from 'vs/platform/extensions/common/extensions';
 import { getEntries } from 'vs/base/common/performance';
 import { IEditor } from 'vs/platform/editor/common/editor';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 
 // --- actions
 
@@ -1723,12 +1723,12 @@ export class ShowLogsAction extends Action {
 			{ id: 'renderer', label: nls.localize('rendererProcess', "Renderer"), run: () => this.editorService.openEditor({ resource: URI.file(paths.join(this.environmentService.logsPath, `renderer${this.windowService.getCurrentWindowId()}.log`)) }) },
 			{ id: 'extenshionHost', label: nls.localize('extensionHost', "Extension Host"), run: () => this.editorService.openEditor({ resource: URI.file(paths.join(this.environmentService.logsPath, `exthost${this.windowService.getCurrentWindowId()}.log`)) }) }
 		];
-		return this.quickOpenService.pick(entries, { placeHolder: nls.localize('selectProcess', "Select process") })
-			.then(entry => {
-				if (entry) {
-					entry.run(null);
-				}
-			});
+
+		return this.quickOpenService.pick(entries, { placeHolder: nls.localize('selectProcess', "Select process") }).then(entry => {
+			if (entry) {
+				entry.run(null);
+			}
+		});
 	}
 }
 
@@ -1738,26 +1738,27 @@ export class SetLogLevelAction extends Action {
 	static LABEL = nls.localize('setLogLevel', "Set Log Level");
 
 	constructor(id: string, label: string,
-		@IQuickOpenService private quickOpenService: IQuickOpenService
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@ILogService private logService: ILogService
 	) {
 		super(id, label);
 	}
 
 	run(): TPromise<void> {
-		const entries: IPickOpenEntry[] = [
-			{ id: '0', label: nls.localize('verbose', "Verbose") },
-			{ id: '1', label: nls.localize('debug', "Debug") },
-			{ id: '2', label: nls.localize('info', "Info") },
-			{ id: '3', label: nls.localize('warn', "Warning") },
-			{ id: '4', label: nls.localize('err', "Error") },
-			{ id: '5', label: nls.localize('critical', "Critical") },
-			{ id: '6', label: nls.localize('off', "Off") }
+		const entries = [
+			{ label: nls.localize('trace', "Trace"), level: LogLevel.Trace },
+			{ label: nls.localize('debug', "Debug"), level: LogLevel.Debug },
+			{ label: nls.localize('info', "Info"), level: LogLevel.Info },
+			{ label: nls.localize('warn', "Warning"), level: LogLevel.Warning },
+			{ label: nls.localize('err', "Error"), level: LogLevel.Error },
+			{ label: nls.localize('critical', "Critical"), level: LogLevel.Critical },
+			{ label: nls.localize('off', "Off"), level: LogLevel.Off }
 		];
-		return this.quickOpenService.pick(entries, { placeHolder: nls.localize('selectProcess', "Select process") })
-			.then(entry => {
-				if (entry) {
-					setLevel(parseInt(entry.id));
-				}
-			});
+
+		return this.quickOpenService.pick(entries, { placeHolder: nls.localize('selectProcess', "Select process") }).then(entry => {
+			if (entry) {
+				this.logService.setLevel(entry.level);
+			}
+		});
 	}
 }

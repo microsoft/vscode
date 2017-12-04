@@ -50,7 +50,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		this._argumentProcessors.push(processor);
 	}
 
-	@log(LogLevel.TRACE, 'ExtHostCommands', (msg, id) => `${msg}(${id})`)
+	@log(LogLevel.Trace, 'ExtHostCommands', (msg, id) => `${msg}(${id})`)
 	registerCommand(id: string, callback: <T>(...args: any[]) => T | Thenable<T>, thisArg?: any, description?: ICommandHandlerDescription): extHostTypes.Disposable {
 
 		if (!id.trim().length) {
@@ -71,7 +71,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		});
 	}
 
-	@log(LogLevel.TRACE, 'ExtHostCommands', (msg, id) => `${msg}(${id})`)
+	@log(LogLevel.Trace, 'ExtHostCommands', (msg, id) => `${msg}(${id})`)
 	executeCommand<T>(id: string, ...args: any[]): Thenable<T> {
 
 		if (this._commands.has(id)) {
@@ -136,7 +136,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		}
 	}
 
-	@log(LogLevel.TRACE, 'ExtHostCommands', (msg, filterUnderscoreCommands) => `${msg}(${filterUnderscoreCommands})`)
+	@log(LogLevel.Trace, 'ExtHostCommands', (msg, filterUnderscoreCommands) => `${msg}(${filterUnderscoreCommands})`)
 	getCommands(filterUnderscoreCommands: boolean = false): Thenable<string[]> {
 		return this._proxy.$getCommands().then(result => {
 			if (filterUnderscoreCommands) {
