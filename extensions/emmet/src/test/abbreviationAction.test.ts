@@ -242,7 +242,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 				assert.equal(1, 2, `Problem with expanding m10`);
 				return Promise.resolve();
 			}
-			
+
 			return completionPromise.then((completionList: CompletionList) => {
 				if (!completionList.items || !completionList.items.length) {
 					assert.equal(1, 2, `Problem with expanding m10`);
@@ -346,7 +346,7 @@ suite('Tests for Expand Abbreviations (CSS)', () => {
 	});
 
 	test('Expand abbreviation in completion list (SCSS)', () => {
-	
+
 		return withRandomFileEditor(scssContents, 'scss', (editor, doc) => {
 			editor.selection = new Selection(3, 4, 3, 4);
 			const cancelSrc = new CancellationTokenSource();
@@ -358,7 +358,7 @@ suite('Tests for Expand Abbreviations (CSS)', () => {
 				assert.equal(1, 2, `Problem with expanding padding abbreviations`);
 				return Promise.resolve();
 			}
-			
+
 			const callBack = (completionList: CompletionList, abbreviation, expandedText) => {
 				if (!completionList.items || !completionList.items.length) {
 					assert.equal(1, 2, `Problem with expanding m10`);
@@ -373,8 +373,8 @@ suite('Tests for Expand Abbreviations (CSS)', () => {
 			return Promise.all<CompletionList>([completionPromise1, completionPromise2, completionPromise3, completionPromise4]).then(([result1, result2, result3, result4]) => {
 				callBack(result1, 'p10', 'padding: 10px;');
 				callBack(result2, 'p20', 'padding: 20px;');
-				callBack(result3, 'p10', 'padding: 30px;');
-				callBack(result4, 'p20', 'padding: 40px;');
+				callBack(result3, 'p30', 'padding: 30px;');
+				callBack(result4, 'p40', 'padding: 40px;');
 				return Promise.resolve();
 			});
 		});
@@ -420,16 +420,20 @@ m10
 			const cancelSrc = new CancellationTokenSource();
 			let completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token);
 			if (completionPromise) {
-				assert.equal(1, 2, `m10 gets expanded in invalid location`);
+				assert.equal(1, 2, `m10 gets expanded in invalid location (outside rule)`);
 			}
 
 			editor.selection = new Selection(5, 15, 5, 15); // in the value part of property value
 			completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token);
 			if (completionPromise) {
-				assert.equal(1, 2, `m10 gets expanded in invalid location`);
+				return completionPromise.then((completionList: CompletionList) => {
+					if (completionList && completionList.items && completionList.items.length > 0) {
+						assert.equal(1, 2, `m10 gets expanded in invalid location (n the value part of property value)`);
+					}
+					return Promise.resolve();
+				})
 			}
 			return Promise.resolve();
-
 		});
 	});
 
@@ -624,7 +628,7 @@ function testHtmlCompletionProvider(selection: Selection, abbreviation: string, 
 			}
 			return Promise.resolve();
 		}
-		
+
 		return completionPromise.then((completionList: CompletionList) => {
 			if (!completionList.items || !completionList.items.length) {
 				if (!shouldFail) {
