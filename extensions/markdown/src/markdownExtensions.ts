@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 
-import { MDDocumentContentProvider } from './previewContentProvider';
+import { MDDocumentContentProvider } from './features/previewContentProvider';
 import { MarkdownEngine } from './markdownEngine';
 
 const resolveExtensionResources = (extension: vscode.Extension<any>, stylePath: string): vscode.Uri => {

@@ -3,19 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 import * as vscode from 'vscode';
 
 import { MarkdownEngine } from './markdownEngine';
-import LinkProvider from './documentLinkProvider';
-import MDDocumentSymbolProvider from './documentSymbolProvider';
 import { ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from './security';
-import { MDDocumentContentProvider, getMarkdownUri, isMarkdownFile } from './previewContentProvider';
 import { Logger } from './logger';
 import { CommandManager } from './commandManager';
 import * as commands from './commands';
 import { loadDefaultTelemetryReporter } from './telemetryReporter';
 import { loadMarkdownExtensions } from './markdownExtensions';
+import LinkProvider from './features/documentLinkProvider';
+import MDDocumentSymbolProvider from './features/documentSymbolProvider';
+import { MDDocumentContentProvider, getMarkdownUri, isMarkdownFile } from './features/previewContentProvider';
 
 
 export function activate(context: vscode.ExtensionContext) {

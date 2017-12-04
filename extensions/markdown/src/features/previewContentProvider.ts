@@ -7,11 +7,11 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { MarkdownEngine } from './markdownEngine';
+import { MarkdownEngine } from '../markdownEngine';
 
 import * as nls from 'vscode-nls';
-import { Logger } from './logger';
-import { ContentSecurityPolicyArbiter, MarkdownPreviewSecurityLevel } from './security';
+import { Logger } from '../logger';
+import { ContentSecurityPolicyArbiter, MarkdownPreviewSecurityLevel } from '../security';
 const localize = nls.loadMessageBundle();
 
 const previewStrings = {

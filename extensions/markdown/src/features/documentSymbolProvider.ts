@@ -7,8 +7,8 @@
 
 import * as vscode from 'vscode';
 
-import { MarkdownEngine } from './markdownEngine';
-import { TableOfContentsProvider } from './tableOfContentsProvider';
+import { MarkdownEngine } from '../markdownEngine';
+import { TableOfContentsProvider } from '../tableOfContentsProvider';
 
 export default class MDDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 

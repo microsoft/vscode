@@ -11,7 +11,7 @@ import * as path from 'path';
 
 import { Command } from './commandManager';
 import { ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from './security';
-import { getMarkdownUri, MDDocumentContentProvider, isMarkdownFile } from './previewContentProvider';
+import { getMarkdownUri, MDDocumentContentProvider, isMarkdownFile } from './features/previewContentProvider';
 import { Logger } from './logger';
 import { TableOfContentsProvider } from './tableOfContentsProvider';
 import { MarkdownEngine } from './markdownEngine';
