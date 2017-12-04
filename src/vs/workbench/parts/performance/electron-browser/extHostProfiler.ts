@@ -95,4 +95,4 @@ interface Node {
 
 
 
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: 'exthost.profile.start', title: localize('', "Profile Extension Host for 5 seconds") } });
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: 'exthost.profile.start', title: localize('profileExtensionHost', "Profile Extension Host for 5 seconds") } });
