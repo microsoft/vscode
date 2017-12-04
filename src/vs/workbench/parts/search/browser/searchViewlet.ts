@@ -45,7 +45,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { PatternInputWidget, ExcludePatternInputWidget } from 'vs/workbench/parts/search/browser/patternInputWidget';
 import { SearchRenderer, SearchDataSource, SearchSorter, SearchAccessibilityProvider, SearchFilter } from 'vs/workbench/parts/search/browser/searchResultsView';
 import { SearchWidget, ISearchWidgetOptions } from 'vs/workbench/parts/search/browser/searchWidget';
-import { RefreshAction, CollapseDeepestExpandedLevelAction, ClearSearchResultsAction, SearchAction } from 'vs/workbench/parts/search/browser/searchActions';
+import { RefreshAction, CollapseDeepestExpandedLevelAction, ClearSearchResultsAction, SearchAction, CancelSearchAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import Severity from 'vs/base/common/severity';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
@@ -81,6 +81,7 @@ export class SearchViewlet extends Viewlet {
 	private folderMatchFocused: IContextKey<boolean>;
 	private matchFocused: IContextKey<boolean>;
 	private searchSubmitted: boolean;
+	private searching: boolean;
 
 	private actions: SearchAction[] = [];
 	private tree: ITree;
@@ -249,7 +250,8 @@ export class SearchViewlet extends Viewlet {
 		this.actions = [
 			this.instantiationService.createInstance(RefreshAction, RefreshAction.ID, RefreshAction.LABEL),
 			this.instantiationService.createInstance(CollapseDeepestExpandedLevelAction, CollapseDeepestExpandedLevelAction.ID, CollapseDeepestExpandedLevelAction.LABEL),
-			this.instantiationService.createInstance(ClearSearchResultsAction, ClearSearchResultsAction.ID, ClearSearchResultsAction.LABEL)
+			this.instantiationService.createInstance(ClearSearchResultsAction, ClearSearchResultsAction.ID, ClearSearchResultsAction.LABEL),
+			this.instantiationService.createInstance(CancelSearchAction, CancelSearchAction.ID, CancelSearchAction.LABEL)
 		];
 
 		if (filePatterns !== '' || patternExclusions !== '' || patternIncludes !== '' || queryDetailsExpanded !== '' || !useExcludesAndIgnoreFiles) {
@@ -785,6 +787,10 @@ export class SearchViewlet extends Viewlet {
 		return this.searchSubmitted;
 	}
 
+	public isSearching(): boolean {
+		return this.searching;
+	}
+
 	public hasSearchResults(): boolean {
 		return !this.viewModel.searchResult.isEmpty();
 	}
@@ -1066,11 +1072,11 @@ export class SearchViewlet extends Viewlet {
 			this.progressService.show(progressTotal);
 
 		this.searchWidget.searchInput.clearMessage();
+		this.searching = true;
 		this.showEmptyStage();
 
-		let isDone = false;
 		let onComplete = (completed?: ISearchComplete) => {
-			isDone = true;
+			this.searching = false;
 
 			// Complete up to 100% as needed
 			if (completed && !query.useRipgrep) {
@@ -1201,7 +1207,7 @@ export class SearchViewlet extends Viewlet {
 			if (errors.isPromiseCanceledError(e)) {
 				onComplete(null);
 			} else {
-				isDone = true;
+				this.searching = false;
 				progressRunner.done();
 				this.searchWidget.searchInput.showMessage({ content: e.message, type: MessageType.ERROR });
 				this.viewModel.searchResult.clear();
@@ -1223,7 +1229,7 @@ export class SearchViewlet extends Viewlet {
 
 		// Handle UI updates in an interval to show frequent progress and results
 		let uiRefreshHandle = setInterval(() => {
-			if (isDone) {
+			if (!this.searching) {
 				window.clearInterval(uiRefreshHandle);
 				return;
 			}
