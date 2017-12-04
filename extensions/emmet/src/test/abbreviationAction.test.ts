@@ -51,7 +51,7 @@ const htmlContents = `
 		ul>li*2
 		ul>li.item$*2
 		ul>li.item$@44*2
-		<div
+		<div i
 	</ul>
 	<style>
 		.boo {
@@ -160,6 +160,10 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 
 	test('No expanding text inside open tag (HTML)', () => {
 		return testExpandAbbreviation('html', new Selection(2, 4, 2, 4), '', '', true);
+	});
+
+	test('No expanding text inside open tag when there is no closing tag (HTML)', () => {
+		return testExpandAbbreviation('html', new Selection(9, 8, 9, 8), '', '', true);
 	});
 
 	test('Expand css when inside style tag (HTML)', () => {

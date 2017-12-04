@@ -181,7 +181,7 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 		}
 
 		let currentNode = getNode(rootNode, position, true);
-		if (!isValidLocationForEmmetAbbreviation(currentNode, syntax, position)) {
+		if (!isValidLocationForEmmetAbbreviation(editor.document, currentNode, syntax, position, rangeToReplace)) {
 			return;
 		}
 
@@ -210,11 +210,13 @@ function fallbackTab(): Thenable<boolean | undefined> {
 /**
  * Checks if given position is a valid location to expand emmet abbreviation.
  * Works only on html and css/less/scss syntax
+ * @param document current Text Document
  * @param currentNode parsed node at given position
  * @param syntax syntax of the abbreviation
  * @param position position to validate
+ * @param abbreviationRange The range of the abbreviation for which given position is being validated
  */
-export function isValidLocationForEmmetAbbreviation(currentNode: Node | null, syntax: string, position: vscode.Position): boolean {
+export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocument, currentNode: Node | null, syntax: string, position: vscode.Position, abbreviationRange: vscode.Range): boolean {
 	// Continue validation only if the file was parse-able and the currentNode has been found
 	if (!currentNode) {
 		return true;
@@ -247,13 +249,64 @@ export function isValidLocationForEmmetAbbreviation(currentNode: Node | null, sy
 		return false;
 	}
 
+	const startAngle = '<';
+	const endAngle = '>';
+	const escape = '\\';
 	const currentHtmlNode = <HtmlNode>currentNode;
-	if (currentHtmlNode.close) {
-		const innerRange = getInnerRange(currentHtmlNode);
-		return !!innerRange && innerRange.contains(position);
+	const innerRange = getInnerRange(currentHtmlNode);
+
+	// Fix for https://github.com/Microsoft/vscode/issues/28829
+	if (!innerRange || !innerRange.contains(position)) {
+		return false;
 	}
 
-	return false;
+	// Fix for https://github.com/Microsoft/vscode/issues/35128
+	// Find the position up till where we will backtrack looking for unescaped < or > 
+	// to decide if current position is valid for emmet expansion
+	let start = innerRange.start;
+	let lastChildBeforePosition = currentHtmlNode.firstChild;
+	while (lastChildBeforePosition) {
+		if (lastChildBeforePosition.end.isAfter(position)) {
+			break;
+		}
+		start = lastChildBeforePosition.end;
+		lastChildBeforePosition = lastChildBeforePosition.nextSibling;
+	}
+	let textToBackTrack = document.getText(new vscode.Range(start, abbreviationRange.start));
+
+	// Worse case scenario is when cursor is inside a big chunk of text which needs to backtracked
+	// Backtrack only 500 offsets to ensure we dont waste time doing this
+	if (textToBackTrack.length > 500) {
+		textToBackTrack = textToBackTrack.substr(textToBackTrack.length - 500);
+	}
+
+	let valid = true;
+	let foundSpace = false; // If < is found before finding whitespace, then its valid abbreviation. Eg: <div|
+	let i = textToBackTrack.length - 1;
+	while (i >= 0) {
+		const char = textToBackTrack[i];
+		i--;
+		if (!foundSpace && /\s/.test(char)) {
+			foundSpace = true;
+			continue;
+		}
+		if (char !== startAngle && char !== endAngle) {
+			continue;
+		}
+		if (i >= 0 && textToBackTrack[i] === escape) {
+			i--;
+			continue;
+		}
+		if (char === endAngle) {
+			break;
+		}
+		if (char === startAngle) {
+			valid = !foundSpace;
+			break;
+		}
+	}
+
+	return valid;
 }
 
 /**
