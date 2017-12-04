@@ -8,6 +8,7 @@
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorInput } from 'vs/workbench/common/editor';
+import URI from 'vs/base/common/uri';
 
 export class ReleaseNotesInput extends EditorInput {
 
@@ -18,6 +19,10 @@ export class ReleaseNotesInput extends EditorInput {
 
 	constructor(private _version: string, private _text: string) {
 		super();
+	}
+
+	getResource(): URI {
+		return URI.from({ scheme: 'release-notes', path: `${this._version}.release-notes` });
 	}
 
 	getTypeId(): string {
