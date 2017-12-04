@@ -47,6 +47,7 @@ in_words_are ignored.
 >> And, they can be nested
 
 1. A numbered list
+    > Block quotes in list
 2. Which is numbered
 3. With periods and a space
 
