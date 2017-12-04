@@ -6,6 +6,8 @@
 'use strict';
 
 import { spawn, exec } from 'child_process';
+import * as path from 'path';
+import URI from 'vs/base/common/uri';
 
 export interface ProcessItem {
 	name: string;
@@ -100,42 +102,93 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 		if (process.platform === 'win32') {
 
-			const CMD = 'wmic process get ProcessId,ParentProcessId,CommandLine \n';
-			const CMD_PID = /^(.+)\s+([0-9]+)\s+([0-9]+)$/;
+			interface ProcessInfo {
+				type: 'processInfo';
+				name: string;
+				processId: number;
+				parentProcessId: number;
+				commandLine: string;
+				handles: number;
+				cpuLoad: number[];
+				workingSetSize: number;
+			}
+
+			interface TopProcess {
+				type: 'topProcess';
+				name: string;
+				processId: number;
+				parentProcessId: number;
+				commandLine: string;
+				handles: number;
+				cpuLoad: number[];
+				workingSetSize: number;
+			}
+
+			type Item = ProcessInfo | TopProcess;
+
+			const execMain = path.basename(process.execPath);
+			const script = URI.parse(require.toUrl('vs/base/node/ps-win.ps1')).fsPath;
+			const commandLine = `${script} -ProcessName '${execMain}' -MaxSamples 3`;
+			const cmd = spawn('powershell.exe', ['-Command', commandLine]);
 
 			let stdout = '';
 			let stderr = '';
-
-			const cmd = spawn('cmd');
-
 			cmd.stdout.on('data', data => {
 				stdout += data.toString();
 			});
+
 			cmd.stderr.on('data', data => {
 				stderr += data.toString();
 			});
 
 			cmd.on('exit', () => {
-
 				if (stderr.length > 0) {
 					reject(stderr);
-				} else {
-
-					const lines = stdout.split('\r\n');
-					for (const line of lines) {
-						let matches = CMD_PID.exec(line.trim());
-						if (matches && matches.length === 4) {
-							addToTree(parseInt(matches[3]), parseInt(matches[2]), matches[1].trim(), 0.0, 0.0);
+				}
+				let processItems: Map<number, ProcessItem> = new Map();
+				try {
+					const items: Item[] = JSON.parse(stdout);
+					for (const item of items) {
+						if (item.type === 'processInfo') {
+							let load = 0;
+							for (let value of item.cpuLoad) {
+								load += value;
+							}
+							load = load / item.cpuLoad.length;
+							processItems.set(item.processId, {
+								name: findName(item.commandLine),
+								cmd: item.commandLine,
+								pid: item.processId,
+								ppid: item.parentProcessId,
+								load: load,
+								mem: item.workingSetSize
+							});
 						}
 					}
-
-					resolve(rootItem);
+					rootItem = processItems.get(rootPid);
+					if (rootItem) {
+						processItems.forEach(item => {
+							let parent = processItems.get(item.ppid);
+							if (parent) {
+								if (!parent.children) {
+									parent.children = [];
+								}
+								parent.children.push(item);
+							}
+						});
+						processItems.forEach(item => {
+							if (item.children) {
+								item.children = item.children.sort((a, b) => a.pid - b.pid);
+							}
+						});
+						resolve(rootItem);
+					} else {
+						reject(new Error(`Root process ${rootPid} not found`));
+					}
+				} catch (error) {
+					reject(error);
 				}
 			});
-
-			cmd.stdin.write(CMD);
-			cmd.stdin.end();
-
 		} else {	// OS X & Linux
 
 			const CMD = 'ps -ax -o pid=,ppid=,pcpu=,pmem=,command=';

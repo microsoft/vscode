@@ -4,14 +4,10 @@
 ################################################################################################
 
 Param(
-    [bool]$Insider = $false,
+    [string]$ProcessName = "code.exe",
 	[int]$MaxSamples = 10
 )
 
-$processName = "code.exe"
-if ($Insider) {
-	$processName = "code - insiders.exe"
-}
 $processLength = "process(".Length
 
 function Get-MachineInfo {
@@ -115,7 +111,7 @@ $topElements = $topElements | Sort-Object Load -Descending
 
 # Get all code processes
 $codeProcesses = @{}
-foreach ($item in Get-WmiObject Win32_Process -Filter "name = '$processName'") {
+foreach ($item in Get-WmiObject Win32_Process -Filter "name = '$ProcessName'") {
 	$codeProcesses[$item.ProcessId] = $item
 }
 foreach ($item in Get-WmiObject Win32_Process -Filter "name = 'codeHelper.exe'") {
@@ -163,6 +159,7 @@ for($i = 0; $i -lt 5 -and $i -lt $topElements.Count; $i++) {
 			"commandLine"     = $item.CommandLine
 			"handles"         = $item.HandleCount
 			"cpuLoad"         = $cpuLoad
+			"workingSetSize"  = $item.WorkingSetSize
 		}
 		$index++
 	}
@@ -178,6 +175,7 @@ foreach ($item in $codeProcesses.Values) {
 		"commandLine"     = $item.CommandLine
 		"handles"         = $item.HandleCount
 		"cpuLoad"         = $cpuLoad
+		"workingSetSize"  = $item.WorkingSetSize
 	}
 	$index++
 }

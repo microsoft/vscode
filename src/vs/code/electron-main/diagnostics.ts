@@ -160,7 +160,8 @@ function formatProcessItem(mapPidToWindowTitle: Map<number, string>, output: str
 			name = `${name} (${mapPidToWindowTitle.get(item.pid)})`;
 		}
 	}
-	output.push(`${pad(Number(item.load.toFixed(0)), 5, ' ')}\t${pad(Number(((os.totalmem() * (item.mem / 100)) / MB).toFixed(0)), 6, ' ')}\t${name}`);
+	const memory = process.platform === 'win32' ? item.mem : (os.totalmem() * (item.mem / 100));
+	output.push(`${pad(Number(item.load.toFixed(0)), 5, ' ')}\t${pad(Number((memory / MB).toFixed(0)), 6, ' ')}\t${name}`);
 
 	// Recurse into children if any
 	if (Array.isArray(item.children)) {
