@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'mocha';
-import * as assert from 'assert';
-import { Selection } from 'vscode';
-import { withRandomFileEditor, closeAllEditors } from './testUtils';
-import { updateImageSize } from '../updateImageSize';
+// import 'mocha';
+// import * as assert from 'assert';
+// import { Selection } from 'vscode';
+// import { withRandomFileEditor, closeAllEditors } from './testUtils';
+// import { updateImageSize } from '../updateImageSize';
 
-suite('Tests for Emmet actions on html tags', () => {
-	teardown(closeAllEditors);
+// suite('Tests for Emmet actions on html tags', () => {
+// 	teardown(closeAllEditors);
 
 	// test('update image css with multiple cursors in css file', () => {
 	// 	const cssContents = `
@@ -147,4 +147,4 @@ suite('Tests for Emmet actions on html tags', () => {
 	// 	});
 	// });
 
-});
+// });
