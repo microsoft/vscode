@@ -53,7 +53,7 @@ function createServices(args: ParsedArgs): IInstantiationService {
 	const logService = new MultiplexLogService([legacyLogService, spdlogService]);
 	registerGlobalLogService(logService);
 
-	logService.info('main', process.argv);
+	logService.info('main', JSON.stringify(args));
 
 	// Eventually cleanup
 	setTimeout(() => spdlogService.cleanup().then(null, err => console.error(err)), 10000);

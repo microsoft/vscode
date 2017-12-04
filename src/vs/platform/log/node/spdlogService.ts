@@ -20,7 +20,6 @@ export class SpdLogService implements ILogService {
 
 	private logger: RotatingLogger;
 	private disposables: IDisposable[] = [];
-	private formatRegexp = /{(\d+)}/g;
 
 	constructor(
 		processName: string,
@@ -83,24 +82,16 @@ export class SpdLogService implements ILogService {
 		this.disposables = dispose(this.disposables);
 	}
 
-	private format(value: string, ...args: any[]): string {
-		if (args.length) {
-			value = value.replace(this.formatRegexp, (match, group) => {
-				let idx = parseInt(group, 10);
-				return isNaN(idx) || idx < 0 || idx >= args.length ?
-					match :
-					this.toStringValue(args[idx]);
-			});
-		}
-		return value;
-	}
+	private format(value: string, args: any[] = []): string {
+		const strs = args.map(a => {
+			if (typeof a === 'object') {
+				try {
+					return JSON.stringify(a);
+				} catch (e) { }
+			}
+			return a;
+		});
 
-	private toStringValue(value: any): string {
-		if (typeof value === 'object') {
-			try {
-				return JSON.stringify(value);
-			} catch (e) { }
-		}
-		return value;
+		return [value, ...strs].join(' ');
 	}
 }
