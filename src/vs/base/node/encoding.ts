@@ -8,6 +8,8 @@
 import stream = require('vs/base/node/stream');
 import iconv = require('iconv-lite');
 import { TPromise } from 'vs/base/common/winjs.base';
+import { isLinux, isMacintosh } from 'vs/base/common/platform';
+import { exec } from 'child_process';
 
 export const UTF8 = 'utf8';
 export const UTF8_with_bom = 'utf8bom';
@@ -164,4 +166,47 @@ export function toCanonicalName(enc: string): string {
 
 			return enc;
 	}
+}
+
+export function resolveTerminalEncoding(verbose?: boolean): TPromise<string> {
+	let rawEncodingPromise: TPromise<string>;
+
+	// Support a global environment variable to win over other mechanics
+	const cliEncodingEnv = process.env['VSCODE_CLI_ENCODING'];
+	if (cliEncodingEnv) {
+		rawEncodingPromise = TPromise.as(cliEncodingEnv);
+	}
+
+	// Linux/Mac: use "locale charmap" command
+	else if (isLinux || isMacintosh) {
+		rawEncodingPromise = new TPromise<string>(c => {
+			if (verbose) {
+				console.log('Running "locale charmap" to detect terminal encoding...');
+			}
+
+			exec('locale charmap', (err, stdout, stderr) => c(stdout));
+		});
+	}
+
+	// Windows: educated guess
+	else {
+		rawEncodingPromise = TPromise.as('cp850');
+	}
+
+	return rawEncodingPromise.then(rawEncoding => {
+		if (verbose) {
+			console.log(`Detected raw terminal encoding: ${rawEncoding}`);
+		}
+
+		if (!rawEncoding || rawEncoding.toLowerCase() === 'utf-8' || rawEncoding.toLowerCase() === UTF8) {
+			return UTF8;
+		}
+
+		const iconvEncoding = toIconvLiteEncoding(rawEncoding);
+		if (iconv.encodingExists(iconvEncoding)) {
+			return iconvEncoding;
+		}
+
+		return UTF8;
+	});
 }
