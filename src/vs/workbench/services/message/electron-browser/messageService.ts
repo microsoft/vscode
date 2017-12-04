@@ -29,7 +29,7 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 	public confirmWithCheckbox(confirmation: IConfirmation): TPromise<IConfirmationResult> {
 		const opts = this.getConfirmOptions(confirmation);
 
-		return this.showMessageBox(opts).then(result => {
+		return this.showMessageBoxWithCheckbox(opts).then(result => {
 			return {
 				confirmed: result.button === 0 ? true : false,
 				checkboxChecked: result.checkboxChecked
@@ -37,10 +37,21 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 		});
 	}
 
+	private showMessageBoxWithCheckbox(opts: Electron.MessageBoxOptions): TPromise<IMessageBoxResult> {
+		opts = this.massageMessageBoxOptions(opts);
+
+		return this.windowService.showMessageBoxWithCheckbox(opts).then(result => {
+			return {
+				button: isLinux ? opts.buttons.length - result.button - 1 : result.button,
+				checkboxChecked: result.checkboxChecked
+			} as IMessageBoxResult;
+		});
+	}
+
 	public confirm(confirmation: IConfirmation): boolean {
 		const opts = this.getConfirmOptions(confirmation);
 
-		const result = this.showMessageBoxSync(opts);
+		const result = this.showMessageBox(opts);
 
 		return result === 0 ? true : false;
 	}
@@ -86,7 +97,7 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 	public choose(severity: Severity, message: string, options: string[], cancelId: number, modal: boolean = false): TPromise<number> {
 		if (modal) {
 			const type: 'none' | 'info' | 'error' | 'question' | 'warning' = severity === Severity.Info ? 'question' : severity === Severity.Error ? 'error' : severity === Severity.Warning ? 'warning' : 'none';
-			return TPromise.wrap(this.showMessageBoxSync({ message, buttons: options, type, cancelId }));
+			return TPromise.wrap(this.showMessageBox({ message, buttons: options, type, cancelId }));
 		}
 
 		let onCancel: () => void = null;
@@ -105,21 +116,10 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 		return promise;
 	}
 
-	private showMessageBox(opts: Electron.MessageBoxOptions): TPromise<IMessageBoxResult> {
+	private showMessageBox(opts: Electron.MessageBoxOptions): number {
 		opts = this.massageMessageBoxOptions(opts);
 
-		return this.windowService.showMessageBox(opts).then(result => {
-			return {
-				button: isLinux ? opts.buttons.length - result.button - 1 : result.button,
-				checkboxChecked: result.checkboxChecked
-			} as IMessageBoxResult;
-		});
-	}
-
-	private showMessageBoxSync(opts: Electron.MessageBoxOptions): number {
-		opts = this.massageMessageBoxOptions(opts);
-
-		const result = this.windowService.showMessageBoxSync(opts);
+		const result = this.windowService.showMessageBox(opts);
 		return isLinux ? opts.buttons.length - result - 1 : result;
 	}
 
