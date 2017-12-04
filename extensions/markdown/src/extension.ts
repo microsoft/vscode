@@ -31,11 +31,9 @@ const resolveExtensionResources = (extension: vscode.Extension<any>, stylePath: 
 	return vscode.Uri.file(path.join(extension.extensionPath, stylePath));
 };
 
-var telemetryReporter: TelemetryReporter | null;
-
 export function activate(context: vscode.ExtensionContext) {
 	const packageInfo = getPackageInfo();
-	telemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
+	const telemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
 	if (telemetryReporter) {
 		context.subscriptions.push(telemetryReporter);
 	}
@@ -49,42 +47,7 @@ export function activate(context: vscode.ExtensionContext) {
 	const contentProviderRegistration = vscode.workspace.registerTextDocumentContentProvider('markdown', contentProvider);
 	const previewSecuritySelector = new PreviewSecuritySelector(cspArbiter, contentProvider);
 
-	for (const extension of vscode.extensions.all) {
-		const contributes = extension.packageJSON && extension.packageJSON.contributes;
-		if (!contributes) {
-			continue;
-		}
-
-		const styles = contributes['markdown.previewStyles'];
-		if (styles && Array.isArray(styles)) {
-			for (const style of styles) {
-				try {
-					contentProvider.addStyle(resolveExtensionResources(extension, style));
-				} catch (e) {
-					// noop
-				}
-			}
-		}
-
-		const scripts = contributes['markdown.previewScripts'];
-		if (scripts && Array.isArray(scripts)) {
-			for (const script of scripts) {
-				try {
-					contentProvider.addScript(resolveExtensionResources(extension, script));
-				} catch (e) {
-					// noop
-				}
-			}
-		}
-
-		if (contributes['markdown.markdownItPlugins']) {
-			extension.activate().then(() => {
-				if (extension.exports && extension.exports.extendMarkdownIt) {
-					engine.addPlugin((md: any) => extension.exports.extendMarkdownIt(md));
-				}
-			});
-		}
-	}
+	loadMarkdownExtensions(contentProvider, engine);
 
 	const symbolsProvider = new MDDocumentSymbolProvider(engine);
 	const symbolsProviderRegistration = vscode.languages.registerDocumentSymbolProvider({ language: 'markdown' }, symbolsProvider);
@@ -139,6 +102,47 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 }
 
+function loadMarkdownExtensions(
+	contentProvider: MDDocumentContentProvider,
+	engine: MarkdownEngine
+) {
+	for (const extension of vscode.extensions.all) {
+		const contributes = extension.packageJSON && extension.packageJSON.contributes;
+		if (!contributes) {
+			continue;
+		}
+
+		const styles = contributes['markdown.previewStyles'];
+		if (styles && Array.isArray(styles)) {
+			for (const style of styles) {
+				try {
+					contentProvider.addStyle(resolveExtensionResources(extension, style));
+				} catch (e) {
+					// noop
+				}
+			}
+		}
+
+		const scripts = contributes['markdown.previewScripts'];
+		if (scripts && Array.isArray(scripts)) {
+			for (const script of scripts) {
+				try {
+					contentProvider.addScript(resolveExtensionResources(extension, script));
+				} catch (e) {
+					// noop
+				}
+			}
+		}
+
+		if (contributes['markdown.markdownItPlugins']) {
+			extension.activate().then(() => {
+				if (extension.exports && extension.exports.extendMarkdownIt) {
+					engine.addPlugin((md: any) => extension.exports.extendMarkdownIt(md));
+				}
+			});
+		}
+	}
+}
 
 function getPackageInfo(): IPackageInfo | null {
 	const extention = vscode.extensions.getExtension('Microsoft.vscode-markdown');
