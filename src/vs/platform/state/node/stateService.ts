@@ -11,12 +11,13 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { writeFileAndFlushSync } from 'vs/base/node/extfs';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { IStateService } from 'vs/platform/state/common/state';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class FileStorage {
 
 	private database: object = null;
 
-	constructor(private dbPath: string, private verbose?: boolean) { }
+	constructor(private dbPath: string, private onError: (error) => void) { }
 
 	private ensureLoaded(): void {
 		if (!this.database) {
@@ -68,9 +69,7 @@ export class FileStorage {
 		try {
 			return JSON.parse(fs.readFileSync(this.dbPath).toString()); // invalid JSON or permission issue can happen here
 		} catch (error) {
-			if (this.verbose) {
-				console.error(error);
-			}
+			this.onError(error);
 
 			return {};
 		}
@@ -80,9 +79,7 @@ export class FileStorage {
 		try {
 			writeFileAndFlushSync(this.dbPath, JSON.stringify(this.database, null, 4)); // permission issue can happen here
 		} catch (error) {
-			if (this.verbose) {
-				console.error(error);
-			}
+			this.onError(error);
 		}
 	}
 }
@@ -93,8 +90,8 @@ export class StateService implements IStateService {
 
 	private fileStorage: FileStorage;
 
-	constructor( @IEnvironmentService environmentService: IEnvironmentService) {
-		this.fileStorage = new FileStorage(path.join(environmentService.userDataPath, 'storage.json'), environmentService.verbose);
+	constructor( @IEnvironmentService environmentService: IEnvironmentService, @ILogService logService: ILogService) {
+		this.fileStorage = new FileStorage(path.join(environmentService.userDataPath, 'storage.json'), error => logService.error(error));
 	}
 
 	public getItem<T>(key: string, defaultValue?: T): T {

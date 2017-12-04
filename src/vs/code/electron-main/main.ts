@@ -53,8 +53,6 @@ function createServices(args: ParsedArgs): IInstantiationService {
 	const logService = new MultiplexLogService([legacyLogService, spdlogService]);
 	registerGlobalLogService(logService);
 
-	logService.info('main', JSON.stringify(args));
-
 	// Eventually cleanup
 	setTimeout(() => spdlogService.cleanup().then(null, err => console.error(err)), 10000);
 
@@ -79,6 +77,7 @@ function createPaths(environmentService: IEnvironmentService): TPromise<any> {
 		environmentService.nodeCachedDataDir,
 		environmentService.logsPath
 	];
+
 	return TPromise.join(paths.map(p => p && mkdirp(p))) as TPromise<any>;
 }
 
@@ -117,7 +116,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 
 			// Print --status usage info
 			if (environmentService.args.status) {
-				console.log('Warning: The --status argument can only be used if Code is already running. Please run it again after Code has started.');
+				logService.warn('Warning: The --status argument can only be used if Code is already running. Please run it again after Code has started.');
 			}
 
 			// Set the VSCODE_PID variable here when we are sure we are the first
@@ -236,14 +235,16 @@ function quit(accessor: ServicesAccessor, reason?: ExpectedError | Error): void 
 
 	if (reason) {
 		if ((reason as ExpectedError).isExpected) {
-			logService.info(reason.message);
+			if (reason.message) {
+				logService.trace(reason.message);
+			}
 		} else {
 			exitCode = 1; // signal error to the outside
 
 			if (reason.stack) {
-				console.error(reason.stack);
+				logService.error(reason.stack);
 			} else {
-				console.error(`Startup error: ${reason.toString()}`);
+				logService.error(`Startup error: ${reason.toString()}`);
 			}
 		}
 	}

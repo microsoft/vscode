@@ -123,7 +123,7 @@ export class UpdateService implements IUpdateService {
 
 		// Start checking for updates after 30 seconds
 		this.scheduleCheckForUpdates(30 * 1000)
-			.done(null, err => console.error(err));
+			.done(null, err => this.logService.error(err));
 	}
 
 	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): TPromise<void> {
