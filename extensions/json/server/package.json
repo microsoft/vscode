@@ -10,7 +10,7 @@
   "dependencies": {
     "jsonc-parser": "^1.0.0",
     "request-light": "^0.2.1",
-    "vscode-json-languageservice": "^3.0.3",
+    "vscode-json-languageservice": "^3.0.4",
     "vscode-languageserver": "^3.5.0",
     "vscode-nls": "^2.0.2",
     "vscode-uri": "^1.0.1"
