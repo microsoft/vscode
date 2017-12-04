@@ -43,18 +43,17 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const logger = new Logger();
 
+	const selector = 'markdown';
+
 	const contentProvider = new MDDocumentContentProvider(engine, context, cspArbiter, logger);
-	const contentProviderRegistration = vscode.workspace.registerTextDocumentContentProvider('markdown', contentProvider);
-	const previewSecuritySelector = new PreviewSecuritySelector(cspArbiter, contentProvider);
+	context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(selector, contentProvider));
 
 	loadMarkdownExtensions(contentProvider, engine);
 
-	const symbolsProvider = new MDDocumentSymbolProvider(engine);
-	const symbolsProviderRegistration = vscode.languages.registerDocumentSymbolProvider({ language: 'markdown' }, symbolsProvider);
-	context.subscriptions.push(contentProviderRegistration, symbolsProviderRegistration);
+	context.subscriptions.push(vscode.languages.registerDocumentSymbolProvider(selector, new MDDocumentSymbolProvider(engine)));
+	context.subscriptions.push(vscode.languages.registerDocumentLinkProvider(selector, new LinkProvider()));
 
-
-	context.subscriptions.push(vscode.languages.registerDocumentLinkProvider('markdown', new LinkProvider()));
+	const previewSecuritySelector = new PreviewSecuritySelector(cspArbiter, contentProvider);
 
 	const commandManager = new CommandManager();
 	context.subscriptions.push(commandManager);
