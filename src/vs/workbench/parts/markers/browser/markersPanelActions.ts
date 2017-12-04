@@ -98,19 +98,9 @@ export class ToggleErrorsAndWarningsAction extends TogglePanelAction {
 
 export class CollapseAllAction extends TreeCollapseAction {
 
-	constructor(viewer: Tree.ITree, enabled: boolean,
-		@ITelemetryService private telemetryService: ITelemetryService) {
+	constructor(viewer: Tree.ITree, enabled: boolean) {
 		super(viewer, enabled);
 	}
-
-	public run(context?: any): TPromise<any> {
-		/* __GDPR__
-			"problems.collapseAll.used" : {}
-		*/
-		this.telemetryService.publicLog('problems.collapseAll.used');
-		return super.run(context);
-	}
-
 }
 
 export class FilterAction extends Action {
