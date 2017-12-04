@@ -15,7 +15,7 @@ import * as pfs from 'vs/base/node/pfs';
 import URI from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
-import { IMessage, IExtensionDescription, IExtensionsStatus, IExtensionService, ExtensionPointContribution, ActivationTimes, IExtensionHostInformation, ProfileSession } from 'vs/platform/extensions/common/extensions';
+import { IMessage, IExtensionDescription, IExtensionsStatus, IExtensionService, ExtensionPointContribution, ActivationTimes, IExtensionHostInformation, ProfileSession, USER_MANIFEST_CACHE_FILE, BUILTIN_MANIFEST_CACHE_FILE, MANIFEST_CACHE_FOLDER } from 'vs/platform/extensions/common/extensions';
 import { IExtensionEnablementService, IExtensionIdentifier, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, BetterMergeId, BetterMergeDisabledNowKey } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionsRegistry, ExtensionPoint, IExtensionPointUser, ExtensionMessageCollector, IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
@@ -471,7 +471,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	private static async _validateExtensionsCache(instantiationService: IInstantiationService, messageService: IMessageService, environmentService: IEnvironmentService, cacheKey: string, input: ExtensionScannerInput): TPromise<void> {
-		const cacheFolder = path.join(environmentService.userDataPath, 'CachedExtensions');
+		const cacheFolder = path.join(environmentService.userDataPath, MANIFEST_CACHE_FOLDER);
 		const cacheFile = path.join(cacheFolder, cacheKey);
 
 		const expected = await ExtensionScanner.scanExtensions(input, new NullLogger());
@@ -502,7 +502,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	private static async _readExtensionCache(environmentService: IEnvironmentService, cacheKey: string): TPromise<IExtensionCacheData> {
-		const cacheFolder = path.join(environmentService.userDataPath, 'CachedExtensions');
+		const cacheFolder = path.join(environmentService.userDataPath, MANIFEST_CACHE_FOLDER);
 		const cacheFile = path.join(cacheFolder, cacheKey);
 
 		try {
@@ -516,7 +516,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	private static async _writeExtensionCache(environmentService: IEnvironmentService, cacheKey: string, cacheContents: IExtensionCacheData): TPromise<void> {
-		const cacheFolder = path.join(environmentService.userDataPath, 'CachedExtensions');
+		const cacheFolder = path.join(environmentService.userDataPath, MANIFEST_CACHE_FOLDER);
 		const cacheFile = path.join(cacheFolder, cacheKey);
 
 		try {
@@ -548,7 +548,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 		const counterLogger = new CounterLogger(log);
 		const result = await ExtensionScanner.scanExtensions(input, counterLogger);
-		if (!true && counterLogger.errorCnt === 0) {
+		if (counterLogger.errorCnt === 0) {
 			// Nothing bad happened => cache the result
 			const cacheContents: IExtensionCacheData = {
 				input: input,
@@ -569,7 +569,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			instantiationService,
 			messageService,
 			environmentService,
-			'builtin',
+			BUILTIN_MANIFEST_CACHE_FILE,
 			new ExtensionScannerInput(version, locale, devMode, SystemExtensionsRoot, true),
 			log
 		);
@@ -581,7 +581,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 					instantiationService,
 					messageService,
 					environmentService,
-					'user',
+					USER_MANIFEST_CACHE_FILE,
 					new ExtensionScannerInput(version, locale, devMode, environmentService.extensionsPath, false),
 					log
 				)

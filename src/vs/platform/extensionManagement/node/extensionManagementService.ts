@@ -33,6 +33,7 @@ import URI from 'vs/base/common/uri';
 import { IChoiceService, Severity } from 'vs/platform/message/common/message';
 import pkg from 'vs/platform/node/package';
 import { isMacintosh } from 'vs/base/common/platform';
+import { MANIFEST_CACHE_FOLDER, USER_MANIFEST_CACHE_FILE } from 'vs/platform/extensions/common/extensions';
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
 const INSTALL_ERROR_OBSOLETE = 'obsolete';
@@ -99,6 +100,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private extensionsPath: string;
 	private obsoletePath: string;
+	private userDataPath: string;
 	private obsoleteFileLimiter: Limiter<void>;
 	private disposables: IDisposable[] = [];
 
@@ -121,10 +123,20 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	) {
 		this.extensionsPath = environmentService.extensionsPath;
 		this.obsoletePath = path.join(this.extensionsPath, '.obsolete');
+		this.userDataPath = environmentService.userDataPath;
 		this.obsoleteFileLimiter = new Limiter(1);
 	}
 
+	private deleteExtensionsManifestCache(): void {
+		const cacheFolder = path.join(this.userDataPath, MANIFEST_CACHE_FOLDER);
+		const cacheFile = path.join(cacheFolder, USER_MANIFEST_CACHE_FILE);
+
+		pfs.del(cacheFile).done(() => { }, () => { });
+	}
+
 	install(zipPath: string): TPromise<void> {
+		this.deleteExtensionsManifestCache();
+
 		zipPath = path.resolve(zipPath);
 
 		return validateLocalExtension(zipPath)
@@ -193,6 +205,8 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	installFromGallery(extension: IGalleryExtension): TPromise<void> {
+		this.deleteExtensionsManifestCache();
+
 		this.onInstallExtensions([extension]);
 		return this.collectExtensionsToInstall(extension)
 			.then(
@@ -358,6 +372,8 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	uninstall(extension: ILocalExtension, force = false): TPromise<void> {
+		this.deleteExtensionsManifestCache();
+
 		return this.removeOutdatedExtensions()
 			.then(() =>
 				this.scanUserExtensions()
@@ -371,6 +387,8 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): TPromise<ILocalExtension> {
+		this.deleteExtensionsManifestCache();
+
 		local.metadata = metadata;
 		return this.saveMetadataForLocalExtension(local);
 	}

@@ -33,6 +33,10 @@ export interface IExtensionDescription {
 	enableProposedApi?: boolean;
 }
 
+export const MANIFEST_CACHE_FOLDER = 'CachedExtensions';
+export const USER_MANIFEST_CACHE_FILE = 'user';
+export const BUILTIN_MANIFEST_CACHE_FILE = 'builtin';
+
 export const IExtensionService = createDecorator<IExtensionService>('extensionService');
 
 export interface IMessage {
