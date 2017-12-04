@@ -8,7 +8,7 @@
  * https://github.com/Microsoft/TypeScript-Sublime-Plugin/blob/master/TypeScript%20Indent.tmPreferences
  * ------------------------------------------------------------------------------------------ */
 
-import { env, languages, commands, workspace, window, Memento, Diagnostic, Range, Disposable, Uri, MessageItem, DiagnosticSeverity, TextDocument } from 'vscode';
+import { env, languages, commands, workspace, window, Memento, Diagnostic, Range, Disposable, Uri, MessageItem, DiagnosticSeverity, TextDocument, DocumentFilter } from 'vscode';
 
 // This must be the first statement otherwise modules might got loaded with
 // the wrong locale.
@@ -36,6 +36,7 @@ import * as languageConfigurations from './utils/languageConfigurations';
 import { CommandManager } from './utils/commandManager';
 import DiagnosticsManager from './features/diagnostics';
 import { LanguageDescription } from './utils/languageDescription';
+import * as fileSchemes from './utils/fileSchemes';
 
 const validateSetting = 'validate.enable';
 
@@ -47,6 +48,8 @@ class LanguageProvider {
 	private readonly toUpdateOnConfigurationChanged: ({ updateConfiguration: () => void })[] = [];
 
 	private _validate: boolean = true;
+
+	private _documentSelector: DocumentFilter[];
 
 	private readonly disposables: Disposable[] = [];
 	private readonly versionDependentDisposables: Disposable[] = [];
@@ -97,12 +100,24 @@ class LanguageProvider {
 		this.formattingOptionsManager.dispose();
 	}
 
+	private get documentSelector(): DocumentFilter[] {
+		if (!this._documentSelector) {
+			this._documentSelector = [];
+			for (const language of this.description.modeIds) {
+				for (const scheme of fileSchemes.supportedSchemes) {
+					this._documentSelector.push({ language, scheme });
+				}
+			}
+		}
+		return this._documentSelector;
+	}
+
 	private async registerProviders(
 		client: TypeScriptServiceClient,
 		commandManager: CommandManager,
 		typingsStatus: TypingsStatus
 	): Promise<void> {
-		const selector = this.description.modeIds;
+		const selector = this.documentSelector;
 		const config = workspace.getConfiguration(this.id);
 
 		this.disposables.push(languages.registerCompletionItemProvider(selector,
@@ -214,7 +229,7 @@ class LanguageProvider {
 			return;
 		}
 
-		const selector = this.description.modeIds;
+		const selector = this.documentSelector;
 		if (this.client.apiVersion.has220Features()) {
 			this.versionDependentDisposables.push(languages.registerImplementationProvider(selector, new (await import('./features/implementationProvider')).default(this.client)));
 		}
