@@ -12,7 +12,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { OneGetThreadService } from './testThreadService';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
-import { NoopLogService } from 'vs/platform/log/common/log';
 
 suite('ExtHostCommands', function () {
 
@@ -30,7 +29,7 @@ suite('ExtHostCommands', function () {
 			}
 		};
 
-		const commands = new ExtHostCommands(OneGetThreadService(shape), undefined, new NoopLogService());
+		const commands = new ExtHostCommands(OneGetThreadService(shape), undefined);
 		commands.registerCommand('foo', (): any => { }).dispose();
 		assert.equal(lastUnregister, 'foo');
 		assert.equal(CommandsRegistry.getCommand('foo'), undefined);
@@ -51,7 +50,7 @@ suite('ExtHostCommands', function () {
 			}
 		};
 
-		const commands = new ExtHostCommands(OneGetThreadService(shape), undefined, new NoopLogService());
+		const commands = new ExtHostCommands(OneGetThreadService(shape), undefined);
 		const reg = commands.registerCommand('foo', (): any => { });
 		reg.dispose();
 		reg.dispose();

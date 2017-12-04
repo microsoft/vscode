@@ -17,7 +17,7 @@ import { sortedDiff } from 'vs/base/common/arrays';
 import { comparePaths } from 'vs/base/common/comparers';
 import * as vscode from 'vscode';
 import { ISplice } from 'vs/base/common/sequence';
-import { log, LogLevel, ILogService } from 'vs/platform/log/common/log';
+import { log, LogLevel } from 'vs/platform/log/common/log';
 
 type ProviderHandle = number;
 type GroupHandle = number;
@@ -444,9 +444,7 @@ export class ExtHostSCM {
 
 	constructor(
 		mainContext: IMainContext,
-		private _commands: ExtHostCommands,
-		// @ts-ignore
-		@ILogService private logService: ILogService
+		private _commands: ExtHostCommands
 	) {
 		this._proxy = mainContext.get(MainContext.MainThreadSCM);
 

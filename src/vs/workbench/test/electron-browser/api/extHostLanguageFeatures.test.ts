@@ -44,7 +44,6 @@ import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import * as vscode from 'vscode';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { NoopLogService } from 'vs/platform/log/common/log';
 
 const defaultSelector = { scheme: 'far' };
 const model: EditorCommon.IModel = EditorModel.createFromString(
@@ -103,7 +102,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		const heapService = new ExtHostHeapService();
 
-		const commands = new ExtHostCommands(threadService, heapService, new NoopLogService());
+		const commands = new ExtHostCommands(threadService, heapService);
 		threadService.set(ExtHostContext.ExtHostCommands, commands);
 		threadService.setTestInstance(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, threadService));
 

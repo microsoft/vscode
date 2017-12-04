@@ -107,6 +107,22 @@ export class MultiplexLogService implements ILogService {
 	}
 }
 
+export class NoopLogService implements ILogService {
+	_serviceBrand: any;
+	trace(message: string, ...args: any[]): void { }
+	debug(message: string, ...args: any[]): void { }
+	info(message: string, ...args: any[]): void { }
+	warn(message: string, ...args: any[]): void { }
+	error(message: string | Error, ...args: any[]): void { }
+	critical(message: string | Error, ...args: any[]): void { }
+}
+
+let globalLogService: ILogService = new NoopLogService();
+
+export function registerGlobalLogService(logService: ILogService): void {
+	globalLogService = logService;
+}
+
 export function log(level: LogLevel, prefix: string, logFn?: (message: string, ...args: any[]) => string): Function {
 	return createDecorator((fn, key) => {
 		// TODO@Joao: load-time log level? return fn;
@@ -119,25 +135,15 @@ export function log(level: LogLevel, prefix: string, logFn?: (message: string, .
 			}
 
 			switch (level) {
-				case LogLevel.TRACE: this.logService.trace(message); break;
-				case LogLevel.DEBUG: this.logService.debug(message); break;
-				case LogLevel.INFO: this.logService.info(message); break;
-				case LogLevel.WARN: this.logService.warn(message); break;
-				case LogLevel.ERROR: this.logService.error(message); break;
-				case LogLevel.CRITICAL: this.logService.critical(message); break;
+				case LogLevel.TRACE: globalLogService.trace(message); break;
+				case LogLevel.DEBUG: globalLogService.debug(message); break;
+				case LogLevel.INFO: globalLogService.info(message); break;
+				case LogLevel.WARN: globalLogService.warn(message); break;
+				case LogLevel.ERROR: globalLogService.error(message); break;
+				case LogLevel.CRITICAL: globalLogService.critical(message); break;
 			}
 
 			return fn.apply(this, args);
 		};
 	});
-}
-
-export class NoopLogService implements ILogService {
-	_serviceBrand: any;
-	trace(message: string, ...args: any[]): void { }
-	debug(message: string, ...args: any[]): void { }
-	info(message: string, ...args: any[]): void { }
-	warn(message: string, ...args: any[]): void { }
-	error(message: string | Error, ...args: any[]): void { }
-	critical(message: string | Error, ...args: any[]): void { }
 }

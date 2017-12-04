@@ -15,7 +15,7 @@ import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import * as modes from 'vs/editor/common/modes';
 import * as vscode from 'vscode';
-import { ILogService, log, LogLevel } from 'vs/platform/log/common/log';
+import { log, LogLevel } from 'vs/platform/log/common/log';
 
 interface CommandHandler {
 	callback: Function;
@@ -36,9 +36,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 	constructor(
 		mainContext: IMainContext,
-		heapService: ExtHostHeapService,
-		// @ts-ignore
-		@ILogService private logService: ILogService
+		heapService: ExtHostHeapService
 	) {
 		this._proxy = mainContext.get(MainContext.MainThreadCommands);
 		this._converter = new CommandsConverter(this, heapService);
