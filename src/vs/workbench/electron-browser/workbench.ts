@@ -280,7 +280,12 @@ export class Workbench implements IPartService {
 		// Set workbench state context
 		const WorkbenchStateContext = new RawContextKey<string>('workbenchState', getWorkbenchStateString(this.configurationService.getWorkbenchState()));
 		const workbenchStateContext = WorkbenchStateContext.bindTo(this.contextKeyService);
+
+		const WorkspaceFolderCountContext = new RawContextKey<number>('workspaceFolderCount', this.configurationService.getWorkspace().folders.length);
+		const workspaceFolderCountContext = WorkspaceFolderCountContext.bindTo(this.contextKeyService);
+
 		this.toDispose.push(this.configurationService.onDidChangeWorkbenchState(() => workbenchStateContext.set(getWorkbenchStateString(this.configurationService.getWorkbenchState()))));
+		this.toDispose.push(this.configurationService.onDidChangeWorkspaceFolders(() => workspaceFolderCountContext.set(this.configurationService.getWorkspace().folders.length)));
 
 		// Register Listeners
 		this.registerListeners();
