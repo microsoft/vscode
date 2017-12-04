@@ -156,16 +156,16 @@ class ExtHostTreeView<T> extends Disposable {
 
 	private resolveElement(element: T, index: number, parentHandle?: TreeItemHandle): TPromise<ITreeItem> {
 		return asWinJsPromise(() => this.dataProvider.getTreeItem(element))
-			.then(extTreeItem => this.massageTreeItem(extTreeItem, index, parentHandle));
+			.then(extTreeItem => this.massageTreeItem(element, extTreeItem, index, parentHandle));
 	}
 
-	private massageTreeItem(extensionTreeItem: vscode.TreeItem, index: number, parentHandle: TreeItemHandle): ITreeItem {
+	private massageTreeItem(element: T, extensionTreeItem: vscode.TreeItem, index: number, parentHandle: TreeItemHandle): ITreeItem {
 		if (!extensionTreeItem) {
 			return null;
 		}
 		const icon = this.getLightIconPath(extensionTreeItem);
 		const label = extensionTreeItem.label;
-		const handle = this.generateHandle(label, index, parentHandle);
+		const handle = typeof element === 'string' ? element : this.generateHandle(label, index, parentHandle);
 		return {
 			handle,
 			parentHandle,
