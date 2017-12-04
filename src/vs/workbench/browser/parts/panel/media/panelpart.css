@@ -31,7 +31,7 @@
 }
 
 .monaco-workbench > .part.panel > .composite.title > .title-actions {
-	flex: 0;
+	flex-grow: 0;
 }
 
 .monaco-workbench > .part.panel > .title > .title-actions .monaco-action-bar .action-item .action-label {
@@ -59,11 +59,15 @@
 
 .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item {
 	text-transform: uppercase;
-	margin-left: 16px;
-	margin-right: 16px;
+	padding-left: 16px;
+	padding-right: 16px;
 	font-size: 11px;
 	padding-bottom: 4px; /* puts the bottom border down */
 	display: flex;
+}
+
+.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:last-child {
+	padding-right: 0px;
 }
 
 .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label {

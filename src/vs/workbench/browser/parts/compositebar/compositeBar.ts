@@ -223,14 +223,21 @@ export class CompositeBar implements ICompositeBar {
 		if (overflows) {
 			size -= this.compositeSizeInBar.get(compositesToShow[maxVisible]);
 			compositesToShow = compositesToShow.slice(0, maxVisible);
+			size += this.options.overflowActionSize;
 		}
 		// Check if we need to make extra room for the overflow action
-		if (overflows && (size + this.options.overflowActionSize > limit)) {
-			compositesToShow.pop();
+		if (size > limit) {
+			size -= this.compositeSizeInBar.get(compositesToShow.pop());
 		}
+		// We always try show the active composite
 		if (this.activeCompositeId && compositesToShow.length && compositesToShow.indexOf(this.activeCompositeId) === -1) {
-			compositesToShow.pop();
+			const removedComposite = compositesToShow.pop();
+			size = size - this.compositeSizeInBar.get(removedComposite) + this.compositeSizeInBar.get(this.activeCompositeId);
 			compositesToShow.push(this.activeCompositeId);
+		}
+		// The active composite might have bigger size than the removed composite, check for overflow again
+		if (size > limit) {
+			compositesToShow.length ? compositesToShow.splice(compositesToShow.length - 2, 1) : compositesToShow.pop();
 		}
 
 		const visibleComposites = Object.keys(this.compositeIdToActions);
