@@ -33,20 +33,8 @@ export class ToggleMarkersPanelAction extends TogglePanelAction {
 	constructor(id: string, label: string,
 		@IPartService partService: IPartService,
 		@IPanelService panelService: IPanelService,
-		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		super(id, label, Constants.MARKERS_PANEL_ID, panelService, partService);
-	}
-
-	public run(): TPromise<any> {
-		let promise = super.run();
-		if (this.isPanelFocused()) {
-			/* __GDPR__
-				"problems.used" : {}
-			*/
-			this.telemetryService.publicLog('problems.used');
-		}
-		return promise;
 	}
 }
 
@@ -56,17 +44,12 @@ export class ShowProblemsPanelAction extends Action {
 	public static readonly LABEL = Messages.MARKERS_PANEL_SHOW_LABEL;
 
 	constructor(id: string, label: string,
-		@IPanelService private panelService: IPanelService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@IPanelService private panelService: IPanelService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		/* __GDPR__
-			"problems.used" : {}
-		*/
-		this.telemetryService.publicLog('problems.used');
 		return this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
 	}
 }
@@ -79,20 +62,8 @@ export class ToggleErrorsAndWarningsAction extends TogglePanelAction {
 	constructor(id: string, label: string,
 		@IPartService partService: IPartService,
 		@IPanelService panelService: IPanelService,
-		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		super(id, label, Constants.MARKERS_PANEL_ID, panelService, partService);
-	}
-
-	public run(): TPromise<any> {
-		let promise = super.run();
-		if (this.isPanelFocused()) {
-			/* __GDPR__
-				"problems.used" : {}
-			*/
-			this.telemetryService.publicLog('problems.used');
-		}
-		return promise;
 	}
 }
 
