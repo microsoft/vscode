@@ -217,7 +217,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		return this.galleryService.loadCompatibleVersion(extension)
 			.then(compatible => {
 				if (!compatible) {
-					return TPromise.wrapError<IGalleryExtension[]>(new InstallationError(nls.localize('notFoundCopatible', "Unable to install because, the extension '{0}' compatible with current version '{1}' of VS Code is not found.", extension.identifier.id, pkg.version), INSTALL_ERROR_INCOMPATIBLE));
+					return TPromise.wrapError<IGalleryExtension[]>(new InstallationError(nls.localize('notFoundCompatible', "Unable to install because, the extension '{0}' compatible with current version '{1}' of VS Code is not found.", extension.identifier.id, pkg.version), INSTALL_ERROR_INCOMPATIBLE));
 				}
 				return this.getDependenciesToInstall(compatible.properties.dependencies)
 					.then(
@@ -310,14 +310,17 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	private getDependenciesToInstall(dependencies: string[]): TPromise<IGalleryExtension[]> {
-		return this.galleryService.loadAllDependencies(dependencies.map(id => (<IExtensionIdentifier>{ id })))
-			.then(allDependencies => this.getInstalled()
-				.then(local => {
-					return allDependencies.filter(d => {
-						const extensionId = getLocalExtensionIdFromGallery(d, d.version);
-						return local.every(({ identifier }) => identifier.id !== extensionId);
-					});
-				}));
+		if (dependencies.length) {
+			return this.galleryService.loadAllDependencies(dependencies.map(id => (<IExtensionIdentifier>{ id })))
+				.then(allDependencies => this.getInstalled()
+					.then(local => {
+						return allDependencies.filter(d => {
+							const extensionId = getLocalExtensionIdFromGallery(d, d.version);
+							return local.every(({ identifier }) => identifier.id !== extensionId);
+						});
+					}));
+		}
+		return TPromise.as([]);
 	}
 
 	private filterOutUninstalled(extensions: IGalleryExtension[]): TPromise<ILocalExtension[]> {
