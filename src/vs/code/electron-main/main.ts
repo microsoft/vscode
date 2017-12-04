@@ -147,9 +147,10 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 					}
 
 					// Show a warning dialog after some timeout if it takes long to talk to the other instance
-					// Skip this if we are running with --wait where it is expected that we wait for a while
+					// Skip this if we are running with --wait where it is expected that we wait for a while.
+					// Also skip when gathering diagnostics (--status) which can take a longer time.
 					let startupWarningDialogHandle: number;
-					if (!environmentService.wait) {
+					if (!environmentService.wait && !environmentService.status) {
 						startupWarningDialogHandle = setTimeout(() => {
 							showStartupWarningDialog(
 								localize('secondInstanceNoResponse', "Another instance of {0} is running but not responding", product.nameShort),

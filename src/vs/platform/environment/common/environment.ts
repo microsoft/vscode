@@ -103,6 +103,7 @@ export interface IEnvironmentService {
 
 	isBuilt: boolean;
 	wait: boolean;
+	status: boolean;
 	performance: boolean;
 
 	// logging
