@@ -35,6 +35,8 @@ import { ChoiceCliService } from 'vs/platform/message/node/messageCli';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { IStateService } from 'vs/platform/state/common/state';
 import { StateService } from 'vs/platform/state/node/stateService';
+import { SpdLogService } from 'vs/platform/log/node/spdlogService';
+import { registerGlobalLogService, ILogService } from 'vs/platform/log/common/log';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = (id: string) => localize('notInstalled', "Extension '{0}' is not installed.", id);
@@ -175,7 +177,15 @@ const eventPrefix = 'monacoworkbench';
 
 export function main(argv: ParsedArgs): TPromise<void> {
 	const services = new ServiceCollection();
-	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, argv, process.execPath));
+
+	const environmentService = new EnvironmentService(argv, process.execPath);
+	const logService = new SpdLogService('cli', environmentService);
+	registerGlobalLogService(logService);
+
+	logService.info('main', argv);
+
+	services.set(IEnvironmentService, environmentService);
+	services.set(ILogService, logService);
 	services.set(IStateService, new SyncDescriptor(StateService));
 
 	const instantiationService: IInstantiationService = new InstantiationService(services);
