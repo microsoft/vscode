@@ -13,6 +13,7 @@ import { memoize } from 'vs/base/common/decorators';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
 import { LogLevel } from 'vs/platform/log/common/log';
+import { toLocalISOString } from 'vs/base/common/date';
 
 // Read this before there's any chance it is overwritten
 // Related to https://github.com/Microsoft/vscode/issues/30624
@@ -162,7 +163,7 @@ export class EnvironmentService implements IEnvironmentService {
 
 	constructor(private _args: ParsedArgs, private _execPath: string) {
 		if (!process.env['VSCODE_LOGS']) {
-			const key = new Date().toISOString().replace(/-|:|\.\d+Z$/g, '');
+			const key = toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '');
 			process.env['VSCODE_LOGS'] = path.join(this.userDataPath, 'logs', key);
 		}
 
