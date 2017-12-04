@@ -106,8 +106,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	commandManager.register(new commands.ShowPreviewCommand(cspArbiter, telemetryReporter));
 	commandManager.register(new commands.ShowPreviewToSideCommand(cspArbiter, telemetryReporter));
-
-	context.subscriptions.push(vscode.commands.registerCommand('markdown.showSource', showSource));
+	commandManager.register(new commands.ShowSourceCommand());
 
 	context.subscriptions.push(vscode.commands.registerCommand('_markdown.moveCursorToPosition', (line: number, character: number) => {
 		if (!vscode.window.activeTextEditor) {
@@ -251,22 +250,6 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 }
 
-
-function showSource(mdUri: vscode.Uri) {
-	if (!mdUri) {
-		return vscode.commands.executeCommand('workbench.action.navigateBack');
-	}
-
-	const docUri = vscode.Uri.parse(mdUri.query);
-	for (const editor of vscode.window.visibleTextEditors) {
-		if (editor.document.uri.scheme === docUri.scheme && editor.document.uri.toString() === docUri.toString()) {
-			return vscode.window.showTextDocument(editor.document, editor.viewColumn);
-		}
-	}
-
-	return vscode.workspace.openTextDocument(docUri)
-		.then(vscode.window.showTextDocument);
-}
 
 function getPackageInfo(): IPackageInfo | null {
 	const extention = vscode.extensions.getExtension('Microsoft.vscode-markdown');
