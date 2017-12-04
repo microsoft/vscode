@@ -12,10 +12,10 @@ import * as path from 'path';
 import { Command } from './commandManager';
 import { ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from './security';
 import { getMarkdownUri, MDDocumentContentProvider, isMarkdownFile } from './previewContentProvider';
-import TelemetryReporter from 'vscode-extension-telemetry';
 import { Logger } from './logger';
 import { TableOfContentsProvider } from './tableOfContentsProvider';
 import { MarkdownEngine } from './markdownEngine';
+import { TelemetryReporter } from './telemetryReporter';
 
 
 function getViewColumn(sideBySide: boolean): vscode.ViewColumn | undefined {
@@ -40,7 +40,7 @@ function getViewColumn(sideBySide: boolean): vscode.ViewColumn | undefined {
 
 function showPreview(
 	cspArbiter: ExtensionContentSecurityPolicyArbiter,
-	telemetryReporter: TelemetryReporter | null,
+	telemetryReporter: TelemetryReporter,
 	uri?: vscode.Uri,
 	sideBySide: boolean = false,
 ) {
@@ -70,18 +70,10 @@ function showPreview(
 			allowSvgs: cspArbiter.shouldAllowSvgsForResource(resource)
 		});
 
-	if (telemetryReporter) {
-		/* __GDPR__
-			"openPreview" : {
-				"where" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"how": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		telemetryReporter.sendTelemetryEvent('openPreview', {
-			where: sideBySide ? 'sideBySide' : 'inPlace',
-			how: (uri instanceof vscode.Uri) ? 'action' : 'pallete'
-		});
-	}
+	telemetryReporter.sendTelemetryEvent('openPreview', {
+		where: sideBySide ? 'sideBySide' : 'inPlace',
+		how: (uri instanceof vscode.Uri) ? 'action' : 'pallete'
+	});
 
 	return thenable;
 }
@@ -91,7 +83,7 @@ export class ShowPreviewCommand implements Command {
 
 	public constructor(
 		private readonly cspArbiter: ExtensionContentSecurityPolicyArbiter,
-		private readonly telemetryReporter: TelemetryReporter | null
+		private readonly telemetryReporter: TelemetryReporter
 	) { }
 
 	public execute(uri?: vscode.Uri) {
@@ -104,7 +96,7 @@ export class ShowPreviewToSideCommand implements Command {
 
 	public constructor(
 		private readonly cspArbiter: ExtensionContentSecurityPolicyArbiter,
-		private readonly telemetryReporter: TelemetryReporter | null
+		private readonly telemetryReporter: TelemetryReporter
 	) { }
 
 	public execute(uri?: vscode.Uri) {

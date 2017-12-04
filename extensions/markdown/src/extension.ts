@@ -7,7 +7,6 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import TelemetryReporter from 'vscode-extension-telemetry';
 import { MarkdownEngine } from './markdownEngine';
 import LinkProvider from './documentLinkProvider';
 import MDDocumentSymbolProvider from './documentSymbolProvider';
@@ -16,12 +15,7 @@ import { MDDocumentContentProvider, getMarkdownUri, isMarkdownFile } from './pre
 import { Logger } from './logger';
 import { CommandManager } from './commandManager';
 import * as commands from './commands';
-
-interface IPackageInfo {
-	name: string;
-	version: string;
-	aiKey: string;
-}
+import { loadDefaultTelemetryReporter } from './telemetryReporter';
 
 const resolveExtensionResources = (extension: vscode.Extension<any>, stylePath: string): vscode.Uri => {
 	const resource = vscode.Uri.parse(stylePath);
@@ -32,15 +26,11 @@ const resolveExtensionResources = (extension: vscode.Extension<any>, stylePath: 
 };
 
 export function activate(context: vscode.ExtensionContext) {
-	const packageInfo = getPackageInfo();
-	const telemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
-	if (telemetryReporter) {
-		context.subscriptions.push(telemetryReporter);
-	}
+	const telemetryReporter = loadDefaultTelemetryReporter();
+	context.subscriptions.push(telemetryReporter);
 
 	const cspArbiter = new ExtensionContentSecurityPolicyArbiter(context.globalState, context.workspaceState);
 	const engine = new MarkdownEngine();
-
 	const logger = new Logger();
 
 	const selector = 'markdown';
@@ -143,14 +133,3 @@ function loadMarkdownExtensions(
 	}
 }
 
-function getPackageInfo(): IPackageInfo | null {
-	const extention = vscode.extensions.getExtension('Microsoft.vscode-markdown');
-	if (extention && extention.packageJSON) {
-		return {
-			name: extention.packageJSON.name,
-			version: extention.packageJSON.version,
-			aiKey: extention.packageJSON.aiKey
-		};
-	}
-	return null;
-}
