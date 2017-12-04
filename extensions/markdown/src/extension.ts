@@ -17,6 +17,8 @@ import { ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from '
 import { MDDocumentContentProvider, getMarkdownUri, isMarkdownFile } from './previewContentProvider';
 import { TableOfContentsProvider } from './tableOfContentsProvider';
 import { Logger } from './logger';
+import { CommandManager } from './commandManager';
+import * as commands from './commands';
 
 interface IPackageInfo {
 	name: string;
@@ -96,10 +98,15 @@ export function activate(context: vscode.ExtensionContext) {
 	const symbolsProviderRegistration = vscode.languages.registerDocumentSymbolProvider({ language: 'markdown' }, symbolsProvider);
 	context.subscriptions.push(contentProviderRegistration, symbolsProviderRegistration);
 
+
 	context.subscriptions.push(vscode.languages.registerDocumentLinkProvider('markdown', new LinkProvider()));
 
-	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreview', (uri) => showPreview(cspArbiter, uri, false)));
-	context.subscriptions.push(vscode.commands.registerCommand('markdown.showPreviewToSide', uri => showPreview(cspArbiter, uri, true)));
+	const commandManager = new CommandManager();
+	context.subscriptions.push(commandManager);
+
+	commandManager.register(new commands.ShowPreviewCommand(cspArbiter, telemetryReporter));
+	commandManager.register(new commands.ShowPreviewToSideCommand(cspArbiter, telemetryReporter));
+
 	context.subscriptions.push(vscode.commands.registerCommand('markdown.showSource', showSource));
 
 	context.subscriptions.push(vscode.commands.registerCommand('_markdown.moveCursorToPosition', (line: number, character: number) => {
@@ -244,69 +251,6 @@ export function activate(context: vscode.ExtensionContext) {
 	}));
 }
 
-
-function showPreview(cspArbiter: ExtensionContentSecurityPolicyArbiter, uri?: vscode.Uri, sideBySide: boolean = false) {
-	let resource = uri;
-	if (!(resource instanceof vscode.Uri)) {
-		if (vscode.window.activeTextEditor) {
-			// we are relaxed and don't check for markdown files
-			resource = vscode.window.activeTextEditor.document.uri;
-		}
-	}
-
-	if (!(resource instanceof vscode.Uri)) {
-		if (!vscode.window.activeTextEditor) {
-			// this is most likely toggling the preview
-			return vscode.commands.executeCommand('markdown.showSource');
-		}
-		// nothing found that could be shown or toggled
-		return;
-	}
-
-	const thenable = vscode.commands.executeCommand('vscode.previewHtml',
-		getMarkdownUri(resource),
-		getViewColumn(sideBySide),
-		localize('previewTitle', 'Preview {0}', path.basename(resource.fsPath)),
-		{
-			allowScripts: true,
-			allowSvgs: cspArbiter.shouldAllowSvgsForResource(resource)
-		});
-
-	if (telemetryReporter) {
-		/* __GDPR__
-			"openPreview" : {
-				"where" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"how": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		telemetryReporter.sendTelemetryEvent('openPreview', {
-			where: sideBySide ? 'sideBySide' : 'inPlace',
-			how: (uri instanceof vscode.Uri) ? 'action' : 'pallete'
-		});
-	}
-
-	return thenable;
-}
-
-function getViewColumn(sideBySide: boolean): vscode.ViewColumn | undefined {
-	const active = vscode.window.activeTextEditor;
-	if (!active) {
-		return vscode.ViewColumn.One;
-	}
-
-	if (!sideBySide) {
-		return active.viewColumn;
-	}
-
-	switch (active.viewColumn) {
-		case vscode.ViewColumn.One:
-			return vscode.ViewColumn.Two;
-		case vscode.ViewColumn.Two:
-			return vscode.ViewColumn.Three;
-	}
-
-	return active.viewColumn;
-}
 
 function showSource(mdUri: vscode.Uri) {
 	if (!mdUri) {

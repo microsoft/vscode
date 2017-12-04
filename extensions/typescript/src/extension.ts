@@ -86,7 +86,6 @@ function registerCommands(
 	commandManager.register(new commands.JavaScriptGoToProjectConfigCommand(lazyClientHost));
 }
 
-
 function isSupportedDocument(
 	supportedLanguage: string[],
 	document: vscode.TextDocument
