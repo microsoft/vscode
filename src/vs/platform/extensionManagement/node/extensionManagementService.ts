@@ -301,7 +301,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			if (local) {
 				this._onDidInstallExtension.fire({ identifier, gallery, local });
 			} else {
-				const errorCode = error && error instanceof InstallationError ? error.code : INSTALL_ERROR_UNKNOWN;
+				const errorCode = error && (<InstallationError>error).code ? (<InstallationError>error).code : INSTALL_ERROR_UNKNOWN;
 				this._onDidInstallExtension.fire({ identifier, gallery, error: errorCode });
 			}
 		});
