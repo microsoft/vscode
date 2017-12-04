@@ -170,8 +170,10 @@ export class WorkbenchShell {
 			this.workbench.startup().done(startupInfos => this.onWorkbenchStarted(startupInfos, instantiationService));
 		} catch (error) {
 
-			// Print out error
-			console.error(toErrorMessage(error, true));
+			// Log to console and log
+			const msg = toErrorMessage(error, true);
+			console.error(msg);
+			this.logService.error(msg);
 
 			// Rethrow
 			throw error;
@@ -182,7 +184,9 @@ export class WorkbenchShell {
 
 		// Handle case where workbench is not starting up properly
 		const timeoutHandle = setTimeout(() => {
-			console.warn('Workbench did not finish loading in 10 seconds, that might be a problem that should be reported.');
+			const msg = 'Workbench did not finish loading in 10 seconds, that might be a problem that should be reported.';
+			console.warn(msg);
+			this.logService.warn(msg);
 		}, 10000);
 
 		this.lifecycleService.when(LifecyclePhase.Running).then(() => {
@@ -460,8 +464,9 @@ export class WorkbenchShell {
 		this.previousErrorTime = now;
 		this.previousErrorValue = errorMsg;
 
-		// Log to console
+		// Log to console and log
 		console.error(errorMsg);
+		this.logService.error(errorMsg);
 
 		// Show to user if friendly message provided
 		if (error && error.friendlyMessage && this.messageService) {

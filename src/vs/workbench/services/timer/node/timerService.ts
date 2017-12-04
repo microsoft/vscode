@@ -88,7 +88,7 @@ export class TimerService implements ITimerService {
 				cpus = { count: rawCpus.length, speed: rawCpus[0].speed, model: rawCpus[0].model };
 			}
 		} catch (error) {
-			console.error(error); // be on the safe side with these hardware method calls
+			// ignore, be on the safe side with these hardware method calls
 		}
 
 		this._startupMetrics = {
