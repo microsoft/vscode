@@ -172,19 +172,7 @@ export class WalkThroughPart extends BaseEditor {
 				if (node instanceof HTMLAnchorElement && node.href) {
 					let baseElement = window.document.getElementsByTagName('base')[0] || window.location;
 					if (baseElement && node.href.indexOf(baseElement.href) >= 0 && node.hash) {
-						let scrollTarget = this.content.querySelector(node.hash);
-						/* __GDPR__
-							"revealInDocument" : {
-								"hash" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"broken": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-								"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-							}
-						*/
-						this.telemetryService.publicLog('revealInDocument', {
-							hash: node.hash,
-							broken: !scrollTarget,
-							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined
-						});
+						const scrollTarget = this.content.querySelector(node.hash);
 						const innerContent = this.content.firstElementChild;
 						if (scrollTarget && innerContent) {
 							const targetTop = scrollTarget.getBoundingClientRect().top - 20;
