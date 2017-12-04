@@ -11,8 +11,9 @@ import * as path from 'path';
 
 import { Command } from './commandManager';
 import { ExtensionContentSecurityPolicyArbiter } from './security';
-import { getMarkdownUri } from './previewContentProvider';
+import { getMarkdownUri, MDDocumentContentProvider, isMarkdownFile } from './previewContentProvider';
 import TelemetryReporter from 'vscode-extension-telemetry';
+import { Logger } from './logger';
 
 
 function getViewColumn(sideBySide: boolean): vscode.ViewColumn | undefined {
@@ -83,7 +84,6 @@ function showPreview(
 	return thenable;
 }
 
-
 export class ShowPreviewCommand implements Command {
 	public readonly id = 'markdown.showPreview';
 
@@ -127,5 +127,68 @@ export class ShowSourceCommand implements Command {
 
 		return vscode.workspace.openTextDocument(docUri)
 			.then(vscode.window.showTextDocument);
+	}
+}
+
+export class RefreshPreviewCommand implements Command {
+	public readonly id = 'markdown.refreshPreview';
+
+	public constructor(
+		private contentProvider: MDDocumentContentProvider
+	) { }
+
+	public execute(resource: string | undefined) {
+		if (resource) {
+			const source = vscode.Uri.parse(resource);
+			this.contentProvider.update(source);
+		} else if (vscode.window.activeTextEditor && isMarkdownFile(vscode.window.activeTextEditor.document)) {
+			this.contentProvider.update(getMarkdownUri(vscode.window.activeTextEditor.document.uri));
+		} else {
+			// update all generated md documents
+			for (const document of vscode.workspace.textDocuments) {
+				if (document.uri.scheme === 'markdown') {
+					this.contentProvider.update(document.uri);
+				}
+			}
+		}
+	}
+}
+
+export class RevealLineCommand implements Command {
+	public readonly id = '_markdown.revealLine';
+
+	public constructor(
+		private logger: Logger
+	) { }
+
+	public execute(uri: string, line: number) {
+		const sourceUri = vscode.Uri.parse(decodeURIComponent(uri));
+		this.logger.log('revealLine', { uri, sourceUri: sourceUri.toString(), line });
+
+		vscode.window.visibleTextEditors
+			.filter(editor => isMarkdownFile(editor.document) && editor.document.uri.toString() === sourceUri.toString())
+			.forEach(editor => {
+				const sourceLine = Math.floor(line);
+				const fraction = line - sourceLine;
+				const text = editor.document.lineAt(sourceLine).text;
+				const start = Math.floor(fraction * text.length);
+				editor.revealRange(
+					new vscode.Range(sourceLine, start, sourceLine + 1, 0),
+					vscode.TextEditorRevealType.AtTop);
+			});
+	}
+}
+
+export class MoveCursorToPositionCommand implements Command {
+	public readonly id = '_markdown.moveCursorToPosition';
+
+	public execute(line: number, character: number) {
+		if (!vscode.window.activeTextEditor) {
+			return;
+		}
+		const position = new vscode.Position(line, character);
+		const selection = new vscode.Selection(position, position);
+		vscode.window.activeTextEditor.revealRange(selection);
+		vscode.window.activeTextEditor.selection = selection;
 	}
 }

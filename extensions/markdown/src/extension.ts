@@ -103,37 +103,12 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const commandManager = new CommandManager();
 	context.subscriptions.push(commandManager);
-
 	commandManager.register(new commands.ShowPreviewCommand(cspArbiter, telemetryReporter));
 	commandManager.register(new commands.ShowPreviewToSideCommand(cspArbiter, telemetryReporter));
 	commandManager.register(new commands.ShowSourceCommand());
-
-	context.subscriptions.push(vscode.commands.registerCommand('_markdown.moveCursorToPosition', (line: number, character: number) => {
-		if (!vscode.window.activeTextEditor) {
-			return;
-		}
-		const position = new vscode.Position(line, character);
-		const selection = new vscode.Selection(position, position);
-		vscode.window.activeTextEditor.revealRange(selection);
-		vscode.window.activeTextEditor.selection = selection;
-	}));
-
-	context.subscriptions.push(vscode.commands.registerCommand('_markdown.revealLine', (uri, line) => {
-		const sourceUri = vscode.Uri.parse(decodeURIComponent(uri));
-		logger.log('revealLine', { uri, sourceUri: sourceUri.toString(), line });
-
-		vscode.window.visibleTextEditors
-			.filter(editor => isMarkdownFile(editor.document) && editor.document.uri.toString() === sourceUri.toString())
-			.forEach(editor => {
-				const sourceLine = Math.floor(line);
-				const fraction = line - sourceLine;
-				const text = editor.document.lineAt(sourceLine).text;
-				const start = Math.floor(fraction * text.length);
-				editor.revealRange(
-					new vscode.Range(sourceLine, start, sourceLine + 1, 0),
-					vscode.TextEditorRevealType.AtTop);
-			});
-	}));
+	commandManager.register(new commands.RefreshPreviewCommand(contentProvider));
+	commandManager.register(new commands.RevealLineCommand(logger));
+	commandManager.register(new commands.MoveCursorToPositionCommand());
 
 	context.subscriptions.push(vscode.commands.registerCommand('_markdown.didClick', (uri: string, line) => {
 		const sourceUri = vscode.Uri.parse(decodeURIComponent(uri));
@@ -193,22 +168,6 @@ export function activate(context: vscode.ExtensionContext) {
 		} else {
 			if (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document.languageId === 'markdown') {
 				previewSecuritySelector.showSecutitySelectorForResource(vscode.window.activeTextEditor.document.uri);
-			}
-		}
-	}));
-
-	context.subscriptions.push(vscode.commands.registerCommand('markdown.refreshPreview', (resource: string | undefined) => {
-		if (resource) {
-			const source = vscode.Uri.parse(resource);
-			contentProvider.update(source);
-		} else if (vscode.window.activeTextEditor && isMarkdownFile(vscode.window.activeTextEditor.document)) {
-			contentProvider.update(getMarkdownUri(vscode.window.activeTextEditor.document.uri));
-		} else {
-			// update all generated md documents
-			for (const document of vscode.workspace.textDocuments) {
-				if (document.uri.scheme === 'markdown') {
-					contentProvider.update(document.uri);
-				}
 			}
 		}
 	}));
