@@ -355,6 +355,9 @@ export class CompositeBar implements ICompositeBar {
 		const visibleComposites = this.getVisibleComposites();
 
 		let unpinPromise: TPromise<any>;
+		// remove from pinned
+		const index = this.pinnedComposites.indexOf(compositeId);
+		this.pinnedComposites.splice(index, 1);
 
 		// Case: composite is not the active one or the active one is a different one
 		// Solv: we do nothing
@@ -381,10 +384,6 @@ export class CompositeBar implements ICompositeBar {
 		}
 
 		unpinPromise.then(() => {
-			// then remove from pinned and update switcher
-			const index = this.pinnedComposites.indexOf(compositeId);
-			this.pinnedComposites.splice(index, 1);
-
 			this.updateCompositeSwitcher();
 		});
 	}
