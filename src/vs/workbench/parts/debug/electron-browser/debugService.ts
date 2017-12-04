@@ -1009,43 +1009,45 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public restartProcess(process: debug.IProcess, restartData?: any): TPromise<any> {
-		if (process.session.capabilities.supportsRestartRequest) {
-			return this.textFileService.saveAll().then(() => process.session.custom('restart', null));
-		}
-		const focusedProcess = this.viewModel.focusedProcess;
-		const preserveFocus = focusedProcess && process.getId() === focusedProcess.getId();
-
-		return process.session.disconnect(true).then(() => {
-			if (strings.equalsIgnoreCase(process.configuration.type, 'extensionHost')) {
-				return this.broadcastService.broadcast({
-					channel: EXTENSION_RELOAD_BROADCAST_CHANNEL,
-					payload: [process.session.root.uri.fsPath]
-				});
+		return this.textFileService.saveAll().then(() => {
+			if (process.session.capabilities.supportsRestartRequest) {
+				return <TPromise>process.session.custom('restart', null);
 			}
+			const focusedProcess = this.viewModel.focusedProcess;
+			const preserveFocus = focusedProcess && process.getId() === focusedProcess.getId();
 
-			return new TPromise<void>((c, e) => {
-				setTimeout(() => {
-					// Read the configuration again if a launch.json has been changed, if not just use the inmemory configuration
-					let config = process.configuration;
-					if (this.launchJsonChanged && this.configurationManager.selectedLaunch) {
-						this.launchJsonChanged = false;
-						config = this.configurationManager.selectedLaunch.getConfiguration(process.configuration.name) || config;
-						// Take the type from the process since the debug extension might overwrite it #21316
-						config.type = process.configuration.type;
-						config.noDebug = process.configuration.noDebug;
-					}
-					config.__restart = restartData;
-					this.createProcess(process.session.root, config, process.getId()).then(() => c(null), err => e(err));
-				}, 300);
-			});
-		}).then(() => {
-			if (preserveFocus) {
-				// Restart should preserve the focused process
-				const restartedProcess = this.model.getProcesses().filter(p => p.configuration.name === process.configuration.name).pop();
-				if (restartedProcess && restartedProcess !== this.viewModel.focusedProcess) {
-					this.focusStackFrameAndEvaluate(null, restartedProcess);
+			return process.session.disconnect(true).then(() => {
+				if (strings.equalsIgnoreCase(process.configuration.type, 'extensionHost')) {
+					return this.broadcastService.broadcast({
+						channel: EXTENSION_RELOAD_BROADCAST_CHANNEL,
+						payload: [process.session.root.uri.fsPath]
+					});
 				}
-			}
+
+				return new TPromise<void>((c, e) => {
+					setTimeout(() => {
+						// Read the configuration again if a launch.json has been changed, if not just use the inmemory configuration
+						let config = process.configuration;
+						if (this.launchJsonChanged && this.configurationManager.selectedLaunch) {
+							this.launchJsonChanged = false;
+							config = this.configurationManager.selectedLaunch.getConfiguration(process.configuration.name) || config;
+							// Take the type from the process since the debug extension might overwrite it #21316
+							config.type = process.configuration.type;
+							config.noDebug = process.configuration.noDebug;
+						}
+						config.__restart = restartData;
+						this.createProcess(process.session.root, config, process.getId()).then(() => c(null), err => e(err));
+					}, 300);
+				});
+			}).then(() => {
+				if (preserveFocus) {
+					// Restart should preserve the focused process
+					const restartedProcess = this.model.getProcesses().filter(p => p.configuration.name === process.configuration.name).pop();
+					if (restartedProcess && restartedProcess !== this.viewModel.focusedProcess) {
+						this.focusStackFrameAndEvaluate(null, restartedProcess);
+					}
+				}
+			});
 		});
 	}
 
