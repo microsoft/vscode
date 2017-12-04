@@ -141,6 +141,9 @@ class ExtHostTreeView<T> extends Disposable {
 										parent: parentHandle,
 										children: void 0
 									});
+									if (this.elements.has(treeItem.handle)) {
+										return TPromise.wrapError<ITreeItem>(new Error(localize('treeView.duplicateElement', 'Element {0} is already registered', element)));
+									}
 									this.elements.set(treeItem.handle, element);
 								}
 								return treeItem;
@@ -161,16 +164,24 @@ class ExtHostTreeView<T> extends Disposable {
 			return null;
 		}
 		const icon = this.getLightIconPath(extensionTreeItem);
+		const label = extensionTreeItem.label;
+		const handle = this.generateHandle(label, index, parentHandle);
 		return {
-			handle: `${parentHandle ? parentHandle : ExtHostTreeView.ROOT_HANDLE}/${index}:${extensionTreeItem.label}`,
+			handle,
 			parentHandle,
-			label: extensionTreeItem.label,
+			label,
 			command: extensionTreeItem.command ? this.commands.toInternal(extensionTreeItem.command) : void 0,
 			contextValue: extensionTreeItem.contextValue,
 			icon,
 			iconDark: this.getDarkIconPath(extensionTreeItem) || icon,
 			collapsibleState: extensionTreeItem.collapsibleState
 		};
+	}
+
+	private generateHandle(label: string, index: number, parentHandle: TreeItemHandle): TreeItemHandle {
+		parentHandle = parentHandle ? parentHandle : ExtHostTreeView.ROOT_HANDLE;
+		label = label.indexOf('/') !== -1 ? label.replace('/', '//') : label;
+		return `${parentHandle}/${index}:${label}`;
 	}
 
 	private getLightIconPath(extensionTreeItem: vscode.TreeItem): string {

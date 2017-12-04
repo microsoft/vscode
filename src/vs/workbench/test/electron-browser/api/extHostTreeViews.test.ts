@@ -250,6 +250,19 @@ suite('ExtHostTreeView', function () {
 		onDidChangeTreeData.fire('a');
 	});
 
+	test('generate unique handles from labels by escaping them', () => {
+		tree = {
+			'a/0:b': {}
+		};
+
+		onDidChangeTreeData.fire();
+
+		return testObject.$getElements('testDataProvider')
+			.then(elements => {
+				assert.deepEqual(elements.map(e => e.handle), ['0/0:a//0:b']);
+			});
+	});
+
 	function removeUnsetKeys(obj: any): any {
 		const result = {};
 		for (const key of Object.keys(obj)) {
