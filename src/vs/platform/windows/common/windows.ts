@@ -193,8 +193,8 @@ export interface IWindowService {
 	show(): TPromise<void>;
 	showMessageBoxSync(options: MessageBoxOptions): number;
 	showMessageBox(options: MessageBoxOptions): TPromise<IMessageBoxResult>;
-	showSaveDialog(options: SaveDialogOptions, callback?: (fileName: string) => void): string;
-	showOpenDialog(options: OpenDialogOptions, callback?: (fileNames: string[]) => void): string[];
+	showSaveDialog(options: SaveDialogOptions): string;
+	showOpenDialog(options: OpenDialogOptions): string[];
 }
 
 export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden';

@@ -915,7 +915,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 				// If we are in no-workspace context, ask for confirmation to create a workspace
 				let confirmed = true;
 				if (this.contextService.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
-					confirmed = this.messageService.confirmSync({
+					confirmed = this.messageService.confirm({
 						message: folders.length > 1 ? nls.localize('dropFolders', "Do you want to add the folders to the workspace?") : nls.localize('dropFolder', "Do you want to add the folder to the workspace?"),
 						type: 'question',
 						primaryButton: folders.length > 1 ? nls.localize('addFolders', "&&Add Folders") : nls.localize('addFolder', "&&Add Folder")
@@ -947,7 +947,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		// Handle confirm setting
 		const confirmDragAndDrop = !isCopy && this.configurationService.getValue<boolean>(FileDragAndDrop.CONFIRM_DND_SETTING_KEY);
 		if (confirmDragAndDrop) {
-			confirmPromise = this.messageService.confirm({
+			confirmPromise = this.messageService.confirmWithCheckbox({
 				message: nls.localize('confirmMove', "Are you sure you want to move '{0}'?", source.name),
 				checkbox: {
 					label: nls.localize('doNotAskAgain', "Do not ask me again")
@@ -1039,7 +1039,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 							};
 
 							// Move with overwrite if the user confirms
-							if (this.messageService.confirmSync(confirm)) {
+							if (this.messageService.confirm(confirm)) {
 								const targetDirty = this.textFileService.getDirty().filter(d => resources.isEqualOrParent(d, targetResource, !isLinux /* ignorecase */));
 
 								// Make sure to revert all dirty in target first to be able to overwrite properly

@@ -26,7 +26,7 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 		super(container, telemetryService);
 	}
 
-	public confirm(confirmation: IConfirmation): TPromise<IConfirmationResult> {
+	public confirmWithCheckbox(confirmation: IConfirmation): TPromise<IConfirmationResult> {
 		const opts = this.getConfirmOptions(confirmation);
 
 		return this.showMessageBox(opts).then(result => {
@@ -37,7 +37,7 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 		});
 	}
 
-	public confirmSync(confirmation: IConfirmation): boolean {
+	public confirm(confirmation: IConfirmation): boolean {
 		const opts = this.getConfirmOptions(confirmation);
 
 		const result = this.showMessageBoxSync(opts);

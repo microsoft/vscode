@@ -390,7 +390,7 @@ export class SearchViewlet extends Viewlet {
 			type: 'question'
 		};
 
-		if (this.messageService.confirmSync(confirmation)) {
+		if (this.messageService.confirm(confirmation)) {
 			this.searchWidget.setReplaceAllActionState(false);
 			this.viewModel.searchResult.replaceAll(progressRunner).then(() => {
 				progressRunner.done();
