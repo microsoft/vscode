@@ -101,6 +101,7 @@ export function renderVariable(tree: ITree, variable: Variable, data: IVariableT
 	if (variable.available) {
 		data.name.textContent = replaceWhitespace(variable.name);
 		data.name.title = variable.type ? variable.type : variable.name;
+		dom.toggleClass(data.name, 'virtual', !!variable.presentationHint && variable.presentationHint.kind === 'virtual');
 	}
 
 	if (variable.value) {
