@@ -10,6 +10,7 @@ import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import pkg from 'vs/platform/node/package';
 import * as path from 'path';
+import * as pfs from 'vs/base/node/pfs';
 import URI from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
@@ -467,20 +468,60 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		}
 	}
 
+	private static async _scanExtensionsCached(environmentService: IEnvironmentService, cacheKey: string, input: ExtensionScannerInput, log: ILog): TPromise<IExtensionDescription[]> {
+		const cacheFolder = path.join(environmentService.userDataPath, 'CachedExtensions');
+		const cacheFile = path.join(cacheFolder, cacheKey);
+
+		try {
+			const cacheRawContents = await pfs.readFile(cacheFile, 'utf8');
+			const cacheContents: IExtensionCacheData = JSON.parse(cacheRawContents);
+			if (ExtensionScannerInput.equals(cacheContents.input, input)) {
+				// TODO: async validate cache!!!
+				return cacheContents.result;
+			}
+		} catch (err) {
+			// That's ok...
+		}
+
+		const counterLogger = new CounterLogger(log);
+		const result = await ExtensionScanner.scanExtensions(input, counterLogger);
+		if (!true && counterLogger.errorCnt === 0) {
+			// Nothing bad happened => cache the result
+			try {
+				const cacheContents: IExtensionCacheData = {
+					input: input,
+					result: result
+				};
+				await pfs.mkdirp(cacheFolder);
+				await pfs.writeFile(cacheFile, JSON.stringify(cacheContents));
+			} catch (err) {
+				// That's ok...
+			}
+		}
+
+		return result;
+	}
+
 	private static _scanInstalledExtensions(environmentService: IEnvironmentService, log: ILog): TPromise<{ system: IExtensionDescription[], user: IExtensionDescription[], development: IExtensionDescription[] }> {
 		const version = pkg.version;
 		const devMode = !!process.env['VSCODE_DEV'];
 		const locale = platform.locale;
 
-		const builtinExtensions = ExtensionScanner.scanExtensions(
-			new ExtensionScannerInput(version, locale, devMode, SystemExtensionsRoot, true), log
+		const builtinExtensions = this._scanExtensionsCached(
+			environmentService,
+			'builtin',
+			new ExtensionScannerInput(version, locale, devMode, SystemExtensionsRoot, true),
+			log
 		);
 
 		const userExtensions = (
 			environmentService.disableExtensions || !environmentService.extensionsPath
 				? TPromise.as([])
-				: ExtensionScanner.scanExtensions(
-					new ExtensionScannerInput(version, locale, devMode, environmentService.extensionsPath, false), log
+				: this._scanExtensionsCached(
+					environmentService,
+					'user',
+					new ExtensionScannerInput(version, locale, devMode, environmentService.extensionsPath, false),
+					log
 				)
 		);
 
@@ -578,6 +619,11 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 }
 
+interface IExtensionCacheData {
+	input: ExtensionScannerInput;
+	result: IExtensionDescription[];
+}
+
 export class Logger implements ILog {
 
 	private readonly _messageHandler: (severity: Severity, source: string, message: string) => void;
@@ -598,5 +644,27 @@ export class Logger implements ILog {
 
 	public info(source: string, message: string): void {
 		this._messageHandler(Severity.Info, source, message);
+	}
+}
+
+export class CounterLogger implements ILog {
+
+	public errorCnt = 0;
+	public warnCnt = 0;
+	public infoCnt = 0;
+
+	constructor(private readonly _actual: ILog) {
+	}
+
+	public error(source: string, message: string): void {
+		this._actual.error(source, message);
+	}
+
+	public warn(source: string, message: string): void {
+		this._actual.warn(source, message);
+	}
+
+	public info(source: string, message: string): void {
+		this._actual.info(source, message);
 	}
 }

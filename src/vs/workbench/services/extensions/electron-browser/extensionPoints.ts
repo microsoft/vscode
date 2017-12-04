@@ -261,6 +261,7 @@ export class ExtensionScannerInput {
 		public readonly absoluteFolderPath: string,
 		public readonly isBuiltin: boolean
 	) {
+		// Keep empty!! (JSON.parse)
 	}
 
 	public static createNLSConfig(input: ExtensionScannerInput): NlsConfiguration {
@@ -269,6 +270,16 @@ export class ExtensionScannerInput {
 			locale: input.locale,
 			pseudo: input.locale === 'pseudo'
 		};
+	}
+
+	public static equals(a: ExtensionScannerInput, b: ExtensionScannerInput): boolean {
+		return (
+			a.ourVersion === b.ourVersion
+			&& a.locale === b.locale
+			&& a.devMode === b.devMode
+			&& a.absoluteFolderPath === b.absoluteFolderPath
+			&& a.isBuiltin === b.isBuiltin
+		);
 	}
 }
 
