@@ -404,12 +404,6 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		const value = query.value.replace(/@recommended:keymaps/g, '').trim().toLowerCase();
 		const names = this.tipsService.getKeymapRecommendations()
 			.filter(name => name.toLowerCase().indexOf(value) > -1);
-		/* __GDPR__
-			"extensionKeymapRecommendations:open" : {
-				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		this.telemetryService.publicLog('extensionKeymapRecommendations:open', { count: names.length });
 
 		if (!names.length) {
 			return TPromise.as(new PagedModel([]));
