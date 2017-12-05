@@ -9,8 +9,9 @@ import { app, dialog } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import product from 'vs/platform/node/product';
+import * as path from 'path';
 import { parseMainProcessArgv } from 'vs/platform/environment/node/argv';
-import { mkdirp } from 'vs/base/node/pfs';
+import { mkdirp, readdir, rimraf } from 'vs/base/node/pfs';
 import { validatePaths } from 'vs/code/node/paths';
 import { LifecycleService, ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { Server, serve, connect } from 'vs/base/parts/ipc/node/ipc.net';
@@ -41,14 +42,14 @@ import { WorkspacesMainService } from 'vs/platform/workspaces/electron-main/work
 import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { localize } from 'vs/nls';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { SpdLogService } from 'vs/platform/log/node/spdlogService';
+import { createLogService } from 'vs/platform/log/node/spdlogService';
 import { printDiagnostics } from 'vs/code/electron-main/diagnostics';
 
 function createServices(args: ParsedArgs): IInstantiationService {
 	const services = new ServiceCollection();
 
 	const environmentService = new EnvironmentService(args, process.execPath);
-	const spdlogService = new SpdLogService('main', environmentService);
+	const spdlogService = createLogService('main', environmentService);
 	const consoleLogService = new ConsoleLogMainService(environmentService);
 	const logService = new MultiplexLogService([consoleLogService, spdlogService]);
 
@@ -56,7 +57,7 @@ function createServices(args: ParsedArgs): IInstantiationService {
 	process.once('exit', () => logService.dispose());
 
 	// Eventually cleanup
-	setTimeout(() => spdlogService.cleanup().then(null, err => console.error(err)), 10000);
+	setTimeout(() => cleanupOlderLogs(environmentService).then(null, err => console.error(err)), 10000);
 
 	services.set(IEnvironmentService, environmentService);
 	services.set(ILogService, logService);
@@ -70,6 +71,20 @@ function createServices(args: ParsedArgs): IInstantiationService {
 	services.set(IBackupMainService, new SyncDescriptor(BackupMainService));
 
 	return new InstantiationService(services, true);
+}
+
+/**
+ * Cleans up older logs, while keeping the 10 most recent ones.
+*/
+async function cleanupOlderLogs(environmentService: EnvironmentService): TPromise<void> {
+	const currentLog = path.basename(environmentService.logsPath);
+	const logsRoot = path.dirname(environmentService.logsPath);
+	const children = await readdir(logsRoot);
+	const allSessions = children.filter(name => /^\d{8}T\d{6}$/.test(name));
+	const oldSessions = allSessions.sort().filter((d, i) => d !== currentLog);
+	const toDelete = oldSessions.slice(0, Math.max(0, oldSessions.length - 9));
+
+	await TPromise.join(toDelete.map(name => rimraf(path.join(logsRoot, name))));
 }
 
 function createPaths(environmentService: IEnvironmentService): TPromise<any> {

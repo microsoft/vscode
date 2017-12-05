@@ -35,7 +35,7 @@ import { ChoiceCliService } from 'vs/platform/message/node/messageCli';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { IStateService } from 'vs/platform/state/common/state';
 import { StateService } from 'vs/platform/state/node/stateService';
-import { SpdLogService } from 'vs/platform/log/node/spdlogService';
+import { createLogService } from 'vs/platform/log/node/spdlogService';
 import { registerGlobalLogService, ILogService } from 'vs/platform/log/common/log';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
@@ -179,7 +179,8 @@ export function main(argv: ParsedArgs): TPromise<void> {
 	const services = new ServiceCollection();
 
 	const environmentService = new EnvironmentService(argv, process.execPath);
-	const logService = new SpdLogService('cli', environmentService);
+	const logService = createLogService('cli', environmentService);
+	process.once('exit', () => logService.dispose());
 	registerGlobalLogService(logService);
 
 	logService.info('main', argv);

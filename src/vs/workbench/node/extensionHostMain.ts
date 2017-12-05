@@ -23,7 +23,7 @@ import * as watchdog from 'native-watchdog';
 import * as glob from 'vs/base/common/glob';
 import { ExtensionActivatedByEvent } from 'vs/workbench/api/node/extHostExtensionActivator';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { SpdLogService } from 'vs/platform/log/node/spdlogService';
+import { createLogService } from 'vs/platform/log/node/spdlogService';
 import { registerGlobalLogService } from 'vs/platform/log/common/log';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
@@ -90,7 +90,7 @@ export class ExtensionHostMain {
 		const threadService = new ExtHostThreadService(rpcProtocol);
 		const extHostWorkspace = new ExtHostWorkspace(threadService, initData.workspace);
 		const environmentService = new EnvironmentService(initData.args, initData.execPath);
-		const logService = new SpdLogService(`exthost${initData.windowId}`, environmentService);
+		const logService = createLogService(`exthost${initData.windowId}`, environmentService);
 
 		registerGlobalLogService(logService);
 		this.disposables.push(logService);

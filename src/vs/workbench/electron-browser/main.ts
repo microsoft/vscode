@@ -39,7 +39,7 @@ import { URLChannelClient } from 'vs/platform/url/common/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
 import { WorkspacesChannelClient } from 'vs/platform/workspaces/common/workspacesIpc';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { SpdLogService } from 'vs/platform/log/node/spdlogService';
+import { createLogService } from 'vs/platform/log/node/spdlogService';
 
 import fs = require('fs');
 import { registerGlobalLogService } from 'vs/platform/log/common/log';
@@ -74,7 +74,7 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 	const mainServices = createMainProcessServices(mainProcessClient);
 
 	const environmentService = new EnvironmentService(configuration, configuration.execPath);
-	const logService = new SpdLogService(`renderer${currentWindowId}`, environmentService);
+	const logService = createLogService(`renderer${currentWindowId}`, environmentService);
 	registerGlobalLogService(logService);
 
 	logService.info('openWorkbench', JSON.stringify(configuration));

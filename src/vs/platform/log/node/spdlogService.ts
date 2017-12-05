@@ -6,44 +6,33 @@
 'use strict';
 
 import * as path from 'path';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { ILogService, LogLevel, NoopLogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { RotatingLogger, setAsyncMode } from 'spdlog';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { readdir, rimraf } from 'vs/base/node/pfs';
 
-export class SpdLogService implements ILogService {
+export function createLogService(processName: string, environmentService: IEnvironmentService): ILogService {
+	try {
+		setAsyncMode(8192, 2000);
+		const logfilePath = path.join(environmentService.logsPath, `${processName}.log`);
+		const logger = new RotatingLogger(processName, logfilePath, 1024 * 1024 * 5, 6);
+		return new SpdLogService(logger, environmentService.logLevel);
+	} catch (e) {
+		console.error(e);
+	}
+	return new NoopLogService();
+}
+
+class SpdLogService implements ILogService {
 
 	_serviceBrand: any;
 
-	private level: LogLevel = LogLevel.Error;
-	private logger: RotatingLogger;
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		processName: string,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		private readonly logger: RotatingLogger,
+		private level: LogLevel = LogLevel.Error
 	) {
-		setAsyncMode(8192, 2000);
-
-		const logfilePath = path.join(environmentService.logsPath, `${processName}.log`);
-		this.logger = new RotatingLogger(processName, logfilePath, 1024 * 1024 * 5, 6);
-		this.setLevel(environmentService.logLevel);
-	}
-
-	/**
-	 * Cleans up older logs, while keeping the 10 most recent ones.
-	 */
-	async cleanup(): TPromise<void> {
-		const currentLog = path.basename(this.environmentService.logsPath);
-		const logsRoot = path.dirname(this.environmentService.logsPath);
-		const children = await readdir(logsRoot);
-		const allSessions = children.filter(name => /^\d{8}T\d{6}$/.test(name));
-		const oldSessions = allSessions.sort().filter((d, i) => d !== currentLog);
-		const toDelete = oldSessions.slice(0, Math.max(0, oldSessions.length - 9));
-
-		await TPromise.join(toDelete.map(name => rimraf(path.join(logsRoot, name))));
 	}
 
 	setLevel(logLevel: LogLevel): void {
