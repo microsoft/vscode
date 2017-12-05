@@ -91,7 +91,7 @@ export class ExtensionHostMain {
 		const logService = new SpdLogService(`exthost${initData.windowId}`, environmentService);
 		registerGlobalLogService(logService);
 
-		logService.info('main {0}', initData);
+		logService.info('main', initData);
 
 		this._extHostConfiguration = new ExtHostConfiguration(threadService.get(MainContext.MainThreadConfiguration), extHostWorkspace, initData.configuration);
 		this._extensionService = new ExtHostExtensionService(initData, threadService, extHostWorkspace, this._extHostConfiguration);
