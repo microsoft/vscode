@@ -20,7 +20,7 @@ import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiati
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { ILogService, LegacyLogMainService, MultiplexLogService, registerGlobalLogService } from 'vs/platform/log/common/log';
+import { ILogService, ConsoleLogMainService, MultiplexLogService, registerGlobalLogService } from 'vs/platform/log/common/log';
 import { StateService } from 'vs/platform/state/node/stateService';
 import { IStateService } from 'vs/platform/state/common/state';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
@@ -49,8 +49,8 @@ function createServices(args: ParsedArgs): IInstantiationService {
 
 	const environmentService = new EnvironmentService(args, process.execPath);
 	const spdlogService = new SpdLogService('main', environmentService);
-	const legacyLogService = new LegacyLogMainService(environmentService);
-	const logService = new MultiplexLogService([legacyLogService, spdlogService]);
+	const consoleLogService = new ConsoleLogMainService(environmentService);
+	const logService = new MultiplexLogService([consoleLogService, spdlogService]);
 
 	registerGlobalLogService(logService);
 	process.once('exit', () => logService.dispose());
