@@ -69,7 +69,9 @@ export class FileStorage {
 		try {
 			return JSON.parse(fs.readFileSync(this.dbPath).toString()); // invalid JSON or permission issue can happen here
 		} catch (error) {
-			this.onError(error);
+			if (error && error.code !== 'ENOENT') {
+				this.onError(error);
+			}
 
 			return {};
 		}
