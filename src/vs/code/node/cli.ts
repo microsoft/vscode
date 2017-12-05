@@ -93,7 +93,7 @@ export async function main(argv: string[]): TPromise<any> {
 		let stdinFilePath: string;
 		if (isReadingFromStdin) {
 			let stdinFileError: Error;
-			stdinFilePath = paths.join(os.tmpdir(), `stdin-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 6)}.txt`);
+			stdinFilePath = paths.join(os.tmpdir(), `code-stdin-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 3)}.txt`);
 			try {
 				const stdinFileStream = fs.createWriteStream(stdinFilePath);
 				resolveTerminalEncoding(verbose).done(encoding => {
