@@ -875,11 +875,6 @@ export class SearchViewlet extends Viewlet {
 	}
 
 	public toggleQueryDetails(moveFocus?: boolean, show?: boolean, skipLayout?: boolean, reverse?: boolean): void {
-		/* __GDPR__
-			"search.toggleQueryDetails" : {}
-		*/
-		this.telemetryService.publicLog('search.toggleQueryDetails');
-
 		let cls = 'more';
 		show = typeof show === 'undefined' ? !dom.hasClass(this.queryDetails, cls) : Boolean(show);
 		this.viewletSettings['query.queryDetailsExpanded'] = show;
@@ -1344,11 +1339,6 @@ export class SearchViewlet extends Viewlet {
 			this.viewModel.searchResult.rangeHighlightDecorations.removeHighlightRange();
 			return TPromise.as(true);
 		}
-
-		/* __GDPR__
-			"searchResultChosen" : {}
-		*/
-		this.telemetryService.publicLog('searchResultChosen');
 
 		return (this.viewModel.isReplaceActive() && !!this.viewModel.replaceString) ?
 			this.replaceService.openReplacePreview(lineMatch, preserveFocus, sideBySide, pinned) :
