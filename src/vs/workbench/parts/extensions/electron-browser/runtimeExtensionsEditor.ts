@@ -463,7 +463,7 @@ export class ShowRuntimeExtensionsAction extends Action {
 	}
 
 	public run(e?: any): TPromise<any> {
-		return this._editorService.openEditor(this._instantiationService.createInstance(RuntimeExtensionsInput));
+		return this._editorService.openEditor(this._instantiationService.createInstance(RuntimeExtensionsInput), { revealIfOpened: true });
 	}
 }
 
