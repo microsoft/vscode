@@ -228,10 +228,6 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 			title: nls.localize('useExcludesAndIgnoreFilesDescription', "Use Exclude Settings and Ignore Files"),
 			isChecked: true,
 			onChange: (viaKeyboard) => {
-				/* __GDPR__
-					"search.useExcludesAndIgnoreFiles.toggled" : {}
-				*/
-				this.telemetryService.publicLog('search.useExcludesAndIgnoreFiles.toggled');
 				this.onOptionChange(null);
 				if (!viaKeyboard) {
 					this.inputBox.focus();
