@@ -41,7 +41,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { EDITOR_GROUP_BACKGROUND } from 'vs/workbench/common/theme';
-import { createCSSRule } from 'vs/base/browser/dom';
+import { createCSSRule, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { join } from 'vs/base/common/paths';
 import { IEditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
@@ -562,7 +562,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Recover by closing the active editor (if the input is still the active one)
 		if (group.activeEditor === input) {
-			this.doCloseActiveEditor(group);
+			this.doCloseActiveEditor(group, !(options && options.preserveFocus) /* still preserve focus as needed */);
 		}
 	}
 
@@ -817,17 +817,43 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		const { editor } = identifier;
 
-		const res = editor.confirmSave();
-		switch (res) {
-			case ConfirmResult.SAVE:
-				return editor.save().then(ok => !ok);
+		// Switch to editor that we want to handle
+		return this.openEditor(identifier.editor, null, this.stacks.positionOfGroup(identifier.group)).then(() => {
+			return this.ensureEditorOpenedBeforePrompt().then(() => {
+				const res = editor.confirmSave();
+				switch (res) {
+					case ConfirmResult.SAVE:
+						return editor.save().then(ok => !ok);
 
-			case ConfirmResult.DONT_SAVE:
-				return editor.revert().then(ok => !ok);
+					case ConfirmResult.DONT_SAVE:
+						return editor.revert().then(ok => !ok);
 
-			case ConfirmResult.CANCEL:
-				return TPromise.as(true); // veto
-		}
+					case ConfirmResult.CANCEL:
+						return true; // veto
+				}
+			});
+		});
+	}
+
+	private ensureEditorOpenedBeforePrompt(): TPromise<void> {
+
+		// Force title area update
+		this.editorGroupsControl.updateTitleAreas(true /* refresh active group */);
+
+		// TODO@Ben our dialogs currently use the sync API, which means they block the JS
+		// thread when showing. As such, any UI update will not happen unless we wait a little
+		// bit. We wait for 2 request animation frames before showing the confirm. The first
+		// frame is where the UI is updating and the second is good enough to bring up the dialog.
+		// See also https://github.com/Microsoft/vscode/issues/39536
+		return new TPromise<void>(c => {
+			scheduleAtNextAnimationFrame(() => {
+				// Here the UI is updating
+				scheduleAtNextAnimationFrame(() => {
+					// Here we can show a blocking dialog
+					c(void 0);
+				});
+			});
+		});
 	}
 
 	private countEditors(editor: EditorInput): number {
