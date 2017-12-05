@@ -15,7 +15,6 @@ import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
@@ -33,7 +32,6 @@ class UnsupportedWorkspaceSettingsContribution implements IWorkbenchContribution
 		@IWorkspaceConfigurationService private workspaceConfigurationService: IWorkspaceConfigurationService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IMessageService private messageService: IMessageService,
-		@ITelemetryService private telemetryService: ITelemetryService,
 		@IStorageService private storageService: IStorageService
 	) {
 		lifecycleService.onShutdown(this.dispose, this);
@@ -69,39 +67,23 @@ class UnsupportedWorkspaceSettingsContribution implements IWorkbenchContribution
 		const message = nls.localize('unsupportedWorkspaceSettings', 'This Workspace contains settings that can only be set in User Settings. ({0})', unsupportedKeys.join(', '));
 
 		const openWorkspaceSettings = new Action('unsupportedWorkspaceSettings.openWorkspaceSettings', nls.localize('openWorkspaceSettings', 'Open Workspace Settings'), '', true, () => {
-			/* __GDPR__
-				"workspace.settings.unsupported.review" : {}
-			*/
-			this.telemetryService.publicLog('workspace.settings.unsupported.review');
 			this.rememberWarningWasShown();
 			return this.preferencesService.openWorkspaceSettings();
 		});
 
 		const openDocumentation = new Action('unsupportedWorkspaceSettings.openDocumentation', nls.localize('openDocumentation', 'Learn More'), '', true, () => {
-			/* __GDPR__
-				"workspace.settings.unsupported.documentation" : {}
-			*/
-			this.telemetryService.publicLog('workspace.settings.unsupported.documentation');
 			this.rememberWarningWasShown();
 			window.open('https://go.microsoft.com/fwlink/?linkid=839878'); // Don't change link.
 			return TPromise.as(true);
 		});
 
 		const close = new Action('unsupportedWorkspaceSettings.Ignore', nls.localize('ignore', 'Ignore'), '', true, () => {
-			/* __GDPR__
-				"workspace.settings.unsupported.ignore" : {}
-			*/
-			this.telemetryService.publicLog('workspace.settings.unsupported.ignore');
 			this.rememberWarningWasShown();
 			return TPromise.as(true);
 		});
 
 		const actions = [openWorkspaceSettings, openDocumentation, close];
 		this.messageService.show(Severity.Warning, { message, actions });
-		/* __GDPR__
-			"workspace.settings.unsupported.warning" : {}
-		*/
-		this.telemetryService.publicLog('workspace.settings.unsupported.warning');
 	}
 }
 
