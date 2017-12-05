@@ -821,7 +821,8 @@ export interface IWorkbenchEditorConfiguration {
 			revealIfOpen: boolean;
 			swipeToNavigate: boolean,
 			labelFormat: 'default' | 'short' | 'medium' | 'long';
-		}
+		},
+		iconTheme: string;
 	};
 }
 

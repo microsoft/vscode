@@ -324,6 +324,12 @@ export class TabsTitleControl extends TitleControl {
 				domAction(tabContainer, `sizing-${option}`);
 			});
 
+			if (tabOptions.showIcons && !!tabOptions.iconTheme) {
+				DOM.addClass(tabContainer, 'has-icon-theme');
+			} else {
+				DOM.removeClass(tabContainer, 'has-icon-theme');
+			}
+
 			// Label
 			const tabLabel = this.editorLabels[index];
 			tabLabel.setLabel({ name, description, resource: toResource(editor, { supportSideBySide: true }) }, { extraClasses: ['tab-label'], italic: !isPinned });

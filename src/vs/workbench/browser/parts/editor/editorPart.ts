@@ -164,6 +164,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				tabCloseButton: editorConfig.tabCloseButton,
 				tabSizing: editorConfig.tabSizing,
 				labelFormat: editorConfig.labelFormat,
+				iconTheme: config.workbench.iconTheme
 			};
 
 			this.revealIfOpen = editorConfig.revealIfOpen;
@@ -175,6 +176,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				tabCloseButton: 'right',
 				tabSizing: 'fit',
 				labelFormat: 'default',
+				iconTheme: 'vs-seti'
 			};
 
 			this.revealIfOpen = false;
@@ -207,7 +209,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	}
 
 	private onConfigurationUpdated(event: IConfigurationChangeEvent): void {
-		if (event.affectsConfiguration('workbench.editor')) {
+		if (event.affectsConfiguration('workbench.editor') || event.affectsConfiguration('workbench.iconTheme')) {
 			const configuration = this.configurationService.getValue<IWorkbenchEditorConfiguration>();
 			if (configuration && configuration.workbench && configuration.workbench.editor) {
 				const editorConfig = configuration.workbench.editor;
@@ -230,6 +232,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 					tabSizing: editorConfig.tabSizing,
 					showTabs: this.forceHideTabs ? false : editorConfig.showTabs,
 					labelFormat: editorConfig.labelFormat,
+					iconTheme: configuration.workbench.iconTheme
 				};
 
 				if (!this.doNotFireTabOptionsChanged && !objects.equals(oldTabOptions, this.tabOptions)) {
