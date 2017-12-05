@@ -25,7 +25,6 @@ import { NullTelemetryService, configurationTelemetry, lifecycleTelemetry } from
 import { IExperimentService, ExperimentService } from 'vs/platform/telemetry/common/experiments';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
-import { IdleMonitor, UserStatus } from 'vs/platform/telemetry/browser/idleMonitor';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
 import { ElectronWindow } from 'vs/workbench/electron-browser/window';
 import { resolveWorkbenchCommonProperties } from 'vs/platform/telemetry/node/workbenchCommonProperties';
@@ -334,21 +333,8 @@ export class WorkbenchShell {
 			this.telemetryService = telemetryService;
 
 			const errorTelemetry = new ErrorTelemetry(telemetryService);
-			const idleMonitor = new IdleMonitor(2 * 60 * 1000); // 2 minutes
 
-			const listener = idleMonitor.onStatusChange(status =>
-				/* __GDPR__
-					"UserIdleStart" : {}
-				*/
-				/* __GDPR__
-					"UserIdleStop" : {}
-				*/
-				this.telemetryService.publicLog(status === UserStatus.Active
-					? TelemetryService.IDLE_STOP_EVENT_NAME
-					: TelemetryService.IDLE_START_EVENT_NAME
-				));
-
-			disposables.push(telemetryService, errorTelemetry, listener, idleMonitor);
+			disposables.push(telemetryService, errorTelemetry);
 		} else {
 			this.telemetryService = NullTelemetryService;
 		}
