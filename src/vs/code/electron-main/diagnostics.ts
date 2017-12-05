@@ -42,17 +42,16 @@ export function printDiagnostics(info: IMainProcessInfo): Promise<any> {
 				window.folders.forEach(folder => {
 					console.log(`|    Folder (${basename(folder)})`);
 
-					let stats: WorkspaceStats;
 					try {
-						stats = collectWorkspaceStats(folder, ['node_modules', '.git']);
+						const stats = collectWorkspaceStats(folder, ['node_modules', '.git']);
 						console.log(formatWorkspaceStats(stats));
-					} catch (error) {
-						console.log('Unable to collect workpsace stats for this folder');
-					}
 
-					const launchConfigs = collectLaunchConfigs(folder);
-					if (launchConfigs.length > 0) {
-						console.log(formatLaunchConfigs(launchConfigs));
+						const launchConfigs = collectLaunchConfigs(folder);
+						if (launchConfigs.length > 0) {
+							console.log(formatLaunchConfigs(launchConfigs));
+						}
+					} catch (error) {
+						console.log(`|      Error: Unable to collect workpsace stats for this folder (${error.toString()})`);
 					}
 				});
 			});
