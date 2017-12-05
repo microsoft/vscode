@@ -159,6 +159,25 @@
                                 "class"
                             ],
                             "description": "%emmetPreferencesFilterCommentTrigger%"
+                        },
+                        "format.noIndentTags": {
+                            "type": "array",
+                            "default": [
+                                "html"
+                            ],
+                            "description": "%emmetPreferencesFormatNoIndentTags%"
+                        },
+                        "format.forceIndentationForTags": {
+                            "type": "array",
+                            "default": [
+                                "body"
+                            ],
+                            "description": "%emmetPreferencesFormatForceIndentTags%"
+                        },
+                        "profile.allowCompactBoolean": {
+                            "type": "boolean",
+                            "default": false,
+                            "description": "%emmetPreferencesAllowCompactBoolean%"
                         }
                     }
                 },
