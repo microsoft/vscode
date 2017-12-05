@@ -420,7 +420,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		let position = this.validatePosition(_position);
 		let lineContent = this.getLineContent(position.lineNumber);
 
-		if (this._invalidLineStartIndex <= position.lineNumber) {
+		if (this._invalidLineStartIndex <= position.lineNumber - 1) {
 			// this line is not tokenized
 			return getWordAtText(
 				position.column,
