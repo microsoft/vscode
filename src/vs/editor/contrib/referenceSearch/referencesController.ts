@@ -13,7 +13,6 @@ import { IEditorService } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IMessageService } from 'vs/platform/message/common/message';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -57,7 +56,6 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorService private _editorService: IEditorService,
 		@ITextModelService private _textModelResolverService: ITextModelService,
-		@ITelemetryService private _telemetryService: ITelemetryService,
 		@IMessageService private _messageService: IMessageService,
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
@@ -154,23 +152,6 @@ export class ReferencesController implements editorCommon.IEditorContribution {
 			}
 
 			this._model = model;
-
-			// measure time it stays open
-			const startTime = Date.now();
-			this._disposables.push({
-				dispose: () => {
-					/* __GDPR__
-						"zoneWidgetShown" : {
-							"mode" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-							"elapsedTime": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-						}
-					*/
-					this._telemetryService.publicLog('zoneWidgetShown', {
-						mode: 'reference search',
-						elapsedTime: Date.now() - startTime
-					});
-				}
-			});
 
 			// show widget
 			return this._widget.setModel(this._model).then(() => {
