@@ -271,7 +271,9 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 		try {
 			untitledWorkspacePaths = readdirSync(this.workspacesHome).map(folder => join(this.workspacesHome, folder, UNTITLED_WORKSPACE_NAME));
 		} catch (error) {
-			this.logService.warn(`Unable to read folders in ${this.workspacesHome} (${error}).`);
+			if (error && error.code !== 'ENOENT') {
+				this.logService.warn(`Unable to read folders in ${this.workspacesHome} (${error}).`);
+			}
 		}
 
 		const untitledWorkspaces: IWorkspaceIdentifier[] = coalesce(untitledWorkspacePaths.map(untitledWorkspacePath => {

@@ -8,6 +8,8 @@
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { createDecorator as createServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { createDecorator } from 'vs/base/common/decorators';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { isWindows } from 'vs/base/common/platform';
 
 export const ILogService = createServiceDecorator<ILogService>('logService');
 
@@ -21,7 +23,7 @@ export enum LogLevel {
 	Off
 }
 
-export interface ILogService {
+export interface ILogService extends IDisposable {
 	_serviceBrand: any;
 
 	setLevel(level: LogLevel): void;
@@ -33,13 +35,15 @@ export interface ILogService {
 	critical(message: string | Error, ...args: any[]): void;
 }
 
-export class LegacyLogMainService implements ILogService {
+export class ConsoleLogMainService implements ILogService {
 
 	_serviceBrand: any;
 	private level: LogLevel = LogLevel.Error;
+	private useColors: boolean;
 
 	constructor( @IEnvironmentService environmentService: IEnvironmentService) {
 		this.setLevel(environmentService.logLevel);
+		this.useColors = !isWindows;
 	}
 
 	setLevel(level: LogLevel): void {
@@ -48,38 +52,66 @@ export class LegacyLogMainService implements ILogService {
 
 	trace(message: string, ...args: any[]): void {
 		if (this.level <= LogLevel.Trace) {
-			console.log(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, message, ...args);
+			if (this.useColors) {
+				console.log(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, message, ...args);
+			} else {
+				console.log(`[main ${new Date().toLocaleTimeString()}]`, message, ...args);
+			}
 		}
 	}
 
 	debug(message: string, ...args: any[]): void {
 		if (this.level <= LogLevel.Debug) {
-			console.log(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, message, ...args);
+			if (this.useColors) {
+				console.log(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, message, ...args);
+			} else {
+				console.log(`[main ${new Date().toLocaleTimeString()}]`, message, ...args);
+			}
 		}
 	}
 
 	info(message: string, ...args: any[]): void {
 		if (this.level <= LogLevel.Info) {
-			console.log(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, message, ...args);
+			if (this.useColors) {
+				console.log(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, message, ...args);
+			} else {
+				console.log(`[main ${new Date().toLocaleTimeString()}]`, message, ...args);
+			}
 		}
 	}
 
 	warn(message: string | Error, ...args: any[]): void {
 		if (this.level <= LogLevel.Warning) {
-			console.warn(`\x1b[93m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, message, ...args);
+			if (this.useColors) {
+				console.warn(`\x1b[93m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, message, ...args);
+			} else {
+				console.warn(`[main ${new Date().toLocaleTimeString()}]`, message, ...args);
+			}
 		}
 	}
 
 	error(message: string, ...args: any[]): void {
 		if (this.level <= LogLevel.Error) {
-			console.error(`\x1b[91m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, message, ...args);
+			if (this.useColors) {
+				console.error(`\x1b[91m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, message, ...args);
+			} else {
+				console.error(`[main ${new Date().toLocaleTimeString()}]`, message, ...args);
+			}
 		}
 	}
 
 	critical(message: string, ...args: any[]): void {
 		if (this.level <= LogLevel.Critical) {
-			console.error(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, message, ...args);
+			if (this.useColors) {
+				console.error(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, message, ...args);
+			} else {
+				console.error(`[main ${new Date().toLocaleTimeString()}]`, message, ...args);
+			}
 		}
+	}
+
+	dispose(): void {
+		// noop
 	}
 }
 
@@ -129,6 +161,12 @@ export class MultiplexLogService implements ILogService {
 			logService.critical(message, ...args);
 		}
 	}
+
+	dispose(): void {
+		for (const logService of this.logServices) {
+			logService.dispose();
+		}
+	}
 }
 
 export class NoopLogService implements ILogService {
@@ -140,6 +178,7 @@ export class NoopLogService implements ILogService {
 	warn(message: string, ...args: any[]): void { }
 	error(message: string | Error, ...args: any[]): void { }
 	critical(message: string | Error, ...args: any[]): void { }
+	dispose(): void { }
 }
 
 let globalLogService: ILogService = new NoopLogService();

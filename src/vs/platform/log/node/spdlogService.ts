@@ -10,7 +10,6 @@ import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { RotatingLogger, setAsyncMode } from 'spdlog';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { fromNodeEventEmitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { readdir, rimraf } from 'vs/base/node/pfs';
 
@@ -31,8 +30,6 @@ export class SpdLogService implements ILogService {
 		const logfilePath = path.join(environmentService.logsPath, `${processName}.log`);
 		this.logger = new RotatingLogger(processName, logfilePath, 1024 * 1024 * 5, 6);
 		this.setLevel(environmentService.logLevel);
-
-		fromNodeEventEmitter(process, 'exit')(() => this.logger.flush(), null, this.disposables);
 	}
 
 	/**
@@ -91,6 +88,8 @@ export class SpdLogService implements ILogService {
 	}
 
 	dispose(): void {
+		this.logger.flush();
+		this.logger.drop();
 		this.disposables = dispose(this.disposables);
 	}
 

@@ -80,6 +80,7 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 
 	const environmentService = new EnvironmentService(initData.args, process.execPath);
 	const logService = new SpdLogService('sharedprocess', environmentService);
+	process.once('exit', () => logService.dispose());
 	registerGlobalLogService(logService);
 
 	logService.info('main', JSON.stringify(configuration));
