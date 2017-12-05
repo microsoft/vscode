@@ -711,27 +711,28 @@ export class DebugService implements debug.IDebugService {
 				};
 
 				return (type ? TPromise.as(null) : this.configurationManager.guessAdapter().then(a => type = a && a.type)).then(() =>
-					this.configurationManager.resolveConfigurationByProviders(launch ? launch.workspace.uri : undefined, type, config).then(config => {
-						// a falsy config indicates an aborted launch
-						if (config && config.type) {
-							return this.createProcess(root, config, sessionId);
-						}
-						if (launch) {
-							return launch.openConfigFile(false, type).then(editor => undefined);
-						}
+					(type ? this.extensionService.activateByEvent(`onDebugResolve:${type}`) : TPromise.as(null)).then(() =>
+						this.configurationManager.resolveConfigurationByProviders(launch ? launch.workspace.uri : undefined, type, config).then(config => {
+							// a falsy config indicates an aborted launch
+							if (config && config.type) {
+								return this.createProcess(root, config, sessionId);
+							}
+							if (launch) {
+								return launch.openConfigFile(false, type).then(editor => undefined);
+							}
 
-						return undefined;
-					})
-				).then(() => wrapUpState(), err => {
-					wrapUpState();
-					return <any>TPromise.wrapError(err);
-				});
+							return undefined;
+						})
+					).then(() => wrapUpState(), err => {
+						wrapUpState();
+						return <any>TPromise.wrapError(err);
+					}));
 			})
 		)));
 	}
 
 	private createProcess(root: IWorkspaceFolder, config: debug.IConfig, sessionId: string): TPromise<void> {
-		return this.extensionService.activateByEvent(`onDebugResolve:${config.type}`).then(() => this.textFileService.saveAll().then(() =>
+		return this.textFileService.saveAll().then(() =>
 			(this.configurationManager.selectedLaunch ? this.configurationManager.selectedLaunch.resolveConfiguration(config) : TPromise.as(config)).then(resolvedConfig => {
 				if (!resolvedConfig) {
 					// User canceled resolving of interactive variables, silently return
@@ -801,7 +802,7 @@ export class DebugService implements debug.IDebugService {
 					return undefined;
 				});
 			})
-		));
+		);
 	}
 
 	private doCreateProcess(root: IWorkspaceFolder, configuration: debug.IConfig, sessionId: string): TPromise<debug.IProcess> {
