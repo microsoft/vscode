@@ -8,6 +8,7 @@
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { createDecorator as createServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { createDecorator } from 'vs/base/common/decorators';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const ILogService = createServiceDecorator<ILogService>('logService');
 
@@ -21,7 +22,7 @@ export enum LogLevel {
 	Off
 }
 
-export interface ILogService {
+export interface ILogService extends IDisposable {
 	_serviceBrand: any;
 
 	setLevel(level: LogLevel): void;
@@ -81,6 +82,10 @@ export class LegacyLogMainService implements ILogService {
 			console.error(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, message, ...args);
 		}
 	}
+
+	dispose(): void {
+		// noop
+	}
 }
 
 export class MultiplexLogService implements ILogService {
@@ -129,6 +134,12 @@ export class MultiplexLogService implements ILogService {
 			logService.critical(message, ...args);
 		}
 	}
+
+	dispose(): void {
+		for (const logService of this.logServices) {
+			logService.dispose();
+		}
+	}
 }
 
 export class NoopLogService implements ILogService {
@@ -140,6 +151,7 @@ export class NoopLogService implements ILogService {
 	warn(message: string, ...args: any[]): void { }
 	error(message: string | Error, ...args: any[]): void { }
 	critical(message: string | Error, ...args: any[]): void { }
+	dispose(): void { }
 }
 
 let globalLogService: ILogService = new NoopLogService();

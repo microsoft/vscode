@@ -25,6 +25,7 @@ import { ExtensionActivatedByEvent } from 'vs/workbench/api/node/extHostExtensio
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 import { registerGlobalLogService } from 'vs/platform/log/common/log';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 // const nativeExit = process.exit.bind(process);
 function patchProcess(allowExit: boolean) {
@@ -76,6 +77,7 @@ export class ExtensionHostMain {
 	private _environment: IEnvironment;
 	private _extensionService: ExtHostExtensionService;
 	private _extHostConfiguration: ExtHostConfiguration;
+	private disposables: IDisposable[] = [];
 
 	constructor(rpcProtocol: RPCProtocol, initData: IInitData) {
 		this._environment = initData.environment;
@@ -89,7 +91,9 @@ export class ExtensionHostMain {
 		const extHostWorkspace = new ExtHostWorkspace(threadService, initData.workspace);
 		const environmentService = new EnvironmentService(initData.args, initData.execPath);
 		const logService = new SpdLogService(`exthost${initData.windowId}`, environmentService);
+
 		registerGlobalLogService(logService);
+		this.disposables.push(logService);
 
 		logService.info('main {0}', initData);
 
@@ -145,6 +149,8 @@ export class ExtensionHostMain {
 			return;
 		}
 		this._isTerminating = true;
+
+		this.disposables = dispose(this.disposables);
 
 		errors.setUnexpectedErrorHandler((err) => {
 			// TODO: write to log once we have one

@@ -51,7 +51,9 @@ function createServices(args: ParsedArgs): IInstantiationService {
 	const spdlogService = new SpdLogService('main', environmentService);
 	const legacyLogService = new LegacyLogMainService(environmentService);
 	const logService = new MultiplexLogService([legacyLogService, spdlogService]);
+
 	registerGlobalLogService(logService);
+	process.once('exit', () => logService.dispose());
 
 	// Eventually cleanup
 	setTimeout(() => spdlogService.cleanup().then(null, err => console.error(err)), 10000);

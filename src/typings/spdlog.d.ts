@@ -29,5 +29,6 @@ declare module 'spdlog' {
 		critical(message: string);
 		setLevel(level: number);
 		flush(): void;
+		drop(): void;
 	}
 }
