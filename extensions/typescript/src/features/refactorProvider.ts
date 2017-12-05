@@ -49,7 +49,7 @@ class ApplyRefactoringCommand implements Command {
 
 		const renameLocation = response.body.renameLocation;
 		if (renameLocation) {
-			if (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document.uri.fsPath === file) {
+			if (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document.uri.fsPath === document.uri.fsPath) {
 				const pos = tsLocationToVsPosition(renameLocation);
 				vscode.window.activeTextEditor.selection = new vscode.Selection(pos, pos);
 				await vscode.commands.executeCommand('editor.action.rename');
