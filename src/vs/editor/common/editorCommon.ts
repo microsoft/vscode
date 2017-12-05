@@ -1578,6 +1578,8 @@ export interface IThemeDecorationRenderOptions {
 	borderStyle?: string;
 	borderWidth?: string;
 
+	fontStyle?: string;
+	fontWeight?: string;
 	textDecoration?: string;
 	cursor?: string;
 	color?: string | ThemeColor;
@@ -1601,6 +1603,8 @@ export interface IContentDecorationRenderOptions {
 
 	border?: string;
 	borderColor?: string | ThemeColor;
+	fontStyle?: string;
+	fontWeight?: string;
 	textDecoration?: string;
 	color?: string | ThemeColor;
 	backgroundColor?: string | ThemeColor;
