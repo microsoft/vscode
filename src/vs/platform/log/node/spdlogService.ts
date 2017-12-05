@@ -9,14 +9,13 @@ import * as path from 'path';
 import { ILogService, LogLevel, NoopLogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { RotatingLogger, setAsyncMode } from 'spdlog';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export function createLogService(processName: string, environmentService: IEnvironmentService): ILogService {
 	try {
 		setAsyncMode(8192, 2000);
 		const logfilePath = path.join(environmentService.logsPath, `${processName}.log`);
 		const logger = new RotatingLogger(processName, logfilePath, 1024 * 1024 * 5, 6);
-		return new SpdLogService(logger, environmentService.logLevel);
+		return new SpdLogService(processName, logger, environmentService.logLevel);
 	} catch (e) {
 		console.error(e);
 	}
@@ -27,9 +26,8 @@ class SpdLogService implements ILogService {
 
 	_serviceBrand: any;
 
-	private disposables: IDisposable[] = [];
-
 	constructor(
+		private name: string,
 		private readonly logger: RotatingLogger,
 		private level: LogLevel = LogLevel.Error
 	) {
@@ -77,9 +75,9 @@ class SpdLogService implements ILogService {
 	}
 
 	dispose(): void {
+		this.info('Disposing logger service', this.name);
 		this.logger.flush();
 		this.logger.drop();
-		this.disposables = dispose(this.disposables);
 	}
 
 	private format(value: string, args: any[] = []): string {
