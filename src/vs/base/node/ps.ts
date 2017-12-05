@@ -126,9 +126,9 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 			type Item = ProcessInfo | TopProcess;
 
-			const execMain = path.basename(process.execPath);
-			const script = URI.parse(require.toUrl('vs/base/node/ps-win.ps1')).fsPath;
-			const commandLine = `${script} -ProcessName '${execMain}' -MaxSamples 3`;
+			const execMain = path.basename(process.execPath).replace(/ /g, '` ');
+			const script = URI.parse(require.toUrl('vs/base/node/ps-win.ps1')).fsPath.replace(/ /g, '` ');
+			const commandLine = `${script} -ProcessName ${execMain} -MaxSamples 3`;
 			const cmd = spawn('powershell.exe', ['-ExecutionPolicy', 'Bypass', '-Command', commandLine]);
 
 			let stdout = '';
@@ -151,10 +151,14 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 					for (const item of items) {
 						if (item.type === 'processInfo') {
 							let load = 0;
-							for (let value of item.cpuLoad) {
-								load += value;
+							if (item.cpuLoad) {
+								for (let value of item.cpuLoad) {
+									load += value;
+								}
+								load = load / item.cpuLoad.length;
+							} else {
+								load = -1;
 							}
-							load = load / item.cpuLoad.length;
 							processItems.set(item.processId, {
 								name: findName(item.commandLine),
 								cmd: item.commandLine,

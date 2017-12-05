@@ -17,6 +17,7 @@ export class SpdLogService implements ILogService {
 
 	_serviceBrand: any;
 
+	private level: LogLevel = LogLevel.Error;
 	private logger: RotatingLogger;
 	private disposables: IDisposable[] = [];
 
@@ -46,33 +47,44 @@ export class SpdLogService implements ILogService {
 	}
 
 	setLevel(logLevel: LogLevel): void {
-		this.logger.setLevel(logLevel);
+		this.level = logLevel;
 	}
 
-	// TODO, what about ARGS?
 	trace(message: string, ...args: any[]): void {
-		this.logger.trace(this.format(message, args));
+		if (this.level <= LogLevel.Trace) {
+			this.logger.trace(this.format(message, args));
+		}
 	}
 
 	debug(message: string, ...args: any[]): void {
-		this.logger.debug(this.format(message, args));
+		if (this.level <= LogLevel.Debug) {
+			this.logger.debug(this.format(message, args));
+		}
 	}
 
 	info(message: string, ...args: any[]): void {
-		this.logger.info(this.format(message, args));
+		if (this.level <= LogLevel.Info) {
+			this.logger.info(this.format(message, args));
+		}
 	}
 
 	warn(message: string, ...args: any[]): void {
-		this.logger.warn(this.format(message, args));
+		if (this.level <= LogLevel.Warning) {
+			this.logger.warn(this.format(message, args));
+		}
 	}
 
 	error(arg: string | Error, ...args: any[]): void {
-		const message = arg instanceof Error ? arg.stack : arg;
-		this.logger.error(this.format(message, args));
+		if (this.level <= LogLevel.Error) {
+			const message = arg instanceof Error ? arg.stack : arg;
+			this.logger.error(this.format(message, args));
+		}
 	}
 
 	critical(message: string, ...args: any[]): void {
-		this.logger.critical(this.format(message, args));
+		if (this.level <= LogLevel.Critical) {
+			this.logger.critical(this.format(message, args));
+		}
 	}
 
 	dispose(): void {
