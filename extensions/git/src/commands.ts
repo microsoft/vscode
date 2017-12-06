@@ -214,15 +214,14 @@ export class CommandCenter {
 			}
 
 			const { size, object } = await repository.lstree(ref, uri.fsPath);
-
-			if (size > 1000000) { // 1 MB
-				return Uri.parse(`data:;label:${path.basename(uri.fsPath)};description:${ref},`);
-			}
-
 			const { mimetype, encoding } = await repository.detectObjectType(object);
 
 			if (mimetype === 'text/plain') {
 				return toGitUri(uri, ref);
+			}
+
+			if (size > 1000000) { // 1 MB
+				return Uri.parse(`data:;label:${path.basename(uri.fsPath)};description:${ref},`);
 			}
 
 			if (ImageMimetypes.indexOf(mimetype) > -1) {
