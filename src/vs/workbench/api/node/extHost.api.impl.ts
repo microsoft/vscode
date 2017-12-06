@@ -58,6 +58,7 @@ import { ExtHostDecorations } from 'vs/workbench/api/node/extHostDecorations';
 import { toGlobPattern, toLanguageSelector } from 'vs/workbench/api/node/extHostTypeConverters';
 import { ExtensionActivatedByAPI } from 'vs/workbench/api/node/extHostExtensionActivator';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription): typeof vscode;
@@ -81,7 +82,8 @@ export function createApiFactory(
 	threadService: ExtHostThreadService,
 	extHostWorkspace: ExtHostWorkspace,
 	extHostConfiguration: ExtHostConfiguration,
-	extensionService: ExtHostExtensionService
+	extensionService: ExtHostExtensionService,
+	logService: ILogService
 ): IExtensionApiFactory {
 
 	// Addressable instances
@@ -92,7 +94,7 @@ export function createApiFactory(
 	const extHostDocumentContentProviders = threadService.set(ExtHostContext.ExtHostDocumentContentProviders, new ExtHostDocumentContentProvider(threadService, extHostDocumentsAndEditors));
 	const extHostDocumentSaveParticipant = threadService.set(ExtHostContext.ExtHostDocumentSaveParticipant, new ExtHostDocumentSaveParticipant(extHostDocuments, threadService.get(MainContext.MainThreadEditors)));
 	const extHostEditors = threadService.set(ExtHostContext.ExtHostEditors, new ExtHostEditors(threadService, extHostDocumentsAndEditors));
-	const extHostCommands = threadService.set(ExtHostContext.ExtHostCommands, new ExtHostCommands(threadService, extHostHeapService));
+	const extHostCommands = threadService.set(ExtHostContext.ExtHostCommands, new ExtHostCommands(threadService, extHostHeapService, logService));
 	const extHostTreeViews = threadService.set(ExtHostContext.ExtHostTreeViews, new ExtHostTreeViews(threadService.get(MainContext.MainThreadTreeViews), extHostCommands));
 	threadService.set(ExtHostContext.ExtHostWorkspace, extHostWorkspace);
 	const extHostDebugService = threadService.set(ExtHostContext.ExtHostDebugService, new ExtHostDebugService(threadService, extHostWorkspace));
@@ -103,7 +105,7 @@ export function createApiFactory(
 	const extHostFileSystemEvent = threadService.set(ExtHostContext.ExtHostFileSystemEventService, new ExtHostFileSystemEventService());
 	const extHostQuickOpen = threadService.set(ExtHostContext.ExtHostQuickOpen, new ExtHostQuickOpen(threadService, extHostWorkspace, extHostCommands));
 	const extHostTerminalService = threadService.set(ExtHostContext.ExtHostTerminalService, new ExtHostTerminalService(threadService));
-	const extHostSCM = threadService.set(ExtHostContext.ExtHostSCM, new ExtHostSCM(threadService, extHostCommands));
+	const extHostSCM = threadService.set(ExtHostContext.ExtHostSCM, new ExtHostSCM(threadService, extHostCommands, logService));
 	const extHostTask = threadService.set(ExtHostContext.ExtHostTask, new ExtHostTask(threadService, extHostWorkspace));
 	const extHostWindow = threadService.set(ExtHostContext.ExtHostWindow, new ExtHostWindow(threadService));
 	threadService.set(ExtHostContext.ExtHostExtensionService, extensionService);

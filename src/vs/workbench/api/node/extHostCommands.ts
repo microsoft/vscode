@@ -15,7 +15,7 @@ import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import * as modes from 'vs/editor/common/modes';
 import * as vscode from 'vscode';
-import { log, LogLevel } from 'vs/platform/log/common/log';
+import { ILogService } from 'vs/platform/log/common/log';
 
 interface CommandHandler {
 	callback: Function;
@@ -36,7 +36,8 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 	constructor(
 		mainContext: IMainContext,
-		heapService: ExtHostHeapService
+		heapService: ExtHostHeapService,
+		private logService: ILogService
 	) {
 		this._proxy = mainContext.get(MainContext.MainThreadCommands);
 		this._converter = new CommandsConverter(this, heapService);
@@ -50,8 +51,8 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		this._argumentProcessors.push(processor);
 	}
 
-	@log(LogLevel.Trace, 'ExtHostCommands', (msg, id) => `${msg}(${id})`)
 	registerCommand(id: string, callback: <T>(...args: any[]) => T | Thenable<T>, thisArg?: any, description?: ICommandHandlerDescription): extHostTypes.Disposable {
+		this.logService.trace('ExtHostCommands#registerCommand', id);
 
 		if (!id.trim().length) {
 			throw new Error('invalid id');
@@ -71,8 +72,8 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		});
 	}
 
-	@log(LogLevel.Trace, 'ExtHostCommands', (msg, id) => `${msg}(${id})`)
 	executeCommand<T>(id: string, ...args: any[]): Thenable<T> {
+		this.logService.trace('ExtHostCommands#executeCommand', id);
 
 		if (this._commands.has(id)) {
 			// we stay inside the extension host and support
@@ -136,8 +137,9 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		}
 	}
 
-	@log(LogLevel.Trace, 'ExtHostCommands', (msg, filterUnderscoreCommands) => `${msg}(${filterUnderscoreCommands})`)
 	getCommands(filterUnderscoreCommands: boolean = false): Thenable<string[]> {
+		this.logService.trace('ExtHostCommands#getCommands', filterUnderscoreCommands);
+
 		return this._proxy.$getCommands().then(result => {
 			if (filterUnderscoreCommands) {
 				result = result.filter(command => command[0] !== '_');

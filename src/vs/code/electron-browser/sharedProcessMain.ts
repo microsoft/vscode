@@ -36,7 +36,7 @@ import { ipcRenderer } from 'electron';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createSharedProcessContributions } from 'vs/code/electron-browser/contrib/contributions';
 import { createLogService } from 'vs/platform/log/node/spdlogService';
-import { ILogService, registerGlobalLogService } from 'vs/platform/log/common/log';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -81,7 +81,6 @@ function main(server: Server, initData: ISharedProcessInitData, configuration: I
 	const environmentService = new EnvironmentService(initData.args, process.execPath);
 	const logService = createLogService('sharedprocess', environmentService);
 	process.once('exit', () => logService.dispose());
-	registerGlobalLogService(logService);
 
 	logService.info('main', JSON.stringify(configuration));
 

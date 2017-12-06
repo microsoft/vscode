@@ -7,7 +7,6 @@
 
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { createDecorator as createServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { createDecorator } from 'vs/base/common/decorators';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { isWindows } from 'vs/base/common/platform';
 
@@ -192,35 +191,4 @@ export class NoopLogService implements ILogService {
 	error(message: string | Error, ...args: any[]): void { }
 	critical(message: string | Error, ...args: any[]): void { }
 	dispose(): void { }
-}
-
-let globalLogService: ILogService = new NoopLogService();
-
-export function registerGlobalLogService(logService: ILogService): void {
-	globalLogService = logService;
-}
-
-export function log(level: LogLevel, prefix: string, logFn?: (message: string, ...args: any[]) => string): Function {
-	return createDecorator((fn, key) => {
-		// TODO@Joao: load-time log level? return fn;
-
-		return function (this: any, ...args: any[]) {
-			let message = `${prefix} - ${key}`;
-
-			if (logFn) {
-				message = logFn(message, ...args);
-			}
-
-			switch (level) {
-				case LogLevel.Trace: globalLogService.trace(message); break;
-				case LogLevel.Debug: globalLogService.debug(message); break;
-				case LogLevel.Info: globalLogService.info(message); break;
-				case LogLevel.Warning: globalLogService.warn(message); break;
-				case LogLevel.Error: globalLogService.error(message); break;
-				case LogLevel.Critical: globalLogService.critical(message); break;
-			}
-
-			return fn.apply(this, args);
-		};
-	});
 }

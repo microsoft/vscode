@@ -24,7 +24,6 @@ import * as glob from 'vs/base/common/glob';
 import { ExtensionActivatedByEvent } from 'vs/workbench/api/node/extHostExtensionActivator';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { createLogService } from 'vs/platform/log/node/spdlogService';
-import { registerGlobalLogService } from 'vs/platform/log/common/log';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 // const nativeExit = process.exit.bind(process);
@@ -91,15 +90,13 @@ export class ExtensionHostMain {
 		const extHostWorkspace = new ExtHostWorkspace(threadService, initData.workspace);
 		const environmentService = new EnvironmentService(initData.args, initData.execPath);
 		const logService = createLogService(`exthost${initData.windowId}`, environmentService);
-
-		registerGlobalLogService(logService);
 		this.disposables.push(logService);
 
 		logService.info('extension host started');
 		logService.trace('initData', initData);
 
 		this._extHostConfiguration = new ExtHostConfiguration(threadService.get(MainContext.MainThreadConfiguration), extHostWorkspace, initData.configuration);
-		this._extensionService = new ExtHostExtensionService(initData, threadService, extHostWorkspace, this._extHostConfiguration);
+		this._extensionService = new ExtHostExtensionService(initData, threadService, extHostWorkspace, this._extHostConfiguration, logService);
 
 		// error forwarding and stack trace scanning
 		const extensionErrors = new WeakMap<Error, IExtensionDescription>();
