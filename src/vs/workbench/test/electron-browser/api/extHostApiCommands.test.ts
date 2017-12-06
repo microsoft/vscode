@@ -195,6 +195,22 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		}, done);
 	});
 
+	test('executeWorkspaceSymbolProvider should accept empty string, #39522', async function () {
+
+		disposables.push(extHost.registerWorkspaceSymbolProvider({
+			provideWorkspaceSymbols(query) {
+				return [new types.SymbolInformation('hello', types.SymbolKind.Array, new types.Range(0, 0, 0, 0), URI.parse('foo:bar'))];
+			}
+		}));
+
+		await threadService.sync();
+		let symbols = await commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeWorkspaceSymbolProvider', '');
+		assert.equal(symbols.length, 1);
+
+		await threadService.sync();
+		symbols = await commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeWorkspaceSymbolProvider', '*');
+		assert.equal(symbols.length, 1);
+	});
 
 	// --- definition
 
