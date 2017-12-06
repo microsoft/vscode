@@ -25,7 +25,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IExtensionService, IExtensionDescription, IExtensionsStatus, IExtensionHostProfile } from 'vs/platform/extensions/common/extensions';
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { WorkbenchList, IListService } from 'vs/platform/list/browser/listService';
-import { append, $, addDisposableListener, addClass } from 'vs/base/browser/dom';
+import { append, $, addDisposableListener, addClass, toggleClass } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -39,6 +39,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { memoize } from 'vs/base/common/decorators';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import Event from 'vs/base/common/event';
+import { Color } from 'vs/base/common/color';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 
@@ -301,6 +302,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 						data.icon.src = element.marketplaceInfo.iconUrlFallback;
 					})
 				);
+				toggleClass(data.root, 'odd', index % 2 === 1);
 				data.icon.src = element.marketplaceInfo.iconUrl;
 
 				data.name.textContent = element.marketplaceInfo.displayName;
