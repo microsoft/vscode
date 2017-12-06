@@ -423,7 +423,17 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 			getActions: () => TPromise.as(this.getContextMenuActions(identifier)),
 			getActionsContext: () => identifier,
 			getKeyBinding: (action) => this.getKeybinding(action),
-			onHide: (cancel) => this.resourceContext.set(currentContext) // restore previous context
+			onHide: (cancel) => {
+
+				// restore previous context
+				this.resourceContext.set(currentContext);
+
+				// restore focus to active editor if any
+				const editor = this.editorService.getActiveEditor();
+				if (editor) {
+					editor.focus();
+				}
+			}
 		});
 	}
 
