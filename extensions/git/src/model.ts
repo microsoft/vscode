@@ -45,6 +45,10 @@ interface OpenRepository extends Disposable {
 }
 
 function isParent(parent: string, child: string): boolean {
+	if (parent.charAt(parent.length - 1) !== path.sep) {
+		parent += path.sep;
+	}
+
 	return child.startsWith(parent);
 }
 
