@@ -11,6 +11,10 @@
 	flex: 1;
 }
 
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container >  .tab.sizing-shrink > .tab-label {
+	-webkit-mask-image: linear-gradient(to right, rgba(0, 0, 0, 1), 94%, transparent);
+}
+
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .title-label a,
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .tab-label a {
 	text-decoration: none;
