@@ -37,6 +37,10 @@ class SpdLogService implements ILogService {
 		this.level = logLevel;
 	}
 
+	getLevel(): LogLevel {
+		return this.level;
+	}
+
 	trace(message: string, ...args: any[]): void {
 		if (this.level <= LogLevel.Trace) {
 			this.logger.trace(this.format(message, args));

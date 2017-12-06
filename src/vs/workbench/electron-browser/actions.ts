@@ -1755,7 +1755,7 @@ export class SetLogLevelAction extends Action {
 			{ label: nls.localize('off', "Off"), level: LogLevel.Off }
 		];
 
-		return this.quickOpenService.pick(entries, { placeHolder: nls.localize('selectProcess', "Select process") }).then(entry => {
+		return this.quickOpenService.pick(entries, { placeHolder: nls.localize('selectLogLevel', "Select log level"), autoFocus: { autoFocusIndex: this.logService.getLevel() } }).then(entry => {
 			if (entry) {
 				this.logService.setLevel(entry.level);
 			}

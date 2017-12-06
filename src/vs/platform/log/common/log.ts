@@ -27,6 +27,7 @@ export interface ILogService extends IDisposable {
 	_serviceBrand: any;
 
 	setLevel(level: LogLevel): void;
+	getLevel(): LogLevel;
 	trace(message: string, ...args: any[]): void;
 	debug(message: string, ...args: any[]): void;
 	info(message: string, ...args: any[]): void;
@@ -48,6 +49,10 @@ export class ConsoleLogMainService implements ILogService {
 
 	setLevel(level: LogLevel): void {
 		this.level = level;
+	}
+
+	getLevel(): LogLevel {
+		return this.level;
 	}
 
 	trace(message: string, ...args: any[]): void {
@@ -126,6 +131,13 @@ export class MultiplexLogService implements ILogService {
 		}
 	}
 
+	getLevel(): LogLevel {
+		for (const logService of this.logServices) {
+			return logService.getLevel();
+		}
+		return LogLevel.Info;
+	}
+
 	trace(message: string, ...args: any[]): void {
 		for (const logService of this.logServices) {
 			logService.trace(message, ...args);
@@ -172,6 +184,7 @@ export class MultiplexLogService implements ILogService {
 export class NoopLogService implements ILogService {
 	_serviceBrand: any;
 	setLevel(level: LogLevel): void { }
+	getLevel(): LogLevel { return LogLevel.Info; }
 	trace(message: string, ...args: any[]): void { }
 	debug(message: string, ...args: any[]): void { }
 	info(message: string, ...args: any[]): void { }
