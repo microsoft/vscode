@@ -686,7 +686,9 @@ export class DebugService implements debug.IDebugService {
 					return TPromise.join(compound.configurations.map(name => name !== compound.name ? this.startDebugging(root, name, noDebug, topCompoundName || compound.name) : TPromise.as(null)));
 				}
 				if (configOrName && !config) {
-					return TPromise.wrapError(new Error(nls.localize('configMissing', "Configuration '{0}' is missing in 'launch.json'.", configOrName)));
+					const message = !!launch ? nls.localize('configMissing', "Configuration '{0}' is missing in 'launch.json' or 'launch.json' does not.", configOrName) :
+						nls.localize('launchJsonDoesNotExist', "'launch.json' does not exist.");
+					return TPromise.wrapError(new Error(message));
 				}
 
 				// We keep the debug type in a separate variable 'type' so that a no-folder config has no attributes.
