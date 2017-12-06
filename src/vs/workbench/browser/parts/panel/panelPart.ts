@@ -43,6 +43,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	private blockOpeningPanel: boolean;
 	private compositeBar: CompositeBar;
 	private dimension: Dimension;
+	private toolbarWidth = new Map<string, number>();
 
 	constructor(
 		id: string,
@@ -234,14 +235,22 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			let availableWidth = this.dimension.width - 40; // take padding into account
 			if (this.toolBar) {
 				// adjust height for global actions showing
-				availableWidth = Math.max(PanelPart.MIN_COMPOSITE_BAR_WIDTH, availableWidth - this.toolbarWidth);
+				availableWidth = Math.max(PanelPart.MIN_COMPOSITE_BAR_WIDTH, availableWidth - this.getToolbarWidth());
 			}
 			this.compositeBar.layout(new Dimension(availableWidth, this.dimension.height));
 		}
 	}
 
-	private get toolbarWidth(): number {
-		return this.toolBar.getContainer().getHTMLElement().offsetWidth;
+	private getToolbarWidth(): number {
+		const activePanel = this.getActivePanel();
+		if (!activePanel) {
+			return 0;
+		}
+		if (!this.toolbarWidth.has(activePanel.getId())) {
+			this.toolbarWidth.set(activePanel.getId(), this.toolBar.getContainer().getHTMLElement().offsetWidth);
+		}
+
+		return this.toolbarWidth.get(activePanel.getId());
 	}
 
 	public shutdown(): void {

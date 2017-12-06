@@ -39,6 +39,7 @@ export class ActivitybarPart extends Part {
 		badgeForeground: ACTIVITY_BAR_BADGE_FOREGROUND,
 		dragAndDropBackground: ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND
 	};
+	private static readonly ACTION_HEIGHT = 50;
 
 	public _serviceBrand: any;
 
@@ -72,7 +73,7 @@ export class ActivitybarPart extends Part {
 			getDefaultCompositeId: () => this.viewletService.getDefaultViewletId(),
 			hidePart: () => this.partService.setSideBarHidden(true),
 			colors: ActivitybarPart.COLORS,
-			overflowActionSize: 50
+			overflowActionSize: ActivitybarPart.ACTION_HEIGHT
 		});
 		this.registerListeners();
 	}
@@ -196,7 +197,7 @@ export class ActivitybarPart extends Part {
 		let availableHeight = this.dimension.height;
 		if (this.globalActionBar) {
 			// adjust height for global actions showing
-			availableHeight -= (this.globalActionBar.items.length * this.globalActionBar.domNode.clientHeight);
+			availableHeight -= (this.globalActionBar.items.length * ActivitybarPart.ACTION_HEIGHT);
 		}
 		this.compositeBar.layout(new Dimension(dimension.width, availableHeight));
 
