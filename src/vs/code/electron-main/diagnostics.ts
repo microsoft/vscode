@@ -67,7 +67,7 @@ function formatWorkspaceStats(workspaceStats: WorkspaceStats): string {
 	let col = 0;
 
 	const appendAndWrap = (name: string, count: number) => {
-		const item = count > 1 ? ` ${name}(${count})` : ` ${name}`;
+		const item = ` ${name}(${count})`;
 
 		if (col + item.length > lineLength) {
 			output.push(line);
