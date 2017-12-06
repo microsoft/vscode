@@ -5038,9 +5038,9 @@ sparkles@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/sparkles/-/sparkles-1.0.0.tgz#1acbbfb592436d10bbe8f785b7cc6f82815012c3"
 
-spdlog@0.3.0:
-  version "0.3.0"
-  resolved "https://registry.yarnpkg.com/spdlog/-/spdlog-0.3.0.tgz#8fc0dfa407ccb97854bd026beb91267adeed5cf3"
+spdlog@0.3.4:
+  version "0.3.4"
+  resolved "https://registry.yarnpkg.com/spdlog/-/spdlog-0.3.4.tgz#034afc5dff446146e11b6aed6bfe611499bfde19"
   dependencies:
     bindings "^1.3.0"
     mkdirp "^0.5.1"
