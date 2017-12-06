@@ -174,6 +174,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			let globalBufferTerm = this._controller.getGlobalBufferTerm();
 			if (globalBufferTerm) {
 				this._state.change({ searchString: globalBufferTerm }, true);
+				this._findInput.select();
 			}
 		}));
 		this._register(this._focusTracker.onDidBlur(() => {
