@@ -308,13 +308,9 @@ declare module 'vscode' {
 		 */
 		readonly type: 'source';
 		/**
-		 * The source to which this breakpoint is attached.
+		 * The source and line position of this breakpoint.
 		 */
-		readonly source: Uri;
-		/**
-		 * The line and character position of the breakpoint.
-		 */
-		readonly location: Position;
+		readonly location: Location;
 	}
 
 	export interface FunctionBreakpoint extends Breakpoint {

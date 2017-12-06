@@ -12,7 +12,7 @@ import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 
 import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
-import { Disposable, Position } from 'vs/workbench/api/node/extHostTypes';
+import { Disposable, Position, Location } from 'vs/workbench/api/node/extHostTypes';
 
 
 export class ExtHostDebugService implements ExtHostDebugServiceShape {
@@ -148,8 +148,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 			enabled: bp.enabled,
 			condition: bp.condition,
 			hitCondition: bp.hitCondition,
-			source: URI.parse(bp.sourceUriStr),
-			location: new Position(bp.line, bp.character)
+			location: new Location(bp.uri, new Position(bp.line, bp.character))
 		};
 		return sbp;
 	}

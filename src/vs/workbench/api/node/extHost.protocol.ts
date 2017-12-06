@@ -635,7 +635,7 @@ export interface IBreakpointData {
 
 export interface ISourceBreakpointData extends IBreakpointData {
 	type: 'source';
-	sourceUriStr: string;
+	uri: URI;
 	line: number;
 	character: number;
 }
