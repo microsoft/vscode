@@ -18,5 +18,38 @@
 			"</html>"
 		],
 		"description": "Simple HTML5 starting point"
+	},
+
+
+	"Script Type": {
+		"prefix": "type",
+		"body": [
+			"${1|type= text/javascript,type= application/javascript|}"
+		],
+		"description": "Define type to text/javascript"
+	},
+
+	"Script async": {
+		"prefix": "as",
+		"body": [
+			"$async></script>"
+		],
+		"description": "Script is run as soon as it is downloaded"
+	},
+
+	"Script defer": {
+		"prefix": "def",
+		"body": [
+			"defer></script>"
+		],
+		"description": "Script is executed only when the page is loaded and in order."
+	},
+
+	"Script source": {
+		"prefix": "sr",
+		"body": [
+			"src=\"${1:foo}.js\" "
+		],
+		"description": "External script being used here."
 	}
 }
