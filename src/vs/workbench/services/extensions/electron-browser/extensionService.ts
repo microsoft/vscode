@@ -533,6 +533,11 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	}
 
 	private static async _scanExtensionsWithCache(instantiationService: IInstantiationService, messageService: IMessageService, environmentService: IEnvironmentService, cacheKey: string, input: ExtensionScannerInput, log: ILog): TPromise<IExtensionDescription[]> {
+		if (input.devMode) {
+			// Do not cache when running out of sources...
+			return ExtensionScanner.scanExtensions(input, log);
+		}
+
 		const cacheContents = await this._readExtensionCache(environmentService, cacheKey);
 		if (cacheContents && ExtensionScannerInput.equals(cacheContents.input, input)) {
 			// Validate the cache asynchronously after 5s
