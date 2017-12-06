@@ -535,16 +535,13 @@ export class CommandsHandler extends QuickOpenHandler {
 
 				// Add an 'alias' in original language when running in different locale
 				const aliasTitle = (language !== LANGUAGE_DEFAULT && typeof action.item.title !== 'string') ? action.item.title.original : null;
-
-				// Disable aliasCategory for now (https://github.com/Microsoft/vscode/issues/39510)
-				// const aliasCategory = (language !== LANGUAGE_DEFAULT && category && typeof action.item.category !== 'string') ? action.item.category.original : null;
-				let alias: string;
-				// if (aliasTitle && category) {
-				// 	alias = aliasCategory ? `${aliasCategory}: ${aliasTitle}` : `${category}: ${aliasTitle}`;
-				// } else if (aliasTitle) {
-				alias = aliasTitle;
-				// }
-
+				const aliasCategory = (language !== LANGUAGE_DEFAULT && category && typeof action.item.category !== 'string') ? action.item.category.original : null;
+				let alias;
+				if (aliasTitle && category) {
+					alias = aliasCategory ? `${aliasCategory}: ${aliasTitle}` : `${category}: ${aliasTitle}`;
+				} else if (aliasTitle) {
+					alias = aliasTitle;
+				}
 				const aliasHighlights = alias ? wordFilter(searchValue, alias) : null;
 
 				if (labelHighlights || aliasHighlights) {
