@@ -7,8 +7,13 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
+import { OpenDocumentLinkCommand } from '../commands';
 
-function normalizeLink(document: vscode.TextDocument, link: string, base: string): vscode.Uri {
+function normalizeLink(
+	document: vscode.TextDocument,
+	link: string,
+	base: string
+): vscode.Uri {
 	const uri = vscode.Uri.parse(link);
 	if (uri.scheme) {
 		return uri;
@@ -27,10 +32,13 @@ function normalizeLink(document: vscode.TextDocument, link: string, base: string
 		resourcePath = path.join(base, uri.path);
 	}
 
-	return vscode.Uri.parse(`command:_markdown.openDocumentLink?${encodeURIComponent(JSON.stringify({ fragment: uri.fragment, path: resourcePath }))}`);
+	return OpenDocumentLinkCommand.createCommandUri(resourcePath, uri.fragment);
 }
 
-function matchAll(pattern: RegExp, text: string): Array<RegExpMatchArray> {
+function matchAll(
+	pattern: RegExp,
+	text: string
+): Array<RegExpMatchArray> {
 	const out: RegExpMatchArray[] = [];
 	pattern.lastIndex = 0;
 	let match: RegExpMatchArray | null;

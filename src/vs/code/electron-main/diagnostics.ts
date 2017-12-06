@@ -40,10 +40,13 @@ export function printDiagnostics(info: IMainProcessInfo): Promise<any> {
 				console.log(`|  Window (${window.title})`);
 
 				window.folders.forEach(folder => {
-					console.log(`|    Folder (${basename(folder)})`);
-
 					try {
 						const stats = collectWorkspaceStats(folder, ['node_modules', '.git']);
+						let countMessage = `${stats.fileCount} files`;
+						if (stats.maxFilesReached) {
+							countMessage = `more than ${countMessage}`;
+						}
+						console.log(`|    Folder (${basename(folder)}): ${countMessage}`);
 						console.log(formatWorkspaceStats(stats));
 
 						const launchConfigs = collectLaunchConfigs(folder);
@@ -51,7 +54,7 @@ export function printDiagnostics(info: IMainProcessInfo): Promise<any> {
 							console.log(formatLaunchConfigs(launchConfigs));
 						}
 					} catch (error) {
-						console.log(`|      Error: Unable to collect workpsace stats for this folder (${error.toString()})`);
+						console.log(`|      Error: Unable to collect workpsace stats for folder ${folder} (${error.toString()})`);
 					}
 				});
 			});
@@ -67,7 +70,7 @@ function formatWorkspaceStats(workspaceStats: WorkspaceStats): string {
 	let col = 0;
 
 	const appendAndWrap = (name: string, count: number) => {
-		const item = count > 1 ? ` ${name}(${count})` : ` ${name}`;
+		const item = ` ${name}(${count})`;
 
 		if (col + item.length > lineLength) {
 			output.push(line);

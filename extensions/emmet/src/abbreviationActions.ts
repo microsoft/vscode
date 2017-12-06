@@ -217,12 +217,12 @@ function fallbackTab(): Thenable<boolean | undefined> {
  * @param abbreviationRange The range of the abbreviation for which given position is being validated
  */
 export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocument, currentNode: Node | null, syntax: string, position: vscode.Position, abbreviationRange: vscode.Range): boolean {
-	// Continue validation only if the file was parse-able and the currentNode has been found
-	if (!currentNode) {
-		return true;
-	}
-
 	if (isStyleSheet(syntax)) {
+		// Continue validation only if the file was parse-able and the currentNode has been found
+		if (!currentNode) {
+			return true;
+		}
+
 		// If current node is a rule or at-rule, then perform additional checks to ensure
 		// emmet suggestions are not provided in the rule selector
 		if (currentNode.type !== 'rule' && currentNode.type !== 'at-rule') {
@@ -253,24 +253,28 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 	const endAngle = '>';
 	const escape = '\\';
 	const currentHtmlNode = <HtmlNode>currentNode;
-	const innerRange = getInnerRange(currentHtmlNode);
+	let start = new vscode.Position(0, 0);
 
-	// Fix for https://github.com/Microsoft/vscode/issues/28829
-	if (!innerRange || !innerRange.contains(position)) {
-		return false;
-	}
+	if (currentHtmlNode) {
+		const innerRange = getInnerRange(currentHtmlNode);
 
-	// Fix for https://github.com/Microsoft/vscode/issues/35128
-	// Find the position up till where we will backtrack looking for unescaped < or > 
-	// to decide if current position is valid for emmet expansion
-	let start = innerRange.start;
-	let lastChildBeforePosition = currentHtmlNode.firstChild;
-	while (lastChildBeforePosition) {
-		if (lastChildBeforePosition.end.isAfter(position)) {
-			break;
+		// Fix for https://github.com/Microsoft/vscode/issues/28829
+		if (!innerRange || !innerRange.contains(position)) {
+			return false;
 		}
-		start = lastChildBeforePosition.end;
-		lastChildBeforePosition = lastChildBeforePosition.nextSibling;
+
+		// Fix for https://github.com/Microsoft/vscode/issues/35128
+		// Find the position up till where we will backtrack looking for unescaped < or >
+		// to decide if current position is valid for emmet expansion
+		start = innerRange.start;
+		let lastChildBeforePosition = currentHtmlNode.firstChild;
+		while (lastChildBeforePosition) {
+			if (lastChildBeforePosition.end.isAfter(position)) {
+				break;
+			}
+			start = lastChildBeforePosition.end;
+			lastChildBeforePosition = lastChildBeforePosition.nextSibling;
+		}
 	}
 	let textToBackTrack = document.getText(new vscode.Range(start.line, start.character, abbreviationRange.start.line, abbreviationRange.start.character));
 
