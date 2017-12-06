@@ -47,7 +47,7 @@
       {
         "id": "jsonc",
         "aliases": [
-          "JSON with comments"
+          "JSON with Comments"
         ],
         "extensions": [
           ".code-workspace",
