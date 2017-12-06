@@ -283,11 +283,10 @@ declare module 'vscode' {
 		readonly changed: Breakpoint[];
 	}
 
-	export interface Breakpoint {
-		/**
-		 * Type of breakpoint.
-		 */
-		readonly type: 'source' | 'function';
+	/**
+	 * The base class of all breakpoint types.
+	 */
+	export class Breakpoint {
 		/**
 		 * Is breakpoint enabled.
 		 */
@@ -300,27 +299,31 @@ declare module 'vscode' {
 		 * An optional expression that controls how many hits of the breakpoint are ignored.
 		 */
 		readonly hitCondition?: string;
+
+		protected constructor(enabled: boolean, condition: string, hitCondition: string);
 	}
 
-	export interface SourceBreakpoint extends Breakpoint {
-		/**
-		 * Breakpoint type 'source'.
-		 */
-		readonly type: 'source';
+	/**
+	 * A breakpoint specified by a source location.
+	 */
+	export class SourceBreakpoint extends Breakpoint {
 		/**
 		 * The source and line position of this breakpoint.
 		 */
 		readonly location: Location;
+
+		private constructor(enabled: boolean, condition: string, hitCondition: string, location: Location);
 	}
 
-	export interface FunctionBreakpoint extends Breakpoint {
-		/**
-		 * Breakpoint type 'function'.
-		 */
-		readonly type: 'function';
+	/**
+	 * A breakpoint specified by a function name.
+	 */
+	export class FunctionBreakpoint extends Breakpoint {
 		/**
 		 * The name of the function to which this breakpoint is attached.
 		 */
 		readonly functionName: string;
+
+		private constructor(enabled: boolean, condition: string, hitCondition: string, functionName: string);
 	}
 }

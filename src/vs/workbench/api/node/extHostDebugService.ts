@@ -12,7 +12,7 @@ import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 
 import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
-import { Disposable, Position, Location } from 'vs/workbench/api/node/extHostTypes';
+import { Disposable, Position, Location, SourceBreakpoint, FunctionBreakpoint } from 'vs/workbench/api/node/extHostTypes';
 
 
 export class ExtHostDebugService implements ExtHostDebugServiceShape {
@@ -121,7 +121,9 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 		if (delta.changed) {
 			c = delta.changed.map(bpd => {
-				return extendObject(this._breakpoints.get(bpd.id), this.fromWire(bpd));
+				const bp = this.fromWire(bpd);
+				this._breakpoints.set(bpd.id, bp);
+				return bp;
 			});
 		}
 
@@ -134,23 +136,9 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 	private fromWire(bp: ISourceBreakpointData | IFunctionBreakpointData): vscode.Breakpoint {
 		if (bp.type === 'function') {
-			const fbp: vscode.FunctionBreakpoint = {
-				type: 'function',
-				enabled: bp.enabled,
-				condition: bp.condition,
-				hitCondition: bp.hitCondition,
-				functionName: bp.functionName
-			};
-			return fbp;
+			return new FunctionBreakpoint(bp.enabled, bp.condition, bp.hitCondition, bp.functionName);
 		}
-		const sbp: vscode.SourceBreakpoint = {
-			type: 'source',
-			enabled: bp.enabled,
-			condition: bp.condition,
-			hitCondition: bp.hitCondition,
-			location: new Location(bp.uri, new Position(bp.line, bp.character))
-		};
-		return sbp;
+		return new SourceBreakpoint(bp.enabled, bp.condition, bp.hitCondition, new Location(bp.uri, new Position(bp.line, bp.character)));
 	}
 
 	public registerDebugConfigurationProvider(type: string, provider: vscode.DebugConfigurationProvider): vscode.Disposable {
@@ -308,17 +296,4 @@ export class ExtHostDebugConsole implements vscode.DebugConsole {
 	appendLine(value: string): void {
 		this.append(value + '\n');
 	}
-}
-
-/**
- * Copy attributes from fromObject to toObject.
- */
-export function extendObject<T>(toObject: T, fromObject: T): T {
-
-	for (let key in fromObject) {
-		if (fromObject.hasOwnProperty(key)) {
-			toObject[key] = fromObject[key];
-		}
-	}
-	return toObject;
 }
