@@ -9,7 +9,11 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { OpenDocumentLinkCommand } from '../commands';
 
-function normalizeLink(document: vscode.TextDocument, link: string, base: string): vscode.Uri {
+function normalizeLink(
+	document: vscode.TextDocument,
+	link: string,
+	base: string
+): vscode.Uri {
 	const uri = vscode.Uri.parse(link);
 	if (uri.scheme) {
 		return uri;
@@ -31,7 +35,10 @@ function normalizeLink(document: vscode.TextDocument, link: string, base: string
 	return vscode.Uri.parse(`command:${OpenDocumentLinkCommand.id}?${encodeURIComponent(JSON.stringify({ fragment: uri.fragment, path: resourcePath }))}`);
 }
 
-function matchAll(pattern: RegExp, text: string): Array<RegExpMatchArray> {
+function matchAll(
+	pattern: RegExp,
+	text: string
+): Array<RegExpMatchArray> {
 	const out: RegExpMatchArray[] = [];
 	pattern.lastIndex = 0;
 	let match: RegExpMatchArray | null;
