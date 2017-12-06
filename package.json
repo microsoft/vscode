@@ -37,7 +37,7 @@
     "node-pty": "0.7.3",
     "nsfw": "1.0.16",
     "semver": "4.3.6",
-    "spdlog": "0.3.6",
+    "spdlog": "0.3.7",
     "v8-inspect-profiler": "^0.0.6",
     "vscode-chokidar": "1.6.2",
     "vscode-debugprotocol": "1.25.0",
