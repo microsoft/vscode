@@ -417,8 +417,8 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 	public getWordAtPosition(_position: IPosition): editorCommon.IWordAtPosition {
 		this._assertNotDisposed();
-		let position = this.validatePosition(_position);
-		let lineContent = this.getLineContent(position.lineNumber);
+		const position = this.validatePosition(_position);
+		const lineContent = this.getLineContent(position.lineNumber);
 
 		if (this._invalidLineStartIndex <= position.lineNumber - 1) {
 			// this line is not tokenized
@@ -430,30 +430,29 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			);
 		}
 
-		let lineTokens = this._getLineTokens(position.lineNumber);
-		let offset = position.column - 1;
-		let token = lineTokens.findTokenAtOffset(offset);
+		const lineTokens = this._getLineTokens(position.lineNumber);
+		const offset = position.column - 1;
+		const token = lineTokens.findTokenAtOffset(offset);
+		const languageId = token.languageId;
 
-		let result = getWordAtText(
-			position.column,
-			LanguageConfigurationRegistry.getWordDefinition(token.languageId),
-			lineContent.substring(token.startOffset, token.endOffset),
-			token.startOffset
-		);
-
-		if (!result && token.hasPrev && token.startOffset === offset) {
-			// The position is right at the beginning of `modeIndex`, so try looking at `modeIndex` - 1 too
-
-			token = token.prev();
-			result = getWordAtText(
-				position.column,
-				LanguageConfigurationRegistry.getWordDefinition(token.languageId),
-				lineContent.substring(token.startOffset, token.endOffset),
-				token.startOffset
-			);
+		// go left until a different language is hit
+		let startOffset: number;
+		for (let leftToken = token.clone(); leftToken !== null && leftToken.languageId === languageId; leftToken = leftToken.prev()) {
+			startOffset = leftToken.startOffset;
 		}
 
-		return result;
+		// go right until a different language is hit
+		let endOffset: number;
+		for (let rightToken = token.clone(); rightToken !== null && rightToken.languageId === languageId; rightToken = rightToken.next()) {
+			endOffset = rightToken.endOffset;
+		}
+
+		return getWordAtText(
+			position.column,
+			LanguageConfigurationRegistry.getWordDefinition(languageId),
+			lineContent.substring(startOffset, endOffset),
+			startOffset
+		);
 	}
 
 	public getWordUntilPosition(position: IPosition): editorCommon.IWordAtPosition {

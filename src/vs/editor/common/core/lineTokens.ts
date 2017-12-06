@@ -53,6 +53,10 @@ export class LineToken {
 		this._set(tokenIndex, startOffset, endOffset, metadata);
 	}
 
+	public clone(): LineToken {
+		return new LineToken(this._source, this._tokenIndex, this._tokenCount, this._startOffset, this._endOffset, this._metadata);
+	}
+
 	_set(tokenIndex: number, startOffset: number, endOffset: number, metadata: number): void {
 		this._tokenIndex = tokenIndex;
 		this._metadata = metadata;
