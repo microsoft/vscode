@@ -333,14 +333,14 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	}
 
 	public getGlobalBufferTerm(): string {
-		if (this._clipboardService) {
+		if (this._editor.getConfiguration().contribInfo.find.globalFindClipboard && this._clipboardService) {
 			return this._clipboardService.readFindText();
 		}
 		return '';
 	}
 
 	public setGlobalBufferTerm(text: string) {
-		if (this._clipboardService) {
+		if (this._editor.getConfiguration().contribInfo.find.globalFindClipboard && this._clipboardService) {
 			this._clipboardService.writeFindText(text);
 		}
 	}
