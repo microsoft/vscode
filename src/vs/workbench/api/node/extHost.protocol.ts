@@ -636,7 +636,8 @@ export interface IBreakpointData {
 export interface ISourceBreakpointData extends IBreakpointData {
 	type: 'source';
 	sourceUriStr: string;
-	location: vscode.Position;
+	line: number;
+	character: number;
 }
 
 export interface IFunctionBreakpointData extends IBreakpointData {

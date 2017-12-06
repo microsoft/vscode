@@ -12,7 +12,7 @@ import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 
 import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
-import * as types from 'vs/workbench/api/node/extHostTypes';
+import { Disposable, Position } from 'vs/workbench/api/node/extHostTypes';
 
 
 export class ExtHostDebugService implements ExtHostDebugServiceShape {
@@ -103,9 +103,9 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 		if (delta.added) {
 			a = delta.added.map(bpd => {
-				const id = bpd.id;
-				this._breakpoints.set(id, this.fromWire(bpd));
-				return bpd;
+				const bp = this.fromWire(bpd);
+				this._breakpoints.set(bpd.id, bp);
+				return bp;
 			});
 		}
 
@@ -121,9 +121,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 		if (delta.changed) {
 			c = delta.changed.map(bpd => {
-				const id = bpd.id;
-				this._breakpoints.set(id, this.fromWire(bpd));
-				return bpd;
+				return extendObject(this._breakpoints.get(bpd.id), this.fromWire(bpd));
 			});
 		}
 
@@ -135,24 +133,37 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 	}
 
 	private fromWire(bp: ISourceBreakpointData | IFunctionBreakpointData): vscode.Breakpoint {
-		delete bp.id;
-		if (bp.type === 'source') {
-			(<any>bp).source = URI.parse(bp.sourceUriStr);
-			delete bp.sourceUriStr;
+		if (bp.type === 'function') {
+			const fbp: vscode.FunctionBreakpoint = {
+				type: 'function',
+				enabled: bp.enabled,
+				condition: bp.condition,
+				hitCondition: bp.hitCondition,
+				functionName: bp.functionName
+			};
+			return fbp;
 		}
-		return bp;
+		const sbp: vscode.SourceBreakpoint = {
+			type: 'source',
+			enabled: bp.enabled,
+			condition: bp.condition,
+			hitCondition: bp.hitCondition,
+			source: URI.parse(bp.sourceUriStr),
+			location: new Position(bp.line, bp.character)
+		};
+		return sbp;
 	}
 
 	public registerDebugConfigurationProvider(type: string, provider: vscode.DebugConfigurationProvider): vscode.Disposable {
 		if (!provider) {
-			return new types.Disposable(() => { });
+			return new Disposable(() => { });
 		}
 
 		let handle = this.nextHandle();
 		this._handlers.set(handle, provider);
 		this._debugServiceProxy.$registerDebugConfigurationProvider(type, !!provider.provideDebugConfigurations, !!provider.resolveDebugConfiguration, handle);
 
-		return new types.Disposable(() => {
+		return new Disposable(() => {
 			this._handlers.delete(handle);
 			this._debugServiceProxy.$unregisterDebugConfigurationProvider(handle);
 		});
@@ -298,4 +309,17 @@ export class ExtHostDebugConsole implements vscode.DebugConsole {
 	appendLine(value: string): void {
 		this.append(value + '\n');
 	}
+}
+
+/**
+ * Copy attributes from fromObject to toObject.
+ */
+export function extendObject<T>(toObject: T, fromObject: T): T {
+
+	for (let key in fromObject) {
+		if (fromObject.hasOwnProperty(key)) {
+			toObject[key] = fromObject[key];
+		}
+	}
+	return toObject;
 }

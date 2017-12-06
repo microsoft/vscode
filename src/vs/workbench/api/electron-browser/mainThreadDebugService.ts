@@ -111,10 +111,8 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 					condition: sbp.condition,
 					hitCondition: bp.hitCondition,
 					sourceUriStr: sbp.uri.toString(),
-					location: {
-						line: sbp.lineNumber,
-						character: sbp.column
-					}
+					line: sbp.lineNumber > 0 ? sbp.lineNumber - 1 : 0,
+					character: (typeof sbp.column === 'number' && sbp.column > 0) ? sbp.column - 1 : 0
 				};
 			}
 		});
