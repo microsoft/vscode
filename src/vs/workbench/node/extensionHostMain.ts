@@ -95,7 +95,8 @@ export class ExtensionHostMain {
 		registerGlobalLogService(logService);
 		this.disposables.push(logService);
 
-		logService.info('main', initData);
+		logService.info('extension host started');
+		logService.trace('initData', initData);
 
 		this._extHostConfiguration = new ExtHostConfiguration(threadService.get(MainContext.MainThreadConfiguration), extHostWorkspace, initData.configuration);
 		this._extensionService = new ExtHostExtensionService(initData, threadService, extHostWorkspace, this._extHostConfiguration);
