@@ -692,9 +692,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 
 		// Check for dirty and veto
-		const editorsToClose = arrays.flatten(groups.map(group => group.getEditors().map(editor => { return { group, editor }; })));
-
-		return this.handleDirty(editorsToClose).then(veto => {
+		return this.handleDirty(arrays.flatten(groups.map(group => group.getEditors(true /* in MRU order */).map(editor => { return { group, editor }; })))).then(veto => {
 			if (veto) {
 				return;
 			}
@@ -709,19 +707,24 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			return TPromise.wrap<void>(null);
 		}
 
-		let editors = group.getEditors();
+		let editorsToClose = group.getEditors(true /* in MRU order */);
+
+		// Filter: unmodified only
 		if (filter.unmodifiedOnly) {
-			editors = editors.filter(e => !e.isDirty());
+			editorsToClose = editorsToClose.filter(e => !e.isDirty());
+		}
+
+		// Filter: direction (left / right)
+		if (!types.isUndefinedOrNull(filter.direction)) {
+			editorsToClose = (filter.direction === Direction.LEFT) ? editorsToClose.slice(0, group.indexOf(filter.except)) : editorsToClose.slice(group.indexOf(filter.except) + 1);
+		}
+
+		// Filter: except
+		else {
+			editorsToClose = editorsToClose.filter(e => !filter.except || !e.matches(filter.except));
 		}
 
 		// Check for dirty and veto
-		let editorsToClose: EditorInput[];
-		if (types.isUndefinedOrNull(filter.direction)) {
-			editorsToClose = editors.filter(e => !filter.except || !e.matches(filter.except));
-		} else {
-			editorsToClose = (filter.direction === Direction.LEFT) ? editors.slice(0, group.indexOf(filter.except)) : editors.slice(group.indexOf(filter.except) + 1);
-		}
-
 		return this.handleDirty(editorsToClose.map(editor => { return { group, editor }; }), true /* ignore if opened in other group */).then(veto => {
 			if (veto) {
 				return;
