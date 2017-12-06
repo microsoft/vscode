@@ -126,6 +126,20 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 			type Item = ProcessInfo | TopProcess;
 
+			const cleanUNCPrefix = (value: string): string => {
+				if (value.indexOf('\\\\?\\') === 0) {
+					return value.substr(4);
+				} else if (value.indexOf('\\??\\') === 0) {
+					return value.substr(4);
+				} else if (value.indexOf('"\\\\?\\') === 0) {
+					return '"' + value.substr(5);
+				} else if (value.indexOf('"\\??\\') === 0) {
+					return '"' + value.substr(5);
+				} else {
+					return value;
+				}
+			};
+
 			const execMain = path.basename(process.execPath).replace(/ /g, '` ');
 			const script = URI.parse(require.toUrl('vs/base/node/ps-win.ps1')).fsPath.replace(/ /g, '` ');
 			const commandLine = `${script} -ProcessName ${execMain} -MaxSamples 3`;
@@ -159,9 +173,10 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 							} else {
 								load = -1;
 							}
+							let commandLine = cleanUNCPrefix(item.commandLine);
 							processItems.set(item.processId, {
-								name: findName(item.commandLine),
-								cmd: item.commandLine,
+								name: findName(commandLine),
+								cmd: commandLine,
 								pid: item.processId,
 								ppid: item.parentProcessId,
 								load: load,
