@@ -304,7 +304,7 @@ function patternListToIExpression(patterns: string[]): glob.IExpression {
 }
 
 function splitGlobPattern(pattern: string): string[] {
-	return glob.splitGlobAware(pattern, ',')
+	return glob.splitGlobAware(pattern, ';')
 		.map(s => s.trim())
 		.filter(s => !!s.length);
 }
