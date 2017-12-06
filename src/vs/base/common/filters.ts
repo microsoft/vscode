@@ -718,8 +718,8 @@ function fuzzyScoreWithPermutations(pattern: string, word: string, aggressive?: 
 	}
 
 	if (pattern.length >= 3) {
-		// when the pattern is long enough then trie a few (max 7)
-		// permutation of the pattern to find a better match. the
+		// When the pattern is long enough then try a few (max 7)
+		// permutations of the pattern to find a better match. The
 		// permutations only swap neighbouring characters, e.g
 		// `cnoso` becomes `conso`, `cnsoo`, `cnoos`.
 		let tries = Math.min(7, pattern.length - 1);
@@ -727,8 +727,11 @@ function fuzzyScoreWithPermutations(pattern: string, word: string, aggressive?: 
 			let newPattern = nextTypoPermutation(pattern, patternPos);
 			if (newPattern) {
 				let candidate = fuzzyScore(newPattern, word, patternMaxWhitespaceIgnore);
-				if (candidate && (!top || candidate[0] > top[0])) {
-					top = candidate;
+				if (candidate) {
+					candidate[0] -= 3; // permutation penalty
+					if (!top || candidate[0] > top[0]) {
+						top = candidate;
+					}
 				}
 			}
 		}

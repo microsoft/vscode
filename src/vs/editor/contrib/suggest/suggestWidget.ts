@@ -153,6 +153,7 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 		}
 
 		data.highlightedLabel.set(suggestion.label, createMatches(element.matches));
+		// data.highlightedLabel.set(`${suggestion.label} <${element.score}=score(${element.word}, ${suggestion.filterText || suggestion.label})>`, createMatches(element.matches));
 		data.typeLabel.textContent = (suggestion.detail || '').replace(/\n.*$/m, '');
 
 		if (canExpandCompletionItem(element)) {
