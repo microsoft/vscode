@@ -16,11 +16,11 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { registerThemingParticipant, themeColorFromId} from 'vs/platform/theme/common/themeService';
-import { editorBracketMatchBackground, editorBracketMatchBorder} from 'vs/editor/common/view/editorColorRegistry';
+import { registerThemingParticipant, themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { editorBracketMatchBackground, editorBracketMatchBorder } from 'vs/editor/common/view/editorColorRegistry';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerColor,   overviewRulerSelectionHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, overviewRulerSelectionHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
 
 
 export const editorWordHighlight = registerColor('editor.wordHighlightBackground', { dark: '#575757B8', light: '#57575740', hc: null }, nls.localize('wordHighlight', 'Background color of a symbol during read-access, like reading a variable.'));
