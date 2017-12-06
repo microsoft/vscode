@@ -235,7 +235,11 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 	}
 
 	public setContext(key: string, value: any): void {
-		if (this.getContextValuesContainer(this._myContextId).setValue(key, value)) {
+		const myContext = this.getContextValuesContainer(this._myContextId);
+		if (!myContext) {
+			return;
+		}
+		if (myContext.setValue(key, value)) {
 			this._onDidChangeContextKey.fire(key);
 		}
 	}

@@ -330,7 +330,7 @@ class WordHighlighter {
 			this.renderDecorationsTimer = -1;
 			this.renderDecorations();
 		} else {
-			// Asyncrhonous
+			// Asynchronous
 			this.renderDecorationsTimer = setTimeout(() => {
 				this.renderDecorations();
 			}, (minimumRenderTime - currentTime));
