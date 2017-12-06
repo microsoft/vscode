@@ -7,6 +7,7 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
+import { OpenDocumentLinkCommand } from '../commands';
 
 function normalizeLink(document: vscode.TextDocument, link: string, base: string): vscode.Uri {
 	const uri = vscode.Uri.parse(link);
@@ -27,7 +28,7 @@ function normalizeLink(document: vscode.TextDocument, link: string, base: string
 		resourcePath = path.join(base, uri.path);
 	}
 
-	return vscode.Uri.parse(`command:_markdown.openDocumentLink?${encodeURIComponent(JSON.stringify({ fragment: uri.fragment, path: resourcePath }))}`);
+	return vscode.Uri.parse(`command:${OpenDocumentLinkCommand.id}?${encodeURIComponent(JSON.stringify({ fragment: uri.fragment, path: resourcePath }))}`);
 }
 
 function matchAll(pattern: RegExp, text: string): Array<RegExpMatchArray> {

@@ -240,7 +240,8 @@ export interface OpenDocumentLinkArgs {
 }
 
 export class OpenDocumentLinkCommand implements Command {
-	public readonly id = '_markdown.openDocumentLink';
+	public static readonly id = '_markdown.openDocumentLink';
+	public readonly id = OpenDocumentLinkCommand.id;
 
 	public constructor(
 		private readonly engine: MarkdownEngine
