@@ -8,7 +8,7 @@
 	padding-left: 20px;
 }
 
-.runtime-extensions-editor .extension .icon {
+.runtime-extensions-editor .extension > .icon {
 	display: none;
 }
 
@@ -46,7 +46,7 @@
 	fill: rgb(181, 181, 255);
 }
 
-.runtime-extensions-editor .icon {
+.runtime-extensions-editor .extension > .icon {
 	width: 42px;
 	height: 42px;
 	padding: 10px 14px 10px 0;
@@ -83,16 +83,6 @@
 
 .runtime-extensions-editor .monaco-action-bar {
 	padding-top: 21px;
-}
-
-.runtime-extensions-editor .monaco-action-bar .action-label {
-	background: #fef2c0;
-	border-radius: 6px;
-	padding: 2px;
-}
-
-.vs-dark .runtime-extensions-editor .monaco-action-bar .action-label {
-	background: #796926;
 }
 
 .monaco-workbench .part.statusbar .profileExtHost-statusbar-item .icon {

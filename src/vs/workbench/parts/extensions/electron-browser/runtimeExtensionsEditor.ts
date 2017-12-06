@@ -272,7 +272,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 					animated: false
 				});
 				actionbar.onDidRun(({ error }) => error && this._messageService.show(Severity.Error, error));
-				actionbar.push(new ReportExtensionIssueAction(), { icon: false });
+				actionbar.push(new ReportExtensionIssueAction(), { icon: true, label: true });
 
 				const disposables = [actionbar];
 
@@ -474,7 +474,7 @@ class ReportExtensionIssueAction extends Action {
 	constructor(
 		id: string = ReportExtensionIssueAction.ID, label: string = ReportExtensionIssueAction.LABEL
 	) {
-		super(id, label, 'report-extension-issue');
+		super(id, label, 'extension-action report-issue');
 	}
 
 	run(extension: IRuntimeExtension): TPromise<any> {
