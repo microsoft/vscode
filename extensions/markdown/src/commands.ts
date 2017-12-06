@@ -240,8 +240,15 @@ export interface OpenDocumentLinkArgs {
 }
 
 export class OpenDocumentLinkCommand implements Command {
-	public static readonly id = '_markdown.openDocumentLink';
+	private static readonly id = '_markdown.openDocumentLink';
 	public readonly id = OpenDocumentLinkCommand.id;
+
+	public static createCommandUri(
+		path: string,
+		fragment: string
+	): vscode.Uri {
+		return vscode.Uri.parse(`command:${OpenDocumentLinkCommand.id}?${encodeURIComponent(JSON.stringify({ path, fragment }))}`);
+	}
 
 	public constructor(
 		private readonly engine: MarkdownEngine

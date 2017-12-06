@@ -32,7 +32,7 @@ function normalizeLink(
 		resourcePath = path.join(base, uri.path);
 	}
 
-	return vscode.Uri.parse(`command:${OpenDocumentLinkCommand.id}?${encodeURIComponent(JSON.stringify({ fragment: uri.fragment, path: resourcePath }))}`);
+	return OpenDocumentLinkCommand.createCommandUri(resourcePath, uri.fragment);
 }
 
 function matchAll(
