@@ -394,7 +394,7 @@ export class Repository implements Disposable {
 	readonly onDidChangeState: Event<RepositoryState> = this._onDidChangeState.event;
 
 	private _onDidChangeStatus = new EventEmitter<void>();
-	readonly onDidChangeStatus: Event<void> = this._onDidChangeStatus.event;
+	readonly onDidRunGitStatus: Event<void> = this._onDidChangeStatus.event;
 
 	private _onDidChangeOriginalResource = new EventEmitter<Uri>();
 	readonly onDidChangeOriginalResource: Event<Uri> = this._onDidChangeOriginalResource.event;
