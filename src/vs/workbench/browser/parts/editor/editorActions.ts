@@ -323,11 +323,13 @@ export abstract class BaseFocusSideGroupAction extends Action {
 		else if (referenceEditor) {
 			const history = this.historyService.getHistory();
 			for (let input of history) {
-				if (input instanceof EditorInput && input.supportsSplitEditor()) {
-					return this.editorService.openEditor(input, { pinned: true }, this.getTargetEditorSide());
+				if (input instanceof EditorInput) {
+					if (input.supportsSplitEditor()) {
+						return this.editorService.openEditor(input, { pinned: true }, this.getTargetEditorSide());
+					}
+				} else {
+					return this.editorService.openEditor({ resource: (input as IResourceInput).resource, options: { pinned: true } }, this.getTargetEditorSide());
 				}
-
-				return this.editorService.openEditor({ resource: (input as IResourceInput).resource, options: { pinned: true } }, this.getTargetEditorSide());
 			}
 		}
 
