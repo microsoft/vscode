@@ -73,6 +73,7 @@ export class SnippetController2 implements IEditorContribution {
 			this._doInsert(template, overwriteBefore, overwriteAfter, undoStopBefore, undoStopAfter);
 
 		} catch (e) {
+			this.cancel();
 			this._logService.error(e);
 			this._logService.error('snippet_error');
 			this._logService.error('insert_template=', template);
