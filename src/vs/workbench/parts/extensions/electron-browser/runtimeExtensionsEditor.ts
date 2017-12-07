@@ -310,7 +310,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				let syncTime = activationTimes.codeLoadingTime + activationTimes.activateCallTime;
 				data.activationTime.textContent = activationTimes.startup ? `Startup Activation: ${syncTime}ms` : `Activation: ${syncTime}ms`;
 				data.actionbar.context = element;
-				toggleClass(data.actionbar.getContainer().getHTMLElement(), 'hidden', element.marketplaceInfo.type === LocalExtensionType.User && (!element.description.repository || !element.description.repository.url);
+				toggleClass(data.actionbar.getContainer().getHTMLElement(), 'hidden', element.marketplaceInfo.type === LocalExtensionType.User && (!element.description.repository || !element.description.repository.url));
 
 				let title: string;
 				if (activationTimes.activationEvent === '*') {
