@@ -26,7 +26,7 @@
 	"experimentalApis": "启用扩展程序实验性 api 功能。",
 	"disableExtensions": "禁用所有已安装的扩展。",
 	"disableGPU": "禁用 GPU 硬件加速。",
-	"ps": "打印进程使用情况和诊断信息。",
+	"status": "打印进程使用情况和诊断信息。",
 	"version": "打印版本。",
 	"help": "打印使用情况。",
 	"usage": "使用情况",

@@ -6,6 +6,11 @@
 {
 	"openEditors": "Abrir Editores",
 	"openEditosrSection": "Abrir Seção de Editores",
-	"treeAriaLabel": "Abrir Editores: Lista de Arquivos Ativos",
-	"dirtyCounter": "{0} não salvos"
+	"dirtyCounter": "{0} não salvos",
+	"saveAll": "Salvar Todos",
+	"closeAllUnmodified": "Fechar Não Modificados",
+	"closeAll": "Fechar todos",
+	"compareWithSaved": "Comparar com o salvo",
+	"close": "Fechar",
+	"closeOthers": "Fechar Outros"
 }

@@ -9,7 +9,7 @@
 	"installingOutdatedExtension": "A kiegészítő egy újabb verziója már telepítve van. Szeretné felülírni a régebbi verzióval?",
 	"override": "Felülírás",
 	"cancel": "Mégse",
-	"notFoundCopatible": "A telepítés nem sikerült, mert a(z) '{0}' kiegészítő VS Code '{1}' verziójával kompatibilis változata nem található.",
+	"notFoundCompatible": "A telepítés nem sikerült, mert a(z) '{0}' kiegészítő VS Code '{1}' verziójával kompatibilis változata nem található.",
 	"quitCode": "A telepítés nem sikerült, mert a kiegészítő elavult példánya még mindig fut. Lépjen ki a VS Code-ból, és indítsa újra az újratelepítés előtt.",
 	"exitCode": "A telepítés nem sikerült, mert a kiegészítő elavult példánya még mindig fut. Lépjen ki a VS Code-ból, és indítsa újra az újratelepítés előtt.",
 	"notFoundCompatibleDependency": "A telepítés nem sikerült, mert a(z) '{0}' kiegészítő függőség VS Code '{1}' verziójával kompatibilis változata nem található. ",

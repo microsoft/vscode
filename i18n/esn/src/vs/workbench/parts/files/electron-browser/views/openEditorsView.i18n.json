@@ -6,6 +6,11 @@
 {
 	"openEditors": "Editores abiertos",
 	"openEditosrSection": "Sección Editores abiertos",
-	"treeAriaLabel": "Editores abiertos: lista de archivos activos",
-	"dirtyCounter": "{0} sin guardar"
+	"dirtyCounter": "{0} sin guardar",
+	"saveAll": "Guardar todos",
+	"closeAllUnmodified": "Cerrar los que no se han modificado",
+	"closeAll": "Cerrar todo",
+	"compareWithSaved": "Comparar con el guardado",
+	"close": "Cerrar",
+	"closeOthers": "Cerrar otros"
 }

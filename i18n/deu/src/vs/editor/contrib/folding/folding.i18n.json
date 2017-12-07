@@ -8,6 +8,7 @@
 	"unFoldRecursivelyAction.label": "Faltung rekursiv aufheben",
 	"foldAction.label": "Falten",
 	"foldRecursivelyAction.label": "Rekursiv falten",
+	"foldAllBlockComments.label": "Alle Blockkommentare falten",
 	"foldAllAction.label": "Alle falten",
 	"unfoldAllAction.label": "Alle auffalten",
 	"foldLevelAction.label": "Faltebene {0}"

@@ -11,7 +11,6 @@
 	"breakpointAdded": "Adicionado ponto de interrupção, linha {0}, arquivo {1}",
 	"breakpointRemoved": "Ponto de interrupção removido, linha {0}, arquivo {1}",
 	"compoundMustHaveConfigurations": "Composição deve ter o atributo \"configurations\" definido para iniciar várias configurações.",
-	"configMissing": "Configuração '{0}' não tem 'launch.json'.",
 	"debugRequestNotSupported": "Atributo '{0}' tem um valor sem suporte '{1}' na configuração de depuração escolhida.",
 	"debugRequesMissing": "Atributo '{0}' está faltando para a configuração de depuração escolhida.",
 	"debugTypeNotSupported": "Tipo de depuração configurado '{0}' não é suportado.",

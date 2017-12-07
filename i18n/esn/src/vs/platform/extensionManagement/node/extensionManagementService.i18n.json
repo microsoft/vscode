@@ -9,7 +9,7 @@
 	"installingOutdatedExtension": "Una versión más nueva de esta extensión ya está instalada. ¿Desea anular esto con la versión anterior?",
 	"override": "Anular",
 	"cancel": "Cancelar",
-	"notFoundCopatible": "No se puede instalar porque no se encuentra la extensión '{0}' compatible con la versión actual '{1}' del VS Code.",
+	"notFoundCompatible": "No se puede instalar porque no se encuentra la extensión '{0}' compatible con la versión actual '{1}' del VS Code.",
 	"quitCode": "No se puede instalar porque todavía se está ejecutando una instancia obsoleta de la extensión. Por favor, salga e inicie el VS Code antes de volver a instalarlo.\n",
 	"exitCode": "No se puede instalar porque todavía se está ejecutando una instancia obsoleta de la extensión. Por favor, salga e inicie VS Code antes de volver a instalarlo.",
 	"notFoundCompatibleDependency": "No se puede instalar porque no se encuentra la extensión dependiente '{0}' compatible con la versión actual '{1}' del VS Code.",

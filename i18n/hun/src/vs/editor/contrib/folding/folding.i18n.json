@@ -9,6 +9,8 @@
 	"foldAction.label": "Bezárás",
 	"foldRecursivelyAction.label": "Bezárás rekurzívan",
 	"foldAllBlockComments.label": "Összes megjegyzésblokk bezárása",
+	"foldAllMarkerRegions.label": "Összes régió bezárása",
+	"unfoldAllMarkerRegions.label": "Összes régió kinyitása",
 	"foldAllAction.label": "Az összes bezárása",
 	"unfoldAllAction.label": "Az összes kinyitása",
 	"foldLevelAction.label": "{0} szintű blokkok bezárása"

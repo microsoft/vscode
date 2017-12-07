@@ -93,8 +93,8 @@
 	"links": "Controla se o editor deve detectar links e torná-los clicáveis",
 	"colorDecorators": "Controla se o editor deve processar os decoradores de cor inline e o seletor de cores.",
 	"codeActions": "Habilita a ação de código lightbulb",
+	"selectionClipboard": "Controla se a área primária de transferência Linux deve ser suportada.",
 	"sideBySide": "Controla se o editor de diff mostra as diff lado a lado ou inline.",
 	"ignoreTrimWhitespace": "Controla se o editor de diff mostra alterações nos espaços iniciais ou finais como diferenças",
-	"renderIndicators": "Controla se o editor de diff mostra indicadores +/- para alterações adicionadas/removidas",
-	"selectionClipboard": "Controla se a área primária de transferência Linux deve ser suportada."
+	"renderIndicators": "Controla se o editor de diff mostra indicadores +/- para alterações adicionadas/removidas"
 }

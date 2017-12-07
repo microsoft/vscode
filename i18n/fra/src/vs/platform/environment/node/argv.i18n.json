@@ -26,7 +26,7 @@
 	"experimentalApis": "Active les fonctionnalités d'API proposées pour une extension.",
 	"disableExtensions": "Désactivez toutes les extensions installées.",
 	"disableGPU": "Désactivez l'accélération matérielle du GPU.",
-	"ps": "Imprimer l'utilisation de processus et l'information des diagnostics.",
+	"status": "Imprimer l'utilisation de processus et l'information des diagnostics.",
 	"version": "Affichez la version.",
 	"help": "Affichez le mode d'utilisation.",
 	"usage": "Utilisation",

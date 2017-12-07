@@ -26,7 +26,7 @@
 	"experimentalApis": "Permite recursos de api propostos para uma extensão.",
 	"disableExtensions": "Desabilita todas as extensões instaladas.",
 	"disableGPU": "Desabilita aceleração de hardware da GPU.",
-	"ps": "Utilização do processo de impressão e informações de diagnóstico.",
+	"status": "Utilização do processo de impressão e informações de diagnóstico.",
 	"version": "Versão de impressão",
 	"help": "Uso de impressão.",
 	"usage": "Uso",

@@ -91,8 +91,8 @@
 	"links": "Controlla se l'editor deve individuare i collegamenti e renderli cliccabili",
 	"colorDecorators": "Controlla se l'editor deve eseguire il rendering del selettore di colore e degli elementi Decorator di tipo colore inline.",
 	"codeActions": "Abilita il codice azione lightbulb",
+	"selectionClipboard": "Controlla se gli appunti primari di Linux devono essere supportati.",
 	"sideBySide": "Controlla se l'editor diff mostra le differenze affiancate o incorporate",
 	"ignoreTrimWhitespace": "Controlla se l'editor diff mostra come differenze le modifiche relative a spazi vuoti iniziali e finali",
-	"renderIndicators": "Consente di controllare se l'editor diff mostra gli indicatori +/- per le modifiche aggiunte/rimosse",
-	"selectionClipboard": "Controlla se gli appunti primari di Linux devono essere supportati."
+	"renderIndicators": "Consente di controllare se l'editor diff mostra gli indicatori +/- per le modifiche aggiunte/rimosse"
 }

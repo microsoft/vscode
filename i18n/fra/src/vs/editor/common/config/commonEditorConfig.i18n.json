@@ -93,8 +93,8 @@
 	"links": "Contrôle si l'éditeur doit détecter les liens et les rendre cliquables",
 	"colorDecorators": "Contrôle si l'éditeur doit afficher les éléments décoratifs de couleurs inline et le sélecteur de couleurs.",
 	"codeActions": "Active l'ampoule d'action de code",
+	"selectionClipboard": "Contrôle si le presse-papiers primaire Linux doit être pris en charge.",
 	"sideBySide": "Contrôle si l'éditeur de différences affiche les différences en mode côte à côte ou inline",
 	"ignoreTrimWhitespace": "Contrôle si l'éditeur de différences affiche les changements liés aux espaces blancs de début ou de fin comme des différences",
-	"renderIndicators": "Contrôle si l'éditeur de différences affiche les indicateurs +/- pour les modifications ajoutées/supprimées",
-	"selectionClipboard": "Contrôle si le presse-papiers primaire Linux doit être pris en charge."
+	"renderIndicators": "Contrôle si l'éditeur de différences affiche les indicateurs +/- pour les modifications ajoutées/supprimées"
 }

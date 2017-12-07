@@ -14,6 +14,7 @@
 	"cloning": "正在克隆 GIT 存储库...",
 	"openrepo": "打开存储库",
 	"proposeopen": "是否要打开已克隆存储库?",
+	"init": "选择用于初始化 Git 储存库的工作区文件夹",
 	"init repo": "初始化存储库",
 	"create repo": "初始化存储库",
 	"are you sure": "将在“{0}”中创建 Git 存储库。确定要继续吗？",

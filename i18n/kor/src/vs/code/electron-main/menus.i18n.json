@@ -155,7 +155,6 @@
 	"mMergeAllWindows": "모든 창 병합",
 	"miToggleDevTools": "개발자 도구 설정/해제(&&T)",
 	"miAccessibilityOptions": "접근성 옵션(&&O)",
-	"miReportIssues": "문제 보고(&&I)",
 	"miWelcome": "시작(&&W)",
 	"miInteractivePlayground": "대화형 실습(&&I)",
 	"miDocumentation": "설명서(&&D)",

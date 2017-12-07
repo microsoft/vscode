@@ -6,6 +6,11 @@
 {
 	"openEditors": "Açık Düzenleyiciler",
 	"openEditosrSection": "Açık Düzenleyiciler Bölümü",
-	"treeAriaLabel": "Açık Düzenleyiciler: Aktif Dosyaların Listesi",
-	"dirtyCounter": "{0} kaydedilmemiş"
+	"dirtyCounter": "{0} kaydedilmemiş",
+	"saveAll": "Tümünü Kaydet",
+	"closeAllUnmodified": "Değiştirilmeyenleri Kapat",
+	"closeAll": "Tümünü Kapat",
+	"compareWithSaved": "Kaydedilenle Karşılaştır",
+	"close": "Kapat",
+	"closeOthers": "Diğerlerini Kapat"
 }
