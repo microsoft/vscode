@@ -96,6 +96,8 @@ import { IDecorationsService } from 'vs/workbench/services/decorations/browser/d
 import { ActivityService } from 'vs/workbench/services/activity/browser/activityService';
 import URI from 'vs/base/common/uri';
 import { IListService, ListService } from 'vs/platform/list/browser/listService';
+import { domEvent } from 'vs/base/browser/event';
+import { InputFocusedContext } from 'vs/platform/workbench/common/contextkeys';
 
 export const MessagesVisibleContext = new RawContextKey<boolean>('globalMessageVisible', false);
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
@@ -276,6 +278,10 @@ export class Workbench implements IPartService {
 		this.editorsVisibleContext = EditorsVisibleContext.bindTo(this.contextKeyService);
 		this.inZenMode = InZenModeContext.bindTo(this.contextKeyService);
 		this.sideBarVisibleContext = SidebarVisibleContext.bindTo(this.contextKeyService);
+
+		const inputFocused = InputFocusedContext.bindTo(this.contextKeyService);
+		const onWindowsFocusIn = domEvent(window, 'focusin', true);
+		onWindowsFocusIn(() => inputFocused.set(document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA'), null, this.toDispose);
 
 		// Set workbench state context
 		const WorkbenchStateContext = new RawContextKey<string>('workbenchState', getWorkbenchStateString(this.configurationService.getWorkbenchState()));

@@ -253,6 +253,10 @@ class TraitSpliceable<T> implements ISpliceable<T> {
 	}
 }
 
+function isInputElement(e: HTMLElement): boolean {
+	return e.tagName === 'INPUT' || e.tagName === 'TEXTAREA';
+}
+
 class KeyboardController<T> implements IDisposable {
 
 	private disposables: IDisposable[];
@@ -266,7 +270,8 @@ class KeyboardController<T> implements IDisposable {
 		this.disposables = [];
 
 		const onKeyDown = chain(domEvent(view.domNode, 'keydown'))
-			.map(e => new StandardKeyboardEvent(e));
+			.map(e => new StandardKeyboardEvent(e))
+			.filter(e => !isInputElement(e.target));
 
 		onKeyDown.filter(e => e.keyCode === KeyCode.Enter).on(this.onEnter, this, this.disposables);
 		onKeyDown.filter(e => e.keyCode === KeyCode.UpArrow).on(this.onUpArrow, this, this.disposables);
