@@ -78,7 +78,6 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 	const consoleLogService = new ConsoleLogService(environmentService);
 	const logService = new MultiplexLogService([consoleLogService, spdlogService]);
 
-	logService.info('openWorkbench');
 	logService.trace('openWorkbench configuration', JSON.stringify(configuration));
 
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
