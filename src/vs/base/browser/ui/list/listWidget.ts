@@ -270,8 +270,8 @@ class KeyboardController<T> implements IDisposable {
 		this.disposables = [];
 
 		const onKeyDown = chain(domEvent(view.domNode, 'keydown'))
-			.map(e => new StandardKeyboardEvent(e))
-			.filter(e => !isInputElement(e.target));
+			.filter(e => !isInputElement(e.target as HTMLElement))
+			.map(e => new StandardKeyboardEvent(e));
 
 		onKeyDown.filter(e => e.keyCode === KeyCode.Enter).on(this.onEnter, this, this.disposables);
 		onKeyDown.filter(e => e.keyCode === KeyCode.UpArrow).on(this.onUpArrow, this, this.disposables);
