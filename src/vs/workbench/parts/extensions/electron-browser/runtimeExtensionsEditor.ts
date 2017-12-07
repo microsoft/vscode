@@ -310,6 +310,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				let syncTime = activationTimes.codeLoadingTime + activationTimes.activateCallTime;
 				data.activationTime.textContent = activationTimes.startup ? `Startup Activation: ${syncTime}ms` : `Activation: ${syncTime}ms`;
 				data.actionbar.context = element;
+				toggleClass(data.actionbar.getContainer().getHTMLElement(), 'hidden', element.marketplaceInfo.type === LocalExtensionType.User && (!element.description.repository || !element.description.repository.url);
 
 				let title: string;
 				if (activationTimes.activationEvent === '*') {
@@ -486,9 +487,13 @@ class ReportExtensionIssueAction extends Action {
 	}
 
 	private generateNewIssueUrl(extension: IRuntimeExtension): string {
-		const baseUrl = extension.marketplaceInfo.type === LocalExtensionType.User && extension.description.repository && extension.description.repository.url ?
-			`${extension.description.repository.url.substr(0, extension.description.repository.url.length - 4)}/issues/new/`
-			: product.reportIssueUrl;
+		let baseUrl = extension.marketplaceInfo.type === LocalExtensionType.User && extension.description.repository ? extension.description.repository.url : undefined;
+		if (!!baseUrl) {
+			baseUrl = `${baseUrl.indexOf('.git') !== -1 ? baseUrl.substr(0, baseUrl.length - 4) : baseUrl}/issues/new/`;
+		} else {
+			baseUrl = product.reportIssueUrl;
+		}
+
 		const osVersion = `${os.type()} ${os.arch()} ${os.release()}`;
 		const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
 		const body = encodeURIComponent(

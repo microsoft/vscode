@@ -99,6 +99,11 @@
 	flex-shrink: 0;
 }
 
+.runtime-extensions-editor .monaco-action-bar.hidden {
+	visibility: hidden;
+}
+
+
 .monaco-workbench .part.statusbar .profileExtHost-statusbar-item .icon {
 	background: url('profile-stop.svg') no-repeat;
 	display: inline-block;
