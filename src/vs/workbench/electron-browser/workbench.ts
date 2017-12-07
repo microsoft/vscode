@@ -281,7 +281,7 @@ export class Workbench implements IPartService {
 
 		const inputFocused = InputFocusedContext.bindTo(this.contextKeyService);
 		const onWindowsFocusIn = domEvent(window, 'focusin', true);
-		onWindowsFocusIn(() => inputFocused.set(document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA'), null, this.toDispose);
+		onWindowsFocusIn(() => inputFocused.set(document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')), null, this.toDispose);
 
 		// Set workbench state context
 		const WorkbenchStateContext = new RawContextKey<string>('workbenchState', getWorkbenchStateString(this.configurationService.getWorkbenchState()));
