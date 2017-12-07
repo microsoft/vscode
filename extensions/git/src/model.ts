@@ -8,7 +8,7 @@
 import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, ConfigurationChangeEvent } from 'vscode';
 import { Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
-import { dispose, anyEvent, filterEvent, IDisposable } from './util';
+import { dispose, anyEvent, filterEvent, IDisposable, isDescendant } from './util';
 import { Git, GitErrorCodes } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -42,14 +42,6 @@ export interface OriginalResourceChangeEvent {
 
 interface OpenRepository extends Disposable {
 	repository: Repository;
-}
-
-function isParent(parent: string, child: string): boolean {
-	if (parent.charAt(parent.length - 1) !== path.sep) {
-		parent += path.sep;
-	}
-
-	return child.startsWith(parent);
 }
 
 export class Model {
@@ -136,7 +128,7 @@ export class Model {
 			.map(folder => this.getOpenRepository(folder.uri))
 			.filter(r => !!r)
 			.filter(r => !activeRepositories.has(r!.repository))
-			.filter(r => !(workspace.workspaceFolders || []).some(f => isParent(f.uri.fsPath, r!.repository.root))) as OpenRepository[];
+			.filter(r => !(workspace.workspaceFolders || []).some(f => isDescendant(f.uri.fsPath, r!.repository.root))) as OpenRepository[];
 
 		possibleRepositoryFolders.forEach(p => this.tryOpenRepository(p.uri.fsPath));
 		openRepositoriesToDispose.forEach(r => r.dispose());
@@ -285,7 +277,7 @@ export class Model {
 			for (const liveRepository of this.openRepositories) {
 				const relativePath = path.relative(liveRepository.repository.root, resourcePath);
 
-				if (!/^\.\./.test(relativePath)) {
+				if (isDescendant(liveRepository.repository.root, resourcePath)) {
 					return liveRepository;
 				}
 			}

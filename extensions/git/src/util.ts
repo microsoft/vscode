@@ -6,7 +6,7 @@
 'use strict';
 
 import { Event } from 'vscode';
-import { dirname } from 'path';
+import { dirname, sep } from 'path';
 import { Readable } from 'stream';
 import * as fs from 'fs';
 import * as byline from 'byline';
@@ -273,4 +273,16 @@ export function detectUnicodeEncoding(buffer: Buffer): Encoding | null {
 	}
 
 	return null;
+}
+
+export function isDescendant(parent: string, descendant: string): boolean {
+	if (parent === descendant) {
+		return true;
+	}
+
+	if (parent.charAt(parent.length - 1) !== sep) {
+		parent += sep;
+	}
+
+	return descendant.startsWith(parent);
 }
