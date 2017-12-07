@@ -27,6 +27,7 @@ import { ResourceQueue } from 'vs/base/common/async';
 import { ResourceMap } from 'vs/base/common/map';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 
 export class FileEditorTracker implements IWorkbenchContribution {
 
@@ -263,8 +264,16 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		editors.forEach(editor => {
 			const resource = toResource(editor.input, { supportSideBySide: true });
 
+			// Support side-by-side binary editors too
+			let isBinaryEditor = false;
+			if (editor instanceof SideBySideEditor) {
+				isBinaryEditor = editor.getMasterEditor().getId() === BINARY_FILE_EDITOR_ID;
+			} else {
+				isBinaryEditor = editor.getId() === BINARY_FILE_EDITOR_ID;
+			}
+
 			// Binary editor that should reload from event
-			if (resource && editor.getId() === BINARY_FILE_EDITOR_ID && (e.contains(resource, FileChangeType.UPDATED) || e.contains(resource, FileChangeType.ADDED))) {
+			if (resource && isBinaryEditor && (e.contains(resource, FileChangeType.UPDATED) || e.contains(resource, FileChangeType.ADDED))) {
 				this.editorService.openEditor(editor.input, { forceOpen: true, preserveFocus: true }, editor.position).done(null, errors.onUnexpectedError);
 			}
 		});
