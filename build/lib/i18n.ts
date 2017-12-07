@@ -192,7 +192,7 @@ export class XLF {
 
 	private addStringItem(item: Item): void {
 		if (!item.id || !item.message) {
-			throw new Error('No item ID or value specified.');
+			throw new Error(`No item ID or value specified: ${JSON.stringify(item)}`);
 		}
 
 		this.appendNewLine(`<trans-unit id="${item.id}">`, 4);

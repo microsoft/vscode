@@ -18,6 +18,9 @@ import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
 
 import { ISearchQuery, QueryType, IPatternInfo, IFolderQuery } from 'vs/platform/search/common/search';
 
+const DEFAULT_USER_CONFIG = { useRipgrep: true, useIgnoreFiles: true };
+const DEFAULT_QUERY_PROPS = { useRipgrep: true, disregardIgnoreFiles: false };
+
 suite('QueryBuilder', () => {
 	const PATTERN_INFO: IPatternInfo = { pattern: 'a' };
 	const ROOT_1 = fixPath('/foo/root1');
@@ -33,7 +36,7 @@ suite('QueryBuilder', () => {
 		instantiationService = new TestInstantiationService();
 
 		mockConfigService = new TestConfigurationService();
-		mockConfigService.setUserConfiguration('search', { useRipgrep: true });
+		mockConfigService.setUserConfiguration('search', DEFAULT_USER_CONFIG);
 		instantiationService.stub(IConfigurationService, mockConfigService);
 
 		mockContextService = new TestContextService();
@@ -49,8 +52,7 @@ suite('QueryBuilder', () => {
 			queryBuilder.text(PATTERN_INFO),
 			<ISearchQuery>{
 				contentPattern: PATTERN_INFO,
-				type: QueryType.Text,
-				useRipgrep: true
+				type: QueryType.Text
 			});
 	});
 
@@ -63,16 +65,18 @@ suite('QueryBuilder', () => {
 			<ISearchQuery>{
 				contentPattern: PATTERN_INFO,
 				folderQueries: [{ folder: ROOT_1_URI }],
-				type: QueryType.Text,
-				useRipgrep: true
+				type: QueryType.Text
 			});
 	});
 
 	test('simple exclude setting', () => {
 		mockConfigService.setUserConfiguration('search', {
-			useRipgrep: true,
+			...DEFAULT_USER_CONFIG,
 			exclude: {
-				'bar/**': true
+				'bar/**': true,
+				'foo/**': {
+					'when': '$(basename).ts'
+				}
 			}
 		});
 
@@ -85,10 +89,14 @@ suite('QueryBuilder', () => {
 				contentPattern: PATTERN_INFO,
 				folderQueries: [{
 					folder: ROOT_1_URI,
-					excludePattern: { 'bar/**': true }
+					excludePattern: {
+						'bar/**': true,
+						'foo/**': {
+							'when': '$(basename).ts'
+						}
+					}
 				}],
-				type: QueryType.Text,
-				useRipgrep: true
+				type: QueryType.Text
 			});
 	});
 
@@ -104,8 +112,7 @@ suite('QueryBuilder', () => {
 				folderQueries: [{
 					folder: getUri(fixPath(paths.join(ROOT_1, 'bar')))
 				}],
-				type: QueryType.Text,
-				useRipgrep: true
+				type: QueryType.Text
 			});
 
 		assertEqualQueries(
@@ -119,16 +126,18 @@ suite('QueryBuilder', () => {
 				folderQueries: [{
 					folder: getUri(fixPath(paths.join(ROOT_1, 'bar')))
 				}],
-				type: QueryType.Text,
-				useRipgrep: true
+				type: QueryType.Text
 			});
 	});
 
 	test('exclude setting and searchPath', () => {
 		mockConfigService.setUserConfiguration('search', {
-			useRipgrep: true,
+			...DEFAULT_USER_CONFIG,
 			exclude: {
-				'foo/**/*.js': true
+				'foo/**/*.js': true,
+				'bar/**': {
+					'when': '$(basename).ts'
+				}
 			}
 		});
 
@@ -143,9 +152,13 @@ suite('QueryBuilder', () => {
 				folderQueries: [{
 					folder: getUri(paths.join(ROOT_1, 'foo'))
 				}],
-				excludePattern: { [paths.join(ROOT_1, 'foo/**/*.js')]: true },
-				type: QueryType.Text,
-				useRipgrep: true
+				excludePattern: {
+					[paths.join(ROOT_1, 'foo/**/*.js')]: true,
+					[paths.join(ROOT_1, 'bar/**')]: {
+						'when': '$(basename).ts'
+					}
+				},
+				type: QueryType.Text
 			});
 	});
 
@@ -158,12 +171,12 @@ suite('QueryBuilder', () => {
 		mockWorkspace.configuration = uri.file(fixPath('/config'));
 
 		mockConfigService.setUserConfiguration('search', {
-			useRipgrep: true,
+			...DEFAULT_USER_CONFIG,
 			exclude: { 'foo/**/*.js': true }
 		}, ROOT_1_URI);
 
 		mockConfigService.setUserConfiguration('search', {
-			useRipgrep: true,
+			...DEFAULT_USER_CONFIG,
 			exclude: { 'bar': true }
 		}, ROOT_2_URI);
 
@@ -180,8 +193,7 @@ suite('QueryBuilder', () => {
 					{ folder: ROOT_2_URI, excludePattern: patternsToIExpression('bar') },
 					{ folder: ROOT_3_URI }
 				],
-				type: QueryType.Text,
-				useRipgrep: true
+				type: QueryType.Text
 			}
 		);
 
@@ -198,8 +210,7 @@ suite('QueryBuilder', () => {
 					{ folder: getUri(paths.join(ROOT_2, 'src')) }
 				],
 				excludePattern: patternsToIExpression(paths.join(ROOT_1, 'foo/**/*.js'), paths.join(ROOT_2, 'bar')),
-				type: QueryType.Text,
-				useRipgrep: true
+				type: QueryType.Text
 			}
 		);
 	});
@@ -217,8 +228,7 @@ suite('QueryBuilder', () => {
 					folder: ROOT_1_URI
 				}],
 				type: QueryType.Text,
-				excludePattern: patternsToIExpression(...globalGlob('foo')),
-				useRipgrep: true
+				excludePattern: patternsToIExpression(...globalGlob('foo'))
 			});
 	});
 
@@ -235,8 +245,7 @@ suite('QueryBuilder', () => {
 					folder: ROOT_1_URI
 				}],
 				excludePattern: patternsToIExpression(fixPath(paths.join(ROOT_1, 'bar'))),
-				type: QueryType.Text,
-				useRipgrep: true
+				type: QueryType.Text
 			});
 
 		assertEqualQueries(
@@ -251,8 +260,7 @@ suite('QueryBuilder', () => {
 					folder: ROOT_1_URI
 				}],
 				excludePattern: patternsToIExpression(fixPath(paths.join(ROOT_1, 'bar/**/*.ts'))),
-				type: QueryType.Text,
-				useRipgrep: true
+				type: QueryType.Text
 			});
 
 		assertEqualQueries(
@@ -267,8 +275,7 @@ suite('QueryBuilder', () => {
 					folder: ROOT_1_URI
 				}],
 				excludePattern: patternsToIExpression(fixPath(paths.join(ROOT_1, 'bar/**/*.ts'))),
-				type: QueryType.Text,
-				useRipgrep: true
+				type: QueryType.Text
 			});
 	});
 
@@ -285,8 +292,7 @@ suite('QueryBuilder', () => {
 					folder: ROOT_1_URI
 				}],
 				extraFileResources: [getUri('/foo/bar.js')],
-				type: QueryType.Text,
-				useRipgrep: true
+				type: QueryType.Text
 			});
 
 		assertEqualQueries(
@@ -304,8 +310,7 @@ suite('QueryBuilder', () => {
 					folder: ROOT_1_URI
 				}],
 				excludePattern: patternsToIExpression(...globalGlob('*.js')),
-				type: QueryType.Text,
-				useRipgrep: true
+				type: QueryType.Text
 			});
 
 		assertEqualQueries(
@@ -323,8 +328,7 @@ suite('QueryBuilder', () => {
 					folder: ROOT_1_URI
 				}],
 				includePattern: patternsToIExpression(...globalGlob('*.txt')),
-				type: QueryType.Text,
-				useRipgrep: true
+				type: QueryType.Text
 			});
 	});
 
@@ -356,12 +360,12 @@ suite('QueryBuilder', () => {
 				includePattern);
 		}
 
-		function testIncludesDataItem([includePattern, expectedResult]): void {
-			testIncludes(<string>includePattern, <ISearchPathsResult>expectedResult);
+		function testIncludesDataItem([includePattern, expectedResult]: [string, ISearchPathsResult]): void {
+			testIncludes(includePattern, expectedResult);
 		}
 
 		test('absolute includes', () => {
-			[
+			const cases: [string, ISearchPathsResult][] = [
 				[
 					fixPath('/foo/bar'),
 					<ISearchPathsResult>{
@@ -425,11 +429,12 @@ suite('QueryBuilder', () => {
 						}]
 					}
 				]
-			].forEach(testIncludesDataItem);
+			];
+			cases.forEach(testIncludesDataItem);
 		});
 
 		test('relative includes w/single root folder', () => {
-			[
+			const cases: [string, ISearchPathsResult][] = [
 				[
 					'./a',
 					<ISearchPathsResult>{
@@ -468,7 +473,8 @@ suite('QueryBuilder', () => {
 						}]
 					}
 				],
-			].forEach(testIncludesDataItem);
+			];
+			cases.forEach(testIncludesDataItem);
 		});
 
 		test('relative includes w/two root folders', () => {
@@ -476,7 +482,7 @@ suite('QueryBuilder', () => {
 			mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }, { path: getUri(ROOT_2).fsPath }]);
 			mockWorkspace.configuration = uri.file(fixPath('config'));
 
-			[
+			const cases: [string, ISearchPathsResult][] = [
 				[
 					'./root1',
 					<ISearchPathsResult>{
@@ -507,7 +513,8 @@ suite('QueryBuilder', () => {
 							}]
 					}
 				]
-			].forEach(testIncludesDataItem);
+			];
+			cases.forEach(testIncludesDataItem);
 		});
 
 		test('relative includes w/multiple ambiguous root folders', () => {
@@ -516,7 +523,7 @@ suite('QueryBuilder', () => {
 			mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }, { path: getUri(ROOT_2).fsPath }, { path: getUri(ROOT_3).fsPath }]);
 			mockWorkspace.configuration = uri.file(fixPath('/config'));
 
-			[
+			const cases: [string, ISearchPathsResult][] = [
 				[
 					'',
 					<ISearchPathsResult>{
@@ -579,12 +586,18 @@ suite('QueryBuilder', () => {
 							}]
 					}
 				]
-			].forEach(testIncludesDataItem);
+			];
+			cases.forEach(testIncludesDataItem);
 		});
 	});
 });
 
 function assertEqualQueries(actual: ISearchQuery, expected: ISearchQuery): void {
+	expected = {
+		...DEFAULT_QUERY_PROPS,
+		...expected
+	};
+
 	const folderQueryToCompareObject = (fq: IFolderQuery) => {
 		return {
 			path: fq.folder.fsPath,
@@ -677,7 +690,7 @@ function normalizeExpression(expression: IExpression): IExpression {
 
 	const normalized = Object.create(null);
 	Object.keys(expression).forEach(key => {
-		normalized[key.replace(/\\/g, '/')] = true;
+		normalized[key.replace(/\\/g, '/')] = expression[key];
 	});
 
 	return normalized;

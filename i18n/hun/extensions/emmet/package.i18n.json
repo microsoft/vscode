@@ -29,11 +29,11 @@
 	"command.decrementNumberByTen": "Csökkentés 10-zel",
 	"emmetSyntaxProfiles": "Konkrét szintaktika profiljának meghatározása vagy saját profil használata adott szabályokkal.",
 	"emmetExclude": "Azon nyelvek listája, ahol az Emmet-rövidítések ne legyenek kibontva.",
-	"emmetExtensionsPath": "Egy Emmet-profilokat és -kódtöredékeket tartalmazó mappa elérési útja.",
-	"emmetShowExpandedAbbreviation": "Kibontott emmet-rövidítések megjelenítése javaslatként. Az \"inMarkupAndStylesheetFilesOnly\" beállítás csak a html, haml, jade, slim, xml, xsl, css, scss, sass, less és stylus típusú tartalmat jelenti. Az \"always\" beállítás a fájl összes részére vonatkozik a jelölőnyelvtől/css-től függetlenül.",
-	"emmetShowAbbreviationSuggestions": "A lehetséges emmet-rövidítések megjelenítése javaslatként. Nem használható a stíluslapokon vagy ha az emmet.showExpandedAbbreviation értéke \"never\".",
+	"emmetExtensionsPath": "Emmet-profilokat és -kódtöredékeket tartalmazó mappa elérési útja.",
+	"emmetShowExpandedAbbreviation": "Kibontott Emmet-rövidítések megjelenítése javaslatként. Az \"inMarkupAndStylesheetFilesOnly\" beállítás csak a html, haml, jade, slim, xml, xsl, css, scss, sass, less és stylus típusú tartalmat jelenti. Az \"always\" beállítás a fájl összes részére vonatkozik a jelölőnyelvtől/css-től függetlenül.",
+	"emmetShowAbbreviationSuggestions": "Lehetséges Emmet-rövidítések megjelenítése javaslatként. Nem használható a stíluslapokon vagy ha az emmet.showExpandedAbbreviation értéke \"never\".",
 	"emmetIncludeLanguages": "Emmet-rövidítések engedélyezése olyan nyelvek esetében, amelyek alapértelmezés szerint nem támogatottak. Egy megfeleltetést kell felvenni a nyelv és egy emmet által támogatott nyelv között.\nPl.: {\"vue-html\": \"html\", \"javascript\": \"javascriptreact\"}",
-	"emmetVariables": "Az emmet-kódrészletekben használt változók",
+	"emmetVariables": "Az Emmet-kódrészletekben használt változók",
 	"emmetTriggerExpansionOnTab": "Ha engedélyezve van, akkor az Emmet-rövidítések a Tab billentyű lenyomásával bonthatók ki.",
 	"emmetPreferences": "Beállítások, melyek módosítják az Emmet műveleteinek és feloldó algoritmusainak viselkedését.",
 	"emmetPreferencesIntUnit": "Az egész számok alapértelmezett mértékegysége",
@@ -44,5 +44,10 @@
 	"emmetPreferencesCssBetween": "A CSS-tulajdonság és az érték közé helyezett szimbólum CSS-rövidítések kibontásánál",
 	"emmetPreferencesSassBetween": "A CSS-tulajdonság és az érték közé helyezett szimbólum CSS-rövidítések kibontásánál Sass-fájlokban",
 	"emmetPreferencesStylusBetween": "A CSS-tulajdonság és az érték közé helyezett szimbólum CSS-rövidítések kibontásánál Stylus-fájlokban",
-	"emmetShowSuggestionsAsSnippets": "Ha az értéke igaz, akkor az emmetes javaslatok kódrészletekként jelennek meg, ami lehetővé teszi az editor.snippetSuggestions beállítás alapján történő rendezésüket."
+	"emmetShowSuggestionsAsSnippets": "Ha ez igaz, majd Emmet-javaslatok jelenik meg mint töredék, amely lehetővé teszi, annak érdekében, őket egy editor.snippetSuggestions beállítást.",
+	"emmetPreferencesBemElementSeparator": "Elemelválasztó osztályok megadásánál BEM-szűrő használata esetén",
+	"emmetPreferencesBemModifierSeparator": "Módosító elválasztó osztályok megadásánál BEM-szűrő használata esetén",
+	"emmetPreferencesFilterCommentBefore": "Annak a megjegyzésnek a definíciója, ami az illeszkedő elem elé kerül a megjegyzésszűrő alkalmazása esetén.",
+	"emmetPreferencesFilterCommentAfter": "Annak a megjegyzésnek a definíciója, ami az illeszkedő elem mögé kerül a megjegyzésszűrő alkalmazása esetén.",
+	"emmetPreferencesFilterCommentTrigger": "Attribútumnevek vesszővel elválasztott listája, amelyeknek léteznie kell a megjegyzésszűrő alkalmazásához."
 }

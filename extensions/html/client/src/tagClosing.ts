@@ -15,7 +15,7 @@ export function activateTagClosing(tagProvider: (document: TextDocument, positio
 	updateEnabledState();
 	window.onDidChangeActiveTextEditor(updateEnabledState, null, disposables);
 
-	let timeout: NodeJS.Timer = void 0;
+	let timeout: NodeJS.Timer | undefined = void 0;
 
 	function updateEnabledState() {
 		isEnabled = false;
@@ -56,13 +56,15 @@ export function activateTagClosing(tagProvider: (document: TextDocument, positio
 			tagProvider(document, position).then(text => {
 				if (text && isEnabled) {
 					let activeEditor = window.activeTextEditor;
-					let activeDocument = activeEditor && activeEditor.document;
-					if (document === activeDocument && activeDocument.version === version) {
-						let selections = activeEditor.selections;
-						if (selections.length && selections.some(s => s.active.isEqual(position))) {
-							activeEditor.insertSnippet(new SnippetString(text), selections.map(s => s.active));
-						} else {
-							activeEditor.insertSnippet(new SnippetString(text), position);
+					if (activeEditor) {
+						let activeDocument = activeEditor.document;
+						if (document === activeDocument && activeDocument.version === version) {
+							let selections = activeEditor.selections;
+							if (selections.length && selections.some(s => s.active.isEqual(position))) {
+								activeEditor.insertSnippet(new SnippetString(text), selections.map(s => s.active));
+							} else {
+								activeEditor.insertSnippet(new SnippetString(text), position);
+							}
 						}
 					}
 				}

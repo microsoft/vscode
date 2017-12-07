@@ -8,5 +8,5 @@
 	"replVariableAriaLabel": "Variable {0} besitzt den Wert {1}, Read Eval Print-Loop, Debuggen",
 	"replExpressionAriaLabel": "Ausdruck {0} besitzt den Wert {1}, Read Eval Print-Loop, Debuggen",
 	"replValueOutputAriaLabel": "{0}, Read Eval Print-Loop, Debuggen",
-	"replKeyValueOutputAriaLabel": "Ausgabevariable {0} besitzt den Wert {1}, Read Eval Print-Loop, Debuggen"
+	"replRawObjectAriaLabel": "Die REPL-Variable {0} besitzt den Wert {1}, Read Eval Print-Loop, Debuggen"
 }

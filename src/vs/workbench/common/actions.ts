@@ -6,23 +6,18 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IAction } from 'vs/base/common/actions';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import Severity from 'vs/base/common/severity';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 export const Extensions = {
 	WorkbenchActions: 'workbench.contributions.actions'
 };
-
-export interface IActionProvider {
-	getActions(): IAction[];
-}
 
 export interface IWorkbenchActionRegistry {
 
@@ -62,13 +57,20 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 
 		// menu item
 		// TODO@Rob slightly weird if-check required because of
-		// https://github.com/Microsoft/vscode/blob/master/src/vs/workbench/parts/search/browser/search.contribution.ts#L266
+		// https://github.com/Microsoft/vscode/blob/master/src/vs/workbench/parts/search/electron-browser/search.contribution.ts#L266
 		if (descriptor.label) {
+
+			let idx = alias.indexOf(': ');
+			let categoryOriginal;
+			if (idx > 0) {
+				categoryOriginal = alias.substr(0, idx);
+				alias = alias.substr(idx + 2);
+			}
 
 			const command = {
 				id: descriptor.id,
 				title: { value: descriptor.label, original: alias },
-				category
+				category: category && { value: category, original: categoryOriginal }
 			};
 
 			MenuRegistry.addCommand(command);
@@ -86,15 +88,15 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 		return (accessor, args) => {
 			const messageService = accessor.get(IMessageService);
 			const instantiationService = accessor.get(IInstantiationService);
-			const partService = accessor.get(IPartService);
+			const lifecycleService = accessor.get(ILifecycleService);
 
-			TPromise.as(this._triggerAndDisposeAction(instantiationService, partService, descriptor, args)).done(null, (err) => {
+			TPromise.as(this._triggerAndDisposeAction(instantiationService, lifecycleService, descriptor, args)).then(null, (err) => {
 				messageService.show(Severity.Error, err);
 			});
 		};
 	}
 
-	private _triggerAndDisposeAction(instantitationService: IInstantiationService, partService: IPartService, descriptor: SyncActionDescriptor, args: any): TPromise<any> {
+	private _triggerAndDisposeAction(instantitationService: IInstantiationService, lifecycleService: ILifecycleService, descriptor: SyncActionDescriptor, args: any): Thenable<void> {
 		const actionInstance = instantitationService.createInstance(descriptor.syncDescriptor);
 		actionInstance.label = descriptor.label || actionInstance.label;
 
@@ -108,7 +110,7 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 		const from = args && args.from || 'keybinding';
 
 		// run action when workbench is created
-		return partService.joinCreation().then(() => {
+		return lifecycleService.when(LifecyclePhase.Running).then(() => {
 			try {
 				return TPromise.as(actionInstance.run(undefined, { from })).then(() => {
 					actionInstance.dispose();

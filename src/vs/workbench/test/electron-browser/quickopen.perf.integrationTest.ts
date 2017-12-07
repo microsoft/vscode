@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/workbench/parts/search/browser/search.contribution'; // load contributions
+import 'vs/workbench/parts/search/electron-browser/search.contribution'; // load contributions
 import * as assert from 'assert';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -54,7 +54,7 @@ declare var __dirname: string;
 // git clone --separate-git-dir=testGit --no-checkout --single-branch https://chromium.googlesource.com/chromium/src testWorkspace
 // cd testWorkspace; git checkout 39a7f93d67f7
 // Run from repository root folder with (test.bat on Windows): ./scripts/test.sh --grep QuickOpen.performance --timeout 180000 --testWorkspace <path>
-suite('QuickOpen performance (integration)', () => {
+suite.skip('QuickOpen performance (integration)', () => {
 
 	test('Measure', () => {
 		if (process.env['VSCODE_PID']) {
@@ -168,7 +168,7 @@ class TestTelemetryService implements ITelemetryService {
 
 	public publicLog(eventName: string, data?: any): TPromise<void> {
 		this.events.push({ name: eventName, data: data });
-		return TPromise.as<void>(null);
+		return TPromise.wrap<void>(null);
 	}
 
 	public getTelemetryInfo(): TPromise<ITelemetryInfo> {
@@ -178,7 +178,7 @@ class TestTelemetryService implements ITelemetryService {
 			machineId: 'someValue.machineId'
 		});
 	}
-};
+}
 
 class TestExperimentService implements IExperimentService {
 

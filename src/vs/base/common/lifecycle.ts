@@ -7,7 +7,7 @@
 
 import { once } from 'vs/base/common/functional';
 
-export const empty: IDisposable = Object.freeze({
+export const empty: IDisposable = Object.freeze<IDisposable>({
 	dispose() { }
 });
 

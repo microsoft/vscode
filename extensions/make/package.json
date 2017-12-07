@@ -13,6 +13,7 @@
 			"aliases": ["Makefile", "makefile"],
 			"extensions": [ ".mk" ],
 			"filenames": [ "Makefile", "makefile", "GNUmakefile", "OCamlMakefile" ],
+      "firstLine": "^#!/usr/bin/make",
 			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{

@@ -275,7 +275,7 @@ export interface IEditorOpeningEvent {
 	prevent(callback: () => TPromise<IBaseEditor>): void;
 }
 
-export class EditorOpeningEvent {
+export class EditorOpeningEvent implements IEditorOpeningEvent {
 	private override: () => TPromise<IBaseEditor>;
 
 	constructor(private _input: IEditorInput, private _options: IEditorOptions, private _position: Position) {
@@ -754,6 +754,7 @@ export interface IEditorStacksModel {
 
 	next(jumpGroups: boolean, cycleAtEnd?: boolean): IEditorIdentifier;
 	previous(jumpGroups: boolean, cycleAtStart?: boolean): IEditorIdentifier;
+	last(): IEditorIdentifier;
 
 	isOpen(resource: URI): boolean;
 
@@ -791,7 +792,7 @@ export interface IEditorContext extends IEditorIdentifier {
 }
 
 export interface IEditorCloseEvent extends IEditorIdentifier {
-	pinned: boolean;
+	replaced: boolean;
 	index: number;
 }
 
@@ -804,24 +805,14 @@ export const EditorOpenPositioning = {
 	LAST: 'last'
 };
 
+export const OPEN_POSITIONING_CONFIG = 'workbench.editor.openPositioning';
+
 export interface IWorkbenchEditorConfiguration {
-	/* __GDPR__FRAGMENT__
-		"IWorkbenchEditorConfiguration" : {
-			"showTabs" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"tabCloseButton": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"showIcons": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"enablePreview": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"enablePreviewFromQuickOpen": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"closeOnFileDelete": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"openPositioning": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"revealIfOpen": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-			"swipeToNavigate": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-		}
-	*/
 	workbench: {
 		editor: {
 			showTabs: boolean;
 			tabCloseButton: 'left' | 'right' | 'off';
+			tabSizing: 'fit' | 'shrink';
 			showIcons: boolean;
 			enablePreview: boolean;
 			enablePreviewFromQuickOpen: boolean;
@@ -830,7 +821,8 @@ export interface IWorkbenchEditorConfiguration {
 			revealIfOpen: boolean;
 			swipeToNavigate: boolean,
 			labelFormat: 'default' | 'short' | 'medium' | 'long';
-		}
+		},
+		iconTheme: string;
 	};
 }
 

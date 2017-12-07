@@ -20,10 +20,9 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { IConfirmation, IMessageService, IConfirmationResult } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService, IWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { Selection } from 'vs/editor/common/core/selection';
+import { ICodeEditor, IDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import Event, { Emitter } from 'vs/base/common/event';
-import { Configuration, ConfigurationModel, DefaultConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
+import { Configuration, DefaultConfigurationModel, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
@@ -54,12 +53,11 @@ export class SimpleEditor implements IEditor {
 
 	public getId(): string { return 'editor'; }
 	public getControl(): editorCommon.IEditor { return this._widget; }
-	public getSelection(): Selection { return this._widget.getSelection(); }
 	public focus(): void { this._widget.focus(); }
 	public isVisible(): boolean { return true; }
 
 	public withTypedEditor<T>(codeEditorCallback: (editor: ICodeEditor) => T, diffEditorCallback: (editor: IDiffEditor) => T): T {
-		if (editorCommon.isCommonCodeEditor(this._widget)) {
+		if (isCodeEditor(this._widget)) {
 			// Single Editor
 			return codeEditorCallback(<ICodeEditor>this._widget);
 		} else {
@@ -128,7 +126,7 @@ export class SimpleEditorService implements IEditorService {
 		));
 	}
 
-	private doOpenEditor(editor: editorCommon.ICommonCodeEditor, data: IResourceInput): IEditor {
+	private doOpenEditor(editor: ICodeEditor, data: IResourceInput): IEditor {
 		let model = this.findModel(editor, data);
 		if (!model) {
 			if (data.resource) {
@@ -139,7 +137,7 @@ export class SimpleEditorService implements IEditorService {
 					let schema = data.resource.scheme;
 					if (schema === Schemas.http || schema === Schemas.https) {
 						// This is a fully qualified http or https URL
-						window.open(data.resource.toString());
+						dom.windowOpenNoOpener(data.resource.toString());
 						return this.editor;
 					}
 				}
@@ -165,7 +163,7 @@ export class SimpleEditorService implements IEditorService {
 		return this.editor;
 	}
 
-	private findModel(editor: editorCommon.ICommonCodeEditor, data: IResourceInput): editorCommon.IModel {
+	private findModel(editor: ICodeEditor, data: IResourceInput): editorCommon.IModel {
 		let model = editor.getModel();
 		if (model.uri.toString() !== data.resource.toString()) {
 			return null;
@@ -205,7 +203,7 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 		};
 	}
 
-	private findModel(editor: editorCommon.ICommonCodeEditor, resource: URI): editorCommon.IModel {
+	private findModel(editor: ICodeEditor, resource: URI): editorCommon.IModel {
 		let model = editor.getModel();
 		if (model.uri.toString() !== resource.toString()) {
 			return null;
@@ -239,7 +237,7 @@ export class SimpleMessageService implements IMessageService {
 
 	public _serviceBrand: any;
 
-	private static Empty = function () { /* nothing */ };
+	private static readonly Empty = function () { /* nothing */ };
 
 	public show(sev: Severity, message: any): () => void {
 
@@ -262,7 +260,7 @@ export class SimpleMessageService implements IMessageService {
 		// No-op
 	}
 
-	public confirmSync(confirmation: IConfirmation): boolean {
+	public confirm(confirmation: IConfirmation): boolean {
 		let messageText = confirmation.message;
 		if (confirmation.detail) {
 			messageText = messageText + '\n\n' + confirmation.detail;
@@ -271,8 +269,8 @@ export class SimpleMessageService implements IMessageService {
 		return window.confirm(messageText);
 	}
 
-	public confirm(confirmation: IConfirmation): TPromise<IConfirmationResult> {
-		return TPromise.as({ confirmed: this.confirmSync(confirmation) } as IConfirmationResult);
+	public confirmWithCheckbox(confirmation: IConfirmation): TPromise<IConfirmationResult> {
+		return TPromise.as({ confirmed: this.confirm(confirmation), checkboxChecked: false /* unsupported */ } as IConfirmationResult);
 	}
 }
 
@@ -458,18 +456,14 @@ export class SimpleConfigurationService implements IConfigurationService {
 		return this._configuration;
 	}
 
-	getConfiguration<T>(): T
-	getConfiguration<T>(section: string): T
-	getConfiguration<T>(overrides: IConfigurationOverrides): T
-	getConfiguration<T>(section: string, overrides: IConfigurationOverrides): T
-	getConfiguration(arg1?: any, arg2?: any): any {
+	getValue<T>(): T;
+	getValue<T>(section: string): T;
+	getValue<T>(overrides: IConfigurationOverrides): T;
+	getValue<T>(section: string, overrides: IConfigurationOverrides): T;
+	getValue(arg1?: any, arg2?: any): any {
 		const section = typeof arg1 === 'string' ? arg1 : void 0;
 		const overrides = isConfigurationOverrides(arg1) ? arg1 : isConfigurationOverrides(arg2) ? arg2 : {};
-		return this.configuration().getSection(section, overrides, null);
-	}
-
-	public getValue<C>(key: string, options: IConfigurationOverrides = {}): C {
-		return this.configuration().getValue(key, options, null);
+		return this.configuration().getValue(section, overrides, null);
 	}
 
 	public updateValue(key: string, value: any, arg3?: any, arg4?: any): TPromise<void> {
@@ -483,7 +477,7 @@ export class SimpleConfigurationService implements IConfigurationService {
 		workspaceFolder: C
 		value: C,
 	} {
-		return this.configuration().lookup<C>(key, options, null);
+		return this.configuration().inspect<C>(key, options, null);
 	}
 
 	public keys() {
@@ -512,8 +506,8 @@ export class SimpleResourceConfigurationService implements ITextResourceConfigur
 		});
 	}
 
-	public getConfiguration<T>(): T {
-		return this.configurationService.getConfiguration<T>();
+	public getValue<T>(): T {
+		return this.configurationService.getValue<T>();
 	}
 
 }
@@ -539,7 +533,7 @@ export class StandaloneTelemetryService implements ITelemetryService {
 	public isOptedIn = false;
 
 	public publicLog(eventName: string, data?: any): TPromise<void> {
-		return TPromise.as<void>(null);
+		return TPromise.wrap<void>(null);
 	}
 
 	public getTelemetryInfo(): TPromise<ITelemetryInfo> {
@@ -591,19 +585,7 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 		return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME;
 	}
 
-	public toResource(workspaceRelativePath: string, workspaceFolder: IWorkspaceFolder): URI {
-		return URI.file(workspaceRelativePath);
-	}
-
 	public isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {
 		return true;
-	}
-
-	public addFolders(foldersToAdd: URI[]): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-
-	public removeFolders(foldersToRemove: URI[]): TPromise<void> {
-		return TPromise.as(void 0);
 	}
 }

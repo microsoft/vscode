@@ -7,9 +7,11 @@
 	"extensionsCommands": "Gérer les extensions",
 	"galleryExtensionsCommands": "Installer les extensions de la galerie",
 	"extension": "Extension",
+	"runtimeExtension": "Extensions en cours d’exécution",
 	"extensions": "Extensions",
 	"view": "Affichage",
+	"developer": "Développeur",
 	"extensionsConfigurationTitle": "Extensions",
 	"extensionsAutoUpdate": "Mettre à jour automatiquement les extensions",
-	"extensionsIgnoreRecommendations": "Ignorer les recommandations d'extension"
+	"extensionsIgnoreRecommendations": "Si la valeur est à true, les notifications de recommandations d'extension cessera d'apparaître."
 }

@@ -6,13 +6,15 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import * as DOM from 'vs/base/browser/dom';
-import { Delayer } from 'vs/base/common/async';
+import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
 import { Dimension, Builder } from 'vs/base/browser/builder';
 import { ArrayNavigator, INavigator } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { SideBySideEditorInput, EditorOptions, EditorInput } from 'vs/workbench/common/editor';
+import { Scope } from 'vs/workbench/common/memento';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { IEditorControl, Position, Verbosity } from 'vs/platform/editor/common/editor';
@@ -22,34 +24,29 @@ import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import {
-	IPreferencesService, ISettingsGroup, ISetting, IFilterResult,
-	CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, SETTINGS_EDITOR_COMMAND_SEARCH, SETTINGS_EDITOR_COMMAND_FOCUS_FILE, ISettingsEditorModel, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING
+	IPreferencesService, ISettingsGroup, ISetting, IFilterResult, IPreferencesSearchService,
+	CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, SETTINGS_EDITOR_COMMAND_SEARCH, SETTINGS_EDITOR_COMMAND_FOCUS_FILE, ISettingsEditorModel, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING, IFilterMetadata, IPreferencesSearchModel
 } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
-import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { ICodeEditor, IEditorContributionCtor } from 'vs/editor/browser/editorBrowser';
-import { SearchWidget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { SearchWidget, SettingsTargetsWidget, SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ContextKeyExpr, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Command } from 'vs/editor/common/editorCommonExtensions';
+import { registerEditorContribution, Command, IEditorContributionCtor } from 'vs/editor/browser/editorExtensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { VSash } from 'vs/base/browser/ui/sash/sash';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IPreferencesRenderer, DefaultSettingsRenderer, UserSettingsRenderer, WorkspaceSettingsRenderer, FolderSettingsRenderer } from 'vs/workbench/parts/preferences/browser/preferencesRenderers';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
-import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
-import { FindController } from 'vs/editor/contrib/find/browser/find';
-import { SelectionHighlighter } from 'vs/editor/contrib/find/common/findController';
+import { FoldingController } from 'vs/editor/contrib/folding/folding';
+import { FindController } from 'vs/editor/contrib/find/findController';
+import { SelectionHighlighter } from 'vs/editor/contrib/multicursor/multicursor';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
@@ -59,6 +56,8 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IHashService } from 'vs/workbench/services/hash/common/hashService';
+import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
 	public static ID: string = 'workbench.editorinputs.preferencesEditorInput';
@@ -67,17 +66,22 @@ export class PreferencesEditorInput extends SideBySideEditorInput {
 		return PreferencesEditorInput.ID;
 	}
 
+	public supportsSplitEditor(): boolean {
+		return true;
+	}
+
 	public getTitle(verbosity: Verbosity): string {
 		return this.master.getTitle(verbosity);
 	}
 }
 
 export class DefaultPreferencesEditorInput extends ResourceEditorInput {
-	public static ID = 'workbench.editorinputs.defaultpreferences';
+	public static readonly ID = 'workbench.editorinputs.defaultpreferences';
 	constructor(defaultSettingsResource: URI,
-		@ITextModelService textModelResolverService: ITextModelService
+		@ITextModelService textModelResolverService: ITextModelService,
+		@IHashService hashService: IHashService
 	) {
-		super(nls.localize('settingsEditorName', "Default Settings"), '', defaultSettingsResource, textModelResolverService);
+		super(nls.localize('settingsEditorName', "Default Settings"), '', defaultSettingsResource, textModelResolverService, hashService);
 	}
 
 	getTypeId(): string {
@@ -85,10 +89,10 @@ export class DefaultPreferencesEditorInput extends ResourceEditorInput {
 	}
 
 	matches(other: any): boolean {
-		if (!super.matches(other)) {
-			return false;
+		if (other instanceof DefaultPreferencesEditorInput) {
+			return true;
 		}
-		if (!(other instanceof DefaultPreferencesEditorInput)) {
+		if (!super.matches(other)) {
 			return false;
 		}
 		return true;
@@ -103,29 +107,32 @@ export class PreferencesEditor extends BaseEditor {
 	private focusSettingsContextKey: IContextKey<boolean>;
 	private headerContainer: HTMLElement;
 	private searchWidget: SearchWidget;
-	private settingsTargetsWidget: SettingsTargetsWidget;
 	private sideBySidePreferencesWidget: SideBySidePreferencesWidget;
 	private preferencesRenderers: PreferencesRenderers;
 
 	private delayedFilterLogging: Delayer<void>;
+	private filterThrottle: ThrottledDelayer<void>;
 
 	private latestEmptyFilters: string[] = [];
 	private lastFocusedWidget: SearchWidget | SideBySidePreferencesWidget = null;
+	private memento: any;
 
 	constructor(
 		@IPreferencesService private preferencesService: IPreferencesService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IPreferencesSearchService private preferencesSearchService: IPreferencesSearchService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
+		@IStorageService storageService: IStorageService,
 	) {
 		super(PreferencesEditor.ID, telemetryService, themeService);
 		this.defaultSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(this.contextKeyService);
 		this.focusSettingsContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(this.contextKeyService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
+		this.filterThrottle = new ThrottledDelayer(200);
+		this.memento = this.getMemento(storageService, Scope.WORKSPACE);
 	}
 
 	public createEditor(parent: Builder): void {
@@ -137,22 +144,30 @@ export class PreferencesEditor extends BaseEditor {
 		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, this.headerContainer, {
 			ariaLabel: nls.localize('SearchSettingsWidget.AriaLabel', "Search settings"),
 			placeholder: nls.localize('SearchSettingsWidget.Placeholder', "Search Settings"),
-			focusKey: this.focusSettingsContextKey
+			focusKey: this.focusSettingsContextKey,
+			showFuzzyToggle: true,
+			showResultCount: true
 		}));
-		this._register(this.searchWidget.onDidChange(value => this.filterPreferences(value.trim())));
+		this.searchWidget.setFuzzyToggleVisible(this.preferencesSearchService.remoteSearchAllowed);
+		this.searchWidget.fuzzyEnabled = this.memento['fuzzyEnabled'];
+		this._register(this.preferencesSearchService.onRemoteSearchEnablementChanged(enabled => this.searchWidget.setFuzzyToggleVisible(enabled)));
+		this._register(this.searchWidget.onDidChange(value => this.onInputChanged()));
 		this._register(this.searchWidget.onFocus(() => this.lastFocusedWidget = this.searchWidget));
 		this.lastFocusedWidget = this.searchWidget;
-
-		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, this.headerContainer, this.preferencesService.userSettingsResource, ConfigurationTarget.USER));
-		this._register(this.settingsTargetsWidget.onDidTargetChange(target => this.switchSettings(target)));
 
 		const editorsContainer = DOM.append(parentElement, DOM.$('.preferences-editors-container'));
 		this.sideBySidePreferencesWidget = this._register(this.instantiationService.createInstance(SideBySidePreferencesWidget, editorsContainer));
 		this._register(this.sideBySidePreferencesWidget.onFocus(() => this.lastFocusedWidget = this.sideBySidePreferencesWidget));
+		this._register(this.sideBySidePreferencesWidget.onDidSettingsTargetChange(target => this.switchSettings(target)));
 
-		this.preferencesRenderers = this._register(new PreferencesRenderers());
-		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => this.onWorkspaceFoldersChanged()));
-		this._register(this.workspaceContextService.onDidChangeWorkbenchState(() => this.onWorkbenchStateChanged()));
+		this.preferencesRenderers = this._register(new PreferencesRenderers(this.preferencesSearchService));
+
+		this._register(this.preferencesRenderers.onTriggeredFuzzy(() => {
+			this.searchWidget.fuzzyEnabled = true;
+			this.filterPreferences();
+		}));
+
+		this._register(this.preferencesRenderers.onDidFilterResultsCountChange(count => this.showSearchResultsMessage(count)));
 	}
 
 	public clearSearchResults(): void {
@@ -227,106 +242,87 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	private updateInput(oldInput: PreferencesEditorInput, newInput: PreferencesEditorInput, options?: EditorOptions): TPromise<void> {
-		const resource = newInput.master.getResource();
-		this.settingsTargetsWidget.updateTargets(this.getSettingsConfigurationTargetUri(resource), this.getSettingsConfigurationTarget(resource));
-
 		return this.sideBySidePreferencesWidget.setInput(<DefaultPreferencesEditorInput>newInput.details, <EditorInput>newInput.master, options).then(({ defaultPreferencesRenderer, editablePreferencesRenderer }) => {
 			this.preferencesRenderers.defaultPreferencesRenderer = defaultPreferencesRenderer;
 			this.preferencesRenderers.editablePreferencesRenderer = editablePreferencesRenderer;
-			this.filterPreferences(this.searchWidget.getValue());
+			this.onInputChanged();
 		});
 	}
 
-	private getSettingsConfigurationTarget(resource: URI): ConfigurationTarget {
-		if (this.preferencesService.userSettingsResource.toString() === resource.toString()) {
-			return ConfigurationTarget.USER;
-		}
-
-		const workspaceSettingsResource = this.preferencesService.workspaceSettingsResource;
-		if (workspaceSettingsResource && workspaceSettingsResource.toString() === resource.toString()) {
-			return ConfigurationTarget.WORKSPACE;
-		}
-
-		if (this.workspaceContextService.getWorkspaceFolder(resource)) {
-			return ConfigurationTarget.WORKSPACE_FOLDER;
-		}
-
-		return null;
-	}
-
-	private getSettingsConfigurationTargetUri(resource: URI): URI {
-		if (this.preferencesService.userSettingsResource.toString() === resource.toString()) {
-			return resource;
-		}
-		if (this.preferencesService.workspaceSettingsResource.toString() === resource.toString()) {
-			return resource;
-		}
-
-		const workspaceFolder = this.workspaceContextService.getWorkspaceFolder(resource);
-		return workspaceFolder ? workspaceFolder.uri : null;
-	}
-
-	private onWorkspaceFoldersChanged(): void {
-		if (this.input) {
-			const settingsResource = (<PreferencesEditorInput>this.input).master.getResource();
-			const targetResource = this.getSettingsConfigurationTargetUri(settingsResource);
-			if (!targetResource) {
-				this.switchSettings(this.preferencesService.userSettingsResource);
-			}
+	private onInputChanged(): void {
+		if (this.searchWidget.fuzzyEnabled) {
+			this.triggerThrottledFilter();
+		} else {
+			this.filterPreferences();
 		}
 	}
 
-	private onWorkbenchStateChanged(): void {
-		if (this.input) {
-			const editableSettingsResource = (<PreferencesEditorInput>this.input).master.getResource();
-			const newConfigurationTarget = this.getSettingsConfigurationTarget(editableSettingsResource);
-			if (newConfigurationTarget) {
-				if (newConfigurationTarget !== this.settingsTargetsWidget.configurationTarget) {
-					// Update the editor if the configuration target of the settings resource changed
-					this.switchSettings(editableSettingsResource);
-				}
-			} else {
-				this.switchSettings(this.preferencesService.userSettingsResource);
-			}
-		}
+	private triggerThrottledFilter(): void {
+		this.filterThrottle.trigger(() => this.filterPreferences());
 	}
 
-	private switchSettings(resource: URI): void {
+	private switchSettings(target: SettingsTarget): void {
 		// Focus the editor if this editor is not active editor
 		if (this.editorService.getActiveEditor() !== this) {
 			this.focus();
 		}
 		const promise = this.input.isDirty() ? this.input.save() : TPromise.as(true);
-		promise.done(value => this.preferencesService.switchSettings(this.getSettingsConfigurationTarget(resource), resource));
+		promise.done(value => {
+			if (target === ConfigurationTarget.USER) {
+				this.preferencesService.switchSettings(ConfigurationTarget.USER, this.preferencesService.userSettingsResource);
+			} else if (target === ConfigurationTarget.WORKSPACE) {
+				this.preferencesService.switchSettings(ConfigurationTarget.WORKSPACE, this.preferencesService.workspaceSettingsResource);
+			} else if (target instanceof URI) {
+				this.preferencesService.switchSettings(ConfigurationTarget.WORKSPACE_FOLDER, target);
+			}
+		});
 	}
 
-	private filterPreferences(filter: string) {
-		const count = this.preferencesRenderers.filterPreferences(filter);
-		const message = filter ? this.showSearchResultsMessage(count) : nls.localize('totalSettingsMessage', "Total {0} Settings", count);
-		this.searchWidget.showMessage(message, count);
-		if (count === 0) {
-			this.latestEmptyFilters.push(filter);
+	private filterPreferences(): TPromise<void> {
+		this.memento['fuzzyEnabled'] = this.searchWidget.fuzzyEnabled;
+		const filter = this.searchWidget.getValue().trim();
+		return this.preferencesRenderers.filterPreferences({ filter, fuzzy: this.searchWidget.fuzzyEnabled }).then(result => {
+			this.showSearchResultsMessage(result.count);
+			if (result.count === 0) {
+				this.latestEmptyFilters.push(filter);
+			}
+			this.preferencesRenderers.focusFirst();
+			this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(filter, result.metadata));
+		}, onUnexpectedError);
+	}
+
+	private showSearchResultsMessage(count: number): void {
+		if (this.searchWidget.getValue()) {
+			if (count === 0) {
+				this.searchWidget.showMessage(nls.localize('noSettingsFound', "No Results"), count);
+			} else if (count === 1) {
+				this.searchWidget.showMessage(nls.localize('oneSettingFound', "1 Setting matched"), count);
+			} else {
+				this.searchWidget.showMessage(nls.localize('settingsFound', "{0} Settings matched", count), count);
+			}
+		} else {
+			this.searchWidget.showMessage(nls.localize('totalSettingsMessage', "Total {0} Settings", count), count);
 		}
-		this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(filter));
 	}
 
-	private showSearchResultsMessage(count: number): string {
-		return count === 0 ? nls.localize('noSettingsFound', "No Results") :
-			count === 1 ? nls.localize('oneSettingFound', "1 Setting matched") :
-				nls.localize('settingsFound', "{0} Settings matched", count);
-	}
-
-	private reportFilteringUsed(filter: string): void {
+	private reportFilteringUsed(filter: string, metadata?: IFilterMetadata): void {
 		if (filter) {
 			let data = {
 				filter,
-				emptyFilters: this.getLatestEmptyFiltersForTelemetry()
+				emptyFilters: this.getLatestEmptyFiltersForTelemetry(),
+				fuzzy: !!metadata,
+				duration: metadata ? metadata.duration : undefined,
+				context: metadata ? metadata.context : undefined
 			};
+
 			this.latestEmptyFilters = [];
 			/* __GDPR__
 				"defaultSettings.filter" : {
 					"filter": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"emptyFilters" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					"emptyFilters" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"fuzzy" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"context" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 				}
 			*/
 			this.telemetryService.publicLog('defaultSettings.filter', data);
@@ -376,65 +372,165 @@ class SettingsNavigator implements INavigator<ISetting> {
 	}
 }
 
+interface ISearchCriteria {
+	filter: string;
+	fuzzy: boolean;
+}
+
 class PreferencesRenderers extends Disposable {
 
 	private _defaultPreferencesRenderer: IPreferencesRenderer<ISetting>;
+	private _defaultPreferencesRendererDisposables: IDisposable[] = [];
+
+	private _defaultPreferencesFilterResult: IFilterResult;
+	private _editablePreferencesFilterResult: IFilterResult;
+
 	private _editablePreferencesRenderer: IPreferencesRenderer<ISetting>;
+	private _editablePreferencesRendererDisposables: IDisposable[] = [];
+
 	private _settingsNavigator: SettingsNavigator;
+	private _filtersInProgress: TPromise<any>[];
+	private _searchCriteria: ISearchCriteria;
+	private _currentSearchModel: IPreferencesSearchModel;
 
-	private _disposables: IDisposable[] = [];
+	private _onTriggeredFuzzy: Emitter<void> = this._register(new Emitter<void>());
+	public onTriggeredFuzzy: Event<void> = this._onTriggeredFuzzy.event;
 
-	public get defaultPreferencesRenderer(): IPreferencesRenderer<ISetting> {
+	private _onDidFilterResultsCountChange: Emitter<number> = this._register(new Emitter<number>());
+	public onDidFilterResultsCountChange: Event<number> = this._onDidFilterResultsCountChange.event;
+
+	constructor(
+		private preferencesSearchService: IPreferencesSearchService
+	) {
+		super();
+	}
+
+	get defaultPreferencesRenderer(): IPreferencesRenderer<ISetting> {
 		return this._defaultPreferencesRenderer;
 	}
 
-	public set defaultPreferencesRenderer(defaultPreferencesRenderer: IPreferencesRenderer<ISetting>) {
+	get editablePreferencesRenderer(): IPreferencesRenderer<ISetting> {
+		return this._editablePreferencesRenderer;
+	}
+
+	set defaultPreferencesRenderer(defaultPreferencesRenderer: IPreferencesRenderer<ISetting>) {
 		if (this._defaultPreferencesRenderer !== defaultPreferencesRenderer) {
 			this._defaultPreferencesRenderer = defaultPreferencesRenderer;
 
-			this._disposables = dispose(this._disposables);
+			this._defaultPreferencesRendererDisposables = dispose(this._defaultPreferencesRendererDisposables);
 
 			if (this._defaultPreferencesRenderer) {
-				this._defaultPreferencesRenderer.onUpdatePreference(({ key, value, source }) => this._updatePreference(key, value, source, this._editablePreferencesRenderer), this, this._disposables);
-				this._defaultPreferencesRenderer.onFocusPreference(preference => this._focusPreference(preference, this._editablePreferencesRenderer), this, this._disposables);
-				this._defaultPreferencesRenderer.onClearFocusPreference(preference => this._clearFocus(preference, this._editablePreferencesRenderer), this, this._disposables);
+				this._defaultPreferencesRenderer.onUpdatePreference(({ key, value, source, index }) => this._updatePreference(key, value, source, index, this._editablePreferencesRenderer), this, this._defaultPreferencesRendererDisposables);
+				this._defaultPreferencesRenderer.onFocusPreference(preference => this._focusPreference(preference, this._editablePreferencesRenderer), this, this._defaultPreferencesRendererDisposables);
+				this._defaultPreferencesRenderer.onClearFocusPreference(preference => this._clearFocus(preference, this._editablePreferencesRenderer), this, this._defaultPreferencesRendererDisposables);
+				if (this._defaultPreferencesRenderer.onTriggeredFuzzy) {
+					this._register(this._defaultPreferencesRenderer.onTriggeredFuzzy(() => this._onTriggeredFuzzy.fire()));
+				}
 			}
 		}
 	}
 
-	public set editablePreferencesRenderer(editableSettingsRenderer: IPreferencesRenderer<ISetting>) {
-		this._editablePreferencesRenderer = editableSettingsRenderer;
+	set editablePreferencesRenderer(editableSettingsRenderer: IPreferencesRenderer<ISetting>) {
+		if (this._editablePreferencesRenderer !== editableSettingsRenderer) {
+			this._editablePreferencesRenderer = editableSettingsRenderer;
+			this._editablePreferencesRendererDisposables = dispose(this._editablePreferencesRendererDisposables);
+			if (this._editablePreferencesRenderer) {
+				(<ISettingsEditorModel>this._editablePreferencesRenderer.preferencesModel).onDidChangeGroups(() => {
+					if (this._currentSearchModel) {
+						this._filterEditablePreferences()
+							.then(() => {
+								const count = this.consolidateAndUpdate();
+								this._onDidFilterResultsCountChange.fire(count);
+							});
+					}
+				}, this, this._editablePreferencesRendererDisposables);
+			}
+		}
 	}
 
-	public filterPreferences(filter: string): number {
-		const defaultPreferencesFilterResult = this._filterPreferences(filter, this._defaultPreferencesRenderer);
-		const editablePreferencesFilterResult = this._filterPreferences(filter, this._editablePreferencesRenderer);
+	filterPreferences(criteria: ISearchCriteria): TPromise<{ count: number, metadata: IFilterMetadata }> {
+		this._searchCriteria = criteria;
 
-		const defaultPreferencesFilteredGroups = defaultPreferencesFilterResult ? defaultPreferencesFilterResult.filteredGroups : this._getAllPreferences(this._defaultPreferencesRenderer);
-		const editablePreferencesFilteredGroups = editablePreferencesFilterResult ? editablePreferencesFilterResult.filteredGroups : this._getAllPreferences(this._editablePreferencesRenderer);
-		const consolidatedSettings = this._consolidateSettings(editablePreferencesFilteredGroups, defaultPreferencesFilteredGroups);
-		this._settingsNavigator = new SettingsNavigator(filter ? consolidatedSettings : []);
+		if (this._filtersInProgress) {
+			// Resolved/rejected promises have no .cancel()
+			this._filtersInProgress.forEach(p => p.cancel && p.cancel());
+		}
 
-		return consolidatedSettings.length;
+		this._currentSearchModel = this.preferencesSearchService.startSearch(this._searchCriteria.filter, criteria.fuzzy);
+		this._filtersInProgress = [this._filterDefaultPreferences(), this._filterEditablePreferences()];
+
+		return TPromise.join<IFilterResult>(this._filtersInProgress).then(() => {
+			const count = this.consolidateAndUpdate();
+			return { count, metadata: this._defaultPreferencesFilterResult && this._defaultPreferencesFilterResult.metadata };
+		});
 	}
 
-	public focusNextPreference(forward: boolean = true) {
+	focusFirst(): void {
+		// Focus first match in both renderers
+		this._focusPreference(this._getFirstSettingFromTheGroups(this._defaultPreferencesFilterResult ? this._defaultPreferencesFilterResult.filteredGroups : []), this._defaultPreferencesRenderer);
+		this._focusPreference(this._getFirstSettingFromTheGroups(this._editablePreferencesFilterResult ? this._editablePreferencesFilterResult.filteredGroups : []), this._editablePreferencesRenderer);
+
+		this._settingsNavigator.first(); // Move to first
+	}
+
+	focusNextPreference(forward: boolean = true) {
+		if (!this._settingsNavigator) {
+			return;
+		}
+
 		const setting = forward ? this._settingsNavigator.next() : this._settingsNavigator.previous();
 		this._focusPreference(setting, this._defaultPreferencesRenderer);
 		this._focusPreference(setting, this._editablePreferencesRenderer);
+	}
+
+	private _filterDefaultPreferences(): TPromise<void> {
+		if (this._searchCriteria && this._defaultPreferencesRenderer) {
+			return this._filterPreferences(this._searchCriteria, this._defaultPreferencesRenderer, this._currentSearchModel)
+				.then(filterResult => { this._defaultPreferencesFilterResult = filterResult; });
+		}
+		return TPromise.wrap(null);
+	}
+
+	private _filterEditablePreferences(): TPromise<void> {
+		if (this._searchCriteria && this._editablePreferencesRenderer) {
+			return this._filterPreferences(this._searchCriteria, this._editablePreferencesRenderer, this._currentSearchModel)
+				.then(filterResult => { this._editablePreferencesFilterResult = filterResult; });
+		}
+		return TPromise.wrap(null);
+	}
+
+	private _getFirstSettingFromTheGroups(allGroups: ISettingsGroup[]): ISetting {
+		if (allGroups.length) {
+			if (allGroups[0].sections.length) {
+				return allGroups[0].sections[0].settings[0];
+			}
+		}
+		return null;
 	}
 
 	private _getAllPreferences(preferencesRenderer: IPreferencesRenderer<ISetting>): ISettingsGroup[] {
 		return preferencesRenderer ? (<ISettingsEditorModel>preferencesRenderer.preferencesModel).settingsGroups : [];
 	}
 
-	private _filterPreferences(filter: string, preferencesRenderer: IPreferencesRenderer<ISetting>): IFilterResult {
-		let filterResult = null;
-		if (preferencesRenderer) {
-			filterResult = filter ? (<ISettingsEditorModel>preferencesRenderer.preferencesModel).filterSettings(filter) : null;
-			preferencesRenderer.filterPreferences(filterResult);
+	private _filterPreferences(searchCriteria: ISearchCriteria, preferencesRenderer: IPreferencesRenderer<ISetting>, searchModel: IPreferencesSearchModel): TPromise<IFilterResult> {
+		if (preferencesRenderer && searchCriteria) {
+			const prefSearchP = searchModel.filterPreferences(<ISettingsEditorModel>preferencesRenderer.preferencesModel);
+
+			return prefSearchP.then(filterResult => {
+				preferencesRenderer.filterPreferences(filterResult, this.preferencesSearchService.remoteSearchAllowed);
+				return filterResult;
+			});
 		}
-		return filterResult;
+		return TPromise.as(null);
+	}
+
+	private consolidateAndUpdate(): number {
+		const defaultPreferencesFilteredGroups = this._defaultPreferencesFilterResult ? this._defaultPreferencesFilterResult.filteredGroups : this._getAllPreferences(this._defaultPreferencesRenderer);
+		const editablePreferencesFilteredGroups = this._editablePreferencesFilterResult ? this._editablePreferencesFilterResult.filteredGroups : this._getAllPreferences(this._editablePreferencesRenderer);
+		const consolidatedSettings = this._consolidateSettings(editablePreferencesFilteredGroups, defaultPreferencesFilteredGroups);
+
+		this._settingsNavigator = new SettingsNavigator(this._searchCriteria.filter ? consolidatedSettings : []);
+		return consolidatedSettings.length;
 	}
 
 	private _focusPreference(preference: ISetting, preferencesRenderer: IPreferencesRenderer<ISetting>): void {
@@ -449,16 +545,16 @@ class PreferencesRenderers extends Disposable {
 		}
 	}
 
-	private _updatePreference(key: string, value: any, source: ISetting, preferencesRenderer: IPreferencesRenderer<ISetting>): void {
+	private _updatePreference(key: string, value: any, source: ISetting, index: number, preferencesRenderer: IPreferencesRenderer<ISetting>): void {
 		if (preferencesRenderer) {
-			preferencesRenderer.updatePreference(key, value, source);
+			preferencesRenderer.updatePreference(key, value, source, index);
 		}
 	}
 
 	private _consolidateSettings(editableSettingsGroups: ISettingsGroup[], defaultSettingsGroups: ISettingsGroup[]): ISetting[] {
 		const editableSettings = this._flatten(editableSettingsGroups);
 		const defaultSettings = this._flatten(defaultSettingsGroups).filter(secondarySetting => !editableSettings.some(primarySetting => primarySetting.key === secondarySetting.key));
-		return [...editableSettings, ...defaultSettings];
+		return [...defaultSettings, ...editableSettings];
 	}
 
 	private _flatten(settingsGroups: ISettingsGroup[]): ISetting[] {
@@ -472,7 +568,8 @@ class PreferencesRenderers extends Disposable {
 	}
 
 	public dispose(): void {
-		dispose(this._disposables);
+		dispose(this._defaultPreferencesRendererDisposables);
+		dispose(this._editablePreferencesRendererDisposables);
 		super.dispose();
 	}
 }
@@ -481,19 +578,31 @@ class SideBySidePreferencesWidget extends Widget {
 
 	private dimension: Dimension;
 
+	private defaultPreferencesHeader: HTMLElement;
 	private defaultPreferencesEditor: DefaultPreferencesEditor;
 	private editablePreferencesEditor: BaseEditor;
 	private defaultPreferencesEditorContainer: HTMLElement;
 	private editablePreferencesEditorContainer: HTMLElement;
 
+	private settingsTargetsWidget: SettingsTargetsWidget;
+
 	private _onFocus: Emitter<void> = new Emitter<void>();
 	readonly onFocus: Event<void> = this._onFocus.event;
+
+	private _onDidSettingsTargetChange: Emitter<SettingsTarget> = new Emitter<SettingsTarget>();
+	readonly onDidSettingsTargetChange: Event<SettingsTarget> = this._onDidSettingsTargetChange.event;
 
 	private lastFocusedEditor: BaseEditor;
 
 	private sash: VSash;
 
-	constructor(parent: HTMLElement, @IInstantiationService private instantiationService: IInstantiationService, @IThemeService private themeService: IThemeService) {
+	constructor(
+		parent: HTMLElement,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IThemeService private themeService: IThemeService,
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
+		@IPreferencesService private preferencesService: IPreferencesService,
+	) {
 		super();
 		this.create(parent);
 	}
@@ -504,6 +613,13 @@ class SideBySidePreferencesWidget extends Widget {
 
 		this.defaultPreferencesEditorContainer = DOM.append(parentElement, DOM.$('.default-preferences-editor-container'));
 		this.defaultPreferencesEditorContainer.style.position = 'absolute';
+
+		const defaultPreferencesHeaderContainer = DOM.append(this.defaultPreferencesEditorContainer, DOM.$('.preferences-header-container'));
+		defaultPreferencesHeaderContainer.style.height = '30px';
+		defaultPreferencesHeaderContainer.style.marginBottom = '4px';
+		this.defaultPreferencesHeader = DOM.append(defaultPreferencesHeaderContainer, DOM.$('div.default-preferences-header'));
+		this.defaultPreferencesHeader.textContent = nls.localize('defaultSettings', "Default Settings");
+
 		this.defaultPreferencesEditor = this._register(this.instantiationService.createInstance(DefaultPreferencesEditor));
 		this.defaultPreferencesEditor.create(new Builder(this.defaultPreferencesEditorContainer));
 		this.defaultPreferencesEditor.setVisible(true);
@@ -511,6 +627,11 @@ class SideBySidePreferencesWidget extends Widget {
 
 		this.editablePreferencesEditorContainer = DOM.append(parentElement, DOM.$('.editable-preferences-editor-container'));
 		this.editablePreferencesEditorContainer.style.position = 'absolute';
+		const editablePreferencesHeaderContainer = DOM.append(this.editablePreferencesEditorContainer, DOM.$('.preferences-header-container'));
+		editablePreferencesHeaderContainer.style.height = '30px';
+		editablePreferencesHeaderContainer.style.marginBottom = '4px';
+		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, editablePreferencesHeaderContainer));
+		this._register(this.settingsTargetsWidget.onDidTargetChange(target => this._onDidSettingsTargetChange.fire(target)));
 
 		this._register(attachStylerCallback(this.themeService, { scrollbarShadow }, colors => {
 			const shadow = colors.scrollbarShadow ? colors.scrollbarShadow.toString() : null;
@@ -523,15 +644,19 @@ class SideBySidePreferencesWidget extends Widget {
 		}));
 
 		const focusTracker = this._register(DOM.trackFocus(parentElement));
-		this._register(focusTracker.addFocusListener(() => this._onFocus.fire()));
+		this._register(focusTracker.onDidFocus(() => this._onFocus.fire()));
 	}
 
 	public setInput(defaultPreferencesEditorInput: DefaultPreferencesEditorInput, editablePreferencesEditorInput: EditorInput, options?: EditorOptions): TPromise<{ defaultPreferencesRenderer: IPreferencesRenderer<ISetting>, editablePreferencesRenderer: IPreferencesRenderer<ISetting> }> {
 		this.getOrCreateEditablePreferencesEditor(editablePreferencesEditorInput);
+		this.settingsTargetsWidget.settingsTarget = this.getSettingsTarget(editablePreferencesEditorInput.getResource());
 		this.dolayout(this.sash.getVerticalSashLeft());
 		return TPromise.join([this.updateInput(this.defaultPreferencesEditor, defaultPreferencesEditorInput, DefaultSettingsEditorContribution.ID, editablePreferencesEditorInput.getResource(), options),
 		this.updateInput(this.editablePreferencesEditor, editablePreferencesEditorInput, SettingsEditorContribution.ID, defaultPreferencesEditorInput.getResource(), options)])
-			.then(([defaultPreferencesRenderer, editablePreferencesRenderer]) => ({ defaultPreferencesRenderer, editablePreferencesRenderer }));
+			.then(([defaultPreferencesRenderer, editablePreferencesRenderer]) => {
+				this.defaultPreferencesHeader.textContent = defaultPreferencesRenderer && (<DefaultSettingsEditorModel>defaultPreferencesRenderer.preferencesModel).configurationScope === ConfigurationScope.RESOURCE ? nls.localize('defaultFolderSettings', "Default Folder Settings") : nls.localize('defaultSettings', "Default Settings");
+				return { defaultPreferencesRenderer, editablePreferencesRenderer };
+			});
 	}
 
 	public layout(dimension: Dimension): void {
@@ -550,6 +675,9 @@ class SideBySidePreferencesWidget extends Widget {
 	}
 
 	public clearInput(): void {
+		if (this.defaultPreferencesEditor) {
+			this.defaultPreferencesEditor.clearInput();
+		}
 		if (this.editablePreferencesEditor) {
 			this.editablePreferencesEditor.clearInput();
 		}
@@ -607,8 +735,26 @@ class SideBySidePreferencesWidget extends Widget {
 		this.editablePreferencesEditorContainer.style.height = `${this.dimension.height}px`;
 		this.editablePreferencesEditorContainer.style.left = `${splitPoint}px`;
 
-		this.defaultPreferencesEditor.layout(new Dimension(detailsEditorWidth, this.dimension.height));
-		this.editablePreferencesEditor.layout(new Dimension(masterEditorWidth, this.dimension.height));
+		this.defaultPreferencesEditor.layout(new Dimension(detailsEditorWidth, this.dimension.height - 34 /* height of header container */));
+		this.editablePreferencesEditor.layout(new Dimension(masterEditorWidth, this.dimension.height - 34 /* height of header container */));
+	}
+
+	private getSettingsTarget(resource: URI): SettingsTarget {
+		if (this.preferencesService.userSettingsResource.toString() === resource.toString()) {
+			return ConfigurationTarget.USER;
+		}
+
+		const workspaceSettingsResource = this.preferencesService.workspaceSettingsResource;
+		if (workspaceSettingsResource && workspaceSettingsResource.toString() === resource.toString()) {
+			return ConfigurationTarget.WORKSPACE;
+		}
+
+		const folder = this.workspaceContextService.getWorkspaceFolder(resource);
+		if (folder) {
+			return folder.uri;
+		}
+
+		return ConfigurationTarget.USER;
 	}
 
 	private disposeEditors(): void {
@@ -628,110 +774,33 @@ class SideBySidePreferencesWidget extends Widget {
 	}
 }
 
-export class EditableSettingsEditor extends BaseTextEditor {
-
-	public static ID: string = 'workbench.editor.settingsEditor';
-
-	private modelDisposables: IDisposable[] = [];
-	private saveDelayer: Delayer<void>;
-
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IStorageService storageService: IStorageService,
-		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
-		@IThemeService themeService: IThemeService,
-		@IPreferencesService private preferencesService: IPreferencesService,
-		@IModelService private modelService: IModelService,
-		@IModeService modeService: IModeService,
-		@ITextFileService textFileService: ITextFileService,
-		@IEditorGroupService editorGroupService: IEditorGroupService
-	) {
-		super(EditableSettingsEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, modeService, textFileService, editorGroupService);
-		this._register({ dispose: () => dispose(this.modelDisposables) });
-		this.saveDelayer = new Delayer<void>(1000);
-	}
-
-	protected createEditor(parent: Builder): void {
-		super.createEditor(parent);
-
-		const codeEditor = getCodeEditor(this);
-		if (codeEditor) {
-			this._register(codeEditor.onDidChangeModel(() => this.onDidModelChange()));
-		}
-	}
-
-	protected getAriaLabel(): string {
-		const input = this.input;
-		const inputName = input && input.getName();
-
-		let ariaLabel: string;
-		if (inputName) {
-			ariaLabel = nls.localize('fileEditorWithInputAriaLabel', "{0}. Text file editor.", inputName);
-		} else {
-			ariaLabel = nls.localize('fileEditorAriaLabel', "Text file editor.");
-		}
-
-		return ariaLabel;
-	}
-
-	setInput(input: EditorInput, options: EditorOptions): TPromise<void> {
-		return super.setInput(input, options)
-			.then(() => this.input.resolve()
-				.then(editorModel => editorModel.load())
-				.then(editorModel => this.getControl().setModel((<ResourceEditorModel>editorModel).textEditorModel)));
-	}
-
-	clearInput(): void {
-		this.modelDisposables = dispose(this.modelDisposables);
-		super.clearInput();
-	}
-
-	private onDidModelChange(): void {
-		this.modelDisposables = dispose(this.modelDisposables);
-		const model = getCodeEditor(this).getModel();
-		if (model) {
-			this.preferencesService.createPreferencesEditorModel(model.uri)
-				.then(preferencesEditorModel => {
-					const settingsEditorModel = <SettingsEditorModel>preferencesEditorModel;
-					this.modelDisposables.push(settingsEditorModel);
-					this.modelDisposables.push(model.onDidChangeContent(() => this.saveDelayer.trigger(() => settingsEditorModel.save())));
-				});
-		}
-	}
-}
-
 export class DefaultPreferencesEditor extends BaseTextEditor {
 
 	public static ID: string = 'workbench.editor.defaultPreferences';
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
-		@IPreferencesService private preferencesService: IPreferencesService,
-		@IModelService private modelService: IModelService,
-		@IModeService modeService: IModeService,
 		@ITextFileService textFileService: ITextFileService,
 		@IEditorGroupService editorGroupService: IEditorGroupService
 	) {
-		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, modeService, textFileService, editorGroupService);
+		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorGroupService);
 	}
 
 	public createEditorControl(parent: Builder, configuration: IEditorOptions): editorCommon.IEditor {
 		const editor = this.instantiationService.createInstance(DefaultPreferencesCodeEditor, parent.getHTMLElement(), configuration);
 
 		// Inform user about editor being readonly if user starts type
-		this.toUnbind.push(editor.onDidType(() => this.onDidType(editor)));
+		this.toUnbind.push(editor.onDidType(() => this.showReadonlyHint(editor)));
+		this.toUnbind.push(editor.onDidPaste(() => this.showReadonlyHint(editor)));
 
 		return editor;
 	}
 
-	private onDidType(editor: editorCommon.ICommonCodeEditor): void {
+	private showReadonlyHint(editor: ICodeEditor): void {
 		const messageController = MessageController.get(editor);
 		if (!messageController.isVisible()) {
 			messageController.showMessage(nls.localize('defaultEditorReadonly', "Edit in the right hand side editor to override defaults."), editor.getSelection().getPosition());
@@ -765,6 +834,14 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 				.then(editorModel => this.getControl().setModel((<ResourceEditorModel>editorModel).textEditorModel)));
 	}
 
+	public clearInput(): void {
+		// Clear Model
+		this.getControl().setModel(null);
+
+		// Pass to super
+		super.clearInput();
+	}
+
 	public layout(dimension: Dimension) {
 		this.getControl().layout(dimension);
 	}
@@ -792,7 +869,7 @@ interface ISettingsEditorContribution extends editorCommon.IEditorContribution {
 
 }
 
-abstract class AbstractSettingsEditorContribution extends Disposable {
+abstract class AbstractSettingsEditorContribution extends Disposable implements ISettingsEditorContribution {
 
 	private preferencesRendererCreationPromise: TPromise<IPreferencesRenderer<ISetting>>;
 
@@ -854,6 +931,7 @@ abstract class AbstractSettingsEditorContribution extends Disposable {
 					if (preferencesRenderer.associatedPreferencesModel) {
 						preferencesRenderer.associatedPreferencesModel.dispose();
 					}
+					preferencesRenderer.preferencesModel.dispose();
 					preferencesRenderer.dispose();
 				}
 			});
@@ -867,6 +945,7 @@ abstract class AbstractSettingsEditorContribution extends Disposable {
 	}
 
 	protected abstract _createPreferencesRenderer(): TPromise<IPreferencesRenderer<ISetting>>;
+	abstract getId(): string;
 }
 
 class DefaultSettingsEditorContribution extends AbstractSettingsEditorContribution implements ISettingsEditorContribution {
@@ -890,7 +969,6 @@ class DefaultSettingsEditorContribution extends AbstractSettingsEditorContributi
 	}
 }
 
-@editorContribution
 class SettingsEditorContribution extends AbstractSettingsEditorContribution implements ISettingsEditorContribution {
 
 	static ID: string = 'editor.contrib.settings';
@@ -910,16 +988,16 @@ class SettingsEditorContribution extends AbstractSettingsEditorContribution impl
 
 	protected _createPreferencesRenderer(): TPromise<IPreferencesRenderer<ISetting>> {
 		if (this.isSettingsModel()) {
-			return TPromise.join<any>([this.preferencesService.createPreferencesEditorModel(this.preferencesService.defaultSettingsResource), this.preferencesService.createPreferencesEditorModel(this.editor.getModel().uri)])
-				.then(([defaultSettingsModel, settingsModel]) => {
+			return this.preferencesService.createPreferencesEditorModel(this.editor.getModel().uri)
+				.then(settingsModel => {
 					if (settingsModel instanceof SettingsEditorModel && this.editor.getModel()) {
 						switch (settingsModel.configurationTarget) {
 							case ConfigurationTarget.USER:
-								return this.instantiationService.createInstance(UserSettingsRenderer, this.editor, settingsModel, defaultSettingsModel);
+								return this.instantiationService.createInstance(UserSettingsRenderer, this.editor, settingsModel);
 							case ConfigurationTarget.WORKSPACE:
-								return this.instantiationService.createInstance(WorkspaceSettingsRenderer, this.editor, settingsModel, defaultSettingsModel);
+								return this.instantiationService.createInstance(WorkspaceSettingsRenderer, this.editor, settingsModel);
 							case ConfigurationTarget.WORKSPACE_FOLDER:
-								return this.instantiationService.createInstance(FolderSettingsRenderer, this.editor, settingsModel, defaultSettingsModel);
+								return this.instantiationService.createInstance(FolderSettingsRenderer, this.editor, settingsModel);
 						}
 					}
 					return null;
@@ -959,6 +1037,8 @@ class SettingsEditorContribution extends AbstractSettingsEditorContribution impl
 	}
 
 }
+
+registerEditorContribution(SettingsEditorContribution);
 
 abstract class SettingsCommand extends Command {
 

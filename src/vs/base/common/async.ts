@@ -146,7 +146,7 @@ export class Throttler {
 // TODO@Joao: can the previous throttler be replaced with this?
 export class SimpleThrottler {
 
-	private current = TPromise.as<any>(null);
+	private current = TPromise.wrap<any>(null);
 
 	queue<T>(promiseTask: ITask<TPromise<T>>): TPromise<T> {
 		return this.current = this.current.then(() => promiseTask());
@@ -261,56 +261,34 @@ export class ThrottledDelayer<T> extends Delayer<TPromise<T>> {
 }
 
 /**
- * Similar to the ThrottledDelayer, except it also guarantees that the promise
- * factory doesn't get called more often than every `minimumPeriod` milliseconds.
+ * A barrier that is initially closed and then becomes opened permanently.
  */
-export class PeriodThrottledDelayer<T> extends ThrottledDelayer<T> {
+export class Barrier {
 
-	private minimumPeriod: number;
-	private periodThrottler: Throttler;
-
-	constructor(defaultDelay: number, minimumPeriod: number = 0) {
-		super(defaultDelay);
-
-		this.minimumPeriod = minimumPeriod;
-		this.periodThrottler = new Throttler();
-	}
-
-	trigger(promiseFactory: ITask<TPromise<T>>, delay?: number): Promise {
-		return super.trigger(() => {
-			return this.periodThrottler.queue(() => {
-				return Promise.join([
-					TPromise.timeout(this.minimumPeriod),
-					promiseFactory()
-				]).then(r => r[1]);
-			});
-		}, delay);
-	}
-}
-
-export class PromiseSource<T> {
-
-	private _value: TPromise<T>;
-	private _completeCallback: Function;
-	private _errorCallback: Function;
+	private _isOpen: boolean;
+	private _promise: TPromise<boolean>;
+	private _completePromise: (v: boolean) => void;
 
 	constructor() {
-		this._value = new TPromise<T>((c, e) => {
-			this._completeCallback = c;
-			this._errorCallback = e;
+		this._isOpen = false;
+		this._promise = new TPromise<boolean>((c, e, p) => {
+			this._completePromise = c;
+		}, () => {
+			console.warn('You should really not try to cancel this ready promise!');
 		});
 	}
 
-	get value(): TPromise<T> {
-		return this._value;
+	isOpen(): boolean {
+		return this._isOpen;
 	}
 
-	complete(value?: T): void {
-		this._completeCallback(value);
+	open(): void {
+		this._isOpen = true;
+		this._completePromise(true);
 	}
 
-	error(err?: any): void {
-		this._errorCallback(err);
+	wait(): TPromise<boolean> {
+		return this._promise;
 	}
 }
 
@@ -510,7 +488,7 @@ export class Queue<T> extends Limiter<T> {
  * A helper to organize queues per resource. The ResourceQueue makes sure to manage queues per resource
  * by disposing them once the queue is empty.
  */
-export class ResourceQueue<T> {
+export class ResourceQueue {
 	private queues: { [path: string]: Queue<void> };
 
 	constructor() {
@@ -640,13 +618,6 @@ export class RunOnceScheduler {
 	}
 
 	/**
-	 * Replace runner. If there is a runner already scheduled, the new runner will be called.
-	 */
-	setRunner(runner: () => void): void {
-		this.runner = runner;
-	}
-
-	/**
 	 * Cancel previous runner (if any) & schedule a new runner.
 	 */
 	schedule(delay = this.timeout): void {
@@ -672,11 +643,53 @@ export class RunOnceScheduler {
 export function nfcall(fn: Function, ...args: any[]): Promise;
 export function nfcall<T>(fn: Function, ...args: any[]): TPromise<T>;
 export function nfcall(fn: Function, ...args: any[]): any {
-	return new TPromise((c, e) => fn(...args, (err, result) => err ? e(err) : c(result)), () => null);
+	return new TPromise((c, e) => fn(...args, (err: any, result: any) => err ? e(err) : c(result)), () => null);
 }
 
 export function ninvoke(thisArg: any, fn: Function, ...args: any[]): Promise;
 export function ninvoke<T>(thisArg: any, fn: Function, ...args: any[]): TPromise<T>;
 export function ninvoke(thisArg: any, fn: Function, ...args: any[]): any {
-	return new TPromise((c, e) => fn.call(thisArg, ...args, (err, result) => err ? e(err) : c(result)), () => null);
+	return new TPromise((c, e) => fn.call(thisArg, ...args, (err: any, result: any) => err ? e(err) : c(result)), () => null);
+}
+
+/**
+ * An emitter that will ignore any events that occur during a specific code
+ * execution triggered via throttle() until the promise has finished (either
+ * successfully or with an error). Only after the promise has finished, the
+ * last event that was fired during the operation will get emitted.
+ *
+ */
+export class ThrottledEmitter<T> extends Emitter<T> {
+	private suspended: boolean;
+
+	private lastEvent: T;
+	private hasLastEvent: boolean;
+
+	public throttle<C>(promise: TPromise<C>): TPromise<C> {
+		this.suspended = true;
+
+		return always(promise, () => this.resume());
+	}
+
+	public fire(event?: T): any {
+		if (this.suspended) {
+			this.lastEvent = event;
+			this.hasLastEvent = true;
+
+			return;
+		}
+
+		return super.fire(event);
+	}
+
+	private resume(): void {
+		this.suspended = false;
+
+		if (this.hasLastEvent) {
+			this.fire(this.lastEvent);
+		}
+
+		this.hasLastEvent = false;
+		this.lastEvent = void 0;
+	}
 }

@@ -33,6 +33,7 @@
 	"openPreviousEditor": "開啟上一個編輯器",
 	"nextEditorInGroup": "開啟群組中下一個編輯器",
 	"openPreviousEditorInGroup": "開啟群組中上一個編輯器",
+	"lastEditorInGroup": "開啟群組中最後一個編輯器",
 	"navigateNext": "向前",
 	"navigatePrevious": "向後",
 	"navigateLast": "移至最後",

@@ -78,12 +78,12 @@ suite('languages namespace tests', () => {
 		});
 
 		return workspace.openTextDocument(uri).then(doc => {
-			return commands.executeCommand('vscode.executeCompletionItemProvider', uri, new Position(1, 0));
-		}).then((result: CompletionList) => {
+			return commands.executeCommand<CompletionList>('vscode.executeCompletionItemProvider', uri, new Position(1, 0));
+		}).then((result: CompletionList | undefined) => {
 			r1.dispose();
 			assert.ok(ran);
-			console.log(result.items);
-			assert.equal(result.items[0].label, 'foo');
+			console.log(result!.items);
+			assert.equal(result!.items[0].label, 'foo');
 		});
 	});
 });

@@ -20,6 +20,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorRegistry, Extensions as EditorExtensions, EditorDescriptor } from 'vs/workbench/browser/editor';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors)
 	.registerEditor(new EditorDescriptor(
@@ -37,10 +38,10 @@ Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(EditorWalkThroughInputFactory.ID, EditorWalkThroughInputFactory);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WalkThroughContentProvider);
+	.registerWorkbenchContribution(WalkThroughContentProvider, LifecyclePhase.Starting);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WalkThroughSnippetContentProvider);
+	.registerWorkbenchContribution(WalkThroughSnippetContentProvider, LifecyclePhase.Starting);
 
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
 	.registerWorkbenchAction(new SyncActionDescriptor(WalkThroughArrowUpAction, WalkThroughArrowUpAction.ID, WalkThroughArrowUpAction.LABEL, { primary: KeyCode.UpArrow }, ContextKeyExpr.and(WALK_THROUGH_FOCUS, EditorContextKeys.textFocus.toNegated())), 'Interactive Playground: Scroll Up (Line)', localize('interactivePlayground', "Interactive Playground"));

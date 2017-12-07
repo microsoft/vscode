@@ -51,6 +51,33 @@ suite('Polyfill Promise', function () {
 		});
 	});
 
+	test('sync-then, NativePromise', function () {
+		const actual: string[] = [];
+		const promise = Promise.resolve(123).then(() => actual.push('inThen'));
+		actual.push('afterThen');
+		return promise.then(() => {
+			assert.deepEqual(actual, ['afterThen', 'inThen']);
+		});
+	});
+
+	test('sync-then, WinJSPromise', function () {
+		const actual: string[] = [];
+		const promise = WinJSPromise.as(123).then(() => actual.push('inThen'));
+		actual.push('afterThen');
+		return promise.then(() => {
+			assert.deepEqual(actual, ['inThen', 'afterThen']);
+		});
+	});
+
+	test('sync-then, PolyfillPromise', function () {
+		const actual: string[] = [];
+		const promise = PolyfillPromise.resolve(123).then(() => actual.push('inThen'));
+		actual.push('afterThen');
+		return promise.then(() => {
+			assert.deepEqual(actual, ['afterThen', 'inThen']);
+		});
+	});
+
 	test('PolyfillPromise, executor has two params', function () {
 		return new PolyfillPromise(function () {
 			assert.equal(arguments.length, 2);
@@ -65,30 +92,30 @@ suite('Polyfill Promise', function () {
 	(<any[]>[Promise, PolyfillPromise]).forEach(PromiseCtor => {
 
 		test(PromiseCtor.name + ', resolved value', function () {
-			return new PromiseCtor(resolve => resolve(1)).then(value => assert.equal(value, 1));
+			return new PromiseCtor((resolve: Function) => resolve(1)).then((value: number) => assert.equal(value, 1));
 		});
 
 		test(PromiseCtor.name + ', rejected value', function () {
-			return new PromiseCtor((_, reject) => reject(1)).then(null, value => assert.equal(value, 1));
+			return new PromiseCtor((_: Function, reject: Function) => reject(1)).then(null, (value: number) => assert.equal(value, 1));
 		});
 
 		test(PromiseCtor.name + ', catch', function () {
-			return new PromiseCtor((_, reject) => reject(1)).catch(value => assert.equal(value, 1));
+			return new PromiseCtor((_: Function, reject: Function) => reject(1)).catch((value: number) => assert.equal(value, 1));
 		});
 
 		test(PromiseCtor.name + ', static-resolve', function () {
-			return PromiseCtor.resolve(42).then(value => assert.equal(value, 42));
+			return PromiseCtor.resolve(42).then((value: number) => assert.equal(value, 42));
 		});
 
 		test(PromiseCtor.name + ', static-reject', function () {
-			return PromiseCtor.reject(42).then(null, value => assert.equal(value, 42));
+			return PromiseCtor.reject(42).then(null, (value: number) => assert.equal(value, 42));
 		});
 
 		test(PromiseCtor.name + ', static-all, 1', function () {
 			return PromiseCtor.all([
 				PromiseCtor.resolve(1),
 				PromiseCtor.resolve(2)
-			]).then(values => {
+			]).then((values: number[]) => {
 				assert.deepEqual(values, [1, 2]);
 			});
 		});
@@ -98,7 +125,7 @@ suite('Polyfill Promise', function () {
 				PromiseCtor.resolve(1),
 				3,
 				PromiseCtor.resolve(2)
-			]).then(values => {
+			]).then((values: number[]) => {
 				assert.deepEqual(values, [1, 3, 2]);
 			});
 		});
@@ -108,7 +135,7 @@ suite('Polyfill Promise', function () {
 				PromiseCtor.resolve(1),
 				PromiseCtor.reject(13),
 				PromiseCtor.reject(12),
-			]).catch(values => {
+			]).catch((values: number) => {
 				assert.deepEqual(values, 13);
 			});
 		});
@@ -117,7 +144,7 @@ suite('Polyfill Promise', function () {
 			return PromiseCtor.race([
 				PromiseCtor.resolve(1),
 				PromiseCtor.resolve(2),
-			]).then(value => {
+			]).then((value: number) => {
 				assert.deepEqual(value, 1);
 			});
 		});
@@ -126,7 +153,7 @@ suite('Polyfill Promise', function () {
 			return PromiseCtor.race([
 				PromiseCtor.reject(-1),
 				PromiseCtor.resolve(2),
-			]).catch(value => {
+			]).catch((value: number) => {
 				assert.deepEqual(value, -1);
 			});
 		});
@@ -135,7 +162,7 @@ suite('Polyfill Promise', function () {
 			return PromiseCtor.race([
 				PromiseCtor.resolve(1),
 				PromiseCtor.reject(2),
-			]).then(value => {
+			]).then((value: number) => {
 				assert.deepEqual(value, 1);
 			});
 		});
@@ -143,7 +170,7 @@ suite('Polyfill Promise', function () {
 		test(PromiseCtor.name + ', throw in ctor', function () {
 			return new PromiseCtor(() => {
 				throw new Error('sooo bad');
-			}).catch(err => {
+			}).catch((err: Error) => {
 				assert.equal(err.message, 'sooo bad');
 			});
 		});

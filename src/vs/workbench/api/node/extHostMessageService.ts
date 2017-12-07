@@ -9,8 +9,7 @@ import vscode = require('vscode');
 import { MainContext, MainThreadMessageServiceShape, MainThreadMessageOptions, IMainContext } from './extHost.protocol';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
-
-function isMessageItem<T>(item: any): item is vscode.MessageItem {
+function isMessageItem(item: any): item is vscode.MessageItem {
 	return item && item.title;
 }
 

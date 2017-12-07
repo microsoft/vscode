@@ -11,5 +11,8 @@
 	"disable.title": "Devre Dışı Bırak",
 	"disable.description": "Tüm içeriğe ve betik yürütmeye izin ver. Tavsiye edilmez",
 	"moreInfo.title": "Daha Fazla Bilgi",
+	"enableSecurityWarning.title": "Bu çalışma alanında önizleme güvenlik uyarılarını etkinleştir",
+	"disableSecurityWarning.title": "Bu çalışma alanında önizleme güvenlik uyarılarını devre dışı bırak",
+	"toggleSecurityWarning.description": "İçerik güvenlik seviyesini etkilemez",
 	"preview.showPreviewSecuritySelector.title": "Bu çalışma alanında Markdown önizlemeleri için güvenlik ayarlarını seçin"
 }

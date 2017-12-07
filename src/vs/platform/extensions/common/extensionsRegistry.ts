@@ -11,6 +11,7 @@ import Severity from 'vs/base/common/severity';
 import { IMessage, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const schemaRegistry = <IJSONContributionRegistry>Registry.as(Extensions.JSONContribution);
@@ -199,6 +200,16 @@ const schema: IJSONSchema = {
 						body: 'onDebug'
 					},
 					{
+						label: 'onDebugInitialConfigurations',
+						description: nls.localize('vscode.extension.activationEvents.onDebugInitialConfigurations', 'An activation event emitted whenever a "launch.json" needs to be created (and all provideDebugConfigurations methods need to be called).'),
+						body: 'onDebugInitialConfigurations'
+					},
+					{
+						label: 'onDebugResolve',
+						description: nls.localize('vscode.extension.activationEvents.onDebugResolve', 'An activation event emitted whenever a debug session with the specific type is about to be launched (and a corresponding resolveDebugConfiguration method needs to be called).'),
+						body: 'onDebugResolve:${6:type}'
+					},
+					{
 						label: 'workspaceContains',
 						description: nls.localize('vscode.extension.activationEvents.workspaceContains', 'An activation event emitted whenever a folder is opened that contains at least a file matching the specified glob pattern.'),
 						body: 'workspaceContains:${4:filePattern}'
@@ -243,7 +254,8 @@ const schema: IJSONSchema = {
 			type: 'array',
 			uniqueItems: true,
 			items: {
-				type: 'string'
+				type: 'string',
+				pattern: EXTENSION_IDENTIFIER_PATTERN
 			}
 		},
 		scripts: {

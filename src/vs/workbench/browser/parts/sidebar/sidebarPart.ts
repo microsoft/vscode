@@ -29,10 +29,11 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND, SIDE_BAR_BORDER } from 'vs/workbench/common/theme';
 import { ToggleSidebarVisibilityAction } from 'vs/workbench/browser/actions/toggleSidebarVisibility';
+import { Dimension } from 'vs/base/browser/builder';
 
 export class SidebarPart extends CompositePart<Viewlet> {
 
-	public static activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
+	public static readonly activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
 
 	public _serviceBrand: any;
 
@@ -103,7 +104,7 @@ export class SidebarPart extends CompositePart<Viewlet> {
 		}
 
 		// First check if sidebar is hidden and show if so
-		let promise = TPromise.as<void>(null);
+		let promise = TPromise.wrap<void>(null);
 		if (!this.partService.isVisible(Parts.SIDEBAR_PART)) {
 			try {
 				this.blockOpeningViewlet = true;
@@ -128,6 +129,14 @@ export class SidebarPart extends CompositePart<Viewlet> {
 		return this.hideActiveComposite().then(composite => void 0);
 	}
 
+	public layout(dimension: Dimension): Dimension[] {
+		if (!this.partService.isVisible(Parts.SIDEBAR_PART)) {
+			return [dimension];
+		}
+
+		return super.layout(dimension);
+	}
+
 	protected getTitleAreaContextMenuActions(): IAction[] {
 		const contextMenuActions = super.getTitleAreaContextMenuActions();
 		if (contextMenuActions.length) {
@@ -150,8 +159,8 @@ export class SidebarPart extends CompositePart<Viewlet> {
 
 class FocusSideBarAction extends Action {
 
-	public static ID = 'workbench.action.focusSideBar';
-	public static LABEL = nls.localize('focusSideBar', "Focus into Side Bar");
+	public static readonly ID = 'workbench.action.focusSideBar';
+	public static readonly LABEL = nls.localize('focusSideBar', "Focus into Side Bar");
 
 	constructor(
 		id: string,

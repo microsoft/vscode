@@ -30,8 +30,8 @@ export class FileService implements IFileService {
 	public _serviceBrand: any;
 
 	// If we run with .NET framework < 4.5, we need to detect this error to inform the user
-	private static NET_VERSION_ERROR = 'System.MissingMethodException';
-	private static NET_VERSION_ERROR_IGNORE_KEY = 'ignoreNetVersionError';
+	private static readonly NET_VERSION_ERROR = 'System.MissingMethodException';
+	private static readonly NET_VERSION_ERROR_IGNORE_KEY = 'ignoreNetVersionError';
 
 	private raw: IFileService;
 
@@ -57,7 +57,7 @@ export class FileService implements IFileService {
 		this._onAfterOperation = new Emitter<FileOperationEvent>();
 		this.toUnbind.push(this._onAfterOperation);
 
-		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
+		const configuration = this.configurationService.getValue<IFilesConfiguration>();
 
 		let watcherIgnoredPatterns: string[] = [];
 		if (configuration.files && configuration.files.watcherExclude) {
@@ -74,7 +74,7 @@ export class FileService implements IFileService {
 		};
 
 		// create service
-		this.raw = new NodeFileService(contextService, textResourceConfigurationService, configurationService, fileServiceConfig);
+		this.raw = new NodeFileService(contextService, textResourceConfigurationService, configurationService, lifecycleService, fileServiceConfig);
 
 		// Listeners
 		this.registerListeners();
@@ -89,6 +89,8 @@ export class FileService implements IFileService {
 	}
 
 	private onFileServiceError(msg: string): void {
+
+		// Forward to unexpected error handler
 		errors.onUnexpectedError(msg);
 
 		// Detect if we run < .NET Framework 4.5
@@ -143,8 +145,8 @@ export class FileService implements IFileService {
 	}
 
 	private onConfigurationChange(event: IConfigurationChangeEvent): void {
-		if (event.affectsConfiguration('files')) {
-			this.updateOptions(this.configurationService.getConfiguration<IFilesConfiguration>('files'));
+		if (event.affectsConfiguration('files.useExperimentalFileWatcher')) {
+			this.updateOptions({ useExperimentalFileWatcher: this.configurationService.getValue<boolean>('files.useExperimentalFileWatcher') });
 		}
 	}
 

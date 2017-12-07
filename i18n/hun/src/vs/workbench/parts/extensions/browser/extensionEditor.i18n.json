@@ -6,9 +6,11 @@
 {
 	"name": "Kiegészítő neve",
 	"extension id": "Kiegészítő azonosítója",
+	"preview": "Betekintő",
 	"publisher": "Kiadó neve",
 	"install count": "Telepítések száma",
 	"rating": "Értékelés",
+	"repository": "Forráskódtár",
 	"license": "Licenc",
 	"details": "Részletek",
 	"contributions": "Szolgáltatások",

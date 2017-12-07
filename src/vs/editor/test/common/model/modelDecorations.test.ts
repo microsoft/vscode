@@ -1154,7 +1154,6 @@ suite('deltaDecorations', () => {
 
 		assert.equal(initialIds.length, decorations.length, 'returns expected cnt of ids');
 		assert.equal(initialIds.length, model.getAllDecorations().length, 'does not leak decorations');
-		assert.equal(initialIds.length, model._getTrackedRangesCount(), 'does not leak tracked ranges');
 		actualDecorations.sort((a, b) => strcmp(a.id, b.id));
 		decorations.sort((a, b) => strcmp(a.id, b.id));
 		assert.deepEqual(actualDecorations, decorations);
@@ -1164,7 +1163,6 @@ suite('deltaDecorations', () => {
 
 		assert.equal(newIds.length, newDecorations.length, 'returns expected cnt of ids');
 		assert.equal(newIds.length, model.getAllDecorations().length, 'does not leak decorations');
-		assert.equal(newIds.length, model._getTrackedRangesCount(), 'does not leak tracked ranges');
 		actualNewDecorations.sort((a, b) => strcmp(a.id, b.id));
 		newDecorations.sort((a, b) => strcmp(a.id, b.id));
 		assert.deepEqual(actualDecorations, decorations);

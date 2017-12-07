@@ -5,7 +5,6 @@
 'use strict';
 
 import { Position } from 'vs/editor/common/core/position';
-import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
@@ -79,7 +78,7 @@ export interface IViewModelLinesCollection {
 
 	getViewLineCount(): number;
 	warmUpLookupCache(viewStartLineNumber: number, viewEndLineNumber: number): void;
-	getViewLineIndentGuide(viewLineNumber: number): number;
+	getViewLinesIndentGuides(viewStartLineNumber: number, viewEndLineNumber: number): number[];
 	getViewLineContent(viewLineNumber: number): string;
 	getViewLineMinColumn(viewLineNumber: number): number;
 	getViewLineMaxColumn(viewLineNumber: number): number;
@@ -110,12 +109,6 @@ export class CoordinatesConverter implements ICoordinatesConverter {
 		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
 	}
 
-	public convertViewSelectionToModelSelection(viewSelection: Selection): Selection {
-		let selectionStart = this._lines.convertViewPositionToModelPosition(viewSelection.selectionStartLineNumber, viewSelection.selectionStartColumn);
-		let position = this._lines.convertViewPositionToModelPosition(viewSelection.positionLineNumber, viewSelection.positionColumn);
-		return new Selection(selectionStart.lineNumber, selectionStart.column, position.lineNumber, position.column);
-	}
-
 	public validateViewPosition(viewPosition: Position, expectedModelPosition: Position): Position {
 		return this._lines.validateViewPosition(viewPosition.lineNumber, viewPosition.column, expectedModelPosition);
 	}
@@ -136,12 +129,6 @@ export class CoordinatesConverter implements ICoordinatesConverter {
 		let start = this._lines.convertModelPositionToViewPosition(modelRange.startLineNumber, modelRange.startColumn);
 		let end = this._lines.convertModelPositionToViewPosition(modelRange.endLineNumber, modelRange.endColumn);
 		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
-	}
-
-	public convertModelSelectionToViewSelection(modelSelection: Selection): Selection {
-		let selectionStart = this._lines.convertModelPositionToViewPosition(modelSelection.selectionStartLineNumber, modelSelection.selectionStartColumn);
-		let position = this._lines.convertModelPositionToViewPosition(modelSelection.positionLineNumber, modelSelection.positionColumn);
-		return new Selection(selectionStart.lineNumber, selectionStart.column, position.lineNumber, position.column);
 	}
 
 	public modelPositionIsVisible(modelPosition: Position): boolean {
@@ -499,11 +486,63 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		this.prefixSumComputer.warmUpCache(viewStartLineNumber - 1, viewEndLineNumber - 1);
 	}
 
-	public getViewLineIndentGuide(viewLineNumber: number): number {
+	public getViewLinesIndentGuides(viewStartLineNumber: number, viewEndLineNumber: number): number[] {
 		this._ensureValidState();
-		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
-		let r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
-		return this.model.getLineIndentGuide(r.index + 1);
+		viewStartLineNumber = this._toValidViewLineNumber(viewStartLineNumber);
+		viewEndLineNumber = this._toValidViewLineNumber(viewEndLineNumber);
+
+		const modelStart = this.convertViewPositionToModelPosition(viewStartLineNumber, this.getViewLineMinColumn(viewStartLineNumber));
+		const modelEnd = this.convertViewPositionToModelPosition(viewEndLineNumber, this.getViewLineMaxColumn(viewEndLineNumber));
+
+		let result: number[] = [];
+		let resultRepeatCount: number[] = [];
+		const modelStartLineIndex = modelStart.lineNumber - 1;
+		const modelEndLineIndex = modelEnd.lineNumber - 1;
+
+		let reqStart: Position = null;
+		for (let modelLineIndex = modelStartLineIndex; modelLineIndex <= modelEndLineIndex; modelLineIndex++) {
+			const line = this.lines[modelLineIndex];
+			if (line.isVisible()) {
+				let count = 0;
+				if (modelLineIndex === modelStartLineIndex) {
+					let viewLineStartIndex = line.getViewLineNumberOfModelPosition(0, modelStart.column);
+					let viewLineEndIndex = line.getViewLineNumberOfModelPosition(0, this.model.getLineMaxColumn(modelLineIndex + 1));
+					count = viewLineEndIndex - viewLineStartIndex + 1;
+				} else {
+					let viewLineStartIndex = line.getViewLineNumberOfModelPosition(0, 1);
+					let viewLineEndIndex = line.getViewLineNumberOfModelPosition(0, this.model.getLineMaxColumn(modelLineIndex + 1));
+					count = viewLineEndIndex - viewLineStartIndex + 1;
+				}
+				resultRepeatCount.push(count);
+				// merge into previous request
+				if (reqStart === null) {
+					reqStart = new Position(modelLineIndex + 1, 0);
+				}
+			} else {
+				// hit invisible line => flush request
+				if (reqStart !== null) {
+					result = result.concat(this.model.getLinesIndentGuides(reqStart.lineNumber, modelLineIndex));
+					reqStart = null;
+				}
+			}
+		}
+
+		if (reqStart !== null) {
+			result = result.concat(this.model.getLinesIndentGuides(reqStart.lineNumber, modelEnd.lineNumber));
+			reqStart = null;
+		}
+
+		const viewLineCount = viewEndLineNumber - viewStartLineNumber + 1;
+		let viewIndents = new Array<number>(viewLineCount);
+		let currIndex = 0;
+		for (let i = 0, len = result.length; i < len; i++) {
+			let value = result[i];
+			let count = Math.min(viewLineCount - currIndex, resultRepeatCount[i]);
+			for (let j = 0; j < count; j++) {
+				viewIndents[currIndex++] = value;
+			}
+		}
+		return viewIndents;
 	}
 
 	public getViewLineContent(viewLineNumber: number): string {
@@ -720,14 +759,15 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 			} else {
 				// hit invisible line => flush request
 				if (reqStart !== null) {
-					result = result.concat(this.model.getDecorationsInRange(new Range(reqStart.lineNumber, reqStart.column, modelLineIndex + 1, 1)));
+					const maxLineColumn = this.model.getLineMaxColumn(modelLineIndex);
+					result = result.concat(this.model.getDecorationsInRange(new Range(reqStart.lineNumber, reqStart.column, modelLineIndex, maxLineColumn), ownerId, filterOutValidation));
 					reqStart = null;
 				}
 			}
 		}
 
 		if (reqStart !== null) {
-			result = result.concat(this.model.getDecorationsInRange(new Range(reqStart.lineNumber, reqStart.column, modelEnd.lineNumber, modelEnd.column)));
+			result = result.concat(this.model.getDecorationsInRange(new Range(reqStart.lineNumber, reqStart.column, modelEnd.lineNumber, modelEnd.column), ownerId, filterOutValidation));
 			reqStart = null;
 		}
 
@@ -737,7 +777,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 
 class VisibleIdentitySplitLine implements ISplitLine {
 
-	public static INSTANCE = new VisibleIdentitySplitLine();
+	public static readonly INSTANCE = new VisibleIdentitySplitLine();
 
 	private constructor() { }
 
@@ -802,7 +842,7 @@ class VisibleIdentitySplitLine implements ISplitLine {
 
 class InvisibleIdentitySplitLine implements ISplitLine {
 
-	public static INSTANCE = new InvisibleIdentitySplitLine();
+	public static readonly INSTANCE = new InvisibleIdentitySplitLine();
 
 	private constructor() { }
 
@@ -1044,12 +1084,6 @@ export class IdentityCoordinatesConverter implements ICoordinatesConverter {
 		return this._lines.model.validateRange(range);
 	}
 
-	private _validSelection(selection: Selection): Selection {
-		let selectionStart = this._validPosition(new Position(selection.selectionStartLineNumber, selection.selectionStartColumn));
-		let position = this._validPosition(new Position(selection.positionLineNumber, selection.positionColumn));
-		return new Selection(selectionStart.lineNumber, selectionStart.column, position.lineNumber, position.column);
-	}
-
 	// View -> Model conversion and related methods
 
 	public convertViewPositionToModelPosition(viewPosition: Position): Position {
@@ -1058,10 +1092,6 @@ export class IdentityCoordinatesConverter implements ICoordinatesConverter {
 
 	public convertViewRangeToModelRange(viewRange: Range): Range {
 		return this._validRange(viewRange);
-	}
-
-	public convertViewSelectionToModelSelection(viewSelection: Selection): Selection {
-		return this._validSelection(viewSelection);
 	}
 
 	public validateViewPosition(viewPosition: Position, expectedModelPosition: Position): Position {
@@ -1080,10 +1110,6 @@ export class IdentityCoordinatesConverter implements ICoordinatesConverter {
 
 	public convertModelRangeToViewRange(modelRange: Range): Range {
 		return this._validRange(modelRange);
-	}
-
-	public convertModelSelectionToViewSelection(modelSelection: Selection): Selection {
-		return this._validSelection(modelSelection);
 	}
 
 	public modelPositionIsVisible(modelPosition: Position): boolean {
@@ -1149,8 +1175,13 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 	public warmUpLookupCache(viewStartLineNumber: number, viewEndLineNumber: number): void {
 	}
 
-	public getViewLineIndentGuide(viewLineNumber: number): number {
-		return 0;
+	public getViewLinesIndentGuides(viewStartLineNumber: number, viewEndLineNumber: number): number[] {
+		const viewLineCount = viewEndLineNumber - viewStartLineNumber + 1;
+		let result = new Array<number>(viewLineCount);
+		for (let i = 0; i < viewLineCount; i++) {
+			result[i] = 0;
+		}
+		return result;
 	}
 
 	public getViewLineContent(viewLineNumber: number): string {

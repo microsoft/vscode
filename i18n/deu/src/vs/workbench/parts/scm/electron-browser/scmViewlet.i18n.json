@@ -6,7 +6,6 @@
 {
 	"scm providers": "Quellcodeanbieter",
 	"hideRepository": "Ausblenden",
-	"commitMessage": "Message (press {0} to commit)",
 	"installAdditionalSCMProviders": "Installiere weiter SCM Provider...",
 	"no open repo": "Es gibt keine aktiven Quellcodeanbieter.",
 	"source control": "Quellcodeverwaltung",

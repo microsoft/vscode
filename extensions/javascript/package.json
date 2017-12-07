@@ -95,7 +95,7 @@
       },
       {
         "language": "javascriptreact",
-        "path": "./snippets/javascriptreact.json"
+        "path": "./snippets/javascript.json"
       }
     ],
     "jsonValidation": [
@@ -113,6 +113,10 @@
       },
       {
         "fileMatch": ".babelrc",
+        "url": "http://json.schemastore.org/babelrc"
+      },
+      {
+        "fileMatch": ".babelrc.json",
         "url": "http://json.schemastore.org/babelrc"
       },
       {

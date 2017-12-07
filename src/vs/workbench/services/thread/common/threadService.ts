@@ -23,6 +23,7 @@ export interface IThreadService {
 
 export class ProxyIdentifier<T> {
 	_proxyIdentifierBrand: void;
+	_suppressCompilerUnusedWarning: T;
 
 	isMain: boolean;
 	id: string;

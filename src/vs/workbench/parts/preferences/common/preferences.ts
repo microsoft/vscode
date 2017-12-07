@@ -9,11 +9,26 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditor, Position, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IModel } from 'vs/editor/common/editorCommon';
 import { IKeybindingItemEntry } from 'vs/workbench/parts/preferences/common/keybindingsEditorModel';
 import { IRange } from 'vs/editor/common/core/range';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { join } from 'vs/base/common/paths';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import Event from 'vs/base/common/event';
+
+export interface IWorkbenchSettingsConfiguration {
+	workbench: {
+		settings: {
+			openDefaultSettings: boolean;
+			naturalLanguageSearchEndpoint: string;
+			naturalLanguageSearchKey: string;
+			naturalLanguageSearchAutoIngestFeedback: boolean;
+			enableNaturalLanguageSearch: boolean;
+			enableNaturalLanguageSearchFeedback: boolean;
+		}
+	};
+}
 
 export interface ISettingsGroup {
 	id: string;
@@ -42,22 +57,43 @@ export interface ISetting {
 }
 
 export interface IFilterResult {
+	query: string;
 	filteredGroups: ISettingsGroup[];
 	allGroups: ISettingsGroup[];
 	matches: IRange[];
+	fuzzySearchAvailable?: boolean;
+	metadata?: IFilterMetadata;
+}
+
+export interface IScoredResults {
+	[key: string]: number;
+}
+
+export interface IFilterMetadata {
+	remoteUrl: string;
+	timestamp: number;
+	duration: number;
+	scoredResults: IScoredResults;
+
+	/** The name of the server that actually served the request */
+	context: string;
 }
 
 export interface IPreferencesEditorModel<T> {
 	uri: URI;
-	content: string;
 	getPreference(key: string): T;
 	dispose(): void;
 }
 
+export type IGroupFilter = (group: ISettingsGroup) => boolean;
+export type ISettingMatcher = (setting: ISetting) => IRange[];
+
 export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> {
+	readonly onDidChangeGroups: Event<void>;
 	settingsGroups: ISettingsGroup[];
 	groupsTerms: string[];
-	filterSettings(filter: string): IFilterResult;
+	filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher, mostRelevantSettings?: string[]): IFilterResult;
+	findValueMatches(filter: string, setting: ISetting): IRange[];
 }
 
 export interface IKeybindingsEditorModel<T> extends IPreferencesEditorModel<T> {
@@ -68,15 +104,14 @@ export const IPreferencesService = createDecorator<IPreferencesService>('prefere
 export interface IPreferencesService {
 	_serviceBrand: any;
 
-	defaultSettingsResource: URI;
-	defaultResourceSettingsResource: URI;
 	userSettingsResource: URI;
 	workspaceSettingsResource: URI;
 	getFolderSettingsResource(resource: URI): URI;
 
-	resolveContent(uri: URI): TPromise<string>;
+	resolveModel(uri: URI): TPromise<IModel>;
 	createPreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;
 
+	openRawDefaultSettings(): TPromise<void>;
 	openGlobalSettings(options?: IEditorOptions, position?: Position): TPromise<IEditor>;
 	openWorkspaceSettings(options?: IEditorOptions, position?: Position): TPromise<IEditor>;
 	openFolderSettings(folder: URI, options?: IEditorOptions, position?: Position): TPromise<IEditor>;
@@ -112,6 +147,27 @@ export function getSettingsTargetName(target: ConfigurationTarget, resource: URI
 			return folder ? folder.name : '';
 	}
 	return '';
+}
+
+export interface IEndpointDetails {
+	urlBase: string;
+	key?: string;
+}
+
+export const IPreferencesSearchService = createDecorator<IPreferencesSearchService>('preferencesSearchService');
+
+export interface IPreferencesSearchService {
+	_serviceBrand: any;
+
+	remoteSearchAllowed: boolean;
+	endpoint: IEndpointDetails;
+	onRemoteSearchEnablementChanged: Event<boolean>;
+
+	startSearch(filter: string, remote: boolean): IPreferencesSearchModel;
+}
+
+export interface IPreferencesSearchModel {
+	filterPreferences(preferencesModel: ISettingsEditorModel): TPromise<IFilterResult>;
 }
 
 export const CONTEXT_SETTINGS_EDITOR = new RawContextKey<boolean>('inSettingsEditor', false);

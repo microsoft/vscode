@@ -30,7 +30,7 @@
 	"openRecent": "Apri recenti...",
 	"quickOpenRecent": "Apertura rapida recenti...",
 	"closeMessages": "Chiudi messaggi di notifica",
-	"reportIssues": "Segnala problemi",
+	"reportIssueInEnglish": "Segnala problema",
 	"reportPerformanceIssue": "Segnala problema di prestazioni",
 	"keybindingsReference": "Riferimento per tasti di scelta rapida",
 	"openDocumentationUrl": "Documentazione",
@@ -47,5 +47,14 @@
 	"showNextWindowTab": "Visualizza scheda della finestra successiva",
 	"moveWindowTabToNewWindow": "Sposta scheda della finestra in una nuova finestra",
 	"mergeAllWindowTabs": "Unisci tutte le finestre",
-	"toggleWindowTabsBar": "Attiva/Disattiva barra delle schede delle finestre"
+	"toggleWindowTabsBar": "Attiva/Disattiva barra delle schede delle finestre",
+	"configureLocale": "Configura lingua",
+	"displayLanguage": "Definisce la lingua visualizzata di VSCode.",
+	"doc": "Per un elenco delle lingue supportate, vedere {0}.",
+	"restart": "Se si modifica il valore, è necessario riavviare VSCode.",
+	"fail.createSettings": "Non è possibile creare '{0}' ({1}).",
+	"debug": "Debug",
+	"info": "Informazioni",
+	"warn": "Avviso",
+	"err": "Errore"
 }

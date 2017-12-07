@@ -27,10 +27,10 @@ var NO_OP_TOKENS_ADJUSTER: ITokensAdjuster = {
 
 /**
  * Returns:
- *  - 0 => the line consists of whitespace
- *  - otherwise => the indent level is returned value - 1
+ *  - -1 => the line consists of whitespace
+ *  - otherwise => the indent level is returned value
  */
-function computePlusOneIndentLevel(line: string, tabSize: number): number {
+export function computeIndentLevel(line: string, tabSize: number): number {
 	let indent = 0;
 	let i = 0;
 	let len = line.length;
@@ -48,10 +48,10 @@ function computePlusOneIndentLevel(line: string, tabSize: number): number {
 	}
 
 	if (i === len) {
-		return 0; // line only consists of whitespace
+		return -1; // line only consists of whitespace
 	}
 
-	return indent + 1;
+	return indent;
 }
 
 export interface IModelLine {
@@ -66,14 +66,10 @@ export interface IModelLine {
 	getTokens(topLevelLanguageId: LanguageId): LineTokens;
 	setTokens(topLevelLanguageId: LanguageId, tokens: Uint32Array): void;
 
-	// --- indentation
-	updateTabSize(tabSize: number): void;
-	getIndentLevel(): number;
-
 	// --- editing
-	applyEdits(edits: ILineEdit[], tabSize: number): number;
-	append(other: IModelLine, tabSize: number): void;
-	split(splitColumn: number, tabSize: number): IModelLine;
+	applyEdits(edits: ILineEdit[]): number;
+	append(other: IModelLine): void;
+	split(splitColumn: number): IModelLine;
 }
 
 export abstract class AbstractModelLine {
@@ -84,13 +80,13 @@ export abstract class AbstractModelLine {
 	///
 
 	public abstract get text(): string;
-	protected abstract _setText(text: string, tabSize: number): void;
+	protected abstract _setText(text: string): void;
 	protected abstract _createTokensAdjuster(): ITokensAdjuster;
-	protected abstract _createModelLine(text: string, tabSize: number): IModelLine;
+	protected abstract _createModelLine(text: string): IModelLine;
 
 	///
 
-	public applyEdits(edits: ILineEdit[], tabSize: number): number {
+	public applyEdits(edits: ILineEdit[]): number {
 		let deltaColumn = 0;
 		let resultText = this.text;
 
@@ -133,21 +129,21 @@ export abstract class AbstractModelLine {
 		tokensAdjuster.finish(deltaColumn, resultText.length);
 
 		// Save the resulting text
-		this._setText(resultText, tabSize);
+		this._setText(resultText);
 
 		return deltaColumn;
 	}
 
-	public split(splitColumn: number, tabSize: number): IModelLine {
+	public split(splitColumn: number): IModelLine {
 		const myText = this.text.substring(0, splitColumn - 1);
 		const otherText = this.text.substring(splitColumn - 1);
 
-		this._setText(myText, tabSize);
-		return this._createModelLine(otherText, tabSize);
+		this._setText(myText);
+		return this._createModelLine(otherText);
 	}
 
-	public append(other: IModelLine, tabSize: number): void {
-		this._setText(this.text + other.text, tabSize);
+	public append(other: IModelLine): void {
+		this._setText(this.text + other.text);
 	}
 }
 
@@ -156,59 +152,33 @@ export class ModelLine extends AbstractModelLine implements IModelLine {
 	private _text: string;
 	public get text(): string { return this._text; }
 
-	/**
-	 * bits 31 - 1 => indentLevel
-	 * bit 0 => isInvalid
-	 */
-	private _metadata: number;
+	private _isInvalid: boolean;
 
 	public isInvalid(): boolean {
-		return (this._metadata & 0x00000001) ? true : false;
+		return this._isInvalid;
 	}
 
 	public setIsInvalid(isInvalid: boolean): void {
-		this._metadata = (this._metadata & 0xfffffffe) | (isInvalid ? 1 : 0);
-	}
-
-	/**
-	 * Returns:
-	 *  - -1 => the line consists of whitespace
-	 *  - otherwise => the indent level is returned value
-	 */
-	public getIndentLevel(): number {
-		return ((this._metadata & 0xfffffffe) >> 1) - 1;
-	}
-
-	private _setPlusOneIndentLevel(value: number): void {
-		this._metadata = (this._metadata & 0x00000001) | ((value & 0xefffffff) << 1);
-	}
-
-	public updateTabSize(tabSize: number): void {
-		if (tabSize === 0) {
-			// don't care mark
-			this._metadata = this._metadata & 0x00000001;
-		} else {
-			this._setPlusOneIndentLevel(computePlusOneIndentLevel(this._text, tabSize));
-		}
+		this._isInvalid = isInvalid;
 	}
 
 	private _state: IState;
 	private _lineTokens: ArrayBuffer;
 
-	constructor(text: string, tabSize: number) {
+	constructor(text: string) {
 		super();
-		this._metadata = 0;
-		this._setText(text, tabSize);
+		this._isInvalid = false;
+		this._setText(text);
 		this._state = null;
 		this._lineTokens = null;
 	}
 
-	protected _createModelLine(text: string, tabSize: number): IModelLine {
-		return new ModelLine(text, tabSize);
+	protected _createModelLine(text: string): IModelLine {
+		return new ModelLine(text);
 	}
 
-	public split(splitColumn: number, tabSize: number): IModelLine {
-		let result = super.split(splitColumn, tabSize);
+	public split(splitColumn: number): IModelLine {
+		let result = super.split(splitColumn);
 
 		// Mark overflowing tokens for deletion & delete marked tokens
 		this._deleteMarkedTokens(this._markOverflowingTokensForDeletion(0, this.text.length));
@@ -216,10 +186,10 @@ export class ModelLine extends AbstractModelLine implements IModelLine {
 		return result;
 	}
 
-	public append(other: IModelLine, tabSize: number): void {
+	public append(other: IModelLine): void {
 		let thisTextLength = this.text.length;
 
-		super.append(other, tabSize);
+		super.append(other);
 
 		if (other instanceof ModelLine) {
 			let otherRawTokens = other._lineTokens;
@@ -424,20 +394,14 @@ export class ModelLine extends AbstractModelLine implements IModelLine {
 		this._lineTokens = newTokens.buffer;
 	}
 
-	protected _setText(text: string, tabSize: number): void {
+	protected _setText(text: string): void {
 		this._text = text;
-		if (tabSize === 0) {
-			// don't care mark
-			this._metadata = this._metadata & 0x00000001;
-		} else {
-			this._setPlusOneIndentLevel(computePlusOneIndentLevel(text, tabSize));
-		}
 	}
 
 }
 
 /**
- * A model line that cannot store any tokenization state, nor does it compute indentation levels.
+ * A model line that cannot store any tokenization state.
  * It has no fields except the text.
  */
 export class MinimalModelLine extends AbstractModelLine implements IModelLine {
@@ -452,33 +416,21 @@ export class MinimalModelLine extends AbstractModelLine implements IModelLine {
 	public setIsInvalid(isInvalid: boolean): void {
 	}
 
-	/**
-	 * Returns:
-	 *  - -1 => the line consists of whitespace
-	 *  - otherwise => the indent level is returned value
-	 */
-	public getIndentLevel(): number {
-		return 0;
-	}
-
-	public updateTabSize(tabSize: number): void {
-	}
-
-	constructor(text: string, tabSize: number) {
+	constructor(text: string) {
 		super();
-		this._setText(text, tabSize);
+		this._setText(text);
 	}
 
-	protected _createModelLine(text: string, tabSize: number): IModelLine {
-		return new MinimalModelLine(text, tabSize);
+	protected _createModelLine(text: string): IModelLine {
+		return new MinimalModelLine(text);
 	}
 
-	public split(splitColumn: number, tabSize: number): IModelLine {
-		return super.split(splitColumn, tabSize);
+	public split(splitColumn: number): IModelLine {
+		return super.split(splitColumn);
 	}
 
-	public append(other: IModelLine, tabSize: number): void {
-		super.append(other, tabSize);
+	public append(other: IModelLine): void {
+		super.append(other);
 	}
 
 	// --- BEGIN STATE
@@ -514,7 +466,7 @@ export class MinimalModelLine extends AbstractModelLine implements IModelLine {
 		return NO_OP_TOKENS_ADJUSTER;
 	}
 
-	protected _setText(text: string, tabSize: number): void {
+	protected _setText(text: string): void {
 		this._text = text;
 	}
 }

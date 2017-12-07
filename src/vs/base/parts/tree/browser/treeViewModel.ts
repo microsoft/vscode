@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { INextIterator, ArrayIterator } from 'vs/base/common/iterator';
 import { Item } from './treeModel';
 
@@ -13,14 +12,12 @@ export interface IViewItem {
 	height: number;
 }
 
-export class HeightMap extends EventEmitter {
+export class HeightMap {
 
 	private heightMap: IViewItem[];
 	private indexes: { [item: string]: number; };
 
 	constructor() {
-		super();
-
 		this.heightMap = [];
 		this.indexes = {};
 	}
@@ -59,7 +56,6 @@ export class HeightMap extends EventEmitter {
 		while (item = iterator.next()) {
 			viewItem = this.createViewItem(item);
 			viewItem.top = totalSize + sizeDiff;
-			this.emit('viewItem:create', { item: viewItem.model });
 
 			this.indexes[item.id] = i++;
 			itemsToInsert.push(viewItem);

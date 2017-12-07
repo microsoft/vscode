@@ -26,10 +26,10 @@ import { IConstructorSignature0, IInstantiationService } from 'vs/platform/insta
  * layout and focus call, but only one create and dispose call.
  */
 export abstract class Composite extends Component implements IComposite {
-	private _telemetryData: any = {};
+	private _onTitleAreaUpdate: Emitter<void>;
+
 	private visible: boolean;
 	private parent: Builder;
-	private _onTitleAreaUpdate: Emitter<void>;
 
 	protected actionRunner: IActionRunner;
 
@@ -99,42 +99,6 @@ export abstract class Composite extends Component implements IComposite {
 	 */
 	public setVisible(visible: boolean): TPromise<void> {
 		this.visible = visible;
-
-		// Reset telemetry data when composite becomes visible
-		if (visible) {
-			this._telemetryData = {};
-			this._telemetryData.startTime = new Date();
-
-			// Only submit telemetry data when not running from an integration test
-			if (this._telemetryService && this._telemetryService.publicLog) {
-				const eventName: string = 'compositeOpen';
-				/* __GDPR__
-					"compositeOpen" : {
-						"composite" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-				*/
-				this._telemetryService.publicLog(eventName, { composite: this.getId() });
-			}
-		}
-
-		// Send telemetry data when composite hides
-		else {
-			this._telemetryData.timeSpent = (Date.now() - this._telemetryData.startTime) / 1000;
-			delete this._telemetryData.startTime;
-
-			// Only submit telemetry data when not running from an integration test
-			if (this._telemetryService && this._telemetryService.publicLog) {
-				const eventName: string = 'compositeShown';
-				this._telemetryData.composite = this.getId();
-				/* __GDPR__
-					"compositeShown" : {
-						"timeSpent" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-						"composite": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-				*/
-				this._telemetryService.publicLog(eventName, this._telemetryData);
-			}
-		}
 
 		return TPromise.as(null);
 	}
@@ -234,15 +198,17 @@ export abstract class CompositeDescriptor<T extends Composite> {
 	public name: string;
 	public cssClass: string;
 	public order: number;
+	public keybindingId: string;
 
 	private ctor: IConstructorSignature0<T>;
 
-	constructor(ctor: IConstructorSignature0<T>, id: string, name: string, cssClass?: string, order?: number) {
+	constructor(ctor: IConstructorSignature0<T>, id: string, name: string, cssClass?: string, order?: number, keybindingId?: string, ) {
 		this.ctor = ctor;
 		this.id = id;
 		this.name = name;
 		this.cssClass = cssClass;
 		this.order = order;
+		this.keybindingId = keybindingId;
 	}
 
 	public instantiate(instantiationService: IInstantiationService): T {
@@ -271,10 +237,6 @@ export abstract class CompositeRegistry<T extends Composite> {
 
 	protected getComposites(): CompositeDescriptor<T>[] {
 		return this.composites.slice(0);
-	}
-
-	protected setComposites(compositesToSet: CompositeDescriptor<T>[]): void {
-		this.composites = compositesToSet;
 	}
 
 	private compositeById(id: string): CompositeDescriptor<T> {

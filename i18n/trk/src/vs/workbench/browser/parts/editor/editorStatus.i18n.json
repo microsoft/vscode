@@ -53,5 +53,5 @@
 	"screenReaderDetectedExplanation.answerYes": "Evet",
 	"screenReaderDetectedExplanation.answerNo": "Hayır",
 	"screenReaderDetectedExplanation.body1": "VS Code, ekran okuyucu ile kullanılmak için uygun hale getirilmiştir.",
-	"screenReaderDetectedExplanation.body2": "Bazı düzenleyici özellikleri farklı bir davranış sergileyecektir: ör. sözcük kaydırma, katlama, ayraçları otomatik kapatma, vb."
+	"screenReaderDetectedExplanation.body2": "Bazı düzenleyici özellikleri farklı bir davranış sergileyecektir: ör. sözcük kaydırma, katlama, vb."
 }

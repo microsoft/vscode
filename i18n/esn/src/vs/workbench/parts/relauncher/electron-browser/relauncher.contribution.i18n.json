@@ -6,5 +6,5 @@
 {
 	"relaunchSettingMessage": "Ha cambiado un ajuste que requiere un reinicio para ser efectivo.",
 	"relaunchSettingDetail": "Pulse el botón de reinicio para reiniciar {0} y habilitar el ajuste.",
-	"restart": "Reiniciar"
+	"restart": "&& Reiniciar"
 }

@@ -22,12 +22,10 @@
 	"miQuit": "結束 {0}",
 	"miNewFile": "新增檔案(&&N)",
 	"miOpen": "開啟(&&O)...",
-	"miOpenWorkspace": "開啟工作區(&&O)...",
 	"miOpenFolder": "開啟資料夾(&&F)...",
 	"miOpenFile": "開啟檔案(&&O)...",
 	"miOpenRecent": "開啟最近的檔案(&&R)",
-	"miSaveWorkspaceAs": "將工作區另存為(&&S)...",
-	"miAddFolderToWorkspace": "將資料夾新增到工作區(&&A)",
+	"miSaveWorkspaceAs": "另存工作區為...",
 	"miSave": "儲存(&&S)",
 	"miSaveAs": "另存新檔(&&A)...",
 	"miSaveAll": "全部儲存(&&L)",
@@ -157,7 +155,6 @@
 	"mMergeAllWindows": "合併所有視窗",
 	"miToggleDevTools": "切換開發人員工具(&&T)",
 	"miAccessibilityOptions": "協助工具選項(&&O)",
-	"miReportIssues": "回報問題(&&I)",
 	"miWelcome": "歡迎使用(&&W)",
 	"miInteractivePlayground": "Interactive Playground(&&I)",
 	"miDocumentation": "文件(&&D)",
@@ -184,6 +181,6 @@
 	"miDownloadingUpdate": "正在下載更新...",
 	"miInstallingUpdate": "正在安裝更新...",
 	"miCheckForUpdates": "查看是否有更新",
-	"aboutDetail": "\n版本 {0}\n認可 {1}\n日期 {2}\nShell {3}\n轉譯器 {4}\n節點 {5}\n架構 {6}",
-	"okButton": "確定"
+	"okButton": "確定",
+	"copy": "複製(&&C)"
 }

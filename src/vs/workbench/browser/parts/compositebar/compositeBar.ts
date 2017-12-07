@@ -70,7 +70,8 @@ export class CompositeBar implements ICompositeBar {
 
 		const pinnedComposites = JSON.parse(this.storageService.get(this.options.storageId, StorageScope.GLOBAL, null)) as string[];
 		if (pinnedComposites) {
-			this.pinnedComposites = pinnedComposites;
+			const compositeIds = this.options.composites.map(c => c.id);
+			this.pinnedComposites = pinnedComposites.filter(pcid => compositeIds.indexOf(pcid) >= 0);
 		} else {
 			this.pinnedComposites = this.options.composites.map(c => c.id);
 		}
@@ -192,7 +193,7 @@ export class CompositeBar implements ICompositeBar {
 	}
 
 	private updateCompositeSwitcher(): void {
-		if (!this.compositeSwitcherBar) {
+		if (!this.compositeSwitcherBar || !this.dimension) {
 			return; // We have not been rendered yet so there is nothing to update.
 		}
 
@@ -208,30 +209,35 @@ export class CompositeBar implements ICompositeBar {
 
 		// Ensure we are not showing more composites than we have height for
 		let overflows = false;
-		if (this.dimension) {
-			let maxVisible = compositesToShow.length;
-			let size = 0;
-			const limit = this.options.orientation === ActionsOrientation.VERTICAL ? this.dimension.height : this.dimension.width;
-			for (let i = 0; i < compositesToShow.length && size <= limit; i++) {
-				size += this.compositeSizeInBar.get(compositesToShow[i]);
-				if (size > limit) {
-					maxVisible = i;
-				}
+		let maxVisible = compositesToShow.length;
+		let size = 0;
+		const limit = this.options.orientation === ActionsOrientation.VERTICAL ? this.dimension.height : this.dimension.width;
+		for (let i = 0; i < compositesToShow.length && size <= limit; i++) {
+			size += this.compositeSizeInBar.get(compositesToShow[i]);
+			if (size > limit) {
+				maxVisible = i;
 			}
-			overflows = compositesToShow.length > maxVisible;
+		}
+		overflows = compositesToShow.length > maxVisible;
 
-			if (overflows) {
-				size -= this.compositeSizeInBar.get(compositesToShow[maxVisible]);
-				compositesToShow = compositesToShow.slice(0, maxVisible);
-			}
-			// Check if we need to make extra room for the overflow action
-			if (overflows && (size + this.options.overflowActionSize > limit)) {
-				compositesToShow.pop();
-			}
-			if (this.activeCompositeId && compositesToShow.length && compositesToShow.indexOf(this.activeCompositeId) === -1) {
-				compositesToShow.pop();
-				compositesToShow.push(this.activeCompositeId);
-			}
+		if (overflows) {
+			size -= this.compositeSizeInBar.get(compositesToShow[maxVisible]);
+			compositesToShow = compositesToShow.slice(0, maxVisible);
+			size += this.options.overflowActionSize;
+		}
+		// Check if we need to make extra room for the overflow action
+		if (size > limit) {
+			size -= this.compositeSizeInBar.get(compositesToShow.pop());
+		}
+		// We always try show the active composite
+		if (this.activeCompositeId && compositesToShow.length && compositesToShow.indexOf(this.activeCompositeId) === -1) {
+			const removedComposite = compositesToShow.pop();
+			size = size - this.compositeSizeInBar.get(removedComposite) + this.compositeSizeInBar.get(this.activeCompositeId);
+			compositesToShow.push(this.activeCompositeId);
+		}
+		// The active composite might have bigger size than the removed composite, check for overflow again
+		if (size > limit) {
+			compositesToShow.length ? compositesToShow.splice(compositesToShow.length - 2, 1) : compositesToShow.pop();
 		}
 
 		const visibleComposites = Object.keys(this.compositeIdToActions);
@@ -281,7 +287,7 @@ export class CompositeBar implements ICompositeBar {
 		}
 
 		// Add overflow action as needed
-		if (visibleCompositesChange && overflows) {
+		if ((visibleCompositesChange && overflows) || this.compositeSwitcherBar.length() === 0) {
 			this.compositeOverflowAction = this.instantiationService.createInstance(CompositeOverflowActivityAction, () => this.compositeOverflowActionItem.showMenu());
 			this.compositeOverflowActionItem = this.instantiationService.createInstance(
 				CompositeOverflowActivityActionItem,
@@ -349,6 +355,9 @@ export class CompositeBar implements ICompositeBar {
 		const visibleComposites = this.getVisibleComposites();
 
 		let unpinPromise: TPromise<any>;
+		// remove from pinned
+		const index = this.pinnedComposites.indexOf(compositeId);
+		this.pinnedComposites.splice(index, 1);
 
 		// Case: composite is not the active one or the active one is a different one
 		// Solv: we do nothing
@@ -375,10 +384,6 @@ export class CompositeBar implements ICompositeBar {
 		}
 
 		unpinPromise.then(() => {
-			// then remove from pinned and update switcher
-			const index = this.pinnedComposites.indexOf(compositeId);
-			this.pinnedComposites.splice(index, 1);
-
 			this.updateCompositeSwitcher();
 		});
 	}
@@ -403,6 +408,10 @@ export class CompositeBar implements ICompositeBar {
 	}
 
 	public move(compositeId: string, toCompositeId: string): void {
+		// Make sure both composites are known to this composite bar
+		if (this.options.composites.filter(c => c.id === compositeId || c.id === toCompositeId).length !== 2) {
+			return;
+		}
 		// Make sure a moved composite gets pinned
 		if (!this.isPinned(compositeId)) {
 			this.pin(compositeId, false /* defer update, we take care of it */);

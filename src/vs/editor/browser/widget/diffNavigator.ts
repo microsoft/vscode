@@ -5,12 +5,14 @@
 'use strict';
 
 import * as assert from 'vs/base/common/assert';
-import { EventEmitter } from 'vs/base/common/eventEmitter';
 import * as objects from 'vs/base/common/objects';
 import { Range } from 'vs/editor/common/core/range';
-import { ICommonDiffEditor, ILineChange, ScrollType } from 'vs/editor/common/editorCommon';
+import { ILineChange, ScrollType } from 'vs/editor/common/editorCommon';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
+import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
+import Event, { Emitter } from 'vs/base/common/event';
+
 
 interface IDiffRange {
 	rhs: boolean;
@@ -32,73 +34,69 @@ var defaultOptions: Options = {
 /**
  * Create a new diff navigator for the provided diff editor.
  */
-export class DiffNavigator extends EventEmitter {
+export class DiffNavigator {
 
-	public static Events = {
-		UPDATED: 'navigation.updated'
-	};
+	private readonly _editor: IDiffEditor;
+	private readonly _options: Options;
+	private readonly _disposables: IDisposable[];
+	private readonly _onDidUpdate = new Emitter<this>();
 
-	private editor: ICommonDiffEditor;
-	private options: Options;
+	readonly onDidUpdate: Event<this> = this._onDidUpdate.event;
+
 	private disposed: boolean;
-	private toUnbind: IDisposable[];
-
+	private revealFirst: boolean;
 	private nextIdx: number;
 	private ranges: IDiffRange[];
 	private ignoreSelectionChange: boolean;
-	public revealFirst: boolean;
 
-	constructor(editor: ICommonDiffEditor, options: Options = {}) {
-		super([
-			DiffNavigator.Events.UPDATED
-		]);
-		this.editor = editor;
-		this.options = objects.mixin(options, defaultOptions, false);
+	constructor(editor: IDiffEditor, options: Options = {}) {
+		this._editor = editor;
+		this._options = objects.mixin(options, defaultOptions, false);
 
 		this.disposed = false;
-		this.toUnbind = [];
+		this._disposables = [];
 
 		this.nextIdx = -1;
 		this.ranges = [];
 		this.ignoreSelectionChange = false;
-		this.revealFirst = this.options.alwaysRevealFirst;
+		this.revealFirst = this._options.alwaysRevealFirst;
 
 		// hook up to diff editor for diff, disposal, and caret move
-		this.toUnbind.push(this.editor.onDidDispose(() => this.dispose()));
-		this.toUnbind.push(this.editor.onDidUpdateDiff(() => this.onDiffUpdated()));
+		this._disposables.push(this._editor.onDidDispose(() => this.dispose()));
+		this._disposables.push(this._editor.onDidUpdateDiff(() => this._onDiffUpdated()));
 
-		if (this.options.followsCaret) {
-			this.toUnbind.push(this.editor.getModifiedEditor().onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
+		if (this._options.followsCaret) {
+			this._disposables.push(this._editor.getModifiedEditor().onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
 				if (this.ignoreSelectionChange) {
 					return;
 				}
 				this.nextIdx = -1;
 			}));
 		}
-		if (this.options.alwaysRevealFirst) {
-			this.toUnbind.push(this.editor.getModifiedEditor().onDidChangeModel((e) => {
+		if (this._options.alwaysRevealFirst) {
+			this._disposables.push(this._editor.getModifiedEditor().onDidChangeModel((e) => {
 				this.revealFirst = true;
 			}));
 		}
 
 		// init things
-		this.init();
+		this._init();
 	}
 
-	private init(): void {
-		var changes = this.editor.getLineChanges();
+	private _init(): void {
+		var changes = this._editor.getLineChanges();
 		if (!changes) {
 			return;
 		}
 	}
 
-	private onDiffUpdated(): void {
-		this.init();
+	private _onDiffUpdated(): void {
+		this._init();
 
-		this.compute(this.editor.getLineChanges());
+		this._compute(this._editor.getLineChanges());
 		if (this.revealFirst) {
 			// Only reveal first on first non-null changes
-			if (this.editor.getLineChanges() !== null) {
+			if (this._editor.getLineChanges() !== null) {
 				this.revealFirst = false;
 				this.nextIdx = -1;
 				this.next();
@@ -106,7 +104,7 @@ export class DiffNavigator extends EventEmitter {
 		}
 	}
 
-	private compute(lineChanges: ILineChange[]): void {
+	private _compute(lineChanges: ILineChange[]): void {
 
 		// new ranges
 		this.ranges = [];
@@ -115,7 +113,7 @@ export class DiffNavigator extends EventEmitter {
 			// create ranges from changes
 			lineChanges.forEach((lineChange) => {
 
-				if (!this.options.ignoreCharChanges && lineChange.charChanges) {
+				if (!this._options.ignoreCharChanges && lineChange.charChanges) {
 
 					lineChange.charChanges.forEach((charChange) => {
 						this.ranges.push({
@@ -147,13 +145,12 @@ export class DiffNavigator extends EventEmitter {
 				return 0;
 			}
 		});
-
-		this.emit(DiffNavigator.Events.UPDATED, {});
+		this._onDidUpdate.fire(this);
 	}
 
-	private initIdx(fwd: boolean): void {
+	private _initIdx(fwd: boolean): void {
 		var found = false;
-		var position = this.editor.getPosition();
+		var position = this._editor.getPosition();
 		for (var i = 0, len = this.ranges.length; i < len && !found; i++) {
 			var range = this.ranges[i].range;
 			if (position.isBeforeOrEqual(range.getStartPosition())) {
@@ -170,7 +167,7 @@ export class DiffNavigator extends EventEmitter {
 		}
 	}
 
-	private move(fwd: boolean): void {
+	private _move(fwd: boolean): void {
 		assert.ok(!this.disposed, 'Illegal State - diff navigator has been disposed');
 
 		if (!this.canNavigate()) {
@@ -178,7 +175,7 @@ export class DiffNavigator extends EventEmitter {
 		}
 
 		if (this.nextIdx === -1) {
-			this.initIdx(fwd);
+			this._initIdx(fwd);
 
 		} else if (fwd) {
 			this.nextIdx += 1;
@@ -196,31 +193,30 @@ export class DiffNavigator extends EventEmitter {
 		this.ignoreSelectionChange = true;
 		try {
 			var pos = info.range.getStartPosition();
-			this.editor.setPosition(pos);
-			this.editor.revealPositionInCenter(pos, ScrollType.Smooth);
+			this._editor.setPosition(pos);
+			this._editor.revealPositionInCenter(pos, ScrollType.Smooth);
 		} finally {
 			this.ignoreSelectionChange = false;
 		}
 	}
 
-	public canNavigate(): boolean {
+	canNavigate(): boolean {
 		return this.ranges && this.ranges.length > 0;
 	}
 
-	public next(): void {
-		this.move(true);
+	next(): void {
+		this._move(true);
 	}
 
-	public previous(): void {
-		this.move(false);
+	previous(): void {
+		this._move(false);
 	}
 
-	public dispose(): void {
-		this.toUnbind = dispose(this.toUnbind);
+	dispose(): void {
+		dispose(this._disposables);
+		this._disposables.length = 0;
+		this._onDidUpdate.dispose();
 		this.ranges = null;
 		this.disposed = true;
-
-		super.dispose();
 	}
 }
-

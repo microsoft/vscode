@@ -49,6 +49,8 @@ class ResourceModelCollection extends ReferenceCollection<TPromise<ITextEditorMo
 			} else {
 				model.dispose();
 			}
+		}, err => {
+			// ignore
 		});
 	}
 
@@ -102,7 +104,6 @@ export class TextModelResolverService implements ITextModelService {
 	private resourceModelCollection: ResourceModelCollection;
 
 	constructor(
-		@ITextFileService private textFileService: ITextFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IModelService private modelService: IModelService

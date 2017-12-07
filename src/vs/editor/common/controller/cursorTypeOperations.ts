@@ -13,7 +13,7 @@ import * as strings from 'vs/base/common/strings';
 import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import { Selection } from 'vs/editor/common/core/selection';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { IndentAction } from 'vs/editor/common/modes/languageConfiguration';
+import { IndentAction, EnterAction } from 'vs/editor/common/modes/languageConfiguration';
 import { SurroundSelectionCommand } from 'vs/editor/common/commands/surroundSelectionCommand';
 import { IElectricAction } from 'vs/editor/common/modes/supports/electricCharacter';
 import { getMapForWordSeparators, WordCharacterClass } from 'vs/editor/common/controller/wordCharacterClassifier';
@@ -144,10 +144,10 @@ export class TypeOperations {
 	}
 
 	private static _goodIndentForLine(config: CursorConfiguration, model: ITokenizedModel, lineNumber: number): string {
-		let action;
-		let indentation;
-		let expectedIndentAction = LanguageConfigurationRegistry.getInheritIndentForLine(model, lineNumber, false);
+		let action: IndentAction | EnterAction;
+		let indentation: string;
 
+		let expectedIndentAction = config.autoIndent ? LanguageConfigurationRegistry.getInheritIndentForLine(model, lineNumber, false) : null;
 		if (expectedIndentAction) {
 			action = expectedIndentAction.action;
 			indentation = expectedIndentAction.indentation;

@@ -11,7 +11,7 @@ import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import Event from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment } from 'vs/base/common/platform';
-import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
 
 export interface ICodeWindow {
@@ -60,8 +60,7 @@ export interface IWindowsMainService {
 	// methods
 	ready(initialUserEnv: IProcessEnvironment): void;
 	reload(win: ICodeWindow, cli?: ParsedArgs): void;
-	openWorkspace(win?: ICodeWindow): void;
-	createAndEnterWorkspace(win: ICodeWindow, folderPaths?: string[], path?: string): TPromise<IEnterWorkspaceResult>;
+	createAndEnterWorkspace(win: ICodeWindow, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult>;
 	saveAndEnterWorkspace(win: ICodeWindow, path: string): TPromise<IEnterWorkspaceResult>;
 	closeWorkspace(win: ICodeWindow): void;
 	open(openConfig: IOpenConfiguration): ICodeWindow[];
@@ -69,6 +68,7 @@ export interface IWindowsMainService {
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): void;
 	pickFolderAndOpen(options: INativeOpenDialogOptions): void;
 	pickFileAndOpen(options: INativeOpenDialogOptions): void;
+	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): void;
 	focusLastActive(cli: ParsedArgs, context: OpenContext): ICodeWindow;
 	getLastActiveWindow(): ICodeWindow;
 	waitForWindowCloseOrLoad(windowId: number): TPromise<void>;

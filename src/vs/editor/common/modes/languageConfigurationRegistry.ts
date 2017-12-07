@@ -18,7 +18,7 @@ import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common
 import { createScopedLineTokens } from 'vs/editor/common/modes/supports';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Range } from 'vs/editor/common/core/range';
-import { IndentAction, EnterAction, IAutoClosingPair, LanguageConfiguration, IndentationRule, FoldingRules } from 'vs/editor/common/modes/languageConfiguration';
+import { IndentAction, EnterAction, IAutoClosingPair, LanguageConfiguration, IndentationRule, FoldingRules, IAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageIdentifier, LanguageId } from 'vs/editor/common/modes';
 
 /**
@@ -46,18 +46,23 @@ export interface IIndentConverter {
 export class RichEditSupport {
 
 	private readonly _conf: LanguageConfiguration;
+	private readonly _languageIdentifier: LanguageIdentifier;
+	private _brackets: RichEditBrackets;
+	private _electricCharacter: BracketElectricCharacterSupport;
 
-	public readonly electricCharacter: BracketElectricCharacterSupport;
 	public readonly comments: ICommentsConfiguration;
 	public readonly characterPair: CharacterPairSupport;
 	public readonly wordDefinition: RegExp;
 	public readonly onEnter: OnEnterSupport;
 	public readonly indentRulesSupport: IndentRulesSupport;
-	public readonly brackets: RichEditBrackets;
 	public readonly indentationRules: IndentationRule;
 	public readonly foldingRules: FoldingRules;
 
 	constructor(languageIdentifier: LanguageIdentifier, previous: RichEditSupport, rawConf: LanguageConfiguration) {
+		this._languageIdentifier = languageIdentifier;
+
+		this._brackets = null;
+		this._electricCharacter = null;
 
 		let prev: LanguageConfiguration = null;
 		if (previous) {
@@ -66,16 +71,11 @@ export class RichEditSupport {
 
 		this._conf = RichEditSupport._mergeConf(prev, rawConf);
 
-		if (this._conf.brackets) {
-			this.brackets = new RichEditBrackets(languageIdentifier, this._conf.brackets);
-		}
-
 		this.onEnter = RichEditSupport._handleOnEnter(this._conf);
 
 		this.comments = RichEditSupport._handleComments(this._conf);
 
 		this.characterPair = new CharacterPairSupport(this._conf);
-		this.electricCharacter = new BracketElectricCharacterSupport(this.brackets, this.characterPair.getAutoClosingPairs(), this._conf.__electricCharacterSupport);
 
 		this.wordDefinition = this._conf.wordPattern || DEFAULT_WORD_REGEXP;
 
@@ -85,6 +85,29 @@ export class RichEditSupport {
 		}
 
 		this.foldingRules = this._conf.folding || {};
+	}
+
+	public get brackets(): RichEditBrackets {
+		if (!this._brackets && this._conf.brackets) {
+			this._brackets = new RichEditBrackets(this._languageIdentifier, this._conf.brackets);
+		}
+		return this._brackets;
+	}
+
+	public get electricCharacter(): BracketElectricCharacterSupport {
+		if (!this._electricCharacter) {
+			let autoClosingPairs: IAutoClosingPairConditional[] = [];
+			if (this._conf.autoClosingPairs) {
+				autoClosingPairs = this._conf.autoClosingPairs;
+			} else if (this._conf.brackets) {
+				autoClosingPairs = this._conf.brackets.map(b => {
+					return { open: b[0], close: b[1] };
+				});
+			}
+
+			this._electricCharacter = new BracketElectricCharacterSupport(this.brackets, autoClosingPairs, this._conf.__electricCharacterSupport);
+		}
+		return this._electricCharacter;
 	}
 
 	private static _mergeConf(prev: LanguageConfiguration, current: LanguageConfiguration): LanguageConfiguration {
@@ -112,7 +135,6 @@ export class RichEditSupport {
 		}
 		if (conf.indentationRules) {
 			empty = false;
-			onEnter.indentationRules = conf.indentationRules;
 		}
 		if (conf.onEnterRules) {
 			empty = false;

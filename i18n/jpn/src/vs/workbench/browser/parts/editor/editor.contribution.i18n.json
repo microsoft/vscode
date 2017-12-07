@@ -12,5 +12,6 @@
 	"groupTwoPicker": "2 番目のグループでエディターを表示する",
 	"groupThreePicker": "3 番目のグループのエディターを表示する",
 	"allEditorsPicker": "開いているエディターをすべて表示する",
-	"view": "表示"
+	"view": "表示",
+	"file": "ファイル"
 }

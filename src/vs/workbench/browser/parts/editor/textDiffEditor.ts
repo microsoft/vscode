@@ -31,7 +31,6 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IWorkbenchEditorService, DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { ScrollType } from 'vs/editor/common/editorCommon';
@@ -41,7 +40,7 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
  */
 export class TextDiffEditor extends BaseTextEditor {
 
-	public static ID = TEXT_DIFF_EDITOR_ID;
+	public static readonly ID = TEXT_DIFF_EDITOR_ID;
 
 	private diffNavigator: DiffNavigator;
 	private nextDiffAction: NavigateAction;
@@ -55,10 +54,9 @@ export class TextDiffEditor extends BaseTextEditor {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@IModeService modeService: IModeService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, modeService, textFileService, editorGroupService);
+		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorGroupService);
 	}
 
 	public getTitle(): string {
@@ -122,7 +120,7 @@ export class TextDiffEditor extends BaseTextEditor {
 				textOptions.apply(<IDiffEditor>this.getControl(), ScrollType.Smooth);
 			}
 
-			return TPromise.as<void>(null);
+			return TPromise.wrap<void>(null);
 		}
 
 		// Dispose previous diff navigator
@@ -161,7 +159,7 @@ export class TextDiffEditor extends BaseTextEditor {
 				this.diffNavigator = new DiffNavigator(diffEditor, {
 					alwaysRevealFirst
 				});
-				this.diffNavigator.addListener(DiffNavigator.Events.UPDATED, () => {
+				this.diffNavigator.onDidUpdate(() => {
 					this.nextDiffAction.updateEnablement();
 					this.previousDiffAction.updateEnablement();
 				});
@@ -343,9 +341,9 @@ class NavigateAction extends Action {
 }
 
 class ToggleEditorModeAction extends Action {
-	private static ID = 'toggle.diff.editorMode';
-	private static INLINE_LABEL = nls.localize('inlineDiffLabel', "Switch to Inline View");
-	private static SIDEBYSIDE_LABEL = nls.localize('sideBySideDiffLabel', "Switch to Side by Side View");
+	private static readonly ID = 'toggle.diff.editorMode';
+	private static readonly INLINE_LABEL = nls.localize('inlineDiffLabel', "Switch to Inline View");
+	private static readonly SIDEBYSIDE_LABEL = nls.localize('sideBySideDiffLabel', "Switch to Side by Side View");
 
 	constructor(private editor: TextDiffEditor) {
 		super(ToggleEditorModeAction.ID);

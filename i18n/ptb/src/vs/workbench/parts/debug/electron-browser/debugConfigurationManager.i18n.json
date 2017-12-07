@@ -15,7 +15,6 @@
 	"vscode.extension.contributes.debuggers.initialConfigurations": "Configurações para gerar o 'launch.json' inicial.",
 	"vscode.extension.contributes.debuggers.languages": "Lista de idiomas para os quais a extensão de depuração pode ser considerada o \"depurador padrão\".",
 	"vscode.extension.contributes.debuggers.adapterExecutableCommand": "Se especificado VS Code chamará este comando para determinar o caminho do executável do adaptador de depuração e os argumentos para passar.",
-	"vscode.extension.contributes.debuggers.startSessionCommand": "Se especificado VS Code chamará este comando para as ações de \"depurar\" ou \"executar\" direcionadas para esta extensão.",
 	"vscode.extension.contributes.debuggers.configurationSnippets": "Trechos de código para adicionar novas configurações em 'launch.json'.",
 	"vscode.extension.contributes.debuggers.configurationAttributes": "Configurações de esquema JSON para validar 'launch.json'.",
 	"vscode.extension.contributes.debuggers.windows": "Configurações específicas do Windows.",

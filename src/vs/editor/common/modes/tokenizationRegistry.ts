@@ -60,10 +60,6 @@ export class TokenizationRegistryImpl implements ITokenizationRegistry {
 		return this._colorMap;
 	}
 
-	public getDefaultForeground(): Color {
-		return this._colorMap[ColorId.DefaultForeground];
-	}
-
 	public getDefaultBackground(): Color {
 		return this._colorMap[ColorId.DefaultBackground];
 	}

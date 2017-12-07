@@ -3,10 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'mocha';
 import * as assert from 'assert';
 import { Selection } from 'vscode';
 import { withRandomFileEditor, closeAllEditors } from './testUtils';
-import { toggleComment } from '../toggleComment';
+import { toggleComment as toggleCommentImpl } from '../toggleComment';
+
+function toggleComment(...args): Thenable<boolean> {
+	const result = toggleCommentImpl(...args);
+	assert.ok(result);
+	return result!;
+}
 
 suite('Tests for Toggle Comment action from Emmet (HTML)', () => {
 	teardown(closeAllEditors);

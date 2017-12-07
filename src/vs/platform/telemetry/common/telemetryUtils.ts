@@ -11,17 +11,16 @@ import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
-import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
-export const NullTelemetryService = {
-	_serviceBrand: undefined,
+export const NullTelemetryService = new class implements ITelemetryService {
+	_serviceBrand: undefined;
 	publicLog(eventName: string, data?: ITelemetryData) {
-		return TPromise.as<void>(null);
-	},
-	isOptedIn: true,
+		return TPromise.wrap<void>(null);
+	}
+	isOptedIn: true;
 	getTelemetryInfo(): TPromise<ITelemetryInfo> {
-		return TPromise.as({
+		return TPromise.wrap({
 			instanceId: 'someValue.instanceId',
 			sessionId: 'someValue.sessionId',
 			machineId: 'someValue.machineId'
@@ -39,22 +38,22 @@ export function combinedAppender(...appenders: ITelemetryAppender[]): ITelemetry
 
 export const NullAppender: ITelemetryAppender = { log: () => null };
 
-// --- util
-
 /* __GDPR__FRAGMENT__
 	"URIDescriptor" : {
 		"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"path": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
 	}
 */
 export interface URIDescriptor {
 	mimeType?: string;
 	ext?: string;
+	path?: string;
 }
 
-export function telemetryURIDescriptor(uri: URI): URIDescriptor {
+export function telemetryURIDescriptor(uri: URI, hashPath: (path: string) => string): URIDescriptor {
 	const fsPath = uri && uri.fsPath;
-	return fsPath ? { mimeType: guessMimeTypes(fsPath).join(', '), ext: paths.extname(fsPath) } : {};
+	return fsPath ? { mimeType: guessMimeTypes(fsPath).join(', '), ext: paths.extname(fsPath), path: hashPath(fsPath) } : {};
 }
 
 /**
@@ -181,17 +180,6 @@ export function configurationTelemetry(telemetryService: ITelemetryService, conf
 				configurationValues: flattenValues(event.sourceConfig, configurationValueWhitelist)
 			});
 		}
-	});
-}
-
-export function lifecycleTelemetry(telemetryService: ITelemetryService, lifecycleService: ILifecycleService): IDisposable {
-	return lifecycleService.onShutdown(event => {
-		/* __GDPR__
-			"shutdown" : {
-				"reason" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		telemetryService.publicLog('shutdown', { reason: ShutdownReason[event] });
 	});
 }
 

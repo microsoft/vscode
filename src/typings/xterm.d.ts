@@ -364,7 +364,7 @@ declare module 'xterm' {
 		 * Scroll the display of the terminal
 		 * @param amount The number of lines to scroll down (negative scroll up).
 		 */
-		scrollDisp(amount: number): void;
+		scrollLines(amount: number): void;
 
 		/**
 		 * Scroll the display of the terminal by a number of pages.
@@ -508,7 +508,7 @@ declare module 'xterm' {
 		 * available to all newly created Terminals.
 		 * @param addon The addon to load.
 		 */
-		static loadAddon(addon: 'attach' | 'fit' | 'fullscreen' | 'search' | 'terminado'): void;
+		static loadAddon(addon: 'attach' | 'fit' | 'fullscreen' | 'search' | 'terminado' | 'winptyCompat'): void;
 
 
 
@@ -541,5 +541,7 @@ declare module 'xterm' {
 		 * @return Whether a result was found.
 		 */
 		findPrevious(term: string): boolean;
+
+		winptyCompatInit(): void;
 	}
 }

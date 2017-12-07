@@ -11,5 +11,6 @@
 	"search.placeHolder": "検索",
 	"label.Replace": "置換: 置換用語を入力し、Enter を押してプレビューするか、Escape を押してキャンセルします",
 	"search.replace.placeHolder": "置換",
-	"regexp.validationFailure": "この式はすべてに一致します"
+	"regexp.validationFailure": "この式はすべてに一致します",
+	"regexp.backreferenceValidationFailure": "前方参照はサポートされていません"
 }
