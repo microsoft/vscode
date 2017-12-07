@@ -406,7 +406,7 @@ class MouseController<T> implements IDisposable {
 		if (this.options.focusOnMouseDown === false) {
 			e.browserEvent.preventDefault();
 			e.browserEvent.stopPropagation();
-		} else {
+		} else if (document.activeElement !== e.browserEvent.target) {
 			this.view.domNode.focus();
 		}
 
