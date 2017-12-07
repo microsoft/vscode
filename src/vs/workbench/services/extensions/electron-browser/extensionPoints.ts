@@ -256,6 +256,7 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 export class ExtensionScannerInput {
 	constructor(
 		public readonly ourVersion: string,
+		public readonly commit: string,
 		public readonly locale: string,
 		public readonly devMode: boolean,
 		public readonly absoluteFolderPath: string,
@@ -275,6 +276,7 @@ export class ExtensionScannerInput {
 	public static equals(a: ExtensionScannerInput, b: ExtensionScannerInput): boolean {
 		return (
 			a.ourVersion === b.ourVersion
+			&& a.commit === b.commit
 			&& a.locale === b.locale
 			&& a.devMode === b.devMode
 			&& a.absoluteFolderPath === b.absoluteFolderPath
