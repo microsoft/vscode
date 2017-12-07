@@ -224,7 +224,7 @@ export class SplitView implements IDisposable {
 
 	private relayout(lowPriorityIndex?: number): void {
 		const contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
-		this.resize(this.viewItems.length - 1, this.contentSize - contentSize, undefined, lowPriorityIndex);
+		this.resize(this.viewItems.length - 1, this.size - contentSize, undefined, lowPriorityIndex);
 	}
 
 	layout(size: number): void {
