@@ -207,13 +207,15 @@ export class CommandCenter {
 		}
 
 		try {
-			if (ref === '~') {
+			let gitRef = ref;
+
+			if (gitRef === '~') {
 				const uriString = uri.toString();
 				const [indexStatus] = repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
-				ref = indexStatus ? '' : 'HEAD';
+				gitRef = indexStatus ? '' : 'HEAD';
 			}
 
-			const { size, object } = await repository.lstree(ref, uri.fsPath);
+			const { size, object } = await repository.lstree(gitRef, uri.fsPath);
 			const { mimetype, encoding } = await repository.detectObjectType(object);
 
 			if (mimetype === 'text/plain') {
@@ -221,15 +223,15 @@ export class CommandCenter {
 			}
 
 			if (size > 1000000) { // 1 MB
-				return Uri.parse(`data:;label:${path.basename(uri.fsPath)};description:${ref},`);
+				return Uri.parse(`data:;label:${path.basename(uri.fsPath)};description:${gitRef},`);
 			}
 
 			if (ImageMimetypes.indexOf(mimetype) > -1) {
-				const contents = await repository.buffer(ref, uri.fsPath);
-				return Uri.parse(`data:${mimetype};label:${path.basename(uri.fsPath)};description:${ref};size:${size};base64,${contents.toString('base64')}`);
+				const contents = await repository.buffer(gitRef, uri.fsPath);
+				return Uri.parse(`data:${mimetype};label:${path.basename(uri.fsPath)};description:${gitRef};size:${size};base64,${contents.toString('base64')}`);
 			}
 
-			return Uri.parse(`data:;label:${path.basename(uri.fsPath)};description:${ref},`);
+			return Uri.parse(`data:;label:${path.basename(uri.fsPath)};description:${gitRef},`);
 
 		} catch (err) {
 			return toGitUri(uri, ref);
