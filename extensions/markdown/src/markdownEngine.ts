@@ -138,18 +138,17 @@ export class MarkdownEngine {
 		md.normalizeLink = (link: string) => {
 			try {
 				let uri = vscode.Uri.parse(link);
-				if (!uri.scheme && uri.path) {
-					let p = uri.path;
+				if (!uri.scheme && uri.path && !uri.fragment) {
 					// Assume it must be a file
-					if (p[0] === '/') {
+					if (uri.path[0] === '/') {
 						const root = vscode.workspace.getWorkspaceFolder(this.currentDocument);
 						if (root) {
-							p = path.join(root.uri.fsPath, uri.path);
+							uri = vscode.Uri.file(path.join(root.uri.fsPath, uri.path));
 						}
 					} else {
-						p = path.join(path.dirname(this.currentDocument.path), uri.path);
+						uri = vscode.Uri.file(path.join(path.dirname(this.currentDocument.path), uri.path));
 					}
-					return OpenDocumentLinkCommand.createCommandUri(p, uri.fragment).toString();
+					return normalizeLink(uri.toString(true));
 				}
 			} catch (e) {
 				// noop
