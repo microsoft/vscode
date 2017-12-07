@@ -547,7 +547,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		}
 
 		const cacheContents = await this._readExtensionCache(environmentService, cacheKey);
-		if (cacheContents && ExtensionScannerInput.equals(cacheContents.input, input)) {
+		if (cacheContents && cacheContents.input && ExtensionScannerInput.equals(cacheContents.input, input)) {
 			// Validate the cache asynchronously after 5s
 			setTimeout(async () => {
 				try {
