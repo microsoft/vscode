@@ -118,6 +118,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	private readonly _storage: ExtHostStorage;
 	private readonly _storagePath: ExtensionStoragePath;
 	private readonly _proxy: MainThreadExtensionServiceShape;
+	private readonly _logService: ILogService;
 	private _activator: ExtensionsActivator;
 	private _extensionPathIndex: TPromise<TernarySearchTree<IExtensionDescription>>;
 	/**
@@ -132,6 +133,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		this._barrier = new Barrier();
 		this._registry = new ExtensionDescriptionRegistry(initData.extensions);
 		this._threadService = threadService;
+		this._logService = logService;
 		this._mainThreadTelemetry = threadService.get(MainContext.MainThreadTelemetry);
 		this._storage = new ExtHostStorage(threadService);
 		this._storagePath = new ExtensionStoragePath(initData.workspace, initData.environment);
@@ -308,12 +310,14 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			return TPromise.as(new EmptyExtension(ExtensionActivationTimes.NONE));
 		}
 
+		this._logService.info(`ExtensionService#_doActivateExtension ${extensionDescription.id} ${JSON.stringify(reason)}`);
+
 		const activationTimesBuilder = new ExtensionActivationTimesBuilder(reason.startup);
 		return TPromise.join<any>([
-			loadCommonJSModule(extensionDescription.main, activationTimesBuilder),
+			loadCommonJSModule(this._logService, extensionDescription.main, activationTimesBuilder),
 			this._loadExtensionContext(extensionDescription)
 		]).then(values => {
-			return ExtHostExtensionService._callActivate(<IExtensionModule>values[0], <IExtensionContext>values[1], activationTimesBuilder);
+			return ExtHostExtensionService._callActivate(this._logService, extensionDescription.id, <IExtensionModule>values[0], <IExtensionContext>values[1], activationTimesBuilder);
 		}, (errors: any[]) => {
 			// Avoid failing with an array of errors, fail with a single error
 			if (errors[0]) {
@@ -331,6 +335,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		let globalState = new ExtensionMemento(extensionDescription.id, true, this._storage);
 		let workspaceState = new ExtensionMemento(extensionDescription.id, false, this._storage);
 
+		this._logService.trace(`ExtensionService#loadExtensionContext ${extensionDescription.id}`);
 		return TPromise.join([
 			globalState.whenReady,
 			workspaceState.whenReady,
@@ -347,22 +352,23 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		});
 	}
 
-	private static _callActivate(extensionModule: IExtensionModule, context: IExtensionContext, activationTimesBuilder: ExtensionActivationTimesBuilder): Thenable<ActivatedExtension> {
+	private static _callActivate(logService: ILogService, extensionId: string, extensionModule: IExtensionModule, context: IExtensionContext, activationTimesBuilder: ExtensionActivationTimesBuilder): Thenable<ActivatedExtension> {
 		// Make sure the extension's surface is not undefined
 		extensionModule = extensionModule || {
 			activate: undefined,
 			deactivate: undefined
 		};
 
-		return this._callActivateOptional(extensionModule, context, activationTimesBuilder).then((extensionExports) => {
+		return this._callActivateOptional(logService, extensionId, extensionModule, context, activationTimesBuilder).then((extensionExports) => {
 			return new ActivatedExtension(false, activationTimesBuilder.build(), extensionModule, extensionExports, context.subscriptions);
 		});
 	}
 
-	private static _callActivateOptional(extensionModule: IExtensionModule, context: IExtensionContext, activationTimesBuilder: ExtensionActivationTimesBuilder): Thenable<IExtensionAPI> {
+	private static _callActivateOptional(logService: ILogService, extensionId: string, extensionModule: IExtensionModule, context: IExtensionContext, activationTimesBuilder: ExtensionActivationTimesBuilder): Thenable<IExtensionAPI> {
 		if (typeof extensionModule.activate === 'function') {
 			try {
 				activationTimesBuilder.activateCallStart();
+				logService.trace(`ExtensionService#_callActivateOptional ${extensionId}`);
 				const activateResult: TPromise<IExtensionAPI> = extensionModule.activate.apply(global, [context]);
 				activationTimesBuilder.activateCallStop();
 
@@ -387,9 +393,10 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	}
 }
 
-function loadCommonJSModule<T>(modulePath: string, activationTimesBuilder: ExtensionActivationTimesBuilder): TPromise<T> {
+function loadCommonJSModule<T>(logService: ILogService, modulePath: string, activationTimesBuilder: ExtensionActivationTimesBuilder): TPromise<T> {
 	let r: T = null;
 	activationTimesBuilder.codeLoadingStart();
+	logService.info(`ExtensionService#loadCommonJSModule ${modulePath}`);
 	try {
 		r = require.__$__nodeRequire<T>(modulePath);
 	} catch (e) {
