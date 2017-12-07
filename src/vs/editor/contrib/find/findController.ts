@@ -156,14 +156,14 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	}
 
 	private saveQueryState(e: FindReplaceStateChangedEvent) {
-		if (e.isRegex && typeof this._state.isRegex !== 'undefined') {
-			this._storageService.store('editor.isRegex', this._state.isRegex, StorageScope.WORKSPACE);
+		if (e.isRegex) {
+			this._storageService.store('editor.isRegex', this._state.actualIsRegex, StorageScope.WORKSPACE);
 		}
-		if (e.wholeWord && typeof this._state.wholeWord !== 'undefined') {
-			this._storageService.store('editor.wholeWord', this._state.wholeWord, StorageScope.WORKSPACE);
+		if (e.wholeWord) {
+			this._storageService.store('editor.wholeWord', this._state.actualWholeWord, StorageScope.WORKSPACE);
 		}
-		if (e.matchCase && typeof this._state.matchCase !== 'undefined') {
-			this._storageService.store('editor.matchCase', this._state.matchCase, StorageScope.WORKSPACE);
+		if (e.matchCase) {
+			this._storageService.store('editor.matchCase', this._state.actualMatchCase, StorageScope.WORKSPACE);
 		}
 	}
 
