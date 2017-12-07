@@ -80,7 +80,7 @@ export class SCMService implements ISCMService {
 	constructor( @ILogService private logService: ILogService) { }
 
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository {
-		this.logService.info('SCMService#registerSCMProvider');
+		this.logService.trace('SCMService#registerSCMProvider');
 
 		if (this._providerIds.has(provider.id)) {
 			throw new Error(`SCM Provider ${provider.id} already exists.`);
