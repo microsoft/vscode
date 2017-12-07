@@ -7,7 +7,6 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { TableOfContentsProvider } from './tableOfContentsProvider';
 import { MarkdownIt, Token } from 'markdown-it';
-import { OpenDocumentLinkCommand } from './commands';
 
 const FrontMatterRegex = /^---\s*[^]*?(-{3}|\.{3})\s*/;
 
