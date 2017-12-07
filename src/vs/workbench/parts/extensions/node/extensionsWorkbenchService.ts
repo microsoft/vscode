@@ -747,7 +747,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 
 			if (error) {
 				if (extension.gallery) {
-					// Updates can be done only for gallery extensions
+					// Updating extension can be only a gallery extension
 					const installed = this.installed.filter(e => e.id === extension.id)[0];
 					if (installed && installing) {
 						installing.operation = Operation.Updating;
