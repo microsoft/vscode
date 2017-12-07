@@ -56,7 +56,7 @@ import { widgetShadow, editorWidgetBackground } from 'vs/platform/theme/common/c
 // tslint:disable-next-line:import-patterns
 import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { clone } from 'vs/base/common/objects';
+import { deepClone } from 'vs/base/common/objects';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 function toEditorWithEncodingSupport(input: IEditorInput): IEncodingSupport {
@@ -784,8 +784,8 @@ export class ShowLanguageExtensionsAction extends Action {
 
 export class ChangeModeAction extends Action {
 
-	public static ID = 'workbench.action.editor.changeLanguageMode';
-	public static LABEL = nls.localize('changeMode', "Change Language Mode");
+	public static readonly ID = 'workbench.action.editor.changeLanguageMode';
+	public static readonly LABEL = nls.localize('changeMode', "Change Language Mode");
 
 	constructor(
 		actionId: string,
@@ -979,7 +979,7 @@ export class ChangeModeAction extends Action {
 					}
 
 					// Make sure to write into the value of the target and not the merged value from USER and WORKSPACE config
-					let currentAssociations = clone((target === ConfigurationTarget.WORKSPACE) ? fileAssociationsConfig.workspace : fileAssociationsConfig.user);
+					let currentAssociations = deepClone((target === ConfigurationTarget.WORKSPACE) ? fileAssociationsConfig.workspace : fileAssociationsConfig.user);
 					if (!currentAssociations) {
 						currentAssociations = Object.create(null);
 					}
@@ -999,8 +999,8 @@ export interface IChangeEOLEntry extends IPickOpenEntry {
 
 class ChangeIndentationAction extends Action {
 
-	public static ID = 'workbench.action.editor.changeIndentation';
-	public static LABEL = nls.localize('changeIndentation', "Change Indentation");
+	public static readonly ID = 'workbench.action.editor.changeIndentation';
+	public static readonly LABEL = nls.localize('changeIndentation', "Change Indentation");
 
 	constructor(
 		actionId: string,
@@ -1049,8 +1049,8 @@ class ChangeIndentationAction extends Action {
 
 export class ChangeEOLAction extends Action {
 
-	public static ID = 'workbench.action.editor.changeEOL';
-	public static LABEL = nls.localize('changeEndOfLine', "Change End of Line Sequence");
+	public static readonly ID = 'workbench.action.editor.changeEOL';
+	public static readonly LABEL = nls.localize('changeEndOfLine', "Change End of Line Sequence");
 
 	constructor(
 		actionId: string,
@@ -1096,8 +1096,8 @@ export class ChangeEOLAction extends Action {
 
 export class ChangeEncodingAction extends Action {
 
-	public static ID = 'workbench.action.editor.changeEncoding';
-	public static LABEL = nls.localize('changeEncoding', "Change File Encoding");
+	public static readonly ID = 'workbench.action.editor.changeEncoding';
+	public static readonly LABEL = nls.localize('changeEncoding', "Change File Encoding");
 
 	constructor(
 		actionId: string,

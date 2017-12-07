@@ -7,12 +7,12 @@
 	"settingsEditorName": "預設設定",
 	"SearchSettingsWidget.AriaLabel": "搜尋設定",
 	"SearchSettingsWidget.Placeholder": "搜尋設定",
-	"totalSettingsMessage": "共 {0} 項設定",
 	"noSettingsFound": "沒有結果",
 	"oneSettingFound": "1 項相符設定",
 	"settingsFound": "{0} 項相符設定",
-	"fileEditorWithInputAriaLabel": "{0}。文字檔編輯器。",
-	"fileEditorAriaLabel": "文字檔編輯器。",
+	"totalSettingsMessage": "共 {0} 項設定",
+	"defaultSettings": "預設設定",
+	"defaultFolderSettings": "預設資料夾設定",
 	"defaultEditorReadonly": "在右方編輯器中編輯以覆寫預設。",
 	"preferencesAriaLabel": "預設喜好設定。唯讀文字編輯器。"
 }

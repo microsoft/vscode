@@ -78,7 +78,6 @@ const taskDefinitionsExtPoint = ExtensionsRegistry.registerExtensionPoint<Config
 export interface ITaskDefinitionRegistry {
 	onReady(): TPromise<void>;
 
-	exists(key: string): boolean;
 	get(key: string): Tasks.TaskDefinition;
 	all(): Tasks.TaskDefinition[];
 }
@@ -115,10 +114,6 @@ class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 
 	public get(key: string): Tasks.TaskDefinition {
 		return this.taskTypes[key];
-	}
-
-	public exists(key: string): boolean {
-		return !!this.taskTypes[key];
 	}
 
 	public all(): Tasks.TaskDefinition[] {

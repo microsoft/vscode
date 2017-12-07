@@ -49,9 +49,10 @@ interface PartLayoutInfo {
  */
 export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontalSashLayoutProvider {
 
-	private static sashXOneWidthSettingsKey = 'workbench.sidebar.width';
-	private static sashXTwoWidthSettingsKey = 'workbench.panel.width';
-	private static sashYHeightSettingsKey = 'workbench.panel.height';
+	private static readonly sashXOneWidthSettingsKey = 'workbench.sidebar.width';
+	private static readonly sashXTwoWidthSettingsKey = 'workbench.panel.width';
+	private static readonly sashYHeightSettingsKey = 'workbench.panel.height';
+	private static readonly panelSizeBeforeMaximizedKey = 'workbench.panel.sizeBeforeMaximized';
 
 	private parent: Builder;
 	private workbenchContainer: Builder;
@@ -108,7 +109,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.statusbar = parts.statusbar;
 		this.quickopen = quickopen;
 		this.toUnbind = [];
-		this.panelSizeBeforeMaximized = 0;
+		this.panelSizeBeforeMaximized = this.storageService.getInteger(WorkbenchLayout.panelSizeBeforeMaximizedKey, StorageScope.GLOBAL, 0);
 		this.panelMaximized = false;
 
 		this.sashXOne = new Sash(this.workbenchContainer.getHTMLElement(), this, {
@@ -236,22 +237,22 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		let startPanelHeight: number;
 		let startPanelWidth: number;
 
-		this.toUnbind.push(this.sashXOne.addListener('start', (e: ISashEvent) => {
+		this.toUnbind.push(this.sashXOne.onDidStart((e: ISashEvent) => {
 			startSidebarWidth = this.sidebarWidth;
 			startX = e.startX;
 		}));
 
-		this.toUnbind.push(this.sashY.addListener('start', (e: ISashEvent) => {
+		this.toUnbind.push(this.sashY.onDidStart((e: ISashEvent) => {
 			startPanelHeight = this.panelHeight;
 			startY = e.startY;
 		}));
 
-		this.toUnbind.push(this.sashXTwo.addListener('start', (e: ISashEvent) => {
+		this.toUnbind.push(this.sashXTwo.onDidStart((e: ISashEvent) => {
 			startPanelWidth = this.panelWidth;
 			startXTwo = e.startX;
 		}));
 
-		this.toUnbind.push(this.sashXOne.addListener('change', (e: ISashEvent) => {
+		this.toUnbind.push(this.sashXOne.onDidChange((e: ISashEvent) => {
 			let doLayout = false;
 			let sidebarPosition = this.partService.getSideBarPosition();
 			let isSidebarVisible = this.partService.isVisible(Parts.SIDEBAR_PART);
@@ -291,7 +292,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			}
 		}));
 
-		this.toUnbind.push(this.sashY.addListener('change', (e: ISashEvent) => {
+		this.toUnbind.push(this.sashY.onDidChange((e: ISashEvent) => {
 			let doLayout = false;
 			let isPanelVisible = this.partService.isVisible(Parts.PANEL_PART);
 			let newSashHeight = startPanelHeight - (e.currentY - startY);
@@ -329,7 +330,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			}
 		}));
 
-		this.toUnbind.push(this.sashXTwo.addListener('change', (e: ISashEvent) => {
+		this.toUnbind.push(this.sashXTwo.onDidChange((e: ISashEvent) => {
 			let doLayout = false;
 			let isPanelVisible = this.partService.isVisible(Parts.PANEL_PART);
 			let newSashWidth = startPanelWidth - (e.currentX - startXTwo);
@@ -367,25 +368,25 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			}
 		}));
 
-		this.toUnbind.push(this.sashXOne.addListener('end', () => {
+		this.toUnbind.push(this.sashXOne.onDidEnd(() => {
 			this.storageService.store(WorkbenchLayout.sashXOneWidthSettingsKey, this.sidebarWidth, StorageScope.GLOBAL);
 		}));
 
-		this.toUnbind.push(this.sashY.addListener('end', () => {
+		this.toUnbind.push(this.sashY.onDidEnd(() => {
 			this.storageService.store(WorkbenchLayout.sashYHeightSettingsKey, this.panelHeight, StorageScope.GLOBAL);
 		}));
 
-		this.toUnbind.push(this.sashXTwo.addListener('end', () => {
+		this.toUnbind.push(this.sashXTwo.onDidEnd(() => {
 			this.storageService.store(WorkbenchLayout.sashXTwoWidthSettingsKey, this.panelWidth, StorageScope.GLOBAL);
 		}));
 
-		this.toUnbind.push(this.sashY.addListener('reset', () => {
+		this.toUnbind.push(this.sashY.onDidReset(() => {
 			this.panelHeight = this.sidebarHeight * DEFAULT_PANEL_SIZE_COEFFICIENT;
 			this.storageService.store(WorkbenchLayout.sashYHeightSettingsKey, this.panelHeight, StorageScope.GLOBAL);
 			this.layout();
 		}));
 
-		this.toUnbind.push(this.sashXOne.addListener('reset', () => {
+		this.toUnbind.push(this.sashXOne.onDidReset(() => {
 			let activeViewlet = this.viewletService.getActiveViewlet();
 			let optimalWidth = activeViewlet && activeViewlet.getOptimalWidth();
 			this.sidebarWidth = optimalWidth || 0;
@@ -393,7 +394,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			this.partService.setSideBarHidden(false).done(() => this.layout(), errors.onUnexpectedError);
 		}));
 
-		this.toUnbind.push(this.sashXTwo.addListener('reset', () => {
+		this.toUnbind.push(this.sashXTwo.onDidReset(() => {
 			this.panelWidth = (this.workbenchSize.width - this.sidebarWidth - this.activitybarWidth) * DEFAULT_PANEL_SIZE_COEFFICIENT;
 			this.storageService.store(WorkbenchLayout.sashXTwoWidthSettingsKey, this.panelWidth, StorageScope.GLOBAL);
 			this.layout();
@@ -501,6 +502,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 				this.panelSizeBeforeMaximized = panelWidth;
 			}
 		}
+		this.storageService.store(WorkbenchLayout.panelSizeBeforeMaximizedKey, this.panelSizeBeforeMaximized, StorageScope.GLOBAL);
 		const panelDimension = new Dimension(panelWidth, panelHeight);
 
 		// Editor

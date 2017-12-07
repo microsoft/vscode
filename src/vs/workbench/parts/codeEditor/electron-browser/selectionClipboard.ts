@@ -7,7 +7,7 @@
 
 import { clipboard } from 'electron';
 import * as platform from 'vs/base/common/platform';
-import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { EndOfLinePreference, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -19,7 +19,7 @@ import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursor
 
 export class SelectionClipboard extends Disposable implements IEditorContribution {
 
-	private static ID = 'editor.contrib.selectionClipboard';
+	private static readonly ID = 'editor.contrib.selectionClipboard';
 
 	constructor(editor: ICodeEditor, @IContextKeyService contextKeyService: IContextKeyService) {
 		super();
@@ -46,6 +46,10 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 
 					if (e.target.position) {
 						editor.setPosition(e.target.position);
+					}
+
+					if (e.target.type === MouseTargetType.SCROLLBAR) {
+						return;
 					}
 
 					process.nextTick(() => {

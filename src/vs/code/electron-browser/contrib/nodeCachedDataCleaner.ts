@@ -14,7 +14,7 @@ import product from 'vs/platform/node/product';
 
 export class NodeCachedDataCleaner {
 
-	private static _DataMaxAge = product.nameLong.indexOf('Insiders') >= 0
+	private static readonly _DataMaxAge = product.nameLong.indexOf('Insiders') >= 0
 		? 1000 * 60 * 60 * 24 * 7 // roughly 1 week
 		: 1000 * 60 * 60 * 24 * 30 * 3; // roughly 3 months
 

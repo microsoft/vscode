@@ -8,6 +8,7 @@
 import * as assert from 'assert';
 import labels = require('vs/base/common/labels');
 import platform = require('vs/base/common/platform');
+import { getBaseLabel } from 'vs/base/common/labels';
 
 suite('Labels', () => {
 	test('shorten - windows', () => {
@@ -142,5 +143,28 @@ suite('Labels', () => {
 		assert.strictEqual(labels.template(t, { dirty: '', activeEditorShort: '', rootName: 'monaco', appName: 'Visual Studio Code', separator: { label: ' - ' } }), 'monaco - Visual Studio Code');
 		assert.strictEqual(labels.template(t, { dirty: '', activeEditorShort: 'somefile.txt', rootName: 'monaco', appName: 'Visual Studio Code', separator: { label: ' - ' } }), 'somefile.txt - monaco - Visual Studio Code');
 		assert.strictEqual(labels.template(t, { dirty: '* ', activeEditorShort: 'somefile.txt', rootName: 'monaco', appName: 'Visual Studio Code', separator: { label: ' - ' } }), '* somefile.txt - monaco - Visual Studio Code');
+	});
+
+	test('getBaseLabel - unix', () => {
+		if (platform.isWindows) {
+			assert.ok(true);
+			return;
+		}
+
+		assert.equal(getBaseLabel('/some/folder/file.txt'), 'file.txt');
+		assert.equal(getBaseLabel('/some/folder'), 'folder');
+		assert.equal(getBaseLabel('/'), '/');
+	});
+
+	test('getBaseLabel - windows', () => {
+		if (!platform.isWindows) {
+			assert.ok(true);
+			return;
+		}
+
+		assert.equal(getBaseLabel('c:'), 'C:');
+		assert.equal(getBaseLabel('c:\\'), 'C:');
+		assert.equal(getBaseLabel('c:\\some\\folder\\file.txt'), 'file.txt');
+		assert.equal(getBaseLabel('c:\\some\\folder'), 'folder');
 	});
 });

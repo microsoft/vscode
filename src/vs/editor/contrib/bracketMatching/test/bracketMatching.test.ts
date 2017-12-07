@@ -16,7 +16,7 @@ import { BracketMatchingController } from 'vs/editor/contrib/bracketMatching/bra
 suite('bracket matching', () => {
 	class BracketMode extends MockMode {
 
-		private static _id = new LanguageIdentifier('bracketMode', 3);
+		private static readonly _id = new LanguageIdentifier('bracketMode', 3);
 
 		constructor() {
 			super(BracketMode._id);

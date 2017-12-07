@@ -18,13 +18,14 @@ import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { ShowCurrentReleaseNotesAction, ProductContribution, UpdateContribution, Win3264BitContribution } from './update';
 import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(ProductContribution);
+	.registerWorkbenchContribution(ProductContribution, LifecyclePhase.Running);
 
 if (process.platform === 'win32' && process.arch === 'ia32') {
 	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-		.registerWorkbenchContribution(Win3264BitContribution);
+		.registerWorkbenchContribution(Win3264BitContribution, LifecyclePhase.Running);
 }
 
 Registry.as<IGlobalActivityRegistry>(GlobalActivityExtensions)

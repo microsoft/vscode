@@ -34,7 +34,7 @@ import { IBadge } from 'vs/workbench/services/activity/common/activity';
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
-	public static activePanelSettingsKey = 'workbench.panelpart.activepanelid';
+	public static readonly activePanelSettingsKey = 'workbench.panelpart.activepanelid';
 	private static readonly PINNED_PANELS = 'workbench.panel.pinnedPanels';
 	private static readonly MIN_COMPOSITE_BAR_WIDTH = 50;
 
@@ -43,6 +43,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	private blockOpeningPanel: boolean;
 	private compositeBar: CompositeBar;
 	private dimension: Dimension;
+	private toolbarWidth = new Map<string, number>();
 
 	constructor(
 		id: string,
@@ -86,7 +87,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			getOnCompositeClickAction: (compositeId: string) => this.instantiationService.createInstance(PanelActivityAction, this.getPanel(compositeId)),
 			getDefaultCompositeId: () => Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId(),
 			hidePart: () => this.partService.setPanelHidden(true),
-			overflowActionSize: 28,
+			overflowActionSize: 44,
 			colors: {
 				backgroundColor: PANEL_BACKGROUND,
 				badgeBackground,
@@ -213,6 +214,9 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	public layout(dimension: Dimension): Dimension[] {
+		if (!this.partService.isVisible(Parts.PANEL_PART)) {
+			return [dimension];
+		}
 
 		if (this.partService.getPanelPosition() === Position.RIGHT) {
 			// Take into account the 1px border when layouting
@@ -228,13 +232,25 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	private layoutCompositeBar(): void {
 		if (this.dimension) {
-			let availableWidth = this.dimension.width - 8; // take padding into account
+			let availableWidth = this.dimension.width - 40; // take padding into account
 			if (this.toolBar) {
 				// adjust height for global actions showing
-				availableWidth = Math.max(PanelPart.MIN_COMPOSITE_BAR_WIDTH, availableWidth - this.toolBar.getContainer().getHTMLElement().offsetWidth);
+				availableWidth = Math.max(PanelPart.MIN_COMPOSITE_BAR_WIDTH, availableWidth - this.getToolbarWidth());
 			}
 			this.compositeBar.layout(new Dimension(availableWidth, this.dimension.height));
 		}
+	}
+
+	private getToolbarWidth(): number {
+		const activePanel = this.getActivePanel();
+		if (!activePanel) {
+			return 0;
+		}
+		if (!this.toolbarWidth.has(activePanel.getId())) {
+			this.toolbarWidth.set(activePanel.getId(), this.toolBar.getContainer().getHTMLElement().offsetWidth);
+		}
+
+		return this.toolbarWidth.get(activePanel.getId());
 	}
 
 	public shutdown(): void {

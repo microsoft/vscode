@@ -14,7 +14,7 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
-import { clone, mixin } from 'vs/base/common/objects';
+import { deepClone, mixin } from 'vs/base/common/objects';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { List, IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
@@ -120,9 +120,9 @@ export class SelectBox extends Widget implements IDelegate<ISelectOptionItem> {
 	private selectList: List<ISelectOptionItem>;
 	private selectDropDownListContainer: HTMLElement;
 	private widthControlElement: HTMLElement;
-	private widthControDivElement: HTMLElement;
+	// private widthControDivElement: HTMLElement;
 
-	constructor(options: string[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles = clone(defaultStyles)) {
+	constructor(options: string[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles = deepClone(defaultStyles)) {
 		super();
 
 		// Hardcode native select switch based on platform
@@ -181,7 +181,7 @@ export class SelectBox extends Widget implements IDelegate<ISelectOptionItem> {
 		this.widthControlElement = document.createElement('span');
 		this.widthControlElement.className = 'option-text-width-control';
 		dom.append(widthControlInnerDiv, this.widthControlElement);
-		this.widthControDivElement = widthControlInnerDiv;
+		// this.widthControDivElement = widthControlInnerDiv;
 		// TODO:cleidigh - find better width control
 
 		// InLine stylesheet for themes
@@ -568,7 +568,7 @@ export class SelectBox extends Widget implements IDelegate<ISelectOptionItem> {
 			.filter(() => this.selectList.length > 0)
 			.on(e => this.onMouseDown(e), this, this.toDispose);
 
-		this.toDispose.push(this.selectList.onDOMBlur(e => this.onListBlur()));
+		this.toDispose.push(this.selectList.onDidBlur(e => this.onListBlur()));
 	}
 
 	// List methods

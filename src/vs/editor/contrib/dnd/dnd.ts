@@ -21,7 +21,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDeco
 
 export class DragAndDropController implements editorCommon.IEditorContribution {
 
-	private static ID = 'editor.contrib.dragAndDrop';
+	private static readonly ID = 'editor.contrib.dragAndDrop';
 
 	private _editor: ICodeEditor;
 	private _toUnhook: IDisposable[];
@@ -129,14 +129,20 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 			let newCursorPosition = new Position(mouseEvent.target.position.lineNumber, mouseEvent.target.position.column);
 
 			if (this._dragSelection === null) {
-				let newSelections = this._editor.getSelections().map(selection => {
-					if (selection.containsPosition(newCursorPosition)) {
-						return new Selection(newCursorPosition.lineNumber, newCursorPosition.column, newCursorPosition.lineNumber, newCursorPosition.column);
-					} else {
-						return selection;
-					}
-				});
-				this._editor.setSelections(newSelections);
+				if (mouseEvent.event.shiftKey) {
+					let primarySelection = this._editor.getSelection();
+					let { startLineNumber, startColumn } = primarySelection;
+					this._editor.setSelections([new Selection(startLineNumber, startColumn, newCursorPosition.lineNumber, newCursorPosition.column)]);
+				} else {
+					let newSelections = this._editor.getSelections().map(selection => {
+						if (selection.containsPosition(newCursorPosition)) {
+							return new Selection(newCursorPosition.lineNumber, newCursorPosition.column, newCursorPosition.lineNumber, newCursorPosition.column);
+						} else {
+							return selection;
+						}
+					});
+					this._editor.setSelections(newSelections);
+				}
 			} else if (!this._dragSelection.containsPosition(newCursorPosition) ||
 				(
 					(
@@ -161,7 +167,7 @@ export class DragAndDropController implements editorCommon.IEditorContribution {
 		this._mouseDown = false;
 	}
 
-	private static _DECORATION_OPTIONS = ModelDecorationOptions.register({
+	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({
 		className: 'dnd-target'
 	});
 

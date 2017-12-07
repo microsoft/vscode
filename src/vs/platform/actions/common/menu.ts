@@ -21,14 +21,13 @@ export class Menu implements IMenu {
 	private _onDidChange = new Emitter<IMenu>();
 
 	constructor(
-		// @ts-ignore unused property
-		private _id: MenuId,
+		id: MenuId,
 		startupSignal: TPromise<boolean>,
 		@ICommandService private _commandService: ICommandService,
 		@IContextKeyService private _contextKeyService: IContextKeyService
 	) {
 		startupSignal.then(_ => {
-			const menuItems = MenuRegistry.getMenuItems(_id);
+			const menuItems = MenuRegistry.getMenuItems(id);
 			const keysFilter = new Set<string>();
 
 			let group: MenuItemGroup;

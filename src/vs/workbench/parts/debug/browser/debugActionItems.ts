@@ -12,7 +12,6 @@ import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { SelectActionItem, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { EventEmitter } from 'vs/base/common/eventEmitter';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDebugService } from 'vs/workbench/parts/debug/common/debug';
@@ -24,9 +23,9 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 
 const $ = dom.$;
 
-export class StartDebugActionItem extends EventEmitter implements IActionItem {
+export class StartDebugActionItem implements IActionItem {
 
-	private static SEPARATOR = '─────────';
+	private static readonly SEPARATOR = '─────────';
 
 	public actionRunner: IActionRunner;
 	private container: HTMLElement;
@@ -45,7 +44,6 @@ export class StartDebugActionItem extends EventEmitter implements IActionItem {
 		@ICommandService private commandService: ICommandService,
 		@IContextViewService private contextViewService: IContextViewService,
 	) {
-		super();
 		this.toDispose = [];
 		this.selectBox = new SelectBox([], -1, contextViewService);
 		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService, {

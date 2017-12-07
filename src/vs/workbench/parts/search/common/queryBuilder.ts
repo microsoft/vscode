@@ -176,7 +176,7 @@ export class QueryBuilder {
 			.reduce((absExpr: glob.IExpression, key: string) => {
 				if (expr[key] && !paths.isAbsolute(key)) {
 					const absPattern = paths.join(root, key);
-					absExpr[absPattern] = true;
+					absExpr[absPattern] = expr[key];
 				}
 
 				return absExpr;

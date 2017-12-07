@@ -210,6 +210,7 @@ export class Snippet {
 const schemaId = 'vscode://schemas/snippets';
 const schema: IJSONSchema = {
 	'id': schemaId,
+	'allowComments': true,
 	'defaultSnippets': [{
 		'label': nls.localize('snippetSchema.json.default', "Empty snippet"),
 		'body': { '${1:snippetName}': { 'prefix': '${2:prefix}', 'body': '${3:snippet}', 'description': '${4:description}' } }

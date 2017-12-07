@@ -102,44 +102,6 @@ suite('ConfigurationModel', () => {
 		assert.deepEqual(testObject.keys, []);
 	});
 
-	test('setValueInOverrides adds to overrides if does not exist', () => {
-		let testObject = new ConfigurationModel({ 'a': 1, 'b': 1 }, ['a']);
-
-		testObject.setValueInOverrides('or', 'a', 2);
-
-		assert.deepEqual(testObject.overrides[0].contents, { 'a': 2 });
-		assert.deepEqual(testObject.override('or').contents, { 'a': 2, 'b': 1 });
-	});
-
-	test('setValueInOverrides adds to overrides if exist', () => {
-		let testObject = new ConfigurationModel({ 'a': 1, 'b': 1 }, ['a'], [{ identifiers: ['or'], contents: { 'a': 2 } }]);
-
-		testObject.setValueInOverrides('or', 'a', 3);
-
-		assert.deepEqual(testObject.overrides[0].contents, { 'a': 3 });
-		assert.deepEqual(testObject.override('or').contents, { 'a': 3, 'b': 1 });
-	});
-
-	test('setValueInOverrides adds a nested key to overrides if exist', () => {
-		let testObject = new ConfigurationModel({ 'a': 1, 'b': 1 }, ['a'], [{ identifiers: ['or'], contents: { 'a': { 'c': 1 } } }]);
-
-		testObject.setValueInOverrides('or', 'a.c', 2);
-
-		assert.deepEqual(testObject.overrides[0].contents, { 'a': { 'c': 2 } });
-		assert.deepEqual(testObject.override('or').contents, { 'a': { 'c': 2 }, 'b': 1 });
-	});
-
-	test('setValueInOverrides adds new overrides if exist', () => {
-		let testObject = new ConfigurationModel({ 'a': 1, 'b': 1 }, ['a'], [{ identifiers: ['or1'], contents: { 'a': 2 } }]);
-
-		testObject.setValueInOverrides('or2', 'b', 2);
-
-		assert.deepEqual(testObject.overrides[0].contents, { 'a': 2 });
-		assert.deepEqual(testObject.overrides[1].contents, { 'b': 2 });
-		assert.deepEqual(testObject.override('or1').contents, { 'a': 2, 'b': 1 });
-		assert.deepEqual(testObject.override('or2').contents, { 'a': 1, 'b': 2 });
-	});
-
 	test('get overriding configuration model for an existing identifier', () => {
 		let testObject = new ConfigurationModel(
 			{ 'a': { 'b': 1 }, 'f': 1 }, [],

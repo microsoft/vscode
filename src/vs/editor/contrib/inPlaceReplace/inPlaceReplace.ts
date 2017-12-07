@@ -23,13 +23,13 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 class InPlaceReplaceController implements IEditorContribution {
 
-	private static ID = 'editor.contrib.inPlaceReplaceController';
+	private static readonly ID = 'editor.contrib.inPlaceReplaceController';
 
 	static get(editor: ICodeEditor): InPlaceReplaceController {
 		return editor.getContribution<InPlaceReplaceController>(InPlaceReplaceController.ID);
 	}
 
-	private static DECORATION = ModelDecorationOptions.register({
+	private static readonly DECORATION = ModelDecorationOptions.register({
 		className: 'valueSetReplacement'
 	});
 

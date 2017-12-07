@@ -7,9 +7,10 @@
 	"extensionsCommands": "Gerenciar Extensões",
 	"galleryExtensionsCommands": "Instalar Extensões da Galeria",
 	"extension": "Extensão",
+	"runtimeExtension": "Extensões em Execução",
 	"extensions": "Extensões",
 	"view": "Exibir",
+	"developer": "Desenvolvedor",
 	"extensionsConfigurationTitle": "Extensões",
-	"extensionsAutoUpdate": "Atualizar extensões automaticamente",
-	"extensionsIgnoreRecommendations": "Ignorar recomendações de extensão"
+	"extensionsAutoUpdate": "Atualizar extensões automaticamente"
 }

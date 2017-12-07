@@ -9,13 +9,13 @@ import { nextItemHTML, prevItemHTML } from './selectItemHTML';
 import { nextItemStylesheet, prevItemStylesheet } from './selectItemStylesheet';
 
 export function fetchSelectItem(direction: string): void {
-	let editor = vscode.window.activeTextEditor;
-	if (!validate()) {
+	if (!validate() || !vscode.window.activeTextEditor) {
 		return;
 	}
+	const editor = vscode.window.activeTextEditor;
 
-	let nextItem;
-	let prevItem;
+	let nextItem: any;
+	let prevItem: any;
 
 	if (isStyleSheet(editor.document.languageId)) {
 		nextItem = nextItemStylesheet;

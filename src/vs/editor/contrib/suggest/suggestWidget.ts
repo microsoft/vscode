@@ -153,6 +153,7 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 		}
 
 		data.highlightedLabel.set(suggestion.label, createMatches(element.matches));
+		// data.highlightedLabel.set(`${suggestion.label} <${element.score}=score(${element.word}, ${suggestion.filterText || suggestion.label})>`, createMatches(element.matches));
 		data.typeLabel.textContent = (suggestion.detail || '').replace(/\n.*$/m, '');
 
 		if (canExpandCompletionItem(element)) {
@@ -498,7 +499,9 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		}
 
 		const item = e.elements[0];
-		this.onDidSelectEmitter.fire(item);
+		item.resolve().then(() => {
+			this.onDidSelectEmitter.fire(item);
+		});
 
 		alert(nls.localize('suggestionAriaAccepted', "{0}, accepted", item.suggestion.label));
 
@@ -558,20 +561,11 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			}
 
 			this._ariaAlert(null);
-			// TODO@Alex: Chromium bug
-			// this.editor.setAriaActiveDescendant(null);
-
 			return;
 		}
 
 		const item = e.elements[0];
 		this._ariaAlert(this._getSuggestionAriaAlertLabel(item));
-
-		// TODO@Alex: Chromium bug
-		// // TODO@Alex: the list is not done rendering...
-		// setTimeout(() => {
-		// 	this.editor.setAriaActiveDescendant(this.list.getElementId(e.indexes[0]));
-		// }, 100);
 
 		if (item === this.focusedItem) {
 			return;
@@ -700,7 +694,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		}
 	}
 
-	showSuggestions(completionModel: CompletionModel, isFrozen: boolean, isAuto: boolean): void {
+	showSuggestions(completionModel: CompletionModel, selectionIndex: number, isFrozen: boolean, isAuto: boolean): void {
 		if (this.loadingTimeout) {
 			clearTimeout(this.loadingTimeout);
 			this.loadingTimeout = null;
@@ -744,8 +738,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			this.focusedItem = null;
 			this.focusedItemIndex = null;
 			this.list.splice(0, this.list.length, this.completionModel.items);
-			this.list.setFocus([0]);
-			this.list.reveal(0, 0);
+			this.list.setFocus([selectionIndex]);
+			this.list.reveal(selectionIndex, selectionIndex);
 
 			if (isFrozen) {
 				this.setState(State.Frozen);
@@ -1107,7 +1101,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 registerThemingParticipant((theme, collector) => {
 	let matchHighlight = theme.getColor(editorSuggestWidgetHighlightForeground);
 	if (matchHighlight) {
-		collector.addRule(`.monaco-editor .suggest-widget:not(.frozen) .monaco-list .monaco-list-row .monaco-highlighted-label .highlight { color: ${matchHighlight}; }`);
+		collector.addRule(`.monaco-editor .suggest-widget .monaco-list .monaco-list-row .monaco-highlighted-label .highlight { color: ${matchHighlight}; }`);
 	}
 	let foreground = theme.getColor(editorSuggestWidgetForeground);
 	if (foreground) {

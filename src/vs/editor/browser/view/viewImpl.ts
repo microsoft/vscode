@@ -529,10 +529,6 @@ export class View extends ViewEventHandler {
 		}
 	}
 
-	public setAriaActiveDescendant(id: string): void {
-		this._textAreaHandler.setAriaActiveDescendant(id);
-	}
-
 	public focus(): void {
 		this._textAreaHandler.focusTextArea();
 	}

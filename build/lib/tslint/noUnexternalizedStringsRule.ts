@@ -156,10 +156,10 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 				}
 			}
 		}
-		let messageArg: ts.Expression = callInfo.argIndex === this.messageIndex
-			? callInfo.callExpression.arguments[this.messageIndex]
-			: null;
-		if (messageArg && messageArg !== node) {
+
+		const messageArg = callInfo.callExpression.arguments[this.messageIndex];
+
+		if (messageArg && messageArg.kind !== ts.SyntaxKind.StringLiteral) {
 			this.addFailure(this.createFailure(
 				messageArg.getStart(), messageArg.getWidth(),
 				`Message argument to '${callInfo.callExpression.expression.getText()}' must be a string literal.`));
@@ -169,6 +169,15 @@ class NoUnexternalizedStringsRuleWalker extends Lint.RuleWalker {
 
 	private recordKey(keyNode: ts.StringLiteral, messageNode: ts.Node) {
 		let text = keyNode.getText();
+		// We have an empty key
+		if (text.match(/(['"]) *\1/)) {
+			if (messageNode) {
+				this.addFailureAtNode(keyNode, `Key is empty for message: ${messageNode.getText()}`);
+			} else {
+				this.addFailureAtNode(keyNode, `Key is empty.`);
+			}
+			return;
+		}
 		let occurrences: KeyMessagePair[] = this.usedKeys[text];
 		if (!occurrences) {
 			occurrences = [];

@@ -31,7 +31,7 @@ export interface ITypeData {
 
 export class TextAreaState {
 
-	public static EMPTY = new TextAreaState('', 0, 0, null, null);
+	public static readonly EMPTY = new TextAreaState('', 0, 0, null, null);
 
 	public readonly value: string;
 	public readonly selectionStart: number;
@@ -45,19 +45,6 @@ export class TextAreaState {
 		this.selectionEnd = selectionEnd;
 		this.selectionStartPosition = selectionStartPosition;
 		this.selectionEndPosition = selectionEndPosition;
-	}
-
-	public equals(other: TextAreaState): boolean {
-		if (other instanceof TextAreaState) {
-			return (
-				this.value === other.value
-				&& this.selectionStart === other.selectionStart
-				&& this.selectionEnd === other.selectionEnd
-				&& Position.equals(this.selectionStartPosition, other.selectionStartPosition)
-				&& Position.equals(this.selectionEndPosition, other.selectionEndPosition)
-			);
-		}
-		return false;
 	}
 
 	public toString(): string {
@@ -228,7 +215,7 @@ export class TextAreaState {
 }
 
 export class PagedScreenReaderStrategy {
-	private static _LINES_PER_PAGE = 10;
+	private static readonly _LINES_PER_PAGE = 10;
 
 	private static _getPageOfLine(lineNumber: number): number {
 		return Math.floor((lineNumber - 1) / PagedScreenReaderStrategy._LINES_PER_PAGE);

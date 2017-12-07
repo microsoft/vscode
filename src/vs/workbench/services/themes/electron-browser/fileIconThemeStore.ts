@@ -129,7 +129,7 @@ export class FileIconThemeStore {
 	}
 
 	public getFileIconThemes(): TPromise<FileIconThemeData[]> {
-		return this.extensionService.onReady().then(isReady => {
+		return this.extensionService.whenInstalledExtensionsRegistered().then(isReady => {
 			return this.knownIconThemes;
 		});
 	}

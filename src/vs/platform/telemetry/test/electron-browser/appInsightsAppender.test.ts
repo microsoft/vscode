@@ -74,13 +74,13 @@ suite('AIAdapter', () => {
 
 	test('property limits', () => {
 		var reallyLongPropertyName = 'abcdefghijklmnopqrstuvwxyz';
-		for (var i = 0; i < 6; i++) {
+		for (let i = 0; i < 6; i++) {
 			reallyLongPropertyName += 'abcdefghijklmnopqrstuvwxyz';
 		}
 		assert(reallyLongPropertyName.length > 150);
 
 		var reallyLongPropertyValue = 'abcdefghijklmnopqrstuvwxyz012345678901234567890123';
-		for (var i = 0; i < 21; i++) {
+		for (let i = 0; i < 21; i++) {
 			reallyLongPropertyValue += 'abcdefghijklmnopqrstuvwxyz012345678901234567890123';
 		}
 		assert(reallyLongPropertyValue.length > 1024);

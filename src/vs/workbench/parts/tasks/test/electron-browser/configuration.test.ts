@@ -54,11 +54,6 @@ class ProblemReporter implements IProblemReporter {
 		this.receivedMessage = true;
 		this.lastMessage = message;
 	}
-
-	public clearOutput(): void {
-		this.receivedMessage = false;
-		this.lastMessage = undefined;
-	}
 }
 
 class ConfiguationBuilder {
@@ -240,7 +235,7 @@ class CustomTaskBuilder {
 
 class ProblemMatcherBuilder {
 
-	public static DEFAULT_UUID = UUID.generateUuid();
+	public static readonly DEFAULT_UUID = UUID.generateUuid();
 
 	public result: ProblemMatcher;
 

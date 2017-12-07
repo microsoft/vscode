@@ -15,15 +15,17 @@ import { IRange } from 'vs/editor/common/core/range';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { join } from 'vs/base/common/paths';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import Event from 'vs/base/common/event';
 
 export interface IWorkbenchSettingsConfiguration {
 	workbench: {
 		settings: {
 			openDefaultSettings: boolean;
-			experimentalFuzzySearchEndpoint: string;
-			experimentalFuzzySearchKey: string;
-			experimentalFuzzySearchBoost: number;
-			experimentalFuzzySearchAutoIngestFeedback: boolean;
+			naturalLanguageSearchEndpoint: string;
+			naturalLanguageSearchKey: string;
+			naturalLanguageSearchAutoIngestFeedback: boolean;
+			enableNaturalLanguageSearch: boolean;
+			enableNaturalLanguageSearchFeedback: boolean;
 		}
 	};
 }
@@ -72,6 +74,9 @@ export interface IFilterMetadata {
 	timestamp: number;
 	duration: number;
 	scoredResults: IScoredResults;
+
+	/** The name of the server that actually served the request */
+	context: string;
 }
 
 export interface IPreferencesEditorModel<T> {
@@ -81,12 +86,13 @@ export interface IPreferencesEditorModel<T> {
 }
 
 export type IGroupFilter = (group: ISettingsGroup) => boolean;
-export type ISettingFilter = (setting: ISetting) => IRange[];
+export type ISettingMatcher = (setting: ISetting) => IRange[];
 
 export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> {
+	readonly onDidChangeGroups: Event<void>;
 	settingsGroups: ISettingsGroup[];
 	groupsTerms: string[];
-	filterSettings(filter: string, groupFilter: IGroupFilter, settingFilter: ISettingFilter, mostRelevantSettings?: string[]): IFilterResult;
+	filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher, mostRelevantSettings?: string[]): IFilterResult;
 	findValueMatches(filter: string, setting: ISetting): IRange[];
 }
 
@@ -105,6 +111,7 @@ export interface IPreferencesService {
 	resolveModel(uri: URI): TPromise<IModel>;
 	createPreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;
 
+	openRawDefaultSettings(): TPromise<void>;
 	openGlobalSettings(options?: IEditorOptions, position?: Position): TPromise<IEditor>;
 	openWorkspaceSettings(options?: IEditorOptions, position?: Position): TPromise<IEditor>;
 	openFolderSettings(folder: URI, options?: IEditorOptions, position?: Position): TPromise<IEditor>;
@@ -140,6 +147,27 @@ export function getSettingsTargetName(target: ConfigurationTarget, resource: URI
 			return folder ? folder.name : '';
 	}
 	return '';
+}
+
+export interface IEndpointDetails {
+	urlBase: string;
+	key?: string;
+}
+
+export const IPreferencesSearchService = createDecorator<IPreferencesSearchService>('preferencesSearchService');
+
+export interface IPreferencesSearchService {
+	_serviceBrand: any;
+
+	remoteSearchAllowed: boolean;
+	endpoint: IEndpointDetails;
+	onRemoteSearchEnablementChanged: Event<boolean>;
+
+	startSearch(filter: string, remote: boolean): IPreferencesSearchModel;
+}
+
+export interface IPreferencesSearchModel {
+	filterPreferences(preferencesModel: ISettingsEditorModel): TPromise<IFilterResult>;
 }
 
 export const CONTEXT_SETTINGS_EDITOR = new RawContextKey<boolean>('inSettingsEditor', false);

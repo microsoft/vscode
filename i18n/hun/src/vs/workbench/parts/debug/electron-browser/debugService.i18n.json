@@ -11,7 +11,7 @@
 	"breakpointAdded": "Töréspont hozzáadva, {0}. sor, fájl: {1}",
 	"breakpointRemoved": "Töréspont eltávoíltva, {0}. sor, fájl: {1}",
 	"compoundMustHaveConfigurations": "A kombinációk \"configurations\" tulajdonságát be kell állítani több konfiguráció elindításához.",
-	"configMissing": "A(z) '{0}' konfiguráció hiányzik a 'launch.json'-ból.",
+	"launchJsonDoesNotExist": "A 'launch.json' nem létezik.",
 	"debugRequestNotSupported": "A(z) `{0}` attribútumnak nem támogatott értéke van ('{1}') a kiválasztott hibakeresési konfigurációban.",
 	"debugRequesMissing": "A(z) '{0}' attribútum hiányzik a kiválasztott hibakeresési konfigurációból.",
 	"debugTypeNotSupported": "A megadott hibakeresési típus ('{0}') nem támogatott.",

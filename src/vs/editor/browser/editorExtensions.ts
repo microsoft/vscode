@@ -283,7 +283,7 @@ const Extensions = {
 
 class EditorContributionRegistry {
 
-	public static INSTANCE = new EditorContributionRegistry();
+	public static readonly INSTANCE = new EditorContributionRegistry();
 
 	private editorContributions: IEditorContributionCtor[];
 	private editorActions: EditorAction[];

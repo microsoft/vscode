@@ -16,7 +16,6 @@ import { Position as EditorPosition, ITextEditorOptions } from 'vs/platform/edit
 import { MainThreadTextEditor } from './mainThreadEditor';
 import { ITextEditorConfigurationUpdate, TextEditorRevealType, IApplyEditsOptions, IUndoStopOptions } from 'vs/workbench/api/node/extHost.protocol';
 import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { equals as objectEquals } from 'vs/base/common/objects';
 import { ExtHostContext, MainThreadEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData, IExtHostContext, IWorkspaceResourceEdit } from '../node/extHost.protocol';
 import { IRange } from 'vs/editor/common/core/range';
@@ -32,7 +31,6 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 	private _proxy: ExtHostEditorsShape;
 	private _documentsAndEditors: MainThreadDocumentsAndEditors;
 	private _workbenchEditorService: IWorkbenchEditorService;
-	private _telemetryService: ITelemetryService;
 	private _toDispose: IDisposable[];
 	private _textEditorsListenersMap: { [editorId: string]: IDisposable[]; };
 	private _editorPositionData: ITextEditorPositionData;
@@ -44,7 +42,6 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 		@ICodeEditorService private _codeEditorService: ICodeEditorService,
 		@IWorkbenchEditorService workbenchEditorService: IWorkbenchEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 		@IFileService private readonly _fileService: IFileService,
 		@IModelService private readonly _modelService: IModelService,
@@ -52,7 +49,6 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 		this._proxy = extHostContext.get(ExtHostContext.ExtHostEditors);
 		this._documentsAndEditors = documentsAndEditors;
 		this._workbenchEditorService = workbenchEditorService;
-		this._telemetryService = telemetryService;
 		this._toDispose = [];
 		this._textEditorsListenersMap = Object.create(null);
 		this._editorPositionData = null;
@@ -140,14 +136,6 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 	}
 
 	$tryShowEditor(id: string, position: EditorPosition): TPromise<void> {
-		// check how often this is used
-		/* __GDPR__
-			"api.deprecated" : {
-				"function" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		this._telemetryService.publicLog('api.deprecated', { function: 'TextEditor.show' });
-
 		let mainThreadEditor = this._documentsAndEditors.getEditor(id);
 		if (mainThreadEditor) {
 			let model = mainThreadEditor.getModel();
@@ -160,14 +148,6 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 	}
 
 	$tryHideEditor(id: string): TPromise<void> {
-		// check how often this is used
-		/* __GDPR__
-			"api.deprecated" : {
-				"function" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		this._telemetryService.publicLog('api.deprecated', { function: 'TextEditor.hide' });
-
 		let mainThreadEditor = this._documentsAndEditors.getEditor(id);
 		if (mainThreadEditor) {
 			let editors = this._workbenchEditorService.getVisibleEditors();

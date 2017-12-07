@@ -21,7 +21,6 @@ import { IConfirmation, IMessageService, IConfirmationResult } from 'vs/platform
 import { IWorkspaceContextService, IWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Selection } from 'vs/editor/common/core/selection';
 import Event, { Emitter } from 'vs/base/common/event';
 import { Configuration, DefaultConfigurationModel, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -54,7 +53,6 @@ export class SimpleEditor implements IEditor {
 
 	public getId(): string { return 'editor'; }
 	public getControl(): editorCommon.IEditor { return this._widget; }
-	public getSelection(): Selection { return this._widget.getSelection(); }
 	public focus(): void { this._widget.focus(); }
 	public isVisible(): boolean { return true; }
 
@@ -239,7 +237,7 @@ export class SimpleMessageService implements IMessageService {
 
 	public _serviceBrand: any;
 
-	private static Empty = function () { /* nothing */ };
+	private static readonly Empty = function () { /* nothing */ };
 
 	public show(sev: Severity, message: any): () => void {
 
@@ -262,7 +260,7 @@ export class SimpleMessageService implements IMessageService {
 		// No-op
 	}
 
-	public confirmSync(confirmation: IConfirmation): boolean {
+	public confirm(confirmation: IConfirmation): boolean {
 		let messageText = confirmation.message;
 		if (confirmation.detail) {
 			messageText = messageText + '\n\n' + confirmation.detail;
@@ -271,8 +269,8 @@ export class SimpleMessageService implements IMessageService {
 		return window.confirm(messageText);
 	}
 
-	public confirm(confirmation: IConfirmation): TPromise<IConfirmationResult> {
-		return TPromise.as({ confirmed: this.confirmSync(confirmation) } as IConfirmationResult);
+	public confirmWithCheckbox(confirmation: IConfirmation): TPromise<IConfirmationResult> {
+		return TPromise.as({ confirmed: this.confirm(confirmation), checkboxChecked: false /* unsupported */ } as IConfirmationResult);
 	}
 }
 
@@ -479,7 +477,7 @@ export class SimpleConfigurationService implements IConfigurationService {
 		workspaceFolder: C
 		value: C,
 	} {
-		return this.configuration().lookup<C>(key, options, null);
+		return this.configuration().inspect<C>(key, options, null);
 	}
 
 	public keys() {
@@ -585,10 +583,6 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 
 	public isInsideWorkspace(resource: URI): boolean {
 		return resource && resource.scheme === SimpleWorkspaceContextService.SCHEME;
-	}
-
-	public toResource(workspaceRelativePath: string, workspaceFolder: IWorkspaceFolder): URI {
-		return URI.file(workspaceRelativePath);
 	}
 
 	public isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean {

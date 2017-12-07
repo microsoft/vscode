@@ -72,4 +72,8 @@ export default class API {
 	public has260Features(): boolean {
 		return semver.gte(this.version, '2.6.0');
 	}
+
+	public has262Features(): boolean {
+		return semver.gte(this.version, '2.6.2');
+	}
 }

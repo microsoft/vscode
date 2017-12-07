@@ -321,7 +321,7 @@ export class ContextKeyNotExpr implements ContextKeyExpr {
 }
 
 export class ContextKeyAndExpr implements ContextKeyExpr {
-	private expr: ContextKeyExpr[];
+	public readonly expr: ContextKeyExpr[];
 
 	constructor(expr: ContextKeyExpr[]) {
 		this.expr = ContextKeyAndExpr._normalizeArr(expr);

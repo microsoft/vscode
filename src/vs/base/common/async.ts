@@ -261,56 +261,34 @@ export class ThrottledDelayer<T> extends Delayer<TPromise<T>> {
 }
 
 /**
- * Similar to the ThrottledDelayer, except it also guarantees that the promise
- * factory doesn't get called more often than every `minimumPeriod` milliseconds.
+ * A barrier that is initially closed and then becomes opened permanently.
  */
-export class PeriodThrottledDelayer<T> extends ThrottledDelayer<T> {
+export class Barrier {
 
-	private minimumPeriod: number;
-	private periodThrottler: Throttler;
-
-	constructor(defaultDelay: number, minimumPeriod: number = 0) {
-		super(defaultDelay);
-
-		this.minimumPeriod = minimumPeriod;
-		this.periodThrottler = new Throttler();
-	}
-
-	trigger(promiseFactory: ITask<TPromise<T>>, delay?: number): Promise {
-		return super.trigger(() => {
-			return this.periodThrottler.queue(() => {
-				return Promise.join([
-					TPromise.timeout(this.minimumPeriod),
-					promiseFactory()
-				]).then(r => r[1]);
-			});
-		}, delay);
-	}
-}
-
-export class PromiseSource<T> {
-
-	private _value: TPromise<T>;
-	private _completeCallback: Function;
-	private _errorCallback: Function;
+	private _isOpen: boolean;
+	private _promise: TPromise<boolean>;
+	private _completePromise: (v: boolean) => void;
 
 	constructor() {
-		this._value = new TPromise<T>((c, e) => {
-			this._completeCallback = c;
-			this._errorCallback = e;
+		this._isOpen = false;
+		this._promise = new TPromise<boolean>((c, e, p) => {
+			this._completePromise = c;
+		}, () => {
+			console.warn('You should really not try to cancel this ready promise!');
 		});
 	}
 
-	get value(): TPromise<T> {
-		return this._value;
+	isOpen(): boolean {
+		return this._isOpen;
 	}
 
-	complete(value?: T): void {
-		this._completeCallback(value);
+	open(): void {
+		this._isOpen = true;
+		this._completePromise(true);
 	}
 
-	error(err?: any): void {
-		this._errorCallback(err);
+	wait(): TPromise<boolean> {
+		return this._promise;
 	}
 }
 
@@ -637,13 +615,6 @@ export class RunOnceScheduler {
 			platform.clearTimeout(this.timeoutToken);
 			this.timeoutToken = -1;
 		}
-	}
-
-	/**
-	 * Replace runner. If there is a runner already scheduled, the new runner will be called.
-	 */
-	setRunner(runner: () => void): void {
-		this.runner = runner;
 	}
 
 	/**

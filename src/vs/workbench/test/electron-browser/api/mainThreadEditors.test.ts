@@ -73,7 +73,6 @@ suite('MainThreadEditors', () => {
 			null,
 			null,
 			editorGroupService,
-			null
 		);
 
 		editors = new MainThreadEditors(
@@ -82,7 +81,6 @@ suite('MainThreadEditors', () => {
 			codeEditorService,
 			workbenchEditorService,
 			editorGroupService,
-			null,
 			null,
 			null,
 			modelService

@@ -21,6 +21,7 @@
 	"deleted by us": "본인이 삭제함",
 	"both added": "둘 다 추가됨",
 	"both modified": "둘 다 수정됨",
+	"commitMessage": "메시지(커밋하려면 {0} 누르기)",
 	"commit": "커밋",
 	"merge changes": "변경 내용 병합",
 	"staged changes": "스테이징된 변경 내용",

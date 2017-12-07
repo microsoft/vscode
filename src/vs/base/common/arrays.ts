@@ -5,6 +5,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
+import { ISplice } from 'vs/base/common/sequence';
 
 /**
  * Returns the last element of an array.
@@ -124,20 +125,18 @@ export function groupBy<T>(data: T[], compare: (a: T, b: T) => number): T[][] {
 	return result;
 }
 
-export interface Splice<T> {
-	start: number;
+interface IMutableSplice<T> extends ISplice<T> {
 	deleteCount: number;
-	inserted: T[];
 }
 
 /**
  * Diffs two *sorted* arrays and computes the splices which apply the diff.
  */
-export function sortedDiff<T>(before: T[], after: T[], compare: (a: T, b: T) => number): Splice<T>[] {
-	const result: Splice<T>[] = [];
+export function sortedDiff<T>(before: T[], after: T[], compare: (a: T, b: T) => number): ISplice<T>[] {
+	const result: IMutableSplice<T>[] = [];
 
-	function pushSplice(start: number, deleteCount: number, inserted: T[]): void {
-		if (deleteCount === 0 && inserted.length === 0) {
+	function pushSplice(start: number, deleteCount: number, toInsert: T[]): void {
+		if (deleteCount === 0 && toInsert.length === 0) {
 			return;
 		}
 
@@ -145,9 +144,9 @@ export function sortedDiff<T>(before: T[], after: T[], compare: (a: T, b: T) => 
 
 		if (latest && latest.start + latest.deleteCount === start) {
 			latest.deleteCount += deleteCount;
-			latest.inserted.push(...inserted);
+			latest.toInsert.push(...toInsert);
 		} else {
-			result.push({ start, deleteCount, inserted });
+			result.push({ start, deleteCount, toInsert });
 		}
 	}
 
@@ -199,7 +198,7 @@ export function delta<T>(before: T[], after: T[], compare: (a: T, b: T) => numbe
 
 	for (const splice of splices) {
 		removed.push(...before.slice(splice.start, splice.start + splice.deleteCount));
-		added.push(...splice.inserted);
+		added.push(...splice.toInsert);
 	}
 
 	return { removed, added };
@@ -391,21 +390,6 @@ export function range(arg: number, to?: number): number[] {
 	} else {
 		for (let i = from; i > to; i--) {
 			result.push(i);
-		}
-	}
-
-	return result;
-}
-
-export function weave<T>(a: T[], b: T[]): T[] {
-	const result: T[] = [];
-	let ai = 0, bi = 0;
-
-	for (let i = 0, length = a.length + b.length; i < length; i++) {
-		if ((i % 2 === 0 && ai < a.length) || bi >= b.length) {
-			result.push(a[ai++]);
-		} else {
-			result.push(b[bi++]);
 		}
 	}
 

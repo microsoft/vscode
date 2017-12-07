@@ -79,10 +79,6 @@ export class HoverOperation<Result> {
 		this._progressCallback = progress;
 	}
 
-	public getComputer(): IHoverComputer<Result> {
-		return this._computer;
-	}
-
 	private _getHoverTimeMillis(): number {
 		if (this._computer.getHoverTimeMillis) {
 			return this._computer.getHoverTimeMillis();
@@ -186,4 +182,3 @@ export class HoverOperation<Result> {
 	}
 
 }
-

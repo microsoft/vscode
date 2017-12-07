@@ -16,6 +16,7 @@ import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
 import { Position as EditorPosition, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { CustomCodeAction } from 'vs/workbench/api/node/extHostLanguageFeatures';
 
 export class ExtHostApiCommands {
 
@@ -392,16 +393,26 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeCodeActionProvider(resource: URI, range: types.Range): Thenable<vscode.Command[]> {
+	private _executeCodeActionProvider(resource: URI, range: types.Range): Thenable<(vscode.CodeAction | vscode.Command)[]> {
 		const args = {
 			resource,
 			range: typeConverters.fromRange(range)
 		};
-		return this._commands.executeCommand<modes.Command[]>('_executeCodeActionProvider', args).then(value => {
+		return this._commands.executeCommand<CustomCodeAction[]>('_executeCodeActionProvider', args).then(value => {
 			if (!Array.isArray(value)) {
 				return undefined;
 			}
-			return value.map(quickFix => this._commands.converter.fromInternal(quickFix));
+			return value.map(codeAction => {
+				if (codeAction._isSynthetic) {
+					return this._commands.converter.fromInternal(codeAction.command);
+				} else {
+					const ret = new types.CodeAction(
+						codeAction.title,
+						typeConverters.WorkspaceEdit.to(codeAction.edits)
+					);
+					return ret;
+				}
+			});
 		});
 	}
 

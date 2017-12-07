@@ -17,7 +17,7 @@ import { ITextSearchWorkerProvider } from './textSearchWorkerProvider';
 
 export class Engine implements ISearchEngine<ISerializedFileMatch[]> {
 
-	private static PROGRESS_FLUSH_CHUNK_SIZE = 50; // optimization: number of files to process before emitting progress event
+	private static readonly PROGRESS_FLUSH_CHUNK_SIZE = 50; // optimization: number of files to process before emitting progress event
 
 	private config: IRawSearch;
 	private walker: FileWalker;

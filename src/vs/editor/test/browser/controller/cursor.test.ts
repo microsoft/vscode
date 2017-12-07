@@ -1092,7 +1092,7 @@ suite('Editor Controller - Cursor', () => {
 
 class SurroundingMode extends MockMode {
 
-	private static _id = new LanguageIdentifier('surroundingMode', 3);
+	private static readonly _id = new LanguageIdentifier('surroundingMode', 3);
 
 	constructor() {
 		super(SurroundingMode._id);
@@ -1103,7 +1103,7 @@ class SurroundingMode extends MockMode {
 }
 
 class OnEnterMode extends MockMode {
-	private static _id = new LanguageIdentifier('onEnterMode', 3);
+	private static readonly _id = new LanguageIdentifier('onEnterMode', 3);
 
 	constructor(indentAction: IndentAction, outdentCurrentLine?: boolean) {
 		super(OnEnterMode._id);
@@ -1120,7 +1120,7 @@ class OnEnterMode extends MockMode {
 }
 
 class IndentRulesMode extends MockMode {
-	private static _id = new LanguageIdentifier('indentRulesMode', 4);
+	private static readonly _id = new LanguageIdentifier('indentRulesMode', 4);
 	constructor(indentationRules: IndentationRule) {
 		super(IndentRulesMode._id);
 		this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
@@ -3177,7 +3177,7 @@ suite('Editor Controller - Indentation Rules', () => {
 
 	test('issue #36090: JS: editor.autoIndent seems to be broken', () => {
 		class JSMode extends MockMode {
-			private static _id = new LanguageIdentifier('indentRulesMode', 4);
+			private static readonly _id = new LanguageIdentifier('indentRulesMode', 4);
 			constructor() {
 				super(JSMode._id);
 				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
@@ -3261,6 +3261,67 @@ suite('Editor Controller - Indentation Rules', () => {
 		model.dispose();
 		mode.dispose();
 	});
+
+	test('issue #38261: TAB key results in bizarre indentation in C++ mode ', () => {
+		class CppMode extends MockMode {
+			private static readonly _id = new LanguageIdentifier('indentRulesMode', 4);
+			constructor() {
+				super(CppMode._id);
+				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+					brackets: [
+						['{', '}'],
+						['[', ']'],
+						['(', ')']
+					],
+					indentationRules: {
+						increaseIndentPattern: new RegExp('^.*\\{[^}\"\\\']*$|^.*\\([^\\)\"\\\']*$|^\\s*(public|private|protected):\\s*$|^\\s*@(public|private|protected)\\s*$|^\\s*\\{\\}$'),
+						decreaseIndentPattern: new RegExp('^\\s*(\\s*/[*].*[*]/\\s*)*\\}|^\\s*(\\s*/[*].*[*]/\\s*)*\\)|^\\s*(public|private|protected):\\s*$|^\\s*@(public|private|protected)\\s*$'),
+					}
+				}));
+			}
+		}
+
+		let mode = new CppMode();
+		let model = Model.createFromString(
+			[
+				'int main() {',
+				'  return 0;',
+				'}',
+				'',
+				'bool Foo::bar(const string &a,',
+				'              const string &b) {',
+				'  foo();',
+				'',
+				')',
+			].join('\n'),
+			{ insertSpaces: true, detectIndentation: false, tabSize: 2, trimAutoWhitespace: false, defaultEOL: DefaultEndOfLine.LF },
+			mode.getLanguageIdentifier()
+		);
+
+		withTestCodeEditor(null, { model: model, autoIndent: false }, (editor, cursor) => {
+			moveTo(cursor, 8, 1, false);
+			assertCursor(cursor, new Selection(8, 1, 8, 1));
+
+			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
+			assert.equal(model.getValue(),
+				[
+					'int main() {',
+					'  return 0;',
+					'}',
+					'',
+					'bool Foo::bar(const string &a,',
+					'              const string &b) {',
+					'  foo();',
+					'  ',
+					')',
+				].join('\n')
+			);
+			assert.deepEqual(cursor.getSelection(), new Selection(8, 3, 8, 3));
+		});
+
+		model.dispose();
+		mode.dispose();
+	});
 });
 
 interface ICursorOpts {
@@ -3287,7 +3348,7 @@ function usingCursor(opts: ICursorOpts, callback: (model: Model, cursor: Cursor)
 
 class ElectricCharMode extends MockMode {
 
-	private static _id = new LanguageIdentifier('electricCharMode', 3);
+	private static readonly _id = new LanguageIdentifier('electricCharMode', 3);
 
 	constructor() {
 		super(ElectricCharMode._id);
@@ -3545,7 +3606,7 @@ suite('autoClosingPairs', () => {
 
 	class AutoClosingMode extends MockMode {
 
-		private static _id = new LanguageIdentifier('autoClosingMode', 5);
+		private static readonly _id = new LanguageIdentifier('autoClosingMode', 5);
 
 		constructor() {
 			super(AutoClosingMode._id);

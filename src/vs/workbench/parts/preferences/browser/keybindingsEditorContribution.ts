@@ -36,7 +36,7 @@ const INTERESTING_FILE = /keybindings\.json$/;
 
 export class DefineKeybindingController extends Disposable implements editorCommon.IEditorContribution {
 
-	private static ID = 'editor.contrib.defineKeybinding';
+	private static readonly ID = 'editor.contrib.defineKeybinding';
 
 	public static get(editor: ICodeEditor): DefineKeybindingController {
 		return editor.getContribution<DefineKeybindingController>(DefineKeybindingController.ID);

@@ -103,7 +103,7 @@ class SnippetsService implements ISnippetsService {
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IExtensionService extensionService: IExtensionService,
 	) {
-		this._wait = Promise.resolve(extensionService.onReady());
+		this._wait = Promise.resolve(extensionService.whenInstalledExtensionsRegistered());
 		this._userSnippetsFolder = join(_environmentService.appSettingsHome, 'snippets');
 		this._prepUserSnippetsWatching();
 		this._prepExtensionSnippets();
@@ -226,6 +226,7 @@ class SnippetsService implements ISnippetsService {
 			// not yet loaded
 			return SnippetFile.fromFile(this._getUserSnippetFilepath(languageId), localize('source.snippet', "User Snippet")).then(file => {
 				this._userSnippets.set(languageId, file.data);
+				bucket.push(...file.data);
 			}, err => {
 				this._userSnippets.set(languageId, null);
 			});

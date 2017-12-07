@@ -143,7 +143,7 @@ export class KeybindingsEditorModel extends EditorModel {
 	}
 
 	public resolve(editorActionsLabels: { [id: string]: string; }): TPromise<EditorModel> {
-		return this.extensionService.onReady()
+		return this.extensionService.whenInstalledExtensionsRegistered()
 			.then(() => {
 				const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 

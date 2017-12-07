@@ -56,7 +56,7 @@ function alertFormattingEdits(edits: editorCommon.ISingleEditOperation[]): void 
 
 class FormatOnType implements editorCommon.IEditorContribution {
 
-	private static ID = 'editor.contrib.autoFormat';
+	private static readonly ID = 'editor.contrib.autoFormat';
 
 	private editor: ICodeEditor;
 	private workerService: IEditorWorkerService;
@@ -181,7 +181,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 
 class FormatOnPaste implements editorCommon.IEditorContribution {
 
-	private static ID = 'editor.contrib.formatOnPaste';
+	private static readonly ID = 'editor.contrib.formatOnPaste';
 
 	private editor: ICodeEditor;
 	private workerService: IEditorWorkerService;

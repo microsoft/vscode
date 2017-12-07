@@ -11,7 +11,6 @@
 	"breakpointAdded": "Aggiunto un punto di interruzione a riga {0} del file {1}",
 	"breakpointRemoved": "Rimosso un punto di interruzione a riga {0} del file {1}",
 	"compoundMustHaveConfigurations": "Per avviare più configurazioni, deve essere impostato l'attributo \"configurations\" dell'elemento compounds.",
-	"configMissing": "In 'launch.json' manca la configurazione '{0}'.",
 	"debugRequestNotSupported": "Nella configurazione di debug scelta l'attributo '{0}' ha un valore non supportato '{1}'.",
 	"debugRequesMissing": "Nella configurazione di debug scelta manca l'attributo '{0}'.",
 	"debugTypeNotSupported": "Il tipo di debug configurato '{0}' non è supportato.",

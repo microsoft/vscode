@@ -39,6 +39,7 @@
 	"typescript.openTsServerLog.title": "TS サーバーのログを開く",
 	"typescript.restartTsServer": "TS サーバーを再起動する",
 	"typescript.selectTypeScriptVersion.title": "TypeScript のバージョンの選択",
+	"typescript.reportStyleChecksAsWarnings": "スタイルチェックレポートを警告扱いとする",
 	"jsDocCompletion.enabled": " 自動 JSDoc コメントを有効/無効にします",
 	"javascript.implicitProjectConfig.checkJs": "JavaScript ファイルのセマンティック チェックを有効/無効にします。既存の jsconfi.json や tsconfi.json ファイルの設定はこれより優先されます。TypeScript は 2.3.1 以上である必要があります。",
 	"typescript.npm": "型定義の自動取得に使用される NPM 実行可能ファイルへのパスを指定します。TypeScript 2.3.4 以上が必要です。",

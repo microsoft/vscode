@@ -19,7 +19,10 @@
 		"grammars": [{
       "language": "razor",
 			"scopeName": "text.html.cshtml",
-			"path": "./syntaxes/cshtml.json"
+			"path": "./syntaxes/cshtml.json",
+			"embeddedLanguages": {
+				"section.embedded.source.cshtml": "csharp"
+			}
 		}]
   }
 }

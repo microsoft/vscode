@@ -85,7 +85,7 @@ const CONTEXT_RENAME_INPUT_VISIBLE = new RawContextKey<boolean>('renameInputVisi
 
 class RenameController implements IEditorContribution {
 
-	private static ID = 'editor.contrib.renameController';
+	private static readonly ID = 'editor.contrib.renameController';
 
 	public static get(editor: ICodeEditor): RenameController {
 		return editor.getContribution<RenameController>(RenameController.ID);

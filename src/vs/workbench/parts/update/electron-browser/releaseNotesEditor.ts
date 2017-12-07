@@ -23,12 +23,13 @@ import { WebviewEditor } from 'vs/workbench/parts/html/browser/webviewEditor';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IMode } from 'vs/editor/common/modes';
+import { IMode, TokenizationRegistry } from 'vs/editor/common/modes';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { addGAParameters } from 'vs/platform/telemetry/node/telemetryNodeUtils';
+import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
 
-function renderBody(body: string): string {
+function renderBody(body: string, css: string): string {
 	return `<!DOCTYPE html>
 		<html>
 			<head>
@@ -36,6 +37,7 @@ function renderBody(body: string): string {
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
 				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; script-src 'none'; style-src file: https: 'unsafe-inline'; child-src 'none'; frame-src 'none';">
 				<link rel="stylesheet" type="text/css" href="${require.toUrl('./media/markdown.css')}">
+				<style>${css}</style>
 			</head>
 			<body>${body}</body>
 		</html>`;
@@ -95,7 +97,9 @@ export class ReleaseNotesEditor extends WebviewEditor {
 			return `<code>${tokenizeToString(code, modeId)}</code>`;
 		};
 
-		const body = renderBody(marked(text, { renderer }));
+		const colorMap = TokenizationRegistry.getColorMap();
+		const css = generateTokensCSSForColorMap(colorMap);
+		const body = renderBody(marked(text, { renderer }), css);
 		this._webview = new WebView(this.content, this.partService.getContainer(Parts.EDITOR_PART), this._contextViewService, this.contextKey, this.findInputFocusContextKey);
 		if (this.input && this.input instanceof ReleaseNotesInput) {
 			const state = this.loadViewState(this.input.version);

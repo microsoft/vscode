@@ -26,7 +26,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IStorageService } from 'vs/platform/storage/node/storage';
+import { IStateService } from 'vs/platform/state/common/state';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IURLService } from 'vs/platform/url/common/url';
@@ -35,7 +35,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
-import { resolveCommonProperties, machineIdStorageKey, machineIdIpcChannel } from 'vs/platform/telemetry/node/commonProperties';
+import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProperties';
 import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
@@ -53,10 +53,12 @@ import { WorkspacesChannel } from 'vs/platform/workspaces/common/workspacesIpc';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { dirname, join } from 'path';
 import { touch } from 'vs/base/node/pfs';
+import { getMachineId } from 'vs/base/node/id';
 
 export class CodeApplication {
 
-	private static APP_ICON_REFRESH_KEY = 'macOSAppIconRefresh3';
+	private static readonly APP_ICON_REFRESH_KEY = 'macOSAppIconRefresh3';
+	private static readonly MACHINE_ID_KEY = 'telemetry.machineId';
 
 	private toDispose: IDisposable[];
 	private windowsMainService: IWindowsMainService;
@@ -74,8 +76,8 @@ export class CodeApplication {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IConfigurationService configurationService: ConfigurationService,
-		@IStorageService private storageService: IStorageService,
-		@IHistoryMainService private historyService: IHistoryMainService
+		@IStateService private stateService: IStateService,
+		@IHistoryMainService private historyMainService: IHistoryMainService
 	) {
 		this.toDispose = [mainIpcServer, configurationService];
 
@@ -107,7 +109,7 @@ export class CodeApplication {
 		});
 
 		app.on('will-quit', () => {
-			this.logService.log('App#will-quit: disposing resources');
+			this.logService.trace('App#will-quit: disposing resources');
 
 			this.dispose();
 		});
@@ -119,7 +121,7 @@ export class CodeApplication {
 		});
 
 		app.on('activate', (event: Event, hasVisibleWindows: boolean) => {
-			this.logService.log('App#activate');
+			this.logService.trace('App#activate');
 
 			// Mac only event: open new window when we get activated
 			if (!hasVisibleWindows && this.windowsMainService) {
@@ -154,7 +156,7 @@ export class CodeApplication {
 		let macOpenFiles: string[] = [];
 		let runningTimeout: number = null;
 		app.on('open-file', (event: Event, path: string) => {
-			this.logService.log('App#open-file: ', path);
+			this.logService.trace('App#open-file: ', path);
 			event.preventDefault();
 
 			// Keep in array because more might come!
@@ -186,15 +188,10 @@ export class CodeApplication {
 		});
 
 		ipc.on('vscode:exit', (_event: any, code: number) => {
-			this.logService.log('IPC#vscode:exit', code);
+			this.logService.trace('IPC#vscode:exit', code);
 
 			this.dispose();
 			this.lifecycleService.kill(code);
-		});
-
-		ipc.on(machineIdIpcChannel, (_event: any, machineId: string) => {
-			this.logService.log('IPC#vscode-machineId');
-			this.storageService.setItem(machineIdStorageKey, machineId);
 		});
 
 		ipc.on('vscode:fetchShellEnv', (_event: any, windowId: number) => {
@@ -214,7 +211,7 @@ export class CodeApplication {
 
 		ipc.on('vscode:broadcast', (_event: any, windowId: number, broadcast: { channel: string; payload: any; }) => {
 			if (this.windowsMainService && broadcast.channel && !isUndefinedOrNull(broadcast.payload)) {
-				this.logService.log('IPC#vscode:broadcast', broadcast.channel, broadcast.payload);
+				this.logService.trace('IPC#vscode:broadcast', broadcast.channel, broadcast.payload);
 
 				// Handle specific events on main side
 				this.onBroadcast(broadcast.channel, broadcast.payload);
@@ -238,15 +235,15 @@ export class CodeApplication {
 		if (event === 'vscode:changeColorTheme' && typeof payload === 'string') {
 			let data = JSON.parse(payload);
 
-			this.storageService.setItem(CodeWindow.themeStorageKey, data.id);
-			this.storageService.setItem(CodeWindow.themeBackgroundStorageKey, data.background);
+			this.stateService.setItem(CodeWindow.themeStorageKey, data.id);
+			this.stateService.setItem(CodeWindow.themeBackgroundStorageKey, data.background);
 		}
 	}
 
-	public startup(): void {
-		this.logService.log('Starting VS Code in verbose mode');
-		this.logService.log(`from: ${this.environmentService.appRoot}`);
-		this.logService.log('args:', this.environmentService.args);
+	public startup(): TPromise<void> {
+		this.logService.debug('Starting VS Code');
+		this.logService.debug(`from: ${this.environmentService.appRoot}`);
+		this.logService.debug('args:', this.environmentService.args);
 
 		// Make sure we associate the program with the app user model id
 		// This will help Windows to associate the running program with
@@ -259,30 +256,51 @@ export class CodeApplication {
 		// Create Electron IPC Server
 		this.electronIpcServer = new ElectronIPCServer();
 
-		// Spawn shared process
-		this.sharedProcess = new SharedProcess(this.environmentService, this.userEnv);
-		this.toDispose.push(this.sharedProcess);
-		this.sharedProcessClient = this.sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
+		// Resolve unique machine ID
+		this.logService.trace('Resolving machine identifier...');
+		return this.resolveMachineId().then(machineId => {
+			this.logService.trace(`Resolved machine identifier: ${machineId}`);
 
-		// Services
-		const appInstantiationService = this.initServices();
+			// Spawn shared process
+			this.sharedProcess = new SharedProcess(this.environmentService, machineId, this.userEnv);
+			this.toDispose.push(this.sharedProcess);
+			this.sharedProcessClient = TPromise.timeout(5000).then(() => this.sharedProcess.whenReady()).then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
 
-		// Setup Auth Handler
-		const authHandler = appInstantiationService.createInstance(ProxyAuthHandler);
-		this.toDispose.push(authHandler);
+			// Services
+			const appInstantiationService = this.initServices(machineId);
 
-		// Open Windows
-		appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor));
+			// Setup Auth Handler
+			const authHandler = appInstantiationService.createInstance(ProxyAuthHandler);
+			this.toDispose.push(authHandler);
 
-		// Post Open Windows Tasks
-		appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor));
+			// Open Windows
+			appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor));
+
+			// Post Open Windows Tasks
+			appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor));
+		});
 	}
 
-	private initServices(): IInstantiationService {
+	private resolveMachineId(): TPromise<string> {
+		const machineId = this.stateService.getItem<string>(CodeApplication.MACHINE_ID_KEY);
+		if (machineId) {
+			return TPromise.wrap(machineId);
+		}
+
+		return getMachineId().then(machineId => {
+
+			// Remember in global storage
+			this.stateService.setItem(CodeApplication.MACHINE_ID_KEY, machineId);
+
+			return machineId;
+		});
+	}
+
+	private initServices(machineId: string): IInstantiationService {
 		const services = new ServiceCollection();
 
 		services.set(IUpdateService, new SyncDescriptor(UpdateService));
-		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager));
+		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager, machineId));
 		services.set(IWindowsService, new SyncDescriptor(WindowsService, this.sharedProcess));
 		services.set(ILaunchService, new SyncDescriptor(LaunchService));
 
@@ -290,14 +308,10 @@ export class CodeApplication {
 		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
 			const channel = getDelayedChannel<ITelemetryAppenderChannel>(this.sharedProcessClient.then(c => c.getChannel('telemetryAppender')));
 			const appender = new TelemetryAppenderClient(channel);
-			const commonProperties = resolveCommonProperties(product.commit, pkg.version, this.environmentService.installSource)
-				// __GDPR__COMMON__ "common.machineId" : { "classification": "EndUserPseudonymizedInformation", "purpose": "FeatureInsight" }
-				.then(result => Object.defineProperty(result, 'common.machineId', {
-					get: () => this.storageService.getItem(machineIdStorageKey),
-					enumerable: true
-				}));
+			const commonProperties = resolveCommonProperties(product.commit, pkg.version, machineId, this.environmentService.installSourcePath);
 			const piiPaths = [this.environmentService.appRoot, this.environmentService.extensionsPath];
 			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths };
+
 			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, config));
 		} else {
 			services.set(ITelemetryService, NullTelemetryService);
@@ -341,7 +355,6 @@ export class CodeApplication {
 		const windowsChannel = new WindowsChannel(windowsService);
 		this.electronIpcServer.registerChannel('windows', windowsChannel);
 		this.sharedProcessClient.done(client => client.registerChannel('windows', windowsChannel));
-
 
 		// Lifecycle
 		this.lifecycleService.ready();
@@ -405,8 +418,8 @@ export class CodeApplication {
 		appInstantiationService.createInstance(CodeMenu);
 
 		// Jump List
-		this.historyService.updateWindowsJumpList();
-		this.historyService.onRecentlyOpenedChange(() => this.historyService.updateWindowsJumpList());
+		this.historyMainService.updateWindowsJumpList();
+		this.historyMainService.onRecentlyOpenedChange(() => this.historyMainService.updateWindowsJumpList());
 
 		// Start shared process here
 		this.sharedProcess.spawn();
@@ -414,8 +427,8 @@ export class CodeApplication {
 		// Helps application icon refresh after an update with new icon is installed (macOS)
 		// TODO@Ben remove after a couple of releases
 		if (platform.isMacintosh) {
-			if (!this.storageService.getItem(CodeApplication.APP_ICON_REFRESH_KEY)) {
-				this.storageService.setItem(CodeApplication.APP_ICON_REFRESH_KEY, true);
+			if (!this.stateService.getItem(CodeApplication.APP_ICON_REFRESH_KEY)) {
+				this.stateService.setItem(CodeApplication.APP_ICON_REFRESH_KEY, true);
 
 				// 'exe' => /Applications/Visual Studio Code - Insiders.app/Contents/MacOS/Electron
 				const appPath = dirname(dirname(dirname(app.getPath('exe'))));

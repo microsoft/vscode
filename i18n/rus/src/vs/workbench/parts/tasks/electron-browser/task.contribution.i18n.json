@@ -6,9 +6,7 @@
 {
 	"tasksCategory": "Задачи",
 	"ConfigureTaskRunnerAction.label": "Настроить задачу",
-	"ConfigureBuildTaskAction.label": "Настроить задачу сборки",
 	"CloseMessageAction.label": "Закрыть",
-	"ShowTerminalAction.label": "Ознакомиться с терминалом",
 	"problems": "Проблемы",
 	"manyMarkers": "99+",
 	"runningTasks": "Показать выполняемые задачи",
@@ -52,7 +50,6 @@
 	"TaslService.noEntryToRun": "Задача для запуска не найдена. Настройте задачи...",
 	"TaskService.fetchingBuildTasks": "Получение задач сборки...",
 	"TaskService.pickBuildTask": "Выберите задачу сборки для запуска",
-	"TaskService.noBuildTask": "Задача сборки не найдена. Настройте задачи... ",
 	"TaskService.fetchingTestTasks": "Получение задач тестирования...",
 	"TaskService.pickTestTask": "Выберите задачу тестирования для запуска",
 	"TaskService.noTestTaskTerminal": "Тестовая задача для запуска не найдена. Настройте задачи...",

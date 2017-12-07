@@ -245,7 +245,7 @@
 			],
 			"settings": {
 				"fontStyle": "italic",
-				"foreground": "#91B3E0"
+				"foreground": "#8190A0"
 			}
 		},
 		{
@@ -460,7 +460,25 @@
 				"background": "#DDFFDD",
 				"foreground": "#434343"
 			}
-		}
+		},
+		{
+			"name": "JSX: Tags",
+			"scope": [
+				"punctuation.definition.tag.js",
+				"punctuation.definition.tag.begin.js",
+				"punctuation.definition.tag.end.js"
+			],
+			"settings": {
+			  "foreground": "#91B3E0"
+			}
+      	},
+      	{
+			"name": "JSX: InnerText",
+			"scope": "meta.jsx.children.js",
+			"settings": {
+			  "foreground": "#333333ff"
+			}
+      	}
 	],
 	"colors": {
 		"focusBorder": "#A6B39B",

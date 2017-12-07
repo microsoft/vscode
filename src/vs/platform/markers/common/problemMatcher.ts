@@ -379,7 +379,7 @@ class MultiLineMatcher extends AbstractLineMatcher {
 			} else {
 				// Only the last pattern can loop
 				if (pattern.loop && i === this.patterns.length - 1) {
-					data = Objects.clone(data);
+					data = Objects.deepClone(data);
 				}
 				this.fillProblemData(data, pattern, matches);
 			}
@@ -399,21 +399,13 @@ class MultiLineMatcher extends AbstractLineMatcher {
 			this.data = null;
 			return null;
 		}
-		let data = Objects.clone(this.data);
+		let data = Objects.deepClone(this.data);
 		this.fillProblemData(data, pattern, matches);
 		return this.getMarkerMatch(data);
 	}
 }
 
 export namespace Config {
-	/**
-	* Defines possible problem severity values
-	*/
-	export namespace ProblemSeverity {
-		export const Error: string = 'error';
-		export const Warning: string = 'warning';
-		export const Info: string = 'info';
-	}
 
 	export interface ProblemPattern {
 
@@ -911,8 +903,8 @@ export namespace Schemas {
 		}
 	};
 
-	export const NamedProblemPattern: IJSONSchema = Objects.clone(ProblemPattern);
-	NamedProblemPattern.properties = Objects.clone(NamedProblemPattern.properties);
+	export const NamedProblemPattern: IJSONSchema = Objects.deepClone(ProblemPattern);
+	NamedProblemPattern.properties = Objects.deepClone(NamedProblemPattern.properties);
 	NamedProblemPattern.properties['name'] = {
 		type: 'string',
 		description: localize('NamedProblemPatternSchema.name', 'The name of the problem pattern.')
@@ -955,7 +947,6 @@ let problemPatternExtPoint = ExtensionsRegistry.registerExtensionPoint<Config.Na
 export interface IProblemPatternRegistry {
 	onReady(): TPromise<void>;
 
-	exists(key: string): boolean;
 	get(key: string): ProblemPattern | MultiLineProblemPattern;
 }
 
@@ -1014,14 +1005,6 @@ class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 
 	public get(key: string): ProblemPattern | ProblemPattern[] {
 		return this.patterns[key];
-	}
-
-	public exists(key: string): boolean {
-		return !!this.patterns[key];
-	}
-
-	public remove(key: string): void {
-		delete this.patterns[key];
 	}
 
 	private fillDefaults(): void {
@@ -1215,7 +1198,7 @@ export class ProblemMatcherParser extends Parser {
 			if (variableName.length > 1 && variableName[0] === '$') {
 				let base = ProblemMatcherRegistry.get(variableName.substring(1));
 				if (base) {
-					result = Objects.clone(base);
+					result = Objects.deepClone(base);
 					if (description.owner) {
 						result.owner = owner;
 					}
@@ -1475,8 +1458,8 @@ export namespace Schemas {
 		}
 	};
 
-	export const LegacyProblemMatcher: IJSONSchema = Objects.clone(ProblemMatcher);
-	LegacyProblemMatcher.properties = Objects.clone(LegacyProblemMatcher.properties);
+	export const LegacyProblemMatcher: IJSONSchema = Objects.deepClone(ProblemMatcher);
+	LegacyProblemMatcher.properties = Objects.deepClone(LegacyProblemMatcher.properties);
 	LegacyProblemMatcher.properties['watchedTaskBeginsRegExp'] = {
 		type: 'string',
 		deprecationMessage: localize('LegacyProblemMatcherSchema.watchedBegin.deprecated', 'This property is deprecated. Use the watching property instead.'),
@@ -1488,8 +1471,8 @@ export namespace Schemas {
 		description: localize('LegacyProblemMatcherSchema.watchedEnd', 'A regular expression signaling that a watched tasks ends executing.')
 	};
 
-	export const NamedProblemMatcher: IJSONSchema = Objects.clone(ProblemMatcher);
-	NamedProblemMatcher.properties = Objects.clone(NamedProblemMatcher.properties);
+	export const NamedProblemMatcher: IJSONSchema = Objects.deepClone(ProblemMatcher);
+	NamedProblemMatcher.properties = Objects.deepClone(NamedProblemMatcher.properties);
 	NamedProblemMatcher.properties.name = {
 		type: 'string',
 		description: localize('NamedProblemMatcherSchema.name', 'The name of the problem matcher used to refer to it.')
@@ -1508,9 +1491,7 @@ let problemMatchersExtPoint = ExtensionsRegistry.registerExtensionPoint<Config.N
 
 export interface IProblemMatcherRegistry {
 	onReady(): TPromise<void>;
-	exists(name: string): boolean;
 	get(name: string): NamedProblemMatcher;
-	values(): NamedProblemMatcher[];
 	keys(): string[];
 }
 
@@ -1547,6 +1528,7 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 	}
 
 	public onReady(): TPromise<void> {
+		ProblemPatternRegistry.onReady();
 		return this.readyPromise;
 	}
 
@@ -1558,20 +1540,8 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 		return this.matchers[name];
 	}
 
-	public exists(name: string): boolean {
-		return !!this.matchers[name];
-	}
-
-	public remove(name: string): void {
-		delete this.matchers[name];
-	}
-
 	public keys(): string[] {
 		return Object.keys(this.matchers);
-	}
-
-	public values(): NamedProblemMatcher[] {
-		return Object.keys(this.matchers).map(key => this.matchers[key]);
 	}
 
 	private fillDefaults(): void {

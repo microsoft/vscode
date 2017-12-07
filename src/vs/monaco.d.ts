@@ -587,10 +587,6 @@ declare module monaco {
 		 */
 		getStartPosition(): Position;
 		/**
-		 * Clone this range.
-		 */
-		cloneRange(): Range;
-		/**
 		 * Transform to a user presentable string representation.
 		 */
 		toString(): string;
@@ -787,7 +783,6 @@ declare module monaco.editor {
 	export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneDiffEditor;
 
 	export interface IDiffNavigator {
-		revealFirst: boolean;
 		canNavigate(): boolean;
 		next(): void;
 		previous(): void;
@@ -2022,10 +2017,6 @@ declare module monaco.editor {
 		/**
 		 * Returns all actions associated with this editor.
 		 */
-		getActions(): IEditorAction[];
-		/**
-		 * Returns all actions associated with this editor.
-		 */
 		getSupportedActions(): IEditorAction[];
 		/**
 		 * Saves current view state of the editor in a serializable object.
@@ -2498,7 +2489,7 @@ declare module monaco.editor {
 		 * Otherwise, line numbers will not be rendered.
 		 * Defaults to true.
 		 */
-		lineNumbers?: 'on' | 'off' | 'relative' | ((lineNumber: number) => string);
+		lineNumbers?: 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
 		/**
 		 * Should the corresponding line be selected when clicking on the line number?
 		 * Defaults to true.
@@ -3024,14 +3015,21 @@ declare module monaco.editor {
 		readonly wordWrapBreakObtrusiveCharacters: string;
 	}
 
+	export const enum RenderLineNumbersType {
+		Off = 0,
+		On = 1,
+		Relative = 2,
+		Interval = 3,
+		Custom = 4,
+	}
+
 	export interface InternalEditorViewOptions {
 		readonly extraEditorClassName: string;
 		readonly disableMonospaceOptimizations: boolean;
 		readonly rulers: number[];
 		readonly ariaLabel: string;
-		readonly renderLineNumbers: boolean;
+		readonly renderLineNumbers: RenderLineNumbersType;
 		readonly renderCustomLineNumbers: (lineNumber: number) => string;
-		readonly renderRelativeLineNumbers: boolean;
 		readonly selectOnLineNumbers: boolean;
 		readonly glyphMargin: boolean;
 		readonly revealHorizontalRightPadding: number;
@@ -3883,13 +3881,6 @@ declare module monaco.editor {
 		 * If the diff computation is not finished or the model is missing, will return null.
 		 */
 		getDiffLineInformationForModified(lineNumber: number): IDiffLineInformation;
-		/**
-		 * @see ICodeEditor.getValue
-		 */
-		getValue(options?: {
-			preserveBOM: boolean;
-			lineEnding: string;
-		}): string;
 	}
 
 	export class FontInfo extends BareFontInfo {

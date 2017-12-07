@@ -53,6 +53,7 @@ export const ShowNextFindTermKeybinding: IKeybindings = {
 
 export const FIND_IDS = {
 	StartFindAction: 'actions.find',
+	StartFindWithSelection: 'actions.findWithSelection',
 	NextMatchFindAction: 'editor.action.nextMatchFindAction',
 	PreviousMatchFindAction: 'editor.action.previousMatchFindAction',
 	NextSelectionMatchFindAction: 'editor.action.nextSelectionMatchFindAction',
@@ -118,7 +119,7 @@ export class FindModelBoundToEditorModel {
 			this._updateDecorationsScheduler.schedule();
 		}));
 
-		this._toDispose.push(this._state.addChangeListener((e) => this._onStateChanged(e)));
+		this._toDispose.push(this._state.onFindReplaceStateChange((e) => this._onStateChanged(e)));
 
 		this.research(false, this._state.searchScope);
 	}

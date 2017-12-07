@@ -62,11 +62,9 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 			// is being pressed -> hide the lightbulb and block future
 			// showings until mouse is released
 			this.hide();
-			dom.addClass(this._domNode, 'hidden');
 			const monitor = new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>();
 			monitor.startMonitoring(standardMouseMoveMerger, () => { }, () => {
 				monitor.dispose();
-				dom.removeClass(this._domNode, 'hidden');
 			});
 		}));
 		this._disposables.push(this._editor.onDidChangeConfiguration(e => {

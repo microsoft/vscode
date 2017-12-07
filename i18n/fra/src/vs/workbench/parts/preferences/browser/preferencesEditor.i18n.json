@@ -7,12 +7,12 @@
 	"settingsEditorName": "Paramètres par défaut",
 	"SearchSettingsWidget.AriaLabel": "Paramètres de recherche",
 	"SearchSettingsWidget.Placeholder": "Paramètres de recherche",
-	"totalSettingsMessage": "Total de {0} paramètres",
 	"noSettingsFound": "Aucun résultat",
 	"oneSettingFound": "1 paramètre correspondant",
 	"settingsFound": "{0} paramètres correspondants",
-	"fileEditorWithInputAriaLabel": "{0}. Éditeur de fichier texte.",
-	"fileEditorAriaLabel": "Éditeur de fichier texte.",
+	"totalSettingsMessage": "Total de {0} paramètres",
+	"defaultSettings": "Paramètres par défaut",
+	"defaultFolderSettings": "Paramètres de dossier par défaut",
 	"defaultEditorReadonly": "Modifier dans l’éditeur du côté droit pour substituer les valeurs par défaut.",
 	"preferencesAriaLabel": "Préférences par défaut. Éditeur de texte en lecture seule."
 }

@@ -214,15 +214,14 @@ export class CommandCenter {
 			}
 
 			const { size, object } = await repository.lstree(ref, uri.fsPath);
-
-			if (size > 1000000) { // 1 MB
-				return Uri.parse(`data:;label:${path.basename(uri.fsPath)};description:${ref},`);
-			}
-
 			const { mimetype, encoding } = await repository.detectObjectType(object);
 
 			if (mimetype === 'text/plain') {
 				return toGitUri(uri, ref);
+			}
+
+			if (size > 1000000) { // 1 MB
+				return Uri.parse(`data:;label:${path.basename(uri.fsPath)};description:${ref},`);
 			}
 
 			if (ImageMimetypes.indexOf(mimetype) > -1) {
@@ -407,35 +406,52 @@ export class CommandCenter {
 
 	@command('git.init')
 	async init(): Promise<void> {
-		const homeUri = Uri.file(os.homedir());
-		const defaultUri = workspace.workspaceFolders && workspace.workspaceFolders.length > 0
-			? Uri.file(workspace.workspaceFolders[0].uri.fsPath)
-			: homeUri;
+		let path: string | undefined;
 
-		const result = await window.showOpenDialog({
-			canSelectFiles: false,
-			canSelectFolders: true,
-			canSelectMany: false,
-			defaultUri,
-			openLabel: localize('init repo', "Initialize Repository")
-		});
+		if (workspace.workspaceFolders && workspace.workspaceFolders.length > 1) {
+			const placeHolder = localize('init', "Pick workspace folder to initialize git repo in");
+			const items = workspace.workspaceFolders.map(folder => ({ label: folder.name, description: folder.uri.fsPath, folder }));
+			const item = await window.showQuickPick(items, { placeHolder, ignoreFocusOut: true });
 
-		if (!result || result.length === 0) {
-			return;
-		}
-
-		const uri = result[0];
-
-		if (homeUri.toString().startsWith(uri.toString())) {
-			const yes = localize('create repo', "Initialize Repository");
-			const answer = await window.showWarningMessage(localize('are you sure', "This will create a Git repository in '{0}'. Are you sure you want to continue?", uri.fsPath), yes);
-
-			if (answer !== yes) {
+			if (!item) {
 				return;
 			}
+
+			path = item.folder.uri.fsPath;
 		}
 
-		const path = uri.fsPath;
+		if (!path) {
+			const homeUri = Uri.file(os.homedir());
+			const defaultUri = workspace.workspaceFolders && workspace.workspaceFolders.length > 0
+				? Uri.file(workspace.workspaceFolders[0].uri.fsPath)
+				: homeUri;
+
+			const result = await window.showOpenDialog({
+				canSelectFiles: false,
+				canSelectFolders: true,
+				canSelectMany: false,
+				defaultUri,
+				openLabel: localize('init repo', "Initialize Repository")
+			});
+
+			if (!result || result.length === 0) {
+				return;
+			}
+
+			const uri = result[0];
+
+			if (homeUri.toString().startsWith(uri.toString())) {
+				const yes = localize('create repo', "Initialize Repository");
+				const answer = await window.showWarningMessage(localize('are you sure', "This will create a Git repository in '{0}'. Are you sure you want to continue?", uri.fsPath), yes);
+
+				if (answer !== yes) {
+					return;
+				}
+			}
+
+			path = uri.fsPath;
+		}
+
 		await this.git.init(path);
 		await this.model.tryOpenRepository(path);
 	}
@@ -556,7 +572,7 @@ export class CommandCenter {
 
 	@command('git.stage')
 	async stage(...resourceStates: SourceControlResourceState[]): Promise<void> {
-		if (resourceStates.length === 0 || !(resourceStates[0].resourceUri instanceof Uri)) {
+		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
 			const resource = this.getSCMResource();
 
 			if (!resource) {
@@ -733,7 +749,7 @@ export class CommandCenter {
 
 	@command('git.unstage')
 	async unstage(...resourceStates: SourceControlResourceState[]): Promise<void> {
-		if (resourceStates.length === 0 || !(resourceStates[0].resourceUri instanceof Uri)) {
+		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
 			const resource = this.getSCMResource();
 
 			if (!resource) {
@@ -799,7 +815,7 @@ export class CommandCenter {
 
 	@command('git.clean')
 	async clean(...resourceStates: SourceControlResourceState[]): Promise<void> {
-		if (resourceStates.length === 0 || !(resourceStates[0].resourceUri instanceof Uri)) {
+		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
 			const resource = this.getSCMResource();
 
 			if (!resource) {
@@ -979,6 +995,7 @@ export class CommandCenter {
 			}
 
 			return await window.showInputBox({
+				value: opts && opts.defaultMsg,
 				placeHolder: localize('commit message', "Commit message"),
 				prompt: localize('provide commit message', "Please provide a commit message"),
 				ignoreFocusOut: true
@@ -1022,7 +1039,15 @@ export class CommandCenter {
 
 	@command('git.commitStagedAmend', { repository: true })
 	async commitStagedAmend(repository: Repository): Promise<void> {
-		await this.commitWithAnyInput(repository, { all: false, amend: true });
+		let msg;
+		if (repository.HEAD) {
+			if (repository.HEAD.commit) {
+				let id = repository.HEAD.commit;
+				let commit = await repository.getCommit(id);
+				msg = commit.message;
+			}
+		}
+		await this.commitWithAnyInput(repository, { all: false, amend: true, defaultMsg: msg });
 	}
 
 	@command('git.commitAll', { repository: true })
@@ -1156,7 +1181,7 @@ export class CommandCenter {
 					window.showErrorMessage(localize('invalid branch name', 'Invalid branch name'));
 					return;
 				case GitErrorCodes.BranchAlreadyExists:
-					window.showErrorMessage(localize('branch already exists', `A branch named '${name}' already exists`));
+					window.showErrorMessage(localize('branch already exists', "A branch named '{0}' already exists", name));
 					return;
 				default:
 					throw err;
@@ -1219,6 +1244,16 @@ export class CommandCenter {
 		const name = inputTagName.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$/g, '-');
 		const message = inputMessage || name;
 		await repository.tag(name, message);
+	}
+
+	@command('git.fetch', { repository: true })
+	async fetch(repository: Repository): Promise<void> {
+		if (repository.remotes.length === 0) {
+			window.showWarningMessage(localize('no remotes to fetch', "This repository has no remotes configured to fetch from."));
+			return;
+		}
+
+		await repository.fetch();
 	}
 
 	@command('git.pullFrom', { repository: true })
@@ -1404,14 +1439,9 @@ export class CommandCenter {
 		await repository.pushTo(choice, branchName, true);
 	}
 
-	@command('git.showOutput')
-	showOutput(): void {
-		this.outputChannel.show();
-	}
-
 	@command('git.ignore')
 	async ignore(...resourceStates: SourceControlResourceState[]): Promise<void> {
-		if (resourceStates.length === 0 || !(resourceStates[0].resourceUri instanceof Uri)) {
+		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
 			const resource = this.getSCMResource();
 
 			if (!resource) {
@@ -1539,7 +1569,7 @@ export class CommandCenter {
 						message = localize('clean repo', "Please clean your repository working tree before checkout.");
 						break;
 					case GitErrorCodes.PushRejected:
-						message = localize('cant push', "Can't push refs to remote. Run 'Pull' first to integrate your changes.");
+						message = localize('cant push', "Can't push refs to remote. Try running 'Pull' first to integrate your changes.");
 						break;
 					default:
 						const hint = (err.stderr || err.message || String(err))

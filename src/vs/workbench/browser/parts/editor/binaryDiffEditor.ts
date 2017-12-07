@@ -18,7 +18,7 @@ import { BaseBinaryResourceEditor } from 'vs/workbench/browser/parts/editor/bina
  */
 export class BinaryResourceDiffEditor extends SideBySideEditor {
 
-	public static ID = BINARY_DIFF_EDITOR_ID;
+	public static readonly ID = BINARY_DIFF_EDITOR_ID;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,

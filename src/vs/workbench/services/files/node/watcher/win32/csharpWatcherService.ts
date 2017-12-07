@@ -16,7 +16,7 @@ import { IRawFileChange } from 'vs/workbench/services/files/node/watcher/common'
 
 export class OutOfProcessWin32FolderWatcher {
 
-	private static MAX_RESTARTS = 5;
+	private static readonly MAX_RESTARTS = 5;
 
 	private static changeTypeMap: FileChangeType[] = [FileChangeType.UPDATED, FileChangeType.ADDED, FileChangeType.DELETED];
 

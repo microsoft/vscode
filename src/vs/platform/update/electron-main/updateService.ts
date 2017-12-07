@@ -22,6 +22,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IUpdateService, State, IAutoUpdater, IUpdate, IRawUpdate } from 'vs/platform/update/common/update';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class UpdateService implements IUpdateService {
 
@@ -88,7 +89,8 @@ export class UpdateService implements IUpdateService {
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@ILogService private logService: ILogService
 	) {
 		if (process.platform === 'win32') {
 			this.raw = new Win32AutoUpdaterImpl(requestService);
@@ -121,7 +123,7 @@ export class UpdateService implements IUpdateService {
 
 		// Start checking for updates after 30 seconds
 		this.scheduleCheckForUpdates(30 * 1000)
-			.done(null, err => console.error(err));
+			.done(null, err => this.logService.error(err));
 	}
 
 	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): TPromise<void> {
@@ -268,7 +270,10 @@ export class UpdateService implements IUpdateService {
 			return TPromise.as(null);
 		}
 
+		this.logService.trace('update#quitAndInstall(): before lifecycle quit()');
+
 		this.lifecycleService.quit(true /* from update */).done(vetod => {
+			this.logService.trace(`update#quitAndInstall(): after lifecycle quit() with veto: ${vetod}`);
 			if (vetod) {
 				return;
 			}
@@ -277,9 +282,11 @@ export class UpdateService implements IUpdateService {
 			// we workaround this issue by forcing an explicit flush of the storage data.
 			// see also https://github.com/Microsoft/vscode/issues/172
 			if (process.platform === 'darwin') {
+				this.logService.trace('update#quitAndInstall(): calling flushStorageData()');
 				electron.session.defaultSession.flushStorageData();
 			}
 
+			this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 			this.raw.quitAndInstall();
 		});
 

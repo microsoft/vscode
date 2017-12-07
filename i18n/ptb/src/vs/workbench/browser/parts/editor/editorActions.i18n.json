@@ -33,6 +33,7 @@
 	"openPreviousEditor": "Abrir editor anterior",
 	"nextEditorInGroup": "Abrir próximo editor no grupo",
 	"openPreviousEditorInGroup": "Abrir editor anterior no grupo",
+	"lastEditorInGroup": "Abrir Último Editor do Grupo",
 	"navigateNext": "Avançar",
 	"navigatePrevious": "Voltar",
 	"navigateLast": "Ir para o último",

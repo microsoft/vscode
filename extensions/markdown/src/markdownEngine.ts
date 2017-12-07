@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { TableOfContentsProvider } from './tableOfContentsProvider';
 import { MarkdownIt, Token } from 'markdown-it';
+import { OpenDocumentLinkCommand } from './commands';
 
 const FrontMatterRegex = /^---\s*[^]*?(-{3}|\.{3})\s*/;
 
@@ -42,6 +43,10 @@ export class MarkdownEngine {
 			this.md = (await import('markdown-it'))({
 				html: true,
 				highlight: (str: string, lang: string) => {
+					// Workaround for highlight not supporting tsx: https://github.com/isagalaev/highlight.js/issues/1155
+					if (lang && ['tsx', 'typescriptreact'].indexOf(lang.toLocaleLowerCase()) >= 0) {
+						lang = 'jsx';
+					}
 					if (lang && hljs.getLanguage(lang)) {
 						try {
 							return `<pre class="hljs"><code><div>${hljs.highlight(lang, str, true).value}</div></code></pre>`;
@@ -133,17 +138,18 @@ export class MarkdownEngine {
 		md.normalizeLink = (link: string) => {
 			try {
 				let uri = vscode.Uri.parse(link);
-				if (!uri.scheme && uri.path && !uri.fragment) {
+				if (!uri.scheme && uri.path) {
+					let p = uri.path;
 					// Assume it must be a file
-					if (uri.path[0] === '/') {
+					if (p[0] === '/') {
 						const root = vscode.workspace.getWorkspaceFolder(this.currentDocument);
 						if (root) {
-							uri = vscode.Uri.file(path.join(root.uri.fsPath, uri.path));
+							p = path.join(root.uri.fsPath, uri.path);
 						}
 					} else {
-						uri = vscode.Uri.file(path.join(path.dirname(this.currentDocument.path), uri.path));
+						p = path.join(path.dirname(this.currentDocument.path), uri.path);
 					}
-					return normalizeLink(uri.toString(true));
+					return OpenDocumentLinkCommand.createCommandUri(p, uri.fragment).toString();
 				}
 			} catch (e) {
 				// noop

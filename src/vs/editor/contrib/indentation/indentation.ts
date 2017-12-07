@@ -21,6 +21,7 @@ import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import { TextEdit, StandardTokenType } from 'vs/editor/common/modes';
 import * as IndentUtil from './indentUtils';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IndentConsts } from 'vs/editor/common/modes/supports/indentRules';
 
 export function shiftIndent(tabSize: number, indentation: string, count?: number): string {
 	count = count || 1;
@@ -149,7 +150,7 @@ export function getReindentEditOperations(model: ITokenizedModel, startLineNumbe
 }
 
 export class IndentationToSpacesAction extends EditorAction {
-	public static ID = 'editor.action.indentationToSpaces';
+	public static readonly ID = 'editor.action.indentationToSpaces';
 
 	constructor() {
 		super({
@@ -179,7 +180,7 @@ export class IndentationToSpacesAction extends EditorAction {
 }
 
 export class IndentationToTabsAction extends EditorAction {
-	public static ID = 'editor.action.indentationToTabs';
+	public static readonly ID = 'editor.action.indentationToTabs';
 
 	constructor() {
 		super({
@@ -249,7 +250,7 @@ export class ChangeIndentationSizeAction extends EditorAction {
 
 export class IndentUsingTabs extends ChangeIndentationSizeAction {
 
-	public static ID = 'editor.action.indentUsingTabs';
+	public static readonly ID = 'editor.action.indentUsingTabs';
 
 	constructor() {
 		super(false, {
@@ -263,7 +264,7 @@ export class IndentUsingTabs extends ChangeIndentationSizeAction {
 
 export class IndentUsingSpaces extends ChangeIndentationSizeAction {
 
-	public static ID = 'editor.action.indentUsingSpaces';
+	public static readonly ID = 'editor.action.indentUsingSpaces';
 
 	constructor() {
 		super(true, {
@@ -277,7 +278,7 @@ export class IndentUsingSpaces extends ChangeIndentationSizeAction {
 
 export class DetectIndentation extends EditorAction {
 
-	public static ID = 'editor.action.detectIndentation';
+	public static readonly ID = 'editor.action.detectIndentation';
 
 	constructor() {
 		super({
@@ -372,7 +373,7 @@ export class AutoIndentOnPasteCommand implements ICommand {
 }
 
 export class AutoIndentOnPaste implements IEditorContribution {
-	private static ID = 'editor.contrib.autoIndentOnPaste';
+	private static readonly ID = 'editor.contrib.autoIndentOnPaste';
 
 	private editor: ICodeEditor;
 	private callOnDispose: IDisposable[];
@@ -472,8 +473,29 @@ export class AutoIndentOnPaste implements IEditorContribution {
 						text: newIndent
 					});
 					firstLineText = newIndent + firstLineText.substr(oldIndentation.length);
+				} else {
+					let indentMetadata = LanguageConfigurationRegistry.getIndentMetadata(model, startLineNumber);
+
+					if (indentMetadata === 0 || indentMetadata === IndentConsts.UNINDENT_MASK) {
+						// we paste content into a line where only contains whitespaces
+						// after pasting, the indentation of the first line is already correct
+						// the first line doesn't match any indentation rule
+						// then no-op.
+						return;
+					}
 				}
 			}
+		}
+
+		const firstLineNumber = startLineNumber;
+
+		// ignore empty or ignored lines
+		while (startLineNumber < range.endLineNumber) {
+			if (!/\S/.test(model.getLineContent(startLineNumber + 1))) {
+				startLineNumber++;
+				continue;
+			}
+			break;
 		}
 
 		if (startLineNumber !== range.endLineNumber) {
@@ -488,7 +510,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 					return model.getLanguageIdAtPosition(lineNumber, column);
 				},
 				getLineContent: (lineNumber: number) => {
-					if (lineNumber === startLineNumber) {
+					if (lineNumber === firstLineNumber) {
 						return firstLineText;
 					} else {
 						return model.getLineContent(lineNumber);

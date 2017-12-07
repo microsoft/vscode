@@ -221,11 +221,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	private _suggest(model: IModel): void {
 		const uri = model.uri;
 
-		if (!uri) {
-			return;
-		}
-
-		if (uri.scheme === Schemas.inMemory || uri.scheme === Schemas.internal || uri.scheme === Schemas.vscode) {
+		if (!uri || uri.scheme !== Schemas.file) {
 			return;
 		}
 
@@ -357,7 +353,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 			this.extensionsService.getInstalled(LocalExtensionType.User).done(local => {
 				const recommendations = allRecommendations
-					.filter(id => local.every(local => `${local.manifest.publisher}.${local.manifest.name}` !== id));
+					.filter(id => local.every(local => `${local.manifest.publisher.toLowerCase()}.${local.manifest.name.toLowerCase()}` !== id));
 
 				if (!recommendations.length) {
 					return;

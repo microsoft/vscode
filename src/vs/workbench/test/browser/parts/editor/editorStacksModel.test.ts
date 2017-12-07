@@ -1501,6 +1501,13 @@ suite('Editor Stacks Model', () => {
 		previous = model.previous(true /* jump groups */);
 		assert.equal(previous.group, group1);
 		assert.equal(previous.editor, input3);
+
+		model.setActive(<EditorGroup>previous.group);
+		(<EditorGroup>next.group).setActive(<EditorInput>previous.editor);
+
+		const last = model.last();
+		assert.equal(last.group, group1);
+		assert.equal(last.editor, input3);
 	});
 
 	test('Stack - Multiple Editors - Navigation (in group)', function () {

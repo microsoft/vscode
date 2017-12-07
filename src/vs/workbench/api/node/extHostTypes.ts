@@ -11,6 +11,7 @@ import { illegalArgument } from 'vs/base/common/errors';
 import * as vscode from 'vscode';
 import { isMarkdownString } from 'vs/base/common/htmlContent';
 import { IRelativePattern } from 'vs/base/common/glob';
+import { relative } from 'path';
 
 export class Disposable {
 
@@ -1491,5 +1492,42 @@ export class RelativePattern implements IRelativePattern {
 
 		this.base = typeof base === 'string' ? base : base.uri.fsPath;
 		this.pattern = pattern;
+	}
+
+	public pathToRelative(from: string, to: string): string {
+		return relative(from, to);
+	}
+}
+
+export class Breakpoint {
+
+	readonly enabled: boolean;
+	readonly condition?: string;
+	readonly hitCondition?: string;
+
+	protected constructor(enabled: boolean, condition: string, hitCondition: string) {
+		this.enabled = enabled;
+		this.condition = condition;
+		this.hitCondition = hitCondition;
+		this.condition = condition;
+		this.hitCondition = hitCondition;
+	}
+}
+
+export class SourceBreakpoint extends Breakpoint {
+	readonly location: Location;
+
+	constructor(enabled: boolean, condition: string, hitCondition: string, location: Location) {
+		super(enabled, condition, hitCondition);
+		this.location = location;
+	}
+}
+
+export class FunctionBreakpoint extends Breakpoint {
+	readonly functionName: string;
+
+	constructor(enabled: boolean, condition: string, hitCondition: string, functionName: string) {
+		super(enabled, condition, hitCondition);
+		this.functionName = functionName;
 	}
 }

@@ -18,7 +18,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 
 class MockJSMode extends MockMode {
 
-	private static _id = new LanguageIdentifier('mockJSMode', 3);
+	private static readonly _id = new LanguageIdentifier('mockJSMode', 3);
 
 	constructor() {
 		super(MockJSMode._id);

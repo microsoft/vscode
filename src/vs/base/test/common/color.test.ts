@@ -153,6 +153,7 @@ suite('Color', () => {
 			assert.deepEqual(HSVA.toRGBA(new HSVA(300, 1, 0.502, 1)), new RGBA(128, 0, 128, 1));
 			assert.deepEqual(HSVA.toRGBA(new HSVA(180, 1, 0.502, 1)), new RGBA(0, 128, 128, 1));
 			assert.deepEqual(HSVA.toRGBA(new HSVA(240, 1, 0.502, 1)), new RGBA(0, 0, 128, 1));
+
 		});
 
 		test('HSVA.fromRGBA', () => {
@@ -184,6 +185,11 @@ suite('Color', () => {
 			assert.deepEqual(HSVA.toRGBA(new HSVA(10, 0, 0, 0)), HSVA.toRGBA(new HSVA(20, 0, 0, 0)));
 			assert.deepEqual(new Color(new HSVA(10, 0, 0, 0)).rgba, new Color(new HSVA(20, 0, 0, 0)).rgba);
 			assert.notDeepEqual(new Color(new HSVA(10, 0, 0, 0)).hsva, new Color(new HSVA(20, 0, 0, 0)).hsva);
+		});
+
+		test('bug#36240', () => {
+			assert.deepEqual(HSVA.fromRGBA(new RGBA(92, 106, 196, 1)), new HSVA(232, .531, .769, 1));
+			assert.deepEqual(HSVA.toRGBA(HSVA.fromRGBA(new RGBA(92, 106, 196, 1))), new RGBA(92, 106, 196, 1));
 		});
 	});
 

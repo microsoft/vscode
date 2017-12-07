@@ -6,8 +6,7 @@
 {
 	"viewCategory": "Exibir",
 	"problems.view.toggle.label": "Alternar Problemas",
-	"problems.view.show.label": "Mostrar Problemas",
-	"problems.view.hide.label": "Esconder problemas",
+	"problems.view.focus.label": "Problemas de foco",
 	"problems.panel.configuration.title": "Visualização de Problemas",
 	"problems.panel.configuration.autoreveal": "Controla se a visaulização de problemas evela os arquivos automaticamente ao abri-los",
 	"markers.panel.title.problems": "Problemas",

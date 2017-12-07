@@ -28,6 +28,7 @@ export interface IOptions {
 	isResizeable?: boolean;
 	frameColor?: Color;
 	arrowColor?: Color;
+	keepEditorSelection?: boolean;
 }
 
 export interface IStyles {
@@ -42,7 +43,8 @@ const defaultOptions: IOptions = {
 	showFrame: true,
 	className: '',
 	frameColor: defaultColor,
-	arrowColor: defaultColor
+	arrowColor: defaultColor,
+	keepEditorSelection: false
 };
 
 const WIDGET_ID = 'vs.editor.contrib.zoneWidget';
@@ -104,7 +106,7 @@ export class OverlayWidgetDelegate implements IOverlayWidget {
 
 class Arrow {
 
-	private static _IdGenerator = new IdGenerator('.arrow-decoration-');
+	private static readonly _IdGenerator = new IdGenerator('.arrow-decoration-');
 
 	private readonly _ruleName = Arrow._IdGenerator.nextId();
 	private _decorations: string[] = [];
@@ -174,7 +176,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 	constructor(editor: ICodeEditor, options: IOptions = {}) {
 		this.editor = editor;
-		this.options = objects.clone(options);
+		this.options = objects.deepClone(options);
 		objects.mixin(this.options, defaultOptions, false);
 		this.domNode = document.createElement('div');
 		if (!this.options.isAccessible) {
@@ -391,7 +393,9 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 		this._doLayout(containerHeight, width);
 
-		this.editor.setSelection(where);
+		if (!this.options.keepEditorSelection) {
+			this.editor.setSelection(where);
+		}
 
 		// Reveal the line above or below the zone widget, to get the zone widget in the viewport
 		const revealLineNumber = Math.min(this.editor.getModel().getLineCount(), Math.max(1, where.endLineNumber + 1));
@@ -441,7 +445,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		}
 
 		let data: { startY: number; heightInLines: number; };
-		this._disposables.push(this._resizeSash.addListener('start', (e: ISashEvent) => {
+		this._disposables.push(this._resizeSash.onDidStart((e: ISashEvent) => {
 			if (this._viewZone) {
 				data = {
 					startY: e.startY,
@@ -450,11 +454,11 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 			}
 		}));
 
-		this._disposables.push(this._resizeSash.addListener('end', () => {
+		this._disposables.push(this._resizeSash.onDidEnd(() => {
 			data = undefined;
 		}));
 
-		this._disposables.push(this._resizeSash.addListener('change', (evt: ISashEvent) => {
+		this._disposables.push(this._resizeSash.onDidChange((evt: ISashEvent) => {
 			if (data) {
 				let lineDelta = (evt.currentY - data.startY) / this.editor.getConfiguration().lineHeight;
 				let roundedLineDelta = lineDelta < 0 ? Math.ceil(lineDelta) : Math.floor(lineDelta);

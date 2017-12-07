@@ -15,7 +15,6 @@ import URI from 'vs/base/common/uri';
 import * as dom from 'vs/base/browser/dom';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMarker, IMarkerService } from 'vs/platform/markers/common/markers';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
@@ -398,23 +397,12 @@ class MarkerNavigationAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const telemetryService = accessor.get(ITelemetryService);
-
 		const controller = MarkerController.get(editor);
 		if (!controller) {
 			return;
 		}
 
 		let model = controller.getOrCreateModel();
-		/* __GDPR__
-			"zoneWidgetShown" : {
-				"mode" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"${include}": [
-					"${EditorTelemetryData}"
-				]
-			}
-		*/
-		telemetryService.publicLog('zoneWidgetShown', { mode: 'go to error', ...editor.getTelemetryData() });
 		if (model) {
 			if (this._isNext) {
 				model.next();
@@ -428,7 +416,7 @@ class MarkerNavigationAction extends EditorAction {
 
 class MarkerController implements editorCommon.IEditorContribution {
 
-	private static ID = 'editor.contrib.markerController';
+	private static readonly ID = 'editor.contrib.markerController';
 
 	public static get(editor: ICodeEditor): MarkerController {
 		return editor.getContribution<MarkerController>(MarkerController.ID);

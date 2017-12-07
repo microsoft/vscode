@@ -292,7 +292,7 @@ export interface CodeActionProvider {
 	/**
 	 * Provide commands for the given document and range.
 	 */
-	provideCodeActions(model: editorCommon.IReadOnlyModel, range: Range, token: CancellationToken): (CodeAction | Command)[] | Thenable<(Command | CodeAction)[]>;
+	provideCodeActions(model: editorCommon.IReadOnlyModel, range: Range, token: CancellationToken): CodeAction[] | Thenable<CodeAction[]>;
 }
 
 /**
@@ -916,7 +916,7 @@ export interface ITokenizationRegistry {
 	setColorMap(colorMap: Color[]): void;
 
 	getColorMap(): Color[];
-	getDefaultForeground(): Color;
+
 	getDefaultBackground(): Color;
 }
 

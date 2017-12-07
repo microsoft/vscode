@@ -17,7 +17,7 @@ import fs = require('fs');
 import URI from 'vscode-uri';
 import * as URL from 'url';
 import Strings = require('./utils/strings');
-import { JSONDocument, JSONSchema, LanguageSettings, getLanguageService } from 'vscode-json-languageservice';
+import { JSONDocument, JSONSchema, LanguageSettings, getLanguageService, DocumentLanguageSettings } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 
 import * as nls from 'vscode-nls';
@@ -161,7 +161,7 @@ connection.onDidChangeConfiguration((change) => {
 		let enableFormatter = settings && settings.json && settings.json.format && settings.json.format.enable;
 		if (enableFormatter) {
 			if (!formatterRegistration) {
-				formatterRegistration = connection.client.register(DocumentRangeFormattingRequest.type, { documentSelector: [{ language: 'json' }] });
+				formatterRegistration = connection.client.register(DocumentRangeFormattingRequest.type, { documentSelector: [{ language: 'json' }, { language: 'jsonc' }] });
 			}
 		} else if (formatterRegistration) {
 			formatterRegistration.then(r => r.dispose());
@@ -253,7 +253,9 @@ function validateTextDocument(textDocument: TextDocument): void {
 	}
 
 	let jsonDocument = getJSONDocument(textDocument);
-	languageService.doValidation(textDocument, jsonDocument).then(diagnostics => {
+
+	let documentSettings: DocumentLanguageSettings = textDocument.languageId === 'jsonc' ? { comments: 'ignore', trailingCommas: 'ignore' } : { comments: 'error', trailingCommas: 'error' };
+	languageService.doValidation(textDocument, jsonDocument, documentSettings).then(diagnostics => {
 		// Send the computed diagnostics to VSCode.
 		connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
 	});

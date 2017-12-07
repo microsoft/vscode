@@ -34,5 +34,6 @@
 				"command": "${workspaceFolder}\\scripts\\test.bat --coverage --run ${file}"
 			}
 		}
-	]
+	],
+	"typescript.tsdk": "node_modules/typescript/lib"
 }

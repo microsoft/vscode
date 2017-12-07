@@ -38,7 +38,7 @@
     "onCommand:typescript.openTsServerLog",
     "onCommand:workbench.action.tasks.runTask"
   ],
-  "main": "./out/typescriptMain",
+  "main": "./out/extension",
   "contributes": {
     "languages": [
       {
@@ -483,23 +483,23 @@
       "commandPalette": [
         {
           "command": "typescript.reloadProjects",
-          "when": "editorLangId == 'typescript'"
+          "when": "editorLangId == typescript && typescript.isManagedFile"
         },
         {
           "command": "typescript.reloadProjects",
-          "when": "editorLangId == typescriptreact"
+          "when": "editorLangId == typescriptreact && typescript.isManagedFile"
         },
         {
           "command": "javascript.reloadProjects",
-          "when": "editorLangId == 'javascript'"
+          "when": "editorLangId == javascript && typescript.isManagedFile"
         },
         {
           "command": "javascript.reloadProjects",
-          "when": "editorLangId == javascriptreact"
+          "when": "editorLangId == javascriptreact && typescript.isManagedFile"
         },
         {
           "command": "typescript.goToProjectConfig",
-          "when": "editorLangId == 'typescript'"
+          "when": "editorLangId == typescript && typescript.isManagedFile"
         },
         {
           "command": "typescript.goToProjectConfig",
@@ -507,11 +507,23 @@
         },
         {
           "command": "javascript.goToProjectConfig",
-          "when": "editorLangId == 'javascript'"
+          "when": "editorLangId == javascript && typescript.isManagedFile"
         },
         {
           "command": "javascript.goToProjectConfig",
-          "when": "editorLangId == javascriptreact"
+          "when": "editorLangId == javascriptreact && typescript.isManagedFile"
+        },
+        {
+          "command": "typescript.selectTypeScriptVersion",
+          "when": "typescript.isManagedFile"
+        },
+        {
+          "command": "typescript.openTsServerLog",
+          "when": "typescript.isManagedFile"
+        },
+        {
+          "command": "typescript.restartTsServer",
+          "when": "typescript.isManagedFile"
         }
       ]
     },

@@ -25,7 +25,7 @@ export function registerCommands(): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'debug.logToDebugConsole',
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		handler(accessor: ServicesAccessor, value: string) {
+		handler: (accessor: ServicesAccessor, value: string) => {
 			if (typeof value === 'string') {
 				const debugService = accessor.get(IDebugService);
 				// Use warning as severity to get the orange color for messages coming from the debug extension
@@ -44,7 +44,7 @@ export function registerCommands(): void {
 		handler: (accessor) => {
 			const listService = accessor.get(IListService);
 			const debugService = accessor.get(IDebugService);
-			const focused = listService.getFocused();
+			const focused = listService.lastFocusedList;
 
 			// Tree only
 			if (!(focused instanceof List)) {
@@ -64,7 +64,7 @@ export function registerCommands(): void {
 		handler: (accessor) => {
 			const listService = accessor.get(IListService);
 			const debugService = accessor.get(IDebugService);
-			const focused = listService.getFocused();
+			const focused = listService.lastFocusedList;
 
 			// Tree only
 			if (!(focused instanceof List)) {
@@ -85,7 +85,7 @@ export function registerCommands(): void {
 		handler: (accessor) => {
 			const listService = accessor.get(IListService);
 			const debugService = accessor.get(IDebugService);
-			const focused = listService.getFocused();
+			const focused = listService.lastFocusedList;
 
 			// Tree only
 			if (!(focused instanceof List)) {
@@ -106,7 +106,7 @@ export function registerCommands(): void {
 		handler: (accessor) => {
 			const listService = accessor.get(IListService);
 			const debugService = accessor.get(IDebugService);
-			const focused = listService.getFocused();
+			const focused = listService.lastFocusedList;
 
 			// Tree only
 			if (!(focused instanceof List)) {
@@ -127,7 +127,7 @@ export function registerCommands(): void {
 		handler: (accessor) => {
 			const listService = accessor.get(IListService);
 			const debugService = accessor.get(IDebugService);
-			const focused = listService.getFocused();
+			const focused = listService.lastFocusedList;
 
 			// Tree only
 			if (!(focused instanceof List)) {

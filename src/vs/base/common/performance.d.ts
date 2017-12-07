@@ -21,9 +21,9 @@ export function time(name: string): { stop(): void };
 /**
  * All entries filtered by type and sorted by `startTime`.
  */
-export function getEntries(type?: 'mark' | 'measure'): PerformanceEntry[];
+export function getEntries(type: 'mark' | 'measure'): PerformanceEntry[];
 
-/**
- * Import entries
- */
-export function importEntries(entries: PerformanceEntry[]): void;
+
+type ExportData = any[];
+export function importEntries(data: ExportData): void;
+export function exportEntries(): ExportData;

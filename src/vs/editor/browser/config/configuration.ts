@@ -49,10 +49,6 @@ class CSSBasedConfigurationCache {
 		delete this._values[itemId];
 	}
 
-	public getKeys(): BareFontInfo[] {
-		return Object.keys(this._keys).map(id => this._keys[id]);
-	}
-
 	public getValues(): FontInfo[] {
 		return Object.keys(this._keys).map(id => this._values[id]);
 	}
@@ -100,7 +96,7 @@ export interface ISerializedFontInfo {
 
 class CSSBasedConfiguration extends Disposable {
 
-	public static INSTANCE = new CSSBasedConfiguration();
+	public static readonly INSTANCE = new CSSBasedConfiguration();
 
 	private _cache: CSSBasedConfigurationCache;
 	private _evictUntrustedReadingsTimeout: number;

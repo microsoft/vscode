@@ -46,9 +46,10 @@ import { basename } from 'vs/base/common/paths';
 import { MenuId, IMenuService, IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { fillInActions, MenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IChange, IEditorModel, ScrollType, IEditorContribution, OverviewRulerLane, IModel } from 'vs/editor/common/editorCommon';
-import { sortedDiff, Splice, firstIndex } from 'vs/base/common/arrays';
+import { sortedDiff, firstIndex } from 'vs/base/common/arrays';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { ISplice } from 'vs/base/common/sequence';
 
 // TODO@Joao
 // Need to subclass MenuItemActionItem in order to respect
@@ -196,7 +197,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		@IMessageService private messageService: IMessageService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(editor, { isResizeable: true, frameWidth: 1 });
+		super(editor, { isResizeable: true, frameWidth: 1, keepEditorSelection: true });
 
 		themeService.onThemeChange(this._applyTheme, this, this._disposables);
 		this._applyTheme(themeService.getTheme());
@@ -242,7 +243,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 
 		const changeType = getChangeType(change);
 		const changeTypeColor = getChangeTypeColor(this.themeService.getTheme(), changeType);
-		this.style({ frameColor: changeTypeColor });
+		this.style({ frameColor: changeTypeColor, arrowColor: changeTypeColor });
 
 		this._actionbarWidget.context = [this.model.modified.uri, this.model.changes, index];
 		this.show(position, height);
@@ -453,7 +454,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 export class DirtyDiffController implements IEditorContribution {
 
-	private static ID = 'editor.contrib.dirtydiff';
+	private static readonly ID = 'editor.contrib.dirtydiff';
 
 	static get(editor: ICodeEditor): DirtyDiffController {
 		return editor.getContribution<DirtyDiffController>(DirtyDiffController.ID);
@@ -584,14 +585,14 @@ export class DirtyDiffController implements IEditorContribution {
 		return true;
 	}
 
-	private onDidModelChange(splices: Splice<IChange>[]): void {
+	private onDidModelChange(splices: ISplice<IChange>[]): void {
 		for (const splice of splices) {
 			if (splice.start <= this.currentIndex) {
 				if (this.currentIndex < splice.start + splice.deleteCount) {
 					this.currentIndex = -1;
 					this.next();
 				} else {
-					this.currentIndex = rot(this.currentIndex + splice.inserted.length - splice.deleteCount - 1, this.model.changes.length);
+					this.currentIndex = rot(this.currentIndex + splice.toInsert.length - splice.deleteCount - 1, this.model.changes.length);
 					this.next();
 				}
 			}
@@ -849,8 +850,8 @@ export class DirtyDiffModel {
 	private repositoryDisposables = new Set<IDisposable[]>();
 	private disposables: IDisposable[] = [];
 
-	private _onDidChange = new Emitter<Splice<IChange>[]>();
-	readonly onDidChange: Event<Splice<IChange>[]> = this._onDidChange.event;
+	private _onDidChange = new Emitter<ISplice<IChange>[]>();
+	readonly onDidChange: Event<ISplice<IChange>[]> = this._onDidChange.event;
 
 	private _changes: IChange[] = [];
 	get changes(): IChange[] {
@@ -1008,10 +1009,6 @@ export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this.disposables.push(editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
-	}
-
-	getId(): string {
-		return 'git.DirtyDiffModelDecorator';
 	}
 
 	private onEditorsChanged(): void {

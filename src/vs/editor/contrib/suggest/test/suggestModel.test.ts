@@ -23,6 +23,7 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 
 function createMockEditor(model: Model): TestCodeEditor {
 	const contextKeyService = new MockContextKeyService();
@@ -531,6 +532,35 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					assert.equal(event.completionModel.items[0].suggestion.label, 'äbc');
 
 				});
+			});
+		});
+	});
+
+	test('Backspace should not always cancel code completion, #36491', function () {
+		disposables.push(SuggestRegistry.register({ scheme: 'test' }, alwaysSomethingSupport));
+
+		return withOracle(async (model, editor) => {
+			await assertEvent(model.onDidSuggest, () => {
+				editor.setPosition({ lineNumber: 1, column: 4 });
+				editor.trigger('keyboard', Handler.Type, { text: 'd' });
+
+			}, event => {
+				assert.equal(event.auto, true);
+				assert.equal(event.completionModel.items.length, 1);
+				const [first] = event.completionModel.items;
+
+				assert.equal(first.support, alwaysSomethingSupport);
+			});
+
+			await assertEvent(model.onDidSuggest, () => {
+				CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+
+			}, event => {
+				assert.equal(event.auto, true);
+				assert.equal(event.completionModel.items.length, 1);
+				const [first] = event.completionModel.items;
+
+				assert.equal(first.support, alwaysSomethingSupport);
 			});
 		});
 	});

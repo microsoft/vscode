@@ -10,7 +10,11 @@
 	"fontSize": "Yazı tipi boyutunu piksel olarak denetler.",
 	"lineHeight": "Satır yüksekliğini denetler. lineHeight değerini, fontSize değeri kullanarak hesaplamak için 0 girin.",
 	"letterSpacing": "Harfler arası boşluğu pixel olarak denetler.",
-	"lineNumbers": "Satır numaralarının görüntülenmesini denetler. Olası değerler 'on', 'off' ve 'relative'dir. 'relative' satırların geçerli imleç konumundan uzaklıklarını gösterir.",
+	"lineNumbers.off": "Satır numaraları gösterilmez.",
+	"lineNumbers.on": "Satır numaraları mutlak sayı olarak gösterilir.",
+	"lineNumbers.relative": "Satır numaraları imlecin konumuna olan uzaklık olarak gösterilir.",
+	"lineNumbers.interval": "Satır numaraları her 10 satırda bir gösterilir.",
+	"lineNumbers": "Satır numaralarının görüntülenmesini denetler. Olası değerler 'on', 'off' ve 'relative'dir.",
 	"rulers": "Belirli bir eşit genişlikli karakterlerden sonra dikey cetveller göster. Birden çok cetvel için birden çok değer kullanın. Dizi boş ise cetvel gösterilmez",
 	"wordSeparators": "Sözcüklerle ilgili gezinti veya işlem yaparken kelime ayırıcı olarak kullanılacak karakterler",
 	"tabSize": "Bir sekmenin eşit olduğu boşluk sayısı. Bu ayar, `editor.detectIndentation` açıkken dosya içeriğine bağlı olarak geçersiz kılınır.",
@@ -89,8 +93,8 @@
 	"links": "Düzenleyicinin bağlantıları otomatik algılayıp, onları tıklanabilir yapıp yapmayacağını denetler",
 	"colorDecorators": "Düzenleyicinin satır içi renk dekoratörlerini ve renk seçiciyi gösterip göstermemesini denetler.",
 	"codeActions": "Kod eylemleri ampulunu etkinleştirir",
+	"selectionClipboard": "Linux birincil panosunun desteklenip desteklenmeyeceğini denetler.",
 	"sideBySide": "Karşılaştırma düzenleyicisinin farklılıkları yan yana mı yoksa satır içinde mi göstereceğini denetler",
 	"ignoreTrimWhitespace": "Karşılaştırma düzenleyicisinin baştaki veya sondaki boşluklardaki değişmeleri farklılık olarak gösterip göstermemesini denetler",
-	"renderIndicators": "Karşılaştırma düzenleyicisinin ekleme/çıkarma değişiklikleri için +/- göstergeleri gösterip göstermemesini denetler.",
-	"selectionClipboard": "Linux birincil panosunun desteklenip desteklenmeyeceğini denetler."
+	"renderIndicators": "Karşılaştırma düzenleyicisinin ekleme/çıkarma değişiklikleri için +/- göstergeleri gösterip göstermemesini denetler."
 }

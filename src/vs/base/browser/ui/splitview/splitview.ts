@@ -7,7 +7,7 @@
 
 import 'vs/css!./splitview';
 import { IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import Event, { fromEventEmitter, mapEvent, Emitter } from 'vs/base/common/event';
+import Event, { mapEvent, Emitter } from 'vs/base/common/event';
 import types = require('vs/base/common/types');
 import dom = require('vs/base/browser/dom');
 import { clamp } from 'vs/base/common/numbers';
@@ -127,11 +127,11 @@ export class SplitView implements IDisposable {
 				? (e: IBaseSashEvent) => ({ sash, start: e.startY, current: e.currentY })
 				: (e: IBaseSashEvent) => ({ sash, start: e.startX, current: e.currentX });
 
-			const onStart = mapEvent(fromEventEmitter<IBaseSashEvent>(sash, 'start'), sashEventMapper);
+			const onStart = mapEvent(sash.onDidStart, sashEventMapper);
 			const onStartDisposable = onStart(this.onSashStart, this);
-			const onChange = mapEvent(fromEventEmitter<IBaseSashEvent>(sash, 'change'), sashEventMapper);
+			const onChange = mapEvent(sash.onDidChange, sashEventMapper);
 			const onSashChangeDisposable = onChange(this.onSashChange, this);
-			const onEnd = mapEvent<IBaseSashEvent, void>(fromEventEmitter<IBaseSashEvent>(sash, 'end'), () => null);
+			const onEnd = mapEvent<void, void>(sash.onDidEnd, () => null);
 			const onEndDisposable = onEnd(() => this._onDidSashChange.fire());
 
 			const disposable = combinedDisposable([onStartDisposable, onSashChangeDisposable, onEndDisposable, sash]);

@@ -136,7 +136,7 @@ configurationRegistry.registerConfiguration({
 			'default': EDITOR_FONT_DEFAULTS.fontSize
 		},
 		'terminal.integrated.lineHeight': {
-			'description': nls.localize('terminal.integrated.lineHeight', "Controls the line height of the terminal, this number is multipled by the terminal font size to get the actual line-height in pixels."),
+			'description': nls.localize('terminal.integrated.lineHeight', "Controls the line height of the terminal, this number is multiplied by the terminal font size to get the actual line-height in pixels."),
 			'type': 'number',
 			'default': 1
 		},

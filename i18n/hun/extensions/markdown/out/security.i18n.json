@@ -11,5 +11,8 @@
 	"disable.title": "Letiltás",
 	"disable.description": "Minden tartalom és parancsfájl futtatásának engedélyezése. Nem ajánlott.",
 	"moreInfo.title": "További információ",
+	"enableSecurityWarning.title": "Előnézettel kapcsolatos biztonsági figyelmeztetések engedélyezése ezen a munkaterületen",
+	"disableSecurityWarning.title": "Előnézettel kapcsolatos biztonsági figyelmeztetések letiltása ezen a munkaterületen",
+	"toggleSecurityWarning.description": "Nem befolyásolja a tartalom biztonsági szintjét",
 	"preview.showPreviewSecuritySelector.title": "Válassza ki a munkaterület Markdown-előnézeteinek biztonsági beállítását!"
 }

@@ -19,6 +19,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import URI from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
 import { isLinux } from 'vs/base/common/platform';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 interface IConfiguration extends IWindowsConfiguration {
 	update: { channel: string; };
@@ -137,7 +138,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	private doConfirm(message: string, detail: string, primaryButton: string, confirmed: () => void): void {
 		this.windowService.isFocused().then(focused => {
 			if (focused) {
-				const confirm = this.messageService.confirmSync({
+				const confirm = this.messageService.confirm({
 					type: 'info',
 					message,
 					detail,
@@ -151,14 +152,10 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		});
 	}
 
-	public getId(): string {
-		return 'workbench.relauncher';
-	}
-
 	public dispose(): void {
 		this.toDispose = dispose(this.toDispose);
 	}
 }
 
 const workbenchRegistry = <IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(SettingsChangeRelauncher);
+workbenchRegistry.registerWorkbenchContribution(SettingsChangeRelauncher, LifecyclePhase.Running);

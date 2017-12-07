@@ -23,6 +23,8 @@ import * as extfs from 'vs/base/node/extfs';
 import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
 import { WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { relative } from 'path';
+import { equals } from 'vs/base/common/objects';
 
 // node.hs helper functions
 
@@ -157,7 +159,7 @@ export class WorkspaceConfiguration extends Disposable {
 
 export class FolderConfiguration extends Disposable {
 
-	private static RELOAD_CONFIGURATION_DELAY = 50;
+	private static readonly RELOAD_CONFIGURATION_DELAY = 50;
 
 	private bulkFetchFromWorkspacePromise: TPromise;
 	private workspaceFilePathToConfiguration: { [relativeWorkspacePath: string]: TPromise<ConfigurationModelParser> };
@@ -188,10 +190,9 @@ export class FolderConfiguration extends Disposable {
 	}
 
 	reprocess(): ConfigurationModel {
-		const oldKeys = this.getUnsupportedKeys();
+		const oldContents = this._folderSettingsModelParser.folderSettingsModel.contents;
 		this._folderSettingsModelParser.reprocess();
-		const newKeys = this.getUnsupportedKeys();
-		if (this.hasKeysChanged(oldKeys, newKeys)) {
+		if (!equals(oldContents, this._folderSettingsModelParser.folderSettingsModel.contents)) {
 			this.consolidate();
 		}
 		return this._cache;
@@ -199,18 +200,6 @@ export class FolderConfiguration extends Disposable {
 
 	getUnsupportedKeys(): string[] {
 		return this._folderSettingsModelParser.folderSettingsModel.unsupportedKeys;
-	}
-
-	private hasKeysChanged(oldKeys: string[], newKeys: string[]): boolean {
-		if (oldKeys.length !== newKeys.length) {
-			return true;
-		}
-		for (const key of oldKeys) {
-			if (newKeys.indexOf(key) === -1) {
-				return true;
-			}
-		}
-		return false;
 	}
 
 	private consolidate(): void {
@@ -332,7 +321,7 @@ export class FolderConfiguration extends Disposable {
 
 	private toFolderRelativePath(resource: URI, toOSPath?: boolean): string {
 		if (this.contains(resource)) {
-			return paths.normalize(paths.relative(this.folder.fsPath, resource.fsPath), toOSPath);
+			return paths.normalize(relative(this.folder.fsPath, resource.fsPath), toOSPath);
 		}
 
 		return null;
