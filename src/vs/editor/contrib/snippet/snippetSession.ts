@@ -27,8 +27,8 @@ export class OneSnippet {
 
 	private _placeholderDecorations: Map<Placeholder, string>;
 	private _placeholderGroups: Placeholder[][];
-	private _placeholderGroupsIdx: number;
-	private _nestingLevel: number = 1;
+	_placeholderGroupsIdx: number;
+	_nestingLevel: number = 1;
 
 	private static readonly _decor = {
 		active: ModelDecorationOptions.register({ stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges, className: 'snippet-placeholder' }),
@@ -316,6 +316,7 @@ export class SnippetSession {
 
 	private readonly _editor: ICodeEditor;
 	private readonly _template: string;
+	private readonly _templateMerges: [number, number, string][] = [];
 	private readonly _overwriteBefore: number;
 	private readonly _overwriteAfter: number;
 	private _snippets: OneSnippet[] = [];
@@ -329,6 +330,10 @@ export class SnippetSession {
 
 	dispose(): void {
 		dispose(this._snippets);
+	}
+
+	_logInfo(): string {
+		return `template="${this._template}", merged_templates="${this._templateMerges.join(' -> ')}"`;
 	}
 
 	insert(): void {
@@ -349,6 +354,7 @@ export class SnippetSession {
 	}
 
 	merge(template: string, overwriteBefore: number = 0, overwriteAfter: number = 0): void {
+		this._templateMerges.push([this._snippets[0]._nestingLevel, this._snippets[0]._placeholderGroupsIdx, template]);
 		const { edits, snippets } = SnippetSession.createEditsAndSnippets(this._editor, template, overwriteBefore, overwriteAfter, true);
 
 		this._editor.setSelections(this._editor.getModel().pushEditOperations(this._editor.getSelections(), edits, undoEdits => {
