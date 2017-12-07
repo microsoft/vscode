@@ -54,6 +54,7 @@ export const enum FindStartFocusAction {
 export interface IFindStartOptions {
 	forceRevealReplace: boolean;
 	seedSearchStringFromSelection: boolean;
+	seedSearchStringFromGlobalClipboard: boolean;
 	shouldFocus: FindStartFocusAction;
 	shouldAnimate: boolean;
 }
@@ -111,6 +112,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 				this._start({
 					forceRevealReplace: false,
 					seedSearchStringFromSelection: false && this._editor.getConfiguration().contribInfo.find.seedSearchStringFromSelection,
+					seedSearchStringFromGlobalClipboard: false,
 					shouldFocus: FindStartFocusAction.NoFocusChange,
 					shouldAnimate: false,
 				});
@@ -253,6 +255,13 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 				} else {
 					stateChanges.searchString = selectionSearchString;
 				}
+			}
+		}
+
+		if (!stateChanges.searchString && opts.seedSearchStringFromGlobalClipboard) {
+			let selectionSearchString = this.getGlobalBufferTerm();
+			if (selectionSearchString) {
+				stateChanges.searchString = selectionSearchString;
 			}
 		}
 
@@ -415,6 +424,7 @@ export class StartFindAction extends EditorAction {
 			controller.start({
 				forceRevealReplace: false,
 				seedSearchStringFromSelection: editor.getConfiguration().contribInfo.find.seedSearchStringFromSelection,
+				seedSearchStringFromGlobalClipboard: editor.getConfiguration().contribInfo.find.globalFindClipboard,
 				shouldFocus: FindStartFocusAction.FocusFindInput,
 				shouldAnimate: true
 			});
@@ -446,6 +456,7 @@ export class StartFindWithSelectionAction extends EditorAction {
 			controller.start({
 				forceRevealReplace: false,
 				seedSearchStringFromSelection: true,
+				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.FocusFindInput,
 				shouldAnimate: true
 			});
@@ -461,6 +472,7 @@ export abstract class MatchFindAction extends EditorAction {
 			controller.start({
 				forceRevealReplace: false,
 				seedSearchStringFromSelection: (controller.getState().searchString.length === 0) && editor.getConfiguration().contribInfo.find.seedSearchStringFromSelection,
+				seedSearchStringFromGlobalClipboard: true,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: true
 			});
@@ -488,10 +500,6 @@ export class NextMatchFindAction extends MatchFindAction {
 	}
 
 	protected _run(controller: CommonFindController): boolean {
-		let selectionSearchString = controller.getGlobalBufferTerm();
-		if (selectionSearchString && controller.getState().searchString !== selectionSearchString) {
-			controller.setSearchString(selectionSearchString);
-		}
 		return controller.moveToNextMatch();
 	}
 }
@@ -513,10 +521,6 @@ export class PreviousMatchFindAction extends MatchFindAction {
 	}
 
 	protected _run(controller: CommonFindController): boolean {
-		let selectionSearchString = controller.getGlobalBufferTerm();
-		if (selectionSearchString && controller.getState().searchString !== selectionSearchString) {
-			controller.setSearchString(selectionSearchString);
-		}
 		return controller.moveToPrevMatch();
 	}
 }
@@ -535,6 +539,7 @@ export abstract class SelectionMatchFindAction extends EditorAction {
 			controller.start({
 				forceRevealReplace: false,
 				seedSearchStringFromSelection: false,
+				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: true
 			});
@@ -621,6 +626,7 @@ export class StartFindReplaceAction extends EditorAction {
 			controller.start({
 				forceRevealReplace: true,
 				seedSearchStringFromSelection: seedSearchStringFromSelection,
+				seedSearchStringFromGlobalClipboard: editor.getConfiguration().contribInfo.find.seedSearchStringFromSelection,
 				shouldFocus: shouldFocus,
 				shouldAnimate: true
 			});

@@ -285,6 +285,7 @@ suite('FindController', () => {
 			findController.start({
 				forceRevealReplace: false,
 				seedSearchStringFromSelection: false,
+				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: false
 			});
