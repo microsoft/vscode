@@ -48,6 +48,7 @@
 
 .runtime-extensions-editor .extension .profile-timeline-svg {
 	width: 100%;
+	pointer-events: none;
 }
 
 .runtime-extensions-editor .extension .profile-timeline rect {
