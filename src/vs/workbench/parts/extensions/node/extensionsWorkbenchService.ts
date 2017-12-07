@@ -744,13 +744,22 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		const extension: Extension = installing ? installing.extension : zipPath ? new Extension(this.galleryService, this.stateProvider, null, null, this.telemetryService) : null;
 		if (extension) {
 			this.installing = installing ? this.installing.filter(e => e !== installing) : this.installing;
-			const installed = this.installed.filter(e => areSameExtensions(e, extension))[0];
-			if (installed && installing) {
-				installing.operation = Operation.Updating;
-			}
-			if (!error) {
+
+			if (error) {
+				if (extension.gallery) {
+					// Updates can be done only for gallery extensions
+					const installed = this.installed.filter(e => e.id === extension.id)[0];
+					if (installed && installing) {
+						installing.operation = Operation.Updating;
+					}
+				}
+			} else {
 				extension.local = local;
+				const installed = this.installed.filter(e => e.id === extension.id)[0];
 				if (installed) {
+					if (installing) {
+						installing.operation = Operation.Updating;
+					}
 					installed.local = local;
 				} else {
 					this.installed.push(extension);
