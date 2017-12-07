@@ -977,7 +977,7 @@ export class Repository {
 		try {
 			const args = ['stash', 'pop'];
 
-			if (typeof index === 'string') {
+			if (typeof index === 'number') {
 				args.push(`stash@{${index}}`);
 			}
 
