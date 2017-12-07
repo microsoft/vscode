@@ -164,11 +164,11 @@ export class TabsTitleControl extends TitleControl {
 
 		// Custom Scrollbar
 		this.scrollbar = new ScrollableElement(this.tabsContainer, {
-			horizontal: ScrollbarVisibility.Auto,
-			vertical: ScrollbarVisibility.Hidden,
+			horizontal: ScrollbarVisibility.Visible,
+			vertical: ScrollbarVisibility.Visible,
 			scrollYToX: true,
 			useShadows: false,
-			horizontalScrollbarSize: 3
+			horizontalScrollbarSize: 13
 		});
 
 		this.scrollbar.onScroll(e => {
