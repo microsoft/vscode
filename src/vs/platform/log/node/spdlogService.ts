@@ -15,6 +15,8 @@ export function createLogService(processName: string, environmentService: IEnvir
 		setAsyncMode(8192, 2000);
 		const logfilePath = path.join(environmentService.logsPath, `${processName}.log`);
 		const logger = new RotatingLogger(processName, logfilePath, 1024 * 1024 * 5, 6);
+		logger.setLevel(0);
+
 		return new SpdLogService(logger, environmentService.logLevel);
 	} catch (e) {
 		console.error(e);
