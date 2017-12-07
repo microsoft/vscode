@@ -539,6 +539,13 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			return ExtensionScanner.scanExtensions(input, log);
 		}
 
+		try {
+			const folderStat = await pfs.stat(input.absoluteFolderPath);
+			input.mtime = folderStat.mtime.getTime();
+		} catch (err) {
+			// That's ok...
+		}
+
 		const cacheContents = await this._readExtensionCache(environmentService, cacheKey);
 		if (cacheContents && ExtensionScannerInput.equals(cacheContents.input, input)) {
 			// Validate the cache asynchronously after 5s

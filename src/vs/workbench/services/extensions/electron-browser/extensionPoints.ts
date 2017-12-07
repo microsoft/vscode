@@ -254,6 +254,9 @@ class ExtensionManifestValidator extends ExtensionManifestHandler {
 }
 
 export class ExtensionScannerInput {
+
+	public mtime: number;
+
 	constructor(
 		public readonly ourVersion: string,
 		public readonly commit: string,
@@ -281,6 +284,7 @@ export class ExtensionScannerInput {
 			&& a.devMode === b.devMode
 			&& a.absoluteFolderPath === b.absoluteFolderPath
 			&& a.isBuiltin === b.isBuiltin
+			&& a.mtime === b.mtime
 		);
 	}
 }
