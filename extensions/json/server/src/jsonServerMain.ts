@@ -6,9 +6,13 @@
 
 import {
 	createConnection, IConnection,
-	TextDocuments, TextDocument, InitializeParams, InitializeResult, NotificationType, RequestType,
+	TextDocuments, InitializeParams, InitializeResult, NotificationType, RequestType,
 	DocumentRangeFormattingRequest, Disposable, ServerCapabilities
 } from 'vscode-languageserver';
+
+import{
+    TextDocument
+} from 'vscode-languageserver-protocol';
 
 import { DocumentColorRequest, ServerCapabilities as CPServerCapabilities, ColorPresentationRequest } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
@@ -54,11 +58,19 @@ documents.listen(connection);
 
 let clientSnippetSupport = false;
 let clientDynamicRegisterSupport = false;
+let JsonProjectDocuments;
 
 // After the server has started the client sends an initilize request. The server receives
 // in the passed params the rootPath of the workspace plus the client capabilities.
 connection.onInitialize((params: InitializeParams): InitializeResult => {
-
+    if (params.initializationOptions && params.initializationOptions.projectValidation){
+        JsonProjectDocuments = [];
+        var JsonProjectFiles = getJsonProjectFiles(params.rootUri);
+        for (var i = 0; i < JsonProjectFiles.length; i++) {
+            JsonProjectDocuments.push(TextDocument.create("file://" + JsonProjectFiles[i].path, "json", 0, JsonProjectFiles[i].content));
+        }
+        JsonProjectDocuments.forEach(validateTextDocument);
+    }
 	function hasClientCapability(...keys: string[]) {
 		let c = params.capabilities;
 		for (let i = 0; c && i < keys.length; i++) {
@@ -81,6 +93,27 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 
 	return { capabilities };
 });
+
+function getFiles (dir: string, jsonFiles:{path: string, content: string}[]){
+    jsonFiles = jsonFiles;
+    var files = fs.readdirSync(dir);
+    for (var i in files){
+        var name = dir + '/' + files[i];
+        if (fs.statSync(name).isDirectory()){
+            getFiles(name, jsonFiles);
+        } else {
+            if (name.split('.').pop() === 'json') {
+                var fileContent = fs.readFileSync(name).toString();
+                jsonFiles.push({path: name, content: fileContent});
+            }
+        }
+    }
+    return jsonFiles;
+}
+function getJsonProjectFiles(rootUri: string) {
+    var dirPath = rootUri.substring("file://".length, rootUri.length );
+    return getFiles(dirPath, []);
+}
 
 let workspaceContext = {
 	resolveRelativePath: (relativePath: string, resource: string) => {
@@ -222,8 +255,12 @@ documents.onDidChangeContent((change) => {
 
 // a document has closed: clear all diagnostics
 documents.onDidClose(event => {
-	cleanPendingValidation(event.document);
-	connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
+    if (JsonProjectDocuments){
+        return;
+    }else {
+        cleanPendingValidation(event.document);
+        connection.sendDiagnostics({ uri: event.document.uri, diagnostics: [] });
+    }
 });
 
 let pendingValidationRequests: { [uri: string]: NodeJS.Timer; } = {};
@@ -265,6 +302,11 @@ connection.onDidChangeWatchedFiles((change) => {
 	// Monitored files have changed in VSCode
 	let hasChanges = false;
 	change.changes.forEach(c => {
+        if (JsonProjectDocuments && c.type === 1 && c.uri.split('.').pop() === 'json'){
+            var fileContent = fs.readFileSync(c.uri.substring("file://".length, c.uri.length)).toString();
+            var textDocument = TextDocument.create(c.uri, "json", 0, fileContent)
+            validateTextDocument(textDocument);
+        }
 		if (languageService.resetSchema(c.uri)) {
 			hasChanges = true;
 		}
