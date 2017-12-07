@@ -143,17 +143,28 @@ export class OneSnippet {
 		return this._snippet.placeholders.length > 0;
 	}
 
-	get placeholderRanges() {
-		const ret: Range[] = [];
-		this._placeholderDecorations.forEach((id, placeholder) => {
-			if (!placeholder.isFinalTabstop) {
-				const range = this._editor.getModel().getDecorationRange(id);
-				if (range) {
-					ret.push(range);
+	computePossibleSelections() {
+		const result = new Map<number, Range[]>();
+		for (const placeholdersWithEqualIndex of this._placeholderGroups) {
+			let ranges: Range[];
+
+			for (const placeholder of placeholdersWithEqualIndex) {
+				if (placeholder.isFinalTabstop) {
+					// ignore those
+					break;
 				}
+
+				if (!ranges) {
+					ranges = [];
+					result.set(placeholder.index, ranges);
+				}
+
+				const id = this._placeholderDecorations.get(placeholder);
+				const range = this._editor.getModel().getDecorationRange(id);
+				ranges.push(range);
 			}
-		});
-		return ret;
+		}
+		return result;
 	}
 
 	get choice(): Choice {
@@ -421,29 +432,56 @@ export class SnippetSession {
 			return false;
 		}
 
-		const ranges: Range[] = [];
+		let ranges: Range[] = [];
+		let placeholderIndex: number = -1;
 		for (const snippet of this._snippets) {
-			ranges.push(...snippet.placeholderRanges);
+
+			const possibleSelections = snippet.computePossibleSelections();
+
+			// for the first snippet find the placeholder (and its ranges)
+			// that contain at least one selection. for all remaining snippets
+			// the same placeholder (and their ranges) must be used.
+			if (placeholderIndex < 0) {
+				possibleSelections.forEach((ranges, index) => {
+					if (placeholderIndex >= 0) {
+						return;
+					}
+					ranges.sort(Range.compareRangesUsingStarts);
+					for (const selection of selections) {
+						if (ranges[0].containsRange(selection)) {
+							placeholderIndex = index;
+							break;
+						}
+					}
+				});
+			}
+
+			if (placeholderIndex < 0) {
+				// return false if we couldn't associate a selection to
+				// this (the first) snippet
+				return false;
+			}
+
+			ranges.push(...possibleSelections.get(placeholderIndex));
 		}
 
-		if (selections.length > ranges.length) {
+		if (selections.length !== ranges.length) {
+			// this means we started at a placeholder with N
+			// ranges and new have M (N > M) selections.
+			// So (at least) one placeholder is without selection -> cancel
 			return false;
 		}
 
-		// sort selections and ranges by their start position
-		// and then make sure each selection is contained by
-		// a placeholder range
+		// also sort (placeholder)-ranges. then walk both arrays and
+		// make sure the placeholder-ranges contain the corresponding
+		// selection
 		selections.sort(Range.compareRangesUsingStarts);
 		ranges.sort(Range.compareRangesUsingStarts);
 
-		outer: for (const selection of selections) {
-			let range: Range;
-			while (range = ranges.shift()) {
-				if (range.containsRange(selection)) {
-					continue outer;
-				}
+		for (let i = 0; i < ranges.length; i++) {
+			if (!ranges[i].containsRange(selections[i])) {
+				return false;
 			}
-			return false;
 		}
 
 		return true;

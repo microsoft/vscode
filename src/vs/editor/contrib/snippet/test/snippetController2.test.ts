@@ -276,4 +276,31 @@ suite('SnippetController2', function () {
 		assertSelections(editor, new Selection(11, 18, 11, 22));
 	});
 
+	test('Problems with nested snippet insertion #39594', function () {
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
+
+		model.setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+
+		ctrl.insert('$1 = ConvertTo-Json $1');
+		assertSelections(editor, new Selection(1, 1, 1, 1), new Selection(1, 19, 1, 19));
+
+		editor.setSelection(new Selection(1, 19, 1, 19));
+
+		// snippet mode should stop because $1 has two occurrences
+		// and we only have one selection left
+		assertContextKeys(contextKeys, false, false, false);
+	});
+
+	test('Problems with nested snippet insertion #39594', function () {
+		// ensure selection-change-to-cancel logic isn't too aggressive
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
+
+		model.setValue('a-\naaa-');
+		editor.setSelections([new Selection(2, 5, 2, 5), new Selection(1, 3, 1, 3)]);
+
+		ctrl.insert('log($1);$0');
+		assertSelections(editor, new Selection(2, 9, 2, 9), new Selection(1, 7, 1, 7));
+		assertContextKeys(contextKeys, true, false, true);
+	});
 });
