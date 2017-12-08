@@ -5586,9 +5586,9 @@ uuid@^3.0.0, uuid@^3.1.0:
   version "3.1.0"
   resolved "https://registry.yarnpkg.com/uuid/-/uuid-3.1.0.tgz#3dd3d3e790abc24d7b0d3a034ffababe28ebbc04"
 
-v8-inspect-profiler@^0.0.6:
-  version "0.0.6"
-  resolved "https://registry.yarnpkg.com/v8-inspect-profiler/-/v8-inspect-profiler-0.0.6.tgz#7885de7e9c3304118bde25d5b3d6ec5116467f2c"
+v8-inspect-profiler@^0.0.7:
+  version "0.0.7"
+  resolved "https://registry.yarnpkg.com/v8-inspect-profiler/-/v8-inspect-profiler-0.0.7.tgz#f3b3438680f71961b9647514fe7b9f8748abc462"
   dependencies:
     chrome-remote-interface "^0.25.3"
 
