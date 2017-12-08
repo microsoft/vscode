@@ -17,10 +17,6 @@
 	padding-right: 20px;
 }
 
-.runtime-extensions-editor .extension > .icon {
-	display: none;
-}
-
 .runtime-extensions-editor .extension .desc {
 	flex: 1;
 	padding: 4px 0;

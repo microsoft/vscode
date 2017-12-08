@@ -25,7 +25,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IExtensionService, IExtensionDescription, IExtensionsStatus, IExtensionHostProfile } from 'vs/platform/extensions/common/extensions';
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { WorkbenchList, IListService } from 'vs/platform/list/browser/listService';
-import { append, $, addDisposableListener, addClass, toggleClass } from 'vs/base/browser/dom';
+import { append, $, addClass, toggleClass } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
@@ -233,7 +233,6 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		interface IRuntimeExtensionTemplateData {
 			root: HTMLElement;
 			element: HTMLElement;
-			icon: HTMLImageElement;
 			name: HTMLElement;
 
 			activationTime: HTMLElement;
@@ -253,7 +252,6 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 			templateId: TEMPLATE_ID,
 			renderTemplate: (root: HTMLElement): IRuntimeExtensionTemplateData => {
 				const element = append(root, $('.extension'));
-				const icon = append(element, $<HTMLImageElement>('img.icon'));
 
 				const desc = append(element, $('div.desc'));
 				const name = append(desc, $('div.name'));
@@ -279,7 +277,6 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				return {
 					root,
 					element,
-					icon,
 					name,
 					actionbar,
 					activationTime,
@@ -296,21 +293,15 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 				data.elementDisposables = dispose(data.elementDisposables);
 
-				data.elementDisposables.push(
-					addDisposableListener(data.icon, 'error', () => {
-						data.icon.src = element.marketplaceInfo.iconUrlFallback;
-					})
-				);
 				toggleClass(data.root, 'odd', index % 2 === 1);
-				data.icon.src = element.marketplaceInfo.iconUrl;
 
-				data.name.textContent = element.marketplaceInfo.displayName;
+				data.name.textContent = element.marketplaceInfo ? element.marketplaceInfo.displayName : element.description.displayName;
 
 				const activationTimes = element.status.activationTimes;
 				let syncTime = activationTimes.codeLoadingTime + activationTimes.activateCallTime;
 				data.activationTime.textContent = activationTimes.startup ? `Startup Activation: ${syncTime}ms` : `Activation: ${syncTime}ms`;
 				data.actionbar.context = element;
-				toggleClass(data.actionbar.getContainer().getHTMLElement(), 'hidden', element.marketplaceInfo.type === LocalExtensionType.User && (!element.description.repository || !element.description.repository.url));
+				toggleClass(data.actionbar.getContainer().getHTMLElement(), 'hidden', element.marketplaceInfo && element.marketplaceInfo.type === LocalExtensionType.User && (!element.description.repository || !element.description.repository.url));
 
 				let title: string;
 				if (activationTimes.activationEvent === '*') {
@@ -487,7 +478,7 @@ class ReportExtensionIssueAction extends Action {
 	}
 
 	private generateNewIssueUrl(extension: IRuntimeExtension): string {
-		let baseUrl = extension.marketplaceInfo.type === LocalExtensionType.User && extension.description.repository ? extension.description.repository.url : undefined;
+		let baseUrl = extension.marketplaceInfo && extension.marketplaceInfo.type === LocalExtensionType.User && extension.description.repository ? extension.description.repository.url : undefined;
 		if (!!baseUrl) {
 			baseUrl = `${baseUrl.indexOf('.git') !== -1 ? baseUrl.substr(0, baseUrl.length - 4) : baseUrl}/issues/new/`;
 		} else {
