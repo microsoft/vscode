@@ -15,7 +15,7 @@ describe('Search', () => {
 		await app.workbench.search.openSearchViewlet();
 		await app.workbench.search.searchFor('body');
 
-		await app.workbench.search.waitForResultText('7 results in 4 files');
+		await app.workbench.search.waitForResultText('14 results in 5 files');
 	});
 
 	it('searches only for *.js files & checks for correct result number', async function () {
@@ -34,7 +34,7 @@ describe('Search', () => {
 		const app = this.app as SpectronApplication;
 		await app.workbench.search.searchFor('body');
 		await app.workbench.search.removeFileMatch(1);
-		await app.workbench.search.waitForResultText('3 results in 3 files');
+		await app.workbench.search.waitForResultText('10 results in 4 files');
 	});
 
 	it('replaces first search result with a replace term', async function () {
@@ -46,7 +46,7 @@ describe('Search', () => {
 		await app.workbench.search.replaceFileMatch(1);
 		await app.workbench.saveOpenedFile();
 
-		await app.workbench.search.waitForResultText('3 results in 3 files');
+		await app.workbench.search.waitForResultText('10 results in 4 files');
 
 		await app.workbench.search.searchFor('ydob');
 		await app.workbench.search.setReplaceText('body');

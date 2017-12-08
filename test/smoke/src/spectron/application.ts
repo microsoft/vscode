@@ -271,9 +271,9 @@ export class SpectronApplication {
 		await this.webclient.waitUntilWindowLoaded();
 		// Spectron opens multiple terminals in Windows platform
 		// Workaround to focus the right window - https://github.com/electron/spectron/issues/60
-		await this.client.windowByIndex(1);
+		// await this.client.windowByIndex(1);
 		// await this.app.browserWindow.focus();
-		await this.client.waitForHTML('[id="workbench.main.container"]');
+		await this.client.waitForElement('.monaco-workbench');
 	}
 
 	private async waitForWelcome(): Promise<any> {

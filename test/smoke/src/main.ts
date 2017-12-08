@@ -195,7 +195,7 @@ async function setup(): Promise<void> {
  * @see https://github.com/webdriverio/webdriverio/issues/2076
  */
 // Filter out the following messages:
-const wdioDeprecationWarning = /^WARNING: the "\w+" command will be depcrecated soon./; // [sic]
+const wdioDeprecationWarning = /^WARNING: the "\w+" command will be deprecated soon../; // [sic]
 // Monkey patch:
 const warn = console.warn;
 console.warn = function suppressWebdriverWarnings(message) {

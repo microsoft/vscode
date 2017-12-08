@@ -17,7 +17,7 @@ describe('Multiroot', () => {
 
 		// for some reason Code opens 2 windows at this point
 		// so let's select the last one
-		await app.client.windowByIndex(2);
+		await app.client.windowByIndex(1);
 	});
 
 	it('shows results from all folders', async function () {

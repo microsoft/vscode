@@ -54,10 +54,6 @@ export class SpectronClient {
 		return this.waitFor(() => this.spectron.client.getValue(selector), accept, `getValue with selector ${selector}`);
 	}
 
-	async waitForHTML(selector: string, accept: (result: string) => boolean = (result: string) => !!result): Promise<any> {
-		return this.waitFor(() => this.spectron.client.getHTML(selector), accept, `getHTML with selector ${selector}`);
-	}
-
 	async waitAndClick(selector: string): Promise<any> {
 		return this.waitFor(() => this.spectron.client.click(selector), void 0, `click with selector ${selector}`);
 	}

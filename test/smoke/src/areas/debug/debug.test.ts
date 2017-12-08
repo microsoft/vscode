@@ -12,6 +12,7 @@ import * as stripJsonComments from 'strip-json-comments';
 import { SpectronApplication, Quality } from '../../spectron/application';
 
 describe('Debug', () => {
+	let skip = false;
 
 	before(async function () {
 		const app = this.app as SpectronApplication;
@@ -27,11 +28,13 @@ describe('Debug', () => {
 
 			if (!debugExists) {
 				console.warn(`Skipping debug tests because vscode-node-debug extension was not found in ${extensionsPath}`);
+				skip = true;
 				return;
 			}
 
 			if (!debug2Exists) {
 				console.warn(`Skipping debug tests because vscode-node-debug2 extension was not found in ${extensionsPath}`);
+				skip = true;
 				return;
 			}
 
@@ -44,6 +47,11 @@ describe('Debug', () => {
 	});
 
 	it('configure launch json', async function () {
+		if (skip) {
+			this.skip();
+			return;
+		}
+
 		const app = this.app as SpectronApplication;
 
 		await app.workbench.debug.openDebugViewlet();
@@ -69,6 +77,11 @@ describe('Debug', () => {
 	});
 
 	it('breakpoints', async function () {
+		if (skip) {
+			this.skip();
+			return;
+		}
+
 		const app = this.app as SpectronApplication;
 
 		await app.workbench.quickopen.openFile('index.js');
@@ -78,6 +91,11 @@ describe('Debug', () => {
 
 	let port: number;
 	it('start debugging', async function () {
+		if (skip) {
+			this.skip();
+			return;
+		}
+
 		const app = this.app as SpectronApplication;
 
 		port = await app.workbench.debug.startDebugging();
@@ -93,6 +111,11 @@ describe('Debug', () => {
 	});
 
 	it('focus stack frames and variables', async function () {
+		if (skip) {
+			this.skip();
+			return;
+		}
+
 		const app = this.app as SpectronApplication;
 
 		await app.client.waitFor(() => app.workbench.debug.getLocalVariableCount(), c => c === 4, 'there should be 4 local variables');
@@ -108,6 +131,11 @@ describe('Debug', () => {
 	});
 
 	it('stepOver, stepIn, stepOut', async function () {
+		if (skip) {
+			this.skip();
+			return;
+		}
+
 		const app = this.app as SpectronApplication;
 
 		await app.workbench.debug.stepIn();
@@ -125,6 +153,11 @@ describe('Debug', () => {
 	});
 
 	it('continue', async function () {
+		if (skip) {
+			this.skip();
+			return;
+		}
+
 		const app = this.app as SpectronApplication;
 
 		await app.workbench.debug.continue();
@@ -140,12 +173,22 @@ describe('Debug', () => {
 	});
 
 	it('debug console', async function () {
+		if (skip) {
+			this.skip();
+			return;
+		}
+
 		const app = this.app as SpectronApplication;
 
 		await app.workbench.debug.waitForReplCommand('2 + 2', r => r === '4');
 	});
 
 	it('stop debugging', async function () {
+		if (skip) {
+			this.skip();
+			return;
+		}
+
 		const app = this.app as SpectronApplication;
 
 		await app.workbench.debug.stopDebugging();
