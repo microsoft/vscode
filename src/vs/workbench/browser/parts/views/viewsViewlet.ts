@@ -419,16 +419,14 @@ export class ViewsViewlet extends PanelViewlet {
 			for (const view of panels) {
 				let viewState = this.viewsStates.get(view.id);
 				if (!viewState || typeof viewState.size === 'undefined' || !view.isExpanded() !== viewState.collapsed) {
-					viewState = this.updateViewStateSize(view);
-					this.viewsStates.set(view.id, viewState);
+					this.updateViewStateSize(view);
 				}
 			}
 
 			if (toRemove.length) {
 				for (const viewDescriptor of toRemove) {
 					let view = this.getView(viewDescriptor.id);
-					const viewState = this.updateViewStateSize(view);
-					this.viewsStates.set(view.id, viewState);
+					this.updateViewStateSize(view);
 					this.removePanel(view);
 					this.viewsViewletPanels.splice(this.viewsViewletPanels.indexOf(view), 1);
 				}
@@ -451,7 +449,7 @@ export class ViewsViewlet extends PanelViewlet {
 				this.addPanel(view, size, index);
 				this.viewsViewletPanels.splice(index, 0, view);
 
-				this.viewsStates.set(view.id, this.updateViewStateSize(view));
+				this.updateViewStateSize(view);
 			}
 
 			return TPromise.join(toCreate.map(view => view.create()))
@@ -465,8 +463,7 @@ export class ViewsViewlet extends PanelViewlet {
 
 	private updateAllViewsSizes(): void {
 		for (const view of this.viewsViewletPanels) {
-			let viewState = this.updateViewStateSize(view);
-			this.viewsStates.set(view.id, viewState);
+			this.updateViewStateSize(view);
 		}
 	}
 
@@ -619,10 +616,13 @@ export class ViewsViewlet extends PanelViewlet {
 		return this.viewsViewletPanels.filter(view => view.id === id)[0];
 	}
 
-	private updateViewStateSize(view: ViewsViewletPanel): IViewState {
-		const currentState = this.viewsStates.get(view.id);
-		const newViewState = this.createViewState(view);
-		return currentState ? { ...currentState, collapsed: newViewState.collapsed, size: newViewState.size } : newViewState;
+	private updateViewStateSize(view: ViewsViewletPanel): void {
+		if (this.didLayout) {
+			const currentState = this.viewsStates.get(view.id);
+			const newViewState = this.createViewState(view);
+			const stateToUpdate = currentState ? { ...currentState, collapsed: newViewState.collapsed, size: newViewState.size } : newViewState;
+			this.viewsStates.set(view.id, stateToUpdate);
+		}
 	}
 
 	protected createViewState(view: ViewsViewletPanel): IViewState {
