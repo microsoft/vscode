@@ -25,10 +25,6 @@ export class SpectronClient {
 		this.retryCount = (waitTime * 1000) / this.retryDuration;
 	}
 
-	windowByIndex(index: number): Promise<any> {
-		return this.spectron.client.windowByIndex(index);
-	}
-
 	keys(keys: string[]): Promise<void> {
 		this.spectron.client.keys(keys);
 		return Promise.resolve();

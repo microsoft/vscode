@@ -48,6 +48,7 @@ const options: minimist.Opts = {
 		'show-versions',
 		'nolazy',
 		'skip-getting-started',
+		'skip-release-notes',
 		'sticky-quickopen',
 		'disable-telemetry',
 		'disable-updates',

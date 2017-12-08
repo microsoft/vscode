@@ -44,6 +44,7 @@ export interface ParsedArgs {
 	'enable-proposed-api'?: string | string[];
 	'open-url'?: string | string[];
 	'skip-getting-started'?: boolean;
+	'skip-release-notes'?: boolean;
 	'sticky-quickopen'?: boolean;
 	'disable-telemetry'?: boolean;
 	'export-default-configuration'?: string;
@@ -112,6 +113,7 @@ export interface IEnvironmentService {
 	logLevel: LogLevel;
 
 	skipGettingStarted: boolean | undefined;
+	skipReleaseNotes: boolean | undefined;
 
 	skipAddToRecentlyOpened: boolean;
 

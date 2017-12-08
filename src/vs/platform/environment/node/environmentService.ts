@@ -106,6 +106,8 @@ export class EnvironmentService implements IEnvironmentService {
 
 	get skipGettingStarted(): boolean { return this._args['skip-getting-started']; }
 
+	get skipReleaseNotes(): boolean { return this._args['skip-release-notes']; }
+
 	get skipAddToRecentlyOpened(): boolean { return this._args['skip-add-to-recently-opened']; }
 
 	@memoize
