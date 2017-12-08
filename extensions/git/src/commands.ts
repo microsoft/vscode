@@ -307,6 +307,10 @@ export class CommandCenter {
 		return '';
 	}
 
+	private handlePathTilde(path: string): string {
+		return path.replace(/^~/, os.homedir());
+	}
+
 	private static cloneId = 0;
 
 	@command('git.clone')
@@ -330,11 +334,10 @@ export class CommandCenter {
 
 		const config = workspace.getConfiguration('git');
 		let value = config.get<string>('defaultCloneDirectory') || os.homedir();
-		value = value.replace(/^~/, os.homedir());
 
 		const parentPath = await window.showInputBox({
 			prompt: localize('parent', "Parent Directory"),
-			value,
+			value: this.handlePathTilde(value),
 			ignoreFocusOut: true
 		});
 
@@ -358,7 +361,7 @@ export class CommandCenter {
 		statusBarItem.command = cancelCommandId;
 		statusBarItem.show();
 
-		const clonePromise = this.git.clone(url, parentPath, tokenSource.token);
+		const clonePromise = this.git.clone(url, this.handlePathTilde(parentPath), tokenSource.token);
 
 		try {
 			window.withProgress({ location: ProgressLocation.SourceControl, title: localize('cloning', "Cloning git repository...") }, () => clonePromise);
