@@ -617,12 +617,15 @@ export class ViewsViewlet extends PanelViewlet {
 	}
 
 	private updateViewStateSize(view: ViewsViewletPanel): void {
-		if (this.didLayout) {
-			const currentState = this.viewsStates.get(view.id);
-			const newViewState = this.createViewState(view);
-			const stateToUpdate = currentState ? { ...currentState, collapsed: newViewState.collapsed, size: newViewState.size } : newViewState;
-			this.viewsStates.set(view.id, stateToUpdate);
+		const currentState = this.viewsStates.get(view.id);
+		if (currentState && !this.didLayout) {
+			// Do not update to new state if the layout has not happened yet
+			return;
 		}
+
+		const newViewState = this.createViewState(view);
+		const stateToUpdate = currentState ? { ...currentState, collapsed: newViewState.collapsed, size: newViewState.size } : newViewState;
+		this.viewsStates.set(view.id, stateToUpdate);
 	}
 
 	protected createViewState(view: ViewsViewletPanel): IViewState {
