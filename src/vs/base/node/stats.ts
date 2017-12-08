@@ -79,12 +79,12 @@ export function collectWorkspaceStats(folder: string, filter: string[]): Workspa
 	const MAX_FILES = 20000;
 
 	let walkSync = (dir: string, acceptFile: (fileName: string) => void, filter: string[], token) => {
-		if (token.maxReached) {
-			return;
-		}
 		try {
 			let files = readdirSync(dir);
 			for (const file of files) {
+				if (token.maxReached) {
+					return;
+				}
 				try {
 					if (statSync(join(dir, file)).isDirectory()) {
 						if (filter.indexOf(file) === -1) {
@@ -92,10 +92,11 @@ export function collectWorkspaceStats(folder: string, filter: string[]): Workspa
 						}
 					}
 					else {
-						if (token.count++ >= MAX_FILES) {
+						if (token.count >= MAX_FILES) {
 							token.maxReached = true;
 							return;
 						}
+						token.count++;
 						acceptFile(file);
 					}
 				} catch {
