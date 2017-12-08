@@ -141,25 +141,24 @@ export default class Webview {
 				console.error('embedded page crashed');
 			}),
 			addDisposableListener(this._webview, 'ipc-message', (event) => {
-				if (event.channel === 'did-click-link') {
-					let [uri] = event.args;
-					this._onDidClickLink.fire(URI.parse(uri));
-					return;
-				}
+				switch (event.channel) {
+					case 'did-click-link':
+						let [uri] = event.args;
+						this._onDidClickLink.fire(URI.parse(uri));
+						return;
 
-				if (event.channel === 'did-set-content') {
-					this._webview.style.flex = '';
-					this._webview.style.width = '100%';
-					this._webview.style.height = '100%';
-					this.layout();
-					return;
-				}
+					case 'did-set-content':
+						this._webview.style.flex = '';
+						this._webview.style.width = '100%';
+						this._webview.style.height = '100%';
+						this.layout();
+						return;
 
-				if (event.channel === 'did-scroll') {
-					if (event.args && typeof event.args[0] === 'number') {
-						this._onDidScroll.fire({ scrollYPercentage: event.args[0] });
-					}
-					return;
+					case 'did-scroll':
+						if (event.args && typeof event.args[0] === 'number') {
+							this._onDidScroll.fire({ scrollYPercentage: event.args[0] });
+						}
+						return;
 				}
 			}),
 			addDisposableListener(this._webview, 'focus', () => {
