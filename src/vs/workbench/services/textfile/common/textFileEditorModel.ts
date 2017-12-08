@@ -57,6 +57,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private autoSaveAfterMilliesEnabled: boolean;
 	private autoSavePromise: TPromise<void>;
 	private contentChangeEventScheduler: RunOnceScheduler;
+	private dirtyStateChangeEventScheduler: RunOnceScheduler;
 	private orphanedChangeEventScheduler: RunOnceScheduler;
 	private saveSequentializer: SaveSequentializer;
 	private disposed: boolean;
@@ -108,6 +109,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.orphanedChangeEventScheduler = new RunOnceScheduler(() => this._onDidStateChange.fire(StateChange.ORPHANED_CHANGE), TextFileEditorModel.DEFAULT_ORPHANED_CHANGE_BUFFER_DELAY);
 		this.toDispose.push(this.orphanedChangeEventScheduler);
 
+		this.dirtyStateChangeEventScheduler = new RunOnceScheduler(() => this._onDidStateChange.fire(StateChange.DIRTY), 0);
+		this.toDispose.push(this.dirtyStateChangeEventScheduler);
+
 		this.updateAutoSaveConfiguration(textFileService.getAutoSaveConfiguration());
 
 		this.registerListeners();
@@ -125,6 +129,9 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 			// Cancel any content change event promises as they are no longer valid.
 			this.contentChangeEventScheduler.cancel();
+
+			// Cancel any dirty state change event promises as they are no longer valid.
+			this.dirtyStateChangeEventScheduler.cancel();
 
 			// Refire state change reverted events as content change events
 			this._onDidContentChange.fire(StateChange.REVERTED);
@@ -564,7 +571,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Emit as Event if we turned dirty
 		if (!wasDirty) {
-			this._onDidStateChange.fire(StateChange.DIRTY);
+			this.dirtyStateChangeEventScheduler.schedule();
+			// this._onDidStateChange.fire(StateChange.DIRTY);
 		}
 	}
 

@@ -35,6 +35,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 	private versionId: number;
 
 	private contentChangeEventScheduler: RunOnceScheduler;
+	private dirtyStateChangeEventScheduler: RunOnceScheduler;
 
 	private configuredEncoding: string;
 
@@ -65,6 +66,8 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		this._onDidChangeEncoding = new Emitter<void>();
 		this.toDispose.push(this._onDidChangeEncoding);
 
+		this.dirtyStateChangeEventScheduler = new RunOnceScheduler(() => this._onDidChangeDirty.fire(), 0);
+		this.toDispose.push(this.dirtyStateChangeEventScheduler);
 		this.contentChangeEventScheduler = new RunOnceScheduler(() => this._onDidChangeContent.fire(), UntitledEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY);
 		this.toDispose.push(this.contentChangeEventScheduler);
 
@@ -153,7 +156,8 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		}
 
 		this.dirty = dirty;
-		this._onDidChangeDirty.fire();
+		// this._onDidChangeDirty.fire();
+		this.dirtyStateChangeEventScheduler.schedule();
 	}
 
 	public getResource(): URI {
