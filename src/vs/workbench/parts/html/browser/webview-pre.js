@@ -50,16 +50,16 @@
 		var node = event.target;
 		while (node) {
 			if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
-				var baseElement = event.view.document.getElementsByTagName("base")[0];
-				if (node.getAttribute("href") === "#") {
+				var baseElement = event.view.document.getElementsByTagName('base')[0];
+				if (node.getAttribute('href') === '#') {
 					event.view.scrollTo(0, 0);
-				} else if (node.hash && (node.getAttribute("href") === node.hash || (baseElement && node.href.indexOf(baseElement.href) >= 0))) {
+				} else if (node.hash && (node.getAttribute('href') === node.hash || (baseElement && node.href.indexOf(baseElement.href) >= 0))) {
 					var scrollTarget = event.view.document.getElementById(node.hash.substr(1, node.hash.length - 1));
 					if (scrollTarget) {
 						scrollTarget.scrollIntoView();
 					}
 				} else {
-					ipcRenderer.sendToHost("did-click-link", node.href);
+					ipcRenderer.sendToHost('did-click-link', node.href);
 				}
 				event.preventDefault();
 				break;
@@ -221,7 +221,7 @@
 			newFrame.setAttribute('id', 'pending-frame');
 			newFrame.setAttribute('frameborder', '0');
 			newFrame.setAttribute('sandbox', options.allowScripts ? 'allow-scripts allow-forms allow-same-origin' : 'allow-same-origin');
-			newFrame.style.cssText = "display: block; margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; visibility: hidden";
+			newFrame.style.cssText = 'display: block; margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; visibility: hidden';
 			document.body.appendChild(newFrame);
 
 			// write new content onto iframe
