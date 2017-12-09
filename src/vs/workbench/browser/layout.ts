@@ -19,6 +19,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { getZoomFactor } from 'vs/base/browser/browser';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { isMacintosh } from "vs/base/common/platform";
 
 const MIN_SIDEBAR_PART_WIDTH = 170;
 const MIN_EDITOR_PART_HEIGHT = 70;
@@ -27,7 +28,7 @@ const MIN_PANEL_PART_HEIGHT = 77;
 const DEFAULT_PANEL_HEIGHT_COEFFICIENT = 0.4;
 const HIDE_SIDEBAR_WIDTH_THRESHOLD = 50;
 const HIDE_PANEL_HEIGHT_THRESHOLD = 50;
-const TITLE_BAR_HEIGHT = 32;
+const TITLE_BAR_HEIGHT = isMacintosh ? 22 : 32;
 const STATUS_BAR_HEIGHT = 22;
 const ACTIVITY_BAR_WIDTH = 50;
 

@@ -34,18 +34,18 @@
 | Windows CSS |
 \*************/
 
-.monaco-workbench > .part.titlebar {
+.monaco-workbench.windows > .part.titlebar {
 	line-height: 32px;
 	height: 32px;
 	padding: 0 0 0 12px;
 }
 
-.monaco-workbench > .part.titlebar > .window-title {
+.monaco-workbench.windows > .part.titlebar > .window-title {
 	line-height: 32px;
 	flex-grow: 1;
 }
 
-.monaco-workbench > .part.titlebar > .window-icon {
+.monaco-workbench.windows > .part.titlebar > .window-icon {
 	width: 45px;
 	height: 31px;
 	margin: 1px 1px 0 0;
@@ -57,7 +57,7 @@
 	display: none;
 }
 
-.monaco-workbench > .part.titlebar > .window-icon svg {
+.monaco-workbench.windows > .part.titlebar > .window-icon svg {
 	width: 10px;
 	height: 10px;
 	shape-rendering: crispEdges;

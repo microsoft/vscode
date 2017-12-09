@@ -33,6 +33,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER } from 'vs/workbench/common/theme';
 import URI from 'vs/base/common/uri';
 import { IPartService } from "vs/workbench/services/part/common/partService";
+import { isWindows } from "vs/base/common/platform";
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -41,7 +42,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	private static NLS_UNSUPPORTED = nls.localize('patchedWindowTitle', "[Unsupported]");
 	private static NLS_EXTENSION_HOST = nls.localize('devExtensionWindowTitlePrefix', "[Extension Development Host]");
 	private static TITLE_DIRTY = '\u25cf ';
-	private static TITLE_SEPARATOR = ' - ';
+	private static TITLE_SEPARATOR = isWindows ? ' - ' : ' — ';
 
 	private titleContainer: Builder;
 	private title: Builder;
@@ -274,33 +275,34 @@ export class TitlebarPart extends Part implements ITitleService {
 			return el;
 		};
 
-		$(this.titleContainer).div({ class: 'window-icon' }, (builder) => {
-			const svg = $svg('svg', { x: 0, y: 0, viewBox: '0 0 10 1' });
-			svg.appendChild($svg('rect', { fill: 'currentColor', width: 10, height: 1 }));
-			builder.getHTMLElement().appendChild(svg);
-		});
+		if (isWindows) {
+			$(this.titleContainer).div({ class: 'window-icon' }, (builder) => {
+				const svg = $svg('svg', { x: 0, y: 0, viewBox: '0 0 10 1' });
+				svg.appendChild($svg('rect', { fill: 'currentColor', width: 10, height: 1 }));
+				builder.getHTMLElement().appendChild(svg);
+			});
 
-		$(this.titleContainer).div({ class: 'window-icon' }, (builder) => {
-			const svgf = $svg('svg', { class: 'window-fullscreen', x: 0, y: 0, viewBox: '0 0 10 10' });
-			svgf.appendChild($svg('path', { fill: 'currentColor', d: 'M 0 0 L 0 10 L 10 10 L 10 0 L 0 0 z M 1 1 L 9 1 L 9 9 L 1 9 L 1 1 z' }));
-			builder.getHTMLElement().appendChild(svgf);
+			$(this.titleContainer).div({ class: 'window-icon' }, (builder) => {
+				const svgf = $svg('svg', { class: 'window-fullscreen', x: 0, y: 0, viewBox: '0 0 10 10' });
+				svgf.appendChild($svg('path', { fill: 'currentColor', d: 'M 0 0 L 0 10 L 10 10 L 10 0 L 0 0 z M 1 1 L 9 1 L 9 9 L 1 9 L 1 1 z' }));
+				builder.getHTMLElement().appendChild(svgf);
 
-			const svgm = $svg('svg', { class: 'window-maximize', x: 0, y: 0, viewBox: '0 0 10 10' });
-			const mask = $svg('mask', { id: 'Mask' });
-			mask.appendChild($svg('rect', { fill: '#fff', width: 10, height: 10 }));
-			mask.appendChild($svg('path', { fill: '#000', d: 'M 3 1 L 9 1 L 9 7 L 8 7 L 8 2 L 3 2 L 3 1 z' }));
-			mask.appendChild($svg('path', { fill: '#000', d: 'M 1 3 L 7 3 L 7 9 L 1 9 L 1 3 z' }));
-			svgm.appendChild(mask);
-			svgm.appendChild($svg('path', { fill: 'currentColor', d: 'M 2 0 L 10 0 L 10 8 L 8 8 L 8 10 L 0 10 L 0 2 L 2 2 L 2 0 z', mask: 'url(#Mask)' }));
-			builder.getHTMLElement().appendChild(svgm);
-		});
+				const svgm = $svg('svg', { class: 'window-maximize', x: 0, y: 0, viewBox: '0 0 10 10' });
+				const mask = $svg('mask', { id: 'Mask' });
+				mask.appendChild($svg('rect', { fill: '#fff', width: 10, height: 10 }));
+				mask.appendChild($svg('path', { fill: '#000', d: 'M 3 1 L 9 1 L 9 7 L 8 7 L 8 2 L 3 2 L 3 1 z' }));
+				mask.appendChild($svg('path', { fill: '#000', d: 'M 1 3 L 7 3 L 7 9 L 1 9 L 1 3 z' }));
+				svgm.appendChild(mask);
+				svgm.appendChild($svg('path', { fill: 'currentColor', d: 'M 2 0 L 10 0 L 10 8 L 8 8 L 8 10 L 0 10 L 0 2 L 2 2 L 2 0 z', mask: 'url(#Mask)' }));
+				builder.getHTMLElement().appendChild(svgm);
+			});
 
-
-		$(this.titleContainer).div({ class: 'window-icon' }, (builder) => {
-			const svg = $svg('svg', { x: '0', y: '0', viewBox: '0 0 10 10' });
-			svg.appendChild($svg('polygon', { fill: 'currentColor', points: '10,1 9,0 5,4 1,0 0,1 4,5 0,9 1,10 5,6 9,10 10,9 6,5' }));
-			builder.getHTMLElement().appendChild(svg);
-		});
+			$(this.titleContainer).div({ class: 'window-icon' }, (builder) => {
+				const svg = $svg('svg', { x: '0', y: '0', viewBox: '0 0 10 10' });
+				svg.appendChild($svg('polygon', { fill: 'currentColor', points: '10,1 9,0 5,4 1,0 0,1 4,5 0,9 1,10 5,6 9,10 10,9 6,5' }));
+				builder.getHTMLElement().appendChild(svg);
+			});
+		}
 
 		return this.titleContainer;
 	}

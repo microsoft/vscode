@@ -126,10 +126,10 @@ export class CodeWindow implements ICodeWindow {
 			height: this.windowState.height,
 			x: this.windowState.x,
 			y: this.windowState.y,
-			// backgroundColor: this.getBackgroundColor(),
+			backgroundColor: this.getBackgroundColor(),
 			minWidth: CodeWindow.MIN_WIDTH,
 			minHeight: CodeWindow.MIN_HEIGHT,
-			show: false, //!isFullscreenOrMaximized,
+			show: !isFullscreenOrMaximized,
 			title: product.nameLong,
 			webPreferences: {
 				'backgroundThrottling': false, // by default if Code is in the background, intervals and timeouts get throttled,
@@ -138,8 +138,7 @@ export class CodeWindow implements ICodeWindow {
 			transparent: false,
 			frame: false,
 			resizable: true,
-			thickFrame: true,
-			backgroundColor: '#00000000'
+			thickFrame: true
 		};
 
 		if (isLinux) {

@@ -84,7 +84,7 @@ export class SidebarPart extends CompositePart<Viewlet> {
 		// Part container
 		const container = this.getContainer();
 
-		container.style('background-color', this.getColor(SIDE_BAR_BACKGROUND, color => color.transparent(0.9)));
+		container.style('background-color', this.getColor(SIDE_BAR_BACKGROUND));
 
 		container.style('color', this.getColor(SIDE_BAR_FOREGROUND));
 
