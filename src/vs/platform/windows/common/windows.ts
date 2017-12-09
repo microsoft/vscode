@@ -33,6 +33,8 @@ export interface IWindowsService {
 	onWindowOpen: Event<number>;
 	onWindowFocus: Event<number>;
 	onWindowBlur: Event<number>;
+	onWindowMaximize: Event<number>;
+	onWindowUnmaximize: Event<number>;
 
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
@@ -55,6 +57,7 @@ export interface IWindowsService {
 	isMaximized(windowId: number): TPromise<boolean>;
 	maximizeWindow(windowId: number): TPromise<void>;
 	unmaximizeWindow(windowId: number): TPromise<void>;
+	minimizeWindow(windowId: number): TPromise<void>;
 	onWindowTitleDoubleClick(windowId: number): TPromise<void>;
 	setDocumentEdited(windowId: number, flag: boolean): TPromise<void>;
 	quit(): TPromise<void>;
@@ -88,6 +91,7 @@ export interface IWindowService {
 	_serviceBrand: any;
 
 	onDidChangeFocus: Event<boolean>;
+	onDidChangeMaximize: Event<boolean>;
 
 	getCurrentWindowId(): number;
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
@@ -109,6 +113,7 @@ export interface IWindowService {
 	isMaximized(): TPromise<boolean>;
 	maximizeWindow(): TPromise<void>;
 	unmaximizeWindow(): TPromise<void>;
+	minimizeWindow(): TPromise<void>;
 	onWindowTitleDoubleClick(): TPromise<void>;
 	showMessageBox(options: Electron.ShowMessageBoxOptions): number;
 	showSaveDialog(options: Electron.SaveDialogOptions, callback?: (fileName: string) => void): string;

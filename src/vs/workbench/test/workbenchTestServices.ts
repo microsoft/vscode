@@ -841,6 +841,7 @@ export class TestWindowService implements IWindowService {
 	public _serviceBrand: any;
 
 	onDidChangeFocus: Event<boolean>;
+	onDidChangeMaximize: Event<boolean>;
 
 	isFocused(): TPromise<boolean> {
 		return TPromise.as(false);
@@ -922,6 +923,14 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
+	minimizeWindow(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	addMaximizeListener(listener: (maximized: boolean) => void): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
 	onWindowTitleDoubleClick(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
@@ -981,6 +990,8 @@ export class TestWindowsService implements IWindowsService {
 	onWindowOpen: Event<number>;
 	onWindowFocus: Event<number>;
 	onWindowBlur: Event<number>;
+	onWindowMaximize: Event<number>;
+	onWindowUnmaximize: Event<number>;
 
 	isFocused(windowId: number): TPromise<boolean> {
 		return TPromise.as(false);
@@ -1063,6 +1074,14 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	unmaximizeWindow(windowId: number): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	minimizeWindow(windowId: number): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	addMaximizeListener(windowId: number, listener: (maximized: boolean) => void): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 

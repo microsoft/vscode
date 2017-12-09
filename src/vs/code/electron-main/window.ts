@@ -187,6 +187,9 @@ export class CodeWindow implements ICodeWindow {
 			});
 		}
 
+		this._win.on('maximize', (e) => app.emit('browser-window-maximize', e, this._win));
+		this._win.on('unmaximize', (e) => app.emit('browser-window-unmaximize', e, this._win));
+
 		if (isFullscreenOrMaximized) {
 			this._win.maximize();
 

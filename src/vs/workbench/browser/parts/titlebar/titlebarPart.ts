@@ -277,18 +277,21 @@ export class TitlebarPart extends Part implements ITitleService {
 		};
 
 		if (isWindows) {
+			// The svgs and styles for the titlebar come from the electron-titlebar-windows package
 			$(this.titleContainer).div({ class: 'window-icon' }, (builder) => {
 				const svg = $svg('svg', { x: 0, y: 0, viewBox: '0 0 10 1' });
 				svg.appendChild($svg('rect', { fill: 'currentColor', width: 10, height: 1 }));
 				builder.getHTMLElement().appendChild(svg);
+			}).on(DOM.EventType.CLICK, () => {
+				this.windowService.minimizeWindow().then(null, errors.onUnexpectedError);;
 			});
 
 			$(this.titleContainer).div({ class: 'window-icon' }, (builder) => {
-				const svgf = $svg('svg', { class: 'window-fullscreen', x: 0, y: 0, viewBox: '0 0 10 10' });
+				const svgf = $svg('svg', { class: 'window-maximize', x: 0, y: 0, viewBox: '0 0 10 10' });
 				svgf.appendChild($svg('path', { fill: 'currentColor', d: 'M 0 0 L 0 10 L 10 10 L 10 0 L 0 0 z M 1 1 L 9 1 L 9 9 L 1 9 L 1 1 z' }));
 				builder.getHTMLElement().appendChild(svgf);
 
-				const svgm = $svg('svg', { class: 'window-maximize', x: 0, y: 0, viewBox: '0 0 10 10' });
+				const svgm = $svg('svg', { class: 'window-unmaximize', x: 0, y: 0, viewBox: '0 0 10 10' });
 				const mask = $svg('mask', { id: 'Mask' });
 				mask.appendChild($svg('rect', { fill: '#fff', width: 10, height: 10 }));
 				mask.appendChild($svg('path', { fill: '#000', d: 'M 3 1 L 9 1 L 9 7 L 8 7 L 8 2 L 3 2 L 3 1 z' }));
@@ -296,13 +299,29 @@ export class TitlebarPart extends Part implements ITitleService {
 				svgm.appendChild(mask);
 				svgm.appendChild($svg('path', { fill: 'currentColor', d: 'M 2 0 L 10 0 L 10 8 L 8 8 L 8 10 L 0 10 L 0 2 L 2 2 L 2 0 z', mask: 'url(#Mask)' }));
 				builder.getHTMLElement().appendChild(svgm);
+			}).on(DOM.EventType.CLICK, () => {
+				this.windowService.isMaximized().then((maximized) => {
+					if (maximized) {
+						return this.windowService.unmaximizeWindow();
+					} else {
+						return this.windowService.maximizeWindow();
+					}
+				}).then(null, errors.onUnexpectedError);
 			});
 
 			$(this.titleContainer).div({ class: 'window-icon window-close' }, (builder) => {
 				const svg = $svg('svg', { x: '0', y: '0', viewBox: '0 0 10 10' });
 				svg.appendChild($svg('polygon', { fill: 'currentColor', points: '10,1 9,0 5,4 1,0 0,1 4,5 0,9 1,10 5,6 9,10 10,9 6,5' }));
 				builder.getHTMLElement().appendChild(svg);
+			}).on(DOM.EventType.CLICK, () => {
+				this.windowService.closeWindow().then(null, errors.onUnexpectedError);;
 			});
+
+			this.windowService.onDidChangeMaximize((mazimized) => {
+				console.log('change!');
+				$(this.titleContainer).select('.window-maximize').display(mazimized ? 'none' : 'inline');
+				$(this.titleContainer).select('.window-unmaximize').display(mazimized ? 'inline' : 'none');
+			}, this);
 		}
 
 		return this.titleContainer;

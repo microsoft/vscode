@@ -29,6 +29,8 @@ export class WindowsService implements IWindowsService, IDisposable {
 	readonly onWindowOpen: Event<number> = fromEventEmitter(app, 'browser-window-created', (_, w: Electron.BrowserWindow) => w.id);
 	readonly onWindowFocus: Event<number> = fromEventEmitter(app, 'browser-window-focus', (_, w: Electron.BrowserWindow) => w.id);
 	readonly onWindowBlur: Event<number> = fromEventEmitter(app, 'browser-window-blur', (_, w: Electron.BrowserWindow) => w.id);
+	readonly onWindowMaximize: Event<number> = fromEventEmitter(app, 'browser-window-maximize', (_, w: Electron.BrowserWindow) => w.id);
+	readonly onWindowUnmaximize: Event<number> = fromEventEmitter(app, 'browser-window-unmaximize', (_, w: Electron.BrowserWindow) => w.id);
 
 	constructor(
 		private sharedProcess: ISharedProcess,
@@ -237,6 +239,16 @@ export class WindowsService implements IWindowsService, IDisposable {
 
 		if (codeWindow) {
 			codeWindow.win.unmaximize();
+		}
+
+		return TPromise.as(null);
+	}
+
+	minimizeWindow(windowId: number): TPromise<void> {
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
+
+		if (codeWindow) {
+			codeWindow.win.minimize();
 		}
 
 		return TPromise.as(null);

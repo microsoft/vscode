@@ -14,6 +14,7 @@ import { IRecentlyOpened } from "vs/platform/history/common/history";
 export class WindowService implements IWindowService {
 
 	readonly onDidChangeFocus: Event<boolean>;
+	readonly onDidChangeMaximize: Event<boolean>;
 
 	_serviceBrand: any;
 
@@ -23,7 +24,10 @@ export class WindowService implements IWindowService {
 	) {
 		const onThisWindowFocus = mapEvent(filterEvent(windowsService.onWindowFocus, id => id === windowId), _ => true);
 		const onThisWindowBlur = mapEvent(filterEvent(windowsService.onWindowBlur, id => id === windowId), _ => false);
+		const onThisWindowMaximize = mapEvent(filterEvent(windowsService.onWindowMaximize, id => id === windowId), _ => true);
+		const onThisWindowUnmaximize = mapEvent(filterEvent(windowsService.onWindowUnmaximize, id => id === windowId), _ => false);
 		this.onDidChangeFocus = any(onThisWindowFocus, onThisWindowBlur);
+		this.onDidChangeMaximize = any(onThisWindowMaximize, onThisWindowUnmaximize);
 	}
 
 	getCurrentWindowId(): number {
@@ -106,6 +110,10 @@ export class WindowService implements IWindowService {
 
 	unmaximizeWindow(): TPromise<void> {
 		return this.windowsService.unmaximizeWindow(this.windowId);
+	}
+
+	minimizeWindow(): TPromise<void> {
+		return this.windowsService.minimizeWindow(this.windowId);
 	}
 
 	onWindowTitleDoubleClick(): TPromise<void> {

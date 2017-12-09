@@ -54,7 +54,7 @@
 	-webkit-app-region: no-drag;
 }
 
-.window-maximize {
+.window-unmaximize {
 	display: none;
 }
 
@@ -69,7 +69,7 @@
 }
 
 .monaco-workbench.windows > .part.titlebar.light > .window-icon:hover {
-    background-color: rgba(0, 0, 0, 0.1);
+	background-color: rgba(0, 0, 0, 0.1);
 }
 
 .monaco-workbench.windows > .part.titlebar.titlebar > .window-close:hover {
