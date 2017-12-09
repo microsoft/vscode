@@ -45,9 +45,7 @@
     "taskDefinitions": [
       {
         "type": "gulp",
-        "required": [
-          "task"
-        ],
+        "required": ["task"],
         "properties": {
           "task": {
             "type": "string",

@@ -24,14 +24,13 @@
 		document.body.className = 'monaco-shell ' + baseTheme;
 
 		// adds a stylesheet with the backgrdound color
-		// var backgroundColor = config.backgroundColor;
-		// if (!backgroundColor) {
-		// 	backgroundColor = baseTheme === 'hc-black' ? '#000000' : (baseTheme === 'vs' ? '#FFFFFF' : '#1E1E1E');
-		// }
-		var backgroundColor = 'rgba(100, 0, 0, 0)';
+		var backgroundColor = config.backgroundColor;
+		if (!backgroundColor) {
+			backgroundColor = baseTheme === 'hc-black' ? '#000000' : (baseTheme === 'vs' ? '#FFFFFF' : '#1E1E1E');
+		}
 		const foregroundColor = baseTheme === 'hc-black' ? '#FFFFFF' : (baseTheme === 'vs' ? '#6C6C6C' : '#CCCCCC');
 		const style = document.createElement('style');
-		style.innerHTML = '.monaco-shell { background-color:' + backgroundColor + '; color:' + foregroundColor + '; } .monaco-workbench { background-color: transparent !important; }';
+		style.innerHTML = '.monaco-shell { background-color:' + backgroundColor + '; color:' + foregroundColor + '; }';
 		document.head.appendChild(style);
 
 	} catch (error) {

@@ -45,9 +45,7 @@
     "taskDefinitions": [
       {
         "type": "grunt",
-        "required": [
-          "task"
-        ],
+        "required": ["task"],
         "properties": {
           "task": {
             "type": "string",
