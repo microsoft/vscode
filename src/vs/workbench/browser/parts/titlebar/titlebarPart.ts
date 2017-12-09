@@ -295,7 +295,6 @@ export class TitlebarPart extends Part implements ITitleService {
 			});
 
 			this.windowService.onDidChangeMaximize((mazimized) => {
-				console.log('change!');
 				($(this.titleContainer).getHTMLElement().querySelector('.window-maximize') as SVGElement).style.display = mazimized ? 'none' : 'inline';
 				($(this.titleContainer).getHTMLElement().querySelector('.window-unmaximize') as SVGElement).style.display = mazimized ? 'inline' : 'none';
 			}, this);
