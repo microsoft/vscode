@@ -16,12 +16,12 @@ enum Severity {
 
 namespace Severity {
 
-	var _error = 'error',
-		_warning = 'warning',
-		_warn = 'warn',
-		_info = 'info';
+	const _error = 'error';
+	const _warning = 'warning';
+	const _warn = 'warn';
+	const _info = 'info';
 
-	var _displayStrings: { [value: number]: string; } = Object.create(null);
+	const _displayStrings: { [value: number]: string; } = Object.create(null);
 	_displayStrings[Severity.Error] = nls.localize('sev.error', "Error");
 	_displayStrings[Severity.Warning] = nls.localize('sev.warning', "Warning");
 	_displayStrings[Severity.Info] = nls.localize('sev.info', "Info");

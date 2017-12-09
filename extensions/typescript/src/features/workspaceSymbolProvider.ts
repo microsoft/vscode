@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace, window, Uri, WorkspaceSymbolProvider, SymbolInformation, SymbolKind, Range, Location, CancellationToken } from 'vscode';
+import { workspace, window, Uri, WorkspaceSymbolProvider, SymbolInformation, SymbolKind, Location, CancellationToken } from 'vscode';
 
 import * as Proto from '../protocol';
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
+import { tsTextSpanToVsRange } from '../utils/convert';
 
 function getSymbolKind(item: Proto.NavtoItem): SymbolKind {
 	switch (item.kind) {
@@ -22,8 +23,9 @@ function getSymbolKind(item: Proto.NavtoItem): SymbolKind {
 
 export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbolProvider {
 	public constructor(
-		private client: ITypescriptServiceClient,
-		private modeId: string) { }
+		private client: ITypeScriptServiceClient,
+		private modeIds: string[]
+	) { }
 
 	public async provideWorkspaceSymbols(search: string, token: CancellationToken): Promise<SymbolInformation[]> {
 		// typescript wants to have a resource even when asking
@@ -33,14 +35,14 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 		const editor = window.activeTextEditor;
 		if (editor) {
 			const document = editor.document;
-			if (document && document.languageId === this.modeId) {
+			if (document && this.modeIds.indexOf(document.languageId) >= 0) {
 				uri = document.uri;
 			}
 		}
 		if (!uri) {
 			const documents = workspace.textDocuments;
 			for (const document of documents) {
-				if (document.languageId === this.modeId) {
+				if (this.modeIds.indexOf(document.languageId) >= 0) {
 					uri = document.uri;
 					break;
 				}
@@ -67,7 +69,7 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 				if (!item.containerName && item.kind === 'alias') {
 					continue;
 				}
-				const range = new Range(item.start.line - 1, item.start.offset - 1, item.end.line - 1, item.end.offset - 1);
+				const range = tsTextSpanToVsRange(item);
 				let label = item.name;
 				if (item.kind === 'method' || item.kind === 'function') {
 					label += '()';

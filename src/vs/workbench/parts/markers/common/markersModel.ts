@@ -15,8 +15,8 @@ import Messages from 'vs/workbench/parts/markers/common/messages';
 import { Schemas } from 'vs/base/common/network';
 
 export interface BulkUpdater {
-	add(resource: URI, markers: IMarker[]);
-	done();
+	add(resource: URI, markers: IMarker[]): void;
+	done(): void;
 }
 
 export class Resource {
@@ -58,11 +58,14 @@ export class Marker {
 	}
 
 	public toString(): string {
-		return [`file: '${this.marker.resource}'`,
-		`severity: '${Severity.toString(this.marker.severity)}'`,
-		`message: '${this.marker.message}'`,
-		`at: '${this.marker.startLineNumber},${this.marker.startColumn}'`,
-		`source: '${this.marker.source ? this.marker.source : ''}'`].join('\n');
+		return [
+			`file: '${this.marker.resource}'`,
+			`severity: '${Severity.toString(this.marker.severity)}'`,
+			`message: '${this.marker.message}'`,
+			`at: '${this.marker.startLineNumber},${this.marker.startColumn}'`,
+			`source: '${this.marker.source ? this.marker.source : ''}'`,
+			`code: '${this.marker.code ? this.marker.code : ''}'`
+		].join('\n');
 	}
 
 }
@@ -156,6 +159,18 @@ export class MarkersModel {
 		return this.markersByResource.has(resource.toString());
 	}
 
+	public total(): number {
+		let total = 0;
+		this.markersByResource.forEach(markers => total = total + markers.length);
+		return total;
+	}
+
+	public count(): number {
+		let count = 0;
+		this.filteredResources.forEach(resource => count = count + resource.markers.length);
+		return count;
+	}
+
 	public get nonFilteredResources(): Resource[] {
 		return this._nonFilteredResources;
 	}
@@ -171,9 +186,9 @@ export class MarkersModel {
 		};
 	}
 
-	public update(filterOptions: FilterOptions);
-	public update(resourceUri: URI, markers: IMarker[]);
-	public update(markers: IMarker[]);
+	public update(filterOptions: FilterOptions): void;
+	public update(resourceUri: URI, markers: IMarker[]): void;
+	public update(markers: IMarker[]): void;
 	public update(arg1?: any, arg2?: any) {
 		if (arg1 instanceof FilterOptions) {
 			this._filterOptions = arg1;
@@ -295,11 +310,6 @@ export class MarkersModel {
 		this._nonFilteredResources = [];
 	}
 
-	public getTitle(markerStatistics: MarkerStatistics): string {
-		let title = MarkersModel.getStatisticsLabel(markerStatistics);
-		return title ? title : Messages.MARKERS_PANEL_TITLE_PROBLEMS;
-	}
-
 	public getMessage(): string {
 		if (this.hasFilteredResources()) {
 			return '';
@@ -310,25 +320,6 @@ export class MarkersModel {
 			}
 		}
 		return Messages.MARKERS_PANEL_NO_PROBLEMS_BUILT;
-	}
-
-	public static getStatisticsLabel(markerStatistics: MarkerStatistics, onlyErrors: boolean = false): string {
-		let label = this.getLabel('', markerStatistics.errors, Messages.MARKERS_PANEL_SINGLE_ERROR_LABEL, Messages.MARKERS_PANEL_MULTIPLE_ERRORS_LABEL);
-		if (!onlyErrors) {
-			label = this.getLabel(label, markerStatistics.warnings, Messages.MARKERS_PANEL_SINGLE_WARNING_LABEL, Messages.MARKERS_PANEL_MULTIPLE_WARNINGS_LABEL);
-			label = this.getLabel(label, markerStatistics.infos, Messages.MARKERS_PANEL_SINGLE_INFO_LABEL, Messages.MARKERS_PANEL_MULTIPLE_INFOS_LABEL);
-			label = this.getLabel(label, markerStatistics.unknowns, Messages.MARKERS_PANEL_SINGLE_UNKNOWN_LABEL, Messages.MARKERS_PANEL_MULTIPLE_UNKNOWNS_LABEL);
-		}
-		return label;
-	}
-
-	private static getLabel(title: string, markersCount: number, singleMarkerString: string, multipleMarkersFunction: (markersCount: number) => string): string {
-		if (markersCount <= 0) {
-			return title;
-		}
-		title = title ? title + ', ' : '';
-		title += markersCount === 1 ? singleMarkerString : multipleMarkersFunction(markersCount);
-		return title;
 	}
 
 	public static compare(a: any, b: any): number {
@@ -357,10 +348,4 @@ export class MarkersModel {
 		}
 		return a.marker.severity > b.marker.severity ? -1 : 1;
 	}
-}
-
-export interface IProblemsConfiguration {
-	problems: {
-		autoReveal: boolean
-	};
 }

@@ -7,5 +7,8 @@
 	"httpsRequired": "画像には HTTPS プロトコルを使用する必要があります。",
 	"svgsNotValid": "SVG は無効な画像のソースです。",
 	"embeddedSvgsNotValid": "埋め込み SVG は無効な画像のソースです。",
-	"dataUrlsNotValid": "Data URL は無効な画像のソースです。"
+	"dataUrlsNotValid": "Data URL は無効な画像のソースです。",
+	"relativeUrlRequiresHttpsRepository": "相対的な画像 URL では、HTTPS プロトコルのリポジトリが package.json で指定されている必要があります。",
+	"relativeIconUrlRequiresHttpsRepository": "アイコンは、HTTPS プロトコルのリポジトリがこの package.json で指定されている必要があります。 ",
+	"relativeBadgeUrlRequiresHttpsRepository": "相対的なバッジ URL では、HTTPS プロトコルのリポジトリが package.json で指定されている必要があります。"
 }

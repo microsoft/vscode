@@ -11,5 +11,6 @@
 	"search.placeHolder": "Suchen",
 	"label.Replace": "Ersetzen: Geben Sie den Begriff ein, der zum Ersetzen verwendet werden soll, und drücken Sie die EINGABETASTE, um eine Vorschau anzuzeigen, oder ESC, um den Vorgang abzubrechen.",
 	"search.replace.placeHolder": "Ersetzen",
-	"regexp.validationFailure": "Der Ausdruck stimmt mit allem überein."
+	"regexp.validationFailure": "Der Ausdruck stimmt mit allem überein.",
+	"regexp.backreferenceValidationFailure": "Rückverweise werden nicht unterstützt."
 }

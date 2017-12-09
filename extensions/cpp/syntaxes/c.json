@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-c/commit/0a57fd7ee32bd14e3ee8291434263d744a8ecf1e",
+	"version": "https://github.com/atom/language-c/commit/9c0c5f202741a5647025db8d5df5fefba47b036c",
 	"scopeName": "source.c",
 	"fileTypes": [
 		"c",
@@ -780,7 +780,7 @@
 					},
 					"patterns": [
 						{
-							"begin": "\\G",
+							"begin": "\\G(?=.)(?!//|/\\*(?!.*\\\\\\s*\\n))",
 							"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?<!\\\\)(?=\\n)",
 							"name": "meta.preprocessor.c",
 							"patterns": [
@@ -860,7 +860,7 @@
 					},
 					"patterns": [
 						{
-							"begin": "\\G",
+							"begin": "\\G(?=.)(?!//|/\\*(?!.*\\\\\\s*\\n))",
 							"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?<!\\\\)(?=\\n)",
 							"name": "meta.preprocessor.c",
 							"patterns": [
@@ -1013,7 +1013,7 @@
 					},
 					"patterns": [
 						{
-							"begin": "\\G",
+							"begin": "\\G(?=.)(?!//|/\\*(?!.*\\\\\\s*\\n))",
 							"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?=\\n)",
 							"name": "meta.preprocessor.c",
 							"patterns": [
@@ -1050,7 +1050,7 @@
 							"end": "(?=^\\s*((#)\\s*(?:elif|else|endif)\\b))",
 							"patterns": [
 								{
-									"begin": "\\G",
+									"begin": "\\G(?=.)(?!//|/\\*(?!.*\\\\\\s*\\n))",
 									"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?<!\\\\)(?=\\n)",
 									"name": "meta.preprocessor.c",
 									"patterns": [
@@ -1110,7 +1110,7 @@
 					},
 					"patterns": [
 						{
-							"begin": "\\G",
+							"begin": "\\G(?=.)(?!//|/\\*(?!.*\\\\\\s*\\n))",
 							"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?=\\n)",
 							"name": "meta.preprocessor.c",
 							"patterns": [
@@ -1147,7 +1147,7 @@
 							"end": "(?=^\\s*((#)\\s*(?:elif|else|endif)\\b))",
 							"patterns": [
 								{
-									"begin": "\\G",
+									"begin": "\\G(?=.)(?!//|/\\*(?!.*\\\\\\s*\\n))",
 									"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?<!\\\\)(?=\\n)",
 									"name": "meta.preprocessor.c",
 									"patterns": [
@@ -1194,7 +1194,7 @@
 			"end": "(?=^\\s*((#)\\s*(?:elif|else|endif)\\b))",
 			"patterns": [
 				{
-					"begin": "\\G",
+					"begin": "\\G(?=.)(?!//|/\\*(?!.*\\\\\\s*\\n))",
 					"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?<!\\\\)(?=\\n)",
 					"name": "meta.preprocessor.c",
 					"patterns": [
@@ -1253,7 +1253,7 @@
 					},
 					"patterns": [
 						{
-							"begin": "\\G",
+							"begin": "\\G(?=.)(?!//|/\\*(?!.*\\\\\\s*\\n))",
 							"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?=\\n)",
 							"name": "meta.preprocessor.c",
 							"patterns": [
@@ -1355,7 +1355,7 @@
 					},
 					"patterns": [
 						{
-							"begin": "\\G",
+							"begin": "\\G(?=.)(?!//|/\\*(?!.*\\\\\\s*\\n))",
 							"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?=\\n)",
 							"name": "meta.preprocessor.c",
 							"patterns": [
@@ -1444,7 +1444,7 @@
 			"end": "(?=^\\s*((#)\\s*endif\\b))",
 			"patterns": [
 				{
-					"begin": "\\G",
+					"begin": "\\G(?=.)(?!//|/\\*(?!.*\\\\\\s*\\n))",
 					"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?<!\\\\)(?=\\n)",
 					"name": "meta.preprocessor.c",
 					"patterns": [
@@ -1531,7 +1531,7 @@
 			"end": "(?=^\\s*((#)\\s*endif\\b))",
 			"patterns": [
 				{
-					"begin": "\\G",
+					"begin": "\\G(?=.)(?!//|/\\*(?!.*\\\\\\s*\\n))",
 					"end": "(?=//)|(?=/\\*(?!.*\\\\\\s*\\n))|(?<!\\\\)(?=\\n)",
 					"name": "meta.preprocessor.c",
 					"patterns": [

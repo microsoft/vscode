@@ -197,7 +197,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 
 class Mode extends MockMode {
 
-	private static _id = new LanguageIdentifier('textToHtmlTokenizerMode', 3);
+	private static readonly _id = new LanguageIdentifier('textToHtmlTokenizerMode', 3);
 
 	constructor() {
 		super(Mode._id);

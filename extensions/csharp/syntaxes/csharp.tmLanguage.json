@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/2f2152632650d427e99e261f093d52b807abc72d",
+	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/436456ee5ce44e29cb1752c3b29f493b1de08c42",
 	"name": "C#",
 	"scopeName": "source.cs",
 	"fileTypes": [
@@ -228,6 +228,9 @@
 				},
 				{
 					"include": "#yield-statement"
+				},
+				{
+					"include": "#await-statement"
 				},
 				{
 					"include": "#try-statement"
@@ -1605,6 +1608,20 @@
 					"name": "keyword.control.flow.break.cs"
 				}
 			}
+		},
+		"await-statement": {
+			"begin": "(?<!\\.)\\b(await)\\b",
+			"beginCaptures": {
+				"1": {
+					"name": "keyword.other.await.cs"
+				}
+			},
+			"end": "(?=;)",
+			"patterns": [
+				{
+					"include": "#expression"
+				}
+			]
 		},
 		"if-statement": {
 			"begin": "(?<!\\.)\\b(if)\\b\\s*(?=\\()",

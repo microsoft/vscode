@@ -90,8 +90,6 @@ export class View extends ViewEventHandler {
 	private overflowGuardContainer: FastDomNode<HTMLElement>;
 
 	// Actual mutable state
-	private _isDisposed: boolean;
-
 	private _renderAnimationFrame: IDisposable;
 
 	constructor(
@@ -103,7 +101,6 @@ export class View extends ViewEventHandler {
 		execCoreEditorCommandFunc: ExecCoreEditorCommandFunc
 	) {
 		super();
-		this._isDisposed = false;
 		this._cursor = cursor;
 		this._renderAnimationFrame = null;
 		this.outgoingEvents = new ViewOutgoingEvents(model);
@@ -308,7 +305,8 @@ export class View extends ViewEventHandler {
 	}
 
 	private getEditorClassName() {
-		return this._context.configuration.editor.editorClassName + ' ' + getThemeTypeSelector(this._context.theme.type);
+		let focused = this._textAreaHandler.isFocused() ? ' focused' : '';
+		return this._context.configuration.editor.editorClassName + ' ' + getThemeTypeSelector(this._context.theme.type) + focused;
 	}
 
 	// --- begin event handlers
@@ -323,7 +321,7 @@ export class View extends ViewEventHandler {
 		return false;
 	}
 	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
-		this.domNode.toggleClassName('focused', e.isFocused);
+		this.domNode.setClassName(this.getEditorClassName());
 		if (e.isFocused) {
 			this.outgoingEvents.emitViewFocusGained();
 		} else {
@@ -343,7 +341,6 @@ export class View extends ViewEventHandler {
 	// --- end event handlers
 
 	public dispose(): void {
-		this._isDisposed = true;
 		if (this._renderAnimationFrame !== null) {
 			this._renderAnimationFrame.dispose();
 			this._renderAnimationFrame = null;
@@ -387,11 +384,11 @@ export class View extends ViewEventHandler {
 	}
 
 	private _getViewPartsToRender(): ViewPart[] {
-		let result: ViewPart[] = [];
+		let result: ViewPart[] = [], resultLen = 0;
 		for (let i = 0, len = this.viewParts.length; i < len; i++) {
 			let viewPart = this.viewParts[i];
 			if (viewPart.shouldRender()) {
-				result.push(viewPart);
+				result[resultLen++] = viewPart;
 			}
 		}
 		return result;
@@ -418,6 +415,11 @@ export class View extends ViewEventHandler {
 			this._context.viewLayout.getWhitespaceViewportData(),
 			this._context.model
 		);
+
+		if (this.contentWidgets.shouldRender()) {
+			// Give the content widgets a chance to set their max width before a possible synchronous layout
+			this.contentWidgets.onBeforeRender(viewportData);
+		}
 
 		if (this.viewLines.shouldRender()) {
 			this.viewLines.renderText(viewportData);
@@ -525,10 +527,6 @@ export class View extends ViewEventHandler {
 		} else {
 			this._scheduleRender();
 		}
-	}
-
-	public setAriaActiveDescendant(id: string): void {
-		this._textAreaHandler.setAriaActiveDescendant(id);
 	}
 
 	public focus(): void {

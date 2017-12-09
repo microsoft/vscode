@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CodeLensProvider, CodeLens, CancellationToken, TextDocument, Range, Uri, Position, Event, EventEmitter, ProviderResult, } from 'vscode';
+import { CodeLensProvider, CodeLens, CancellationToken, TextDocument, Range, Uri, Position, Event, EventEmitter } from 'vscode';
 import * as Proto from '../protocol';
 
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
+import { tsTextSpanToVsRange } from '../utils/convert';
 
 export class ReferencesCodeLens extends CodeLens {
 	constructor(
@@ -23,7 +24,7 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 	private onDidChangeCodeLensesEmitter = new EventEmitter<void>();
 
 	public constructor(
-		protected client: ITypescriptServiceClient
+		protected client: ITypeScriptServiceClient
 	) { }
 
 	public get onDidChangeCodeLenses(): Event<void> {
@@ -37,7 +38,7 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 		}
 	}
 
-	provideCodeLenses(document: TextDocument, token: CancellationToken): ProviderResult<CodeLens[]> {
+	async provideCodeLenses(document: TextDocument, token: CancellationToken): Promise<CodeLens[]> {
 		if (!this.enabled) {
 			return [];
 		}
@@ -46,7 +47,8 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 		if (!filepath) {
 			return [];
 		}
-		return this.client.execute('navtree', { file: filepath }, token).then(response => {
+		try {
+			const response = await this.client.execute('navtree', { file: filepath }, token);
 			if (!response) {
 				return [];
 			}
@@ -56,9 +58,9 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 				tree.childItems.forEach(item => this.walkNavTree(document, item, null, referenceableSpans));
 			}
 			return referenceableSpans.map(span => new ReferencesCodeLens(document.uri, filepath, span));
-		}, () => {
+		} catch {
 			return [];
-		});
+		}
 	}
 
 	protected abstract extractSymbol(
@@ -99,10 +101,7 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 			return null;
 		}
 
-		const range = new Range(
-			span.start.line - 1, span.start.offset - 1,
-			span.end.line - 1, span.end.offset - 1);
-
+		const range = tsTextSpanToVsRange(span);
 		const text = document.getText(range);
 
 		const identifierMatch = new RegExp(`^(.*?(\\b|\\W))${(item.text || '').replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')}(\\b|\\W)`, 'gm');

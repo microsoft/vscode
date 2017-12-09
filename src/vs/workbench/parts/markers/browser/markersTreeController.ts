@@ -51,7 +51,7 @@ export class Controller extends treedefaults.DefaultController {
 		if (!actions.length) {
 			return true;
 		}
-		const anchor = { x: event.posx + 1, y: event.posy };
+		const anchor = { x: event.posx, y: event.posy };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => anchor,
 

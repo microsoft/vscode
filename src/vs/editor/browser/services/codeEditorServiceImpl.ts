@@ -11,7 +11,7 @@ import {
 	IDecorationRenderOptions, IModelDecorationOptions, IModelDecorationOverviewRulerOptions, IThemeDecorationRenderOptions,
 	IContentDecorationRenderOptions, OverviewRulerLane, TrackedRangeStickiness, isThemeColor
 } from 'vs/editor/common/editorCommon';
-import { AbstractCodeEditorService } from 'vs/editor/common/services/abstractCodeEditorService';
+import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCodeEditorService';
 import { IDisposable, dispose as disposeAll } from 'vs/base/common/lifecycle';
 import { IThemeService, ITheme, ThemeColor } from 'vs/platform/theme/common/themeService';
 
@@ -35,7 +35,7 @@ export class CodeEditorServiceImpl extends AbstractCodeEditorService {
 				styleSheet: this._styleSheet,
 				key: key,
 				parentTypeKey: parentTypeKey,
-				options: options
+				options: options || Object.create(null)
 			};
 			if (!parentTypeKey) {
 				provider = new DecorationTypeOptionsProvider(this._themeService, providerArgs);
@@ -283,7 +283,7 @@ class DecorationCSSRules {
 
 	private _buildCSS(): void {
 		let options = this._providerArgs.options;
-		let unthemedCSS, lightCSS, darkCSS: string;
+		let unthemedCSS: string, lightCSS: string, darkCSS: string;
 		switch (this._ruleType) {
 			case ModelDecorationCSSRuleType.ClassName:
 				unthemedCSS = this.getCSSTextForModelDecorationClassName(options);

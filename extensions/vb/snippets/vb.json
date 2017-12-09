@@ -68,5 +68,19 @@
 			"End While"
 		],
 		"description": "While ... End While"
+	},
+	"Region Start": {
+		"prefix": "#Region",
+		"body": [
+			"#Region $0"
+		],
+		"description": "Folding Region Start"
+	},
+	"Region End": {
+		"prefix": "#End Region",
+		"body": [
+			"#End Region"
+		],
+		"description": "Folding Region End"
 	}
 }

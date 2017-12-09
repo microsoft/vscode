@@ -3,10 +3,12 @@
 		"module": "commonjs",
 		"target": "ES5",
 		"outDir": "out",
+		"noUnusedLocals": true,
 		"lib": [
 			"es2015"
 		],
-		"sourceMap": true
+		"sourceMap": true,
+		"strict": true
 	},
 	"include": [
 		"src/**/*"

@@ -36,5 +36,10 @@
 	"schema.indentationRules.unIndentedLinePattern": "Se una riga corrisponde a questo criterio, il rientro non deve essere modificato e la riga non deve essere valutata rispetto alle altre regole.",
 	"schema.indentationRules.unIndentedLinePattern.pattern": "Criterio di RegExp per unIndentedLinePattern.",
 	"schema.indentationRules.unIndentedLinePattern.flags": "Flag di RegExp per unIndentedLinePattern.",
-	"schema.indentationRules.unIndentedLinePattern.errorMessage": "Deve corrispondere al modello `/^([gimuy]+)$/`."
+	"schema.indentationRules.unIndentedLinePattern.errorMessage": "Deve corrispondere al modello `/^([gimuy]+)$/`.",
+	"schema.folding": "Impostazioni di riduzione del codice del linguaggio.",
+	"schema.folding.offSide": "Un linguaggio è conforme alla regola di offside se i blocchi in tale linguaggio vengono espressi in base al relativo rientro. Se questa opzione è impostata, le righe vuote appartengono al blocco successivo.",
+	"schema.folding.markers": "Marcatori di riduzione del codice specifici del linguaggio, come '#region' e '#endregion'. Le espressioni regolari di inizio e fine verranno confrontate con il contenuto di tutte le righe e devono essere progettate in modo efficace",
+	"schema.folding.markers.start": "Criterio di espressione regolare per il marcatore di inizio. L'espressione regolare deve iniziare con '^'.",
+	"schema.folding.markers.end": "Criterio di espressione regolare per il marcatore di fine. L'espressione regolare deve iniziare con '^'."
 }

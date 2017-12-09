@@ -102,6 +102,25 @@
 	box-sizing: border-box;
 }
 
+/* Debug status */
+/* A very precise css rule to overwrite the display set in statusbar.css */
+.monaco-workbench > .part.statusbar > .statusbar-item > .debug-statusbar-item > a:not([disabled]):not(.disabled) {
+	display: flex;
+	padding: 0 5px 0 5px;
+}
+
+.monaco-workbench .part.statusbar .debug-statusbar-item.hidden {
+	display: none;
+}
+
+.monaco-workbench .part.statusbar .debug-statusbar-item .icon {
+	-webkit-mask: url('continue.svg') no-repeat 50% 50%;
+	-webkit-mask-size: 16px;
+	display: inline-block;
+	padding-right: 2px;
+	width: 16px;
+}
+
 /* Expressions */
 
 .monaco-workbench .monaco-tree-row .expression {
@@ -125,6 +144,10 @@
 
 .monaco-workbench .monaco-tree-row:not(.selected) .expression .name {
 	color: #9B46B0;
+}
+
+.monaco-workbench .monaco-tree-row:not(.selected) .expression .name.virtual {
+	opacity: 0.5;
 }
 
 .monaco-workbench > .monaco-tree-row:not(.selected) .expression .value {

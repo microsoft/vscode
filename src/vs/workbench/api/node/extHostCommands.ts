@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { validateConstraint } from 'vs/base/common/types';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
 import * as extHostTypeConverter from 'vs/workbench/api/node/extHostTypeConverters';
 import { cloneAndChange } from 'vs/base/common/objects';
-import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ObjectIdentifier } from './extHost.protocol';
+import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ObjectIdentifier, IMainContext } from './extHost.protocol';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import * as modes from 'vs/editor/common/modes';
 import * as vscode from 'vscode';
+import { ILogService } from 'vs/platform/log/common/log';
 
 interface CommandHandler {
 	callback: Function;
@@ -27,7 +27,7 @@ export interface ArgumentProcessor {
 	processArgument(arg: any): any;
 }
 
-export class ExtHostCommands extends ExtHostCommandsShape {
+export class ExtHostCommands implements ExtHostCommandsShape {
 
 	private _commands = new Map<string, CommandHandler>();
 	private _proxy: MainThreadCommandsShape;
@@ -35,11 +35,11 @@ export class ExtHostCommands extends ExtHostCommandsShape {
 	private _argumentProcessors: ArgumentProcessor[] = [];
 
 	constructor(
-		threadService: IThreadService,
-		heapService: ExtHostHeapService
+		mainContext: IMainContext,
+		heapService: ExtHostHeapService,
+		private logService: ILogService
 	) {
-		super();
-		this._proxy = threadService.get(MainContext.MainThreadCommands);
+		this._proxy = mainContext.get(MainContext.MainThreadCommands);
 		this._converter = new CommandsConverter(this, heapService);
 	}
 
@@ -52,13 +52,14 @@ export class ExtHostCommands extends ExtHostCommandsShape {
 	}
 
 	registerCommand(id: string, callback: <T>(...args: any[]) => T | Thenable<T>, thisArg?: any, description?: ICommandHandlerDescription): extHostTypes.Disposable {
+		this.logService.trace('ExtHostCommands#registerCommand', id);
 
 		if (!id.trim().length) {
 			throw new Error('invalid id');
 		}
 
 		if (this._commands.has(id)) {
-			throw new Error('command with id already exists');
+			throw new Error(`command '${id}' already exists`);
 		}
 
 		this._commands.set(id, { callback, thisArg, description });
@@ -72,6 +73,7 @@ export class ExtHostCommands extends ExtHostCommandsShape {
 	}
 
 	executeCommand<T>(id: string, ...args: any[]): Thenable<T> {
+		this.logService.trace('ExtHostCommands#executeCommand', id);
 
 		if (this._commands.has(id)) {
 			// we stay inside the extension host and support
@@ -136,6 +138,8 @@ export class ExtHostCommands extends ExtHostCommandsShape {
 	}
 
 	getCommands(filterUnderscoreCommands: boolean = false): Thenable<string[]> {
+		this.logService.trace('ExtHostCommands#getCommands', filterUnderscoreCommands);
+
 		return this._proxy.$getCommands().then(result => {
 			if (filterUnderscoreCommands) {
 				result = result.filter(command => command[0] !== '_');

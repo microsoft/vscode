@@ -6,12 +6,13 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { asWinJsPromise } from 'vs/base/common/async';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { IQuickOpenService, IPickOptions, IInputOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { InputBoxOptions } from 'vscode';
-import { ExtHostContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, MyQuickPickItems } from '../node/extHost.protocol';
+import { ExtHostContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, MyQuickPickItems, MainContext, IExtHostContext } from '../node/extHost.protocol';
+import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
-export class MainThreadQuickOpen extends MainThreadQuickOpenShape {
+@extHostNamedCustomer(MainContext.MainThreadQuickOpen)
+export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 
 	private _proxy: ExtHostQuickOpenShape;
 	private _quickOpenService: IQuickOpenService;
@@ -21,12 +22,14 @@ export class MainThreadQuickOpen extends MainThreadQuickOpenShape {
 	private _token: number = 0;
 
 	constructor(
-		@IThreadService threadService: IThreadService,
+		extHostContext: IExtHostContext,
 		@IQuickOpenService quickOpenService: IQuickOpenService
 	) {
-		super();
-		this._proxy = threadService.get(ExtHostContext.ExtHostQuickOpen);
+		this._proxy = extHostContext.get(ExtHostContext.ExtHostQuickOpen);
 		this._quickOpenService = quickOpenService;
+	}
+
+	public dispose(): void {
 	}
 
 	$show(options: IPickOptions): TPromise<number> {

@@ -7,17 +7,131 @@
 
 declare module 'vscode' {
 
+	// export enum FileErrorCodes {
+	// 	/**
+	// 	 * Not owner.
+	// 	 */
+	// 	EPERM = 1,
+	// 	/**
+	// 	 * No such file or directory.
+	// 	 */
+	// 	ENOENT = 2,
+	// 	/**
+	// 	 * I/O error.
+	// 	 */
+	// 	EIO = 5,
+	// 	/**
+	// 	 * Permission denied.
+	// 	 */
+	// 	EACCES = 13,
+	// 	/**
+	// 	 * File exists.
+	// 	 */
+	// 	EEXIST = 17,
+	// 	/**
+	// 	 * Not a directory.
+	// 	 */
+	// 	ENOTDIR = 20,
+	// 	/**
+	// 	 * Is a directory.
+	// 	 */
+	// 	EISDIR = 21,
+	// 	/**
+	// 	 *  File too large.
+	// 	 */
+	// 	EFBIG = 27,
+	// 	/**
+	// 	 * No space left on device.
+	// 	 */
+	// 	ENOSPC = 28,
+	// 	/**
+	// 	 * Directory is not empty.
+	// 	 */
+	// 	ENOTEMPTY = 66,
+	// 	/**
+	// 	 * Invalid file handle.
+	// 	 */
+	// 	ESTALE = 70,
+	// 	/**
+	// 	 * Illegal NFS file handle.
+	// 	 */
+	// 	EBADHANDLE = 10001,
+	// }
+
+	export enum FileChangeType {
+		Updated = 0,
+		Added = 1,
+		Deleted = 2
+	}
+
+	export interface FileChange {
+		type: FileChangeType;
+		resource: Uri;
+	}
+
+	export enum FileType {
+		File = 0,
+		Dir = 1,
+		Symlink = 2
+	}
+
+	export interface FileStat {
+		id: number | string;
+		mtime: number;
+		// atime: number;
+		size: number;
+		type: FileType;
+	}
+
 	// todo@joh discover files etc
 	export interface FileSystemProvider {
-		// todo@joh -> added, deleted, renamed, changed
-		onDidChange: Event<Uri>;
 
-		resolveContents(resource: Uri): string | Thenable<string>;
-		writeContents(resource: Uri, contents: string): void | Thenable<void>;
+		onDidChange?: Event<FileChange[]>;
+
+		root: Uri;
+
+		// more...
+		//
+		utimes(resource: Uri, mtime: number, atime: number): Thenable<FileStat>;
+
+		stat(resource: Uri): Thenable<FileStat>;
+
+		read(resource: Uri, offset: number, length: number, progress: Progress<Uint8Array>): Thenable<number>;
+
+		// todo@remote
+		// offset - byte offset to start
+		// count - number of bytes to write
+		// Thenable<number> - number of bytes actually written
+		write(resource: Uri, content: Uint8Array): Thenable<void>;
+
+		// todo@remote
+		// Thenable<FileStat>
+		move(resource: Uri, target: Uri): Thenable<FileStat>;
+
+		// todo@remote
+		// helps with performance bigly
+		// copy?(from: Uri, to: Uri): Thenable<void>;
+
+		// todo@remote
+		// Thenable<FileStat>
+		mkdir(resource: Uri): Thenable<FileStat>;
+
+		readdir(resource: Uri): Thenable<[Uri, FileStat][]>;
+
+		// todo@remote
+		// ? merge both
+		// ? recursive del
+		rmdir(resource: Uri): Thenable<void>;
+		unlink(resource: Uri): Thenable<void>;
+
+		// todo@remote
+		// create(resource: Uri): Thenable<FileStat>;
+
+		// find files by names
+		findFiles?(query: string, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
 	}
 
 	export namespace workspace {
-
 		export function registerFileSystemProvider(authority: string, provider: FileSystemProvider): Disposable;
 	}
 
@@ -55,177 +169,161 @@ declare module 'vscode' {
 		export function registerDiffInformationCommand(command: string, callback: (diff: LineChange[], ...args: any[]) => any, thisArg?: any): Disposable;
 	}
 
-	/**
-	 * Namespace for handling credentials.
-	 */
-	export namespace credentials {
+	//#region decorations
 
-		/**
-		 * Read a previously stored secret from the credential store.
-		 *
-		 * @param service The service of the credential.
-		 * @param account The account of the credential.
-		 * @return A promise for the secret of the credential.
-		 */
-		export function readSecret(service: string, account: string): Thenable<string | undefined>;
-
-		/**
-		 * Write a secret to the credential store.
-		 *
-		 * @param service The service of the credential.
-		 * @param account The account of the credential.
-		 * @param secret The secret of the credential to write to the credential store.
-		 * @return A promise indicating completion of the operation.
-		 */
-		export function writeSecret(service: string, account: string, secret: string): Thenable<void>;
-
-		/**
-		 * Delete a previously stored secret from the credential store.
-		 *
-		 * @param service The service of the credential.
-		 * @param account The account of the credential.
-		 * @return A promise resolving to true if there was a secret for that service and account.
-		 */
-		export function deleteSecret(service: string, account: string): Thenable<boolean>;
+	//todo@joh -> make class
+	export interface DecorationData {
+		priority?: number;
+		title?: string;
+		bubble?: boolean;
+		abbreviation?: string;
+		color?: ThemeColor;
+		source?: string;
 	}
 
-	/**
-	 * Represents a color in RGBA space.
-	 */
-	export class Color {
-
-		/**
-		 * The red component of this color in the range [0-1].
-		 */
-		readonly red: number;
-
-		/**
-		 * The green component of this color in the range [0-1].
-		 */
-		readonly green: number;
-
-		/**
-		 * The blue component of this color in the range [0-1].
-		 */
-		readonly blue: number;
-
-		/**
-		 * The alpha component of this color in the range [0-1].
-		 */
-		readonly alpha: number;
-
-		constructor(red: number, green: number, blue: number, alpha: number);
-
-		/**
-		 * Creates a color from the HSLA space.
-		 *
-		 * @param hue The hue component in the range [0-1].
-		 * @param saturation The saturation component in the range [0-1].
-		 * @param luminance The luminance component in the range [0-1].
-		 * @param alpha The alpha component in the range [0-1].
-		 */
-		static fromHSLA(hue: number, saturation: number, luminance: number, alpha: number): Color;
-
-		// TODO: this isn't needed. this is a parsing util. remove
-		static fromHex(hex: string): Color;
+	export interface SourceControlResourceDecorations {
+		source?: string;
+		letter?: string;
+		color?: ThemeColor;
 	}
 
-	/**
-	 * A color format is either a single format or a combination of two
-	 * formats: an opaque one and a transparent one. The format itself
-	 * is a string representation of how the color can be formatted. It
-	 * supports the use of placeholders, similar to how snippets work.
-	 * Each placeholder, surrounded by curly braces `{}`, requires a
-	 * variable name and can optionally specify a number format and range
-	 * for that variable's value.
-	 *
-	 * Supported variables:
-	 *  - `red`
-	 *  - `green`
-	 *  - `blue`
-	 *  - `hue`
-	 *  - `saturation`
-	 *  - `luminance`
-	 *  - `alpha`
-	 *
-	 * Supported number formats:
-	 *  - `f`, float with 2 decimal points. This is the default format. Default range is `[0-1]`.
-	 *  - `Xf`, float with `X` decimal points. Default range is `[0-1]`.
-	 *  - `d`, decimal. Default range is `[0-255]`.
-	 *  - `x`, `X`, hexadecimal. Default range is `[00-FF]`.
-	 *
-	 * The default number format is float. The default number range is `[0-1]`.
-	 *
-	 * As an example, take the color `Color(1, 0.5, 0, 1)`. Here's how
-	 * different formats would format it:
-	 *
-	 *  - CSS RGB
-	 *   - Format: `rgb({red:d[0-255]}, {green:d[0-255]}, {blue:d[0-255]})`
-	 *   - Output: `rgb(255, 127, 0)`
-	 *
-	 *  - CSS RGBA
-	 *   - Format: `rgba({red:d[0-255]}, {green:d[0-255]}, {blue:d[0-255]}, {alpha})`
-	 *   - Output: `rgba(255, 127, 0, 1)`
-	 *
-	 *  - CSS Hexadecimal
-	 *   - Format: `#{red:X}{green:X}{blue:X}`
-	 *   - Output: `#FF7F00`
-	 *
-	 *  - CSS HSLA
-	 *   - Format: `hsla({hue:d[0-360]}, {saturation:d[0-100]}%, {luminance:d[0-100]}%, {alpha})`
-	 *   - Output: `hsla(30, 100%, 50%, 1)`
-	 */
-	export type ColorFormat = string | { opaque: string, transparent: string };
-
-	/**
-	 * Represents a color range from a document.
-	 */
-	export class ColorRange {
-
-		/**
-		 * The range in the document where this color appers.
-		 */
-		range: Range;
-
-		/**
-		 * The actual color value for this color range.
-		 */
-		color: Color;
-
-		/**
-		 * The other formats this color range supports the color to be formatted in.
-		 */
-		availableFormats: ColorFormat[];
-
-		/**
-		 * Creates a new color range.
-		 *
-		 * @param range The range the color appears in. Must not be empty.
-		 * @param color The value of the color.
-		 * @param format The format in which this color is currently formatted.
-		 * @param availableFormats The other formats this color range supports the color to be formatted in.
-		 */
-		constructor(range: Range, color: Color, availableFormats: ColorFormat[]);
+	export interface DecorationProvider {
+		onDidChangeDecorations: Event<undefined | Uri | Uri[]>;
+		provideDecoration(uri: Uri, token: CancellationToken): ProviderResult<DecorationData>;
 	}
 
+	export namespace window {
+		export function registerDecorationProvider(provider: DecorationProvider): Disposable;
+	}
+
+	//#endregion
+
 	/**
-	 * The document color provider defines the contract between extensions and feature of
-	 * picking and modifying colors in the editor.
+	 * Represents an action that can be performed in code.
+	 *
+	 * Shown using the [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action)
 	 */
-	export interface DocumentColorProvider {
+	export class CodeAction {
+		/**
+		 * Label used to identify the code action in UI.
+		 */
+		title: string;
 
 		/**
-		 * Provide colors for the given document.
+		 * Optional command that performs the code action.
+		 *
+		 * Executed after `edits` if any edits are provided. Either `command` or `edits` must be provided for a `CodeAction`.
+		 */
+		command?: Command;
+
+		/**
+		 * Optional edit that performs the code action.
+		 *
+		 * Either `command` or `edits` must be provided for a `CodeAction`.
+		 */
+		edits?: TextEdit[] | WorkspaceEdit;
+
+		/**
+		 * Diagnostics that this code action resolves.
+		 */
+		diagnostics?: Diagnostic[];
+
+		constructor(title: string, edits?: TextEdit[] | WorkspaceEdit);
+	}
+
+	export interface CodeActionProvider {
+
+		/**
+		 * Provide commands for the given document and range.
+		 *
+		 * If implemented, overrides `provideCodeActions`
 		 *
 		 * @param document The document in which the command was invoked.
+		 * @param range The range for which the command was invoked.
+		 * @param context Context carrying additional information.
 		 * @param token A cancellation token.
-		 * @return An array of [color ranges](#ColorRange) or a thenable that resolves to such. The lack of a result
-		 * can be signaled by returning `undefined`, `null`, or an empty array.
+		 * @return An array of commands, quick fixes, or refactorings or a thenable of such. The lack of a result can be
+		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
-		provideDocumentColors(document: TextDocument, token: CancellationToken): ProviderResult<ColorRange[]>;
+		provideCodeActions2?(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): ProviderResult<(Command | CodeAction)[]>;
 	}
 
-	export namespace languages {
-		export function registerColorProvider(selector: DocumentSelector, provider: DocumentColorProvider): Disposable;
+	export namespace debug {
+
+		/**
+		 * List of breakpoints.
+		 *
+		 * @readonly
+		 */
+		export let breakpoints: Breakpoint[];
+
+		/**
+		 * An event that is emitted when a breakpoint is added, removed, or changed.
+		 */
+		export const onDidChangeBreakpoints: Event<BreakpointsChangeEvent>;
+	}
+
+	/**
+	 * An event describing a change to the set of [breakpoints](#debug.Breakpoint).
+	 */
+	export interface BreakpointsChangeEvent {
+		/**
+		 * Added breakpoints.
+		 */
+		readonly added: Breakpoint[];
+
+		/**
+		 * Removed breakpoints.
+		 */
+		readonly removed: Breakpoint[];
+
+		/**
+		 * Changed breakpoints.
+		 */
+		readonly changed: Breakpoint[];
+	}
+
+	/**
+	 * The base class of all breakpoint types.
+	 */
+	export class Breakpoint {
+		/**
+		 * Is breakpoint enabled.
+		 */
+		readonly enabled: boolean;
+		/**
+		 * An optional expression for conditional breakpoints.
+		 */
+		readonly condition?: string;
+		/**
+		 * An optional expression that controls how many hits of the breakpoint are ignored.
+		 */
+		readonly hitCondition?: string;
+
+		protected constructor(enabled: boolean, condition: string, hitCondition: string);
+	}
+
+	/**
+	 * A breakpoint specified by a source location.
+	 */
+	export class SourceBreakpoint extends Breakpoint {
+		/**
+		 * The source and line position of this breakpoint.
+		 */
+		readonly location: Location;
+
+		private constructor(enabled: boolean, condition: string, hitCondition: string, location: Location);
+	}
+
+	/**
+	 * A breakpoint specified by a function name.
+	 */
+	export class FunctionBreakpoint extends Breakpoint {
+		/**
+		 * The name of the function to which this breakpoint is attached.
+		 */
+		readonly functionName: string;
+
+		private constructor(enabled: boolean, condition: string, hitCondition: string, functionName: string);
 	}
 }

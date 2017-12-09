@@ -9,7 +9,7 @@
 	"extension": "Eklenti",
 	"extensions": "Eklentiler",
 	"view": "Görüntüle",
+	"developer": "Geliştirici",
 	"extensionsConfigurationTitle": "Eklentiler",
-	"extensionsAutoUpdate": "Eklentileri otomatik olarak güncelle",
-	"extensionsIgnoreRecommendations": "Eklenti tavsiyelerini yok say"
+	"extensionsAutoUpdate": "Eklentileri otomatik olarak güncelle"
 }

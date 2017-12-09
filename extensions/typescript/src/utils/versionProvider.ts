@@ -8,9 +8,9 @@ const localize = nls.loadMessageBundle();
 import * as path from 'path';
 import * as fs from 'fs';
 
-import { workspace, window } from "vscode";
+import { workspace, window } from 'vscode';
 
-import { TypeScriptServiceConfiguration } from "./configuration";
+import { TypeScriptServiceConfiguration } from './configuration';
 import API from './api';
 
 
@@ -41,7 +41,7 @@ export class TypeScriptVersion {
 		// Allow TS developers to provide custom version
 		const tsdkVersion = workspace.getConfiguration().get<string | undefined>('typescript.tsdk_version', undefined);
 		if (tsdkVersion) {
-			return new API(tsdkVersion);
+			return API.fromVersionString(tsdkVersion);
 		}
 
 		return undefined;
@@ -58,17 +58,24 @@ export class TypeScriptVersion {
 			return undefined;
 		}
 
-		let p = serverPath.split(path.sep);
+		const p = serverPath.split(path.sep);
 		if (p.length <= 2) {
 			return undefined;
 		}
-		let p2 = p.slice(0, -2);
-		let modulePath = p2.join(path.sep);
+		const p2 = p.slice(0, -2);
+		const modulePath = p2.join(path.sep);
 		let fileName = path.join(modulePath, 'package.json');
+		if (!fs.existsSync(fileName)) {
+			// Special case for ts dev versions
+			if (path.basename(modulePath) === 'built') {
+				fileName = path.join(modulePath, '..', 'package.json');
+			}
+		}
 		if (!fs.existsSync(fileName)) {
 			return undefined;
 		}
-		let contents = fs.readFileSync(fileName).toString();
+
+		const contents = fs.readFileSync(fileName).toString();
 		let desc: any = null;
 		try {
 			desc = JSON.parse(contents);
@@ -78,7 +85,7 @@ export class TypeScriptVersion {
 		if (!desc || !desc.version) {
 			return undefined;
 		}
-		return desc.version ? new API(desc.version) : undefined;
+		return desc.version ? API.fromVersionString(desc.version) : undefined;
 	}
 }
 

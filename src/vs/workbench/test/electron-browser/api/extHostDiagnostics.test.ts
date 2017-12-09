@@ -13,17 +13,18 @@ import { Diagnostic, DiagnosticSeverity, Range } from 'vs/workbench/api/node/ext
 import { MainThreadDiagnosticsShape } from 'vs/workbench/api/node/extHost.protocol';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
+import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 
 suite('ExtHostDiagnostics', () => {
 
-	class DiagnosticsShape extends MainThreadDiagnosticsShape {
+	class DiagnosticsShape extends mock<MainThreadDiagnosticsShape>() {
 		$changeMany(owner: string, entries: [URI, IMarkerData[]][]): TPromise<any> {
 			return TPromise.as(null);
 		}
 		$clear(owner: string): TPromise<any> {
 			return TPromise.as(null);
 		}
-	};
+	}
 
 	test('disposeCheck', function () {
 
@@ -34,6 +35,7 @@ suite('ExtHostDiagnostics', () => {
 		assert.throws(() => collection.name);
 		assert.throws(() => collection.clear());
 		assert.throws(() => collection.delete(URI.parse('aa:bb')));
+		// tslint:disable-next-line:semicolon
 		assert.throws(() => collection.forEach(() => { ; }));
 		assert.throws(() => collection.get(URI.parse('aa:bb')));
 		assert.throws(() => collection.has(URI.parse('aa:bb')));

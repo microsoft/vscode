@@ -7,5 +7,8 @@
 	"httpsRequired": "이미지는 HTTPS 프로토콜을 사용해야 합니다.",
 	"svgsNotValid": "SVG는 올바른 이미지 소스가 아닙니다.",
 	"embeddedSvgsNotValid": "내장 SVG는 올바른 이미지 소스가 아닙니다.",
-	"dataUrlsNotValid": "데이터 URL은 올바른 이미지 소스가 아닙니다."
+	"dataUrlsNotValid": "데이터 URL은 올바른 이미지 소스가 아닙니다.",
+	"relativeUrlRequiresHttpsRepository": "관계형 이미지 URL은 package.json에 HTTPS 프로토콜이 지정된 저장소가 필요합니다.",
+	"relativeIconUrlRequiresHttpsRepository": "아이콘은 package.json에 HTTPS 프로토콜이 지정된 저장소가 필요합니다.",
+	"relativeBadgeUrlRequiresHttpsRepository": "관계형 배지 URL은 package.json에 HTTPS 프로토콜이 지정된 저장소가 필요합니다."
 }

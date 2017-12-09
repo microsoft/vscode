@@ -6,7 +6,7 @@
 {
 	"error.cannotparsejson": "Problemi durante l'analisi del file di tema di JSON: {0}",
 	"error.invalidformat.colors": "Si è verificato un problema durante l'analisi del file di tema {0}. La proprietà 'colors' non è di tipo 'object'.",
-	"error.invalidformat.tokenColors": "Si è verificato un problema durante l'analisi del file di tema {0}. La proprietà 'tokenColors' deve essere una matrice che specifica i colori o un percorso di un file di tema TextMate",
+	"error.invalidformat.tokenColors": "Si è verificato un problema durante l'analisi del file del tema colori {0}. La proprietà 'tokenColors' deve essere una matrice che specifica colori oppure un percorso di un file di tema TextMate",
 	"error.plist.invalidformat": "Si è verificato un problema durante l'analisi del file tmTheme {0}. 'settings' non è una matrice.",
 	"error.cannotparse": "Si sono verificati problemi durante l'analisi del file tmTheme {0}",
 	"error.cannotload": "Si sono verificati problemi durante il caricamento del file tmTheme {0}: {1}"

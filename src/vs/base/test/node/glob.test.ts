@@ -7,6 +7,7 @@
 import * as assert from 'assert';
 import * as path from 'path';
 import glob = require('vs/base/common/glob');
+import { isWindows } from 'vs/base/common/platform';
 
 suite('Glob', () => {
 
@@ -415,7 +416,7 @@ suite('Glob', () => {
 
 		assert.strictEqual(glob.match(expression, 'test.js', () => siblings), null);
 
-		expression = <any>{
+		expression = {
 			'**/*.js': {
 			}
 		};
@@ -459,6 +460,46 @@ suite('Glob', () => {
 		assert(!glob.match(p, 'foo.8'));
 		assert(!glob.match(p, 'bar.5'));
 		assert(glob.match(p, 'foo.f'));
+
+		p = 'foo.[!0-9]';
+
+		assert(!glob.match(p, 'foo.5'));
+		assert(!glob.match(p, 'foo.8'));
+		assert(!glob.match(p, 'bar.5'));
+		assert(glob.match(p, 'foo.f'));
+
+		p = 'foo.[0!^*?]';
+
+		assert(!glob.match(p, 'foo.5'));
+		assert(!glob.match(p, 'foo.8'));
+		assert(glob.match(p, 'foo.0'));
+		assert(glob.match(p, 'foo.!'));
+		assert(glob.match(p, 'foo.^'));
+		assert(glob.match(p, 'foo.*'));
+		assert(glob.match(p, 'foo.?'));
+
+		p = 'foo[/]bar';
+
+		assert(!glob.match(p, 'foo/bar'));
+
+		p = 'foo.[[]';
+
+		assert(glob.match(p, 'foo.['));
+
+		p = 'foo.[]]';
+
+		assert(glob.match(p, 'foo.]'));
+
+		p = 'foo.[][!]';
+
+		assert(glob.match(p, 'foo.]'));
+		assert(glob.match(p, 'foo.['));
+		assert(glob.match(p, 'foo.!'));
+
+		p = 'foo.[]-]';
+
+		assert(glob.match(p, 'foo.]'));
+		assert(glob.match(p, 'foo.-'));
 	});
 
 	test('full path', function () {
@@ -866,22 +907,55 @@ suite('Glob', () => {
 		return slashPath.replace(/\//g, path.sep);
 	}
 
-	test('mergeExpressions', () => {
-		// Empty => empty
-		assert.deepEqual(glob.mergeExpressions(), glob.getEmptyExpression());
+	test('relative pattern - glob star', function () {
+		if (isWindows) {
+			let p: glob.IRelativePattern = { base: 'C:\\DNXConsoleApp\\foo', pattern: '**/*.cs', pathToRelative: (from, to) => path.relative(from, to) };
+			assert(glob.match(p, 'C:\\DNXConsoleApp\\foo\\Program.cs'));
+			assert(glob.match(p, 'C:\\DNXConsoleApp\\foo\\bar\\Program.cs'));
+			assert(!glob.match(p, 'C:\\DNXConsoleApp\\foo\\Program.ts'));
+			assert(!glob.match(p, 'C:\\DNXConsoleApp\\Program.cs'));
+			assert(!glob.match(p, 'C:\\other\\DNXConsoleApp\\foo\\Program.ts'));
+		} else {
+			let p: glob.IRelativePattern = { base: '/DNXConsoleApp/foo', pattern: '**/*.cs', pathToRelative: (from, to) => path.relative(from, to) };
+			assert(glob.match(p, '/DNXConsoleApp/foo/Program.cs'));
+			assert(glob.match(p, '/DNXConsoleApp/foo/bar/Program.cs'));
+			assert(!glob.match(p, '/DNXConsoleApp/foo/Program.ts'));
+			assert(!glob.match(p, '/DNXConsoleApp/Program.cs'));
+			assert(!glob.match(p, '/other/DNXConsoleApp/foo/Program.ts'));
+		}
+	});
 
-		// Doesn't modify given expressions
-		const expr1 = { 'a': true };
-		glob.mergeExpressions(expr1, { 'b': true });
-		assert.deepEqual(expr1, { 'a': true });
+	test('relative pattern - single star', function () {
+		if (isWindows) {
+			let p: glob.IRelativePattern = { base: 'C:\\DNXConsoleApp\\foo', pattern: '*.cs', pathToRelative: (from, to) => path.relative(from, to) };
+			assert(glob.match(p, 'C:\\DNXConsoleApp\\foo\\Program.cs'));
+			assert(!glob.match(p, 'C:\\DNXConsoleApp\\foo\\bar\\Program.cs'));
+			assert(!glob.match(p, 'C:\\DNXConsoleApp\\foo\\Program.ts'));
+			assert(!glob.match(p, 'C:\\DNXConsoleApp\\Program.cs'));
+			assert(!glob.match(p, 'C:\\other\\DNXConsoleApp\\foo\\Program.ts'));
+		} else {
+			let p: glob.IRelativePattern = { base: '/DNXConsoleApp/foo', pattern: '*.cs', pathToRelative: (from, to) => path.relative(from, to) };
+			assert(glob.match(p, '/DNXConsoleApp/foo/Program.cs'));
+			assert(!glob.match(p, '/DNXConsoleApp/foo/bar/Program.cs'));
+			assert(!glob.match(p, '/DNXConsoleApp/foo/Program.ts'));
+			assert(!glob.match(p, '/DNXConsoleApp/Program.cs'));
+			assert(!glob.match(p, '/other/DNXConsoleApp/foo/Program.ts'));
+		}
+	});
 
-		// Merges correctly
-		assert.deepEqual(glob.mergeExpressions({ 'a': true }, { 'b': true }), { 'a': true, 'b': true });
+	test('relative pattern - single star with path', function () {
+		if (isWindows) {
+			let p: glob.IRelativePattern = { base: 'C:\\DNXConsoleApp\\foo', pattern: 'something/*.cs', pathToRelative: (from, to) => path.relative(from, to) };
+			assert(glob.match(p, 'C:\\DNXConsoleApp\\foo\\something\\Program.cs'));
+			assert(!glob.match(p, 'C:\\DNXConsoleApp\\foo\\Program.cs'));
+		} else {
+			let p: glob.IRelativePattern = { base: '/DNXConsoleApp/foo', pattern: 'something/*.cs', pathToRelative: (from, to) => path.relative(from, to) };
+			assert(glob.match(p, '/DNXConsoleApp/foo/something/Program.cs'));
+			assert(!glob.match(p, '/DNXConsoleApp/foo/Program.cs'));
+		}
+	});
 
-		// Ignores null/undefined portions
-		assert.deepEqual(glob.mergeExpressions(undefined, { 'a': true }, null, { 'b': true }), { 'a': true, 'b': true });
-
-		// Later expressions take precedence
-		assert.deepEqual(glob.mergeExpressions({ 'a': true, 'b': false, 'c': true }, { 'a': false, 'b': true }), { 'a': false, 'b': true, 'c': true });
+	test('pattern with "base" does not explode - #36081', function () {
+		assert.ok(glob.match({ 'base': true }, 'base'));
 	});
 });

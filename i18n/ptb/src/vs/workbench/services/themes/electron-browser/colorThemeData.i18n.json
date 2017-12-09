@@ -6,7 +6,7 @@
 {
 	"error.cannotparsejson": "Problemas ao analisar o arquivo de tema JSON: {0}",
 	"error.invalidformat.colors": "Problema ao analisar o arquivo de tema de cor: {0}. A propriedade 'colors' não é do tipo 'object'.",
-	"error.invalidformat.tokenColors": "Problema ao analisar o arquivo de tema de cor: {0}. A propriedade 'tokenColors' deve ser também uma matriz especificando as cores ou um caminho para um arquivo de texto de tema correspondente",
+	"error.invalidformat.tokenColors": "Problema ao ler o arquivo do tema de cores: {0}. Propriedade 'tokenColors' deve ser também uma matriz especificando cores ou um caminho para um arquivo de tema do TextMate",
 	"error.plist.invalidformat": "Problema ao analisar o arquivo tmTheme: {0}. 'settings' não é uma matriz.",
 	"error.cannotparse": "Problemas ao analisar o arquivo tmTheme: {0}",
 	"error.cannotload": "Problemas ao carregar o arquivo tmTheme {0}: {1}"

@@ -9,7 +9,7 @@
 	"welcomePage.start": "Запустить",
 	"welcomePage.newFile": "Создать файл",
 	"welcomePage.openFolder": "Открыть папку...",
-	"welcomePage.cloneGitRepository": "Клонировать репозиторий Git...",
+	"welcomePage.addWorkspaceFolder": "Добавить папку в рабочую область...",
 	"welcomePage.recent": "Последние",
 	"welcomePage.moreRecent": "Дополнительные сведения...",
 	"welcomePage.noRecentFolders": "Нет последних папок.",

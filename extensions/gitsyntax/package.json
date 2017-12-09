@@ -50,6 +50,11 @@
         "scopeName": "text.git-rebase",
         "path": "./syntaxes/git-rebase.tmLanguage.json"
       }
-    ]
+    ],
+    "configurationDefaults": {
+			"[git-commit]": {
+				"editor.rulers": [72]
+			}
+		}
   }
 }

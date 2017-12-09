@@ -8,10 +8,10 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { RemoveFromEditorHistoryAction } from 'vs/workbench/browser/parts/quickopen/quickOpenController';
-import { QuickOpenSelectNextAction, QuickOpenSelectPreviousAction, inQuickOpenContext, getQuickNavigateHandler, QuickOpenNavigateNextAction, QuickOpenNavigatePreviousAction, defaultQuickOpenContext, QUICKOPEN_ACTION_ID, QUICKOPEN_ACION_LABEL } from "vs/workbench/browser/parts/quickopen/quickopen";
+import { QuickOpenSelectNextAction, QuickOpenSelectPreviousAction, inQuickOpenContext, getQuickNavigateHandler, QuickOpenNavigateNextAction, QuickOpenNavigatePreviousAction, defaultQuickOpenContext, QUICKOPEN_ACTION_ID, QUICKOPEN_ACION_LABEL } from 'vs/workbench/browser/parts/quickopen/quickopen';
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.action.closeQuickOpen',

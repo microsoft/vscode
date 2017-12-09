@@ -9,7 +9,7 @@
 	"extension": "Estensione",
 	"extensions": "Estensioni",
 	"view": "Visualizza",
+	"developer": "Sviluppatore",
 	"extensionsConfigurationTitle": "Estensioni",
-	"extensionsAutoUpdate": "Aggiorna automaticamente le estensioni",
-	"extensionsIgnoreRecommendations": "Ignora le raccomandazioni di estensioni"
+	"extensionsAutoUpdate": "Aggiorna automaticamente le estensioni"
 }

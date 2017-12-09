@@ -9,7 +9,5 @@
 	"cut": "Kes",
 	"copy": "Kopyala",
 	"paste": "Yapıştır",
-	"selectAll": "Tümünü Seç",
-	"confirmOpen": "{0} çalışma alanını açmak istediğinizden emin misiniz?",
-	"confirmOpenButton": "&&Aç"
+	"selectAll": "Tümünü Seç"
 }

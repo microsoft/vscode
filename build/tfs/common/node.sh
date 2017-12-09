@@ -10,6 +10,9 @@ else
 fi
 
 # install node
-NODE_VERSION=7.10.0
+NODE_VERSION=8.9.1
 nvm install $NODE_VERSION
 nvm use $NODE_VERSION
+
+# install yarn
+npm i -g yarn

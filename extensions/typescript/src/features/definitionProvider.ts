@@ -5,16 +5,10 @@
 
 import { DefinitionProvider, TextDocument, Position, CancellationToken, Definition } from 'vscode';
 
-import { ITypescriptServiceClient } from '../typescriptService';
 import DefinitionProviderBase from './definitionProviderBase';
 
 export default class TypeScriptDefinitionProvider extends DefinitionProviderBase implements DefinitionProvider {
-
-	constructor(client: ITypescriptServiceClient) {
-		super(client);
-	}
-
-	public provideDefinition(document: TextDocument, position: Position, token: CancellationToken | boolean): Promise<Definition | null> {
+	public provideDefinition(document: TextDocument, position: Position, token: CancellationToken | boolean): Promise<Definition | undefined> {
 		return this.getSymbolLocations('definition', document, position, token);
 	}
 }

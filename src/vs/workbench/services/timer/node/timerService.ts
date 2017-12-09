@@ -6,7 +6,6 @@
 
 import { ITimerService, IStartupMetrics, IInitData, IMemoryInfo } from 'vs/workbench/services/timer/common/timerService';
 import { virtualMachineHint } from 'vs/base/node/id';
-import { ticks } from 'vs/base/node/startupTimers';
 
 import * as os from 'os';
 
@@ -89,13 +88,7 @@ export class TimerService implements ITimerService {
 				cpus = { count: rawCpus.length, speed: rawCpus[0].speed, model: rawCpus[0].model };
 			}
 		} catch (error) {
-			console.error(error); // be on the safe side with these hardware method calls
-		}
-
-		// fill in startup timers we have until now
-		const timers2: { [name: string]: number } = Object.create(null);
-		for (const tick of ticks()) {
-			timers2[tick.name] = tick.duration;
+			// ignore, be on the safe side with these hardware method calls
 		}
 
 		this._startupMetrics = {
@@ -111,7 +104,6 @@ export class TimerService implements ITimerService {
 				ellapsedWindowLoadToRequire: this.beforeLoadWorkbenchMain - this.windowLoad,
 				ellapsedTimersToTimersComputed: Date.now() - now
 			},
-			timers2,
 			platform,
 			release,
 			arch,

@@ -42,7 +42,8 @@
         "extensions": [
           ".js",
           ".es6",
-          ".mjs"
+          ".mjs",
+          ".pac"
         ],
         "filenames": [
           "jakefile"
@@ -62,11 +63,13 @@
     "grammars": [
       {
         "language": "javascriptreact",
-        "scopeName": "source.js",
-        "path": "./syntaxes/JavaScript.tmLanguage.json",
+        "scopeName": "source.js.jsx",
+        "path": "./syntaxes/JavaScriptReact.tmLanguage.json",
         "embeddedLanguages": {
           "meta.tag.js": "jsx-tags",
-          "meta.tag.without-attributes.js": "jsx-tags"
+          "meta.tag.without-attributes.js": "jsx-tags",
+          "meta.tag.attributes.js.jsx": "javascriptreact",
+          "meta.embedded.expression.js": "javascriptreact"
         }
       },
       {
@@ -75,7 +78,9 @@
         "path": "./syntaxes/JavaScript.tmLanguage.json",
         "embeddedLanguages": {
           "meta.tag.js": "jsx-tags",
-          "meta.tag.without-attributes.js": "jsx-tags"
+          "meta.tag.without-attributes.js": "jsx-tags",
+          "meta.tag.attributes.js": "javascript",
+          "meta.embedded.expression.js": "javascript"
         }
       },
       {
@@ -90,7 +95,7 @@
       },
       {
         "language": "javascriptreact",
-        "path": "./snippets/javascriptreact.json"
+        "path": "./snippets/javascript.json"
       }
     ],
     "jsonValidation": [
@@ -108,6 +113,10 @@
       },
       {
         "fileMatch": ".babelrc",
+        "url": "http://json.schemastore.org/babelrc"
+      },
+      {
+        "fileMatch": ".babelrc.json",
         "url": "http://json.schemastore.org/babelrc"
       },
       {
@@ -129,6 +138,6 @@
     ]
   },
   "devDependencies": {
-    "@types/node": "^7.0.4"
+    "@types/node": "8.0.33"
   }
 }

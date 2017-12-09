@@ -10,17 +10,17 @@ import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAction, Action } from 'vs/base/common/actions';
 import { mapEvent } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMessageService, CloseAction, Severity } from 'vs/platform/message/common/message';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
 import URI from 'vs/base/common/uri';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IActivityBarService, NumberBadge } from 'vs/workbench/services/activity/common/activityBarService';
+import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ReleaseNotesInput } from 'vs/workbench/parts/update/electron-browser/releaseNotesInput';
-import { IGlobalActivity } from 'vs/workbench/browser/activity';
+import { IGlobalActivity } from 'vs/workbench/common/activity';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { asText } from 'vs/base/node/request';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -32,6 +32,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IUpdateService, State as UpdateState } from 'vs/platform/update/common/update';
 import * as semver from 'semver';
 import { OS, isLinux, isWindows } from 'vs/base/common/platform';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 class ApplyUpdateAction extends Action {
 	constructor( @IUpdateService private updateService: IUpdateService) {
@@ -127,7 +128,6 @@ export abstract class AbstractShowReleaseNotesAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		private returnValue: boolean,
 		private version: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService
@@ -155,12 +155,11 @@ export abstract class AbstractShowReleaseNotesAction extends Action {
 export class ShowReleaseNotesAction extends AbstractShowReleaseNotesAction {
 
 	constructor(
-		returnValue: boolean,
 		version: string,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super('update.showReleaseNotes', nls.localize('releaseNotes', "Release Notes"), returnValue, version, editorService, instantiationService);
+		super('update.showReleaseNotes', nls.localize('releaseNotes', "Release Notes"), version, editorService, instantiationService);
 	}
 }
 
@@ -175,13 +174,13 @@ export class ShowCurrentReleaseNotesAction extends AbstractShowReleaseNotesActio
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(id, label, true, pkg.version, editorService, instantiationService);
+		super(id, label, pkg.version, editorService, instantiationService);
 	}
 }
 
 export class DownloadAction extends Action {
 
-	constructor(private url: string, @IUpdateService private updateService: IUpdateService) {
+	constructor( @IUpdateService private updateService: IUpdateService) {
 		super('update.download', nls.localize('downloadNow', "Download Now"), null, true);
 	}
 
@@ -197,19 +196,19 @@ const LinkAction = (id: string, message: string, licenseUrl: string) => new Acti
 
 export class ProductContribution implements IWorkbenchContribution {
 
-	private static KEY = 'releaseNotes/lastVersion';
-	getId() { return 'vs.product'; }
+	private static readonly KEY = 'releaseNotes/lastVersion';
 
 	constructor(
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMessageService messageService: IMessageService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		const lastVersion = storageService.get(ProductContribution.KEY, StorageScope.GLOBAL, '');
 
 		// was there an update? if so, open release notes
-		if (product.releaseNotesUrl && lastVersion && pkg.version !== lastVersion) {
+		if (!environmentService.skipReleaseNotes && product.releaseNotesUrl && lastVersion && pkg.version !== lastVersion) {
 			instantiationService.invokeFunction(loadReleaseNotes, pkg.version).then(
 				text => editorService.openEditor(instantiationService.createInstance(ReleaseNotesInput, pkg.version, text), { pinned: true }),
 				() => {
@@ -257,18 +256,21 @@ class NeverShowAgain {
 
 export class Win3264BitContribution implements IWorkbenchContribution {
 
-	private static KEY = 'update/win32-64bits';
-	private static URL = 'https://code.visualstudio.com/updates/v1_15#_windows-64-bit';
-	private static INSIDER_URL = 'https://github.com/Microsoft/vscode-docs/blob/vnext/release-notes/v1_15.md#windows-64-bit';
-
-	getId() { return 'vs.win32-64bit'; }
+	private static readonly KEY = 'update/win32-64bits';
+	private static readonly URL = 'https://code.visualstudio.com/updates/v1_15#_windows-64-bit';
+	private static readonly INSIDER_URL = 'https://github.com/Microsoft/vscode-docs/blob/vnext/release-notes/v1_15.md#windows-64-bit';
 
 	constructor(
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMessageService messageService: IMessageService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEnvironmentService environmentService: IEnvironmentService
 	) {
+		if (environmentService.disableUpdates) {
+			return;
+		}
+
 		const neverShowAgain = new NeverShowAgain(Win3264BitContribution.KEY, storageService);
 
 		if (!neverShowAgain.shouldShow()) {
@@ -280,7 +282,7 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 			: Win3264BitContribution.URL;
 
 		messageService.show(Severity.Info, {
-			message: nls.localize('64bitisavailable', "{0} for Windows 64 bits is now available!", product.nameShort),
+			message: nls.localize('64bitisavailable', "{0} for 64-bit Windows is now available!", product.nameShort),
 			actions: [
 				LinkAction('update.show64bitreleasenotes', nls.localize('learn more', "Learn More"), url),
 				CloseAction,
@@ -295,7 +297,7 @@ class CommandAction extends Action {
 	constructor(
 		commandId: string,
 		label: string,
-		@ICommandService private commandService: ICommandService
+		@ICommandService commandService: ICommandService
 	) {
 		super(`command-action:${commandId}`, label, undefined, true, () => commandService.executeCommand(commandId));
 	}
@@ -312,6 +314,8 @@ export class UpdateContribution implements IGlobalActivity {
 	get id() { return 'vs.update'; }
 	get name() { return ''; }
 	get cssClass() { return 'update-activity'; }
+
+	private badgeDisposable: IDisposable = EmptyDisposable;
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -321,7 +325,7 @@ export class UpdateContribution implements IGlobalActivity {
 		@IMessageService private messageService: IMessageService,
 		@IUpdateService private updateService: IUpdateService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IActivityBarService private activityBarService: IActivityBarService
+		@IActivityService private activityService: IActivityService
 	) {
 		const onUpdateAvailable = isLinux
 			? mapEvent(updateService.onUpdateAvailable, e => e.version)
@@ -330,6 +334,9 @@ export class UpdateContribution implements IGlobalActivity {
 		onUpdateAvailable(this.onUpdateAvailable, this, this.disposables);
 		updateService.onError(this.onError, this, this.disposables);
 		updateService.onUpdateNotAvailable(this.onUpdateNotAvailable, this, this.disposables);
+
+		updateService.onStateChange(this.onUpdateStateChange, this, this.disposables);
+		this.onUpdateStateChange(this.updateService.state);
 
 		/*
 		The `update/lastKnownVersion` and `update/updateNotificationTime` storage keys are used in
@@ -349,10 +356,20 @@ export class UpdateContribution implements IGlobalActivity {
 		}
 	}
 
-	private onUpdateAvailable(version: string): void {
-		const badge = new NumberBadge(1, () => nls.localize('updateIsReady', "New {0} update available.", product.nameShort));
-		this.activityBarService.showGlobalActivity(this.id, badge);
+	private onUpdateStateChange(state: UpdateState): void {
+		this.badgeDisposable.dispose();
 
+		const isUpdateAvailable = isLinux
+			? state === UpdateState.UpdateAvailable
+			: state === UpdateState.UpdateDownloaded;
+
+		if (isUpdateAvailable) {
+			const badge = new NumberBadge(1, () => nls.localize('updateIsReady', "New {0} update available.", product.nameShort));
+			this.badgeDisposable = this.activityService.showActivity(this.id, badge);
+		}
+	}
+
+	private onUpdateAvailable(version: string): void {
 		const currentVersion = product.commit;
 		const currentMillis = new Date().getTime();
 		const lastKnownVersion = this.storageService.get('update/lastKnownVersion', StorageScope.GLOBAL);
@@ -373,10 +390,10 @@ export class UpdateContribution implements IGlobalActivity {
 	}
 
 	private showUpdateNotification(version: string): void {
-		const releaseNotesAction = this.instantiationService.createInstance(ShowReleaseNotesAction, false, version);
+		const releaseNotesAction = this.instantiationService.createInstance(ShowReleaseNotesAction, version);
 
 		if (isLinux) {
-			const downloadAction = this.instantiationService.createInstance(DownloadAction, version);
+			const downloadAction = this.instantiationService.createInstance(DownloadAction);
 
 			this.messageService.show(severity.Info, {
 				message: nls.localize('thereIsUpdateAvailable', "There is an available update."),

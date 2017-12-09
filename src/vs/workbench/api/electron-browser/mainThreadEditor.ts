@@ -11,11 +11,12 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { EndOfLine, TextEditorLineNumbersStyle } from 'vs/workbench/api/node/extHostTypes';
-import { TextEditorCursorStyle, cursorStyleToString } from 'vs/editor/common/config/editorOptions';
+import { TextEditorCursorStyle, cursorStyleToString, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IResolvedTextEditorConfiguration, ISelectionChangeEvent, ITextEditorConfigurationUpdate, TextEditorRevealType, IApplyEditsOptions, IUndoStopOptions } from 'vs/workbench/api/node/extHost.protocol';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 function configurationsEqual(a: IResolvedTextEditorConfiguration, b: IResolvedTextEditorConfiguration) {
 	if (a && !b || !a && b) {
@@ -45,7 +46,7 @@ export class MainThreadTextEditor {
 	private _model: EditorCommon.IModel;
 	private _modelService: IModelService;
 	private _modelListeners: IDisposable[];
-	private _codeEditor: EditorCommon.ICommonCodeEditor;
+	private _codeEditor: ICodeEditor;
 	private _focusTracker: IFocusTracker;
 	private _codeEditorListeners: IDisposable[];
 
@@ -58,7 +59,7 @@ export class MainThreadTextEditor {
 	constructor(
 		id: string,
 		model: EditorCommon.IModel,
-		codeEditor: EditorCommon.ICommonCodeEditor,
+		codeEditor: ICodeEditor,
 		focusTracker: IFocusTracker,
 		modelService: IModelService
 	) {
@@ -97,15 +98,15 @@ export class MainThreadTextEditor {
 		return this._model;
 	}
 
-	public getCodeEditor(): EditorCommon.ICommonCodeEditor {
+	public getCodeEditor(): ICodeEditor {
 		return this._codeEditor;
 	}
 
-	public hasCodeEditor(codeEditor: EditorCommon.ICommonCodeEditor): boolean {
+	public hasCodeEditor(codeEditor: ICodeEditor): boolean {
 		return (this._codeEditor === codeEditor);
 	}
 
-	public setCodeEditor(codeEditor: EditorCommon.ICommonCodeEditor): void {
+	public setCodeEditor(codeEditor: ICodeEditor): void {
 		if (this.hasCodeEditor(codeEditor)) {
 			// Nothing to do...
 			return;
@@ -179,7 +180,7 @@ export class MainThreadTextEditor {
 		if (newConfiguration.tabSize === 'auto' || newConfiguration.insertSpaces === 'auto') {
 			// one of the options was set to 'auto' => detect indentation
 
-			let creationOpts = this._modelService.getCreationOptions(this._model.getLanguageIdentifier().language);
+			let creationOpts = this._modelService.getCreationOptions(this._model.getLanguageIdentifier().language, this._model.uri);
 			let insertSpaces = creationOpts.insertSpaces;
 			let tabSize = creationOpts.tabSize;
 
@@ -244,22 +245,33 @@ export class MainThreadTextEditor {
 		this._codeEditor.setDecorations(key, ranges);
 	}
 
+	public setDecorationsFast(key: string, _ranges: number[]): void {
+		if (!this._codeEditor) {
+			return;
+		}
+		let ranges: Range[] = [];
+		for (let i = 0, len = Math.floor(_ranges.length / 4); i < len; i++) {
+			ranges[i] = new Range(_ranges[4 * i], _ranges[4 * i + 1], _ranges[4 * i + 2], _ranges[4 * i + 3]);
+		}
+		this._codeEditor.setDecorationsFast(key, ranges);
+	}
+
 	public revealRange(range: IRange, revealType: TextEditorRevealType): void {
 		if (!this._codeEditor) {
 			return;
 		}
 		switch (revealType) {
 			case TextEditorRevealType.Default:
-				this._codeEditor.revealRange(range);
+				this._codeEditor.revealRange(range, EditorCommon.ScrollType.Smooth);
 				break;
 			case TextEditorRevealType.InCenter:
-				this._codeEditor.revealRangeInCenter(range);
+				this._codeEditor.revealRangeInCenter(range, EditorCommon.ScrollType.Smooth);
 				break;
 			case TextEditorRevealType.InCenterIfOutsideViewport:
-				this._codeEditor.revealRangeInCenterIfOutsideViewport(range);
+				this._codeEditor.revealRangeInCenterIfOutsideViewport(range, EditorCommon.ScrollType.Smooth);
 				break;
 			case TextEditorRevealType.AtTop:
-				this._codeEditor.revealRangeAtTop(range);
+				this._codeEditor.revealRangeAtTop(range, EditorCommon.ScrollType.Smooth);
 				break;
 			default:
 				console.warn(`Unknown revealType: ${revealType}`);
@@ -267,7 +279,7 @@ export class MainThreadTextEditor {
 		}
 	}
 
-	private _readConfiguration(model: EditorCommon.IModel, codeEditor: EditorCommon.ICommonCodeEditor): IResolvedTextEditorConfiguration {
+	private _readConfiguration(model: EditorCommon.IModel, codeEditor: ICodeEditor): IResolvedTextEditorConfiguration {
 		if (model.isDisposed()) {
 			// shutdown time
 			return this._configuration;
@@ -278,12 +290,16 @@ export class MainThreadTextEditor {
 			let codeEditorOpts = codeEditor.getConfiguration();
 			cursorStyle = codeEditorOpts.viewInfo.cursorStyle;
 
-			if (codeEditorOpts.viewInfo.renderRelativeLineNumbers) {
-				lineNumbers = TextEditorLineNumbersStyle.Relative;
-			} else if (codeEditorOpts.viewInfo.renderLineNumbers) {
-				lineNumbers = TextEditorLineNumbersStyle.On;
-			} else {
-				lineNumbers = TextEditorLineNumbersStyle.Off;
+			switch (codeEditorOpts.viewInfo.renderLineNumbers) {
+				case RenderLineNumbersType.Off:
+					lineNumbers = TextEditorLineNumbersStyle.Off;
+					break;
+				case RenderLineNumbersType.Relative:
+					lineNumbers = TextEditorLineNumbersStyle.Relative;
+					break;
+				default:
+					lineNumbers = TextEditorLineNumbersStyle.On;
+					break;
 			}
 		}
 

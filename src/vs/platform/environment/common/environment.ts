@@ -4,35 +4,39 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { LogLevel } from 'vs/platform/log/common/log';
 
 export interface ParsedArgs {
 	[arg: string]: any;
 	_: string[];
 	help?: boolean;
 	version?: boolean;
+	status?: boolean;
 	wait?: boolean;
 	waitMarkerFilePath?: string;
 	diff?: boolean;
+	add?: boolean;
 	goto?: boolean;
 	'new-window'?: boolean;
-	/**
-	 * Always open a new window, except if opening the first window or opening a file or folder as part of the launch.
-	 */
-	'unity-launch'?: boolean;
+	'unity-launch'?: boolean; // Always open a new window, except if opening the first window or opening a file or folder as part of the launch.
 	'reuse-window'?: boolean;
 	locale?: string;
 	'user-data-dir'?: string;
 	performance?: boolean;
 	'prof-startup'?: string;
+	'prof-startup-prefix'?: string;
 	verbose?: boolean;
+	log?: string;
 	logExtensionHostCommunication?: boolean;
 	'disable-extensions'?: boolean;
 	'extensions-dir'?: string;
 	extensionDevelopmentPath?: string;
 	extensionTestsPath?: string;
+	debugPluginHost?: string;
 	debugBrkPluginHost?: string;
 	debugId?: string;
-	debugPluginHost?: string;
+	debugSearch?: string;
+	debugBrkSearch?: string;
 	'list-extensions'?: boolean;
 	'show-versions'?: boolean;
 	'install-extension'?: string | string[];
@@ -40,9 +44,26 @@ export interface ParsedArgs {
 	'enable-proposed-api'?: string | string[];
 	'open-url'?: string | string[];
 	'skip-getting-started'?: boolean;
+	'skip-release-notes'?: boolean;
+	'sticky-quickopen'?: boolean;
+	'disable-telemetry'?: boolean;
+	'export-default-configuration'?: string;
+	'install-source'?: string;
+	'disable-updates'?: string;
+	'disable-crash-reporter'?: string;
+	'skip-add-to-recently-opened'?: boolean;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
+
+export interface IDebugParams {
+	port: number;
+	break: boolean;
+}
+
+export interface IExtensionHostDebugParams extends IDebugParams {
+	debugId: string;
+}
 
 export interface IEnvironmentService {
 	_serviceBrand: any;
@@ -61,6 +82,9 @@ export interface IEnvironmentService {
 	appSettingsPath: string;
 	appKeybindingsPath: string;
 
+	settingsSearchBuildId: number;
+	settingsSearchUrl: string;
+
 	backupHome: string;
 	backupWorkspacesPath: string;
 
@@ -72,21 +96,33 @@ export interface IEnvironmentService {
 	extensionDevelopmentPath: string;
 	extensionTestsPath: string;
 
-	debugExtensionHost: { port: number; break: boolean; debugId: string };
+	debugExtensionHost: IExtensionHostDebugParams;
+	debugSearch: IDebugParams;
 
 
 	logExtensionHostCommunication: boolean;
 
 	isBuilt: boolean;
-	verbose: boolean;
 	wait: boolean;
+	status: boolean;
 	performance: boolean;
-	profileStartup: { prefix: string, dir: string } | undefined;
+
+	// logging
+	logsPath: string;
+	verbose: boolean;
+	logLevel: LogLevel;
 
 	skipGettingStarted: boolean | undefined;
+	skipReleaseNotes: boolean | undefined;
+
+	skipAddToRecentlyOpened: boolean;
 
 	mainIPCHandle: string;
 	sharedIPCHandle: string;
 
 	nodeCachedDataDir: string;
+
+	installSourcePath: string;
+	disableUpdates: boolean;
+	disableCrashReporter: boolean;
 }

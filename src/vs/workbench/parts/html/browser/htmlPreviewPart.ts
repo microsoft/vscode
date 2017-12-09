@@ -84,7 +84,7 @@ export class HtmlPreviewPart extends WebviewEditor {
 				webviewOptions = this.input.options;
 			}
 
-			this._webview = new Webview(this.content, this.partService.getContainer(Parts.EDITOR_PART), this._contextViewService, this.contextKey, webviewOptions);
+			this._webview = new Webview(this.content, this.partService.getContainer(Parts.EDITOR_PART), this._contextViewService, this.contextKey, this.findInputFocusContextKey, webviewOptions);
 			if (this.input && this.input instanceof HtmlInput) {
 				const state = this.loadViewState(this.input.getResource());
 				this.scrollYPercentage = state ? state.scrollYPercentage : 0;

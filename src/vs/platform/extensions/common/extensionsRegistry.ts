@@ -11,6 +11,7 @@ import Severity from 'vs/base/common/severity';
 import { IMessage, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 const hasOwnProperty = Object.hasOwnProperty;
 const schemaRegistry = <IJSONContributionRegistry>Registry.as(Extensions.JSONContribution);
@@ -147,7 +148,7 @@ const schema: IJSONSchema = {
 			uniqueItems: true,
 			items: {
 				type: 'string',
-				enum: ['Languages', 'Snippets', 'Linters', 'Themes', 'Debuggers', 'Other', 'Keymaps', 'Formatters', 'Extension Packs', 'SCM Providers']
+				enum: ['Languages', 'Snippets', 'Linters', 'Themes', 'Debuggers', 'Other', 'Keymaps', 'Formatters', 'Extension Packs', 'SCM Providers', 'Azure']
 			}
 		},
 		galleryBanner: {
@@ -195,8 +196,18 @@ const schema: IJSONSchema = {
 					},
 					{
 						label: 'onDebug',
-						description: nls.localize('vscode.extension.activationEvents.onDebug', 'An activation event emitted whenever a debug session of the specified type is started.'),
-						body: 'onDebug:${3:type}'
+						description: nls.localize('vscode.extension.activationEvents.onDebug', 'An activation event emitted whenever a user is about to start debugging or about to setup debug configurations.'),
+						body: 'onDebug'
+					},
+					{
+						label: 'onDebugInitialConfigurations',
+						description: nls.localize('vscode.extension.activationEvents.onDebugInitialConfigurations', 'An activation event emitted whenever a "launch.json" needs to be created (and all provideDebugConfigurations methods need to be called).'),
+						body: 'onDebugInitialConfigurations'
+					},
+					{
+						label: 'onDebugResolve',
+						description: nls.localize('vscode.extension.activationEvents.onDebugResolve', 'An activation event emitted whenever a debug session with the specific type is about to be launched (and a corresponding resolveDebugConfiguration method needs to be called).'),
+						body: 'onDebugResolve:${6:type}'
 					},
 					{
 						label: 'workspaceContains',
@@ -243,7 +254,8 @@ const schema: IJSONSchema = {
 			type: 'array',
 			uniqueItems: true,
 			items: {
-				type: 'string'
+				type: 'string',
+				pattern: EXTENSION_IDENTIFIER_PATTERN
 			}
 		},
 		scripts: {

@@ -94,6 +94,7 @@ export function fork(
 
 
 	const newEnv = generatePatchedEnv(process.env, stdInPipeName, stdOutPipeName, stdErrPipeName);
+	newEnv['NODE_PATH'] = path.join(modulePath, '..', '..', '..');
 	let childProcess: cp.ChildProcess;
 
 	// Begin listening to stderr pipe

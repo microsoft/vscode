@@ -6,17 +6,22 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { MainThreadLanguagesShape } from '../node/extHost.protocol';
+import { MainThreadLanguagesShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
+import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 
-export class MainThreadLanguages extends MainThreadLanguagesShape {
+@extHostNamedCustomer(MainContext.MainThreadLanguages)
+export class MainThreadLanguages implements MainThreadLanguagesShape {
 
 	private _modeService: IModeService;
 
 	constructor(
+		extHostContext: IExtHostContext,
 		@IModeService modeService: IModeService
 	) {
-		super();
 		this._modeService = modeService;
+	}
+
+	public dispose(): void {
 	}
 
 	$getLanguages(): TPromise<string[]> {

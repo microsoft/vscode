@@ -13,7 +13,7 @@ export default class MergeConflictCodeLensProvider implements vscode.CodeLensPro
 	private config: interfaces.IExtensionConfiguration;
 	private tracker: interfaces.IDocumentMergeConflictTracker;
 
-	constructor(private context: vscode.ExtensionContext, trackerService: interfaces.IDocumentMergeConflictTrackerService) {
+	constructor(trackerService: interfaces.IDocumentMergeConflictTrackerService) {
 		this.tracker = trackerService.createTracker('codelens');
 	}
 
@@ -46,7 +46,7 @@ export default class MergeConflictCodeLensProvider implements vscode.CodeLensPro
 		}
 	}
 
-	async provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.CodeLens[] | null> {
+	async provideCodeLenses(document: vscode.TextDocument, _token: vscode.CancellationToken): Promise<vscode.CodeLens[] | null> {
 
 		if (!this.config || !this.config.enableCodeLens) {
 			return null;
@@ -97,6 +97,9 @@ export default class MergeConflictCodeLensProvider implements vscode.CodeLensPro
 	}
 
 	private registerCodeLensProvider() {
-		this.codeLensRegistrationHandle = vscode.languages.registerCodeLensProvider({ pattern: '**/*' }, this);
+		this.codeLensRegistrationHandle = vscode.languages.registerCodeLensProvider([
+			{ scheme: 'file' },
+			{ scheme: 'untitled' },
+		], this);
 	}
 }

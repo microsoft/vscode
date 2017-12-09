@@ -5,8 +5,6 @@
 
 'use strict';
 
-import streams = require('stream');
-
 import mime = require('vs/base/common/mime');
 import { TPromise } from 'vs/base/common/winjs.base';
 
@@ -56,7 +54,7 @@ const ZERO_BYTE_DETECTION_BUFFER_MAX_LEN = 512; // number of bytes to look at to
 const NO_GUESS_BUFFER_MAX_LEN = 512; 		// when not auto guessing the encoding, small number of bytes are enough
 const AUTO_GUESS_BUFFER_MAX_LEN = 512 * 8; // with auto guessing we want a lot more content to be read for guessing
 
-function maxBufferLen(arg1?: DetectMimesOption | boolean): number {
+export function maxBufferLen(arg1?: DetectMimesOption | boolean): number {
 	let autoGuessEncoding: boolean;
 	if (typeof arg1 === 'boolean') {
 		autoGuessEncoding = arg1;
@@ -74,18 +72,6 @@ export interface IMimeAndEncoding {
 
 export interface DetectMimesOption {
 	autoGuessEncoding?: boolean;
-}
-
-function doDetectMimesFromStream(instream: streams.Readable, option?: DetectMimesOption): TPromise<IMimeAndEncoding> {
-	return stream.readExactlyByStream(instream, maxBufferLen(option)).then((readResult: stream.ReadResult) => {
-		return detectMimeAndEncodingFromBuffer(readResult, option && option.autoGuessEncoding);
-	});
-}
-
-function doDetectMimesFromFile(absolutePath: string, option?: DetectMimesOption): TPromise<IMimeAndEncoding> {
-	return stream.readExactlyByFile(absolutePath, maxBufferLen(option)).then((readResult: stream.ReadResult) => {
-		return detectMimeAndEncodingFromBuffer(readResult, option && option.autoGuessEncoding);
-	});
 }
 
 export function detectMimeAndEncodingFromBuffer(readResult: stream.ReadResult, autoGuessEncoding?: false): IMimeAndEncoding;
@@ -117,57 +103,4 @@ export function detectMimeAndEncodingFromBuffer({ buffer, bytesRead }: stream.Re
 		mimes: isText ? [mime.MIME_TEXT] : [mime.MIME_BINARY],
 		encoding: enc
 	};
-}
-
-function filterAndSortMimes(detectedMimes: string[], guessedMimes: string[]): string[] {
-	const mimes = detectedMimes;
-
-	// Add extension based mime as first element as this is the desire of whoever created the file.
-	// Never care about application/octet-stream or application/unknown as guessed mime, as this is the fallback of the guess which is never accurate
-	const guessedMime = guessedMimes[0];
-	if (guessedMime !== mime.MIME_BINARY && guessedMime !== mime.MIME_UNKNOWN) {
-		mimes.unshift(guessedMime);
-	}
-
-	// Remove duplicate elements from array and sort unspecific mime to the end
-	const uniqueSortedMimes = mimes.filter((element, position) => {
-		return element && mimes.indexOf(element) === position;
-	}).sort((mimeA, mimeB) => {
-		if (mimeA === mime.MIME_BINARY) { return 1; }
-		if (mimeB === mime.MIME_BINARY) { return -1; }
-		if (mimeA === mime.MIME_TEXT) { return 1; }
-		if (mimeB === mime.MIME_TEXT) { return -1; }
-
-		return 0;
-	});
-
-	return uniqueSortedMimes;
-}
-
-/**
- * Opens the given stream to detect its mime type. Returns an array of mime types sorted from most specific to unspecific.
- * @param instream the readable stream to detect the mime types from.
- * @param nameHint an additional hint that can be used to detect a mime from a file extension.
- */
-export function detectMimesFromStream(instream: streams.Readable, nameHint: string, option?: DetectMimesOption): TPromise<IMimeAndEncoding> {
-	return doDetectMimesFromStream(instream, option).then(encoding =>
-		handleMimeResult(nameHint, encoding)
-	);
-}
-
-/**
- * Opens the given file to detect its mime type. Returns an array of mime types sorted from most specific to unspecific.
- * @param absolutePath the absolute path of the file.
- */
-export function detectMimesFromFile(absolutePath: string, option?: DetectMimesOption): TPromise<IMimeAndEncoding> {
-	return doDetectMimesFromFile(absolutePath, option).then(encoding =>
-		handleMimeResult(absolutePath, encoding)
-	);
-}
-
-function handleMimeResult(nameHint: string, result: IMimeAndEncoding): IMimeAndEncoding {
-	const filterAndSortedMimes = filterAndSortMimes(result.mimes, mime.guessMimeTypes(nameHint));
-	result.mimes = filterAndSortedMimes;
-
-	return result;
 }

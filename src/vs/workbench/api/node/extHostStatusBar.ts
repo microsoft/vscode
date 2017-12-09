@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { StatusBarAlignment as ExtHostStatusBarAlignment, Disposable, ThemeColor } from './extHostTypes';
 import { StatusBarItem, StatusBarAlignment } from 'vscode';
-import { MainContext, MainThreadStatusBarShape } from './extHost.protocol';
+import { MainContext, MainThreadStatusBarShape, IMainContext } from './extHost.protocol';
 
 export class ExtHostStatusBarEntry implements StatusBarItem {
 	private static ID_GEN = 0;
@@ -163,8 +162,8 @@ export class ExtHostStatusBar {
 	private _proxy: MainThreadStatusBarShape;
 	private _statusMessage: StatusBarMessage;
 
-	constructor(threadService: IThreadService) {
-		this._proxy = threadService.get(MainContext.MainThreadStatusBar);
+	constructor(mainContext: IMainContext) {
+		this._proxy = mainContext.get(MainContext.MainThreadStatusBar);
 		this._statusMessage = new StatusBarMessage(this);
 	}
 

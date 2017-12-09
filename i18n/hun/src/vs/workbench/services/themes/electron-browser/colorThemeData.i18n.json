@@ -6,7 +6,7 @@
 {
 	"error.cannotparsejson": "Hiba a JSON témafájl feldolgozása közben: {0}",
 	"error.invalidformat.colors": "Hiba a színtémafájl feldolgozása közben: {0}. A 'colors' értéke nem 'object' típusú.",
-	"error.invalidformat.tokenColors": "Hiba a színtémafájl feldolgozása közben: {0}. A 'tokenColors' tulajdonság vagy egy színeket tartalmazó tömb legyen vagy egy TextMate témafájl elérési útja",
+	"error.invalidformat.tokenColors": "Hiba a színtémafájl feldolgozása közben: {0}. A 'tokenColors' tulajdonság vagy egy színeket tartalmazó tömb legyen vagy egy TextMate témafájl elérési útja.",
 	"error.plist.invalidformat": "Hiba a tmTheme-fájl feldolgozása közben: {0}. A 'settings' nem egy tömb.",
 	"error.cannotparse": "Hiba a tmTheme-fájl feldolgozása közben: {0}",
 	"error.cannotload": "Hiba a(z) {0} tmTheme fájl betöltése közben: {1}"

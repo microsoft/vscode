@@ -8,5 +8,5 @@
 	"replVariableAriaLabel": "{0} değişkeni, {1} değerine sahip, oku değerlendir yaz döngüsü, hata ayıklama",
 	"replExpressionAriaLabel": "{0} ifadesi, {1} değerine sahip, oku değerlendir yaz döngüsü, hata ayıklama",
 	"replValueOutputAriaLabel": "{0}, oku değerlendir yaz döngüsü, hata ayıklama",
-	"replKeyValueOutputAriaLabel": "{0} çıktı değişkeni, {1} değerine sahip, oku değerlendir yaz döngüsü, hata ayıklama"
+	"replRawObjectAriaLabel": "{0} repl değişkeni, {1} değerine sahip, oku değerlendir yaz döngüsü, hata ayıklama"
 }

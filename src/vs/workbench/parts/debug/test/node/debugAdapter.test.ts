@@ -44,7 +44,7 @@ suite('Debug - Adapter', () => {
 
 	setup(() => {
 		adapter = new Adapter(rawAdapter, { extensionFolderPath, id: 'adapter', name: 'myAdapter', version: '1.0.0', publisher: 'vscode', isBuiltin: false, engines: null },
-			null, new TestConfigurationService(), null);
+			new TestConfigurationService(), null);
 	});
 
 	teardown(() => {
@@ -110,18 +110,23 @@ suite('Debug - Adapter', () => {
 	});
 
 	test('initial config file content', () => {
-		adapter.getInitialConfigurationContent(null).then(content => {
-			const expected = ['{',
-				'	"version": "0.2.0",',
-				'	"configurations": [',
-				'		{',
-				'			"name": "Mock-Debug",',
-				'			"type": "mock",',
-				'			"request": "launch",',
-				'			"program": "readme.md"',
-				'		}',
-				'	]',
-				'}'].join('\n');
+
+		const expected = ['{',
+			'	// Use IntelliSense to learn about possible attributes.',
+			'	// Hover to view descriptions of existing attributes.',
+			'	// For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387',
+			'	"version": "0.2.0",',
+			'	"configurations": [',
+			'		{',
+			'			"name": "Mock-Debug",',
+			'			"type": "mock",',
+			'			"request": "launch",',
+			'			"program": "readme.md"',
+			'		}',
+			'	]',
+			'}'].join('\n');
+
+		return adapter.getInitialConfigurationContent().then(content => {
 			assert.equal(content, expected);
 		}, err => assert.fail());
 	});

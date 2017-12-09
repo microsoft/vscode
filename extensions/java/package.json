@@ -17,6 +17,10 @@
 			"language": "java",
 			"scopeName": "source.java",
 			"path": "./syntaxes/java.tmLanguage.json"
+		}],
+		"snippets": [{
+			"language": "java",
+			"path": "./snippets/java.snippets.json"
 		}]
 	}
 }

@@ -8,5 +8,6 @@
 	"workbench.startupEditor.none": "Avvia senza un editor.",
 	"workbench.startupEditor.welcomePage": "Apre la pagina di benvenuto (impostazione predefinita).",
 	"workbench.startupEditor.newUntitledFile": "Apre un nuovo file senza nome.",
+	"workbench.startupEditor": "Controlla quale editor viene visualizzato all'avvio, se non ne è stato ripristinato nessuno dalla versione precedente. Selezionare 'none' per avviare senza un editor, 'welcomePage' per aprire la pagina di benvenuto (impostazione predefinita), 'newUntitledFile' per aprire un nuovo file senza nome (solo quando si apre uno spazio di lavoro vuoto).",
 	"help": "Guida"
 }

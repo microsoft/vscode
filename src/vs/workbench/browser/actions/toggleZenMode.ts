@@ -9,13 +9,13 @@ import { Action } from 'vs/base/common/actions';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
-import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
+import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 
 class ToggleZenMode extends Action {
 
-	public static ID = 'workbench.action.toggleZenMode';
-	public static LABEL = nls.localize('toggleZenMode', "Toggle Zen Mode");
+	public static readonly ID = 'workbench.action.toggleZenMode';
+	public static readonly LABEL = nls.localize('toggleZenMode', "Toggle Zen Mode");
 
 	constructor(
 		id: string,

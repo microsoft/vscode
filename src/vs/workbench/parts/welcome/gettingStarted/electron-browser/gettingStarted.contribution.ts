@@ -7,7 +7,8 @@
 import { Registry } from 'vs/platform/registry/common/platform';
 import { GettingStarted } from './gettingStarted';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 Registry
 	.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(GettingStarted);
+	.registerWorkbenchContribution(GettingStarted, LifecyclePhase.Running);

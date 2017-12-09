@@ -15,7 +15,8 @@ import * as modes from 'vs/editor/common/modes';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { Position as EditorPosition, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { CustomCodeAction } from 'vs/workbench/api/node/extHostLanguageFeatures';
 
 export class ExtHostApiCommands {
 
@@ -195,30 +196,12 @@ export class ExtHostApiCommands {
 				]
 			});
 
-		this._register('vscode.startDebug', (configuration?: any, folderUri?: URI) => {
-			return this._commands.executeCommand('_workbench.startDebug', configuration, folderUri);
-		}, {
-				description: 'Start a debugging session.',
-				args: [
-					{ name: 'configuration', description: '(optional) Name of the debug configuration from \'launch.json\' to use. Or a configuration json object to use.' }
-				]
-			});
-
 		this._register('vscode.diff', (left: URI, right: URI, label: string, options?: vscode.TextDocumentShowOptions) => {
-			let editorOptions: ITextEditorOptions;
-			if (options) {
-				editorOptions = {
-					pinned: typeof options.preview === 'boolean' ? !options.preview : undefined,
-					preserveFocus: options.preserveFocus,
-					selection: typeof options.selection === 'object' ? typeConverters.fromRange(options.selection) : undefined
-				};
-			}
-
 			return this._commands.executeCommand('_workbench.diff', [
 				left, right,
 				label,
 				undefined,
-				editorOptions,
+				typeConverters.toTextEditorOptions(options),
 				options ? typeConverters.fromViewColumn(options.viewColumn) : undefined
 			]);
 		}, {
@@ -231,13 +214,29 @@ export class ExtHostApiCommands {
 				]
 			});
 
-		this._register('vscode.open', (resource: URI, column: vscode.ViewColumn) => {
-			return this._commands.executeCommand('_workbench.open', [resource, typeConverters.fromViewColumn(column)]);
+		this._register('vscode.open', (resource: URI, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions) => {
+			let options: ITextEditorOptions;
+			let column: EditorPosition;
+
+			if (columnOrOptions) {
+				if (typeof columnOrOptions === 'number') {
+					column = typeConverters.fromViewColumn(columnOrOptions);
+				} else {
+					options = typeConverters.toTextEditorOptions(columnOrOptions);
+					column = typeConverters.fromViewColumn(columnOrOptions.viewColumn);
+				}
+			}
+
+			return this._commands.executeCommand('_workbench.open', [
+				resource,
+				options,
+				column
+			]);
 		}, {
 				description: 'Opens the provided resource in the editor. Can be a text or binary file, or a http(s) url. If you need more control over the options for opening a text file, use vscode.window.showTextDocument instead.',
 				args: [
 					{ name: 'resource', description: 'Resource to open', constraint: URI },
-					{ name: 'column', description: '(optional) Column in which to open', constraint: v => v === void 0 || typeof v === 'number' }
+					{ name: 'columnOrOptions', description: '(optional) Either the column in which to open or editor options, see vscode.TextDocumentShowOptions', constraint: v => v === void 0 || typeof v === 'number' || typeof v === 'object' }
 				]
 			});
 	}
@@ -394,16 +393,26 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeCodeActionProvider(resource: URI, range: types.Range): Thenable<vscode.Command[]> {
+	private _executeCodeActionProvider(resource: URI, range: types.Range): Thenable<(vscode.CodeAction | vscode.Command)[]> {
 		const args = {
 			resource,
 			range: typeConverters.fromRange(range)
 		};
-		return this._commands.executeCommand<modes.Command[]>('_executeCodeActionProvider', args).then(value => {
+		return this._commands.executeCommand<CustomCodeAction[]>('_executeCodeActionProvider', args).then(value => {
 			if (!Array.isArray(value)) {
 				return undefined;
 			}
-			return value.map(quickFix => this._commands.converter.fromInternal(quickFix));
+			return value.map(codeAction => {
+				if (codeAction._isSynthetic) {
+					return this._commands.converter.fromInternal(codeAction.command);
+				} else {
+					const ret = new types.CodeAction(
+						codeAction.title,
+						typeConverters.WorkspaceEdit.to(codeAction.edits)
+					);
+					return ret;
+				}
+			});
 		});
 	}
 

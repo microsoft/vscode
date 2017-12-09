@@ -172,11 +172,12 @@ export interface ITextFileEditorModelManager {
 	disposeModel(model: ITextFileEditorModel): void;
 }
 
-export interface IModelSaveOptions {
+export interface ISaveOptions {
 	force?: boolean;
 	reason?: SaveReason;
 	overwriteReadonly?: boolean;
 	overwriteEncoding?: boolean;
+	skipSaveParticipants?: boolean;
 }
 
 export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport {
@@ -194,7 +195,7 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	updatePreferredEncoding(encoding: string): void;
 
-	save(options?: IModelSaveOptions): TPromise<void>;
+	save(options?: ISaveOptions): TPromise<void>;
 
 	load(): TPromise<ITextFileEditorModel>;
 
@@ -207,15 +208,6 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 	isResolved(): boolean;
 
 	isDisposed(): boolean;
-}
-
-export interface ISaveOptions {
-
-	/**
-	 * Save the file on disk even if not dirty. If the file is not dirty, it will be touched
-	 * so that mtime and atime are updated. This helps to trigger external file watchers.
-	 */
-	force: boolean;
 }
 
 export interface IRevertOptions {
@@ -266,7 +258,7 @@ export interface ITextFileService extends IDisposable {
 	 * Saves the resource.
 	 *
 	 * @param resource the resource to save
-	 * @return true iff the resource was saved.
+	 * @return true if the resource was saved.
 	 */
 	save(resource: URI, options?: ISaveOptions): TPromise<boolean>;
 
@@ -274,7 +266,7 @@ export interface ITextFileService extends IDisposable {
 	 * Saves the provided resource asking the user for a file name.
 	 *
 	 * @param resource the resource to save as.
-	 * @return true iff the file was saved.
+	 * @return true if the file was saved.
 	 */
 	saveAs(resource: URI, targetResource?: URI): TPromise<URI>;
 
@@ -284,8 +276,8 @@ export interface ITextFileService extends IDisposable {
 	 * @param resources can be null to save all.
 	 * @param includeUntitled to save all resources and optionally exclude untitled ones.
 	 */
-	saveAll(includeUntitled?: boolean, reason?: SaveReason): TPromise<ITextFileOperationResult>;
-	saveAll(resources: URI[], reason?: SaveReason): TPromise<ITextFileOperationResult>;
+	saveAll(includeUntitled?: boolean, options?: ISaveOptions): TPromise<ITextFileOperationResult>;
+	saveAll(resources: URI[], options?: ISaveOptions): TPromise<ITextFileOperationResult>;
 
 	/**
 	 * Reverts the provided resource.

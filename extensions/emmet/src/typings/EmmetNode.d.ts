@@ -35,7 +35,7 @@ declare module 'EmmetNode' {
     }
 
     export interface Attribute extends Token {
-        name: string
+        name: Token
         value: Token
     }
 

@@ -6,5 +6,7 @@
 {
 	"newWindow": "새 창",
 	"newWindowDesc": "새 창을 엽니다.",
-	"folderDesc": "{0} {1}"
+	"recentFolders": "최근 작업 영역",
+	"folderDesc": "{0} {1}",
+	"codeWorkspace": "코드 작업 영역"
 }

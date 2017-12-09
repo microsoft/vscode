@@ -5,10 +5,10 @@
 
 'use strict';
 
-import 'vs/workbench/parts/search/browser/search.contribution'; // load contributions
+import 'vs/workbench/parts/search/electron-browser/search.contribution'; // load contributions
 import * as assert from 'assert';
 import * as fs from 'fs';
-import { IWorkspaceContextService, LegacyWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ISearchService, IQueryOptions } from 'vs/platform/search/common/search';
@@ -33,6 +33,7 @@ import { SearchModel } from 'vs/workbench/parts/search/common/searchModel';
 import { QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
 
 import Event, * as event from 'vs/base/common/event';
+import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 declare var __dirname: string;
 
@@ -40,7 +41,7 @@ declare var __dirname: string;
 // git clone --separate-git-dir=testGit --no-checkout --single-branch https://chromium.googlesource.com/chromium/src testWorkspace
 // cd testWorkspace; git checkout 39a7f93d67f7
 // Run from repository root folder with (test.bat on Windows): ./scripts/test-int-mocha.sh --grep TextSearch.performance --timeout 500000 --testWorkspace <path>
-suite('TextSearch performance (integration)', () => {
+suite.skip('TextSearch performance (integration)', () => {
 
 	test('Measure', () => {
 		if (process.env['VSCODE_PID']) {
@@ -61,7 +62,7 @@ suite('TextSearch performance (integration)', () => {
 			[ITelemetryService, telemetryService],
 			[IConfigurationService, configurationService],
 			[IModelService, new ModelServiceImpl(null, configurationService)],
-			[IWorkspaceContextService, new TestContextService(new LegacyWorkspace(URI.file(testWorkspacePath)))],
+			[IWorkspaceContextService, new TestContextService(testWorkspace(URI.file(testWorkspacePath)))],
 			[IWorkbenchEditorService, new TestEditorService()],
 			[IEditorGroupService, new TestEditorGroupService()],
 			[IEnvironmentService, TestEnvironmentService],
@@ -155,14 +156,14 @@ class TestTelemetryService implements ITelemetryService {
 		const event = { name: eventName, data: data };
 		this.events.push(event);
 		this.emitter.fire(event);
-		return TPromise.as<void>(null);
+		return TPromise.wrap<void>(null);
 	}
 
 	public getTelemetryInfo(): TPromise<ITelemetryInfo> {
-		return TPromise.as({
+		return TPromise.wrap({
 			instanceId: 'someValue.instanceId',
 			sessionId: 'someValue.sessionId',
 			machineId: 'someValue.machineId'
 		});
 	}
-};
+}

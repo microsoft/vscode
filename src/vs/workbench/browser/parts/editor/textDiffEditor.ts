@@ -22,26 +22,25 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
-import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IWorkbenchEditorService, DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorInput } from 'vs/platform/editor/common/editor';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
  */
 export class TextDiffEditor extends BaseTextEditor {
 
-	public static ID = TEXT_DIFF_EDITOR_ID;
+	public static readonly ID = TEXT_DIFF_EDITOR_ID;
 
 	private diffNavigator: DiffNavigator;
 	private nextDiffAction: NavigateAction;
@@ -55,10 +54,9 @@ export class TextDiffEditor extends BaseTextEditor {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@IModeService modeService: IModeService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, modeService, textFileService, editorGroupService);
+		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorGroupService);
 	}
 
 	public getTitle(): string {
@@ -93,7 +91,7 @@ export class TextDiffEditor extends BaseTextEditor {
 					else if (input.matches(activeDiffInput.originalInput)) {
 						const originalEditor = this.getControl().getOriginalEditor();
 						if (options instanceof TextEditorOptions) {
-							(<TextEditorOptions>options).apply(originalEditor);
+							(<TextEditorOptions>options).apply(originalEditor, ScrollType.Smooth);
 
 							return TPromise.as(this);
 						}
@@ -111,22 +109,18 @@ export class TextDiffEditor extends BaseTextEditor {
 	}
 
 	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
-		const oldInput = this.input;
-		super.setInput(input, options);
 
-		// Detect options
+		// Return early for same input unless we force to open
 		const forceOpen = options && options.forceOpen;
+		if (!forceOpen && input.matches(this.input)) {
 
-		// Same Input
-		if (!forceOpen && input.matches(oldInput)) {
-
-			// TextOptions (avoiding instanceof here for a reason, do not change!)
+			// Still apply options if any (avoiding instanceof here for a reason, do not change!)
 			const textOptions = <TextEditorOptions>options;
 			if (textOptions && types.isFunction(textOptions.apply)) {
-				textOptions.apply(<IDiffEditor>this.getControl());
+				textOptions.apply(<IDiffEditor>this.getControl(), ScrollType.Smooth);
 			}
 
-			return TPromise.as<void>(null);
+			return TPromise.wrap<void>(null);
 		}
 
 		// Dispose previous diff navigator
@@ -134,49 +128,51 @@ export class TextDiffEditor extends BaseTextEditor {
 			this.diffNavigator.dispose();
 		}
 
-		// Different Input (Reload)
-		return input.resolve(true).then(resolvedModel => {
+		// Set input and resolve
+		return super.setInput(input, options).then(() => {
+			return input.resolve(true).then(resolvedModel => {
 
-			// Assert Model Instance
-			if (!(resolvedModel instanceof TextDiffEditorModel) && this.openAsBinary(input, options)) {
-				return null;
-			}
-
-			// Assert that the current input is still the one we expect. This prevents a race condition when loading a diff takes long and another input was set meanwhile
-			if (!this.input || this.input !== input) {
-				return null;
-			}
-
-			// Editor
-			const diffEditor = <IDiffEditor>this.getControl();
-			diffEditor.setModel((<TextDiffEditorModel>resolvedModel).textDiffEditorModel);
-
-			// Handle TextOptions
-			let alwaysRevealFirst = true;
-			if (options && types.isFunction((<TextEditorOptions>options).apply)) {
-				const hadOptions = (<TextEditorOptions>options).apply(<IDiffEditor>diffEditor);
-				if (hadOptions) {
-					alwaysRevealFirst = false; // Do not reveal if we are instructed to open specific line/col
+				// Assert Model Instance
+				if (!(resolvedModel instanceof TextDiffEditorModel) && this.openAsBinary(input, options)) {
+					return null;
 				}
-			}
 
-			// Listen on diff updated changes to reveal the first change
-			this.diffNavigator = new DiffNavigator(diffEditor, {
-				alwaysRevealFirst
+				// Assert that the current input is still the one we expect. This prevents a race condition when loading a diff takes long and another input was set meanwhile
+				if (!this.input || this.input !== input) {
+					return null;
+				}
+
+				// Editor
+				const diffEditor = <IDiffEditor>this.getControl();
+				diffEditor.setModel((<TextDiffEditorModel>resolvedModel).textDiffEditorModel);
+
+				// Handle TextOptions
+				let alwaysRevealFirst = true;
+				if (options && types.isFunction((<TextEditorOptions>options).apply)) {
+					const hadOptions = (<TextEditorOptions>options).apply(<IDiffEditor>diffEditor, ScrollType.Immediate);
+					if (hadOptions) {
+						alwaysRevealFirst = false; // Do not reveal if we are instructed to open specific line/col
+					}
+				}
+
+				// Listen on diff updated changes to reveal the first change
+				this.diffNavigator = new DiffNavigator(diffEditor, {
+					alwaysRevealFirst
+				});
+				this.diffNavigator.onDidUpdate(() => {
+					this.nextDiffAction.updateEnablement();
+					this.previousDiffAction.updateEnablement();
+				});
+			}, error => {
+
+				// In case we tried to open a file and the response indicates that this is not a text file, fallback to binary diff.
+				if (this.isFileBinaryError(error) && this.openAsBinary(input, options)) {
+					return null;
+				}
+
+				// Otherwise make sure the error bubbles up
+				return TPromise.wrapError(error);
 			});
-			this.diffNavigator.addListener(DiffNavigator.Events.UPDATED, () => {
-				this.nextDiffAction.updateEnablement();
-				this.previousDiffAction.updateEnablement();
-			});
-		}, error => {
-
-			// In case we tried to open a file and the response indicates that this is not a text file, fallback to binary diff.
-			if (this.isFileBinaryError(error) && this.openAsBinary(input, options)) {
-				return null;
-			}
-
-			// Otherwise make sure the error bubbles up
-			return TPromise.wrapError(error);
 		});
 	}
 
@@ -345,9 +341,9 @@ class NavigateAction extends Action {
 }
 
 class ToggleEditorModeAction extends Action {
-	private static ID = 'toggle.diff.editorMode';
-	private static INLINE_LABEL = nls.localize('inlineDiffLabel', "Switch to Inline View");
-	private static SIDEBYSIDE_LABEL = nls.localize('sideBySideDiffLabel', "Switch to Side by Side View");
+	private static readonly ID = 'toggle.diff.editorMode';
+	private static readonly INLINE_LABEL = nls.localize('inlineDiffLabel', "Switch to Inline View");
+	private static readonly SIDEBYSIDE_LABEL = nls.localize('sideBySideDiffLabel', "Switch to Side by Side View");
 
 	constructor(private editor: TextDiffEditor) {
 		super(ToggleEditorModeAction.ID);

@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { ColorId, MetadataConsts, FontStyle, TokenizationRegistry, ITokenizationSupport } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { renderViewLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
+import { renderViewLine2 as renderViewLine, RenderLineInput } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import * as strings from 'vs/base/common/strings';

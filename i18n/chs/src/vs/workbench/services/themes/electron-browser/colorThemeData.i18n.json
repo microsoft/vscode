@@ -6,7 +6,7 @@
 {
 	"error.cannotparsejson": "分析 JSON 主题文件 {0} 时出现问题",
 	"error.invalidformat.colors": "分析颜色主题文件时出现问题：{0}。属性“colors”不是“object”类型。",
-	"error.invalidformat.tokenColors": "分析颜色主题文件时出现问题：{0}。属性“tokenColors”应为指定颜色的数组或是指向 TextMate 主题文件的路径",
+	"error.invalidformat.tokenColors": "分析颜色主题文件时出现问题：{0}。属性 \"tokenColors\" 应为指定颜色的数组或是指向 TextMate 主题文件的路径",
 	"error.plist.invalidformat": "分析 tmTheme 文件时出现问题：{0}。“settings”不是数组。",
 	"error.cannotparse": "分析 tmTheme 文件时出现问题：{0}",
 	"error.cannotload": "分析 tmTheme 文件 {0} 时出现问题：{1}"

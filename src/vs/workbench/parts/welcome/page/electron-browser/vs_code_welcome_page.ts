@@ -15,7 +15,7 @@ export default () => `
 	<div class="welcomePage">
 		<div class="title">
 			<h1 class="caption">${escape(localize('welcomePage.vscode', "Visual Studio Code"))}</h1>
-			<p class="subtitle detail">${escape(localize('welcomePage.editingEvolved', "Editing evolved"))}</p>
+			<p class="subtitle detail">${escape(localize({ key: 'welcomePage.editingEvolved', comment: ['Shown as subtitle on the Welcome page.'] }, "Editing evolved"))}</p>
 		</div>
 		<div class="row">
 			<div class="splash">
@@ -25,7 +25,7 @@ export default () => `
 						<li><a href="command:workbench.action.files.newUntitledFile">${escape(localize('welcomePage.newFile', "New file"))}</a></li>
 						<li class="mac-only"><a href="command:workbench.action.files.openFileFolder">${escape(localize('welcomePage.openFolder', "Open folder..."))}</a></li>
 						<li class="windows-only linux-only"><a href="command:workbench.action.files.openFolder">${escape(localize('welcomePage.openFolder', "Open folder..."))}</a></li>
-						<li><a href="command:git.clone">${escape(localize('welcomePage.cloneGitRepository', "Clone Git repository..."))}</a></li>
+						<li><a href="command:workbench.action.addRootFolder">${escape(localize('welcomePage.addWorkspaceFolder', "Add workspace folder..."))}</a></li>
 					</ul>
 				</div>
 				<div class="section recent">

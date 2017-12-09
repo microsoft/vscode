@@ -15,7 +15,7 @@ import { Parts, IPartService } from 'vs/workbench/services/part/common/partServi
 import { TPromise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actionRegistry';
+import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -99,8 +99,8 @@ let welcomeOverlay: WelcomeOverlay;
 
 export class WelcomeOverlayAction extends Action {
 
-	public static ID = 'workbench.action.showInterfaceOverview';
-	public static LABEL = localize('welcomeOverlay', "User Interface Overview");
+	public static readonly ID = 'workbench.action.showInterfaceOverview';
+	public static readonly LABEL = localize('welcomeOverlay', "User Interface Overview");
 
 	constructor(
 		id: string,
@@ -121,8 +121,8 @@ export class WelcomeOverlayAction extends Action {
 
 export class HideWelcomeOverlayAction extends Action {
 
-	public static ID = 'workbench.action.hideInterfaceOverview';
-	public static LABEL = localize('hideWelcomeOverlay', "Hide Interface Overview");
+	public static readonly ID = 'workbench.action.hideInterfaceOverview';
+	public static readonly LABEL = localize('hideWelcomeOverlay', "Hide Interface Overview");
 
 	constructor(
 		id: string,

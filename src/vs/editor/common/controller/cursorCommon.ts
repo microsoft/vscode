@@ -7,7 +7,7 @@
 import { Position } from 'vs/editor/common/core/position';
 import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
-import { ICommand, TextModelResolvedOptions, IConfiguration, IModel } from 'vs/editor/common/editorCommon';
+import { ICommand, TextModelResolvedOptions, IConfiguration, IModel, ScrollType } from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { Selection, ISelection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
@@ -31,6 +31,17 @@ export const enum RevealTarget {
 	BottomMost = 2
 }
 
+/**
+ * This is an operation type that will be recorded for undo/redo purposes.
+ * The goal is to introduce an undo stop when the controller switches between different operation types.
+ */
+export const enum EditOperationType {
+	Other = 0,
+	Typing = 1,
+	DeletingLeft = 2,
+	DeletingRight = 3
+}
+
 export interface ICursors {
 	readonly context: CursorContext;
 	getPrimaryCursor(): CursorState;
@@ -41,10 +52,13 @@ export interface ICursors {
 	setColumnSelectData(columnSelectData: IColumnSelectData): void;
 
 	setStates(source: string, reason: CursorChangeReason, states: CursorState[]): void;
-	reveal(horizontal: boolean, target: RevealTarget): void;
-	revealRange(revealHorizontal: boolean, viewRange: Range, verticalType: VerticalRevealType): void;
+	reveal(horizontal: boolean, target: RevealTarget, scrollType: ScrollType): void;
+	revealRange(revealHorizontal: boolean, viewRange: Range, verticalType: VerticalRevealType, scrollType: ScrollType): void;
 
 	scrollTo(desiredScrollTop: number): void;
+
+	getPrevEditOperationType(): EditOperationType;
+	setPrevEditOperationType(type: EditOperationType): void;
 }
 
 export interface CharacterMap {
@@ -68,7 +82,9 @@ export class CursorConfiguration {
 	public readonly autoClosingPairsOpen: CharacterMap;
 	public readonly autoClosingPairsClose: CharacterMap;
 	public readonly surroundingPairs: CharacterMap;
-	public readonly electricChars: { [key: string]: boolean; };
+
+	private readonly _languageIdentifier: LanguageIdentifier;
+	private _electricChars: { [key: string]: boolean; };
 
 	public static shouldRecreate(e: IConfigurationChangedEvent): boolean {
 		return (
@@ -88,6 +104,8 @@ export class CursorConfiguration {
 		modelOptions: TextModelResolvedOptions,
 		configuration: IConfiguration
 	) {
+		this._languageIdentifier = languageIdentifier;
+
 		let c = configuration.editor;
 
 		this.readOnly = c.readOnly;
@@ -105,14 +123,7 @@ export class CursorConfiguration {
 		this.autoClosingPairsOpen = {};
 		this.autoClosingPairsClose = {};
 		this.surroundingPairs = {};
-		this.electricChars = {};
-
-		let electricChars = CursorConfiguration._getElectricCharacters(languageIdentifier);
-		if (electricChars) {
-			for (let i = 0; i < electricChars.length; i++) {
-				this.electricChars[electricChars[i]] = true;
-			}
-		}
+		this._electricChars = null;
 
 		let autoClosingPairs = CursorConfiguration._getAutoClosingPairs(languageIdentifier);
 		if (autoClosingPairs) {
@@ -128,6 +139,19 @@ export class CursorConfiguration {
 				this.surroundingPairs[surroundingPairs[i].open] = surroundingPairs[i].close;
 			}
 		}
+	}
+
+	public get electricChars() {
+		if (!this._electricChars) {
+			this._electricChars = {};
+			let electricChars = CursorConfiguration._getElectricCharacters(this._languageIdentifier);
+			if (electricChars) {
+				for (let i = 0; i < electricChars.length; i++) {
+					this._electricChars[electricChars[i]] = true;
+				}
+			}
+		}
+		return this._electricChars;
 	}
 
 	public normalizeIndentation(str: string): string {
@@ -304,8 +328,8 @@ export class CursorContext {
 		return this.viewModel.coordinatesConverter.convertModelRangeToViewRange(modelRange);
 	}
 
-	public getScrollTop(): number {
-		return this.viewModel.viewLayout.getScrollTop();
+	public getCurrentScrollTop(): number {
+		return this.viewModel.viewLayout.getCurrentScrollTop();
 	}
 
 	public getCompletelyVisibleViewRange(): Range {
@@ -319,11 +343,6 @@ export class CursorContext {
 
 	public getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range {
 		return this.viewModel.getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
-	}
-
-	public getCompletelyVisibleModelRangeAtScrollTop(scrollTop: number): Range {
-		const viewRange = this.viewModel.getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
-		return this.viewModel.coordinatesConverter.convertViewRangeToModelRange(viewRange);
 	}
 
 	public getVerticalOffsetForViewLine(viewLineNumber: number): number {
@@ -415,24 +434,27 @@ export class CursorState {
 	}
 
 	public equals(other: CursorState): boolean {
-		return (this.viewState.equals(other.viewState) && this.modelState.equals(other.viewState));
+		return (this.viewState.equals(other.viewState) && this.modelState.equals(other.modelState));
 	}
 }
 
 export class EditOperationResult {
 	_editOperationResultBrand: void;
 
+	readonly type: EditOperationType;
 	readonly commands: ICommand[];
 	readonly shouldPushStackElementBefore: boolean;
 	readonly shouldPushStackElementAfter: boolean;
 
 	constructor(
+		type: EditOperationType,
 		commands: ICommand[],
 		opts: {
 			shouldPushStackElementBefore: boolean;
 			shouldPushStackElementAfter: boolean;
 		}
 	) {
+		this.type = type;
 		this.commands = commands;
 		this.shouldPushStackElementBefore = opts.shouldPushStackElementBefore;
 		this.shouldPushStackElementAfter = opts.shouldPushStackElementAfter;

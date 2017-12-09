@@ -51,6 +51,7 @@ export interface IContextMenuDelegate {
 	getMenuClassName?(): string;
 	onHide?(didCancel: boolean): void;
 	actionRunner?: IActionRunner;
+	autoSelectFirstItem?: boolean;
 }
 
 export class ContextSubMenu extends Action {

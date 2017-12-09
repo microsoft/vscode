@@ -17,7 +17,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 var ts = require("typescript");
 var Lint = require("tslint");
 var path_1 = require("path");
-var Rule = (function (_super) {
+var Rule = /** @class */ (function (_super) {
     __extends(Rule, _super);
     function Rule() {
         return _super !== null && _super.apply(this, arguments) || this;
@@ -48,7 +48,7 @@ var Rule = (function (_super) {
     return Rule;
 }(Lint.Rules.AbstractRule));
 exports.Rule = Rule;
-var LayeringRule = (function (_super) {
+var LayeringRule = /** @class */ (function (_super) {
     __extends(LayeringRule, _super);
     function LayeringRule(file, config, opts) {
         var _this = _super.call(this, file, opts) || this;

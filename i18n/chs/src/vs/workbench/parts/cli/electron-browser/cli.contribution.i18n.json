@@ -7,7 +7,7 @@
 	"install": "在 PATH 中安装“{0}”命令",
 	"not available": "此命令不可用",
 	"successIn": "已成功在 PATH 中安装了 Shell 命令“{0}”。",
-	"warnEscalation": "代码将通过 \"osascript\" 提示需要管理员权限才可安装 shell 命令。",
+	"warnEscalation": "Code 将使用 \"osascript\" 来提示获取管理员权限，进一步安装 shell 命令。",
 	"ok": "确定",
 	"cantCreateBinFolder": "无法创建 \"/usr/local/bin\"。",
 	"cancel2": "取消",

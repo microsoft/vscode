@@ -30,7 +30,6 @@
 	"deactivateBreakpoints": "중단점 비활성화",
 	"reapplyAllBreakpoints": "모든 중단점 다시 적용",
 	"addFunctionBreakpoint": "함수 중단점 추가",
-	"renameFunctionBreakpoint": "함수 중단점 이름 바꾸기",
 	"addConditionalBreakpoint": "조건부 중단점 추가...",
 	"editConditionalBreakpoint": "중단점 편집...",
 	"setValue": "값 설정",

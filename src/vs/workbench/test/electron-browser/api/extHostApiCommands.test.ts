@@ -16,7 +16,6 @@ import { Model as EditorModel } from 'vs/editor/common/model/model';
 import { TestThreadService } from './testThreadService';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/node/extHostLanguageFeatures';
@@ -31,6 +30,9 @@ import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumen
 import { MainContext, ExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import * as vscode from 'vscode';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import 'vs/workbench/parts/search/electron-browser/search.contribution';
+import { NoopLogService } from 'vs/platform/log/common/log';
 
 const defaultSelector = { scheme: 'far' };
 const model: EditorCommon.IModel = EditorModel.createFromString(
@@ -57,40 +59,44 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
 		setUnexpectedErrorHandler(() => { });
 
-		let instantiationService = new TestInstantiationService();
-		threadService = new TestThreadService();
-		instantiationService.stub(IHeapService, {
-			_serviceBrand: undefined,
-			trackRecursive(args) {
-				// nothing
-				return args;
-			}
-		});
-		instantiationService.stub(ICommandService, {
-			_serviceBrand: undefined,
-			executeCommand(id, args): any {
-				if (!CommandsRegistry.getCommands()[id]) {
-					return TPromise.wrapError(new Error(id + ' NOT known'));
+		// Use IInstantiationService to get typechecking when instantiating
+		let inst: IInstantiationService;
+		{
+			let instantiationService = new TestInstantiationService();
+			threadService = new TestThreadService();
+			instantiationService.stub(IHeapService, {
+				_serviceBrand: undefined,
+				trackRecursive(args) {
+					// nothing
+					return args;
 				}
-				let { handler } = CommandsRegistry.getCommands()[id];
-				return TPromise.as(instantiationService.invokeFunction(handler, args));
-			}
-		});
-		instantiationService.stub(IMarkerService, new MarkerService());
-		instantiationService.stub(IThreadService, threadService);
-		instantiationService.stub(IModelService, <IModelService>{
-			_serviceBrand: IModelService,
-			getModel(): any { return model; },
-			createModel(): any { throw new Error(); },
-			updateModel(): any { throw new Error(); },
-			setMode(): any { throw new Error(); },
-			destroyModel(): any { throw new Error(); },
-			getModels(): any { throw new Error(); },
-			onModelAdded: undefined,
-			onModelModeChanged: undefined,
-			onModelRemoved: undefined,
-			getCreationOptions(): any { throw new Error(); }
-		});
+			});
+			instantiationService.stub(ICommandService, {
+				_serviceBrand: undefined,
+				executeCommand(id, args): any {
+					if (!CommandsRegistry.getCommands()[id]) {
+						return TPromise.wrapError(new Error(id + ' NOT known'));
+					}
+					let { handler } = CommandsRegistry.getCommands()[id];
+					return TPromise.as(instantiationService.invokeFunction(handler, args));
+				}
+			});
+			instantiationService.stub(IMarkerService, new MarkerService());
+			instantiationService.stub(IModelService, <IModelService>{
+				_serviceBrand: IModelService,
+				getModel(): any { return model; },
+				createModel(): any { throw new Error(); },
+				updateModel(): any { throw new Error(); },
+				setMode(): any { throw new Error(); },
+				destroyModel(): any { throw new Error(); },
+				getModels(): any { throw new Error(); },
+				onModelAdded: undefined,
+				onModelModeChanged: undefined,
+				onModelRemoved: undefined,
+				getCreationOptions(): any { throw new Error(); }
+			});
+			inst = instantiationService;
+		}
 
 		const extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(threadService);
 		extHostDocumentsAndEditors.$acceptDocumentsAndEditorsDelta({
@@ -108,9 +114,9 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		const heapService = new ExtHostHeapService();
 
-		commands = new ExtHostCommands(threadService, heapService);
+		commands = new ExtHostCommands(threadService, heapService, new NoopLogService());
 		threadService.set(ExtHostContext.ExtHostCommands, commands);
-		threadService.setTestInstance(MainContext.MainThreadCommands, instantiationService.createInstance(MainThreadCommands));
+		threadService.setTestInstance(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, threadService));
 		ExtHostApiCommands.register(commands);
 
 		const diagnostics = new ExtHostDiagnostics(threadService);
@@ -119,7 +125,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		extHost = new ExtHostLanguageFeatures(threadService, extHostDocuments, commands, heapService, diagnostics);
 		threadService.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
-		mainThread = threadService.setTestInstance(MainContext.MainThreadLanguageFeatures, instantiationService.createInstance(MainThreadLanguageFeatures));
+		mainThread = <MainThreadLanguageFeatures>threadService.setTestInstance(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures, threadService));
 
 		threadService.sync().then(done, done);
 	});
@@ -127,6 +133,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	suiteTeardown(() => {
 		setUnexpectedErrorHandler(originalErrorHandler);
 		model.dispose();
+		mainThread.dispose();
 	});
 
 	teardown(function (done) {
@@ -189,6 +196,22 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		}, done);
 	});
 
+	test('executeWorkspaceSymbolProvider should accept empty string, #39522', async function () {
+
+		disposables.push(extHost.registerWorkspaceSymbolProvider({
+			provideWorkspaceSymbols(query) {
+				return [new types.SymbolInformation('hello', types.SymbolKind.Array, new types.Range(0, 0, 0, 0), URI.parse('foo:bar'))];
+			}
+		}));
+
+		await threadService.sync();
+		let symbols = await commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeWorkspaceSymbolProvider', '');
+		assert.equal(symbols.length, 1);
+
+		await threadService.sync();
+		symbols = await commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeWorkspaceSymbolProvider', '*');
+		assert.equal(symbols.length, 1);
+	});
 
 	// --- definition
 
@@ -364,8 +387,8 @@ suite('ExtHostLanguageFeatureCommands', function () {
 	// --- quickfix
 
 	test('QuickFix, back and forth', function () {
-		disposables.push(extHost.registerCodeActionProvider(defaultSelector, <vscode.CodeActionProvider>{
-			provideCodeActions(): any {
+		disposables.push(extHost.registerCodeActionProvider(defaultSelector, {
+			provideCodeActions(): vscode.Command[] {
 				return [{ command: 'testing', title: 'Title', arguments: [1, 2, true] }];
 			}
 		}));

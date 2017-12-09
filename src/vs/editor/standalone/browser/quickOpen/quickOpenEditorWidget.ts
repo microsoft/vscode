@@ -19,7 +19,7 @@ export interface IQuickOpenEditorWidgetOptions {
 
 export class QuickOpenEditorWidget implements IOverlayWidget {
 
-	private static ID = 'editor.contrib.quickOpenEditorWidget';
+	private static readonly ID = 'editor.contrib.quickOpenEditorWidget';
 
 	private codeEditor: ICodeEditor;
 	private themeService: IThemeService;
@@ -48,8 +48,7 @@ export class QuickOpenEditorWidget implements IOverlayWidget {
 				inputPlaceHolder: null,
 				inputAriaLabel: configuration.inputAriaLabel,
 				keyboardSupport: true
-			},
-			null
+			}
 		);
 		this.styler = attachQuickOpenStyler(this.quickOpenWidget, this.themeService);
 
@@ -82,7 +81,7 @@ export class QuickOpenEditorWidget implements IOverlayWidget {
 	public show(value: string): void {
 		this.visible = true;
 
-		var editorLayout = this.codeEditor.getLayoutInfo();
+		const editorLayout = this.codeEditor.getLayoutInfo();
 		if (editorLayout) {
 			this.quickOpenWidget.layout(new Dimension(editorLayout.width, editorLayout.height));
 		}

@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { WorkspaceConfiguration, workspace } from "vscode";
+import { WorkspaceConfiguration, workspace } from 'vscode';
 
 export enum TsServerLogLevel {
 	Off,
@@ -42,11 +42,14 @@ export namespace TsServerLogLevel {
 }
 
 export class TypeScriptServiceConfiguration {
+	public readonly locale: string | null;
 	public readonly globalTsdk: string | null;
 	public readonly localTsdk: string | null;
 	public readonly npmLocation: string | null;
 	public readonly tsServerLogLevel: TsServerLogLevel = TsServerLogLevel.Off;
 	public readonly checkJs: boolean;
+	public readonly experimentalDecorators: boolean;
+	public readonly disableAutomaticTypeAcquisition: boolean;
 
 	public static loadFromWorkspace(): TypeScriptServiceConfiguration {
 		return new TypeScriptServiceConfiguration();
@@ -55,19 +58,25 @@ export class TypeScriptServiceConfiguration {
 	private constructor() {
 		const configuration = workspace.getConfiguration();
 
+		this.locale = TypeScriptServiceConfiguration.extractLocale(configuration);
 		this.globalTsdk = TypeScriptServiceConfiguration.extractGlobalTsdk(configuration);
 		this.localTsdk = TypeScriptServiceConfiguration.extractLocalTsdk(configuration);
 		this.npmLocation = TypeScriptServiceConfiguration.readNpmLocation(configuration);
 		this.tsServerLogLevel = TypeScriptServiceConfiguration.readTsServerLogLevel(configuration);
 		this.checkJs = TypeScriptServiceConfiguration.readCheckJs(configuration);
+		this.experimentalDecorators = TypeScriptServiceConfiguration.readExperimentalDecorators(configuration);
+		this.disableAutomaticTypeAcquisition = TypeScriptServiceConfiguration.readDisableAutomaticTypeAcquisition(configuration);
 	}
 
 	public isEqualTo(other: TypeScriptServiceConfiguration): boolean {
-		return this.globalTsdk === other.globalTsdk
+		return this.locale === other.locale
+			&& this.globalTsdk === other.globalTsdk
 			&& this.localTsdk === other.localTsdk
 			&& this.npmLocation === other.npmLocation
 			&& this.tsServerLogLevel === other.tsServerLogLevel
-			&& this.checkJs === other.checkJs;
+			&& this.checkJs === other.checkJs
+			&& this.experimentalDecorators === other.experimentalDecorators
+			&& this.disableAutomaticTypeAcquisition === other.disableAutomaticTypeAcquisition;
 	}
 
 	private static extractGlobalTsdk(configuration: WorkspaceConfiguration): string | null {
@@ -95,7 +104,19 @@ export class TypeScriptServiceConfiguration {
 		return configuration.get<boolean>('javascript.implicitProjectConfig.checkJs', false);
 	}
 
+	private static readExperimentalDecorators(configuration: WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('javascript.implicitProjectConfig.experimentalDecorators', false);
+	}
+
 	private static readNpmLocation(configuration: WorkspaceConfiguration): string | null {
 		return configuration.get<string | null>('typescript.npm', null);
+	}
+
+	private static readDisableAutomaticTypeAcquisition(configuration: WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('typescript.disableAutomaticTypeAcquisition', false);
+	}
+
+	private static extractLocale(configuration: WorkspaceConfiguration): string | null {
+		return configuration.get<string | null>('typescript.locale', null);
 	}
 }

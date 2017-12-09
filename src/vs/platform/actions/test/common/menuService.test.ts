@@ -10,21 +10,66 @@ import { MenuService } from 'vs/platform/actions/common/menuService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { NullCommandService } from 'vs/platform/commands/common/commands';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { AbstractExtensionService, ActivatedExtension } from 'vs/platform/extensions/common/abstractExtensionService';
+import { IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ExtensionPointContribution, IExtensionDescription, IExtensionsStatus, IExtensionService, ProfileSession } from 'vs/platform/extensions/common/extensions';
+import Event, { Emitter } from 'vs/base/common/event';
 
 // --- service instances
 
-const extensionService = new class extends AbstractExtensionService<ActivatedExtension> {
-	protected _showMessage(): void {
-		console.log(arguments);
+class MockExtensionService implements IExtensionService {
+
+	public _serviceBrand: any;
+
+	private _onDidRegisterExtensions = new Emitter<IExtensionDescription[]>();
+	public get onDidRegisterExtensions(): Event<IExtensionDescription[]> {
+		return this._onDidRegisterExtensions.event;
 	}
-	protected _createFailedExtension() {
-		return null;
+
+	onDidChangeExtensionsStatus = null;
+
+	public activateByEvent(activationEvent: string): TPromise<void> {
+		throw new Error('Not implemented');
 	}
-	protected _actualActivateExtension() {
-		return null;
+
+	public whenInstalledExtensionsRegistered(): TPromise<boolean> {
+		return TPromise.as(true);
 	}
-}(true);
+
+	public getExtensions(): TPromise<IExtensionDescription[]> {
+		throw new Error('Not implemented');
+	}
+
+	public readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]> {
+		throw new Error('Not implemented');
+	}
+
+	public getExtensionsStatus(): { [id: string]: IExtensionsStatus; } {
+		throw new Error('Not implemented');
+	}
+
+	public startExtensionHostProfile(): TPromise<ProfileSession> {
+		throw new Error('Not implemented');
+	}
+
+	public restartExtensionHost(): void {
+		throw new Error('Method not implemented.');
+	}
+
+	public startExtensionHost(): void {
+		throw new Error('Method not implemented.');
+	}
+
+	public stopExtensionHost(): void {
+		throw new Error('Method not implemented.');
+	}
+
+	public getExtensionHostInformation(): any {
+		throw new Error('Method not implemented.');
+	}
+}
+
+const extensionService = new MockExtensionService();
 
 const contextKeyService = new class extends MockContextKeyService {
 	contextMatchesRules() {
@@ -195,11 +240,19 @@ suite('MenuService', function () {
 
 		MenuRegistry.addCommand({ id: 'b', title: 'Implicit' });
 
-		const [first, second] = MenuRegistry.getMenuItems(MenuId.CommandPalette);
-		assert.equal(first.command.id, 'a');
-		assert.equal(first.command.title, 'Explicit');
-
-		assert.equal(second.command.id, 'b');
-		assert.equal(second.command.title, 'Implicit');
+		let foundA = false;
+		let foundB = false;
+		for (const item of MenuRegistry.getMenuItems(MenuId.CommandPalette)) {
+			if (item.command.id === 'a') {
+				assert.equal(item.command.title, 'Explicit');
+				foundA = true;
+			}
+			if (item.command.id === 'b') {
+				assert.equal(item.command.title, 'Implicit');
+				foundB = true;
+			}
+		}
+		assert.equal(foundA, true);
+		assert.equal(foundB, true);
 	});
 });

@@ -17,9 +17,7 @@ suite('ExtHostDocumentsAndEditors', () => {
 
 	setup(function () {
 		editors = new ExtHostDocumentsAndEditors({
-			_serviceBrand: undefined,
-			get() { return undefined; },
-			set() { }
+			get() { return undefined; }
 		});
 	});
 

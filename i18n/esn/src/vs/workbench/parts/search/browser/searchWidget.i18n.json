@@ -11,5 +11,6 @@
 	"search.placeHolder": "Buscar",
 	"label.Replace": "Reemplazar: Escriba el término de reemplazo y presione Intro para obtener una vista previa o Escape para cancelar la acción",
 	"search.replace.placeHolder": "Reemplazar",
-	"regexp.validationFailure": "La expresión coincide con todo"
+	"regexp.validationFailure": "La expresión coincide con todo",
+	"regexp.backreferenceValidationFailure": "No se admiten referencias inversas"
 }

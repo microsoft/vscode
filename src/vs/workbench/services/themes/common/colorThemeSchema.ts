@@ -121,13 +121,17 @@ export const tokenColorizationSettingSchema: IJSONSchema = {
 		foreground: {
 			type: 'string',
 			description: nls.localize('schema.token.foreground', 'Foreground color for the token.'),
-			format: 'color',
-			defaultSnippets: [{ body: '${1:#FF0000}' }]
+			format: 'color-hex',
+			default: '#ff0000'
+		},
+		background: {
+			type: 'string',
+			deprecationMessage: nls.localize('schema.token.background.warning', 'Token background colors are currently not supported.')
 		},
 		fontStyle: {
 			type: 'string',
 			description: nls.localize('schema.token.fontStyle', 'Font style of the rule: One or a combination of \'italic\', \'bold\' and \'underline\''),
-			pattern: '^(\\s*\\b(italics|bold|underline))*\\s*$',
+			pattern: '^(\\s*\\b(italic|bold|underline))*\\s*$',
 			patternErrorMessage: nls.localize('schema.fontStyle.error', 'Font style must be a combination of \'italic\', \'bold\' and \'underline\''),
 			defaultSnippets: [{ body: 'italic' }, { body: 'bold' }, { body: 'underline' }, { body: 'italic bold' }, { body: 'italic underline' }, { body: 'bold underline' }, { body: 'italic bold underline' }]
 		}
@@ -180,6 +184,7 @@ export function tokenColorsSchema(description: string): IJSONSchema {
 const schemaId = 'vscode://schemas/color-theme';
 const schema: IJSONSchema = {
 	type: 'object',
+	allowComments: true,
 	properties: {
 		colors: colorsSchema,
 		tokenColors: {

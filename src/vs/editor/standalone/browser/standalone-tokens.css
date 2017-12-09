@@ -192,13 +192,17 @@
 	}
 
 	/* squiggles */
-	.monaco-editor.vs .redsquiggly,
-	.monaco-editor.vs-dark .redsquiggly {
+	.monaco-editor.vs .squiggly-c-error,
+	.monaco-editor.vs-dark .squiggly-c-error {
 		background: transparent !important;
 		border-bottom: 4px double #E47777;
 	}
-	.monaco-editor.vs .greensquiggly,
-	.monaco-editor.vs-dark .greensquiggly {
+	.monaco-editor.vs .squiggly-b-warning,
+	.monaco-editor.vs-dark .squiggly-b-warning {
+		border-bottom: 4px double #71B771;
+	}
+	.monaco-editor.vs .squiggly-a-info,
+	.monaco-editor.vs-dark .squiggly-a-info {
 		border-bottom: 4px double #71B771;
 	}
 
