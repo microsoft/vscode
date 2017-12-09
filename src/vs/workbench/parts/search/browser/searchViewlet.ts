@@ -669,15 +669,12 @@ export class SearchViewlet extends Viewlet {
 	public focus(): void {
 		super.focus();
 
-		this.searchWidget.focus();
-	}
-
-	public takeEditorText(): void {
 		const selectedText = this.getSearchTextFromEditor();
 		if (selectedText) {
 			this.searchWidget.searchInput.setValue(selectedText);
-			this.searchWidget.focus();
 		}
+
+		this.searchWidget.focus();
 	}
 
 	public focusNextInputBox(): void {
