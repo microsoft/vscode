@@ -34,6 +34,7 @@ import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INA
 import URI from 'vs/base/common/uri';
 import { IPartService } from "vs/workbench/services/part/common/partService";
 import { isWindows } from "vs/base/common/platform";
+import { Color } from "vs/base/common/color";
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -297,7 +298,7 @@ export class TitlebarPart extends Part implements ITitleService {
 				builder.getHTMLElement().appendChild(svgm);
 			});
 
-			$(this.titleContainer).div({ class: 'window-icon' }, (builder) => {
+			$(this.titleContainer).div({ class: 'window-icon window-close' }, (builder) => {
 				const svg = $svg('svg', { x: '0', y: '0', viewBox: '0 0 10 10' });
 				svg.appendChild($svg('polygon', { fill: 'currentColor', points: '10,1 9,0 5,4 1,0 0,1 4,5 0,9 1,10 5,6 9,10 10,9 6,5' }));
 				builder.getHTMLElement().appendChild(svg);
@@ -313,8 +314,10 @@ export class TitlebarPart extends Part implements ITitleService {
 		// Part container
 		const container = this.getContainer();
 		if (container) {
+			const bgColor = this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND);
 			container.style('color', this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_FOREGROUND : TITLE_BAR_ACTIVE_FOREGROUND));
-			container.style('background-color', this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND));
+			container.style('background-color', bgColor);
+			container.getHTMLElement().classList.toggle('light', Color.fromHex(bgColor).isLighter());
 
 			const titleBorder = this.getColor(TITLE_BAR_BORDER);
 			container.style('border-bottom', titleBorder ? `1px solid ${titleBorder}` : null);

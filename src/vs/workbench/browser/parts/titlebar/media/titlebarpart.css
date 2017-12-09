@@ -51,6 +51,7 @@
 	margin: 1px 1px 0 0;
 	text-align: center;
 	line-height: 29px;
+	-webkit-app-region: no-drag;
 }
 
 .window-maximize {
@@ -61,4 +62,17 @@
 	width: 10px;
 	height: 10px;
 	shape-rendering: crispEdges;
+}
+
+.monaco-workbench.windows > .part.titlebar > .window-icon:hover {
+	background-color: rgba(255, 255, 255, 0.1);
+}
+
+.monaco-workbench.windows > .part.titlebar.light > .window-icon:hover {
+    background-color: rgba(0, 0, 0, 0.1);
+}
+
+.monaco-workbench.windows > .part.titlebar.titlebar > .window-close:hover {
+	background-color: rgba(232, 17, 35, 0.9);
+	color: rgba(255, 255, 255, 1);
 }

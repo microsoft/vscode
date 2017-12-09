@@ -138,7 +138,7 @@ export class CodeWindow implements ICodeWindow {
 			transparent: false,
 			frame: false,
 			resizable: true,
-			thickFrame: true
+			// thickFrame: true
 		};
 
 		if (isLinux) {
