@@ -34,7 +34,7 @@
     "minimist": "1.2.0",
     "native-keymap": "1.2.5",
     "native-watchdog": "0.3.0",
-    "node-pty": "0.7.3",
+    "node-pty": "0.7.4",
     "nsfw": "1.0.16",
     "semver": "4.3.6",
     "spdlog": "0.3.7",
