@@ -759,10 +759,14 @@ export class Workbench implements IPartService {
 			return null; // custom title bar is only supported on Mac and Windows currently
 		}
 
-		// const isDev = !this.environmentService.isBuilt || this.environmentService.isExtensionDevelopment;
-		// if (isDev) {
-		// 	return null; // not enabled when developing due to https://github.com/electron/electron/issues/3647
-		// }
+		if (isWindows) {
+			return 'custom'; // force for now
+		}
+
+		const isDev = !this.environmentService.isBuilt || this.environmentService.isExtensionDevelopment;
+		if (isDev) {
+			return null; // not enabled when developing due to https://github.com/electron/electron/issues/3647
+		}
 
 		const windowConfig = this.configurationService.getValue<IWindowSettings>();
 		if (windowConfig && windowConfig.window) {
@@ -771,13 +775,13 @@ export class Workbench implements IPartService {
 				return null; // native tabs on sierra do not work with custom title style
 			}
 
-			// 	const style = windowConfig.window.titleBarStyle;
-			// 	if (style === 'custom') {
-			// 		return style;
-			// 	}
+			const style = windowConfig.window.titleBarStyle;
+			if (style === 'custom') {
+				return style;
+			}
 		}
 
-		return 'custom';
+		return null;
 	}
 
 	private setStatusBarHidden(hidden: boolean, skipLayout?: boolean): void {

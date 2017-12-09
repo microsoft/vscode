@@ -950,6 +950,10 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
+	isMaximized(): TPromise<boolean> {
+		return TPromise.as(void 0);
+	}
+
 	setDocumentEdited(flag: boolean): TPromise<void> {
 		return TPromise.as(void 0);
 	}
@@ -966,19 +970,19 @@ export class TestWindowService implements IWindowService {
 		return 0;
 	}
 
-<<<<<<< HEAD
+	maximizeWindow(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	unmaximizeWindow(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
 	minimizeWindow(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
-	addMaximizeListener(listener: (maximized: boolean) => void): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-
-	onWindowTitleDoubleClick(): TPromise<void> {
-=======
 	showMessageBoxWithCheckbox(options: Electron.MessageBoxOptions): Promise<IMessageBoxResult> {
->>>>>>> master
 		return TPromise.as(void 0);
 	}
 
