@@ -37,7 +37,7 @@
 .monaco-workbench.windows > .part.titlebar {
 	line-height: 32px;
 	height: 32px;
-	padding: 0 0 0 12px;
+	padding: 0 0 0 1em;
 }
 
 .monaco-workbench.windows > .part.titlebar > .window-title {
@@ -46,11 +46,10 @@
 }
 
 .monaco-workbench.windows > .part.titlebar > .window-icon {
-	width: 45px;
-	height: 31px;
-	margin: 1px 1px 0 0;
+	width: calc(46em / 12);
+	height: 100%;
 	text-align: center;
-	line-height: 29px;
+	line-height: calc(30em / 12);
 	-webkit-app-region: no-drag;
 }
 
@@ -59,8 +58,8 @@
 }
 
 .monaco-workbench.windows > .part.titlebar > .window-icon svg {
-	width: 10px;
-	height: 10px;
+	width: calc(10em / 12);
+	height: calc(10em / 12);
 	shape-rendering: crispEdges;
 }
 
