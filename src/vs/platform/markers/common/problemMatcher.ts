@@ -1598,7 +1598,7 @@ class ProblemMatcherRegistryImpl implements IProblemMatcherRegistry {
 			label: localize('eslint-compact', 'ESLint compact problems'),
 			owner: 'eslint',
 			applyTo: ApplyToKind.allDocuments,
-			fileLocation: FileLocationKind.Relative,
+			fileLocation: FileLocationKind.Absolute,
 			filePrefix: '${workspaceFolder}',
 			pattern: ProblemPatternRegistry.get('eslint-compact')
 		});
