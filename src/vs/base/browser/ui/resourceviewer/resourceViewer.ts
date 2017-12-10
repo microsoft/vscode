@@ -10,7 +10,7 @@ import nls = require('vs/nls');
 import mimes = require('vs/base/common/mime');
 import URI from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import { Builder, $ } from 'vs/base/browser/builder';
+import { Builder, $, Dimension } from 'vs/base/browser/builder';
 import DOM = require('vs/base/browser/dom');
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { LRUCache } from 'vs/base/common/map';
@@ -109,6 +109,13 @@ function imageSrc(descriptor: IResourceDescriptor): string {
 	return cached.src;
 }
 
+// store the scale of an image so it can be restored when changing editor tabs
+const IMAGE_SCALE_CACHE = new LRUCache<string, number>(100);
+
+export interface ResourceViewerContext {
+	layout(dimension: Dimension);
+}
+
 /**
  * Helper to actually render the given resource into the provided container. Will adjust scrollbar (if provided) automatically based on loading
  * progress of the binary resource.
@@ -126,7 +133,7 @@ export class ResourceViewer {
 	private static SCALE_FACTOR = 1.5;
 	private static MAX_SCALE = 20;
 	private static MIN_SCALE = 0.1;
-	private static PIXELATION_THRESHOLD = 256; // enable image-rendering: pixelated for images less than this
+	private static PIXELATION_THRESHOLD = 64; // enable image-rendering: pixelated for images less than this
 
 	public static show(
 		descriptor: IResourceDescriptor,
@@ -134,7 +141,7 @@ export class ResourceViewer {
 		scrollbar: DomScrollableElement,
 		openExternal: (uri: URI) => void,
 		metadataClb?: (meta: string) => void
-	): void {
+	): ResourceViewerContext {
 
 		// Ensure CSS class
 		$(container).setClass('monaco-resource-viewer');
@@ -155,6 +162,9 @@ export class ResourceViewer {
 		// Show Image inline unless they are large
 		if (mime.indexOf('image/') >= 0) {
 			if (ResourceViewer.inlineImage(descriptor)) {
+				const context = {
+					layout(dimension: Dimension) { }
+				};
 				$(container)
 					.empty()
 					.addClass('image', 'zoom-in')
@@ -162,8 +172,13 @@ export class ResourceViewer {
 					.addClass('untouched')
 					.on(DOM.EventType.LOAD, (e, img) => {
 						const imgElement = <HTMLImageElement>img.getHTMLElement();
+						const cacheKey = descriptor.resource.toString();
 						let scaleDirection = ScaleDirection.IN;
-						let scale = null;
+						let scale = IMAGE_SCALE_CACHE.get(cacheKey) || null;
+						if (scale) {
+							img.removeClass('untouched');
+							updateScale(scale);
+						}
 
 						function setImageWidth(width) {
 							img.style('width', `${width}px`);
@@ -173,22 +188,34 @@ export class ResourceViewer {
 						function updateScale(newScale) {
 							scale = clamp(newScale, ResourceViewer.MIN_SCALE, ResourceViewer.MAX_SCALE);
 							setImageWidth(Math.floor(imgElement.naturalWidth * scale));
+							IMAGE_SCALE_CACHE.set(cacheKey, scale);
 
 							scrollbar.scanDomNode();
 
+							updateMetadata();
+						}
+
+						function updateMetadata() {
 							if (metadataClb) {
-								metadataClb(nls.localize('imgMetaWPercent', '{0}% {1}x{2} {3}',
-									Math.round(scale * 10000) / 100,
+								const scale = Math.round((imgElement.width / imgElement.naturalWidth) * 10000) / 100;
+								metadataClb(nls.localize('imgMeta', '{0}% {1}x{2} {3}',
+									scale,
 									imgElement.naturalWidth,
 									imgElement.naturalHeight,
 									ResourceViewer.formatSize(descriptor.size)));
 							}
 						}
 
+						context.layout = updateMetadata;
+
 						function firstZoom() {
 							const { clientWidth, naturalWidth } = imgElement;
 							setImageWidth(clientWidth);
 							img.removeClass('untouched');
+							if (imgElement.naturalWidth < ResourceViewer.PIXELATION_THRESHOLD
+								|| imgElement.naturalHeight < ResourceViewer.PIXELATION_THRESHOLD) {
+								img.addClass('pixelated');
+							}
 							scale = clientWidth / naturalWidth;
 						}
 
@@ -206,16 +233,21 @@ export class ResourceViewer {
 								}
 							});
 
-						$(container).on(DOM.EventType.CLICK, (e: MouseEvent) => {
+						$(container).on(DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 							if (scale === null) {
 								firstZoom();
 							}
 
-							const scaleFactor = scaleDirection === ScaleDirection.IN
-								? ResourceViewer.SCALE_FACTOR
-								: 1 / ResourceViewer.SCALE_FACTOR;
+							// right click
+							if (e.button === 2) {
+								updateScale(1);
+							} else {
+								const scaleFactor = scaleDirection === ScaleDirection.IN
+									? ResourceViewer.SCALE_FACTOR
+									: 1 / ResourceViewer.SCALE_FACTOR;
 
-							updateScale(scale * scaleFactor);
+								updateScale(scale * scaleFactor);
+							}
 						});
 
 						$(container).on(DOM.EventType.WHEEL, (e: WheelEvent) => {
@@ -233,16 +265,12 @@ export class ResourceViewer {
 							updateScale(scale + delta * ResourceViewer.SCALE_PINCH_FACTOR);
 						});
 
-						if (imgElement.naturalWidth < ResourceViewer.PIXELATION_THRESHOLD || imgElement.naturalHeight < ResourceViewer.PIXELATION_THRESHOLD) {
-							img.addClass('pixelated');
-						}
-
-						if (metadataClb) {
-							metadataClb(nls.localize('imgMeta', "{0}x{1} {2}", imgElement.naturalWidth, imgElement.naturalHeight, ResourceViewer.formatSize(descriptor.size)));
-						}
+						updateMetadata();
 
 						scrollbar.scanDomNode();
 					});
+
+				return context;
 			} else {
 				const imageContainer = $(container)
 					.empty()
@@ -276,6 +304,8 @@ export class ResourceViewer {
 
 			scrollbar.scanDomNode();
 		}
+
+		return null;
 	}
 
 	private static inlineImage(descriptor: IResourceDescriptor): boolean {
