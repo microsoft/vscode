@@ -64,11 +64,10 @@ let JsonProjectDocuments;
 // in the passed params the rootPath of the workspace plus the client capabilities.
 connection.onInitialize((params: InitializeParams): InitializeResult => {
     if (params.initializationOptions && params.initializationOptions.projectValidation){
-        JsonProjectDocuments = [];
-        var JsonProjectFiles = getJsonProjectFiles(params.rootUri);
-        for (var i = 0; i < JsonProjectFiles.length; i++) {
-            JsonProjectDocuments.push(TextDocument.create("file://" + JsonProjectFiles[i].path, "json", 0, JsonProjectFiles[i].content));
-        }
+        var JsonProjectFiles = getJsonFiles(params.rootUri.substring("file://".length, params.rootUri.length), []);
+		JsonProjectDocuments = JsonProjectFiles.map(function(oJsonProjectFile){
+			return TextDocument.create("file://" + oJsonProjectFile.path, "json", 0, oJsonProjectFile.content);
+		});
         JsonProjectDocuments.forEach(validateTextDocument);
     }
 	function hasClientCapability(...keys: string[]) {
@@ -94,13 +93,13 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 	return { capabilities };
 });
 
-function getFiles (dir: string, jsonFiles:{path: string, content: string}[]){
+function getJsonFiles (dir: string, jsonFiles:{path: string, content: string}[]){
     jsonFiles = jsonFiles;
     var files = fs.readdirSync(dir);
     for (var i in files){
         var name = dir + '/' + files[i];
         if (fs.statSync(name).isDirectory()){
-            getFiles(name, jsonFiles);
+            getJsonFiles(name, jsonFiles);
         } else {
             if (name.split('.').pop() === 'json') {
                 var fileContent = fs.readFileSync(name).toString();
@@ -109,10 +108,6 @@ function getFiles (dir: string, jsonFiles:{path: string, content: string}[]){
         }
     }
     return jsonFiles;
-}
-function getJsonProjectFiles(rootUri: string) {
-    var dirPath = rootUri.substring("file://".length, rootUri.length );
-    return getFiles(dirPath, []);
 }
 
 let workspaceContext = {
@@ -303,8 +298,7 @@ connection.onDidChangeWatchedFiles((change) => {
 	let hasChanges = false;
 	change.changes.forEach(c => {
         if (JsonProjectDocuments && c.type === 1 && c.uri.split('.').pop() === 'json'){
-            var fileContent = fs.readFileSync(c.uri.substring("file://".length, c.uri.length)).toString();
-            var textDocument = TextDocument.create(c.uri, "json", 0, fileContent)
+            var textDocument = TextDocument.create(c.uri, "json", 0, fs.readFileSync(c.uri.substring("file://".length, c.uri.length)).toString());
             validateTextDocument(textDocument);
         }
 		if (languageService.resetSchema(c.uri)) {
