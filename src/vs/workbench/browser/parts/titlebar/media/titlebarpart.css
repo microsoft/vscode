@@ -37,7 +37,7 @@
 .monaco-workbench.windows > .part.titlebar {
 	line-height: 32px;
 	height: 32px;
-	padding: 0 0 0 1em;
+	padding: 0 calc(0.5em / 12) 0 1em;
 }
 
 .monaco-workbench.windows > .part.titlebar > .window-title {
@@ -49,7 +49,7 @@
 	width: calc(46em / 12);
 	height: 100%;
 	text-align: center;
-	line-height: calc(30em / 12);
+	line-height: calc(33em / 12);
 	-webkit-app-region: no-drag;
 }
 
