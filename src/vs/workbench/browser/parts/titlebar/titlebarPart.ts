@@ -260,7 +260,7 @@ export class TitlebarPart extends Part implements ITitleService {
 				svg.appendChild($svg('rect', { fill: 'currentColor', width: 10, height: 1 }));
 				builder.getHTMLElement().appendChild(svg);
 			}).on(DOM.EventType.CLICK, () => {
-				this.windowService.minimizeWindow().then(null, errors.onUnexpectedError);;
+				this.windowService.minimizeWindow().then(null, errors.onUnexpectedError);
 			});
 
 			$(this.titleContainer).div({ class: 'window-icon' }, (builder) => {
@@ -291,7 +291,7 @@ export class TitlebarPart extends Part implements ITitleService {
 				svg.appendChild($svg('polygon', { fill: 'currentColor', points: '10,1 9,0 5,4 1,0 0,1 4,5 0,9 1,10 5,6 9,10 10,9 6,5' }));
 				builder.getHTMLElement().appendChild(svg);
 			}).on(DOM.EventType.CLICK, () => {
-				this.windowService.closeWindow().then(null, errors.onUnexpectedError);;
+				this.windowService.closeWindow().then(null, errors.onUnexpectedError);
 			});
 
 			this.windowService.onDidChangeMaximize((mazimized) => {
