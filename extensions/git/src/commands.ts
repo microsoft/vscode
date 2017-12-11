@@ -963,6 +963,8 @@ export class CommandCenter {
 
 		if (!opts) {
 			opts = { all: noStagedChanges };
+		} else if ((opts.all === false) && noStagedChanges) {
+			opts = { ...opts, all: noStagedChanges };
 		}
 
 		// enable signing of commits if configurated
