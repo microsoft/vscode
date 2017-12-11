@@ -144,8 +144,8 @@ export interface MainThreadDialogSaveOptions {
 }
 
 export interface MainThreadDiaglogsShape extends IDisposable {
-	$showOpenDialog(options: MainThreadDialogOpenOptions): TPromise<string[]>;
-	$showSaveDialog(options: MainThreadDialogSaveOptions): TPromise<string>;
+	$showOpenDialog(options: MainThreadDialogOpenOptions): Thenable<string[]>;
+	$showSaveDialog(options: MainThreadDialogSaveOptions): Thenable<string>;
 }
 
 export interface MainThreadDecorationsShape extends IDisposable {
