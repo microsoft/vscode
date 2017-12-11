@@ -373,7 +373,6 @@ export interface CommitOptions {
 	amend?: boolean;
 	signoff?: boolean;
 	signCommit?: boolean;
-	defaultMsg?: string;
 }
 
 export interface GitResourceGroup extends SourceControlResourceGroup {

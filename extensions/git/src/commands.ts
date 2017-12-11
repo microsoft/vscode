@@ -996,6 +996,12 @@ export class CommandCenter {
 				return message;
 			}
 
+			let value: string | undefined = undefined;
+
+			if (opts && opts.amend && repository.HEAD && repository.HEAD.commit) {
+				value = (await repository.getCommit(repository.HEAD.commit)).message;
+			}
+
 			const getPreviousCommitMessage = async () => {
 				//Only return the previous commit message if it's an amend commit and the repo already has a commit
 				if (opts && opts.amend && repository.HEAD && repository.HEAD.commit) {
@@ -1004,10 +1010,9 @@ export class CommandCenter {
 			};
 
 			return await window.showInputBox({
-				value: opts && opts.defaultMsg,
+				value,
 				placeHolder: localize('commit message', "Commit message"),
 				prompt: localize('provide commit message', "Please provide a commit message"),
-				value: await getPreviousCommitMessage(),
 				ignoreFocusOut: true
 			});
 		};
@@ -1049,15 +1054,7 @@ export class CommandCenter {
 
 	@command('git.commitStagedAmend', { repository: true })
 	async commitStagedAmend(repository: Repository): Promise<void> {
-		let msg;
-		if (repository.HEAD) {
-			if (repository.HEAD.commit) {
-				let id = repository.HEAD.commit;
-				let commit = await repository.getCommit(id);
-				msg = commit.message;
-			}
-		}
-		await this.commitWithAnyInput(repository, { all: false, amend: true, defaultMsg: msg });
+		await this.commitWithAnyInput(repository, { all: false, amend: true });
 	}
 
 	@command('git.commitAll', { repository: true })
