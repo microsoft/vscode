@@ -651,8 +651,6 @@ export class ExtensionManagementService implements IExtensionManagementService {
 				const unInstalledExtensionIds = Object.keys(uninstalled);
 				return this.scanUserExtensions(false)
 					.then(extensions => {
-						// Exclude uninstalled extensions
-						extensions = extensions.filter(e => unInstalledExtensionIds.indexOf(e.identifier.id) === -1);
 						const byExtension: ILocalExtension[][] = groupByExtension(extensions, e => ({ id: getGalleryExtensionIdFromLocal(e), uuid: e.identifier.uuid }));
 						const outDatedExtensionIds = flatten(byExtension.map(p => p.sort((a, b) => semver.rcompare(a.manifest.version, b.manifest.version)).slice(1)))
 							.map(a => a.identifier.id);
