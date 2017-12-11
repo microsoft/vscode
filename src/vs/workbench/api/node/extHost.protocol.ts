@@ -641,6 +641,11 @@ export interface LocationDto {
 	range: IRange;
 }
 
+export interface SymbolDefinitionDto {
+	definingSpan?: LocationDto;
+	definitions: LocationDto[];
+}
+
 export interface SymbolInformationDto extends IdObject {
 	name: string;
 	containerName?: string;
@@ -696,7 +701,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentSymbols(handle: number, resource: UriComponents): TPromise<SymbolInformationDto[]>;
 	$provideCodeLenses(handle: number, resource: UriComponents): TPromise<modes.ICodeLensSymbol[]>;
 	$resolveCodeLens(handle: number, resource: UriComponents, symbol: modes.ICodeLensSymbol): TPromise<modes.ICodeLensSymbol>;
-	$provideDefinition(handle: number, resource: UriComponents, position: IPosition): TPromise<LocationDto | LocationDto[]>;
+	$provideDefinition(handle: number, resource: UriComponents, position: IPosition): TPromise<LocationDto | LocationDto[] | SymbolDefinitionDto>;
 	$provideImplementation(handle: number, resource: UriComponents, position: IPosition): TPromise<LocationDto | LocationDto[]>;
 	$provideTypeDefinition(handle: number, resource: UriComponents, position: IPosition): TPromise<LocationDto | LocationDto[]>;
 	$provideHover(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.Hover>;
