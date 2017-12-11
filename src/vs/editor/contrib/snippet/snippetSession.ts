@@ -386,11 +386,13 @@ export class SnippetSession {
 	next(): void {
 		const newSelections = this._move(true);
 		this._editor.setSelections(newSelections);
+		this._editor.revealPositionInCenterIfOutsideViewport(newSelections[0].getPosition());
 	}
 
 	prev(): void {
 		const newSelections = this._move(false);
 		this._editor.setSelections(newSelections);
+		this._editor.revealPositionInCenterIfOutsideViewport(newSelections[0].getPosition());
 	}
 
 	private _move(fwd: boolean | undefined): Selection[] {
