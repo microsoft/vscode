@@ -243,7 +243,7 @@ export async function main(argv: string[]): TPromise<any> {
 			env
 		};
 
-		if (!args.verbose && !args['inspect-all']) {
+		if (!verbose && !args['inspect-all']) {
 			options['stdio'] = 'ignore';
 		}
 
