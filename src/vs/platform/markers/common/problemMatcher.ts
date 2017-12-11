@@ -927,7 +927,7 @@ export namespace Schemas {
 	};
 
 
-	export const MultLileProblemPattern: IJSONSchema = {
+	export const MultiLineProblemPattern: IJSONSchema = {
 		type: 'array',
 		items: ProblemPattern
 	};
