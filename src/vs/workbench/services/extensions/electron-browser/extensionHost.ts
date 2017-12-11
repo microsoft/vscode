@@ -276,8 +276,11 @@ export class ExtensionHostProcessWorker {
 		if (typeof this._environmentService.debugExtensionHost.port === 'number') {
 			startPort = expected = this._environmentService.debugExtensionHost.port;
 		}
+
+		const findPort = this._environmentService.args['inspect-all'] ? findRandomFreePort() : findFreePort(startPort, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */);
+
 		return new TPromise((c, e) => {
-			return findFreePort(startPort, 10 /* try 10 ports */, 5000 /* try up to 5 seconds */).then(port => {
+			return findPort.then(port => {
 				if (!port) {
 					console.warn('%c[Extension Host] %cCould not find a free port for debugging', 'color: blue', 'color: black');
 				} else {
