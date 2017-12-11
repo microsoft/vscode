@@ -581,7 +581,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideDocumentSymbols(handle: number, resource: URI): TPromise<modes.SymbolInformation[]>;
 	$provideCodeLenses(handle: number, resource: URI): TPromise<modes.ICodeLensSymbol[]>;
 	$resolveCodeLens(handle: number, resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICodeLensSymbol>;
-	$provideDefinition(handle: number, resource: URI, position: IPosition): TPromise<modes.Definition>;
+	$provideDefinition(handle: number, resource: URI, position: IPosition): TPromise<modes.Definition | modes.DefinitionAndSpan[]>;
 	$provideImplementation(handle: number, resource: URI, position: IPosition): TPromise<modes.Definition>;
 	$provideTypeDefinition(handle: number, resource: URI, position: IPosition): TPromise<modes.Definition>;
 	$provideHover(handle: number, resource: URI, position: IPosition): TPromise<modes.Hover>;

@@ -1896,6 +1896,13 @@ declare module 'vscode' {
 		resolveCodeLens?(codeLens: CodeLens, token: CancellationToken): ProviderResult<CodeLens>;
 	}
 
+	export class DefinitionAndSpan {
+		span: Location;
+		definitions: Location[];
+
+		constructor(span: Location, definitions: Location[]);
+	}
+
 	/**
 	 * The definition of a symbol represented as one or many [locations](#Location).
 	 * For most programming languages there is only one location at which a symbol is
@@ -1919,7 +1926,7 @@ declare module 'vscode' {
 		 * @return A definition or a thenable that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined` or `null`.
 		 */
-		provideDefinition(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Definition>;
+		provideDefinition(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionAndSpan>;
 	}
 
 	/**

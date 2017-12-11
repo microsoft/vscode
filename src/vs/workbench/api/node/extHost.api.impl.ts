@@ -566,6 +566,7 @@ export function createApiFactory(
 			CompletionItemKind: extHostTypes.CompletionItemKind,
 			CompletionList: extHostTypes.CompletionList,
 			CompletionTriggerKind: extHostTypes.CompletionTriggerKind,
+			DefinitionAndSpan: extHostTypes.DefinitionAndSpan,
 			Diagnostic: extHostTypes.Diagnostic,
 			DiagnosticSeverity: extHostTypes.DiagnosticSeverity,
 			Disposable: extHostTypes.Disposable,

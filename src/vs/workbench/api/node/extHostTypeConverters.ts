@@ -338,6 +338,20 @@ export const location = {
 	}
 };
 
+export namespace DefinitionAndSpan {
+	export function from(value: vscode.DefinitionAndSpan): modes.DefinitionAndSpan[] {
+		if (!Array.isArray(value.definitions)) {
+			return undefined;
+		}
+
+		const span = value.span ? location.from(value.span) : undefined;
+		return value.definitions.map(loc => ({
+			definition: location.from(loc),
+			span
+		}));
+	}
+}
+
 export function fromHover(hover: vscode.Hover): modes.Hover {
 	return <modes.Hover>{
 		range: fromRange(hover.range),

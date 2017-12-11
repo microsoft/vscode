@@ -102,7 +102,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	$registerDeclaractionSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
 		this._registrations[handle] = modes.DefinitionProviderRegistry.register(toLanguageSelector(selector), <modes.DefinitionProvider>{
-			provideDefinition: (model, position, token): Thenable<modes.Definition> => {
+			provideDefinition: (model, position, token): Thenable<modes.Definition | modes.DefinitionAndSpan[]> => {
 				return wireCancellationToken(token, this._proxy.$provideDefinition(handle, model.uri, position));
 			}
 		});

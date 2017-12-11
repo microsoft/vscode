@@ -181,7 +181,6 @@ namespace Configuration {
 	export const nameSuggestions = 'nameSuggestions';
 	export const quickSuggestionsForPaths = 'quickSuggestionsForPaths';
 	export const autoImportSuggestions = 'autoImportSuggestions.enabled';
-
 }
 
 export default class TypeScriptCompletionItemProvider implements CompletionItemProvider {
