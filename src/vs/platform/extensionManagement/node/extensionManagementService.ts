@@ -606,9 +606,9 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private async postUninstallExtension(extension: ILocalExtension, error?: string): TPromise<void> {
 		if (error) {
-			this.logService.info('Successfully uninstalled extension:', extension.identifier.id);
-		} else {
 			this.logService.error('Failed to uninstall extension:', extension.identifier.id, error);
+		} else {
+			this.logService.info('Successfully uninstalled extension:', extension.identifier.id);
 			// only report if extension has a mapped gallery extension. UUID identifies the gallery extension.
 			if (extension.identifier.uuid) {
 				await this.galleryService.reportStatistic(extension.manifest.publisher, extension.manifest.name, extension.manifest.version, StatisticType.Uninstall);
