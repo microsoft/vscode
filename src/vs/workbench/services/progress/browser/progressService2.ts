@@ -65,7 +65,7 @@ export class ProgressService2 implements IProgressService2 {
 		//
 	}
 
-	withProgress(options: IProgressOptions, task: (progress: IProgress<{ message?: string, percentage?: number }>) => TPromise<any>): void {
+	withProgress(options: IProgressOptions, task: (progress: IProgress<{ message?: string, percentage?: number }>) => Thenable<any>): void {
 		const { location } = options;
 		switch (location) {
 			case ProgressLocation.Window:
@@ -80,7 +80,7 @@ export class ProgressService2 implements IProgressService2 {
 	}
 
 
-	private _withWindowProgress(options: IProgressOptions, callback: (progress: IProgress<{ message?: string, percentage?: number }>) => TPromise<any>): void {
+	private _withWindowProgress(options: IProgressOptions, callback: (progress: IProgress<{ message?: string, percentage?: number }>) => Thenable<any>): void {
 
 		const task: [IProgressOptions, Progress<IProgressStep>] = [options, new Progress<IProgressStep>(() => this._updateWindowProgress())];
 
@@ -104,7 +104,7 @@ export class ProgressService2 implements IProgressService2 {
 		}, 150);
 
 		// cancel delay if promise finishes below 150ms
-		always(promise, () => clearTimeout(delayHandle));
+		always(TPromise.wrap(promise), () => clearTimeout(delayHandle));
 	}
 
 	private _updateWindowProgress(idx: number = 0) {
@@ -138,14 +138,14 @@ export class ProgressService2 implements IProgressService2 {
 		}
 	}
 
-	private _withViewletProgress(viewletId: string, task: (progress: IProgress<{ message?: string, percentage?: number }>) => TPromise<any>): void {
+	private _withViewletProgress(viewletId: string, task: (progress: IProgress<{ message?: string, percentage?: number }>) => Thenable<any>): void {
 
 		const promise = task(emptyProgress);
 
 		// show in viewlet
 		const viewletProgress = this._viewletService.getProgressIndicator(viewletId);
 		if (viewletProgress) {
-			viewletProgress.showWhile(promise);
+			viewletProgress.showWhile(TPromise.wrap(promise));
 		}
 
 		// show activity bar
