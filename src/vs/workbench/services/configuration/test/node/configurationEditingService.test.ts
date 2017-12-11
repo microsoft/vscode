@@ -205,6 +205,28 @@ suite('ConfigurationEditingService', () => {
 			});
 	});
 
+	test('remove an existing setting - existing file', () => {
+		fs.writeFileSync(globalSettingsFile, '{ "my.super.setting": "my.super.value", "configurationEditing.service.testSetting": "value" }');
+		return testObject.writeConfiguration(ConfigurationTarget.USER, { key: 'configurationEditing.service.testSetting', value: undefined })
+			.then(() => {
+				const contents = fs.readFileSync(globalSettingsFile).toString('utf8');
+				const parsed = json.parse(contents);
+				assert.deepEqual(Object.keys(parsed), ['my.super.setting']);
+				assert.equal(parsed['my.super.setting'], 'my.super.value');
+			});
+	});
+
+	test('remove non existing setting - existing file', () => {
+		fs.writeFileSync(globalSettingsFile, '{ "my.super.setting": "my.super.value" }');
+		return testObject.writeConfiguration(ConfigurationTarget.USER, { key: 'configurationEditing.service.testSetting', value: undefined })
+			.then(() => {
+				const contents = fs.readFileSync(globalSettingsFile).toString('utf8');
+				const parsed = json.parse(contents);
+				assert.deepEqual(Object.keys(parsed), ['my.super.setting']);
+				assert.equal(parsed['my.super.setting'], 'my.super.value');
+			});
+	});
+
 	test('write workspace standalone setting - empty file', () => {
 		return testObject.writeConfiguration(ConfigurationTarget.WORKSPACE, { key: 'tasks.service.testSetting', value: 'value' })
 			.then(() => {

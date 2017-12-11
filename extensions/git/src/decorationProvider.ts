@@ -6,7 +6,7 @@
 'use strict';
 
 import { window, workspace, Uri, Disposable, Event, EventEmitter, DecorationData, DecorationProvider, ThemeColor } from 'vscode';
-import { Repository, GitResourceGroup } from './repository';
+import { Repository, GitResourceGroup, Status } from './repository';
 import { Model } from './model';
 import { debounce } from './decorators';
 import { filterEvent } from './util';
@@ -74,34 +74,28 @@ class GitDecorationProvider implements DecorationProvider {
 	constructor(private repository: Repository) {
 		this.disposables.push(
 			window.registerDecorationProvider(this),
-			repository.onDidRunOperation(this.onDidRunOperation, this)
+			repository.onDidRunGitStatus(this.onDidRunGitStatus, this)
 		);
 	}
 
-	private onDidRunOperation(): void {
+	private onDidRunGitStatus(): void {
 		let newDecorations = new Map<string, DecorationData>();
 		this.collectDecorationData(this.repository.indexGroup, newDecorations);
 		this.collectDecorationData(this.repository.workingTreeGroup, newDecorations);
 		this.collectDecorationData(this.repository.mergeGroup, newDecorations);
 
-		let uris: Uri[] = [];
-		newDecorations.forEach((value, uriString) => {
-			if (this.decorations.has(uriString)) {
-				this.decorations.delete(uriString);
-			} else {
-				uris.push(Uri.parse(uriString));
-			}
-		});
-		this.decorations.forEach((value, uriString) => {
-			uris.push(Uri.parse(uriString));
-		});
+		const uris = new Set([...this.decorations.keys()].concat([...newDecorations.keys()]));
 		this.decorations = newDecorations;
-		this._onDidChangeDecorations.fire(uris);
+		this._onDidChangeDecorations.fire([...uris.values()].map(Uri.parse));
 	}
 
 	private collectDecorationData(group: GitResourceGroup, bucket: Map<string, DecorationData>): void {
 		group.resourceStates.forEach(r => {
-			if (r.resourceDecoration) {
+			if (r.resourceDecoration
+				&& r.type !== Status.DELETED
+				&& r.type !== Status.INDEX_DELETED
+			) {
+				// not deleted and has a decoration
 				bucket.set(r.original.toString(), r.resourceDecoration);
 			}
 		});

@@ -12,61 +12,72 @@ export class LineToken {
 	_lineTokenBrand: void;
 
 	private readonly _source: LineTokens;
-	private readonly _tokenIndex: number;
-	private readonly _metadata: number;
+	private readonly _tokenCount: number;
 
-	public readonly startOffset: number;
-	public readonly endOffset: number;
+	private _tokenIndex: number;
+	private _metadata: number;
+	private _startOffset: number;
+	private _endOffset: number;
 
-	public readonly hasPrev: boolean;
-	public readonly hasNext: boolean;
-
+	public get startOffset(): number {
+		return this._startOffset;
+	}
+	public get endOffset(): number {
+		return this._endOffset;
+	}
+	public get hasPrev(): boolean {
+		return (this._tokenIndex > 0);
+	}
+	public get hasNext(): boolean {
+		return (this._tokenIndex + 1 < this._tokenCount);
+	}
 	public get languageId(): LanguageId {
 		return TokenMetadata.getLanguageId(this._metadata);
 	}
-
 	public get tokenType(): StandardTokenType {
 		return TokenMetadata.getTokenType(this._metadata);
 	}
-
 	public get fontStyle(): FontStyle {
 		return TokenMetadata.getFontStyle(this._metadata);
 	}
-
 	public get foregroundId(): ColorId {
 		return TokenMetadata.getForeground(this._metadata);
 	}
-
 	public get backgroundId(): ColorId {
 		return TokenMetadata.getBackground(this._metadata);
 	}
 
 	constructor(source: LineTokens, tokenIndex: number, tokenCount: number, startOffset: number, endOffset: number, metadata: number) {
 		this._source = source;
+		this._tokenCount = tokenCount;
+		this._set(tokenIndex, startOffset, endOffset, metadata);
+	}
+
+	public clone(): LineToken {
+		return new LineToken(this._source, this._tokenIndex, this._tokenCount, this._startOffset, this._endOffset, this._metadata);
+	}
+
+	_set(tokenIndex: number, startOffset: number, endOffset: number, metadata: number): void {
 		this._tokenIndex = tokenIndex;
 		this._metadata = metadata;
-
-		this.startOffset = startOffset;
-		this.endOffset = endOffset;
-
-		this.hasPrev = (this._tokenIndex > 0);
-		this.hasNext = (this._tokenIndex + 1 < tokenCount);
+		this._startOffset = startOffset;
+		this._endOffset = endOffset;
 	}
 
 	public prev(): LineToken {
 		if (!this.hasPrev) {
 			return null;
 		}
-
-		return this._source.tokenAt(this._tokenIndex - 1);
+		this._source.tokenAt(this._tokenIndex - 1, this);
+		return this;
 	}
 
 	public next(): LineToken {
 		if (!this.hasNext) {
 			return null;
 		}
-
-		return this._source.tokenAt(this._tokenIndex + 1);
+		this._source.tokenAt(this._tokenIndex + 1, this);
+		return this;
 	}
 }
 
@@ -134,7 +145,7 @@ export class LineTokens {
 		return this.tokenAt(tokenIndex);
 	}
 
-	public tokenAt(tokenIndex: number): LineToken {
+	public tokenAt(tokenIndex: number, dest?: LineToken): LineToken {
 		let startOffset = this._tokens[(tokenIndex << 1)];
 		let endOffset: number;
 		if (tokenIndex + 1 < this._tokensCount) {
@@ -143,6 +154,11 @@ export class LineTokens {
 			endOffset = this._textLength;
 		}
 		let metadata = this._tokens[(tokenIndex << 1) + 1];
+
+		if (dest) {
+			dest._set(tokenIndex, startOffset, endOffset, metadata);
+			return dest;
+		}
 		return new LineToken(this, tokenIndex, this._tokensCount, startOffset, endOffset, metadata);
 	}
 

@@ -8,6 +8,7 @@
 	"unFoldRecursivelyAction.label": "Abrir recursivamente",
 	"foldAction.label": "Colapsar",
 	"foldRecursivelyAction.label": "Colapsar recursivamente",
+	"foldAllBlockComments.label": "Fechar Todos os Comentários de Bloco",
 	"foldAllAction.label": "Colapsar tudo",
 	"unfoldAllAction.label": "Abrir tudo",
 	"foldLevelAction.label": "Nível de colapsamento {0}"

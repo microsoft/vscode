@@ -977,7 +977,7 @@ export class Repository {
 		try {
 			const args = ['stash', 'pop'];
 
-			if (typeof index === 'string') {
+			if (typeof index === 'number') {
 				args.push(`stash@{${index}}`);
 			}
 
@@ -1017,12 +1017,12 @@ export class Repository {
 			const onStdoutData = (raw: string) => {
 				parser.update(raw);
 
-				if (parser.status.length > 5000) {
+				if (parser.status.length > limit) {
 					child.removeListener('exit', onExit);
 					child.stdout.removeListener('data', onStdoutData);
 					child.kill();
 
-					c({ status: parser.status.slice(0, 5000), didHitLimit: true });
+					c({ status: parser.status.slice(0, limit), didHitLimit: true });
 				}
 			};
 

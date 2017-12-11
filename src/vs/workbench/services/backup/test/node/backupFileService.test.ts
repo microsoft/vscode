@@ -41,8 +41,8 @@ class TestBackupFileService extends BackupFileService {
 		super(workspaceBackupPath, fileService);
 	}
 
-	public getBackupResource(resource: Uri): Uri {
-		return super.getBackupResource(resource);
+	public toBackupResource(resource: Uri): Uri {
+		return super.toBackupResource(resource);
 	}
 }
 
@@ -73,7 +73,7 @@ suite('BackupFileService', () => {
 			const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
 			const filePathHash = crypto.createHash('md5').update(backupResource.fsPath).digest('hex');
 			const expectedPath = Uri.file(path.join(backupHome, workspaceHash, 'file', filePathHash)).fsPath;
-			assert.equal(service.getBackupResource(backupResource).fsPath, expectedPath);
+			assert.equal(service.toBackupResource(backupResource).fsPath, expectedPath);
 		});
 
 		test('should get the correct backup path for untitled files', () => {
@@ -82,7 +82,7 @@ suite('BackupFileService', () => {
 			const workspaceHash = crypto.createHash('md5').update(workspaceResource.fsPath).digest('hex');
 			const filePathHash = crypto.createHash('md5').update(backupResource.fsPath).digest('hex');
 			const expectedPath = Uri.file(path.join(backupHome, workspaceHash, 'untitled', filePathHash)).fsPath;
-			assert.equal(service.getBackupResource(backupResource).fsPath, expectedPath);
+			assert.equal(service.toBackupResource(backupResource).fsPath, expectedPath);
 		});
 	});
 

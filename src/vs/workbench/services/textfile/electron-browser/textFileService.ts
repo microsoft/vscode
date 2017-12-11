@@ -130,16 +130,16 @@ export class TextFileService extends AbstractTextFileService {
 			opts.defaultId = 2;
 		}
 
-		const choice = this.windowService.showMessageBoxSync(opts);
+		const choice = this.windowService.showMessageBox(opts);
 
 		return buttons[choice].result;
 	}
 
-	public promptForPath(defaultPath?: string): string {
+	public promptForPath(defaultPath: string): string {
 		return this.windowService.showSaveDialog(this.getSaveDialogOptions(defaultPath));
 	}
 
-	private getSaveDialogOptions(defaultPath?: string): Electron.SaveDialogOptions {
+	private getSaveDialogOptions(defaultPath: string): Electron.SaveDialogOptions {
 		const options: Electron.SaveDialogOptions = { defaultPath };
 
 		// Filters are only enabled on Windows where they work properly

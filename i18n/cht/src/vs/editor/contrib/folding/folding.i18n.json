@@ -8,6 +8,7 @@
 	"unFoldRecursivelyAction.label": "以遞迴方式展開",
 	"foldAction.label": "摺疊",
 	"foldRecursivelyAction.label": "以遞迴方式摺疊",
+	"foldAllBlockComments.label": "摺疊全部區塊註解",
 	"foldAllAction.label": "全部摺疊",
 	"unfoldAllAction.label": "全部展開",
 	"foldLevelAction.label": "摺疊層級 {0}"

@@ -37,12 +37,6 @@ import { IMenuService, MenuId, IMenu, ExecuteCommandAction } from 'vs/platform/a
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Themable } from 'vs/workbench/common/theme';
-import { IDraggedResource } from 'vs/workbench/browser/editor';
-import { WORKSPACE_EXTENSION, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { extname } from 'vs/base/common/paths';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
-import URI from 'vs/base/common/uri';
 import { isDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Dimension } from 'vs/base/browser/builder';
 
@@ -423,7 +417,17 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 			getActions: () => TPromise.as(this.getContextMenuActions(identifier)),
 			getActionsContext: () => identifier,
 			getKeyBinding: (action) => this.getKeybinding(action),
-			onHide: (cancel) => this.resourceContext.set(currentContext) // restore previous context
+			onHide: (cancel) => {
+
+				// restore previous context
+				this.resourceContext.set(currentContext);
+
+				// restore focus to active editor if any
+				const editor = this.editorService.getActiveEditor();
+				if (editor) {
+					editor.focus();
+				}
+			}
 		});
 	}
 
@@ -489,75 +493,4 @@ export abstract class TitleControl extends Themable implements ITitleAreaControl
 		// Toolbar
 		this.editorActionsToolbar.dispose();
 	}
-}
-
-/**
- * Shared function across some editor components to handle drag & drop of folders and workspace files
- * to open them in the window instead of the editor.
- */
-export function handleWorkspaceExternalDrop(
-	resources: IDraggedResource[],
-	fileService: IFileService,
-	messageService: IMessageService,
-	windowsService: IWindowsService,
-	windowService: IWindowService,
-	workspacesService: IWorkspacesService
-): TPromise<boolean /* handled */> {
-
-	// Return early if there are no external resources
-	const externalResources = resources.filter(d => d.isExternal).map(d => d.resource);
-	if (!externalResources.length) {
-		return TPromise.as(false);
-	}
-
-	const externalWorkspaceResources: { workspaces: URI[], folders: URI[] } = {
-		workspaces: [],
-		folders: []
-	};
-
-	return TPromise.join(externalResources.map(resource => {
-
-		// Check for Workspace
-		if (extname(resource.fsPath) === `.${WORKSPACE_EXTENSION}`) {
-			externalWorkspaceResources.workspaces.push(resource);
-
-			return void 0;
-		}
-
-		// Check for Folder
-		return fileService.resolveFile(resource).then(stat => {
-			if (stat.isDirectory) {
-				externalWorkspaceResources.folders.push(stat.resource);
-			}
-		}, error => void 0);
-	})).then(_ => {
-		const { workspaces, folders } = externalWorkspaceResources;
-
-		// Return early if no external resource is a folder or workspace
-		if (workspaces.length === 0 && folders.length === 0) {
-			return false;
-		}
-
-		// Pass focus to window
-		windowService.focusWindow();
-
-		let workspacesToOpen: TPromise<string[]>;
-
-		// Open in separate windows if we drop workspaces or just one folder
-		if (workspaces.length > 0 || folders.length === 1) {
-			workspacesToOpen = TPromise.as([...workspaces, ...folders].map(resources => resources.fsPath));
-		}
-
-		// Multiple folders: Create new workspace with folders and open
-		else if (folders.length > 1) {
-			workspacesToOpen = workspacesService.createWorkspace(folders.map(folder => ({ uri: folder }))).then(workspace => [workspace.configPath]);
-		}
-
-		// Open
-		workspacesToOpen.then(workspaces => {
-			windowsService.openWindow(workspaces, { forceReuseWindow: true });
-		});
-
-		return true;
-	});
 }

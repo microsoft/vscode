@@ -49,6 +49,7 @@ import { SerializedError } from 'vs/base/common/errors';
 import { IWorkspaceFolderData } from 'vs/platform/workspace/common/workspace';
 import { IStat, IFileChange } from 'vs/platform/files/common/files';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { ParsedArgs } from 'vs/platform/environment/common/environment';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -75,6 +76,9 @@ export interface IInitData {
 	extensions: IExtensionDescription[];
 	configuration: IConfigurationInitData;
 	telemetryInfo: ITelemetryInfo;
+	windowId: number;
+	args: ParsedArgs;
+	execPath: string;
 }
 
 export interface IConfigurationInitData extends IConfigurationData {
@@ -140,8 +144,8 @@ export interface MainThreadDialogSaveOptions {
 }
 
 export interface MainThreadDiaglogsShape extends IDisposable {
-	$showOpenDialog(options: MainThreadDialogOpenOptions): TPromise<string[]>;
-	$showSaveDialog(options: MainThreadDialogSaveOptions): TPromise<string>;
+	$showOpenDialog(options: MainThreadDialogOpenOptions): Thenable<string[]>;
+	$showSaveDialog(options: MainThreadDialogSaveOptions): Thenable<string>;
 }
 
 export interface MainThreadDecorationsShape extends IDisposable {
@@ -235,11 +239,11 @@ export interface MainThreadEditorsShape extends IDisposable {
 
 export interface MainThreadTreeViewsShape extends IDisposable {
 	$registerView(treeViewId: string): void;
-	$refresh(treeViewId: string, treeItemHandles: number[]): void;
+	$refresh(treeViewId: string, itemsToRefresh?: { [treeItemHandle: string]: ITreeItem }): void;
 }
 
 export interface MainThreadErrorsShape extends IDisposable {
-	$onUnexpectedError(err: any | SerializedError, extensionId: string | undefined): void;
+	$onUnexpectedError(err: any | SerializedError): void;
 }
 
 export interface MainThreadLanguageFeaturesShape extends IDisposable {
@@ -350,8 +354,10 @@ export interface MainThreadTaskShape extends IDisposable {
 
 export interface MainThreadExtensionServiceShape extends IDisposable {
 	$localShowMessage(severity: Severity, msg: string): void;
-	$onExtensionActivated(extensionId: string, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number): void;
+	$onExtensionActivated(extensionId: string, startup: boolean, codeLoadingTime: number, activateCallTime: number, activateResolvedTime: number, activationEvent: string): void;
 	$onExtensionActivationFailed(extensionId: string): void;
+	$onExtensionRuntimeError(extensionId: string, error: SerializedError): void;
+	$addMessage(extensionId: string, severity: Severity, message: string): void;
 }
 
 export interface SCMProviderFeatures {
@@ -414,6 +420,7 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$startDebugging(folder: URI | undefined, nameOrConfig: string | vscode.DebugConfiguration): TPromise<boolean>;
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): TPromise<any>;
 	$appendDebugConsole(value: string): TPromise<any>;
+	$startBreakpointEvents(): TPromise<any>;
 }
 
 export interface MainThreadWindowShape extends IDisposable {
@@ -424,7 +431,7 @@ export interface MainThreadWindowShape extends IDisposable {
 
 export interface ExtHostCommandsShape {
 	$executeContributedCommand<T>(id: string, ...args: any[]): Thenable<T>;
-	$getContributedCommandHandlerDescriptions(): TPromise<{ [id: string]: string | ICommandHandlerDescription }>;
+	$getContributedCommandHandlerDescriptions(): Thenable<{ [id: string]: string | ICommandHandlerDescription }>;
 }
 
 export interface ExtHostConfigurationShape {
@@ -455,7 +462,7 @@ export interface ExtHostDocumentsShape {
 }
 
 export interface ExtHostDocumentSaveParticipantShape {
-	$participateInSave(resource: URI, reason: SaveReason): TPromise<boolean[]>;
+	$participateInSave(resource: URI, reason: SaveReason): Thenable<boolean[]>;
 }
 
 export interface ITextEditorAddData {
@@ -488,7 +495,7 @@ export interface ExtHostDocumentsAndEditorsShape {
 
 export interface ExtHostTreeViewsShape {
 	$getElements(treeViewId: string): TPromise<ITreeItem[]>;
-	$getChildren(treeViewId: string, treeItemHandle: number): TPromise<ITreeItem[]>;
+	$getChildren(treeViewId: string, treeItemHandle: string): TPromise<ITreeItem[]>;
 }
 
 export interface ExtHostWorkspaceShape {
@@ -618,6 +625,32 @@ export interface ExtHostTaskShape {
 	$provideTasks(handle: number): TPromise<TaskSet>;
 }
 
+export interface IBreakpointData {
+	type: 'source' | 'function';
+	id: string;
+	enabled: boolean;
+	condition?: string;
+	hitCondition?: string;
+}
+
+export interface ISourceBreakpointData extends IBreakpointData {
+	type: 'source';
+	uri: URI;
+	line: number;
+	character: number;
+}
+
+export interface IFunctionBreakpointData extends IBreakpointData {
+	type: 'function';
+	functionName: string;
+}
+
+export interface IBreakpointsDelta {
+	added?: (ISourceBreakpointData | IFunctionBreakpointData)[];
+	removed?: string[];
+	changed?: (ISourceBreakpointData | IFunctionBreakpointData)[];
+}
+
 export interface ExtHostDebugServiceShape {
 	$resolveDebugConfiguration(handle: number, folder: URI | undefined, debugConfiguration: any): TPromise<any>;
 	$provideDebugConfigurations(handle: number, folder: URI | undefined): TPromise<any[]>;
@@ -625,6 +658,7 @@ export interface ExtHostDebugServiceShape {
 	$acceptDebugSessionTerminated(id: DebugSessionUUID, type: string, name: string): void;
 	$acceptDebugSessionActiveChanged(id: DebugSessionUUID | undefined, type?: string, name?: string): void;
 	$acceptDebugSessionCustomEvent(id: DebugSessionUUID, type: string, name: string, event: any): void;
+	$acceptBreakpointsDelta(delat: IBreakpointsDelta): void;
 }
 
 

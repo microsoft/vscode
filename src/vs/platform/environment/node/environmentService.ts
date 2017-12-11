@@ -8,12 +8,12 @@ import * as crypto from 'crypto';
 import * as paths from 'vs/base/node/paths';
 import * as os from 'os';
 import * as path from 'path';
-import * as fs from 'fs';
 import URI from 'vs/base/common/uri';
-import { generateUuid, isUUID } from 'vs/base/common/uuid';
 import { memoize } from 'vs/base/common/decorators';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
+import { LogLevel } from 'vs/platform/log/common/log';
+import { toLocalISOString } from 'vs/base/common/date';
 
 // Read this before there's any chance it is overwritten
 // Related to https://github.com/Microsoft/vscode/issues/30624
@@ -50,6 +50,8 @@ export class EnvironmentService implements IEnvironmentService {
 	get appRoot(): string { return path.dirname(URI.parse(require.toUrl('')).fsPath); }
 
 	get execPath(): string { return this._execPath; }
+
+	readonly logsPath: string;
 
 	@memoize
 	get userHome(): string { return os.homedir(); }
@@ -104,6 +106,8 @@ export class EnvironmentService implements IEnvironmentService {
 
 	get skipGettingStarted(): boolean { return this._args['skip-getting-started']; }
 
+	get skipReleaseNotes(): boolean { return this._args['skip-release-notes']; }
+
 	get skipAddToRecentlyOpened(): boolean { return this._args['skip-add-to-recently-opened']; }
 
 	@memoize
@@ -114,10 +118,39 @@ export class EnvironmentService implements IEnvironmentService {
 
 	get isBuilt(): boolean { return !process.env['VSCODE_DEV']; }
 	get verbose(): boolean { return this._args.verbose; }
+
+	@memoize
+	get logLevel(): LogLevel {
+		if (this.verbose) {
+			return LogLevel.Trace;
+		}
+		if (typeof this._args.log === 'string') {
+			const logLevel = this._args.log.toLowerCase();
+			switch (logLevel) {
+				case 'trace':
+					return LogLevel.Trace;
+				case 'debug':
+					return LogLevel.Debug;
+				case 'info':
+					return LogLevel.Info;
+				case 'warn':
+					return LogLevel.Warning;
+				case 'error':
+					return LogLevel.Error;
+				case 'critical':
+					return LogLevel.Critical;
+				case 'off':
+					return LogLevel.Off;
+			}
+		}
+		return LogLevel.Info;
+	}
+
 	get wait(): boolean { return this._args.wait; }
 	get logExtensionHostCommunication(): boolean { return this._args.logExtensionHostCommunication; }
 
 	get performance(): boolean { return this._args.performance; }
+	get status(): boolean { return this._args.status; }
 
 	@memoize
 	get mainIPCHandle(): string { return getIPCHandle(this.userDataPath, 'main'); }
@@ -131,26 +164,13 @@ export class EnvironmentService implements IEnvironmentService {
 	get disableUpdates(): boolean { return !!this._args['disable-updates']; }
 	get disableCrashReporter(): boolean { return !!this._args['disable-crash-reporter']; }
 
-	readonly machineUUID: string;
-
 	constructor(private _args: ParsedArgs, private _execPath: string) {
-		const machineIdPath = path.join(this.userDataPath, 'machineid');
-
-		try {
-			this.machineUUID = fs.readFileSync(machineIdPath, 'utf8');
-
-			if (!isUUID(this.machineUUID)) {
-				throw new Error('Not a UUID');
-			}
-		} catch (err) {
-			this.machineUUID = generateUuid();
-
-			try {
-				fs.writeFileSync(machineIdPath, this.machineUUID, 'utf8');
-			} catch (err) {
-				// noop
-			}
+		if (!process.env['VSCODE_LOGS']) {
+			const key = toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '');
+			process.env['VSCODE_LOGS'] = path.join(this.userDataPath, 'logs', key);
 		}
+
+		this.logsPath = process.env['VSCODE_LOGS'];
 	}
 }
 

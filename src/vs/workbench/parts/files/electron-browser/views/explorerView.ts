@@ -8,7 +8,7 @@ import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Builder, $ } from 'vs/base/browser/builder';
 import URI from 'vs/base/common/uri';
-import { ThrottledDelayer, sequence, Delayer } from 'vs/base/common/async';
+import { ThrottledDelayer, Delayer } from 'vs/base/common/async';
 import errors = require('vs/base/common/errors');
 import paths = require('vs/base/common/paths');
 import resources = require('vs/base/common/resources');
@@ -425,8 +425,14 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			}, this.contextKeyService, this.listService, this.themeService);
 
 		// Bind context keys
-		FilesExplorerFocusedContext.bindTo(this.explorerViewer.contextKeyService);
-		ExplorerFocusedContext.bindTo(this.explorerViewer.contextKeyService);
+		const filesExplorerFocusedContextKey = FilesExplorerFocusedContext.bindTo(this.explorerViewer.contextKeyService);
+		const explorerFocusedContextKey = ExplorerFocusedContext.bindTo(this.explorerViewer.contextKeyService);
+
+		// Update context keys
+		this.disposables.push(this.explorerViewer.onFocusChange(focused => {
+			filesExplorerFocusedContextKey.set(focused);
+			explorerFocusedContextKey.set(focused);
+		}));
 
 		// Update Viewer based on File Change Events
 		this.disposables.push(this.fileService.onAfterOperation(e => this.onFileOperation(e)));
@@ -773,31 +779,70 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			});
 		}
 
-		// Load Root Stat with given target path configured
+		const promise = this.resolveRoots(targetsToResolve, targetsToExpand);
+		this.progressService.showWhile(promise, this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
+
+		return promise;
+	}
+
+	private resolveRoots(targetsToResolve: { root: FileStat, resource: URI, options: { resolveTo: any[] } }[], targetsToExpand: URI[]): TPromise<any> {
+
+		// Display roots only when multi folder workspace
+		const input = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.model.roots[0] : this.model;
+		const errorFileStat = (resource: URI, root: FileStat) => FileStat.create({
+			resource: resource,
+			name: paths.basename(resource.fsPath),
+			mtime: 0,
+			etag: undefined,
+			isDirectory: true,
+			hasChildren: false
+		}, root);
+
+		if (targetsToResolve.every(t => t.root.resource.scheme === 'file')) {
+			// All the roots are local, resolve them in parallel
+			return this.fileService.resolveFiles(targetsToResolve).then(results => {
+				// Convert to model
+				const modelStats = results.map((result, index) => {
+					if (result.success) {
+						return FileStat.create(result.stat, targetsToResolve[index].root, targetsToResolve[index].options.resolveTo);
+					}
+
+					return errorFileStat(targetsToResolve[index].resource, targetsToResolve[index].root);
+				});
+				// Subsequent refresh: Merge stat into our local model and refresh tree
+				modelStats.forEach((modelStat, index) => FileStat.mergeLocalWithDisk(modelStat, this.model.roots[index]));
+
+				const statsToExpand: FileStat[] = this.explorerViewer.getExpandedElements().concat(targetsToExpand.map(expand => this.model.findClosest(expand)));
+
+				if (input === this.explorerViewer.getInput()) {
+					return this.explorerViewer.refresh().then(() => statsToExpand.length ? this.explorerViewer.expandAll(statsToExpand) : undefined);
+				}
+
+				// Make sure to expand all folders that where expanded in the previous session
+				// Special case: there is nothing to expand, thus expand all the roots (they might just be added)
+				if (statsToExpand.length === 0) {
+					statsToExpand.push(...this.model.roots);
+				}
+				return this.explorerViewer.setInput(input).then(() => statsToExpand.length ? this.explorerViewer.expandAll(statsToExpand) : undefined);
+			});
+		}
+
+		// There is a remote root, resolve the roots sequantally
 		let statsToExpand: FileStat[] = [];
 		let delayer = new Delayer(100);
 		let delayerPromise: TPromise;
-
-		const promise = TPromise.join(targetsToResolve.map((target, index) => this.fileService.resolveFile(target.resource, target.options)
-			.then(result => FileStat.create(result, target.root, target.options.resolveTo), err => FileStat.create({
-				resource: target.resource,
-				name: resources.basenameOrAuthority(target.resource),
-				mtime: 0,
-				etag: undefined,
-				isDirectory: true,
-				hasChildren: false
-			}, target.root))
+		return TPromise.join(targetsToResolve.map((target, index) => this.fileService.resolveFile(target.resource, target.options)
+			.then(result => FileStat.create(result, target.root, target.options.resolveTo), err => errorFileStat(target.resource, target.root))
 			.then(modelStat => {
 				// Subsequent refresh: Merge stat into our local model and refresh tree
 				FileStat.mergeLocalWithDisk(modelStat, this.model.roots[index]);
 
-				const input = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.model.roots[0] : this.model;
 				let toExpand: FileStat[] = this.explorerViewer.getExpandedElements().concat(targetsToExpand.map(target => this.model.findClosest(target)));
 				if (input === this.explorerViewer.getInput()) {
 					statsToExpand = statsToExpand.concat(toExpand);
 					if (!delayer.isTriggered()) {
 						delayerPromise = delayer.trigger(() => this.explorerViewer.refresh()
-							.then(() => sequence(statsToExpand.map(e => () => this.explorerViewer.expand(e))))
+							.then(() => this.explorerViewer.expandAll(statsToExpand))
 							.then(() => statsToExpand = [])
 						);
 					}
@@ -811,12 +856,8 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 					// We have transitioned into workspace view -> expand all roots
 					toExpand = this.model.roots.concat(toExpand);
 				}
-				return this.explorerViewer.setInput(input).then(() => sequence(toExpand.map(e => () => this.explorerViewer.expand(e))));
+				return this.explorerViewer.setInput(input).then(() => this.explorerViewer.expandAll(toExpand));
 			})));
-
-		this.progressService.showWhile(promise, this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
-
-		return promise;
 	}
 
 	/**

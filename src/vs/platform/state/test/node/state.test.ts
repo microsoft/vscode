@@ -25,7 +25,7 @@ suite('StateService', () => {
 		return mkdirp(parentDir).then(() => {
 			writeFileAndFlushSync(storageFile, '');
 
-			let service = new FileStorage(storageFile);
+			let service = new FileStorage(storageFile, () => null);
 
 			service.setItem('some.key', 'some.value');
 			assert.equal(service.getItem('some.key'), 'some.value');
@@ -37,7 +37,7 @@ suite('StateService', () => {
 
 			service.setItem('some.other.key', 'some.other.value');
 
-			service = new FileStorage(storageFile);
+			service = new FileStorage(storageFile, () => null);
 
 			assert.equal(service.getItem('some.other.key'), 'some.other.value');
 

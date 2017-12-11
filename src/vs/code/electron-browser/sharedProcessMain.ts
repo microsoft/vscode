@@ -35,6 +35,8 @@ import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
 import { ipcRenderer } from 'electron';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createSharedProcessContributions } from 'vs/code/electron-browser/contrib/contributions';
+import { createLogService } from 'vs/platform/log/node/spdlogService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -76,7 +78,14 @@ const eventPrefix = 'monacoworkbench';
 function main(server: Server, initData: ISharedProcessInitData, configuration: ISharedProcessConfiguration): void {
 	const services = new ServiceCollection();
 
-	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, initData.args, process.execPath));
+	const environmentService = new EnvironmentService(initData.args, process.execPath);
+	const logService = createLogService('sharedprocess', environmentService);
+	process.once('exit', () => logService.dispose());
+
+	logService.info('main', JSON.stringify(configuration));
+
+	services.set(IEnvironmentService, environmentService);
+	services.set(ILogService, logService);
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 

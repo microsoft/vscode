@@ -14,7 +14,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
-import { CloseEditorAction, KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, OpenTipsAndTricksUrlAction, ReportIssueAction, ReportPerformanceIssueAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseWorkspaceAction, CloseCurrentWindowAction, SwitchWindow, NewWindowAction, CloseMessagesAction, NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction, IncreaseViewSizeAction, DecreaseViewSizeAction, ShowStartupPerformance, ToggleSharedProcessAction, QuickSwitchWindow, QuickOpenRecentAction, inRecentFilesPickerContextKey, ConfigureLocaleAction } from 'vs/workbench/electron-browser/actions';
+import { CloseEditorAction, KeybindingsReferenceAction, OpenDocumentationUrlAction, OpenIntroductoryVideosUrlAction, OpenTipsAndTricksUrlAction, ReportIssueAction, ReportPerformanceIssueAction, ZoomResetAction, ZoomOutAction, ZoomInAction, ToggleFullScreenAction, ToggleMenuBarAction, CloseWorkspaceAction, CloseCurrentWindowAction, SwitchWindow, NewWindowAction, CloseMessagesAction, NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction, IncreaseViewSizeAction, DecreaseViewSizeAction, ShowStartupPerformance, ToggleSharedProcessAction, QuickSwitchWindow, QuickOpenRecentAction, inRecentFilesPickerContextKey, ConfigureLocaleAction, ShowLogsAction, OpenLogsFolderAction, SetLogLevelAction } from 'vs/workbench/electron-browser/actions';
 import { MessagesVisibleContext } from 'vs/workbench/electron-browser/workbench';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { registerCommands } from 'vs/workbench/electron-browser/commands';
@@ -31,11 +31,15 @@ registerCommands();
 const viewCategory = nls.localize('view', "View");
 const helpCategory = nls.localize('help', "Help");
 const fileCategory = nls.localize('file', "File");
+const devCategory = nls.localize('developer', "Developer");
 const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(NewWindowAction, NewWindowAction.ID, NewWindowAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_N }), 'New Window');
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(CloseCurrentWindowAction, CloseCurrentWindowAction.ID, CloseCurrentWindowAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_W }), 'Close Window');
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SwitchWindow, SwitchWindow.ID, SwitchWindow.LABEL, { primary: null, mac: { primary: KeyMod.WinCtrl | KeyCode.KEY_W } }), 'Switch Window...');
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(QuickSwitchWindow, QuickSwitchWindow.ID, QuickSwitchWindow.LABEL), 'Quick Switch Window...');
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(ShowLogsAction, ShowLogsAction.ID, ShowLogsAction.LABEL), 'Developer: Show Logs...', devCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenLogsFolderAction, OpenLogsFolderAction.ID, OpenLogsFolderAction.LABEL), 'Developer: Open Log Folder', devCategory);
+workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SetLogLevelAction, SetLogLevelAction.ID, SetLogLevelAction.LABEL), 'Developer: Set Log Level', devCategory);
 
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenRecentAction, QuickOpenRecentAction.ID, QuickOpenRecentAction.LABEL), 'File: Quick Open Recent...', fileCategory);
 
@@ -272,130 +276,121 @@ configurationRegistry.registerConfiguration({
 
 
 // Configuration: Window
-let properties: { [path: string]: IJSONSchema; } = {
-	'window.openFilesInNewWindow': {
-		'type': 'string',
-		'enum': ['on', 'off', 'default'],
-		'enumDescriptions': [
-			nls.localize('window.openFilesInNewWindow.on', "Files will open in a new window"),
-			nls.localize('window.openFilesInNewWindow.off', "Files will open in the window with the files' folder open or the last active window"),
-			nls.localize('window.openFilesInNewWindow.default', "Files will open in the window with the files' folder open or the last active window unless opened via the dock or from finder (macOS only)")
-		],
-		'default': 'off',
-		'description':
-			nls.localize('openFilesInNewWindow', "Controls if files should open in a new window.\n- default: files will open in the window with the files' folder open or the last active window unless opened via the dock or from finder (macOS only)\n- on: files will open in a new window\n- off: files will open in the window with the files' folder open or the last active window\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).")
-	},
-	'window.openFoldersInNewWindow': {
-		'type': 'string',
-		'enum': ['on', 'off', 'default'],
-		'enumDescriptions': [
-			nls.localize('window.openFoldersInNewWindow.on', "Folders will open in a new window"),
-			nls.localize('window.openFoldersInNewWindow.off', "Folders will replace the last active window"),
-			nls.localize('window.openFoldersInNewWindow.default', "Folders will open in a new window unless a folder is picked from within the application (e.g. via the File menu)")
-		],
-		'default': 'default',
-		'description': nls.localize('openFoldersInNewWindow', "Controls if folders should open in a new window or replace the last active window.\n- default: folders will open in a new window unless a folder is picked from within the application (e.g. via the File menu)\n- on: folders will open in a new window\n- off: folders will replace the last active window\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option)."
-		)
-	},
-	'window.restoreWindows': {
-		'type': 'string',
-		'enum': ['all', 'folders', 'one', 'none'],
-		'enumDescriptions': [
-			nls.localize('window.reopenFolders.all', "Reopen all windows."),
-			nls.localize('window.reopenFolders.folders', "Reopen all folders. Empty workspaces will not be restored."),
-			nls.localize('window.reopenFolders.one', "Reopen the last active window."),
-			nls.localize('window.reopenFolders.none', "Never reopen a window. Always start with an empty one.")
-		],
-		'default': 'one',
-		'description': nls.localize('restoreWindows', "Controls how windows are being reopened after a restart. Select 'none' to always start with an empty workspace, 'one' to reopen the last window you worked on, 'folders' to reopen all windows that had folders opened or 'all' to reopen all windows of your last session.")
-	},
-	'window.restoreFullscreen': {
-		'type': 'boolean',
-		'default': false,
-		'description': nls.localize('restoreFullscreen', "Controls if a window should restore to full screen mode if it was exited in full screen mode.")
-	},
-	'window.zoomLevel': {
-		'type': 'number',
-		'default': 0,
-		'description': nls.localize('zoomLevel', "Adjust the zoom level of the window. The original size is 0 and each increment above (e.g. 1) or below (e.g. -1) represents zooming 20% larger or smaller. You can also enter decimals to adjust the zoom level with a finer granularity.")
-	},
-	'window.title': {
-		'type': 'string',
-		'default': isMacintosh ? '${activeEditorShort}${separator}${rootName}' : '${dirty}${activeEditorShort}${separator}${rootName}${separator}${appName}',
-		'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by parenthesis are not to be translated.'], key: 'title' },
-			"Controls the window title based on the active editor. Variables are substituted based on the context:\n\${activeEditorShort}: the file name (e.g. myFile.txt)\n\${activeEditorMedium}: the path of the file relative to the workspace folder (e.g. myFolder/myFile.txt)\n\${activeEditorLong}: the full path of the file (e.g. /Users/Development/myProject/myFolder/myFile.txt)\n\${folderName}: name of the workspace folder the file is contained in (e.g. myFolder)\n\${folderPath}: file path of the workspace folder the file is contained in (e.g. /Users/Development/myFolder)\n\${rootName}: name of the workspace (e.g. myFolder or myWorkspace)\n\${rootPath}: file path of the workspace (e.g. /Users/Development/myWorkspace)\n\${appName}: e.g. VS Code\n\${dirty}: a dirty indicator if the active editor is dirty\n\${separator}: a conditional separator (\" - \") that only shows when surrounded by variables with values")
-	},
-	'window.newWindowDimensions': {
-		'type': 'string',
-		'enum': ['default', 'inherit', 'maximized', 'fullscreen'],
-		'enumDescriptions': [
-			nls.localize('window.newWindowDimensions.default', "Open new windows in the center of the screen."),
-			nls.localize('window.newWindowDimensions.inherit', "Open new windows with same dimension as last active one."),
-			nls.localize('window.newWindowDimensions.maximized', "Open new windows maximized."),
-			nls.localize('window.newWindowDimensions.fullscreen', "Open new windows in full screen mode.")
-		],
-		'default': 'default',
-		'description': nls.localize('newWindowDimensions', "Controls the dimensions of opening a new window when at least one window is already opened. By default, a new window will open in the center of the screen with small dimensions. When set to 'inherit', the window will get the same dimensions as the last window that was active. When set to 'maximized', the window will open maximized and fullscreen if configured to 'fullscreen'. Note that this setting does not have an impact on the first window that is opened. The first window will always restore the size and location as you left it before closing.")
-	},
-	'window.closeWhenEmpty': {
-		'type': 'boolean',
-		'default': false,
-		'description': nls.localize('closeWhenEmpty', "Controls if closing the last editor should also close the window. This setting only applies for windows that do not show folders.")
-	}
-};
-
-if (isWindows || isLinux) {
-	properties['window.menuBarVisibility'] = {
-		'type': 'string',
-		'enum': ['default', 'visible', 'toggle', 'hidden'],
-		'enumDescriptions': [
-			nls.localize('window.menuBarVisibility.default', "Menu is only hidden in full screen mode."),
-			nls.localize('window.menuBarVisibility.visible', "Menu is always visible even in full screen mode."),
-			nls.localize('window.menuBarVisibility.toggle', "Menu is hidden but can be displayed via Alt key."),
-			nls.localize('window.menuBarVisibility.hidden', "Menu is always hidden.")
-		],
-		'default': 'default',
-		'description': nls.localize('menuBarVisibility', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and a single press of the Alt key will show it. By default, the menu bar will be visible, unless the window is full screen.")
-	};
-	properties['window.enableMenuBarMnemonics'] = {
-		'type': 'boolean',
-		'default': true,
-		'description': nls.localize('enableMenuBarMnemonics', "If enabled, the main menus can be opened via Alt-key shortcuts. Disabling mnemonics allows to bind these Alt-key shortcuts to editor commands instead.")
-	};
-}
-
-if (isWindows) {
-	properties['window.autoDetectHighContrast'] = {
-		'type': 'boolean',
-		'default': true,
-		'description': nls.localize('autoDetectHighContrast', "If enabled, will automatically change to high contrast theme if Windows is using a high contrast theme, and to dark theme when switching away from a Windows high contrast theme."),
-	};
-}
-
-if (isMacintosh) {
-	properties['window.titleBarStyle'] = {
-		'type': 'string',
-		'enum': ['native', 'custom'],
-		'default': 'custom',
-		'description': nls.localize('titleBarStyle', "Adjust the appearance of the window title bar. Changes require a full restart to apply.")
-	};
-
-	// Minimum: macOS Sierra (10.12.x = darwin 16.x)
-	if (parseFloat(os.release()) >= 16) {
-		properties['window.nativeTabs'] = {
-			'type': 'boolean',
-			'default': false,
-			'description': nls.localize('window.nativeTabs', "Enables macOS Sierra window tabs. Note that changes require a full restart to apply and that native tabs will disable a custom title bar style if configured.")
-		};
-	}
-}
 
 configurationRegistry.registerConfiguration({
 	'id': 'window',
 	'order': 8,
 	'title': nls.localize('windowConfigurationTitle', "Window"),
 	'type': 'object',
-	'properties': properties
+	'properties': {
+		'window.openFilesInNewWindow': {
+			'type': 'string',
+			'enum': ['on', 'off', 'default'],
+			'enumDescriptions': [
+				nls.localize('window.openFilesInNewWindow.on', "Files will open in a new window"),
+				nls.localize('window.openFilesInNewWindow.off', "Files will open in the window with the files' folder open or the last active window"),
+				nls.localize('window.openFilesInNewWindow.default', "Files will open in the window with the files' folder open or the last active window unless opened via the dock or from finder (macOS only)")
+			],
+			'default': 'off',
+			'description':
+				nls.localize('openFilesInNewWindow', "Controls if files should open in a new window.\n- default: files will open in the window with the files' folder open or the last active window unless opened via the dock or from finder (macOS only)\n- on: files will open in a new window\n- off: files will open in the window with the files' folder open or the last active window\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option).")
+		},
+		'window.openFoldersInNewWindow': {
+			'type': 'string',
+			'enum': ['on', 'off', 'default'],
+			'enumDescriptions': [
+				nls.localize('window.openFoldersInNewWindow.on', "Folders will open in a new window"),
+				nls.localize('window.openFoldersInNewWindow.off', "Folders will replace the last active window"),
+				nls.localize('window.openFoldersInNewWindow.default', "Folders will open in a new window unless a folder is picked from within the application (e.g. via the File menu)")
+			],
+			'default': 'default',
+			'description': nls.localize('openFoldersInNewWindow', "Controls if folders should open in a new window or replace the last active window.\n- default: folders will open in a new window unless a folder is picked from within the application (e.g. via the File menu)\n- on: folders will open in a new window\n- off: folders will replace the last active window\nNote that there can still be cases where this setting is ignored (e.g. when using the -new-window or -reuse-window command line option)."
+			)
+		},
+		'window.restoreWindows': {
+			'type': 'string',
+			'enum': ['all', 'folders', 'one', 'none'],
+			'enumDescriptions': [
+				nls.localize('window.reopenFolders.all', "Reopen all windows."),
+				nls.localize('window.reopenFolders.folders', "Reopen all folders. Empty workspaces will not be restored."),
+				nls.localize('window.reopenFolders.one', "Reopen the last active window."),
+				nls.localize('window.reopenFolders.none', "Never reopen a window. Always start with an empty one.")
+			],
+			'default': 'one',
+			'description': nls.localize('restoreWindows', "Controls how windows are being reopened after a restart. Select 'none' to always start with an empty workspace, 'one' to reopen the last window you worked on, 'folders' to reopen all windows that had folders opened or 'all' to reopen all windows of your last session.")
+		},
+		'window.restoreFullscreen': {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('restoreFullscreen', "Controls if a window should restore to full screen mode if it was exited in full screen mode.")
+		},
+		'window.zoomLevel': {
+			'type': 'number',
+			'default': 0,
+			'description': nls.localize('zoomLevel', "Adjust the zoom level of the window. The original size is 0 and each increment above (e.g. 1) or below (e.g. -1) represents zooming 20% larger or smaller. You can also enter decimals to adjust the zoom level with a finer granularity.")
+		},
+		'window.title': {
+			'type': 'string',
+			'default': isMacintosh ? '${activeEditorShort}${separator}${rootName}' : '${dirty}${activeEditorShort}${separator}${rootName}${separator}${appName}',
+			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by parenthesis are not to be translated.'], key: 'title' },
+				"Controls the window title based on the active editor. Variables are substituted based on the context:\n\${activeEditorShort}: the file name (e.g. myFile.txt)\n\${activeEditorMedium}: the path of the file relative to the workspace folder (e.g. myFolder/myFile.txt)\n\${activeEditorLong}: the full path of the file (e.g. /Users/Development/myProject/myFolder/myFile.txt)\n\${folderName}: name of the workspace folder the file is contained in (e.g. myFolder)\n\${folderPath}: file path of the workspace folder the file is contained in (e.g. /Users/Development/myFolder)\n\${rootName}: name of the workspace (e.g. myFolder or myWorkspace)\n\${rootPath}: file path of the workspace (e.g. /Users/Development/myWorkspace)\n\${appName}: e.g. VS Code\n\${dirty}: a dirty indicator if the active editor is dirty\n\${separator}: a conditional separator (\" - \") that only shows when surrounded by variables with values")
+		},
+		'window.newWindowDimensions': {
+			'type': 'string',
+			'enum': ['default', 'inherit', 'maximized', 'fullscreen'],
+			'enumDescriptions': [
+				nls.localize('window.newWindowDimensions.default', "Open new windows in the center of the screen."),
+				nls.localize('window.newWindowDimensions.inherit', "Open new windows with same dimension as last active one."),
+				nls.localize('window.newWindowDimensions.maximized', "Open new windows maximized."),
+				nls.localize('window.newWindowDimensions.fullscreen', "Open new windows in full screen mode.")
+			],
+			'default': 'default',
+			'description': nls.localize('newWindowDimensions', "Controls the dimensions of opening a new window when at least one window is already opened. By default, a new window will open in the center of the screen with small dimensions. When set to 'inherit', the window will get the same dimensions as the last window that was active. When set to 'maximized', the window will open maximized and fullscreen if configured to 'fullscreen'. Note that this setting does not have an impact on the first window that is opened. The first window will always restore the size and location as you left it before closing.")
+		},
+		'window.closeWhenEmpty': {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('closeWhenEmpty', "Controls if closing the last editor should also close the window. This setting only applies for windows that do not show folders.")
+		},
+		'window.menuBarVisibility': {
+			'type': 'string',
+			'enum': ['default', 'visible', 'toggle', 'hidden'],
+			'enumDescriptions': [
+				nls.localize('window.menuBarVisibility.default', "Menu is only hidden in full screen mode."),
+				nls.localize('window.menuBarVisibility.visible', "Menu is always visible even in full screen mode."),
+				nls.localize('window.menuBarVisibility.toggle', "Menu is hidden but can be displayed via Alt key."),
+				nls.localize('window.menuBarVisibility.hidden', "Menu is always hidden.")
+			],
+			'default': 'default',
+			'description': nls.localize('menuBarVisibility', "Control the visibility of the menu bar. A setting of 'toggle' means that the menu bar is hidden and a single press of the Alt key will show it. By default, the menu bar will be visible, unless the window is full screen."),
+			'included': isWindows || isLinux
+		},
+		'window.enableMenuBarMnemonics': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('enableMenuBarMnemonics', "If enabled, the main menus can be opened via Alt-key shortcuts. Disabling mnemonics allows to bind these Alt-key shortcuts to editor commands instead."),
+			'included': isWindows || isLinux
+		},
+		'window.autoDetectHighContrast': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('autoDetectHighContrast', "If enabled, will automatically change to high contrast theme if Windows is using a high contrast theme, and to dark theme when switching away from a Windows high contrast theme."),
+			'included': !isWindows
+		},
+		'window.titleBarStyle': {
+			'type': 'string',
+			'enum': ['native', 'custom'],
+			'default': 'custom',
+			'description': nls.localize('titleBarStyle', "Adjust the appearance of the window title bar. Changes require a full restart to apply."),
+			'included': isMacintosh
+		},
+		'window.nativeTabs': {
+			'type': 'boolean',
+			'default': false,
+			'description': nls.localize('window.nativeTabs', "Enables macOS Sierra window tabs. Note that changes require a full restart to apply and that native tabs will disable a custom title bar style if configured."),
+			'included': isMacintosh && parseFloat(os.release()) >= 16 // Minimum: macOS Sierra (10.12.x = darwin 16.x)
+		}
+	}
 });
 
 // Configuration: Zen Mode

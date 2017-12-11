@@ -11,6 +11,8 @@
 	"oneSettingFound": "1 impostazione corrispondente",
 	"settingsFound": "{0} impostazioni corrispondenti",
 	"totalSettingsMessage": "{0} impostazioni in totale",
+	"defaultSettings": "Impostazioni predefinite",
+	"defaultFolderSettings": "Impostazioni cartella predefinite",
 	"defaultEditorReadonly": "Modificare nell'editor a destra per ignorare le impostazioni predefinite.",
 	"preferencesAriaLabel": "Preferenze predefinite. Editor di testo di sola lettura."
 }

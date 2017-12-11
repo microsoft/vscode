@@ -387,7 +387,7 @@ binaryextensions@~1.0.0:
   version "1.0.1"
   resolved "https://registry.yarnpkg.com/binaryextensions/-/binaryextensions-1.0.1.tgz#1e637488b35b58bda5f4774bf96a5212a8c90755"
 
-bindings@^1.2.1:
+bindings@^1.2.1, bindings@^1.3.0:
   version "1.3.0"
   resolved "https://registry.yarnpkg.com/bindings/-/bindings-1.3.0.tgz#b346f6ecf6a95f5a815c5839fc7cdb22502f1ed7"
 
@@ -2150,9 +2150,9 @@ grunt@0.4:
     underscore.string "~2.2.1"
     which "~1.0.5"
 
-gulp-atom-electron@^1.15.0:
-  version "1.15.0"
-  resolved "https://registry.yarnpkg.com/gulp-atom-electron/-/gulp-atom-electron-1.15.0.tgz#dcf9e6681c09b71edc2bce6d7872c31c16617f1a"
+gulp-atom-electron@1.15.1:
+  version "1.15.1"
+  resolved "https://registry.yarnpkg.com/gulp-atom-electron/-/gulp-atom-electron-1.15.1.tgz#ae13a4107a52e249d3335f584794981f5dcbf9be"
   dependencies:
     event-stream "^3.1.7"
     github-releases "^0.2.0"
@@ -3738,6 +3738,10 @@ nan@^2.1.0:
   version "2.7.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.7.0.tgz#d95bf721ec877e08db276ed3fc6eb78f9083ad46"
 
+nan@^2.8.0:
+  version "2.8.0"
+  resolved "https://registry.yarnpkg.com/nan/-/nan-2.8.0.tgz#ed715f3fe9de02b57a5e6252d90a96675e1f085a"
+
 native-keymap@1.2.5:
   version "1.2.5"
   resolved "https://registry.yarnpkg.com/native-keymap/-/native-keymap-1.2.5.tgz#1035a9417b9a9340cf8097763a43c76d588165a5"
@@ -3758,9 +3762,9 @@ negotiator@0.6.1:
   version "0.6.1"
   resolved "https://registry.yarnpkg.com/negotiator/-/negotiator-0.6.1.tgz#2b327184e8992101177b28563fb5e7102acd0ca9"
 
-node-pty@0.7.3:
-  version "0.7.3"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.7.3.tgz#4bb36a24a62ee9f3332e2e2310d6642d9daed1f7"
+node-pty@0.7.4:
+  version "0.7.4"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.7.4.tgz#07146b2b40b76e432e57ce6750bda40f0da5c99f"
   dependencies:
     nan "^2.6.2"
 
@@ -5034,6 +5038,14 @@ sparkles@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/sparkles/-/sparkles-1.0.0.tgz#1acbbfb592436d10bbe8f785b7cc6f82815012c3"
 
+spdlog@0.3.7:
+  version "0.3.7"
+  resolved "https://registry.yarnpkg.com/spdlog/-/spdlog-0.3.7.tgz#5f068efab0b7c85efa1aaed6eacd3da1d978fe24"
+  dependencies:
+    bindings "^1.3.0"
+    mkdirp "^0.5.1"
+    nan "^2.8.0"
+
 spdx-correct@~1.0.0:
   version "1.0.2"
   resolved "https://registry.yarnpkg.com/spdx-correct/-/spdx-correct-1.0.2.tgz#4b3073d933ff51f3912f03ac5519498a4150db40"
@@ -5574,9 +5586,9 @@ uuid@^3.0.0, uuid@^3.1.0:
   version "3.1.0"
   resolved "https://registry.yarnpkg.com/uuid/-/uuid-3.1.0.tgz#3dd3d3e790abc24d7b0d3a034ffababe28ebbc04"
 
-v8-inspect-profiler@^0.0.6:
-  version "0.0.6"
-  resolved "https://registry.yarnpkg.com/v8-inspect-profiler/-/v8-inspect-profiler-0.0.6.tgz#7885de7e9c3304118bde25d5b3d6ec5116467f2c"
+v8-inspect-profiler@^0.0.7:
+  version "0.0.7"
+  resolved "https://registry.yarnpkg.com/v8-inspect-profiler/-/v8-inspect-profiler-0.0.7.tgz#f3b3438680f71961b9647514fe7b9f8748abc462"
   dependencies:
     chrome-remote-interface "^0.25.3"
 
@@ -5751,9 +5763,9 @@ vscode-chokidar@1.6.2:
   optionalDependencies:
     vscode-fsevents "0.3.8"
 
-vscode-debugprotocol@1.25.0-pre.0:
-  version "1.25.0-pre.0"
-  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.25.0-pre.0.tgz#ad83e7bd95b19ac795df50fa0e2fe903462a72b6"
+vscode-debugprotocol@1.25.0:
+  version "1.25.0"
+  resolved "https://registry.yarnpkg.com/vscode-debugprotocol/-/vscode-debugprotocol-1.25.0.tgz#7a7e38df4cad8839e37ebcd06ed903902d97a7e3"
 
 vscode-fsevents@0.3.8:
   version "0.3.8"

@@ -26,6 +26,7 @@
 	"editKeybindingLabel": "Alterar Keybinding",
 	"addKeybindingLabelWithKey": "Adicionar Keybinding {0}",
 	"addKeybindingLabel": "Adicionar Keybinding",
+	"title": "{0} ({1})",
 	"commandAriaLabel": "Comando é {0}.",
 	"keybindingAriaLabel": "KeyBinding é {0}.",
 	"noKeybinding": "Nenhum Keybinding atribuído.",

@@ -11,6 +11,7 @@
 	"oneSettingFound": "1개 설정 일치함",
 	"settingsFound": "{0}개 설정 일치함",
 	"totalSettingsMessage": "총 {0}개 설정",
+	"defaultSettings": "기본 설정",
 	"defaultEditorReadonly": "기본값을 재정의하려면 오른쪽 편집기를 편집하세요.",
 	"preferencesAriaLabel": "기본 설정. 읽기 전용 텍스트 편집기입니다."
 }

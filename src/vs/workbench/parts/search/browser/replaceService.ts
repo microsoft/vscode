@@ -18,7 +18,6 @@ import { Match, FileMatch, FileMatchOrMatch, ISearchWorkbenchService } from 'vs/
 import { BulkEdit, IResourceEdit, createBulkEdit } from 'vs/editor/browser/services/bulkEdit';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IModel, ScrollType } from 'vs/editor/common/editorCommon';
@@ -92,10 +91,9 @@ export class ReplaceService implements IReplaceService {
 	public _serviceBrand: any;
 
 	constructor(
-		@ITelemetryService private telemetryService: ITelemetryService,
 		@IFileService private fileService: IFileService,
 		@IEditorService private editorService: IWorkbenchEditorService,
-		@ITextModelService private textModelResolverService: ITextModelService,
+		@ITextModelService private textModelResolverService: ITextModelService
 	) {
 	}
 
@@ -131,10 +129,6 @@ export class ReplaceService implements IReplaceService {
 	}
 
 	public openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {
-		/* __GDPR__
-			"replace.open.previewEditor" : {}
-		*/
-		this.telemetryService.publicLog('replace.open.previewEditor');
 		const fileMatch = element instanceof Match ? element.parent() : element;
 
 		return this.editorService.openEditor({

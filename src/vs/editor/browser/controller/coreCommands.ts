@@ -32,7 +32,12 @@ const CORE_WEIGHT = KeybindingsRegistry.WEIGHT.editorCore();
 
 export abstract class CoreEditorCommand extends EditorCommand {
 	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		this.runCoreEditorCommand(editor._getCursors(), args || {});
+		const cursors = editor._getCursors();
+		if (!cursors) {
+			// the editor has no view => has no cursors
+			return;
+		}
+		this.runCoreEditorCommand(cursors, args || {});
 	}
 
 	public abstract runCoreEditorCommand(cursors: ICursors, args: any): void;

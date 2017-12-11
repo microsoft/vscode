@@ -33,6 +33,7 @@
 	"openPreviousEditor": "Előző szerkesztőablak megnyitása",
 	"nextEditorInGroup": "A csoport következő szerkesztőablakának megnyitása",
 	"openPreviousEditorInGroup": "A csoport előző szerkesztőablakának megnyitása",
+	"lastEditorInGroup": "Csoport utolsó szerkesztőablakának megnyitása",
 	"navigateNext": "Ugrás előre",
 	"navigatePrevious": "Ugrás vissza",
 	"navigateLast": "Ugrás az utolsóra",

@@ -8,6 +8,8 @@
 import stream = require('vs/base/node/stream');
 import iconv = require('iconv-lite');
 import { TPromise } from 'vs/base/common/winjs.base';
+import { isLinux, isMacintosh } from 'vs/base/common/platform';
+import { exec } from 'child_process';
 
 export const UTF8 = 'utf8';
 export const UTF8_with_bom = 'utf8bom';
@@ -164,4 +166,89 @@ export function toCanonicalName(enc: string): string {
 
 			return enc;
 	}
+}
+
+// https://ss64.com/nt/chcp.html
+const windowsTerminalEncodings = {
+	'437': 'cp437', // United States
+	'850': 'cp850', // Multilingual(Latin I)
+	'852': 'cp852', // Slavic(Latin II)
+	'855': 'cp855', // Cyrillic(Russian)
+	'857': 'cp857', // Turkish
+	'860': 'cp860', // Portuguese
+	'861': 'cp861', // Icelandic
+	'863': 'cp863', // Canadian - French
+	'865': 'cp865', // Nordic
+	'866': 'cp866', // Russian
+	'869': 'cp869', // Modern Greek
+	'1252': 'cp1252' // West European Latin
+};
+
+export function resolveTerminalEncoding(verbose?: boolean): TPromise<string> {
+	let rawEncodingPromise: TPromise<string>;
+
+	// Support a global environment variable to win over other mechanics
+	const cliEncodingEnv = process.env['VSCODE_CLI_ENCODING'];
+	if (cliEncodingEnv) {
+		if (verbose) {
+			console.log(`Found VSCODE_CLI_ENCODING variable: ${cliEncodingEnv}`);
+		}
+
+		rawEncodingPromise = TPromise.as(cliEncodingEnv);
+	}
+
+	// Linux/Mac: use "locale charmap" command
+	else if (isLinux || isMacintosh) {
+		rawEncodingPromise = new TPromise<string>(c => {
+			if (verbose) {
+				console.log('Running "locale charmap" to detect terminal encoding...');
+			}
+
+			exec('locale charmap', (err, stdout, stderr) => c(stdout));
+		});
+	}
+
+	// Windows: educated guess
+	else {
+		rawEncodingPromise = new TPromise<string>(c => {
+			if (verbose) {
+				console.log('Running "chcp" to detect terminal encoding...');
+			}
+
+			exec('chcp', (err, stdout, stderr) => {
+				if (stdout) {
+					const windowsTerminalEncodingKeys = Object.keys(windowsTerminalEncodings);
+					for (let i = 0; i < windowsTerminalEncodingKeys.length; i++) {
+						const key = windowsTerminalEncodingKeys[i];
+						if (stdout.indexOf(key) >= 0) {
+							return c(windowsTerminalEncodings[key]);
+						}
+					}
+				}
+
+				return c(void 0);
+			});
+		});
+	}
+
+	return rawEncodingPromise.then(rawEncoding => {
+		if (verbose) {
+			console.log(`Detected raw terminal encoding: ${rawEncoding}`);
+		}
+
+		if (!rawEncoding || rawEncoding.toLowerCase() === 'utf-8' || rawEncoding.toLowerCase() === UTF8) {
+			return UTF8;
+		}
+
+		const iconvEncoding = toIconvLiteEncoding(rawEncoding);
+		if (iconv.encodingExists(iconvEncoding)) {
+			return iconvEncoding;
+		}
+
+		if (verbose) {
+			console.log('Unsupported terminal encoding, falling back to UTF-8.');
+		}
+
+		return UTF8;
+	});
 }

@@ -16,7 +16,6 @@
 	"terminal.integrated.rightClickCopyPaste": "Wenn dies festgelegt ist, erscheint das Kontextmenü bei einem Rechtsklick im Terminal nicht mehr. Stattdessen erfolgen die Vorgänge Kopieren, wenn eine Auswahl vorgenommen wurde, sowie Einfügen, wenn keine Auswahl vorgenommen wurde.",
 	"terminal.integrated.fontFamily": "Steuert die Schriftartfamilie des Terminals. Der Standardwert ist \"editor.fontFamily\".",
 	"terminal.integrated.fontSize": "Steuert den Schriftgrad des Terminals in Pixeln.",
-	"terminal.integrated.lineHeight": "Steuert die Zeilenhöhe für das Terminal. Dieser Wert wird mit dem Schriftgrad des Terminals multipliziert, um die tatsächliche Zeilenhöhe in Pixeln zu erhalten.",
 	"terminal.integrated.enableBold": "Gibt an, ob Fettdruck im Terminal aktiviert wird. Dies muss durch die Terminalshell unterstützt werden.",
 	"terminal.integrated.cursorBlinking": "Steuert, ob der Terminalcursor blinkt.",
 	"terminal.integrated.cursorStyle": "Steuert den Stil des Terminalcursors.",

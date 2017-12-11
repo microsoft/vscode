@@ -86,7 +86,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 				folders: toWorkspaceFolders(workspace.folders, URI.file(dirname(path)))
 			};
 		} catch (error) {
-			this.logService.info(error.toString());
+			this.logService.warn(error.toString());
 		}
 
 		return null;
@@ -262,7 +262,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 		try {
 			delSync(dirname(configPath));
 		} catch (error) {
-			this.logService.info(`Unable to delete untitled workspace ${configPath} (${error}).`);
+			this.logService.warn(`Unable to delete untitled workspace ${configPath} (${error}).`);
 		}
 	}
 
@@ -271,7 +271,9 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 		try {
 			untitledWorkspacePaths = readdirSync(this.workspacesHome).map(folder => join(this.workspacesHome, folder, UNTITLED_WORKSPACE_NAME));
 		} catch (error) {
-			this.logService.info(`Unable to read folders in ${this.workspacesHome} (${error}).`);
+			if (error && error.code !== 'ENOENT') {
+				this.logService.warn(`Unable to read folders in ${this.workspacesHome} (${error}).`);
+			}
 		}
 
 		const untitledWorkspaces: IWorkspaceIdentifier[] = coalesce(untitledWorkspacePaths.map(untitledWorkspacePath => {

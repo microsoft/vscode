@@ -299,10 +299,19 @@ export interface IModel extends ITreeElement {
 	getWatchExpressions(): IExpression[];
 	getReplElements(): IReplElement[];
 
-	onDidChangeBreakpoints: Event<void>;
+	onDidChangeBreakpoints: Event<IBreakpointsChangeEvent>;
 	onDidChangeCallStack: Event<void>;
 	onDidChangeWatchExpressions: Event<IExpression>;
 	onDidChangeReplElements: Event<void>;
+}
+
+/**
+ * An event describing a change to the set of [breakpoints](#debug.Breakpoint).
+ */
+export interface IBreakpointsChangeEvent {
+	added?: (IBreakpoint | IFunctionBreakpoint)[];
+	removed?: (IBreakpoint | IFunctionBreakpoint)[];
+	changed?: (IBreakpoint | IFunctionBreakpoint)[];
 }
 
 // Debug enums

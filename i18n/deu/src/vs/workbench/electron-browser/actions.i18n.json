@@ -30,7 +30,7 @@
 	"openRecent": "Zuletzt benutzt...",
 	"quickOpenRecent": "Zuletzt benutzte schnell öffnen...",
 	"closeMessages": "Benachrichtigungs-E-Mail schließen",
-	"reportIssues": "Probleme melden",
+	"reportIssueInEnglish": "Problem melden",
 	"reportPerformanceIssue": "Leistungsproblem melden",
 	"keybindingsReference": "Referenz für Tastenkombinationen",
 	"openDocumentationUrl": "Dokumentation",
@@ -52,5 +52,9 @@
 	"displayLanguage": "Definiert die Anzeigesprache von VSCode.",
 	"doc": "Unter {0} finden Sie eine Liste der unterstützten Sprachen.",
 	"restart": "Das Ändern dieses Wertes erfordert einen Neustart von VSCode.",
-	"fail.createSettings": "{0} ({1}) kann nicht erstellt werden."
+	"fail.createSettings": "{0} ({1}) kann nicht erstellt werden.",
+	"debug": "Debuggen",
+	"info": "Info",
+	"warn": "Warnung",
+	"err": "Fehler"
 }
