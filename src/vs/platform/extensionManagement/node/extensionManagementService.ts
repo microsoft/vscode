@@ -149,13 +149,13 @@ export class ExtensionManagementService implements IExtensionManagementService {
 					() => this.checkOutdated(manifest)
 						.then(validated => {
 							if (validated) {
-								this.logService.info('Installing the extension', identifier.id);
+								this.logService.info('Installing the extension:', identifier.id);
 								this._onInstallExtension.fire({ identifier, zipPath });
 								return this.getMetadata(getGalleryExtensionId(manifest.publisher, manifest.name))
 									.then(
 									metadata => this.installFromZipPath(identifier, zipPath, metadata, manifest),
 									error => this.installFromZipPath(identifier, zipPath, null, manifest))
-									.then(() => this.logService.info('Successfully installed the extension', identifier.id), e => this.logService.error('Failed to install the extension', identifier.id, e.message));
+									.then(() => this.logService.info('Successfully installed the extension:', identifier.id), e => this.logService.error('Failed to install the extension:', identifier.id, e.message));
 							}
 							return null;
 						}),
@@ -167,11 +167,11 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		return this.isUninstalled(id)
 			.then(isUninstalled => {
 				if (isUninstalled) {
-					this.logService.trace('Removing the extension', id);
+					this.logService.trace('Removing the extension:', id);
 					const extensionPath = path.join(this.extensionsPath, id);
 					return pfs.rimraf(extensionPath)
 						.then(() => this.unsetUninstalled(id))
-						.then(() => this.logService.info('Reomved the extension', id));
+						.then(() => this.logService.info('Reomved the extension:', id));
 				}
 				return null;
 			});
@@ -269,11 +269,11 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			.then(
 			compatible => {
 				if (compatible) {
-					this.logService.trace('Downloading extension', extension.name);
+					this.logService.trace('Started downloading extension:', extension.name);
 					return this.galleryService.download(extension)
 						.then(
 						zipPath => {
-							this.logService.info('Downloaded extension', extension.name);
+							this.logService.info('Downloaded extension:', extension.name);
 							return validateLocalExtension(zipPath)
 								.then(
 								() => (<InstallableExtension>{ zipPath, id, metadata }),
@@ -296,7 +296,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private onInstallExtensions(extensions: IGalleryExtension[]): void {
 		for (const extension of extensions) {
-			this.logService.info('Installing extension', extension.name);
+			this.logService.info('Installing extension:', extension.name);
 			const id = getLocalExtensionIdFromGallery(extension, extension.version);
 			this._onInstallExtension.fire({ identifier: { id, uuid: extension.identifier.uuid }, gallery: extension });
 		}
@@ -308,11 +308,11 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			const local = locals[index];
 			const error = errors[index];
 			if (local) {
-				this.logService.info(`Extensions installed successfully`, gallery.identifier.id);
+				this.logService.info(`Extensions installed successfully:`, gallery.identifier.id);
 				this._onDidInstallExtension.fire({ identifier, gallery, local });
 			} else {
 				const errorCode = error && (<ExtensionManagementError>error).code ? (<ExtensionManagementError>error).code : INSTALL_ERROR_UNKNOWN;
-				this.logService.error(`Failed to install extension`, gallery.identifier.id, error ? error.message : errorCode);
+				this.logService.error(`Failed to install extension:`, gallery.identifier.id, error ? error.message : errorCode);
 				this._onDidInstallExtension.fire({ identifier, gallery, error: errorCode });
 			}
 		});
@@ -364,11 +364,11 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		return this.isUninstalled(id)
 			.then(isUninstalled => {
 				if (isUninstalled) {
-					this.logService.trace('Removing the extension from uninstalled list', id);
+					this.logService.trace('Removing the extension from uninstalled list:', id);
 					// If the same version of extension is marked as uninstalled, remove it from there and return the local.
 					return this.unsetUninstalled(id)
 						.then(() => {
-							this.logService.info('Removed the extension from uninstalled list', id);
+							this.logService.info('Removed the extension from uninstalled list:', id);
 							return this.getInstalled(LocalExtensionType.User);
 						})
 						.then(installed => installed.filter(i => i.identifier.id === id)[0]);
@@ -381,11 +381,11 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		const extensionPath = path.join(this.extensionsPath, id);
 		return pfs.rimraf(extensionPath)
 			.then(() => {
-				this.logService.trace(`Extracting the extension from ${zipPath} to ${extensionPath}`, id);
+				this.logService.trace(`Started extracting the extension from ${zipPath} to ${extensionPath}`);
 				return extract(zipPath, extensionPath, { sourcePath: 'extension', overwrite: true })
 					.then(
 					() => {
-						this.logService.info(`Extracted extension to ${extensionPath}`, id);
+						this.logService.info(`Extracted extension to ${extensionPath}:`, id);
 						return TPromise.join([readManifest(extensionPath), pfs.readdir(extensionPath)])
 							.then(null, e => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_LOCAL)));
 					},
@@ -400,10 +400,10 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 						const local: ILocalExtension = { type, identifier, manifest, metadata, path: extensionPath, readmeUrl, changelogUrl };
 
-						this.logService.trace(`Updating metadata of the extension`, id);
+						this.logService.trace(`Updating metadata of the extension:`, id);
 						return this.saveMetadataForLocalExtension(local)
 							.then(() => {
-								this.logService.info(`Updated metadata of the extension`, id);
+								this.logService.info(`Updated metadata of the extension:`, id);
 								return local;
 							}, e => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_LOCAL)));
 					});
@@ -497,7 +497,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 					const dependencies = distinct(this.getDependenciesToUninstallRecursively(extension, installed, [])).filter(e => e !== extension);
 					return this.uninstallWithDependencies(extension, dependencies, installed);
 				}
-				this.logService.info('Cancelled uninstalling extension', extension.identifier.id);
+				this.logService.info('Cancelled uninstalling extension:', extension.identifier.id);
 				return TPromise.wrapError(errors.canceled());
 			}, error => TPromise.wrapError(errors.canceled()));
 	}
@@ -517,7 +517,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 				if (value === 0) {
 					return this.uninstallWithDependencies(extension, [], installed);
 				}
-				this.logService.info('Cancelled uninstalling extension', extension.identifier.id);
+				this.logService.info('Cancelled uninstalling extension:', extension.identifier.id);
 				return TPromise.wrapError(errors.canceled());
 			}, error => TPromise.wrapError(errors.canceled()));
 	}
@@ -592,7 +592,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		return pfs.exists(extensionPath)
 			.then(exists => exists ? null : TPromise.wrapError(new Error(nls.localize('notExists', "Could not find extension"))))
 			.then(() => {
-				this.logService.info('Uninstalling extesion', extension.identifier.id);
+				this.logService.info('Uninstalling extension:', extension.identifier.id);
 				this._onUninstallExtension.fire(extension.identifier);
 			});
 	}
@@ -606,9 +606,9 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private async postUninstallExtension(extension: ILocalExtension, error?: string): TPromise<void> {
 		if (error) {
-			this.logService.info('Successfully uninstalled extesion', extension.identifier.id);
+			this.logService.info('Successfully uninstalled extension:', extension.identifier.id);
 		} else {
-			this.logService.error('Failed to uninstall extesion', extension.identifier.id, error);
+			this.logService.error('Failed to uninstall extension:', extension.identifier.id, error);
 			// only report if extension has a mapped gallery extension. UUID identifies the gallery extension.
 			if (extension.identifier.uuid) {
 				await this.galleryService.reportStatistic(extension.manifest.publisher, extension.manifest.name, extension.manifest.version, StatisticType.Uninstall);
@@ -632,19 +632,19 @@ export class ExtensionManagementService implements IExtensionManagementService {
 	}
 
 	private scanSystemExtensions(): TPromise<ILocalExtension[]> {
-		this.logService.trace('Scanning system extesions');
+		this.logService.trace('Started scanning system extensions');
 		return this.scanExtensions(SystemExtensionsRoot, LocalExtensionType.System)
 			.then(result => {
-				this.logService.info('Finished scanning system extesions', result.length);
+				this.logService.info('Scanned system extensions:', result.length);
 				return result;
 			});
 	}
 
 	private scanUserExtensions(excludeOutdated: boolean): TPromise<ILocalExtension[]> {
-		this.logService.trace('Scanning user extesions');
+		this.logService.trace('Started scanning user extensions');
 		return this.scanExtensions(this.extensionsPath, LocalExtensionType.User)
 			.then(extensions => {
-				this.logService.info('Finished scanning user extesions', extensions.length);
+				this.logService.info('Scanned user extensions:', extensions.length);
 				if (excludeOutdated) {
 					const byExtension: ILocalExtension[][] = groupByExtension(extensions, e => ({ id: getGalleryExtensionIdFromLocal(e), uuid: e.identifier.uuid }));
 					return byExtension.map(p => p.sort((a, b) => semver.rcompare(a.manifest.version, b.manifest.version))[0]);
