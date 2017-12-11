@@ -43,9 +43,10 @@ const INSTALL_ERROR_VALIDATING = 'validating';
 const INSTALL_ERROR_GALLERY = 'gallery';
 const INSTALL_ERROR_LOCAL = 'local';
 const INSTALL_ERROR_EXTRACTING = 'extracting';
+const INSTALL_ERROR_DELETING = 'deleting';
 const INSTALL_ERROR_UNKNOWN = 'unknown';
 
-export class InstallationError extends Error {
+export class ExtensionManagementError extends Error {
 	constructor(message: string, readonly code: string) {
 		super(message);
 	}
@@ -235,14 +236,14 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		return this.galleryService.loadCompatibleVersion(extension)
 			.then(compatible => {
 				if (!compatible) {
-					return TPromise.wrapError<IGalleryExtension[]>(new InstallationError(nls.localize('notFoundCompatible', "Unable to install because, the extension '{0}' compatible with current version '{1}' of VS Code is not found.", extension.identifier.id, pkg.version), INSTALL_ERROR_INCOMPATIBLE));
+					return TPromise.wrapError<IGalleryExtension[]>(new ExtensionManagementError(nls.localize('notFoundCompatible', "Unable to install because, the extension '{0}' compatible with current version '{1}' of VS Code is not found.", extension.identifier.id, pkg.version), INSTALL_ERROR_INCOMPATIBLE));
 				}
 				return this.getDependenciesToInstall(compatible.properties.dependencies)
 					.then(
 					dependenciesToInstall => ([compatible, ...dependenciesToInstall.filter(d => d.identifier.uuid !== compatible.identifier.uuid)]),
-					error => TPromise.wrapError<IGalleryExtension[]>(new InstallationError(this.joinErrors(error).message, INSTALL_ERROR_GALLERY)));
+					error => TPromise.wrapError<IGalleryExtension[]>(new ExtensionManagementError(this.joinErrors(error).message, INSTALL_ERROR_GALLERY)));
 			},
-			error => TPromise.wrapError<IGalleryExtension[]>(new InstallationError(this.joinErrors(error).message, INSTALL_ERROR_GALLERY)));
+			error => TPromise.wrapError<IGalleryExtension[]>(new ExtensionManagementError(this.joinErrors(error).message, INSTALL_ERROR_GALLERY)));
 	}
 
 	private downloadAndInstallExtensions(extensions: IGalleryExtension[]): TPromise<ILocalExtension[]> {
@@ -250,9 +251,9 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			.then(
 			installed => TPromise.join(extensions.map(extensionToInstall =>
 				this.downloadInstallableExtension(extensionToInstall, installed)
-					.then(installableExtension => this.installExtension(installableExtension).then(null, e => TPromise.wrapError(new InstallationError(this.joinErrors(e).message, INSTALL_ERROR_EXTRACTING))))
+					.then(installableExtension => this.installExtension(installableExtension))
 			)).then(null, errors => this.rollback(extensions).then(() => TPromise.wrapError(errors), () => TPromise.wrapError(errors))),
-			error => TPromise.wrapError<ILocalExtension[]>(new InstallationError(this.joinErrors(error).message, INSTALL_ERROR_LOCAL)));
+			error => TPromise.wrapError<ILocalExtension[]>(new ExtensionManagementError(this.joinErrors(error).message, INSTALL_ERROR_LOCAL)));
 	}
 
 	private downloadInstallableExtension(extension: IGalleryExtension, installed: ILocalExtension[]): TPromise<InstallableExtension> {
@@ -273,14 +274,14 @@ export class ExtensionManagementService implements IExtensionManagementService {
 						zipPath => validateLocalExtension(zipPath)
 							.then(
 							() => (<InstallableExtension>{ zipPath, id, metadata, current }),
-							error => TPromise.wrapError(new InstallationError(this.joinErrors(error).message, INSTALL_ERROR_VALIDATING))
+							error => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(error).message, INSTALL_ERROR_VALIDATING))
 							),
-						error => TPromise.wrapError(new InstallationError(this.joinErrors(error).message, INSTALL_ERROR_DOWNLOADING)));
+						error => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(error).message, INSTALL_ERROR_DOWNLOADING)));
 				} else {
-					return TPromise.wrapError<InstallableExtension>(new InstallationError(nls.localize('notFoundCompatibleDependency', "Unable to install because, the depending extension '{0}' compatible with current version '{1}' of VS Code is not found.", extension.identifier.id, pkg.version), INSTALL_ERROR_INCOMPATIBLE));
+					return TPromise.wrapError<InstallableExtension>(new ExtensionManagementError(nls.localize('notFoundCompatibleDependency', "Unable to install because, the depending extension '{0}' compatible with current version '{1}' of VS Code is not found.", extension.identifier.id, pkg.version), INSTALL_ERROR_INCOMPATIBLE));
 				}
 			},
-			error => TPromise.wrapError<InstallableExtension>(new InstallationError(this.joinErrors(error).message, INSTALL_ERROR_GALLERY)));
+			error => TPromise.wrapError<InstallableExtension>(new ExtensionManagementError(this.joinErrors(error).message, INSTALL_ERROR_GALLERY)));
 	}
 
 	private rollback(extensions: IGalleryExtension[]): TPromise<void> {
@@ -304,7 +305,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			if (local) {
 				this._onDidInstallExtension.fire({ identifier, gallery, local });
 			} else {
-				const errorCode = error && (<InstallationError>error).code ? (<InstallationError>error).code : INSTALL_ERROR_UNKNOWN;
+				const errorCode = error && (<ExtensionManagementError>error).code ? (<ExtensionManagementError>error).code : INSTALL_ERROR_UNKNOWN;
 				this._onDidInstallExtension.fire({ identifier, gallery, error: errorCode });
 			}
 		});
@@ -346,9 +347,9 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			},
 			e => {
 				if (isMacintosh) {
-					return TPromise.wrapError<ILocalExtension>(new InstallationError(nls.localize('quitCode', "Unable to install the extension. Please Quit and Start VS Code before reinstalling."), INSTALL_ERROR_UNSET_UNINSTALLED));
+					return TPromise.wrapError<ILocalExtension>(new ExtensionManagementError(nls.localize('quitCode', "Unable to install the extension. Please Quit and Start VS Code before reinstalling."), INSTALL_ERROR_UNSET_UNINSTALLED));
 				}
-				return TPromise.wrapError<ILocalExtension>(new InstallationError(nls.localize('exitCode', "Unable to install the extension. Please Exit and Start VS Code before reinstalling."), INSTALL_ERROR_UNSET_UNINSTALLED));
+				return TPromise.wrapError<ILocalExtension>(new ExtensionManagementError(nls.localize('exitCode', "Unable to install the extension. Please Exit and Start VS Code before reinstalling."), INSTALL_ERROR_UNSET_UNINSTALLED));
 			});
 	}
 
@@ -367,11 +368,14 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private extractAndInstall({ zipPath, id, metadata, current }: InstallableExtension): TPromise<ILocalExtension> {
 		const extensionPath = path.join(this.extensionsPath, id);
-		return pfs.rimraf(extensionPath).then(() => {
-			return extract(zipPath, extensionPath, { sourcePath: 'extension', overwrite: true })
-				.then(() => readManifest(extensionPath))
-				.then(({ manifest }) => {
-					return pfs.readdir(extensionPath).then(children => {
+		return pfs.rimraf(extensionPath)
+			.then(() => {
+				return extract(zipPath, extensionPath, { sourcePath: 'extension', overwrite: true })
+					.then(
+					() => TPromise.join([readManifest(extensionPath), pfs.readdir(extensionPath)])
+						.then(null, e => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_LOCAL))),
+					e => TPromise.wrapError(new ExtensionManagementError(e.message, INSTALL_ERROR_EXTRACTING)))
+					.then(([{ manifest }, children]) => {
 						const readme = children.filter(child => /^readme(\.txt|\.md|)$/i.test(child))[0];
 						const readmeUrl = readme ? URI.file(path.join(extensionPath, readme)).toString() : null;
 						const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
@@ -383,10 +387,9 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 						return this.saveMetadataForLocalExtension(local)
 							.then(() => this.checkForRename(current, local))
-							.then(() => local);
+							.then(() => local, e => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_LOCAL)));
 					});
-				});
-		});
+			}, e => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_DELETING)));
 	}
 
 	uninstall(extension: ILocalExtension, force = false): TPromise<void> {
