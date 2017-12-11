@@ -156,7 +156,11 @@ export class TrimFinalNewLinesParticipant implements ISaveParticipant {
 			currentLine = model.getLineContent(currentLineNumber);
 			currentLineIsEmptyOrWhitespace = strings.lastNonWhitespaceIndex(currentLine) === -1;
 		}
-		model.pushEditOperations(prevSelection, [EditOperation.delete(new Range(currentLineNumber + 1, 1, lineCount + 1, 1))], edits => prevSelection);
+
+		const deletionRange = new Range(currentLineNumber + 1, 1, lineCount + 1, 1);
+		if (!deletionRange.isEmpty()) {
+			model.pushEditOperations(prevSelection, [EditOperation.delete(deletionRange)], edits => prevSelection);
+		}
 
 		if (editor) {
 			editor.setSelections(prevSelection);
