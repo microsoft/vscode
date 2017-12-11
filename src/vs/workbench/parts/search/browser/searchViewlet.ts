@@ -250,8 +250,7 @@ export class SearchViewlet extends Viewlet {
 		this.actions = [
 			this.instantiationService.createInstance(RefreshAction, RefreshAction.ID, RefreshAction.LABEL),
 			this.instantiationService.createInstance(CollapseDeepestExpandedLevelAction, CollapseDeepestExpandedLevelAction.ID, CollapseDeepestExpandedLevelAction.LABEL),
-			this.instantiationService.createInstance(ClearSearchResultsAction, ClearSearchResultsAction.ID, ClearSearchResultsAction.LABEL),
-			this.instantiationService.createInstance(CancelSearchAction, CancelSearchAction.ID, CancelSearchAction.LABEL)
+			this.instantiationService.createInstance(ClearSearchResultsAction, ClearSearchResultsAction.ID, ClearSearchResultsAction.LABEL)
 		];
 
 		if (filePatterns !== '' || patternExclusions !== '' || patternIncludes !== '' || queryDetailsExpanded !== '' || !useExcludesAndIgnoreFiles) {
@@ -1073,10 +1072,12 @@ export class SearchViewlet extends Viewlet {
 
 		this.searchWidget.searchInput.clearMessage();
 		this.searching = true;
+		this.changeActionAtPosition(0, this.instantiationService.createInstance(CancelSearchAction, CancelSearchAction.ID, CancelSearchAction.LABEL));
 		this.showEmptyStage();
 
 		let onComplete = (completed?: ISearchComplete) => {
 			this.searching = false;
+			this.changeActionAtPosition(0, this.instantiationService.createInstance(RefreshAction, RefreshAction.ID, RefreshAction.LABEL));
 
 			// Complete up to 100% as needed
 			if (completed && !query.useRipgrep) {
@@ -1208,6 +1209,7 @@ export class SearchViewlet extends Viewlet {
 				onComplete(null);
 			} else {
 				this.searching = false;
+				this.changeActionAtPosition(0, this.instantiationService.createInstance(RefreshAction, RefreshAction.ID, RefreshAction.LABEL));
 				progressRunner.done();
 				this.searchWidget.searchInput.showMessage({ content: e.message, type: MessageType.ERROR });
 				this.viewModel.searchResult.clear();
@@ -1428,6 +1430,11 @@ export class SearchViewlet extends Viewlet {
 
 	public getActions(): IAction[] {
 		return this.actions;
+	}
+
+	private changeActionAtPosition(index: number, newAction: SearchAction): void {
+		this.actions.splice(index, 1, newAction);
+		this.updateTitleArea();
 	}
 
 	public shutdown(): void {
