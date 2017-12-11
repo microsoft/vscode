@@ -500,7 +500,16 @@ class OpenEditorRenderer implements IRenderer<OpenEditor, IOpenEditorTemplateDat
 
 		editorTemplate.toDispose = [];
 
-		editorTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_START, () => {
+		editorTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_START, (e: DragEvent) => {
+
+			const dragImage = document.createElement('div');
+			e.dataTransfer.effectAllowed = 'copyMove';
+			dragImage.className = 'monaco-tree-drag-image';
+			dragImage.textContent = editorTemplate.openEditor.editorInput.getName();
+			document.body.appendChild(dragImage);
+			e.dataTransfer.setDragImage(dragImage, -10, -10);
+			setTimeout(() => document.body.removeChild(dragImage), 0);
+
 			OpenEditorRenderer.DRAGGED_OPEN_EDITOR = editorTemplate.openEditor;
 		}));
 		editorTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_OVER, () => {
