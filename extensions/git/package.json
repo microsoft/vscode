@@ -828,6 +828,11 @@
           "default": null,
           "isExecutable": true
         },
+        "git.autoRepositoryDetection": {
+          "type": "boolean",
+          "description": "%config.autoRepositoryDetection%",
+          "default": true
+        },
         "git.autorefresh": {
           "type": "boolean",
           "description": "%config.autorefresh%",
