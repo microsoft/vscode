@@ -40,6 +40,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	public static DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = CONTENT_CHANGE_EVENT_BUFFER_DELAY;
 	public static DEFAULT_ORPHANED_CHANGE_BUFFER_DELAY = 100;
+	public static DEFAULT_DIRTY_STATE_CHANGE_DELAY = 0;
 
 	private static saveErrorHandler: ISaveErrorHandler;
 	private static saveParticipant: ISaveParticipant;
@@ -109,7 +110,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.orphanedChangeEventScheduler = new RunOnceScheduler(() => this._onDidStateChange.fire(StateChange.ORPHANED_CHANGE), TextFileEditorModel.DEFAULT_ORPHANED_CHANGE_BUFFER_DELAY);
 		this.toDispose.push(this.orphanedChangeEventScheduler);
 
-		this.dirtyStateChangeEventScheduler = new RunOnceScheduler(() => this._onDidStateChange.fire(StateChange.DIRTY), 0);
+		this.dirtyStateChangeEventScheduler = new RunOnceScheduler(() => this._onDidStateChange.fire(StateChange.DIRTY), TextFileEditorModel.DEFAULT_DIRTY_STATE_CHANGE_DELAY);
 		this.toDispose.push(this.dirtyStateChangeEventScheduler);
 
 		this.updateAutoSaveConfiguration(textFileService.getAutoSaveConfiguration());
@@ -572,7 +573,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// Emit as Event if we turned dirty
 		if (!wasDirty) {
 			this.dirtyStateChangeEventScheduler.schedule();
-			// this._onDidStateChange.fire(StateChange.DIRTY);
 		}
 	}
 
