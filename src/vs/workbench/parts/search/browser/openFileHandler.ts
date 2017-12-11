@@ -88,8 +88,8 @@ export class FileEntry extends EditorQuickOpenEntry {
 		this.range = range;
 	}
 
-	public isFile(): boolean {
-		return true; // TODO@Ben debt with editor history merging
+	public mergeWithEditorHistory(): boolean {
+		return true;
 	}
 
 	public getInput(): IResourceInput | EditorInput {

@@ -8,7 +8,7 @@
 	-webkit-mask-size: 22px;
 }
 
-/* HACK @bpasero @ben */
+/* TODO@Ben this is a hack to overwrite the icon for release notes eitor */
 .file-icons-enabled .show-file-icons .release-notes-ext-file-icon.file-icon::before {
 	content: ' ';
 	background-image: url('code-icon.svg');

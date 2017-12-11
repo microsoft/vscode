@@ -171,8 +171,13 @@ export class QuickOpenEntry {
 		return false;
 	}
 
-	public isFile(): boolean {
-		return false; // TODO@Ben debt with editor history merging
+	/**
+	 * Determines if this quick open entry should merge with the editor history in quick open. If set to true
+	 * and the resource of this entry is the same as the resource for an editor history, it will not show up
+	 * because it is considered to be a duplicate of an editor history.
+	 */
+	public mergeWithEditorHistory(): boolean {
+		return false;
 	}
 }
 
@@ -412,8 +417,6 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		data.actionBar.context = entry; // make sure the context is the current element
 
 		this.actionProvider.getActions(null, entry).then((actions) => {
-			// TODO@Ben this will not work anymore as soon as quick open has more actions
-			// but as long as there is only one are ok
 			if (data.actionBar.isEmpty() && actions && actions.length > 0) {
 				data.actionBar.push(actions, { icon: true, label: false });
 			} else if (!data.actionBar.isEmpty() && (!actions || actions.length === 0)) {
