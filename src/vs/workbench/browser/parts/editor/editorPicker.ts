@@ -16,7 +16,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconClasses } from 'vs/workbench/browser/labels';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
-import { Position } from 'vs/platform/editor/common/editor';
+import { Position, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -71,15 +71,13 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 	}
 
 	public run(mode: Mode, context: IEntryRunContext): boolean {
-		if (mode === Mode.OPEN) {
-			return this.runOpen(context);
+		let options: IEditorOptions;
+		if (mode === Mode.PREVIEW) {
+			options = { preserveFocus: true }; // in preview, make sure to keep focus in quick open
 		}
 
-		return super.run(mode, context);
-	}
-
-	private runOpen(context: IEntryRunContext): boolean {
-		this.editorService.openEditor(this.editor, null, this.stacks.positionOfGroup(this.group)).done(null, errors.onUnexpectedError);
+		// Open Editor
+		this.editorService.openEditor(this.editor, options, this.stacks.positionOfGroup(this.group)).done(null, errors.onUnexpectedError);
 
 		return true;
 	}
