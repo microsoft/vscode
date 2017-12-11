@@ -34,6 +34,8 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { MANIFEST_CACHE_FOLDER, USER_MANIFEST_CACHE_FILE } from 'vs/platform/extensions/common/extensions';
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
+const ERROR_SCANNING_SYS_EXTENSIONS = 'scanningSystem';
+const ERROR_SCANNING_USER_EXTENSIONS = 'scanningUser';
 const INSTALL_ERROR_UNSET_UNINSTALLED = 'unsetUninstalled';
 const INSTALL_ERROR_INCOMPATIBLE = 'incompatible';
 const INSTALL_ERROR_DOWNLOADING = 'downloading';
@@ -171,7 +173,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 
 	private checkOutdated(manifest: IExtensionManifest): TPromise<boolean> {
 		const extensionIdentifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
-		return this.getInstalled()
+		return this.getInstalled(LocalExtensionType.User)
 			.then(installedExtensions => {
 				const newer = installedExtensions.filter(local => areSameExtensions(extensionIdentifier, { id: getGalleryExtensionIdFromLocal(local) }) && semver.gt(local.manifest.version, manifest.version))[0];
 				if (newer) {
@@ -351,7 +353,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 				if (isUninstalled) {
 					// If the same version of extension is marked as uninstalled, remove it from there and return the local.
 					return this.unsetUninstalled(id)
-						.then(() => this.getInstalled())
+						.then(() => this.getInstalled(LocalExtensionType.User))
 						.then(installed => installed.filter(i => i.identifier.id === id)[0]);
 				}
 				return null;
@@ -587,14 +589,14 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		const promises = [];
 
 		if (type === null || type === LocalExtensionType.System) {
-			promises.push(this.scanSystemExtensions());
+			promises.push(this.scanSystemExtensions().then(null, e => new ExtensionManagementError(this.joinErrors(e).message, ERROR_SCANNING_SYS_EXTENSIONS)));
 		}
 
 		if (type === null || type === LocalExtensionType.User) {
-			promises.push(this.scanUserExtensions(true));
+			promises.push(this.scanUserExtensions(true).then(null, e => new ExtensionManagementError(this.joinErrors(e).message, ERROR_SCANNING_USER_EXTENSIONS)));
 		}
 
-		return TPromise.join<ILocalExtension[]>(promises).then(flatten);
+		return TPromise.join<ILocalExtension[]>(promises).then(flatten, errors => TPromise.wrapError<ILocalExtension[]>(this.joinErrors(errors)));
 	}
 
 	private scanSystemExtensions(): TPromise<ILocalExtension[]> {
