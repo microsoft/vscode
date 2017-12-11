@@ -21,6 +21,7 @@ import { IEditorOptions, Position as EditorPosition } from 'vs/platform/editor/c
 import { openFolderCommand, openFileInNewWindowCommand, openFileFolderInNewWindowCommand, openFolderInNewWindowCommand, openWorkspaceInNewWindowCommand } from 'vs/workbench/browser/actions/workspaceActions';
 import { WorkbenchListFocusContextKey, IListService } from 'vs/platform/list/browser/listService';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
+import { range } from 'vs/base/common/arrays';
 
 // --- List Commands
 
@@ -296,6 +297,22 @@ export function registerCommands(): void {
 				if (focus) {
 					tree.setSelection([focus], { origin: 'keyboard' });
 				}
+			}
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: 'list.selectAll',
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: WorkbenchListFocusContextKey,
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_A,
+		handler: (accessor) => {
+			const focused = accessor.get(IListService).lastFocusedList;
+
+			// List
+			if (focused instanceof List || focused instanceof PagedList) {
+				const list = focused;
+				list.setSelection(range(list.length));
 			}
 		}
 	});
