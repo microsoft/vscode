@@ -64,14 +64,14 @@ Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions
 );
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
-	id: 'editor',
+	id: 'scm',
 	order: 5,
 	type: 'object',
 	properties: {
-		'editor.enableDecorators': {
+		'scm.enableDiffDecorations': {
 			'type': 'boolean',
 			'default': true,
-			'description': localize('enableDecorators', "Enables or disables color decorators when changes happen in the editor.")
+			'description': localize('enableDiffDecorations', "Enables or disables diff decorations in the editor.")
 		},
 	}
 });

@@ -1000,30 +1000,59 @@ class DirtyDiffItem {
 
 export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution, IModelRegistry {
 
+	private enabled = false;
 	private models: IModel[] = [];
 	private items: { [modelId: string]: DirtyDiffItem; } = Object.create(null);
+	private transientDisposables: IDisposable[] = [];
 	private disposables: IDisposable[] = [];
 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		this.disposables.push(editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+		const onDidChangeEnablement = filterEvent(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.enableDiffDecorations'));
+		onDidChangeEnablement(this.onDidChangeEnablement, this, this.disposables);
+		this.onDidChangeEnablement();
 	}
 
-	private onEditorsChanged(): void {
-		// HACK: This is the best current way of figuring out whether to draw these decorations
-		// or not. Needs context from the editor, to know whether it is a diff editor, in place editor
-		// etc.
+	private onDidChangeEnablement(): void {
+		const enabled = this.configurationService.getValue('scm.enableDiffDecorations');
 
-		const enableDecorators = this.configurationService.getValue('editor.enableDecorators');
+		if (enabled) {
+			this.enable();
+		} else {
+			this.disable();
+		}
+	}
 
-		if (!enableDecorators) {
+	private enable(): void {
+		if (this.enabled) {
 			return;
 		}
 
+		this.transientDisposables.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+		this.onEditorsChanged();
+		this.enabled = true;
+	}
+
+	private disable(): void {
+		if (!this.enabled) {
+			return;
+		}
+
+		this.transientDisposables = dispose(this.transientDisposables);
+		this.models.forEach(m => this.items[m.id].dispose());
+		this.models = [];
+		this.items = Object.create(null);
+		this.enabled = false;
+	}
+
+	// HACK: This is the best current way of figuring out whether to draw these decorations
+	// or not. Needs context from the editor, to know whether it is a diff editor, in place editor
+	// etc.
+	private onEditorsChanged(): void {
 		const models = this.editorService.getVisibleEditors()
 
 			// map to the editor controls
@@ -1075,11 +1104,8 @@ export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution,
 	}
 
 	dispose(): void {
+		this.disable();
 		this.disposables = dispose(this.disposables);
-		this.models.forEach(m => this.items[m.id].dispose());
-
-		this.models = null;
-		this.items = null;
 	}
 }
 
