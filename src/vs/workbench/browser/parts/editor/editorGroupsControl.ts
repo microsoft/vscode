@@ -87,7 +87,6 @@ export interface IEditorGroupsControl {
 
 	getRatio(): number[];
 
-
 	dispose(): void;
 }
 

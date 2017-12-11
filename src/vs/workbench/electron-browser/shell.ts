@@ -51,7 +51,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IMessageService, IChoiceService, Severity } from 'vs/platform/message/common/message';
@@ -273,14 +273,12 @@ export class WorkbenchShell {
 	}
 
 	private initServiceCollection(container: HTMLElement): [IInstantiationService, ServiceCollection] {
-		const disposables: IDisposable[] = [];
-
 		const serviceCollection = new ServiceCollection();
 		serviceCollection.set(IWorkspaceContextService, this.contextService);
 		serviceCollection.set(IConfigurationService, this.configurationService);
 		serviceCollection.set(IEnvironmentService, this.environmentService);
 		serviceCollection.set(ILogService, this.logService);
-		disposables.push(this.logService);
+		this.toUnbind.push(this.logService);
 
 		serviceCollection.set(ITimerService, this.timerService);
 		serviceCollection.set(IStorageService, this.storageService);
@@ -329,13 +327,13 @@ export class WorkbenchShell {
 
 			const errorTelemetry = new ErrorTelemetry(telemetryService);
 
-			disposables.push(telemetryService, errorTelemetry);
+			this.toUnbind.push(telemetryService, errorTelemetry);
 		} else {
 			this.telemetryService = NullTelemetryService;
 		}
 
 		serviceCollection.set(ITelemetryService, this.telemetryService);
-		disposables.push(configurationTelemetry(this.telemetryService, this.configurationService));
+		this.toUnbind.push(configurationTelemetry(this.telemetryService, this.configurationService));
 
 		let crashReporterService = NullCrashReporterService;
 		if (!this.environmentService.disableCrashReporter && product.crashReporter && product.hockeyApp) {
@@ -348,8 +346,7 @@ export class WorkbenchShell {
 		serviceCollection.set(IChoiceService, this.messageService);
 
 		const lifecycleService = instantiationService.createInstance(LifecycleService);
-		this.toUnbind.push(lifecycleService.onShutdown(reason => dispose(disposables)));
-		this.toUnbind.push(lifecycleService.onShutdown(reason => saveFontInfo(this.storageService)));
+		this.toUnbind.push(lifecycleService.onShutdown(reason => this.dispose(reason)));
 		serviceCollection.set(ILifecycleService, lifecycleService);
 		this.lifecycleService = lifecycleService;
 
@@ -358,7 +355,7 @@ export class WorkbenchShell {
 
 		const extensionEnablementService = instantiationService.createInstance(ExtensionEnablementService);
 		serviceCollection.set(IExtensionEnablementService, extensionEnablementService);
-		disposables.push(extensionEnablementService);
+		this.toUnbind.push(extensionEnablementService);
 
 		this.extensionService = instantiationService.createInstance(ExtensionService);
 		serviceCollection.set(IExtensionService, this.extensionService);
@@ -463,20 +460,18 @@ export class WorkbenchShell {
 		this.workbench.layout();
 	}
 
-	public dispose(): void {
+	public dispose(reason = ShutdownReason.QUIT): void {
 
-		// Workbench
-		if (this.workbench) {
-			this.workbench.dispose();
-		}
-
-		this.contextViewService.dispose();
-
-		// Listeners
+		// Dispose bindings
 		this.toUnbind = dispose(this.toUnbind);
 
-		// Container
-		$(this.container).empty();
+		// Keep font info for next startup around
+		saveFontInfo(this.storageService);
+
+		// Dispose Workbench
+		if (this.workbench) {
+			this.workbench.dispose(reason);
+		}
 	}
 }
 
