@@ -127,8 +127,6 @@ export function createApiFactory(
 
 	return function (extension: IExtensionDescription): typeof vscode {
 
-		const EXTENSION_ID = extension.id;
-
 		if (!isFalsyOrEmpty(product.extensionAllowedProposedApi)
 			&& product.extensionAllowedProposedApi.indexOf(extension.id) >= 0
 		) {
@@ -395,13 +393,8 @@ export function createApiFactory(
 		};
 
 		// namespace: workspace
-		let warnedRootPath = false;
 		const workspace: typeof vscode.workspace = {
 			get rootPath() {
-				if (!warnedRootPath) {
-					warnedRootPath = true;
-					extensionService.addMessage(EXTENSION_ID, Severity.Warning, 'workspace.rootPath is deprecated');
-				}
 				return extHostWorkspace.getPath();
 			},
 			set rootPath(value) {
