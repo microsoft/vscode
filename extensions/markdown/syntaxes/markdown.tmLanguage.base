@@ -347,11 +347,11 @@
 							<array>
 								<dict>
 									<key>include</key>
-									<string>#list_paragraph</string>
+									<string>#block</string>
 								</dict>
 								<dict>
 									<key>include</key>
-									<string>#block</string>
+									<string>#list_paragraph</string>
 								</dict>
 							</array>
 							<key>while</key>
@@ -374,11 +374,11 @@
 							<array>
 								<dict>
 									<key>include</key>
-									<string>#list_paragraph</string>
+									<string>#block</string>
 								</dict>
 								<dict>
 									<key>include</key>
-									<string>#block</string>
+									<string>#list_paragraph</string>
 								</dict>
 							</array>
 							<key>while</key>
