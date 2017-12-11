@@ -563,6 +563,9 @@ export class CodeWindow implements ICodeWindow {
 
 	private getUrl(windowConfiguration: IWindowConfiguration): string {
 
+		// Set window ID
+		windowConfiguration.windowId = this._win.id;
+
 		// Set zoomlevel
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 		const zoomLevel = windowConfig && windowConfig.zoomLevel;

@@ -292,6 +292,7 @@ export interface IAddFoldersRequest {
 
 export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 	machineId: string;
+	windowId: number;
 
 	appRoot: string;
 	execPath: string;

@@ -32,7 +32,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { StorageService, inMemoryLocalStorageInstance } from 'vs/platform/storage/common/storageService';
 import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/ipc.electron-browser';
-import { webFrame, remote } from 'electron';
+import { webFrame } from 'electron';
 import { UpdateChannelClient } from 'vs/platform/update/common/updateIpc';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { URLChannelClient } from 'vs/platform/url/common/urlIpc';
@@ -44,8 +44,6 @@ import { createLogService } from 'vs/platform/log/node/spdlogService';
 import fs = require('fs');
 import { ConsoleLogService, MultiplexLogService } from 'vs/platform/log/common/log';
 gracefulFs.gracefulify(fs); // enable gracefulFs
-
-const currentWindowId = remote.getCurrentWindow().id;
 
 export function startup(configuration: IWindowConfiguration): TPromise<void> {
 
@@ -70,11 +68,11 @@ export function startup(configuration: IWindowConfiguration): TPromise<void> {
 }
 
 function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
-	const mainProcessClient = new ElectronIPCClient(String(`window${currentWindowId}`));
-	const mainServices = createMainProcessServices(mainProcessClient);
+	const mainProcessClient = new ElectronIPCClient(String(`window${configuration.windowId}`));
+	const mainServices = createMainProcessServices(mainProcessClient, configuration);
 
 	const environmentService = new EnvironmentService(configuration, configuration.execPath);
-	const spdlogService = createLogService(`renderer${currentWindowId}`, environmentService);
+	const spdlogService = createLogService(`renderer${configuration.windowId}`, environmentService);
 	const consoleLogService = new ConsoleLogService(environmentService);
 	const logService = new MultiplexLogService([consoleLogService, spdlogService]);
 
@@ -194,7 +192,7 @@ function createStorageService(workspaceService: IWorkspaceContextService, enviro
 	return new StorageService(storage, storage, workspaceId, secondaryWorkspaceId);
 }
 
-function createMainProcessServices(mainProcessClient: ElectronIPCClient): ServiceCollection {
+function createMainProcessServices(mainProcessClient: ElectronIPCClient, configuration: IWindowConfiguration): ServiceCollection {
 	const serviceCollection = new ServiceCollection();
 
 	const windowsChannel = mainProcessClient.getChannel('windows');
@@ -204,7 +202,7 @@ function createMainProcessServices(mainProcessClient: ElectronIPCClient): Servic
 	serviceCollection.set(IUpdateService, new SyncDescriptor(UpdateChannelClient, updateChannel));
 
 	const urlChannel = mainProcessClient.getChannel('url');
-	serviceCollection.set(IURLService, new SyncDescriptor(URLChannelClient, urlChannel, currentWindowId));
+	serviceCollection.set(IURLService, new SyncDescriptor(URLChannelClient, urlChannel, configuration.windowId));
 
 	const workspacesChannel = mainProcessClient.getChannel('workspaces');
 	serviceCollection.set(IWorkspacesService, new WorkspacesChannelClient(workspacesChannel));
