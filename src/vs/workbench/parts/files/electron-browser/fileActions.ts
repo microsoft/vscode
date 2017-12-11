@@ -1670,7 +1670,8 @@ export class RevertFileAction extends Action {
 		id: string,
 		label: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@ITextFileService private textFileService: ITextFileService
+		@ITextFileService private textFileService: ITextFileService,
+		@IMessageService private messageService: IMessageService
 	) {
 		super(id, label);
 
@@ -1690,7 +1691,9 @@ export class RevertFileAction extends Action {
 		}
 
 		if (resource && resource.scheme !== 'untitled') {
-			return this.textFileService.revert(resource, { force: true });
+			return this.textFileService.revert(resource, { force: true }).then(null, error => {
+				this.messageService.show(Severity.Error, nls.localize('genericRevertError', "Failed to revert '{0}': {1}", paths.basename(resource.fsPath), toErrorMessage(error, false)));
+			});
 		}
 
 		return TPromise.as(true);

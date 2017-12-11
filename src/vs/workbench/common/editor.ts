@@ -11,7 +11,7 @@ import types = require('vs/base/common/types');
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IEditor, IEditorViewState, IModel, ScrollType } from 'vs/editor/common/editorCommon';
-import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, Position, Verbosity, IEditor as IBaseEditor } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, Position, Verbosity, IEditor as IBaseEditor, IRevertOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -214,7 +214,7 @@ export abstract class EditorInput implements IEditorInput {
 	/**
 	 * Reverts the editor if it is dirty. Subclasses return a promise with a boolean indicating the success of the operation.
 	 */
-	public revert(): TPromise<boolean> {
+	public revert(options?: IRevertOptions): TPromise<boolean> {
 		return TPromise.as(true);
 	}
 

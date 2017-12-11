@@ -14,7 +14,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import platform = require('vs/base/common/platform');
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IRevertOptions, IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ISaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
+import { IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ISaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { ConfirmResult } from 'vs/workbench/common/editor';
 import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -30,6 +30,7 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { IRevertOptions } from 'vs/platform/editor/common/editor';
 
 export interface IBackupResult {
 	didBackup: boolean;

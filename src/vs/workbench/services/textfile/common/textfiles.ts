@@ -13,6 +13,7 @@ import { IBaseStat, IResolveContentOptions } from 'vs/platform/files/common/file
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IRawTextSource } from 'vs/editor/common/model/textSource';
+import { IRevertOptions } from 'vs/platform/editor/common/editor';
 
 /**
  * The save error handler can be installed on the text text file editor model to install code that executes when save errors occur.
@@ -208,19 +209,6 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 	isResolved(): boolean;
 
 	isDisposed(): boolean;
-}
-
-export interface IRevertOptions {
-
-	/**
-	 *  Forces to load the contents from disk again even if the file is not dirty.
-	 */
-	force?: boolean;
-
-	/**
-	 * A soft revert will clear dirty state of a file but not attempt to load the contents from disk.
-	 */
-	soft?: boolean;
 }
 
 export interface ITextFileService extends IDisposable {

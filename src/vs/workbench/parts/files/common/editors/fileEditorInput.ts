@@ -21,7 +21,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
-import { Verbosity } from 'vs/platform/editor/common/editor';
+import { Verbosity, IRevertOptions } from 'vs/platform/editor/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
@@ -222,8 +222,8 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return this.textFileService.save(this.resource);
 	}
 
-	public revert(): TPromise<boolean> {
-		return this.textFileService.revert(this.resource);
+	public revert(options?: IRevertOptions): TPromise<boolean> {
+		return this.textFileService.revert(this.resource, options);
 	}
 
 	public getPreferredEditorId(candidates: string[]): string {
