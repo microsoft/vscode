@@ -61,12 +61,30 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 		function findName(cmd: string): string {
 
 			const RENDERER_PROCESS_HINT = /--disable-blink-features=Auxclick/;
-			const WINDOWS_WATCHER_HINT = /\\watcher\\win32\\CodeHelper.exe/;
+			const WINDOWS_WATCHER_HINT = /\\watcher\\win32\\CodeHelper\.exe/;
+			const WINDOWS_CRASH_REPORTER = /--crashes-directory/;
+			const WINDOWS_PTY = /\\pipe\\winpty-control/;
+			const WINDOWS_CONSOLE_HOST = /conhost\.exe/;
 			const TYPE = /--type=([a-zA-Z-]+)/;
 
 			// find windows file watcher
 			if (WINDOWS_WATCHER_HINT.exec(cmd)) {
-				return 'watcherService';
+				return 'watcherService ';
+			}
+
+			// find windows crash reporter
+			if (WINDOWS_CRASH_REPORTER.exec(cmd)) {
+				return 'electron-crash-reporter';
+			}
+
+			// find windows pty process
+			if (WINDOWS_PTY.exec(cmd)) {
+				return 'winpty-process';
+			}
+
+			//find windows console host process
+			if (WINDOWS_CONSOLE_HOST.exec(cmd)) {
+				return 'console-window-host (Windows internal process)';
 			}
 
 			// find "--type=xxxx"
