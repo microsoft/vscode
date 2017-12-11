@@ -15,12 +15,15 @@ import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import * as vscode from 'vscode';
 import { LinkedList } from 'vs/base/common/linkedList';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+
+type Listener = [Function, any, IExtensionDescription];
 
 export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSaveParticipantShape {
 
 	private _documents: ExtHostDocuments;
 	private _mainThreadEditors: MainThreadEditorsShape;
-	private _callbacks = new LinkedList<[Function, any]>();
+	private _callbacks = new LinkedList<Listener>();
 	private _badListeners = new WeakMap<Function, number>();
 	private _thresholds: { timeout: number; errors: number; };
 
@@ -34,9 +37,9 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 		this._callbacks.clear();
 	}
 
-	get onWillSaveTextDocumentEvent(): Event<vscode.TextDocumentWillSaveEvent> {
+	getOnWillSaveTextDocumentEvent(extension: IExtensionDescription): Event<vscode.TextDocumentWillSaveEvent> {
 		return (listener, thisArg, disposables) => {
-			const remove = this._callbacks.push([listener, thisArg]);
+			const remove = this._callbacks.push([listener, thisArg, extension]);
 			const result = { dispose: remove };
 			if (Array.isArray(disposables)) {
 				disposables.push(result);
@@ -51,7 +54,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 		let didTimeout = false;
 		let didTimeoutHandle = setTimeout(() => didTimeout = true, this._thresholds.timeout);
 
-		const promise = sequence(entries.map(([fn, thisArg]) => {
+		const promise = sequence(entries.map(listener => {
 			return () => {
 
 				if (didTimeout) {
@@ -60,14 +63,13 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 				}
 
 				const document = this._documents.getDocumentData(resource).document;
-				return this._deliverEventAsyncAndBlameBadListeners(fn, thisArg, <any>{ document, reason: TextDocumentSaveReason.to(reason) });
+				return this._deliverEventAsyncAndBlameBadListeners(listener, <any>{ document, reason: TextDocumentSaveReason.to(reason) });
 			};
 		}));
-
 		return always(promise, () => clearTimeout(didTimeoutHandle));
 	}
 
-	private _deliverEventAsyncAndBlameBadListeners(listener: Function, thisArg: any, stubEvent: vscode.TextDocumentWillSaveEvent): Promise<any> {
+	private _deliverEventAsyncAndBlameBadListeners([listener, thisArg, extension]: Listener, stubEvent: vscode.TextDocumentWillSaveEvent): Promise<any> {
 		const errors = this._badListeners.get(listener);
 		if (errors > this._thresholds.errors) {
 			// bad listener - ignore

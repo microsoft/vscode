@@ -16,12 +16,23 @@ import { OneGetThreadService } from './testThreadService';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import * as vscode from 'vscode';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 suite('ExtHostDocumentSaveParticipant', () => {
 
 	let resource = URI.parse('foo:bar');
 	let mainThreadEditors = new class extends mock<MainThreadEditorsShape>() { };
 	let documents: ExtHostDocuments;
+	let nullExtensionDescription: IExtensionDescription = {
+		id: 'nullExtensionDescription',
+		name: 'Null Extension Description',
+		publisher: 'vscode',
+		enableProposedApi: false,
+		engines: undefined,
+		extensionFolderPath: undefined,
+		isBuiltin: false,
+		version: undefined
+	};
 
 	setup(() => {
 		const documentsAndEditors = new ExtHostDocumentsAndEditors(OneGetThreadService(null));
@@ -47,7 +58,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		const participant = new ExtHostDocumentSaveParticipant(documents, mainThreadEditors);
 
 		let event: vscode.TextDocumentWillSaveEvent;
-		let sub = participant.onWillSaveTextDocumentEvent(function (e) {
+		let sub = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (e) {
 			event = e;
 		});
 
@@ -64,7 +75,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		const participant = new ExtHostDocumentSaveParticipant(documents, mainThreadEditors);
 
 		let event: vscode.TextDocumentWillSaveEvent;
-		let sub = participant.onWillSaveTextDocumentEvent(function (e) {
+		let sub = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (e) {
 			event = e;
 		});
 
@@ -79,7 +90,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	test('event delivery, bad listener', () => {
 		const participant = new ExtHostDocumentSaveParticipant(documents, mainThreadEditors);
 
-		let sub = participant.onWillSaveTextDocumentEvent(function (e) {
+		let sub = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (e) {
 			throw new Error('💀');
 		});
 
@@ -94,11 +105,11 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	test('event delivery, bad listener doesn\'t prevent more events', () => {
 		const participant = new ExtHostDocumentSaveParticipant(documents, mainThreadEditors);
 
-		let sub1 = participant.onWillSaveTextDocumentEvent(function (e) {
+		let sub1 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (e) {
 			throw new Error('💀');
 		});
 		let event: vscode.TextDocumentWillSaveEvent;
-		let sub2 = participant.onWillSaveTextDocumentEvent(function (e) {
+		let sub2 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (e) {
 			event = e;
 		});
 
@@ -114,11 +125,11 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		const participant = new ExtHostDocumentSaveParticipant(documents, mainThreadEditors);
 
 		let counter = 0;
-		let sub1 = participant.onWillSaveTextDocumentEvent(function (event) {
+		let sub1 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
 			assert.equal(counter++, 0);
 		});
 
-		let sub2 = participant.onWillSaveTextDocumentEvent(function (event) {
+		let sub2 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
 			assert.equal(counter++, 1);
 		});
 
@@ -132,7 +143,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		const participant = new ExtHostDocumentSaveParticipant(documents, mainThreadEditors, { timeout: 5, errors: 1 });
 
 		let callCount = 0;
-		let sub = participant.onWillSaveTextDocumentEvent(function (event) {
+		let sub = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
 			callCount += 1;
 			throw new Error('boom');
 		});
@@ -150,17 +161,17 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		const participant = new ExtHostDocumentSaveParticipant(documents, mainThreadEditors, { timeout: 20, errors: 5 });
 
 		let callCount = 0;
-		let sub1 = participant.onWillSaveTextDocumentEvent(function (event) {
+		let sub1 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
 			callCount += 1;
 			event.waitUntil(TPromise.timeout(17));
 		});
 
-		let sub2 = participant.onWillSaveTextDocumentEvent(function (event) {
+		let sub2 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
 			callCount += 1;
 			event.waitUntil(TPromise.timeout(17));
 		});
 
-		let sub3 = participant.onWillSaveTextDocumentEvent(function (event) {
+		let sub3 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
 			callCount += 1;
 		});
 
@@ -177,7 +188,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	test('event delivery, waitUntil', () => {
 		const participant = new ExtHostDocumentSaveParticipant(documents, mainThreadEditors);
 
-		let sub = participant.onWillSaveTextDocumentEvent(function (event) {
+		let sub = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
 
 			event.waitUntil(TPromise.timeout(10));
 			event.waitUntil(TPromise.timeout(10));
@@ -193,7 +204,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	test('event delivery, waitUntil must be called sync', () => {
 		const participant = new ExtHostDocumentSaveParticipant(documents, mainThreadEditors);
 
-		let sub = participant.onWillSaveTextDocumentEvent(function (event) {
+		let sub = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
 
 			event.waitUntil(new TPromise((resolve, reject) => {
 				setTimeout(() => {
@@ -216,7 +227,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	test('event delivery, waitUntil will timeout', () => {
 		const participant = new ExtHostDocumentSaveParticipant(documents, mainThreadEditors, { timeout: 5, errors: 3 });
 
-		let sub = participant.onWillSaveTextDocumentEvent(function (event) {
+		let sub = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
 			event.waitUntil(TPromise.timeout(15));
 		});
 
@@ -231,12 +242,12 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	test('event delivery, waitUntil failure handling', () => {
 		const participant = new ExtHostDocumentSaveParticipant(documents, mainThreadEditors);
 
-		let sub1 = participant.onWillSaveTextDocumentEvent(function (e) {
+		let sub1 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (e) {
 			e.waitUntil(TPromise.wrapError(new Error('dddd')));
 		});
 
 		let event: vscode.TextDocumentWillSaveEvent;
-		let sub2 = participant.onWillSaveTextDocumentEvent(function (e) {
+		let sub2 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (e) {
 			event = e;
 		});
 
@@ -257,7 +268,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			}
 		});
 
-		let sub = participant.onWillSaveTextDocumentEvent(function (e) {
+		let sub = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (e) {
 			e.waitUntil(TPromise.as([TextEdit.insert(new Position(0, 0), 'bar')]));
 			e.waitUntil(TPromise.as([TextEdit.setEndOfLine(EndOfLine.CRLF)]));
 		});
@@ -280,7 +291,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			}
 		});
 
-		let sub = participant.onWillSaveTextDocumentEvent(function (e) {
+		let sub = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (e) {
 
 			// concurrent change from somewhere
 			documents.$acceptModelChanged(resource.toString(), {
@@ -330,7 +341,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 
 		const document = documents.getDocumentData(resource).document;
 
-		let sub1 = participant.onWillSaveTextDocumentEvent(function (e) {
+		let sub1 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (e) {
 			// the document state we started with
 			assert.equal(document.version, 1);
 			assert.equal(document.getText(), 'foo');
@@ -338,7 +349,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			e.waitUntil(TPromise.as([TextEdit.insert(new Position(0, 0), 'bar')]));
 		});
 
-		let sub2 = participant.onWillSaveTextDocumentEvent(function (e) {
+		let sub2 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (e) {
 			// the document state AFTER the first listener kicked in
 			assert.equal(document.version, 2);
 			assert.equal(document.getText(), 'barfoo');
