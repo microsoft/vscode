@@ -145,7 +145,7 @@ function formatProcessList(info: IMainProcessInfo, rootProcess: ProcessItem): st
 
 	const output: string[] = [];
 
-	output.push('CPU %\tMem MB\tProcess');
+	output.push('CPU %\tMem MB\t   PID\tProcess');
 
 	formatProcessItem(mapPidToWindowTitle, output, rootProcess, 0);
 
@@ -169,7 +169,7 @@ function formatProcessItem(mapPidToWindowTitle: Map<number, string>, output: str
 		}
 	}
 	const memory = process.platform === 'win32' ? item.mem : (os.totalmem() * (item.mem / 100));
-	output.push(`${pad(Number(item.load.toFixed(0)), 5, ' ')}\t${pad(Number((memory / MB).toFixed(0)), 6, ' ')}\t${name}`);
+	output.push(`${pad(Number(item.load.toFixed(0)), 5, ' ')}\t${pad(Number((memory / MB).toFixed(0)), 6, ' ')}\t${pad(Number((item.pid).toFixed(0)), 6, ' ')}\t${name}`);
 
 	// Recurse into children if any
 	if (Array.isArray(item.children)) {
