@@ -6,7 +6,6 @@
 
 import { validateConstraint } from 'vs/base/common/types';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { TPromise } from 'vs/base/common/winjs.base';
 import * as extHostTypes from 'vs/workbench/api/node/extHostTypes';
 import * as extHostTypeConverter from 'vs/workbench/api/node/extHostTypeConverters';
 import { cloneAndChange } from 'vs/base/common/objects';
@@ -106,7 +105,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	$executeContributedCommand<T>(id: string, ...args: any[]): Thenable<T> {
 		let command = this._commands.get(id);
 		if (!command) {
-			return TPromise.wrapError<T>(new Error(`Contributed command '${id}' does not exist.`));
+			return Promise.reject(new Error(`Contributed command '${id}' does not exist.`));
 		}
 
 		let { callback, thisArg, description } = command;
@@ -116,7 +115,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 				try {
 					validateConstraint(args[i], description.args[i].constraint);
 				} catch (err) {
-					return TPromise.wrapError<T>(new Error(`Running the contributed command:'${id}' failed. Illegal argument '${description.args[i].name}' - ${description.args[i].description}`));
+					return Promise.reject(new Error(`Running the contributed command:'${id}' failed. Illegal argument '${description.args[i].name}' - ${description.args[i].description}`));
 				}
 			}
 		}
@@ -125,7 +124,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 		try {
 			let result = callback.apply(thisArg, args);
-			return TPromise.as(result);
+			return Promise.resolve(result);
 		} catch (err) {
 			// console.log(err);
 			// try {
@@ -133,7 +132,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 			// } catch (err) {
 			// 	//
 			// }
-			return TPromise.wrapError<T>(new Error(`Running the contributed command:'${id}' failed.`));
+			return Promise.reject(new Error(`Running the contributed command:'${id}' failed.`));
 		}
 	}
 
@@ -148,7 +147,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		});
 	}
 
-	$getContributedCommandHandlerDescriptions(): TPromise<{ [id: string]: string | ICommandHandlerDescription }> {
+	$getContributedCommandHandlerDescriptions(): Thenable<{ [id: string]: string | ICommandHandlerDescription }> {
 		const result: { [id: string]: string | ICommandHandlerDescription } = Object.create(null);
 		this._commands.forEach((command, id) => {
 			let { description } = command;
@@ -156,7 +155,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 				result[id] = description;
 			}
 		});
-		return TPromise.as(result);
+		return Promise.resolve(result);
 	}
 }
 
