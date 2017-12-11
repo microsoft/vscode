@@ -289,9 +289,9 @@ export class SuggestModel implements IDisposable {
 
 				this.cancel();
 
-				if (LineContext.shouldAutoTrigger(this._editor)) {
-					this._triggerAutoSuggestPromise = TPromise.timeout(this._quickSuggestDelay);
-					this._triggerAutoSuggestPromise.then(() => {
+				this._triggerAutoSuggestPromise = TPromise.timeout(this._quickSuggestDelay);
+				this._triggerAutoSuggestPromise.then(() => {
+					if (LineContext.shouldAutoTrigger(this._editor)) {
 						const model = this._editor.getModel();
 						const pos = this._editor.getPosition();
 
@@ -319,10 +319,10 @@ export class SuggestModel implements IDisposable {
 							}
 						}
 
-						this._triggerAutoSuggestPromise = null;
 						this.trigger({ auto: true });
-					});
-				}
+					}
+					this._triggerAutoSuggestPromise = null;
+				});
 			}
 		}
 	}
