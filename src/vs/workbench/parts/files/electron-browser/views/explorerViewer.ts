@@ -56,6 +56,7 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common
 import { getPathLabel } from 'vs/base/common/labels';
 import { extractResources } from 'vs/workbench/browser/editor';
 import { relative } from 'path';
+import { DataTransfers } from 'vs/base/browser/dnd';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -793,10 +794,10 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		// Apply some datatransfer types to allow for dragging the element outside of the application
 		if (source) {
 			if (!source.isDirectory) {
-				originalEvent.dataTransfer.setData('DownloadURL', [MIME_BINARY, source.name, source.resource.toString()].join(':'));
+				originalEvent.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, source.name, source.resource.toString()].join(':'));
 			}
 
-			originalEvent.dataTransfer.setData('text/plain', getPathLabel(source.resource));
+			originalEvent.dataTransfer.setData(DataTransfers.TEXT, getPathLabel(source.resource));
 		}
 	}
 
