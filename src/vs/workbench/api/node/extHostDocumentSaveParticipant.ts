@@ -8,7 +8,6 @@ import Event from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import { sequence, always } from 'vs/base/common/async';
 import { illegalState } from 'vs/base/common/errors';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostDocumentSaveParticipantShape, MainThreadEditorsShape, IWorkspaceResourceEdit } from 'vs/workbench/api/node/extHost.protocol';
 import { TextEdit } from 'vs/workbench/api/node/extHostTypes';
 import { fromRange, TextDocumentSaveReason, EndOfLine } from 'vs/workbench/api/node/extHostTypeConverters';
@@ -46,7 +45,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 		};
 	}
 
-	$participateInSave(resource: URI, reason: SaveReason): TPromise<boolean[]> {
+	$participateInSave(resource: URI, reason: SaveReason): Thenable<boolean[]> {
 		const entries = this._callbacks.toArray();
 
 		let didTimeout = false;
@@ -68,11 +67,11 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 		return always(promise, () => clearTimeout(didTimeoutHandle));
 	}
 
-	private _deliverEventAsyncAndBlameBadListeners(listener: Function, thisArg: any, stubEvent: vscode.TextDocumentWillSaveEvent): TPromise<any> {
+	private _deliverEventAsyncAndBlameBadListeners(listener: Function, thisArg: any, stubEvent: vscode.TextDocumentWillSaveEvent): Promise<any> {
 		const errors = this._badListeners.get(listener);
 		if (errors > this._thresholds.errors) {
 			// bad listener - ignore
-			return TPromise.wrap(false);
+			return Promise.resolve(false);
 		}
 
 		return this._deliverEventAsync(listener, thisArg, stubEvent).then(() => {
@@ -93,9 +92,9 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 		});
 	}
 
-	private _deliverEventAsync(listener: Function, thisArg: any, stubEvent: vscode.TextDocumentWillSaveEvent): TPromise<any> {
+	private _deliverEventAsync(listener: Function, thisArg: any, stubEvent: vscode.TextDocumentWillSaveEvent): Promise<any> {
 
-		const promises: TPromise<vscode.TextEdit[]>[] = [];
+		const promises: Promise<vscode.TextEdit[]>[] = [];
 
 		const { document, reason } = stubEvent;
 		const { version } = document;
@@ -107,7 +106,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 				if (Object.isFrozen(promises)) {
 					throw illegalState('waitUntil can not be called async');
 				}
-				promises.push(TPromise.wrap(p));
+				promises.push(Promise.resolve(p));
 			}
 		});
 
@@ -115,16 +114,23 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 			// fire event
 			listener.apply(thisArg, [event]);
 		} catch (err) {
-			return TPromise.wrapError(err);
+			return Promise.reject(err);
 		}
 
 		// freeze promises after event call
 		Object.freeze(promises);
 
-		return new TPromise<vscode.TextEdit[][]>((resolve, reject) => {
+		return new Promise<vscode.TextEdit[][]>((resolve, reject) => {
 			// join on all listener promises, reject after timeout
 			const handle = setTimeout(() => reject(new Error('timeout')), this._thresholds.timeout);
-			return always(TPromise.join(promises), () => clearTimeout(handle)).then(resolve, reject);
+
+			return Promise.all(promises).then(edits => {
+				clearTimeout(handle);
+				resolve(edits);
+			}).catch(err => {
+				clearTimeout(handle);
+				reject(err);
+			});
 
 		}).then(values => {
 
@@ -156,7 +162,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 			}
 
 			// TODO@joh bubble this to listener?
-			return TPromise.wrapError(new Error('concurrent_edits'));
+			return Promise.reject(new Error('concurrent_edits'));
 		});
 	}
 }

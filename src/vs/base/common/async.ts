@@ -349,13 +349,14 @@ export function always<T>(promise: TPromise<T>, f: Function): TPromise<T> {
  * Runs the provided list of promise factories in sequential order. The returned
  * promise will complete to an array of results from each promise.
  */
-export function sequence<T>(promiseFactories: ITask<TPromise<T>>[]): TPromise<T[]> {
+
+export function sequence<T>(promiseFactories: ITask<Thenable<T>>[]): TPromise<T[]> {
 	const results: T[] = [];
 
 	// reverse since we start with last element using pop()
 	promiseFactories = promiseFactories.reverse();
 
-	function next(): Promise {
+	function next(): Thenable<any> {
 		if (promiseFactories.length) {
 			return promiseFactories.pop()();
 		}
@@ -363,7 +364,7 @@ export function sequence<T>(promiseFactories: ITask<TPromise<T>>[]): TPromise<T[
 		return null;
 	}
 
-	function thenHandler(result: any): Promise {
+	function thenHandler(result: any): Thenable<any> {
 		if (result !== undefined && result !== null) {
 			results.push(result);
 		}

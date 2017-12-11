@@ -5,7 +5,6 @@
 
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { sequence } from 'vs/base/common/async';
 import * as strings from 'vs/base/common/strings';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -175,7 +174,7 @@ class FormatOnSaveParticipant implements ISaveParticipant {
 		// Nothing
 	}
 
-	participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason }): TPromise<void> {
+	participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason }): Promise<void> {
 
 		const model = editorModel.textEditorModel;
 		if (env.reason === SaveReason.AUTO
@@ -186,7 +185,7 @@ class FormatOnSaveParticipant implements ISaveParticipant {
 		const versionNow = model.getVersionId();
 		const { tabSize, insertSpaces } = model.getOptions();
 
-		return new TPromise<ISingleEditOperation[]>((resolve, reject) => {
+		return new Promise<ISingleEditOperation[]>((resolve, reject) => {
 			setTimeout(reject, 750);
 			getDocumentFormattingEdits(model, { tabSize, insertSpaces })
 				.then(edits => this._editorWorkerService.computeMoreMinimalEdits(model.uri, edits))
@@ -241,13 +240,13 @@ class ExtHostSaveParticipant implements ISaveParticipant {
 		this._proxy = extHostContext.get(ExtHostContext.ExtHostDocumentSaveParticipant);
 	}
 
-	participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason }): TPromise<void> {
-		return new TPromise<any>((resolve, reject) => {
+	participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason }): Promise<void> {
+		return new Promise<any>((resolve, reject) => {
 			setTimeout(reject, 1750);
 			this._proxy.$participateInSave(editorModel.getResource(), env.reason).then(values => {
 				for (const success of values) {
 					if (!success) {
-						return TPromise.wrapError(new Error('listener failed'));
+						return Promise.reject(new Error('listener failed'));
 					}
 				}
 				return undefined;
@@ -286,9 +285,9 @@ export class SaveParticipant implements ISaveParticipant {
 		TextFileEditorModel.setSaveParticipant(undefined);
 	}
 
-	participate(model: ITextFileEditorModel, env: { reason: SaveReason }): TPromise<void> {
+	participate(model: ITextFileEditorModel, env: { reason: SaveReason }): Thenable<void> {
 		const promiseFactory = this._saveParticipants.map(p => () => {
-			return TPromise.as(p.participate(model, env));
+			return Promise.resolve(p.participate(model, env));
 		});
 
 		return sequence(promiseFactory).then(() => { });

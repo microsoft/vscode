@@ -462,7 +462,7 @@ export interface ExtHostDocumentsShape {
 }
 
 export interface ExtHostDocumentSaveParticipantShape {
-	$participateInSave(resource: URI, reason: SaveReason): TPromise<boolean[]>;
+	$participateInSave(resource: URI, reason: SaveReason): Thenable<boolean[]>;
 }
 
 export interface ITextEditorAddData {

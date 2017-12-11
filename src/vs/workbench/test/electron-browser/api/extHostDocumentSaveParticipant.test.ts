@@ -128,7 +128,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		});
 	});
 
-	test('event delivery, ignore bad listeners', () => {
+	test('event delivery, ignore bad listeners', async () => {
 		const participant = new ExtHostDocumentSaveParticipant(documents, mainThreadEditors, { timeout: 5, errors: 1 });
 
 		let callCount = 0;
@@ -137,16 +137,13 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			throw new Error('boom');
 		});
 
-		return TPromise.join([
-			participant.$participateInSave(resource, SaveReason.EXPLICIT),
-			participant.$participateInSave(resource, SaveReason.EXPLICIT),
-			participant.$participateInSave(resource, SaveReason.EXPLICIT),
-			participant.$participateInSave(resource, SaveReason.EXPLICIT)
+		await participant.$participateInSave(resource, SaveReason.EXPLICIT);
+		await participant.$participateInSave(resource, SaveReason.EXPLICIT);
+		await participant.$participateInSave(resource, SaveReason.EXPLICIT);
+		await participant.$participateInSave(resource, SaveReason.EXPLICIT);
 
-		]).then(values => {
-			sub.dispose();
-			assert.equal(callCount, 2);
-		});
+		sub.dispose();
+		assert.equal(callCount, 2);
 	});
 
 	test('event delivery, overall timeout', () => {
