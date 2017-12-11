@@ -999,13 +999,13 @@ export class ReportPerformanceIssueAction extends Action {
 	}
 
 	public run(appendix?: string): TPromise<boolean> {
-		return this.integrityService.isPure().then(res => {
+		this.integrityService.isPure().then(res => {
 			const issueUrl = this.generatePerformanceIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date, res.isPure, appendix);
 
 			window.open(issueUrl);
-
-			return TPromise.as(true);
 		});
+
+		return TPromise.wrap(true);
 	}
 
 	private generatePerformanceIssueUrl(baseUrl: string, name: string, version: string, commit: string, date: string, isPure: boolean, appendix?: string): string {
