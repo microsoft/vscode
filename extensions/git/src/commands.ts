@@ -996,10 +996,18 @@ export class CommandCenter {
 				return message;
 			}
 
+			const getPreviousCommitMessage = async () => {
+				//Only return the previous commit message if it's an amend commit and the repo already has a commit
+				if (opts && opts.amend && repository.HEAD && repository.HEAD.commit) {
+					return (await repository.getCommit('HEAD')).message;
+				}
+			};
+
 			return await window.showInputBox({
 				value: opts && opts.defaultMsg,
 				placeHolder: localize('commit message', "Commit message"),
 				prompt: localize('provide commit message', "Please provide a commit message"),
+				value: await getPreviousCommitMessage(),
 				ignoreFocusOut: true
 			});
 		};
