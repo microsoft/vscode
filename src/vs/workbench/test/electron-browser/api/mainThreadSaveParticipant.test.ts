@@ -12,11 +12,11 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { workbenchInstantiationService, TestTextFileService } from 'vs/workbench/test/workbenchTestServices';
 import { toResource } from 'vs/base/test/common/utils';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ITextFileService, SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { Selection } from 'vs/editor/common/core/selection';
-import { Range } from 'vs/editor/common/core/range';
 
 class ServiceAccessor {
 	constructor( @ITextFileService public textFileService: TestTextFileService, @IModelService public modelService: IModelService) {
