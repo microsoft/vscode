@@ -10,7 +10,8 @@
     "Other"
   ],
   "activationEvents": [
-    "onLanguage:json", "onLanguage:jsonc"
+    "onLanguage:json",
+    "onLanguage:jsonc"
   ],
   "main": "./out/extension",
   "scripts": {
@@ -18,7 +19,7 @@
     "watch": "gulp watch-extension:configuration-editing"
   },
   "dependencies": {
-    "jsonc-parser": "^0.3.1",
+    "jsonc-parser": "^1.0.0",
     "vscode-nls": "^2.0.1"
   },
   "contributes": {
