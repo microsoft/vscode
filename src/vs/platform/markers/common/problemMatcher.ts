@@ -12,6 +12,7 @@ import * as Assert from 'vs/base/common/assert';
 import * as Paths from 'vs/base/common/paths';
 import * as Types from 'vs/base/common/types';
 import * as UUID from 'vs/base/common/uuid';
+import * as Platform from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -189,6 +190,8 @@ export function createLineMatcher(matcher: ProblemMatcher): ILineMatcher {
 	}
 }
 
+const endOfLine: string = Platform.OS === Platform.OperatingSystem.Windows ? '\r\n' : '\n';
+
 abstract class AbstractLineMatcher implements ILineMatcher {
 	private matcher: ProblemMatcher;
 
@@ -227,7 +230,7 @@ abstract class AbstractLineMatcher implements ILineMatcher {
 			if (trim) {
 				value = Strings.trim(value);
 			}
-			data[property] += '\n' + value;
+			data[property] += endOfLine + value;
 		}
 	}
 
