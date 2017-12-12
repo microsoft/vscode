@@ -147,14 +147,8 @@ export class FindModelBoundToEditorModel {
 		}
 	}
 
-	private static _getSearchRange(model: editorCommon.IModel, searchOnlyEditableRange: boolean, findScope: Range): Range {
-		let searchRange: Range;
-
-		if (searchOnlyEditableRange) {
-			searchRange = model.getEditableRange();
-		} else {
-			searchRange = model.getFullModelRange();
-		}
+	private static _getSearchRange(model: editorCommon.IModel, findScope: Range): Range {
+		let searchRange = model.getFullModelRange();
 
 		// If we have set now or before a find scope, use it for computing the search range
 		if (findScope) {
@@ -226,7 +220,7 @@ export class FindModelBoundToEditorModel {
 		}
 
 		let findScope = this._decorations.getFindScope();
-		let searchRange = FindModelBoundToEditorModel._getSearchRange(this._editor.getModel(), this._state.isReplaceRevealed, findScope);
+		let searchRange = FindModelBoundToEditorModel._getSearchRange(this._editor.getModel(), findScope);
 
 		// ...(----)...|...
 		if (searchRange.getEndPosition().isBefore(before)) {
@@ -297,7 +291,7 @@ export class FindModelBoundToEditorModel {
 		}
 
 		let findScope = this._decorations.getFindScope();
-		let searchRange = FindModelBoundToEditorModel._getSearchRange(this._editor.getModel(), this._state.isReplaceRevealed, findScope);
+		let searchRange = FindModelBoundToEditorModel._getSearchRange(this._editor.getModel(), findScope);
 
 		// ...(----)...|...
 		if (searchRange.getEndPosition().isBefore(after)) {
@@ -389,7 +383,7 @@ export class FindModelBoundToEditorModel {
 	}
 
 	private _findMatches(findScope: Range, captureMatches: boolean, limitResultCount: number): editorCommon.FindMatch[] {
-		let searchRange = FindModelBoundToEditorModel._getSearchRange(this._editor.getModel(), this._state.isReplaceRevealed, findScope);
+		let searchRange = FindModelBoundToEditorModel._getSearchRange(this._editor.getModel(), findScope);
 		return this._editor.getModel().findMatches(this._state.searchString, searchRange, this._state.isRegex, this._state.matchCase, this._state.wholeWord ? this._editor.getConfiguration().wordSeparators : null, captureMatches, limitResultCount);
 	}
 

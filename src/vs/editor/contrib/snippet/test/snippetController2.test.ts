@@ -11,7 +11,7 @@ import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { Model } from 'vs/editor/common/model/model';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { NoopLogService } from 'vs/platform/log/common/log';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('SnippetController2', function () {
 
@@ -32,7 +32,7 @@ suite('SnippetController2', function () {
 	let editor: ICodeEditor;
 	let model: Model;
 	let contextKeys: MockContextKeyService;
-	let logService = new NoopLogService();
+	let logService = new NullLogService();
 
 	setup(function () {
 		contextKeys = new MockContextKeyService();

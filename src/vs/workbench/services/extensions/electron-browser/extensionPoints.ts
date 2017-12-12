@@ -9,7 +9,6 @@ import * as nls from 'vs/nls';
 import * as pfs from 'vs/base/node/pfs';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { groupBy, values } from 'vs/base/common/collections';
 import { join, normalize, extname } from 'path';
 import * as json from 'vs/base/common/json';
 import * as types from 'vs/base/common/types';
@@ -17,6 +16,7 @@ import { isValidExtensionDescription } from 'vs/platform/extensions/node/extensi
 import * as semver from 'semver';
 import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
+import { groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 
 const MANIFEST_FILE = 'package.json';
 
@@ -340,7 +340,7 @@ export class ExtensionScanner {
 			} else {
 				// TODO: align with extensionsService
 				const nonGallery: string[] = [];
-				const gallery: { folder: string; id: string; version: string; }[] = [];
+				const gallery: string[] = [];
 
 				rawFolders.forEach(folder => {
 					if (obsolete[folder]) {
@@ -351,22 +351,24 @@ export class ExtensionScanner {
 
 					if (!id || !version) {
 						nonGallery.push(folder);
-						return;
+					} else {
+						gallery.push(folder);
 					}
-
-					gallery.push({ folder, id, version });
 				});
 
-				const byId = values(groupBy(gallery, p => p.id));
-				const latest = byId.map(p => p.sort((a, b) => semver.rcompare(a.version, b.version))[0])
-					.map(a => a.folder);
-
-				folders = [...nonGallery, ...latest];
+				folders = [...nonGallery, ...gallery];
 			}
 
 			const nlsConfig = ExtensionScannerInput.createNLSConfig(input);
 			let extensionDescriptions = await TPromise.join(folders.map(f => this.scanExtension(input.ourVersion, log, join(absoluteFolderPath, f), isBuiltin, nlsConfig)));
 			extensionDescriptions = extensionDescriptions.filter(item => item !== null);
+
+			if (!isBuiltin) {
+				// Filter out outdated extensions
+				const byExtension: IExtensionDescription[][] = groupByExtension(extensionDescriptions, e => ({ id: e.id, uuid: e.uuid }));
+				extensionDescriptions = byExtension.map(p => p.sort((a, b) => semver.rcompare(a.version, b.version))[0]);
+			}
+
 			extensionDescriptions.sort((a, b) => {
 				if (a.extensionFolderPath < b.extensionFolderPath) {
 					return -1;

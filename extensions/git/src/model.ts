@@ -149,6 +149,13 @@ export class Model {
 	}
 
 	private onDidChangeVisibleTextEditors(editors: TextEditor[]): void {
+		const config = workspace.getConfiguration('git');
+		const enabled = config.get<boolean>('autoRepositoryDetection') === true;
+
+		if (!enabled) {
+			return;
+		}
+
 		editors.forEach(editor => {
 			const uri = editor.document.uri;
 

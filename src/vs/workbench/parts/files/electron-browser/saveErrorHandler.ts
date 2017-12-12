@@ -118,7 +118,19 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 		// Any other save error
 		else {
 			const isReadonly = (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_READ_ONLY;
+			const isPermissionDenied = (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_PERMISSION_DENIED;
 			const actions: Action[] = [];
+
+			// Save Elevated
+			if (isPermissionDenied) {
+				actions.push(new Action('workbench.files.action.saveElevated', nls.localize('saveElevated', "Retry as Admin..."), null, true, () => {
+					if (!model.isDisposed()) {
+						model.save({ writeElevated: true }).done(null, errors.onUnexpectedError);
+					}
+
+					return TPromise.as(true);
+				}));
+			}
 
 			// Save As
 			actions.push(new Action('workbench.files.action.saveAs', SaveFileAsAction.LABEL, null, true, () => {
@@ -147,7 +159,7 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 
 					return TPromise.as(true);
 				}));
-			} else {
+			} else if (!isPermissionDenied) {
 				actions.push(new Action('workbench.files.action.retry', nls.localize('retry', "Retry"), null, true, () => {
 					const saveFileAction = this.instantiationService.createInstance(SaveFileAction, SaveFileAction.ID, SaveFileAction.LABEL);
 					saveFileAction.setResource(resource);

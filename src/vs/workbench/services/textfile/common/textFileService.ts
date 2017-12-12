@@ -14,7 +14,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 import platform = require('vs/base/common/platform');
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IRevertOptions, IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ISaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
+import { IResult, ITextFileOperationResult, ITextFileService, IRawTextContent, IAutoSaveConfiguration, AutoSaveMode, SaveReason, ITextFileEditorModelManager, ITextFileEditorModel, ModelState, ISaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { ConfirmResult } from 'vs/workbench/common/editor';
 import { ILifecycleService, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -30,6 +30,7 @@ import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { IRevertOptions } from 'vs/platform/editor/common/editor';
 
 export interface IBackupResult {
 	didBackup: boolean;
@@ -525,7 +526,7 @@ export abstract class TextFileService implements ITextFileService {
 		return this.getFileModels(arg1).filter(model => model.isDirty());
 	}
 
-	public saveAs(resource: URI, target?: URI): TPromise<URI> {
+	public saveAs(resource: URI, target?: URI, options?: ISaveOptions): TPromise<URI> {
 
 		// Get to target resource
 		if (!target) {
@@ -546,14 +547,14 @@ export abstract class TextFileService implements ITextFileService {
 
 		// Just save if target is same as models own resource
 		if (resource.toString() === target.toString()) {
-			return this.save(resource).then(() => resource);
+			return this.save(resource, options).then(() => resource);
 		}
 
 		// Do it
-		return this.doSaveAs(resource, target);
+		return this.doSaveAs(resource, target, options);
 	}
 
-	private doSaveAs(resource: URI, target?: URI): TPromise<URI> {
+	private doSaveAs(resource: URI, target?: URI, options?: ISaveOptions): TPromise<URI> {
 
 		// Retrieve text model from provided resource if any
 		let modelPromise: TPromise<ITextFileEditorModel | UntitledEditorModel> = TPromise.as(null);
@@ -567,7 +568,7 @@ export abstract class TextFileService implements ITextFileService {
 
 			// We have a model: Use it (can be null e.g. if this file is binary and not a text file or was never opened before)
 			if (model) {
-				return this.doSaveTextFileAs(model, resource, target);
+				return this.doSaveTextFileAs(model, resource, target, options);
 			}
 
 			// Otherwise we can only copy
@@ -583,7 +584,7 @@ export abstract class TextFileService implements ITextFileService {
 		});
 	}
 
-	private doSaveTextFileAs(sourceModel: ITextFileEditorModel | UntitledEditorModel, resource: URI, target: URI): TPromise<void> {
+	private doSaveTextFileAs(sourceModel: ITextFileEditorModel | UntitledEditorModel, resource: URI, target: URI, options?: ISaveOptions): TPromise<void> {
 		let targetModelResolver: TPromise<ITextFileEditorModel>;
 
 		// Prefer an existing model if it is already loaded for the given target resource
@@ -606,12 +607,12 @@ export abstract class TextFileService implements ITextFileService {
 			targetModel.textEditorModel.setValue(sourceModel.getValue());
 
 			// save model
-			return targetModel.save();
+			return targetModel.save(options);
 		}, error => {
 
 			// binary model: delete the file and run the operation again
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_IS_BINARY || (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_TOO_LARGE) {
-				return this.fileService.del(target).then(() => this.doSaveTextFileAs(sourceModel, resource, target));
+				return this.fileService.del(target).then(() => this.doSaveTextFileAs(sourceModel, resource, target, options));
 			}
 
 			return TPromise.wrapError(error);

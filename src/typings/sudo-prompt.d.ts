@@ -3,13 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.update-activity {
-	-webkit-mask: url('update.svg') no-repeat 50% 50%;
-	-webkit-mask-size: 22px;
-}
+declare module 'sudo-prompt' {
 
-/* TODO@Ben this is a hack to overwrite the icon for release notes eitor */
-.file-icons-enabled .show-file-icons .release-notes-ext-file-icon.file-icon::before {
-	content: ' ';
-	background-image: url('code-icon.svg');
+	export function exec(cmd: string, options: { name?: string, icns?: string }, callback: (error: string, stdout: string, stderr: string) => void);
 }

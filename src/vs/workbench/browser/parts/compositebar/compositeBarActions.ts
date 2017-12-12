@@ -26,6 +26,7 @@ import Event, { Emitter } from 'vs/base/common/event';
 export interface ICompositeActivity {
 	badge: IBadge;
 	clazz: string;
+	priority: number;
 }
 
 export interface ICompositeBar {

@@ -526,6 +526,12 @@ export interface IUpdateContentOptions {
 	overwriteReadonly?: boolean;
 
 	/**
+	 * Wether to write to the file as elevated (admin) user. When setting this option a prompt will
+	 * ask the user to authenticate as super user.
+	 */
+	writeElevated?: boolean;
+
+	/**
 	 * The last known modification time of the file. This can be used to prevent dirty writes.
 	 */
 	mtime?: number;
@@ -569,6 +575,7 @@ export enum FileOperationResult {
 	FILE_MODIFIED_SINCE,
 	FILE_MOVE_CONFLICT,
 	FILE_READ_ONLY,
+	FILE_PERMISSION_DENIED,
 	FILE_TOO_LARGE,
 	FILE_INVALID_PATH
 }

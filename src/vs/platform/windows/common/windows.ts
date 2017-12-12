@@ -215,7 +215,6 @@ export interface IWindowSettings {
 	openFilesInNewWindow: 'on' | 'off' | 'default';
 	openFoldersInNewWindow: 'on' | 'off' | 'default';
 	restoreWindows: 'all' | 'folders' | 'one' | 'none';
-	reopenFolders: 'all' | 'one' | 'none'; // TODO@Ben deprecated
 	restoreFullscreen: boolean;
 	zoomLevel: number;
 	titleBarStyle: 'native' | 'custom';
@@ -301,6 +300,7 @@ export interface IAddFoldersRequest {
 
 export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 	machineId: string;
+	windowId: number;
 
 	appRoot: string;
 	execPath: string;

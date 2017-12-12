@@ -81,7 +81,7 @@ export class TestThreadService extends AbstractTestThreadService implements IThr
 	}
 
 	private _callCountValue: number = 0;
-	private _idle: TPromise<any>;
+	private _idle: Promise<any>;
 	private _completeIdle: Function;
 
 	private get _callCount(): number {
@@ -98,18 +98,16 @@ export class TestThreadService extends AbstractTestThreadService implements IThr
 		}
 	}
 
-	sync(): TPromise<any> {
-		return new TPromise<any>((c) => {
+	sync(): Promise<any> {
+		return new Promise<any>((c) => {
 			setTimeout(c, 0);
 		}).then(() => {
 			if (this._callCount === 0) {
 				return undefined;
 			}
 			if (!this._idle) {
-				this._idle = new TPromise<any>((c, e) => {
+				this._idle = new Promise<any>((c, e) => {
 					this._completeIdle = c;
-				}, function () {
-					// no cancel
 				});
 			}
 			return this._idle;

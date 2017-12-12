@@ -455,10 +455,7 @@ export namespace CoreNavigationCommands {
 			cursors.setStates(
 				source,
 				CursorChangeReason.Explicit,
-				CursorState.ensureInEditableRange(
-					cursors.context,
-					CursorMoveCommands.move(cursors.context, cursors.getAll(), args)
-				)
+				CursorMoveCommands.move(cursors.context, cursors.getAll(), args)
 			);
 			cursors.reveal(true, RevealTarget.Primary, editorCommon.ScrollType.Smooth);
 		}
@@ -707,7 +704,7 @@ export namespace CoreNavigationCommands {
 		public runCoreEditorCommand(cursors: ICursors, args: any): void {
 			const context = cursors.context;
 
-			if (context.config.readOnly || context.model.hasEditableRange()) {
+			if (context.config.readOnly) {
 				return;
 			}
 
@@ -772,7 +769,7 @@ export namespace CoreNavigationCommands {
 		public runCoreEditorCommand(cursors: ICursors, args: any): void {
 			const context = cursors.context;
 
-			if (context.config.readOnly || context.model.hasEditableRange()) {
+			if (context.config.readOnly) {
 				return;
 			}
 
@@ -804,10 +801,7 @@ export namespace CoreNavigationCommands {
 			cursors.setStates(
 				args.source,
 				CursorChangeReason.Explicit,
-				CursorState.ensureInEditableRange(
-					cursors.context,
-					CursorMoveCommands.moveToBeginningOfLine(cursors.context, cursors.getAll(), this._inSelectionMode)
-				)
+				CursorMoveCommands.moveToBeginningOfLine(cursors.context, cursors.getAll(), this._inSelectionMode)
 			);
 			cursors.reveal(true, RevealTarget.Primary, editorCommon.ScrollType.Smooth);
 		}
@@ -856,10 +850,7 @@ export namespace CoreNavigationCommands {
 			cursors.setStates(
 				args.source,
 				CursorChangeReason.Explicit,
-				CursorState.ensureInEditableRange(
-					cursors.context,
-					this._exec(cursors.context, cursors.getAll())
-				)
+				this._exec(cursors.context, cursors.getAll())
 			);
 			cursors.reveal(true, RevealTarget.Primary, editorCommon.ScrollType.Smooth);
 		}
@@ -889,10 +880,7 @@ export namespace CoreNavigationCommands {
 			cursors.setStates(
 				args.source,
 				CursorChangeReason.Explicit,
-				CursorState.ensureInEditableRange(
-					cursors.context,
-					CursorMoveCommands.moveToEndOfLine(cursors.context, cursors.getAll(), this._inSelectionMode)
-				)
+				CursorMoveCommands.moveToEndOfLine(cursors.context, cursors.getAll(), this._inSelectionMode)
 			);
 			cursors.reveal(true, RevealTarget.Primary, editorCommon.ScrollType.Smooth);
 		}
@@ -941,10 +929,7 @@ export namespace CoreNavigationCommands {
 			cursors.setStates(
 				args.source,
 				CursorChangeReason.Explicit,
-				CursorState.ensureInEditableRange(
-					cursors.context,
-					this._exec(cursors.context, cursors.getAll())
-				)
+				this._exec(cursors.context, cursors.getAll())
 			);
 			cursors.reveal(true, RevealTarget.Primary, editorCommon.ScrollType.Smooth);
 		}
@@ -975,10 +960,7 @@ export namespace CoreNavigationCommands {
 			cursors.setStates(
 				args.source,
 				CursorChangeReason.Explicit,
-				CursorState.ensureInEditableRange(
-					cursors.context,
-					CursorMoveCommands.moveToBeginningOfBuffer(cursors.context, cursors.getAll(), this._inSelectionMode)
-				)
+				CursorMoveCommands.moveToBeginningOfBuffer(cursors.context, cursors.getAll(), this._inSelectionMode)
 			);
 			cursors.reveal(true, RevealTarget.Primary, editorCommon.ScrollType.Smooth);
 		}
@@ -1022,10 +1004,7 @@ export namespace CoreNavigationCommands {
 			cursors.setStates(
 				args.source,
 				CursorChangeReason.Explicit,
-				CursorState.ensureInEditableRange(
-					cursors.context,
-					CursorMoveCommands.moveToEndOfBuffer(cursors.context, cursors.getAll(), this._inSelectionMode)
-				)
+				CursorMoveCommands.moveToEndOfBuffer(cursors.context, cursors.getAll(), this._inSelectionMode)
 			);
 			cursors.reveal(true, RevealTarget.Primary, editorCommon.ScrollType.Smooth);
 		}
@@ -1272,7 +1251,7 @@ export namespace CoreNavigationCommands {
 
 		public runCoreEditorCommand(cursors: ICursors, args: any): void {
 			const context = cursors.context;
-			if (context.config.readOnly || context.model.hasEditableRange()) {
+			if (context.config.readOnly) {
 				return;
 			}
 
@@ -1335,7 +1314,7 @@ export namespace CoreNavigationCommands {
 		public runCoreEditorCommand(cursors: ICursors, args: any): void {
 			const context = cursors.context;
 
-			if (context.config.readOnly || context.model.hasEditableRange()) {
+			if (context.config.readOnly) {
 				return;
 			}
 
@@ -1383,10 +1362,7 @@ export namespace CoreNavigationCommands {
 			cursors.setStates(
 				args.source,
 				CursorChangeReason.Explicit,
-				CursorState.ensureInEditableRange(
-					cursors.context,
-					CursorMoveCommands.expandLineSelection(cursors.context, cursors.getAll())
-				)
+				CursorMoveCommands.expandLineSelection(cursors.context, cursors.getAll())
 			);
 			cursors.reveal(true, RevealTarget.Primary, editorCommon.ScrollType.Smooth);
 		}

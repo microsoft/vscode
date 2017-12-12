@@ -193,7 +193,7 @@ export class SuggestController implements IEditorContribution {
 		}
 	}
 
-	private _onDidSelectItem(item: ICompletionItem): void {
+	protected _onDidSelectItem(item: ICompletionItem): void {
 		if (!item) {
 			this._model.cancel();
 			return;

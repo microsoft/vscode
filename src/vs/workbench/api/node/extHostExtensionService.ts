@@ -6,7 +6,7 @@
 
 import { dispose } from 'vs/base/common/lifecycle';
 import { join } from 'path';
-import { mkdirp, dirExists } from 'vs/base/node/pfs';
+import { mkdirp, dirExists, realpath } from 'vs/base/node/pfs';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
@@ -18,7 +18,6 @@ import { IExtensionMemento, ExtensionsActivator, ActivatedExtension, IExtensionA
 import { ExtHostThreadService } from 'vs/workbench/services/thread/node/extHostThreadService';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
-import { realpath } from 'fs';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { Barrier } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -222,16 +221,8 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				if (!ext.main) {
 					return undefined;
 				}
-				return new TPromise((resolve, reject) => {
-					realpath(ext.extensionFolderPath, (err, path) => {
-						if (err) {
-							reject(err);
-						} else {
-							tree.set(path, ext);
-							resolve(void 0);
-						}
-					});
-				});
+				return realpath(ext.extensionFolderPath).then(value => tree.set(value, ext));
+
 			});
 			this._extensionPathIndex = TPromise.join(extensions).then(() => tree);
 		}

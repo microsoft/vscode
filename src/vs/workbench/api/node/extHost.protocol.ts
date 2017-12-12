@@ -144,8 +144,8 @@ export interface MainThreadDialogSaveOptions {
 }
 
 export interface MainThreadDiaglogsShape extends IDisposable {
-	$showOpenDialog(options: MainThreadDialogOpenOptions): TPromise<string[]>;
-	$showSaveDialog(options: MainThreadDialogSaveOptions): TPromise<string>;
+	$showOpenDialog(options: MainThreadDialogOpenOptions): Thenable<string[]>;
+	$showSaveDialog(options: MainThreadDialogSaveOptions): Thenable<string>;
 }
 
 export interface MainThreadDecorationsShape extends IDisposable {
@@ -410,6 +410,7 @@ export interface MainThreadSCMShape extends IDisposable {
 
 	$setInputBoxValue(sourceControlHandle: number, value: string): void;
 	$setInputBoxPlaceholder(sourceControlHandle: number, placeholder: string): void;
+	$setLineWarningLength(sourceControlHandle: number, lineWarningLength: number): void;
 }
 
 export type DebugSessionUUID = string;
@@ -431,7 +432,7 @@ export interface MainThreadWindowShape extends IDisposable {
 
 export interface ExtHostCommandsShape {
 	$executeContributedCommand<T>(id: string, ...args: any[]): Thenable<T>;
-	$getContributedCommandHandlerDescriptions(): TPromise<{ [id: string]: string | ICommandHandlerDescription }>;
+	$getContributedCommandHandlerDescriptions(): Thenable<{ [id: string]: string | ICommandHandlerDescription }>;
 }
 
 export interface ExtHostConfigurationShape {
@@ -462,7 +463,7 @@ export interface ExtHostDocumentsShape {
 }
 
 export interface ExtHostDocumentSaveParticipantShape {
-	$participateInSave(resource: URI, reason: SaveReason): TPromise<boolean[]>;
+	$participateInSave(resource: URI, reason: SaveReason): Thenable<boolean[]>;
 }
 
 export interface ITextEditorAddData {

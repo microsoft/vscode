@@ -1071,24 +1071,6 @@ export interface IEditableTextModel extends ITextModel {
 	 * @internal
 	 */
 	redo(): Selection[];
-
-	/**
-	 * Set an editable range on the model.
-	 * @internal
-	 */
-	setEditableRange(range: IRange): void;
-
-	/**
-	 * Check if the model has an editable range.
-	 * @internal
-	 */
-	hasEditableRange(): boolean;
-
-	/**
-	 * Get the editable range on the model.
-	 * @internal
-	 */
-	getEditableRange(): Range;
 }
 
 /**
