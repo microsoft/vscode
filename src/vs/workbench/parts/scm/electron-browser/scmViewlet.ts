@@ -45,7 +45,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
-import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { IMessage, InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Command } from 'vs/editor/common/modes';
@@ -753,7 +753,33 @@ export class RepositoryPanel extends ViewletPanel {
 			this.inputBox.setPlaceHolder(placeholder);
 		};
 
-		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, { flexibleHeight: true });
+		const validation = (text: string): IMessage => {
+			const warningLength = this.repository.input.warningLength;
+			if (warningLength === undefined) {
+				return {
+					content: localize('commitMessageInfo', "{0} characters", text.length),
+					type: MessageType.INFO
+				};
+			}
+
+			const charactersLeft = warningLength - text.length;
+			if (charactersLeft > 0) {
+				return {
+					content: localize('commitMessageCountdown', "{0} characters left", text.length),
+					type: MessageType.INFO
+				};
+			} else {
+				return {
+					content: localize('commitMessageWarning', "{0} characters over", text.length),
+					type: MessageType.WARNING
+				};
+			}
+		};
+
+		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, {
+			flexibleHeight: true,
+			validationOptions: { validation: validation }
+		});
 		this.disposables.push(attachInputBoxStyler(this.inputBox, this.themeService));
 		this.disposables.push(this.inputBox);
 
