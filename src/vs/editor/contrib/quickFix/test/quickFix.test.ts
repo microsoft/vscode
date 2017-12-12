@@ -118,7 +118,6 @@ suite('QuickFix', () => {
 
 		const actions = await getCodeActions(model, new Range(1, 1, 2, 1));
 		assert.equal(actions.length, 6);
-		console.log(actions);
 		assert.deepEqual(actions, expected);
 	});
 });
