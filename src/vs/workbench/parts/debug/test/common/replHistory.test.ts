@@ -10,7 +10,8 @@ suite('Debug - Repl History', () => {
 	let history: ReplHistory;
 
 	setup(() => {
-		history = new ReplHistory(['one', 'two', 'three', 'four', 'five']);
+		history = new ReplHistory();
+		history.loadJSON(['one', 'two', 'three', 'four', 'five']);
 	});
 
 	teardown(() => {

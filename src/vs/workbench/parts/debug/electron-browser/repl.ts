@@ -29,12 +29,12 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ReplExpressionsRenderer, ReplExpressionsController, ReplExpressionsDataSource, ReplExpressionsActionProvider, ReplExpressionsAccessibilityProvider } from 'vs/workbench/parts/debug/electron-browser/replViewer';
 import { ReplInputEditor } from 'vs/workbench/parts/debug/electron-browser/replEditor';
 import * as debug from 'vs/workbench/parts/debug/common/debug';
 import { ClearReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
-import { ReplHistory } from 'vs/workbench/parts/debug/common/replHistory';
+import { replHistory } from 'vs/workbench/parts/debug/common/replHistory';
 import { Panel } from 'vs/workbench/browser/panel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -52,7 +52,6 @@ const replTreeOptions: ITreeOptions = {
 	keyboardSupport: false
 };
 
-const HISTORY_STORAGE_KEY = 'debug.repl.history';
 const IPrivateReplService = createDecorator<IPrivateReplService>('privateReplService');
 
 export interface IPrivateReplService {
@@ -67,7 +66,6 @@ export class Repl extends Panel implements IPrivateReplService {
 
 	private static readonly HALF_WIDTH_TYPICAL = 'n';
 
-	private static HISTORY: ReplHistory;
 	private static readonly REFRESH_DELAY = 500; // delay in ms to refresh the repl for new elements to show
 	private static readonly REPL_INPUT_INITIAL_HEIGHT = 19;
 	private static readonly REPL_INPUT_MAX_HEIGHT = 170;
@@ -144,8 +142,8 @@ export class Repl extends Panel implements IPrivateReplService {
 			controller
 		}, replTreeOptions, this.contextKeyService, this.listService, this.themeService);
 
-		if (!Repl.HISTORY) {
-			Repl.HISTORY = new ReplHistory(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')));
+		if (!replHistory.loaded) {
+			replHistory.load(this.storageService);
 		}
 
 		return this.tree.setInput(this.debugService.getModel());
@@ -201,9 +199,9 @@ export class Repl extends Panel implements IPrivateReplService {
 	}
 
 	public navigateHistory(previous: boolean): void {
-		const historyInput = previous ? Repl.HISTORY.previous() : Repl.HISTORY.next();
+		const historyInput = previous ? replHistory.previous() : replHistory.next();
 		if (historyInput) {
-			Repl.HISTORY.remember(this.replInput.getValue(), previous);
+			replHistory.remember(this.replInput.getValue(), previous);
 			this.replInput.setValue(historyInput);
 			// always leave cursor at the end.
 			this.replInput.setPosition({ lineNumber: 1, column: historyInput.length + 1 });
@@ -212,7 +210,7 @@ export class Repl extends Panel implements IPrivateReplService {
 
 	public acceptReplInput(): void {
 		this.debugService.addReplExpression(this.replInput.getValue());
-		Repl.HISTORY.evaluated(this.replInput.getValue());
+		replHistory.evaluated(this.replInput.getValue());
 		this.replInput.setValue('');
 		// Trigger a layout to shrink a potential multi line input
 		this.replInputHeight = Repl.REPL_INPUT_INITIAL_HEIGHT;
@@ -277,12 +275,7 @@ export class Repl extends Panel implements IPrivateReplService {
 	}
 
 	public shutdown(): void {
-		const replHistory = Repl.HISTORY.save();
-		if (replHistory.length) {
-			this.storageService.store(HISTORY_STORAGE_KEY, JSON.stringify(replHistory), StorageScope.WORKSPACE);
-		} else {
-			this.storageService.remove(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
-		}
+		replHistory.save(this.storageService);
 	}
 
 	private getReplInputOptions(): IEditorOptions {
