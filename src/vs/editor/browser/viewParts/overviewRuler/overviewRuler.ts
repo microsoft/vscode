@@ -12,7 +12,6 @@ import { OverviewRulerPosition } from 'vs/editor/common/config/editorOptions';
 import { OverviewRulerZone, OverviewZoneManager, ColorZone } from 'vs/editor/common/view/overviewZoneManager';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { Color } from 'vs/base/common/color';
-import { LIGHT } from 'vs/platform/theme/common/themeService';
 import { OverviewRulerLane } from 'vs/editor/common/editorCommon';
 
 export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
@@ -24,7 +23,7 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 	private _zoneManager: OverviewZoneManager;
 	private _background: Color;
 
-	constructor(context: ViewContext, cssClassName: string, minimumHeight: number, maximumHeight: number) {
+	constructor(context: ViewContext, cssClassName: string) {
 		super();
 		this._context = context;
 
@@ -40,9 +39,6 @@ export class OverviewRuler extends ViewEventHandler implements IOverviewRuler {
 		this._background = null;
 
 		this._zoneManager = new OverviewZoneManager((lineNumber: number) => this._context.viewLayout.getVerticalOffsetForLineNumber(lineNumber));
-		this._zoneManager.setMinimumHeight(minimumHeight);
-		this._zoneManager.setMaximumHeight(maximumHeight);
-		this._zoneManager.setThemeType(LIGHT);
 		this._zoneManager.setDOMWidth(0);
 		this._zoneManager.setDOMHeight(0);
 		this._zoneManager.setOuterHeight(this._context.viewLayout.getScrollHeight());
