@@ -591,10 +591,10 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 
 		const lastActiveWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot('file');
-		const lastActiveWorkspaceRoot = this._workspaceContextService.getWorkspaceFolder(lastActiveWorkspaceRootUri);
 		this._initialCwd = this._getCwd(this._shellLaunchConfig, lastActiveWorkspaceRootUri);
 
 		// Resolve env vars from config and shell
+		const lastActiveWorkspaceRoot = this._workspaceContextService.getWorkspaceFolder(lastActiveWorkspaceRootUri);
 		const envSettingKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
 		const envFromConfig = { ...this._configHelper.config.env[envSettingKey] };
 		Object.keys(envFromConfig).forEach((key) => {
