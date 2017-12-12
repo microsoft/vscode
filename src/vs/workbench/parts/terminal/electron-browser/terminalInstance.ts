@@ -594,7 +594,7 @@ export class TerminalInstance implements ITerminalInstance {
 		const lastActiveWorkspaceRoot = this._workspaceContextService.getWorkspaceFolder(lastActiveWorkspaceRootUri);
 		this._initialCwd = this._getCwd(this._shellLaunchConfig, lastActiveWorkspaceRootUri);
 
-		// Resolve env vars from config
+		// Resolve env vars from config and shell
 		const envSettingKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
 		const envFromConfig = { ...this._configHelper.config.env[envSettingKey] };
 		Object.keys(envFromConfig).forEach((key) => {
@@ -602,6 +602,13 @@ export class TerminalInstance implements ITerminalInstance {
 				envFromConfig[key] = this._configurationResolverService.resolve(lastActiveWorkspaceRoot, envFromConfig[key]);
 			}
 		});
+		const envFromShell = { ...this._shellLaunchConfig.env };
+		Object.keys(envFromShell).forEach((key) => {
+			if (typeof envFromShell[key] === 'string') {
+				envFromShell[key] = this._configurationResolverService.resolve(lastActiveWorkspaceRoot, envFromShell[key]);
+			}
+		});
+		this._shellLaunchConfig.env = envFromShell;
 
 		// Merge process env with the env from config
 		const parentEnv = { ...process.env };
