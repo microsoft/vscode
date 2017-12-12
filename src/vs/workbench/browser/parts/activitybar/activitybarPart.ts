@@ -88,9 +88,9 @@ export class ActivitybarPart extends Part {
 		this.toUnbind.push(this.compositeBar.onDidContextMenu(e => this.showContextMenu(e)));
 	}
 
-	public showActivity(viewletOrActionId: string, badge: IBadge, clazz?: string): IDisposable {
+	public showActivity(viewletOrActionId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable {
 		if (this.viewletService.getViewlet(viewletOrActionId)) {
-			return this.compositeBar.showActivity(viewletOrActionId, badge, clazz);
+			return this.compositeBar.showActivity(viewletOrActionId, badge, clazz, priority);
 		}
 
 		return this.showGlobalActivity(viewletOrActionId, badge);

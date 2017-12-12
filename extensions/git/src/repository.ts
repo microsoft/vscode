@@ -7,7 +7,7 @@
 
 import { Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData, Memento } from 'vscode';
 import { Repository as BaseRepository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash, RefType, GitError } from './git';
-import { anyEvent, filterEvent, eventToPromise, dispose, find, isDescendant } from './util';
+import { anyEvent, filterEvent, eventToPromise, dispose, find, isDescendant, IDisposable, onceEvent, EmptyDisposable, debounceEvent } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { toGitUri } from './uri';
 import { AutoFetcher } from './autofetch';
@@ -330,6 +330,7 @@ function shouldShowProgress(operation: Operation): boolean {
 
 export interface Operations {
 	isIdle(): boolean;
+	shouldShowProgress(): boolean;
 	isRunning(operation: Operation): boolean;
 }
 
@@ -366,6 +367,18 @@ class OperationsImpl implements Operations {
 
 		return true;
 	}
+
+	shouldShowProgress(): boolean {
+		const operations = this.operations.keys();
+
+		for (const operation of operations) {
+			if (shouldShowProgress(operation)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
 }
 
 export interface CommitOptions {
@@ -382,6 +395,29 @@ export interface GitResourceGroup extends SourceControlResourceGroup {
 export interface OperationResult {
 	operation: Operation;
 	error: any;
+}
+
+class ProgressManager {
+
+	private disposable: IDisposable = EmptyDisposable;
+
+	constructor(private repository: Repository) {
+		const start = onceEvent(filterEvent(repository.onDidChangeOperations, () => repository.operations.shouldShowProgress()));
+		const end = onceEvent(filterEvent(debounceEvent(repository.onDidChangeOperations, 300), () => !repository.operations.shouldShowProgress()));
+
+		const setup = () => {
+			this.disposable = start(() => {
+				const promise = eventToPromise(end).then(() => setup());
+				window.withProgress({ location: ProgressLocation.SourceControl }, () => promise);
+			});
+		};
+
+		setup();
+	}
+
+	dispose(): void {
+		this.disposable.dispose();
+	}
 }
 
 export class Repository implements Disposable {
@@ -502,6 +538,9 @@ export class Repository implements Disposable {
 		this.disposables.push(statusBar);
 		statusBar.onDidChange(() => this._sourceControl.statusBarCommands = statusBar.commands, null, this.disposables);
 		this._sourceControl.statusBarCommands = statusBar.commands;
+
+		const progressManager = new ProgressManager(this);
+		this.disposables.push(progressManager);
 
 		this.updateCommitTemplate();
 		this.status();
@@ -806,37 +845,31 @@ export class Repository implements Disposable {
 			throw new Error('Repository not initialized');
 		}
 
-		const run = async () => {
-			let error: any = null;
+		let error: any = null;
 
-			this._operations.start(operation);
-			this._onRunOperation.fire(operation);
+		this._operations.start(operation);
+		this._onRunOperation.fire(operation);
 
-			try {
-				const result = await this.retryRun(runOperation);
+		try {
+			const result = await this.retryRun(runOperation);
 
-				if (!isReadOnly(operation)) {
-					await this.updateModelState();
-				}
-
-				return result;
-			} catch (err) {
-				error = err;
-
-				if (err.gitErrorCode === GitErrorCodes.NotAGitRepository) {
-					this.state = RepositoryState.Disposed;
-				}
-
-				throw err;
-			} finally {
-				this._operations.end(operation);
-				this._onDidRunOperation.fire({ operation, error });
+			if (!isReadOnly(operation)) {
+				await this.updateModelState();
 			}
-		};
 
-		return shouldShowProgress(operation)
-			? window.withProgress({ location: ProgressLocation.SourceControl }, run)
-			: run();
+			return result;
+		} catch (err) {
+			error = err;
+
+			if (err.gitErrorCode === GitErrorCodes.NotAGitRepository) {
+				this.state = RepositoryState.Disposed;
+			}
+
+			throw err;
+		} finally {
+			this._operations.end(operation);
+			this._onDidRunOperation.fire({ operation, error });
+		}
 	}
 
 	private async retryRun<T>(runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {

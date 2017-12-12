@@ -7,7 +7,7 @@
 import 'vs/css!./media/progressService2';
 import * as dom from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IProgressService2, IProgressOptions, ProgressLocation, IProgress, IProgressStep, Progress, emptyProgress } from 'vs/platform/progress/common/progress';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
@@ -15,6 +15,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { StatusbarAlignment, IStatusbarRegistry, StatusbarItemDescriptor, Extensions, IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { always } from 'vs/base/common/async';
+import { ProgressBadge, IActivityService } from 'vs/workbench/services/activity/common/activity';
 
 class WindowProgressItem implements IStatusbarItem {
 
@@ -60,6 +61,7 @@ export class ProgressService2 implements IProgressService2 {
 	private _stack: [IProgressOptions, Progress<IProgressStep>][] = [];
 
 	constructor(
+		@IActivityService private _activityBar: IActivityService,
 		@IViewletService private _viewletService: IViewletService
 	) {
 		//
@@ -149,34 +151,38 @@ export class ProgressService2 implements IProgressService2 {
 		}
 		return promise;
 		// show activity bar
-		// let activityProgress: IDisposable;
-		// let delayHandle = setTimeout(() => {
-		// 	delayHandle = undefined;
-		// 	const handle = this._activityBar.showActivity(
-		// 		viewletId,
-		// 		new ProgressBadge(() => ''),
-		// 		'progress-badge'
-		// 	);
-		// 	const startTimeVisible = Date.now();
-		// 	const minTimeVisible = 300;
-		// 	activityProgress = {
-		// 		dispose() {
-		// 			const d = Date.now() - startTimeVisible;
-		// 			if (d < minTimeVisible) {
-		// 				// should at least show for Nms
-		// 				setTimeout(() => handle.dispose(), minTimeVisible - d);
-		// 			} else {
-		// 				// shown long enough
-		// 				handle.dispose();
-		// 			}
-		// 		}
-		// 	};
-		// }, 300);
+		let activityProgress: IDisposable;
+		let delayHandle = setTimeout(() => {
+			delayHandle = undefined;
+			const handle = this._activityBar.showActivity(
+				viewletId,
+				new ProgressBadge(() => ''),
+				'progress-badge',
+				100
+			);
+			const startTimeVisible = Date.now();
+			const minTimeVisible = 300;
+			activityProgress = {
+				dispose() {
+					const d = Date.now() - startTimeVisible;
+					if (d < minTimeVisible) {
+						// should at least show for Nms
+						setTimeout(() => handle.dispose(), minTimeVisible - d);
+					} else {
+						// shown long enough
+						console.log('so long progress');
+						handle.dispose();
+					}
+				}
+			};
+		}, 300);
 
-		// always(promise, () => {
-		// 	clearTimeout(delayHandle);
-		// 	dispose(activityProgress);
-		// });
+		const onDone = () => {
+			clearTimeout(delayHandle);
+			dispose(activityProgress);
+		};
+
+		promise.then(onDone, onDone);
 	}
 }
 
