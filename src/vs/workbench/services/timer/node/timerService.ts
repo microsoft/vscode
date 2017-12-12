@@ -6,7 +6,7 @@
 
 import { ITimerService, IStartupMetrics, IInitData, IMemoryInfo } from 'vs/workbench/services/timer/common/timerService';
 import { virtualMachineHint } from 'vs/base/node/id';
-
+import * as perf from 'vs/base/common/performance';
 import * as os from 'os';
 
 export class TimerService implements ITimerService {
@@ -16,9 +16,6 @@ export class TimerService implements ITimerService {
 	public readonly start: number;
 	public readonly appReady: number;
 	public readonly windowLoad: number;
-
-	public readonly beforeLoadWorkbenchMain: number;
-	public readonly afterLoadWorkbenchMain: number;
 
 	public readonly isInitialStartup: boolean;
 	public readonly hasAccessibilitySupport: boolean;
@@ -42,9 +39,6 @@ export class TimerService implements ITimerService {
 		this.start = initData.start;
 		this.appReady = initData.appReady;
 		this.windowLoad = initData.windowLoad;
-
-		this.beforeLoadWorkbenchMain = initData.beforeLoadWorkbenchMain;
-		this.afterLoadWorkbenchMain = initData.afterLoadWorkbenchMain;
 
 		this.isInitialStartup = initData.isInitialStartup;
 		this.hasAccessibilitySupport = initData.hasAccessibilitySupport;
@@ -97,11 +91,11 @@ export class TimerService implements ITimerService {
 			timers: {
 				ellapsedExtensions: this.afterExtensionLoad - this.beforeExtensionLoad,
 				ellapsedExtensionsReady: this.afterExtensionLoad - start,
-				ellapsedRequire: this.afterLoadWorkbenchMain - this.beforeLoadWorkbenchMain,
+				ellapsedRequire: perf.getEntry('measure', 'loadWorkbenchMain').duration,
 				ellapsedViewletRestore: this.restoreViewletDuration,
 				ellapsedEditorRestore: this.restoreEditorsDuration,
 				ellapsedWorkbench: this.workbenchStarted - this.beforeWorkbenchOpen,
-				ellapsedWindowLoadToRequire: this.beforeLoadWorkbenchMain - this.windowLoad,
+				ellapsedWindowLoadToRequire: perf.getEntry('mark', 'loadWorkbenchMain/start').startTime - this.windowLoad,
 				ellapsedTimersToTimersComputed: Date.now() - now
 			},
 			platform,

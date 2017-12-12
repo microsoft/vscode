@@ -88,9 +88,6 @@ export interface IInitData {
 
 	windowLoad: number;
 
-	beforeLoadWorkbenchMain: number;
-	afterLoadWorkbenchMain: number;
-
 	isInitialStartup: boolean;
 	hasAccessibilitySupport: boolean;
 }

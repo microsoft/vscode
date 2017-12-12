@@ -171,13 +171,12 @@ function main() {
 	}
 
 	// Perf Counters
-	const timers = window.MonacoEnvironment.timers = {
+	window.MonacoEnvironment.timers = {
 		isInitialStartup: !!configuration.isInitialStartup,
 		hasAccessibilitySupport: !!configuration.accessibilitySupport,
 		start: configuration.perfStartTime,
 		appReady: configuration.perfAppReady,
-		windowLoad: configuration.perfWindowLoadTime,
-		beforeLoadWorkbenchMain: Date.now()
+		windowLoad: configuration.perfWindowLoadTime
 	};
 
 	const workbenchMainClock = perf.time('loadWorkbenchMain');
@@ -187,7 +186,6 @@ function main() {
 		'vs/css!vs/workbench/workbench.main'
 	], function () {
 		workbenchMainClock.stop();
-		timers.afterLoadWorkbenchMain = Date.now();
 
 		process.lazyEnv.then(function () {
 			perf.mark('main/startup');

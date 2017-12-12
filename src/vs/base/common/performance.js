@@ -34,11 +34,11 @@ define([], function () {
 		return global._performanceEntries.splice(0);
 	}
 
-	function getEntries(type) {
+	function getEntries(type, name) {
 		const result = [];
 		const entries = global._performanceEntries;
 		for (let i = 0; i < entries.length; i += 4) {
-			if (entries[i] === type) {
+			if (entries[i] === type && (name === void 0 || entries[i + 1] === name)) {
 				result.push({
 					type: entries[i],
 					name: entries[i + 1],
@@ -51,6 +51,20 @@ define([], function () {
 		return result.sort((a, b) => {
 			return a.startTime - b.startTime;
 		});
+	}
+
+	function getEntry(type, name) {
+		const entries = global._performanceEntries;
+		for (let i = 0; i < entries.length; i += 4) {
+			if (entries[i] === type && entries[i + 1] === name) {
+				return {
+					type: entries[i],
+					name: entries[i + 1],
+					startTime: entries[i + 2],
+					duration: entries[i + 3],
+				};
+			}
+		}
 	}
 
 	function mark(name) {
@@ -103,6 +117,7 @@ define([], function () {
 		measure: measure,
 		time: time,
 		getEntries: getEntries,
+		getEntry: getEntry,
 		importEntries: importEntries,
 		exportEntries: exportEntries
 	};
