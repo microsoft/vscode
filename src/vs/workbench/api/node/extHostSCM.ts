@@ -140,15 +140,15 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 		this._placeholder = placeholder;
 	}
 
-	private _warningLength: number | undefined;
+	private _lineWarningLength: number | undefined;
 
-	get warningLength(): number | undefined {
-		return this._warningLength;
+	get lineWarningLength(): number | undefined {
+		return this._lineWarningLength;
 	}
 
-	set warningLength(warningLength: number) {
-		this._proxy.$setWarningLength(this._sourceControlHandle, warningLength);
-		this._warningLength = warningLength;
+	set lineWarningLength(lineWarningLength: number) {
+		this._proxy.$setLineWarningLength(this._sourceControlHandle, lineWarningLength);
+		this._lineWarningLength = lineWarningLength;
 	}
 
 	constructor(private _proxy: MainThreadSCMShape, private _sourceControlHandle: number) {

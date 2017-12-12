@@ -5784,9 +5784,9 @@ declare module 'vscode' {
 		placeholder: string;
 
 		/**
-		 * The warning threshold for commit messages.
+		 * The warning threshold for lines in the input box.
 		 */
-		warningLength: number | undefined;
+		lineWarningLength: number | undefined;
 	}
 
 	interface QuickDiffProvider {
