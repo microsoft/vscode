@@ -7,7 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IWorkspacesService, IWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesService, IWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import URI from 'vs/base/common/uri';
 
 export interface IWorkspacesChannel extends IChannel {
@@ -17,7 +17,7 @@ export interface IWorkspacesChannel extends IChannel {
 
 export class WorkspacesChannel implements IWorkspacesChannel {
 
-	constructor(private service: IWorkspacesService) { }
+	constructor(private service: IWorkspacesMainService) { }
 
 	public call(command: string, arg?: any): TPromise<any> {
 		switch (command) {

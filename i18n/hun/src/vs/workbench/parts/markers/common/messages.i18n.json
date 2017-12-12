@@ -6,8 +6,7 @@
 {
 	"viewCategory": "Nézet",
 	"problems.view.toggle.label": "Problémák be- és kikapcsolása",
-	"problems.view.show.label": "Problémák megjelenítése",
-	"problems.view.hide.label": "Problémák elrejtése",
+	"problems.view.focus.label": "Váltás a problémákra",
 	"problems.panel.configuration.title": "Problémák-nézet",
 	"problems.panel.configuration.autoreveal": "Meghatározza, hogy a problémák nézet automatikusan felfedje-e a fájlokat, amikor megnyitja őket.",
 	"markers.panel.title.problems": "Problémák",

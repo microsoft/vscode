@@ -13,6 +13,8 @@ import { textToMarkedString } from './markedTextUtil';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
+const USER_AGENT = 'Visual Studio Code';
+
 export class BowerJSONContribution implements IJSONContribution {
 
 	private topRanked = ['twitter', 'bootstrap', 'angular-1.1.6', 'angular-latest', 'angulerjs', 'd3', 'myjquery', 'jq', 'abcdef1234567890', 'jQuery', 'jquery-1.11.1', 'jquery',
@@ -49,10 +51,11 @@ export class BowerJSONContribution implements IJSONContribution {
 	public collectPropertySuggestions(_resource: string, location: Location, currentWord: string, addValue: boolean, isLast: boolean, collector: ISuggestionsCollector): Thenable<any> | null {
 		if ((location.matches(['dependencies']) || location.matches(['devDependencies']))) {
 			if (currentWord.length > 0) {
-				const queryUrl = 'https://bower.herokuapp.com/packages/search/' + encodeURIComponent(currentWord);
+				const queryUrl = 'https://registry.bower.io/packages/search/' + encodeURIComponent(currentWord);
 
 				return this.xhr({
-					url: queryUrl
+					url: queryUrl,
+					agent: USER_AGENT
 				}).then((success) => {
 					if (success.status === 200) {
 						try {
@@ -141,10 +144,11 @@ export class BowerJSONContribution implements IJSONContribution {
 	}
 
 	private getInfo(pack: string): Thenable<string | undefined> {
-		const queryUrl = 'https://bower.herokuapp.com/packages/' + encodeURIComponent(pack);
+		const queryUrl = 'https://registry.bower.io/packages/' + encodeURIComponent(pack);
 
 		return this.xhr({
-			url: queryUrl
+			url: queryUrl,
+			agent: USER_AGENT
 		}).then((success) => {
 			try {
 				const obj = JSON.parse(success.responseText);

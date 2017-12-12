@@ -25,19 +25,39 @@ export function getGalleryExtensionIdFromLocal(local: ILocalExtension): string {
 	return getGalleryExtensionId(local.manifest.publisher, local.manifest.name);
 }
 
-export function getIdAndVersionFromLocalExtensionId(localExtensionId: string): { id: string, version: string } {
-	const matches = /^([^.]+\..+)-(\d+\.\d+\.\d+)$/.exec(localExtensionId);
-	if (matches && matches[1] && matches[2]) {
-		return { id: adoptToGalleryExtensionId(matches[1]), version: matches[2] };
+export const LOCAL_EXTENSION_ID_REGEX = /^([^.]+\..+)-(\d+\.\d+\.\d+(-.*)?)$/;
+
+export function getIdFromLocalExtensionId(localExtensionId: string): string {
+	const matches = LOCAL_EXTENSION_ID_REGEX.exec(localExtensionId);
+	if (matches && matches[1]) {
+		return adoptToGalleryExtensionId(matches[1]);
 	}
-	return {
-		id: adoptToGalleryExtensionId(localExtensionId),
-		version: null
-	};
+	return adoptToGalleryExtensionId(localExtensionId);
 }
 
 export function adoptToGalleryExtensionId(id: string): string {
 	return id.replace(EXTENSION_IDENTIFIER_REGEX, (match, publisher: string, name: string) => getGalleryExtensionId(publisher, name));
+}
+
+export function groupByExtension<T>(extensions: T[], getExtensionIdentifier: (t: T) => IExtensionIdentifier): T[][] {
+	const byExtension: T[][] = [];
+	const findGroup = extension => {
+		for (const group of byExtension) {
+			if (group.some(e => areSameExtensions(getExtensionIdentifier(e), getExtensionIdentifier(extension)))) {
+				return group;
+			}
+		}
+		return null;
+	};
+	for (const extension of extensions) {
+		const group = findGroup(extension);
+		if (group) {
+			group.push(extension);
+		} else {
+			byExtension.push([extension]);
+		}
+	}
+	return byExtension;
 }
 
 export function getLocalExtensionTelemetryData(extension: ILocalExtension): any {

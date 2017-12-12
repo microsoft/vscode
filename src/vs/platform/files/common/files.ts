@@ -8,7 +8,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import glob = require('vs/base/common/glob');
-import events = require('vs/base/common/events');
 import { isLinux } from 'vs/base/common/platform';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
@@ -245,12 +244,11 @@ export interface IFileChange {
 	resource: URI;
 }
 
-export class FileChangesEvent extends events.Event {
+export class FileChangesEvent {
+
 	private _changes: IFileChange[];
 
 	constructor(changes: IFileChange[]) {
-		super();
-
 		this._changes = changes;
 	}
 

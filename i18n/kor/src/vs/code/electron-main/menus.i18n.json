@@ -22,12 +22,10 @@
 	"miQuit": "{0} 종료",
 	"miNewFile": "새 파일(&&N)",
 	"miOpen": "열기(&&O)...",
-	"miOpenWorkspace": "작업 영역 열기(&O)...",
 	"miOpenFolder": "폴더 열기(&&F)...",
 	"miOpenFile": "파일 열기(&&O)...",
 	"miOpenRecent": "최근 항목 열기(&&R)",
-	"miSaveWorkspaceAs": "다른 이름으로 작업 영역 저장(&S)...",
-	"miAddFolderToWorkspace": "작업 영역에 폴더 추가(&&A)",
+	"miSaveWorkspaceAs": "작업 영역을 다른 이름으로 저장",
 	"miSave": "저장(&&S)",
 	"miSaveAs": "다른 이름으로 저장(&&A)...",
 	"miSaveAll": "모두 저장(&&L)",
@@ -157,7 +155,6 @@
 	"mMergeAllWindows": "모든 창 병합",
 	"miToggleDevTools": "개발자 도구 설정/해제(&&T)",
 	"miAccessibilityOptions": "접근성 옵션(&&O)",
-	"miReportIssues": "문제 보고(&&I)",
 	"miWelcome": "시작(&&W)",
 	"miInteractivePlayground": "대화형 실습(&&I)",
 	"miDocumentation": "설명서(&&D)",
@@ -184,6 +181,6 @@
 	"miDownloadingUpdate": "업데이트를 다운로드하는 중...",
 	"miInstallingUpdate": "업데이트를 설치하는 중...",
 	"miCheckForUpdates": "업데이트 확인...",
-	"aboutDetail": "\n버전 {0}\n커밋 {1}\n날짜 {2}\n셸 {3}\n렌더러 {4}\n노드 {5}\n아키텍처 {6}",
-	"okButton": "확인"
+	"okButton": "확인",
+	"copy": "복사(&&C)"
 }

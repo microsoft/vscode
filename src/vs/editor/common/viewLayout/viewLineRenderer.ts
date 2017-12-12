@@ -569,8 +569,14 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: LineP
 		}
 	}
 
-	if (lineDecorationIndex < lineDecorationsLen && lineDecorations[lineDecorationIndex].startOffset === tokens[tokens.length - 1].endIndex) {
-		result[resultLen++] = new LinePart(lastResultEndIndex, lineDecorations[lineDecorationIndex].className);
+	const lastTokenEndIndex = tokens[tokens.length - 1].endIndex;
+	if (lineDecorationIndex < lineDecorationsLen && lineDecorations[lineDecorationIndex].startOffset === lastTokenEndIndex) {
+		let classNames: string[] = [];
+		while (lineDecorationIndex < lineDecorationsLen && lineDecorations[lineDecorationIndex].startOffset === lastTokenEndIndex) {
+			classNames.push(lineDecorations[lineDecorationIndex].className);
+			lineDecorationIndex++;
+		}
+		result[resultLen++] = new LinePart(lastResultEndIndex, classNames.join(' '));
 	}
 
 	return result;

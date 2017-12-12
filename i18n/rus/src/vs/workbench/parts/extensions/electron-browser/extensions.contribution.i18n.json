@@ -9,7 +9,7 @@
 	"extension": "Расширение",
 	"extensions": "Расширения",
 	"view": "Просмотреть",
+	"developer": "Разработчик",
 	"extensionsConfigurationTitle": "Расширения",
-	"extensionsAutoUpdate": "Автоматически обновлять расширения",
-	"extensionsIgnoreRecommendations": "Игнорировать рекомендации по расширениям"
+	"extensionsAutoUpdate": "Автоматически обновлять расширения"
 }

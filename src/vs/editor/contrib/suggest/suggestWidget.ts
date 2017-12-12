@@ -34,7 +34,7 @@ import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 
-const sticky = true; // for development purposes
+const sticky = false; // for development purposes
 const expandSuggestionDocsByDefault = false;
 const maxSuggestionsToShow = 12;
 
@@ -153,6 +153,7 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 		}
 
 		data.highlightedLabel.set(suggestion.label, createMatches(element.matches));
+		// data.highlightedLabel.set(`${suggestion.label} <${element.score}=score(${element.word}, ${suggestion.filterText || suggestion.label})>`, createMatches(element.matches));
 		data.typeLabel.textContent = (suggestion.detail || '').replace(/\n.*$/m, '');
 
 		if (canExpandCompletionItem(element)) {
@@ -693,7 +694,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		}
 	}
 
-	showSuggestions(completionModel: CompletionModel, isFrozen: boolean, isAuto: boolean): void {
+	showSuggestions(completionModel: CompletionModel, selectionIndex: number, isFrozen: boolean, isAuto: boolean): void {
 		if (this.loadingTimeout) {
 			clearTimeout(this.loadingTimeout);
 			this.loadingTimeout = null;
@@ -737,8 +738,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			this.focusedItem = null;
 			this.focusedItemIndex = null;
 			this.list.splice(0, this.list.length, this.completionModel.items);
-			this.list.setFocus([0]);
-			this.list.reveal(0, 0);
+			this.list.setFocus([selectionIndex]);
+			this.list.reveal(selectionIndex, selectionIndex);
 
 			if (isFrozen) {
 				this.setState(State.Frozen);

@@ -25,7 +25,6 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ViewLocation } from 'vs/workbench/browser/parts/views/viewsRegistry';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { Constants } from 'vs/editor/common/core/uint';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export class DebugViewlet extends PersistentViewsViewlet {
@@ -60,7 +59,6 @@ export class DebugViewlet extends PersistentViewsViewlet {
 
 		const el = parent.getHTMLElement();
 		DOM.addClass(el, 'debug-viewlet');
-		this.updateBreakpointsMaxSize();
 	}
 
 	public focus(): void {
@@ -117,6 +115,7 @@ export class DebugViewlet extends PersistentViewsViewlet {
 		// attach event listener to
 		if (panel.id === BREAKPOINTS_VIEW_ID) {
 			this.breakpointView = panel;
+			this.updateBreakpointsMaxSize();
 		} else {
 			this.panelListeners.set(panel.id, panel.onDidChange(() => this.updateBreakpointsMaxSize()));
 		}
@@ -129,8 +128,11 @@ export class DebugViewlet extends PersistentViewsViewlet {
 	}
 
 	private updateBreakpointsMaxSize(): void {
-		const allOtherCollapsed = this.views.every(view => !view.isExpanded() || view === this.breakpointView);
-		this.breakpointView.maximumBodySize = allOtherCollapsed ? Constants.MAX_SAFE_SMALL_INTEGER : this.breakpointView.minimumBodySize;
+		if (this.breakpointView) {
+			// We need to update the breakpoints view since all other views are collapsed #25384
+			const allOtherCollapsed = this.views.every(view => !view.isExpanded() || view === this.breakpointView);
+			this.breakpointView.maximumBodySize = allOtherCollapsed ? Number.POSITIVE_INFINITY : this.breakpointView.minimumBodySize;
+		}
 	}
 }
 

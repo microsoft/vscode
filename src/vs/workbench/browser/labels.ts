@@ -183,7 +183,7 @@ export class ResourceLabel extends IconLabel {
 
 		if (this.options && typeof this.options.title === 'string') {
 			iconLabelOptions.title = this.options.title;
-		} else if (resource) {
+		} else if (resource && resource.scheme !== Schemas.data /* do not accidentally inline Data URIs */) {
 			iconLabelOptions.title = getPathLabel(resource, void 0, this.environmentService);
 		}
 

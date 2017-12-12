@@ -15,7 +15,6 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { HistoryNavigator } from 'vs/base/common/history';
 
 export interface IOptions {
@@ -199,7 +198,7 @@ export class PatternInputWidget extends Widget {
 
 export class ExcludePatternInputWidget extends PatternInputWidget {
 
-	constructor(parent: HTMLElement, contextViewProvider: IContextViewProvider, themeService: IThemeService, private telemetryService: ITelemetryService, options: IOptions = Object.create(null)) {
+	constructor(parent: HTMLElement, contextViewProvider: IContextViewProvider, themeService: IThemeService, options: IOptions = Object.create(null)) {
 		super(parent, contextViewProvider, themeService, options);
 	}
 
@@ -228,10 +227,6 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 			title: nls.localize('useExcludesAndIgnoreFilesDescription', "Use Exclude Settings and Ignore Files"),
 			isChecked: true,
 			onChange: (viaKeyboard) => {
-				/* __GDPR__
-					"search.useExcludesAndIgnoreFiles.toggled" : {}
-				*/
-				this.telemetryService.publicLog('search.useExcludesAndIgnoreFiles.toggled');
 				this.onOptionChange(null);
 				if (!viaKeyboard) {
 					this.inputBox.focus();

@@ -7,7 +7,7 @@ import 'vs/css!./list';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { range } from 'vs/base/common/arrays';
 import { IDelegate, IRenderer, IListEvent } from './list';
-import { List, IListOptions } from './listWidget';
+import { List, IListOptions, IListStyles } from './listWidget';
 import { IPagedModel } from 'vs/base/common/paging';
 import Event, { mapEvent } from 'vs/base/common/event';
 
@@ -73,6 +73,22 @@ export class PagedList<T> {
 		this.list = new List(container, delegate, pagedRenderers, options);
 	}
 
+	getHTMLElement(): HTMLElement {
+		return this.list.getHTMLElement();
+	}
+
+	isDOMFocused(): boolean {
+		return this.list.getHTMLElement() === document.activeElement;
+	}
+
+	get onDidFocus(): Event<void> {
+		return this.list.onDidFocus;
+	}
+
+	get onDidBlur(): Event<void> {
+		return this.list.onDidBlur;
+	}
+
 	get widget(): List<number> {
 		return this.list;
 	}
@@ -108,6 +124,14 @@ export class PagedList<T> {
 
 	set scrollTop(scrollTop: number) {
 		this.list.scrollTop = scrollTop;
+	}
+
+	open(indexes: number[]): void {
+		this.list.open(indexes);
+	}
+
+	setFocus(indexes: number[]): void {
+		this.list.setFocus(indexes);
 	}
 
 	focusNext(n?: number, loop?: boolean): void {
@@ -148,5 +172,9 @@ export class PagedList<T> {
 
 	reveal(index: number, relativeTop?: number): void {
 		this.list.reveal(index, relativeTop);
+	}
+
+	style(styles: IListStyles): void {
+		this.list.style(styles);
 	}
 }

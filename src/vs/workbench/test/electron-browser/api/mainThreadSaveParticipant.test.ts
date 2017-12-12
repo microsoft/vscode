@@ -12,6 +12,8 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { workbenchInstantiationService, TestTextFileService } from 'vs/workbench/test/workbenchTestServices';
 import { toResource } from 'vs/base/test/common/utils';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ITextFileService, SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
@@ -112,4 +114,33 @@ suite('MainThreadSaveParticipant', function () {
 			done();
 		});
 	});
+
+	test('trim final new lines bug#39750', function (done) {
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/trim_final_new_line.txt'), 'utf8');
+
+		model.load().then(() => {
+			const configService = new TestConfigurationService();
+			configService.setUserConfiguration('files', { 'trimFinalNewlines': true });
+
+			const participant = new TrimFinalNewLinesParticipant(configService, undefined);
+
+			const textContent = 'Trim New Line';
+
+			// single line
+			let lineContent = `${textContent}`;
+			model.textEditorModel.setValue(lineContent);
+			// apply edits and push to undo stack.
+			let textEdits = [{ identifier: null, range: new Range(1, 14, 1, 14), text: '.', forceMoveMarkers: false }];
+			model.textEditorModel.pushEditOperations([new Selection(1, 14, 1, 14)], textEdits, () => { return [new Selection(1, 15, 1, 15)]; });
+			// undo
+			model.textEditorModel.undo();
+			assert.equal(model.getValue(), `${textContent}`);
+			// trim final new lines should not mess the undo stack
+			participant.participate(model, { reason: SaveReason.EXPLICIT });
+			model.textEditorModel.redo();
+			assert.equal(model.getValue(), `${textContent}.`);
+			done();
+		});
+	});
+
 });

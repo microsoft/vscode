@@ -86,6 +86,11 @@ export interface IEditorFindOptions {
 	 * Controls if Find in Selection flag is turned on when multiple lines of text are selected in the editor.
 	 */
 	autoFindInSelection: boolean;
+	/**
+	 * @internal
+	 * Controls if the Find Widget should read or modify the shared find clipboard on macOS
+	 */
+	globalFindClipboard: boolean;
 }
 
 /**
@@ -739,6 +744,10 @@ export interface InternalEditorMinimapOptions {
 export interface InternalEditorFindOptions {
 	readonly seedSearchStringFromSelection: boolean;
 	readonly autoFindInSelection: boolean;
+	/**
+	 * @internal
+	 */
+	readonly globalFindClipboard: boolean;
 }
 
 export interface EditorWrappingInfo {
@@ -1112,6 +1121,7 @@ export class InternalEditorOptions {
 		return (
 			a.seedSearchStringFromSelection === b.seedSearchStringFromSelection
 			&& a.autoFindInSelection === b.autoFindInSelection
+			&& a.globalFindClipboard === b.globalFindClipboard
 		);
 	}
 
@@ -1550,7 +1560,8 @@ export class EditorOptionsValidator {
 
 		return {
 			seedSearchStringFromSelection: _boolean(opts.seedSearchStringFromSelection, defaults.seedSearchStringFromSelection),
-			autoFindInSelection: _boolean(opts.autoFindInSelection, defaults.autoFindInSelection)
+			autoFindInSelection: _boolean(opts.autoFindInSelection, defaults.autoFindInSelection),
+			globalFindClipboard: _boolean(opts.globalFindClipboard, defaults.globalFindClipboard)
 		};
 	}
 
@@ -2219,7 +2230,8 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		matchBrackets: true,
 		find: {
 			seedSearchStringFromSelection: true,
-			autoFindInSelection: false
+			autoFindInSelection: false,
+			globalFindClipboard: true
 		},
 		colorDecorators: true,
 		lightbulbEnabled: true

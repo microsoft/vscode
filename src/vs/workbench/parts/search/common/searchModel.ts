@@ -539,14 +539,18 @@ export class SearchResult extends Disposable {
 		this._folderMatches.forEach((folderMatch) => rawPerFolder.set(folderMatch.resource(), []));
 		allRaw.forEach(rawFileMatch => {
 			let folderMatch = this.getFolderMatch(rawFileMatch.resource);
-			rawPerFolder.get(folderMatch.resource()).push(rawFileMatch);
+			if (folderMatch) {
+				rawPerFolder.get(folderMatch.resource()).push(rawFileMatch);
+			}
 		});
 		rawPerFolder.forEach((raw) => {
 			if (!raw.length) {
 				return;
 			}
 			let folderMatch = this.getFolderMatch(raw[0].resource);
-			folderMatch.add(raw, silent);
+			if (folderMatch) {
+				folderMatch.add(raw, silent);
+			}
 		});
 	}
 
@@ -605,10 +609,6 @@ export class SearchResult extends Disposable {
 
 	public fileCount(): number {
 		return this.folderMatches().reduce<number>((prev, match) => prev + match.fileCount(), 0);
-	}
-
-	public folderCount(): number {
-		return this.folderMatches().reduce<number>((prev, match) => prev + (match.fileCount() > 0 ? 1 : 0), 0);
 	}
 
 	public count(): number {

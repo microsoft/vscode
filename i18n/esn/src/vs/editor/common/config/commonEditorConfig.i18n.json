@@ -10,7 +10,11 @@
 	"fontSize": "Controla el tamaño de fuente en píxeles.",
 	"lineHeight": "Controla la altura de línea. Utilice 0 para calcular el valor de lineHeight a partir de fontSize.",
 	"letterSpacing": "Controla el espacio entre letras en pixels.",
-	"lineNumbers": "Controla la presentación de los números de línea. Los valores posibles son \"on\", \"off\" y \"relative\". \"relative\" muestra el número de líneas desde la posición actual del cursor.",
+	"lineNumbers.off": "Los números de línea no se muestran.",
+	"lineNumbers.on": "Los números de línea se muestran como un número absoluto.",
+	"lineNumbers.relative": "Los números de línea se muestran como distancia en líneas a la posición del cursor.",
+	"lineNumbers.interval": "Los números de línea se muestran cada 10 líneas.",
+	"lineNumbers": "Controla la visualización de números de línea. Los valores posibles son 'on', 'off' y 'relative'.",
 	"rulers": "Representar reglas verticales después de un cierto número de caracteres monoespacio. Usar multiples valores para multiples reglas. No se dibuja ninguna regla si la matriz esta vacía.",
 	"wordSeparators": "Caracteres que se usarán como separadores de palabras al realizar operaciones o navegaciones relacionadas con palabras.",
 	"tabSize": "El número de espacios a los que equivale una tabulación. Este valor se invalida según el contenido del archivo cuando `editor.detectIndentation` está activado.",
@@ -89,8 +93,8 @@
 	"links": "Controla si el editor debe detectar enlaces y hacerlos cliqueables",
 	"colorDecorators": "Controla si el editor debe representar el Selector de colores y los elementos Decorator de color en línea.",
 	"codeActions": "Permite que el foco de acción del código",
+	"selectionClipboard": "Controla si el portapapeles principal de Linux debe admitirse.",
 	"sideBySide": "Controla si el editor de diferencias muestra las diferencias en paralelo o alineadas.",
 	"ignoreTrimWhitespace": "Controla si el editor de diferencias muestra los cambios de espacio inicial o espacio final como diferencias.",
-	"renderIndicators": "Controla si el editor de diff muestra indicadores +/- para cambios agregados/quitados",
-	"selectionClipboard": "Controla si el portapapeles principal de Linux debe admitirse."
+	"renderIndicators": "Controla si el editor de diff muestra indicadores +/- para cambios agregados/quitados"
 }

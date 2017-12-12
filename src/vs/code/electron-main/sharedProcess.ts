@@ -20,6 +20,12 @@ export class SharedProcess implements ISharedProcess {
 	private window: Electron.BrowserWindow;
 	private disposables: IDisposable[] = [];
 
+	constructor(
+		private environmentService: IEnvironmentService,
+		private readonly machineId: string,
+		private readonly userEnv: IProcessEnvironment
+	) { }
+
 	@memoize
 	private get _whenReady(): TPromise<void> {
 		this.window = new BrowserWindow({
@@ -32,6 +38,7 @@ export class SharedProcess implements ISharedProcess {
 		});
 		const config = assign({
 			appRoot: this.environmentService.appRoot,
+			machineId: this.machineId,
 			nodeCachedDataDir: this.environmentService.nodeCachedDataDir,
 			userEnv: this.userEnv
 		});
@@ -75,11 +82,6 @@ export class SharedProcess implements ISharedProcess {
 			});
 		});
 	}
-
-	constructor(
-		private environmentService: IEnvironmentService,
-		private userEnv: IProcessEnvironment
-	) { }
 
 	spawn(): void {
 		this.barrier.open();

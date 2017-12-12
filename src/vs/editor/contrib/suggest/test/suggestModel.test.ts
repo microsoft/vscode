@@ -22,14 +22,18 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
+import { IStorageService, NullStorageService } from 'vs/platform/storage/common/storage';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 
 function createMockEditor(model: Model): TestCodeEditor {
 	const contextKeyService = new MockContextKeyService();
 	const telemetryService = NullTelemetryService;
 	const instantiationService = new InstantiationService(new ServiceCollection(
 		[IContextKeyService, contextKeyService],
-		[ITelemetryService, telemetryService]
+		[ITelemetryService, telemetryService],
+		[IStorageService, NullStorageService]
 	));
 
 	const editor = new TestCodeEditor(new MockScopeLocation(), {}, instantiationService, contextKeyService);
@@ -101,7 +105,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		disposables.push(model);
 	});
 
-	function withOracle(callback: (model: SuggestModel, editor: ICodeEditor) => any): TPromise<any> {
+	function withOracle(callback: (model: SuggestModel, editor: TestCodeEditor) => any): TPromise<any> {
 
 		return new TPromise((resolve, reject) => {
 			const editor = createMockEditor(model);
@@ -532,6 +536,84 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 				});
 			});
+		});
+	});
+
+	test('Backspace should not always cancel code completion, #36491', function () {
+		disposables.push(SuggestRegistry.register({ scheme: 'test' }, alwaysSomethingSupport));
+
+		return withOracle(async (model, editor) => {
+			await assertEvent(model.onDidSuggest, () => {
+				editor.setPosition({ lineNumber: 1, column: 4 });
+				editor.trigger('keyboard', Handler.Type, { text: 'd' });
+
+			}, event => {
+				assert.equal(event.auto, true);
+				assert.equal(event.completionModel.items.length, 1);
+				const [first] = event.completionModel.items;
+
+				assert.equal(first.support, alwaysSomethingSupport);
+			});
+
+			await assertEvent(model.onDidSuggest, () => {
+				CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+
+			}, event => {
+				assert.equal(event.auto, true);
+				assert.equal(event.completionModel.items.length, 1);
+				const [first] = event.completionModel.items;
+
+				assert.equal(first.support, alwaysSomethingSupport);
+			});
+		});
+	});
+
+	test('Text changes for completion CodeAction are affected by the completion #39893', function () {
+		disposables.push(SuggestRegistry.register({ scheme: 'test' }, {
+			provideCompletionItems(doc, pos): ISuggestResult {
+				return {
+					incomplete: true,
+					suggestions: [{
+						label: 'bar',
+						type: 'property',
+						insertText: 'bar',
+						overwriteBefore: 2,
+						additionalTextEdits: [{
+							text: ', bar',
+							range: { startLineNumber: 1, endLineNumber: 1, startColumn: 17, endColumn: 17 }
+						}]
+					}]
+				};
+			}
+		}));
+
+		model.setValue('ba; import { foo } from "./b"');
+
+		return withOracle(async (sugget, editor) => {
+			class TestCtrl extends SuggestController {
+				_onDidSelectItem(item) {
+					super._onDidSelectItem(item);
+				}
+			}
+			const ctrl = <TestCtrl>editor.registerAndInstantiateContribution(TestCtrl);
+			editor.registerAndInstantiateContribution(SnippetController2);
+
+			await assertEvent(sugget.onDidSuggest, () => {
+				editor.setPosition({ lineNumber: 1, column: 3 });
+				sugget.trigger({ auto: false });
+			}, event => {
+
+				assert.equal(event.completionModel.items.length, 1);
+				const [first] = event.completionModel.items;
+				assert.equal(first.suggestion.label, 'bar');
+
+				ctrl._onDidSelectItem(first);
+			});
+
+			assert.equal(
+				model.getValue(),
+				'bar; import { foo, bar } from "./b"'
+			);
 		});
 	});
 });

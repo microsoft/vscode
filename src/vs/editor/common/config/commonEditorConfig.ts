@@ -290,6 +290,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.contribInfo.find.autoFindInSelection,
 			'description': nls.localize('find.autoFindInSelection', "Controls if Find in Selection flag is turned on when multiple characters or lines of text are selected in the editor")
 		},
+		'editor.find.globalFindClipboard': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.contribInfo.find.globalFindClipboard,
+			'description': nls.localize('find.globalFindClipboard', "Controls if the Find Widget should read or modify the shared find clipboard on macOS")
+		},
 		'editor.wordWrap': {
 			'type': 'string',
 			'enum': ['off', 'on', 'wordWrapColumn', 'bounded'],
@@ -609,6 +614,12 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.contribInfo.lightbulbEnabled,
 			'description': nls.localize('codeActions', "Enables the code action lightbulb")
 		},
+		'editor.selectionClipboard': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.contribInfo.selectionClipboard,
+			'description': nls.localize('selectionClipboard', "Controls if the Linux primary clipboard should be supported."),
+			'included': platform.isLinux
+		},
 		'diffEditor.renderSideBySide': {
 			'type': 'boolean',
 			'default': true,
@@ -626,13 +637,5 @@ const editorConfiguration: IConfigurationNode = {
 		}
 	}
 };
-
-if (platform.isLinux) {
-	editorConfiguration['properties']['editor.selectionClipboard'] = {
-		'type': 'boolean',
-		'default': EDITOR_DEFAULTS.contribInfo.selectionClipboard,
-		'description': nls.localize('selectionClipboard', "Controls if the Linux primary clipboard should be supported.")
-	};
-}
 
 configurationRegistry.registerConfiguration(editorConfiguration);

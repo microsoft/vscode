@@ -181,8 +181,12 @@ class Extension implements IExtension {
 		return this.gallery ? this.gallery.preview : false;
 	}
 
+	private isGalleryOutdated(): boolean {
+		return this.local && this.gallery && semver.gt(this.local.manifest.version, this.gallery.version);
+	}
+
 	getManifest(): TPromise<IExtensionManifest> {
-		if (this.gallery) {
+		if (this.gallery && !this.isGalleryOutdated()) {
 			if (this.gallery.assets.manifest) {
 				return this.galleryService.getManifest(this.gallery);
 			}
@@ -194,7 +198,7 @@ class Extension implements IExtension {
 	}
 
 	getReadme(): TPromise<string> {
-		if (this.gallery) {
+		if (this.gallery && !this.isGalleryOutdated()) {
 			if (this.gallery.assets.readme) {
 				return this.galleryService.getReadme(this.gallery);
 			}
@@ -210,7 +214,7 @@ class Extension implements IExtension {
 	}
 
 	getChangelog(): TPromise<string> {
-		if (this.gallery && this.gallery.assets.changelog) {
+		if (this.gallery && this.gallery.assets.changelog && !this.isGalleryOutdated()) {
 			return this.galleryService.getChangelog(this.gallery);
 		}
 
@@ -231,11 +235,11 @@ class Extension implements IExtension {
 
 	get dependencies(): string[] {
 		const { local, gallery } = this;
+		if (gallery && !this.isGalleryOutdated()) {
+			return gallery.properties.dependencies;
+		}
 		if (local && local.manifest.extensionDependencies) {
 			return local.manifest.extensionDependencies;
-		}
-		if (gallery) {
-			return gallery.properties.dependencies;
 		}
 		return [];
 	}
@@ -420,14 +424,6 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 	}
 
 	open(extension: IExtension, sideByside: boolean = false): TPromise<any> {
-		/* __GDPR__
-			"extensionGallery:open" : {
-				"${include}": [
-					"${GalleryExtensionTelemetryData}"
-				]
-			}
-		*/
-		this.telemetryService.publicLog('extensionGallery:open', extension.telemetryData);
 		return this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension), null, sideByside);
 	}
 
@@ -438,7 +434,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 			// Loading the compatible version only there is an engine property
 			// Otherwise falling back to old way so that we will not make many roundtrips
 			if (gallery.properties.engine) {
-				this.galleryService.loadCompatibleVersion(gallery).then(compatible => this.syncLocalWithGalleryExtension(installed, compatible));
+				this.galleryService.loadCompatibleVersion(gallery)
+					.then(compatible => compatible ? this.syncLocalWithGalleryExtension(installed, compatible) : null);
 			} else {
 				this.syncLocalWithGalleryExtension(installed, gallery);
 			}
@@ -748,9 +745,16 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService {
 		if (extension) {
 			this.installing = installing ? this.installing.filter(e => e !== installing) : this.installing;
 
-			if (!error) {
+			if (error) {
+				if (extension.gallery) {
+					// Updating extension can be only a gallery extension
+					const installed = this.installed.filter(e => e.id === extension.id)[0];
+					if (installed && installing) {
+						installing.operation = Operation.Updating;
+					}
+				}
+			} else {
 				extension.local = local;
-
 				const installed = this.installed.filter(e => e.id === extension.id)[0];
 				if (installed) {
 					if (installing) {

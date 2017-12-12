@@ -180,6 +180,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 				`${process.env['ProgramW6432']}\\Git\\usr\\bin\\bash.exe`,
 				`${process.env['ProgramFiles']}\\Git\\bin\\bash.exe`,
 				`${process.env['ProgramFiles']}\\Git\\usr\\bin\\bash.exe`,
+				`${process.env['LocalAppData']}\\Programs\\Git\\bin\\bash.exe`,
 			]
 		};
 		const promises: TPromise<[string, string]>[] = [];
@@ -220,7 +221,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 			message = nls.localize('terminalService.terminalCloseConfirmationPlural', "There are {0} active terminal sessions, do you want to kill them?", this.terminalInstances.length);
 		}
 
-		return !this._messageService.confirmSync({
+		return !this._messageService.confirm({
 			message,
 			type: 'warning',
 		});

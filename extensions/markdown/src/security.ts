@@ -6,7 +6,7 @@
 
 import * as vscode from 'vscode';
 
-import { getMarkdownUri, MDDocumentContentProvider } from './previewContentProvider';
+import { getMarkdownUri, MDDocumentContentProvider } from './features/previewContentProvider';
 
 import * as nls from 'vscode-nls';
 

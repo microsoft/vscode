@@ -9,7 +9,7 @@ import { workspace, Uri, Disposable, Event, EventEmitter, window } from 'vscode'
 import { debounce, throttle } from './decorators';
 import { fromGitUri, toGitUri } from './uri';
 import { Model, ModelChangeEvent, OriginalResourceChangeEvent } from './model';
-import { filterEvent, eventToPromise } from './util';
+import { filterEvent, eventToPromise, isDescendant } from './util';
 
 interface CacheRow {
 	uri: Uri;
@@ -72,7 +72,7 @@ export class GitContentProvider {
 			const fsPath = uri.fsPath;
 
 			for (const root of this.changedRepositoryRoots) {
-				if (fsPath.startsWith(root)) {
+				if (isDescendant(root, fsPath)) {
 					this._onDidChange.fire(uri);
 					return;
 				}

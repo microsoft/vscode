@@ -52,20 +52,6 @@ export function score(target: string, query: string, queryLower: string, fuzzy: 
 		}
 	}
 
-	// When searching fuzzy, we require the query to be contained fully
-	// in the target string as separate substrings
-	else {
-		let targetOffset = 0;
-		for (let queryIndex = 0; queryIndex < queryLength; queryIndex++) {
-			targetOffset = targetLower.indexOf(queryLower[queryIndex], targetOffset);
-			if (targetOffset === -1) {
-				return NO_SCORE;
-			}
-
-			targetOffset++;
-		}
-	}
-
 	const res = doScore(query, queryLower, queryLength, target, targetLower, targetLength);
 
 	// if (DEBUG) {
@@ -81,7 +67,8 @@ function doScore(query: string, queryLower: string, queryLength: number, target:
 	const matches = [];
 
 	//
-	// Build Scorer Matrix
+	// Build Scorer Matrix:
+	//
 	// The matrix is composed of query q and target t. For each index we score
 	// q[i] with t[i] and compare that with the previous score. If the score is
 	// equal or larger, we keep the match. In addition to the score, we also keep
@@ -105,7 +92,17 @@ function doScore(query: string, queryLower: string, queryLength: number, target:
 
 			const matchesSequenceLength = queryIndex > 0 && targetIndex > 0 ? matches[diagIndex] : 0;
 
-			const score = computeCharScore(query, queryLower, queryIndex, target, targetLower, targetIndex, matchesSequenceLength);
+			// If we are not matching on the first query character any more, we only produce a
+			// score if we had a score previously for the last query index (by looking at the diagScore).
+			// This makes sure that the query always matches in sequence on the target. For example
+			// given a target of "ede" and a query of "de", we would otherwise produce a wrong high score
+			// for query[1] ("e") matching on target[0] ("e") because of the "beginning of word" boost.
+			let score: number;
+			if (!diagScore && queryIndex > 0) {
+				score = 0;
+			} else {
+				score = computeCharScore(query, queryLower, queryIndex, target, targetLower, targetIndex, matchesSequenceLength);
+			}
 
 			// We have a score and its equal or larger than the left score
 			// Match: sequence continues growing from previous diag value
@@ -145,7 +142,7 @@ function doScore(query: string, queryLower: string, queryLength: number, target:
 
 	// Print matrix
 	// if (DEBUG_MATRIX) {
-	// 	printMatrix(query, target, matches, scores);
+	// printMatrix(query, target, matches, scores);
 	// }
 
 	return [scores[queryLength * targetLength - 1], positions.reverse()];

@@ -86,9 +86,9 @@ declare module 'vscode' {
 	// todo@joh discover files etc
 	export interface FileSystemProvider {
 
-		onDidChange?: Event<FileChange[]>;
+		readonly onDidChange?: Event<FileChange[]>;
 
-		root: Uri;
+		readonly root: Uri;
 
 		// more...
 		//
@@ -246,5 +246,84 @@ declare module 'vscode' {
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
 		provideCodeActions2?(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): ProviderResult<(Command | CodeAction)[]>;
+	}
+
+	export namespace debug {
+
+		/**
+		 * List of breakpoints.
+		 *
+		 * @readonly
+		 */
+		export let breakpoints: Breakpoint[];
+
+		/**
+		 * An event that is emitted when a breakpoint is added, removed, or changed.
+		 */
+		export const onDidChangeBreakpoints: Event<BreakpointsChangeEvent>;
+	}
+
+	/**
+	 * An event describing a change to the set of [breakpoints](#debug.Breakpoint).
+	 */
+	export interface BreakpointsChangeEvent {
+		/**
+		 * Added breakpoints.
+		 */
+		readonly added: Breakpoint[];
+
+		/**
+		 * Removed breakpoints.
+		 */
+		readonly removed: Breakpoint[];
+
+		/**
+		 * Changed breakpoints.
+		 */
+		readonly changed: Breakpoint[];
+	}
+
+	/**
+	 * The base class of all breakpoint types.
+	 */
+	export class Breakpoint {
+		/**
+		 * Is breakpoint enabled.
+		 */
+		readonly enabled: boolean;
+		/**
+		 * An optional expression for conditional breakpoints.
+		 */
+		readonly condition?: string;
+		/**
+		 * An optional expression that controls how many hits of the breakpoint are ignored.
+		 */
+		readonly hitCondition?: string;
+
+		protected constructor(enabled: boolean, condition: string, hitCondition: string);
+	}
+
+	/**
+	 * A breakpoint specified by a source location.
+	 */
+	export class SourceBreakpoint extends Breakpoint {
+		/**
+		 * The source and line position of this breakpoint.
+		 */
+		readonly location: Location;
+
+		private constructor(enabled: boolean, condition: string, hitCondition: string, location: Location);
+	}
+
+	/**
+	 * A breakpoint specified by a function name.
+	 */
+	export class FunctionBreakpoint extends Breakpoint {
+		/**
+		 * The name of the function to which this breakpoint is attached.
+		 */
+		readonly functionName: string;
+
+		private constructor(enabled: boolean, condition: string, hitCondition: string, functionName: string);
 	}
 }

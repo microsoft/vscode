@@ -35,7 +35,6 @@ import { EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/
 import { Component } from 'vs/workbench/common/component';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { KeyMod } from 'vs/base/common/keyCodes';
 import { QuickOpenHandler, QuickOpenHandlerDescriptor, IQuickOpenRegistry, Extensions, EditorQuickOpenEntry, CLOSE_ON_FOCUS_LOST_CONFIG } from 'vs/workbench/browser/quickopen';
 import errors = require('vs/base/common/errors');
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -43,11 +42,9 @@ import { IPickOpenEntry, IFilePickOpenEntry, IInputOptions, IQuickOpenService, I
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { attachQuickOpenStyler } from 'vs/platform/theme/common/styler';
@@ -57,6 +54,7 @@ import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { FileKind, IFileService } from 'vs/platform/files/common/files';
 import { scoreItem, ScorerCache, compareItemsByScore, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { getBaseLabel } from 'vs/base/common/labels';
+import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
 
 const HELP_PREFIX = '?';
 
@@ -105,7 +103,6 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	constructor(
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IMessageService private messageService: IMessageService,
-		@ITelemetryService private telemetryService: ITelemetryService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -313,14 +310,13 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 					onHide: (reason) => this.handleOnHide(true, reason)
 				}, {
 					inputPlaceHolder: options.placeHolder || '',
-					keyboardSupport: false
-				},
-				this.telemetryService
+					keyboardSupport: false,
+					treeCreator: (container, config, opts) => new WorkbenchTree(container, config, opts, this.contextKeyService, this.listService, this.themeService)
+				}
 			);
 			this.toUnbind.push(attachQuickOpenStyler(this.pickOpenWidget, this.themeService, { background: SIDE_BAR_BACKGROUND, foreground: SIDE_BAR_FOREGROUND }));
 
 			const pickOpenContainer = this.pickOpenWidget.create();
-			this.toUnbind.push(this.listService.register(this.pickOpenWidget.getTree()));
 			DOM.addClass(pickOpenContainer, 'show-file-icons');
 			this.positionQuickOpenWidget();
 		}
@@ -556,14 +552,6 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		const registry = Registry.as<IQuickOpenRegistry>(Extensions.Quickopen);
 		const handlerDescriptor = registry.getQuickOpenHandler(prefix) || registry.getDefaultQuickOpenHandler();
 
-		/* __GDPR__
-			"quickOpenWidgetShown" : {
-				"mode" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"quickNavigate": { "${inline}": [ "${IQuickNavigateConfiguration}" ] }
-			}
-		*/
-		this.telemetryService.publicLog('quickOpenWidgetShown', { mode: handlerDescriptor.getId(), quickNavigate: quickNavigateConfiguration });
-
 		// Trigger onOpen
 		this.resolveHandler(handlerDescriptor).done(null, errors.onUnexpectedError);
 
@@ -580,14 +568,13 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 					onFocusLost: () => !this.closeOnFocusLost
 				}, {
 					inputPlaceHolder: this.hasHandler(HELP_PREFIX) ? nls.localize('quickOpenInput', "Type '?' to get help on the actions you can take from here") : '',
-					keyboardSupport: false
-				},
-				this.telemetryService
+					keyboardSupport: false,
+					treeCreator: (container, config, opts) => new WorkbenchTree(container, config, opts, this.contextKeyService, this.listService, this.themeService)
+				}
 			);
 			this.toUnbind.push(attachQuickOpenStyler(this.quickOpenWidget, this.themeService, { background: SIDE_BAR_BACKGROUND, foreground: SIDE_BAR_FOREGROUND }));
 
 			const quickOpenContainer = this.quickOpenWidget.create();
-			this.toUnbind.push(this.listService.register(this.quickOpenWidget.getTree()));
 			DOM.addClass(quickOpenContainer, 'show-file-icons');
 			this.positionQuickOpenWidget();
 		}
@@ -870,7 +857,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			const result = handlerResults[i];
 			const resource = result.getResource();
 
-			if (!result.isFile() || !resource || !mapEntryToResource[resource.toString()]) {
+			if (!result.mergeWithEditorHistory() || !resource || !mapEntryToResource[resource.toString()]) {
 				additionalHandlerResults.push(result);
 			}
 		}
@@ -1314,8 +1301,8 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 
 	public run(mode: Mode, context: IEntryRunContext): boolean {
 		if (mode === Mode.OPEN) {
-			const sideBySide = !context.quickNavigateConfiguration && context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
-			const pinned = !this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen;
+			const sideBySide = !context.quickNavigateConfiguration && context.keymods.ctrlCmd;
+			const pinned = !this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen || context.keymods.alt;
 
 			if (this.input instanceof EditorInput) {
 				this.editorService.openEditor(this.input, { pinned }, sideBySide).done(null, errors.onUnexpectedError);

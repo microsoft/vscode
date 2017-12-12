@@ -67,7 +67,7 @@ export class BaseDropdown extends ActionRunner {
 			this._toDispose.push(cleanupFn);
 		}
 
-		this._toDispose.push(new Gesture(this.$label.getHTMLElement()));
+		Gesture.addTarget(this.$label.getHTMLElement());
 	}
 
 	public get toDispose(): IDisposable[] {

@@ -78,5 +78,5 @@ export interface IProgressService2 {
 
 	_serviceBrand: any;
 
-	withProgress(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => TPromise<any>): void;
+	withProgress(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => Thenable<any>): void;
 }

@@ -20,7 +20,7 @@ import Severity from 'vs/base/common/severity';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IPartService, Parts, Position as PartPosition } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Parts, Position as PartPosition, Dimension } from 'vs/workbench/services/part/common/partService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IEditorInput, IEditorOptions, Position, Direction, IEditor, IResourceInput } from 'vs/platform/editor/common/editor';
@@ -168,7 +168,6 @@ export class TestTextFileService extends TextFileService {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IFileService fileService: IFileService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
@@ -178,7 +177,7 @@ export class TestTextFileService extends TextFileService {
 		@IWindowsService windowsService: IWindowsService,
 		@IHistoryService historyService: IHistoryService
 	) {
-		super(lifecycleService, contextService, configurationService, telemetryService, fileService, untitledEditorService, instantiationService, messageService, TestEnvironmentService, backupFileService, windowsService, historyService);
+		super(lifecycleService, contextService, configurationService, fileService, untitledEditorService, instantiationService, messageService, TestEnvironmentService, backupFileService, windowsService, historyService);
 	}
 
 	public setPromptPath(path: string): void {
@@ -215,7 +214,7 @@ export class TestTextFileService extends TextFileService {
 		});
 	}
 
-	public promptForPath(defaultPath?: string): string {
+	public promptForPath(defaultPath: string): string {
 		return this.promptPath;
 	}
 
@@ -329,11 +328,11 @@ export class TestMessageService implements IMessageService {
 		// No-op
 	}
 
-	public confirmSync(confirmation: IConfirmation): boolean {
+	public confirm(confirmation: IConfirmation): boolean {
 		return false;
 	}
 
-	public confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
+	public confirmWithCheckbox(confirmation: IConfirmation): Promise<IConfirmationResult> {
 		return TPromise.as({ confirmed: false });
 	}
 }
@@ -343,13 +342,13 @@ export class TestPartService implements IPartService {
 	public _serviceBrand: any;
 
 	private _onTitleBarVisibilityChange = new Emitter<void>();
-	private _onEditorLayout = new Emitter<void>();
+	private _onEditorLayout = new Emitter<Dimension>();
 
 	public get onTitleBarVisibilityChange(): Event<void> {
 		return this._onTitleBarVisibilityChange.event;
 	}
 
-	public get onEditorLayout(): Event<void> {
+	public get onEditorLayout(): Event<Dimension> {
 		return this._onEditorLayout.event;
 	}
 
@@ -832,7 +831,7 @@ export class TestBackupFileService implements IBackupFileService {
 	public loadBackupResource(resource: URI): TPromise<URI> {
 		return this.hasBackup(resource).then(hasBackup => {
 			if (hasBackup) {
-				return this.getBackupResource(resource);
+				return this.toBackupResource(resource);
 			}
 
 			return void 0;
@@ -847,7 +846,7 @@ export class TestBackupFileService implements IBackupFileService {
 		return TPromise.as(void 0);
 	}
 
-	public getBackupResource(resource: URI): URI {
+	public toBackupResource(resource: URI): URI {
 		return null;
 	}
 
@@ -962,19 +961,19 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
-	showMessageBoxSync(options: Electron.MessageBoxOptions): number {
+	showMessageBox(options: Electron.MessageBoxOptions): number {
 		return 0;
 	}
 
-	showMessageBox(options: Electron.MessageBoxOptions): Promise<IMessageBoxResult> {
+	showMessageBoxWithCheckbox(options: Electron.MessageBoxOptions): Promise<IMessageBoxResult> {
 		return TPromise.as(void 0);
 	}
 
-	showSaveDialog(options: Electron.SaveDialogOptions, callback?: (fileName: string) => void): string {
+	showSaveDialog(options: Electron.SaveDialogOptions): string {
 		return void 0;
 	}
 
-	showOpenDialog(options: Electron.OpenDialogOptions, callback?: (fileNames: string[]) => void): string[] {
+	showOpenDialog(options: Electron.OpenDialogOptions): string[] {
 		return void 0;
 	}
 

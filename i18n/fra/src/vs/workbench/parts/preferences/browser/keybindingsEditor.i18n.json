@@ -26,6 +26,7 @@
 	"editKeybindingLabel": "Changer de combinaison de touches",
 	"addKeybindingLabelWithKey": "Ajouter une combinaison de touches {0}",
 	"addKeybindingLabel": "Ajouter une combinaison de touches",
+	"title": "{0} ({1})",
 	"commandAriaLabel": "Commande : {0}.",
 	"keybindingAriaLabel": "Combinaison de touches : {0}.",
 	"noKeybinding": "Aucune combinaison de touches n'est affectée.",

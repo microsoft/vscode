@@ -37,8 +37,6 @@
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab {
 	display: flex;
-	width: 120px;
-	min-width: fit-content;
 	white-space: nowrap;
 	cursor: pointer;
 	height: 35px;
@@ -47,8 +45,33 @@
 	padding-left: 10px;
 }
 
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-shrink.has-icon-theme.close-button-right,
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-shrink.has-icon-theme.close-button-off {
+	padding-left: 5px; /* reduce padding when we show icons and are in shrinking mode and tab close button is not left */
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-fit {
+	width: 120px;
+	min-width: fit-content;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-shrink {
+	min-width: 60px;
+	flex-basis: 0; /* all tabs are even */
+	flex-grow: 1; /* all tabs grow even */
+	max-width: fit-content;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-shrink.close-button-left {
+	min-width: 80px; /* make more room for close button when it shows to the left */
+}
+
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.dragged {
 	will-change: transform; /* forces tab to be drawn on a separate layer (fixes https://github.com/Microsoft/vscode/issues/18733) */
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.dragged-over * {
+	pointer-events: none; /* prevents cursor flickering (fixes https://github.com/Microsoft/vscode/issues/38753) */
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-left {
@@ -64,8 +87,8 @@
 	margin-bottom: auto;
 }
 
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .monaco-icon-label,
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .monaco-icon-label > .monaco-icon-label-description-container {
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-fit .monaco-icon-label,
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-fit .monaco-icon-label > .monaco-icon-label-description-container {
 	overflow: visible; /* fixes https://github.com/Microsoft/vscode/issues/20182 */
 }
 
@@ -79,6 +102,16 @@
 	margin-top: auto;
 	margin-bottom: auto;
 	width: 28px;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-right.sizing-shrink > .tab-close {
+	flex: 0;
+	overflow: hidden; /* let the close button be pushed out of view when sizing is set to shrink to make more room... */
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.dirty.close-button-right.sizing-shrink > .tab-close,
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-right.sizing-shrink:hover > .tab-close {
+	overflow: visible; /* ...but still show the close button on hover and when dirty */
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-off > .tab-close {
@@ -132,8 +165,7 @@
 /* No Tab Close Button */
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-off {
-	padding-right: 12px;
-	transition: padding-right ease-in-out 100ms;
+	padding-right: 10px; /* give a little bit more room if close button is off */
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-off.dirty {

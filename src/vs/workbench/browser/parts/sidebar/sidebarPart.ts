@@ -29,6 +29,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND, SIDE_BAR_BORDER } from 'vs/workbench/common/theme';
 import { ToggleSidebarVisibilityAction } from 'vs/workbench/browser/actions/toggleSidebarVisibility';
+import { Dimension } from 'vs/base/browser/builder';
 
 export class SidebarPart extends CompositePart<Viewlet> {
 
@@ -126,6 +127,14 @@ export class SidebarPart extends CompositePart<Viewlet> {
 
 	public hideActiveViewlet(): TPromise<void> {
 		return this.hideActiveComposite().then(composite => void 0);
+	}
+
+	public layout(dimension: Dimension): Dimension[] {
+		if (!this.partService.isVisible(Parts.SIDEBAR_PART)) {
+			return [dimension];
+		}
+
+		return super.layout(dimension);
 	}
 
 	protected getTitleAreaContextMenuActions(): IAction[] {

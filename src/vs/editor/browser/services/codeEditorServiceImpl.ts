@@ -35,7 +35,7 @@ export class CodeEditorServiceImpl extends AbstractCodeEditorService {
 				styleSheet: this._styleSheet,
 				key: key,
 				parentTypeKey: parentTypeKey,
-				options: options
+				options: options || Object.create(null)
 			};
 			if (!parentTypeKey) {
 				provider = new DecorationTypeOptionsProvider(this._themeService, providerArgs);

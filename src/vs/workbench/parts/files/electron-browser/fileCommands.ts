@@ -174,21 +174,22 @@ export function withFocusedFilesExplorer(accessor: ServicesAccessor): TPromise<{
 	});
 }
 
-function withFocusedOpenEditorsViewItem(accessor: ServicesAccessor): TPromise<{ explorer: ExplorerViewlet, tree: ITree, item: OpenEditor }> {
+function withFocusedOpenEditorsViewItem(accessor: ServicesAccessor): TPromise<{ explorer: ExplorerViewlet, item: OpenEditor }> {
 	return withVisibleExplorer(accessor).then(explorer => {
-		if (!explorer || !explorer.getOpenEditorsView()) {
+		if (!explorer || !explorer.getOpenEditorsView() || !explorer.getOpenEditorsView().getList()) {
 			return void 0; // empty folder or hidden explorer
 		}
 
-		const tree = explorer.getOpenEditorsView().getViewer();
+		const list = explorer.getOpenEditorsView().getList();
 
 		// Ignore if in highlight mode or not focused
-		const focus = tree.getFocus();
-		if (tree.getHighlight() || !tree.isDOMFocused() || !(focus instanceof OpenEditor)) {
+		const focused = list.getFocusedElements();
+		const focus = focused.length ? focused[0] : undefined;
+		if (!list.isDOMFocused() || !(focus instanceof OpenEditor)) {
 			return void 0;
 		}
 
-		return { explorer, tree, item: focus };
+		return { explorer, item: focus };
 	});
 }
 

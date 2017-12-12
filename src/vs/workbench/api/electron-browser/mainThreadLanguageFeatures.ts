@@ -164,7 +164,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	$registerQuickFixSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
 		this._registrations[handle] = modes.CodeActionProviderRegistry.register(toLanguageSelector(selector), <modes.CodeActionProvider>{
-			provideCodeActions: (model: IReadOnlyModel, range: EditorRange, token: CancellationToken): Thenable<(modes.Command | modes.CodeAction)[]> => {
+			provideCodeActions: (model: IReadOnlyModel, range: EditorRange, token: CancellationToken): Thenable<modes.CodeAction[]> => {
 				return this._heapService.trackRecursive(wireCancellationToken(token, this._proxy.$provideCodeActions(handle, model.uri, range)));
 			}
 		});

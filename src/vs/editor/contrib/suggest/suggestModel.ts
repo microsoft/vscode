@@ -259,17 +259,14 @@ export class SuggestModel implements IDisposable {
 		this._currentPosition = this._editor.getPosition();
 
 		if (!e.selection.isEmpty()
-			|| e.source !== 'keyboard'
 			|| e.reason !== CursorChangeReason.NotSet
+			|| (e.source !== 'keyboard' && e.source !== 'deleteLeft')
 		) {
-
-			if (this._state === State.Idle) {
-				// Early exit if nothing needs to be done!
-				// Leave some form of early exit check here if you wish to continue being a cursor position change listener ;)
-				return;
+			// Early exit if nothing needs to be done!
+			// Leave some form of early exit check here if you wish to continue being a cursor position change listener ;)
+			if (this._state !== State.Idle) {
+				this.cancel();
 			}
-
-			this.cancel();
 			return;
 		}
 
@@ -292,9 +289,9 @@ export class SuggestModel implements IDisposable {
 
 				this.cancel();
 
-				if (LineContext.shouldAutoTrigger(this._editor)) {
-					this._triggerAutoSuggestPromise = TPromise.timeout(this._quickSuggestDelay);
-					this._triggerAutoSuggestPromise.then(() => {
+				this._triggerAutoSuggestPromise = TPromise.timeout(this._quickSuggestDelay);
+				this._triggerAutoSuggestPromise.then(() => {
+					if (LineContext.shouldAutoTrigger(this._editor)) {
 						const model = this._editor.getModel();
 						const pos = this._editor.getPosition();
 
@@ -322,10 +319,10 @@ export class SuggestModel implements IDisposable {
 							}
 						}
 
-						this._triggerAutoSuggestPromise = null;
 						this.trigger({ auto: true });
-					});
-				}
+					}
+					this._triggerAutoSuggestPromise = null;
+				});
 			}
 		}
 	}

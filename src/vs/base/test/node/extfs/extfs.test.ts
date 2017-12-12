@@ -209,6 +209,31 @@ suite('Extfs', () => {
 		});
 	});
 
+	test('writeFileAndFlushSync', function (done: () => void) {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'extfs', id);
+		const testFile = path.join(newDir, 'flushed.txt');
+
+		mkdirp(newDir, 493, error => {
+			if (error) {
+				return onError(error, done);
+			}
+
+			assert.ok(fs.existsSync(newDir));
+
+			extfs.writeFileAndFlushSync(testFile, 'Hello World', null);
+			assert.equal(fs.readFileSync(testFile), 'Hello World');
+
+			const largeString = (new Array(100 * 1024)).join('Large String\n');
+
+			extfs.writeFileAndFlushSync(testFile, largeString, null);
+			assert.equal(fs.readFileSync(testFile), largeString);
+
+			extfs.del(parentDir, os.tmpdir(), done, ignore);
+		});
+	});
+
 	test('realcase', (done) => {
 		const id = uuid.generateUuid();
 		const parentDir = path.join(os.tmpdir(), 'vsctests', id);

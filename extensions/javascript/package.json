@@ -116,6 +116,10 @@
         "url": "http://json.schemastore.org/babelrc"
       },
       {
+        "fileMatch": ".babelrc.json",
+        "url": "http://json.schemastore.org/babelrc"
+      },
+      {
         "fileMatch": "jsconfig.json",
         "url": "http://json.schemastore.org/jsconfig"
       },

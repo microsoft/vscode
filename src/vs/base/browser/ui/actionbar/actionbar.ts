@@ -14,7 +14,7 @@ import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IAction, IActionRunner, Action, IActionChangeEvent, ActionRunner, IRunEvent } from 'vs/base/common/actions';
 import DOM = require('vs/base/browser/dom');
 import types = require('vs/base/common/types');
-import { Gesture, EventType, isTouchDevice } from 'vs/base/browser/touch';
+import { EventType, Gesture } from 'vs/base/browser/touch';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -41,7 +41,6 @@ export class BaseActionItem implements IActionItem {
 	public _context: any;
 	public _action: IAction;
 
-	private gesture: Gesture;
 	private _actionRunner: IActionRunner;
 
 	constructor(context: any, action: IAction, protected options?: IBaseActionItemOptions) {
@@ -106,16 +105,14 @@ export class BaseActionItem implements IActionItem {
 
 	public render(container: HTMLElement): void {
 		this.builder = $(container);
-		this.gesture = new Gesture(container);
+		Gesture.addTarget(container);
 
 		const enableDragging = this.options && this.options.draggable;
 		if (enableDragging) {
 			container.draggable = true;
 		}
 
-		if (isTouchDevice) {
-			this.builder.on(EventType.Tap, e => this.onClick(e));
-		}
+		this.builder.on(EventType.Tap, e => this.onClick(e));
 
 		this.builder.on(DOM.EventType.MOUSE_DOWN, (e) => {
 			if (!enableDragging) {
@@ -201,11 +198,6 @@ export class BaseActionItem implements IActionItem {
 		if (this.builder) {
 			this.builder.destroy();
 			this.builder = null;
-		}
-
-		if (this.gesture) {
-			this.gesture.dispose();
-			this.gesture = null;
 		}
 
 		this._callOnDispose = lifecycle.dispose(this._callOnDispose);

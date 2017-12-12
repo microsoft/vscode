@@ -53,6 +53,7 @@ install:
 script:
   - node_modules/.bin/gulp hygiene
   - node_modules/.bin/gulp electron --silent
+  - node_modules/.bin/tsc -p ./src/tsconfig.monaco.json --noEmit
   - node_modules/.bin/gulp compile --silent --max_old_space_size=4096
   - node_modules/.bin/gulp optimize-vscode --silent --max_old_space_size=4096
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then ./scripts/test.sh --coverage --reporter dot; else ./scripts/test.sh --reporter dot; fi

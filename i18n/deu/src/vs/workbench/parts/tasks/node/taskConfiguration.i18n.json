@@ -14,8 +14,6 @@
 	"ConfigurationParser.noTypeDefinition": "Fehler: Der registrierte Aufgabentyp \"{0}\" ist nicht vorhanden. Wurde möglicherweise eine Erweiterung nicht installiert, die den entsprechenden Aufgabenanbieter bereitstellt?",
 	"ConfigurationParser.missingRequiredProperty": "Fehler: Die Aufgabenkonfiguration \"{0}\" enthält die erforderlich Eigenschaft \"{1}\" nicht. Die Aufgabenkonfiguration wird ignoriert.",
 	"ConfigurationParser.notCustom": "Fehler: Die Aufgabe ist nicht als benutzerdefinierte Aufgabe deklariert. Die Konfiguration wird ignoriert.\n{0}\n",
-	"ConfigurationParser.noTaskName": "Fehler: Tasks müssen eine Eigenschaft \"TaskName\" angeben. Der Task wird ignoriert.\n{0}\n",
-	"taskConfiguration.shellArgs": "Warnung: Die Aufgabe \"{0}\" ist ein Shellbefehl, und der Befehlsname oder eines seiner Argumente enthält Leerzeichen ohne Escapezeichen. Führen Sie Argumente im Befehl zusammen, um eine korrekte Angabe der Befehlszeile sicherzustellen.",
 	"taskConfiguration.noCommandOrDependsOn": "Fehler: Aufgabe \"{0}\" definiert keinen Befehl bzw. keine depondsOn-Eigenschaft. Die Aufgabe wird ignoriert. Die Definition lautet:\n{1}",
 	"taskConfiguration.noCommand": "Fehler: Aufgabe \"{0}\" definiert keinen Befehl. Die Aufgabe wird ignoriert. Die Definition lautet:\n{1}",
 	"TaskParse.noOsSpecificGlobalTasks": "Die Aufgabenversion 2.0.0 unterstützt globale betriebssystemspezifische Aufgaben nicht. Konvertieren Sie sie in eine Aufgabe mit einem betriebssystemspezifischen Befehl. Folgende Aufgaben sind hiervon betroffen:\n{0}"

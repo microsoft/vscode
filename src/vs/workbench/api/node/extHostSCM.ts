@@ -17,6 +17,7 @@ import { sortedDiff } from 'vs/base/common/arrays';
 import { comparePaths } from 'vs/base/common/comparers';
 import * as vscode from 'vscode';
 import { ISplice } from 'vs/base/common/sequence';
+import { ILogService } from 'vs/platform/log/common/log';
 
 type ProviderHandle = number;
 type GroupHandle = number;
@@ -443,7 +444,8 @@ export class ExtHostSCM {
 
 	constructor(
 		mainContext: IMainContext,
-		private _commands: ExtHostCommands
+		private _commands: ExtHostCommands,
+		@ILogService private logService: ILogService
 	) {
 		this._proxy = mainContext.get(MainContext.MainThreadSCM);
 
@@ -487,6 +489,8 @@ export class ExtHostSCM {
 	}
 
 	createSourceControl(extension: IExtensionDescription, id: string, label: string, rootUri: vscode.Uri | undefined): vscode.SourceControl {
+		this.logService.trace('ExtHostSCM#createSourceControl', extension.id, id, label, rootUri);
+
 		const handle = ExtHostSCM._handlePool++;
 		const sourceControl = new ExtHostSourceControl(this._proxy, this._commands, id, label, rootUri);
 		this._sourceControls.set(handle, sourceControl);
@@ -500,6 +504,8 @@ export class ExtHostSCM {
 
 	// Deprecated
 	getLastInputBox(extension: IExtensionDescription): ExtHostSCMInputBox {
+		this.logService.trace('ExtHostSCM#getLastInputBox', extension.id);
+
 		const sourceControls = this._sourceControlsByExtension.get(extension.id);
 		const sourceControl = sourceControls && sourceControls[sourceControls.length - 1];
 		const inputBox = sourceControl && sourceControl.inputBox;
@@ -508,6 +514,8 @@ export class ExtHostSCM {
 	}
 
 	$provideOriginalResource(sourceControlHandle: number, uri: URI): TPromise<URI> {
+		this.logService.trace('ExtHostSCM#$provideOriginalResource', sourceControlHandle, uri);
+
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
 		if (!sourceControl || !sourceControl.quickDiffProvider) {
@@ -521,6 +529,8 @@ export class ExtHostSCM {
 	}
 
 	$onInputBoxValueChange(sourceControlHandle: number, value: string): TPromise<void> {
+		this.logService.trace('ExtHostSCM#$onInputBoxValueChange', sourceControlHandle);
+
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
 		if (!sourceControl) {
@@ -532,6 +542,8 @@ export class ExtHostSCM {
 	}
 
 	async $executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number): TPromise<void> {
+		this.logService.trace('ExtHostSCM#$executeResourceCommand', sourceControlHandle, groupHandle, handle);
+
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
 		if (!sourceControl) {

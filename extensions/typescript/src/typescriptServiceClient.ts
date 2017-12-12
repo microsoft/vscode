@@ -17,7 +17,6 @@ import { ITypeScriptServiceClient, ITypeScriptServiceClientHost } from './typesc
 import { TypeScriptServerPlugin } from './utils/plugins';
 import Logger from './utils/logger';
 
-import VersionStatus from './utils/versionStatus';
 import * as is from './utils/is';
 import TelemetryReporter from './utils/telemetry';
 import Tracer from './utils/tracer';
@@ -27,6 +26,8 @@ import * as nls from 'vscode-nls';
 import { TypeScriptServiceConfiguration, TsServerLogLevel } from './utils/configuration';
 import { TypeScriptVersionProvider, TypeScriptVersion } from './utils/versionProvider';
 import { TypeScriptVersionPicker } from './utils/versionPicker';
+import * as fileSchemes from './utils/fileSchemes';
+
 const localize = nls.loadMessageBundle();
 
 interface CallbackItem {
@@ -108,8 +109,7 @@ class RequestQueue {
 }
 
 export default class TypeScriptServiceClient implements ITypeScriptServiceClient {
-	private static readonly WALK_THROUGH_SNIPPET_SCHEME = 'walkThroughSnippet';
-	private static readonly WALK_THROUGH_SNIPPET_SCHEME_COLON = `${TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME}:`;
+	private static readonly WALK_THROUGH_SNIPPET_SCHEME_COLON = `${fileSchemes.walkThroughSnippet}:`;
 
 	private pathSeparator: string;
 
@@ -153,7 +153,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	constructor(
 		private readonly host: ITypeScriptServiceClientHost,
 		private readonly workspaceState: Memento,
-		private readonly versionStatus: VersionStatus,
+		private readonly onDidChangeTypeScriptVersion: (version: TypeScriptVersion) => void,
 		public readonly plugins: TypeScriptServerPlugin[]
 	) {
 		this.pathSeparator = path.sep;
@@ -199,7 +199,6 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		}, this, this.disposables);
 		this.telemetryReporter = new TelemetryReporter(() => this._tsserverVersion || this._apiVersion.versionString);
 		this.disposables.push(this.telemetryReporter);
-		this.startService();
 	}
 
 	public get configuration() {
@@ -301,7 +300,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		return Promise.reject<cp.ChildProcess>(new Error('Could not create TS service'));
 	}
 
-	private startService(resendModels: boolean = false): Thenable<cp.ChildProcess> {
+	public startService(resendModels: boolean = false): Thenable<cp.ChildProcess> {
 		let currentVersion = this.versionPicker.currentVersion;
 
 		return this.servicePromise = new Promise<cp.ChildProcess>((resolve, reject) => {
@@ -314,7 +313,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 			}
 
 			this._apiVersion = this.versionPicker.currentVersion.version || API.defaultVersion;
-			this.versionStatus.onDidChangeTypeScriptVersion(currentVersion);
+			this.onDidChangeTypeScriptVersion(currentVersion);
 
 			this.requestQueue = new RequestQueue();
 			this.callbacks = new CallbackMap();
@@ -557,15 +556,15 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	}
 
 	public normalizePath(resource: Uri): string | null {
-		if (resource.scheme === TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME) {
+		if (resource.scheme === fileSchemes.walkThroughSnippet) {
 			return resource.toString();
 		}
 
-		if (resource.scheme === 'untitled' && this._apiVersion.has213Features()) {
+		if (resource.scheme === fileSchemes.untitled && this._apiVersion.has213Features()) {
 			return resource.toString();
 		}
 
-		if (resource.scheme !== 'file') {
+		if (resource.scheme !== fileSchemes.file) {
 			return null;
 		}
 		const result = resource.fsPath;
@@ -578,7 +577,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 
 	public asUrl(filepath: string): Uri {
 		if (filepath.startsWith(TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME_COLON)
-			|| (filepath.startsWith('untitled:') && this._apiVersion.has213Features())
+			|| (filepath.startsWith(fileSchemes.untitled + ':') && this._apiVersion.has213Features())
 		) {
 			return Uri.parse(filepath);
 		}
@@ -591,7 +590,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 			return undefined;
 		}
 
-		if (resource.scheme === 'file' || resource.scheme === 'untitled') {
+		if (resource.scheme === fileSchemes.file || resource.scheme === fileSchemes.untitled) {
 			for (const root of roots.sort((a, b) => a.uri.fsPath.length - b.uri.fsPath.length)) {
 				if (resource.fsPath.startsWith(root.uri.fsPath + path.sep)) {
 					return root.uri.fsPath;

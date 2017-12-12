@@ -9,7 +9,7 @@
 	"extension": "Kiegészítő",
 	"extensions": "Kiegészítők",
 	"view": "Nézet",
+	"developer": "Fejlesztői",
 	"extensionsConfigurationTitle": "Kiegészítők",
-	"extensionsAutoUpdate": "Kiegészítők automatikus frissítése",
-	"extensionsIgnoreRecommendations": "Ajánlott kiegészítők figyelmen kívül hagyása"
+	"extensionsAutoUpdate": "Kiegészítők automatikus frissítése"
 }

@@ -19,6 +19,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { StatusUpdater, StatusBarController } from './scmActivity';
 import { SCMViewlet } from 'vs/workbench/parts/scm/electron-browser/scmViewlet';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 
 class OpenSCMViewletAction extends ToggleViewletAction {
 
@@ -61,3 +62,16 @@ Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions
 	'View: Show SCM',
 	localize('view', "View")
 );
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	id: 'scm',
+	order: 5,
+	type: 'object',
+	properties: {
+		'scm.enableDiffDecorations': {
+			'type': 'boolean',
+			'default': true,
+			'description': localize('enableDiffDecorations', "Enables or disables diff decorations in the editor.")
+		},
+	}
+});

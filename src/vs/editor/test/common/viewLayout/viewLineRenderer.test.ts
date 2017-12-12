@@ -1167,6 +1167,36 @@ suite('viewLineRenderer.renderLine 2', () => {
 		assert.deepEqual(actual.html, expected);
 	});
 
+	test('issue #38935: GitLens end-of-line blame no longer rendering', () => {
+
+		let actual = renderViewLine(new RenderLineInput(
+			true,
+			'\t}',
+			false,
+			0,
+			[createPart(2, 3)],
+			[
+				new LineDecoration(3, 3, 'ced-TextEditorDecorationType2-5e9b9b3f-3 ced-TextEditorDecorationType2-3', InlineDecorationType.Before),
+				new LineDecoration(3, 3, 'ced-TextEditorDecorationType2-5e9b9b3f-4 ced-TextEditorDecorationType2-4', InlineDecorationType.After),
+			],
+			4,
+			10,
+			10000,
+			'none',
+			false,
+			false
+		));
+
+		let expected = [
+			'<span>',
+			'<span class="mtk3">\u00a0\u00a0\u00a0\u00a0}</span>',
+			'<span class="ced-TextEditorDecorationType2-5e9b9b3f-3 ced-TextEditorDecorationType2-3 ced-TextEditorDecorationType2-5e9b9b3f-4 ced-TextEditorDecorationType2-4"></span>',
+			'</span>'
+		].join('');
+
+		assert.deepEqual(actual.html, expected);
+	});
+
 	function createTestGetColumnOfLinePartOffset(lineContent: string, tabSize: number, parts: ViewLineToken[], expectedPartLengths: number[]): (partIndex: number, partLength: number, offset: number, expected: number) => void {
 		let renderLineOutput = renderViewLine(new RenderLineInput(
 			false,

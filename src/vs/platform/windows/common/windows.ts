@@ -191,10 +191,10 @@ export interface IWindowService {
 	setDocumentEdited(flag: boolean): TPromise<void>;
 	onWindowTitleDoubleClick(): TPromise<void>;
 	show(): TPromise<void>;
-	showMessageBoxSync(options: MessageBoxOptions): number;
-	showMessageBox(options: MessageBoxOptions): TPromise<IMessageBoxResult>;
-	showSaveDialog(options: SaveDialogOptions, callback?: (fileName: string) => void): string;
-	showOpenDialog(options: OpenDialogOptions, callback?: (fileNames: string[]) => void): string[];
+	showMessageBox(options: MessageBoxOptions): number;
+	showSaveDialog(options: SaveDialogOptions): string;
+	showOpenDialog(options: OpenDialogOptions): string[];
+	showMessageBoxWithCheckbox(options: MessageBoxOptions): TPromise<IMessageBoxResult>;
 }
 
 export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden';
@@ -207,7 +207,6 @@ export interface IWindowSettings {
 	openFilesInNewWindow: 'on' | 'off' | 'default';
 	openFoldersInNewWindow: 'on' | 'off' | 'default';
 	restoreWindows: 'all' | 'folders' | 'one' | 'none';
-	reopenFolders: 'all' | 'one' | 'none'; // TODO@Ben deprecated
 	restoreFullscreen: boolean;
 	zoomLevel: number;
 	titleBarStyle: 'native' | 'custom';
@@ -292,6 +291,9 @@ export interface IAddFoldersRequest {
 }
 
 export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
+	machineId: string;
+	windowId: number;
+
 	appRoot: string;
 	execPath: string;
 	isInitialStartup?: boolean;

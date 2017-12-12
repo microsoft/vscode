@@ -11,6 +11,7 @@ import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import Event, { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class CommandService extends Disposable implements ICommandService {
 
@@ -24,13 +25,16 @@ export class CommandService extends Disposable implements ICommandService {
 	constructor(
 		@IInstantiationService private _instantiationService: IInstantiationService,
 		@IExtensionService private _extensionService: IExtensionService,
-		@IContextKeyService private _contextKeyService: IContextKeyService
+		@IContextKeyService private _contextKeyService: IContextKeyService,
+		@ILogService private _logService: ILogService
 	) {
 		super();
 		this._extensionService.whenInstalledExtensionsRegistered().then(value => this._extensionHostIsReady = value);
 	}
 
 	executeCommand<T>(id: string, ...args: any[]): TPromise<T> {
+		this._logService.trace('CommandService#executeCommand', id);
+
 		// we always send an activation event, but
 		// we don't wait for it when the extension
 		// host didn't yet start and the command is already registered

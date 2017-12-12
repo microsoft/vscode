@@ -30,7 +30,6 @@
 	"deactivateBreakpoints": "Отключить точки останова",
 	"reapplyAllBreakpoints": "Повторно применить все точки останова",
 	"addFunctionBreakpoint": "Добавить точку останова в функции",
-	"renameFunctionBreakpoint": "Переименовать точку останова в функции",
 	"addConditionalBreakpoint": "Добавить условную точку останова…",
 	"editConditionalBreakpoint": "Изменить точку останова…",
 	"setValue": "Задать значение",

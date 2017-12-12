@@ -111,7 +111,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		if (this.isDefaultSettingsResource(uri) || this.isDefaultResourceSettingsResource(uri)) {
 
 			const scope = this.isDefaultSettingsResource(uri) ? ConfigurationScope.WINDOW : ConfigurationScope.RESOURCE;
-			const mode = this.modeService.getOrCreateMode('json');
+			const mode = this.modeService.getOrCreateMode('jsonc');
 			const model = this._register(this.modelService.createModel('', mode, uri));
 
 			let defaultSettings: DefaultSettings;
@@ -139,14 +139,14 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 		if (this.defaultSettingsRawResource.toString() === uri.toString()) {
 			let defaultSettings: DefaultSettings = this.getDefaultSettings(ConfigurationScope.WINDOW);
-			const mode = this.modeService.getOrCreateMode('json');
+			const mode = this.modeService.getOrCreateMode('jsonc');
 			const model = this._register(this.modelService.createModel(defaultSettings.raw, mode, uri));
 			return TPromise.as(model);
 		}
 
 		if (this.defaultKeybindingsResource.toString() === uri.toString()) {
 			const defaultKeybindingsEditorModel = this.instantiationService.createInstance(DefaultKeybindingsEditorModel, uri);
-			const mode = this.modeService.getOrCreateMode('json');
+			const mode = this.modeService.getOrCreateMode('jsonc');
 			const model = this._register(this.modelService.createModel(defaultKeybindingsEditorModel.content, mode, uri));
 			return TPromise.as(model);
 		}

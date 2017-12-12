@@ -961,6 +961,9 @@ export function visit(text: string, visitor: JSONVisitor, options?: ParseOptions
 				}
 				onSeparator(',');
 				scanNext(); // consume comma
+				if (_scanner.getToken() === SyntaxKind.CloseBracketToken && allowTrailingComma) {
+					break;
+				}
 			} else if (needsComma) {
 				handleError(ParseErrorCode.CommaExpected, [], []);
 			}

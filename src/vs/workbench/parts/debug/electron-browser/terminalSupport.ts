@@ -102,7 +102,12 @@ export class TerminalSupport {
 				}
 				if (args.env) {
 					for (let key in args.env) {
-						command += `$env:${key}='${args.env[key]}'; `;
+						const value = args.env[key];
+						if (value === null) {
+							command += `Remove-Item env:${key}; `;
+						} else {
+							command += `\${env:${key}}='${value}'; `;
+						}
 					}
 				}
 				if (args.args && args.args.length > 0) {
@@ -127,7 +132,12 @@ export class TerminalSupport {
 				if (args.env) {
 					command += 'cmd /C "';
 					for (let key in args.env) {
-						command += `set "${key}=${args.env[key]}" && `;
+						const value = args.env[key];
+						if (value === null) {
+							command += `set "${key}=" && `;
+						} else {
+							command += `set "${key}=${args.env[key]}" && `;
+						}
 					}
 				}
 				for (let a of args.args) {
@@ -151,7 +161,12 @@ export class TerminalSupport {
 				if (args.env) {
 					command += 'env';
 					for (let key in args.env) {
-						command += ` "${key}=${args.env[key]}"`;
+						const value = args.env[key];
+						if (value === null) {
+							command += ` -u "${key}"`;
+						} else {
+							command += ` "${key}=${value}"`;
+						}
 					}
 					command += ' ';
 				}

@@ -968,6 +968,26 @@ suite('WorkspaceConfigurationService - Multiroot', () => {
 			});
 	});
 
+	test('resource setting in folder is read after it is registered later', () => {
+		fs.writeFileSync(workspaceContextService.getWorkspace().folders[0].toResource('.vscode/settings.json').fsPath, '{ "configurationService.workspace.testNewResourceSetting2": "workspaceFolderValue" }');
+		return jsonEditingServce.write(workspaceContextService.getWorkspace().configuration, { key: 'settings', value: { 'configurationService.workspace.testNewResourceSetting2': 'workspaceValue' } }, true)
+			.then(() => testObject.reloadConfiguration())
+			.then(() => {
+				configurationRegistry.registerConfiguration({
+					'id': '_test',
+					'type': 'object',
+					'properties': {
+						'configurationService.workspace.testNewResourceSetting2': {
+							'type': 'string',
+							'default': 'isSet',
+							scope: ConfigurationScope.RESOURCE
+						}
+					}
+				});
+				assert.equal(testObject.getValue('configurationService.workspace.testNewResourceSetting2', { resource: workspaceContextService.getWorkspace().folders[0].uri }), 'workspaceFolderValue');
+			});
+	});
+
 	test('inspect', () => {
 		let actual = testObject.inspect('something.missing');
 		assert.equal(actual.default, void 0);

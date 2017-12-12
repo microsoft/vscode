@@ -569,25 +569,22 @@ let schema: IJSONSchema = {
 let schemaRegistry = <IJSONContributionRegistry>Registry.as(Extensions.JSONContribution);
 schemaRegistry.registerSchema(schemaId, schema);
 
-if (OS === OperatingSystem.Macintosh || OS === OperatingSystem.Linux) {
-
-	const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigExtensions.Configuration);
-	const keyboardConfiguration: IConfigurationNode = {
-		'id': 'keyboard',
-		'order': 15,
-		'type': 'object',
-		'title': nls.localize('keyboardConfigurationTitle', "Keyboard"),
-		'overridable': true,
-		'properties': {
-			'keyboard.dispatch': {
-				'type': 'string',
-				'enum': ['code', 'keyCode'],
-				'default': 'code',
-				'description': nls.localize('dispatch', "Controls the dispatching logic for key presses to use either `code` (recommended) or `keyCode`.")
-			}
+const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigExtensions.Configuration);
+const keyboardConfiguration: IConfigurationNode = {
+	'id': 'keyboard',
+	'order': 15,
+	'type': 'object',
+	'title': nls.localize('keyboardConfigurationTitle', "Keyboard"),
+	'overridable': true,
+	'properties': {
+		'keyboard.dispatch': {
+			'type': 'string',
+			'enum': ['code', 'keyCode'],
+			'default': 'code',
+			'description': nls.localize('dispatch', "Controls the dispatching logic for key presses to use either `code` (recommended) or `keyCode`."),
+			'included': OS === OperatingSystem.Macintosh || OS === OperatingSystem.Linux
 		}
-	};
+	}
+};
 
-	configurationRegistry.registerConfiguration(keyboardConfiguration);
-
-}
+configurationRegistry.registerConfiguration(keyboardConfiguration);

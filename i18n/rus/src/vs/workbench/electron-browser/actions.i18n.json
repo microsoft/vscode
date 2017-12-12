@@ -30,7 +30,7 @@
 	"openRecent": "Открыть последние...",
 	"quickOpenRecent": "Быстро открыть последние...",
 	"closeMessages": "Закрыть уведомления",
-	"reportIssues": "Сообщить о проблемах",
+	"reportIssueInEnglish": "Сообщить об ошибке",
 	"reportPerformanceIssue": "Сообщать о проблемах производительности",
 	"keybindingsReference": "Справочник по сочетаниям клавиш",
 	"openDocumentationUrl": "Документация",
@@ -47,5 +47,14 @@
 	"showNextWindowTab": "Показать следующую вкладку в окне",
 	"moveWindowTabToNewWindow": "Переместить вкладку окна в новое окно",
 	"mergeAllWindowTabs": "Объединить все окна",
-	"toggleWindowTabsBar": "Переключить панель вкладок окна"
+	"toggleWindowTabsBar": "Переключить панель вкладок окна",
+	"configureLocale": "Настроить язык",
+	"displayLanguage": "Определяет язык интерфейса VSCode.",
+	"doc": "Список поддерживаемых языков см. в {0}.",
+	"restart": "Для изменения значения требуется перезапуск VSCode.",
+	"fail.createSettings": "Невозможно создать \"{0}\" ({1}).",
+	"debug": "Отладка",
+	"info": "Сведения",
+	"warn": "Предупреждение",
+	"err": "Ошибка"
 }

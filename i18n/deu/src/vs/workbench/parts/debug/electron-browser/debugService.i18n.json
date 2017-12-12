@@ -11,7 +11,6 @@
 	"breakpointAdded": "Der Haltepunkt wurde hinzugefügt. Zeile {0}, Datei \"{1}\".",
 	"breakpointRemoved": "Der Haltepunkt wurde entfernt. Zeile {0}, Datei \"{1}\".",
 	"compoundMustHaveConfigurations": "Für den Verbund muss das Attribut \"configurations\" festgelegt werden, damit mehrere Konfigurationen gestartet werden können.",
-	"configMissing": "Konfiguration \"{0}\" fehlt in \"launch.json\".",
 	"debugRequestNotSupported": "Das Attribut \"{0}\" hat in der ausgewählten Debugkonfiguration den nicht unterstützten Wert \"{1}\".",
 	"debugRequesMissing": "Das Attribut \"{0}\" fehlt in der ausgewählten Debugkonfiguration.",
 	"debugTypeNotSupported": "Der konfigurierte Debugtyp \"{0}\" wird nicht unterstützt.",

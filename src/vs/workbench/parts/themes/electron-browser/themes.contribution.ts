@@ -50,7 +50,7 @@ export class SelectColorThemeAction extends Action {
 			const picks: IPickOpenEntry[] = [].concat(
 				toEntries(themes.filter(t => t.type === LIGHT), localize('themes.category.light', "light themes")),
 				toEntries(themes.filter(t => t.type === DARK), localize('themes.category.dark', "dark themes"), true),
-				toEntries(themes.filter(t => t.type === HIGH_CONTRAST), localize('themes.category.hc', "high constrast themes"), true),
+				toEntries(themes.filter(t => t.type === HIGH_CONTRAST), localize('themes.category.hc', "high contrast themes"), true),
 				configurationEntries(this.extensionGalleryService, this.viewletService, 'category:themes', localize('installColorThemes', "Install Additional Color Themes..."))
 			);
 
@@ -198,7 +198,7 @@ class GenerateColorThemeAction extends Action {
 			colors: resultingColors,
 			tokenColors: theme.tokenColors
 		}, null, '\t');
-		return this.editorService.openEditor({ contents, language: 'json' });
+		return this.editorService.openEditor({ contents, language: 'jsonc' });
 	}
 }
 

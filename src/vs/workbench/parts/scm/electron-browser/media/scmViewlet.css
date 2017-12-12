@@ -33,8 +33,13 @@
 	flex-wrap: wrap;
 }
 
-.scm-viewlet .monaco-list-row > .scm-provider > input {
-	flex-shrink: 0;
+.scm-viewlet .monaco-list-row > .scm-provider > .monaco-action-bar {
+	flex: 1;
+}
+
+.scm-viewlet .monaco-list-row > .scm-provider > .monaco-action-bar .action-item {
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .scm-viewlet .scm-provider > .count {
@@ -149,8 +154,4 @@
 
 .scm-viewlet .scm-editor.scroll > .monaco-inputbox > .wrapper > textarea.input {
 	overflow-y: scroll;
-}
-
-.scm-viewlet .spacer {
-	flex: 1;
 }

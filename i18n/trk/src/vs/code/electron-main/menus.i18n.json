@@ -22,11 +22,11 @@
 	"miQuit": "{0} Öğesinden Çık",
 	"miNewFile": "&&Yeni Dosya",
 	"miOpen": "&&Aç...",
-	"miOpenWorkspace": "Çalışma Alanı &&Aç...",
+	"miOpenWorkspace": "Ça&&lışma Alanı Aç...",
 	"miOpenFolder": "&&Klasör Aç...",
 	"miOpenFile": "&&Dosya Aç...",
 	"miOpenRecent": "&&Son Kullanılanları Aç",
-	"miSaveWorkspaceAs": "Çalışma Alanını &&Farklı Kaydet...",
+	"miSaveWorkspaceAs": "Çalışma Alanını Farklı Kaydet...",
 	"miAddFolderToWorkspace": "Çalışma Alanına Klasör &&Ekle...",
 	"miSave": "&&Kaydet",
 	"miSaveAs": "&&Farklı Kaydet",
@@ -157,7 +157,7 @@
 	"mMergeAllWindows": "Tüm Pencereleri Birleştir",
 	"miToggleDevTools": "&&Geliştirici Araçlarını Aç/Kapat",
 	"miAccessibilityOptions": "&&Erişilebilirlik Seçenekleri",
-	"miReportIssues": "So&&run Bildir",
+	"miReportIssue": "&&Sorun Bildir",
 	"miWelcome": "&&Hoş Geldiniz",
 	"miInteractivePlayground": "&&İnteraktif Oyun Alanı",
 	"miDocumentation": "&&Belgeler",
@@ -184,6 +184,7 @@
 	"miDownloadingUpdate": "Güncelleştirme İndiriliyor...",
 	"miInstallingUpdate": "Güncelleştirme Yükleniyor...",
 	"miCheckForUpdates": "Güncelleştirmeleri Denetle...",
-	"aboutDetail": "\nSürüm {0}\nCommit {1}\nTarih {2}\nKabuk {3}\nOluşturucu {4}\nNode {5}\nMimari {6}",
-	"okButton": "Tamam"
+	"aboutDetail": "Sürüm {0}\nCommit {1}\nTarih {2}\nKabuk {3}\nRender Alan {4}\nNode {5}\nMimari {6}",
+	"okButton": "Tamam",
+	"copy": "K&&opyala"
 }

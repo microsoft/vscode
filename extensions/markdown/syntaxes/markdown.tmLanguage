@@ -478,7 +478,7 @@
 				<key>list_paragraph</key>
 				<dict>
 					<key>begin</key>
-					<string>(^|\G)(?=\S)(?![*+-]\s|[0-9]+\.\s)</string>
+					<string>(^|\G)(?=\S)(?![*+-&gt;]\s|[0-9]+\.\s)</string>
 					<key>name</key>
 					<string>meta.paragraph.markdown</string>
 					<key>patterns</key>
@@ -497,7 +497,7 @@
 						</dict>
 					</array>
 					<key>while</key>
-					<string>(^|\G)(?!\s*$|#|[ ]{0,3}([-*_][ ]{2,}){3,}[ \t]*$\n?|&gt;|[ ]{0,3}[*+-]|[ ]{0,3}[0-9]+\.)</string>
+					<string>(^|\G)(?!\s*$|#|[ ]{0,3}([-*_&gt;][ ]{2,}){3,}[ \t]*$\n?|[ ]{0,3}[*+-&gt;]|[ ]{0,3}[0-9]+\.)</string>
 				</dict>
 				<key>lists</key>
 				<dict>
@@ -522,11 +522,11 @@
 							<array>
 								<dict>
 									<key>include</key>
-									<string>#list_paragraph</string>
+									<string>#block</string>
 								</dict>
 								<dict>
 									<key>include</key>
-									<string>#block</string>
+									<string>#list_paragraph</string>
 								</dict>
 							</array>
 							<key>while</key>
@@ -549,11 +549,11 @@
 							<array>
 								<dict>
 									<key>include</key>
-									<string>#list_paragraph</string>
+									<string>#block</string>
 								</dict>
 								<dict>
 									<key>include</key>
-									<string>#block</string>
+									<string>#list_paragraph</string>
 								</dict>
 							</array>
 							<key>while</key>

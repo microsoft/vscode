@@ -768,7 +768,7 @@ export class FileService implements IFileService {
 		const absolutePath = this.toAbsolutePath(resource);
 
 		return pfs.stat(absolutePath).then(stat => {
-			return new StatResolver(resource, stat.isDirectory(), stat.mtime.getTime(), stat.size, this.options.verboseLogging);
+			return new StatResolver(resource, stat.isDirectory(), stat.mtime.getTime(), stat.size, this.options.verboseLogging ? this.options.errorLogger : void 0);
 		});
 	}
 
@@ -1000,9 +1000,9 @@ export class StatResolver {
 	private name: string;
 	private etag: string;
 	private size: number;
-	private verboseLogging: boolean;
+	private errorLogger: (msg) => void;
 
-	constructor(resource: uri, isDirectory: boolean, mtime: number, size: number, verboseLogging: boolean) {
+	constructor(resource: uri, isDirectory: boolean, mtime: number, size: number, errorLogger?: (msg) => void) {
 		assert.ok(resource && resource.scheme === 'file', 'Invalid resource: ' + resource);
 
 		this.resource = resource;
@@ -1012,7 +1012,7 @@ export class StatResolver {
 		this.etag = etag(size, mtime);
 		this.size = size;
 
-		this.verboseLogging = verboseLogging;
+		this.errorLogger = errorLogger;
 	}
 
 	public resolve(options: IResolveFileOptions): TPromise<IFileStat> {
@@ -1062,8 +1062,8 @@ export class StatResolver {
 	private resolveChildren(absolutePath: string, absoluteTargetPaths: string[], resolveSingleChildDescendants: boolean, callback: (children: IFileStat[]) => void): void {
 		extfs.readdir(absolutePath, (error: Error, files: string[]) => {
 			if (error) {
-				if (this.verboseLogging) {
-					console.error(error);
+				if (this.errorLogger) {
+					this.errorLogger(error);
 				}
 
 				return callback(null); // return - we might not have permissions to read the folder
@@ -1077,8 +1077,8 @@ export class StatResolver {
 
 				flow.sequence(
 					function onError(error: Error): void {
-						if ($this.verboseLogging) {
-							console.error(error);
+						if ($this.errorLogger) {
+							$this.errorLogger(error);
 						}
 
 						clb(null, null); // return - we might not have permissions to read the folder or stat the file

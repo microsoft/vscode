@@ -42,17 +42,16 @@ import { IMessageService } from 'vs/platform/message/common/message';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { Position } from 'vs/platform/editor/common/editor';
-import { IListService } from 'vs/platform/list/browser/listService';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, RawContextKey, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Command, ICommandOptions } from 'vs/editor/browser/editorExtensions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Color } from 'vs/base/common/color';
+import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
 
 /**  A context key that is set when an extension editor webview has focus. */
 export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS = new RawContextKey<boolean>('extensionEditorWebviewFocus', undefined);
@@ -379,12 +378,6 @@ export class ExtensionEditor extends BaseEditor {
 		}
 	}
 
-	hideFind(): void {
-		if (this.activeWebview) {
-			this.activeWebview.hideFind();
-		}
-	}
-
 	public showNextFindTerm() {
 		if (this.activeWebview) {
 			this.activeWebview.showNextFindTerm();
@@ -518,7 +511,7 @@ export class ExtensionEditor extends BaseEditor {
 	private renderDependencies(container: HTMLElement, extensionDependencies: IExtensionDependencies): Tree {
 		const renderer = this.instantiationService.createInstance(Renderer);
 		const controller = this.instantiationService.createInstance(Controller);
-		const tree = new Tree(container, {
+		const tree = new WorkbenchTree(container, {
 			dataSource: new DataSource(),
 			renderer,
 			controller
@@ -526,9 +519,7 @@ export class ExtensionEditor extends BaseEditor {
 				indentPixels: 40,
 				twistiePixels: 20,
 				keyboardSupport: false
-			});
-
-		this.contentDisposables.push(attachListStyler(tree, this.themeService));
+			}, this.contextKeyService, this.listService, this.themeService);
 
 		tree.setInput(extensionDependencies);
 
@@ -537,8 +528,6 @@ export class ExtensionEditor extends BaseEditor {
 				controller.openExtension(tree, false);
 			}
 		}));
-
-		this.contentDisposables.push(this.listService.register(tree));
 
 		return tree;
 	}
@@ -940,15 +929,6 @@ const showCommand = new ShowExtensionEditorFindCommand({
 	}
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule(showCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
-
-const hideCommand = new ShowExtensionEditorFindCommand({
-	id: 'editor.action.extensioneditor.hidefind',
-	precondition: KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS,
-	kbOpts: {
-		primary: KeyMod.CtrlCmd | KeyCode.KEY_F
-	}
-});
-KeybindingsRegistry.registerCommandAndKeybindingRule(hideCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
 
 class ShowExtensionEditorFindTermCommand extends Command {
 	constructor(opts: ICommandOptions, private _next: boolean) {

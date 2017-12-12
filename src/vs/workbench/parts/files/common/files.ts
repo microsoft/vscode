@@ -20,6 +20,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IViewlet } from 'vs/workbench/common/viewlet';
+import { InputFocusedContextKey } from 'vs/platform/workbench/common/contextkeys';
 
 /**
  * Explorer viewlet id.
@@ -46,14 +47,14 @@ const explorerResourceIsFolderId = 'explorerResourceIsFolder';
 
 export const ExplorerViewletVisibleContext = new RawContextKey<boolean>(explorerViewletVisibleId, true);
 export const ExplorerFolderContext = new RawContextKey<boolean>(explorerResourceIsFolderId, false);
-export const FilesExplorerFocusedContext = new RawContextKey<boolean>(filesExplorerFocusId, false);
+export const FilesExplorerFocusedContext = new RawContextKey<boolean>(filesExplorerFocusId, true);
 export const OpenEditorsVisibleContext = new RawContextKey<boolean>(openEditorsVisibleId, false);
-export const OpenEditorsFocusedContext = new RawContextKey<boolean>(openEditorsFocusId, false);
-export const ExplorerFocusedContext = new RawContextKey<boolean>(explorerViewletFocusId, false);
+export const OpenEditorsFocusedContext = new RawContextKey<boolean>(openEditorsFocusId, true);
+export const ExplorerFocusedContext = new RawContextKey<boolean>(explorerViewletFocusId, true);
 
 export const OpenEditorsVisibleCondition = ContextKeyExpr.has(openEditorsVisibleId);
-export const FilesExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has(explorerViewletVisibleId), ContextKeyExpr.has(filesExplorerFocusId));
-export const ExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has(explorerViewletVisibleId), ContextKeyExpr.has(explorerViewletFocusId));
+export const FilesExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has(explorerViewletVisibleId), ContextKeyExpr.has(filesExplorerFocusId), ContextKeyExpr.not(InputFocusedContextKey));
+export const ExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has(explorerViewletVisibleId), ContextKeyExpr.has(explorerViewletFocusId), ContextKeyExpr.not(InputFocusedContextKey));
 
 /**
  * File editor input id.

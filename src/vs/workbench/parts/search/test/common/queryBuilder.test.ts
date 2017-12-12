@@ -73,7 +73,10 @@ suite('QueryBuilder', () => {
 		mockConfigService.setUserConfiguration('search', {
 			...DEFAULT_USER_CONFIG,
 			exclude: {
-				'bar/**': true
+				'bar/**': true,
+				'foo/**': {
+					'when': '$(basename).ts'
+				}
 			}
 		});
 
@@ -86,7 +89,12 @@ suite('QueryBuilder', () => {
 				contentPattern: PATTERN_INFO,
 				folderQueries: [{
 					folder: ROOT_1_URI,
-					excludePattern: { 'bar/**': true }
+					excludePattern: {
+						'bar/**': true,
+						'foo/**': {
+							'when': '$(basename).ts'
+						}
+					}
 				}],
 				type: QueryType.Text
 			});
@@ -126,7 +134,10 @@ suite('QueryBuilder', () => {
 		mockConfigService.setUserConfiguration('search', {
 			...DEFAULT_USER_CONFIG,
 			exclude: {
-				'foo/**/*.js': true
+				'foo/**/*.js': true,
+				'bar/**': {
+					'when': '$(basename).ts'
+				}
 			}
 		});
 
@@ -141,7 +152,12 @@ suite('QueryBuilder', () => {
 				folderQueries: [{
 					folder: getUri(paths.join(ROOT_1, 'foo'))
 				}],
-				excludePattern: { [paths.join(ROOT_1, 'foo/**/*.js')]: true },
+				excludePattern: {
+					[paths.join(ROOT_1, 'foo/**/*.js')]: true,
+					[paths.join(ROOT_1, 'bar/**')]: {
+						'when': '$(basename).ts'
+					}
+				},
 				type: QueryType.Text
 			});
 	});
@@ -457,6 +473,14 @@ suite('QueryBuilder', () => {
 						}]
 					}
 				],
+				[
+					'../',
+					<ISearchPathsResult>{
+						searchPaths: [{
+							searchPath: getUri('foo/')
+						}]
+					}
+				]
 			];
 			cases.forEach(testIncludesDataItem);
 		});
@@ -674,7 +698,7 @@ function normalizeExpression(expression: IExpression): IExpression {
 
 	const normalized = Object.create(null);
 	Object.keys(expression).forEach(key => {
-		normalized[key.replace(/\\/g, '/')] = true;
+		normalized[key.replace(/\\/g, '/')] = expression[key];
 	});
 
 	return normalized;

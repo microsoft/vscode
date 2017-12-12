@@ -10,12 +10,14 @@
 	"fontSize": "Steuert den Schriftgrad in Pixeln.",
 	"lineHeight": "Steuert die Zeilenhöhe. Verwenden Sie 0, um LineHeight aus der FontSize-Angabe zu berechnen.",
 	"letterSpacing": "Steuert den Zeichenabstand in Pixeln.",
-	"lineNumbers": "Steuert die Anzeige von Zeilennummern. Mögliche Werte sind \"Ein\", \"Aus\" und \"Relativ\". \"Relativ\" zeigt die Zeilenanzahl ab der aktuellen Cursorposition.",
+	"lineNumbers.off": "Zeilennummern werden nicht dargestellt.",
+	"lineNumbers.on": "Zeilennummern werden als absolute Zahl dargestellt.",
+	"lineNumbers.relative": "Zeilennummern werden als Abstand in Zeilen an Cursorposition dargestellt.",
+	"lineNumbers.interval": "Zeilennummern werden alle 10 Zeilen dargestellt.",
+	"lineNumbers": "Steuert die Anzeige von Zeilennummern. Mögliche Werte sind \"Ein\", \"Aus\" und \"Relativ\".",
 	"rulers": "Vertikale Linien nach einer bestimmten Anzahl von Monospace Zeichen zeichnen. Verwenden Sie mehrere Werte für mehrere Linien. Keine Linie wird gezeichnet, wenn das Array leer ist.",
 	"wordSeparators": "Zeichen, die als Worttrennzeichen verwendet werden, wenn wortbezogene Navigationen oder Vorgänge ausgeführt werden.",
-	"tabSize": "Die Anzahl der Leerzeichen, denen ein Tabstopp entspricht. Diese Einstellung wird basierend auf dem Inhalt der Datei überschrieben, wenn \"editor.detectIndentation\" aktiviert ist.",
 	"tabSize.errorMessage": "\"number\" wurde erwartet. Beachten Sie, dass der Wert \"auto\" durch die Einstellung \"editor.detectIndentation\" ersetzt wurde.",
-	"insertSpaces": "Fügt beim Drücken der TAB-TASTE Leerzeichen ein. Diese Einstellung wird basierend auf dem Inhalt der Datei überschrieben, wenn \"editor.detectIndentation\" aktiviert ist.",
 	"insertSpaces.errorMessage": "\"boolean\" wurde erwartet. Beachten Sie, dass der Wert \"auto\" durch die Einstellung \"editor.detectIndentation\" ersetzt wurde.",
 	"detectIndentation": "Beim Öffnen einer Datei werden \"editor.tabSize\" und \"editor.insertSpaces\" basierend auf den Dateiinhalten erkannt.",
 	"roundedSelection": "Steuert, ob die Auswahl runde Ecken aufweist.",
@@ -89,8 +91,8 @@
 	"links": "Steuert, ob der Editor Links erkennen und anklickbar machen soll",
 	"colorDecorators": "Steuert, ob der Editor die Inline-Farbdecorators und die Farbauswahl rendern soll.",
 	"codeActions": "Ermöglicht die Code-Aktion \"lightbulb\"",
+	"selectionClipboard": "Steuert, ob die primäre Linux-Zwischenablage unterstützt werden soll.",
 	"sideBySide": "Steuert, ob der Diff-Editor das Diff nebeneinander oder inline anzeigt.",
 	"ignoreTrimWhitespace": "Steuert, ob der Diff-Editor Änderungen in führenden oder nachgestellten Leerzeichen als Diffs anzeigt.",
-	"renderIndicators": "Steuert, ob der Diff-Editor die Indikatoren \"+\" und \"-\" für hinzugefügte/entfernte Änderungen anzeigt.",
-	"selectionClipboard": "Steuert, ob die primäre Linux-Zwischenablage unterstützt werden soll."
+	"renderIndicators": "Steuert, ob der Diff-Editor die Indikatoren \"+\" und \"-\" für hinzugefügte/entfernte Änderungen anzeigt."
 }

@@ -31,6 +31,7 @@ import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/com
 import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoBorder, editorInfoForeground } from 'vs/editor/common/view/editorColorRegistry';
 import { Color } from 'vs/base/common/color';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { ClassName } from 'vs/editor/common/model/intervalTree';
 
 export abstract class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.ICodeEditor {
 
@@ -477,28 +478,28 @@ function getSquigglySVGData(color: Color) {
 registerThemingParticipant((theme, collector) => {
 	let errorBorderColor = theme.getColor(editorErrorBorder);
 	if (errorBorderColor) {
-		collector.addRule(`.monaco-editor .squiggly-c-error { border-bottom: 4px double ${errorBorderColor}; }`);
+		collector.addRule(`.monaco-editor .${ClassName.EditorErrorDecoration} { border-bottom: 4px double ${errorBorderColor}; }`);
 	}
 	let errorForeground = theme.getColor(editorErrorForeground);
 	if (errorForeground) {
-		collector.addRule(`.monaco-editor .squiggly-c-error { background: url("data:image/svg+xml;utf8,${getSquigglySVGData(errorForeground)}") repeat-x bottom left; }`);
+		collector.addRule(`.monaco-editor .${ClassName.EditorErrorDecoration} { background: url("data:image/svg+xml;utf8,${getSquigglySVGData(errorForeground)}") repeat-x bottom left; }`);
 	}
 
 	let warningBorderColor = theme.getColor(editorWarningBorder);
 	if (warningBorderColor) {
-		collector.addRule(`.monaco-editor .squiggly-b-warning { border-bottom: 4px double ${warningBorderColor}; }`);
+		collector.addRule(`.monaco-editor .${ClassName.EditorWarningDecoration} { border-bottom: 4px double ${warningBorderColor}; }`);
 	}
 	let warningForeground = theme.getColor(editorWarningForeground);
 	if (warningForeground) {
-		collector.addRule(`.monaco-editor .squiggly-b-warning { background: url("data:image/svg+xml;utf8,${getSquigglySVGData(warningForeground)}") repeat-x bottom left; }`);
+		collector.addRule(`.monaco-editor .${ClassName.EditorWarningDecoration} { background: url("data:image/svg+xml;utf8,${getSquigglySVGData(warningForeground)}") repeat-x bottom left; }`);
 	}
 
 	let infoBorderColor = theme.getColor(editorInfoBorder);
-	if (warningBorderColor) {
-		collector.addRule(`.monaco-editor .squiggly-c-info { border-bottom: 4px double ${infoBorderColor}; }`);
+	if (infoBorderColor) {
+		collector.addRule(`.monaco-editor .${ClassName.EditorInfoDecoration} { border-bottom: 4px double ${infoBorderColor}; }`);
 	}
 	let infoForeground = theme.getColor(editorInfoForeground);
-	if (warningForeground) {
-		collector.addRule(`.monaco-editor .squiggly-c-info { background: url("data:image/svg+xml;utf8,${getSquigglySVGData(infoForeground)}") repeat-x bottom left; }`);
+	if (infoForeground) {
+		collector.addRule(`.monaco-editor .${ClassName.EditorInfoDecoration} { background: url("data:image/svg+xml;utf8,${getSquigglySVGData(infoForeground)}") repeat-x bottom left; }`);
 	}
 });

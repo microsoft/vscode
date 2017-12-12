@@ -5,7 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyScore, nextTypoPermutation, IMatch } from 'vs/base/common/filters';
+import { IFilter, or, matchesPrefix, matchesStrictPrefix, matchesCamelCase, matchesSubString, matchesContiguousSubString, matchesWords, fuzzyScore, IMatch, fuzzyScoreGraceful, fuzzyScoreGracefulAggressive } from 'vs/base/common/filters';
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number; }[]) {
 	let r = filter(word, wordToMatchAgainst);
@@ -423,19 +423,21 @@ suite('Filters', () => {
 		assertTopScore(fuzzyScore, '_lineS', 0, '_lineS', '_lines');
 	});
 
-	test('nextTypoPermutation', function () {
+	test('HTML closing tag proposal filtered out #38880', function () {
+		assertMatches('\t\t<', '\t\t</body>', '^\t^\t^</body>', (pattern, word) => fuzzyScore(pattern, word, 0));
+		assertMatches('\t\t<', '\t\t</body>', '\t\t^</body>', (pattern, word) => fuzzyScore(pattern, word, 3));
+		assertMatches('\t<', '\t</body>', '\t^</body>', (pattern, word) => fuzzyScore(pattern, word, 2));
+	});
 
-		function assertTypos(pattern: string, ...variants: string[]) {
-			let pos = 1;
-			for (const expected of variants) {
-				const actual = nextTypoPermutation(pattern, pos);
-				assert.equal(actual, expected);
-				pos += 1;
-			}
-			assert.equal(nextTypoPermutation(pattern, pos), undefined);
-		}
+	test('fuzzyScoreGraceful', function () {
 
-		assertTypos('abc', 'acb');
-		assertTypos('foboar', 'fbooar', 'foobar', 'fobaor', 'fobora');
+		assertMatches('rlut', 'result', undefined, fuzzyScore);
+		assertMatches('rlut', 'result', '^res^u^l^t', fuzzyScoreGraceful);
+
+		assertMatches('cno', 'console', '^co^ns^ole', fuzzyScore);
+		assertMatches('cno', 'console', '^co^ns^ole', fuzzyScoreGraceful);
+		assertMatches('cno', 'console', '^c^o^nsole', fuzzyScoreGracefulAggressive);
+		assertMatches('cno', 'co_new', '^c^o_^new', fuzzyScoreGraceful);
+		assertMatches('cno', 'co_new', '^c^o_^new', fuzzyScoreGracefulAggressive);
 	});
 });

@@ -255,7 +255,11 @@ class ReferenceAdapter {
 	}
 }
 
-class QuickFixAdapter {
+export interface CustomCodeAction extends modes.CodeAction {
+	_isSynthetic?: boolean;
+}
+
+class CodeActionAdapter {
 
 	private _documents: ExtHostDocuments;
 	private _commands: CommandsConverter;
@@ -269,7 +273,7 @@ class QuickFixAdapter {
 		this._provider = provider;
 	}
 
-	provideCodeActions(resource: URI, range: IRange): TPromise<(modes.CodeAction | modes.Command)[]> {
+	provideCodeActions(resource: URI, range: IRange): TPromise<modes.CodeAction[]> {
 
 		const doc = this._documents.getDocumentData(resource).document;
 		const ran = <vscode.Range>TypeConverters.toRange(range);
@@ -285,38 +289,44 @@ class QuickFixAdapter {
 			}
 		});
 
-		return asWinJsPromise(token =>
-			this._provider.provideCodeActions2
-				? this._provider.provideCodeActions2(doc, ran, { diagnostics: allDiagnostics }, token)
-				: this._provider.provideCodeActions(doc, ran, { diagnostics: allDiagnostics }, token)
-		).then(commands => {
-			if (!Array.isArray(commands)) {
+		return asWinJsPromise(token => this._provider.provideCodeActions2
+			? this._provider.provideCodeActions2(doc, ran, { diagnostics: allDiagnostics }, token)
+			: this._provider.provideCodeActions(doc, ran, { diagnostics: allDiagnostics }, token)
+		).then(commandsOrActions => {
+			if (isFalsyOrEmpty(commandsOrActions)) {
 				return undefined;
 			}
-			return commands.map((action): modes.CodeAction => {
-				if (!action) {
-					return undefined;
+			const result: CustomCodeAction[] = [];
+			for (const candidate of commandsOrActions) {
+				if (!candidate) {
+					continue;
 				}
-
-				if (typeof action.command === 'string') {
-					return this._commands.toInternal(action as vscode.Command);
+				if (CodeActionAdapter._isCommand(candidate)) {
+					// old school: synthetic code action
+					result.push({
+						_isSynthetic: true,
+						title: candidate.title,
+						command: this._commands.toInternal(candidate),
+					});
+				} else {
+					// new school: convert code action
+					result.push({
+						title: candidate.title,
+						command: candidate.command && this._commands.toInternal(candidate.command),
+						diagnostics: candidate.diagnostics && candidate.diagnostics.map(DiagnosticCollection.toMarkerData),
+						edits: Array.isArray(candidate.edits)
+							? TypeConverters.WorkspaceEdit.fromTextEdits(resource, candidate.edits)
+							: candidate.edits && TypeConverters.WorkspaceEdit.from(candidate.edits),
+					});
 				}
+			}
 
-				const codeAction = action as vscode.CodeAction;
-				return {
-					title: codeAction.title,
-					command: codeAction.command ? this._commands.toInternal(codeAction.command) : undefined,
-					edits: codeAction.edits
-						? Array.isArray(codeAction.edits)
-							? TypeConverters.WorkspaceEdit.fromTextEdits(resource, codeAction.edits)
-							: TypeConverters.WorkspaceEdit.from(codeAction.edits)
-						: undefined,
-					diagnostics: codeAction.diagnostics
-						? codeAction.diagnostics.map(DiagnosticCollection.toMarkerData)
-						: undefined
-				} as modes.CodeAction;
-			});
+			return result;
 		});
+	}
+
+	private static _isCommand(thing: any): thing is vscode.Command {
+		return typeof (<vscode.Command>thing).command === 'string' && typeof (<vscode.Command>thing).title === 'string';
 	}
 }
 
@@ -768,7 +778,7 @@ class ColorProviderAdapter {
 }
 
 type Adapter = OutlineAdapter | CodeLensAdapter | DefinitionAdapter | HoverAdapter
-	| DocumentHighlightAdapter | ReferenceAdapter | QuickFixAdapter | DocumentFormattingAdapter
+	| DocumentHighlightAdapter | ReferenceAdapter | CodeActionAdapter | DocumentFormattingAdapter
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
 	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter | TypeDefinitionAdapter | ColorProviderAdapter;
 
@@ -933,13 +943,13 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	registerCodeActionProvider(selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider): vscode.Disposable {
 		const handle = this._nextHandle();
-		this._adapter.set(handle, new QuickFixAdapter(this._documents, this._commands.converter, this._diagnostics, provider));
+		this._adapter.set(handle, new CodeActionAdapter(this._documents, this._commands.converter, this._diagnostics, provider));
 		this._proxy.$registerQuickFixSupport(handle, selector);
 		return this._createDisposable(handle);
 	}
 
-	$provideCodeActions(handle: number, resource: URI, range: IRange): TPromise<(modes.Command | modes.CodeAction)[]> {
-		return this._withAdapter(handle, QuickFixAdapter, adapter => adapter.provideCodeActions(resource, range));
+	$provideCodeActions(handle: number, resource: URI, range: IRange): TPromise<modes.CodeAction[]> {
+		return this._withAdapter(handle, CodeActionAdapter, adapter => adapter.provideCodeActions(resource, range));
 	}
 
 	// --- formatting

@@ -69,5 +69,7 @@
 	"invalidFileNameError": "O nome **{0}** não é válido como um nome de arquivo ou pasta. Por favor, escolha um nome diferente.",
 	"filePathTooLongError": "O nome **{0}** resulta em um caminho muito longo. Escolha um nome mais curto.",
 	"compareWithSaved": "Comparar arquivo ativo com salvo",
-	"modifiedLabel": "{0} (em disco) ↔ {1}"
+	"modifiedLabel": "{0} (em disco) ↔ {1}",
+	"compareWithClipboard": "Compare o Arquivo Ativo com a Área de Transferência",
+	"clipboardComparisonLabel": "Área de transferência ↔ {0}"
 }

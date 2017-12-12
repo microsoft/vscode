@@ -6,7 +6,6 @@
 {
 	"scm providers": "Verziókezelő rendszerek",
 	"hideRepository": "Elrejtés",
-	"commitMessage": "Üzenet (nyomja meg a következőt a commithoz: {0})",
 	"installAdditionalSCMProviders": "További verziókezelő rendszerek telepítése...",
 	"no open repo": "Nincs aktív verziókezelő rendszer.",
 	"source control": "Verziókezelő rendszer",

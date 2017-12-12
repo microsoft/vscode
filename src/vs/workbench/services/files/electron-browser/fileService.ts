@@ -89,6 +89,8 @@ export class FileService implements IFileService {
 	}
 
 	private onFileServiceError(msg: string): void {
+
+		// Forward to unexpected error handler
 		errors.onUnexpectedError(msg);
 
 		// Detect if we run < .NET Framework 4.5

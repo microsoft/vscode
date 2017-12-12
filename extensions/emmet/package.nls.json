@@ -44,5 +44,8 @@
 	"emmetPreferencesBemModifierSeparator": "Modifier separator used for classes when using the BEM filter",
 	"emmetPreferencesFilterCommentBefore": "A definition of comment that should be placed before matched element when comment filter is applied.",
 	"emmetPreferencesFilterCommentAfter": "A definition of comment that should be placed after matched element when comment filter is applied.",
-	"emmetPreferencesFilterCommentTrigger": "A comma-separated list of attribute names that should exist in abbreviation for the comment filter to be applied"
+	"emmetPreferencesFilterCommentTrigger": "A comma-separated list of attribute names that should exist in abbreviation for the comment filter to be applied",
+	"emmetPreferencesFormatNoIndentTags": "An array of tag names that should not get inner indentation",
+	"emmetPreferencesFormatForceIndentTags": "An array of tag names that should always get inner indentation",
+	"emmetPreferencesAllowCompactBoolean": "If true, compact notation of boolean attributes are produced"
 }

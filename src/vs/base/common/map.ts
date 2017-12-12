@@ -555,18 +555,6 @@ export class LinkedMap<K, V> {
 		}
 	}
 
-	public forEachReverse(callbackfn: (value: V, key: K, map: LinkedMap<K, V>) => void, thisArg?: any): void {
-		let current = this._tail;
-		while (current) {
-			if (thisArg) {
-				callbackfn.bind(thisArg)(current.value, current.key, this);
-			} else {
-				callbackfn(current.value, current.key, this);
-			}
-			current = current.previous;
-		}
-	}
-
 	public values(): V[] {
 		let result: V[] = [];
 		let current = this._head;

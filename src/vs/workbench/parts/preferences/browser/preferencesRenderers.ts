@@ -363,10 +363,6 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.settingHighlighter.clear(true);
 	}
 
-	public collapseAll() {
-		this.settingsGroupTitleRenderer.collapseAll();
-	}
-
 	public updatePreference(key: string, value: any, source: ISetting): void {
 	}
 }
@@ -501,15 +497,6 @@ export class SettingsGroupTitleRenderer extends Disposable implements HiddenArea
 		}
 	}
 
-	public collapseAll() {
-		this.editor.setPosition({ lineNumber: 1, column: 1 });
-		this.hiddenGroups = this.settingsGroups.slice();
-		for (const groupTitleWidget of this.settingsGroupTitleWidgets) {
-			groupTitleWidget.toggleCollapse(true);
-		}
-		this._onHiddenAreasChanged.fire();
-	}
-
 	private onToggled(collapsed: boolean, group: ISettingsGroup) {
 		const index = this.hiddenGroups.indexOf(group);
 		if (collapsed) {
@@ -619,7 +606,7 @@ export class FeedbackWidgetRenderer extends Disposable {
 			JSON.stringify(feedbackQuery, undefined, '    ') + '\n\n' +
 			actualResultNames.map(name => `// ${name}: ${result.metadata.scoredResults[name]}`).join('\n');
 
-		this.editorService.openEditor({ contents, language: 'json' }, /*sideBySide=*/true).then(feedbackEditor => {
+		this.editorService.openEditor({ contents, language: 'jsonc' }, /*sideBySide=*/true).then(feedbackEditor => {
 			const sendFeedbackWidget = this._register(this.instantiationService.createInstance(FloatingClickWidget, feedbackEditor.getControl(), 'Send feedback', null));
 			sendFeedbackWidget.render();
 

@@ -823,22 +823,6 @@ export class TerminalInstance implements ITerminalInstance {
 		return env;
 	}
 
-	public onData(listener: (data: string) => void): lifecycle.IDisposable {
-		let callback = (message) => {
-			if (message.type === 'data') {
-				listener(message.content);
-			}
-		};
-		this._process.on('message', callback);
-		return {
-			dispose: () => {
-				if (this._process) {
-					this._process.removeListener('message', callback);
-				}
-			}
-		};
-	}
-
 	public onLineData(listener: (lineData: string) => void): lifecycle.IDisposable {
 		this._onLineDataListeners.push(listener);
 		return {

@@ -279,7 +279,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 			assert.equal(4, actual.rating);
 			assert.equal(100, actual.ratingCount);
 			assert.equal(true, actual.outdated);
-			assert.deepEqual(['pub.1', 'pub.2'], actual.dependencies);
+			assert.deepEqual(['pub.1'], actual.dependencies);
 
 			actual = actuals[1];
 			assert.equal(LocalExtensionType.System, actual.type);
