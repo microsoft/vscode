@@ -299,10 +299,11 @@ export class TitlebarPart extends Part implements ITitleService {
 				this.windowService.closeWindow().then(null, errors.onUnexpectedError);
 			});
 
-			this.windowService.onDidChangeMaximize((mazimized) => {
-				($(this.titleContainer).getHTMLElement().querySelector('.window-maximize') as SVGElement).style.display = mazimized ? 'none' : 'inline';
-				($(this.titleContainer).getHTMLElement().querySelector('.window-unmaximize') as SVGElement).style.display = mazimized ? 'inline' : 'none';
-				$(this.titleContainer).getHTMLElement().style.paddingLeft = mazimized ? '0.1em' : '0.5em';
+			this.windowService.onDidChangeMaximize((maximized) => {
+				($(this.titleContainer).getHTMLElement().querySelector('.window-maximize') as SVGElement).style.display = maximized ? 'none' : 'inline';
+				($(this.titleContainer).getHTMLElement().querySelector('.window-unmaximize') as SVGElement).style.display = maximized ? 'inline' : 'none';
+				$(this.titleContainer).getHTMLElement().style.paddingLeft = maximized ? '0.1em' : '0.5em';
+				$(this.titleContainer).getHTMLElement().style.paddingRight = maximized ? 'calc(2em / 12)' : '0';
 			}, this);
 		}
 

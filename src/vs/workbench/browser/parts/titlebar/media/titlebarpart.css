@@ -37,7 +37,7 @@
 .monaco-workbench.windows > .part.titlebar {
 	line-height: 25px;
 	height: 25px;
-	padding: 0 calc(0.5em / 12) 0 0.5em;
+	padding: 0 0 0 0.5em;
 }
 
 .monaco-workbench.windows > .part.titlebar > .window-title {
@@ -54,7 +54,8 @@
 
 .monaco-workbench.windows > .part.titlebar > .window-icon {
 	width: calc(46em / 12);
-	height: 100%;
+	height: calc(100% - 1.5em / 12);
+	margin-bottom: calc(1.5em / 12);
 	display: flex;
 	align-items: center;
 	justify-content: center;
