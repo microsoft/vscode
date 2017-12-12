@@ -5,6 +5,7 @@
 
 'use strict';
 
+import * as path from 'path';
 import 'vs/css!./media/titlebarpart';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Builder, $, Dimension } from 'vs/base/browser/builder';
@@ -223,6 +224,10 @@ export class TitlebarPart extends Part implements ITitleService {
 		const SVGNS = 'http://www.w3.org/2000/svg';
 		this.titleContainer = $(parent);
 
+		if (isWindows) {
+			$(this.titleContainer).img({ class: 'window-appicon', src: path.join(this.environmentService.appRoot, 'resources/linux/code.png') });
+		}
+
 		// Title
 		this.title = $(this.titleContainer).div({ class: 'window-title' });
 		if (this.pendingTitle) {
@@ -297,6 +302,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.windowService.onDidChangeMaximize((mazimized) => {
 				($(this.titleContainer).getHTMLElement().querySelector('.window-maximize') as SVGElement).style.display = mazimized ? 'none' : 'inline';
 				($(this.titleContainer).getHTMLElement().querySelector('.window-unmaximize') as SVGElement).style.display = mazimized ? 'inline' : 'none';
+				$(this.titleContainer).getHTMLElement().style.paddingLeft = mazimized ? '0.1em' : '0.5em';
 			}, this);
 		}
 

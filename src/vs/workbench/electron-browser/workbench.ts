@@ -584,6 +584,9 @@ export class Workbench implements IPartService {
 		this.toDispose.push(this.titlebarPart);
 		this.toShutdown.push(this.titlebarPart);
 		serviceCollection.set(ITitleService, this.titlebarPart);
+		if (!isMacintosh && this.getCustomTitleBarStyle()) {
+			this.windowService.onDidChangeMaximize((max) => this.workbenchLayout.onMaximizeChange(max));
+		}
 
 		// History
 		serviceCollection.set(IHistoryService, new SyncDescriptor(HistoryService));
@@ -759,12 +762,8 @@ export class Workbench implements IPartService {
 			return null; // custom title bar is only supported on Mac and Windows currently
 		}
 
-		if (isWindows) {
-			return 'custom'; // force for now
-		}
-
 		const isDev = !this.environmentService.isBuilt || this.environmentService.isExtensionDevelopment;
-		if (isDev) {
+		if (isMacintosh && isDev) {
 			return null; // not enabled when developing due to https://github.com/electron/electron/issues/3647
 		}
 

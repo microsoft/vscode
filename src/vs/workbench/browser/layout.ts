@@ -19,7 +19,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { getZoomFactor } from 'vs/base/browser/browser';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { memoize } from 'vs/base/common/decorators';
 
 const MIN_SIDEBAR_PART_WIDTH = 170;
@@ -32,7 +32,7 @@ const PANEL_SIZE_BEFORE_MAXIMIZED_BOUNDARY = 0.7;
 const HIDE_SIDEBAR_WIDTH_THRESHOLD = 50;
 const HIDE_PANEL_HEIGHT_THRESHOLD = 50;
 const HIDE_PANEL_WIDTH_THRESHOLD = 100;
-const TITLE_BAR_HEIGHT = isMacintosh ? 22 : 32;
+const TITLE_BAR_HEIGHT = isMacintosh ? 22 : 28;
 const STATUS_BAR_HEIGHT = 22;
 const ACTIVITY_BAR_WIDTH = 50;
 
@@ -71,6 +71,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	private sashY: Sash;
 	private _sidebarWidth: number;
 	private sidebarHeight: number;
+	private titlebarBaseHeight: number;
 	private titlebarHeight: number;
 	private statusbarHeight: number;
 	private panelSizeBeforeMaximized: number;
@@ -135,6 +136,8 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.toUnbind.push(themeService.onThemeChange(_ => this.layout()));
 		this.toUnbind.push(editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
 		this.toUnbind.push(editorGroupService.onGroupOrientationChanged(e => this.onGroupOrientationChanged()));
+
+		this.onMaximizeChange(false);
 
 		this.registerSashListeners();
 	}
@@ -450,7 +453,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		}
 
 		this.statusbarHeight = isStatusbarHidden ? 0 : this.partLayoutInfo.statusbar.height;
-		this.titlebarHeight = isTitlebarHidden ? 0 : this.partLayoutInfo.titlebar.height / getZoomFactor(); // adjust for zoom prevention
+		this.titlebarHeight = isTitlebarHidden ? 0 : this.titlebarBaseHeight / getZoomFactor(); // adjust for zoom prevention
 
 		const previousMaxPanelHeight = this.sidebarHeight - this.partLayoutInfo.editor.minHeight;
 		this.sidebarHeight = this.workbenchSize.height - this.statusbarHeight - this.titlebarHeight;
@@ -772,6 +775,14 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		if (this.toUnbind) {
 			dispose(this.toUnbind);
 			this.toUnbind = null;
+		}
+	}
+
+	public onMaximizeChange(maximized: boolean): void {
+		if (isWindows) {
+			this.titlebarBaseHeight = maximized ? 25 : this.partLayoutInfo.titlebar.height;
+		} else {
+			this.titlebarBaseHeight = this.partLayoutInfo.titlebar.height;
 		}
 	}
 }

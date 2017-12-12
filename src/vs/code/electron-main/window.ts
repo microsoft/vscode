@@ -158,11 +158,7 @@ export class CodeWindow implements ICodeWindow {
 			webPreferences: {
 				'backgroundThrottling': false, // by default if Code is in the background, intervals and timeouts get throttled,
 				disableBlinkFeatures: 'Auxclick' // disable auxclick events (see https://developers.google.com/web/updates/2016/10/auxclick)
-			},
-			transparent: false,
-			frame: false,
-			resizable: true,
-			// thickFrame: true
+			}
 		};
 
 		if (isLinux) {
@@ -178,9 +174,9 @@ export class CodeWindow implements ICodeWindow {
 		}
 
 		let useCustomTitleStyle = false;
-		if (isMacintosh && (!windowConfig || !windowConfig.titleBarStyle || windowConfig.titleBarStyle === 'custom')) {
+		if ((isWindows || isMacintosh) && (!windowConfig || !windowConfig.titleBarStyle || windowConfig.titleBarStyle === 'custom')) {
 			const isDev = !this.environmentService.isBuilt || !!config.extensionDevelopmentPath;
-			if (!isDev) {
+			if (!isMacintosh || !isDev) {
 				useCustomTitleStyle = true; // not enabled when developing due to https://github.com/electron/electron/issues/3647
 			}
 		}
@@ -192,6 +188,9 @@ export class CodeWindow implements ICodeWindow {
 		if (useCustomTitleStyle) {
 			options.titleBarStyle = 'hidden';
 			this.hiddenTitleBarStyle = true;
+			if (isWindows) {
+				options.frame = false;
+			}
 		}
 
 		// Create the browser window.
