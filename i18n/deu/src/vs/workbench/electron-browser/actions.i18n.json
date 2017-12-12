@@ -53,8 +53,20 @@
 	"doc": "Unter {0} finden Sie eine Liste der unterstützten Sprachen.",
 	"restart": "Das Ändern dieses Wertes erfordert einen Neustart von VSCode.",
 	"fail.createSettings": "{0} ({1}) kann nicht erstellt werden.",
+	"openLogsFolder": "Protokollordner öffnen",
+	"showLogs": "Protokolle anzeigen...",
+	"mainProcess": "Main",
+	"sharedProcess": "Geteilt",
+	"rendererProcess": "Renderer",
+	"extensionHost": "Erweiterungshost",
+	"selectProcess": "Prozess auswählen",
+	"setLogLevel": "Protokollstufe festlegen",
+	"trace": "Spur",
 	"debug": "Debuggen",
 	"info": "Info",
 	"warn": "Warnung",
-	"err": "Fehler"
+	"err": "Fehler",
+	"critical": "Kritisch",
+	"off": "Aus",
+	"selectLogLevel": "Protokollstufe auswählen"
 }

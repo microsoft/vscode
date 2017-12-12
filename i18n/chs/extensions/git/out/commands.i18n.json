@@ -11,7 +11,7 @@
 	"parent": "父目录",
 	"cancel": "$(sync~spin) 正在克隆存储库... 点击取消",
 	"cancel tooltip": "取消克隆",
-	"cloning": "正在克隆 GIT 存储库...",
+	"cloning": "正在克隆 Git 存储库...",
 	"openrepo": "打开存储库",
 	"proposeopen": "是否要打开已克隆存储库?",
 	"init": "选择用于初始化 Git 储存库的工作区文件夹",
@@ -78,7 +78,7 @@
 	"pick stash to pop": "选择要弹出的储藏",
 	"clean repo": "在签出前，请清理存储库工作树。",
 	"cant push": "无法推送 refs 到远端。您可以试着运行“拉取”功能，整合您的更改。",
-	"git error details": "Git:{0}",
+	"git error details": "Git: {0}",
 	"git error": "Git 错误",
-	"open git log": "打开 GIT 日志"
+	"open git log": "打开 Git 日志"
 }

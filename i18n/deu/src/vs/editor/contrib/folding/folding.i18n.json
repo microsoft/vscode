@@ -9,6 +9,8 @@
 	"foldAction.label": "Falten",
 	"foldRecursivelyAction.label": "Rekursiv falten",
 	"foldAllBlockComments.label": "Alle Blockkommentare falten",
+	"foldAllMarkerRegions.label": "Alle Regionen falten",
+	"unfoldAllMarkerRegions.label": "Alle Regionen auffalten",
 	"foldAllAction.label": "Alle falten",
 	"unfoldAllAction.label": "Alle auffalten",
 	"foldLevelAction.label": "Faltebene {0}"

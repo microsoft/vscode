@@ -21,5 +21,6 @@
 	"keybindings.json.command": "Der Name des auszuführenden Befehls.",
 	"keybindings.json.when": "Die Bedingung, wann der Schlüssel aktiv ist.",
 	"keybindings.json.args": "Argumente, die an den auszuführenden Befehl übergeben werden sollen.",
-	"keyboardConfigurationTitle": "Tastatur"
+	"keyboardConfigurationTitle": "Tastatur",
+	"dispatch": "Steuert die Abgangslogik, sodass bei einem Tastendruck entweder \"code\" (empfohlen) oder \"keyCode\" verwendet wird."
 }

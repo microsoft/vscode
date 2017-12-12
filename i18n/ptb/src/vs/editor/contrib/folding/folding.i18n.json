@@ -9,6 +9,8 @@
 	"foldAction.label": "Colapsar",
 	"foldRecursivelyAction.label": "Colapsar recursivamente",
 	"foldAllBlockComments.label": "Fechar Todos os Comentários de Bloco",
+	"foldAllMarkerRegions.label": "Fechar Todas as Regiões",
+	"unfoldAllMarkerRegions.label": "Abrir Todas as Regiões",
 	"foldAllAction.label": "Colapsar tudo",
 	"unfoldAllAction.label": "Abrir tudo",
 	"foldLevelAction.label": "Nível de colapsamento {0}"

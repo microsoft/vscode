@@ -14,6 +14,7 @@
 	"cloning": "Git-forráskódtár klónozása...",
 	"openrepo": "Forráskódtár megnyitása",
 	"proposeopen": "Szeretné megnyitni a klónozott forráskódtárat?",
+	"init": "Válasszon munkaterületi mappát a Git-forráskódtár inicializálásához!",
 	"init repo": "Forráskódtár előkészítése",
 	"create repo": "Forráskódtár előkészítése",
 	"are you sure": "A művelet egy Git forráskódtárat hoz létre a következő helyen: '{0}. Biztosan szeretné folytatni?",
