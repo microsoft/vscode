@@ -266,6 +266,7 @@ export class ViewsViewlet extends PanelViewlet {
 	private readonly viewsContextKeys: Set<string> = new Set<string>();
 	private viewsViewletPanels: ViewsViewletPanel[] = [];
 	private didLayout = false;
+	private dimension: Dimension;
 	protected viewsStates: Map<string, IViewState> = new Map<string, IViewState>();
 	private areExtensionsReady: boolean = false;
 
@@ -325,7 +326,7 @@ export class ViewsViewlet extends PanelViewlet {
 
 	layout(dimension: Dimension): void {
 		super.layout(dimension);
-
+		this.dimension = dimension;
 		if (this.didLayout) {
 			this.snapshotViewsStates();
 		} else {
@@ -350,18 +351,11 @@ export class ViewsViewlet extends PanelViewlet {
 		const view = this.getView(id);
 		let viewState = this.viewsStates.get(id);
 
-		if ((visible === true && view) || (visible === false && !view)) {
+		if (!viewState || (visible === true && view) || (visible === false && !view)) {
 			return;
 		}
 
-		if (view) {
-			viewState = viewState || this.createViewState(view);
-			viewState.isHidden = true;
-		} else {
-			viewState = viewState || { collapsed: true, size: 200, isHidden: false, order: void 0 };
-			viewState.isHidden = false;
-		}
-		this.viewsStates.set(id, viewState);
+		viewState.isHidden = !!view;
 		this.updateViews();
 	}
 
@@ -439,7 +433,7 @@ export class ViewsViewlet extends PanelViewlet {
 					});
 				toCreate.push(view);
 
-				const size = (viewState && viewState.size) || viewDescriptor.size || 200;
+				const size = (viewState && viewState.size) || 200;
 				this.addPanel(view, size, index);
 				this.viewsViewletPanels.splice(index, 0, view);
 			}
@@ -461,14 +455,36 @@ export class ViewsViewlet extends PanelViewlet {
 			return;
 		}
 
+		let initialSizes;
 		for (const panel of panels) {
 			const viewState = this.viewsStates.get(panel.id);
-			const viewDescriptor = this.getViewDescriptorsFromRegistry().filter(viewDescriptor => viewDescriptor.id === panel.id)[0];
-			const size = (viewState && viewState.size) || viewDescriptor.size || 200;
-			this.resizePanel(panel, size);
+			if (viewState && viewState.size) {
+				this.resizePanel(panel, viewState.size);
+			} else {
+				initialSizes = initialSizes ? initialSizes : this.computeInitialSizes();
+				this.resizePanel(panel, initialSizes[panel.id] || 200);
+			}
 		}
 
 		this.snapshotViewsStates();
+	}
+
+	private computeInitialSizes(): { [id: string]: number } {
+		let sizes = {};
+		if (this.dimension) {
+			let totalWeight = 0;
+			const allViewDescriptors = this.getViewDescriptorsFromRegistry();
+			const viewDescriptors: IViewDescriptor[] = [];
+			for (const panel of this.viewsViewletPanels) {
+				const viewDescriptor = allViewDescriptors.filter(viewDescriptor => viewDescriptor.id === panel.id)[0];
+				totalWeight = totalWeight + (viewDescriptor.weight || 20);
+				viewDescriptors.push(viewDescriptor);
+			}
+			for (const viewDescriptor of viewDescriptors) {
+				sizes[viewDescriptor.id] = this.dimension.height * (viewDescriptor.weight || 20) / totalWeight;
+			}
+		}
+		return sizes;
 	}
 
 	movePanel(from: ViewletPanel, to: ViewletPanel): void {
@@ -616,23 +632,22 @@ export class ViewsViewlet extends PanelViewlet {
 				return;
 			}
 
-			const newViewState = this.createViewState(view);
+			const collapsed = !view.isExpanded();
+			const order = this.viewsViewletPanels.indexOf(view);
+			const panelSize = this.getPanelSize(view);
 			if (currentState) {
-				newViewState.isHidden = currentState.isHidden;
-				newViewState.size = newViewState.collapsed ? currentState.size : newViewState.size;
+				currentState.collapsed = collapsed;
+				currentState.size = collapsed ? currentState.size : panelSize;
+				currentState.order = order;
+			} else {
+				this.viewsStates.set(view.id, {
+					collapsed,
+					size: this.didLayout ? panelSize : void 0,
+					isHidden: false,
+					order,
+				});
 			}
-			this.viewsStates.set(view.id, newViewState);
 		}
-	}
-
-	protected createViewState(view: ViewsViewletPanel): IViewState {
-		const viewDescriptor = this.getViewDescriptorsFromRegistry().filter(viewDescriptor => viewDescriptor.id === view.id)[0];
-		return {
-			collapsed: !view.isExpanded(),
-			size: this.didLayout ? this.getPanelSize(view) : viewDescriptor.size || 200, // Take the default value incase of layout not happened yet.
-			isHidden: false,
-			order: this.viewsViewletPanels.indexOf(view)
-		};
 	}
 }
 
@@ -672,7 +687,12 @@ export class PersistentViewsViewlet extends ViewsViewlet {
 			const view = this.getView(id);
 
 			if (view) {
-				viewsStates[id] = this.createViewState(view);
+				viewsStates[id] = {
+					collapsed: !view.isExpanded(),
+					size: this.getPanelSize(view),
+					isHidden: false,
+					order: viewState.order
+				};
 			} else {
 				const viewDescriptor = registeredViewDescriptors.filter(v => v.id === id)[0];
 				if (viewDescriptor) {
