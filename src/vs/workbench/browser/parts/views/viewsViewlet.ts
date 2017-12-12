@@ -359,7 +359,7 @@ export class ViewsViewlet extends PanelViewlet {
 		this.updateViews();
 	}
 
-	private onViewsRegistered(views: IViewDescriptor[]): TPromise<ViewsViewletPanel[]> {
+	private onViewsRegistered(views: IViewDescriptor[]): void {
 		this.viewsContextKeys.clear();
 		for (const viewDescriptor of this.getViewDescriptorsFromRegistry()) {
 			if (viewDescriptor.when) {
@@ -369,11 +369,11 @@ export class ViewsViewlet extends PanelViewlet {
 			}
 		}
 
-		return this.updateViews();
+		this.updateViews();
 	}
 
-	private onViewsDeregistered(views: IViewDescriptor[]): TPromise<ViewsViewletPanel[]> {
-		return this.updateViews(views);
+	private onViewsDeregistered(views: IViewDescriptor[]): void {
+		this.updateViews(views);
 	}
 
 	private onContextChanged(event: IContextKeyChangeEvent): void {
