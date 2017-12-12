@@ -362,7 +362,6 @@ export class CommandCenter {
 
 		try {
 			window.withProgress({ location: ProgressLocation.SourceControl, title: localize('cloning', "Cloning git repository...") }, () => clonePromise);
-			// window.withProgress({ location: ProgressLocation.Window, title: localize('cloning', "Cloning git repository...") }, () => clonePromise);
 
 			const repositoryPath = await clonePromise;
 
