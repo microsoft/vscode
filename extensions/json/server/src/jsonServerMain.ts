@@ -239,7 +239,11 @@ function updateConfiguration() {
 	languageService.configure(languageSettings);
 
 	// Revalidate any open text documents
-	documents.all().forEach(triggerValidation);
+	if (JsonProjectDocuments) {
+        JsonProjectDocuments.forEach(validateTextDocument);
+	}else{
+		documents.all().forEach(triggerValidation);
+	}
 }
 
 // The content of a text document has changed. This event is emitted
@@ -305,6 +309,10 @@ connection.onDidChangeWatchedFiles((change) => {
 			hasChanges = true;
 		}
 	});
+	
+	if (hasChanges && JsonProjectDocuments) {
+        JsonProjectDocuments.forEach(validateTextDocument);
+	}
 	if (hasChanges) {
 		documents.all().forEach(validateTextDocument);
 	}
