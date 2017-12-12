@@ -38,12 +38,14 @@
 	line-height: 25px;
 	height: 25px;
 	padding: 0 0 0 0.5em;
+	-webkit-app-region: no-drag;
 }
 
 .monaco-workbench.windows > .part.titlebar > .window-title {
 	line-height: 25px;
 	flex-grow: 1;
 	margin-left: 0.5em;
+	-webkit-app-region: drag;
 }
 
 .monaco-workbench.windows > .part.titlebar > .window-appicon {
