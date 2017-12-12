@@ -380,8 +380,8 @@ export class ConfigurationManager implements IConfigurationManager {
 
 	public canSetBreakpointsIn(model: IModel): boolean {
 		const modeId = model ? model.getLanguageIdentifier().language : null;
-		if (!modeId || modeId === 'jsonc') {
-			// do not allow breakpoints in our settings files
+		if (!modeId || modeId === 'jsonc' || modeId === 'log') {
+			// do not allow breakpoints in our settings files and output
 			return false;
 		}
 		if (this.configurationService.getValue<IDebugConfiguration>('debug').allowBreakpointsEverywhere) {
