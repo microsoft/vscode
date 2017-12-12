@@ -318,7 +318,8 @@ export class OpenEditorsView extends ViewsViewletPanel {
 
 	private updateSize(): void {
 		// Adjust expanded body size
-		this.minimumBodySize = this.maximumBodySize = this.getExpandedBodySize(this.model);
+		this.minimumBodySize = this.getMinExpandedBodySize();
+		this.maximumBodySize = this.getMaxExpandedBodySize();
 	}
 
 	private updateDirtyIndicator(): void {
@@ -332,7 +333,16 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		}
 	}
 
-	private getExpandedBodySize(model: IEditorStacksModel): number {
+	private get elementCount(): number {
+		return this.model.groups.map(g => g.count)
+			.reduce((first, second) => first + second, this.model.groups.length > 1 ? this.model.groups.length : 0);
+	}
+
+	private getMaxExpandedBodySize(): number {
+		return this.elementCount * OpenEditorsDelegate.ITEM_HEIGHT;
+	}
+
+	private getMinExpandedBodySize(): number {
 		let visibleOpenEditors = this.configurationService.getValue<number>('explorer.openEditors.visible');
 		if (typeof visibleOpenEditors !== 'number') {
 			visibleOpenEditors = OpenEditorsView.DEFAULT_VISIBLE_OPEN_EDITORS;
@@ -343,15 +353,13 @@ export class OpenEditorsView extends ViewsViewletPanel {
 			dynamicHeight = OpenEditorsView.DEFAULT_DYNAMIC_HEIGHT;
 		}
 
-		return this.computeExpandedBodySize(visibleOpenEditors, dynamicHeight);
+		return this.computeMinExpandedBodySize(visibleOpenEditors, dynamicHeight);
 	}
 
-	private computeExpandedBodySize(visibleOpenEditors = OpenEditorsView.DEFAULT_VISIBLE_OPEN_EDITORS, dynamicHeight = OpenEditorsView.DEFAULT_DYNAMIC_HEIGHT): number {
+	private computeMinExpandedBodySize(visibleOpenEditors = OpenEditorsView.DEFAULT_VISIBLE_OPEN_EDITORS, dynamicHeight = OpenEditorsView.DEFAULT_DYNAMIC_HEIGHT): number {
 		let itemsToShow: number;
 		if (dynamicHeight) {
-			const elementCount = this.model.groups.map(g => g.count)
-				.reduce((first, second) => first + second, this.model.groups.length > 1 ? this.model.groups.length : 0);
-			itemsToShow = Math.min(Math.max(visibleOpenEditors, 1), elementCount);
+			itemsToShow = Math.min(Math.max(visibleOpenEditors, 1), this.elementCount);
 		} else {
 			itemsToShow = Math.max(visibleOpenEditors, 1);
 		}

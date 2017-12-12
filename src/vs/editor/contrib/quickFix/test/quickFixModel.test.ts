@@ -80,7 +80,7 @@ suite('QuickFix', () => {
 
 		editor.setPosition({ lineNumber: 2, column: 1 });
 
-		return new TPromise((resolve, reject) => {
+		return new Promise((resolve, reject) => {
 
 			const oracle = new QuickFixOracle(editor, markerService, e => {
 				assert.equal(e.type, 'auto');
@@ -157,7 +157,7 @@ suite('QuickFix', () => {
 		}]);
 
 		// case 1 - drag selection over multiple lines -> range of enclosed marker, position or marker
-		await new TPromise(resolve => {
+		await new Promise(resolve => {
 
 			let oracle = new QuickFixOracle(editor, markerService, e => {
 				assert.equal(e.type, 'auto');

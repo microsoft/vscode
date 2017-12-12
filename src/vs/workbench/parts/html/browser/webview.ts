@@ -6,7 +6,6 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { addDisposableListener, addClass } from 'vs/base/browser/dom';
@@ -43,7 +42,7 @@ export default class Webview {
 	private static index: number = 0;
 
 	private readonly _webview: Electron.WebviewTag;
-	private _ready: TPromise<this>;
+	private _ready: Promise<this>;
 	private _disposables: IDisposable[] = [];
 	private _onDidClickLink = new Emitter<URI>();
 
@@ -78,7 +77,7 @@ export default class Webview {
 		this._webview.preload = require.toUrl('./webview-pre.js');
 		this._webview.src = require.toUrl('./webview.html');
 
-		this._ready = new TPromise<this>(resolve => {
+		this._ready = new Promise<this>(resolve => {
 			const subscription = addDisposableListener(this._webview, 'ipc-message', (event) => {
 				if (event.channel === 'webview-ready') {
 					// console.info('[PID Webview] ' event.args[0]);
@@ -219,7 +218,7 @@ export default class Webview {
 	private _send(channel: string, ...args: any[]): void {
 		this._ready
 			.then(() => this._webview.send(channel, ...args))
-			.done(void 0, console.error);
+			.catch(err => console.error(err));
 	}
 
 	set initialScrollProgress(value: number) {
