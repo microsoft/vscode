@@ -410,6 +410,7 @@ export interface MainThreadSCMShape extends IDisposable {
 
 	$setInputBoxValue(sourceControlHandle: number, value: string): void;
 	$setInputBoxPlaceholder(sourceControlHandle: number, placeholder: string): void;
+	$setLineWarningLength(sourceControlHandle: number, lineWarningLength: number): void;
 }
 
 export type DebugSessionUUID = string;
