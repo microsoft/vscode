@@ -29,30 +29,29 @@ export class ColorZone {
 export class OverviewRulerZone {
 	_overviewRulerZoneBrand: void;
 
-	startLineNumber: number;
-	endLineNumber: number;
-	position: OverviewRulerLane;
-	forceHeight: number;
+	public readonly startLineNumber: number;
+	public readonly endLineNumber: number;
+	public readonly position: OverviewRulerLane;
+	public readonly forceHeight: number;
 
-	private _color: string;
-	private _darkColor: string;
-	private _hcColor: string;
+	private readonly _color: string;
+	private readonly _darkColor: string;
+	private readonly _hcColor: string;
 
 	private _colorZones: ColorZone[];
 
 	constructor(
-		startLineNumber: number, endLineNumber: number,
-		position: OverviewRulerLane,
-		forceHeight: number,
-		color: string, darkColor: string, hcColor: string
+		startLineNumber: number,
+		endLineNumber: number,
+		color: string
 	) {
 		this.startLineNumber = startLineNumber;
 		this.endLineNumber = endLineNumber;
-		this.position = position;
-		this.forceHeight = forceHeight;
+		this.position = OverviewRulerLane.Full;
+		this.forceHeight = 0;
 		this._color = color;
-		this._darkColor = darkColor;
-		this._hcColor = hcColor;
+		this._darkColor = color;
+		this._hcColor = color;
 		this._colorZones = null;
 	}
 
