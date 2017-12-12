@@ -135,6 +135,7 @@ function formatEnvironment(info: IMainProcessInfo): string {
 	}
 	output.push(`VM:               ${Math.round((virtualMachineHint.value() * 100))}%`);
 	output.push(`Screen Reader:    ${app.isAccessibilitySupportEnabled() ? 'yes' : 'no'}`);
+	output.push(`Process Argv:     ${info.mainArguments.join(' ')}`);
 
 	return output.join('\n');
 }
