@@ -7,7 +7,6 @@
 
 import 'vs/css!./media/shell';
 
-import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
 import dom = require('vs/base/browser/dom');
@@ -192,11 +191,6 @@ export class WorkbenchShell {
 
 		// Startup Telemetry
 		this.logStartupTelemetry(info);
-
-		// Root Warning
-		if ((platform.isLinux || platform.isMacintosh) && process.getuid() === 0) {
-			this.messageService.show(Severity.Warning, nls.localize('runningAsRoot', "It is recommended not to run Code as 'root'."));
-		}
 
 		// Set lifecycle phase to `Runnning` so that other contributions can now do something
 		this.lifecycleService.phase = LifecyclePhase.Running;
