@@ -148,7 +148,7 @@ export class PreferencesEditor extends BaseEditor {
 			showFuzzyToggle: true,
 			showResultCount: true
 		}));
-		this.searchWidget.setFuzzyToggleVisible(this.preferencesSearchService.remoteSearchAllowed);
+		this.searchWidget.setFuzzyToggleVisible(false);
 		this.searchWidget.fuzzyEnabled = this.memento['fuzzyEnabled'];
 		this._register(this.preferencesSearchService.onRemoteSearchEnablementChanged(enabled => this.searchWidget.setFuzzyToggleVisible(enabled)));
 		this._register(this.searchWidget.onDidChange(value => this.onInputChanged()));
@@ -392,6 +392,9 @@ class PreferencesRenderers extends Disposable {
 	private _filtersInProgress: TPromise<any>[];
 	private _searchCriteria: ISearchCriteria;
 	private _currentSearchModel: IPreferencesSearchModel;
+	private _currentFilterModel: IPreferencesSearchModel;
+	private _defaultPrefsThrottle: ThrottledDelayer<void>;
+	private _editablePrefsThrottle: ThrottledDelayer<void>;
 
 	private _onTriggeredFuzzy: Emitter<void> = this._register(new Emitter<void>());
 	public onTriggeredFuzzy: Event<void> = this._onTriggeredFuzzy.event;
@@ -403,6 +406,9 @@ class PreferencesRenderers extends Disposable {
 		private preferencesSearchService: IPreferencesSearchService
 	) {
 		super();
+
+		this._defaultPrefsThrottle = new ThrottledDelayer(200);
+		this._editablePrefsThrottle = new ThrottledDelayer(200);
 	}
 
 	get defaultPreferencesRenderer(): IPreferencesRenderer<ISetting> {
@@ -456,7 +462,8 @@ class PreferencesRenderers extends Disposable {
 			this._filtersInProgress.forEach(p => p.cancel && p.cancel());
 		}
 
-		this._currentSearchModel = this.preferencesSearchService.startSearch(this._searchCriteria.filter, criteria.fuzzy);
+		this._currentFilterModel = this.preferencesSearchService.startSearch(this._searchCriteria.filter, false);
+		this._currentSearchModel = this.preferencesSearchService.startSearch(this._searchCriteria.filter, true);
 		this._filtersInProgress = [this._filterDefaultPreferences(), this._filterEditablePreferences()];
 
 		return TPromise.join<IFilterResult>(this._filtersInProgress).then(() => {
@@ -485,7 +492,7 @@ class PreferencesRenderers extends Disposable {
 
 	private _filterDefaultPreferences(): TPromise<void> {
 		if (this._searchCriteria && this._defaultPreferencesRenderer) {
-			return this._filterPreferences(this._searchCriteria, this._defaultPreferencesRenderer, this._currentSearchModel)
+			return this._filterPreferences(this._searchCriteria, this._defaultPreferencesRenderer, this._currentSearchModel, this._currentFilterModel, this._defaultPrefsThrottle)
 				.then(filterResult => { this._defaultPreferencesFilterResult = filterResult; });
 		}
 		return TPromise.wrap(null);
@@ -493,7 +500,7 @@ class PreferencesRenderers extends Disposable {
 
 	private _filterEditablePreferences(): TPromise<void> {
 		if (this._searchCriteria && this._editablePreferencesRenderer) {
-			return this._filterPreferences(this._searchCriteria, this._editablePreferencesRenderer, this._currentSearchModel)
+			return this._filterPreferences(this._searchCriteria, this._editablePreferencesRenderer, this._currentSearchModel, this._currentFilterModel, this._editablePrefsThrottle)
 				.then(filterResult => { this._editablePreferencesFilterResult = filterResult; });
 		}
 		return TPromise.wrap(null);
@@ -512,13 +519,27 @@ class PreferencesRenderers extends Disposable {
 		return preferencesRenderer ? (<ISettingsEditorModel>preferencesRenderer.preferencesModel).settingsGroups : [];
 	}
 
-	private _filterPreferences(searchCriteria: ISearchCriteria, preferencesRenderer: IPreferencesRenderer<ISetting>, searchModel: IPreferencesSearchModel): TPromise<IFilterResult> {
+	private _filterPreferences(searchCriteria: ISearchCriteria, preferencesRenderer: IPreferencesRenderer<ISetting>, searchModel: IPreferencesSearchModel, filterModel: IPreferencesSearchModel, throttle: ThrottledDelayer<void>): TPromise<IFilterResult> {
 		if (preferencesRenderer && searchCriteria) {
-			const prefSearchP = searchModel.filterPreferences(<ISettingsEditorModel>preferencesRenderer.preferencesModel);
-
-			return prefSearchP.then(filterResult => {
+			const prefFilterP = filterModel.filterPreferences(<ISettingsEditorModel>preferencesRenderer.preferencesModel).then(filterResult => {
 				preferencesRenderer.filterPreferences(filterResult, this.preferencesSearchService.remoteSearchAllowed);
 				return filterResult;
+			});
+
+			return throttle.trigger(() => {
+				const prefSearchP = searchModel.filterPreferences(<ISettingsEditorModel>preferencesRenderer.preferencesModel);
+
+				return prefFilterP.then(filterResult => {
+					prefSearchP.then(filterResult2 => {
+						if (filterResult2) {
+							filterResult.filteredGroups.push(...filterResult2.filteredGroups);
+							filterResult.metadata = filterResult2.metadata;
+							filterResult.matches.push(...filterResult2.matches);
+
+							preferencesRenderer.filterPreferences(filterResult, this.preferencesSearchService.remoteSearchAllowed);
+						}
+					});
+				});
 			});
 		}
 		return TPromise.as(null);

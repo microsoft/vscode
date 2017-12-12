@@ -61,7 +61,6 @@ export interface IFilterResult {
 	filteredGroups: ISettingsGroup[];
 	allGroups: ISettingsGroup[];
 	matches: IRange[];
-	fuzzySearchAvailable?: boolean;
 	metadata?: IFilterMetadata;
 }
 
