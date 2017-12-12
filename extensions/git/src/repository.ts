@@ -862,7 +862,7 @@ export class Repository implements Disposable {
 		const { status, didHitLimit } = await this.repository.getStatus();
 		const config = workspace.getConfiguration('git');
 		const shouldIgnore = config.get<boolean>('ignoreLimitWarning') === true;
-		const useIcons = config.get<boolean>('decorations.enabled', true);
+		const useIcons = !config.get<boolean>('decorations.enabled', true);
 
 		this.isRepositoryHuge = didHitLimit;
 
