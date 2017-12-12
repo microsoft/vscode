@@ -241,7 +241,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 		return this.galleryService.loadCompatibleVersion(extension)
 			.then(compatible => {
 				if (!compatible) {
-					return TPromise.wrapError<IGalleryExtension[]>(new ExtensionManagementError(nls.localize('notFoundCompatible', "Unable to install because, the extension '{0}' compatible with current version '{1}' of VS Code is not found.", extension.identifier.id, pkg.version), INSTALL_ERROR_INCOMPATIBLE));
+					return TPromise.wrapError<IGalleryExtension[]>(new ExtensionManagementError(nls.localize('notFoundCompatible', "Unable to install '{0}'; there is no available version compatible with VS Code '{1}'.", extension.identifier.id, pkg.version), INSTALL_ERROR_INCOMPATIBLE));
 				}
 				return this.getDependenciesToInstall(compatible.properties.dependencies)
 					.then(
