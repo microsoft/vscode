@@ -10,19 +10,19 @@
 
 /* Require .monaco-shell for ContextView dropdown */
 
-.monaco-shell .select-dropdown-container  {
+.monaco-shell .select-box-dropdown-container {
 	display: none;
 }
 
-.monaco-shell .select-dropdown-container.visible  {
+.monaco-shell .select-box-dropdown-container.visible {
 	display: flex;
 	flex-direction: column;
 	text-align: left;
 	width: 1px;
-	overflow: hidden !important;
+	overflow: hidden;
 }
 
-.monaco-shell .select-dropdown-container .selectbox-dropdown-list-container {
+.monaco-shell .select-box-dropdown-container > .select-box-dropdown-list-container {
 	flex: 0 0 auto;
 	align-self: flex-start;
 	padding-bottom: 1px;
@@ -30,7 +30,7 @@
 	padding-left: 1px;
 	padding-right: 1px;
 	width: 100%;
-	overflow: hidden !important;
+	overflow: hidden;
 	-webkit-box-sizing:	border-box;
 	-o-box-sizing:		border-box;
 	-moz-box-sizing:	border-box;
@@ -38,30 +38,30 @@
 	box-sizing:			border-box;
 }
 
-.monaco-shell.hc-black .select-dropdown-container .selectbox-dropdown-list-container {
-	padding-bottom: 4px !important;
-	padding-top: 3px !important;
+.monaco-shell.hc-black .select-box-dropdown-container > .select-box-dropdown-list-container {
+	padding-bottom: 4px;
+	padding-top: 3px;
 }
 
-.monaco-shell .select-dropdown-container .selectbox-dropdown-list-container .monaco-list .monaco-list-row > .option-text {
-	text-overflow: ellipsis !important;
-	overflow: hidden !important;
-	padding-left: 4.5px !important;
-	white-space: nowrap !important;
+.monaco-shell .select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row > .option-text {
+	text-overflow: ellipsis;
+	overflow: hidden;
+	padding-left: 3.5px;
+	white-space: nowrap;
 }
 
-.monaco-shell .select-dropdown-container .select-dropdown-container-width-control {
+.monaco-shell .select-box-dropdown-container > .select-box-dropdown-container-width-control {
 	flex: 1 1 auto;
 	align-self: flex-start;
 	opacity: 0;
 }
 
-.monaco-shell .select-dropdown-container .width-control-div {
-	overflow: hidden !important;
+.monaco-shell .select-box-dropdown-container > .select-box-dropdown-container-width-control > .width-control-div {
+	overflow: hidden;
 	max-height: 0px;
 }
 
-.monaco-shell .select-dropdown-container .option-text-width-control {
+.monaco-shell .select-box-dropdown-container > .select-box-dropdown-container-width-control > .width-control-div > .option-text-width-control {
 	padding-left: 4px;
 	padding-right: 8px;
 	white-space: nowrap;

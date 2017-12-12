@@ -432,7 +432,7 @@ export class SwitchTerminalInstanceActionItem extends SelectActionItem {
 		action: IAction,
 		@ITerminalService private terminalService: ITerminalService,
 		@IThemeService themeService: IThemeService,
-		@IContextViewService private contextViewService: IContextViewService
+		@IContextViewService contextViewService: IContextViewService
 	) {
 		super(null, action, terminalService.getInstanceLabels(), terminalService.activeTerminalInstanceIndex, contextViewService);
 

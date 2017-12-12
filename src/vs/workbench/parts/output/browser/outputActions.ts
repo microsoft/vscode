@@ -110,7 +110,7 @@ export class SwitchOutputActionItem extends SelectActionItem {
 		action: IAction,
 		@IOutputService private outputService: IOutputService,
 		@IThemeService themeService: IThemeService,
-		@IContextViewService private contextViewService: IContextViewService
+		@IContextViewService contextViewService: IContextViewService
 	) {
 		super(null, action, [], 0, contextViewService);
 

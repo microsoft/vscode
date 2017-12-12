@@ -29,6 +29,7 @@ import { registerColor, contrastBorder, widgetShadow } from 'vs/platform/theme/c
 import { localize } from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 
 const $ = builder.$;
 const DEBUG_ACTIONS_WIDGET_POSITION_KEY = 'debug.actionswidgetposition';
@@ -59,7 +60,8 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IContextViewService contextViewService: IContextViewService
 	) {
 		super(themeService);
 
@@ -75,7 +77,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionItemProvider: (action: IAction) => {
 				if (action.id === FocusProcessAction.ID) {
-					return new FocusProcessActionItem(action, this.debugService, this.themeService);
+					return new FocusProcessActionItem(action, this.debugService, this.themeService, contextViewService);
 				}
 
 				return null;

@@ -42,7 +42,7 @@ export class StartDebugActionItem implements IActionItem {
 		@IThemeService private themeService: IThemeService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ICommandService private commandService: ICommandService,
-		@IContextViewService private contextViewService: IContextViewService,
+		@IContextViewService contextViewService: IContextViewService,
 	) {
 		this.toDispose = [];
 		this.selectBox = new SelectBox([], -1, contextViewService);
@@ -187,7 +187,7 @@ export class FocusProcessActionItem extends SelectActionItem {
 		action: IAction,
 		@IDebugService private debugService: IDebugService,
 		@IThemeService themeService: IThemeService,
-		@IContextViewService private contextViewService: IContextViewService
+		@IContextViewService contextViewService: IContextViewService
 	) {
 		super(null, action, [], -1, contextViewService);
 
