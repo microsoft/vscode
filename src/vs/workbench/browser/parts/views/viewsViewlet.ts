@@ -580,16 +580,22 @@ export class ViewsViewlet extends PanelViewlet {
 		if (this.length > 1) {
 			return false;
 		}
-		// Check in cache so that view do not jump. See #29609
-		if (ViewLocation.getContributedViewLocation(this.location.id) && !this.areExtensionsReady) {
+
+		if (ViewLocation.getContributedViewLocation(this.location.id)) {
 			let visibleViewsCount = 0;
-			this.viewsStates.forEach((viewState, id) => {
-				if (!viewState.isHidden) {
-					visibleViewsCount++;
-				}
-			});
+			if (this.areExtensionsReady) {
+				visibleViewsCount = this.getViewDescriptorsFromRegistry().reduce((visibleViewsCount, v) => visibleViewsCount + (this.canBeVisible(v) ? 1 : 0), 0);
+			} else {
+				// Check in cache so that view do not jump. See #29609
+				this.viewsStates.forEach((viewState, id) => {
+					if (!viewState.isHidden) {
+						visibleViewsCount++;
+					}
+				});
+			}
 			return visibleViewsCount === 1;
 		}
+
 		return super.isSingleView();
 	}
 
