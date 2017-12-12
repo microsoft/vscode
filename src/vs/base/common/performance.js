@@ -67,6 +67,25 @@ define([], function () {
 		}
 	}
 
+	function getDuration(from, to) {
+		const entries = global._performanceEntries;
+		let name = from;
+		let startTime = 0;
+		for (let i = 0; i < entries.length; i += 4) {
+			if (entries[i + 1] === name) {
+				if (name === from) {
+					// found `from` (start of interval)
+					name = to;
+					startTime = entries[i + 2];
+				} else {
+					// from `to` (end of interval)
+					return entries[i + 2] - startTime;
+				}
+			}
+		}
+		return 0;
+	}
+
 	function mark(name) {
 		global._performanceEntries.push('mark', name, _now(), 0);
 		if (typeof console.timeStamp === 'function') {
@@ -118,6 +137,7 @@ define([], function () {
 		time: time,
 		getEntries: getEntries,
 		getEntry: getEntry,
+		getDuration: getDuration,
 		importEntries: importEntries,
 		exportEntries: exportEntries
 	};

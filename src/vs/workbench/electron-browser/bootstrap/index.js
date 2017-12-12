@@ -179,13 +179,13 @@ function main() {
 		windowLoad: configuration.perfWindowLoadTime
 	};
 
-	const workbenchMainClock = perf.time('loadWorkbenchMain');
+	perf.mark('willLoadWorkbenchMain');
 	require([
 		'vs/workbench/workbench.main',
 		'vs/nls!vs/workbench/workbench.main',
 		'vs/css!vs/workbench/workbench.main'
 	], function () {
-		workbenchMainClock.stop();
+		perf.mark('didLoadWorkbenchMain');
 
 		process.lazyEnv.then(function () {
 			perf.mark('main/startup');

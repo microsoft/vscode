@@ -29,10 +29,6 @@ export class TimerService implements ITimerService {
 	public beforeExtensionLoad: number;
 	public afterExtensionLoad: number;
 
-	public restoreViewletDuration: number;
-	public restoreEditorsDuration: number;
-
-
 	private _startupMetrics: IStartupMetrics;
 
 	constructor(initData: IInitData, private isEmptyWorkbench: boolean) {
@@ -91,11 +87,11 @@ export class TimerService implements ITimerService {
 			timers: {
 				ellapsedExtensions: this.afterExtensionLoad - this.beforeExtensionLoad,
 				ellapsedExtensionsReady: this.afterExtensionLoad - start,
-				ellapsedRequire: perf.getEntry('measure', 'loadWorkbenchMain').duration,
-				ellapsedViewletRestore: this.restoreViewletDuration,
-				ellapsedEditorRestore: this.restoreEditorsDuration,
+				ellapsedRequire: perf.getDuration('willLoadWorkbenchMain', 'didLoadWorkbenchMain'),
+				ellapsedEditorRestore: perf.getDuration('willRestoreEditors', 'didRestoreEditors'),
+				ellapsedViewletRestore: perf.getDuration('willRestoreViewlet', 'didRestoreViewlet'),
 				ellapsedWorkbench: this.workbenchStarted - this.beforeWorkbenchOpen,
-				ellapsedWindowLoadToRequire: perf.getEntry('mark', 'loadWorkbenchMain/start').startTime - this.windowLoad,
+				ellapsedWindowLoadToRequire: perf.getEntry('mark', 'willLoadWorkbenchMain').startTime - this.windowLoad,
 				ellapsedTimersToTimersComputed: Date.now() - now
 			},
 			platform,

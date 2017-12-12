@@ -104,8 +104,5 @@ export interface ITimerService extends IInitData {
 	beforeExtensionLoad: number;
 	afterExtensionLoad: number;
 
-	restoreViewletDuration: number;
-	restoreEditorsDuration: number;
-
 	readonly startupMetrics: IStartupMetrics;
 }
