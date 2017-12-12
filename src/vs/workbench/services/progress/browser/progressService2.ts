@@ -149,7 +149,7 @@ export class ProgressService2 implements IProgressService2 {
 		if (viewletProgress) {
 			viewletProgress.showWhile(TPromise.wrap(promise));
 		}
-		return promise;
+
 		// show activity bar
 		let activityProgress: IDisposable;
 		let delayHandle = setTimeout(() => {
@@ -183,6 +183,7 @@ export class ProgressService2 implements IProgressService2 {
 		};
 
 		promise.then(onDone, onDone);
+		return promise;
 	}
 }
 

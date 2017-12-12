@@ -369,20 +369,11 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 			return false;
 		}
 
-
-		let isInEditableRange: boolean = true;
-		if (this._model.hasEditableRange()) {
-			const editableRange = this._model.getEditableRange();
-			if (!editableRange.containsPosition(newState.cursorState[0].modelState.position)) {
-				isInEditableRange = false;
-			}
-		}
-
 		const selections = this._cursors.getSelections();
 		const viewSelections = this._cursors.getViewSelections();
 
 		// Let the view get the event first.
-		this._emit([new viewEvents.ViewCursorStateChangedEvent(viewSelections, isInEditableRange)]);
+		this._emit([new viewEvents.ViewCursorStateChangedEvent(viewSelections)]);
 
 		// Only after the view has been notified, let the rest of the world know...
 		if (!oldState
@@ -600,17 +591,6 @@ class CommandExecutor {
 		}
 
 		const rawOperations = commandsData.operations;
-
-		const editableRange = ctx.model.getEditableRange();
-		const editableRangeStart = editableRange.getStartPosition();
-		const editableRangeEnd = editableRange.getEndPosition();
-		for (let i = 0, len = rawOperations.length; i < len; i++) {
-			const operationRange = rawOperations[i].range;
-			if (!editableRangeStart.isBeforeOrEqual(operationRange.getStartPosition()) || !operationRange.getEndPosition().isBeforeOrEqual(editableRangeEnd)) {
-				// These commands are outside of the editable range
-				return null;
-			}
-		}
 
 		const loserCursorsMap = this._getLoserCursorMap(rawOperations);
 		if (loserCursorsMap.hasOwnProperty('0')) {
