@@ -36,7 +36,7 @@ import pkg from 'vs/platform/node/package';
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/parts/terminal/electron-browser/terminalColorRegistry';
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -595,19 +595,9 @@ export class TerminalInstance implements ITerminalInstance {
 
 		// Resolve env vars from config and shell
 		const lastActiveWorkspaceRoot = this._workspaceContextService.getWorkspaceFolder(lastActiveWorkspaceRootUri);
-		const envSettingKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
-		const envFromConfig = { ...this._configHelper.config.env[envSettingKey] };
-		Object.keys(envFromConfig).forEach((key) => {
-			if (typeof envFromConfig[key] === 'string') {
-				envFromConfig[key] = this._configurationResolverService.resolve(lastActiveWorkspaceRoot, envFromConfig[key]);
-			}
-		});
-		const envFromShell = { ...this._shellLaunchConfig.env };
-		Object.keys(envFromShell).forEach((key) => {
-			if (typeof envFromShell[key] === 'string') {
-				envFromShell[key] = this._configurationResolverService.resolve(lastActiveWorkspaceRoot, envFromShell[key]);
-			}
-		});
+		const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
+		const envFromConfig = TerminalInstance.resolveConfigurationVariables(this._configurationResolverService, { ...this._configHelper.config.env[platformKey] }, lastActiveWorkspaceRoot);
+		const envFromShell = TerminalInstance.resolveConfigurationVariables(this._configurationResolverService, { ...this._shellLaunchConfig.env }, lastActiveWorkspaceRoot);
 		this._shellLaunchConfig.env = envFromShell;
 
 		// Merge process env with the env from config
@@ -656,6 +646,16 @@ export class TerminalInstance implements ITerminalInstance {
 				this._processState = ProcessState.RUNNING;
 			}
 		}, LAUNCHING_DURATION);
+	}
+
+	// TODO: Should be protected
+	private static resolveConfigurationVariables(configurationResolverService: IConfigurationResolverService, env: IStringDictionary<string>, lastActiveWorkspaceRoot: IWorkspaceFolder): IStringDictionary<string> {
+		Object.keys(env).forEach((key) => {
+			if (typeof env[key] === 'string') {
+				env[key] = configurationResolverService.resolve(lastActiveWorkspaceRoot, env[key]);
+			}
+		});
+		return env;
 	}
 
 	private _sendPtyDataToXterm(message: { type: string, content: string }): void {
