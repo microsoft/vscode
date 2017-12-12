@@ -6,7 +6,6 @@
 'use strict';
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtensionHostMain, exit } from 'vs/workbench/node/extensionHostMain';
 import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
 import { parse } from 'vs/base/common/marshalling';
@@ -27,11 +26,11 @@ let onTerminate = function () {
 	exit();
 };
 
-function createExtHostProtocol(): TPromise<IMessagePassingProtocol> {
+function createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 
 	const pipeName = process.env.VSCODE_IPC_HOOK_EXTHOST;
 
-	return new TPromise<IMessagePassingProtocol>((resolve, reject) => {
+	return new Promise<IMessagePassingProtocol>((resolve, reject) => {
 
 		const socket = createConnection(pipeName, () => {
 			socket.removeListener('error', reject);
@@ -63,8 +62,8 @@ function createExtHostProtocol(): TPromise<IMessagePassingProtocol> {
 	});
 }
 
-function connectToRenderer(protocol: IMessagePassingProtocol): TPromise<IRendererConnection> {
-	return new TPromise<IRendererConnection>((c, e) => {
+function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRendererConnection> {
+	return new Promise<IRendererConnection>((c, e) => {
 
 		// Listen init data message
 		const first = protocol.onMessage(raw => {
@@ -76,8 +75,8 @@ function connectToRenderer(protocol: IMessagePassingProtocol): TPromise<IRendere
 			// Print a console message when rejection isn't handled within N seconds. For details:
 			// see https://nodejs.org/api/process.html#process_event_unhandledrejection
 			// and https://nodejs.org/api/process.html#process_event_rejectionhandled
-			const unhandledPromises: TPromise<any>[] = [];
-			process.on('unhandledRejection', (reason: any, promise: TPromise<any>) => {
+			const unhandledPromises: Promise<any>[] = [];
+			process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
 				unhandledPromises.push(promise);
 				setTimeout(() => {
 					const idx = unhandledPromises.indexOf(promise);
@@ -88,7 +87,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): TPromise<IRendere
 					}
 				}, 1000);
 			});
-			process.on('rejectionHandled', (promise: TPromise<any>) => {
+			process.on('rejectionHandled', (promise: Promise<any>) => {
 				const idx = unhandledPromises.indexOf(promise);
 				if (idx >= 0) {
 					unhandledPromises.splice(idx, 1);
@@ -130,7 +129,7 @@ createExtHostProtocol().then(protocol => {
 	const extensionHostMain = new ExtensionHostMain(renderer.rpcProtocol, renderer.initData);
 	onTerminate = () => extensionHostMain.terminate();
 	return extensionHostMain.start();
-}).done(null, err => console.error(err));
+}).catch(err => console.error(err));
 
 
 
