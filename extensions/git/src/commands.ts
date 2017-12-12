@@ -1346,7 +1346,27 @@ export class CommandCenter {
 			return;
 		}
 
-		await repository.push();
+		if (!repository.HEAD || !repository.HEAD.name) {
+			window.showWarningMessage(localize('nobranch', "Please check out a branch to push to a remote."));
+			return;
+		}
+
+		try {
+			await repository.push();
+		} catch (err) {
+			if (err.gitErrorCode !== GitErrorCodes.NoUpstreamBranch) {
+				throw err;
+			}
+
+			const branchName = repository.HEAD.name;
+			const message = localize('confirm publish branch', "The branch '{0}' has no upstream branch. Would you like to publish this branch?", branchName);
+			const yes = localize('ok', "OK");
+			const pick = await window.showWarningMessage(message, { modal: true }, yes);
+
+			if (pick === yes) {
+				await this.publish(repository);
+			}
+		}
 	}
 
 	@command('git.pushWithTags', { repository: true })
