@@ -20,14 +20,8 @@ export class TimerService implements ITimerService {
 	public readonly isInitialStartup: boolean;
 	public readonly hasAccessibilitySupport: boolean;
 
-	public beforeDOMContentLoaded: number;
-	public afterDOMContentLoaded: number;
-
 	public beforeWorkbenchOpen: number;
 	public workbenchStarted: number;
-
-	public beforeExtensionLoad: number;
-	public afterExtensionLoad: number;
 
 	private _startupMetrics: IStartupMetrics;
 
@@ -85,8 +79,8 @@ export class TimerService implements ITimerService {
 			version: 1,
 			ellapsed: this.workbenchStarted - start,
 			timers: {
-				ellapsedExtensions: this.afterExtensionLoad - this.beforeExtensionLoad,
-				ellapsedExtensionsReady: this.afterExtensionLoad - start,
+				ellapsedExtensions: perf.getDuration('willLoadExtensions', 'didLoadExtensions'),
+				ellapsedExtensionsReady: perf.getEntry('mark', 'didLoadExtensions').startTime - start,
 				ellapsedRequire: perf.getDuration('willLoadWorkbenchMain', 'didLoadWorkbenchMain'),
 				ellapsedEditorRestore: perf.getDuration('willRestoreEditors', 'didRestoreEditors'),
 				ellapsedViewletRestore: perf.getDuration('willRestoreViewlet', 'didRestoreViewlet'),

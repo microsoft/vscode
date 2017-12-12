@@ -85,10 +85,7 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 		const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, workspaceService.getWorkbenchState() === WorkbenchState.EMPTY);
 		const storageService = createStorageService(workspaceService, environmentService);
 
-		timerService.beforeDOMContentLoaded = Date.now();
-
 		return domContentLoaded().then(() => {
-			timerService.afterDOMContentLoaded = Date.now();
 
 			// Open Shell
 			timerService.beforeWorkbenchOpen = Date.now();

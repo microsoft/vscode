@@ -8,6 +8,7 @@
 import 'vs/css!./media/shell';
 
 import * as platform from 'vs/base/common/platform';
+import * as perf from 'vs/base/common/performance';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
 import dom = require('vs/base/browser/dom');
 import aria = require('vs/base/browser/ui/aria/aria');
@@ -352,9 +353,9 @@ export class WorkbenchShell {
 		this.extensionService = instantiationService.createInstance(ExtensionService);
 		serviceCollection.set(IExtensionService, this.extensionService);
 
-		this.timerService.beforeExtensionLoad = Date.now();
+		perf.mark('willLoadExtensions');
 		this.extensionService.whenInstalledExtensionsRegistered().done(() => {
-			this.timerService.afterExtensionLoad = Date.now();
+			perf.mark('didLoadExtensions');
 		});
 
 		this.themeService = instantiationService.createInstance(WorkbenchThemeService, document.body);

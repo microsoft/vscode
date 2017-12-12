@@ -95,14 +95,8 @@ export interface IInitData {
 export interface ITimerService extends IInitData {
 	_serviceBrand: any;
 
-	beforeDOMContentLoaded: number;
-	afterDOMContentLoaded: number;
-
 	beforeWorkbenchOpen: number;
 	workbenchStarted: number;
-
-	beforeExtensionLoad: number;
-	afterExtensionLoad: number;
 
 	readonly startupMetrics: IStartupMetrics;
 }
