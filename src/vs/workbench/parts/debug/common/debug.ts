@@ -465,7 +465,7 @@ export interface ILaunch {
 	/**
 	 * Opens the launch.json file. Creates if it does not exist.
 	 */
-	openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor>;
+	openConfigFile(sideBySide: boolean, type?: string): TPromise<{ editor: IEditor; configFileCreated: boolean; }>;
 }
 
 // Debug service interfaces

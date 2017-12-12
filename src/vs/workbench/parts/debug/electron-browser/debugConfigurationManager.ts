@@ -515,7 +515,7 @@ class Launch implements ILaunch {
 		return this.workspace.uri.with({ path: paths.join(this.workspace.uri.path, '/.vscode/launch.json') });
 	}
 
-	public openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor> {
+	public openConfigFile(sideBySide: boolean, type?: string): TPromise<{ editor: IEditor; configFileCreated: boolean; }> {
 		const resource = this.uri;
 		let configFileCreated = false;
 
@@ -545,7 +545,7 @@ class Launch implements ILaunch {
 			});
 		}).then(content => {
 			if (!content) {
-				return undefined;
+				return { editor: undefined, configFileCreated };
 			}
 			const index = content.value.indexOf(`"${this.configurationManager.selectedName}"`);
 			let startLineNumber = 1;
@@ -564,7 +564,7 @@ class Launch implements ILaunch {
 					pinned: configFileCreated, // pin only if config file is created #8727
 					revealIfVisible: true
 				},
-			}, sideBySide);
+			}, sideBySide).then(editor => ({ editor, configFileCreated }));
 		}, (error) => {
 			throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error));
 		});
