@@ -289,7 +289,7 @@ export class ViewsViewlet extends PanelViewlet {
 	async create(parent: Builder): TPromise<void> {
 		await super.create(parent);
 
-		this._register(this.onDidSashChange(() => this.updateAllViewsSizes()));
+		this._register(this.onDidSashChange(() => this.snapshotViewsStates()));
 		this._register(ViewsRegistry.onViewsRegistered(this.onViewsRegistered, this));
 		this._register(ViewsRegistry.onViewsDeregistered(this.onViewsDeregistered, this));
 		this._register(this.contextKeyService.onDidChangeContext(this.onContextChanged, this));
@@ -326,12 +326,13 @@ export class ViewsViewlet extends PanelViewlet {
 	layout(dimension: Dimension): void {
 		super.layout(dimension);
 
-		if (!this.didLayout) {
+		if (this.didLayout) {
+			this.snapshotViewsStates();
+		} else {
 			this.didLayout = true;
-			this._resizePanels();
+			this.resizePanels();
 		}
 
-		this.updateAllViewsSizes();
 	}
 
 	getOptimalWidth(): number {
@@ -357,7 +358,7 @@ export class ViewsViewlet extends PanelViewlet {
 			viewState = viewState || this.createViewState(view);
 			viewState.isHidden = true;
 		} else {
-			viewState = viewState || { collapsed: true, size: void 0, isHidden: false, order: void 0 };
+			viewState = viewState || { collapsed: true, size: 200, isHidden: false, order: void 0 };
 			viewState.isHidden = false;
 		}
 		this.viewsStates.set(id, viewState);
@@ -414,19 +415,12 @@ export class ViewsViewlet extends PanelViewlet {
 		const toCreate: ViewsViewletPanel[] = [];
 
 		if (toAdd.length || toRemove.length) {
-			const panels = [...this.viewsViewletPanels];
 
-			for (const view of panels) {
-				let viewState = this.viewsStates.get(view.id);
-				if (!viewState || typeof viewState.size === 'undefined' || !view.isExpanded() !== viewState.collapsed) {
-					this.updateViewStateSize(view);
-				}
-			}
+			this.snapshotViewsStates();
 
 			if (toRemove.length) {
 				for (const viewDescriptor of toRemove) {
 					let view = this.getView(viewDescriptor.id);
-					this.updateViewStateSize(view);
 					this.removePanel(view);
 					this.viewsViewletPanels.splice(this.viewsViewletPanels.indexOf(view), 1);
 				}
@@ -448,35 +442,33 @@ export class ViewsViewlet extends PanelViewlet {
 				const size = (viewState && viewState.size) || viewDescriptor.size || 200;
 				this.addPanel(view, size, index);
 				this.viewsViewletPanels.splice(index, 0, view);
-
-				this.updateViewStateSize(view);
 			}
 
 			return TPromise.join(toCreate.map(view => view.create()))
 				.then(() => this.onViewsUpdated())
-				.then(() => this._resizePanels())
-				.then(() => toCreate);
+				.then(() => {
+					this.resizePanels(toCreate);
+					return toCreate;
+				});
 		}
 
 		return TPromise.as([]);
 	}
 
-	private updateAllViewsSizes(): void {
-		for (const view of this.viewsViewletPanels) {
-			this.updateViewStateSize(view);
-		}
-	}
-
-	private _resizePanels(): void {
+	private resizePanels(panels: ViewsViewletPanel[] = this.viewsViewletPanels): void {
 		if (!this.didLayout) {
+			// Do not do anything if layout has not happened yet
 			return;
 		}
 
-		for (const panel of this.viewsViewletPanels) {
+		for (const panel of panels) {
 			const viewState = this.viewsStates.get(panel.id);
-			const size = (viewState && viewState.size) || 200;
+			const viewDescriptor = this.getViewDescriptorsFromRegistry().filter(viewDescriptor => viewDescriptor.id === panel.id)[0];
+			const size = (viewState && viewState.size) || viewDescriptor.size || 200;
 			this.resizePanel(panel, size);
 		}
+
+		this.snapshotViewsStates();
 	}
 
 	movePanel(from: ViewletPanel, to: ViewletPanel): void {
@@ -616,22 +608,28 @@ export class ViewsViewlet extends PanelViewlet {
 		return this.viewsViewletPanels.filter(view => view.id === id)[0];
 	}
 
-	private updateViewStateSize(view: ViewsViewletPanel): void {
-		const currentState = this.viewsStates.get(view.id);
-		if (currentState && !this.didLayout) {
-			// Do not update to new state if the layout has not happened yet
-			return;
-		}
+	private snapshotViewsStates(): void {
+		for (const view of this.viewsViewletPanels) {
+			const currentState = this.viewsStates.get(view.id);
+			if (currentState && !this.didLayout) {
+				// Do not update to new state if the layout has not happened yet
+				return;
+			}
 
-		const newViewState = this.createViewState(view);
-		const stateToUpdate = currentState ? { ...currentState, collapsed: newViewState.collapsed, size: newViewState.size } : newViewState;
-		this.viewsStates.set(view.id, stateToUpdate);
+			const newViewState = this.createViewState(view);
+			if (currentState) {
+				newViewState.isHidden = currentState.isHidden;
+				newViewState.size = newViewState.collapsed ? currentState.size : newViewState.size;
+			}
+			this.viewsStates.set(view.id, newViewState);
+		}
 	}
 
 	protected createViewState(view: ViewsViewletPanel): IViewState {
+		const viewDescriptor = this.getViewDescriptorsFromRegistry().filter(viewDescriptor => viewDescriptor.id === view.id)[0];
 		return {
 			collapsed: !view.isExpanded(),
-			size: this.getPanelSize(view),
+			size: this.didLayout ? this.getPanelSize(view) : viewDescriptor.size || 200, // Take the default value incase of layout not happened yet.
 			isHidden: false,
 			order: this.viewsViewletPanels.indexOf(view)
 		};
