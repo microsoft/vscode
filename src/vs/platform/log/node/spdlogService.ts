@@ -6,7 +6,7 @@
 'use strict';
 
 import * as path from 'path';
-import { ILogService, LogLevel, NoopLogService } from 'vs/platform/log/common/log';
+import { ILogService, LogLevel, NullLogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { RotatingLogger, setAsyncMode } from 'spdlog';
 
@@ -21,7 +21,7 @@ export function createLogService(processName: string, environmentService: IEnvir
 	} catch (e) {
 		console.error(e);
 	}
-	return new NoopLogService();
+	return new NullLogService();
 }
 
 class SpdLogService implements ILogService {

@@ -236,7 +236,7 @@ export class MultiplexLogService implements ILogService {
 	}
 }
 
-export class NoopLogService implements ILogService {
+export class NullLogService implements ILogService {
 	_serviceBrand: any;
 	setLevel(level: LogLevel): void { }
 	getLevel(): LogLevel { return LogLevel.Info; }
