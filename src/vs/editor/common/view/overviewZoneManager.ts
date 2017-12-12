@@ -4,9 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { OverviewRulerLane } from 'vs/editor/common/editorCommon';
-import { ThemeType } from 'vs/platform/theme/common/themeService';
-
 const enum Constants {
 	MINIMUM_HEIGHT = 4
 }
@@ -14,16 +11,24 @@ const enum Constants {
 export class ColorZone {
 	_colorZoneBrand: void;
 
-	from: number;
-	to: number;
-	colorId: number;
-	position: OverviewRulerLane;
+	public readonly from: number;
+	public readonly to: number;
+	public readonly colorId: number;
 
 	constructor(from: number, to: number, colorId: number) {
 		this.from = from | 0;
 		this.to = to | 0;
 		this.colorId = colorId | 0;
-		this.position = OverviewRulerLane.Full;
+	}
+
+	public static compare(a: ColorZone, b: ColorZone): number {
+		if (a.colorId === b.colorId) {
+			if (a.from === b.from) {
+				return a.to - b.to;
+			}
+			return a.from - b.from;
+		}
+		return a.colorId - b.colorId;
 	}
 }
 
@@ -50,21 +55,14 @@ export class OverviewRulerZone {
 		this._colorZone = null;
 	}
 
-	public getColor(themeType: ThemeType): string {
-		return this.color;
-	}
-
-	public compareTo(other: OverviewRulerZone): number {
-		if (this.startLineNumber === other.startLineNumber) {
-			if (this.endLineNumber === other.endLineNumber) {
-				if (this.color === other.color) {
-					return 0;
-				}
-				return this.color < other.color ? -1 : 1;
+	public static compare(a: OverviewRulerZone, b: OverviewRulerZone): number {
+		if (a.color === b.color) {
+			if (a.startLineNumber === b.startLineNumber) {
+				return a.endLineNumber - b.endLineNumber;
 			}
-			return this.endLineNumber - other.endLineNumber;
+			return a.startLineNumber - b.startLineNumber;
 		}
-		return this.startLineNumber - other.startLineNumber;
+		return a.color < b.color ? -1 : 1;
 	}
 
 	public setColorZone(colorZone: ColorZone): void {
@@ -111,39 +109,8 @@ export class OverviewZoneManager {
 	}
 
 	public setZones(newZones: OverviewRulerZone[]): void {
-		newZones.sort((a, b) => a.compareTo(b));
-
-		let oldZones = this._zones;
-		let oldIndex = 0;
-		let oldLength = this._zones.length;
-		let newIndex = 0;
-		let newLength = newZones.length;
-
-		let result: OverviewRulerZone[] = [];
-		while (newIndex < newLength) {
-			let newZone = newZones[newIndex];
-
-			if (oldIndex >= oldLength) {
-				result.push(newZone);
-				newIndex++;
-			} else {
-				let oldZone = oldZones[oldIndex];
-				let cmp = oldZone.compareTo(newZone);
-				if (cmp < 0) {
-					oldIndex++;
-				} else if (cmp > 0) {
-					result.push(newZone);
-					newIndex++;
-				} else {
-					// cmp === 0
-					result.push(oldZone);
-					oldIndex++;
-					newIndex++;
-				}
-			}
-		}
-
-		this._zones = result;
+		this._zones = newZones;
+		this._zones.sort(OverviewRulerZone.compare);
 	}
 
 	public setLineHeight(lineHeight: number): boolean {
@@ -258,17 +225,7 @@ export class OverviewZoneManager {
 
 		this._colorZonesInvalid = false;
 
-		let sortFunc = (a: ColorZone, b: ColorZone) => {
-			if (a.colorId === b.colorId) {
-				if (a.from === b.from) {
-					return a.to - b.to;
-				}
-				return a.from - b.from;
-			}
-			return a.colorId - b.colorId;
-		};
-
-		allColorZones.sort(sortFunc);
+		allColorZones.sort(ColorZone.compare);
 		return allColorZones;
 	}
 }
