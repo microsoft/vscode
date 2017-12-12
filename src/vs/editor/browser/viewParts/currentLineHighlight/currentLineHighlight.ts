@@ -18,7 +18,6 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 	private _lineHeight: number;
 	private _renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
 	private _selectionIsEmpty: boolean;
-	private _primaryCursorIsInEditableRange: boolean;
 	private _primaryCursorLineNumber: number;
 	private _scrollWidth: number;
 	private _contentWidth: number;
@@ -30,7 +29,6 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 		this._renderLineHighlight = this._context.configuration.editor.viewInfo.renderLineHighlight;
 
 		this._selectionIsEmpty = true;
-		this._primaryCursorIsInEditableRange = true;
 		this._primaryCursorLineNumber = 1;
 		this._scrollWidth = 0;
 		this._contentWidth = this._context.configuration.editor.layoutInfo.contentWidth;
@@ -60,11 +58,6 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 	}
 	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		let hasChanged = false;
-
-		if (this._primaryCursorIsInEditableRange !== e.isInEditableRange) {
-			this._primaryCursorIsInEditableRange = e.isInEditableRange;
-			hasChanged = true;
-		}
 
 		const primaryCursorLineNumber = e.selections[0].positionLineNumber;
 		if (this._primaryCursorLineNumber !== primaryCursorLineNumber) {
@@ -127,14 +120,12 @@ export class CurrentLineHighlightOverlay extends DynamicViewOverlay {
 		return (
 			(this._renderLineHighlight === 'line' || this._renderLineHighlight === 'all')
 			&& this._selectionIsEmpty
-			&& this._primaryCursorIsInEditableRange
 		);
 	}
 
 	private _willRenderMarginCurrentLine(): boolean {
 		return (
 			(this._renderLineHighlight === 'gutter' || this._renderLineHighlight === 'all')
-			&& this._primaryCursorIsInEditableRange
 		);
 	}
 }
