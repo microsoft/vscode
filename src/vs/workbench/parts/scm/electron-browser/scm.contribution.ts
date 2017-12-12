@@ -68,10 +68,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	order: 5,
 	type: 'object',
 	properties: {
-		'scm.enableDiffDecorations': {
-			'type': 'boolean',
-			'default': true,
-			'description': localize('enableDiffDecorations', "Enables or disables diff decorations in the editor.")
+		'scm.diffDecorations': {
+			type: 'string',
+			enum: ['all', 'gutter', 'overview', 'none'],
+			default: 'all',
+			description: localize('diffDecorations', "Controls diff decorations in the editor.")
 		},
 	}
 });

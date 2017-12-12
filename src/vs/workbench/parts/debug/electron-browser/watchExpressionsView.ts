@@ -344,6 +344,10 @@ class WatchExpressionsController extends BaseDebugController {
 			const expression = <IExpression>element;
 			this.debugService.getViewModel().setSelectedExpression(expression);
 			return true;
+		} else if (element instanceof Model && event.detail === 2) {
+			// Double click in watch panel triggers to add a new watch expression
+			this.debugService.addWatchExpression().done(undefined, errors.onUnexpectedError);
+			return true;
 		}
 
 		return super.onLeftClick(tree, element, event);

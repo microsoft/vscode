@@ -32,6 +32,7 @@
     "jschardet": "1.6.0",
     "keytar": "^4.0.5",
     "minimist": "1.2.0",
+    "native-is-elevated": "^0.2.1",
     "native-keymap": "1.2.5",
     "native-watchdog": "0.3.0",
     "node-pty": "0.7.4",

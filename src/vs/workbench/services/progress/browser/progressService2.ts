@@ -65,22 +65,21 @@ export class ProgressService2 implements IProgressService2 {
 		//
 	}
 
-	withProgress(options: IProgressOptions, task: (progress: IProgress<{ message?: string, percentage?: number }>) => Thenable<any>): void {
+	withProgress<P extends Thenable<R>, R=any>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => P): P {
+
 		const { location } = options;
 		switch (location) {
 			case ProgressLocation.Window:
-				this._withWindowProgress(options, task);
-				break;
+				return this._withWindowProgress(options, task);
 			case ProgressLocation.Scm:
-				this._withViewletProgress('workbench.view.scm', task);
-				break;
+				return this._withViewletProgress('workbench.view.scm', task);
 			default:
 				console.warn(`Bad progress location: ${location}`);
+				return undefined;
 		}
 	}
 
-
-	private _withWindowProgress(options: IProgressOptions, callback: (progress: IProgress<{ message?: string, percentage?: number }>) => Thenable<any>): void {
+	private _withWindowProgress<P extends Thenable<R>, R=any>(options: IProgressOptions, callback: (progress: IProgress<{ message?: string, percentage?: number }>) => P): P {
 
 		const task: [IProgressOptions, Progress<IProgressStep>] = [options, new Progress<IProgressStep>(() => this._updateWindowProgress())];
 
@@ -105,6 +104,7 @@ export class ProgressService2 implements IProgressService2 {
 
 		// cancel delay if promise finishes below 150ms
 		always(TPromise.wrap(promise), () => clearTimeout(delayHandle));
+		return promise;
 	}
 
 	private _updateWindowProgress(idx: number = 0) {
@@ -138,7 +138,7 @@ export class ProgressService2 implements IProgressService2 {
 		}
 	}
 
-	private _withViewletProgress(viewletId: string, task: (progress: IProgress<{ message?: string, percentage?: number }>) => Thenable<any>): void {
+	private _withViewletProgress<P extends Thenable<R>, R=any>(viewletId: string, task: (progress: IProgress<{ message?: string, percentage?: number }>) => P): P {
 
 		const promise = task(emptyProgress);
 
@@ -147,7 +147,7 @@ export class ProgressService2 implements IProgressService2 {
 		if (viewletProgress) {
 			viewletProgress.showWhile(TPromise.wrap(promise));
 		}
-
+		return promise;
 		// show activity bar
 		// let activityProgress: IDisposable;
 		// let delayHandle = setTimeout(() => {
