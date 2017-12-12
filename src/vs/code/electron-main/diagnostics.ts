@@ -18,6 +18,7 @@ import { app } from 'electron';
 import { basename } from 'path';
 
 const DEBUG_FLAGS_PATTERN = /\s--(inspect|debug)(-brk)?(=([0-9]+))/;
+const RENDERER_DEBUG_PATTERN = /--remote-debugging-port=([0-9]+)/;
 
 export function printDiagnostics(info: IMainProcessInfo): Promise<any> {
 	return listProcesses(info.mainPID).then(rootProcess => {
@@ -154,7 +155,7 @@ function formatProcessList(info: IMainProcessInfo, rootProcess: ProcessItem): st
 	return output.join('\n');
 }
 
-function formatProcessItem(mapPidToWindowTitle: Map<number, string>, output: string[], item: ProcessItem, indent: number): void {
+function formatProcessItem(mapPidToWindowTitle: Map<number, string>, output: string[], item: ProcessItem, indent: number, rendererDebugPort?: string): void {
 	const isRoot = (indent === 0);
 
 	const MB = 1024 * 1024;
@@ -163,6 +164,10 @@ function formatProcessItem(mapPidToWindowTitle: Map<number, string>, output: str
 	let name: string;
 	if (isRoot) {
 		name = `${product.applicationName} main`;
+		let matches = RENDERER_DEBUG_PATTERN.exec(item.cmd);
+		if (matches && matches.length === 2) {
+			rendererDebugPort = matches[1];
+		}
 	} else {
 		name = `${repeat('  ', indent)} ${item.name}`;
 
@@ -177,11 +182,15 @@ function formatProcessItem(mapPidToWindowTitle: Map<number, string>, output: str
 		debugPort = matches[4];
 	}
 
+	if (item.name === 'window' || item.name === 'shared-process' && rendererDebugPort) {
+		debugPort = rendererDebugPort;
+	}
+
 	const memory = process.platform === 'win32' ? item.mem : (os.totalmem() * (item.mem / 100));
 	output.push(`${pad(Number(item.load.toFixed(0)), 5, ' ')}\t${pad(Number((memory / MB).toFixed(0)), 6, ' ')}\t${pad(debugPort, 7, ' ')}\t${name}`);
 
 	// Recurse into children if any
 	if (Array.isArray(item.children)) {
-		item.children.forEach(child => formatProcessItem(mapPidToWindowTitle, output, child, indent + 1));
+		item.children.forEach(child => formatProcessItem(mapPidToWindowTitle, output, child, indent + 1, rendererDebugPort));
 	}
 }
