@@ -31,6 +31,7 @@
 	"minimap.maxColumn": "Limitar el ancho del minimapa para presentar como mucho un número de columnas determinado",
 	"find.seedSearchStringFromSelection": "Controla si se inicializa la cadena de búsqueda en Buscar widget en la selección del editor",
 	"find.autoFindInSelection": "Controla si el indicador Buscar en selección se activa cuando se seleccionan varios caracteres o líneas de texto en el editor",
+	"find.globalFindClipboard": "Controla si el widget de búsqueda debería leer o modificar el portapapeles de busqueda compartido en macOS",
 	"wordWrap.off": "Las líneas no se ajustarán nunca.",
 	"wordWrap.on": "Las líneas se ajustarán en el ancho de la ventanilla.",
 	"wordWrap.wordWrapColumn": "Las líneas se ajustarán en \"editor.wordWrapColumn\".",

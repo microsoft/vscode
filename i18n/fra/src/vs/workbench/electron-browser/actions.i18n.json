@@ -67,5 +67,6 @@
 	"warn": "Avertissement",
 	"err": "Erreur",
 	"critical": "Critique",
-	"off": "Désactivé"
+	"off": "Désactivé",
+	"selectLogLevel": "Sélectionner le niveau de journalisation (log)"
 }

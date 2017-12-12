@@ -53,8 +53,20 @@
 	"doc": "Desteklenen dillerin listesi için göz atın: {0}",
 	"restart": "Değeri değiştirirseniz VSCode'u yeniden başlatmanız gerekir.",
 	"fail.createSettings": " '{0}' oluşturulamadı ({1}).",
+	"openLogsFolder": "Günlük Klasörünü Aç",
+	"showLogs": "Günlükleri Göster...",
+	"mainProcess": "Ana",
+	"sharedProcess": "Paylaşılan",
+	"rendererProcess": "Render Alan",
+	"extensionHost": "Eklenti Sunucusu",
+	"selectProcess": "İşlem seçin",
+	"setLogLevel": "Günlük Düzeyini Ayarla",
+	"trace": "İzle",
 	"debug": "Hata Ayıklama",
 	"info": "Bilgi",
 	"warn": "Uyarı",
-	"err": "Hata"
+	"err": "Hata",
+	"critical": "Kritik",
+	"off": "Kapalı",
+	"selectLogLevel": "Günlük düzeyini seçin"
 }

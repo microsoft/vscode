@@ -31,6 +31,7 @@
 	"minimap.maxColumn": "Limitar o tamanho de um mini-mapa para renderizar no máximo um número determinado de colunas",
 	"find.seedSearchStringFromSelection": "Controla se nós inicializamos a string de pesquisa na Ferramenta de Pesquisa a partir da seleção do editor",
 	"find.autoFindInSelection": "Controla se a configuração Find in Selection deve estar ativada quando vários caracteres ou linhas de texto estão selecionados no editor",
+	"find.globalFindClipboard": "Controla se a ferramenta Localizar deve ler ou modificar a área de transfência de busca compartilhada no macOS",
 	"wordWrap.off": "As linhas nunca serão quebradas.",
 	"wordWrap.on": "As linhas serão quebradas na largura de visualização",
 	"wordWrap.wordWrapColumn": "As linhas serão quebradas em `editor.wordWrapColumn`.",

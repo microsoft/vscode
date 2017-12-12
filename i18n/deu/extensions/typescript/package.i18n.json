@@ -39,6 +39,7 @@
 	"typescript.openTsServerLog.title": "TS Server-Protokolldatei öffnen",
 	"typescript.restartTsServer": "TS Server neu starten",
 	"typescript.selectTypeScriptVersion.title": "TypeScript-Version wählen",
+	"typescript.reportStyleChecksAsWarnings": "Formatvorlagenprüfungen als Warnungen melden",
 	"jsDocCompletion.enabled": "Automatische JSDoc-Kommentare aktivieren/deaktivieren",
 	"javascript.implicitProjectConfig.checkJs": "Aktiviert/deaktiviert die Semantikprüfung bei JavaScript-Dateien. Diese Einstellung wird von vorhandenen \"jsconfig.json\"- oder \"tsconfig.json\"-Dateien außer Kraft gesetzt. Erfordert TypeScript 2.3.1 oder höher.",
 	"typescript.npm": "Gibt den Pfad zur ausführbaren NPM-Datei an, die für die automatische Typerfassung verwendet wird. Hierfür ist TypeScript 2.3.4 oder höher erforderlich.",

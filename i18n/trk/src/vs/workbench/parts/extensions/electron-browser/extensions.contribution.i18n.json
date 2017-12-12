@@ -7,9 +7,11 @@
 	"extensionsCommands": "Eklentileri Yönet",
 	"galleryExtensionsCommands": "Galeri Eklentileri Yükle",
 	"extension": "Eklenti",
+	"runtimeExtension": "Eklentiler Çalıştırılıyor",
 	"extensions": "Eklentiler",
 	"view": "Görüntüle",
 	"developer": "Geliştirici",
 	"extensionsConfigurationTitle": "Eklentiler",
-	"extensionsAutoUpdate": "Eklentileri otomatik olarak güncelle"
+	"extensionsAutoUpdate": "Eklentileri otomatik olarak güncelle",
+	"extensionsIgnoreRecommendations": "\"Doğru\" olarak ayarlanırsa, eklenti tavsiyeleri bildirimleri artık gösterilmez."
 }
