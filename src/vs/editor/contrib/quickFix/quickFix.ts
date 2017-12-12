@@ -31,29 +31,54 @@ export function getCodeActions(model: IReadOnlyModel, range: Range): TPromise<Co
 		});
 	});
 
-	return TPromise.join(promises).then(() =>
-		allResults.sort(codeActionsAndCommandsComparator)
+	return TPromise.join(promises).then(
+		() => allResults.sort(codeActionsComparator)
 	);
 }
 
-function isCommand(quickFix: CodeAction | Command): quickFix is Command {
-	return (<Command>quickFix).id !== undefined;
-}
+function codeActionsComparator(a: CodeAction, b: CodeAction): number {
 
-function codeActionsAndCommandsComparator(a: (CodeAction | Command), b: (CodeAction | Command)): number {
-	if (isCommand(a)) {
-		if (isCommand(b)) {
+	if (a.command) {
+		if (b.command) {
 			return a.title.localeCompare(b.title);
 		} else {
 			return 1;
 		}
 	}
+	else if (b.command) {
+		return -1;
+	}
 	else {
-		if (isCommand(b)) {
-			return -1;
+		return suggestionsComparator(a, b);
+	}
+}
+
+function suggestionsComparator(a: CodeAction, b: CodeAction): number {
+
+	if (a.diagnostics) {
+		if (b.diagnostics) {
+			if (a.diagnostics.length) {
+				if (b.diagnostics.length) {
+					return a.diagnostics[0].message.localeCompare(b.diagnostics[0].message);
+				} else {
+					return -1;
+				}
+			} else {
+				if (b.diagnostics.length) {
+					return 1;
+				} else {
+					return a.title.localeCompare(b.title);	// both have diagnostics - but empty
+				}
+			}
 		} else {
-			return a.title.localeCompare(b.title);
+			return -1;
 		}
+	}
+	else if (b.diagnostics) {
+		return 1;
+	}
+	else {
+		return a.title.localeCompare(b.title);	// both have no diagnostics
 	}
 }
 
