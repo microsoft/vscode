@@ -333,11 +333,13 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		}
 	}
 
+	private get elementCount(): number {
+		return this.model.groups.map(g => g.count)
+			.reduce((first, second) => first + second, this.model.groups.length > 1 ? this.model.groups.length : 0);
+	}
+
 	private getMaxExpandedBodySize(): number {
-		const elementCount = this.model.groups.map(g => g.count)
-			.reduce((first, second) => first + second, this.model.groups.length > 1
-				? this.model.groups.length : 0);
-		return elementCount * OpenEditorsDelegate.ITEM_HEIGHT;
+		return this.elementCount * OpenEditorsDelegate.ITEM_HEIGHT;
 	}
 
 	private getMinExpandedBodySize(): number {
@@ -357,9 +359,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 	private computeMinExpandedBodySize(visibleOpenEditors = OpenEditorsView.DEFAULT_VISIBLE_OPEN_EDITORS, dynamicHeight = OpenEditorsView.DEFAULT_DYNAMIC_HEIGHT): number {
 		let itemsToShow: number;
 		if (dynamicHeight) {
-			const elementCount = this.model.groups.map(g => g.count)
-				.reduce((first, second) => first + second, this.model.groups.length > 1 ? this.model.groups.length : 0);
-			itemsToShow = Math.min(Math.max(visibleOpenEditors, 1), elementCount);
+			itemsToShow = Math.min(Math.max(visibleOpenEditors, 1), this.elementCount);
 		} else {
 			itemsToShow = Math.max(visibleOpenEditors, 1);
 		}
