@@ -179,6 +179,7 @@ export interface ISaveOptions {
 	overwriteReadonly?: boolean;
 	overwriteEncoding?: boolean;
 	skipSaveParticipants?: boolean;
+	writeElevated?: boolean;
 }
 
 export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport {
@@ -246,17 +247,20 @@ export interface ITextFileService extends IDisposable {
 	 * Saves the resource.
 	 *
 	 * @param resource the resource to save
+	 * @param options optional save options
 	 * @return true if the resource was saved.
 	 */
 	save(resource: URI, options?: ISaveOptions): TPromise<boolean>;
 
 	/**
-	 * Saves the provided resource asking the user for a file name.
+	 * Saves the provided resource asking the user for a file name or using the provided one.
 	 *
 	 * @param resource the resource to save as.
+	 * @param targetResource the optional target to save to.
+	 * @param options optional save options
 	 * @return true if the file was saved.
 	 */
-	saveAs(resource: URI, targetResource?: URI): TPromise<URI>;
+	saveAs(resource: URI, targetResource?: URI, options?: ISaveOptions): TPromise<URI>;
 
 	/**
 	 * Saves the set of resources and returns a promise with the operation result.

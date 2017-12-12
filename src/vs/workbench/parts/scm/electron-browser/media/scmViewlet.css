@@ -25,6 +25,7 @@
 
 .scm-viewlet .scm-status {
 	height: 100%;
+	position: relative;
 }
 
 .scm-viewlet .monaco-list-row > .scm-provider {

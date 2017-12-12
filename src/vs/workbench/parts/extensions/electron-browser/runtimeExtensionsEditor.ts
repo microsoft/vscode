@@ -26,7 +26,7 @@ import { IExtensionService, IExtensionDescription, IExtensionsStatus, IExtension
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { WorkbenchList, IListService } from 'vs/platform/list/browser/listService';
 import { append, $, addClass, toggleClass } from 'vs/base/browser/dom';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -39,6 +39,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { memoize } from 'vs/base/common/decorators';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import Event from 'vs/base/common/event';
+import { DisableForWorkspaceAction, DisableGloballyAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
 
@@ -373,7 +374,13 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 		this._list.onContextMenu((e) => {
 			const actions: IAction[] = [];
 
-			actions.push(this.saveExtensionHostProfileAction, this.extensionHostProfileAction);
+			if (e.element.marketplaceInfo.type === LocalExtensionType.User) {
+				actions.push(this._instantiationService.createInstance(DisableForWorkspaceAction, DisableForWorkspaceAction.LABEL));
+				actions.push(this._instantiationService.createInstance(DisableGloballyAction, DisableGloballyAction.LABEL));
+				actions.forEach((a: DisableForWorkspaceAction | DisableGloballyAction) => a.extension = e.element.marketplaceInfo);
+				actions.push(new Separator());
+			}
+			actions.push(this.extensionHostProfileAction, this.saveExtensionHostProfileAction);
 
 			this._contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,

@@ -52,6 +52,7 @@ export interface ParsedArgs {
 	'disable-updates'?: string;
 	'disable-crash-reporter'?: string;
 	'skip-add-to-recently-opened'?: boolean;
+	'write-elevated-helper'?: boolean;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
@@ -71,6 +72,7 @@ export interface IEnvironmentService {
 	args: ParsedArgs;
 
 	execPath: string;
+	cliPath: string;
 	appRoot: string;
 
 	userHome: string;

@@ -46,7 +46,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { basename } from 'vs/base/common/paths';
 import { MenuId, IMenuService, IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { fillInActions, MenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
-import { IChange, IEditorModel, ScrollType, IEditorContribution, OverviewRulerLane, IModel } from 'vs/editor/common/editorCommon';
+import { IChange, IEditorModel, ScrollType, IEditorContribution, OverviewRulerLane, IModel, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
 import { sortedDiff, firstIndex } from 'vs/base/common/arrays';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -729,43 +729,46 @@ export const overviewRulerDeletedForeground = registerColor('editorOverviewRuler
 
 class DirtyDiffDecorator {
 
-	static MODIFIED_DECORATION_OPTIONS = ModelDecorationOptions.register({
-		linesDecorationsClassName: 'dirty-diff-glyph dirty-diff-modified',
-		isWholeLine: true,
-		overviewRuler: {
-			color: themeColorFromId(overviewRulerModifiedForeground),
-			darkColor: themeColorFromId(overviewRulerModifiedForeground),
-			position: OverviewRulerLane.Left
-		}
-	});
+	static createDecoration(className: string, foregroundColor: string, options: { gutter: boolean, overview: boolean }): ModelDecorationOptions {
+		const decorationOptions: IModelDecorationOptions = {
+			isWholeLine: true,
+		};
 
-	static ADDED_DECORATION_OPTIONS = ModelDecorationOptions.register({
-		linesDecorationsClassName: 'dirty-diff-glyph dirty-diff-added',
-		isWholeLine: true,
-		overviewRuler: {
-			color: themeColorFromId(overviewRulerAddedForeground),
-			darkColor: themeColorFromId(overviewRulerAddedForeground),
-			position: OverviewRulerLane.Left
+		if (options.gutter) {
+			decorationOptions.linesDecorationsClassName = `dirty-diff-glyph ${className}`;
 		}
-	});
 
-	static DELETED_DECORATION_OPTIONS = ModelDecorationOptions.register({
-		linesDecorationsClassName: 'dirty-diff-glyph dirty-diff-deleted',
-		isWholeLine: true,
-		overviewRuler: {
-			color: themeColorFromId(overviewRulerDeletedForeground),
-			darkColor: themeColorFromId(overviewRulerDeletedForeground),
-			position: OverviewRulerLane.Left
+		if (options.overview) {
+			decorationOptions.overviewRuler = {
+				color: themeColorFromId(overviewRulerModifiedForeground),
+				darkColor: themeColorFromId(overviewRulerModifiedForeground),
+				position: OverviewRulerLane.Left
+			};
 		}
-	});
 
+		return ModelDecorationOptions.createDynamic(decorationOptions);
+	}
+
+	private modifiedOptions: ModelDecorationOptions;
+	private addedOptions: ModelDecorationOptions;
+	private deletedOptions: ModelDecorationOptions;
 	private decorations: string[] = [];
 	private disposables: IDisposable[] = [];
 
 	constructor(
 		private editorModel: IModel,
-		private model: DirtyDiffModel
+		private model: DirtyDiffModel,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
+		const decorations = configurationService.getValue<string>('scm.diffDecorations');
+		const gutter = decorations === 'all' || decorations === 'gutter';
+		const overview = decorations === 'all' || decorations === 'overview';
+		const options = { gutter, overview };
+
+		this.modifiedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-modified', overviewRulerModifiedForeground, options);
+		this.addedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-added', overviewRulerAddedForeground, options);
+		this.deletedOptions = DirtyDiffDecorator.createDecoration('dirty-diff-deleted', overviewRulerDeletedForeground, options);
+
 		model.onDidChange(this.onDidChange, this, this.disposables);
 	}
 
@@ -782,7 +785,7 @@ class DirtyDiffDecorator {
 							startLineNumber: startLineNumber, startColumn: 1,
 							endLineNumber: endLineNumber, endColumn: 1
 						},
-						options: DirtyDiffDecorator.ADDED_DECORATION_OPTIONS
+						options: this.addedOptions
 					};
 				case ChangeType.Delete:
 					return {
@@ -790,7 +793,7 @@ class DirtyDiffDecorator {
 							startLineNumber: startLineNumber, startColumn: 1,
 							endLineNumber: startLineNumber, endColumn: 1
 						},
-						options: DirtyDiffDecorator.DELETED_DECORATION_OPTIONS
+						options: this.deletedOptions
 					};
 				case ChangeType.Modify:
 					return {
@@ -798,7 +801,7 @@ class DirtyDiffDecorator {
 							startLineNumber: startLineNumber, startColumn: 1,
 							endLineNumber: endLineNumber, endColumn: 1
 						},
-						options: DirtyDiffDecorator.MODIFIED_DECORATION_OPTIONS
+						options: this.modifiedOptions
 					};
 			}
 		});
@@ -1012,13 +1015,13 @@ export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		const onDidChangeEnablement = filterEvent(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.enableDiffDecorations'));
-		onDidChangeEnablement(this.onDidChangeEnablement, this, this.disposables);
-		this.onDidChangeEnablement();
+		const onDidChangeConfiguration = filterEvent(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorations'));
+		onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
+		this.onDidChangeConfiguration();
 	}
 
-	private onDidChangeEnablement(): void {
-		const enabled = this.configurationService.getValue('scm.enableDiffDecorations');
+	private onDidChangeConfiguration(): void {
+		const enabled = this.configurationService.getValue<string>('scm.diffDecorations') !== 'none';
 
 		if (enabled) {
 			this.enable();
@@ -1029,7 +1032,7 @@ export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution,
 
 	private enable(): void {
 		if (this.enabled) {
-			return;
+			this.disable();
 		}
 
 		this.transientDisposables.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
@@ -1083,7 +1086,7 @@ export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution,
 
 	private onModelVisible(editorModel: IModel): void {
 		const model = this.instantiationService.createInstance(DirtyDiffModel, editorModel);
-		const decorator = new DirtyDiffDecorator(editorModel, model);
+		const decorator = new DirtyDiffDecorator(editorModel, model, this.configurationService);
 
 		this.items[editorModel.id] = new DirtyDiffItem(model, decorator);
 	}

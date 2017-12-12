@@ -124,7 +124,8 @@
 	outline-style: solid;
 }
 
-.monaco-shell .monaco-tree.focused.no-focused-item:focus:before {
+.monaco-shell .monaco-tree.focused.no-focused-item:focus:before,
+.monaco-shell .monaco-list:not(.element-focused):focus:before {
 	position: absolute;
 	top: 0;
 	left: 0;
@@ -157,7 +158,8 @@
 	outline: 0 !important; /* outline is not going well with decoration */
 }
 
-.monaco-shell .monaco-tree.focused:focus {
+.monaco-shell .monaco-tree.focused:focus,
+.monaco-shell .monaco-list:focus {
 	outline: 0 !important; /* tree indicates focus not via outline but through the focused item */
 }
 

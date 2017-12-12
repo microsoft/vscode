@@ -100,14 +100,27 @@ export class CompositeBar implements ICompositeBar {
 		}
 	}
 
-	public showActivity(compositeId: string, badge: IBadge, clazz?: string): IDisposable {
+	public showActivity(compositeId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable {
 		if (!badge) {
 			throw illegalArgument('badge');
 		}
 
-		const activity = <ICompositeActivity>{ badge, clazz };
+		if (typeof priority !== 'number') {
+			priority = 0;
+		}
+
+		const activity: ICompositeActivity = { badge, clazz, priority };
 		const stack = this.compositeIdToActivityStack[compositeId] || (this.compositeIdToActivityStack[compositeId] = []);
-		stack.unshift(activity);
+
+		for (let i = 0; i <= stack.length; i++) {
+			if (i === stack.length) {
+				stack.push(activity);
+				break;
+			} else if (stack[i].priority <= priority) {
+				stack.splice(i, 0, activity);
+				break;
+			}
+		}
 
 		this.updateActivity(compositeId);
 

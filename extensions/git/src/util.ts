@@ -69,6 +69,16 @@ export function onceEvent<T>(event: Event<T>): Event<T> {
 	};
 }
 
+export function debounceEvent<T>(event: Event<T>, delay: number): Event<T> {
+	return (listener, thisArgs = null, disposables?) => {
+		let timer: NodeJS.Timer;
+		return event(e => {
+			clearTimeout(timer);
+			timer = setTimeout(() => listener.call(thisArgs, e), delay);
+		}, null, disposables);
+	};
+}
+
 export function eventToPromise<T>(event: Event<T>): Promise<T> {
 	return new Promise<T>(c => onceEvent(event)(c));
 }
