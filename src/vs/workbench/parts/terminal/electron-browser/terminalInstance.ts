@@ -254,7 +254,6 @@ export class TerminalInstance implements ITerminalInstance {
 	 */
 	protected async _createXterm(): TPromise<void> {
 		if (!Terminal) {
-			console.log('load xterm now');
 			Terminal = (await import('xterm')).Terminal;
 			// Enable search functionality in xterm.js instance
 			Terminal.loadAddon('search');
