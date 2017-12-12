@@ -13,6 +13,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedExternalError, illegalArgument } from 'vs/base/common/errors';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
+import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 
 export function getCodeActions(model: IReadOnlyModel, range: Range): TPromise<CodeAction[]> {
 
@@ -38,47 +39,18 @@ export function getCodeActions(model: IReadOnlyModel, range: Range): TPromise<Co
 
 function codeActionsComparator(a: CodeAction, b: CodeAction): number {
 
-	if (a.command) {
-		if (b.command) {
-			return a.title.localeCompare(b.title);
-		} else {
-			return 1;
-		}
-	}
-	else if (b.command) {
-		return -1;
-	}
-	else {
-		return suggestionsComparator(a, b);
-	}
-}
-
-function suggestionsComparator(a: CodeAction, b: CodeAction): number {
-
-	if (a.diagnostics) {
-		if (b.diagnostics) {
-			if (a.diagnostics.length) {
-				if (b.diagnostics.length) {
-					return a.diagnostics[0].message.localeCompare(b.diagnostics[0].message);
-				} else {
-					return -1;
-				}
-			} else {
-				if (b.diagnostics.length) {
-					return 1;
-				} else {
-					return a.title.localeCompare(b.title);	// both have diagnostics - but empty
-				}
-			}
+	const aHasDiags = !isFalsyOrEmpty(a.diagnostics);
+	const bHasDiags = !isFalsyOrEmpty(b.diagnostics);
+	if (aHasDiags) {
+		if (bHasDiags) {
+			return a.diagnostics[0].message.localeCompare(b.diagnostics[0].message);
 		} else {
 			return -1;
 		}
-	}
-	else if (b.diagnostics) {
+	} else if (bHasDiags) {
 		return 1;
-	}
-	else {
-		return a.title.localeCompare(b.title);	// both have no diagnostics
+	} else {
+		return 0;	// both have no diagnostics
 	}
 }
 

@@ -89,20 +89,6 @@ suite('QuickFix', () => {
 
 	test('CodeActions are sorted by type, #38623', async function () {
 
-		let expected = [
-			// CodeActions with a diagnostics array are shown first
-			testData.diagnostics.abc,
-			testData.diagnostics.bcd,
-			testData.spelling.bcd, // empty diagnostics array
-
-			// CodeActions without a diagnostics or command object
-			testData.tsLint.abc,
-			testData.tsLint.bcd,
-
-			// CodeActions with a command object are shown last
-			testData.command.abc
-		];
-
 		const provider = new class implements CodeActionProvider {
 			provideCodeActions() {
 				return [
@@ -118,9 +104,21 @@ suite('QuickFix', () => {
 
 		disposables.push(CodeActionProviderRegistry.register('fooLang', provider));
 
+		const expected = [
+			// CodeActions with a diagnostics array are shown first ordered by diagnostics.message
+			testData.diagnostics.abc,
+			testData.diagnostics.bcd,
+
+			// CodeActions without diagnostics are shown in the given order without any further sorting
+			testData.command.abc,
+			testData.spelling.bcd, // empty diagnostics array
+			testData.tsLint.bcd,
+			testData.tsLint.abc
+		];
+
 		const actions = await getCodeActions(model, new Range(1, 1, 2, 1));
 		assert.equal(actions.length, 6);
+		console.log(actions);
 		assert.deepEqual(actions, expected);
 	});
-
 });
