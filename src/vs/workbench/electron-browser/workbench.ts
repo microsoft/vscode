@@ -584,9 +584,6 @@ export class Workbench implements IPartService {
 		this.toDispose.push(this.titlebarPart);
 		this.toShutdown.push(this.titlebarPart);
 		serviceCollection.set(ITitleService, this.titlebarPart);
-		if (!isMacintosh && this.getCustomTitleBarStyle()) {
-			this.windowService.onDidChangeMaximize((max) => this.workbenchLayout.onMaximizeChange(max));
-		}
 
 		// History
 		serviceCollection.set(IHistoryService, new SyncDescriptor(HistoryService));
@@ -1146,6 +1143,15 @@ export class Workbench implements IPartService {
 			},
 			this.quickOpen								// Quickopen
 		);
+
+		if (!isMacintosh && this.getCustomTitleBarStyle()) {
+			this.windowService.isMaximized().then((max) => {
+				console.log(this);
+				this.workbenchLayout.onMaximizeChange(max);
+				this.workbenchLayout.layout();
+			});
+			this.windowService.onDidChangeMaximize(this.workbenchLayout.onMaximizeChange, this.workbenchLayout);
+		}
 
 		this.toDispose.push(this.workbenchLayout);
 	}

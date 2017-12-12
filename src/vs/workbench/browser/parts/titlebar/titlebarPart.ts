@@ -299,12 +299,8 @@ export class TitlebarPart extends Part implements ITitleService {
 				this.windowService.closeWindow().then(null, errors.onUnexpectedError);
 			});
 
-			this.windowService.onDidChangeMaximize((maximized) => {
-				($(this.titleContainer).getHTMLElement().querySelector('.window-maximize') as SVGElement).style.display = maximized ? 'none' : 'inline';
-				($(this.titleContainer).getHTMLElement().querySelector('.window-unmaximize') as SVGElement).style.display = maximized ? 'inline' : 'none';
-				$(this.titleContainer).getHTMLElement().style.paddingLeft = maximized ? '0.15em' : '0.5em';
-				$(this.titleContainer).getHTMLElement().style.paddingRight = maximized ? 'calc(2em / 12)' : '0';
-			}, this);
+			this.windowService.isMaximized().then((max) => this.onDidChangeMaximized(max), errors.onUnexpectedError);
+			this.windowService.onDidChangeMaximize(this.onDidChangeMaximized, this);
 		}
 
 		// Since the title area is used to drag the window, we do not want to steal focus from the
@@ -319,6 +315,13 @@ export class TitlebarPart extends Part implements ITitleService {
 		}, void 0, true /* use capture to know the currently active element properly */);
 
 		return this.titleContainer;
+	}
+
+	private onDidChangeMaximized(maximized: boolean) {
+		($(this.titleContainer).getHTMLElement().querySelector('.window-maximize') as SVGElement).style.display = maximized ? 'none' : 'inline';
+		($(this.titleContainer).getHTMLElement().querySelector('.window-unmaximize') as SVGElement).style.display = maximized ? 'inline' : 'none';
+		$(this.titleContainer).getHTMLElement().style.paddingLeft = maximized ? '0.15em' : '0.5em';
+		$(this.titleContainer).getHTMLElement().style.paddingRight = maximized ? 'calc(2em / 12)' : '0';
 	}
 
 	protected updateStyles(): void {
