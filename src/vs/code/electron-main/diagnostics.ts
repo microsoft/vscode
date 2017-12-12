@@ -124,7 +124,7 @@ function formatEnvironment(info: IMainProcessInfo): string {
 
 	const output: string[] = [];
 	output.push(`Version:          ${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`);
-	output.push(`OS Version:       ${os.type()} ${os.arch()} ${os.release()})`);
+	output.push(`OS Version:       ${os.type()} ${os.arch()} ${os.release()}`);
 	const cpus = os.cpus();
 	if (cpus && cpus.length > 0) {
 		output.push(`CPUs:             ${cpus[0].model} (${cpus.length} x ${cpus[0].speed})`);
