@@ -413,7 +413,7 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 
 export class RuntimeExtensionsInput extends EditorInput {
 
-	static ID = 'workbench.runtimeExtensions.input';
+	static readonly ID = 'workbench.runtimeExtensions.input';
 
 	constructor() {
 		super();
@@ -451,7 +451,7 @@ export class RuntimeExtensionsInput extends EditorInput {
 }
 
 export class ShowRuntimeExtensionsAction extends Action {
-	static ID = 'workbench.action.showRuntimeExtensions';
+	static readonly ID = 'workbench.action.showRuntimeExtensions';
 	static LABEL = nls.localize('showRuntimeExtensions', "Show Running Extensions");
 
 	constructor(
@@ -468,7 +468,7 @@ export class ShowRuntimeExtensionsAction extends Action {
 }
 
 class ReportExtensionIssueAction extends Action {
-	static ID = 'workbench.extensions.action.reportExtensionIssue';
+	static readonly ID = 'workbench.extensions.action.reportExtensionIssue';
 	static LABEL = nls.localize('reportExtensionIssue', "Report Issue");
 
 	constructor(
@@ -506,7 +506,7 @@ class ReportExtensionIssueAction extends Action {
 }
 
 class ExtensionHostProfileAction extends Action {
-	static ID = 'workbench.extensions.action.extensionHostProfile';
+	static readonly ID = 'workbench.extensions.action.extensionHostProfile';
 	static LABEL_START = nls.localize('extensionHostProfileStart', "Start Extension Host Profile");
 	static LABEL_STOP = nls.localize('extensionHostProfileStop', "Stop Extension Host Profile");
 	static STOP_CSS_CLASS = 'extension-host-profile-stop';
@@ -549,7 +549,7 @@ class ExtensionHostProfileAction extends Action {
 class SaveExtensionHostProfileAction extends Action {
 
 	static LABEL = nls.localize('saveExtensionHostProfile', "Save Extension Host Profile");
-	static ID = 'workbench.extensions.action.saveExtensionHostProfile';
+	static readonly ID = 'workbench.extensions.action.saveExtensionHostProfile';
 
 	constructor(
 		id: string = SaveExtensionHostProfileAction.ID, label: string = SaveExtensionHostProfileAction.LABEL,
