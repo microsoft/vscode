@@ -13,6 +13,7 @@ import { toGitUri, fromGitUri } from './uri';
 import { grep, eventToPromise, isDescendant } from './util';
 import { applyLineChanges, intersectDiffWithRange, toLineRanges, invertLineChange } from './staging';
 import * as path from 'path';
+import { lstat, Stats } from 'fs';
 import * as os from 'os';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
@@ -168,8 +169,15 @@ export class CommandCenter {
 	}
 
 	private async _openResource(resource: Resource, preview?: boolean, preserveFocus?: boolean, preserveSelection?: boolean): Promise<void> {
+		const stat = await new Promise<Stats>((c, e) => lstat(resource.resourceUri.fsPath, (err, stat) => err ? e(err) : c(stat)));
+
+		if (stat.isDirectory()) {
+			return;
+		}
+
 		const left = await this.getLeftResource(resource);
 		const right = await this.getRightResource(resource);
+
 		const title = this.getTitle(resource);
 
 		if (!right) {

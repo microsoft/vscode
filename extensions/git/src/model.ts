@@ -173,6 +173,23 @@ export class Model {
 		});
 	}
 
+	private async scanForSubmodules(repository: Repository): Promise<void> {
+		const submodules = await repository.getSubmodules();
+		//console.log(`Opening ${submoduleRoot} as git repository`);
+
+		for (const submodule of submodules) {
+			try {
+				// We can't call tryOpenRepository, because a submodule is going to be under an open repository, so will fail.
+				const subRepository = new Repository(this.git.open((submodule.Root)), this.globalState);
+				this.open(subRepository);
+			} catch (err) {
+				if (err.gitErrorCode === GitErrorCodes.NotAGitRepository) {
+					return;
+				}
+			}
+		}
+	}
+
 	@sequentialize
 	async tryOpenRepository(path: string): Promise<void> {
 		if (this.getRepository(path)) {
@@ -227,6 +244,7 @@ export class Model {
 		const openRepository = { repository, dispose };
 		this.openRepositories.push(openRepository);
 		this._onDidOpenRepository.fire(repository);
+		this.scanForSubmodules(repository);
 	}
 
 	close(repository: Repository): void {
@@ -281,7 +299,7 @@ export class Model {
 		if (hint instanceof Uri) {
 			const resourcePath = hint.fsPath;
 
-			for (const liveRepository of this.openRepositories) {
+			for (const liveRepository of this.openRepositories.sort((a, b) => b.repository.root.length - a.repository.root.length)) {
 				const relativePath = path.relative(liveRepository.repository.root, resourcePath);
 
 				if (isDescendant(liveRepository.repository.root, resourcePath)) {

@@ -34,6 +34,11 @@ export interface Remote {
 	url: string;
 }
 
+export interface ISubmodule {
+	Root: string;
+	Status: string;
+}
+
 export interface Stash {
 	index: number;
 	description: string;
@@ -1106,6 +1111,18 @@ export class Repository {
 			.map((groups: RegExpExecArray) => ({ name: groups[1], url: groups[2] }));
 
 		return uniqBy(rawRemotes, remote => remote.name);
+	}
+
+	async getSubmodules(): Promise<ISubmodule[]> {
+		const result = await this.run(['submodule', 'status']);
+		const regex = /^([ \+\-U])\w* (\w*)( \(.*\))?/;
+		const submodules = result.stdout.split('\n')
+			.filter(b => !!b)
+			.map(line => regex.exec(line))
+			.filter(g => !!g)
+			.map((groups: RegExpExecArray) => ({ Root: path.join(this.repositoryRoot, groups[2]), Status: groups[1] }));
+		//this._git.onOutput.emit('log', submodules);
+		return submodules;
 	}
 
 	async getBranch(name: string): Promise<Branch> {
