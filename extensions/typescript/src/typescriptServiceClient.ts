@@ -478,7 +478,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	private getCompilerOptionsForInferredProjects(configuration: TypeScriptServiceConfiguration): Proto.ExternalProjectCompilerOptions {
 		const compilerOptions: Proto.ExternalProjectCompilerOptions = {
 			module: 'CommonJS' as Proto.ModuleKind,
-			target: 'ES6' as Proto.ScriptTarget,
+			target: 'Es2016' as Proto.ScriptTarget,
 			allowSyntheticDefaultImports: true,
 			allowNonTsExtensions: true,
 			allowJs: true,

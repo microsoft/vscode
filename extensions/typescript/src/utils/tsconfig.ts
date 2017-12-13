@@ -16,7 +16,7 @@ function getEmptyConfig(
 	config: TypeScriptServiceConfiguration
 ) {
 	const compilerOptions = [
-		'"target": "ES6"',
+		'"target": "es2016"',
 		'"module": "commonjs"',
 		'"jsx": "preserve"',
 	];
