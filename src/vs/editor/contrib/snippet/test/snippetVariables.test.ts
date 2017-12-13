@@ -208,15 +208,17 @@ suite('Snippet Variables Resolver', function () {
 	});
 
 	test('Add variable to insert value from clipboard to a snippet #40153', function () {
+
 		let readTextResult: string;
-		let _throw = () => { throw new Error(); };
-		let resolver = new ClipboardBasedVariableResolver(new class implements IClipboardService {
+		const clipboardService = new class implements IClipboardService {
 			_serviceBrand: any;
 			readText(): string { return readTextResult; }
-			writeText = _throw;
-			readFindText = _throw;
-			writeFindText = _throw;
-		});
+			_throw = () => { throw new Error(); };
+			writeText = this._throw;
+			readFindText = this._throw;
+			writeFindText = this._throw;
+		};
+		let resolver = new ClipboardBasedVariableResolver(clipboardService, 1, 0);
 
 		readTextResult = undefined;
 		assertVariableResolve(resolver, 'CLIPBOARD', undefined);
@@ -232,5 +234,31 @@ suite('Snippet Variables Resolver', function () {
 
 		assertVariableResolve(resolver, 'foo', undefined);
 		assertVariableResolve(resolver, 'cLIPBOARD', undefined);
+	});
+
+	test('Add variable to insert value from clipboard to a snippet #40153', function () {
+
+		let readTextResult: string;
+		let resolver: VariableResolver;
+		const clipboardService = new class implements IClipboardService {
+			_serviceBrand: any;
+			readText(): string { return readTextResult; }
+			_throw = () => { throw new Error(); };
+			writeText = this._throw;
+			readFindText = this._throw;
+			writeFindText = this._throw;
+		};
+
+		resolver = new ClipboardBasedVariableResolver(clipboardService, 1, 2);
+		readTextResult = 'line1';
+		assertVariableResolve(resolver, 'CLIPBOARD', 'line1');
+		readTextResult = 'line1\nline2\nline3';
+		assertVariableResolve(resolver, 'CLIPBOARD', 'line1\nline2\nline3');
+
+		readTextResult = 'line1\nline2';
+		assertVariableResolve(resolver, 'CLIPBOARD', 'line2');
+		readTextResult = 'line1\nline2';
+		resolver = new ClipboardBasedVariableResolver(clipboardService, 0, 2);
+		assertVariableResolve(resolver, 'CLIPBOARD', 'line1');
 	});
 });
