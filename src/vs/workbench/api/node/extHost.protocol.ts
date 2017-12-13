@@ -7,7 +7,8 @@
 import {
 	createMainContextProxyIdentifier as createMainId,
 	createExtHostContextProxyIdentifier as createExtId,
-	ProxyIdentifier
+	ProxyIdentifier,
+	IRPCProtocol
 } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 
 import * as vscode from 'vscode';
@@ -90,28 +91,10 @@ export interface IWorkspaceConfigurationChangeEventData {
 	changedConfigurationByResource: { [folder: string]: IConfigurationModel };
 }
 
-export interface IExtHostContext {
-	/**
-	 * Returns a proxy to an object addressable/named in the extension host process.
-	 */
-	get<T>(identifier: ProxyIdentifier<T>): T;
-
-	/**
-	 * Register manually created instance.
-	 */
-	set<T, R extends T>(identifier: ProxyIdentifier<T>, instance: R): R;
-
-	/**
-	 * Assert these identifiers are already registered via `.set`.
-	 */
-	assertRegistered(identifiers: ProxyIdentifier<any>[]): void;
+export interface IExtHostContext extends IRPCProtocol {
 }
 
-export interface IMainContext {
-	/**
-	 * Returns a proxy to an object addressable/named in the main/renderer process.
-	 */
-	get<T>(identifier: ProxyIdentifier<T>): T;
+export interface IMainContext extends IRPCProtocol {
 }
 
 // --- main thread
@@ -681,7 +664,7 @@ export interface ExtHostWindowShape {
 // --- proxy identifiers
 
 export const MainContext = {
-	MainThreadCommands: createMainId<MainThreadCommandsShape>('MainThreadCommands'),
+	MainThreadCommands: <ProxyIdentifier<MainThreadCommandsShape>>createMainId<MainThreadCommandsShape>('MainThreadCommands'),
 	MainThreadConfiguration: createMainId<MainThreadConfigurationShape>('MainThreadConfiguration'),
 	MainThreadDebugService: createMainId<MainThreadDebugServiceShape>('MainThreadDebugService'),
 	MainThreadDecorations: createMainId<MainThreadDecorationsShape>('MainThreadDecorations'),

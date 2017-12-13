@@ -4,6 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+export interface IRPCProtocol {
+	/**
+	 * Returns a proxy to an object addressable/named in the extension host process.
+	 * > **Note:** Arguments or results of type `URI` or `RegExp` will be serialized/deserialized automatically,
+	 * > but this has a performance cost, as each argument/result must be visited.
+	 * >
+	 * > Use `getFast` for a proxy where such arguments are not automatically serialized/deserialized.
+	 */
+	get<T>(identifier: ProxyIdentifier<T>): T;
+
+	/**
+	 * Returns a proxy to an object addressable/named in the extension host process.
+	 * > **Note:** Arguments or results of type `URI` or `RegExp` will **not** be serialized/deserialized automatically.
+	 */
+	getFastProxy<T>(identifier: ProxyIdentifier<T>): T;
+
+	/**
+	 * Register manually created instance.
+	 */
+	set<T, R extends T>(identifier: ProxyIdentifier<T>, instance: R): R;
+
+	/**
+	 * Assert these identifiers are already registered via `.set`.
+	 */
+	assertRegistered(identifiers: ProxyIdentifier<any>[]): void;
+}
+
 export class ProxyIdentifier<T> {
 	_proxyIdentifierBrand: void;
 	_suppressCompilerUnusedWarning: T;
