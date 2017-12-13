@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData, Memento } from 'vscode';
-import { Repository as BaseRepository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash, RefType, GitError, ISubmodule } from './git';
+import { Repository as BaseRepository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash, RefType, GitError, Submodule } from './git';
 import { anyEvent, filterEvent, eventToPromise, dispose, find, isDescendant, IDisposable, onceEvent, EmptyDisposable, debounceEvent } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { toGitUri } from './uri';
@@ -420,18 +420,6 @@ class ProgressManager {
 	}
 }
 
-export enum SubmoduleStatus {
-	Uninitialized,
-	Current,
-	Conflict,
-	Modified
-}
-
-export interface Submodule {
-	Root: string;
-	Status: SubmoduleStatus;
-}
-
 export class Repository implements Disposable {
 
 	private _onDidChangeRepository = new EventEmitter<Uri>();
@@ -484,6 +472,11 @@ export class Repository implements Disposable {
 	private _remotes: Remote[] = [];
 	get remotes(): Remote[] {
 		return this._remotes;
+	}
+
+	private _submodules: Submodule[] = [];
+	get submodules(): Submodule[] {
+		return this._submodules;
 	}
 
 	private _operations = new OperationsImpl();
@@ -769,19 +762,6 @@ export class Repository implements Disposable {
 		return this.run(Operation.Show, () => this.repository.detectObjectType(object));
 	}
 
-	async getSubmodules(): Promise<Submodule[]> {
-		const submodules: ISubmodule[] = await this.repository.getSubmodules();
-		return submodules.map(isub => {
-			var status = SubmoduleStatus.Current;
-			switch (isub.Status) {
-				case '-': { status = SubmoduleStatus.Uninitialized; break; }
-				case '+': { status = SubmoduleStatus.Modified; break; }
-				case 'U': { status = SubmoduleStatus.Conflict; break; }
-			}
-			return { Root: isub.Root, Status: status };
-		});
-	}
-
 	async getStashes(): Promise<Stash[]> {
 		return await this.repository.getStashes();
 	}
@@ -954,11 +934,12 @@ export class Repository implements Disposable {
 			// noop
 		}
 
-		const [refs, remotes] = await Promise.all([this.repository.getRefs(), this.repository.getRemotes()]);
+		const [refs, remotes, submodules] = await Promise.all([this.repository.getRefs(), this.repository.getRemotes(), this.repository.getSubmodules()]);
 
 		this._HEAD = HEAD;
 		this._refs = refs;
 		this._remotes = remotes;
+		this._submodules = submodules;
 
 		const index: Resource[] = [];
 		const workingTree: Resource[] = [];

@@ -126,6 +126,10 @@ export function groupBy<T>(arr: T[], fn: (el: T) => string): { [key: string]: T[
 	}, Object.create(null));
 }
 
+export function denodeify<A, B, C, R>(fn: Function): (a: A, b: B, c: C) => Promise<R>;
+export function denodeify<A, B, R>(fn: Function): (a: A, b: B) => Promise<R>;
+export function denodeify<A, R>(fn: Function): (a: A) => Promise<R>;
+export function denodeify<R>(fn: Function): (...args: any[]) => Promise<R>;
 export function denodeify<R>(fn: Function): (...args: any[]) => Promise<R> {
 	return (...args) => new Promise<R>((c, e) => fn(...args, (err: any, r: any) => err ? e(err) : c(r)));
 }

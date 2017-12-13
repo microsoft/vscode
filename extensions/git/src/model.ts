@@ -101,8 +101,11 @@ export class Model {
 	}
 
 	private onPossibleGitRepositoryChange(uri: Uri): void {
-		const possibleGitRepositoryPath = uri.fsPath.replace(/\.git.*$/, '');
-		this.possibleGitRepositoryPaths.add(possibleGitRepositoryPath);
+		this.eventuallyScanPossibleGitRepository(uri.fsPath.replace(/\.git.*$/, ''));
+	}
+
+	private eventuallyScanPossibleGitRepository(path: string) {
+		this.possibleGitRepositoryPaths.add(path);
 		this.eventuallyScanPossibleGitRepositories();
 	}
 
@@ -173,23 +176,6 @@ export class Model {
 		});
 	}
 
-	private async scanForSubmodules(repository: Repository): Promise<void> {
-		const submodules = await repository.getSubmodules();
-		//console.log(`Opening ${submoduleRoot} as git repository`);
-
-		for (const submodule of submodules) {
-			try {
-				// We can't call tryOpenRepository, because a submodule is going to be under an open repository, so will fail.
-				const subRepository = new Repository(this.git.open((submodule.Root)), this.globalState);
-				this.open(subRepository);
-			} catch (err) {
-				if (err.gitErrorCode === GitErrorCodes.NotAGitRepository) {
-					return;
-				}
-			}
-		}
-	}
-
 	@sequentialize
 	async tryOpenRepository(path: string): Promise<void> {
 		if (this.getRepository(path)) {
@@ -230,11 +216,20 @@ export class Model {
 		const disappearListener = onDidDisappearRepository(() => dispose());
 		const changeListener = repository.onDidChangeRepository(uri => this._onDidChangeRepository.fire({ repository, uri }));
 		const originalResourceChangeListener = repository.onDidChangeOriginalResource(uri => this._onDidChangeOriginalResource.fire({ repository, uri }));
+		const scanSubmodules = () => {
+			repository.submodules
+				.map(r => path.join(repository.root, r.path))
+				.forEach(p => this.eventuallyScanPossibleGitRepository(p));
+		};
+
+		const statusListener = repository.onDidRunGitStatus(scanSubmodules);
+		scanSubmodules();
 
 		const dispose = () => {
 			disappearListener.dispose();
 			changeListener.dispose();
 			originalResourceChangeListener.dispose();
+			statusListener.dispose();
 			repository.dispose();
 
 			this.openRepositories = this.openRepositories.filter(e => e !== openRepository);
@@ -244,7 +239,6 @@ export class Model {
 		const openRepository = { repository, dispose };
 		this.openRepositories.push(openRepository);
 		this._onDidOpenRepository.fire(repository);
-		this.scanForSubmodules(repository);
 	}
 
 	close(repository: Repository): void {
@@ -299,12 +293,21 @@ export class Model {
 		if (hint instanceof Uri) {
 			const resourcePath = hint.fsPath;
 
+			outer:
 			for (const liveRepository of this.openRepositories.sort((a, b) => b.repository.root.length - a.repository.root.length)) {
-				const relativePath = path.relative(liveRepository.repository.root, resourcePath);
-
-				if (isDescendant(liveRepository.repository.root, resourcePath)) {
-					return liveRepository;
+				if (!isDescendant(liveRepository.repository.root, resourcePath)) {
+					continue;
 				}
+
+				for (const submodule of liveRepository.repository.submodules) {
+					const submoduleRoot = path.join(liveRepository.repository.root, submodule.path);
+
+					if (isDescendant(submoduleRoot, resourcePath)) {
+						continue outer;
+					}
+				}
+
+				return liveRepository;
 			}
 
 			return undefined;

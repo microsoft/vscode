@@ -15,7 +15,7 @@ import * as filetype from 'file-type';
 import { assign, uniqBy, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent } from './util';
 import { CancellationToken } from 'vscode';
 
-const readfile = denodeify<string>(fs.readFile);
+const readfile = denodeify<string, string | null, string>(fs.readFile);
 
 export interface IGit {
 	path: string;
@@ -32,11 +32,6 @@ export interface IFileStatus {
 export interface Remote {
 	name: string;
 	url: string;
-}
-
-export interface ISubmodule {
-	Root: string;
-	Status: string;
 }
 
 export interface Stash {
@@ -538,6 +533,68 @@ export class GitStatusParser {
 
 		return lastIndex + 1;
 	}
+}
+
+export interface Submodule {
+	name: string;
+	path: string;
+	url: string;
+}
+
+export function parseGitmodules(raw: string): Submodule[] {
+	const regex = /\r?\n/g;
+	let position = 0;
+	let match: RegExpExecArray | null = null;
+
+	const result: Submodule[] = [];
+	let submodule: Partial<Submodule> = {};
+
+	function parseLine(line: string): void {
+		const sectionMatch = /^\s*\[submodule "([^"]+)"\]\s*$/.exec(line);
+
+		if (sectionMatch) {
+			if (submodule.name && submodule.path && submodule.url) {
+				result.push(submodule as Submodule);
+			}
+
+			const name = sectionMatch[1];
+
+			if (name) {
+				submodule = { name };
+				return;
+			}
+		}
+
+		if (!submodule) {
+			return;
+		}
+
+		const propertyMatch = /^\s*(\w+) = (.*)$/.exec(line);
+
+		if (!propertyMatch) {
+			return;
+		}
+
+		const [, key, value] = propertyMatch;
+
+		switch (key) {
+			case 'path': submodule.path = value; break;
+			case 'url': submodule.url = value; break;
+		}
+	}
+
+	while (match = regex.exec(raw)) {
+		parseLine(raw.substring(position, match.index));
+		position = match.index + match[0].length;
+	}
+
+	parseLine(raw.substring(position));
+
+	if (submodule.name && submodule.path && submodule.url) {
+		result.push(submodule as Submodule);
+	}
+
+	return result;
 }
 
 export class Repository {
@@ -1113,16 +1170,19 @@ export class Repository {
 		return uniqBy(rawRemotes, remote => remote.name);
 	}
 
-	async getSubmodules(): Promise<ISubmodule[]> {
-		const result = await this.run(['submodule', 'status']);
-		const regex = /^([ \+\-U])\w* (\w*)( \(.*\))?/;
-		const submodules = result.stdout.split('\n')
-			.filter(b => !!b)
-			.map(line => regex.exec(line))
-			.filter(g => !!g)
-			.map((groups: RegExpExecArray) => ({ Root: path.join(this.repositoryRoot, groups[2]), Status: groups[1] }));
-		//this._git.onOutput.emit('log', submodules);
-		return submodules;
+	async getSubmodules(): Promise<Submodule[]> {
+		const gitmodulesPath = path.join(this.root, '.gitmodules');
+
+		try {
+			const gitmodulesRaw = await readfile(gitmodulesPath, 'utf8');
+			return parseGitmodules(gitmodulesRaw);
+		} catch (err) {
+			if (/ENOENT/.test(err.message)) {
+				return [];
+			}
+
+			throw err;
+		}
 	}
 
 	async getBranch(name: string): Promise<Branch> {
