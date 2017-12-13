@@ -252,7 +252,7 @@ export class DebugService implements debug.IDebugService {
 			return TPromise.as(null);
 		}
 
-		this.focusStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
+		this.focusStackFrame(stackFrameToFocus);
 		if (thread.stoppedDetails) {
 			this.windowService.focusWindow();
 			aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", thread.stoppedDetails.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.range.startLineNumber));
@@ -320,7 +320,7 @@ export class DebugService implements debug.IDebugService {
 			const threadId = event.body.allThreadsContinued !== false ? undefined : event.body.threadId;
 			this.model.clearThreads(session.getId(), false, threadId);
 			if (this.viewModel.focusedProcess.getId() === session.getId()) {
-				this.focusStackFrameAndEvaluate(null, this.viewModel.focusedProcess).done(null, errors.onUnexpectedError);
+				this.focusStackFrame(null, this.viewModel.focusedProcess);
 			}
 			this.updateStateAndEmit(session.getId(), debug.State.Running);
 		}));
@@ -534,7 +534,7 @@ export class DebugService implements debug.IDebugService {
 		}
 	}
 
-	public focusStackFrameAndEvaluate(stackFrame: debug.IStackFrame, process?: debug.IProcess, explicit?: boolean): TPromise<void> {
+	public focusStackFrame(stackFrame: debug.IStackFrame, process?: debug.IProcess, explicit?: boolean): void {
 		if (!process) {
 			const processes = this.model.getProcesses();
 			process = stackFrame ? stackFrame.thread.process : processes.length ? processes[0] : null;
@@ -547,8 +547,6 @@ export class DebugService implements debug.IDebugService {
 
 		this.viewModel.setFocusedStackFrame(stackFrame, process, explicit);
 		this.updateStateAndEmit();
-
-		return this.model.evaluateWatchExpressions(process, stackFrame);
 	}
 
 	public enableOrDisableBreakpoints(enable: boolean, breakpoint?: debug.IEnablement): TPromise<void> {
@@ -612,7 +610,7 @@ export class DebugService implements debug.IDebugService {
 	public addReplExpression(name: string): TPromise<void> {
 		return this.model.addReplExpression(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame, name)
 			// Evaluate all watch expressions and fetch variables again since repl evaluation might have changed some.
-			.then(() => this.focusStackFrameAndEvaluate(this.viewModel.focusedStackFrame, this.viewModel.focusedProcess));
+			.then(() => this.focusStackFrame(this.viewModel.focusedStackFrame, this.viewModel.focusedProcess));
 	}
 
 	public removeReplExpressions(): void {
@@ -628,11 +626,11 @@ export class DebugService implements debug.IDebugService {
 		}
 	}
 
-	public addWatchExpression(name: string): TPromise<void> {
+	public addWatchExpression(name: string): void {
 		return this.model.addWatchExpression(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame, name);
 	}
 
-	public renameWatchExpression(id: string, newName: string): TPromise<void> {
+	public renameWatchExpression(id: string, newName: string): void {
 		return this.model.renameWatchExpression(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame, id, newName);
 	}
 
@@ -642,10 +640,6 @@ export class DebugService implements debug.IDebugService {
 
 	public removeWatchExpressions(id?: string): void {
 		this.model.removeWatchExpressions(id);
-	}
-
-	public evaluateWatchExpressions(): TPromise<void> {
-		return this.model.evaluateWatchExpressions(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame);
 	}
 
 	public startDebugging(root: IWorkspaceFolder, configOrName?: debug.IConfig | string, noDebug = false, topCompoundName?: string): TPromise<any> {
@@ -870,7 +864,7 @@ export class DebugService implements debug.IDebugService {
 				if (session.disconnected) {
 					return TPromise.as(null);
 				}
-				this.focusStackFrameAndEvaluate(null, process);
+				this.focusStackFrame(null, process);
 				this._onDidNewProcess.fire(process);
 
 				const internalConsoleOptions = configuration.internalConsoleOptions || this.configurationService.getValue<debug.IDebugConfiguration>('debug').internalConsoleOptions;
@@ -1047,7 +1041,7 @@ export class DebugService implements debug.IDebugService {
 					// Restart should preserve the focused process
 					const restartedProcess = this.model.getProcesses().filter(p => p.configuration.name === process.configuration.name).pop();
 					if (restartedProcess && restartedProcess !== this.viewModel.focusedProcess) {
-						this.focusStackFrameAndEvaluate(null, restartedProcess);
+						this.focusStackFrame(null, restartedProcess);
 					}
 				}
 			});
@@ -1098,7 +1092,7 @@ export class DebugService implements debug.IDebugService {
 		this.toDisposeOnSessionEnd.set(session.getId(), lifecycle.dispose(this.toDisposeOnSessionEnd.get(session.getId())));
 		const focusedProcess = this.viewModel.focusedProcess;
 		if (focusedProcess && focusedProcess.getId() === session.getId()) {
-			this.focusStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
+			this.focusStackFrame(null);
 		}
 		this.updateStateAndEmit(session.getId(), debug.State.Inactive);
 

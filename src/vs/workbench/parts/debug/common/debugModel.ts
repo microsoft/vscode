@@ -1047,45 +1047,18 @@ export class Model implements IModel {
 		return this.watchExpressions;
 	}
 
-	public addWatchExpression(process: IProcess, stackFrame: IStackFrame, name: string): TPromise<void> {
+	public addWatchExpression(process: IProcess, stackFrame: IStackFrame, name: string): void {
 		const we = new Expression(name);
 		this.watchExpressions.push(we);
-		if (!name) {
-			this._onDidChangeWatchExpressions.fire(we);
-			return TPromise.as(null);
-		}
-
-		return this.evaluateWatchExpressions(process, stackFrame, we.getId());
+		this._onDidChangeWatchExpressions.fire(we);
 	}
 
-	public renameWatchExpression(process: IProcess, stackFrame: IStackFrame, id: string, newName: string): TPromise<void> {
+	public renameWatchExpression(process: IProcess, stackFrame: IStackFrame, id: string, newName: string): void {
 		const filtered = this.watchExpressions.filter(we => we.getId() === id);
 		if (filtered.length === 1) {
 			filtered[0].name = newName;
-			// Evaluate all watch expressions again since the new watch expression might have changed some.
-			return this.evaluateWatchExpressions(process, stackFrame).then(() => {
-				this._onDidChangeWatchExpressions.fire(filtered[0]);
-			});
+			this._onDidChangeWatchExpressions.fire(filtered[0]);
 		}
-
-		return TPromise.as(null);
-	}
-
-	public evaluateWatchExpressions(process: IProcess, stackFrame: IStackFrame, id: string = null): TPromise<void> {
-		if (id) {
-			const filtered = this.watchExpressions.filter(we => we.getId() === id);
-			if (filtered.length !== 1) {
-				return TPromise.as(null);
-			}
-
-			return filtered[0].evaluate(process, stackFrame, 'watch').then(() => {
-				this._onDidChangeWatchExpressions.fire(filtered[0]);
-			});
-		}
-
-		return TPromise.join(this.watchExpressions.map(we => we.evaluate(process, stackFrame, 'watch'))).then(() => {
-			this._onDidChangeWatchExpressions.fire();
-		});
 	}
 
 	public removeWatchExpressions(id: string = null): void {

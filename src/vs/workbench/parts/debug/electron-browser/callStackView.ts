@@ -222,10 +222,9 @@ class CallStackController extends BaseDebugController {
 	}
 
 	public focusStackFrame(stackFrame: IStackFrame, event: any, preserveFocus: boolean): void {
-		this.debugService.focusStackFrameAndEvaluate(stackFrame, undefined, true).then(() => {
-			const sideBySide = (event && (event.ctrlKey || event.metaKey));
-			return stackFrame.openInEditor(this.editorService, preserveFocus, sideBySide);
-		}, errors.onUnexpectedError);
+		this.debugService.focusStackFrame(stackFrame, undefined, true);
+		const sideBySide = (event && (event.ctrlKey || event.metaKey));
+		stackFrame.openInEditor(this.editorService, preserveFocus, sideBySide).done(undefined, errors.onUnexpectedError);
 	}
 }
 
