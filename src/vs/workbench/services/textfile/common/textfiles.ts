@@ -290,7 +290,7 @@ export interface ITextFileService extends IDisposable {
 	 * @param resources the resources of the files to ask for confirmation or null if
 	 * confirming for all dirty resources.
 	 */
-	confirmSave(resources?: URI[]): ConfirmResult;
+	confirmSave(resources?: URI[]): TPromise<ConfirmResult>;
 
 	/**
 	 * Convinient fast access to the current auto save mode.

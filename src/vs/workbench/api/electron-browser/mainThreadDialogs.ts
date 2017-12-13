@@ -30,11 +30,9 @@ export class MainThreadDialogs implements MainThreadDiaglogsShape {
 			return Promise.reject(new Error('Not supported - Open-dialogs can only be opened on `file`-uris.'));
 		}
 		return new Promise<string[]>(resolve => {
-			const filenames = this._windowService.showOpenDialog(
+			this._windowService.showOpenDialog(
 				MainThreadDialogs._convertOpenOptions(options)
-			);
-
-			resolve(isFalsyOrEmpty(filenames) ? undefined : filenames);
+			).then(filenames => resolve(isFalsyOrEmpty(filenames) ? undefined : filenames));
 		});
 	}
 
@@ -44,10 +42,9 @@ export class MainThreadDialogs implements MainThreadDiaglogsShape {
 			return Promise.reject(new Error('Not supported - Save-dialogs can only be opened on `file`-uris.'));
 		}
 		return new Promise<string>(resolve => {
-			const filename = this._windowService.showSaveDialog(
+			this._windowService.showSaveDialog(
 				MainThreadDialogs._convertSaveOptions(options)
-			);
-			resolve(!filename ? undefined : filename);
+			).then(filename => resolve(!filename ? undefined : filename));
 		});
 	}
 
