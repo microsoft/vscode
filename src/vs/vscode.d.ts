@@ -3930,6 +3930,11 @@ declare module 'vscode' {
 		 * [`globalState`](#ExtensionContext.globalState) to store key value data.
 		 */
 		storagePath: string | undefined;
+
+		/**
+		 * A logger
+		 */
+		logger: ILogger;
 	}
 
 	/**
@@ -4388,13 +4393,6 @@ declare module 'vscode' {
 		 * @readonly
 		 */
 		export let sessionId: string;
-
-		/**
-		 * Something
-		 *
-		 * @readonly
-		 */
-		export let logger: ILogger;
 	}
 
 	/**

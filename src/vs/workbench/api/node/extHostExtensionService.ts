@@ -22,6 +22,7 @@ import { TernarySearchTree } from 'vs/base/common/map';
 import { Barrier } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 
 class ExtensionMemento implements IExtensionMemento {
 
@@ -119,6 +120,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 	private readonly _storagePath: ExtensionStoragePath;
 	private readonly _proxy: MainThreadExtensionServiceShape;
 	private readonly _logService: ILogService;
+	private readonly _extHostLogService: ExtHostLogService;
 	private _activator: ExtensionsActivator;
 	private _extensionPathIndex: TPromise<TernarySearchTree<IExtensionDescription>>;
 	/**
@@ -140,9 +142,10 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		this._storagePath = new ExtensionStoragePath(initData.workspace, initData.environment);
 		this._proxy = this._threadService.get(MainContext.MainThreadExtensionService);
 		this._activator = null;
+		this._extHostLogService = new ExtHostLogService(environmentService);
 
 		// initialize API first (i.e. do not release barrier until the API is initialized)
-		const apiFactory = createApiFactory(initData, threadService, extHostWorkspace, extHostConfiguration, this, logService, environmentService);
+		const apiFactory = createApiFactory(initData, threadService, extHostWorkspace, extHostConfiguration, this, logService);
 
 		initializeExtensionApi(this, apiFactory).then(() => {
 
@@ -334,13 +337,15 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 			workspaceState.whenReady,
 			this._storagePath.whenReady
 		]).then(() => {
+			const that = this;
 			return Object.freeze(<IExtensionContext>{
 				globalState,
 				workspaceState,
 				subscriptions: [],
 				get extensionPath() { return extensionDescription.extensionFolderPath; },
 				storagePath: this._storagePath.value(extensionDescription),
-				asAbsolutePath: (relativePath: string) => { return join(extensionDescription.extensionFolderPath, relativePath); }
+				asAbsolutePath: (relativePath: string) => { return join(extensionDescription.extensionFolderPath, relativePath); },
+				get logger() { return that._extHostLogService.getExtLogger(extensionDescription.id); }
 			});
 		});
 	}

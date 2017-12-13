@@ -59,8 +59,6 @@ import { toGlobPattern, toLanguageSelector } from 'vs/workbench/api/node/extHost
 import { ExtensionActivatedByAPI } from 'vs/workbench/api/node/extHostExtensionActivator';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription): typeof vscode;
@@ -85,8 +83,7 @@ export function createApiFactory(
 	extHostWorkspace: ExtHostWorkspace,
 	extHostConfiguration: ExtHostConfiguration,
 	extensionService: ExtHostExtensionService,
-	logService: ILogService,
-	environmentService: IEnvironmentService
+	logService: ILogService
 ): IExtensionApiFactory {
 
 	// Addressable instances
@@ -124,7 +121,6 @@ export function createApiFactory(
 	const extHostProgress = new ExtHostProgress(threadService.get(MainContext.MainThreadProgress));
 	const extHostOutputService = new ExtHostOutputService(threadService);
 	const extHostLanguages = new ExtHostLanguages(threadService);
-	const extHostLogService = new ExtHostLogService(environmentService);
 
 	// Register API-ish commands
 	ExtHostApiCommands.register(extHostCommands);
@@ -206,7 +202,6 @@ export function createApiFactory(
 			get language() { return Platform.language; },
 			get appName() { return product.nameLong; },
 			get appRoot() { return initData.environment.appRoot; },
-			get logger() { return extHostLogService.getExtLogger(extension.id); },
 		});
 
 		// namespace: extensions
