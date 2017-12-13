@@ -331,11 +331,9 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 						this.error('Starting TSServer failed with error.', err);
 						window.showErrorMessage(localize('serverCouldNotBeStarted', 'TypeScript language server couldn\'t be started. Error message is: {0}', err.message || err));
 						/* __GDPR__
-							"error" : {
-								"message": { "classification": "CustomerContent", "purpose": "PerformanceAndHealth" }
-							}
+							"error" : {}
 						*/
-						this.logTelemetry('error', { message: err.message });
+						this.logTelemetry('error');
 						this.resetClientVersion();
 						return;
 					}
