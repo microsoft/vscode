@@ -26,6 +26,7 @@ import { EnvironmentService } from 'vs/platform/environment/node/environmentServ
 import { createLogService } from 'vs/platform/log/node/spdlogService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 
 // const nativeExit = process.exit.bind(process);
 function patchProcess(allowExit: boolean) {
@@ -80,7 +81,7 @@ export class ExtensionHostMain {
 	private _logService: ILogService;
 	private disposables: IDisposable[] = [];
 
-	constructor(rpcProtocol: RPCProtocol, initData: IInitData) {
+	constructor(protocol: IMessagePassingProtocol, initData: IInitData) {
 		this._environment = initData.environment;
 		this._workspace = initData.workspace;
 
@@ -88,7 +89,7 @@ export class ExtensionHostMain {
 		patchProcess(allowExit);
 
 		// services
-		const threadService = new ExtHostThreadService(rpcProtocol);
+		const threadService = new ExtHostThreadService(new RPCProtocol(protocol));
 		const extHostWorkspace = new ExtHostWorkspace(threadService, initData.workspace);
 		const environmentService = new EnvironmentService(initData.args, initData.execPath);
 		this._logService = createLogService(`exthost${initData.windowId}`, environmentService);

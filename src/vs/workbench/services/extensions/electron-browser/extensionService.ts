@@ -41,8 +41,12 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron-browser/extensionHostProfiler';
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import product from 'vs/platform/node/product';
+import * as strings from 'vs/base/common/strings';
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
+
+// Enable to see detailed message communication between window and extension host
+const logExtensionHostCommunication = false;
 
 function messageWithSource(msg: IMessage): string {
 	return messageWithSource2(msg.source, msg.message);
@@ -230,7 +234,11 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 	private _createExtensionHostCustomers(protocol: IMessagePassingProtocol): ExtHostExtensionServiceShape {
 
-		this._extensionHostProcessThreadService = this._instantiationService.createInstance(MainThreadService, protocol);
+		if (logExtensionHostCommunication || this._environmentService.logExtensionHostCommunication) {
+			protocol = asLoggingProtocol(protocol);
+		}
+
+		this._extensionHostProcessThreadService = new MainThreadService(protocol);
 		const extHostContext: IExtHostContext = this._extensionHostProcessThreadService;
 
 		// Named customers
@@ -693,6 +701,22 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		});
 		this._onDidChangeExtensionsStatus.fire([extensionId]);
 	}
+}
+
+function asLoggingProtocol(protocol: IMessagePassingProtocol): IMessagePassingProtocol {
+
+	protocol.onMessage(msg => {
+		console.log('%c[Extension \u2192 Window]%c[len: ' + strings.pad(msg.length, 5, ' ') + ']', 'color: darkgreen', 'color: grey', msg);
+	});
+
+	return {
+		onMessage: protocol.onMessage,
+
+		send(msg: any) {
+			protocol.send(msg);
+			console.log('%c[Window \u2192 Extension]%c[len: ' + strings.pad(msg.length, 5, ' ') + ']', 'color: darkgreen', 'color: grey', msg);
+		}
+	};
 }
 
 interface IExtensionCacheData {
