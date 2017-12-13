@@ -7,9 +7,11 @@
 	"extensionsCommands": "Gestisci le estensioni",
 	"galleryExtensionsCommands": "Installa estensioni della raccolta",
 	"extension": "Estensione",
+	"runtimeExtension": "Estensioni in esecuzione",
 	"extensions": "Estensioni",
 	"view": "Visualizza",
 	"developer": "Sviluppatore",
 	"extensionsConfigurationTitle": "Estensioni",
-	"extensionsAutoUpdate": "Aggiorna automaticamente le estensioni"
+	"extensionsAutoUpdate": "Aggiorna automaticamente le estensioni",
+	"extensionsIgnoreRecommendations": "Se impostato a true, le notifiche delle raccomandazioni dell'estensione non verranno più mostrate."
 }

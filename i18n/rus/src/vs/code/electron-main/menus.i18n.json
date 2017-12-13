@@ -22,9 +22,12 @@
 	"miQuit": "Выйти из {0}",
 	"miNewFile": "&&Новый файл",
 	"miOpen": "Открыть...",
+	"miOpenWorkspace": "Открыть рабочую &&область...",
 	"miOpenFolder": "Открыть &&папку...",
 	"miOpenFile": "&&Открыть файл...",
 	"miOpenRecent": "Открыть &&последние",
+	"miSaveWorkspaceAs": "Сохранить рабочую область как...",
+	"miAddFolderToWorkspace": "Доб&&авить папку в рабочую область...",
 	"miSave": "Сохранить",
 	"miSaveAs": "Сохранить &&как...",
 	"miSaveAll": "Сохранить &&все",
@@ -154,6 +157,7 @@
 	"mMergeAllWindows": "Объединить все окна",
 	"miToggleDevTools": "&&Показать/скрыть средства разработчика",
 	"miAccessibilityOptions": "Специальные &&возможности",
+	"miReportIssue": "Сообщить о &&проблеме",
 	"miWelcome": "&&Приветствие",
 	"miInteractivePlayground": "&&Интерактивная площадка",
 	"miDocumentation": "&&Документация",
@@ -180,6 +184,7 @@
 	"miDownloadingUpdate": "Скачивается обновление...",
 	"miInstallingUpdate": "Идет установка обновления...",
 	"miCheckForUpdates": "Проверить наличие обновлений...",
+	"aboutDetail": "Версия {0}\nФиксация {1}\nДата {2}\nОболочка {3}\nОтрисовщик {4}\nУзел {5}\nАрхитектура {6}",
 	"okButton": "ОК",
 	"copy": "Копировать"
 }

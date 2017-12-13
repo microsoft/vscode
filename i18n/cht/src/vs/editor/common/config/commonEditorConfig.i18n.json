@@ -31,6 +31,7 @@
 	"minimap.maxColumn": "限制迷你地圖的寬度，以呈現最多的資料行",
 	"find.seedSearchStringFromSelection": "控制編譯器選取範圍是否預設為尋找工具的搜尋字串",
 	"find.autoFindInSelection": "控制編譯器內選取多字元或多行內文是否開啟選取範圍尋找功能",
+	"find.globalFindClipboard": "控制尋找小工具是否在 macOS 上讀取或修改共用尋找剪貼簿  ",
 	"wordWrap.off": "一律不換行。",
 	"wordWrap.on": "依檢視區寬度換行。",
 	"wordWrap.wordWrapColumn": "於 'editor.wordWrapColumn' 換行。",

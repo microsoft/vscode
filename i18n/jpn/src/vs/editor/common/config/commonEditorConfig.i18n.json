@@ -31,6 +31,7 @@
 	"minimap.maxColumn": "表示するミニマップの最大幅を特定の桁数に制限します",
 	"find.seedSearchStringFromSelection": "エディターの選択から検索ウィジェット内の検索文字列を与えるかどうかを制御します",
 	"find.autoFindInSelection": "エディター内で複数の文字もしくは行が選択されているときに選択範囲を検索するフラグを有効にするかどうかを制御します",
+	"find.globalFindClipboard": "macOS で検索ウィジェットが共有の検索クリップボードを読み取りまたは変更するかどうかを制御します",
 	"wordWrap.off": "行を折り返しません。",
 	"wordWrap.on": "行をビューポートの幅で折り返します。",
 	"wordWrap.wordWrapColumn": "行を 'editor.wordWrapColumn' で折り返します。",

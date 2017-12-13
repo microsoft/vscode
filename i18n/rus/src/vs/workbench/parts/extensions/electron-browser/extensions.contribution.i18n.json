@@ -7,9 +7,11 @@
 	"extensionsCommands": "Управление расширениями",
 	"galleryExtensionsCommands": "Установить расширения из коллекции",
 	"extension": "Расширение",
+	"runtimeExtension": "Запущенные расширения",
 	"extensions": "Расширения",
 	"view": "Просмотреть",
 	"developer": "Разработчик",
 	"extensionsConfigurationTitle": "Расширения",
-	"extensionsAutoUpdate": "Автоматически обновлять расширения"
+	"extensionsAutoUpdate": "Автоматически обновлять расширения",
+	"extensionsIgnoreRecommendations": "Если этот параметр установлен в значение true, оповещения о рекомендациях по расширениям перестанут отображаться."
 }
