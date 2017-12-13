@@ -958,4 +958,18 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			}
 		`);
 	}
+
+	collector.addRule(`
+		.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container >  .tab.sizing-shrink > .tab-label::after {
+			background: linear-gradient(to left, ${theme.getColor(TAB_INACTIVE_BACKGROUND)}, transparent);
+		}
+
+		.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container >  .tab.sizing-shrink.active > .tab-label::after {
+			background: linear-gradient(to left, ${theme.getColor(TAB_ACTIVE_BACKGROUND)}, transparent);
+		}
+
+		.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container >  .tab.sizing-shrink.dragged-over:not(.active) > .tab-label::after {
+			background: linear-gradient(to left, ${theme.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND)}, transparent);
+		}
+	`);
 });
