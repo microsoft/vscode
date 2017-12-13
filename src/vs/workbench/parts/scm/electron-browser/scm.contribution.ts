@@ -74,5 +74,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: 'all',
 			description: localize('diffDecorations', "Controls diff decorations in the editor.")
 		},
+		'scm.inputCounter': {
+			type: 'string',
+			enum: ['always', 'warn', 'off'],
+			default: 'warn',
+			description: localize('inputCounter', "Controls when to display the input counter.")
+		}
 	}
 });

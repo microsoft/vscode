@@ -11,8 +11,8 @@
   ],
   "main": "./out/javascriptMain",
   "dependencies": {
-    "jsonc-parser": "^0.3.1",
-    "request-light": "^0.2.0",
+    "jsonc-parser": "^1.0.0",
+    "request-light": "^0.2.1",
     "vscode-nls": "^2.0.2"
   },
   "scripts": {

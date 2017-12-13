@@ -10,7 +10,6 @@ import fs = require('fs');
 import os = require('os');
 import crypto = require('crypto');
 import assert = require('assert');
-import sudoPrompt = require('sudo-prompt');
 
 import { isParent, FileOperation, FileOperationEvent, IContent, IFileService, IResolveFileOptions, IResolveFileResult, IResolveContentOptions, IFileStat, IStreamContent, FileOperationError, FileOperationResult, IUpdateContentOptions, FileChangeType, IImportResult, FileChangesEvent, ICreateFileOptions, IContentData } from 'vs/platform/files/common/files';
 import { MAX_FILE_SIZE } from 'vs/platform/files/node/files';
@@ -598,14 +597,16 @@ export class FileService implements IFileService {
 			return this.updateContent(uri.file(tmpPath), value, writeOptions).then(() => {
 
 				// 3.) invoke our CLI as super user
-				return new TPromise<void>((c, e) => {
-					const promptOptions = { name: this.options.elevationSupport.promptTitle.replace('-', ''), icns: this.options.elevationSupport.promptIcnsPath };
-					sudoPrompt.exec(`"${this.options.elevationSupport.cliPath}" --write-elevated-helper "${tmpPath}" "${absolutePath}"`, promptOptions, (error: string, stdout: string, stderr: string) => {
-						if (error || stderr) {
-							e(error || stderr);
-						} else {
-							c(void 0);
-						}
+				return (import('sudo-prompt')).then(sudoPrompt => {
+					return new TPromise<void>((c, e) => {
+						const promptOptions = { name: this.options.elevationSupport.promptTitle.replace('-', ''), icns: this.options.elevationSupport.promptIcnsPath };
+						sudoPrompt.exec(`"${this.options.elevationSupport.cliPath}" --write-elevated-helper "${tmpPath}" "${absolutePath}"`, promptOptions, (error: string, stdout: string, stderr: string) => {
+							if (error || stderr) {
+								e(error || stderr);
+							} else {
+								c(void 0);
+							}
+						});
 					});
 				}).then(() => {
 

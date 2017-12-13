@@ -391,4 +391,14 @@ export class MainThreadSCM implements MainThreadSCMShape {
 
 		repository.input.placeholder = placeholder;
 	}
+
+	$setLineWarningLength(sourceControlHandle: number, lineWarningLength: number): void {
+		const repository = this._repositories[sourceControlHandle];
+
+		if (!repository) {
+			return;
+		}
+
+		repository.input.lineWarningLength = lineWarningLength;
+	}
 }

@@ -519,6 +519,7 @@ export class Repository implements Disposable {
 		this._sourceControl.inputBox.placeholder = localize('commitMessage', "Message (press {0} to commit)");
 		this._sourceControl.acceptInputCommand = { command: 'git.commitWithInput', title: localize('commit', "Commit"), arguments: [this._sourceControl] };
 		this._sourceControl.quickDiffProvider = this;
+		this._sourceControl.inputBox.lineWarningLength = 72;
 		this.disposables.push(this._sourceControl);
 
 		this._mergeGroup = this._sourceControl.createResourceGroup('merge', localize('merge changes', "Merge Changes"));
