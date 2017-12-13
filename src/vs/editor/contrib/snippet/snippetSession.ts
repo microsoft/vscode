@@ -15,9 +15,11 @@ import { Range } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
 import { groupBy } from 'vs/base/common/arrays';
 import { dispose } from 'vs/base/common/lifecycle';
-import { EditorSnippetVariableResolver } from './snippetVariables';
+import { SelectionBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, ClipboardBasedVariableResolver } from './snippetVariables';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { optional } from 'vs/platform/instantiation/common/instantiation';
 
 export class OneSnippet {
 
@@ -269,6 +271,9 @@ export class SnippetSession {
 		const edits: IIdentifiedSingleEditOperation[] = [];
 		const snippets: OneSnippet[] = [];
 
+		const modelBasedVariableResolver = new ModelBasedVariableResolver(model);
+		const clipboardVariableResolver = new ClipboardBasedVariableResolver(editor.invokeWithinContext(accessor => accessor.get(IClipboardService, optional)));
+
 		let delta = 0;
 
 		// know what text the overwrite[Before|After] extensions
@@ -310,7 +315,11 @@ export class SnippetSession {
 
 			const snippet = new SnippetParser()
 				.parse(adjustedTemplate, true, enforceFinalTabstop)
-				.resolveVariables(new EditorSnippetVariableResolver(model, selection));
+				.resolveVariables(new CompositeSnippetVariableResolver([
+					modelBasedVariableResolver,
+					clipboardVariableResolver,
+					new SelectionBasedVariableResolver(model, selection)
+				]));
 
 			const offset = model.getOffsetAt(start) + delta;
 			delta += snippet.toString().length - model.getValueLengthInRange(snippetSelection);
