@@ -93,7 +93,7 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 				return;
 			}
 
-			this.tree.refresh().done(() => () => {
+			this.tree.refresh().done(() => {
 				return we instanceof Expression ? this.tree.reveal(we) : TPromise.as(true);
 			}, errors.onUnexpectedError);
 		}));
