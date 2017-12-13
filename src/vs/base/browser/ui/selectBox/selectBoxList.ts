@@ -94,7 +94,6 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		this.selectElement.className = 'select-box';
 
 		this._onDidSelect = new Emitter<ISelectData>();
-
 		this.styles = styles;
 
 		this.registerListeners();
