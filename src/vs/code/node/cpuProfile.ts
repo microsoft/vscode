@@ -30,14 +30,21 @@ async function chooseRendererProcess(targets: Target[]): Promise<number> {
 			var rl = readline.createInterface(process.stdin, process.stdout);
 			rl.setPrompt('> ');
 			rl.prompt();
+			let targetTab = -1;
 			rl.on('line', function (line) {
 				let tabNumber = Number(line);
-				if (!isNaN(tabNumber) && tabNumber >= 0 && tabNumber < targets.length) {
+				if (isNumber(tabNumber) && tabNumber >= 0 && tabNumber < targets.length) {
+					targetTab = tabNumber;
 					rl.close();
-					resolve(tabNumber);
 				} else {
 					console.log('Please provide valid number ;)');
 					rl.prompt();
+				}
+			}).on('close', function () {
+				if (targetTab === -1) {
+					process.exit(0);
+				} else {
+					resolve(targetTab);
 				}
 			});
 		});
@@ -75,7 +82,7 @@ export async function cpuProfile(debugPortStr: string): Promise<void> {
 
 		console.log('Start profiling, press CTRL-C to stop.');
 		const targetProcess = await profiler.startProfiling(options);
-		const filenamePrefix = paths.join(os.homedir(), Math.random().toString(16).slice(-4));
+		const filenamePrefix = paths.join(os.homedir(), `CPU-${new Date().toISOString().replace(/[\-:]/g, '')}.cpuprofile`);
 
 		return new TPromise(c => {
 			process.on('SIGINT', async () => {
@@ -87,8 +94,8 @@ export async function cpuProfile(debugPortStr: string): Promise<void> {
 					suffix = '.txt';
 				}
 
-				await profiler.writeProfile(profileTargetProcess, `${filenamePrefix}-main.cpuprofile${suffix}`);
-				console.log(`\nCPU Profile written to ${filenamePrefix}.cpuprofile${suffix}`);
+				await profiler.writeProfile(profileTargetProcess, `${filenamePrefix}${suffix}`);
+				console.log(`\nCPU Profile written to ${filenamePrefix}${suffix}`);
 				c(null);
 				process.exit(0);
 			});

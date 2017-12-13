@@ -17,7 +17,7 @@ import { whenDeleted } from 'vs/base/node/pfs';
 import { findFreePort, findRandomFreePort } from 'vs/base/node/ports';
 import { resolveTerminalEncoding } from 'vs/base/node/encoding';
 import * as iconv from 'iconv-lite';
-import { cpuProfile } from './profile';
+import { cpuProfile } from './cpuProfile';
 
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 	return !!argv['install-source']
