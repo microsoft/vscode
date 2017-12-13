@@ -8,6 +8,9 @@
 	"unFoldRecursivelyAction.label": "Espandi in modo ricorsivo",
 	"foldAction.label": "Riduci",
 	"foldRecursivelyAction.label": "Riduci in modo ricorsivo",
+	"foldAllBlockComments.label": "Riduci tutti i blocchi commento",
+	"foldAllMarkerRegions.label": "Riduci tutte le regioni",
+	"unfoldAllMarkerRegions.label": "Espandi tutte le regioni",
 	"foldAllAction.label": "Riduci tutto",
 	"unfoldAllAction.label": "Espandi tutto",
 	"foldLevelAction.label": "Livello riduzione {0}"

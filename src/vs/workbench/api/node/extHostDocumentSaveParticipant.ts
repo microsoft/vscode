@@ -5,7 +5,7 @@
 'use strict';
 
 import Event from 'vs/base/common/event';
-import URI from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { sequence, always } from 'vs/base/common/async';
 import { illegalState } from 'vs/base/common/errors';
 import { ExtHostDocumentSaveParticipantShape, MainThreadEditorsShape, IWorkspaceResourceEdit } from 'vs/workbench/api/node/extHost.protocol';
@@ -49,7 +49,8 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 		};
 	}
 
-	$participateInSave(resource: URI, reason: SaveReason): Thenable<boolean[]> {
+	$participateInSave(data: UriComponents, reason: SaveReason): Thenable<boolean[]> {
+		const resource = URI.revive(data);
 		const entries = this._callbacks.toArray();
 
 		let didTimeout = false;

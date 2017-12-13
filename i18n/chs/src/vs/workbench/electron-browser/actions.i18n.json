@@ -67,5 +67,6 @@
 	"warn": "警告",
 	"err": "错误",
 	"critical": "关键",
-	"off": "关闭"
+	"off": "关闭",
+	"selectLogLevel": "选择日志级别"
 }

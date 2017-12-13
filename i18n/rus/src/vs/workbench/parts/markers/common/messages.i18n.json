@@ -6,6 +6,7 @@
 {
 	"viewCategory": "Просмотреть",
 	"problems.view.toggle.label": "Показать/скрыть проблемы",
+	"problems.view.focus.label": "Проблемы с фокусом",
 	"problems.panel.configuration.title": "Представление \"Проблемы\"",
 	"problems.panel.configuration.autoreveal": "Определяет, следует ли представлению \"Проблемы\" отображать файлы при их открытии",
 	"markers.panel.title.problems": "Проблемы",

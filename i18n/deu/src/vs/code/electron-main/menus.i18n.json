@@ -22,10 +22,12 @@
 	"miQuit": "{0} beenden",
 	"miNewFile": "&&Neue Datei",
 	"miOpen": "&&Öffnen...",
+	"miOpenWorkspace": "Ar&&beitsbereich öffnen...",
 	"miOpenFolder": "&&Ordner öffnen...",
 	"miOpenFile": "Datei &&öffnen...",
 	"miOpenRecent": "&&Zuletzt verwendete öffnen",
 	"miSaveWorkspaceAs": "Arbeitsbereich speichern unter...",
+	"miAddFolderToWorkspace": "Or&&dner zu Arbeitsbereich hinzufügen...",
 	"miSave": "&&Speichern",
 	"miSaveAs": "Speichern &&unter...",
 	"miSaveAll": "A&&lles speichern",
@@ -155,6 +157,7 @@
 	"mMergeAllWindows": "Alle Fenster zusammenführen",
 	"miToggleDevTools": "&&Entwicklertools umschalten",
 	"miAccessibilityOptions": "&&Optionen für erleichterte Bedienung",
+	"miReportIssue": "&&Problem melden",
 	"miWelcome": "&&Willkommen",
 	"miInteractivePlayground": "&&Interactive Spielwiese",
 	"miDocumentation": "&&Dokumentation",
@@ -181,6 +184,7 @@
 	"miDownloadingUpdate": "Das Update wird heruntergeladen...",
 	"miInstallingUpdate": "Update wird installiert...",
 	"miCheckForUpdates": "Nach Aktualisierungen suchen...",
+	"aboutDetail": "\nVersion {0}\nCommit {1}\nDatum {2}\nShell {3}\nRenderer {4}\nNode {5}\nArchitektur {6}",
 	"okButton": "OK",
 	"copy": "&&Kopieren"
 }

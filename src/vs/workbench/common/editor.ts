@@ -200,8 +200,8 @@ export abstract class EditorInput implements IEditorInput {
 	/**
 	 * Subclasses should bring up a proper dialog for the user if the editor is dirty and return the result.
 	 */
-	public confirmSave(): ConfirmResult {
-		return ConfirmResult.DONT_SAVE;
+	public confirmSave(): TPromise<ConfirmResult> {
+		return TPromise.wrap(ConfirmResult.DONT_SAVE);
 	}
 
 	/**
@@ -372,7 +372,7 @@ export class SideBySideEditorInput extends EditorInput {
 		return this.master.isDirty();
 	}
 
-	public confirmSave(): ConfirmResult {
+	public confirmSave(): TPromise<ConfirmResult> {
 		return this.master.confirmSave();
 	}
 

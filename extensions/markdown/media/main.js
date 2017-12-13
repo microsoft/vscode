@@ -219,8 +219,8 @@
 		while (node) {
 			if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
 				if (node.href.startsWith('file://')) {
-					const [path, frag] = node.href.replace(/^file:\/\//i, '').split('#');
-					postMessage('_markdown.openDocumentLink', { path, frag });
+					const [path, fragment] = node.href.replace(/^file:\/\//i, '').split('#');
+					postMessage('_markdown.openDocumentLink', { path, fragment });
 					event.preventDefault();
 					event.stopPropagation();
 					break;

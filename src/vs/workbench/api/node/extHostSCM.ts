@@ -458,7 +458,7 @@ export class ExtHostSCM {
 		private _commands: ExtHostCommands,
 		@ILogService private logService: ILogService
 	) {
-		this._proxy = mainContext.get(MainContext.MainThreadSCM);
+		this._proxy = mainContext.getProxy(MainContext.MainThreadSCM);
 
 		_commands.registerArgumentProcessor({
 			processArgument: arg => {

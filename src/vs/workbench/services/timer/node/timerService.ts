@@ -14,20 +14,15 @@ export class TimerService implements ITimerService {
 	public _serviceBrand: any;
 
 	public readonly start: number;
-	public readonly appReady: number;
 	public readonly windowLoad: number;
 
 	public readonly isInitialStartup: boolean;
 	public readonly hasAccessibilitySupport: boolean;
 
-	public beforeWorkbenchOpen: number;
-	public workbenchStarted: number;
-
 	private _startupMetrics: IStartupMetrics;
 
 	constructor(initData: IInitData, private isEmptyWorkbench: boolean) {
 		this.start = initData.start;
-		this.appReady = initData.appReady;
 		this.windowLoad = initData.windowLoad;
 
 		this.isInitialStartup = initData.isInitialStartup;
@@ -77,14 +72,14 @@ export class TimerService implements ITimerService {
 
 		this._startupMetrics = {
 			version: 1,
-			ellapsed: this.workbenchStarted - start,
+			ellapsed: perf.getEntry('mark', 'didStartWorkbench').startTime - start,
 			timers: {
 				ellapsedExtensions: perf.getDuration('willLoadExtensions', 'didLoadExtensions'),
 				ellapsedExtensionsReady: perf.getEntry('mark', 'didLoadExtensions').startTime - start,
 				ellapsedRequire: perf.getDuration('willLoadWorkbenchMain', 'didLoadWorkbenchMain'),
 				ellapsedEditorRestore: perf.getDuration('willRestoreEditors', 'didRestoreEditors'),
 				ellapsedViewletRestore: perf.getDuration('willRestoreViewlet', 'didRestoreViewlet'),
-				ellapsedWorkbench: this.workbenchStarted - this.beforeWorkbenchOpen,
+				ellapsedWorkbench: perf.getDuration('willStartWorkbench', 'didStartWorkbench'),
 				ellapsedWindowLoadToRequire: perf.getEntry('mark', 'willLoadWorkbenchMain').startTime - this.windowLoad,
 				ellapsedTimersToTimersComputed: Date.now() - now
 			},
@@ -103,8 +98,8 @@ export class TimerService implements ITimerService {
 		};
 
 		if (initialStartup) {
-			this._startupMetrics.timers.ellapsedAppReady = this.appReady - this.start;
-			this._startupMetrics.timers.ellapsedWindowLoad = this.windowLoad - this.appReady;
+			this._startupMetrics.timers.ellapsedAppReady = perf.getDuration('main:started', 'main:appReady');
+			this._startupMetrics.timers.ellapsedWindowLoad = this.windowLoad - perf.getEntry('mark', 'main:appReady').startTime;
 		}
 	}
 }

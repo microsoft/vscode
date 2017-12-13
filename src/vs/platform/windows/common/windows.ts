@@ -191,9 +191,9 @@ export interface IWindowService {
 	setDocumentEdited(flag: boolean): TPromise<void>;
 	onWindowTitleDoubleClick(): TPromise<void>;
 	show(): TPromise<void>;
-	showMessageBox(options: MessageBoxOptions): number;
-	showSaveDialog(options: SaveDialogOptions): string;
-	showOpenDialog(options: OpenDialogOptions): string[];
+	showMessageBox(options: MessageBoxOptions): TPromise<number>;
+	showSaveDialog(options: SaveDialogOptions): TPromise<string>;
+	showOpenDialog(options: OpenDialogOptions): TPromise<string[]>;
 	showMessageBoxWithCheckbox(options: MessageBoxOptions): TPromise<IMessageBoxResult>;
 }
 

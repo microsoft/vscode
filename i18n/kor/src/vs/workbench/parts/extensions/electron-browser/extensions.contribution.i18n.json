@@ -7,9 +7,11 @@
 	"extensionsCommands": "확장 관리",
 	"galleryExtensionsCommands": "갤러리 확장 설치",
 	"extension": "확장",
+	"runtimeExtension": "실행 중인 확장",
 	"extensions": "확장",
 	"view": "보기",
 	"developer": "개발자",
 	"extensionsConfigurationTitle": "확장",
-	"extensionsAutoUpdate": "자동으로 확장 업데이트"
+	"extensionsAutoUpdate": "자동으로 확장 업데이트",
+	"extensionsIgnoreRecommendations": "True로 설정하는 경우 확장 권장 사항에 대한 알림 표시가 중지됩니다."
 }

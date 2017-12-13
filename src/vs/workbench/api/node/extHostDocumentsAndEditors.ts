@@ -52,7 +52,7 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 				assert.ok(!this._documents.has(data.url.toString()), `document '${data.url} already exists!'`);
 
 				const documentData = new ExtHostDocumentData(
-					this._mainContext.get(MainContext.MainThreadDocuments),
+					this._mainContext.getProxy(MainContext.MainThreadDocuments),
 					data.url,
 					data.lines,
 					data.EOL,
@@ -80,7 +80,7 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 
 				const documentData = this._documents.get(data.document.toString());
 				const editor = new ExtHostTextEditor(
-					this._mainContext.get(MainContext.MainThreadEditors),
+					this._mainContext.getProxy(MainContext.MainThreadEditors),
 					data.id,
 					documentData,
 					data.selections.map(typeConverters.toSelection),

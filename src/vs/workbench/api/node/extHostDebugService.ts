@@ -61,7 +61,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		this._onDidChangeActiveDebugSession = new Emitter<vscode.DebugSession>();
 		this._onDidReceiveDebugSessionCustomEvent = new Emitter<vscode.DebugSessionCustomEvent>();
 
-		this._debugServiceProxy = mainContext.get(MainContext.MainThreadDebugService);
+		this._debugServiceProxy = mainContext.getProxy(MainContext.MainThreadDebugService);
 
 		this._onDidChangeBreakpoints = new Emitter<vscode.BreakpointsChangeEvent>({
 			onFirstListenerAdd: () => {

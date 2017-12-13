@@ -6,11 +6,11 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IThreadService, ProxyIdentifier } from 'vs/workbench/services/thread/common/threadService';
+import { ProxyIdentifier, IRPCProtocol } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 
-export function OneGetThreadService(thing: any): IThreadService {
+export function OneGetThreadService(thing: any): IRPCProtocol {
 	return {
-		get<T>(): T {
+		getProxy<T>(): T {
 			return thing;
 		},
 		set<T, R extends T>(identifier: ProxyIdentifier<T>, value: R): R {
@@ -75,7 +75,7 @@ export abstract class AbstractTestThreadService {
 	protected abstract _callOnRemote(proxyId: string, path: string, args: any[]): TPromise<any>;
 }
 
-export class TestThreadService extends AbstractTestThreadService implements IThreadService {
+export class TestThreadService extends AbstractTestThreadService implements IRPCProtocol {
 	constructor(isMainProcess: boolean = false) {
 		super(isMainProcess);
 	}
@@ -120,7 +120,7 @@ export class TestThreadService extends AbstractTestThreadService implements IThr
 		return value;
 	}
 
-	get<T>(identifier: ProxyIdentifier<T>): T {
+	getProxy<T>(identifier: ProxyIdentifier<T>): T {
 		let id = identifier.id;
 		if (this._locals[id]) {
 			return this._locals[id];

@@ -67,5 +67,6 @@
 	"warn": "Advertencia",
 	"err": "Error",
 	"critical": "Crítico",
-	"off": "Apagado"
+	"off": "Apagado",
+	"selectLogLevel": "Seleccione el nivel de registro"
 }

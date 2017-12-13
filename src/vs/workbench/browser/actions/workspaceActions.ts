@@ -140,7 +140,7 @@ export abstract class BaseWorkspacesAction extends Action {
 		super(id, label);
 	}
 
-	protected pickFolders(buttonLabel: string, title: string): string[] {
+	protected pickFolders(buttonLabel: string, title: string): TPromise<string[]> {
 		return this.windowService.showOpenDialog({
 			buttonLabel,
 			title,
@@ -212,13 +212,14 @@ export class AddRootFolderAction extends BaseWorkspacesAction {
 	}
 
 	public run(): TPromise<any> {
-		const folders = super.pickFolders(mnemonicButtonLabel(nls.localize({ key: 'add', comment: ['&& denotes a mnemonic'] }, "&&Add")), nls.localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"));
-		if (!folders || !folders.length) {
-			return TPromise.as(null);
-		}
+		return super.pickFolders(mnemonicButtonLabel(nls.localize({ key: 'add', comment: ['&& denotes a mnemonic'] }, "&&Add")), nls.localize('addFolderToWorkspaceTitle', "Add Folder to Workspace")).then(folders => {
+			if (!folders || !folders.length) {
+				return null;
+			}
 
-		// Add and show Files Explorer viewlet
-		return this.workspaceEditingService.addFolders(folders.map(folder => ({ uri: URI.file(folder) }))).then(() => this.viewletService.openViewlet(this.viewletService.getDefaultViewletId(), true));
+			// Add and show Files Explorer viewlet
+			return this.workspaceEditingService.addFolders(folders.map(folder => ({ uri: URI.file(folder) }))).then(() => this.viewletService.openViewlet(this.viewletService.getDefaultViewletId(), true));
+		});
 	}
 }
 
@@ -317,23 +318,24 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 	}
 
 	public run(): TPromise<any> {
-		const configPath = this.getNewWorkspaceConfigPath();
-		if (configPath) {
-			switch (this.contextService.getWorkbenchState()) {
-				case WorkbenchState.EMPTY:
-				case WorkbenchState.FOLDER:
-					const folders = this.contextService.getWorkspace().folders.map(folder => ({ uri: folder.uri }));
-					return this.workspaceEditingService.createAndEnterWorkspace(folders, configPath);
+		return this.getNewWorkspaceConfigPath().then(configPath => {
+			if (configPath) {
+				switch (this.contextService.getWorkbenchState()) {
+					case WorkbenchState.EMPTY:
+					case WorkbenchState.FOLDER:
+						const folders = this.contextService.getWorkspace().folders.map(folder => ({ uri: folder.uri }));
+						return this.workspaceEditingService.createAndEnterWorkspace(folders, configPath);
 
-				case WorkbenchState.WORKSPACE:
-					return this.workspaceEditingService.saveAndEnterWorkspace(configPath);
+					case WorkbenchState.WORKSPACE:
+						return this.workspaceEditingService.saveAndEnterWorkspace(configPath);
+				}
 			}
-		}
 
-		return TPromise.as(null);
+			return null;
+		});
 	}
 
-	private getNewWorkspaceConfigPath(): string {
+	private getNewWorkspaceConfigPath(): TPromise<string> {
 		return this.windowService.showSaveDialog({
 			buttonLabel: mnemonicButtonLabel(nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")),
 			title: nls.localize('saveWorkspace', "Save Workspace"),

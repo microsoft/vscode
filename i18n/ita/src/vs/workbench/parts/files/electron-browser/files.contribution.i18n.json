@@ -48,5 +48,6 @@
 	"sortOrder.type": "I file e le cartelle vengono ordinati in ordine alfabetico in base all'estensione. Le cartelle vengono visualizzate prima dei file.",
 	"sortOrder.modified": "I file e le cartelle vengono ordinati in ordine decrescente in base alla data dell'ultima modifica. Le cartelle vengono visualizzate prima dei file.",
 	"sortOrder": "Controlla l'ordinamento di file e cartelle in Esplora risorse. Oltre all'ordinamento predefinito, è possibile impostare l'ordine su 'mixed' (file e cartelle vengono ordinati insieme), 'type' (in base al tipo di file), 'modified' (in base alla data dell'ultima modifica) o 'filesFirst' (i file vengono ordinati prima delle cartelle).",
+	"explorer.decorations.colors": "Controlla l'uso dei colori negli effetti del file.",
 	"explorer.decorations.badges": "Controlli se decorazioni file devono utilizzare badge."
 }
