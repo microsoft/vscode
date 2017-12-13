@@ -176,11 +176,11 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 		return TPromise.as(null);
 	}
 
-	$trySetDecorationsFast(id: string, key: string, ranges: string): TPromise<any> {
+	$trySetDecorationsFast(id: string, key: string, ranges: number[]): TPromise<any> {
 		if (!this._documentsAndEditors.getEditor(id)) {
 			return TPromise.wrapError(disposed(`TextEditor(${id})`));
 		}
-		this._documentsAndEditors.getEditor(id).setDecorationsFast(key, /*TODO: marshaller is too slow*/JSON.parse(ranges));
+		this._documentsAndEditors.getEditor(id).setDecorationsFast(key, ranges);
 		return TPromise.as(null);
 	}
 
@@ -213,7 +213,8 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 		for (let i = 0, len = workspaceResourceEdits.length; i < len; i++) {
 			const workspaceResourceEdit = workspaceResourceEdits[i];
 			if (workspaceResourceEdit.modelVersionId) {
-				let model = this._modelService.getModel(workspaceResourceEdit.resource);
+				const uri = URI.revive(workspaceResourceEdit.resource);
+				let model = this._modelService.getModel(uri);
 				if (model && model.getVersionId() !== workspaceResourceEdit.modelVersionId) {
 					// model changed in the meantime
 					return TPromise.as(false);
@@ -225,7 +226,7 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 		let resourceEdits: IResourceEdit[] = [];
 		for (let i = 0, len = workspaceResourceEdits.length; i < len; i++) {
 			const workspaceResourceEdit = workspaceResourceEdits[i];
-			const uri = workspaceResourceEdit.resource;
+			const uri = URI.revive(workspaceResourceEdit.resource);
 			const edits = workspaceResourceEdit.edits;
 
 			for (let j = 0, lenJ = edits.length; j < lenJ; j++) {

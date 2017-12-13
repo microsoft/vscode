@@ -14,7 +14,7 @@ import {
 
 import * as vscode from 'vscode';
 
-import URI from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 
@@ -200,7 +200,7 @@ export interface ITextDocumentShowOptions {
 }
 
 export interface IWorkspaceResourceEdit {
-	resource: URI;
+	resource: UriComponents;
 	modelVersionId?: number;
 	edits: {
 		range?: IRange;
@@ -210,14 +210,14 @@ export interface IWorkspaceResourceEdit {
 }
 
 export interface MainThreadEditorsShape extends IDisposable {
-	$tryShowTextDocument(resource: URI, options: ITextDocumentShowOptions): TPromise<string>;
+	$tryShowTextDocument(resource: UriComponents, options: ITextDocumentShowOptions): TPromise<string>;
 	$registerTextEditorDecorationType(key: string, options: editorCommon.IDecorationRenderOptions): void;
 	$removeTextEditorDecorationType(key: string): void;
 	$tryShowEditor(id: string, position: EditorPosition): TPromise<void>;
 	$tryHideEditor(id: string): TPromise<void>;
 	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): TPromise<any>;
 	$trySetDecorations(id: string, key: string, ranges: editorCommon.IDecorationOptions[]): TPromise<any>;
-	$trySetDecorationsFast(id: string, key: string, ranges: string): TPromise<any>;
+	$trySetDecorationsFast(id: string, key: string, ranges: number[]): TPromise<any>;
 	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): TPromise<any>;
 	$trySetSelections(id: string, selections: ISelection[]): TPromise<any>;
 	$tryApplyEdits(id: string, modelVersionId: number, edits: editorCommon.ISingleEditOperation[], opts: IApplyEditsOptions): TPromise<boolean>;
@@ -673,7 +673,7 @@ export const MainContext = {
 	MainThreadDialogs: createMainId<MainThreadDiaglogsShape>('MainThreadDiaglogs', ProxyType.CustomMarshaller),
 	MainThreadDocuments: createMainId<MainThreadDocumentsShape>('MainThreadDocuments', ProxyType.CustomMarshaller),
 	MainThreadDocumentContentProviders: createMainId<MainThreadDocumentContentProvidersShape>('MainThreadDocumentContentProviders', ProxyType.CustomMarshaller),
-	MainThreadEditors: createMainId<MainThreadEditorsShape>('MainThreadEditors', ProxyType.CustomMarshaller),
+	MainThreadEditors: createMainId<MainThreadEditorsShape>('MainThreadEditors'),
 	MainThreadErrors: createMainId<MainThreadErrorsShape>('MainThreadErrors', ProxyType.CustomMarshaller),
 	MainThreadTreeViews: createMainId<MainThreadTreeViewsShape>('MainThreadTreeViews', ProxyType.CustomMarshaller),
 	MainThreadLanguageFeatures: createMainId<MainThreadLanguageFeaturesShape>('MainThreadLanguageFeatures', ProxyType.CustomMarshaller),

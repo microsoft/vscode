@@ -5,7 +5,7 @@
 'use strict';
 
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import URI from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
@@ -1565,7 +1565,7 @@ export interface IThemeDecorationRenderOptions {
 	color?: string | ThemeColor;
 	letterSpacing?: string;
 
-	gutterIconPath?: string | URI;
+	gutterIconPath?: string | UriComponents;
 	gutterIconSize?: string;
 
 	overviewRulerColor?: string | ThemeColor;
@@ -1579,7 +1579,7 @@ export interface IThemeDecorationRenderOptions {
  */
 export interface IContentDecorationRenderOptions {
 	contentText?: string;
-	contentIconPath?: string | URI;
+	contentIconPath?: string | UriComponents;
 
 	border?: string;
 	borderColor?: string | ThemeColor;
