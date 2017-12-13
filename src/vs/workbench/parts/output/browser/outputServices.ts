@@ -163,14 +163,14 @@ class FileOutputChannel extends OutputChannel implements IOutputChannel {
 	hide(): void {
 		if (this.shown) {
 			this.shown = false;
-			this.fileService.unwatchFileChanges(this.file);
-			this.disposables = dispose(this.disposables);
+			this.unwatch();
 		}
 		this.contentResolver = null;
 	}
 
 	getOutputDelta(previousDelta?: IOutputDelta): TPromise<IOutputDelta> {
 		if (!this.shown) {
+			// Do not return any content when not shown
 			return TPromise.as(null);
 		}
 
@@ -213,9 +213,12 @@ class FileOutputChannel extends OutputChannel implements IOutputChannel {
 		}));
 	}
 
-	dispose(): void {
-		this.contentResolver = null;
+	private unwatch(): void {
+		this.fileService.unwatchFileChanges(this.file);
 		this.disposables = dispose(this.disposables);
+	}
+
+	dispose(): void {
 		this.hide();
 		super.dispose();
 	}
