@@ -139,6 +139,7 @@ const ImageMimetypes = [
 export class CommandCenter {
 
 	private disposables: Disposable[];
+	private checkoutItemsUsageList: Array<string>;
 
 	constructor(
 		private git: Git,
@@ -155,6 +156,7 @@ export class CommandCenter {
 				return commands.registerCommand(commandId, command);
 			}
 		});
+		this.checkoutItemsUsageList = [];
 	}
 
 	@command('git.refresh', { repository: true })
@@ -1079,6 +1081,44 @@ export class CommandCenter {
 		repository.inputBox.value = commit.message;
 	}
 
+	private sortCheckoutItemsByUsage(items: Array<any>) {
+		const usageMap = CommandCenter.arrayToMap(this.checkoutItemsUsageList);
+
+		return [...items].sort((a, b) => {
+			const getUsageIndex = (item: string): Number => usageMap[item] || Infinity;
+
+			const label1 = a.label;
+			const label2 = b.label;
+
+			const label1Index = getUsageIndex(label1);
+			const label2Index = getUsageIndex(label2);
+
+			if (label1Index > label2Index) {
+				return 1;
+			} else if (label2Index > label1Index) {
+				return -1;
+			}
+
+			return 0;
+		});
+	}
+
+	private updateCheckoutUsage(choice: any) {
+		const newCheckoutItemsUsageList = [...this.checkoutItemsUsageList];
+
+		if (choice instanceof CheckoutItem) {
+			const checkoutItem = <CheckoutItem>choice;
+
+			const index = newCheckoutItemsUsageList.indexOf(checkoutItem.label);
+			if (index >= 0) {
+				newCheckoutItemsUsageList.splice(index, 1);
+			}
+			newCheckoutItemsUsageList.unshift(checkoutItem.label);
+
+			this.checkoutItemsUsageList = newCheckoutItemsUsageList;
+		}
+	}
+
 	@command('git.checkout', { repository: true })
 	async checkout(repository: Repository, treeish: string): Promise<void> {
 		if (typeof treeish === 'string') {
@@ -1101,13 +1141,18 @@ export class CommandCenter {
 		const remoteHeads = (includeRemotes ? repository.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
 			.map(ref => new CheckoutRemoteHeadItem(ref));
 
-		const picks = [createBranch, ...heads, ...tags, ...remoteHeads];
+		const allCheckoutItems = [...heads, ...tags, ...remoteHeads];
+		const sortedCheckoutItems = this.sortCheckoutItemsByUsage(allCheckoutItems);
+
+		const picks = [createBranch, ...sortedCheckoutItems];
 		const placeHolder = localize('select a ref to checkout', 'Select a ref to checkout');
 		const choice = await window.showQuickPick(picks, { placeHolder });
 
 		if (!choice) {
 			return;
 		}
+
+		this.updateCheckoutUsage(choice);
 
 		await choice.run(repository);
 	}
@@ -1662,6 +1707,13 @@ export class CommandCenter {
 			.map(({ repository, resources }) => fn(repository as Repository, isSingleResource ? resources[0] : resources));
 
 		return Promise.all(promises);
+	}
+
+	private static arrayToMap(array: Array<string>): any {
+		return array.reduce((acc: any, item: string, index: number) => {
+			acc[item] = index + 1;
+			return acc;
+		}, {});
 	}
 
 	dispose(): void {
