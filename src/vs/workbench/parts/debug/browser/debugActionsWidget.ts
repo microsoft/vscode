@@ -170,7 +170,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 				this.$el.style('border', `1px solid ${contrastBorderColor}`);
 			} else {
 				this.$el.style({
-					'border': borderColor ? `1px solid ${borderColor}` : 'none',
+					'border': borderColor ? `solid ${borderColor}` : 'none',
 					'border-width': '1px 0'
 				});
 			}
