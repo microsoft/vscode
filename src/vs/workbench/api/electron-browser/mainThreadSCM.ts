@@ -268,7 +268,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		extHostContext: IExtHostContext,
 		@ISCMService private scmService: ISCMService
 	) {
-		this._proxy = extHostContext.get(ExtHostContext.ExtHostSCM);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSCM);
 	}
 
 	dispose(): void {
@@ -390,5 +390,15 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		}
 
 		repository.input.placeholder = placeholder;
+	}
+
+	$setLineWarningLength(sourceControlHandle: number, lineWarningLength: number): void {
+		const repository = this._repositories[sourceControlHandle];
+
+		if (!repository) {
+			return;
+		}
+
+		repository.input.lineWarningLength = lineWarningLength;
 	}
 }

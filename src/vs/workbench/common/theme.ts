@@ -23,6 +23,18 @@ export const TAB_INACTIVE_BACKGROUND = registerColor('tab.inactiveBackground', {
 	hc: null
 }, nls.localize('tabInactiveBackground', "Inactive tab background color. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
+export const TAB_HOVER_BACKGROUND = registerColor('tab.hoverBackground', {
+	dark: null,
+	light: null,
+	hc: null
+}, nls.localize('tabHoverBackground', "Tab background color when hovering. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
+export const TAB_UNFOCUSED_HOVER_BACKGROUND = registerColor('tab.unfocusedHoverBackground', {
+	dark: transparent(TAB_HOVER_BACKGROUND, 0.5),
+	light: transparent(TAB_HOVER_BACKGROUND, 0.7),
+	hc: null
+}, nls.localize('tabUnfocusedHoverBackground', "Tab background color in an unfocused group when hovering. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
 export const TAB_BORDER = registerColor('tab.border', {
 	dark: '#252526',
 	light: '#F3F3F3',
@@ -40,6 +52,18 @@ export const TAB_UNFOCUSED_ACTIVE_BORDER = registerColor('tab.unfocusedActiveBor
 	light: transparent(TAB_ACTIVE_BORDER, 0.7),
 	hc: null
 }, nls.localize('tabActiveUnfocusedBorder', "Border to highlight active tabs in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
+export const TAB_HOVER_BORDER = registerColor('tab.hoverBorder', {
+	dark: null,
+	light: null,
+	hc: null
+}, nls.localize('tabHoverBorder', "Border to highlight tabs when hovering. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
+export const TAB_UNFOCUSED_HOVER_BORDER = registerColor('tab.unfocusedHoverBorder', {
+	dark: transparent(TAB_HOVER_BORDER, 0.5),
+	light: transparent(TAB_HOVER_BORDER, 0.7),
+	hc: null
+}, nls.localize('tabUnfocusedHoverBorder', "Border to highlight tabs in an unfocused group when hovering. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 export const TAB_ACTIVE_FOREGROUND = registerColor('tab.activeForeground', {
 	dark: Color.white,

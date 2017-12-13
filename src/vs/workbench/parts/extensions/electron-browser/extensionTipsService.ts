@@ -28,6 +28,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import * as pfs from 'vs/base/node/pfs';
 import * as os from 'os';
 import { flatten, distinct } from 'vs/base/common/arrays';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 interface IExtensionsContent {
 	recommendations: string[];
@@ -61,11 +62,12 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IMessageService private messageService: IMessageService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super();
 
-		if (!this._galleryService.isEnabled()) {
+		if (!this._galleryService.isEnabled() || this.environmentService.extensionDevelopmentPath) {
 			return;
 		}
 

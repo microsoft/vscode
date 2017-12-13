@@ -9,6 +9,8 @@
 	"foldAction.label": "摺疊",
 	"foldRecursivelyAction.label": "以遞迴方式摺疊",
 	"foldAllBlockComments.label": "摺疊全部區塊註解",
+	"foldAllMarkerRegions.label": "折疊所有區域",
+	"unfoldAllMarkerRegions.label": "展開所有區域",
 	"foldAllAction.label": "全部摺疊",
 	"unfoldAllAction.label": "全部展開",
 	"foldLevelAction.label": "摺疊層級 {0}"

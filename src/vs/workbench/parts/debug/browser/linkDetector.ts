@@ -11,6 +11,7 @@ import * as nls from 'vs/nls';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class LinkDetector {
+	private static readonly MAX_LENGTH = 500;
 	private static FILE_LOCATION_PATTERNS: RegExp[] = [
 		// group 0: full path with line and column
 		// group 1: full path without line and column, matched by `*.*` in the end to work only on paths with extensions in the end (s.t. node:10352 would not match)
@@ -34,8 +35,11 @@ export class LinkDetector {
 	 * If no links were detected, returns the original string.
 	 */
 	public handleLinks(text: string): HTMLElement | string {
-		let linkContainer: HTMLElement;
+		if (text.length > LinkDetector.MAX_LENGTH) {
+			return text;
+		}
 
+		let linkContainer: HTMLElement;
 		for (let pattern of LinkDetector.FILE_LOCATION_PATTERNS) {
 			pattern.lastIndex = 0; // the holy grail of software development
 			let lastMatchIndex = 0;

@@ -9,6 +9,8 @@
 	"foldAction.label": "Katla",
 	"foldRecursivelyAction.label": "Özyinelemeli Olarak Katla",
 	"foldAllBlockComments.label": "Tüm Yorum Bloklarını Katla",
+	"foldAllMarkerRegions.label": "Tüm Bölgeleri Katla",
+	"unfoldAllMarkerRegions.label": "Tüm Bölgelerdeki Katlamayı Aç",
 	"foldAllAction.label": "Hepsini Katla",
 	"unfoldAllAction.label": "Tüm Katlamaları Aç",
 	"foldLevelAction.label": "{0}. Düzeyi Katla"

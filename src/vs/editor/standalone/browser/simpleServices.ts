@@ -260,17 +260,22 @@ export class SimpleMessageService implements IMessageService {
 		// No-op
 	}
 
-	public confirm(confirmation: IConfirmation): boolean {
+	public confirm(confirmation: IConfirmation): TPromise<boolean> {
 		let messageText = confirmation.message;
 		if (confirmation.detail) {
 			messageText = messageText + '\n\n' + confirmation.detail;
 		}
 
-		return window.confirm(messageText);
+		return TPromise.wrap(window.confirm(messageText));
 	}
 
 	public confirmWithCheckbox(confirmation: IConfirmation): TPromise<IConfirmationResult> {
-		return TPromise.as({ confirmed: this.confirm(confirmation), checkboxChecked: false /* unsupported */ } as IConfirmationResult);
+		return this.confirm(confirmation).then(confirmed => {
+			return {
+				confirmed,
+				checkboxChecked: false // unsupported
+			} as IConfirmationResult;
+		});
 	}
 }
 

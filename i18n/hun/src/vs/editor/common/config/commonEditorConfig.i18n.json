@@ -31,6 +31,7 @@
 	"minimap.maxColumn": "Meghatározza, hogy a kódtérképen legfeljebb hány oszlop legyen kirajzolva.",
 	"find.seedSearchStringFromSelection": "Meghatározza, hogy a keresés modulba automatikusan bekerüljön-e a szerkesztőablakban kiválasztott szöveg.",
 	"find.autoFindInSelection": "Meghatározza, hogy a keresés a kijelölésben beállítás be van-e kapcsolva, ha több karakternyi vagy sornyi szöveg ki van jelölve a szerkesztőablakban.",
+	"find.globalFindClipboard": "Meghatározza, hogy a keresőmodul olvassa és módosítsa-e a megosztott keresési vágólapot macOS-en.",
 	"wordWrap.off": "A sorok soha nem lesznek tördelve.",
 	"wordWrap.on": "A sorok tördelve lesznek a nézetablak szélességénél.",
 	"wordWrap.wordWrapColumn": "A sorok tördelve lesznek az `editor.wordWrapColumn` oszlopnál.",
@@ -93,8 +94,8 @@
 	"links": "Meghatározza, hogy a szerkesztőablak érzékelje-e a hivatkozásokat, és kattinthatóvá tegye-e őket.",
 	"colorDecorators": "Meghatározza, hogy a szerkesztőablakban ki legyenek-e rajzolva a színdekorátorok és színválasztók.",
 	"codeActions": "Engedélyezi a kódműveletek végrehajtásához használható villanykörtét",
+	"selectionClipboard": "Meghatározza-e, hogy támogatva van-e az elsődleges vágólap Linux alatt",
 	"sideBySide": "Meghatározza, hogy a differenciaszerkesztő ablakban egymás mellett vagy a sorban jelenjenek meg az eltérések",
 	"ignoreTrimWhitespace": "Meghatározza, hogy a differenciaszerkesztő ablakban megjelenjenek-e a sor elején vagy végén a szóközökben talált különbségek",
-	"renderIndicators": "Meghatározza, hogy a differenciaszerkesztő ablakban megjelenjenek-e a +/- jelzők az hozzáadott/eltávolított változásoknál",
-	"selectionClipboard": "Meghatározza-e, hogy támogatva van-e az elsődleges vágólap Linux alatt"
+	"renderIndicators": "Meghatározza, hogy a differenciaszerkesztő ablakban megjelenjenek-e a +/- jelzők az hozzáadott/eltávolított változásoknál"
 }

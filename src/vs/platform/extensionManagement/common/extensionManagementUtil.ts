@@ -39,6 +39,27 @@ export function adoptToGalleryExtensionId(id: string): string {
 	return id.replace(EXTENSION_IDENTIFIER_REGEX, (match, publisher: string, name: string) => getGalleryExtensionId(publisher, name));
 }
 
+export function groupByExtension<T>(extensions: T[], getExtensionIdentifier: (t: T) => IExtensionIdentifier): T[][] {
+	const byExtension: T[][] = [];
+	const findGroup = extension => {
+		for (const group of byExtension) {
+			if (group.some(e => areSameExtensions(getExtensionIdentifier(e), getExtensionIdentifier(extension)))) {
+				return group;
+			}
+		}
+		return null;
+	};
+	for (const extension of extensions) {
+		const group = findGroup(extension);
+		if (group) {
+			group.push(extension);
+		} else {
+			byExtension.push([extension]);
+		}
+	}
+	return byExtension;
+}
+
 export function getLocalExtensionTelemetryData(extension: ILocalExtension): any {
 	return {
 		id: getGalleryExtensionIdFromLocal(extension),

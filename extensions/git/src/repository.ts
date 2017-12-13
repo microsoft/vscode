@@ -7,7 +7,7 @@
 
 import { Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData, Memento } from 'vscode';
 import { Repository as BaseRepository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash, RefType, GitError } from './git';
-import { anyEvent, filterEvent, eventToPromise, dispose, find } from './util';
+import { anyEvent, filterEvent, eventToPromise, dispose, find, isDescendant, IDisposable, onceEvent, EmptyDisposable, debounceEvent } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { toGitUri } from './uri';
 import { AutoFetcher } from './autofetch';
@@ -330,6 +330,7 @@ function shouldShowProgress(operation: Operation): boolean {
 
 export interface Operations {
 	isIdle(): boolean;
+	shouldShowProgress(): boolean;
 	isRunning(operation: Operation): boolean;
 }
 
@@ -366,6 +367,18 @@ class OperationsImpl implements Operations {
 
 		return true;
 	}
+
+	shouldShowProgress(): boolean {
+		const operations = this.operations.keys();
+
+		for (const operation of operations) {
+			if (shouldShowProgress(operation)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
 }
 
 export interface CommitOptions {
@@ -373,7 +386,6 @@ export interface CommitOptions {
 	amend?: boolean;
 	signoff?: boolean;
 	signCommit?: boolean;
-	defaultMsg?: string;
 }
 
 export interface GitResourceGroup extends SourceControlResourceGroup {
@@ -385,6 +397,29 @@ export interface OperationResult {
 	error: any;
 }
 
+class ProgressManager {
+
+	private disposable: IDisposable = EmptyDisposable;
+
+	constructor(private repository: Repository) {
+		const start = onceEvent(filterEvent(repository.onDidChangeOperations, () => repository.operations.shouldShowProgress()));
+		const end = onceEvent(filterEvent(debounceEvent(repository.onDidChangeOperations, 300), () => !repository.operations.shouldShowProgress()));
+
+		const setup = () => {
+			this.disposable = start(() => {
+				const promise = eventToPromise(end).then(() => setup());
+				window.withProgress({ location: ProgressLocation.SourceControl }, () => promise);
+			});
+		};
+
+		setup();
+	}
+
+	dispose(): void {
+		this.disposable.dispose();
+	}
+}
+
 export class Repository implements Disposable {
 
 	private _onDidChangeRepository = new EventEmitter<Uri>();
@@ -394,7 +429,7 @@ export class Repository implements Disposable {
 	readonly onDidChangeState: Event<RepositoryState> = this._onDidChangeState.event;
 
 	private _onDidChangeStatus = new EventEmitter<void>();
-	readonly onDidChangeStatus: Event<void> = this._onDidChangeStatus.event;
+	readonly onDidRunGitStatus: Event<void> = this._onDidChangeStatus.event;
 
 	private _onDidChangeOriginalResource = new EventEmitter<Uri>();
 	readonly onDidChangeOriginalResource: Event<Uri> = this._onDidChangeOriginalResource.event;
@@ -473,7 +508,7 @@ export class Repository implements Disposable {
 		this.disposables.push(fsWatcher);
 
 		const onWorkspaceChange = anyEvent(fsWatcher.onDidChange, fsWatcher.onDidCreate, fsWatcher.onDidDelete);
-		const onRepositoryChange = filterEvent(onWorkspaceChange, uri => !/^\.\./.test(path.relative(repository.root, uri.fsPath)));
+		const onRepositoryChange = filterEvent(onWorkspaceChange, uri => isDescendant(repository.root, uri.fsPath));
 		const onRelevantRepositoryChange = filterEvent(onRepositoryChange, uri => !/\/\.git\/index\.lock$/.test(uri.path));
 		onRelevantRepositoryChange(this.onFSChange, this, this.disposables);
 
@@ -484,6 +519,7 @@ export class Repository implements Disposable {
 		this._sourceControl.inputBox.placeholder = localize('commitMessage', "Message (press {0} to commit)");
 		this._sourceControl.acceptInputCommand = { command: 'git.commitWithInput', title: localize('commit', "Commit"), arguments: [this._sourceControl] };
 		this._sourceControl.quickDiffProvider = this;
+		this._sourceControl.inputBox.lineWarningLength = 72;
 		this.disposables.push(this._sourceControl);
 
 		this._mergeGroup = this._sourceControl.createResourceGroup('merge', localize('merge changes', "Merge Changes"));
@@ -503,6 +539,9 @@ export class Repository implements Disposable {
 		this.disposables.push(statusBar);
 		statusBar.onDidChange(() => this._sourceControl.statusBarCommands = statusBar.commands, null, this.disposables);
 		this._sourceControl.statusBarCommands = statusBar.commands;
+
+		const progressManager = new ProgressManager(this);
+		this.disposables.push(progressManager);
 
 		this.updateCommitTemplate();
 		this.status();
@@ -760,7 +799,8 @@ export class Repository implements Disposable {
 		return this.run(Operation.CheckIgnore, () => {
 			return new Promise<Set<string>>((resolve, reject) => {
 
-				filePaths = filePaths.filter(filePath => !path.relative(this.root, filePath).startsWith('..'));
+				filePaths = filePaths
+					.filter(filePath => isDescendant(this.root, filePath));
 
 				if (filePaths.length === 0) {
 					// nothing left
@@ -806,37 +846,31 @@ export class Repository implements Disposable {
 			throw new Error('Repository not initialized');
 		}
 
-		const run = async () => {
-			let error: any = null;
+		let error: any = null;
 
-			this._operations.start(operation);
-			this._onRunOperation.fire(operation);
+		this._operations.start(operation);
+		this._onRunOperation.fire(operation);
 
-			try {
-				const result = await this.retryRun(runOperation);
+		try {
+			const result = await this.retryRun(runOperation);
 
-				if (!isReadOnly(operation)) {
-					await this.updateModelState();
-				}
-
-				return result;
-			} catch (err) {
-				error = err;
-
-				if (err.gitErrorCode === GitErrorCodes.NotAGitRepository) {
-					this.state = RepositoryState.Disposed;
-				}
-
-				throw err;
-			} finally {
-				this._operations.end(operation);
-				this._onDidRunOperation.fire({ operation, error });
+			if (!isReadOnly(operation)) {
+				await this.updateModelState();
 			}
-		};
 
-		return shouldShowProgress(operation)
-			? window.withProgress({ location: ProgressLocation.SourceControl }, run)
-			: run();
+			return result;
+		} catch (err) {
+			error = err;
+
+			if (err.gitErrorCode === GitErrorCodes.NotAGitRepository) {
+				this.state = RepositoryState.Disposed;
+			}
+
+			throw err;
+		} finally {
+			this._operations.end(operation);
+			this._onDidRunOperation.fire({ operation, error });
+		}
 	}
 
 	private async retryRun<T>(runOperation: () => Promise<T> = () => Promise.resolve<any>(null)): Promise<T> {
@@ -862,7 +896,7 @@ export class Repository implements Disposable {
 		const { status, didHitLimit } = await this.repository.getStatus();
 		const config = workspace.getConfiguration('git');
 		const shouldIgnore = config.get<boolean>('ignoreLimitWarning') === true;
-		const useIcons = config.get<boolean>('decorations.enabled', true);
+		const useIcons = !config.get<boolean>('decorations.enabled', true);
 
 		this.isRepositoryHuge = didHitLimit;
 

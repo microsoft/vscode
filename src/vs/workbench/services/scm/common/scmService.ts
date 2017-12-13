@@ -39,6 +39,8 @@ class SCMInput implements ISCMInput {
 
 	private _onDidChangePlaceholder = new Emitter<string>();
 	get onDidChangePlaceholder(): Event<string> { return this._onDidChangePlaceholder.event; }
+
+	public lineWarningLength: number | undefined = undefined;
 }
 
 class SCMRepository implements ISCMRepository {
@@ -80,7 +82,7 @@ export class SCMService implements ISCMService {
 	constructor( @ILogService private logService: ILogService) { }
 
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository {
-		this.logService.info('SCMService#registerSCMProvider');
+		this.logService.trace('SCMService#registerSCMProvider');
 
 		if (this._providerIds.has(provider.id)) {
 			throw new Error(`SCM Provider ${provider.id} already exists.`);

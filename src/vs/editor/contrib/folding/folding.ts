@@ -332,12 +332,15 @@ abstract class FoldingAction<T> extends EditorAction {
 		if (!foldingController) {
 			return;
 		}
-		this.reportTelemetry(accessor, editor);
-		return foldingController.getFoldingModel().then(foldingModel => {
-			if (foldingModel) {
-				this.invoke(foldingController, foldingModel, editor, args);
-			}
-		});
+		let foldingModelPromise = foldingController.getFoldingModel();
+		if (foldingModelPromise) {
+			this.reportTelemetry(accessor, editor);
+			return foldingModelPromise.then(foldingModel => {
+				if (foldingModel) {
+					this.invoke(foldingController, foldingModel, editor, args);
+				}
+			});
+		}
 	}
 
 	protected getSelectedLines(editor: ICodeEditor) {

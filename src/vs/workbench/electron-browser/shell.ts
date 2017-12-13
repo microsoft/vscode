@@ -7,8 +7,8 @@
 
 import 'vs/css!./media/shell';
 
-import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
+import * as perf from 'vs/base/common/performance';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
 import dom = require('vs/base/browser/dom');
 import aria = require('vs/base/browser/ui/aria/aria');
@@ -51,7 +51,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { ILifecycleService, LifecyclePhase, ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IMessageService, IChoiceService, Severity } from 'vs/platform/message/common/message';
@@ -71,7 +71,6 @@ import { IExtensionManagementChannel, ExtensionManagementChannelClient } from 'v
 import { IExtensionManagementService, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
-import { remote } from 'electron';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { restoreFontInfo, readFontInfo, saveFontInfo } from 'vs/editor/browser/config/configuration';
 import * as browser from 'vs/base/browser/browser';
@@ -100,8 +99,6 @@ export interface ICoreServices {
 	timerService: ITimerService;
 	storageService: IStorageService;
 }
-
-const currentWindow = remote.getCurrentWindow();
 
 /**
  * The workbench shell contains the workbench with a rich header containing navigation and the activity bar.
@@ -169,10 +166,8 @@ export class WorkbenchShell {
 			this.workbench.startup().done(startupInfos => this.onWorkbenchStarted(startupInfos, instantiationService));
 		} catch (error) {
 
-			// Log to console and log
-			const msg = toErrorMessage(error, true);
-			console.error(msg);
-			this.logService.error(msg);
+			// Log it
+			this.logService.error(toErrorMessage(error, true));
 
 			// Rethrow
 			throw error;
@@ -183,9 +178,7 @@ export class WorkbenchShell {
 
 		// Handle case where workbench is not starting up properly
 		const timeoutHandle = setTimeout(() => {
-			const msg = 'Workbench did not finish loading in 10 seconds, that might be a problem that should be reported.';
-			console.warn(msg);
-			this.logService.warn(msg);
+			this.logService.warn('Workbench did not finish loading in 10 seconds, that might be a problem that should be reported.');
 		}, 10000);
 
 		this.lifecycleService.when(LifecyclePhase.Running).then(() => {
@@ -199,11 +192,6 @@ export class WorkbenchShell {
 
 		// Startup Telemetry
 		this.logStartupTelemetry(info);
-
-		// Root Warning
-		if ((platform.isLinux || platform.isMacintosh) && process.getuid() === 0) {
-			this.messageService.show(Severity.Warning, nls.localize('runningAsRoot', "It is recommended not to run Code as 'root'."));
-		}
 
 		// Set lifecycle phase to `Runnning` so that other contributions can now do something
 		this.lifecycleService.phase = LifecyclePhase.Running;
@@ -264,9 +252,7 @@ export class WorkbenchShell {
 		});
 
 		// Telemetry: startup metrics
-		this.timerService.workbenchStarted = Date.now();
-		this.timerService.restoreEditorsDuration = info.restoreEditorsDuration;
-		this.timerService.restoreViewletDuration = info.restoreViewletDuration;
+		perf.mark('didStartWorkbench');
 		this.extensionService.whenInstalledExtensionsRegistered().done(() => {
 			/* __GDPR__
 				"startupTime" : {
@@ -280,14 +266,12 @@ export class WorkbenchShell {
 	}
 
 	private initServiceCollection(container: HTMLElement): [IInstantiationService, ServiceCollection] {
-		const disposables: IDisposable[] = [];
-
 		const serviceCollection = new ServiceCollection();
 		serviceCollection.set(IWorkspaceContextService, this.contextService);
 		serviceCollection.set(IConfigurationService, this.configurationService);
 		serviceCollection.set(IEnvironmentService, this.environmentService);
 		serviceCollection.set(ILogService, this.logService);
-		disposables.push(this.logService);
+		this.toUnbind.push(this.logService);
 
 		serviceCollection.set(ITimerService, this.timerService);
 		serviceCollection.set(IStorageService, this.storageService);
@@ -297,13 +281,13 @@ export class WorkbenchShell {
 
 		const instantiationService: IInstantiationService = new InstantiationService(serviceCollection, true);
 
-		this.broadcastService = new BroadcastService(currentWindow.id);
+		this.broadcastService = new BroadcastService(this.configuration.windowId);
 		serviceCollection.set(IBroadcastService, this.broadcastService);
 
-		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, currentWindow.id, this.configuration));
+		serviceCollection.set(IWindowService, new SyncDescriptor(WindowService, this.configuration.windowId, this.configuration));
 
 		const sharedProcess = (<IWindowsService>serviceCollection.get(IWindowsService)).whenSharedProcessReady()
-			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${currentWindow.id}`));
+			.then(() => connectNet(this.environmentService.sharedIPCHandle, `window:${this.configuration.windowId}`));
 
 		sharedProcess
 			.done(client => client.registerChannel('choice', instantiationService.createInstance(ChoiceChannel)));
@@ -336,13 +320,13 @@ export class WorkbenchShell {
 
 			const errorTelemetry = new ErrorTelemetry(telemetryService);
 
-			disposables.push(telemetryService, errorTelemetry);
+			this.toUnbind.push(telemetryService, errorTelemetry);
 		} else {
 			this.telemetryService = NullTelemetryService;
 		}
 
 		serviceCollection.set(ITelemetryService, this.telemetryService);
-		disposables.push(configurationTelemetry(this.telemetryService, this.configurationService));
+		this.toUnbind.push(configurationTelemetry(this.telemetryService, this.configurationService));
 
 		let crashReporterService = NullCrashReporterService;
 		if (!this.environmentService.disableCrashReporter && product.crashReporter && product.hockeyApp) {
@@ -355,8 +339,7 @@ export class WorkbenchShell {
 		serviceCollection.set(IChoiceService, this.messageService);
 
 		const lifecycleService = instantiationService.createInstance(LifecycleService);
-		this.toUnbind.push(lifecycleService.onShutdown(reason => dispose(disposables)));
-		this.toUnbind.push(lifecycleService.onShutdown(reason => saveFontInfo(this.storageService)));
+		this.toUnbind.push(lifecycleService.onShutdown(reason => this.dispose(reason)));
 		serviceCollection.set(ILifecycleService, lifecycleService);
 		this.lifecycleService = lifecycleService;
 
@@ -365,14 +348,14 @@ export class WorkbenchShell {
 
 		const extensionEnablementService = instantiationService.createInstance(ExtensionEnablementService);
 		serviceCollection.set(IExtensionEnablementService, extensionEnablementService);
-		disposables.push(extensionEnablementService);
+		this.toUnbind.push(extensionEnablementService);
 
 		this.extensionService = instantiationService.createInstance(ExtensionService);
 		serviceCollection.set(IExtensionService, this.extensionService);
 
-		this.timerService.beforeExtensionLoad = Date.now();
+		perf.mark('willLoadExtensions');
 		this.extensionService.whenInstalledExtensionsRegistered().done(() => {
-			this.timerService.afterExtensionLoad = Date.now();
+			perf.mark('didLoadExtensions');
 		});
 
 		this.themeService = instantiationService.createInstance(WorkbenchThemeService, document.body);
@@ -451,8 +434,7 @@ export class WorkbenchShell {
 		this.previousErrorTime = now;
 		this.previousErrorValue = errorMsg;
 
-		// Log to console and log
-		console.error(errorMsg);
+		// Log it
 		this.logService.error(errorMsg);
 
 		// Show to user if friendly message provided
@@ -471,20 +453,18 @@ export class WorkbenchShell {
 		this.workbench.layout();
 	}
 
-	public dispose(): void {
+	public dispose(reason = ShutdownReason.QUIT): void {
 
-		// Workbench
-		if (this.workbench) {
-			this.workbench.dispose();
-		}
-
-		this.contextViewService.dispose();
-
-		// Listeners
+		// Dispose bindings
 		this.toUnbind = dispose(this.toUnbind);
 
-		// Container
-		$(this.container).empty();
+		// Keep font info for next startup around
+		saveFontInfo(this.storageService);
+
+		// Dispose Workbench
+		if (this.workbench) {
+			this.workbench.dispose(reason);
+		}
 	}
 }
 
@@ -583,18 +563,19 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const focusOutline = theme.getColor(focusBorder);
 	if (focusOutline) {
 		collector.addRule(`
-			.monaco-shell [tabindex="0"]:focus,
-			.monaco-shell .synthetic-focus,
-			.monaco-shell select:focus,
-			.monaco-shell .monaco-tree.focused.no-focused-item:focus:before,
-			.monaco-shell input[type="button"]:focus,
-			.monaco-shell input[type="text"]:focus,
-			.monaco-shell button:focus,
-			.monaco-shell textarea:focus,
-			.monaco-shell input[type="search"]:focus,
-			.monaco-shell input[type="checkbox"]:focus {
-				outline-color: ${focusOutline};
-			}
+		.monaco-shell [tabindex="0"]:focus,
+		.monaco-shell .synthetic-focus,
+		.monaco-shell select:focus,
+		.monaco-shell .monaco-tree.focused.no-focused-item:focus:before,
+		.monaco-shell .monaco-list:not(.element-focused):focus:before,
+		.monaco-shell input[type="button"]:focus,
+		.monaco-shell input[type="text"]:focus,
+		.monaco-shell button:focus,
+		.monaco-shell textarea:focus,
+		.monaco-shell input[type="search"]:focus,
+		.monaco-shell input[type="checkbox"]:focus {
+			outline-color: ${focusOutline};
+		}
 		`);
 	}
 });

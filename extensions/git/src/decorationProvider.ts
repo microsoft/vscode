@@ -74,11 +74,11 @@ class GitDecorationProvider implements DecorationProvider {
 	constructor(private repository: Repository) {
 		this.disposables.push(
 			window.registerDecorationProvider(this),
-			repository.onDidRunOperation(this.onDidRunOperation, this)
+			repository.onDidRunGitStatus(this.onDidRunGitStatus, this)
 		);
 	}
 
-	private onDidRunOperation(): void {
+	private onDidRunGitStatus(): void {
 		let newDecorations = new Map<string, DecorationData>();
 		this.collectDecorationData(this.repository.indexGroup, newDecorations);
 		this.collectDecorationData(this.repository.workingTreeGroup, newDecorations);

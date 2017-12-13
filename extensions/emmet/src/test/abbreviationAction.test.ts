@@ -42,7 +42,7 @@ const scssContents = `
 		p40
 	}
 }
-`
+`;
 
 const htmlContents = `
 <body class="header">
@@ -128,6 +128,36 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 		return testHtmlCompletionProvider(new Selection(3, 23, 3, 23), 'img', '<img src=\"\" alt=\"\">');
 	});
 
+	test('Expand snippets when no parent node (HTML)', () => {
+		return withRandomFileEditor('img', 'html', (editor, doc) => {
+			editor.selection = new Selection(0, 3, 0, 3);
+			return expandEmmetAbbreviation(null).then(() => {
+				assert.equal(editor.document.getText(), '<img src=\"\" alt=\"\">');
+				return Promise.resolve();
+			});
+		});
+	});
+
+	test('Expand snippets when no parent node in completion list (HTML)', () => {
+		return withRandomFileEditor('img', 'html', (editor, doc) => {
+			editor.selection = new Selection(0, 3, 0, 3);
+			const cancelSrc = new CancellationTokenSource();
+			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token);
+			if (!completionPromise) {
+				assert.equal(!completionPromise, false, `Got unexpected undefined instead of a completion promise`);
+				return Promise.resolve();
+			}
+			return completionPromise.then(completionList => {
+				assert.equal(completionList && completionList.items && completionList.items.length > 0, true);
+				if (completionList) {
+					assert.equal(completionList.items[0].label, 'img');
+					assert.equal((<string>completionList.items[0].documentation || '').replace(/\|/g, ''), '<img src=\"\" alt=\"\">');
+				}
+				return Promise.resolve();
+			});
+		});
+	});
+
 	test('Expand abbreviation (HTML)', () => {
 		return testExpandAbbreviation('html', new Selection(5, 25, 5, 25), 'ul>li', '<ul>\n\t\t\t<li></li>\n\t\t</ul>');
 	});
@@ -157,7 +187,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 	});
 
 	test('Expand abbreviation with numbered repeaters in completion list (HTML)', () => {
-		return testHtmlCompletionProvider( new Selection(7, 33, 7, 33), 'ul>li.item$*2', '<ul>\n\t<li class="item1"></li>\n\t<li class="item2"></li>\n</ul>');
+		return testHtmlCompletionProvider(new Selection(7, 33, 7, 33), 'ul>li.item$*2', '<ul>\n\t<li class="item1"></li>\n\t<li class="item2"></li>\n</ul>');
 	});
 
 	test('Expand abbreviation with numbered repeaters with offset (HTML)', () => {
@@ -165,7 +195,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 	});
 
 	test('Expand abbreviation with numbered repeaters with offset in completion list (HTML)', () => {
-		return testHtmlCompletionProvider( new Selection(8, 36, 8, 36), 'ul>li.item$@44*2', '<ul>\n\t<li class="item44"></li>\n\t<li class="item45"></li>\n</ul>');
+		return testHtmlCompletionProvider(new Selection(8, 36, 8, 36), 'ul>li.item$@44*2', '<ul>\n\t<li class="item44"></li>\n\t<li class="item45"></li>\n</ul>');
 	});
 
 	test('Expand abbreviation with numbered repeaters in groups (HTML)', () => {
@@ -201,19 +231,65 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 	});
 
 	test('No expanding text inside open tag (HTML)', () => {
-		return testExpandAbbreviation('html', new Selection(2, 4, 2, 4), '', '', true);
+		return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
+			editor.selection = new Selection(2, 4, 2, 4);
+			return expandEmmetAbbreviation(null).then(() => {
+				assert.equal(editor.document.getText(), htmlContents);
+				return Promise.resolve();
+			});
+		});
 	});
 
 	test('No expanding text inside open tag in completion list (HTML)', () => {
-		return testHtmlCompletionProvider(new Selection(2, 4, 2, 4), '', '', true);
+		return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
+			editor.selection = new Selection(2, 4, 2, 4);
+			const cancelSrc = new CancellationTokenSource();
+			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token);
+			assert.equal(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
+			return Promise.resolve();
+		});
 	});
 
 	test('No expanding text inside open tag when there is no closing tag (HTML)', () => {
-		return testExpandAbbreviation('html', new Selection(9, 8, 9, 8), '', '', true);
+		return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
+			editor.selection = new Selection(9, 8, 9, 8);
+			return expandEmmetAbbreviation(null).then(() => {
+				assert.equal(editor.document.getText(), htmlContents);
+				return Promise.resolve();
+			});
+		});
 	});
 
 	test('No expanding text inside open tag when there is no closing tag in completion list (HTML)', () => {
-		return testHtmlCompletionProvider(new Selection(9, 8, 9, 8), '', '', true);
+		return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
+			editor.selection = new Selection(9, 8, 9, 8);
+			const cancelSrc = new CancellationTokenSource();
+			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token);
+			assert.equal(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
+			return Promise.resolve();
+		});
+	});
+
+	test('No expanding text inside open tag when there is no closing tag when there is no parent node (HTML)', () => {
+		const fileContents = '<img s';
+		return withRandomFileEditor(fileContents, 'html', (editor, doc) => {
+			editor.selection = new Selection(0, 6, 0, 6);
+			return expandEmmetAbbreviation(null).then(() => {
+				assert.equal(editor.document.getText(), fileContents);
+				return Promise.resolve();
+			});
+		});
+	});
+
+	test('No expanding text in completion list inside open tag when there is no closing tag when there is no parent node (HTML)', () => {
+		const fileContents = '<img s';
+		return withRandomFileEditor(fileContents, 'html', (editor, doc) => {
+			editor.selection = new Selection(0, 6, 0, 6);
+			const cancelSrc = new CancellationTokenSource();
+			const completionPromise = completionProvider.provideCompletionItems(editor.document, editor.selection.active, cancelSrc.token);
+			assert.equal(!completionPromise, true, `Got unexpected comapletion promise instead of undefined`);
+			return Promise.resolve();
+		});
 	});
 
 	test('Expand css when inside style tag (HTML)', () => {
@@ -251,7 +327,7 @@ suite('Tests for Expand Abbreviations (HTML)', () => {
 				const emmetCompletionItem = completionList.items[0];
 				assert.equal(emmetCompletionItem.label, expandedText, `Label of completion item doesnt match.`);
 				assert.equal((<string>emmetCompletionItem.documentation || '').replace(/\|/g, ''), expandedText, `Docs of completion item doesnt match.`);
-				assert.equal(emmetCompletionItem.filterText, abbreviation, `FilterText of completion item doesnt match.`)
+				assert.equal(emmetCompletionItem.filterText, abbreviation, `FilterText of completion item doesnt match.`);
 				return Promise.resolve();
 			});
 		});
@@ -304,8 +380,8 @@ suite('Tests for Expand Abbreviations (CSS)', () => {
 		return withRandomFileEditor(cssContents, 'css', (editor, doc) => {
 			editor.selection = new Selection(3, 1, 3, 4);
 			const cancelSrc = new CancellationTokenSource();
-			const completionPromise1 = completionProvider.provideCompletionItems(editor.document, new Position(3,4), cancelSrc.token);
-			const completionPromise2 = completionProvider.provideCompletionItems(editor.document, new Position(5,4), cancelSrc.token);
+			const completionPromise1 = completionProvider.provideCompletionItems(editor.document, new Position(3, 4), cancelSrc.token);
+			const completionPromise2 = completionProvider.provideCompletionItems(editor.document, new Position(5, 4), cancelSrc.token);
 			if (!completionPromise1 || !completionPromise2) {
 				assert.equal(1, 2, `Problem with expanding m10`);
 				return Promise.resolve();
@@ -390,7 +466,7 @@ m10
 				background:
 			}
 		}
-		`
+		`;
 
 		return withRandomFileEditor(scssContentsNoExpand, 'scss', (editor, doc) => {
 			editor.selections = [
@@ -413,7 +489,7 @@ m10
 				background:
 			}
 		}
-		`
+		`;
 
 		return withRandomFileEditor(scssContentsNoExpand, 'scss', (editor, doc) => {
 			editor.selection = new Selection(1, 3, 1, 3); // outside rule
@@ -431,7 +507,7 @@ m10
 						assert.equal(1, 2, `m10 gets expanded in invalid location (n the value part of property value)`);
 					}
 					return Promise.resolve();
-				})
+				});
 			}
 			return Promise.resolve();
 		});

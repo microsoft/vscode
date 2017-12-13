@@ -14,6 +14,7 @@
 	"cloning": "Clonazione del repository GIT...",
 	"openrepo": "Apri repository",
 	"proposeopen": "Aprire il repository clonato?",
+	"init": "Selezionare la cartella dell'area di lavoro in cui inizializzare il Git repo",
 	"init repo": "Inizializza repository",
 	"create repo": "Inizializza repository",
 	"are you sure": "Questo creerà un repository Git in '{0}'. Sei sicuro di voler continuare?",
@@ -59,6 +60,7 @@
 	"provide tag name": "Specificare un nome di tag",
 	"tag message": "Messaggio",
 	"provide tag message": "Specificare un messaggio per aggiungere un'annotazione per il tag",
+	"no remotes to fetch": "Questo repository non ha remote configurati da cui eseguire un fetch.",
 	"no remotes to pull": "Il repository non contiene elementi remoti configurati come origini del pull.",
 	"pick remote pull repo": "Selezionare un repository remoto da cui effettuare il pull del ramo",
 	"no remotes to push": "Il repository non contiene elementi remoti configurati come destinazione del push.",
@@ -75,6 +77,7 @@
 	"no stashes": "Non ci sono accantonamenti da ripristinare.",
 	"pick stash to pop": "Scegli un accantonamento da prelevare",
 	"clean repo": "Pulire l'albero di lavoro del repository prima dell'estrazione.",
+	"cant push": "Impossibile fare push dei ref su remoto. Provare a eseguire un 'Pull' prima, per integrare le modifiche.",
 	"git error details": "GIT: {0}",
 	"git error": "Errore GIT",
 	"open git log": "Apri log GIT"

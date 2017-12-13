@@ -8,6 +8,7 @@
 	"notInstalled": "La extensión '{0}' no está instalada.",
 	"useId": "Asegúrese de usar el identificador de extensión completo, incluido el publicador, por ejemplo: {0}.",
 	"successVsixInstall": "La extensión '{0}' se ha instalado correctamente.",
+	"cancelVsixInstall": "Cancelar instalación de extensión '{0}'.",
 	"alreadyInstalled": "La extensión '{0}' ya está instalada.",
 	"foundExtension": "Se encontró '{0}' en Marketplace.",
 	"installing": "Instalando...",

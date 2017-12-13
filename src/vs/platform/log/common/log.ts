@@ -119,6 +119,62 @@ export class ConsoleLogMainService implements ILogService {
 	}
 }
 
+export class ConsoleLogService implements ILogService {
+
+	_serviceBrand: any;
+	private level: LogLevel = LogLevel.Error;
+
+	constructor( @IEnvironmentService environmentService: IEnvironmentService) {
+		this.setLevel(environmentService.logLevel);
+	}
+
+	setLevel(level: LogLevel): void {
+		this.level = level;
+	}
+
+	getLevel(): LogLevel {
+		return this.level;
+	}
+
+	trace(message: string, ...args: any[]): void {
+		if (this.level <= LogLevel.Trace) {
+			console.log('%cTRACE', 'color: #888', message, ...args);
+		}
+	}
+
+	debug(message: string, ...args: any[]): void {
+		if (this.level <= LogLevel.Debug) {
+			console.log('%cDEBUG', 'background: #eee; color: #888', message, ...args);
+		}
+	}
+
+	info(message: string, ...args: any[]): void {
+		if (this.level <= LogLevel.Info) {
+			console.log('%c INFO', 'color: #33f', message, ...args);
+		}
+	}
+
+	warn(message: string | Error, ...args: any[]): void {
+		if (this.level <= LogLevel.Warning) {
+			console.log('%c WARN', 'color: #993', message, ...args);
+		}
+	}
+
+	error(message: string, ...args: any[]): void {
+		if (this.level <= LogLevel.Error) {
+			console.log('%c  ERR', 'color: #f33', message, ...args);
+		}
+	}
+
+	critical(message: string, ...args: any[]): void {
+		if (this.level <= LogLevel.Critical) {
+			console.log('%cCRITI', 'background: #f33; color: white', message, ...args);
+		}
+	}
+
+	dispose(): void { }
+}
+
 export class MultiplexLogService implements ILogService {
 	_serviceBrand: any;
 
@@ -180,7 +236,7 @@ export class MultiplexLogService implements ILogService {
 	}
 }
 
-export class NoopLogService implements ILogService {
+export class NullLogService implements ILogService {
 	_serviceBrand: any;
 	setLevel(level: LogLevel): void { }
 	getLevel(): LogLevel { return LogLevel.Info; }

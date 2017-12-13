@@ -21,7 +21,7 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 		extHostContext: IExtHostContext,
 		@ICommandService private readonly _commandService: ICommandService,
 	) {
-		this._proxy = extHostContext.get(ExtHostContext.ExtHostCommands);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostCommands);
 
 		this._generateCommandsDocumentationRegistration = CommandsRegistry.registerCommand('_generateCommandsDocumentation', () => this._generateCommandsDocumentation());
 	}
@@ -33,7 +33,7 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 		this._generateCommandsDocumentationRegistration.dispose();
 	}
 
-	private _generateCommandsDocumentation(): TPromise<void> {
+	private _generateCommandsDocumentation(): Thenable<void> {
 		return this._proxy.$getContributedCommandHandlerDescriptions().then(result => {
 			// add local commands
 			const commands = CommandsRegistry.getCommands();

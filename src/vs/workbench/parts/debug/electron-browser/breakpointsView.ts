@@ -87,7 +87,7 @@ export class BreakpointsView extends ViewsViewletPanel {
 			if (element instanceof Breakpoint) {
 				openBreakpointSource(element, sideBySide, preserveFocuse, this.debugService, this.editorService).done(undefined, onUnexpectedError);
 			}
-			if (selectFunctionBreakpoint && element instanceof FunctionBreakpoint) {
+			if (selectFunctionBreakpoint && element instanceof FunctionBreakpoint && element !== this.debugService.getViewModel().getSelectedFunctionBreakpoint()) {
 				this.debugService.getViewModel().setSelectedFunctionBreakpoint(element);
 				this.onBreakpointsChange();
 			}

@@ -190,8 +190,9 @@ export class FileWalker {
 						rootFolderDone(undefined, undefined);
 					}
 				});
-			}, (err, result) => {
-				done(err ? err[0] : null, this.isLimitHit);
+			}, (errors, result) => {
+				const err = errors ? errors.filter(e => !!e)[0] : null;
+				done(err, this.isLimitHit);
 			});
 		});
 	}

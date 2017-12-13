@@ -62,7 +62,7 @@ export interface IMessageService {
 	/**
 	 * Ask the user for confirmation.
 	 */
-	confirm(confirmation: IConfirmation): boolean;
+	confirm(confirmation: IConfirmation): TPromise<boolean>;
 
 	/**
 	 * Ask the user for confirmation with a checkbox.

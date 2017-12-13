@@ -147,7 +147,7 @@ export function renderRenameBox(debugService: IDebugService, contextViewService:
 		if (!disposed) {
 			disposed = true;
 			if (element instanceof Expression && renamed && inputBox.value) {
-				debugService.renameWatchExpression(element.getId(), inputBox.value).done(null, onUnexpectedError);
+				debugService.renameWatchExpression(element.getId(), inputBox.value);
 			} else if (element instanceof Expression && !element.name) {
 				debugService.removeWatchExpressions(element.getId());
 			} else if (element instanceof FunctionBreakpoint && inputBox.value) {
@@ -161,7 +161,8 @@ export function renderRenameBox(debugService: IDebugService, contextViewService:
 						// if everything went fine we need to refresh ui elements since the variable update can change watch and variables view
 						.done(() => {
 							tree.refresh(element, false);
-							debugService.evaluateWatchExpressions();
+							// Need to force watch expressions to update since a variable change can have an effect on watches
+							debugService.focusStackFrame(debugService.getViewModel().focusedStackFrame);
 						}, onUnexpectedError);
 				}
 			}

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ExtHostContext, MainContext, IExtHostContext, MainThreadDecorationsShape, ExtHostDecorationsShape } from '../node/extHost.protocol';
@@ -21,7 +21,7 @@ export class MainThreadDecorations implements MainThreadDecorationsShape {
 		context: IExtHostContext,
 		@IDecorationsService private readonly _decorationsService: IDecorationsService
 	) {
-		this._proxy = context.get(ExtHostContext.ExtHostDecorations);
+		this._proxy = context.getProxy(ExtHostContext.ExtHostDecorations);
 	}
 
 	dispose() {
@@ -54,9 +54,9 @@ export class MainThreadDecorations implements MainThreadDecorationsShape {
 		this._provider.set(handle, [emitter, registration]);
 	}
 
-	$onDidChange(handle: number, resources: URI[]): void {
+	$onDidChange(handle: number, resources: UriComponents[]): void {
 		const [emitter] = this._provider.get(handle);
-		emitter.fire(resources);
+		emitter.fire(resources.map(URI.revive));
 	}
 
 	$unregisterDecorationProvider(handle: number): void {

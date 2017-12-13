@@ -240,7 +240,15 @@ export interface OpenDocumentLinkArgs {
 }
 
 export class OpenDocumentLinkCommand implements Command {
-	public readonly id = '_markdown.openDocumentLink';
+	private static readonly id = '_markdown.openDocumentLink';
+	public readonly id = OpenDocumentLinkCommand.id;
+
+	public static createCommandUri(
+		path: string,
+		fragment: string
+	): vscode.Uri {
+		return vscode.Uri.parse(`command:${OpenDocumentLinkCommand.id}?${encodeURIComponent(JSON.stringify({ path, fragment }))}`);
+	}
 
 	public constructor(
 		private readonly engine: MarkdownEngine
@@ -255,6 +263,16 @@ export class OpenDocumentLinkCommand implements Command {
 					return editor.revealRange(
 						new vscode.Range(line, 0, line, 0),
 						vscode.TextEditorRevealType.AtTop);
+				}
+
+				const lineNumberFragment = args.fragment.match(/^L(\d+)$/);
+				if (lineNumberFragment) {
+					const line = +lineNumberFragment[1] - 1;
+					if (!isNaN(line)) {
+						return editor.revealRange(
+							new vscode.Range(line, 0, line, 0),
+							vscode.TextEditorRevealType.AtTop);
+					}
 				}
 			}
 		};

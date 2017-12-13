@@ -86,9 +86,9 @@ declare module 'vscode' {
 	// todo@joh discover files etc
 	export interface FileSystemProvider {
 
-		onDidChange?: Event<FileChange[]>;
+		readonly onDidChange?: Event<FileChange[]>;
 
-		root: Uri;
+		readonly root: Uri;
 
 		// more...
 		//
@@ -199,22 +199,15 @@ declare module 'vscode' {
 	//#endregion
 
 	/**
-	 * Represents an action that can be performed in code.
-	 *
-	 * Shown using the [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action)
+	 * A code action represents a change that can be performed in code, e.g. to fix a problem or
+	 * to refactor code.
 	 */
 	export class CodeAction {
-		/**
-		 * Label used to identify the code action in UI.
-		 */
-		title: string;
 
 		/**
-		 * Optional command that performs the code action.
-		 *
-		 * Executed after `edits` if any edits are provided. Either `command` or `edits` must be provided for a `CodeAction`.
+		 * A short, human-readanle, title for this code action.
 		 */
-		command?: Command;
+		title: string;
 
 		/**
 		 * Optional edit that performs the code action.
@@ -228,6 +221,22 @@ declare module 'vscode' {
 		 */
 		diagnostics?: Diagnostic[];
 
+		/**
+		 * Optional command that performs the code action.
+		 *
+		 * Executed after `edits` if any edits are provided. Either `command` or `edits` must be provided for a `CodeAction`.
+		 */
+		command?: Command;
+
+		/**
+		 * Creates a new code action.
+		 *
+		 * A code action must have at least a [title](#CodeAction.title) and either [edits](#CodeAction.edits)
+		 * or a [command](#CodeAction.command).
+		 *
+		 * @param title The title of the code action.
+		 * @param edits The edit of the code action.
+		 */
 		constructor(title: string, edits?: TextEdit[] | WorkspaceEdit);
 	}
 
@@ -283,11 +292,10 @@ declare module 'vscode' {
 		readonly changed: Breakpoint[];
 	}
 
-	export interface Breakpoint {
-		/**
-		 * Type of breakpoint.
-		 */
-		readonly type: 'source' | 'function';
+	/**
+	 * The base class of all breakpoint types.
+	 */
+	export class Breakpoint {
 		/**
 		 * Is breakpoint enabled.
 		 */
@@ -300,27 +308,31 @@ declare module 'vscode' {
 		 * An optional expression that controls how many hits of the breakpoint are ignored.
 		 */
 		readonly hitCondition?: string;
+
+		protected constructor(enabled: boolean, condition: string, hitCondition: string);
 	}
 
-	export interface SourceBreakpoint extends Breakpoint {
-		/**
-		 * Breakpoint type 'source'.
-		 */
-		readonly type: 'source';
+	/**
+	 * A breakpoint specified by a source location.
+	 */
+	export class SourceBreakpoint extends Breakpoint {
 		/**
 		 * The source and line position of this breakpoint.
 		 */
 		readonly location: Location;
+
+		private constructor(enabled: boolean, condition: string, hitCondition: string, location: Location);
 	}
 
-	export interface FunctionBreakpoint extends Breakpoint {
-		/**
-		 * Breakpoint type 'function'.
-		 */
-		readonly type: 'function';
+	/**
+	 * A breakpoint specified by a function name.
+	 */
+	export class FunctionBreakpoint extends Breakpoint {
 		/**
 		 * The name of the function to which this breakpoint is attached.
 		 */
 		readonly functionName: string;
+
+		private constructor(enabled: boolean, condition: string, hitCondition: string, functionName: string);
 	}
 }

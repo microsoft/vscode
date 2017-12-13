@@ -59,6 +59,9 @@ export class ExtensionEnablementService implements IExtensionEnablementService {
 	}
 
 	getEnablementState(identifier: IExtensionIdentifier): EnablementState {
+		if (this.environmentService.disableExtensions) {
+			return EnablementState.Disabled;
+		}
 		if (this.hasWorkspace) {
 			if (this._getEnabledExtensions(StorageScope.WORKSPACE).filter(e => areSameExtensions(e, identifier))[0]) {
 				return EnablementState.WorkspaceEnabled;

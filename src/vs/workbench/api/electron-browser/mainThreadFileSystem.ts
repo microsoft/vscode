@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise, PPromise } from 'vs/base/common/winjs.base';
 import { ExtHostContext, MainContext, IExtHostContext, MainThreadFileSystemShape, ExtHostFileSystemShape } from '../node/extHost.protocol';
 import { IFileService, IFileSystemProvider, IStat, IFileChange } from 'vs/platform/files/common/files';
@@ -29,7 +29,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		@ISearchService private readonly _searchService: ISearchService,
 		@IWorkspaceEditingService private readonly _workspaceEditingService: IWorkspaceEditingService
 	) {
-		this._proxy = extHostContext.get(ExtHostContext.ExtHostFileSystem);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystem);
 	}
 
 	dispose(): void {
@@ -45,22 +45,22 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		this._provider.delete(handle);
 	}
 
-	$onDidAddFileSystemRoot(uri: URI): void {
-		this._workspaceEditingService.addFolders([{ uri }], true).done(null, onUnexpectedError);
+	$onDidAddFileSystemRoot(data: UriComponents): void {
+		this._workspaceEditingService.addFolders([{ uri: URI.revive(data) }], true).done(null, onUnexpectedError);
 	}
 
 	$onFileSystemChange(handle: number, changes: IFileChange[]): void {
 		this._provider.get(handle).$onFileSystemChange(changes);
 	}
 
-	$reportFileChunk(handle: number, resource: URI, chunk: number[]): void {
-		this._provider.get(handle).reportFileChunk(resource, chunk);
+	$reportFileChunk(handle: number, data: UriComponents, chunk: number[]): void {
+		this._provider.get(handle).reportFileChunk(URI.revive(data), chunk);
 	}
 
 	// --- search
 
-	$handleSearchProgress(handle: number, session: number, resource: URI): void {
-		this._provider.get(handle).handleSearchProgress(session, resource);
+	$handleSearchProgress(handle: number, session: number, data: UriComponents): void {
+		this._provider.get(handle).handleSearchProgress(session, URI.revive(data));
 	}
 }
 

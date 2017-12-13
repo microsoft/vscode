@@ -127,7 +127,6 @@ export interface IExtensionService {
 	_serviceBrand: any;
 
 	/**
-	 * TODO@Ben: Delete this and use `whenInstalledExtensionsRegistered`
 	 * An event emitted when extensions are registered after their extension points got handled.
 	 *
 	 * This event will also fire on startup to signal the installed extensions.

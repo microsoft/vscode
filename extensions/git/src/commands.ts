@@ -10,7 +10,7 @@ import { Ref, RefType, Git, GitErrorCodes, Branch } from './git';
 import { Repository, Resource, Status, CommitOptions, ResourceGroupType } from './repository';
 import { Model } from './model';
 import { toGitUri, fromGitUri } from './uri';
-import { grep } from './util';
+import { grep, eventToPromise, isDescendant } from './util';
 import { applyLineChanges, intersectDiffWithRange, toLineRanges, invertLineChange } from './staging';
 import * as path from 'path';
 import * as os from 'os';
@@ -207,13 +207,15 @@ export class CommandCenter {
 		}
 
 		try {
-			if (ref === '~') {
+			let gitRef = ref;
+
+			if (gitRef === '~') {
 				const uriString = uri.toString();
 				const [indexStatus] = repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
-				ref = indexStatus ? '' : 'HEAD';
+				gitRef = indexStatus ? '' : 'HEAD';
 			}
 
-			const { size, object } = await repository.lstree(ref, uri.fsPath);
+			const { size, object } = await repository.lstree(gitRef, uri.fsPath);
 			const { mimetype, encoding } = await repository.detectObjectType(object);
 
 			if (mimetype === 'text/plain') {
@@ -221,15 +223,15 @@ export class CommandCenter {
 			}
 
 			if (size > 1000000) { // 1 MB
-				return Uri.parse(`data:;label:${path.basename(uri.fsPath)};description:${ref},`);
+				return Uri.parse(`data:;label:${path.basename(uri.fsPath)};description:${gitRef},`);
 			}
 
 			if (ImageMimetypes.indexOf(mimetype) > -1) {
-				const contents = await repository.buffer(ref, uri.fsPath);
-				return Uri.parse(`data:${mimetype};label:${path.basename(uri.fsPath)};description:${ref};size:${size};base64,${contents.toString('base64')}`);
+				const contents = await repository.buffer(gitRef, uri.fsPath);
+				return Uri.parse(`data:${mimetype};label:${path.basename(uri.fsPath)};description:${gitRef};size:${size};base64,${contents.toString('base64')}`);
 			}
 
-			return Uri.parse(`data:;label:${path.basename(uri.fsPath)};description:${ref},`);
+			return Uri.parse(`data:;label:${path.basename(uri.fsPath)};description:${gitRef},`);
 
 		} catch (err) {
 			return toGitUri(uri, ref);
@@ -360,7 +362,6 @@ export class CommandCenter {
 
 		try {
 			window.withProgress({ location: ProgressLocation.SourceControl, title: localize('cloning', "Cloning git repository...") }, () => clonePromise);
-			// window.withProgress({ location: ProgressLocation.Window, title: localize('cloning', "Cloning git repository...") }, () => clonePromise);
 
 			const repositoryPath = await clonePromise;
 
@@ -937,6 +938,25 @@ export class CommandCenter {
 		getCommitMessage: () => Promise<string | undefined>,
 		opts?: CommitOptions
 	): Promise<boolean> {
+		const unsavedTextDocuments = workspace.textDocuments
+			.filter(d => !d.isUntitled && d.isDirty && isDescendant(repository.root, d.uri.fsPath));
+
+		if (unsavedTextDocuments.length > 0) {
+			const message = unsavedTextDocuments.length === 1
+				? localize('unsaved files single', "The following file is unsaved: {0}.\n\nWould you like to save it before comitting?", path.basename(unsavedTextDocuments[0].uri.fsPath))
+				: localize('unsaved files', "There are {0} unsaved files.\n\nWould you like to save them before comitting?", unsavedTextDocuments.length);
+			const saveAndCommit = localize('save and commit', "Save All & Commit");
+			const commit = localize('commit', "Commit Anyway");
+			const pick = await window.showWarningMessage(message, { modal: true }, saveAndCommit, commit);
+
+			if (pick === saveAndCommit) {
+				await Promise.all(unsavedTextDocuments.map(d => d.save()));
+				await repository.status();
+			} else if (pick !== commit) {
+				return false; // do not commit on cancel
+			}
+		}
+
 		const config = workspace.getConfiguration('git');
 		const enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
 		const enableCommitSigning = config.get<boolean>('enableCommitSigning') === true;
@@ -961,6 +981,8 @@ export class CommandCenter {
 
 		if (!opts) {
 			opts = { all: noStagedChanges };
+		} else if (!opts.all && noStagedChanges) {
+			opts = { ...opts, all: true };
 		}
 
 		// enable signing of commits if configurated
@@ -994,8 +1016,21 @@ export class CommandCenter {
 				return message;
 			}
 
+			let value: string | undefined = undefined;
+
+			if (opts && opts.amend && repository.HEAD && repository.HEAD.commit) {
+				value = (await repository.getCommit(repository.HEAD.commit)).message;
+			}
+
+			const getPreviousCommitMessage = async () => {
+				//Only return the previous commit message if it's an amend commit and the repo already has a commit
+				if (opts && opts.amend && repository.HEAD && repository.HEAD.commit) {
+					return (await repository.getCommit('HEAD')).message;
+				}
+			};
+
 			return await window.showInputBox({
-				value: opts && opts.defaultMsg,
+				value,
 				placeHolder: localize('commit message', "Commit message"),
 				prompt: localize('provide commit message', "Please provide a commit message"),
 				ignoreFocusOut: true
@@ -1039,15 +1074,7 @@ export class CommandCenter {
 
 	@command('git.commitStagedAmend', { repository: true })
 	async commitStagedAmend(repository: Repository): Promise<void> {
-		let msg;
-		if (repository.HEAD) {
-			if (repository.HEAD.commit) {
-				let id = repository.HEAD.commit;
-				let commit = await repository.getCommit(id);
-				msg = commit.message;
-			}
-		}
-		await this.commitWithAnyInput(repository, { all: false, amend: true, defaultMsg: msg });
+		await this.commitWithAnyInput(repository, { all: false, amend: true });
 	}
 
 	@command('git.commitAll', { repository: true })
@@ -1319,7 +1346,27 @@ export class CommandCenter {
 			return;
 		}
 
-		await repository.push();
+		if (!repository.HEAD || !repository.HEAD.name) {
+			window.showWarningMessage(localize('nobranch', "Please check out a branch to push to a remote."));
+			return;
+		}
+
+		try {
+			await repository.push();
+		} catch (err) {
+			if (err.gitErrorCode !== GitErrorCodes.NoUpstreamBranch) {
+				throw err;
+			}
+
+			const branchName = repository.HEAD.name;
+			const message = localize('confirm publish branch', "The branch '{0}' has no upstream branch. Would you like to publish this branch?", branchName);
+			const yes = localize('ok', "OK");
+			const pick = await window.showWarningMessage(message, { modal: true }, yes);
+
+			if (pick === yes) {
+				await this.publish(repository);
+			}
+		}
 	}
 
 	@command('git.pushWithTags', { repository: true })
@@ -1463,7 +1510,10 @@ export class CommandCenter {
 	}
 
 	private async _stash(repository: Repository, includeUntracked = false): Promise<void> {
-		if (repository.workingTreeGroup.resourceStates.length === 0) {
+		const noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
+		const noStagedChanges = repository.indexGroup.resourceStates.length === 0;
+
+		if (noUnstagedChanges && noStagedChanges) {
 			window.showInformationMessage(localize('no changes stash', "There are no changes to stash."));
 			return;
 		}

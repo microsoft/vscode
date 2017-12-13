@@ -19,7 +19,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	private _handlePool: number = 0;
 
 	constructor(mainContext: IMainContext) {
-		this._proxy = mainContext.get(MainContext.MainThreadFileSystem);
+		this._proxy = mainContext.getProxy(MainContext.MainThreadFileSystem);
 	}
 
 	registerFileSystemProvider(scheme: string, provider: vscode.FileSystemProvider) {

@@ -163,7 +163,7 @@ export class ExtHostStatusBar {
 	private _statusMessage: StatusBarMessage;
 
 	constructor(mainContext: IMainContext) {
-		this._proxy = mainContext.get(MainContext.MainThreadStatusBar);
+		this._proxy = mainContext.getProxy(MainContext.MainThreadStatusBar);
 		this._statusMessage = new StatusBarMessage(this);
 	}
 

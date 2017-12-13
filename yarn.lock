@@ -147,9 +147,9 @@ anymatch@^1.3.0:
     micromatch "^2.1.5"
     normalize-path "^2.0.0"
 
-applicationinsights@0.17.1:
-  version "0.17.1"
-  resolved "https://registry.yarnpkg.com/applicationinsights/-/applicationinsights-0.17.1.tgz#1c12501dbe9c1e9176423fce0ce8da611cccb9a8"
+applicationinsights@0.18.0:
+  version "0.18.0"
+  resolved "https://registry.yarnpkg.com/applicationinsights/-/applicationinsights-0.18.0.tgz#162ebb48a383408bc4de44db32b417307f45bbc1"
 
 archy@^1.0.0:
   version "1.0.0"
@@ -3742,6 +3742,10 @@ nan@^2.8.0:
   version "2.8.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.8.0.tgz#ed715f3fe9de02b57a5e6252d90a96675e1f085a"
 
+native-is-elevated@^0.2.1:
+  version "0.2.1"
+  resolved "https://registry.yarnpkg.com/native-is-elevated/-/native-is-elevated-0.2.1.tgz#70a2123a8575b9f624a3ef465d98cb74ae017385"
+
 native-keymap@1.2.5:
   version "1.2.5"
   resolved "https://registry.yarnpkg.com/native-keymap/-/native-keymap-1.2.5.tgz#1035a9417b9a9340cf8097763a43c76d588165a5"
@@ -3762,9 +3766,9 @@ negotiator@0.6.1:
   version "0.6.1"
   resolved "https://registry.yarnpkg.com/negotiator/-/negotiator-0.6.1.tgz#2b327184e8992101177b28563fb5e7102acd0ca9"
 
-node-pty@0.7.3:
-  version "0.7.3"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.7.3.tgz#4bb36a24a62ee9f3332e2e2310d6642d9daed1f7"
+node-pty@0.7.4:
+  version "0.7.4"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.7.4.tgz#07146b2b40b76e432e57ce6750bda40f0da5c99f"
   dependencies:
     nan "^2.6.2"
 
@@ -5205,6 +5209,10 @@ strip-json-comments@~2.0.1:
   version "2.0.1"
   resolved "https://registry.yarnpkg.com/strip-json-comments/-/strip-json-comments-2.0.1.tgz#3c531942e908c2697c0ec344858c286c7ca0a60a"
 
+sudo-prompt@^8.0.0:
+  version "8.0.0"
+  resolved "https://registry.yarnpkg.com/sudo-prompt/-/sudo-prompt-8.0.0.tgz#a7b4a1ca6cbcca0e705b90a89dfc81d11034cba9"
+
 sumchecker@^2.0.1:
   version "2.0.2"
   resolved "https://registry.yarnpkg.com/sumchecker/-/sumchecker-2.0.2.tgz#0f42c10e5d05da5d42eea3e56c3399a37d6c5b3e"
@@ -5586,9 +5594,9 @@ uuid@^3.0.0, uuid@^3.1.0:
   version "3.1.0"
   resolved "https://registry.yarnpkg.com/uuid/-/uuid-3.1.0.tgz#3dd3d3e790abc24d7b0d3a034ffababe28ebbc04"
 
-v8-inspect-profiler@^0.0.6:
-  version "0.0.6"
-  resolved "https://registry.yarnpkg.com/v8-inspect-profiler/-/v8-inspect-profiler-0.0.6.tgz#7885de7e9c3304118bde25d5b3d6ec5116467f2c"
+v8-inspect-profiler@^0.0.7:
+  version "0.0.7"
+  resolved "https://registry.yarnpkg.com/v8-inspect-profiler/-/v8-inspect-profiler-0.0.7.tgz#f3b3438680f71961b9647514fe7b9f8748abc462"
   dependencies:
     chrome-remote-interface "^0.25.3"
 

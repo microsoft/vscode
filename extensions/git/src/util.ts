@@ -6,7 +6,7 @@
 'use strict';
 
 import { Event } from 'vscode';
-import { dirname } from 'path';
+import { dirname, sep } from 'path';
 import { Readable } from 'stream';
 import * as fs from 'fs';
 import * as byline from 'byline';
@@ -66,6 +66,16 @@ export function onceEvent<T>(event: Event<T>): Event<T> {
 		}, null, disposables);
 
 		return result;
+	};
+}
+
+export function debounceEvent<T>(event: Event<T>, delay: number): Event<T> {
+	return (listener, thisArgs = null, disposables?) => {
+		let timer: NodeJS.Timer;
+		return event(e => {
+			clearTimeout(timer);
+			timer = setTimeout(() => listener.call(thisArgs, e), delay);
+		}, null, disposables);
 	};
 }
 
@@ -273,4 +283,16 @@ export function detectUnicodeEncoding(buffer: Buffer): Encoding | null {
 	}
 
 	return null;
+}
+
+export function isDescendant(parent: string, descendant: string): boolean {
+	if (parent === descendant) {
+		return true;
+	}
+
+	if (parent.charAt(parent.length - 1) !== sep) {
+		parent += sep;
+	}
+
+	return descendant.startsWith(parent);
 }

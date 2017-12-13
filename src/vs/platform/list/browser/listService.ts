@@ -8,14 +8,14 @@ import { ITree, ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/brow
 import { List, IListOptions } from 'vs/base/browser/ui/list/listWidget';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, toDisposable, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
-import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { PagedList, IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { debounce } from 'vs/base/common/decorators';
 import Event, { Emitter } from 'vs/base/common/event';
+import { InputFocusedContextKey } from 'vs/platform/workbench/common/contextkeys';
 
 export type ListWidget = List<any> | PagedList<any> | ITree;
 
@@ -72,14 +72,14 @@ export class ListService implements IListService {
 	}
 }
 
-
-export const WorkbenchListFocusContextKey = new RawContextKey<boolean>('listFocus', true);
+const RawWorkbenchListFocusContextKey = new RawContextKey<boolean>('listFocus', true);
+export const WorkbenchListFocusContextKey = ContextKeyExpr.and(RawWorkbenchListFocusContextKey, ContextKeyExpr.not(InputFocusedContextKey));
 
 export type Widget = List<any> | PagedList<any> | ITree;
 
 function createScopedContextKeyService(contextKeyService: IContextKeyService, widget: Widget): IContextKeyService {
 	const result = contextKeyService.createScoped(widget.getHTMLElement());
-	WorkbenchListFocusContextKey.bindTo(result);
+	RawWorkbenchListFocusContextKey.bindTo(result);
 	return result;
 }
 
@@ -147,7 +147,6 @@ export class WorkbenchTree extends Tree {
 	readonly onFocusChange: Event<boolean> = this._onFocusChange.event;
 
 	readonly contextKeyService: IContextKeyService;
-	private workbenchListFocusContextKey: IContextKey<boolean>;
 	private disposables: IDisposable[] = [];
 
 	constructor(
@@ -160,26 +159,13 @@ export class WorkbenchTree extends Tree {
 	) {
 		super(container, configuration, options);
 
-		this.contextKeyService = contextKeyService.createScoped(this.getHTMLElement());
-		this.workbenchListFocusContextKey = WorkbenchListFocusContextKey.bindTo(this.contextKeyService);
+		this.contextKeyService = createScopedContextKeyService(contextKeyService, this);
 
 		this.disposables.push(
 			this.contextKeyService,
 			(listService as ListService).register(this),
 			attachListStyler(this, themeService)
 		);
-
-		this.onDidFocus(this.updateContextKey, this, this.disposables);
-		this.onDidBlur(this.updateContextKey, this, this.disposables);
-		this.onDidChangeHighlight(this.updateContextKey, this, this.disposables);
-	}
-
-	@debounce(50)
-	private updateContextKey(): void {
-		const isFocused = document.activeElement === this.getHTMLElement();
-
-		this.workbenchListFocusContextKey.set(isFocused);
-		this._onFocusChange.fire(isFocused);
 	}
 
 	dispose(): void {

@@ -24,7 +24,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		@IMessageService private messageService: IMessageService
 	) {
 		super();
-		this._proxy = extHostContext.get(ExtHostContext.ExtHostTreeViews);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTreeViews);
 	}
 
 	$registerView(treeViewId: string): void {

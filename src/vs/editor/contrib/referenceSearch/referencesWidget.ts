@@ -433,7 +433,7 @@ class Renderer implements tree.IRenderer {
 	}
 
 	getHeight(tree: tree.ITree, element: FileReferences | OneReference): number {
-		return 22;
+		return 23;
 	}
 
 	getTemplateId(tree: tree.ITree, element: FileReferences | OneReference): string {

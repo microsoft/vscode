@@ -17,6 +17,7 @@ import { whenDeleted } from 'vs/base/node/pfs';
 import { findFreePort } from 'vs/base/node/ports';
 import { resolveTerminalEncoding } from 'vs/base/node/encoding';
 import * as iconv from 'iconv-lite';
+import { writeFileAndFlushSync } from 'vs/base/node/extfs';
 
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 	return !!argv['install-source']
@@ -53,6 +54,31 @@ export async function main(argv: string[]): TPromise<any> {
 	else if (shouldSpawnCliProcess(args)) {
 		const mainCli = new TPromise<IMainCli>(c => require(['vs/code/node/cliProcessMain'], c));
 		return mainCli.then(cli => cli.main(args));
+	}
+
+	// Write Elevated
+	else if (args['write-elevated-helper']) {
+		const source = args._[0];
+		const target = args._[1];
+
+		// Validate
+		if (
+			!source || !target || source === target ||					// make sure source and target are provided and are not the same
+			!paths.isAbsolute(source) || !paths.isAbsolute(target) ||	// make sure both source and target are absolute paths
+			!fs.existsSync(source) || !fs.statSync(source).isFile() ||	// make sure source exists as file
+			!fs.existsSync(target) || !fs.statSync(target).isFile()		// make sure target exists as file
+		) {
+			return TPromise.wrapError(new Error('Using --write-elevated-helper with invalid arguments.'));
+		}
+
+		// Write source to target
+		try {
+			writeFileAndFlushSync(target, fs.readFileSync(source));
+		} catch (error) {
+			return TPromise.wrapError(new Error(`Using --write-elevated-helper resulted in an error: ${error}`));
+		}
+
+		return TPromise.as(null);
 	}
 
 	// Just Code
