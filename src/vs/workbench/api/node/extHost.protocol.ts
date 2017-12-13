@@ -452,7 +452,7 @@ export interface ExtHostDocumentsShape {
 }
 
 export interface ExtHostDocumentSaveParticipantShape {
-	$participateInSave(resource: URI, reason: SaveReason): Thenable<boolean[]>;
+	$participateInSave(resource: UriComponents, reason: SaveReason): Thenable<boolean[]>;
 }
 
 export interface ITextEditorAddData {
@@ -510,9 +510,9 @@ export interface ExtHostExtensionServiceShape {
 }
 
 export interface FileSystemEvents {
-	created: URI[];
-	changed: URI[];
-	deleted: URI[];
+	created: UriComponents[];
+	changed: UriComponents[];
+	deleted: UriComponents[];
 }
 export interface ExtHostFileSystemEventServiceShape {
 	$onFileEvent(events: FileSystemEvents): void;
@@ -686,7 +686,7 @@ export const MainContext = {
 	MainThreadStorage: createMainId<MainThreadStorageShape>('MainThreadStorage'),
 	MainThreadTelemetry: createMainId<MainThreadTelemetryShape>('MainThreadTelemetry'),
 	MainThreadTerminalService: createMainId<MainThreadTerminalServiceShape>('MainThreadTerminalService'),
-	MainThreadWorkspace: createMainId<MainThreadWorkspaceShape>('MainThreadWorkspace'),
+	MainThreadWorkspace: createMainId<MainThreadWorkspaceShape>('MainThreadWorkspace', ProxyType.CustomMarshaller),
 	MainThreadFileSystem: createMainId<MainThreadFileSystemShape>('MainThreadFileSystem'),
 	MainThreadExtensionService: createMainId<MainThreadExtensionServiceShape>('MainThreadExtensionService'),
 	MainThreadSCM: createMainId<MainThreadSCMShape>('MainThreadSCM', ProxyType.CustomMarshaller),
@@ -703,11 +703,11 @@ export const ExtHostContext = {
 	ExtHostDocumentsAndEditors: createExtId<ExtHostDocumentsAndEditorsShape>('ExtHostDocumentsAndEditors', ProxyType.CustomMarshaller),
 	ExtHostDocuments: createExtId<ExtHostDocumentsShape>('ExtHostDocuments'),
 	ExtHostDocumentContentProviders: createExtId<ExtHostDocumentContentProvidersShape>('ExtHostDocumentContentProviders'),
-	ExtHostDocumentSaveParticipant: createExtId<ExtHostDocumentSaveParticipantShape>('ExtHostDocumentSaveParticipant', ProxyType.CustomMarshaller),
+	ExtHostDocumentSaveParticipant: createExtId<ExtHostDocumentSaveParticipantShape>('ExtHostDocumentSaveParticipant'),
 	ExtHostEditors: createExtId<ExtHostEditorsShape>('ExtHostEditors', ProxyType.CustomMarshaller),
 	ExtHostTreeViews: createExtId<ExtHostTreeViewsShape>('ExtHostTreeViews'),
 	ExtHostFileSystem: createExtId<ExtHostFileSystemShape>('ExtHostFileSystem', ProxyType.CustomMarshaller),
-	ExtHostFileSystemEventService: createExtId<ExtHostFileSystemEventServiceShape>('ExtHostFileSystemEventService', ProxyType.CustomMarshaller),
+	ExtHostFileSystemEventService: createExtId<ExtHostFileSystemEventServiceShape>('ExtHostFileSystemEventService'),
 	ExtHostHeapService: createExtId<ExtHostHeapServiceShape>('ExtHostHeapMonitor'),
 	ExtHostLanguageFeatures: createExtId<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures', ProxyType.CustomMarshaller),
 	ExtHostQuickOpen: createExtId<ExtHostQuickOpenShape>('ExtHostQuickOpen'),
