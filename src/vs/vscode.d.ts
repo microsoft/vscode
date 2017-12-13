@@ -4325,6 +4325,29 @@ declare module 'vscode' {
 		resolveTask(task: Task, token?: CancellationToken): ProviderResult<Task>;
 	}
 
+	export enum LogLevel {
+		Trace = 1,
+		Debug = 2,
+		Info = 3,
+		Warning = 4,
+		Error = 5,
+		Critical = 6,
+		Off = 7
+	}
+
+	export interface ILogger {
+		onDidChangeLogLevel: Event<LogLevel>;
+		getLevel(): LogLevel;
+		getLogDirectory(): Thenable<string>;
+
+		trace(message: string, ...args: any[]): void;
+		debug(message: string, ...args: any[]): void;
+		info(message: string, ...args: any[]): void;
+		warn(message: string, ...args: any[]): void;
+		error(message: string | Error, ...args: any[]): void;
+		critical(message: string | Error, ...args: any[]): void;
+	}
+
 	/**
 	 * Namespace describing the environment the editor runs in.
 	 */
@@ -4365,6 +4388,13 @@ declare module 'vscode' {
 		 * @readonly
 		 */
 		export let sessionId: string;
+
+		/**
+		 * Something
+		 *
+		 * @readonly
+		 */
+		export let logger: ILogger;
 	}
 
 	/**

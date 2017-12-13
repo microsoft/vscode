@@ -21,6 +21,7 @@ import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { Barrier } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 class ExtensionMemento implements IExtensionMemento {
 
@@ -127,7 +128,8 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		threadService: ExtHostThreadService,
 		extHostWorkspace: ExtHostWorkspace,
 		extHostConfiguration: ExtHostConfiguration,
-		logService: ILogService
+		logService: ILogService,
+		environmentService: IEnvironmentService
 	) {
 		this._barrier = new Barrier();
 		this._registry = new ExtensionDescriptionRegistry(initData.extensions);
@@ -140,7 +142,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		this._activator = null;
 
 		// initialize API first (i.e. do not release barrier until the API is initialized)
-		const apiFactory = createApiFactory(initData, threadService, extHostWorkspace, extHostConfiguration, this, logService);
+		const apiFactory = createApiFactory(initData, threadService, extHostWorkspace, extHostConfiguration, this, logService, environmentService);
 
 		initializeExtensionApi(this, apiFactory).then(() => {
 
