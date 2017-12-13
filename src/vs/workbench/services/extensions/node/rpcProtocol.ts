@@ -48,15 +48,15 @@ export class RPCProtocol {
 			return;
 		}
 
-		let parsedRawMsg = JSON.parse(rawmsg);
-		let msg: any;
+		let parsedRawMsg = <RPCMessage>JSON.parse(rawmsg);
+		let msg: RPCMessage;
 		if (parsedRawMsg.revive) {
 			msg = marshalling.revive(parsedRawMsg, 0);
 		} else {
 			msg = parsedRawMsg;
 		}
 
-		if (msg.seq) {
+		if (isReplyMessage(msg)) {
 			if (!this._pendingRPCReplies.hasOwnProperty(msg.seq)) {
 				console.warn('Got reply to unknown seq');
 				return;
@@ -64,7 +64,7 @@ export class RPCProtocol {
 			let reply = this._pendingRPCReplies[msg.seq];
 			delete this._pendingRPCReplies[msg.seq];
 
-			if (msg.err) {
+			if (isReplyErrMessage(msg)) {
 				let err = msg.err;
 				if (msg.err.$isError) {
 					err = new Error();
@@ -80,25 +80,20 @@ export class RPCProtocol {
 			return;
 		}
 
-		if (msg.cancel) {
+		if (isCancelMessage(msg)) {
 			if (this._invokedHandlers[msg.cancel]) {
 				this._invokedHandlers[msg.cancel].cancel();
 			}
 			return;
 		}
 
-		if (msg.err) {
-			console.error(msg.err);
-			return;
-		}
-
-		let rpcId = msg.rpcId;
+		const rpcId = msg.rpcId;
 
 		if (!this._bigHandler) {
 			throw new Error('got message before big handler attached!');
 		}
 
-		let req = msg.req;
+		const req = msg.req;
 
 		this._invokedHandlers[req] = this._invokeHandler(rpcId, msg.method, msg.args);
 
@@ -204,27 +199,37 @@ class MessageFactory {
 	}
 }
 
-// interface RequestMessage {
-// 	revive: number;
-// 	req: string;
-// 	rpcId: string;
-// 	method: string;
-// 	args: any[];
-// }
+interface RequestMessage {
+	revive: number;
+	req: string;
+	rpcId: string;
+	method: string;
+	args: any[];
+}
 
-// interface CancelMessage {
-// 	revive: number;
-// 	cancel: string;
-// }
+interface CancelMessage {
+	revive: number;
+	cancel: string;
+}
+function isCancelMessage(msg: RPCMessage): msg is CancelMessage {
+	return !!(<CancelMessage>msg).cancel;
+}
 
-// interface ReplyOKMessage {
-// 	revive: number;
-// 	seq: string;
-// 	res?: any;
-// }
+interface ReplyOKMessage {
+	revive: number;
+	seq: string;
+	res?: any;
+}
+interface ReplyErrMessage {
+	revive: number;
+	seq: string;
+	err: any;
+}
+function isReplyMessage(msg: RPCMessage): msg is ReplyOKMessage | ReplyErrMessage {
+	return !!(<ReplyOKMessage | ReplyErrMessage>msg).seq;
+}
+function isReplyErrMessage(msg: ReplyOKMessage | ReplyErrMessage): msg is ReplyErrMessage {
+	return !!(<ReplyErrMessage>msg).err;
+}
 
-// interface ReplyErrMessage {
-// 	revive: number;
-// 	seq: string;
-// 	err: any;
-// }
+type RPCMessage = RequestMessage | CancelMessage | ReplyOKMessage | ReplyErrMessage;
