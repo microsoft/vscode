@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { disposed } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -115,7 +115,9 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 
 	// --- from extension host process
 
-	$tryShowTextDocument(resource: URI, options: ITextDocumentShowOptions): TPromise<string> {
+	$tryShowTextDocument(resource: UriComponents, options: ITextDocumentShowOptions): TPromise<string> {
+		const uri = URI.revive(resource);
+
 		const editorOptions: ITextEditorOptions = {
 			preserveFocus: options.preserveFocus,
 			pinned: options.pinned,
@@ -123,7 +125,7 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 		};
 
 		const input = {
-			resource,
+			resource: uri,
 			options: editorOptions
 		};
 

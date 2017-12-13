@@ -671,7 +671,7 @@ export const MainContext = {
 	MainThreadDecorations: createMainId<MainThreadDecorationsShape>('MainThreadDecorations', ProxyType.NativeJSON),
 	MainThreadDiagnostics: createMainId<MainThreadDiagnosticsShape>('MainThreadDiagnostics', ProxyType.CustomMarshaller),
 	MainThreadDialogs: createMainId<MainThreadDiaglogsShape>('MainThreadDiaglogs', ProxyType.CustomMarshaller),
-	MainThreadDocuments: createMainId<MainThreadDocumentsShape>('MainThreadDocuments'),
+	MainThreadDocuments: createMainId<MainThreadDocumentsShape>('MainThreadDocuments', ProxyType.CustomMarshaller),
 	MainThreadDocumentContentProviders: createMainId<MainThreadDocumentContentProvidersShape>('MainThreadDocumentContentProviders', ProxyType.CustomMarshaller),
 	MainThreadEditors: createMainId<MainThreadEditorsShape>('MainThreadEditors'),
 	MainThreadErrors: createMainId<MainThreadErrorsShape>('MainThreadErrors'),
