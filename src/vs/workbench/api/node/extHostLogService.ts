@@ -9,31 +9,23 @@ import * as vscode from 'vscode';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { mkdirp, dirExists } from 'vs/base/node/pfs';
 import Event, { Emitter } from 'vs/base/common/event';
-import { ExtHostLogServiceShape } from './extHost.protocol';
 import { LogLevel } from 'vs/workbench/api/node/extHostTypes';
 import { ILogService } from 'vs/platform/log/common/log';
 import { createLogService } from 'vs/platform/log/node/spdlogService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { memoize } from 'vs/base/common/decorators';
 
-export class ExtHostLogService implements ExtHostLogServiceShape {
+export class ExtHostLogService {
 	private _loggers: Map<string, ExtHostLogger> = new Map();
 
-	private _onDidChangeLogLevel: Emitter<LogLevel>;
-	get onDidChangeLogLevel(): Event<LogLevel> { return this._onDidChangeLogLevel.event; }
-
 	constructor(private _environmentService: IEnvironmentService) {
-		this._onDidChangeLogLevel = new Emitter<LogLevel>();
-	}
-
-	$acceptLogLevelChanged(logLevel: LogLevel): void {
-		this._onDidChangeLogLevel.fire(logLevel);
 	}
 
 	getExtLogger(extensionID: string): ExtHostLogger {
 		if (!this._loggers.has(extensionID)) {
 			const logService = createLogService(extensionID, this._environmentService, extensionID);
 			const logsDirPath = path.join(this._environmentService.logsPath, extensionID);
-			this._loggers.set(extensionID, new ExtHostLogger(this, logService, logsDirPath));
+			this._loggers.set(extensionID, new ExtHostLogger(logService, logsDirPath));
 		}
 
 		return this._loggers.get(extensionID);
@@ -42,21 +34,24 @@ export class ExtHostLogService implements ExtHostLogServiceShape {
 
 export class ExtHostLogger implements vscode.Logger {
 	private _currentLevel: LogLevel;
+	private _onDidChangeLogLevel: Emitter<LogLevel>;
 
 	constructor(
-		private readonly _extHostLogService: ExtHostLogService,
 		private readonly _logService: ILogService,
 		private readonly _logDirectory: string
 	) {
 		this._currentLevel = this._logService.getLevel();
-		this._extHostLogService.onDidChangeLogLevel(logLevel => this._currentLevel = logLevel);
+		this._onDidChangeLogLevel = new Emitter<LogLevel>();
+		this.onDidChangeLogLevel = this._onDidChangeLogLevel.event;
 	}
 
-	get onDidChangeLogLevel(): Event<LogLevel> { return this._extHostLogService.onDidChangeLogLevel; }
+	// TODO
+	readonly onDidChangeLogLevel: Event<LogLevel>;
 
 	get currentLevel(): LogLevel { return this._currentLevel; }
 
-	getLogDirectory(): TPromise<string> {
+	@memoize
+	get logDirectory(): TPromise<string> {
 		return dirExists(this._logDirectory).then(exists => {
 			if (exists) {
 				return TPromise.wrap(null);
@@ -66,10 +61,6 @@ export class ExtHostLogger implements vscode.Logger {
 		}).then(() => {
 			return this._logDirectory;
 		});
-	}
-
-	getLevel(): vscode.LogLevel {
-		return this._currentLevel;
 	}
 
 	trace(message: string, ...args: any[]): void {

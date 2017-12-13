@@ -344,9 +344,9 @@ declare module 'vscode' {
 	 * A logger for writing to an extension's log file, and accessing its dedicated log directory.
 	 */
 	export interface Logger {
-		onDidChangeLogLevel: Event<LogLevel>;
+		readonly onDidChangeLogLevel: Event<LogLevel>;
 		readonly currentLevel: LogLevel;
-		getLogDirectory(): Thenable<string>;
+		readonly logDirectory: Thenable<string>;
 
 		trace(message: string, ...args: any[]): void;
 		debug(message: string, ...args: any[]): void;
