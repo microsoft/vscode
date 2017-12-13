@@ -53,9 +53,12 @@ async function chooseRendererProcess(targets: Target[]): Promise<number> {
 			rl.prompt();
 			rl.on('line', function (line) {
 				let tabNumber = Number(line);
-				if (tabNumber >= 0 && tabNumber < targets.length) {
+				if (!isNaN(tabNumber) && tabNumber >= 0 && tabNumber < targets.length) {
 					rl.close();
 					resolve(tabNumber);
+				} else {
+					console.log('Please provide valid number ;)');
+					rl.prompt();
 				}
 			});
 		});
