@@ -49,5 +49,8 @@
 	"emmetPreferencesBemModifierSeparator": "在使用 BEM 过滤器时，类名使用的修饰符分隔符",
 	"emmetPreferencesFilterCommentBefore": "使用注释过滤器时，应置于匹配元素前注释的定义。",
 	"emmetPreferencesFilterCommentAfter": "使用注释过滤器时，应置于匹配元素后注释的定义。",
-	"emmetPreferencesFilterCommentTrigger": "用半角逗号 (\",\") 隔开的属性名缩写的数组，将由注释筛选器应用"
+	"emmetPreferencesFilterCommentTrigger": "用半角逗号 (\",\") 隔开的属性名缩写的数组，将由注释筛选器应用",
+	"emmetPreferencesFormatNoIndentTags": "表示不应向内缩进的标记名称数组",
+	"emmetPreferencesFormatForceIndentTags": "表示应始终向内缩进的标记名称数组",
+	"emmetPreferencesAllowCompactBoolean": "若为 \"true\"，将生成紧凑型布尔属性"
 }

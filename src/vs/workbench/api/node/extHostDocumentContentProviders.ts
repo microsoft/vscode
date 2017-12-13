@@ -25,7 +25,7 @@ export class ExtHostDocumentContentProvider implements ExtHostDocumentContentPro
 	private readonly _documentsAndEditors: ExtHostDocumentsAndEditors;
 
 	constructor(mainContext: IMainContext, documentsAndEditors: ExtHostDocumentsAndEditors) {
-		this._proxy = mainContext.get(MainContext.MainThreadDocumentContentProviders);
+		this._proxy = mainContext.getProxy(MainContext.MainThreadDocumentContentProviders);
 		this._documentsAndEditors = documentsAndEditors;
 	}
 

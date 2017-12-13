@@ -83,20 +83,13 @@ export interface IStartupMetrics {
 
 export interface IInitData {
 	start: number;
-
-	appReady: number;
-
 	windowLoad: number;
-
 	isInitialStartup: boolean;
 	hasAccessibilitySupport: boolean;
 }
 
 export interface ITimerService extends IInitData {
 	_serviceBrand: any;
-
-	beforeWorkbenchOpen: number;
-	workbenchStarted: number;
 
 	readonly startupMetrics: IStartupMetrics;
 }

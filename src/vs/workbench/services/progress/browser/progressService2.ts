@@ -170,7 +170,6 @@ export class ProgressService2 implements IProgressService2 {
 						setTimeout(() => handle.dispose(), minTimeVisible - d);
 					} else {
 						// shown long enough
-						console.log('so long progress');
 						handle.dispose();
 					}
 				}

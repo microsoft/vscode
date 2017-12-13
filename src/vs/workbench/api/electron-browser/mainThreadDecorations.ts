@@ -21,7 +21,7 @@ export class MainThreadDecorations implements MainThreadDecorationsShape {
 		context: IExtHostContext,
 		@IDecorationsService private readonly _decorationsService: IDecorationsService
 	) {
-		this._proxy = context.get(ExtHostContext.ExtHostDecorations);
+		this._proxy = context.getProxy(ExtHostContext.ExtHostDecorations);
 	}
 
 	dispose() {

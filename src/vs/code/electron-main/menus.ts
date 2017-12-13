@@ -1097,11 +1097,6 @@ export class CodeMenu {
 		const enabled = typeof arg3 === 'boolean' ? arg3 : this.windowsMainService.getWindowCount() > 0;
 		const checked = typeof arg4 === 'boolean' ? arg4 : false;
 
-		let commandId: string;
-		if (typeof arg2 === 'string') {
-			commandId = arg2;
-		}
-
 		const options: Electron.MenuItemConstructorOptions = {
 			label,
 			click,
@@ -1111,6 +1106,13 @@ export class CodeMenu {
 		if (checked) {
 			options['type'] = 'checkbox';
 			options['checked'] = checked;
+		}
+
+		let commandId: string;
+		if (typeof arg2 === 'string') {
+			commandId = arg2;
+		} else if (Array.isArray(arg2)) {
+			commandId = arg2[0];
 		}
 
 		return new MenuItem(this.withKeybinding(commandId, options));

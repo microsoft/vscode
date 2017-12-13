@@ -95,6 +95,7 @@ export class SplitView implements IDisposable {
 	get length(): number {
 		return this.viewItems.length;
 	}
+
 	constructor(container: HTMLElement, options: ISplitViewOptions = {}) {
 		this.orientation = types.isUndefined(options.orientation) ? Orientation.VERTICAL : options.orientation;
 

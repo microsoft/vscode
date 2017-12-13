@@ -306,5 +306,10 @@ suite('Search-integration', function () {
 });
 
 function makeExpression(...patterns: string[]): glob.IExpression {
-	return patterns.reduce((glob, cur) => { glob[cur] = true; return glob; }, Object.create(null));
+	return patterns.reduce((glob, pattern) => {
+		// glob.ts needs forward slashes
+		pattern = pattern.replace(/\\/g, '/');
+		glob[pattern] = true;
+		return glob;
+	}, Object.create(null));
 }

@@ -24,7 +24,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 	private _validateInput: (input: string) => string | Thenable<string>;
 
 	constructor(mainContext: IMainContext, workspace: ExtHostWorkspace, commands: ExtHostCommands) {
-		this._proxy = mainContext.get(MainContext.MainThreadQuickOpen);
+		this._proxy = mainContext.getProxy(MainContext.MainThreadQuickOpen);
 		this._workspace = workspace;
 		this._commands = commands;
 	}

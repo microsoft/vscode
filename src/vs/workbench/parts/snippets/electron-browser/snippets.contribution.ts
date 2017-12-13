@@ -20,7 +20,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { LanguageId } from 'vs/editor/common/modes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { SnippetParser, Variable, Placeholder, Text } from 'vs/editor/contrib/snippet/snippetParser';
-import { EditorSnippetVariableResolver } from 'vs/editor/contrib/snippet/snippetVariables';
+import { KnownSnippetVariableNames } from 'vs/editor/contrib/snippet/snippetVariables';
 
 export const ISnippetsService = createDecorator<ISnippetsService>('snippetService');
 
@@ -107,7 +107,7 @@ export class Snippet {
 			if (
 				marker instanceof Variable
 				&& marker.children.length === 0
-				&& !EditorSnippetVariableResolver.VariableNames[marker.name]
+				&& !KnownSnippetVariableNames[marker.name]
 			) {
 				// a 'variable' without a default value and not being one of our supported
 				// variables is automatically turned into a placeholder. This is to restore

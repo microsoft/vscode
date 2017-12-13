@@ -29,7 +29,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		@ISearchService private readonly _searchService: ISearchService,
 		@IWorkspaceEditingService private readonly _workspaceEditingService: IWorkspaceEditingService
 	) {
-		this._proxy = extHostContext.get(ExtHostContext.ExtHostFileSystem);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystem);
 	}
 
 	dispose(): void {

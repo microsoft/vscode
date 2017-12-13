@@ -46,7 +46,7 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 		@IFileService private readonly _fileService: IFileService,
 		@IModelService private readonly _modelService: IModelService,
 	) {
-		this._proxy = extHostContext.get(ExtHostContext.ExtHostEditors);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditors);
 		this._documentsAndEditors = documentsAndEditors;
 		this._workbenchEditorService = workbenchEditorService;
 		this._toDispose = [];

@@ -565,7 +565,7 @@ class SaveExtensionHostProfileAction extends Action {
 	}
 
 	async run(): TPromise<any> {
-		let picked = this._windowService.showSaveDialog({
+		let picked = await this._windowService.showSaveDialog({
 			title: 'Save Extension Host Profile',
 			buttonLabel: 'Save',
 			defaultPath: `CPU-${new Date().toISOString().replace(/[\-:]/g, '')}.cpuprofile`,

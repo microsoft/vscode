@@ -268,7 +268,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		extHostContext: IExtHostContext,
 		@ISCMService private scmService: ISCMService
 	) {
-		this._proxy = extHostContext.get(ExtHostContext.ExtHostSCM);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSCM);
 	}
 
 	dispose(): void {

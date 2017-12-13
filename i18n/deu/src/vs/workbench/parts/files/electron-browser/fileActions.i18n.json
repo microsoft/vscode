@@ -69,5 +69,7 @@
 	"invalidFileNameError": "Der Name **{0}** ist als Datei- oder Ordnername ungültig. Bitte wählen Sie einen anderen Namen aus.",
 	"filePathTooLongError": "Der Name **{0}** führt zu einem Pfad, der zu lang ist. Wählen Sie einen kürzeren Namen.",
 	"compareWithSaved": "Aktive Datei mit gespeicherter Datei vergleichen",
-	"modifiedLabel": "{0} (auf Datenträger) ↔ {1}"
+	"modifiedLabel": "{0} (auf Datenträger) ↔ {1}",
+	"compareWithClipboard": "Aktive Datei mit Zwischenablage vergleichen",
+	"clipboardComparisonLabel": "Zwischenablage ↔ {0}"
 }

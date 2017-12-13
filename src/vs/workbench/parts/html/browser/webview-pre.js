@@ -46,11 +46,12 @@
 		if (!event || !event.view || !event.view.document) {
 			return;
 		}
+
+		var baseElement = event.view.document.getElementsByTagName('base')[0];
 		/** @type {any} */
 		var node = event.target;
 		while (node) {
 			if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
-				var baseElement = event.view.document.getElementsByTagName('base')[0];
 				if (node.getAttribute('href') === '#') {
 					event.view.scrollTo(0, 0);
 				} else if (node.hash && (node.getAttribute('href') === node.hash || (baseElement && node.href.indexOf(baseElement.href) >= 0))) {

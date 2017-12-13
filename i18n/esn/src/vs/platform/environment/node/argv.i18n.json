@@ -16,6 +16,7 @@
 	"inspect-brk-extensions": "Permitir la depuración y el perfil de las extensiones con el host de la extensión pausado después del inicio. Revisar las herramientas de desarrollador para la conexión uri.",
 	"reuseWindow": "Fuerce la apertura de un archivo o carpeta en la última ventana activa.",
 	"userDataDir": "Especifica el directorio en que se conservan los datos de usuario; es útil cuando se ejecuta como raíz.",
+	"log": "Nivel de registro a utilizar. Por defecto es 'info'. Los valores permitidos son 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.",
 	"verbose": "Imprima salidas detalladas (implica --wait).",
 	"wait": "Espere a que los archivos sean cerrados antes de volver.",
 	"extensionHomePath": "Establezca la ruta de acceso raíz para las extensiones.",

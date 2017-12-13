@@ -69,5 +69,7 @@
 	"invalidFileNameError": "**{0}**(이)라는 이름은 파일 또는 폴더 이름으로 올바르지 않습니다. 다른 이름을 선택하세요.",
 	"filePathTooLongError": "**{0}**(이)라는 이름을 사용하면 경로가 너무 길어집니다. 짧은 이름을 선택하세요.",
 	"compareWithSaved": "활성 파일을 저장된 파일과 비교",
-	"modifiedLabel": "{0}(디스크) ↔ {1}"
+	"modifiedLabel": "{0}(디스크) ↔ {1}",
+	"compareWithClipboard": "클립보드와 활성 파일 비교",
+	"clipboardComparisonLabel": "클립보드 ↔ {0}"
 }

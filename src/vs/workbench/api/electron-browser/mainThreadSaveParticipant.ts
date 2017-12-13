@@ -247,7 +247,7 @@ class ExtHostSaveParticipant implements ISaveParticipantParticipant {
 	private _proxy: ExtHostDocumentSaveParticipantShape;
 
 	constructor(extHostContext: IExtHostContext) {
-		this._proxy = extHostContext.get(ExtHostContext.ExtHostDocumentSaveParticipant);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentSaveParticipant);
 	}
 
 	participate(editorModel: ITextFileEditorModel, env: { reason: SaveReason }): Promise<void> {

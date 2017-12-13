@@ -32,7 +32,7 @@ function replacer(key: string, value: any): any {
 	return value;
 }
 
-function revive(obj: any, depth: number): any {
+export function revive(obj: any, depth: number): any {
 
 	if (!obj || depth > 200) {
 		return obj;
@@ -55,4 +55,3 @@ function revive(obj: any, depth: number): any {
 
 	return obj;
 }
-

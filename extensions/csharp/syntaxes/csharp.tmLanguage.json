@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/436456ee5ce44e29cb1752c3b29f493b1de08c42",
+	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/a334939a6493290f874264712447107bc9545835",
 	"name": "C#",
 	"scopeName": "source.cs",
 	"fileTypes": [
@@ -935,7 +935,7 @@
 					"name": "punctuation.separator.colon.cs"
 				}
 			},
-			"end": "(?=\\{|where|;)",
+			"end": "(?=\\{|where|;|=>)",
 			"patterns": [
 				{
 					"name": "keyword.other.class.cs",
@@ -2438,18 +2438,12 @@
 			]
 		},
 		"throw-expression": {
-			"begin": "(?<!\\.)\\b(throw)\\b",
-			"beginCaptures": {
+			"match": "(?<!\\.)\\b(throw)\\b",
+			"captures": {
 				"1": {
 					"name": "keyword.control.flow.throw.cs"
 				}
-			},
-			"end": "(?=;)",
-			"patterns": [
-				{
-					"include": "#expression"
-				}
-			]
+			}
 		},
 		"interpolated-string": {
 			"name": "string.quoted.double.cs",
@@ -3055,7 +3049,7 @@
 					"name": "keyword.other.new.cs"
 				}
 			},
-			"end": "(?=\\)|;|})",
+			"end": "(?<=\\})",
 			"patterns": [
 				{
 					"include": "#initializer-expression"
@@ -3087,25 +3081,13 @@
 							"include": "#attribute-section"
 						},
 						{
-							"name": "storage.modifier.cs",
-							"match": "\\b(ref|params|out)\\b"
-						},
-						{
-							"match": "\\s+([_[:alpha:]][_[:alnum:]]*)\\s*(?=[=,\\]])",
-							"captures": {
-								"1": {
-									"name": "entity.name.variable.parameter.cs"
-								}
-							}
-						},
-						{
-							"include": "#variable-initializer"
-						},
-						{
-							"include": "#type"
+							"include": "#parameter"
 						},
 						{
 							"include": "#punctuation-comma"
+						},
+						{
+							"include": "#variable-initializer"
 						}
 					]
 				}
@@ -3132,27 +3114,33 @@
 					"include": "#attribute-section"
 				},
 				{
-					"name": "storage.modifier.cs",
-					"match": "\\b(ref|params|out|this)\\b"
-				},
-				{
-					"match": "\\b([_[:alpha:]][_[:alnum:]]*)\\s*(?=[=,)])",
-					"captures": {
-						"1": {
-							"name": "entity.name.variable.parameter.cs"
-						}
-					}
-				},
-				{
-					"include": "#variable-initializer"
-				},
-				{
-					"include": "#type"
+					"include": "#parameter"
 				},
 				{
 					"include": "#punctuation-comma"
+				},
+				{
+					"include": "#variable-initializer"
 				}
 			]
+		},
+		"parameter": {
+			"match": "(?x)\n(?:(?:\\b(ref|params|out|this)\\b)\\s+)?\n(?<type-name>\n  (?:\n    (?:ref\\s+)?   # ref return\n    (?:\n      (?:(?<identifier>[_[:alpha:]][_[:alnum:]]*)\\s*\\:\\:\\s*)? # alias-qualification\n      (?<name-and-type-args> # identifier + type arguments (if any)\n        \\g<identifier>\\s*\n        (?<type-args>\\s*<(?:[^<>]|\\g<type-args>)+>\\s*)?\n      )\n      (?:\\s*\\.\\s*\\g<name-and-type-args>)* | # Are there any more names being dotted into?\n      (?<tuple>\\s*\\((?:[^\\(\\)]|\\g<tuple>)+\\))\n    )\n    (?:\\s*\\*\\s*)* # pointer suffix?\n    (?:\\s*\\?\\s*)? # nullable suffix?\n    (?:\\s*\\[(?:\\s*,\\s*)*\\]\\s*)* # array suffix?\n  )\n)\\s+\n(\\g<identifier>)",
+			"captures": {
+				"1": {
+					"name": "storage.modifier.cs"
+				},
+				"2": {
+					"patterns": [
+						{
+							"include": "#type"
+						}
+					]
+				},
+				"7": {
+					"name": "entity.name.variable.parameter.cs"
+				}
+			}
 		},
 		"argument-list": {
 			"begin": "\\(",

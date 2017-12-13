@@ -9,9 +9,7 @@ import nls = require('vs/nls');
 import pfs = require('vs/base/node/pfs');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { join } from 'path';
-import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
-import { ExtHostThreadService } from 'vs/workbench/services/thread/node/extHostThreadService';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -26,6 +24,8 @@ import { EnvironmentService } from 'vs/platform/environment/node/environmentServ
 import { createLogService } from 'vs/platform/log/node/spdlogService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
+import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
 
 // const nativeExit = process.exit.bind(process);
 function patchProcess(allowExit: boolean) {
@@ -80,7 +80,7 @@ export class ExtensionHostMain {
 	private _logService: ILogService;
 	private disposables: IDisposable[] = [];
 
-	constructor(rpcProtocol: RPCProtocol, initData: IInitData) {
+	constructor(protocol: IMessagePassingProtocol, initData: IInitData) {
 		this._environment = initData.environment;
 		this._workspace = initData.workspace;
 
@@ -88,8 +88,8 @@ export class ExtensionHostMain {
 		patchProcess(allowExit);
 
 		// services
-		const threadService = new ExtHostThreadService(rpcProtocol);
-		const extHostWorkspace = new ExtHostWorkspace(threadService, initData.workspace);
+		const rpcProtocol = new RPCProtocol(protocol);
+		const extHostWorkspace = new ExtHostWorkspace(rpcProtocol, initData.workspace);
 		const environmentService = new EnvironmentService(initData.args, initData.execPath);
 		this._logService = createLogService(`exthost${initData.windowId}`, environmentService);
 		this.disposables.push(this._logService);
@@ -97,8 +97,8 @@ export class ExtensionHostMain {
 		this._logService.info('extension host started');
 		this._logService.trace('initData', initData);
 
-		this._extHostConfiguration = new ExtHostConfiguration(threadService.get(MainContext.MainThreadConfiguration), extHostWorkspace, initData.configuration);
-		this._extensionService = new ExtHostExtensionService(initData, threadService, extHostWorkspace, this._extHostConfiguration, this._logService);
+		this._extHostConfiguration = new ExtHostConfiguration(rpcProtocol.getProxy(MainContext.MainThreadConfiguration), extHostWorkspace, initData.configuration);
+		this._extensionService = new ExtHostExtensionService(initData, rpcProtocol, extHostWorkspace, this._extHostConfiguration, this._logService);
 
 		// error forwarding and stack trace scanning
 		const extensionErrors = new WeakMap<Error, IExtensionDescription>();
@@ -119,8 +119,8 @@ export class ExtensionHostMain {
 				return `${error.name || 'Error'}: ${error.message || ''}${stackTraceMessage}`;
 			};
 		});
-		const mainThreadExtensions = threadService.get(MainContext.MainThreadExtensionService);
-		const mainThreadErrors = threadService.get(MainContext.MainThreadErrors);
+		const mainThreadExtensions = rpcProtocol.getProxy(MainContext.MainThreadExtensionService);
+		const mainThreadErrors = rpcProtocol.getProxy(MainContext.MainThreadErrors);
 		errors.setUnexpectedErrorHandler(err => {
 			const data = errors.transformErrorForSerialization(err);
 			const extension = extensionErrors.get(err);

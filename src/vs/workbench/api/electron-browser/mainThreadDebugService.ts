@@ -25,7 +25,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 		@IDebugService private debugService: IDebugService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 	) {
-		this._proxy = extHostContext.get(ExtHostContext.ExtHostDebugService);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDebugService);
 		this._toDispose = [];
 		this._toDispose.push(debugService.onDidNewProcess(proc => this._proxy.$acceptDebugSessionStarted(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.getName(false))));
 		this._toDispose.push(debugService.onDidEndProcess(proc => this._proxy.$acceptDebugSessionTerminated(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.getName(false))));

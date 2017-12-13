@@ -219,7 +219,6 @@ var nodeCachedDataDir = getNodeCachedDataDir().then(function (value) {
 // Load our code once ready
 app.once('ready', function () {
 	perf.mark('main:appReady');
-	global.perfAppReady = Date.now();
 	var nlsConfig = getNLSConfiguration();
 	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
 
