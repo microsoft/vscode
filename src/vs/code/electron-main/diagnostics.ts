@@ -182,7 +182,7 @@ function formatProcessItem(mapPidToWindowTitle: Map<number, string>, output: str
 		debugPort = matches[4];
 	}
 
-	if (item.name === 'window' || item.name === 'shared-process' && rendererDebugPort) {
+	if ((item.name === 'window' || item.name === 'shared-process') && rendererDebugPort) {
 		debugPort = rendererDebugPort;
 	}
 
