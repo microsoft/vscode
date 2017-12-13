@@ -113,12 +113,12 @@ export interface MainThreadConfigurationShape extends IDisposable {
 }
 
 export interface MainThreadDiagnosticsShape extends IDisposable {
-	$changeMany(owner: string, entries: [URI, IMarkerData[]][]): TPromise<any>;
+	$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): TPromise<any>;
 	$clear(owner: string): TPromise<any>;
 }
 
 export interface MainThreadDialogOpenOptions {
-	defaultUri?: URI;
+	defaultUri?: UriComponents;
 	openLabel?: string;
 	canSelectFiles?: boolean;
 	canSelectFolders?: boolean;
@@ -127,7 +127,7 @@ export interface MainThreadDialogOpenOptions {
 }
 
 export interface MainThreadDialogSaveOptions {
-	defaultUri?: URI;
+	defaultUri?: UriComponents;
 	saveLabel?: string;
 	filters?: { [name: string]: string[] };
 }
@@ -146,7 +146,7 @@ export interface MainThreadDecorationsShape extends IDisposable {
 export interface MainThreadDocumentContentProvidersShape extends IDisposable {
 	$registerTextContentProvider(handle: number, scheme: string): void;
 	$unregisterTextContentProvider(handle: number): void;
-	$onVirtualDocumentChange(uri: URI, value: ITextSource): void;
+	$onVirtualDocumentChange(uri: UriComponents, value: ITextSource): void;
 }
 
 export interface MainThreadDocumentsShape extends IDisposable {
@@ -668,10 +668,10 @@ export const MainContext = {
 	MainThreadCommands: <ProxyIdentifier<MainThreadCommandsShape>>createMainId<MainThreadCommandsShape>('MainThreadCommands', ProxyType.CustomMarshaller),
 	MainThreadConfiguration: createMainId<MainThreadConfigurationShape>('MainThreadConfiguration', ProxyType.CustomMarshaller),
 	MainThreadDebugService: createMainId<MainThreadDebugServiceShape>('MainThreadDebugService', ProxyType.CustomMarshaller),
-	MainThreadDecorations: createMainId<MainThreadDecorationsShape>('MainThreadDecorations', ProxyType.NativeJSON),
-	MainThreadDiagnostics: createMainId<MainThreadDiagnosticsShape>('MainThreadDiagnostics', ProxyType.CustomMarshaller),
-	MainThreadDialogs: createMainId<MainThreadDiaglogsShape>('MainThreadDiaglogs', ProxyType.CustomMarshaller),
-	MainThreadDocuments: createMainId<MainThreadDocumentsShape>('MainThreadDocuments', ProxyType.CustomMarshaller),
+	MainThreadDecorations: createMainId<MainThreadDecorationsShape>('MainThreadDecorations'),
+	MainThreadDiagnostics: createMainId<MainThreadDiagnosticsShape>('MainThreadDiagnostics'),
+	MainThreadDialogs: createMainId<MainThreadDiaglogsShape>('MainThreadDiaglogs'),
+	MainThreadDocuments: createMainId<MainThreadDocumentsShape>('MainThreadDocuments'),
 	MainThreadDocumentContentProviders: createMainId<MainThreadDocumentContentProvidersShape>('MainThreadDocumentContentProviders', ProxyType.CustomMarshaller),
 	MainThreadEditors: createMainId<MainThreadEditorsShape>('MainThreadEditors'),
 	MainThreadErrors: createMainId<MainThreadErrorsShape>('MainThreadErrors'),
@@ -681,7 +681,7 @@ export const MainContext = {
 	MainThreadMessageService: createMainId<MainThreadMessageServiceShape>('MainThreadMessageService', ProxyType.CustomMarshaller),
 	MainThreadOutputService: createMainId<MainThreadOutputServiceShape>('MainThreadOutputService'),
 	MainThreadProgress: createMainId<MainThreadProgressShape>('MainThreadProgress'),
-	MainThreadQuickOpen: createMainId<MainThreadQuickOpenShape>('MainThreadQuickOpen', ProxyType.CustomMarshaller),
+	MainThreadQuickOpen: createMainId<MainThreadQuickOpenShape>('MainThreadQuickOpen'),
 	MainThreadStatusBar: createMainId<MainThreadStatusBarShape>('MainThreadStatusBar'),
 	MainThreadStorage: createMainId<MainThreadStorageShape>('MainThreadStorage', ProxyType.CustomMarshaller),
 	MainThreadTelemetry: createMainId<MainThreadTelemetryShape>('MainThreadTelemetry', ProxyType.CustomMarshaller),
