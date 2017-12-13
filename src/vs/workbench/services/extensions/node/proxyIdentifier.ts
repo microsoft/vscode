@@ -12,7 +12,7 @@ export interface IRPCProtocol {
 	 * >
 	 * > Use `getFast` for a proxy where such arguments are not automatically serialized/deserialized.
 	 */
-	get<T>(identifier: ProxyIdentifier<T>): T;
+	getProxy<T>(identifier: ProxyIdentifier<T>): T;
 
 	/**
 	 * Returns a proxy to an object addressable/named in the extension host process.

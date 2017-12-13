@@ -91,10 +91,10 @@ export function createApiFactory(
 	const extHostDocumentsAndEditors = threadService.set(ExtHostContext.ExtHostDocumentsAndEditors, new ExtHostDocumentsAndEditors(threadService));
 	const extHostDocuments = threadService.set(ExtHostContext.ExtHostDocuments, new ExtHostDocuments(threadService, extHostDocumentsAndEditors));
 	const extHostDocumentContentProviders = threadService.set(ExtHostContext.ExtHostDocumentContentProviders, new ExtHostDocumentContentProvider(threadService, extHostDocumentsAndEditors));
-	const extHostDocumentSaveParticipant = threadService.set(ExtHostContext.ExtHostDocumentSaveParticipant, new ExtHostDocumentSaveParticipant(logService, extHostDocuments, threadService.get(MainContext.MainThreadEditors)));
+	const extHostDocumentSaveParticipant = threadService.set(ExtHostContext.ExtHostDocumentSaveParticipant, new ExtHostDocumentSaveParticipant(logService, extHostDocuments, threadService.getProxy(MainContext.MainThreadEditors)));
 	const extHostEditors = threadService.set(ExtHostContext.ExtHostEditors, new ExtHostEditors(threadService, extHostDocumentsAndEditors));
 	const extHostCommands = threadService.set(ExtHostContext.ExtHostCommands, new ExtHostCommands(threadService, extHostHeapService, logService));
-	const extHostTreeViews = threadService.set(ExtHostContext.ExtHostTreeViews, new ExtHostTreeViews(threadService.get(MainContext.MainThreadTreeViews), extHostCommands));
+	const extHostTreeViews = threadService.set(ExtHostContext.ExtHostTreeViews, new ExtHostTreeViews(threadService.getProxy(MainContext.MainThreadTreeViews), extHostCommands));
 	threadService.set(ExtHostContext.ExtHostWorkspace, extHostWorkspace);
 	const extHostDebugService = threadService.set(ExtHostContext.ExtHostDebugService, new ExtHostDebugService(threadService, extHostWorkspace));
 	threadService.set(ExtHostContext.ExtHostConfiguration, extHostConfiguration);
@@ -117,7 +117,7 @@ export function createApiFactory(
 	const extHostMessageService = new ExtHostMessageService(threadService);
 	const extHostDialogs = new ExtHostDialogs(threadService);
 	const extHostStatusBar = new ExtHostStatusBar(threadService);
-	const extHostProgress = new ExtHostProgress(threadService.get(MainContext.MainThreadProgress));
+	const extHostProgress = new ExtHostProgress(threadService.getProxy(MainContext.MainThreadProgress));
 	const extHostOutputService = new ExtHostOutputService(threadService);
 	const extHostLanguages = new ExtHostLanguages(threadService);
 

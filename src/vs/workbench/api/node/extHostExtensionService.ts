@@ -132,10 +132,10 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 		this._registry = new ExtensionDescriptionRegistry(initData.extensions);
 		this._threadService = threadService;
 		this._logService = logService;
-		this._mainThreadTelemetry = threadService.get(MainContext.MainThreadTelemetry);
+		this._mainThreadTelemetry = threadService.getProxy(MainContext.MainThreadTelemetry);
 		this._storage = new ExtHostStorage(threadService);
 		this._storagePath = new ExtensionStoragePath(initData.workspace, initData.environment);
-		this._proxy = this._threadService.get(MainContext.MainThreadExtensionService);
+		this._proxy = this._threadService.getProxy(MainContext.MainThreadExtensionService);
 		this._activator = null;
 
 		// initialize API first (i.e. do not release barrier until the API is initialized)

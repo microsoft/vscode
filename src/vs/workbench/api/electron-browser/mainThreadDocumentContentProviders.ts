@@ -31,7 +31,7 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService
 	) {
-		this._proxy = extHostContext.get(ExtHostContext.ExtHostDocumentContentProviders);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentContentProviders);
 	}
 
 	public dispose(): void {

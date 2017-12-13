@@ -37,7 +37,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 		mainContext: IMainContext,
 		extHostDocumentsAndEditors: ExtHostDocumentsAndEditors,
 	) {
-		this._proxy = mainContext.get(MainContext.MainThreadEditors);
+		this._proxy = mainContext.getProxy(MainContext.MainThreadEditors);
 		this._extHostDocumentsAndEditors = extHostDocumentsAndEditors;
 
 		this._extHostDocumentsAndEditors.onDidChangeVisibleTextEditors(e => this._onDidChangeVisibleTextEditors.fire(e));

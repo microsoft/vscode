@@ -126,7 +126,7 @@ export class MainThreadHeapService {
 		extHostContext: IExtHostContext,
 		@IHeapService heapService: IHeapService,
 	) {
-		const proxy = extHostContext.get(ExtHostContext.ExtHostHeapService);
+		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostHeapService);
 		this._toDispose = heapService.onGarbageCollection((ids) => {
 			// send to ext host
 			proxy.$onGarbageCollection(ids);

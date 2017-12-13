@@ -25,7 +25,7 @@ export class MainThreadConfiguration implements MainThreadConfigurationShape {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
 	) {
-		const proxy = extHostContext.get(ExtHostContext.ExtHostConfiguration);
+		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostConfiguration);
 
 		this._configurationListener = configurationService.onDidChangeConfiguration(e => {
 			proxy.$acceptConfigurationChanged(configurationService.getConfigurationData(), this.toConfigurationChangeEventData(e));

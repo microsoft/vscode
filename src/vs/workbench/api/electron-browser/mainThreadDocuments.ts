@@ -93,7 +93,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		this._fileService = fileService;
 		this._untitledEditorService = untitledEditorService;
 
-		this._proxy = extHostContext.get(ExtHostContext.ExtHostDocuments);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocuments);
 		this._modelIsSynced = {};
 
 		this._toDispose = [];

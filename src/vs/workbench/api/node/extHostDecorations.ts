@@ -19,7 +19,7 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 	private readonly _proxy: MainThreadDecorationsShape;
 
 	constructor(mainContext: IMainContext) {
-		this._proxy = mainContext.get(MainContext.MainThreadDecorations);
+		this._proxy = mainContext.getProxy(MainContext.MainThreadDecorations);
 	}
 
 	registerDecorationProvider(provider: vscode.DecorationProvider, label: string): vscode.Disposable {

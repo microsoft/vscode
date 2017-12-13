@@ -44,7 +44,7 @@ export class RPCProtocol implements IRPCProtocol {
 		});
 	}
 
-	public get<T>(identifier: ProxyIdentifier<T>): T {
+	public getProxy<T>(identifier: ProxyIdentifier<T>): T {
 		if (!this._proxies[identifier.id]) {
 			this._proxies[identifier.id] = this._createProxy(identifier.id, true);
 		}
@@ -65,8 +65,8 @@ export class RPCProtocol implements IRPCProtocol {
 					target[name] = (...myArgs: any[]) => {
 						return (
 							isFancy
-							? this.fancyRemoteCall(proxyId, name, myArgs)
-							: this.remoteCall(proxyId, name, myArgs)
+								? this.fancyRemoteCall(proxyId, name, myArgs)
+								: this.remoteCall(proxyId, name, myArgs)
 						);
 					};
 				}

@@ -97,7 +97,7 @@ export class ExtensionHostMain {
 		this._logService.info('extension host started');
 		this._logService.trace('initData', initData);
 
-		this._extHostConfiguration = new ExtHostConfiguration(rpcProtocol.get(MainContext.MainThreadConfiguration), extHostWorkspace, initData.configuration);
+		this._extHostConfiguration = new ExtHostConfiguration(rpcProtocol.getProxy(MainContext.MainThreadConfiguration), extHostWorkspace, initData.configuration);
 		this._extensionService = new ExtHostExtensionService(initData, rpcProtocol, extHostWorkspace, this._extHostConfiguration, this._logService);
 
 		// error forwarding and stack trace scanning
@@ -119,8 +119,8 @@ export class ExtensionHostMain {
 				return `${error.name || 'Error'}: ${error.message || ''}${stackTraceMessage}`;
 			};
 		});
-		const mainThreadExtensions = rpcProtocol.get(MainContext.MainThreadExtensionService);
-		const mainThreadErrors = rpcProtocol.get(MainContext.MainThreadErrors);
+		const mainThreadExtensions = rpcProtocol.getProxy(MainContext.MainThreadExtensionService);
+		const mainThreadErrors = rpcProtocol.getProxy(MainContext.MainThreadErrors);
 		errors.setUnexpectedErrorHandler(err => {
 			const data = errors.transformErrorForSerialization(err);
 			const extension = extensionErrors.get(err);
