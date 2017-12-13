@@ -9,9 +9,7 @@ import nls = require('vs/nls');
 import pfs = require('vs/base/node/pfs');
 import { TPromise } from 'vs/base/common/winjs.base';
 import { join } from 'path';
-import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
-import { ExtHostThreadService } from 'vs/workbench/services/thread/node/extHostThreadService';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -27,6 +25,7 @@ import { createLogService } from 'vs/platform/log/node/spdlogService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
+import { AbstractThreadService } from 'vs/workbench/services/thread/node/abstractThreadService';
 
 // const nativeExit = process.exit.bind(process);
 function patchProcess(allowExit: boolean) {
@@ -89,7 +88,7 @@ export class ExtensionHostMain {
 		patchProcess(allowExit);
 
 		// services
-		const threadService = new ExtHostThreadService(new RPCProtocol(protocol));
+		const threadService = new AbstractThreadService(protocol, false);
 		const extHostWorkspace = new ExtHostWorkspace(threadService, initData.workspace);
 		const environmentService = new EnvironmentService(initData.args, initData.execPath);
 		this._logService = createLogService(`exthost${initData.windowId}`, environmentService);

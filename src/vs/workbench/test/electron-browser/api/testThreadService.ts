@@ -6,9 +6,9 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IThreadService, ProxyIdentifier } from 'vs/workbench/services/thread/common/threadService';
+import { ProxyIdentifier } from 'vs/workbench/services/thread/common/threadService';
 
-export function OneGetThreadService(thing: any): IThreadService {
+export function OneGetThreadService(thing: any) {
 	return {
 		get<T>(): T {
 			return thing;
@@ -75,7 +75,7 @@ export abstract class AbstractTestThreadService {
 	protected abstract _callOnRemote(proxyId: string, path: string, args: any[]): TPromise<any>;
 }
 
-export class TestThreadService extends AbstractTestThreadService implements IThreadService {
+export class TestThreadService extends AbstractTestThreadService {
 	constructor(isMainProcess: boolean = false) {
 		super(isMainProcess);
 	}

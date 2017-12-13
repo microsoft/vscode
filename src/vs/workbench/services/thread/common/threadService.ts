@@ -4,23 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-export interface IThreadService {
-	/**
-	 * Always returns a proxy.
-	 */
-	get<T>(identifier: ProxyIdentifier<T>): T;
-
-	/**
-	 * Register instance.
-	 */
-	set<T, R extends T>(identifier: ProxyIdentifier<T>, value: R): R;
-
-	/**
-	 * Assert these identifiers are already registered via `.set`.
-	 */
-	assertRegistered(identifiers: ProxyIdentifier<any>[]): void;
-}
-
 export class ProxyIdentifier<T> {
 	_proxyIdentifierBrand: void;
 	_suppressCompilerUnusedWarning: T;

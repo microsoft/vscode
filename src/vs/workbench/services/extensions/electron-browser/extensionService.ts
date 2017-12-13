@@ -28,7 +28,6 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ExtensionHostProcessWorker } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
-import { MainThreadService } from 'vs/workbench/services/thread/electron-browser/threadService';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { ExtHostCustomersRegistry } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IWindowService } from 'vs/platform/windows/common/windows';
@@ -42,6 +41,7 @@ import { ExtensionHostProfiler } from 'vs/workbench/services/extensions/electron
 import { ReloadWindowAction } from 'vs/workbench/electron-browser/actions';
 import product from 'vs/platform/node/product';
 import * as strings from 'vs/base/common/strings';
+import { AbstractThreadService } from 'vs/workbench/services/thread/node/abstractThreadService';
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
 
@@ -85,7 +85,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 	private _extensionHostProcessActivationTimes: { [id: string]: ActivationTimes; };
 	private _extensionHostExtensionRuntimeErrors: { [id: string]: Error[]; };
 	private _extensionHostProcessWorker: ExtensionHostProcessWorker;
-	private _extensionHostProcessThreadService: MainThreadService;
+	private _extensionHostProcessThreadService: AbstractThreadService;
 	private _extensionHostProcessCustomers: IDisposable[];
 	/**
 	 * winjs believes a proxy is a promise because it has a `then` method, so wrap the result in an object.
@@ -238,7 +238,7 @@ export class ExtensionService extends Disposable implements IExtensionService {
 			protocol = asLoggingProtocol(protocol);
 		}
 
-		this._extensionHostProcessThreadService = new MainThreadService(protocol);
+		this._extensionHostProcessThreadService = new AbstractThreadService(protocol, true);
 		const extHostContext: IExtHostContext = this._extensionHostProcessThreadService;
 
 		// Named customers

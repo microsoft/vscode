@@ -100,6 +100,11 @@ export interface IExtHostContext {
 	 * Register manually created instance.
 	 */
 	set<T, R extends T>(identifier: ProxyIdentifier<T>, instance: R): R;
+
+	/**
+	 * Assert these identifiers are already registered via `.set`.
+	 */
+	assertRegistered(identifiers: ProxyIdentifier<any>[]): void;
 }
 
 export interface IMainContext {

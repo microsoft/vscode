@@ -8,18 +8,19 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDispatcher, RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
 import { ProxyIdentifier } from 'vs/workbench/services/thread/common/threadService';
 import { CharCode } from 'vs/base/common/charCode';
+import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 
 declare var Proxy: any; // TODO@TypeScript
 
-export abstract class AbstractThreadService implements IDispatcher {
+export class AbstractThreadService implements IDispatcher {
 
 	private readonly _rpcProtocol: RPCProtocol;
 	private readonly _isMain: boolean;
 	protected readonly _locals: { [id: string]: any; };
 	private readonly _proxies: { [id: string]: any; } = Object.create(null);
 
-	constructor(rpcProtocol: RPCProtocol, isMain: boolean) {
-		this._rpcProtocol = rpcProtocol;
+	constructor(protocol: IMessagePassingProtocol, isMain: boolean) {
+		this._rpcProtocol = new RPCProtocol(protocol);
 		this._isMain = isMain;
 		this._locals = Object.create(null);
 		this._proxies = Object.create(null);
