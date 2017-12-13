@@ -6,9 +6,11 @@
 {
 	"name": "Erweiterungsname",
 	"extension id": "Erweiterungsbezeichner",
+	"preview": "Vorschau",
 	"publisher": "Name des Herausgebers",
 	"install count": "Installationsanzahl",
 	"rating": "Bewertung",
+	"repository": "Repository",
 	"license": "Lizenz",
 	"details": "Details",
 	"contributions": "Beiträge",

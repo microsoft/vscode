@@ -10,6 +10,7 @@ export class ViewModel implements debug.IViewModel {
 
 	private _focusedStackFrame: debug.IStackFrame;
 	private _focusedProcess: debug.IProcess;
+	private _focusedThread: debug.IThread;
 	private selectedExpression: debug.IExpression;
 	private selectedFunctionBreakpoint: debug.IFunctionBreakpoint;
 	private _onDidFocusProcess: Emitter<debug.IProcess | undefined>;
@@ -40,13 +41,19 @@ export class ViewModel implements debug.IViewModel {
 		return this._focusedStackFrame;
 	}
 
-	public setFocusedStackFrame(stackFrame: debug.IStackFrame, process: debug.IProcess, explicit: boolean): void {
-		this._focusedStackFrame = stackFrame;
-		if (process !== this._focusedProcess) {
+	public setFocus(stackFrame: debug.IStackFrame, thread: debug.IThread, process: debug.IProcess, explicit: boolean): void {
+		let shouldEmit = this._focusedProcess !== process || this._focusedThread !== thread || this._focusedStackFrame !== stackFrame;
+
+		if (this._focusedProcess !== process) {
 			this._focusedProcess = process;
 			this._onDidFocusProcess.fire(process);
 		}
-		this._onDidFocusStackFrame.fire({ stackFrame, explicit });
+		this._focusedThread = thread;
+		this._focusedStackFrame = stackFrame;
+
+		if (shouldEmit) {
+			this._onDidFocusStackFrame.fire({ stackFrame, explicit });
+		}
 	}
 
 	public get onDidFocusProcess(): Event<debug.IProcess> {

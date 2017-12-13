@@ -199,22 +199,15 @@ declare module 'vscode' {
 	//#endregion
 
 	/**
-	 * Represents an action that can be performed in code.
-	 *
-	 * Shown using the [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action)
+	 * A code action represents a change that can be performed in code, e.g. to fix a problem or
+	 * to refactor code.
 	 */
 	export class CodeAction {
-		/**
-		 * Label used to identify the code action in UI.
-		 */
-		title: string;
 
 		/**
-		 * Optional command that performs the code action.
-		 *
-		 * Executed after `edits` if any edits are provided. Either `command` or `edits` must be provided for a `CodeAction`.
+		 * A short, human-readanle, title for this code action.
 		 */
-		command?: Command;
+		title: string;
 
 		/**
 		 * Optional edit that performs the code action.
@@ -228,6 +221,22 @@ declare module 'vscode' {
 		 */
 		diagnostics?: Diagnostic[];
 
+		/**
+		 * Optional command that performs the code action.
+		 *
+		 * Executed after `edits` if any edits are provided. Either `command` or `edits` must be provided for a `CodeAction`.
+		 */
+		command?: Command;
+
+		/**
+		 * Creates a new code action.
+		 *
+		 * A code action must have at least a [title](#CodeAction.title) and either [edits](#CodeAction.edits)
+		 * or a [command](#CodeAction.command).
+		 *
+		 * @param title The title of the code action.
+		 * @param edits The edit of the code action.
+		 */
 		constructor(title: string, edits?: TextEdit[] | WorkspaceEdit);
 	}
 

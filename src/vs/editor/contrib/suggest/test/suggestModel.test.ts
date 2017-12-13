@@ -8,7 +8,6 @@ import * as assert from 'assert';
 import Event from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Model } from 'vs/editor/common/model/model';
 import { Handler } from 'vs/editor/common/editorCommon';
 import { ISuggestSupport, ISuggestResult, SuggestRegistry, SuggestTriggerKind } from 'vs/editor/common/modes';
@@ -105,9 +104,9 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		disposables.push(model);
 	});
 
-	function withOracle(callback: (model: SuggestModel, editor: TestCodeEditor) => any): TPromise<any> {
+	function withOracle(callback: (model: SuggestModel, editor: TestCodeEditor) => any): Promise<any> {
 
-		return new TPromise((resolve, reject) => {
+		return new Promise((resolve, reject) => {
 			const editor = createMockEditor(model);
 			const oracle = new SuggestModel(editor);
 			disposables.push(oracle, editor);
@@ -121,7 +120,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 	}
 
 	function assertEvent<E>(event: Event<E>, action: () => any, assert: (e: E) => any) {
-		return new TPromise((resolve, reject) => {
+		return new Promise((resolve, reject) => {
 			const sub = event(e => {
 				sub.dispose();
 				try {
@@ -141,7 +140,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 	test('events - cancel/trigger', function () {
 		return withOracle(model => {
 
-			return TPromise.join([
+			return Promise.all([
 				assertEvent(model.onDidCancel, function () {
 					model.cancel();
 				}, function (event) {
@@ -188,7 +187,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		disposables.push(SuggestRegistry.register({ scheme: 'test' }, alwaysEmptySupport));
 
 		return withOracle(model => {
-			return TPromise.join([
+			return Promise.all([
 				assertEvent(model.onDidCancel, function () {
 					model.trigger({ auto: true });
 				}, function (event) {

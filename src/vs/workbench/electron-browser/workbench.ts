@@ -15,8 +15,7 @@ import DOM = require('vs/base/browser/dom');
 import { Builder, $ } from 'vs/base/browser/builder';
 import { Delayer, RunOnceScheduler } from 'vs/base/common/async';
 import * as browser from 'vs/base/browser/browser';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { time } from 'vs/base/common/performance';
+import * as perf from 'vs/base/common/performance';
 import errors = require('vs/base/common/errors');
 import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -120,8 +119,6 @@ interface IZenModeSettings {
 
 export interface IWorkbenchStartedInfo {
 	customKeybindingsCount: number;
-	restoreViewletDuration: number;
-	restoreEditorsDuration: number;
 	pinnedViewlets: string[];
 	restoredViewlet: string;
 	restoredEditors: string[];
@@ -319,8 +316,7 @@ export class Workbench implements IPartService {
 		const restorePromises: TPromise<any>[] = [];
 
 		// Restore Editors
-		const editorRestoreStopWatch = StopWatch.create();
-		const editorRestoreClock = time('restore:editors');
+		perf.mark('willRestoreEditors');
 		const restoredEditors: string[] = [];
 		restorePromises.push(this.resolveEditorsToOpen().then(inputs => {
 
@@ -337,8 +333,7 @@ export class Workbench implements IPartService {
 			return editorOpenPromise.then(editors => {
 				this.handleEditorBackground(); // make sure we show the proper background in the editor area
 
-				editorRestoreClock.stop();
-				editorRestoreStopWatch.stop();
+				perf.mark('didRestoreEditors');
 
 				for (const editor of editors) {
 					if (editor) {
@@ -353,7 +348,6 @@ export class Workbench implements IPartService {
 		}));
 
 		// Restore Sidebar
-		let viewletRestoreStopWatch: StopWatch;
 		let viewletIdToRestore: string;
 		if (!this.sideBarHidden) {
 			this.sideBarVisibleContext.set(true);
@@ -366,11 +360,9 @@ export class Workbench implements IPartService {
 				viewletIdToRestore = this.viewletService.getDefaultViewletId();
 			}
 
-			viewletRestoreStopWatch = StopWatch.create();
-			const viewletRestoreClock = time('restore:viewlet');
+			perf.mark('willRestoreViewlet');
 			restorePromises.push(this.viewletService.openViewlet(viewletIdToRestore).then(() => {
-				viewletRestoreStopWatch.stop();
-				viewletRestoreClock.stop();
+				perf.mark('didRestoreViewlet');
 			}));
 		}
 
@@ -395,8 +387,6 @@ export class Workbench implements IPartService {
 
 			return {
 				customKeybindingsCount: this.keybindingService.customKeybindingsCount(),
-				restoreViewletDuration: viewletRestoreStopWatch ? Math.round(viewletRestoreStopWatch.elapsed()) : 0,
-				restoreEditorsDuration: Math.round(editorRestoreStopWatch.elapsed()),
 				pinnedViewlets: this.activitybarPart.getPinned(),
 				restoredViewlet: viewletIdToRestore,
 				restoredEditors

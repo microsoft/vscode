@@ -616,7 +616,8 @@ export class AddWatchExpressionAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		return this.debugService.addWatchExpression();
+		this.debugService.addWatchExpression();
+		return TPromise.as(undefined);
 	}
 
 	protected isEnabled(state: State): boolean {
@@ -648,7 +649,9 @@ export class AddToWatchExpressionsAction extends AbstractDebugAction {
 
 	public run(): TPromise<any> {
 		const name = this.expression instanceof Variable ? this.expression.evaluateName : this.expression.name;
-		return this.debugService.addWatchExpression(name);
+		this.debugService.addWatchExpression(name);
+		return TPromise.as(undefined);
+
 	}
 }
 
@@ -778,13 +781,13 @@ export class FocusProcessAction extends AbstractDebugAction {
 	public run(processName: string): TPromise<any> {
 		const isMultiRoot = this.debugService.getConfigurationManager().getLaunches().length > 1;
 		const process = this.debugService.getModel().getProcesses().filter(p => p.getName(isMultiRoot) === processName).pop();
-		return this.debugService.focusStackFrameAndEvaluate(null, process, true).then(() => {
-			const stackFrame = this.debugService.getViewModel().focusedStackFrame;
-			if (stackFrame) {
-				return stackFrame.openInEditor(this.editorService, true);
-			}
-			return undefined;
-		});
+		this.debugService.focusStackFrame(undefined, undefined, process, true);
+		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
+		if (stackFrame) {
+			return stackFrame.openInEditor(this.editorService, true);
+		}
+
+		return TPromise.as(undefined);
 	}
 }
 

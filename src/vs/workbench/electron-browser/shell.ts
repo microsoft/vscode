@@ -7,8 +7,8 @@
 
 import 'vs/css!./media/shell';
 
-import * as nls from 'vs/nls';
 import * as platform from 'vs/base/common/platform';
+import * as perf from 'vs/base/common/performance';
 import { Dimension, Builder, $ } from 'vs/base/browser/builder';
 import dom = require('vs/base/browser/dom');
 import aria = require('vs/base/browser/ui/aria/aria');
@@ -193,11 +193,6 @@ export class WorkbenchShell {
 		// Startup Telemetry
 		this.logStartupTelemetry(info);
 
-		// Root Warning
-		if ((platform.isLinux || platform.isMacintosh) && process.getuid() === 0) {
-			this.messageService.show(Severity.Warning, nls.localize('runningAsRoot', "It is recommended not to run Code as 'root'."));
-		}
-
 		// Set lifecycle phase to `Runnning` so that other contributions can now do something
 		this.lifecycleService.phase = LifecyclePhase.Running;
 
@@ -257,9 +252,7 @@ export class WorkbenchShell {
 		});
 
 		// Telemetry: startup metrics
-		this.timerService.workbenchStarted = Date.now();
-		this.timerService.restoreEditorsDuration = info.restoreEditorsDuration;
-		this.timerService.restoreViewletDuration = info.restoreViewletDuration;
+		perf.mark('didStartWorkbench');
 		this.extensionService.whenInstalledExtensionsRegistered().done(() => {
 			/* __GDPR__
 				"startupTime" : {
@@ -360,9 +353,9 @@ export class WorkbenchShell {
 		this.extensionService = instantiationService.createInstance(ExtensionService);
 		serviceCollection.set(IExtensionService, this.extensionService);
 
-		this.timerService.beforeExtensionLoad = Date.now();
+		perf.mark('willLoadExtensions');
 		this.extensionService.whenInstalledExtensionsRegistered().done(() => {
-			this.timerService.afterExtensionLoad = Date.now();
+			perf.mark('didLoadExtensions');
 		});
 
 		this.themeService = instantiationService.createInstance(WorkbenchThemeService, document.body);
@@ -570,18 +563,19 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const focusOutline = theme.getColor(focusBorder);
 	if (focusOutline) {
 		collector.addRule(`
-			.monaco-shell [tabindex="0"]:focus,
-			.monaco-shell .synthetic-focus,
-			.monaco-shell select:focus,
-			.monaco-shell .monaco-tree.focused.no-focused-item:focus:before,
-			.monaco-shell input[type="button"]:focus,
-			.monaco-shell input[type="text"]:focus,
-			.monaco-shell button:focus,
-			.monaco-shell textarea:focus,
-			.monaco-shell input[type="search"]:focus,
-			.monaco-shell input[type="checkbox"]:focus {
-				outline-color: ${focusOutline};
-			}
+		.monaco-shell [tabindex="0"]:focus,
+		.monaco-shell .synthetic-focus,
+		.monaco-shell select:focus,
+		.monaco-shell .monaco-tree.focused.no-focused-item:focus:before,
+		.monaco-shell .monaco-list:not(.element-focused):focus:before,
+		.monaco-shell input[type="button"]:focus,
+		.monaco-shell input[type="text"]:focus,
+		.monaco-shell button:focus,
+		.monaco-shell textarea:focus,
+		.monaco-shell input[type="search"]:focus,
+		.monaco-shell input[type="checkbox"]:focus {
+			outline-color: ${focusOutline};
+		}
 		`);
 	}
 });

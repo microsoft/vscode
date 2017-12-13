@@ -37,15 +37,13 @@ import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_CO
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { findRandomFreePort } from 'vs/base/node/ports';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
 
-// Enable search functionality in xterm.js instance
-XTermTerminal.loadAddon('search');
-// Enable the winpty compatibility addon which will simulate wraparound mode
-XTermTerminal.loadAddon('winptyCompat');
+let Terminal: typeof XTermTerminal;
 
 enum ProcessState {
 	// The process has not been initialized yet.
@@ -100,10 +98,10 @@ export class TerminalInstance implements ITerminalInstance {
 	private _initialCwd: string;
 	private _windowsShellHelper: WindowsShellHelper;
 	private _onLineDataListeners: ((lineData: string) => void)[];
+	private _xtermReadyPromise: TPromise<void>;
 
 	private _widgetManager: TerminalWidgetManager;
 	private _linkHandler: TerminalLinkHandler;
-	private _createProcessPromise: Thenable<any>;
 
 	public get id(): number { return this._id; }
 	public get processId(): number { return this._processId; }
@@ -128,7 +126,9 @@ export class TerminalInstance implements ITerminalInstance {
 		@IClipboardService private _clipboardService: IClipboardService,
 		@IHistoryService private _historyService: IHistoryService,
 		@IThemeService private _themeService: IThemeService,
-		@IEnvironmentService private _envService: IEnvironmentService
+		@IEnvironmentService private _envService: IEnvironmentService,
+		@IConfigurationResolverService private _configurationResolverService: IConfigurationResolverService,
+		@IWorkspaceContextService private _workspaceContextService: IWorkspaceContextService
 	) {
 		this._instanceDisposables = [];
 		this._processDisposables = [];
@@ -154,12 +154,23 @@ export class TerminalInstance implements ITerminalInstance {
 		});
 
 		this._initDimensions();
-		this._createProcessPromise = this._envService.args['inspect-all'] ? this._createProcessInDebugMode() : TPromise.as(this._createProcess());
-		this._createProcessPromise.then(() => this._init(), onUnexpectedError);
+		this._xtermReadyPromise = this._createProcessAndXterm();
+		this._xtermReadyPromise.then(() => {
+			// Only attach xterm.js to the DOM if the terminal panel has been opened before.
+			if (this._container) {
+				this.attachToElement(this._container);
+			}
+		});
 	}
 
-	private _init(): void {
-		this._createXterm();
+	public addDisposable(disposable: lifecycle.IDisposable): void {
+		this._instanceDisposables.push(disposable);
+	}
+
+	private async _createProcessAndXterm(): TPromise<void> {
+		let _createProcessPromise = this._envService.args['inspect-all'] ? this._createProcessInDebugMode() : TPromise.as(this._createProcess());
+
+		await _createProcessPromise;
 
 		if (platform.isWindows) {
 			this._processReady.then(() => {
@@ -169,14 +180,7 @@ export class TerminalInstance implements ITerminalInstance {
 			});
 		}
 
-		// Only attach xterm.js to the DOM if the terminal panel has been opened before.
-		if (this._container) {
-			this.attachToElement(this._container);
-		}
-	}
-
-	public addDisposable(disposable: lifecycle.IDisposable): void {
-		this._instanceDisposables.push(disposable);
+		await this._createXterm();
 	}
 
 	private _initDimensions(): void {
@@ -257,9 +261,16 @@ export class TerminalInstance implements ITerminalInstance {
 	/**
 	 * Create xterm.js instance and attach data listeners.
 	 */
-	protected _createXterm(): void {
+	protected async _createXterm(): TPromise<void> {
+		if (!Terminal) {
+			Terminal = (await import('xterm')).Terminal;
+			// Enable search functionality in xterm.js instance
+			Terminal.loadAddon('search');
+			// Enable the winpty compatibility addon which will simulate wraparound mode
+			Terminal.loadAddon('winptyCompat');
+		}
 		const font = this._configHelper.getFont(true);
-		this._xterm = new XTermTerminal({
+		this._xterm = new Terminal({
 			scrollback: this._configHelper.config.scrollback,
 			theme: this._getXtermTheme(),
 			fontFamily: font.fontFamily,
@@ -293,7 +304,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public attachToElement(container: HTMLElement): void {
-		this._createProcessPromise.then(() => {
+		this._xtermReadyPromise.then(() => {
 			if (this._wrapperElement) {
 				throw new Error('The terminal instance has already been attached to a container');
 			}
@@ -603,16 +614,24 @@ export class TerminalInstance implements ITerminalInstance {
 		if (!this._shellLaunchConfig.executable) {
 			this._configHelper.mergeDefaultShellPathAndArgs(this._shellLaunchConfig);
 		}
-		this._initialCwd = this._getCwd(this._shellLaunchConfig, this._historyService.getLastActiveWorkspaceRoot('file'));
+
+		const lastActiveWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot('file');
+		this._initialCwd = this._getCwd(this._shellLaunchConfig, lastActiveWorkspaceRootUri);
+
+		// Resolve env vars from config and shell
+		const lastActiveWorkspaceRoot = this._workspaceContextService.getWorkspaceFolder(lastActiveWorkspaceRootUri);
+		const platformKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
+		const envFromConfig = TerminalInstance.resolveConfigurationVariables(this._configurationResolverService, { ...this._configHelper.config.env[platformKey] }, lastActiveWorkspaceRoot);
+		const envFromShell = TerminalInstance.resolveConfigurationVariables(this._configurationResolverService, { ...this._shellLaunchConfig.env }, lastActiveWorkspaceRoot);
+		this._shellLaunchConfig.env = envFromShell;
 
 		// Merge process env with the env from config
-		const envFromConfig = { ...process.env };
-		const envSettingKey = platform.isWindows ? 'windows' : (platform.isMacintosh ? 'osx' : 'linux');
-		TerminalInstance.mergeEnvironments(envFromConfig, this._configHelper.config.env[envSettingKey]);
+		const parentEnv = { ...process.env };
+		TerminalInstance.mergeEnvironments(parentEnv, envFromConfig);
 
 		// Continue env initialization, merging in the env from the launch
 		// config and adding keys that are needed to create the process
-		const env = TerminalInstance.createTerminalEnv(envFromConfig, this._shellLaunchConfig, this._initialCwd, locale, this._cols, this._rows);
+		const env = TerminalInstance.createTerminalEnv(parentEnv, this._shellLaunchConfig, this._initialCwd, locale, this._cols, this._rows);
 		this._process = cp.fork(Uri.parse(require.toUrl('bootstrap')).fsPath, ['--type=terminal'], {
 			env,
 			cwd: Uri.parse(path.dirname(require.toUrl('../node/terminalProcess'))).fsPath,
@@ -653,6 +672,16 @@ export class TerminalInstance implements ITerminalInstance {
 				this._processState = ProcessState.RUNNING;
 			}
 		}, LAUNCHING_DURATION);
+	}
+
+	// TODO: Should be protected
+	private static resolveConfigurationVariables(configurationResolverService: IConfigurationResolverService, env: IStringDictionary<string>, lastActiveWorkspaceRoot: IWorkspaceFolder): IStringDictionary<string> {
+		Object.keys(env).forEach((key) => {
+			if (typeof env[key] === 'string') {
+				env[key] = configurationResolverService.resolve(lastActiveWorkspaceRoot, env[key]);
+			}
+		});
+		return env;
 	}
 
 	private _sendPtyDataToXterm(message: { type: string, content: string }): void {

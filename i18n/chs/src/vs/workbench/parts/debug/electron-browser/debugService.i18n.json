@@ -11,6 +11,8 @@
 	"breakpointAdded": "已添加断点，行 {0}, 文件 {1}",
 	"breakpointRemoved": "已删除断点，行 {0}，文件 {1}",
 	"compoundMustHaveConfigurations": "复合项必须拥有 \"configurations\" 属性集，才能启动多个配置。",
+	"configMissing": "\"launch.json\" 中缺少配置“{0}”。",
+	"launchJsonDoesNotExist": "\"launch.json\" 不存在。",
 	"debugRequestNotSupported": "所选调试配置的属性“{0}”的值“{1}”不受支持。",
 	"debugRequesMissing": "所选的调试配置缺少属性“{0}”。",
 	"debugTypeNotSupported": "配置的类型“{0}”不受支持。",

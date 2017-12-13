@@ -56,7 +56,8 @@ const options: minimist.Opts = {
 		'disable-crash-reporter',
 		'skip-add-to-recently-opened',
 		'inspect-all',
-		'status'
+		'status',
+		'write-elevated-helper'
 	],
 	alias: {
 		add: 'a',

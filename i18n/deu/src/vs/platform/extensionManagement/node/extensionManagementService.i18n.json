@@ -6,8 +6,12 @@
 {
 	"invalidManifest": "Die Erweiterung ist ungültig: \"package.json\" ist keine JSON-Datei.",
 	"restartCodeLocal": "Bitte starten Sie Code vor der Neuinstallation von {0} neu.",
+	"installingOutdatedExtension": "Eine neuere Version dieser Erweiterung ist bereits installiert. Möchten Sie diese mit der älteren Version überschreiben?",
 	"override": "Überschreiben",
 	"cancel": "Abbrechen",
+	"notFoundCompatible": "Kann nicht installiert werden, da die Erweiterung '{0}', die mit der aktuellen Version '{1}' von VS Code kompatibel ist, nicht gefunden werden kann.",
+	"quitCode": "Kann nicht installiert werden, da noch eine veraltete Instanz der Erweiterung ausgeführt wird. Bitte beenden und VS Code neu starten vor der Neuinstallation.",
+	"exitCode": "Kann nicht installiert werden, da noch eine veraltete Instanz der Erweiterung ausgeführt wird. Bitte beenden und VS Code neu starten vor der Neuinstallation.",
 	"notFoundCompatibleDependency": "Kann nicht installiert werden, da die abhängige Erweiterung '{0}', die mit der aktuellen VS Code Version '{1}' kompatibel ist, nicht gefunden werden kann. ",
 	"uninstallDependeciesConfirmation": "Möchten Sie nur \"{0}\" oder auch die zugehörigen Abhängigkeiten deinstallieren?",
 	"uninstallOnly": "Nur",

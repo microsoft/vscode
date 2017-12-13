@@ -10,6 +10,9 @@
 			"when": "$(basename).ts"
 		}
 	},
+	"files.associations": {
+		"OSSREADME.json": "jsonc"
+	},
 	"search.exclude": {
 		"**/node_modules": true,
 		"**/bower_components": true,

@@ -33,6 +33,7 @@ export interface IWindowInfo {
 
 export interface IMainProcessInfo {
 	mainPID: number;
+	mainArguments: string[];
 	windows: IWindowInfo[];
 }
 
@@ -159,6 +160,7 @@ export class LaunchService implements ILaunchService {
 
 		return TPromise.wrap({
 			mainPID: process.pid,
+			mainArguments: process.argv,
 			windows: this.windowsMainService.getWindows().map(window => {
 				return this.getWindowInfo(window);
 			})

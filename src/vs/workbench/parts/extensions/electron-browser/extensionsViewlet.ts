@@ -133,7 +133,7 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 			location: ViewLocation.Extensions,
 			ctor: ExtensionsListView,
 			when: ContextKeyExpr.and(ContextKeyExpr.has('searchExtensions'), ContextKeyExpr.not('searchInstalledExtensions'), ContextKeyExpr.not('recommendedExtensions')),
-			size: 100
+			weight: 100
 		};
 	}
 
@@ -144,7 +144,7 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 			location: ViewLocation.Extensions,
 			ctor: InstalledExtensionsView,
 			when: ContextKeyExpr.and(ContextKeyExpr.not('searchExtensions')),
-			size: 200
+			weight: 30
 		};
 	}
 
@@ -155,7 +155,7 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 			location: ViewLocation.Extensions,
 			ctor: InstalledExtensionsView,
 			when: ContextKeyExpr.and(ContextKeyExpr.has('searchInstalledExtensions')),
-			size: 50
+			weight: 100
 		};
 	}
 
@@ -166,7 +166,7 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 			location: ViewLocation.Extensions,
 			ctor: RecommendedExtensionsView,
 			when: ContextKeyExpr.and(ContextKeyExpr.not('searchExtensions')),
-			size: 600,
+			weight: 70,
 			canToggleVisibility: true
 		};
 	}
@@ -178,7 +178,7 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 			location: ViewLocation.Extensions,
 			ctor: RecommendedExtensionsView,
 			when: ContextKeyExpr.and(ContextKeyExpr.has('recommendedExtensions')),
-			size: 600,
+			weight: 50,
 			canToggleVisibility: true,
 			order: 2
 		};
@@ -191,7 +191,7 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 			location: ViewLocation.Extensions,
 			ctor: WorkspaceRecommendedExtensionsView,
 			when: ContextKeyExpr.and(ContextKeyExpr.has('recommendedExtensions'), ContextKeyExpr.has('nonEmptyWorkspace')),
-			size: 200,
+			weight: 50,
 			canToggleVisibility: true,
 			order: 1
 		};

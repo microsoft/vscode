@@ -36,7 +36,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		@IHeapService heapService: IHeapService,
 		@IModeService modeService: IModeService,
 	) {
-		this._proxy = extHostContext.get(ExtHostContext.ExtHostLanguageFeatures);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostLanguageFeatures);
 		this._heapService = heapService;
 		this._modeService = modeService;
 	}

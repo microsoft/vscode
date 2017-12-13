@@ -19,7 +19,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TreeItemCollapsibleState, ITreeItem } from 'vs/workbench/common/views';
-import { NoopLogService } from 'vs/platform/log/common/log';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('ExtHostTreeView', function () {
 
@@ -66,7 +66,7 @@ suite('ExtHostTreeView', function () {
 
 		threadService.setTestInstance(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, threadService));
 		target = new RecordingShape();
-		testObject = new ExtHostTreeViews(target, new ExtHostCommands(threadService, new ExtHostHeapService(), new NoopLogService()));
+		testObject = new ExtHostTreeViews(target, new ExtHostCommands(threadService, new ExtHostHeapService(), new NullLogService()));
 		onDidChangeTreeNode = new Emitter<{ key: string }>();
 		onDidChangeTreeKey = new Emitter<string>();
 		testObject.registerTreeDataProvider('testNodeTreeProvider', aNodeTreeDataProvider());

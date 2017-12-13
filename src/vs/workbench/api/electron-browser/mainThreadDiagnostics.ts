@@ -5,7 +5,7 @@
 'use strict';
 
 import { IMarkerService, IMarkerData } from 'vs/platform/markers/common/markers';
-import URI from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { MainThreadDiagnosticsShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
@@ -27,10 +27,10 @@ export class MainThreadDiagnostics implements MainThreadDiagnosticsShape {
 		this._activeOwners.forEach(owner => this._markerService.changeAll(owner, undefined));
 	}
 
-	$changeMany(owner: string, entries: [URI, IMarkerData[]][]): TPromise<any> {
+	$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): TPromise<any> {
 		for (let entry of entries) {
 			let [uri, markers] = entry;
-			this._markerService.changeOne(owner, uri, markers);
+			this._markerService.changeOne(owner, URI.revive(uri), markers);
 		}
 		this._activeOwners.add(owner);
 		return undefined;

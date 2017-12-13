@@ -8,6 +8,9 @@
 	"unFoldRecursivelyAction.label": "Развернуть рекурсивно",
 	"foldAction.label": "Свернуть",
 	"foldRecursivelyAction.label": "Свернуть рекурсивно",
+	"foldAllBlockComments.label": "Свернуть все блоки комментариев",
+	"foldAllMarkerRegions.label": "Свернуть все регионы",
+	"unfoldAllMarkerRegions.label": "Развернуть все регионы",
 	"foldAllAction.label": "Свернуть все",
 	"unfoldAllAction.label": "Развернуть все",
 	"foldLevelAction.label": "Уровень папки {0}"

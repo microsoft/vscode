@@ -69,14 +69,14 @@ export class TextFileService extends AbstractTextFileService {
 		});
 	}
 
-	public confirmSave(resources?: URI[]): ConfirmResult {
+	public confirmSave(resources?: URI[]): TPromise<ConfirmResult> {
 		if (this.environmentService.isExtensionDevelopment) {
-			return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev mode because we cannot assum we run interactive (e.g. tests)
+			return TPromise.wrap(ConfirmResult.DONT_SAVE); // no veto when we are in extension dev mode because we cannot assum we run interactive (e.g. tests)
 		}
 
 		const resourcesToConfirm = this.getDirty(resources);
 		if (resourcesToConfirm.length === 0) {
-			return ConfirmResult.DONT_SAVE;
+			return TPromise.wrap(ConfirmResult.DONT_SAVE);
 		}
 
 		const message = [
@@ -130,12 +130,10 @@ export class TextFileService extends AbstractTextFileService {
 			opts.defaultId = 2;
 		}
 
-		const choice = this.windowService.showMessageBox(opts);
-
-		return buttons[choice].result;
+		return this.windowService.showMessageBox(opts).then(choice => buttons[choice].result);
 	}
 
-	public promptForPath(defaultPath: string): string {
+	public promptForPath(defaultPath: string): TPromise<string> {
 		return this.windowService.showSaveDialog(this.getSaveDialogOptions(defaultPath));
 	}
 

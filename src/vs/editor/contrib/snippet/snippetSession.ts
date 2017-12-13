@@ -15,9 +15,11 @@ import { Range } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
 import { groupBy } from 'vs/base/common/arrays';
 import { dispose } from 'vs/base/common/lifecycle';
-import { EditorSnippetVariableResolver } from './snippetVariables';
+import { SelectionBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, ClipboardBasedVariableResolver } from './snippetVariables';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { optional } from 'vs/platform/instantiation/common/instantiation';
 
 export class OneSnippet {
 
@@ -269,6 +271,9 @@ export class SnippetSession {
 		const edits: IIdentifiedSingleEditOperation[] = [];
 		const snippets: OneSnippet[] = [];
 
+		const modelBasedVariableResolver = new ModelBasedVariableResolver(model);
+		const clipboardService = editor.invokeWithinContext(accessor => accessor.get(IClipboardService, optional));
+
 		let delta = 0;
 
 		// know what text the overwrite[Before|After] extensions
@@ -281,11 +286,11 @@ export class SnippetSession {
 		// the original index. that allows you to create correct
 		// offset-based selection logic without changing the
 		// primary selection
-		const indexedSelection = editor.getSelections()
+		const indexedSelections = editor.getSelections()
 			.map((selection, idx) => ({ selection, idx }))
 			.sort((a, b) => Range.compareRangesUsingStarts(a.selection, b.selection));
 
-		for (const { selection, idx } of indexedSelection) {
+		for (const { selection, idx } of indexedSelections) {
 
 			// extend selection with the `overwriteBefore` and `overwriteAfter` and then
 			// compare if this matches the extensions of the primary selection
@@ -310,7 +315,11 @@ export class SnippetSession {
 
 			const snippet = new SnippetParser()
 				.parse(adjustedTemplate, true, enforceFinalTabstop)
-				.resolveVariables(new EditorSnippetVariableResolver(model, selection));
+				.resolveVariables(new CompositeSnippetVariableResolver([
+					modelBasedVariableResolver,
+					new ClipboardBasedVariableResolver(clipboardService, idx, indexedSelections.length),
+					new SelectionBasedVariableResolver(model, selection)
+				]));
 
 			const offset = model.getOffsetAt(start) + delta;
 			delta += snippet.toString().length - model.getValueLengthInRange(snippetSelection);

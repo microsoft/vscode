@@ -40,6 +40,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { getBaseLabel } from 'vs/base/common/labels';
+import { assign } from 'vs/base/common/objects';
 
 export interface IEncodingOverride {
 	resource: uri;
@@ -54,6 +55,12 @@ export interface IFileServiceOptions {
 	disableWatcher?: boolean;
 	verboseLogging?: boolean;
 	useExperimentalFileWatcher?: boolean;
+	writeElevated?: (source: string, target: string) => TPromise<void>;
+	elevationSupport?: {
+		cliPath: string;
+		promptTitle: string;
+		promptIcnsPath?: string;
+	};
 }
 
 function etag(stat: fs.Stats): string;
@@ -351,9 +358,6 @@ export class FileService implements IFileService {
 		});
 	}
 
-	//#region data stream
-
-
 	private resolveFileData(resource: uri, options: IResolveContentOptions, token: CancellationToken): Thenable<IContentData> {
 
 		const chunkBuffer = BufferPool._64K.acquire();
@@ -484,9 +488,15 @@ export class FileService implements IFileService {
 		});
 	}
 
-	//#endregion
-
 	public updateContent(resource: uri, value: string, options: IUpdateContentOptions = Object.create(null)): TPromise<IFileStat> {
+		if (this.options.elevationSupport && options.writeElevated) {
+			return this.doUpdateContentElevated(resource, value, options);
+		}
+
+		return this.doUpdateContent(resource, value, options);
+	}
+
+	private doUpdateContent(resource: uri, value: string, options: IUpdateContentOptions = Object.create(null)): TPromise<IFileStat> {
 		const absolutePath = this.toAbsolutePath(resource);
 
 		// 1.) check file
@@ -539,6 +549,15 @@ export class FileService implements IFileService {
 					});
 				});
 			});
+		}).then(null, error => {
+			if (error.code === 'EACCES' || error.code === 'EPERM') {
+				return TPromise.wrapError(new FileOperationError(
+					nls.localize('filePermission', "Permission denied writing to file ({0})", resource.toString(true)),
+					FileOperationResult.FILE_PERMISSION_DENIED
+				));
+			}
+
+			return TPromise.wrapError(error);
 		});
 	}
 
@@ -561,6 +580,53 @@ export class FileService implements IFileService {
 
 			// resolve
 			return this.resolve(resource);
+		});
+	}
+
+	private doUpdateContentElevated(resource: uri, value: string, options: IUpdateContentOptions = Object.create(null)): TPromise<IFileStat> {
+		const absolutePath = this.toAbsolutePath(resource);
+
+		// 1.) check file
+		return this.checkFile(absolutePath, options).then(exists => {
+			const writeOptions: IUpdateContentOptions = assign(Object.create(null), options);
+			writeOptions.writeElevated = false;
+			writeOptions.encoding = this.getEncoding(resource, options.encoding);
+
+			// 2.) write to a temporary file to be able to copy over later
+			const tmpPath = paths.join(this.tmpPath, `code-elevated-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 6)}`);
+			return this.updateContent(uri.file(tmpPath), value, writeOptions).then(() => {
+
+				// 3.) invoke our CLI as super user
+				return (import('sudo-prompt')).then(sudoPrompt => {
+					return new TPromise<void>((c, e) => {
+						const promptOptions = { name: this.options.elevationSupport.promptTitle.replace('-', ''), icns: this.options.elevationSupport.promptIcnsPath };
+						sudoPrompt.exec(`"${this.options.elevationSupport.cliPath}" --write-elevated-helper "${tmpPath}" "${absolutePath}"`, promptOptions, (error: string, stdout: string, stderr: string) => {
+							if (error || stderr) {
+								e(error || stderr);
+							} else {
+								c(void 0);
+							}
+						});
+					});
+				}).then(() => {
+
+					// 3.) resolve again
+					return this.resolve(resource);
+				});
+			});
+		}).then(null, error => {
+			if (this.options.verboseLogging) {
+				this.options.errorLogger(`Unable to write to file '${resource.toString(true)}' as elevated user (${error})`);
+			}
+
+			if (!(error instanceof FileOperationError)) {
+				error = new FileOperationError(
+					nls.localize('filePermission', "Permission denied writing to file ({0})", resource.toString(true)),
+					FileOperationResult.FILE_PERMISSION_DENIED
+				);
+			}
+
+			return TPromise.wrapError(error);
 		});
 	}
 
@@ -865,6 +931,7 @@ export class FileService implements IFileService {
 
 					if (readonly) {
 						mode = mode | 128;
+
 						return pfs.chmod(absolutePath, mode).then(() => exists);
 					}
 

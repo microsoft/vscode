@@ -10,6 +10,7 @@
 	"dropFolder": "Möchten Sie den Ordner zum Arbeitsbereich hinzufügen?",
 	"addFolders": "&&Ordner hinzufügen",
 	"addFolder": "&&Ordner hinzufügen",
+	"confirmMove": "Möchten Sie \"{0}\" wirklich verschieben?",
 	"doNotAskAgain": "Nicht erneut fragen",
 	"moveButtonLabel": "&&Verschieben",
 	"confirmOverwriteMessage": "{0} ist im Zielordner bereits vorhanden. Möchten Sie das Element ersetzen?",

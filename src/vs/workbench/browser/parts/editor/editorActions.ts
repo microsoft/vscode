@@ -669,24 +669,25 @@ export class CloseAllEditorsAction extends Action {
 		}
 
 		// Otherwise ask for combined confirmation
-		const confirm = this.textFileService.confirmSave();
-		if (confirm === ConfirmResult.CANCEL) {
-			return void 0;
-		}
-
-		let saveOrRevertPromise: TPromise<boolean>;
-		if (confirm === ConfirmResult.DONT_SAVE) {
-			saveOrRevertPromise = this.textFileService.revertAll(null, { soft: true }).then(() => true);
-		} else {
-			saveOrRevertPromise = this.textFileService.saveAll(true).then(res => res.results.every(r => r.success));
-		}
-
-		return saveOrRevertPromise.then(success => {
-			if (success) {
-				return this.editorService.closeAllEditors();
+		return this.textFileService.confirmSave().then(confirm => {
+			if (confirm === ConfirmResult.CANCEL) {
+				return void 0;
 			}
 
-			return void 0;
+			let saveOrRevertPromise: TPromise<boolean>;
+			if (confirm === ConfirmResult.DONT_SAVE) {
+				saveOrRevertPromise = this.textFileService.revertAll(null, { soft: true }).then(() => true);
+			} else {
+				saveOrRevertPromise = this.textFileService.saveAll(true).then(res => res.results.every(r => r.success));
+			}
+
+			return saveOrRevertPromise.then(success => {
+				if (success) {
+					return this.editorService.closeAllEditors();
+				}
+
+				return void 0;
+			});
 		});
 	}
 }

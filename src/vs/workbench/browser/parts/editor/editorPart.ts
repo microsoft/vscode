@@ -823,24 +823,25 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// Switch to editor that we want to handle
 		return this.openEditor(identifier.editor, null, this.stacks.positionOfGroup(identifier.group)).then(() => {
 			return this.ensureEditorOpenedBeforePrompt().then(() => {
-				const res = editor.confirmSave();
-				switch (res) {
-					case ConfirmResult.SAVE:
-						return editor.save().then(ok => !ok);
+				return editor.confirmSave().then(res => {
+					switch (res) {
+						case ConfirmResult.SAVE:
+							return editor.save().then(ok => !ok);
 
-					case ConfirmResult.DONT_SAVE:
-						// first try a normal revert where the contents of the editor are restored
-						return editor.revert().then(ok => !ok, error => {
-							// if that fails, since we are about to close the editor, we accept that
-							// the editor cannot be reverted and instead do a soft revert that just
-							// enables us to close the editor. With this, a user can always close a
-							// dirty editor even when reverting fails.
-							return editor.revert({ soft: true }).then(ok => !ok);
-						});
+						case ConfirmResult.DONT_SAVE:
+							// first try a normal revert where the contents of the editor are restored
+							return editor.revert().then(ok => !ok, error => {
+								// if that fails, since we are about to close the editor, we accept that
+								// the editor cannot be reverted and instead do a soft revert that just
+								// enables us to close the editor. With this, a user can always close a
+								// dirty editor even when reverting fails.
+								return editor.revert({ soft: true }).then(ok => !ok);
+							});
 
-					case ConfirmResult.CANCEL:
-						return true; // veto
-				}
+						case ConfirmResult.CANCEL:
+							return true; // veto
+					}
+				});
 			});
 		});
 	}

@@ -5,7 +5,7 @@
 'use strict';
 
 import Event from 'vs/base/common/event';
-import URI from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { sequence, always } from 'vs/base/common/async';
 import { illegalState } from 'vs/base/common/errors';
 import { ExtHostDocumentSaveParticipantShape, MainThreadEditorsShape, IWorkspaceResourceEdit } from 'vs/workbench/api/node/extHost.protocol';
@@ -16,21 +16,22 @@ import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import * as vscode from 'vscode';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ILogService } from 'vs/platform/log/common/log';
 
 type Listener = [Function, any, IExtensionDescription];
 
 export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSaveParticipantShape {
 
-	private _documents: ExtHostDocuments;
-	private _mainThreadEditors: MainThreadEditorsShape;
-	private _callbacks = new LinkedList<Listener>();
-	private _badListeners = new WeakMap<Function, number>();
-	private _thresholds: { timeout: number; errors: number; };
+	private readonly _callbacks = new LinkedList<Listener>();
+	private readonly _badListeners = new WeakMap<Function, number>();
 
-	constructor(documents: ExtHostDocuments, mainThreadEditors: MainThreadEditorsShape, thresholds: { timeout: number; errors: number; } = { timeout: 1500, errors: 3 }) {
-		this._documents = documents;
-		this._mainThreadEditors = mainThreadEditors;
-		this._thresholds = thresholds;
+	constructor(
+		private readonly _logService: ILogService,
+		private readonly _documents: ExtHostDocuments,
+		private readonly _mainThreadEditors: MainThreadEditorsShape,
+		private readonly _thresholds: { timeout: number; errors: number; } = { timeout: 1500, errors: 3 }
+	) {
+		//
 	}
 
 	dispose(): void {
@@ -48,7 +49,8 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 		};
 	}
 
-	$participateInSave(resource: URI, reason: SaveReason): Thenable<boolean[]> {
+	$participateInSave(data: UriComponents, reason: SaveReason): Thenable<boolean[]> {
+		const resource = URI.revive(data);
 		const entries = this._callbacks.toArray();
 
 		let didTimeout = false;
@@ -81,6 +83,10 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 			return true;
 
 		}, err => {
+
+			this._logService.error('[onWillSaveTextDocument]', extension.id);
+			this._logService.error(err);
+
 			if (!(err instanceof Error) || (<Error>err).message !== 'concurrent_edits') {
 				const errors = this._badListeners.get(listener);
 				this._badListeners.set(listener, !errors ? 1 : errors + 1);

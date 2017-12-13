@@ -12,5 +12,8 @@
 	"errors": "{0} erros não capturados",
 	"extensionsInputName": "Executando extensões",
 	"showRuntimeExtensions": "Mostrar extensões em execução",
-	"reportExtensionIssue": "Reportar Problema"
+	"reportExtensionIssue": "Reportar Problema",
+	"extensionHostProfileStart": "Iniciar o Perfil de Host de Extensão",
+	"extensionHostProfileStop": "Parar o Perfil de Host de Extensão",
+	"saveExtensionHostProfile": "Salvar o Perfil de Host de Extensão"
 }

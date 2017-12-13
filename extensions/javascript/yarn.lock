@@ -36,19 +36,17 @@ https-proxy-agent@^0.3.5:
     debug "2"
     extend "3"
 
-jsonc-parser@^0.3.1:
-  version "0.3.1"
-  resolved "https://registry.yarnpkg.com/jsonc-parser/-/jsonc-parser-0.3.1.tgz#6ebf5c75224368d4b07ef4c26f9434e657472e95"
-  dependencies:
-    vscode-nls "^2.0.2"
+jsonc-parser@^1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/jsonc-parser/-/jsonc-parser-1.0.0.tgz#ddcc864ae708e60a7a6dd36daea00172fa8d9272"
 
 ms@0.7.1:
   version "0.7.1"
   resolved "https://registry.yarnpkg.com/ms/-/ms-0.7.1.tgz#9cd13c03adbff25b65effde7ce864ee952017098"
 
-request-light@^0.2.0:
-  version "0.2.0"
-  resolved "https://registry.yarnpkg.com/request-light/-/request-light-0.2.0.tgz#922497791c2e68528124dfb82354cf37e4bb2cfc"
+request-light@^0.2.1:
+  version "0.2.1"
+  resolved "https://registry.yarnpkg.com/request-light/-/request-light-0.2.1.tgz#986f5a82893e9d1ca6a896ebe6f46c51c6b4557f"
   dependencies:
     http-proxy-agent "^0.2.6"
     https-proxy-agent "^0.3.5"

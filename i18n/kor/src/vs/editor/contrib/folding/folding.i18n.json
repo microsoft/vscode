@@ -9,6 +9,8 @@
 	"foldAction.label": "접기",
 	"foldRecursivelyAction.label": "재귀적으로 접기",
 	"foldAllBlockComments.label": "모든 블록 코멘트를 접기",
+	"foldAllMarkerRegions.label": "모든 영역 접기",
+	"unfoldAllMarkerRegions.label": "모든 영역 펼치기",
 	"foldAllAction.label": "모두 접기",
 	"unfoldAllAction.label": "모두 펼치기",
 	"foldLevelAction.label": "수준 {0} 접기"

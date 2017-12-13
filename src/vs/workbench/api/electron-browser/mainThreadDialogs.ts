@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import URI from 'vs/base/common/uri';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { MainThreadDiaglogsShape, MainContext, IExtHostContext, MainThreadDialogOpenOptions, MainThreadDialogSaveOptions } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
@@ -30,11 +31,9 @@ export class MainThreadDialogs implements MainThreadDiaglogsShape {
 			return Promise.reject(new Error('Not supported - Open-dialogs can only be opened on `file`-uris.'));
 		}
 		return new Promise<string[]>(resolve => {
-			const filenames = this._windowService.showOpenDialog(
+			this._windowService.showOpenDialog(
 				MainThreadDialogs._convertOpenOptions(options)
-			);
-
-			resolve(isFalsyOrEmpty(filenames) ? undefined : filenames);
+			).then(filenames => resolve(isFalsyOrEmpty(filenames) ? undefined : filenames));
 		});
 	}
 
@@ -44,10 +43,9 @@ export class MainThreadDialogs implements MainThreadDiaglogsShape {
 			return Promise.reject(new Error('Not supported - Save-dialogs can only be opened on `file`-uris.'));
 		}
 		return new Promise<string>(resolve => {
-			const filename = this._windowService.showSaveDialog(
+			this._windowService.showSaveDialog(
 				MainThreadDialogs._convertSaveOptions(options)
-			);
-			resolve(!filename ? undefined : filename);
+			).then(filename => resolve(!filename ? undefined : filename));
 		});
 	}
 
@@ -59,7 +57,7 @@ export class MainThreadDialogs implements MainThreadDiaglogsShape {
 			result.buttonLabel = options.openLabel;
 		}
 		if (options.defaultUri) {
-			result.defaultPath = options.defaultUri.fsPath;
+			result.defaultPath = URI.revive(options.defaultUri).fsPath;
 		}
 		if (!options.canSelectFiles && !options.canSelectFolders) {
 			options.canSelectFiles = true;
@@ -85,7 +83,7 @@ export class MainThreadDialogs implements MainThreadDiaglogsShape {
 
 		};
 		if (options.defaultUri) {
-			result.defaultPath = options.defaultUri.fsPath;
+			result.defaultPath = URI.revive(options.defaultUri).fsPath;
 		}
 		if (options.saveLabel) {
 			result.buttonLabel = options.saveLabel;
