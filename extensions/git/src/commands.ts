@@ -169,14 +169,33 @@ export class CommandCenter {
 	}
 
 	private async _openResource(resource: Resource, preview?: boolean, preserveFocus?: boolean, preserveSelection?: boolean): Promise<void> {
-		const stat = await new Promise<Stats>((c, e) => lstat(resource.resourceUri.fsPath, (err, stat) => err ? e(err) : c(stat)));
+		let stat: Stats | undefined;
 
-		if (stat.isDirectory()) {
-			return;
+		try {
+			stat = await new Promise<Stats>((c, e) => lstat(resource.resourceUri.fsPath, (err, stat) => err ? e(err) : c(stat)));
+		} catch (err) {
+			// noop
 		}
 
-		const left = await this.getLeftResource(resource);
-		const right = await this.getRightResource(resource);
+		let left: Uri | undefined;
+		let right: Uri | undefined;
+
+		if (stat && stat.isDirectory()) {
+			outer:
+			for (const repository of this.model.repositories) {
+				for (const submodule of repository.submodules) {
+					const submodulePath = path.join(repository.root, submodule.path);
+
+					if (submodulePath === resource.resourceUri.fsPath) {
+						right = toGitUri(Uri.file(submodulePath), resource.resourceGroupType === ResourceGroupType.Index ? 'index' : 'wt', { submoduleOf: repository.root });
+						break outer;
+					}
+				}
+			}
+		} else {
+			left = await this.getLeftResource(resource);
+			right = await this.getRightResource(resource);
+		}
 
 		const title = this.getTitle(resource);
 
@@ -1697,7 +1716,7 @@ export class CommandCenter {
 		const isSingleResource = arg instanceof Uri;
 
 		const groups = resources.reduce((result, resource) => {
-			const repository = this.model.getRepository(resource);
+			const repository = this.model.getRepository(resource, true);
 
 			if (!repository) {
 				console.warn('Could not find git repository for ', resource);

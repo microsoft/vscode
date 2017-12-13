@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData, Memento } from 'vscode';
-import { Repository as BaseRepository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash, RefType, GitError, Submodule } from './git';
+import { Repository as BaseRepository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash, RefType, GitError, Submodule, DiffOptions } from './git';
 import { anyEvent, filterEvent, eventToPromise, dispose, find, isDescendant, IDisposable, onceEvent, EmptyDisposable, debounceEvent } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { toGitUri } from './uri';
@@ -280,6 +280,7 @@ export class Resource implements SourceControlResourceState {
 
 export enum Operation {
 	Status = 'Status',
+	Diff = 'Diff',
 	Add = 'Add',
 	RevertFiles = 'RevertFiles',
 	Commit = 'Commit',
@@ -557,7 +558,7 @@ export class Repository implements Disposable {
 			return;
 		}
 
-		return toGitUri(uri, '', true);
+		return toGitUri(uri, '', { replaceFileExtension: true });
 	}
 
 	private async updateCommitTemplate(): Promise<void> {
@@ -571,6 +572,10 @@ export class Repository implements Disposable {
 	@throttle
 	async status(): Promise<void> {
 		await this.run(Operation.Status);
+	}
+
+	diff(path: string, options: DiffOptions = {}): Promise<string> {
+		return this.run(Operation.Diff, () => this.repository.diff(path, options));
 	}
 
 	async add(resources: Uri[]): Promise<void> {
