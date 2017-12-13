@@ -27,6 +27,7 @@ import { TypeScriptServiceConfiguration, TsServerLogLevel } from './utils/config
 import { TypeScriptVersionProvider, TypeScriptVersion } from './utils/versionProvider';
 import { TypeScriptVersionPicker } from './utils/versionPicker';
 import * as fileSchemes from './utils/fileSchemes';
+import { inferredProjectConfig } from './utils/tsconfig';
 
 const localize = nls.loadMessageBundle();
 
@@ -476,20 +477,12 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	}
 
 	private getCompilerOptionsForInferredProjects(configuration: TypeScriptServiceConfiguration): Proto.ExternalProjectCompilerOptions {
-		const compilerOptions: Proto.ExternalProjectCompilerOptions = {
-			module: 'CommonJS' as Proto.ModuleKind,
-			target: 'Es2016' as Proto.ScriptTarget,
+		return {
+			...inferredProjectConfig(configuration),
+			allowJs: true,
 			allowSyntheticDefaultImports: true,
 			allowNonTsExtensions: true,
-			allowJs: true,
-			jsx: 'Preserve' as Proto.JsxEmit
 		};
-
-		if (this.apiVersion.has230Features()) {
-			compilerOptions.checkJs = configuration.checkJs;
-			compilerOptions.experimentalDecorators = configuration.experimentalDecorators;
-		}
-		return compilerOptions;
 	}
 
 	private serviceExited(restart: boolean): void {
