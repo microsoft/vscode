@@ -151,8 +151,8 @@ export interface MainThreadDocumentContentProvidersShape extends IDisposable {
 
 export interface MainThreadDocumentsShape extends IDisposable {
 	$tryCreateDocument(options?: { language?: string; content?: string; }): TPromise<any>;
-	$tryOpenDocument(uri: URI): TPromise<any>;
-	$trySaveDocument(uri: URI): TPromise<boolean>;
+	$tryOpenDocument(uri: UriComponents): TPromise<any>;
+	$trySaveDocument(uri: UriComponents): TPromise<boolean>;
 }
 
 export interface ISelectionChangeEvent {
@@ -671,7 +671,7 @@ export const MainContext = {
 	MainThreadDecorations: createMainId<MainThreadDecorationsShape>('MainThreadDecorations', ProxyType.CustomMarshaller),
 	MainThreadDiagnostics: createMainId<MainThreadDiagnosticsShape>('MainThreadDiagnostics', ProxyType.CustomMarshaller),
 	MainThreadDialogs: createMainId<MainThreadDiaglogsShape>('MainThreadDiaglogs', ProxyType.CustomMarshaller),
-	MainThreadDocuments: createMainId<MainThreadDocumentsShape>('MainThreadDocuments', ProxyType.CustomMarshaller),
+	MainThreadDocuments: createMainId<MainThreadDocumentsShape>('MainThreadDocuments'),
 	MainThreadDocumentContentProviders: createMainId<MainThreadDocumentContentProvidersShape>('MainThreadDocumentContentProviders', ProxyType.CustomMarshaller),
 	MainThreadEditors: createMainId<MainThreadEditorsShape>('MainThreadEditors'),
 	MainThreadErrors: createMainId<MainThreadErrorsShape>('MainThreadErrors', ProxyType.CustomMarshaller),
