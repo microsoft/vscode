@@ -17,8 +17,7 @@ import { whenDeleted } from 'vs/base/node/pfs';
 import { findFreePort, findRandomFreePort } from 'vs/base/node/ports';
 import { resolveTerminalEncoding } from 'vs/base/node/encoding';
 import * as iconv from 'iconv-lite';
-import * as readline from 'readline';
-import { Target } from 'v8-inspect-profiler';
+import { cpuProfile } from './profile';
 
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 	return !!argv['install-source']
@@ -29,42 +28,6 @@ function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 
 interface IMainCli {
 	main: (argv: ParsedArgs) => TPromise<void>;
-}
-
-async function chooseRendererProcess(targets: Target[]): Promise<number> {
-	if (!targets || targets.length === 0) {
-		return TPromise.as(-1);
-	}
-	if (targets.length > 1) {
-		let askForChooseTab = '? Which process do you want to profile\n';
-		for (let i = 0, len = targets.length; i < len; i++) {
-			if (targets[i].title.indexOf('sharedProcess.html') === 0) {
-				askForChooseTab += `${i}. shared-process\n`;
-			} else {
-				askForChooseTab += `${i}. window (${targets[i].title})\n`;
-			}
-		}
-
-		console.log(askForChooseTab);
-
-		return new TPromise<number>((resolve, reject) => {
-			var rl = readline.createInterface(process.stdin, process.stdout);
-			rl.setPrompt('> ');
-			rl.prompt();
-			rl.on('line', function (line) {
-				let tabNumber = Number(line);
-				if (!isNaN(tabNumber) && tabNumber >= 0 && tabNumber < targets.length) {
-					rl.close();
-					resolve(tabNumber);
-				} else {
-					console.log('Please provide valid number ;)');
-					rl.prompt();
-				}
-			});
-		});
-	} else {
-		return TPromise.as(0);
-	}
 }
 
 export async function main(argv: string[]): TPromise<any> {
@@ -86,47 +49,7 @@ export async function main(argv: string[]): TPromise<any> {
 	else if (args.version) {
 		console.log(`${pkg.version}\n${product.commit}\n${process.arch}`);
 	} else if (args['cpu-profile']) {
-		const debugPort = Number(args['cpu-profile']);
-		const profiler = await import('v8-inspect-profiler');
-		const targets = await profiler.listTabs({ port: debugPort });
-		if (targets.length < 1) {
-			return;
-		}
-
-		return chooseRendererProcess(targets).then(async tabNumber => {
-			let options;
-			if (tabNumber >= 0 && tabNumber < targets.length) {
-				options = {
-					port: debugPort, chooseTab: (targets) => {
-						const target = targets[tabNumber];
-						return target;
-					}
-				};
-			} else {
-				options = { port: debugPort };
-			}
-
-			console.log('Start profiling, press CTRL-C to stop.');
-			const targetProcess = await profiler.startProfiling(options);
-			const filenamePrefix = paths.join(os.homedir(), Math.random().toString(16).slice(-4));
-
-			return new TPromise(c => {
-				process.on('SIGINT', async () => {
-					let suffix = '';
-					let profileTargetProcess = await targetProcess.stop();
-
-					if (!process.env['VSCODE_DEV']) {
-						profileTargetProcess = profiler.rewriteAbsolutePaths(profileTargetProcess, 'piiRemoved');
-						suffix = '.txt';
-					}
-
-					await profiler.writeProfile(profileTargetProcess, `${filenamePrefix}-main.cpuprofile${suffix}`);
-					console.log(`\nCPU Profile written to ${filenamePrefix}.cpuprofile${suffix}`);
-					c(null);
-					process.exit(0);
-				});
-			});
-		});
+		return cpuProfile(args['cpu-profile']);
 	} else if (shouldSpawnCliProcess(args)) {
 		const mainCli = new TPromise<IMainCli>(c => require(['vs/code/node/cliProcessMain'], c));
 		return mainCli.then(cli => cli.main(args));
