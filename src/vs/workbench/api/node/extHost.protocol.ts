@@ -140,7 +140,7 @@ export interface MainThreadDiaglogsShape extends IDisposable {
 export interface MainThreadDecorationsShape extends IDisposable {
 	$registerDecorationProvider(handle: number, label: string): void;
 	$unregisterDecorationProvider(handle: number): void;
-	$onDidChange(handle: number, resources: URI[]): void;
+	$onDidChange(handle: number, resources: UriComponents[]): void;
 }
 
 export interface MainThreadDocumentContentProvidersShape extends IDisposable {
@@ -668,7 +668,7 @@ export const MainContext = {
 	MainThreadCommands: <ProxyIdentifier<MainThreadCommandsShape>>createMainId<MainThreadCommandsShape>('MainThreadCommands', ProxyType.CustomMarshaller),
 	MainThreadConfiguration: createMainId<MainThreadConfigurationShape>('MainThreadConfiguration', ProxyType.CustomMarshaller),
 	MainThreadDebugService: createMainId<MainThreadDebugServiceShape>('MainThreadDebugService', ProxyType.CustomMarshaller),
-	MainThreadDecorations: createMainId<MainThreadDecorationsShape>('MainThreadDecorations', ProxyType.CustomMarshaller),
+	MainThreadDecorations: createMainId<MainThreadDecorationsShape>('MainThreadDecorations', ProxyType.NativeJSON),
 	MainThreadDiagnostics: createMainId<MainThreadDiagnosticsShape>('MainThreadDiagnostics', ProxyType.CustomMarshaller),
 	MainThreadDialogs: createMainId<MainThreadDiaglogsShape>('MainThreadDiaglogs', ProxyType.CustomMarshaller),
 	MainThreadDocuments: createMainId<MainThreadDocumentsShape>('MainThreadDocuments'),
