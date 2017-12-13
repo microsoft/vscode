@@ -49,7 +49,7 @@ import * as paths from 'vs/base/common/paths';
 import { MainContext, ExtHostContext, IInitData, IExtHostContext } from './extHost.protocol';
 import * as languageConfiguration from 'vs/editor/common/modes/languageConfiguration';
 import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
-import { ProxyIdentifier } from 'vs/workbench/services/thread/common/threadService';
+import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 import { ExtHostDialogs } from 'vs/workbench/api/node/extHostDialogs';
 import { ExtHostFileSystem } from 'vs/workbench/api/node/extHostFileSystem';
 import { FileChangeType, FileType } from 'vs/platform/files/common/files';

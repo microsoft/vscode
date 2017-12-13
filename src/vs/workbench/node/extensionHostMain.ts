@@ -25,7 +25,7 @@ import { createLogService } from 'vs/platform/log/node/spdlogService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { AbstractThreadService } from 'vs/workbench/services/thread/node/abstractThreadService';
+import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
 
 // const nativeExit = process.exit.bind(process);
 function patchProcess(allowExit: boolean) {
@@ -88,8 +88,8 @@ export class ExtensionHostMain {
 		patchProcess(allowExit);
 
 		// services
-		const threadService = new AbstractThreadService(protocol, false);
-		const extHostWorkspace = new ExtHostWorkspace(threadService, initData.workspace);
+		const rpcProtocol = new RPCProtocol(protocol);
+		const extHostWorkspace = new ExtHostWorkspace(rpcProtocol, initData.workspace);
 		const environmentService = new EnvironmentService(initData.args, initData.execPath);
 		this._logService = createLogService(`exthost${initData.windowId}`, environmentService);
 		this.disposables.push(this._logService);
@@ -97,8 +97,8 @@ export class ExtensionHostMain {
 		this._logService.info('extension host started');
 		this._logService.trace('initData', initData);
 
-		this._extHostConfiguration = new ExtHostConfiguration(threadService.get(MainContext.MainThreadConfiguration), extHostWorkspace, initData.configuration);
-		this._extensionService = new ExtHostExtensionService(initData, threadService, extHostWorkspace, this._extHostConfiguration, this._logService);
+		this._extHostConfiguration = new ExtHostConfiguration(rpcProtocol.get(MainContext.MainThreadConfiguration), extHostWorkspace, initData.configuration);
+		this._extensionService = new ExtHostExtensionService(initData, rpcProtocol, extHostWorkspace, this._extHostConfiguration, this._logService);
 
 		// error forwarding and stack trace scanning
 		const extensionErrors = new WeakMap<Error, IExtensionDescription>();
@@ -119,8 +119,8 @@ export class ExtensionHostMain {
 				return `${error.name || 'Error'}: ${error.message || ''}${stackTraceMessage}`;
 			};
 		});
-		const mainThreadExtensions = threadService.get(MainContext.MainThreadExtensionService);
-		const mainThreadErrors = threadService.get(MainContext.MainThreadErrors);
+		const mainThreadExtensions = rpcProtocol.get(MainContext.MainThreadExtensionService);
+		const mainThreadErrors = rpcProtocol.get(MainContext.MainThreadErrors);
 		errors.setUnexpectedErrorHandler(err => {
 			const data = errors.transformErrorForSerialization(err);
 			const extension = extensionErrors.get(err);

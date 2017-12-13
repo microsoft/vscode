@@ -9,15 +9,16 @@ import * as marshalling from 'vs/base/common/marshalling';
 import * as errors from 'vs/base/common/errors';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { LazyPromise } from 'vs/workbench/services/extensions/node/lazyPromise';
+import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
+import { CharCode } from 'vs/base/common/charCode';
 
-export interface IDispatcher {
-	invoke(proxyId: string, methodName: string, args: any[]): any;
-}
+declare var Proxy: any; // TODO@TypeScript
 
 export class RPCProtocol {
 
 	private _isDisposed: boolean;
-	private _bigHandler: IDispatcher;
+	private readonly _locals: { [id: string]: any; };
+	private readonly _proxies: { [id: string]: any; };
 	private _lastMessageId: number;
 	private readonly _invokedHandlers: { [req: string]: TPromise<any>; };
 	private readonly _pendingRPCReplies: { [msgId: string]: LazyPromise; };
@@ -25,7 +26,8 @@ export class RPCProtocol {
 
 	constructor(protocol: IMessagePassingProtocol) {
 		this._isDisposed = false;
-		this._bigHandler = null;
+		this._locals = Object.create(null);
+		this._proxies = Object.create(null);
 		this._lastMessageId = 0;
 		this._invokedHandlers = Object.create(null);
 		this._pendingRPCReplies = {};
@@ -40,6 +42,41 @@ export class RPCProtocol {
 			const pending = this._pendingRPCReplies[msgId];
 			pending.resolveErr(errors.canceled());
 		});
+	}
+
+	public get<T>(identifier: ProxyIdentifier<T>): T {
+		if (!this._proxies[identifier.id]) {
+			this._proxies[identifier.id] = this._createProxy(identifier.id);
+		}
+		return this._proxies[identifier.id];
+	}
+
+	private _createProxy<T>(proxyId: string): T {
+		let handler = {
+			get: (target, name: string) => {
+				if (!target[name] && name.charCodeAt(0) === CharCode.DollarSign) {
+					target[name] = (...myArgs: any[]) => {
+						return this.fancyRemoteCall(proxyId, name, myArgs);
+					};
+				}
+				return target[name];
+			}
+		};
+		return new Proxy(Object.create(null), handler);
+	}
+
+	public set<T, R extends T>(identifier: ProxyIdentifier<T>, value: R): R {
+		this._locals[identifier.id] = value;
+		return value;
+	}
+
+	public assertRegistered(identifiers: ProxyIdentifier<any>[]): void {
+		for (let i = 0, len = identifiers.length; i < len; i++) {
+			const identifier = identifiers[i];
+			if (!this._locals[identifier.id]) {
+				throw new Error(`Missing actor ${identifier.id} (isMain: ${identifier.isMain})`);
+			}
+		}
 	}
 
 	private _receiveOneMessage(rawmsg: string): void {
@@ -72,10 +109,6 @@ export class RPCProtocol {
 	}
 
 	private _receiveRequest(msg: RequestMessage | FancyRequestMessage): void {
-		if (!this._bigHandler) {
-			throw new Error('got message before big handler attached!');
-		}
-
 		const callId = msg.id;
 		const proxyId = msg.proxyId;
 		const isFancy = (msg.type === MessageType.FancyRequest); // a fancy request gets a fancy reply
@@ -135,10 +168,22 @@ export class RPCProtocol {
 
 	private _invokeHandler(proxyId: string, methodName: string, args: any[]): TPromise<any> {
 		try {
-			return TPromise.as(this._bigHandler.invoke(proxyId, methodName, args));
+			return TPromise.as(this._doInvokeHandler(proxyId, methodName, args));
 		} catch (err) {
 			return TPromise.wrapError(err);
 		}
+	}
+
+	private _doInvokeHandler(proxyId: string, methodName: string, args: any[]): any {
+		if (!this._locals[proxyId]) {
+			throw new Error('Unknown actor ' + proxyId);
+		}
+		let actor = this._locals[proxyId];
+		let method = actor[methodName];
+		if (typeof method !== 'function') {
+			throw new Error('Unknown method ' + methodName + ' on actor ' + proxyId);
+		}
+		return method.apply(actor, args);
 	}
 
 	public remoteCall(proxyId: string, methodName: string, args: any[]): TPromise<any> {
@@ -168,10 +213,6 @@ export class RPCProtocol {
 		}
 
 		return result;
-	}
-
-	public setDispatcher(handler: IDispatcher): void {
-		this._bigHandler = handler;
 	}
 }
 

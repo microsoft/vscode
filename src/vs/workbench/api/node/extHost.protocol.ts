@@ -8,7 +8,7 @@ import {
 	createMainContextProxyIdentifier as createMainId,
 	createExtHostContextProxyIdentifier as createExtId,
 	ProxyIdentifier
-} from 'vs/workbench/services/thread/common/threadService';
+} from 'vs/workbench/services/extensions/node/proxyIdentifier';
 
 import * as vscode from 'vscode';
 

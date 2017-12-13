@@ -6,7 +6,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ProxyIdentifier } from 'vs/workbench/services/thread/common/threadService';
+import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 
 export function OneGetThreadService(thing: any) {
 	return {
