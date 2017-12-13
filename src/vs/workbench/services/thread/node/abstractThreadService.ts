@@ -81,6 +81,6 @@ export abstract class AbstractThreadService implements IDispatcher {
 	}
 
 	private _callOnRemote(proxyId: string, methodName: string, args: any[]): TPromise<any> {
-		return this._rpcProtocol.callOnRemote(proxyId, methodName, args);
+		return this._rpcProtocol.fancyRemoteCall(proxyId, methodName, args);
 	}
 }

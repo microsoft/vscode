@@ -78,12 +78,17 @@ export class RPCProtocol {
 
 		const callId = msg.id;
 		const proxyId = msg.proxyId;
+		const isFancy = (msg.type === MessageType.FancyRequest); // a fancy request gets a fancy reply
 
 		this._invokedHandlers[callId] = this._invokeHandler(proxyId, msg.method, msg.args);
 
 		this._invokedHandlers[callId].then((r) => {
 			delete this._invokedHandlers[callId];
-			this._multiplexor.send(MessageFactory.replyOK(callId, r));
+			if (isFancy) {
+				this._multiplexor.send(MessageFactory.fancyReplyOK(callId, r));
+			} else {
+				this._multiplexor.send(MessageFactory.replyOK(callId, r));
+			}
 		}, (err) => {
 			delete this._invokedHandlers[callId];
 			this._multiplexor.send(MessageFactory.replyErr(callId, err));
@@ -136,19 +141,31 @@ export class RPCProtocol {
 		}
 	}
 
-	public callOnRemote(proxyId: string, methodName: string, args: any[]): TPromise<any> {
+	public remoteCall(proxyId: string, methodName: string, args: any[]): TPromise<any> {
+		return this._remoteCall(proxyId, methodName, args, false);
+	}
+
+	public fancyRemoteCall(proxyId: string, methodName: string, args: any[]): TPromise<any> {
+		return this._remoteCall(proxyId, methodName, args, true);
+	}
+
+	private _remoteCall(proxyId: string, methodName: string, args: any[], isFancy: boolean): TPromise<any> {
 		if (this._isDisposed) {
 			return TPromise.wrapError<any>(errors.canceled());
 		}
 
-		let req = String(++this._lastMessageId);
-		let result = new LazyPromise(() => {
-			this._multiplexor.send(MessageFactory.cancel(req));
+		const callId = String(++this._lastMessageId);
+		const result = new LazyPromise(() => {
+			this._multiplexor.send(MessageFactory.cancel(callId));
 		});
 
-		this._pendingRPCReplies[req] = result;
+		this._pendingRPCReplies[callId] = result;
 
-		this._multiplexor.send(MessageFactory.request(req, proxyId, methodName, args));
+		if (isFancy) {
+			this._multiplexor.send(MessageFactory.fancyRequest(callId, proxyId, methodName, args));
+		} else {
+			this._multiplexor.send(MessageFactory.request(callId, proxyId, methodName, args));
+		}
 
 		return result;
 	}
@@ -203,10 +220,21 @@ class MessageFactory {
 	}
 
 	public static request(req: string, rpcId: string, method: string, args: any[]): string {
+		return `{"type":${MessageType.Request},"id":"${req}","proxyId":"${rpcId}","method":"${method}","args":${JSON.stringify(args)}}`;
+	}
+
+	public static fancyRequest(req: string, rpcId: string, method: string, args: any[]): string {
 		return `{"type":${MessageType.FancyRequest},"id":"${req}","proxyId":"${rpcId}","method":"${method}","args":${marshalling.stringify(args)}}`;
 	}
 
 	public static replyOK(req: string, res: any): string {
+		if (typeof res === 'undefined') {
+			return `{"type":${MessageType.Reply},"id":"${req}"}`;
+		}
+		return `{"type":${MessageType.Reply},"id":"${req}","res":${JSON.stringify(res)}}`;
+	}
+
+	public static fancyReplyOK(req: string, res: any): string {
 		if (typeof res === 'undefined') {
 			return `{"type":${MessageType.Reply},"id":"${req}"}`;
 		}
