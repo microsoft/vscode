@@ -320,7 +320,7 @@ export class DebugService implements debug.IDebugService {
 			const threadId = event.body.allThreadsContinued !== false ? undefined : event.body.threadId;
 			this.model.clearThreads(session.getId(), false, threadId);
 			if (this.viewModel.focusedProcess.getId() === session.getId()) {
-				this.focusStackFrame(null, this.viewModel.focusedProcess);
+				this.focusStackFrame(undefined, this.viewModel.focusedThread, this.viewModel.focusedProcess);
 			}
 			this.updateStateAndEmit(session.getId(), debug.State.Running);
 		}));
@@ -534,18 +534,33 @@ export class DebugService implements debug.IDebugService {
 		}
 	}
 
-	public focusStackFrame(stackFrame: debug.IStackFrame, process?: debug.IProcess, explicit?: boolean): void {
+	public focusStackFrame(stackFrame: debug.IStackFrame, thread?: debug.IThread, process?: debug.IProcess, explicit?: boolean): void {
 		if (!process) {
-			const processes = this.model.getProcesses();
-			process = stackFrame ? stackFrame.thread.process : processes.length ? processes[0] : null;
-		}
-		if (!stackFrame) {
-			const threads = process ? process.getAllThreads() : null;
-			const callStack = threads && threads.length === 1 ? threads[0].getCallStack() : null;
-			stackFrame = callStack && callStack.length ? callStack[0] : null;
+			if (stackFrame || thread) {
+				process = stackFrame ? stackFrame.thread.process : thread.process;
+			} else {
+				const processes = this.model.getProcesses();
+				process = processes.length ? processes[0] : undefined;
+			}
 		}
 
-		this.viewModel.setFocusedStackFrame(stackFrame, process, explicit);
+		if (!thread) {
+			if (stackFrame) {
+				thread = stackFrame.thread;
+			} else {
+				const threads = process ? process.getAllThreads() : undefined;
+				thread = threads && threads.length ? threads[0] : undefined;
+			}
+		}
+
+		if (!stackFrame) {
+			if (thread) {
+				const callStack = thread.getCallStack();
+				stackFrame = callStack && callStack.length ? callStack[0] : null;
+			}
+		}
+
+		this.viewModel.setFocus(stackFrame, thread, process, explicit);
 		this.updateStateAndEmit();
 	}
 
@@ -610,7 +625,7 @@ export class DebugService implements debug.IDebugService {
 	public addReplExpression(name: string): TPromise<void> {
 		return this.model.addReplExpression(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame, name)
 			// Evaluate all watch expressions and fetch variables again since repl evaluation might have changed some.
-			.then(() => this.focusStackFrame(this.viewModel.focusedStackFrame, this.viewModel.focusedProcess));
+			.then(() => this.focusStackFrame(this.viewModel.focusedStackFrame, this.viewModel.focusedThread, this.viewModel.focusedProcess));
 	}
 
 	public removeReplExpressions(): void {
@@ -864,7 +879,7 @@ export class DebugService implements debug.IDebugService {
 				if (session.disconnected) {
 					return TPromise.as(null);
 				}
-				this.focusStackFrame(null, process);
+				this.focusStackFrame(undefined, undefined, process);
 				this._onDidNewProcess.fire(process);
 
 				const internalConsoleOptions = configuration.internalConsoleOptions || this.configurationService.getValue<debug.IDebugConfiguration>('debug').internalConsoleOptions;
@@ -1041,7 +1056,7 @@ export class DebugService implements debug.IDebugService {
 					// Restart should preserve the focused process
 					const restartedProcess = this.model.getProcesses().filter(p => p.configuration.name === process.configuration.name).pop();
 					if (restartedProcess && restartedProcess !== this.viewModel.focusedProcess) {
-						this.focusStackFrame(null, restartedProcess);
+						this.focusStackFrame(undefined, undefined, restartedProcess);
 					}
 				}
 			});

@@ -512,7 +512,7 @@ export interface IDebugService {
 	/**
 	 * Sets the focused stack frame and evaluates all expressions against the newly focused stack frame,
 	 */
-	focusStackFrame(focusedStackFrame: IStackFrame, process?: IProcess, explicit?: boolean): void;
+	focusStackFrame(focusedStackFrame: IStackFrame, thread?: IThread, process?: IProcess, explicit?: boolean): void;
 
 	/**
 	 * Adds new breakpoints to the model for the file specified with the uri. Notifies debug adapter of breakpoint changes.

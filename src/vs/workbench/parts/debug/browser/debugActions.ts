@@ -781,7 +781,7 @@ export class FocusProcessAction extends AbstractDebugAction {
 	public run(processName: string): TPromise<any> {
 		const isMultiRoot = this.debugService.getConfigurationManager().getLaunches().length > 1;
 		const process = this.debugService.getModel().getProcesses().filter(p => p.getName(isMultiRoot) === processName).pop();
-		this.debugService.focusStackFrame(null, process, true);
+		this.debugService.focusStackFrame(undefined, undefined, process, true);
 		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 		if (stackFrame) {
 			return stackFrame.openInEditor(this.editorService, true);
