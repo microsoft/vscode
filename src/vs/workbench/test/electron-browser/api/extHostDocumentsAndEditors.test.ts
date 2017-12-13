@@ -16,7 +16,6 @@ suite('ExtHostDocumentsAndEditors', () => {
 	setup(function () {
 		editors = new ExtHostDocumentsAndEditors({
 			getProxy: () => { return undefined; },
-			getFastProxy: () => { return undefined; },
 			set: undefined,
 			assertRegistered: undefined
 		});
