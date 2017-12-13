@@ -40,18 +40,21 @@ export class ExtHostLogService implements ExtHostLogServiceShape {
 	}
 }
 
-export class ExtHostLogger implements vscode.ILogger {
+export class ExtHostLogger implements vscode.Logger {
 	private _currentLevel: LogLevel;
-
-	get onDidChangeLogLevel(): Event<LogLevel> { return this._extHostLogService.onDidChangeLogLevel; }
 
 	constructor(
 		private readonly _extHostLogService: ExtHostLogService,
 		private readonly _logService: ILogService,
 		private readonly _logDirectory: string
 	) {
+		this._currentLevel = this._logService.getLevel();
 		this._extHostLogService.onDidChangeLogLevel(logLevel => this._currentLevel = logLevel);
 	}
+
+	get onDidChangeLogLevel(): Event<LogLevel> { return this._extHostLogService.onDidChangeLogLevel; }
+
+	get currentLevel(): LogLevel { return this._currentLevel; }
 
 	getLogDirectory(): TPromise<string> {
 		return dirExists(this._logDirectory).then(exists => {
