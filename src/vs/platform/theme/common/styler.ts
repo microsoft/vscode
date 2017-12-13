@@ -101,7 +101,7 @@ export interface ISelectBoxStyleOverrides extends IStyleOverrides {
 	selectBackground?: ColorIdentifier;
 	selectForeground?: ColorIdentifier;
 	selectBorder?: ColorIdentifier;
-	selectOptionsBorder?: ColorIdentifier;
+	focusBorder?: ColorIdentifier;
 }
 
 export function attachSelectBoxStyler(widget: IThemable, themeService: IThemeService, style?: ISelectBoxStyleOverrides): IDisposable {
@@ -109,7 +109,7 @@ export function attachSelectBoxStyler(widget: IThemable, themeService: IThemeSer
 		selectBackground: (style && style.selectBackground) || selectBackground,
 		selectForeground: (style && style.selectForeground) || selectForeground,
 		selectBorder: (style && style.selectBorder) || selectBorder,
-		selectOptionsBorder: (style && style.selectOptionsBorder) || focusBorder,
+		focusBorder: (style && style.focusBorder) || focusBorder,
 		listFocusBackground: (style && style.listFocusBackground) || listFocusBackground,
 		listFocusForeground: (style && style.listFocusForeground) || listFocusForeground,
 		listFocusOutline: (style && style.listFocusOutline) || activeContrastBorder,
