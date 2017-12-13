@@ -33,7 +33,7 @@ export function inferredProjectConfig(
 	return base;
 }
 
-function getEmptyConfigSnippet(
+function inferredProjectConfigSnippet(
 	config: TypeScriptServiceConfiguration
 ) {
 	const baseConfig = inferredProjectConfig(config);
@@ -63,7 +63,7 @@ export async function openOrCreateConfigFile(
 		const doc = await vscode.workspace.openTextDocument(configFile.with({ scheme: 'untitled' }));
 		const editor = await vscode.window.showTextDocument(doc, col);
 		if (editor.document.getText().length === 0) {
-			await editor.insertSnippet(getEmptyConfigSnippet(config));
+			await editor.insertSnippet(inferredProjectConfigSnippet(config));
 		}
 		return editor;
 	}
