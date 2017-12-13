@@ -8,7 +8,7 @@ import * as types from 'vs/base/common/types';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { ActiveEditorMoveArguments, ActiveEditorMovePositioning, ActiveEditorMovePositioningBy, EditorCommands, TextCompareEditorVisible } from 'vs/workbench/common/editor';
+import { ActiveEditorMoveArguments, ActiveEditorMovePositioning, ActiveEditorMovePositioningBy, EditorCommands, TextCompareEditorVisible, toResource } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditor, Position, POSITIONS } from 'vs/platform/editor/common/editor';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -18,11 +18,25 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IMessageService, Severity, CloseAction } from 'vs/platform/message/common/message';
 import { Action } from 'vs/base/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IListService } from 'vs/platform/list/browser/listService';
+import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
+import URI from 'vs/base/common/uri';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { basename } from 'vs/base/common/paths';
+
+export const CLOSE_UNMODIFIED_EDITORS_COMMAND_ID = 'workbench.command.closeUnmodifiedEditors';
+export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.command.closeEditorsInGroup';
+export const OPEN_TO_SIDE_COMMAND_ID = 'workbench.command.openToSide';
+export const REVERT_FILE_COMMAND_ID = 'workbench.command.files.revert';
+
 
 export function setup(): void {
 	registerActiveEditorMoveCommand();
 	registerDiffEditorCommands();
 	registerOpenEditorAtIndexCommands();
+	registerExplorerCommands();
 	handleCommandDeprecations();
 }
 
@@ -268,4 +282,110 @@ function registerOpenEditorAtIndexCommands(): void {
 
 		return void 0;
 	}
+}
+
+function registerExplorerCommands() {
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: CLOSE_UNMODIFIED_EDITORS_COMMAND_ID,
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: undefined,
+		primary: undefined,
+		handler: (accessor, args: any) => {
+			const editorGroupService = accessor.get(IEditorGroupService);
+			const editorService = accessor.get(IWorkbenchEditorService);
+
+			let position = context ? editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
+
+			// If position is not passed in take the position of the active editor.
+			if (typeof position !== 'number') {
+				const active = editorService.getActiveEditor();
+				if (active) {
+					position = active.position;
+				}
+			}
+
+			if (typeof position === 'number') {
+				return editorService.closeEditors(position, { unmodifiedOnly: true });
+			}
+
+			return TPromise.as(false);
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: undefined,
+		primary: undefined,
+		handler: (accessor, args: any) => {
+			const editorGroupService = accessor.get(IEditorGroupService);
+			const editorService = accessor.get(IWorkbenchEditorService);
+
+			let position = context ? editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
+			if (typeof position !== 'number') {
+				const activeEditor = editorService.getActiveEditor();
+				if (activeEditor) {
+					position = activeEditor.position;
+				}
+			}
+
+			if (typeof position === 'number') {
+				return editorService.closeEditors(position);
+			}
+
+			return TPromise.as(false);
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: OPEN_TO_SIDE_COMMAND_ID,
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: undefined,
+		primary: undefined,
+		handler: (accessor, args: any) => {
+			const editorService = accessor.get(IWorkbenchEditorService);
+			const listService = accessor.get(IListService);
+			const tree = listService.lastFocusedList;
+			// Remove highlight
+			if (tree instanceof Tree) {
+				tree.clearHighlight();
+			}
+
+			// Set side input
+			return editorService.openEditor({
+				resource: this.resource,
+				options: {
+					preserveFocus: this.preserveFocus
+				}
+			}, true);
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: REVERT_FILE_COMMAND_ID,
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: undefined,
+		primary: undefined,
+		handler: (accessor, args: any) => {
+			let resource: URI;
+			const editorService = accessor.get(IWorkbenchEditorService);
+			const textFileService = accessor.get(ITextFileService);
+			const messageService = accessor.get(IMessageService);
+
+			if (this.resource) {
+				resource = this.resource;
+			} else {
+				resource = toResource(editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
+			}
+
+			if (resource && resource.scheme !== 'untitled') {
+				return textFileService.revert(resource, { force: true }).then(null, error => {
+					messageService.show(Severity.Error, nls.localize('genericRevertError', "Failed to revert '{0}': {1}", basename(resource.fsPath), toErrorMessage(error, false)));
+				});
+			}
+
+			return TPromise.as(true);
+		}
+	});
 }

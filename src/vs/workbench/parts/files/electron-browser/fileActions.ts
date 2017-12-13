@@ -52,6 +52,8 @@ import { once } from 'vs/base/common/event';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { OPEN_TO_SIDE_COMMAND_ID, REVERT_FILE_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 
 export interface IEditableData {
 	action: IAction;
@@ -1120,21 +1122,11 @@ export class OpenToSideAction extends Action {
 	public static readonly ID = 'explorer.openToSide';
 	public static readonly LABEL = nls.localize('openToSide', "Open to the Side");
 
-	private tree: ITree;
-	private resource: URI;
-	private preserveFocus: boolean;
-
 	constructor(
-		tree: ITree,
-		resource: URI,
-		preserveFocus: boolean,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@ICommandService private commandService: ICommandService
 	) {
 		super(OpenToSideAction.ID, OpenToSideAction.LABEL);
-
-		this.tree = tree;
-		this.preserveFocus = preserveFocus;
-		this.resource = resource;
 
 		this.updateEnablement();
 	}
@@ -1145,19 +1137,7 @@ export class OpenToSideAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-
-		// Remove highlight
-		if (this.tree) {
-			this.tree.clearHighlight();
-		}
-
-		// Set side input
-		return this.editorService.openEditor({
-			resource: this.resource,
-			options: {
-				preserveFocus: this.preserveFocus
-			}
-		}, true);
+		return this.commandService.executeCommand(OPEN_TO_SIDE_COMMAND_ID);
 	}
 }
 
@@ -1675,9 +1655,7 @@ export class RevertFileAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IMessageService private messageService: IMessageService
+		@ICommandService private commandService: ICommandService
 	) {
 		super(id, label);
 
@@ -1689,20 +1667,7 @@ export class RevertFileAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		let resource: URI;
-		if (this.resource) {
-			resource = this.resource;
-		} else {
-			resource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
-		}
-
-		if (resource && resource.scheme !== 'untitled') {
-			return this.textFileService.revert(resource, { force: true }).then(null, error => {
-				this.messageService.show(Severity.Error, nls.localize('genericRevertError', "Failed to revert '{0}': {1}", paths.basename(resource.fsPath), toErrorMessage(error, false)));
-			});
-		}
-
-		return TPromise.as(true);
+		return this.commandService.executeCommand(REVERT_FILE_COMMAND_ID);
 	}
 }
 

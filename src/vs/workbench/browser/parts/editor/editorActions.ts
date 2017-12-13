@@ -22,6 +22,7 @@ import { IEditorGroupService, GroupArrangement } from 'vs/workbench/services/gro
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { CLOSE_UNMODIFIED_EDITORS_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 
 export class SplitEditorAction extends Action {
 
@@ -700,28 +701,13 @@ export class CloseUnmodifiedEditorsInGroupAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@ICommandService private commandService: ICommandService
 	) {
 		super(id, label);
 	}
 
 	public run(context?: IEditorContext): TPromise<any> {
-		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
-
-		// If position is not passed in take the position of the active editor.
-		if (typeof position !== 'number') {
-			const active = this.editorService.getActiveEditor();
-			if (active) {
-				position = active.position;
-			}
-		}
-
-		if (typeof position === 'number') {
-			return this.editorService.closeEditors(position, { unmodifiedOnly: true });
-		}
-
-		return TPromise.as(false);
+		return this.commandService.executeCommand(CLOSE_UNMODIFIED_EDITORS_COMMAND_ID);
 	}
 }
 
@@ -797,26 +783,13 @@ export class CloseEditorsInGroupAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@ICommandService private commandService: ICommandService
 	) {
 		super(id, label);
 	}
 
 	public run(context?: IEditorContext): TPromise<any> {
-		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
-		if (typeof position !== 'number') {
-			const activeEditor = this.editorService.getActiveEditor();
-			if (activeEditor) {
-				position = activeEditor.position;
-			}
-		}
-
-		if (typeof position === 'number') {
-			return this.editorService.closeEditors(position);
-		}
-
-		return TPromise.as(false);
+		return this.commandService.executeCommand(CLOSE_EDITORS_IN_GROUP_COMMAND_ID);
 	}
 }
 
