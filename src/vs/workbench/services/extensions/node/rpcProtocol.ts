@@ -47,7 +47,14 @@ export class RPCProtocol {
 			console.warn('Received message after being shutdown: ', rawmsg);
 			return;
 		}
-		let msg = marshalling.parse(rawmsg);
+
+		let parsedRawMsg = JSON.parse(rawmsg);
+		let msg: any;
+		if (parsedRawMsg.revive) {
+			msg = marshalling.revive(parsedRawMsg, 0);
+		} else {
+			msg = parsedRawMsg;
+		}
 
 		if (msg.seq) {
 			if (!this._pendingRPCReplies.hasOwnProperty(msg.seq)) {
@@ -175,24 +182,49 @@ class RPCMultiplexer {
 
 class MessageFactory {
 	public static cancel(req: string): string {
-		return `{"cancel":"${req}"}`;
+		return `{"revive":0,"cancel":"${req}"}`;
 	}
 
 	public static request(req: string, rpcId: string, method: string, args: any[]): string {
-		return `{"req":"${req}","rpcId":"${rpcId}","method":"${method}","args":${marshalling.stringify(args)}}`;
+		return `{"revive":1,"req":"${req}","rpcId":"${rpcId}","method":"${method}","args":${marshalling.stringify(args)}}`;
 	}
 
 	public static replyOK(req: string, res: any): string {
 		if (typeof res === 'undefined') {
-			return `{"seq":"${req}"}`;
+			return `{"revive":0,"seq":"${req}"}`;
 		}
-		return `{"seq":"${req}","res":${marshalling.stringify(res)}}`;
+		return `{"revive":1,"seq":"${req}","res":${marshalling.stringify(res)}}`;
 	}
 
 	public static replyErr(req: string, err: any): string {
 		if (typeof err === 'undefined') {
-			return `{"seq":"${req}","err":null}`;
+			return `{"revive":0,"seq":"${req}","err":null}`;
 		}
-		return `{"seq":"${req}","err":${marshalling.stringify(errors.transformErrorForSerialization(err))}}`;
+		return `{"revive":1,"seq":"${req}","err":${marshalling.stringify(errors.transformErrorForSerialization(err))}}`;
 	}
 }
+
+// interface RequestMessage {
+// 	revive: number;
+// 	req: string;
+// 	rpcId: string;
+// 	method: string;
+// 	args: any[];
+// }
+
+// interface CancelMessage {
+// 	revive: number;
+// 	cancel: string;
+// }
+
+// interface ReplyOKMessage {
+// 	revive: number;
+// 	seq: string;
+// 	res?: any;
+// }
+
+// interface ReplyErrMessage {
+// 	revive: number;
+// 	seq: string;
+// 	err: any;
+// }
