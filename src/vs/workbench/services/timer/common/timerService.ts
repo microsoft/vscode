@@ -83,11 +83,7 @@ export interface IStartupMetrics {
 
 export interface IInitData {
 	start: number;
-
-	appReady: number;
-
 	windowLoad: number;
-
 	isInitialStartup: boolean;
 	hasAccessibilitySupport: boolean;
 }

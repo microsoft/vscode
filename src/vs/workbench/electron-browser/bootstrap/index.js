@@ -175,7 +175,6 @@ function main() {
 		isInitialStartup: !!configuration.isInitialStartup,
 		hasAccessibilitySupport: !!configuration.accessibilitySupport,
 		start: configuration.perfStartTime,
-		appReady: configuration.perfAppReady,
 		windowLoad: configuration.perfWindowLoadTime
 	};
 

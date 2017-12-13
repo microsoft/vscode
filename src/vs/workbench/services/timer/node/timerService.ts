@@ -14,7 +14,6 @@ export class TimerService implements ITimerService {
 	public _serviceBrand: any;
 
 	public readonly start: number;
-	public readonly appReady: number;
 	public readonly windowLoad: number;
 
 	public readonly isInitialStartup: boolean;
@@ -24,7 +23,6 @@ export class TimerService implements ITimerService {
 
 	constructor(initData: IInitData, private isEmptyWorkbench: boolean) {
 		this.start = initData.start;
-		this.appReady = initData.appReady;
 		this.windowLoad = initData.windowLoad;
 
 		this.isInitialStartup = initData.isInitialStartup;
@@ -100,8 +98,8 @@ export class TimerService implements ITimerService {
 		};
 
 		if (initialStartup) {
-			this._startupMetrics.timers.ellapsedAppReady = this.appReady - this.start;
-			this._startupMetrics.timers.ellapsedWindowLoad = this.windowLoad - this.appReady;
+			this._startupMetrics.timers.ellapsedAppReady = perf.getDuration('main:started', 'main:appReady');
+			this._startupMetrics.timers.ellapsedWindowLoad = this.windowLoad - perf.getEntry('mark', 'main:appReady').startTime;
 		}
 	}
 }
