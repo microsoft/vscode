@@ -568,16 +568,6 @@ export class Repository implements Disposable {
 		}
 	}
 
-	// @throttle
-	// async init(): Promise<void> {
-	// 	if (this.state !== State.NotAGitRepository) {
-	// 		return;
-	// 	}
-
-	// 	await this.git.init(this.workspaceRoot.fsPath);
-	// 	await this.status();
-	// }
-
 	@throttle
 	async status(): Promise<void> {
 		await this.run(Operation.Status);
