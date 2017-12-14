@@ -885,7 +885,7 @@ export class ChangeModeAction extends Action {
 			picks.unshift(autoDetectMode);
 		}
 
-		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language Mode") }).then(pick => {
+		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language Mode"), matchOnDescription: true }).then(pick => {
 			if (!pick) {
 				return;
 			}
