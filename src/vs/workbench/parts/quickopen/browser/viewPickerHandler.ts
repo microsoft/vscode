@@ -161,7 +161,7 @@ export class ViewPickerHandler extends QuickOpenHandler {
 		const channels = this.outputService.getChannels();
 		channels.forEach((channel, index) => {
 			const outputCategory = nls.localize('channels', "Output");
-			const entry = new ViewEntry(channel.label, outputCategory, () => this.outputService.getChannel(channel.id).show().done(null, errors.onUnexpectedError));
+			const entry = new ViewEntry(channel.label, outputCategory, () => this.outputService.showChannel(channel.id).done(null, errors.onUnexpectedError));
 
 			viewEntries.push(entry);
 		});
