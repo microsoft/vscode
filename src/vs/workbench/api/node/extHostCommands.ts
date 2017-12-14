@@ -41,8 +41,8 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		logService: ILogService
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadCommands);
-		this._converter = new CommandsConverter(this, heapService);
 		this._logService = logService;
+		this._converter = new CommandsConverter(this, heapService);
 		this._argumentProcessors = [{ processArgument(a) { return revive(a, 0); } }];
 	}
 
