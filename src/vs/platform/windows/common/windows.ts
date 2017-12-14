@@ -103,9 +103,9 @@ export interface IWindowsService {
 	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
-	showMessageBox(windowId: number, options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult>;
-	showSaveDialog(windowId: number, options: Electron.SaveDialogOptions): TPromise<string>;
-	showOpenDialog(windowId: number, options: Electron.OpenDialogOptions): TPromise<string[]>;
+	showMessageBox(windowId: number, options: MessageBoxOptions): TPromise<IMessageBoxResult>;
+	showSaveDialog(windowId: number, options: SaveDialogOptions): TPromise<string>;
+	showOpenDialog(windowId: number, options: OpenDialogOptions): TPromise<string[]>;
 
 	reloadWindow(windowId: number): TPromise<void>;
 	openDevTools(windowId: number): TPromise<void>;
