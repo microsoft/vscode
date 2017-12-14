@@ -15,12 +15,13 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 import { IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { TestMessageService, TestContextService, TestHistoryService } from 'vs/workbench/test/workbenchTestServices';
+import { TestMessageService, TestContextService, TestHistoryService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
 import { MockContextKeyService, MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 class TestTerminalInstance extends TerminalInstance {
 	public _getCwd(shell: IShellLaunchConfig, root: Uri): string {
@@ -157,12 +158,13 @@ suite('Workbench - TerminalInstance', () => {
 			instantiationService.stub(IKeybindingService, keybindingService);
 			instantiationService.stub(IContextKeyService, contextKeyService);
 			instantiationService.stub(IHistoryService, new TestHistoryService());
+			instantiationService.stub(IEnvironmentService, TestEnvironmentService);
 			configHelper = {
 				config: {
 					cwd: null
 				}
 			};
-			instance = instantiationService.createInstance(TestTerminalInstance, terminalFocusContextKey, configHelper, null, null);
+			instance = instantiationService.createInstance(TestTerminalInstance, terminalFocusContextKey, configHelper, null, { executable: null, args: [] });
 		});
 
 		// This helper checks the paths in a cross-platform friendly manner
