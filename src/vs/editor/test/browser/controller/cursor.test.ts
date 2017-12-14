@@ -1447,6 +1447,49 @@ suite('Editor Controller - Regression tests', () => {
 		});
 	});
 
+	test('issue #16155: Paste into multiple cursors has edge case when number of lines equals number of cursors - 1', () => {
+		usingCursor({
+			text: [
+				'test',
+				'test',
+				'test',
+				'test'
+			],
+		}, (model, cursor) => {
+			cursor.setSelections('test', [
+				new Selection(1, 1, 1, 5),
+				new Selection(2, 1, 2, 5),
+				new Selection(3, 1, 3, 5),
+				new Selection(4, 1, 4, 5),
+			]);
+
+			cursorCommand(cursor, H.Paste, {
+				text: 'aaa\nbbb\nccc\n',
+				pasteOnNewLine: false,
+				multicursorText: null
+			});
+
+			assert.equal(model.getValue(), [
+				'aaa',
+				'bbb',
+				'ccc',
+				'',
+				'aaa',
+				'bbb',
+				'ccc',
+				'',
+				'aaa',
+				'bbb',
+				'ccc',
+				'',
+				'aaa',
+				'bbb',
+				'ccc',
+				'',
+			].join('\n'));
+		});
+	});
+
 	test('issue #3071: Investigate why undo stack gets corrupted', () => {
 		let model = Model.createFromString(
 			[

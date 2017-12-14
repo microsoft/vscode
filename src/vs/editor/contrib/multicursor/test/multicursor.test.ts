@@ -27,7 +27,13 @@ suite('Multicursor', () => {
 			addCursorUpAction.run(null, editor, {});
 			assert.equal(cursor.getSelections().length, 2);
 
-			editor.trigger('test', Handler.Paste, { text: '1\n2' });
+			editor.trigger('test', Handler.Paste, {
+				text: '1\n2',
+				multicursorText: [
+					'1',
+					'2'
+				]
+			});
 			// cursorCommand(cursor, H.Paste, { text: '1\n2' });
 			assert.equal(editor.getModel().getLineContent(1), '1abc');
 			assert.equal(editor.getModel().getLineContent(2), '2def');
