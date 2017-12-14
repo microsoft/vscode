@@ -227,7 +227,7 @@ export class FileService implements IFileService {
 
 	public resolveFiles(toResolve: { resource: uri, options?: IResolveFileOptions }[]): TPromise<IResolveFileResult[]> {
 		return TPromise.join(toResolve.map(resourceAndOptions => this.resolve(resourceAndOptions.resource, resourceAndOptions.options)
-			.then(stat => ({ stat, success: true }), error => ({ stat: undefined, success: false }))));
+			.then(stat => ({ stat, success: true }), error => ({ stat: void 0, success: false }))));
 	}
 
 	public existsFile(resource: uri): TPromise<boolean> {
@@ -268,12 +268,12 @@ export class FileService implements IFileService {
 		}
 
 		const result: IStreamContent = {
-			resource: undefined,
-			name: undefined,
-			mtime: undefined,
-			etag: undefined,
-			encoding: undefined,
-			value: undefined
+			resource: void 0,
+			name: void 0,
+			mtime: void 0,
+			etag: void 0,
+			encoding: void 0,
+			value: void 0
 		};
 
 		const contentResolverToken = new CancellationTokenSource();
@@ -322,7 +322,7 @@ export class FileService implements IFileService {
 				));
 			}
 
-			return undefined;
+			return void 0;
 		}, err => {
 
 			// Wrap file not found errors
@@ -368,8 +368,8 @@ export class FileService implements IFileService {
 		const chunkBuffer = BufferPool._64K.acquire();
 
 		const result: IContentData = {
-			encoding: undefined,
-			stream: undefined,
+			encoding: void 0,
+			stream: void 0
 		};
 
 		return new Promise<IContentData>((resolve, reject) => {
@@ -483,7 +483,7 @@ export class FileService implements IFileService {
 									handleChunk(bytesRead);
 								}
 
-							}).then(undefined, err => {
+							}).then(void 0, err => {
 								// failed to get encoding
 								finish(err);
 							});
@@ -540,7 +540,7 @@ export class FileService implements IFileService {
 				return addBomPromise.then(addBom => {
 
 					// 4.) set contents and resolve
-					return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite, { mode: 0o666, flag: 'w' }).then(undefined, error => {
+					return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite).then(void 0, error => {
 						if (!exists || error.code !== 'EPERM' || !isWindows) {
 							return TPromise.wrapError(error);
 						}
@@ -553,7 +553,7 @@ export class FileService implements IFileService {
 						return pfs.truncate(absolutePath, 0).then(() => {
 
 							// 6.) set contents (this time with r+ mode) and resolve again
-							return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite, { mode: 0o666, flag: 'r+' });
+							return this.doSetContentsAndResolve(resource, absolutePath, value, addBom, encodingToWrite, { flag: 'r+' });
 						});
 					});
 				});
@@ -571,7 +571,7 @@ export class FileService implements IFileService {
 		});
 	}
 
-	private doSetContentsAndResolve(resource: uri, absolutePath: string, value: string, addBOM: boolean, encodingToWrite: string, options: { mode?: number; flag?: string; }): TPromise<IFileStat> {
+	private doSetContentsAndResolve(resource: uri, absolutePath: string, value: string, addBOM: boolean, encodingToWrite: string, options?: { mode?: number; flag?: string; }): TPromise<IFileStat> {
 		let writeFilePromise: TPromise<void>;
 
 		// Write fast if we do UTF 8 without BOM

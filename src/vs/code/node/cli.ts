@@ -18,6 +18,7 @@ import { findFreePort } from 'vs/base/node/ports';
 import { resolveTerminalEncoding } from 'vs/base/node/encoding';
 import * as iconv from 'iconv-lite';
 import { writeFileAndFlushSync } from 'vs/base/node/extfs';
+import { isWindows } from 'vs/base/common/platform';
 
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 	return !!argv['install-source']
@@ -85,7 +86,20 @@ export async function main(argv: string[]): TPromise<any> {
 			}
 
 			// Write source to target
-			writeFileAndFlushSync(target, fs.readFileSync(source));
+			const data = fs.readFileSync(source);
+			try {
+				writeFileAndFlushSync(target, data);
+			} catch (error) {
+				// On Windows and if the file exists with an EPERM error, we try a different strategy of saving the file
+				// by first truncating the file and then writing with r+ mode. This helps to save hidden files on Windows
+				// (see https://github.com/Microsoft/vscode/issues/931)
+				if (isWindows && error.code === 'EPERM') {
+					fs.truncateSync(target, 0);
+					writeFileAndFlushSync(target, data, { flag: 'r+' });
+				} else {
+					throw error;
+				}
+			}
 
 			// Restore previous mode as needed
 			if (restoreMode) {
