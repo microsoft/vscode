@@ -7,7 +7,7 @@
 
 import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor, CancellationTokenSource, StatusBarAlignment } from 'vscode';
 import { Ref, RefType, Git, GitErrorCodes, Branch } from './git';
-import { Repository, Resource, Status, CommitOptions, ResourceGroupType } from './repository';
+import { Repository, Resource, Status, CommitOptions, ResourceGroupType, RepositoryState } from './repository';
 import { Model } from './model';
 import { toGitUri, fromGitUri } from './uri';
 import { grep, eventToPromise, isDescendant } from './util';
@@ -181,16 +181,10 @@ export class CommandCenter {
 		let right: Uri | undefined;
 
 		if (stat && stat.isDirectory()) {
-			outer:
-			for (const repository of this.model.repositories) {
-				for (const submodule of repository.submodules) {
-					const submodulePath = path.join(repository.root, submodule.path);
+			const repository = this.model.getRepositoryForSubmodule(resource.resourceUri);
 
-					if (submodulePath === resource.resourceUri.fsPath) {
-						right = toGitUri(Uri.file(submodulePath), resource.resourceGroupType === ResourceGroupType.Index ? 'index' : 'wt', { submoduleOf: repository.root });
-						break outer;
-					}
-				}
+			if (repository) {
+				right = toGitUri(resource.resourceUri, resource.resourceGroupType === ResourceGroupType.Index ? 'index' : 'wt', { submoduleOf: repository.root });
 			}
 		} else {
 			left = await this.getLeftResource(resource);
@@ -1716,11 +1710,16 @@ export class CommandCenter {
 		const isSingleResource = arg instanceof Uri;
 
 		const groups = resources.reduce((result, resource) => {
-			const repository = this.model.getRepository(resource, true);
+			let repository = this.model.getRepository(resource);
 
 			if (!repository) {
 				console.warn('Could not find git repository for ', resource);
 				return result;
+			}
+
+			// Could it be a submodule?
+			if (resource.fsPath === repository.root) {
+				repository = this.model.getRepositoryForSubmodule(resource) || repository;
 			}
 
 			const tuple = result.filter(p => p.repository === repository)[0];

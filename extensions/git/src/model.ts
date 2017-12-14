@@ -265,19 +265,19 @@ export class Model {
 
 	getRepository(sourceControl: SourceControl): Repository | undefined;
 	getRepository(resourceGroup: SourceControlResourceGroup): Repository | undefined;
-	getRepository(path: string, possibleSubmoduleRoot?: boolean): Repository | undefined;
-	getRepository(resource: Uri, possibleSubmoduleRoot?: boolean): Repository | undefined;
-	getRepository(hint: any, possibleSubmoduleRoot?: boolean): Repository | undefined {
-		const liveRepository = this.getOpenRepository(hint, possibleSubmoduleRoot);
+	getRepository(path: string): Repository | undefined;
+	getRepository(resource: Uri): Repository | undefined;
+	getRepository(hint: any): Repository | undefined {
+		const liveRepository = this.getOpenRepository(hint);
 		return liveRepository && liveRepository.repository;
 	}
 
 	private getOpenRepository(repository: Repository): OpenRepository | undefined;
 	private getOpenRepository(sourceControl: SourceControl): OpenRepository | undefined;
 	private getOpenRepository(resourceGroup: SourceControlResourceGroup): OpenRepository | undefined;
-	private getOpenRepository(path: string, possibleSubmoduleRoot?: boolean): OpenRepository | undefined;
-	private getOpenRepository(resource: Uri, possibleSubmoduleRoot?: boolean): OpenRepository | undefined;
-	private getOpenRepository(hint: any, possibleSubmoduleRoot?: boolean): OpenRepository | undefined {
+	private getOpenRepository(path: string): OpenRepository | undefined;
+	private getOpenRepository(resource: Uri): OpenRepository | undefined;
+	private getOpenRepository(hint: any): OpenRepository | undefined {
 		if (!hint) {
 			return undefined;
 		}
@@ -295,21 +295,15 @@ export class Model {
 
 			outer:
 			for (const liveRepository of this.openRepositories.sort((a, b) => b.repository.root.length - a.repository.root.length)) {
-				if (possibleSubmoduleRoot && liveRepository.repository.root === resourcePath) {
-					continue;
-				}
-
 				if (!isDescendant(liveRepository.repository.root, resourcePath)) {
 					continue;
 				}
 
-				if (!possibleSubmoduleRoot) {
-					for (const submodule of liveRepository.repository.submodules) {
-						const submoduleRoot = path.join(liveRepository.repository.root, submodule.path);
+				for (const submodule of liveRepository.repository.submodules) {
+					const submoduleRoot = path.join(liveRepository.repository.root, submodule.path);
 
-						if (isDescendant(submoduleRoot, resourcePath)) {
-							continue outer;
-						}
+					if (isDescendant(submoduleRoot, resourcePath)) {
+						continue outer;
 					}
 				}
 
@@ -328,6 +322,20 @@ export class Model {
 
 			if (hint === repository.mergeGroup || hint === repository.indexGroup || hint === repository.workingTreeGroup) {
 				return liveRepository;
+			}
+		}
+
+		return undefined;
+	}
+
+	getRepositoryForSubmodule(submoduleUri: Uri): Repository | undefined {
+		for (const repository of this.repositories) {
+			for (const submodule of repository.submodules) {
+				const submodulePath = path.join(repository.root, submodule.path);
+
+				if (submodulePath === submoduleUri.fsPath) {
+					return repository;
+				}
 			}
 		}
 
