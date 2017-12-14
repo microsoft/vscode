@@ -271,10 +271,7 @@ export class OutputService implements IOutputService {
 		}
 
 		if (this.activeChannelId) {
-			const activeChannel = <OutputChannel>this.getChannel(this.activeChannelId);
-			if (activeChannel) {
-				activeChannel.hide();
-			}
+			this.doHideChannel(this.activeChannelId);
 		}
 
 		this.activeChannelId = id;
@@ -285,16 +282,24 @@ export class OutputService implements IOutputService {
 	getChannel(id: string): IOutputChannel {
 		if (!this.channels.has(id)) {
 			const channelData = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannel(id);
-			const channel = channelData && channelData.file ? this.instantiationService.createInstance(FileOutputChannel, channelData) : this.instantiationService.createInstance(BufferredOutputChannel, { id: id, label: '' });
+			const channelDisposables = channelData && channelData.file ? this.instantiationService.createInstance(FileOutputChannel, channelData) : this.instantiationService.createInstance(BufferredOutputChannel, { id: id, label: '' });
 
 			let disposables = [];
-			channel.onDidChange(isClear => this._onOutput.fire({ channelId: id, isClear }), disposables);
-			channel.onDispose(() => {
-				this.removeOutput(id);
+			channelDisposables.onDidChange(isClear => this._onOutput.fire({ channelId: id, isClear }), disposables);
+			channelDisposables.onDispose(() => {
+				Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).removeChannel(id);
+				if (this.activeChannelId === id) {
+					const channels = this.getChannels();
+					if (this._outputPanel && channels.length) {
+						this.showChannel(channels[0].id);
+					} else {
+						this._onActiveOutputChannel.fire(void 0);
+					}
+				}
 				dispose(disposables);
 			}, disposables);
 
-			this.channels.set(id, channel);
+			this.channels.set(id, channelDisposables);
 		}
 		return this.channels.get(id);
 	}
@@ -314,6 +319,9 @@ export class OutputService implements IOutputService {
 
 	private onDidPanelClose(panel: IPanel): void {
 		if (this._outputPanel && panel.getId() === OUTPUT_PANEL_ID) {
+			if (this.activeChannelId) {
+				this.doHideChannel(this.activeChannelId);
+			}
 			this._outputPanel.clearInput();
 		}
 	}
@@ -327,21 +335,9 @@ export class OutputService implements IOutputService {
 		}
 	}
 
-	private removeOutput(channelId: string): void {
-		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).removeChannel(channelId);
-		if (this.activeChannelId === channelId) {
-			const channels = this.getChannels();
-			if (this._outputPanel && channels.length) {
-				this.showChannel(channels[0].id);
-			} else {
-				this._onActiveOutputChannel.fire(void 0);
-			}
-		}
-	}
-
 	private doShowChannel(channelId: string, preserveFocus: boolean): TPromise<void> {
-		const activeChannel = <OutputChannel>this.getChannel(channelId);
-		return activeChannel.show()
+		const channel = <OutputChannel>this.getChannel(channelId);
+		return channel.show()
 			.then(() => {
 				this.storageService.store(OUTPUT_ACTIVE_CHANNEL_KEY, channelId, StorageScope.WORKSPACE);
 				this._outputPanel.setInput(this.createInput(this.getChannel(channelId)), EditorOptions.create({ preserveFocus: preserveFocus }));
@@ -349,6 +345,13 @@ export class OutputService implements IOutputService {
 					this._outputPanel.focus();
 				}
 			});
+	}
+
+	private doHideChannel(channelId): void {
+		const channel = <OutputChannel>this.getChannel(channelId);
+		if (channel) {
+			channel.hide();
+		}
 	}
 
 	private createInput(channel: IOutputChannel): ResourceEditorInput {
