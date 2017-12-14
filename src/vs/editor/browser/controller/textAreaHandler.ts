@@ -54,6 +54,7 @@ const canUseZeroSizeTextarea = (browser.isEdgeOrIE || browser.isFirefox);
 interface LocalClipboardMetadata {
 	lastCopiedValue: string;
 	isFromEmptySelection: boolean;
+	multicursorText: string[];
 }
 
 /**
@@ -161,15 +162,26 @@ export class TextAreaHandler extends ViewPart {
 
 		const textAreaInputHost: ITextAreaInputHost = {
 			getPlainTextToCopy: (): string => {
-				const whatToCopy = this._context.model.getPlainTextToCopy(this._selections, this._emptySelectionClipboard);
+				const rawWhatToCopy = this._context.model.getPlainTextToCopy(this._selections, this._emptySelectionClipboard);
+				const newLineCharacter = this._context.model.getEOL();
 
-				// When writing "LINE\r\n" to the clipboard and then pasting,
-				// Firefox pastes "LINE\n", so let's work around this quirk
-				const lastCopiedValue = (browser.isFirefox ? whatToCopy.replace(/\r\n/g, '\n') : whatToCopy);
-				const metadata: LocalClipboardMetadata = {
-					lastCopiedValue: lastCopiedValue,
-					isFromEmptySelection: (this._emptySelectionClipboard && this._selections.length === 1 && this._selections[0].isEmpty())
-				};
+				const isFromEmptySelection = (this._emptySelectionClipboard && this._selections.length === 1 && this._selections[0].isEmpty());
+				const multicursorText = (Array.isArray(rawWhatToCopy) ? rawWhatToCopy : null);
+				const whatToCopy = (Array.isArray(rawWhatToCopy) ? rawWhatToCopy.join(newLineCharacter) : rawWhatToCopy);
+
+				let metadata: LocalClipboardMetadata = null;
+				if (isFromEmptySelection || multicursorText) {
+					// Only store the non-default metadata
+
+					// When writing "LINE\r\n" to the clipboard and then pasting,
+					// Firefox pastes "LINE\n", so let's work around this quirk
+					const lastCopiedValue = (browser.isFirefox ? whatToCopy.replace(/\r\n/g, '\n') : whatToCopy);
+					metadata = {
+						lastCopiedValue: lastCopiedValue,
+						isFromEmptySelection: (this._emptySelectionClipboard && this._selections.length === 1 && this._selections[0].isEmpty()),
+						multicursorText: multicursorText
+					};
+				}
 
 				LocalClipboardMetadataManager.INSTANCE.set(metadata);
 
@@ -228,10 +240,12 @@ export class TextAreaHandler extends ViewPart {
 			const metadata = LocalClipboardMetadataManager.INSTANCE.get(e.text);
 
 			let pasteOnNewLine = false;
+			let multicursorText: string[] = null;
 			if (metadata) {
 				pasteOnNewLine = (this._emptySelectionClipboard && metadata.isFromEmptySelection);
+				multicursorText = metadata.multicursorText;
 			}
-			this._viewController.paste('keyboard', e.text, pasteOnNewLine);
+			this._viewController.paste('keyboard', e.text, pasteOnNewLine, multicursorText);
 		}));
 
 		this._register(this._textAreaInput.onCut(() => {

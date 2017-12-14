@@ -1418,6 +1418,35 @@ suite('Editor Controller - Regression tests', () => {
 		});
 	});
 
+	test('issue #4996: Multiple cursor paste pastes contents of all cursors', () => {
+		usingCursor({
+			text: [
+				'line1',
+				'line2',
+				'line3'
+			],
+		}, (model, cursor) => {
+			cursor.setSelections('test', [new Selection(1, 1, 1, 1), new Selection(2, 1, 2, 1)]);
+
+			cursorCommand(cursor, H.Paste, {
+				text: 'a\nb\nc\nd',
+				pasteOnNewLine: false,
+				multicursorText: [
+					'a\nb',
+					'c\nd'
+				]
+			});
+
+			assert.equal(model.getValue(), [
+				'a',
+				'bline1',
+				'c',
+				'dline2',
+				'line3'
+			].join('\n'));
+		});
+	});
+
 	test('issue #3071: Investigate why undo stack gets corrupted', () => {
 		let model = Model.createFromString(
 			[

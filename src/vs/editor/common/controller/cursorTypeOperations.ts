@@ -109,13 +109,17 @@ export class TypeOperations {
 		});
 	}
 
-	private static _distributePasteToCursors(selections: Selection[], pasteOnNewLine: boolean, text: string): string[] {
+	private static _distributePasteToCursors(selections: Selection[], text: string, pasteOnNewLine: boolean, multicursorText: string[]): string[] {
 		if (pasteOnNewLine) {
 			return null;
 		}
 
 		if (selections.length === 1) {
 			return null;
+		}
+
+		if (multicursorText && multicursorText.length === selections.length) {
+			return multicursorText;
 		}
 
 		for (let i = 0; i < selections.length; i++) {
@@ -132,8 +136,8 @@ export class TypeOperations {
 		return pastePieces;
 	}
 
-	public static paste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], pasteOnNewLine: boolean, text: string): EditOperationResult {
-		const distributedPaste = this._distributePasteToCursors(selections, pasteOnNewLine, text);
+	public static paste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string, pasteOnNewLine: boolean, multicursorText: string[]): EditOperationResult {
+		const distributedPaste = this._distributePasteToCursors(selections, text, pasteOnNewLine, multicursorText);
 
 		if (distributedPaste) {
 			selections = selections.sort(Range.compareRangesUsingStarts);
