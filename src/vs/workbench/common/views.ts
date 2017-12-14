@@ -22,6 +22,8 @@ export interface ITreeItem {
 
 	handle: string;
 
+	parentHandle: string;
+
 	label: string;
 
 	icon?: string;

@@ -9,7 +9,7 @@ import * as nls from 'vs/nls';
 import { isMacintosh, isLinux, isWindows, language } from 'vs/base/common/platform';
 import * as arrays from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ipcMain as ipc, app, shell, dialog, Menu, MenuItem, BrowserWindow, clipboard } from 'electron';
+import { ipcMain as ipc, app, shell, Menu, MenuItem, BrowserWindow, clipboard } from 'electron';
 import { OpenContext, IRunActionInWindowRequest } from 'vs/platform/windows/common/windows';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { AutoSaveConfiguration } from 'vs/platform/files/common/files';
@@ -1097,11 +1097,6 @@ export class CodeMenu {
 		const enabled = typeof arg3 === 'boolean' ? arg3 : this.windowsMainService.getWindowCount() > 0;
 		const checked = typeof arg4 === 'boolean' ? arg4 : false;
 
-		let commandId: string;
-		if (typeof arg2 === 'string') {
-			commandId = arg2;
-		}
-
 		const options: Electron.MenuItemConstructorOptions = {
 			label,
 			click,
@@ -1111,6 +1106,13 @@ export class CodeMenu {
 		if (checked) {
 			options['type'] = 'checkbox';
 			options['checked'] = checked;
+		}
+
+		let commandId: string;
+		if (typeof arg2 === 'string') {
+			commandId = arg2;
+		} else if (Array.isArray(arg2)) {
+			commandId = arg2[0];
 		}
 
 		return new MenuItem(this.withKeybinding(commandId, options));
@@ -1215,20 +1217,18 @@ export class CodeMenu {
 			buttons.push(mnemonicButtonLabel(nls.localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"))); // https://github.com/Microsoft/vscode/issues/37608
 		}
 
-		dialog.showMessageBox(lastActiveWindow && lastActiveWindow.win, {
+		this.windowsMainService.showMessageBox({
 			title: product.nameLong,
 			type: 'info',
 			message: product.nameLong,
 			detail: `\n${detail}`,
 			buttons,
 			noLink: true
-		}, result => {
-			if (isWindows && result === 1) {
+		}, lastActiveWindow).then(result => {
+			if (isWindows && result.button === 1) {
 				clipboard.writeText(detail);
 			}
 		});
-
-		this.reportMenuActionTelemetry('showAboutDialog');
 	}
 
 	private openUrl(url: string, id: string): void {

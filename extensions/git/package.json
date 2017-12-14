@@ -544,7 +544,7 @@
         {
           "command": "git.init",
           "group": "navigation",
-          "when": "config.git.enabled && !scmProvider && gitOpenRepositoryCount == 0"
+          "when": "config.git.enabled && !scmProvider && gitOpenRepositoryCount == 0 && workspaceFolderCount != 0"
         },
         {
           "command": "git.commit",
@@ -869,6 +869,11 @@
           "default": null,
           "isExecutable": true
         },
+        "git.autoRepositoryDetection": {
+          "type": "boolean",
+          "description": "%config.autoRepositoryDetection%",
+          "default": true
+        },
         "git.autorefresh": {
           "type": "boolean",
           "description": "%config.autorefresh%",
@@ -986,6 +991,15 @@
           "light": "#6c6cc4",
           "dark": "#6c6cc4",
           "highContrast": "#6c6cc4"
+        }
+      },
+      {
+        "id": "gitDecoration.submoduleResourceForeground",
+        "description": "%colors.submodule%",
+        "defaults": {
+          "light": "#1258a7",
+          "dark": "#8db9e2",
+          "highContrast": "#8db9e2"
         }
       }
     ]

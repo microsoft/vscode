@@ -16,7 +16,7 @@ import { assign, uniqBy, groupBy, denodeify, IDisposable, toDisposable, dispose,
 import { CancellationToken } from 'vscode';
 import { memoize } from './decorators';
 
-const readfile = denodeify<string>(fs.readFile);
+const readfile = denodeify<string, string | null, string>(fs.readFile);
 
 export interface IGit {
 	path: string;
@@ -347,7 +347,9 @@ export const GitErrorCodes = {
 	BranchAlreadyExists: 'BranchAlreadyExists',
 	NoLocalChanges: 'NoLocalChanges',
 	NoStashFound: 'NoStashFound',
-	LocalChangesOverwritten: 'LocalChangesOverwritten'
+	LocalChangesOverwritten: 'LocalChangesOverwritten',
+	NoUpstreamBranch: 'NoUpstreamBranch',
+	IsInSubmodule: 'IsInSubmodule'
 };
 
 function getGitErrorCode(stderr: string): string | undefined {
@@ -627,6 +629,72 @@ export class GitStatusParser {
 	}
 }
 
+export interface Submodule {
+	name: string;
+	path: string;
+	url: string;
+}
+
+export function parseGitmodules(raw: string): Submodule[] {
+	const regex = /\r?\n/g;
+	let position = 0;
+	let match: RegExpExecArray | null = null;
+
+	const result: Submodule[] = [];
+	let submodule: Partial<Submodule> = {};
+
+	function parseLine(line: string): void {
+		const sectionMatch = /^\s*\[submodule "([^"]+)"\]\s*$/.exec(line);
+
+		if (sectionMatch) {
+			if (submodule.name && submodule.path && submodule.url) {
+				result.push(submodule as Submodule);
+			}
+
+			const name = sectionMatch[1];
+
+			if (name) {
+				submodule = { name };
+				return;
+			}
+		}
+
+		if (!submodule) {
+			return;
+		}
+
+		const propertyMatch = /^\s*(\w+) = (.*)$/.exec(line);
+
+		if (!propertyMatch) {
+			return;
+		}
+
+		const [, key, value] = propertyMatch;
+
+		switch (key) {
+			case 'path': submodule.path = value; break;
+			case 'url': submodule.url = value; break;
+		}
+	}
+
+	while (match = regex.exec(raw)) {
+		parseLine(raw.substring(position, match.index));
+		position = match.index + match[0].length;
+	}
+
+	parseLine(raw.substring(position));
+
+	if (submodule.name && submodule.path && submodule.url) {
+		result.push(submodule as Submodule);
+	}
+
+	return result;
+}
+
+export interface DiffOptions {
+	cached?: boolean;
+}
+
 export class Repository {
 
 	constructor(
@@ -763,6 +831,19 @@ export class Repository {
 			// TODO@JOAO: read the setting OUTSIDE!
 			return { mimetype: 'text/plain' };
 		}
+	}
+
+	async diff(path: string, options: DiffOptions = {}): Promise<string> {
+		const args = ['diff'];
+
+		if (options.cached) {
+			args.push('--cached');
+		}
+
+		args.push('--', path);
+
+		const result = await this.run(args);
+		return result.stdout;
 	}
 
 	async add(paths: string[]): Promise<void> {
@@ -1043,6 +1124,8 @@ export class Repository {
 				err.gitErrorCode = GitErrorCodes.PushRejected;
 			} else if (/Could not read from remote repository/.test(err.stderr || '')) {
 				err.gitErrorCode = GitErrorCodes.RemoteConnectionError;
+			} else if (/^fatal: The current branch .* has no upstream branch/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.NoUpstreamBranch;
 			}
 
 			throw err;
@@ -1075,7 +1158,7 @@ export class Repository {
 		try {
 			const args = ['stash', 'pop'];
 
-			if (typeof index === 'string') {
+			if (typeof index === 'number') {
 				args.push(`stash@{${index}}`);
 			}
 
@@ -1116,12 +1199,12 @@ export class Repository {
 			const onStdoutData = (raw: string) => {
 				parser.update(raw);
 
-				if (parser.status.length > 5000) {
+				if (parser.status.length > limit) {
 					child.removeListener('exit', onExit);
 					child.stdout.removeListener('data', onStdoutData);
 					child.kill();
 
-					c({ status: parser.status.slice(0, 5000), didHitLimit: true });
+					c({ status: parser.status.slice(0, limit), didHitLimit: true });
 				}
 			};
 
@@ -1276,5 +1359,25 @@ export class Repository {
 		}
 
 		return { hash: match[1], message: match[2] };
+	}
+
+	async updateSubmodules(paths: string[]): Promise<void> {
+		const args = ['submodule', 'update', '--', ...paths];
+		await this.run(args);
+	}
+
+	async getSubmodules(): Promise<Submodule[]> {
+		const gitmodulesPath = path.join(this.root, '.gitmodules');
+
+		try {
+			const gitmodulesRaw = await readfile(gitmodulesPath, 'utf8');
+			return parseGitmodules(gitmodulesRaw);
+		} catch (err) {
+			if (/ENOENT/.test(err.message)) {
+				return [];
+			}
+
+			throw err;
+		}
 	}
 }

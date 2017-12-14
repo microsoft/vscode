@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { LogLevel } from 'vs/platform/log/common/log';
 
 export interface ParsedArgs {
 	[arg: string]: any;
@@ -25,6 +26,7 @@ export interface ParsedArgs {
 	'prof-startup'?: string;
 	'prof-startup-prefix'?: string;
 	verbose?: boolean;
+	log?: string;
 	logExtensionHostCommunication?: boolean;
 	'disable-extensions'?: boolean;
 	'extensions-dir'?: string;
@@ -42,6 +44,7 @@ export interface ParsedArgs {
 	'enable-proposed-api'?: string | string[];
 	'open-url'?: string | string[];
 	'skip-getting-started'?: boolean;
+	'skip-release-notes'?: boolean;
 	'sticky-quickopen'?: boolean;
 	'disable-telemetry'?: boolean;
 	'export-default-configuration'?: string;
@@ -49,6 +52,8 @@ export interface ParsedArgs {
 	'disable-updates'?: string;
 	'disable-crash-reporter'?: string;
 	'skip-add-to-recently-opened'?: boolean;
+	'sudo-write'?: boolean;
+	'sudo-chmod'?: boolean;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
@@ -68,6 +73,7 @@ export interface IEnvironmentService {
 	args: ParsedArgs;
 
 	execPath: string;
+	cliPath: string;
 	appRoot: string;
 
 	userHome: string;
@@ -100,11 +106,17 @@ export interface IEnvironmentService {
 	logExtensionHostCommunication: boolean;
 
 	isBuilt: boolean;
-	verbose: boolean;
 	wait: boolean;
+	status: boolean;
 	performance: boolean;
 
+	// logging
+	logsPath: string;
+	verbose: boolean;
+	logLevel: LogLevel;
+
 	skipGettingStarted: boolean | undefined;
+	skipReleaseNotes: boolean | undefined;
 
 	skipAddToRecentlyOpened: boolean;
 

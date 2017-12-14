@@ -11,6 +11,8 @@
 	"oneSettingFound": "1 Einstellung zugeordnet",
 	"settingsFound": "{0} Einstellungen zugeordnet",
 	"totalSettingsMessage": "Insgesamt {0} Einstellungen",
+	"defaultSettings": "Standardeinstellungen",
+	"defaultFolderSettings": "Standardordnereinstellungen",
 	"defaultEditorReadonly": "Nehmen Sie im Editor auf der rechten Seite Änderungen vor, um Standardwerte zu überschreiben.",
 	"preferencesAriaLabel": "Standardeinstellungen. Schreibgeschützter Text-Editor."
 }

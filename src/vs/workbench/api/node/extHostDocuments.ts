@@ -33,7 +33,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 	private _documentLoader = new Map<string, TPromise<ExtHostDocumentData>>();
 
 	constructor(mainContext: IMainContext, documentsAndEditors: ExtHostDocumentsAndEditors) {
-		this._proxy = mainContext.get(MainContext.MainThreadDocuments);
+		this._proxy = mainContext.getProxy(MainContext.MainThreadDocuments);
 		this._documentsAndEditors = documentsAndEditors;
 
 		this._toDispose = [
@@ -92,7 +92,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 	}
 
 	public createDocumentData(options?: { language?: string; content?: string }): TPromise<URI> {
-		return this._proxy.$tryCreateDocument(options);
+		return this._proxy.$tryCreateDocument(options).then(data => URI.revive(data));
 	}
 
 	public $acceptModelModeChanged(strURL: string, oldModeId: string, newModeId: string): void {

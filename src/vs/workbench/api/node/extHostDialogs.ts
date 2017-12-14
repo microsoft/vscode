@@ -13,7 +13,7 @@ export class ExtHostDialogs {
 	private readonly _proxy: MainThreadDiaglogsShape;
 
 	constructor(mainContext: IMainContext) {
-		this._proxy = mainContext.get(MainContext.MainThreadDialogs);
+		this._proxy = mainContext.getProxy(MainContext.MainThreadDialogs);
 	}
 
 	showOpenDialog(options: vscode.OpenDialogOptions): Thenable<URI[]> {

@@ -8,6 +8,9 @@
 	"unFoldRecursivelyAction.label": "Déplier de manière récursive",
 	"foldAction.label": "Plier",
 	"foldRecursivelyAction.label": "Plier de manière récursive",
+	"foldAllBlockComments.label": "Replier tous les commentaires de bloc",
+	"foldAllMarkerRegions.label": "Replier toutes les régions",
+	"unfoldAllMarkerRegions.label": "Déplier toutes les régions",
 	"foldAllAction.label": "Plier tout",
 	"unfoldAllAction.label": "Déplier tout",
 	"foldLevelAction.label": "Niveau de pliage {0}"

@@ -7,22 +7,26 @@
 
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { createDecorator as createServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { createDecorator } from 'vs/base/common/decorators';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { isWindows } from 'vs/base/common/platform';
 
 export const ILogService = createServiceDecorator<ILogService>('logService');
 
 export enum LogLevel {
-	TRACE,
-	DEBUG,
-	INFO,
-	WARN,
-	ERROR,
-	CRITICAL
+	Trace,
+	Debug,
+	Info,
+	Warning,
+	Error,
+	Critical,
+	Off
 }
 
-export interface ILogService {
+export interface ILogService extends IDisposable {
 	_serviceBrand: any;
 
+	setLevel(level: LogLevel): void;
+	getLevel(): LogLevel;
 	trace(message: string, ...args: any[]): void;
 	debug(message: string, ...args: any[]): void;
 	info(message: string, ...args: any[]): void;
@@ -31,73 +35,216 @@ export interface ILogService {
 	critical(message: string | Error, ...args: any[]): void;
 }
 
-export class LegacyLogMainService implements ILogService {
+export class ConsoleLogMainService implements ILogService {
 
 	_serviceBrand: any;
+	private level: LogLevel = LogLevel.Error;
+	private useColors: boolean;
 
-	constructor(
-		processName: string,
-		@IEnvironmentService private environmentService: IEnvironmentService
-	) { }
+	constructor( @IEnvironmentService environmentService: IEnvironmentService) {
+		this.setLevel(environmentService.logLevel);
+		this.useColors = !isWindows;
+	}
+
+	setLevel(level: LogLevel): void {
+		this.level = level;
+	}
+
+	getLevel(): LogLevel {
+		return this.level;
+	}
 
 	trace(message: string, ...args: any[]): void {
-		// console.log(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, ...args);
+		if (this.level <= LogLevel.Trace) {
+			if (this.useColors) {
+				console.log(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, message, ...args);
+			} else {
+				console.log(`[main ${new Date().toLocaleTimeString()}]`, message, ...args);
+			}
+		}
 	}
 
 	debug(message: string, ...args: any[]): void {
-		// console.log(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, ...args);
+		if (this.level <= LogLevel.Debug) {
+			if (this.useColors) {
+				console.log(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, message, ...args);
+			} else {
+				console.log(`[main ${new Date().toLocaleTimeString()}]`, message, ...args);
+			}
+		}
 	}
 
 	info(message: string, ...args: any[]): void {
-		if (this.environmentService.verbose) {
-			console.log(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, ...args);
+		if (this.level <= LogLevel.Info) {
+			if (this.useColors) {
+				console.log(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, message, ...args);
+			} else {
+				console.log(`[main ${new Date().toLocaleTimeString()}]`, message, ...args);
+			}
+		}
+	}
+
+	warn(message: string | Error, ...args: any[]): void {
+		if (this.level <= LogLevel.Warning) {
+			if (this.useColors) {
+				console.warn(`\x1b[93m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, message, ...args);
+			} else {
+				console.warn(`[main ${new Date().toLocaleTimeString()}]`, message, ...args);
+			}
 		}
 	}
 
 	error(message: string, ...args: any[]): void {
-		console.error(`\x1b[91m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, ...args);
-	}
-
-	warn(message: string | Error, ...args: any[]): void {
-		console.warn(`\x1b[93m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, ...args);
+		if (this.level <= LogLevel.Error) {
+			if (this.useColors) {
+				console.error(`\x1b[91m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, message, ...args);
+			} else {
+				console.error(`[main ${new Date().toLocaleTimeString()}]`, message, ...args);
+			}
+		}
 	}
 
 	critical(message: string, ...args: any[]): void {
-		// console.log(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, ...args);
+		if (this.level <= LogLevel.Critical) {
+			if (this.useColors) {
+				console.error(`\x1b[90m[main ${new Date().toLocaleTimeString()}]\x1b[0m`, message, ...args);
+			} else {
+				console.error(`[main ${new Date().toLocaleTimeString()}]`, message, ...args);
+			}
+		}
+	}
+
+	dispose(): void {
+		// noop
 	}
 }
 
-export function log(level: LogLevel, prefix: string, logFn?: (message: string, ...args: any[]) => string): Function {
-	return createDecorator((fn, key) => {
-		// TODO@Joao: load-time log level? return fn;
+export class ConsoleLogService implements ILogService {
 
-		return function (this: any, ...args: any[]) {
-			let message = `${prefix} - ${key}`;
+	_serviceBrand: any;
+	private level: LogLevel = LogLevel.Error;
 
-			if (logFn) {
-				message = logFn(message, ...args);
-			}
+	constructor( @IEnvironmentService environmentService: IEnvironmentService) {
+		this.setLevel(environmentService.logLevel);
+	}
 
-			switch (level) {
-				case LogLevel.TRACE: this.logService.trace(message); break;
-				case LogLevel.DEBUG: this.logService.debug(message); break;
-				case LogLevel.INFO: this.logService.info(message); break;
-				case LogLevel.WARN: this.logService.warn(message); break;
-				case LogLevel.ERROR: this.logService.error(message); break;
-				case LogLevel.CRITICAL: this.logService.critical(message); break;
-			}
+	setLevel(level: LogLevel): void {
+		this.level = level;
+	}
 
-			return fn.apply(this, args);
-		};
-	});
+	getLevel(): LogLevel {
+		return this.level;
+	}
+
+	trace(message: string, ...args: any[]): void {
+		if (this.level <= LogLevel.Trace) {
+			console.log('%cTRACE', 'color: #888', message, ...args);
+		}
+	}
+
+	debug(message: string, ...args: any[]): void {
+		if (this.level <= LogLevel.Debug) {
+			console.log('%cDEBUG', 'background: #eee; color: #888', message, ...args);
+		}
+	}
+
+	info(message: string, ...args: any[]): void {
+		if (this.level <= LogLevel.Info) {
+			console.log('%c INFO', 'color: #33f', message, ...args);
+		}
+	}
+
+	warn(message: string | Error, ...args: any[]): void {
+		if (this.level <= LogLevel.Warning) {
+			console.log('%c WARN', 'color: #993', message, ...args);
+		}
+	}
+
+	error(message: string, ...args: any[]): void {
+		if (this.level <= LogLevel.Error) {
+			console.log('%c  ERR', 'color: #f33', message, ...args);
+		}
+	}
+
+	critical(message: string, ...args: any[]): void {
+		if (this.level <= LogLevel.Critical) {
+			console.log('%cCRITI', 'background: #f33; color: white', message, ...args);
+		}
+	}
+
+	dispose(): void { }
 }
 
-export class NoopLogService implements ILogService {
+export class MultiplexLogService implements ILogService {
 	_serviceBrand: any;
+
+	constructor(private logServices: ILogService[]) { }
+
+	setLevel(level: LogLevel): void {
+		for (const logService of this.logServices) {
+			logService.setLevel(level);
+		}
+	}
+
+	getLevel(): LogLevel {
+		for (const logService of this.logServices) {
+			return logService.getLevel();
+		}
+		return LogLevel.Info;
+	}
+
+	trace(message: string, ...args: any[]): void {
+		for (const logService of this.logServices) {
+			logService.trace(message, ...args);
+		}
+	}
+
+	debug(message: string, ...args: any[]): void {
+		for (const logService of this.logServices) {
+			logService.debug(message, ...args);
+		}
+	}
+
+	info(message: string, ...args: any[]): void {
+		for (const logService of this.logServices) {
+			logService.info(message, ...args);
+		}
+	}
+
+	warn(message: string, ...args: any[]): void {
+		for (const logService of this.logServices) {
+			logService.warn(message, ...args);
+		}
+	}
+
+	error(message: string | Error, ...args: any[]): void {
+		for (const logService of this.logServices) {
+			logService.error(message, ...args);
+		}
+	}
+
+	critical(message: string | Error, ...args: any[]): void {
+		for (const logService of this.logServices) {
+			logService.critical(message, ...args);
+		}
+	}
+
+	dispose(): void {
+		for (const logService of this.logServices) {
+			logService.dispose();
+		}
+	}
+}
+
+export class NullLogService implements ILogService {
+	_serviceBrand: any;
+	setLevel(level: LogLevel): void { }
+	getLevel(): LogLevel { return LogLevel.Info; }
 	trace(message: string, ...args: any[]): void { }
 	debug(message: string, ...args: any[]): void { }
 	info(message: string, ...args: any[]): void { }
 	warn(message: string, ...args: any[]): void { }
 	error(message: string | Error, ...args: any[]): void { }
 	critical(message: string | Error, ...args: any[]): void { }
+	dispose(): void { }
 }

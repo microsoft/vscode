@@ -275,4 +275,24 @@ suite('CompletionModel', function () {
 		assert.equal(second.suggestion.label, 'replyToUser');  // best with `rltu`
 		assert.equal(third.suggestion.label, 'randomLolut');  // best with `rlut`
 	});
+
+	test('Emmet suggestion not appearing at the top of the list in jsx files, #39518', function () {
+		model = new CompletionModel([
+			createSuggestItem('from', 0, 'property'),
+			createSuggestItem('form', 0, 'property'),
+			createSuggestItem('form:get', 0, 'property'),
+			createSuggestItem('testForeignMeasure', 0, 'property'),
+			createSuggestItem('fooRoom', 0, 'property'),
+		], 1, {
+				leadingLineContent: '',
+				characterCountDelta: 0
+			}, 'inline');
+
+		model.lineContext = { leadingLineContent: 'form', characterCountDelta: 4 };
+		assert.equal(model.items.length, 5);
+		const [first, second, third] = model.items;
+		assert.equal(first.suggestion.label, 'form'); // best with `form`
+		assert.equal(second.suggestion.label, 'form:get');  // best with `form`
+		assert.equal(third.suggestion.label, 'from');  // best with `from`
+	});
 });

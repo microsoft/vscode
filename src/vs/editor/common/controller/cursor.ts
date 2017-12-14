@@ -369,20 +369,11 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 			return false;
 		}
 
-
-		let isInEditableRange: boolean = true;
-		if (this._model.hasEditableRange()) {
-			const editableRange = this._model.getEditableRange();
-			if (!editableRange.containsPosition(newState.cursorState[0].modelState.position)) {
-				isInEditableRange = false;
-			}
-		}
-
 		const selections = this._cursors.getSelections();
 		const viewSelections = this._cursors.getViewSelections();
 
 		// Let the view get the event first.
-		this._emit([new viewEvents.ViewCursorStateChangedEvent(viewSelections, isInEditableRange)]);
+		this._emit([new viewEvents.ViewCursorStateChangedEvent(viewSelections)]);
 
 		// Only after the view has been notified, let the rest of the world know...
 		if (!oldState
@@ -463,7 +454,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 				case H.Paste:
 					cursorChangeReason = CursorChangeReason.Paste;
-					this._paste(<string>payload.text, <boolean>payload.pasteOnNewLine);
+					this._paste(<string>payload.text, <boolean>payload.pasteOnNewLine, <string[]>payload.multicursorText);
 					break;
 
 				case H.Cut:
@@ -526,8 +517,8 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		this._executeEditOperation(TypeOperations.replacePreviousChar(this._prevEditOperationType, this.context.config, this.context.model, this.getSelections(), text, replaceCharCnt));
 	}
 
-	private _paste(text: string, pasteOnNewLine: boolean): void {
-		this._executeEditOperation(TypeOperations.paste(this.context.config, this.context.model, this.getSelections(), pasteOnNewLine, text));
+	private _paste(text: string, pasteOnNewLine: boolean, multicursorText: string[]): void {
+		this._executeEditOperation(TypeOperations.paste(this.context.config, this.context.model, this.getSelections(), text, pasteOnNewLine, multicursorText));
 	}
 
 	private _cut(): void {
@@ -600,17 +591,6 @@ class CommandExecutor {
 		}
 
 		const rawOperations = commandsData.operations;
-
-		const editableRange = ctx.model.getEditableRange();
-		const editableRangeStart = editableRange.getStartPosition();
-		const editableRangeEnd = editableRange.getEndPosition();
-		for (let i = 0, len = rawOperations.length; i < len; i++) {
-			const operationRange = rawOperations[i].range;
-			if (!editableRangeStart.isBeforeOrEqual(operationRange.getStartPosition()) || !operationRange.getEndPosition().isBeforeOrEqual(editableRangeEnd)) {
-				// These commands are outside of the editable range
-				return null;
-			}
-		}
 
 		const loserCursorsMap = this._getLoserCursorMap(rawOperations);
 		if (loserCursorsMap.hasOwnProperty('0')) {

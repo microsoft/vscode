@@ -356,7 +356,7 @@ export class KeybindingEditorDecorationsRenderer extends Disposable {
 
 class DefineKeybindingCommand extends EditorCommand {
 
-	static ID = 'editor.action.defineKeybinding';
+	static readonly ID = 'editor.action.defineKeybinding';
 
 	constructor() {
 		super({

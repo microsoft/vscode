@@ -66,6 +66,10 @@ export class PreferencesEditorInput extends SideBySideEditorInput {
 		return PreferencesEditorInput.ID;
 	}
 
+	public supportsSplitEditor(): boolean {
+		return true;
+	}
+
 	public getTitle(verbosity: Verbosity): string {
 		return this.master.getTitle(verbosity);
 	}

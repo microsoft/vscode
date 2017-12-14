@@ -417,10 +417,10 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 	public getWordAtPosition(_position: IPosition): editorCommon.IWordAtPosition {
 		this._assertNotDisposed();
-		let position = this.validatePosition(_position);
-		let lineContent = this.getLineContent(position.lineNumber);
+		const position = this.validatePosition(_position);
+		const lineContent = this.getLineContent(position.lineNumber);
 
-		if (this._invalidLineStartIndex <= position.lineNumber) {
+		if (this._invalidLineStartIndex <= position.lineNumber - 1) {
 			// this line is not tokenized
 			return getWordAtText(
 				position.column,
@@ -430,30 +430,29 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			);
 		}
 
-		let lineTokens = this._getLineTokens(position.lineNumber);
-		let offset = position.column - 1;
-		let token = lineTokens.findTokenAtOffset(offset);
+		const lineTokens = this._getLineTokens(position.lineNumber);
+		const offset = position.column - 1;
+		const token = lineTokens.findTokenAtOffset(offset);
+		const languageId = token.languageId;
 
-		let result = getWordAtText(
-			position.column,
-			LanguageConfigurationRegistry.getWordDefinition(token.languageId),
-			lineContent.substring(token.startOffset, token.endOffset),
-			token.startOffset
-		);
-
-		if (!result && token.hasPrev && token.startOffset === offset) {
-			// The position is right at the beginning of `modeIndex`, so try looking at `modeIndex` - 1 too
-
-			let prevToken = token.prev();
-			result = getWordAtText(
-				position.column,
-				LanguageConfigurationRegistry.getWordDefinition(prevToken.languageId),
-				lineContent.substring(prevToken.startOffset, prevToken.endOffset),
-				prevToken.startOffset
-			);
+		// go left until a different language is hit
+		let startOffset: number;
+		for (let leftToken = token.clone(); leftToken !== null && leftToken.languageId === languageId; leftToken = leftToken.prev()) {
+			startOffset = leftToken.startOffset;
 		}
 
-		return result;
+		// go right until a different language is hit
+		let endOffset: number;
+		for (let rightToken = token.clone(); rightToken !== null && rightToken.languageId === languageId; rightToken = rightToken.next()) {
+			endOffset = rightToken.endOffset;
+		}
+
+		return getWordAtText(
+			position.column,
+			LanguageConfigurationRegistry.getWordDefinition(languageId),
+			lineContent.substring(startOffset, endOffset),
+			startOffset
+		);
 	}
 
 	public getWordUntilPosition(position: IPosition): editorCommon.IWordAtPosition {
@@ -502,7 +501,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		let lineTokens = this._getLineTokens(lineNumber);
 		const lineText = this._lines[lineNumber - 1].text;
 
-		const currentToken = lineTokens.findTokenAtOffset(position.column - 1);
+		let currentToken = lineTokens.findTokenAtOffset(position.column - 1);
 		if (!currentToken) {
 			return null;
 		}
@@ -556,14 +555,14 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 		// If position is in between two tokens, try also looking in the previous token
 		if (currentToken.hasPrev && currentToken.startOffset === position.column - 1) {
-			const prevToken = currentToken.prev();
-			const prevModeBrackets = LanguageConfigurationRegistry.getBracketsSupport(prevToken.languageId);
+			const searchEndOffset = currentToken.startOffset;
+			currentToken = currentToken.prev();
+			const prevModeBrackets = LanguageConfigurationRegistry.getBracketsSupport(currentToken.languageId);
 
 			// check that previous token is not to be ignored
-			if (prevModeBrackets && !ignoreBracketsInToken(prevToken.tokenType)) {
+			if (prevModeBrackets && !ignoreBracketsInToken(currentToken.tokenType)) {
 				// limit search in case previous token is very large, there's no need to go beyond `maxBracketLength`
-				const searchStartOffset = Math.max(prevToken.startOffset, position.column - 1 - prevModeBrackets.maxBracketLength);
-				const searchEndOffset = currentToken.startOffset;
+				const searchStartOffset = Math.max(currentToken.startOffset, position.column - 1 - prevModeBrackets.maxBracketLength);
 				const foundBracket = BracketsUtils.findPrevBracketInToken(prevModeBrackets.reversedRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
 
 				// check that we didn't hit a bracket too far away from position

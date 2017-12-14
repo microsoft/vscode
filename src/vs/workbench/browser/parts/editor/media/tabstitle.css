@@ -45,6 +45,11 @@
 	padding-left: 10px;
 }
 
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-shrink.has-icon-theme.close-button-right,
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-shrink.has-icon-theme.close-button-off {
+	padding-left: 5px; /* reduce padding when we show icons and are in shrinking mode and tab close button is not left */
+}
+
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-fit {
 	width: 120px;
 	min-width: fit-content;
@@ -160,11 +165,7 @@
 /* No Tab Close Button */
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-off {
-	padding-right: 12px; /* give a little bit more room if close button is off... */
-}
-
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-off.sizing-shrink {
-	padding-right: 0; /* ...but not when shrinking is enabled */
+	padding-right: 10px; /* give a little bit more room if close button is off */
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.close-button-off.dirty {

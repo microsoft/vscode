@@ -41,6 +41,14 @@ export interface IBackupFileService {
 	loadBackupResource(resource: Uri): TPromise<Uri>;
 
 	/**
+	 * Given a resource, returns the associated backup resource.
+	 *
+	 * @param resource The resource to get the backup resource for.
+	 * @return The backup resource.
+	 */
+	toBackupResource(resource: Uri): Uri;
+
+	/**
 	 * Backs up a resource.
 	 *
 	 * @param resource The resource to back up.

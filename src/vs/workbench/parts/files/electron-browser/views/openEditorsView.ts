@@ -47,7 +47,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 
 	private static readonly DEFAULT_VISIBLE_OPEN_EDITORS = 9;
 	private static readonly DEFAULT_DYNAMIC_HEIGHT = true;
-	static ID = 'workbench.explorer.openEditorsView';
+	static readonly ID = 'workbench.explorer.openEditorsView';
 	static NAME = nls.localize({ key: 'openEditors', comment: ['Open is an adjective'] }, "Open Editors");
 
 	private model: IEditorStacksModel;
@@ -265,10 +265,11 @@ export class OpenEditorsView extends ViewsViewletPanel {
 	}
 
 	private onListContextMenu(e: IListContextMenuEvent<OpenEditor | IEditorGroup>): void {
+		const element = e.element;
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
-			getActions: () => this.actionProvider.getSecondaryActions(e.element),
-			getActionsContext: () => e.element
+			getActions: () => this.actionProvider.getSecondaryActions(element),
+			getActionsContext: () => element instanceof OpenEditor ? { group: element.editorGroup, editor: element.editorInput } : { group: element }
 		});
 	}
 
@@ -317,7 +318,8 @@ export class OpenEditorsView extends ViewsViewletPanel {
 
 	private updateSize(): void {
 		// Adjust expanded body size
-		this.minimumBodySize = this.maximumBodySize = this.getExpandedBodySize(this.model);
+		this.minimumBodySize = this.getMinExpandedBodySize();
+		this.maximumBodySize = this.getMaxExpandedBodySize();
 	}
 
 	private updateDirtyIndicator(): void {
@@ -331,7 +333,16 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		}
 	}
 
-	private getExpandedBodySize(model: IEditorStacksModel): number {
+	private get elementCount(): number {
+		return this.model.groups.map(g => g.count)
+			.reduce((first, second) => first + second, this.model.groups.length > 1 ? this.model.groups.length : 0);
+	}
+
+	private getMaxExpandedBodySize(): number {
+		return this.elementCount * OpenEditorsDelegate.ITEM_HEIGHT;
+	}
+
+	private getMinExpandedBodySize(): number {
 		let visibleOpenEditors = this.configurationService.getValue<number>('explorer.openEditors.visible');
 		if (typeof visibleOpenEditors !== 'number') {
 			visibleOpenEditors = OpenEditorsView.DEFAULT_VISIBLE_OPEN_EDITORS;
@@ -342,13 +353,13 @@ export class OpenEditorsView extends ViewsViewletPanel {
 			dynamicHeight = OpenEditorsView.DEFAULT_DYNAMIC_HEIGHT;
 		}
 
-		return this.computeExpandedBodySize(visibleOpenEditors, dynamicHeight);
+		return this.computeMinExpandedBodySize(visibleOpenEditors, dynamicHeight);
 	}
 
-	private computeExpandedBodySize(visibleOpenEditors = OpenEditorsView.DEFAULT_VISIBLE_OPEN_EDITORS, dynamicHeight = OpenEditorsView.DEFAULT_DYNAMIC_HEIGHT): number {
+	private computeMinExpandedBodySize(visibleOpenEditors = OpenEditorsView.DEFAULT_VISIBLE_OPEN_EDITORS, dynamicHeight = OpenEditorsView.DEFAULT_DYNAMIC_HEIGHT): number {
 		let itemsToShow: number;
 		if (dynamicHeight) {
-			itemsToShow = Math.min(Math.max(visibleOpenEditors, 1), this.list.length);
+			itemsToShow = Math.min(Math.max(visibleOpenEditors, 1), this.elementCount);
 		} else {
 			itemsToShow = Math.max(visibleOpenEditors, 1);
 		}
@@ -402,7 +413,7 @@ class OpenEditorsDelegate implements IDelegate<OpenEditor | IEditorGroup> {
 }
 
 class EditorGroupRenderer implements IRenderer<IEditorGroup, IEditorGroupTemplateData> {
-	static ID = 'editorgroup';
+	static readonly ID = 'editorgroup';
 
 	constructor(
 		private keybindingService: IKeybindingService,
@@ -446,7 +457,8 @@ class EditorGroupRenderer implements IRenderer<IEditorGroup, IEditorGroupTemplat
 			if (OpenEditorRenderer.DRAGGED_OPEN_EDITOR) {
 				const model = this.editorGroupService.getStacksModel();
 				const positionOfTargetGroup = model.positionOfGroup(editorGroupTemplate.editorGroup);
-				this.editorGroupService.moveEditor(OpenEditorRenderer.DRAGGED_OPEN_EDITOR.editorInput, model.positionOfGroup(OpenEditorRenderer.DRAGGED_OPEN_EDITOR.editorGroup), positionOfTargetGroup);
+				this.editorGroupService.moveEditor(OpenEditorRenderer.DRAGGED_OPEN_EDITOR.editorInput, model.positionOfGroup(OpenEditorRenderer.DRAGGED_OPEN_EDITOR.editorGroup), positionOfTargetGroup, { preserveFocus: true });
+				this.editorGroupService.activateGroup(positionOfTargetGroup);
 			}
 		}));
 
@@ -466,7 +478,7 @@ class EditorGroupRenderer implements IRenderer<IEditorGroup, IEditorGroupTemplat
 }
 
 class OpenEditorRenderer implements IRenderer<OpenEditor, IOpenEditorTemplateData> {
-	static ID = 'openeditor';
+	static readonly ID = 'openeditor';
 	public static DRAGGED_OPEN_EDITOR: OpenEditor;
 
 	constructor(
@@ -496,7 +508,16 @@ class OpenEditorRenderer implements IRenderer<OpenEditor, IOpenEditorTemplateDat
 
 		editorTemplate.toDispose = [];
 
-		editorTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_START, () => {
+		editorTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_START, (e: DragEvent) => {
+
+			const dragImage = document.createElement('div');
+			e.dataTransfer.effectAllowed = 'copyMove';
+			dragImage.className = 'monaco-tree-drag-image';
+			dragImage.textContent = editorTemplate.openEditor.editorInput.getName();
+			document.body.appendChild(dragImage);
+			e.dataTransfer.setDragImage(dragImage, -10, -10);
+			setTimeout(() => document.body.removeChild(dragImage), 0);
+
 			OpenEditorRenderer.DRAGGED_OPEN_EDITOR = editorTemplate.openEditor;
 		}));
 		editorTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_OVER, () => {
@@ -515,7 +536,8 @@ class OpenEditorRenderer implements IRenderer<OpenEditor, IOpenEditorTemplateDat
 				const index = editorTemplate.openEditor.editorGroup.indexOf(editorTemplate.openEditor.editorInput);
 
 				this.editorGroupService.moveEditor(OpenEditorRenderer.DRAGGED_OPEN_EDITOR.editorInput,
-					model.positionOfGroup(OpenEditorRenderer.DRAGGED_OPEN_EDITOR.editorGroup), positionOfTargetGroup, { index });
+					model.positionOfGroup(OpenEditorRenderer.DRAGGED_OPEN_EDITOR.editorGroup), positionOfTargetGroup, { index, preserveFocus: true });
+				this.editorGroupService.activateGroup(positionOfTargetGroup);
 			}
 		}));
 		editorTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_END, () => {

@@ -125,7 +125,7 @@ export class QuickFixController implements IEditorContribution {
 
 export class QuickFixAction extends EditorAction {
 
-	static Id = 'editor.action.quickFix';
+	static readonly Id = 'editor.action.quickFix';
 
 	constructor() {
 		super({

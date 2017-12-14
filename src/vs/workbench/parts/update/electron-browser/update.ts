@@ -165,7 +165,7 @@ export class ShowReleaseNotesAction extends AbstractShowReleaseNotesAction {
 
 export class ShowCurrentReleaseNotesAction extends AbstractShowReleaseNotesAction {
 
-	static ID = 'update.showCurrentReleaseNotes';
+	static readonly ID = 'update.showCurrentReleaseNotes';
 	static LABEL = nls.localize('showReleaseNotes', "Show Release Notes");
 
 	constructor(
@@ -202,12 +202,13 @@ export class ProductContribution implements IWorkbenchContribution {
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMessageService messageService: IMessageService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		const lastVersion = storageService.get(ProductContribution.KEY, StorageScope.GLOBAL, '');
 
 		// was there an update? if so, open release notes
-		if (product.releaseNotesUrl && lastVersion && pkg.version !== lastVersion) {
+		if (!environmentService.skipReleaseNotes && product.releaseNotesUrl && lastVersion && pkg.version !== lastVersion) {
 			instantiationService.invokeFunction(loadReleaseNotes, pkg.version).then(
 				text => editorService.openEditor(instantiationService.createInstance(ReleaseNotesInput, pkg.version, text), { pinned: true }),
 				() => {

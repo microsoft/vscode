@@ -26,6 +26,7 @@
 	"editKeybindingLabel": "更改键绑定",
 	"addKeybindingLabelWithKey": "添加键绑定",
 	"addKeybindingLabel": "添加键绑定",
+	"title": "{0} ({1})",
 	"commandAriaLabel": "命令为 {0}。",
 	"keybindingAriaLabel": "键绑定为 {0}。",
 	"noKeybinding": "未分配键绑定。",

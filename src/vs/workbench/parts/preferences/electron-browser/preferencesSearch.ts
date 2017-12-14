@@ -247,11 +247,11 @@ function prepareUrl(query: string, endpoint: IEndpointDetails, buildNumber: numb
 	query = escapeSpecialChars(query);
 	const boost = 10;
 	const userQuery = `(${query})^${boost}`;
-	const encodedQuery = encodeURIComponent(userQuery + ' || ' + query);
 
 	// Appending Fuzzy after each word.
 	query = query.replace(/\ +/g, '~ ') + '~';
 
+	const encodedQuery = encodeURIComponent(userQuery + ' || ' + query);
 	let url = `${endpoint.urlBase}?`;
 	if (endpoint.key) {
 		url += `search=${encodedQuery}`;

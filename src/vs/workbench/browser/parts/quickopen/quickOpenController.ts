@@ -857,7 +857,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			const result = handlerResults[i];
 			const resource = result.getResource();
 
-			if (!result.isFile() || !resource || !mapEntryToResource[resource.toString()]) {
+			if (!result.mergeWithEditorHistory() || !resource || !mapEntryToResource[resource.toString()]) {
 				additionalHandlerResults.push(result);
 			}
 		}

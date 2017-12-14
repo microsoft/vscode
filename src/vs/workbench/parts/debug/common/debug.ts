@@ -299,10 +299,19 @@ export interface IModel extends ITreeElement {
 	getWatchExpressions(): IExpression[];
 	getReplElements(): IReplElement[];
 
-	onDidChangeBreakpoints: Event<void>;
+	onDidChangeBreakpoints: Event<IBreakpointsChangeEvent>;
 	onDidChangeCallStack: Event<void>;
 	onDidChangeWatchExpressions: Event<IExpression>;
 	onDidChangeReplElements: Event<void>;
+}
+
+/**
+ * An event describing a change to the set of [breakpoints](#debug.Breakpoint).
+ */
+export interface IBreakpointsChangeEvent {
+	added?: (IBreakpoint | IFunctionBreakpoint)[];
+	removed?: (IBreakpoint | IFunctionBreakpoint)[];
+	changed?: (IBreakpoint | IFunctionBreakpoint)[];
 }
 
 // Debug enums
@@ -456,7 +465,7 @@ export interface ILaunch {
 	/**
 	 * Opens the launch.json file. Creates if it does not exist.
 	 */
-	openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor>;
+	openConfigFile(sideBySide: boolean, type?: string): TPromise<{ editor: IEditor; configFileCreated: boolean; }>;
 }
 
 // Debug service interfaces
@@ -503,7 +512,7 @@ export interface IDebugService {
 	/**
 	 * Sets the focused stack frame and evaluates all expressions against the newly focused stack frame,
 	 */
-	focusStackFrameAndEvaluate(focusedStackFrame: IStackFrame, process?: IProcess, explicit?: boolean): TPromise<void>;
+	focusStackFrame(focusedStackFrame: IStackFrame, thread?: IThread, process?: IProcess, explicit?: boolean): void;
 
 	/**
 	 * Adds new breakpoints to the model for the file specified with the uri. Notifies debug adapter of breakpoint changes.
@@ -568,12 +577,12 @@ export interface IDebugService {
 	/**
 	 * Adds a new watch expression and evaluates it against the debug adapter.
 	 */
-	addWatchExpression(name?: string): TPromise<void>;
+	addWatchExpression(name?: string): void;
 
 	/**
 	 * Renames a watch expression and evaluates it against the debug adapter.
 	 */
-	renameWatchExpression(id: string, newName: string): TPromise<void>;
+	renameWatchExpression(id: string, newName: string): void;
 
 	/**
 	 * Moves a watch expression to a new possition. Used for reordering watch expressions.
@@ -584,11 +593,6 @@ export interface IDebugService {
 	 * Removes all watch expressions. If id is passed only removes the watch expression with the passed id.
 	 */
 	removeWatchExpressions(id?: string): void;
-
-	/**
-	 * Evaluates all watch expression.
-	 */
-	evaluateWatchExpressions(): TPromise<void>;
 
 	/**
 	 * Starts debugging. If the configOrName is not passed uses the selected configuration in the debug dropdown.

@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Range, IRange } from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditStack } from 'vs/editor/common/model/editStack';
 import { ILineEdit, IModelLine } from 'vs/editor/common/model/modelLine';
-import { TextModelWithDecorations, ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { TextModelWithDecorations } from 'vs/editor/common/model/textModelWithDecorations';
 import * as strings from 'vs/base/common/strings';
 import * as arrays from 'vs/base/common/arrays';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -39,10 +39,6 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 	private _isUndoing: boolean;
 	private _isRedoing: boolean;
 
-	// editable range
-	private _hasEditableRange: boolean;
-	private _editableRangeId: string;
-
 	private _trimAutoWhitespaceLines: number[];
 
 	constructor(rawTextSource: IRawTextSource, creationOptions: editorCommon.ITextModelCreationOptions, languageIdentifier: LanguageIdentifier) {
@@ -53,8 +49,6 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		this._isUndoing = false;
 		this._isRedoing = false;
 
-		this._hasEditableRange = false;
-		this._editableRangeId = null;
 		this._trimAutoWhitespaceLines = null;
 	}
 
@@ -68,8 +62,6 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 		// Destroy my edit history and settings
 		this._commandManager = new EditStack(this);
-		this._hasEditableRange = false;
-		this._editableRangeId = null;
 		this._trimAutoWhitespaceLines = null;
 	}
 
@@ -323,16 +315,6 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 
 		if (canReduceOperations) {
 			operations = this._reduceOperations(operations);
-		}
-
-		let editableRange = this.getEditableRange();
-		let editableRangeStart = editableRange.getStartPosition();
-		let editableRangeEnd = editableRange.getEndPosition();
-		for (let i = 0; i < operations.length; i++) {
-			let operationRange = operations[i].range;
-			if (!editableRangeStart.isBeforeOrEqual(operationRange.getStartPosition()) || !operationRange.getEndPosition().isBeforeOrEqual(editableRangeEnd)) {
-				throw new Error('Editing outside of editable range not allowed!');
-			}
 		}
 
 		// Delta encode operations
@@ -702,44 +684,6 @@ export class EditableTextModel extends TextModelWithDecorations implements edito
 		} finally {
 			this._onDidChangeDecorations.endDeferredEmit();
 			this._eventEmitter.endDeferredEmit();
-		}
-	}
-
-	public setEditableRange(range: IRange): void {
-		this._commandManager.clear();
-
-		if (!this._hasEditableRange && !range) {
-			// Nothing to do
-			return;
-		}
-
-		this.changeDecorations((changeAccessor) => {
-			if (this._hasEditableRange) {
-				changeAccessor.removeDecoration(this._editableRangeId);
-				this._editableRangeId = null;
-				this._hasEditableRange = false;
-			}
-
-			if (range) {
-				this._hasEditableRange = true;
-				this._editableRangeId = changeAccessor.addDecoration(range, EditableTextModel._DECORATION_OPTION);
-			}
-		});
-	}
-
-	private static readonly _DECORATION_OPTION = ModelDecorationOptions.register({
-		stickiness: editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
-	});
-
-	public hasEditableRange(): boolean {
-		return this._hasEditableRange;
-	}
-
-	public getEditableRange(): Range {
-		if (this._hasEditableRange) {
-			return this.getDecorationRange(this._editableRangeId);
-		} else {
-			return this.getFullModelRange();
 		}
 	}
 }

@@ -129,12 +129,18 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		this._localToDispose.push(this._editor.onDidChangeModelContent((e) => {
 			this._editor.changeDecorations((changeAccessor) => {
 				this._editor.changeViewZones((viewAccessor) => {
-					const toDispose: CodeLens[] = [];
+					let toDispose: CodeLens[] = [];
+					let lastLensLineNumber: number = -1;
+
 					this._lenses.forEach((lens) => {
-						if (lens.isValid()) {
-							lens.update(viewAccessor);
-						} else {
+						if (!lens.isValid() || lastLensLineNumber === lens.getLineNumber()) {
+							// invalid -> lens collapsed, attach range doesn't exist anymore
+							// line_number -> lenses should never be on the same line
 							toDispose.push(lens);
+
+						} else {
+							lens.update(viewAccessor);
+							lastLensLineNumber = lens.getLineNumber();
 						}
 					});
 

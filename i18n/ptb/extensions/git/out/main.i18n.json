@@ -6,8 +6,9 @@
 {
 	"looking": "Procurando por git em: {0}",
 	"using git": "Usando git {0} de {1}",
-	"notfound": "Git não encontrado. Você pode configurar sua localização com a configuração de 'git.path'.",
-	"updateGit": "Atualizar o Git",
+	"downloadgit": "Baixar o Git",
 	"neverShowAgain": "Não mostrar novamente",
+	"notfound": "Git não encontrado. Instale ou configure usando a configuração 'git.path'.",
+	"updateGit": "Atualizar o Git",
 	"git20": "Você parece ter o git {0} instalado. Code funciona melhor com git > = 2"
 }

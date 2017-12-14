@@ -22,9 +22,7 @@ export default class ManagedFileContextManager {
 	) {
 		this.onDidChangeActiveTextEditorSub = vscode.window.onDidChangeActiveTextEditor(this.onDidChangeActiveTextEditor, this);
 
-		if (vscode.window.activeTextEditor) {
-			this.onDidChangeActiveTextEditor(vscode.window.activeTextEditor);
-		}
+		this.onDidChangeActiveTextEditor(vscode.window.activeTextEditor);
 	}
 
 	public dispose() {
@@ -49,5 +47,5 @@ export default class ManagedFileContextManager {
 }
 
 function isSupportedLanguageMode(doc: vscode.TextDocument) {
-	return vscode.languages.match([languageModeIds.typescript, languageModeIds.typescriptreact, languageModeIds.javascript, languageModeIds.javascript], doc) > 0;
+	return vscode.languages.match([languageModeIds.typescript, languageModeIds.typescriptreact, languageModeIds.javascript, languageModeIds.javascriptreact], doc) > 0;
 }

@@ -26,20 +26,16 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
-import { TitleControl, ITitleAreaControl, handleWorkspaceExternalDrop } from 'vs/workbench/browser/parts/editor/titleControl';
+import { TitleControl, ITitleAreaControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { NoTabsTitleControl } from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
 import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup, EditorOptions, TextEditorOptions, IEditorIdentifier } from 'vs/workbench/common/editor';
-import { extractResources } from 'vs/workbench/browser/editor';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Themable, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, EDITOR_GROUP_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BORDER } from 'vs/workbench/common/theme';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
-import { IMessageService } from 'vs/platform/message/common/message';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { EditorAreaDropHandler } from 'vs/workbench/browser/parts/editor/editorAreaDropHandler';
 
 export enum Rochade {
 	NONE,
@@ -86,7 +82,6 @@ export interface IEditorGroupsControl {
 	resizeGroup(position: Position, groupSizeChange: number): void;
 
 	getRatio(): number[];
-
 
 	dispose(): void;
 }
@@ -149,12 +144,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWindowService private windowService: IWindowService,
-		@IWindowsService private windowsService: IWindowsService,
-		@IThemeService themeService: IThemeService,
-		@IFileService private fileService: IFileService,
-		@IMessageService private messageService: IMessageService,
-		@IWorkspacesService private workspacesService: IWorkspacesService
+		@IThemeService themeService: IThemeService
 	) {
 		super(themeService);
 
@@ -228,6 +218,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 	private updateTabOptions(tabOptions: IEditorTabOptions, refresh?: boolean): void {
 		const tabCloseButton = this.tabOptions ? this.tabOptions.tabCloseButton : 'right';
 		const tabSizing = this.tabOptions ? this.tabOptions.tabSizing : 'fit';
+		const iconTheme = this.tabOptions ? this.tabOptions.iconTheme : 'vs-seti';
 
 		this.tabOptions = tabOptions;
 
@@ -266,7 +257,12 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 				}
 
 				// Refresh title when layout options change
-				else if (showingIcons !== this.tabOptions.showIcons || tabCloseButton !== this.tabOptions.tabCloseButton || tabSizing !== this.tabOptions.tabSizing) {
+				else if (
+					showingIcons !== this.tabOptions.showIcons ||
+					tabCloseButton !== this.tabOptions.tabCloseButton ||
+					tabSizing !== this.tabOptions.tabSizing ||
+					iconTheme !== this.tabOptions.iconTheme
+				) {
 					titleControl.refresh();
 				}
 			}
@@ -1116,36 +1112,14 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 			// Check for URI transfer
 			else {
-				const droppedResources = extractResources(e).filter(r => r.resource.scheme === 'file' || r.resource.scheme === 'untitled');
-				if (droppedResources.length) {
-					handleWorkspaceExternalDrop(droppedResources, $this.fileService, $this.messageService, $this.windowsService, $this.windowService, $this.workspacesService).then(handled => {
-						if (handled) {
-							return;
-						}
+				const dropHandler = $this.instantiationService.createInstance(EditorAreaDropHandler);
+				dropHandler.handleDrop(e, () => {
+					if (splitEditor && splitTo !== freeGroup) {
+						groupService.moveGroup(freeGroup, splitTo);
+					}
 
-						// Add external ones to recently open list
-						const externalResources = droppedResources.filter(d => d.isExternal).map(d => d.resource);
-						if (externalResources.length) {
-							$this.windowsService.addRecentlyOpened(externalResources.map(resource => resource.fsPath));
-						}
-
-						// Open in Editor
-						$this.windowService.focusWindow()
-							.then(() => editorService.openEditors(droppedResources.map(d => {
-								return {
-									input: { resource: d.resource, options: { pinned: true } },
-									position: splitEditor ? freeGroup : position
-								};
-							}))).then(() => {
-								if (splitEditor && splitTo !== freeGroup) {
-									groupService.moveGroup(freeGroup, splitTo);
-								}
-
-								groupService.focusGroup(splitEditor ? splitTo : position);
-							})
-							.done(null, errors.onUnexpectedError);
-					});
-				}
+					groupService.focusGroup(splitEditor ? splitTo : position);
+				}, splitEditor ? freeGroup : position);
 			}
 		}
 

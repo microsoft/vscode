@@ -19,6 +19,7 @@ import { repeat } from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class SnippetController2 implements IEditorContribution {
 
@@ -41,6 +42,7 @@ export class SnippetController2 implements IEditorContribution {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
+		@ILogService private _logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this._inSnippet = SnippetController2.InSnippetMode.bindTo(contextKeyService);
@@ -60,6 +62,26 @@ export class SnippetController2 implements IEditorContribution {
 	}
 
 	insert(
+		template: string,
+		overwriteBefore: number = 0, overwriteAfter: number = 0,
+		undoStopBefore: boolean = true, undoStopAfter: boolean = true
+	): void {
+		// this is here to find out more about the yet-not-understood
+		// error that sometimes happens when we fail to inserted a nested
+		// snippet
+		try {
+			this._doInsert(template, overwriteBefore, overwriteAfter, undoStopBefore, undoStopAfter);
+
+		} catch (e) {
+			this.cancel();
+			this._logService.error(e);
+			this._logService.error('snippet_error');
+			this._logService.error('insert_template=', template);
+			this._logService.error('existing_template=', this._session ? this._session._logInfo() : '<no_session>');
+		}
+	}
+
+	private _doInsert(
 		template: string,
 		overwriteBefore: number = 0, overwriteAfter: number = 0,
 		undoStopBefore: boolean = true, undoStopAfter: boolean = true

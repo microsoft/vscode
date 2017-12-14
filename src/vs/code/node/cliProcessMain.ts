@@ -35,6 +35,9 @@ import { ChoiceCliService } from 'vs/platform/message/node/messageCli';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { IStateService } from 'vs/platform/state/common/state';
 import { StateService } from 'vs/platform/state/node/stateService';
+import { createLogService } from 'vs/platform/log/node/spdlogService';
+import { ILogService } from 'vs/platform/log/common/log';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = (id: string) => localize('notInstalled', "Extension '{0}' is not installed.", id);
@@ -95,6 +98,13 @@ class Main {
 
 				return this.extensionManagementService.install(extension).then(() => {
 					console.log(localize('successVsixInstall', "Extension '{0}' was successfully installed!", getBaseLabel(extension)));
+				}, error => {
+					if (isPromiseCanceledError(error)) {
+						console.log(localize('cancelVsixInstall', "Cancelled installing Extension '{0}'.", getBaseLabel(extension)));
+						return null;
+					} else {
+						return TPromise.wrapError(error);
+					}
 				});
 			});
 
@@ -133,7 +143,16 @@ class Main {
 							console.log(localize('installing', "Installing..."));
 
 							return this.extensionManagementService.installFromGallery(extension)
-								.then(() => console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed!", id, extension.version)));
+								.then(
+								() => console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed!", id, extension.version)),
+								error => {
+									if (isPromiseCanceledError(error)) {
+										console.log(localize('cancelVsixInstall', "Cancelled installing Extension '{0}'.", id));
+										return null;
+									} else {
+										return TPromise.wrapError(error);
+									}
+								});
 						});
 				});
 			});
@@ -175,7 +194,15 @@ const eventPrefix = 'monacoworkbench';
 
 export function main(argv: ParsedArgs): TPromise<void> {
 	const services = new ServiceCollection();
-	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, argv, process.execPath));
+
+	const environmentService = new EnvironmentService(argv, process.execPath);
+	const logService = createLogService('cli', environmentService);
+	process.once('exit', () => logService.dispose());
+
+	logService.info('main', argv);
+
+	services.set(IEnvironmentService, environmentService);
+	services.set(ILogService, logService);
 	services.set(IStateService, new SyncDescriptor(StateService));
 
 	const instantiationService: IInstantiationService = new InstantiationService(services);

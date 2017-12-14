@@ -378,8 +378,6 @@ export class SnippetSuggestProvider implements ISuggestSupport {
 		}
 		return languageId;
 	}
-
-
 }
 
 export function getNonWhitespacePrefix(model: ISimpleModel, position: Position): string {

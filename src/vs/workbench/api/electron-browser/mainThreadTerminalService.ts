@@ -20,7 +20,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		extHostContext: IExtHostContext,
 		@ITerminalService private terminalService: ITerminalService
 	) {
-		this._proxy = extHostContext.get(ExtHostContext.ExtHostTerminalService);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTerminalService);
 		this._toDispose = [];
 		this._toDispose.push(terminalService.onInstanceDisposed((terminalInstance) => this._onTerminalDisposed(terminalInstance)));
 		this._toDispose.push(terminalService.onInstanceProcessIdReady((terminalInstance) => this._onTerminalProcessIdReady(terminalInstance)));

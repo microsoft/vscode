@@ -159,7 +159,7 @@ class WordHighlighter {
 		try {
 			this._ignorePositionChangeEvent = true;
 			this.editor.setPosition(dest.getStartPosition());
-			this.editor.revealRangeInCenter(dest);
+			this.editor.revealRangeInCenterIfOutsideViewport(dest);
 		} finally {
 			this._ignorePositionChangeEvent = false;
 		}
@@ -173,7 +173,7 @@ class WordHighlighter {
 		try {
 			this._ignorePositionChangeEvent = true;
 			this.editor.setPosition(dest.getStartPosition());
-			this.editor.revealRangeInCenter(dest);
+			this.editor.revealRangeInCenterIfOutsideViewport(dest);
 		} finally {
 			this._ignorePositionChangeEvent = false;
 		}
@@ -330,7 +330,7 @@ class WordHighlighter {
 			this.renderDecorationsTimer = -1;
 			this.renderDecorations();
 		} else {
-			// Asyncrhonous
+			// Asynchronous
 			this.renderDecorationsTimer = setTimeout(() => {
 				this.renderDecorations();
 			}, (minimumRenderTime - currentTime));

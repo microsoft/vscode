@@ -59,36 +59,37 @@ class StartupProfiler implements IWorkbenchContribution {
 		}).then(files => {
 			const profileFiles = files.reduce((prev, cur) => `${prev}${join(dir, cur)}\n`, '\n');
 
-			const primaryButton = this._messageService.confirmSync({
+			return this._messageService.confirm({
 				type: 'info',
 				message: localize('prof.message', "Successfully created profiles."),
 				detail: localize('prof.detail', "Please create an issue and manually attach the following files:\n{0}", profileFiles),
 				primaryButton: localize('prof.restartAndFileIssue', "Create Issue and Restart"),
 				secondaryButton: localize('prof.restart', "Restart")
-			});
-
-			if (primaryButton) {
-				const action = this._instantiationService.createInstance(ReportPerformanceIssueAction, ReportPerformanceIssueAction.ID, ReportPerformanceIssueAction.LABEL);
-				TPromise.join<any>([
-					this._windowsService.showItemInFolder(join(dir, files[0])),
-					action.run(`:warning: Make sure to **attach** these files from your *home*-directory: :warning:\n${files.map(file => `-\`${file}\``).join('\n')}`)
-				]).then(() => {
-					// keep window stable until restart is selected
-					this._messageService.confirmSync({
-						type: 'info',
-						message: localize('prof.thanks', "Thanks for helping us."),
-						detail: localize('prof.detail.restart', "A final restart is required to continue to use '{0}'. Again, thank you for your contribution.", this._environmentService.appNameLong),
-						primaryButton: localize('prof.restart', "Restart"),
-						secondaryButton: null
+			}).then(primaryButton => {
+				if (primaryButton) {
+					const action = this._instantiationService.createInstance(ReportPerformanceIssueAction, ReportPerformanceIssueAction.ID, ReportPerformanceIssueAction.LABEL);
+					TPromise.join<any>([
+						this._windowsService.showItemInFolder(join(dir, files[0])),
+						action.run(`:warning: Make sure to **attach** these files from your *home*-directory: :warning:\n${files.map(file => `-\`${file}\``).join('\n')}`)
+					]).then(() => {
+						// keep window stable until restart is selected
+						return this._messageService.confirm({
+							type: 'info',
+							message: localize('prof.thanks', "Thanks for helping us."),
+							detail: localize('prof.detail.restart', "A final restart is required to continue to use '{0}'. Again, thank you for your contribution.", this._environmentService.appNameLong),
+							primaryButton: localize('prof.restart', "Restart"),
+							secondaryButton: null
+						}).then(() => {
+							// now we are ready to restart
+							this._windowsService.relaunch({ removeArgs });
+						});
 					});
-					// now we are ready to restart
-					this._windowsService.relaunch({ removeArgs });
-				});
 
-			} else {
-				// simply restart
-				this._windowsService.relaunch({ removeArgs });
-			}
+				} else {
+					// simply restart
+					this._windowsService.relaunch({ removeArgs });
+				}
+			});
 		});
 	}
 }

@@ -49,5 +49,8 @@
 	"emmetPreferencesBemModifierSeparator": "Séparateur de modificateur utilisé pour les classes lorsque le filtre BEM est utilisé",
 	"emmetPreferencesFilterCommentBefore": "Une définition de commentaire qui doit être placée avant l’élément correspondant quand le filtre de commentaire est appliqué.",
 	"emmetPreferencesFilterCommentAfter": "Une définition de commentaire qui doit être placée après l’élément correspondant quand un filtre de commentaire est appliqué.",
-	"emmetPreferencesFilterCommentTrigger": "Une liste séparée par des virgules de noms d’attributs qui devraient exister en abrégé pour que le filtre de commentaire soit appliqué"
+	"emmetPreferencesFilterCommentTrigger": "Une liste séparée par des virgules de noms d’attributs qui devraient exister en abrégé pour que le filtre de commentaire soit appliqué",
+	"emmetPreferencesFormatNoIndentTags": "Un tableau de noms de balises qui ne devraient pas être indentées",
+	"emmetPreferencesFormatForceIndentTags": "Un tableau de noms de balises qui devraient toujours être indentées",
+	"emmetPreferencesAllowCompactBoolean": "Si true, la notation compacte des attributs booléens est produite"
 }

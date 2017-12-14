@@ -108,9 +108,12 @@ export class SpectronApplication {
 		this._screenCapturer.suiteName = suiteName;
 	}
 
-	async start(): Promise<any> {
+	async start(waitForWelcome: boolean = true): Promise<any> {
 		await this._start();
-		await this.waitForWelcome();
+
+		if (waitForWelcome) {
+			await this.waitForWelcome();
+		}
 	}
 
 	async restart(codeArgs: string[] = []): Promise<any> {
@@ -158,6 +161,9 @@ export class SpectronApplication {
 
 		// Prevent 'Getting Started' web page from opening on clean user-data-dir
 		args.push('--skip-getting-started');
+
+		// Prevent 'Getting Started' web page from opening on clean user-data-dir
+		args.push('--skip-release-notes');
 
 		// Prevent Quick Open from closing when focus is stolen, this allows concurrent smoketest suite running
 		args.push('--sticky-quickopen');
@@ -269,11 +275,19 @@ export class SpectronApplication {
 
 	private async checkWindowReady(): Promise<any> {
 		await this.webclient.waitUntilWindowLoaded();
-		// Spectron opens multiple terminals in Windows platform
-		// Workaround to focus the right window - https://github.com/electron/spectron/issues/60
-		await this.client.windowByIndex(1);
-		// await this.app.browserWindow.focus();
-		await this.client.waitForHTML('[id="workbench.main.container"]');
+
+		// Pick the first workbench window here
+		const count = await this.webclient.getWindowCount();
+
+		for (let i = 0; i < count; i++) {
+			await this.webclient.windowByIndex(i);
+
+			if (/bootstrap\/index\.html/.test(await this.webclient.getUrl())) {
+				break;
+			}
+		}
+
+		await this.client.waitForElement('.monaco-workbench');
 	}
 
 	private async waitForWelcome(): Promise<any> {

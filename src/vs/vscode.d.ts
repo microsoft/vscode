@@ -3452,7 +3452,7 @@ declare module 'vscode' {
 		uri: Uri;
 
 		/**
-		 * The document range of this locations.
+		 * The document range of this location.
 		 */
 		range: Range;
 
@@ -4496,7 +4496,7 @@ declare module 'vscode' {
 		 * has changed. *Note* that the event also fires when the active editor changes
 		 * to `undefined`.
 		 */
-		export const onDidChangeActiveTextEditor: Event<TextEditor>;
+		export const onDidChangeActiveTextEditor: Event<TextEditor | undefined>;
 
 		/**
 		 * An [event](#Event) which fires when the array of [visible editors](#window.visibleTextEditors)
@@ -5782,6 +5782,11 @@ declare module 'vscode' {
 		 * A string to show as place holder in the input box to guide the user.
 		 */
 		placeholder: string;
+
+		/**
+		 * The warning threshold for lines in the input box.
+		 */
+		lineWarningLength: number | undefined;
 	}
 
 	interface QuickDiffProvider {

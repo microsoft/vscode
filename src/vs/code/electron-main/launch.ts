@@ -33,6 +33,7 @@ export interface IWindowInfo {
 
 export interface IMainProcessInfo {
 	mainPID: number;
+	mainArguments: string[];
 	windows: IWindowInfo[];
 }
 
@@ -102,7 +103,7 @@ export class LaunchService implements ILaunchService {
 	) { }
 
 	public start(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void> {
-		this.logService.info('Received data from other instance: ', args, userEnv);
+		this.logService.trace('Received data from other instance: ', args, userEnv);
 
 		// Check early for open-url which is handled in URL service
 		const openUrlArg = args['open-url'] || [];
@@ -149,16 +150,17 @@ export class LaunchService implements ILaunchService {
 	}
 
 	public getMainProcessId(): TPromise<number> {
-		this.logService.info('Received request for process ID from other instance.');
+		this.logService.trace('Received request for process ID from other instance.');
 
 		return TPromise.as(process.pid);
 	}
 
 	public getMainProcessInfo(): TPromise<IMainProcessInfo> {
-		this.logService.info('Received request for main process info from other instance.');
+		this.logService.trace('Received request for main process info from other instance.');
 
 		return TPromise.wrap({
 			mainPID: process.pid,
+			mainArguments: process.argv,
 			windows: this.windowsMainService.getWindows().map(window => {
 				return this.getWindowInfo(window);
 			})
