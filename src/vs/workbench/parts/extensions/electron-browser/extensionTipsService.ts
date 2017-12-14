@@ -107,14 +107,57 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			.then(content => this.processWorkspaceRecommendations(json.parse(content.value, [])), err => []);
 	}
 
-	private processWorkspaceRecommendations(extensionsContent: IExtensionsContent): string[] {
+	private processWorkspaceRecommendations(extensionsContent: IExtensionsContent): TPromise<string[]> {
+		const regEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
+
 		if (extensionsContent && extensionsContent.recommendations) {
-			const regEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
-			return extensionsContent.recommendations.filter((element, position) => {
+			let filteredRecommendations = extensionsContent.recommendations.filter((element, position) => {
 				return extensionsContent.recommendations.indexOf(element) === position && regEx.test(element);
 			});
+
+			if (filteredRecommendations.length !== extensionsContent.recommendations.length) {
+				let badlyFormattedRecommendations = extensionsContent.recommendations.filter(element => {
+					return filteredRecommendations.indexOf(element) === -1;
+				});
+
+				let badRecommendationsString = '';
+				badlyFormattedRecommendations.forEach(element => {
+					badRecommendationsString += element + '\n';
+				});
+
+				console.log(badlyFormattedRecommendations.length +
+					' extension(s) in workspace recommendations are incorrectly formatted. Expected <publisher>.<extension name>:\n' +
+					badRecommendationsString);
+			}
+
+			return this._galleryService.query({ names: filteredRecommendations }).then(pager => {
+				let page = pager.firstPage;
+				let validRecommendations = page.map(extension => {
+					return extension.identifier.id.toLowerCase();
+				});
+
+
+				if (validRecommendations.length !== filteredRecommendations.length) {
+					let unknownExtensions = filteredRecommendations.filter(element => {
+						return validRecommendations.indexOf(element.toLowerCase()) === -1;
+					});
+
+					let unknownExtensionsString = '';
+					unknownExtensions.forEach(element => {
+						unknownExtensionsString += element + '\n';
+					});
+
+					console.log(unknownExtensions.length +
+						' extension(s) in workspace recommendations were not found in the gallery:\n' +
+						unknownExtensionsString);
+				}
+
+				return validRecommendations;
+			});
 		}
-		return [];
+
+		return TPromise.as([]);
+
 	}
 
 	private onWorkspaceFoldersChanged(event: IWorkspaceFoldersChangeEvent): void {
