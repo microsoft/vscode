@@ -580,51 +580,78 @@ export interface IRawColorInfo {
 	range: IRange;
 }
 
-export interface IExtHostSuggestion extends modes.ISuggestion {
-	_id: number;
-	_parentId: number;
-}
-
-export interface IExtHostSuggestResult {
-	_id: number;
-	suggestions: IExtHostSuggestion[];
-	incomplete?: boolean;
-}
-
-export interface IdObject {
-	_id: number;
-}
-
-export namespace IdObject {
-	let n = 0;
-	export function mixin<T extends object>(object: T): T & IdObject {
-		(<any>object)._id = n++;
+export class IdObject {
+	_id?: number;
+	private static _n = 0;
+	static mixin<T extends object>(object: T): T & IdObject {
+		(<any>object)._id = IdObject._n++;
 		return <any>object;
 	}
 }
 
-export type IWorkspaceSymbol = IdObject & modes.SymbolInformation;
-export interface IWorkspaceSymbols extends IdObject { symbols: IWorkspaceSymbol[]; }
+export interface SuggestionDto extends modes.ISuggestion {
+	_id: number;
+	_parentId: number;
+}
+
+export interface SuggestResultDto extends IdObject {
+	suggestions: SuggestionDto[];
+	incomplete?: boolean;
+}
+
+export interface LocationDto {
+	uri: UriComponents;
+	range: IRange;
+}
+
+export interface SymbolInformationDto extends IdObject {
+	name: string;
+	containerName?: string;
+	kind: modes.SymbolKind;
+	location: LocationDto;
+}
+
+export interface WorkspaceSymbolsDto extends IdObject {
+	symbols: SymbolInformationDto[];
+}
+
+export interface ResourceEditDto {
+	resource: UriComponents;
+	range: IRange;
+	newText: string;
+}
+
+export interface WorkspaceEditDto {
+	edits: ResourceEditDto[];
+	rejectReason?: string;
+}
+
+export interface CodeActionDto {
+	title: string;
+	edits?: WorkspaceEditDto;
+	diagnostics?: IMarkerData[];
+	command?: modes.Command;
+}
 
 export interface ExtHostLanguageFeaturesShape {
-	$provideDocumentSymbols(handle: number, resource: UriComponents): TPromise<modes.SymbolInformation[]>;
+	$provideDocumentSymbols(handle: number, resource: UriComponents): TPromise<SymbolInformationDto[]>;
 	$provideCodeLenses(handle: number, resource: UriComponents): TPromise<modes.ICodeLensSymbol[]>;
 	$resolveCodeLens(handle: number, resource: UriComponents, symbol: modes.ICodeLensSymbol): TPromise<modes.ICodeLensSymbol>;
-	$provideDefinition(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.Definition>;
-	$provideImplementation(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.Definition>;
-	$provideTypeDefinition(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.Definition>;
+	$provideDefinition(handle: number, resource: UriComponents, position: IPosition): TPromise<LocationDto | LocationDto[]>;
+	$provideImplementation(handle: number, resource: UriComponents, position: IPosition): TPromise<LocationDto | LocationDto[]>;
+	$provideTypeDefinition(handle: number, resource: UriComponents, position: IPosition): TPromise<LocationDto | LocationDto[]>;
 	$provideHover(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.Hover>;
 	$provideDocumentHighlights(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.DocumentHighlight[]>;
-	$provideReferences(handle: number, resource: UriComponents, position: IPosition, context: modes.ReferenceContext): TPromise<modes.Location[]>;
-	$provideCodeActions(handle: number, resource: UriComponents, range: IRange): TPromise<modes.CodeAction[]>;
+	$provideReferences(handle: number, resource: UriComponents, position: IPosition, context: modes.ReferenceContext): TPromise<LocationDto[]>;
+	$provideCodeActions(handle: number, resource: UriComponents, range: IRange): TPromise<CodeActionDto[]>;
 	$provideDocumentFormattingEdits(handle: number, resource: UriComponents, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]>;
 	$provideDocumentRangeFormattingEdits(handle: number, resource: UriComponents, range: IRange, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]>;
 	$provideOnTypeFormattingEdits(handle: number, resource: UriComponents, position: IPosition, ch: string, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]>;
-	$provideWorkspaceSymbols(handle: number, search: string): TPromise<IWorkspaceSymbols>;
-	$resolveWorkspaceSymbol(handle: number, symbol: modes.SymbolInformation): TPromise<IWorkspaceSymbol>;
+	$provideWorkspaceSymbols(handle: number, search: string): TPromise<WorkspaceSymbolsDto>;
+	$resolveWorkspaceSymbol(handle: number, symbol: SymbolInformationDto): TPromise<SymbolInformationDto>;
 	$releaseWorkspaceSymbols(handle: number, id: number): void;
-	$provideRenameEdits(handle: number, resource: UriComponents, position: IPosition, newName: string): TPromise<modes.WorkspaceEdit>;
-	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.SuggestContext): TPromise<IExtHostSuggestResult>;
+	$provideRenameEdits(handle: number, resource: UriComponents, position: IPosition, newName: string): TPromise<WorkspaceEditDto>;
+	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.SuggestContext): TPromise<SuggestResultDto>;
 	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion>;
 	$releaseCompletionItems(handle: number, id: number): void;
 	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.SignatureHelp>;
@@ -748,7 +775,7 @@ export const ExtHostContext = {
 	ExtHostFileSystem: createExtId<ExtHostFileSystemShape>('ExtHostFileSystem'),
 	ExtHostFileSystemEventService: createExtId<ExtHostFileSystemEventServiceShape>('ExtHostFileSystemEventService'),
 	ExtHostHeapService: createExtId<ExtHostHeapServiceShape>('ExtHostHeapMonitor'),
-	ExtHostLanguageFeatures: createExtId<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures', ProxyType.CustomMarshaller),
+	ExtHostLanguageFeatures: createExtId<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures'),
 	ExtHostQuickOpen: createExtId<ExtHostQuickOpenShape>('ExtHostQuickOpen'),
 	ExtHostExtensionService: createExtId<ExtHostExtensionServiceShape>('ExtHostExtensionService'),
 	ExtHostTerminalService: createExtId<ExtHostTerminalServiceShape>('ExtHostTerminalService'),

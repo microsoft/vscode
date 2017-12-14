@@ -17,7 +17,7 @@ import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
 import { ExtHostDiagnostics, DiagnosticCollection } from 'vs/workbench/api/node/extHostDiagnostics';
 import { asWinJsPromise } from 'vs/base/common/async';
-import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IExtHostSuggestResult, IExtHostSuggestion, IWorkspaceSymbols, IWorkspaceSymbol, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration } from './extHost.protocol';
+import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, SymbolInformationDto, SuggestResultDto, WorkspaceSymbolsDto, SuggestionDto } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
@@ -35,11 +35,11 @@ class OutlineAdapter {
 		this._provider = provider;
 	}
 
-	provideDocumentSymbols(resource: URI): TPromise<modes.SymbolInformation[]> {
+	provideDocumentSymbols(resource: URI): TPromise<SymbolInformationDto[]> {
 		let doc = this._documents.getDocumentData(resource).document;
 		return asWinJsPromise(token => this._provider.provideDocumentSymbols(doc, token)).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(TypeConverters.fromSymbolInformation);
+				return value.map(symbol => IdObject.mixin(TypeConverters.fromSymbolInformation(symbol)));
 			}
 			return undefined;
 		});
@@ -413,8 +413,8 @@ class NavigateTypeAdapter {
 		this._provider = provider;
 	}
 
-	provideWorkspaceSymbols(search: string): TPromise<IWorkspaceSymbols> {
-		const result: IWorkspaceSymbols = IdObject.mixin({ symbols: [] });
+	provideWorkspaceSymbols(search: string): TPromise<WorkspaceSymbolsDto> {
+		const result: WorkspaceSymbolsDto = IdObject.mixin({ symbols: [] });
 		return asWinJsPromise(token => this._provider.provideWorkspaceSymbols(search, token)).then(value => {
 			if (!isFalsyOrEmpty(value)) {
 				for (const item of value) {
@@ -439,7 +439,7 @@ class NavigateTypeAdapter {
 		});
 	}
 
-	resolveWorkspaceSymbol(symbol: IWorkspaceSymbol): TPromise<IWorkspaceSymbol> {
+	resolveWorkspaceSymbol(symbol: SymbolInformationDto): TPromise<SymbolInformationDto> {
 
 		if (typeof this._provider.resolveWorkspaceSymbol !== 'function') {
 			return TPromise.as(symbol);
@@ -524,7 +524,7 @@ class SuggestAdapter {
 		this._provider = provider;
 	}
 
-	provideCompletionItems(resource: URI, position: IPosition, context: modes.SuggestContext): TPromise<IExtHostSuggestResult> {
+	provideCompletionItems(resource: URI, position: IPosition, context: modes.SuggestContext): TPromise<SuggestResultDto> {
 
 		const doc = this._documents.getDocumentData(resource).document;
 		const pos = TypeConverters.toPosition(position);
@@ -535,7 +535,7 @@ class SuggestAdapter {
 
 			const _id = this._idPool++;
 
-			const result: IExtHostSuggestResult = {
+			const result: SuggestResultDto = {
 				_id,
 				suggestions: [],
 			};
@@ -577,7 +577,7 @@ class SuggestAdapter {
 			return TPromise.as(suggestion);
 		}
 
-		const { _parentId, _id } = (<IExtHostSuggestion>suggestion);
+		const { _parentId, _id } = (<SuggestionDto>suggestion);
 		const item = this._cache.has(_parentId) && this._cache.get(_parentId)[_id];
 		if (!item) {
 			return TPromise.as(suggestion);
@@ -605,13 +605,13 @@ class SuggestAdapter {
 		this._cache.delete(id);
 	}
 
-	private _convertCompletionItem(item: vscode.CompletionItem, position: vscode.Position, defaultRange: vscode.Range, _id: number, _parentId: number): IExtHostSuggestion {
+	private _convertCompletionItem(item: vscode.CompletionItem, position: vscode.Position, defaultRange: vscode.Range, _id: number, _parentId: number): SuggestionDto {
 		if (typeof item.label !== 'string' || item.label.length === 0) {
 			console.warn('INVALID text edit -> must have at least a label');
 			return undefined;
 		}
 
-		const result: IExtHostSuggestion = {
+		const result: SuggestionDto = {
 			//
 			_id,
 			_parentId,
@@ -835,7 +835,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideDocumentSymbols(handle: number, resource: UriComponents): TPromise<modes.SymbolInformation[]> {
+	$provideDocumentSymbols(handle: number, resource: UriComponents): TPromise<SymbolInformationDto[]> {
 		return this._withAdapter(handle, OutlineAdapter, adapter => adapter.provideDocumentSymbols(URI.revive(resource)));
 	}
 
@@ -996,11 +996,11 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideWorkspaceSymbols(handle: number, search: string): TPromise<IWorkspaceSymbols> {
+	$provideWorkspaceSymbols(handle: number, search: string): TPromise<WorkspaceSymbolsDto> {
 		return this._withAdapter(handle, NavigateTypeAdapter, adapter => adapter.provideWorkspaceSymbols(search));
 	}
 
-	$resolveWorkspaceSymbol(handle: number, symbol: IWorkspaceSymbol): TPromise<IWorkspaceSymbol> {
+	$resolveWorkspaceSymbol(handle: number, symbol: SymbolInformationDto): TPromise<SymbolInformationDto> {
 		return this._withAdapter(handle, NavigateTypeAdapter, adapter => adapter.resolveWorkspaceSymbol(symbol));
 	}
 
@@ -1030,7 +1030,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.SuggestContext): TPromise<IExtHostSuggestResult> {
+	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.SuggestContext): TPromise<SuggestResultDto> {
 		return this._withAdapter(handle, SuggestAdapter, adapter => adapter.provideCompletionItems(URI.revive(resource), position, context));
 	}
 
