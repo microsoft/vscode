@@ -32,7 +32,6 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 import extfs = require('vs/base/node/extfs');
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 
 const expectedWorkspaceRecommendations = [
 	'eg2.tslint',
