@@ -103,8 +103,7 @@ export interface IWindowsService {
 	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
-	showMessageBox(windowId: number, options: Electron.MessageBoxOptions): TPromise<number>;
-	showMessageBoxWithCheckbox(windowId: number, options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult>;
+	showMessageBox(windowId: number, options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult>;
 	showSaveDialog(windowId: number, options: Electron.SaveDialogOptions): TPromise<string>;
 	showOpenDialog(windowId: number, options: Electron.OpenDialogOptions): TPromise<string[]>;
 
@@ -197,10 +196,9 @@ export interface IWindowService {
 	setDocumentEdited(flag: boolean): TPromise<void>;
 	onWindowTitleDoubleClick(): TPromise<void>;
 	show(): TPromise<void>;
-	showMessageBox(options: MessageBoxOptions): TPromise<number>;
+	showMessageBox(options: MessageBoxOptions): TPromise<IMessageBoxResult>;
 	showSaveDialog(options: SaveDialogOptions): TPromise<string>;
 	showOpenDialog(options: OpenDialogOptions): TPromise<string[]>;
-	showMessageBoxWithCheckbox(options: MessageBoxOptions): TPromise<IMessageBoxResult>;
 }
 
 export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden';

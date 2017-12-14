@@ -35,6 +35,7 @@ import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
 import { normalizeNFC } from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
+import { Queue } from 'vs/base/common/async';
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -1425,9 +1426,9 @@ export class WindowsManager implements IWindowsMainService {
 					return; // Return early if the window has been going down already
 				}
 
-				if (result === 0) {
+				if (result.button === 0) {
 					window.reload();
-				} else if (result === 2) {
+				} else if (result.button === 2) {
 					this.onBeforeWindowClose(window); // 'close' event will not be fired on destroy(), so run it manually
 					window.win.destroy(); // make sure to destroy the window as it is unresponsive
 				}
@@ -1448,9 +1449,9 @@ export class WindowsManager implements IWindowsMainService {
 					return; // Return early if the window has been going down already
 				}
 
-				if (result === 0) {
+				if (result.button === 0) {
 					window.reload();
-				} else if (result === 1) {
+				} else if (result.button === 1) {
 					this.onBeforeWindowClose(window); // 'close' event will not be fired on destroy(), so run it manually
 					window.win.destroy(); // make sure to destroy the window as it has crashed
 				}
@@ -1517,12 +1518,8 @@ export class WindowsManager implements IWindowsMainService {
 		this.dialogs.pickAndOpen(internalOptions);
 	}
 
-	public showMessageBox(options: Electron.MessageBoxOptions, win?: CodeWindow): TPromise<number> {
+	public showMessageBox(options: Electron.MessageBoxOptions, win?: CodeWindow): TPromise<IMessageBoxResult> {
 		return this.dialogs.showMessageBox(options, win);
-	}
-
-	public showMessageBoxWithCheckbox(options: Electron.MessageBoxOptions, win?: CodeWindow): TPromise<IMessageBoxResult> {
-		return this.dialogs.showMessageBoxWithCheckbox(options, win);
 	}
 
 	public showSaveDialog(options: Electron.SaveDialogOptions, win?: CodeWindow): TPromise<string> {
@@ -1560,12 +1557,17 @@ class Dialogs {
 
 	private static readonly workingDirPickerStorageKey = 'pickerWorkingDir';
 
+	private mapWindowToDialogQueue: Map<number, Queue<any>>;
+	private noWindowDialogQueue: Queue<any>;
+
 	constructor(
 		private environmentService: IEnvironmentService,
 		private telemetryService: ITelemetryService,
 		private stateService: IStateService,
 		private windowsMainService: IWindowsMainService
 	) {
+		this.mapWindowToDialogQueue = new Map<number, Queue<any>>();
+		this.noWindowDialogQueue = new Queue<any>();
 	}
 
 	public pickAndOpen(options: INativeOpenDialogOptions): void {
@@ -1640,14 +1642,24 @@ class Dialogs {
 		});
 	}
 
-	public showMessageBox(options: Electron.MessageBoxOptions, window?: ICodeWindow): TPromise<number> {
-		return TPromise.wrap(dialog.showMessageBox(window ? window.win : void 0, options));
+	private getDialogQueue(window?: ICodeWindow): Queue<any> {
+		if (!window) {
+			return this.noWindowDialogQueue;
+		}
+
+		let windowDialogQueue = this.mapWindowToDialogQueue.get(window.id);
+		if (!windowDialogQueue) {
+			windowDialogQueue = new Queue<any>();
+			this.mapWindowToDialogQueue.set(window.id, windowDialogQueue);
+		}
+
+		return windowDialogQueue;
 	}
 
-	public showMessageBoxWithCheckbox(options: Electron.MessageBoxOptions, window?: ICodeWindow): TPromise<IMessageBoxResult> {
-		return new TPromise((c, e) => {
-			return dialog.showMessageBox(window ? window.win : void 0, options, (response: number, checkboxChecked: boolean) => {
-				c({ button: response, checkboxChecked });
+	public showMessageBox(options: Electron.MessageBoxOptions, window?: ICodeWindow): TPromise<IMessageBoxResult> {
+		return this.getDialogQueue(window).queue(() => {
+			return new TPromise((c, e) => {
+				dialog.showMessageBox(window ? window.win : void 0, options, (response: number, checkboxChecked: boolean) => c({ button: response, checkboxChecked }));
 			});
 		});
 	}
@@ -1661,7 +1673,11 @@ class Dialogs {
 			return path;
 		}
 
-		return TPromise.wrap(normalizePath(dialog.showSaveDialog(window ? window.win : void 0, options))); // https://github.com/electron/electron/issues/4936
+		return this.getDialogQueue(window).queue(() => {
+			return new TPromise((c, e) => {
+				dialog.showSaveDialog(window ? window.win : void 0, options, path => c(normalizePath(path)));
+			});
+		});
 	}
 
 	public showOpenDialog(options: Electron.OpenDialogOptions, window?: ICodeWindow): TPromise<string[]> {
@@ -1673,7 +1689,11 @@ class Dialogs {
 			return paths;
 		}
 
-		return TPromise.wrap(normalizePaths(dialog.showOpenDialog(window ? window.win : void 0, options))); // https://github.com/electron/electron/issues/4936
+		return this.getDialogQueue(window).queue(() => {
+			return new TPromise((c, e) => {
+				dialog.showOpenDialog(window ? window.win : void 0, options, paths => c(normalizePaths(paths)));
+			});
+		});
 	}
 }
 
@@ -1817,7 +1837,7 @@ class WorkspacesManager {
 		}
 
 		return this.windowsMainService.showMessageBox(options, window).then(res => {
-			switch (buttons[res].result) {
+			switch (buttons[res.button].result) {
 
 				// Cancel: veto unload
 				case ConfirmResult.CANCEL:

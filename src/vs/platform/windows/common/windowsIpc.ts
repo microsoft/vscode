@@ -22,8 +22,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'pickFileAndOpen', arg: INativeOpenDialogOptions): TPromise<void>;
 	call(command: 'pickFolderAndOpen', arg: INativeOpenDialogOptions): TPromise<void>;
 	call(command: 'pickWorkspaceAndOpen', arg: INativeOpenDialogOptions): TPromise<void>;
-	call(command: 'showMessageBox', arg: [number, Electron.MessageBoxOptions]): TPromise<number>;
-	call(command: 'showMessageBoxWithCheckbox', arg: [number, Electron.MessageBoxOptions]): TPromise<IMessageBoxResult>;
+	call(command: 'showMessageBox', arg: [number, Electron.MessageBoxOptions]): TPromise<IMessageBoxResult>;
 	call(command: 'showSaveDialog', arg: [number, Electron.SaveDialogOptions]): TPromise<string>;
 	call(command: 'showOpenDialog', arg: [number, Electron.OpenDialogOptions]): TPromise<string[]>;
 	call(command: 'reloadWindow', arg: number): TPromise<void>;
@@ -89,7 +88,6 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'pickFolderAndOpen': return this.service.pickFolderAndOpen(arg);
 			case 'pickWorkspaceAndOpen': return this.service.pickWorkspaceAndOpen(arg);
 			case 'showMessageBox': return this.service.showMessageBox(arg[0], arg[1]);
-			case 'showMessageBoxWithCheckbox': return this.service.showMessageBoxWithCheckbox(arg[0], arg[1]);
 			case 'showSaveDialog': return this.service.showSaveDialog(arg[0], arg[1]);
 			case 'showOpenDialog': return this.service.showOpenDialog(arg[0], arg[1]);
 			case 'reloadWindow': return this.service.reloadWindow(arg);
@@ -180,12 +178,8 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('pickWorkspaceAndOpen', options);
 	}
 
-	showMessageBox(windowId: number, options: Electron.MessageBoxOptions): TPromise<number> {
+	showMessageBox(windowId: number, options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult> {
 		return this.channel.call('showMessageBox', [windowId, options]);
-	}
-
-	showMessageBoxWithCheckbox(windowId: number, options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult> {
-		return this.channel.call('showMessageBoxWithCheckbox', [windowId, options]);
 	}
 
 	showSaveDialog(windowId: number, options: Electron.SaveDialogOptions): TPromise<string> {

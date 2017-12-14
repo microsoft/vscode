@@ -40,7 +40,7 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 	private showMessageBoxWithCheckbox(opts: Electron.MessageBoxOptions): TPromise<IMessageBoxResult> {
 		opts = this.massageMessageBoxOptions(opts);
 
-		return this.windowService.showMessageBoxWithCheckbox(opts).then(result => {
+		return this.windowService.showMessageBox(opts).then(result => {
 			return {
 				button: isLinux ? opts.buttons.length - result.button - 1 : result.button,
 				checkboxChecked: result.checkboxChecked
@@ -118,7 +118,7 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 	private showMessageBox(opts: Electron.MessageBoxOptions): TPromise<number> {
 		opts = this.massageMessageBoxOptions(opts);
 
-		return this.windowService.showMessageBox(opts).then(result => isLinux ? opts.buttons.length - result - 1 : result);
+		return this.windowService.showMessageBox(opts).then(result => isLinux ? opts.buttons.length - result.button - 1 : result.button);
 	}
 
 	private massageMessageBoxOptions(opts: Electron.MessageBoxOptions): Electron.MessageBoxOptions {

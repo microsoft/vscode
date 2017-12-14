@@ -75,16 +75,10 @@ export class WindowsService implements IWindowsService, IDisposable {
 		return TPromise.as(null);
 	}
 
-	showMessageBox(windowId: number, options: Electron.MessageBoxOptions): TPromise<number> {
+	showMessageBox(windowId: number, options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult> {
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
 		return this.windowsMainService.showMessageBox(options, codeWindow);
-	}
-
-	showMessageBoxWithCheckbox(windowId: number, options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult> {
-		const codeWindow = this.windowsMainService.getWindowById(windowId);
-
-		return this.windowsMainService.showMessageBoxWithCheckbox(options, codeWindow);
 	}
 
 	showSaveDialog(windowId: number, options: Electron.SaveDialogOptions): TPromise<string> {

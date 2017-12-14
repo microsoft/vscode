@@ -120,12 +120,8 @@ export class WindowService implements IWindowService {
 		return this.windowsService.showWindow(this.windowId);
 	}
 
-	showMessageBox(options: Electron.MessageBoxOptions): TPromise<number> {
+	showMessageBox(options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult> {
 		return this.windowsService.showMessageBox(this.windowId, options);
-	}
-
-	showMessageBoxWithCheckbox(options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult> {
-		return this.windowsService.showMessageBoxWithCheckbox(this.windowId, options);
 	}
 
 	showSaveDialog(options: Electron.SaveDialogOptions): TPromise<string> {

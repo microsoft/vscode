@@ -1225,7 +1225,7 @@ export class CodeMenu {
 			buttons,
 			noLink: true
 		}, lastActiveWindow).then(result => {
-			if (isWindows && result === 1) {
+			if (isWindows && result.button === 1) {
 				clipboard.writeText(detail);
 			}
 		});
