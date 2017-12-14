@@ -93,7 +93,7 @@ suite('ExtHostLanguageFeatures', function () {
 				isDirty: false,
 				versionId: model.getVersionId(),
 				modeId: model.getLanguageIdentifier().language,
-				url: model.uri,
+				uri: model.uri,
 				lines: model.getValue().split(model.getEOL()),
 				EOL: model.getEOL(),
 			}]

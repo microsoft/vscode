@@ -42,7 +42,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			addedDocuments: [{
 				isDirty: false,
 				modeId: 'foo',
-				url: resource,
+				uri: resource,
 				versionId: 1,
 				lines: ['foo'],
 				EOL: '\n',

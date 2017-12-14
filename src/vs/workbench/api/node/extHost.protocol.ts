@@ -48,7 +48,6 @@ import { ITreeItem } from 'vs/workbench/common/views';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { SerializedError } from 'vs/base/common/errors';
-import { IWorkspaceFolderData } from 'vs/platform/workspace/common/workspace';
 import { IStat, IFileChange } from 'vs/platform/files/common/files';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
@@ -68,7 +67,7 @@ export interface IEnvironment {
 export interface IWorkspaceData {
 	id: string;
 	name: string;
-	folders: IWorkspaceFolderData[];
+	folders: { uri: UriComponents, name: string, index: number }[];
 }
 
 export interface IInitData {
@@ -437,7 +436,7 @@ export interface ExtHostDocumentContentProvidersShape {
 }
 
 export interface IModelAddedData {
-	url: URI;
+	uri: UriComponents;
 	versionId: number;
 	lines: string[];
 	EOL: string;
@@ -457,7 +456,7 @@ export interface ExtHostDocumentSaveParticipantShape {
 
 export interface ITextEditorAddData {
 	id: string;
-	document: URI;
+	documentUri: UriComponents;
 	options: IResolvedTextEditorConfiguration;
 	selections: ISelection[];
 	editorPosition: EditorPosition;
@@ -493,15 +492,15 @@ export interface ExtHostWorkspaceShape {
 }
 
 export interface ExtHostFileSystemShape {
-	$utimes(handle: number, resource: URI, mtime: number, atime: number): TPromise<IStat>;
-	$stat(handle: number, resource: URI): TPromise<IStat>;
-	$read(handle: number, offset: number, count: number, resource: URI): TPromise<number>;
-	$write(handle: number, resource: URI, content: number[]): TPromise<void>;
-	$unlink(handle: number, resource: URI): TPromise<void>;
-	$move(handle: number, resource: URI, target: URI): TPromise<IStat>;
-	$mkdir(handle: number, resource: URI): TPromise<IStat>;
-	$readdir(handle: number, resource: URI): TPromise<[URI, IStat][]>;
-	$rmdir(handle: number, resource: URI): TPromise<void>;
+	$utimes(handle: number, resource: UriComponents, mtime: number, atime: number): TPromise<IStat>;
+	$stat(handle: number, resource: UriComponents): TPromise<IStat>;
+	$read(handle: number, offset: number, count: number, resource: UriComponents): TPromise<number>;
+	$write(handle: number, resource: UriComponents, content: number[]): TPromise<void>;
+	$unlink(handle: number, resource: UriComponents): TPromise<void>;
+	$move(handle: number, resource: UriComponents, target: UriComponents): TPromise<IStat>;
+	$mkdir(handle: number, resource: UriComponents): TPromise<IStat>;
+	$readdir(handle: number, resource: UriComponents): TPromise<[UriComponents, IStat][]>;
+	$rmdir(handle: number, resource: UriComponents): TPromise<void>;
 	$fileFiles(handle: number, session: number, query: string): TPromise<void>;
 }
 
@@ -568,31 +567,31 @@ export type IWorkspaceSymbol = IdObject & modes.SymbolInformation;
 export interface IWorkspaceSymbols extends IdObject { symbols: IWorkspaceSymbol[]; }
 
 export interface ExtHostLanguageFeaturesShape {
-	$provideDocumentSymbols(handle: number, resource: URI): TPromise<modes.SymbolInformation[]>;
-	$provideCodeLenses(handle: number, resource: URI): TPromise<modes.ICodeLensSymbol[]>;
-	$resolveCodeLens(handle: number, resource: URI, symbol: modes.ICodeLensSymbol): TPromise<modes.ICodeLensSymbol>;
-	$provideDefinition(handle: number, resource: URI, position: IPosition): TPromise<modes.Definition>;
-	$provideImplementation(handle: number, resource: URI, position: IPosition): TPromise<modes.Definition>;
-	$provideTypeDefinition(handle: number, resource: URI, position: IPosition): TPromise<modes.Definition>;
-	$provideHover(handle: number, resource: URI, position: IPosition): TPromise<modes.Hover>;
-	$provideDocumentHighlights(handle: number, resource: URI, position: IPosition): TPromise<modes.DocumentHighlight[]>;
-	$provideReferences(handle: number, resource: URI, position: IPosition, context: modes.ReferenceContext): TPromise<modes.Location[]>;
-	$provideCodeActions(handle: number, resource: URI, range: IRange): TPromise<modes.CodeAction[]>;
-	$provideDocumentFormattingEdits(handle: number, resource: URI, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]>;
-	$provideDocumentRangeFormattingEdits(handle: number, resource: URI, range: IRange, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]>;
-	$provideOnTypeFormattingEdits(handle: number, resource: URI, position: IPosition, ch: string, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]>;
+	$provideDocumentSymbols(handle: number, resource: UriComponents): TPromise<modes.SymbolInformation[]>;
+	$provideCodeLenses(handle: number, resource: UriComponents): TPromise<modes.ICodeLensSymbol[]>;
+	$resolveCodeLens(handle: number, resource: UriComponents, symbol: modes.ICodeLensSymbol): TPromise<modes.ICodeLensSymbol>;
+	$provideDefinition(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.Definition>;
+	$provideImplementation(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.Definition>;
+	$provideTypeDefinition(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.Definition>;
+	$provideHover(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.Hover>;
+	$provideDocumentHighlights(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.DocumentHighlight[]>;
+	$provideReferences(handle: number, resource: UriComponents, position: IPosition, context: modes.ReferenceContext): TPromise<modes.Location[]>;
+	$provideCodeActions(handle: number, resource: UriComponents, range: IRange): TPromise<modes.CodeAction[]>;
+	$provideDocumentFormattingEdits(handle: number, resource: UriComponents, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]>;
+	$provideDocumentRangeFormattingEdits(handle: number, resource: UriComponents, range: IRange, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]>;
+	$provideOnTypeFormattingEdits(handle: number, resource: UriComponents, position: IPosition, ch: string, options: modes.FormattingOptions): TPromise<editorCommon.ISingleEditOperation[]>;
 	$provideWorkspaceSymbols(handle: number, search: string): TPromise<IWorkspaceSymbols>;
 	$resolveWorkspaceSymbol(handle: number, symbol: modes.SymbolInformation): TPromise<IWorkspaceSymbol>;
 	$releaseWorkspaceSymbols(handle: number, id: number): void;
-	$provideRenameEdits(handle: number, resource: URI, position: IPosition, newName: string): TPromise<modes.WorkspaceEdit>;
-	$provideCompletionItems(handle: number, resource: URI, position: IPosition, context: modes.SuggestContext): TPromise<IExtHostSuggestResult>;
-	$resolveCompletionItem(handle: number, resource: URI, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion>;
+	$provideRenameEdits(handle: number, resource: UriComponents, position: IPosition, newName: string): TPromise<modes.WorkspaceEdit>;
+	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.SuggestContext): TPromise<IExtHostSuggestResult>;
+	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, suggestion: modes.ISuggestion): TPromise<modes.ISuggestion>;
 	$releaseCompletionItems(handle: number, id: number): void;
-	$provideSignatureHelp(handle: number, resource: URI, position: IPosition): TPromise<modes.SignatureHelp>;
-	$provideDocumentLinks(handle: number, resource: URI): TPromise<modes.ILink[]>;
+	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.SignatureHelp>;
+	$provideDocumentLinks(handle: number, resource: UriComponents): TPromise<modes.ILink[]>;
 	$resolveDocumentLink(handle: number, link: modes.ILink): TPromise<modes.ILink>;
-	$provideDocumentColors(handle: number, resource: URI): TPromise<IRawColorInfo[]>;
-	$provideColorPresentations(handle: number, resource: URI, colorInfo: IRawColorInfo): TPromise<modes.IColorPresentation[]>;
+	$provideDocumentColors(handle: number, resource: UriComponents): TPromise<IRawColorInfo[]>;
+	$provideColorPresentations(handle: number, resource: UriComponents, colorInfo: IRawColorInfo): TPromise<modes.IColorPresentation[]>;
 }
 
 export interface ExtHostQuickOpenShape {
@@ -686,7 +685,7 @@ export const MainContext = {
 	MainThreadStorage: createMainId<MainThreadStorageShape>('MainThreadStorage'),
 	MainThreadTelemetry: createMainId<MainThreadTelemetryShape>('MainThreadTelemetry'),
 	MainThreadTerminalService: createMainId<MainThreadTerminalServiceShape>('MainThreadTerminalService'),
-	MainThreadWorkspace: createMainId<MainThreadWorkspaceShape>('MainThreadWorkspace', ProxyType.CustomMarshaller),
+	MainThreadWorkspace: createMainId<MainThreadWorkspaceShape>('MainThreadWorkspace'),
 	MainThreadFileSystem: createMainId<MainThreadFileSystemShape>('MainThreadFileSystem'),
 	MainThreadExtensionService: createMainId<MainThreadExtensionServiceShape>('MainThreadExtensionService'),
 	MainThreadSCM: createMainId<MainThreadSCMShape>('MainThreadSCM', ProxyType.CustomMarshaller),
@@ -700,13 +699,13 @@ export const ExtHostContext = {
 	ExtHostDiagnostics: createExtId<ExtHostDiagnosticsShape>('ExtHostDiagnostics'),
 	ExtHostDebugService: createExtId<ExtHostDebugServiceShape>('ExtHostDebugService', ProxyType.CustomMarshaller),
 	ExtHostDecorations: createExtId<ExtHostDecorationsShape>('ExtHostDecorations'),
-	ExtHostDocumentsAndEditors: createExtId<ExtHostDocumentsAndEditorsShape>('ExtHostDocumentsAndEditors', ProxyType.CustomMarshaller),
+	ExtHostDocumentsAndEditors: createExtId<ExtHostDocumentsAndEditorsShape>('ExtHostDocumentsAndEditors'),
 	ExtHostDocuments: createExtId<ExtHostDocumentsShape>('ExtHostDocuments'),
 	ExtHostDocumentContentProviders: createExtId<ExtHostDocumentContentProvidersShape>('ExtHostDocumentContentProviders'),
 	ExtHostDocumentSaveParticipant: createExtId<ExtHostDocumentSaveParticipantShape>('ExtHostDocumentSaveParticipant'),
-	ExtHostEditors: createExtId<ExtHostEditorsShape>('ExtHostEditors', ProxyType.CustomMarshaller),
+	ExtHostEditors: createExtId<ExtHostEditorsShape>('ExtHostEditors'),
 	ExtHostTreeViews: createExtId<ExtHostTreeViewsShape>('ExtHostTreeViews'),
-	ExtHostFileSystem: createExtId<ExtHostFileSystemShape>('ExtHostFileSystem', ProxyType.CustomMarshaller),
+	ExtHostFileSystem: createExtId<ExtHostFileSystemShape>('ExtHostFileSystem'),
 	ExtHostFileSystemEventService: createExtId<ExtHostFileSystemEventServiceShape>('ExtHostFileSystemEventService'),
 	ExtHostHeapService: createExtId<ExtHostHeapServiceShape>('ExtHostHeapMonitor'),
 	ExtHostLanguageFeatures: createExtId<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures', ProxyType.CustomMarshaller),
@@ -715,6 +714,6 @@ export const ExtHostContext = {
 	ExtHostTerminalService: createExtId<ExtHostTerminalServiceShape>('ExtHostTerminalService'),
 	ExtHostSCM: createExtId<ExtHostSCMShape>('ExtHostSCM', ProxyType.CustomMarshaller),
 	ExtHostTask: createExtId<ExtHostTaskShape>('ExtHostTask', ProxyType.CustomMarshaller),
-	ExtHostWorkspace: createExtId<ExtHostWorkspaceShape>('ExtHostWorkspace', ProxyType.CustomMarshaller),
+	ExtHostWorkspace: createExtId<ExtHostWorkspaceShape>('ExtHostWorkspace'),
 	ExtHostWindow: createExtId<ExtHostWindowShape>('ExtHostWindow'),
 };

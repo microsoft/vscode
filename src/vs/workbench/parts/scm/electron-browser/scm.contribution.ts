@@ -23,7 +23,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'v
 
 class OpenSCMViewletAction extends ToggleViewletAction {
 
-	static ID = VIEWLET_ID;
+	static readonly ID = VIEWLET_ID;
 	static LABEL = localize('toggleGitViewlet', "Show Git");
 
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {

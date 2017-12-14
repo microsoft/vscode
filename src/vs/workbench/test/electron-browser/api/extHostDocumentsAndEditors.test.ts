@@ -28,7 +28,7 @@ suite('ExtHostDocumentsAndEditors', () => {
 				EOL: '\n',
 				isDirty: true,
 				modeId: 'fooLang',
-				url: URI.parse('foo:bar'),
+				uri: URI.parse('foo:bar'),
 				versionId: 1,
 				lines: [
 					'first',

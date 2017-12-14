@@ -47,7 +47,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 
 	private static readonly DEFAULT_VISIBLE_OPEN_EDITORS = 9;
 	private static readonly DEFAULT_DYNAMIC_HEIGHT = true;
-	static ID = 'workbench.explorer.openEditorsView';
+	static readonly ID = 'workbench.explorer.openEditorsView';
 	static NAME = nls.localize({ key: 'openEditors', comment: ['Open is an adjective'] }, "Open Editors");
 
 	private model: IEditorStacksModel;
@@ -413,7 +413,7 @@ class OpenEditorsDelegate implements IDelegate<OpenEditor | IEditorGroup> {
 }
 
 class EditorGroupRenderer implements IRenderer<IEditorGroup, IEditorGroupTemplateData> {
-	static ID = 'editorgroup';
+	static readonly ID = 'editorgroup';
 
 	constructor(
 		private keybindingService: IKeybindingService,
@@ -478,7 +478,7 @@ class EditorGroupRenderer implements IRenderer<IEditorGroup, IEditorGroupTemplat
 }
 
 class OpenEditorRenderer implements IRenderer<OpenEditor, IOpenEditorTemplateData> {
-	static ID = 'openeditor';
+	static readonly ID = 'openeditor';
 	public static DRAGGED_OPEN_EDITOR: OpenEditor;
 
 	constructor(
