@@ -51,6 +51,39 @@ class VisibleTextAreaData {
 
 const canUseZeroSizeTextarea = (browser.isEdgeOrIE || browser.isFirefox);
 
+interface LocalClipboardMetadata {
+	lastCopiedValue: string;
+	isFromEmptySelection: boolean;
+}
+
+/**
+ * Every time we write to the clipboard, we record a bit of extra metadata here.
+ * Every time we read from the cipboard, if the text matches our last written text,
+ * we can fetch the previous metadata.
+ */
+class LocalClipboardMetadataManager {
+	public static INSTANCE = new LocalClipboardMetadataManager();
+
+	private _lastState: LocalClipboardMetadata;
+
+	constructor() {
+		this._lastState = null;
+	}
+
+	public set(state: LocalClipboardMetadata): void {
+		this._lastState = state;
+	}
+
+	public get(pastedText: string): LocalClipboardMetadata {
+		if (this._lastState && this._lastState.lastCopiedValue === pastedText) {
+			// match!
+			return this._lastState;
+		}
+		this._lastState = null;
+		return null;
+	}
+}
+
 export class TextAreaHandler extends ViewPart {
 
 	private readonly _viewController: ViewController;
@@ -70,8 +103,6 @@ export class TextAreaHandler extends ViewPart {
 	 */
 	private _visibleTextArea: VisibleTextAreaData;
 	private _selections: Selection[];
-	private _lastCopiedValue: string;
-	private _lastCopiedValueIsFromEmptySelection: boolean;
 
 	public readonly textArea: FastDomNode<HTMLTextAreaElement>;
 	public readonly textAreaCover: FastDomNode<HTMLElement>;
@@ -97,8 +128,6 @@ export class TextAreaHandler extends ViewPart {
 
 		this._visibleTextArea = null;
 		this._selections = [new Selection(1, 1, 1, 1)];
-		this._lastCopiedValue = null;
-		this._lastCopiedValueIsFromEmptySelection = false;
 
 		// Text Area (The focus will always be in the textarea when the cursor is blinking)
 		this.textArea = createFastDomNode(document.createElement('textarea'));
@@ -134,18 +163,15 @@ export class TextAreaHandler extends ViewPart {
 			getPlainTextToCopy: (): string => {
 				const whatToCopy = this._context.model.getPlainTextToCopy(this._selections, this._emptySelectionClipboard);
 
-				if (this._emptySelectionClipboard) {
-					if (browser.isFirefox) {
-						// When writing "LINE\r\n" to the clipboard and then pasting,
-						// Firefox pastes "LINE\n", so let's work around this quirk
-						this._lastCopiedValue = whatToCopy.replace(/\r\n/g, '\n');
-					} else {
-						this._lastCopiedValue = whatToCopy;
-					}
+				// When writing "LINE\r\n" to the clipboard and then pasting,
+				// Firefox pastes "LINE\n", so let's work around this quirk
+				const lastCopiedValue = (browser.isFirefox ? whatToCopy.replace(/\r\n/g, '\n') : whatToCopy);
+				const metadata: LocalClipboardMetadata = {
+					lastCopiedValue: lastCopiedValue,
+					isFromEmptySelection: (this._emptySelectionClipboard && this._selections.length === 1 && this._selections[0].isEmpty())
+				};
 
-					let selections = this._selections;
-					this._lastCopiedValueIsFromEmptySelection = (selections.length === 1 && selections[0].isEmpty());
-				}
+				LocalClipboardMetadataManager.INSTANCE.set(metadata);
 
 				return whatToCopy;
 			},
@@ -199,9 +225,11 @@ export class TextAreaHandler extends ViewPart {
 		}));
 
 		this._register(this._textAreaInput.onPaste((e: IPasteData) => {
+			const metadata = LocalClipboardMetadataManager.INSTANCE.get(e.text);
+
 			let pasteOnNewLine = false;
-			if (this._emptySelectionClipboard) {
-				pasteOnNewLine = (e.text === this._lastCopiedValue && this._lastCopiedValueIsFromEmptySelection);
+			if (metadata) {
+				pasteOnNewLine = (this._emptySelectionClipboard && metadata.isFromEmptySelection);
 			}
 			this._viewController.paste('keyboard', e.text, pasteOnNewLine);
 		}));
