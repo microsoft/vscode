@@ -56,7 +56,7 @@ export class MainThreadDecorations implements MainThreadDecorationsShape {
 
 	$onDidChange(handle: number, resources: UriComponents[]): void {
 		const [emitter] = this._provider.get(handle);
-		emitter.fire(resources.map(URI.revive));
+		emitter.fire(resources && resources.map(URI.revive));
 	}
 
 	$unregisterDecorationProvider(handle: number): void {
