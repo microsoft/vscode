@@ -361,9 +361,10 @@ export class OutputService implements IOutputService {
 	}
 
 	private createInput(channelId: string): ResourceEditorInput {
+		const resource = URI.from({ scheme: OUTPUT_SCHEME, path: channelId });
 		const channelData = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannel(channelId);
-		const resource = URI.from({ scheme: OUTPUT_SCHEME, path: channelData.id });
-		return this.instantiationService.createInstance(ResourceEditorInput, nls.localize('output', "{0} - Output", channelData.label), nls.localize('channel', "Output channel for '{0}'", channelData.label), resource);
+		const label = channelData ? channelData.label : channelId;
+		return this.instantiationService.createInstance(ResourceEditorInput, nls.localize('output', "{0} - Output", label), nls.localize('channel', "Output channel for '{0}'", label), resource);
 	}
 }
 
