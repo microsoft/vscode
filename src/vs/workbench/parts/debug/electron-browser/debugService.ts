@@ -252,7 +252,7 @@ export class DebugService implements debug.IDebugService {
 			return TPromise.as(null);
 		}
 
-		this.focusStackFrameAndEvaluate(stackFrameToFocus).done(null, errors.onUnexpectedError);
+		this.focusStackFrame(stackFrameToFocus);
 		if (thread.stoppedDetails) {
 			this.windowService.focusWindow();
 			aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", thread.stoppedDetails.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.range.startLineNumber));
@@ -320,7 +320,7 @@ export class DebugService implements debug.IDebugService {
 			const threadId = event.body.allThreadsContinued !== false ? undefined : event.body.threadId;
 			this.model.clearThreads(session.getId(), false, threadId);
 			if (this.viewModel.focusedProcess.getId() === session.getId()) {
-				this.focusStackFrameAndEvaluate(null, this.viewModel.focusedProcess).done(null, errors.onUnexpectedError);
+				this.focusStackFrame(undefined, this.viewModel.focusedThread, this.viewModel.focusedProcess);
 			}
 			this.updateStateAndEmit(session.getId(), debug.State.Running);
 		}));
@@ -534,21 +534,34 @@ export class DebugService implements debug.IDebugService {
 		}
 	}
 
-	public focusStackFrameAndEvaluate(stackFrame: debug.IStackFrame, process?: debug.IProcess, explicit?: boolean): TPromise<void> {
+	public focusStackFrame(stackFrame: debug.IStackFrame, thread?: debug.IThread, process?: debug.IProcess, explicit?: boolean): void {
 		if (!process) {
-			const processes = this.model.getProcesses();
-			process = stackFrame ? stackFrame.thread.process : processes.length ? processes[0] : null;
+			if (stackFrame || thread) {
+				process = stackFrame ? stackFrame.thread.process : thread.process;
+			} else {
+				const processes = this.model.getProcesses();
+				process = processes.length ? processes[0] : undefined;
+			}
 		}
+
+		if (!thread) {
+			if (stackFrame) {
+				thread = stackFrame.thread;
+			} else {
+				const threads = process ? process.getAllThreads() : undefined;
+				thread = threads && threads.length ? threads[0] : undefined;
+			}
+		}
+
 		if (!stackFrame) {
-			const threads = process ? process.getAllThreads() : null;
-			const callStack = threads && threads.length === 1 ? threads[0].getCallStack() : null;
-			stackFrame = callStack && callStack.length ? callStack[0] : null;
+			if (thread) {
+				const callStack = thread.getCallStack();
+				stackFrame = callStack && callStack.length ? callStack[0] : null;
+			}
 		}
 
-		this.viewModel.setFocusedStackFrame(stackFrame, process, explicit);
+		this.viewModel.setFocus(stackFrame, thread, process, explicit);
 		this.updateStateAndEmit();
-
-		return this.model.evaluateWatchExpressions(process, stackFrame);
 	}
 
 	public enableOrDisableBreakpoints(enable: boolean, breakpoint?: debug.IEnablement): TPromise<void> {
@@ -612,7 +625,7 @@ export class DebugService implements debug.IDebugService {
 	public addReplExpression(name: string): TPromise<void> {
 		return this.model.addReplExpression(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame, name)
 			// Evaluate all watch expressions and fetch variables again since repl evaluation might have changed some.
-			.then(() => this.focusStackFrameAndEvaluate(this.viewModel.focusedStackFrame, this.viewModel.focusedProcess));
+			.then(() => this.focusStackFrame(this.viewModel.focusedStackFrame, this.viewModel.focusedThread, this.viewModel.focusedProcess));
 	}
 
 	public removeReplExpressions(): void {
@@ -628,11 +641,11 @@ export class DebugService implements debug.IDebugService {
 		}
 	}
 
-	public addWatchExpression(name: string): TPromise<void> {
+	public addWatchExpression(name: string): void {
 		return this.model.addWatchExpression(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame, name);
 	}
 
-	public renameWatchExpression(id: string, newName: string): TPromise<void> {
+	public renameWatchExpression(id: string, newName: string): void {
 		return this.model.renameWatchExpression(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame, id, newName);
 	}
 
@@ -642,10 +655,6 @@ export class DebugService implements debug.IDebugService {
 
 	public removeWatchExpressions(id?: string): void {
 		this.model.removeWatchExpressions(id);
-	}
-
-	public evaluateWatchExpressions(): TPromise<void> {
-		return this.model.evaluateWatchExpressions(this.viewModel.focusedProcess, this.viewModel.focusedStackFrame);
 	}
 
 	public startDebugging(root: IWorkspaceFolder, configOrName?: debug.IConfig | string, noDebug = false, topCompoundName?: string): TPromise<any> {
@@ -686,7 +695,9 @@ export class DebugService implements debug.IDebugService {
 					return TPromise.join(compound.configurations.map(name => name !== compound.name ? this.startDebugging(root, name, noDebug, topCompoundName || compound.name) : TPromise.as(null)));
 				}
 				if (configOrName && !config) {
-					return TPromise.wrapError(new Error(nls.localize('configMissing', "Configuration '{0}' is missing in 'launch.json'.", configOrName)));
+					const message = !!launch ? nls.localize('configMissing', "Configuration '{0}' is missing in 'launch.json'.", configOrName) :
+						nls.localize('launchJsonDoesNotExist', "'launch.json' does not exist.");
+					return TPromise.wrapError(new Error(message));
 				}
 
 				// We keep the debug type in a separate variable 'type' so that a no-folder config has no attributes.
@@ -711,21 +722,22 @@ export class DebugService implements debug.IDebugService {
 				};
 
 				return (type ? TPromise.as(null) : this.configurationManager.guessAdapter().then(a => type = a && a.type)).then(() =>
-					this.configurationManager.resolveConfigurationByProviders(launch ? launch.workspace.uri : undefined, type, config).then(config => {
-						// a falsy config indicates an aborted launch
-						if (config && config.type) {
-							return this.createProcess(root, config, sessionId);
-						}
-						if (launch) {
-							return launch.openConfigFile(false, type).then(editor => undefined);
-						}
+					(type ? this.extensionService.activateByEvent(`onDebugResolve:${type}`) : TPromise.as(null)).then(() =>
+						this.configurationManager.resolveConfigurationByProviders(launch ? launch.workspace.uri : undefined, type, config).then(config => {
+							// a falsy config indicates an aborted launch
+							if (config && config.type) {
+								return this.createProcess(root, config, sessionId);
+							}
+							if (launch) {
+								return launch.openConfigFile(false, type).then(() => undefined);
+							}
 
-						return undefined;
-					})
-				).then(() => wrapUpState(), err => {
-					wrapUpState();
-					return <any>TPromise.wrapError(err);
-				});
+							return undefined;
+						})
+					).then(() => wrapUpState(), err => {
+						wrapUpState();
+						return <any>TPromise.wrapError(err);
+					}));
 			})
 		)));
 	}
@@ -794,8 +806,8 @@ export class DebugService implements debug.IDebugService {
 					return undefined;
 				}
 
-				return this.configurationManager.selectedLaunch.openConfigFile(false).then(openend => {
-					if (openend) {
+				return this.configurationManager.selectedLaunch.openConfigFile(false).then(result => {
+					if (result.configFileCreated) {
 						this.messageService.show(severity.Info, nls.localize('NewLaunchConfig', "Please set up the launch configuration file for your application. {0}", err.message));
 					}
 					return undefined;
@@ -867,8 +879,8 @@ export class DebugService implements debug.IDebugService {
 				if (session.disconnected) {
 					return TPromise.as(null);
 				}
+				this.focusStackFrame(undefined, undefined, process);
 				this._onDidNewProcess.fire(process);
-				this.focusStackFrameAndEvaluate(null, process);
 
 				const internalConsoleOptions = configuration.internalConsoleOptions || this.configurationService.getValue<debug.IDebugConfiguration>('debug').internalConsoleOptions;
 				if (internalConsoleOptions === 'openOnSessionStart' || (this.firstSessionStart && internalConsoleOptions === 'openOnFirstSessionStart')) {
@@ -1009,43 +1021,45 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public restartProcess(process: debug.IProcess, restartData?: any): TPromise<any> {
-		if (process.session.capabilities.supportsRestartRequest) {
-			return this.textFileService.saveAll().then(() => process.session.custom('restart', null));
-		}
-		const focusedProcess = this.viewModel.focusedProcess;
-		const preserveFocus = focusedProcess && process.getId() === focusedProcess.getId();
-
-		return process.session.disconnect(true).then(() => {
-			if (strings.equalsIgnoreCase(process.configuration.type, 'extensionHost')) {
-				return this.broadcastService.broadcast({
-					channel: EXTENSION_RELOAD_BROADCAST_CHANNEL,
-					payload: [process.session.root.uri.fsPath]
-				});
+		return this.textFileService.saveAll().then(() => {
+			if (process.session.capabilities.supportsRestartRequest) {
+				return <TPromise>process.session.custom('restart', null);
 			}
+			const focusedProcess = this.viewModel.focusedProcess;
+			const preserveFocus = focusedProcess && process.getId() === focusedProcess.getId();
 
-			return new TPromise<void>((c, e) => {
-				setTimeout(() => {
-					// Read the configuration again if a launch.json has been changed, if not just use the inmemory configuration
-					let config = process.configuration;
-					if (this.launchJsonChanged && this.configurationManager.selectedLaunch) {
-						this.launchJsonChanged = false;
-						config = this.configurationManager.selectedLaunch.getConfiguration(process.configuration.name) || config;
-						// Take the type from the process since the debug extension might overwrite it #21316
-						config.type = process.configuration.type;
-						config.noDebug = process.configuration.noDebug;
-					}
-					config.__restart = restartData;
-					this.createProcess(process.session.root, config, process.getId()).then(() => c(null), err => e(err));
-				}, 300);
-			});
-		}).then(() => {
-			if (preserveFocus) {
-				// Restart should preserve the focused process
-				const restartedProcess = this.model.getProcesses().filter(p => p.configuration.name === process.configuration.name).pop();
-				if (restartedProcess && restartedProcess !== this.viewModel.focusedProcess) {
-					this.focusStackFrameAndEvaluate(null, restartedProcess);
+			return process.session.disconnect(true).then(() => {
+				if (strings.equalsIgnoreCase(process.configuration.type, 'extensionHost')) {
+					return this.broadcastService.broadcast({
+						channel: EXTENSION_RELOAD_BROADCAST_CHANNEL,
+						payload: [process.session.root.uri.fsPath]
+					});
 				}
-			}
+
+				return new TPromise<void>((c, e) => {
+					setTimeout(() => {
+						// Read the configuration again if a launch.json has been changed, if not just use the inmemory configuration
+						let config = process.configuration;
+						if (this.launchJsonChanged && this.configurationManager.selectedLaunch) {
+							this.launchJsonChanged = false;
+							config = this.configurationManager.selectedLaunch.getConfiguration(process.configuration.name) || config;
+							// Take the type from the process since the debug extension might overwrite it #21316
+							config.type = process.configuration.type;
+							config.noDebug = process.configuration.noDebug;
+						}
+						config.__restart = restartData;
+						this.createProcess(process.session.root, config, process.getId()).then(() => c(null), err => e(err));
+					}, 300);
+				});
+			}).then(() => {
+				if (preserveFocus) {
+					// Restart should preserve the focused process
+					const restartedProcess = this.model.getProcesses().filter(p => p.configuration.name === process.configuration.name).pop();
+					if (restartedProcess && restartedProcess !== this.viewModel.focusedProcess) {
+						this.focusStackFrame(undefined, undefined, restartedProcess);
+					}
+				}
+			});
 		});
 	}
 
@@ -1093,7 +1107,7 @@ export class DebugService implements debug.IDebugService {
 		this.toDisposeOnSessionEnd.set(session.getId(), lifecycle.dispose(this.toDisposeOnSessionEnd.get(session.getId())));
 		const focusedProcess = this.viewModel.focusedProcess;
 		if (focusedProcess && focusedProcess.getId() === session.getId()) {
-			this.focusStackFrameAndEvaluate(null).done(null, errors.onUnexpectedError);
+			this.focusStackFrame(null);
 		}
 		this.updateStateAndEmit(session.getId(), debug.State.Inactive);
 
@@ -1236,8 +1250,11 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	private onFileChanges(fileChangesEvent: FileChangesEvent): void {
-		this.model.removeBreakpoints(this.model.getBreakpoints().filter(bp =>
-			fileChangesEvent.contains(bp.uri, FileChangeType.DELETED)));
+		const toRemove = this.model.getBreakpoints().filter(bp =>
+			fileChangesEvent.contains(bp.uri, FileChangeType.DELETED));
+		if (toRemove.length) {
+			this.model.removeBreakpoints(toRemove);
+		}
 
 		fileChangesEvent.getUpdated().forEach(event => {
 			if (this.breakpointsToSendOnResourceSaved.has(event.resource.toString())) {

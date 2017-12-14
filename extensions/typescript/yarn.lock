@@ -18,16 +18,16 @@ semver@4.3.6:
   version "4.3.6"
   resolved "https://registry.yarnpkg.com/semver/-/semver-4.3.6.tgz#300bc6e0e86374f7ba61068b5b1ecd57fc6532da"
 
-vscode-extension-telemetry@0.0.8:
+vscode-extension-telemetry@^0.0.8:
   version "0.0.8"
   resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.0.8.tgz#2261bff986b6690a6f1f746a45ac5bd1f85d29e0"
   dependencies:
     applicationinsights "0.18.0"
     winreg "1.2.3"
 
-vscode-nls@2.0.1:
-  version "2.0.1"
-  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-2.0.1.tgz#7853866e33f9c50ca415e51b9640d081800e36c6"
+vscode-nls@^2.0.2:
+  version "2.0.2"
+  resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-2.0.2.tgz#808522380844b8ad153499af5c3b03921aea02da"
 
 winreg@1.2.3:
   version "1.2.3"

@@ -26,6 +26,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/parts/terminal/electron-browser/terminalColorRegistry';
+import { DataTransfers } from 'vs/base/browser/dnd';
 
 export class TerminalPanel extends Panel {
 
@@ -256,7 +257,7 @@ export class TerminalPanel extends Panel {
 				}
 
 				// Check if the file was dragged from the tree explorer
-				let uri = e.dataTransfer.getData('URL');
+				let uri = e.dataTransfer.getData(DataTransfers.URL);
 				if (uri) {
 					uri = URI.parse(uri).path;
 				} else if (e.dataTransfer.files.length > 0) {

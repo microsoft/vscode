@@ -30,7 +30,7 @@ export class SuggestMemories {
 		this._storageService.store(`${this._storagePrefix}/${language}`, JSON.stringify(memory), StorageScope.WORKSPACE);
 	}
 
-	select({ language }: LanguageIdentifier, items: ICompletionItem[]): number {
+	select({ language }: LanguageIdentifier, items: ICompletionItem[], last: ICompletionItem): number {
 		let memory = this._data.get(language);
 		if (!memory) {
 			const key: string = `${this._storagePrefix}/${language}`;
@@ -39,15 +39,17 @@ export class SuggestMemories {
 				try {
 					const tuples = <[string, MemoryItem][]>JSON.parse(raw);
 					memory = new SuggestMemory(tuples);
+					last = undefined;
+					this._data.set(language, memory);
 				} catch (e) {
 					this._storageService.remove(key, StorageScope.WORKSPACE);
 				}
 			}
 		}
 		if (memory) {
-			return memory.select(items);
+			return memory.select(items, last);
 		} else {
-			return 0;
+			return -1;
 		}
 	}
 }
@@ -76,8 +78,13 @@ export class SuggestMemory {
 		}
 	}
 
-	select(items: ICompletionItem[]): number {
+	select(items: ICompletionItem[], last: ICompletionItem): number {
 		for (let i = 0; i < items.length; i++) {
+			if (items[i] === last) {
+				// prefer the last selected item when
+				// there is one
+				return i;
+			}
 			if (items[i].word) {
 				const item = this._memory.get(items[i].word);
 				if (this._matches(item, items[i])) {
@@ -85,7 +92,7 @@ export class SuggestMemory {
 				}
 			}
 		}
-		return 0;
+		return -1;
 	}
 
 	private _matches(item: MemoryItem, candidate: ICompletionItem): boolean {

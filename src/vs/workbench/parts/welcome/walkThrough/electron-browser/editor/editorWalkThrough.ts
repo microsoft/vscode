@@ -47,7 +47,7 @@ export class EditorWalkThroughAction extends Action {
 
 export class EditorWalkThroughInputFactory implements IEditorInputFactory {
 
-	static ID = typeId;
+	static readonly ID = typeId;
 
 	public serialize(editorInput: EditorInput): string {
 		return '{}';

@@ -679,7 +679,7 @@ export class BaseDeleteFileAction extends BaseFileAction {
 		}
 
 		// Handle dirty
-		let revertPromise: TPromise<any> = TPromise.as(null);
+		let confirmDirtyPromise: TPromise<boolean> = TPromise.as(true);
 		const dirty = this.textFileService.getDirty().filter(d => resources.isEqualOrParent(d, this.element.resource, !isLinux /* ignorecase */));
 		if (dirty.length) {
 			let message: string;
@@ -693,33 +693,37 @@ export class BaseDeleteFileAction extends BaseFileAction {
 				message = nls.localize('dirtyMessageFileDelete', "You are deleting a file with unsaved changes. Do you want to continue?");
 			}
 
-			const res = this.messageService.confirmSync({
+			confirmDirtyPromise = this.messageService.confirm({
 				message,
 				type: 'warning',
 				detail: nls.localize('dirtyWarning', "Your changes will be lost if you don't save them."),
 				primaryButton
+			}).then(confirmed => {
+				if (!confirmed) {
+					return false;
+				}
+
+				this.skipConfirm = true; // since we already asked for confirmation
+				return this.textFileService.revertAll(dirty).then(() => true);
 			});
-
-			if (!res) {
-				return TPromise.as(null);
-			}
-
-			this.skipConfirm = true; // since we already asked for confirmation
-			revertPromise = this.textFileService.revertAll(dirty);
 		}
 
 		// Check if file is dirty in editor and save it to avoid data loss
-		return revertPromise.then(() => {
-			let confirmPromise: TPromise<IConfirmationResult>;
+		return confirmDirtyPromise.then(confirmed => {
+			if (!confirmed) {
+				return null;
+			}
+
+			let confirmDeletePromise: TPromise<IConfirmationResult>;
 
 			// Check if we need to ask for confirmation at all
 			if (this.skipConfirm || (this.useTrash && this.configurationService.getValue<boolean>(BaseDeleteFileAction.CONFIRM_DELETE_SETTING_KEY) === false)) {
-				confirmPromise = TPromise.as({ confirmed: true } as IConfirmationResult);
+				confirmDeletePromise = TPromise.as({ confirmed: true } as IConfirmationResult);
 			}
 
 			// Confirm for moving to trash
 			else if (this.useTrash) {
-				confirmPromise = this.messageService.confirm({
+				confirmDeletePromise = this.messageService.confirmWithCheckbox({
 					message: this.element.isDirectory ? nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", this.element.name) : nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", this.element.name),
 					detail: isWindows ? nls.localize('undoBin', "You can restore from the recycle bin.") : nls.localize('undoTrash', "You can restore from the trash."),
 					primaryButton,
@@ -732,7 +736,7 @@ export class BaseDeleteFileAction extends BaseFileAction {
 
 			// Confirm for deleting permanently
 			else {
-				confirmPromise = this.messageService.confirm({
+				confirmDeletePromise = this.messageService.confirmWithCheckbox({
 					message: this.element.isDirectory ? nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", this.element.name) : nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", this.element.name),
 					detail: nls.localize('irreversible', "This action is irreversible!"),
 					primaryButton,
@@ -740,7 +744,7 @@ export class BaseDeleteFileAction extends BaseFileAction {
 				});
 			}
 
-			return confirmPromise.then(confirmation => {
+			return confirmDeletePromise.then(confirmation => {
 
 				// Check for confirmation checkbox
 				let updateConfirmSettingsPromise: TPromise<void> = TPromise.as(void 0);
@@ -850,7 +854,7 @@ export class ImportFileAction extends BaseFileAction {
 						targetNames[isLinux ? child.name : child.name.toLowerCase()] = child;
 					});
 
-					let overwrite = true;
+					let overwritePromise = TPromise.as(true);
 					if (resources.some(resource => {
 						return !!targetNames[isLinux ? paths.basename(resource.fsPath) : paths.basename(resource.fsPath).toLowerCase()];
 					})) {
@@ -861,41 +865,43 @@ export class ImportFileAction extends BaseFileAction {
 							type: 'warning'
 						};
 
-						overwrite = this.messageService.confirmSync(confirm);
+						overwritePromise = this.messageService.confirm(confirm);
 					}
 
-					if (!overwrite) {
-						return void 0;
-					}
+					return overwritePromise.then(overwrite => {
+						if (!overwrite) {
+							return void 0;
+						}
 
-					// Run import in sequence
-					const importPromisesFactory: ITask<TPromise<void>>[] = [];
-					resources.forEach(resource => {
-						importPromisesFactory.push(() => {
-							const sourceFile = resource;
-							const targetFile = targetElement.resource.with({ path: paths.join(targetElement.resource.path, paths.basename(sourceFile.path)) });
+						// Run import in sequence
+						const importPromisesFactory: ITask<TPromise<void>>[] = [];
+						resources.forEach(resource => {
+							importPromisesFactory.push(() => {
+								const sourceFile = resource;
+								const targetFile = targetElement.resource.with({ path: paths.join(targetElement.resource.path, paths.basename(sourceFile.path)) });
 
-							// if the target exists and is dirty, make sure to revert it. otherwise the dirty contents
-							// of the target file would replace the contents of the imported file. since we already
-							// confirmed the overwrite before, this is OK.
-							let revertPromise = TPromise.wrap(null);
-							if (this.textFileService.isDirty(targetFile)) {
-								revertPromise = this.textFileService.revertAll([targetFile], { soft: true });
-							}
+								// if the target exists and is dirty, make sure to revert it. otherwise the dirty contents
+								// of the target file would replace the contents of the imported file. since we already
+								// confirmed the overwrite before, this is OK.
+								let revertPromise = TPromise.wrap(null);
+								if (this.textFileService.isDirty(targetFile)) {
+									revertPromise = this.textFileService.revertAll([targetFile], { soft: true });
+								}
 
-							return revertPromise.then(() => {
-								return this.fileService.importFile(sourceFile, targetElement.resource).then(res => {
+								return revertPromise.then(() => {
+									return this.fileService.importFile(sourceFile, targetElement.resource).then(res => {
 
-									// if we only import one file, just open it directly
-									if (resources.length === 1) {
-										this.editorService.openEditor({ resource: res.stat.resource, options: { pinned: true } }).done(null, errors.onUnexpectedError);
-									}
-								}, error => this.onError(error));
+										// if we only import one file, just open it directly
+										if (resources.length === 1) {
+											this.editorService.openEditor({ resource: res.stat.resource, options: { pinned: true } }).done(null, errors.onUnexpectedError);
+										}
+									}, error => this.onError(error));
+								});
 							});
 						});
-					});
 
-					return sequence(importPromisesFactory);
+						return sequence(importPromisesFactory);
+					});
 				});
 			}
 
@@ -1141,7 +1147,9 @@ export class OpenToSideAction extends Action {
 	public run(): TPromise<any> {
 
 		// Remove highlight
-		this.tree.clearHighlight();
+		if (this.tree) {
+			this.tree.clearHighlight();
+		}
 
 		// Set side input
 		return this.editorService.openEditor({
@@ -1668,7 +1676,8 @@ export class RevertFileAction extends Action {
 		id: string,
 		label: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@ITextFileService private textFileService: ITextFileService
+		@ITextFileService private textFileService: ITextFileService,
+		@IMessageService private messageService: IMessageService
 	) {
 		super(id, label);
 
@@ -1688,7 +1697,9 @@ export class RevertFileAction extends Action {
 		}
 
 		if (resource && resource.scheme !== 'untitled') {
-			return this.textFileService.revert(resource, { force: true });
+			return this.textFileService.revert(resource, { force: true }).then(null, error => {
+				this.messageService.show(Severity.Error, nls.localize('genericRevertError', "Failed to revert '{0}': {1}", paths.basename(resource.fsPath), toErrorMessage(error, false)));
+			});
 		}
 
 		return TPromise.as(true);
@@ -1713,7 +1724,7 @@ export class FocusOpenEditorsView extends Action {
 			const openEditorsView = viewlet.getOpenEditorsView();
 			if (openEditorsView) {
 				openEditorsView.setExpanded(true);
-				openEditorsView.getViewer().DOMFocus();
+				openEditorsView.getList().domFocus();
 			}
 		});
 	}

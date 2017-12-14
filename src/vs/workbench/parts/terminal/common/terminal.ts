@@ -350,16 +350,6 @@ export interface ITerminalInstance {
 	setVisible(visible: boolean): void;
 
 	/**
-	 * Attach a listener to the data stream from the terminal's pty process.
-	 *
-	 * @param listener The listener function which takes the processes' data stream (including
-	 * ANSI escape sequences).
-	 *
-	 * @deprecated onLineData will replace this.
-	 */
-	onData(listener: (data: string) => void): IDisposable;
-
-	/**
 	 * Attach a listener to listen for new lines added to this terminal instance.
 	 *
 	 * @param listener The listener function which takes new line strings added to the terminal,

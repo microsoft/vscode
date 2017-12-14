@@ -80,8 +80,7 @@
 		{
 			"name": "Object keys, TS grammar specific",
 			"scope": [
-				"meta.object-literal.key",
-				"meta.object-literal.key entity.name.function"
+				"meta.object-literal.key"
 			],
 			"settings": {
 				"foreground": "#9CDCFE"

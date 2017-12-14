@@ -214,12 +214,12 @@ export class TestTextFileService extends TextFileService {
 		});
 	}
 
-	public promptForPath(defaultPath?: string): string {
-		return this.promptPath;
+	public promptForPath(defaultPath: string): TPromise<string> {
+		return TPromise.wrap(this.promptPath);
 	}
 
-	public confirmSave(resources?: URI[]): ConfirmResult {
-		return this.confirmResult;
+	public confirmSave(resources?: URI[]): TPromise<ConfirmResult> {
+		return TPromise.wrap(this.confirmResult);
 	}
 
 	public onFilesConfigurationChange(configuration: any): void {
@@ -328,11 +328,11 @@ export class TestMessageService implements IMessageService {
 		// No-op
 	}
 
-	public confirmSync(confirmation: IConfirmation): boolean {
-		return false;
+	public confirm(confirmation: IConfirmation): TPromise<boolean> {
+		return TPromise.wrap(false);
 	}
 
-	public confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
+	public confirmWithCheckbox(confirmation: IConfirmation): Promise<IConfirmationResult> {
 		return TPromise.as({ confirmed: false });
 	}
 }
@@ -831,7 +831,7 @@ export class TestBackupFileService implements IBackupFileService {
 	public loadBackupResource(resource: URI): TPromise<URI> {
 		return this.hasBackup(resource).then(hasBackup => {
 			if (hasBackup) {
-				return this.getBackupResource(resource);
+				return this.toBackupResource(resource);
 			}
 
 			return void 0;
@@ -846,7 +846,7 @@ export class TestBackupFileService implements IBackupFileService {
 		return TPromise.as(void 0);
 	}
 
-	public getBackupResource(resource: URI): URI {
+	public toBackupResource(resource: URI): URI {
 		return null;
 	}
 
@@ -961,20 +961,20 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
-	showMessageBoxSync(options: Electron.MessageBoxOptions): number {
-		return 0;
+	showMessageBox(options: Electron.MessageBoxOptions): TPromise<number> {
+		return TPromise.wrap(0);
 	}
 
-	showMessageBox(options: Electron.MessageBoxOptions): Promise<IMessageBoxResult> {
+	showMessageBoxWithCheckbox(options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult> {
 		return TPromise.as(void 0);
 	}
 
-	showSaveDialog(options: Electron.SaveDialogOptions, callback?: (fileName: string) => void): string {
-		return void 0;
+	showSaveDialog(options: Electron.SaveDialogOptions): TPromise<string> {
+		return TPromise.wrap(void 0);
 	}
 
-	showOpenDialog(options: Electron.OpenDialogOptions, callback?: (fileNames: string[]) => void): string[] {
-		return void 0;
+	showOpenDialog(options: Electron.OpenDialogOptions): TPromise<string[]> {
+		return TPromise.wrap(void 0);
 	}
 
 	updateTouchBar(items: ICommandAction[][]): Promise<void> {

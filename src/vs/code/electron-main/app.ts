@@ -109,7 +109,7 @@ export class CodeApplication {
 		});
 
 		app.on('will-quit', () => {
-			this.logService.log('App#will-quit: disposing resources');
+			this.logService.trace('App#will-quit: disposing resources');
 
 			this.dispose();
 		});
@@ -121,7 +121,7 @@ export class CodeApplication {
 		});
 
 		app.on('activate', (event: Event, hasVisibleWindows: boolean) => {
-			this.logService.log('App#activate');
+			this.logService.trace('App#activate');
 
 			// Mac only event: open new window when we get activated
 			if (!hasVisibleWindows && this.windowsMainService) {
@@ -156,7 +156,7 @@ export class CodeApplication {
 		let macOpenFiles: string[] = [];
 		let runningTimeout: number = null;
 		app.on('open-file', (event: Event, path: string) => {
-			this.logService.log('App#open-file: ', path);
+			this.logService.trace('App#open-file: ', path);
 			event.preventDefault();
 
 			// Keep in array because more might come!
@@ -188,7 +188,7 @@ export class CodeApplication {
 		});
 
 		ipc.on('vscode:exit', (_event: any, code: number) => {
-			this.logService.log('IPC#vscode:exit', code);
+			this.logService.trace('IPC#vscode:exit', code);
 
 			this.dispose();
 			this.lifecycleService.kill(code);
@@ -211,7 +211,7 @@ export class CodeApplication {
 
 		ipc.on('vscode:broadcast', (_event: any, windowId: number, broadcast: { channel: string; payload: any; }) => {
 			if (this.windowsMainService && broadcast.channel && !isUndefinedOrNull(broadcast.payload)) {
-				this.logService.log('IPC#vscode:broadcast', broadcast.channel, broadcast.payload);
+				this.logService.trace('IPC#vscode:broadcast', broadcast.channel, broadcast.payload);
 
 				// Handle specific events on main side
 				this.onBroadcast(broadcast.channel, broadcast.payload);
@@ -241,9 +241,9 @@ export class CodeApplication {
 	}
 
 	public startup(): TPromise<void> {
-		this.logService.log('Starting VS Code in verbose mode');
-		this.logService.log(`from: ${this.environmentService.appRoot}`);
-		this.logService.log('args:', this.environmentService.args);
+		this.logService.debug('Starting VS Code');
+		this.logService.debug(`from: ${this.environmentService.appRoot}`);
+		this.logService.debug('args:', this.environmentService.args);
 
 		// Make sure we associate the program with the app user model id
 		// This will help Windows to associate the running program with
@@ -257,14 +257,14 @@ export class CodeApplication {
 		this.electronIpcServer = new ElectronIPCServer();
 
 		// Resolve unique machine ID
-		this.logService.log('Resolving machine identifier...');
+		this.logService.trace('Resolving machine identifier...');
 		return this.resolveMachineId().then(machineId => {
-			this.logService.log(`Resolved machine identifier: ${machineId}`);
+			this.logService.trace(`Resolved machine identifier: ${machineId}`);
 
 			// Spawn shared process
 			this.sharedProcess = new SharedProcess(this.environmentService, machineId, this.userEnv);
 			this.toDispose.push(this.sharedProcess);
-			this.sharedProcessClient = this.sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
+			this.sharedProcessClient = TPromise.timeout(5000).then(() => this.sharedProcess.whenReady()).then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
 
 			// Services
 			const appInstantiationService = this.initServices(machineId);

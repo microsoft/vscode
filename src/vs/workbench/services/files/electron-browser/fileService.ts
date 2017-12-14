@@ -24,6 +24,8 @@ import Event, { Emitter } from 'vs/base/common/event';
 
 import { shell } from 'electron';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { isMacintosh } from 'vs/base/common/platform';
+import product from 'vs/platform/node/product';
 
 export class FileService implements IFileService {
 
@@ -70,7 +72,12 @@ export class FileService implements IFileService {
 			encodingOverride: this.getEncodingOverrides(),
 			watcherIgnoredPatterns,
 			verboseLogging: environmentService.verbose,
-			useExperimentalFileWatcher: configuration.files.useExperimentalFileWatcher
+			useExperimentalFileWatcher: configuration.files.useExperimentalFileWatcher,
+			elevationSupport: {
+				cliPath: this.environmentService.cliPath,
+				promptTitle: this.environmentService.appNameLong,
+				promptIcnsPath: (isMacintosh && this.environmentService.isBuilt) ? paths.join(paths.dirname(this.environmentService.appRoot), `${product.nameShort}.icns`) : void 0
+			}
 		};
 
 		// create service
@@ -89,6 +96,8 @@ export class FileService implements IFileService {
 	}
 
 	private onFileServiceError(msg: string): void {
+
+		// Forward to unexpected error handler
 		errors.onUnexpectedError(msg);
 
 		// Detect if we run < .NET Framework 4.5

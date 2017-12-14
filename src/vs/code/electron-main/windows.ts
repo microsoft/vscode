@@ -45,19 +45,11 @@ interface INewWindowState extends ISingleWindowState {
 	hasDefaultState?: boolean;
 }
 
-interface ILegacyWindowState extends IWindowState {
-	workspacePath?: string;
-}
-
 interface IWindowState {
 	workspace?: IWorkspaceIdentifier;
 	folderPath?: string;
 	backupPath: string;
 	uiState: ISingleWindowState;
-}
-
-interface ILegacyWindowsState extends IWindowsState {
-	openedFolders?: IWindowState[];
 }
 
 interface IWindowsState {
@@ -151,39 +143,12 @@ export class WindowsManager implements IWindowsMainService {
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this.windowsState = this.stateService.getItem<IWindowsState>(WindowsManager.windowsStateStorageKey) || { openedWindows: [] };
+		if (!Array.isArray(this.windowsState.openedWindows)) {
+			this.windowsState.openedWindows = [];
+		}
 
 		this.fileDialog = new FileDialog(environmentService, telemetryService, stateService, this);
 		this.workspacesManager = new WorkspacesManager(workspacesMainService, backupMainService, environmentService, this);
-
-		this.migrateLegacyWindowState();
-	}
-
-	private migrateLegacyWindowState(): void {
-		const state: ILegacyWindowsState = this.windowsState;
-
-		// TODO@Ben migration from previous openedFolders to new openedWindows property
-		if (Array.isArray(state.openedFolders) && state.openedFolders.length > 0) {
-			state.openedWindows = state.openedFolders;
-			state.openedFolders = void 0;
-		} else if (!state.openedWindows) {
-			state.openedWindows = [];
-		}
-
-		// TODO@Ben migration from previous workspacePath in window state to folderPath
-		const states: ILegacyWindowState[] = [];
-		states.push(state.lastActiveWindow);
-		states.push(state.lastPluginDevelopmentHostWindow);
-		states.push(...state.openedWindows);
-		states.forEach(state => {
-			if (!state) {
-				return;
-			}
-
-			if (typeof state.workspacePath === 'string') {
-				state.folderPath = state.workspacePath;
-				state.workspacePath = void 0;
-			}
-		});
 	}
 
 	public ready(initialUserEnv: IProcessEnvironment): void {
@@ -203,7 +168,7 @@ export class WindowsManager implements IWindowsMainService {
 
 		// React to workbench loaded events from windows
 		ipc.on('vscode:workbenchLoaded', (_event: any, windowId: number) => {
-			this.logService.log('IPC#vscode-workbenchLoaded');
+			this.logService.trace('IPC#vscode-workbenchLoaded');
 
 			const win = this.getWindowById(windowId);
 			if (win) {
@@ -277,7 +242,7 @@ export class WindowsManager implements IWindowsMainService {
 	// 	- closeAll(2): onBeforeWindowClose(2, false), onBeforeWindowClose(2, false), onBeforeQuit(0)
 	//
 	private onBeforeQuit(): void {
-		const currentWindowsState: ILegacyWindowsState = {
+		const currentWindowsState: IWindowsState = {
 			openedWindows: [],
 			lastPluginDevelopmentHostWindow: this.windowsState.lastPluginDevelopmentHostWindow,
 			lastActiveWindow: this.lastClosedWindowState
@@ -940,10 +905,6 @@ export class WindowsManager implements IWindowsMainService {
 			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 			restoreWindows = ((windowConfig && windowConfig.restoreWindows) || 'one') as RestoreWindowsSetting;
 
-			if (restoreWindows === 'one' /* default */ && windowConfig && windowConfig.reopenFolders) {
-				restoreWindows = windowConfig.reopenFolders; // TODO@Ben migration from deprecated window.reopenFolders setting
-			}
-
 			if (['all', 'folders', 'one', 'none'].indexOf(restoreWindows) === -1) {
 				restoreWindows = 'one';
 			}
@@ -1457,48 +1418,48 @@ export class WindowsManager implements IWindowsMainService {
 
 		// Unresponsive
 		if (error === WindowError.UNRESPONSIVE) {
-			dialog.showMessageBox(window.win, {
+			const result = dialog.showMessageBox(window.win, {
 				title: product.nameLong,
 				type: 'warning',
 				buttons: [mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")), mnemonicButtonLabel(localize({ key: 'wait', comment: ['&& denotes a mnemonic'] }, "&&Keep Waiting")), mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
 				message: localize('appStalled', "The window is no longer responding"),
 				detail: localize('appStalledDetail', "You can reopen or close the window or keep waiting."),
 				noLink: true
-			}, result => {
-				if (!window.win) {
-					return; // Return early if the window has been going down already
-				}
-
-				if (result === 0) {
-					window.reload();
-				} else if (result === 2) {
-					this.onBeforeWindowClose(window); // 'close' event will not be fired on destroy(), so run it manually
-					window.win.destroy(); // make sure to destroy the window as it is unresponsive
-				}
 			});
+
+			if (!window.win) {
+				return; // Return early if the window has been going down already
+			}
+
+			if (result === 0) {
+				window.reload();
+			} else if (result === 2) {
+				this.onBeforeWindowClose(window); // 'close' event will not be fired on destroy(), so run it manually
+				window.win.destroy(); // make sure to destroy the window as it is unresponsive
+			}
 		}
 
 		// Crashed
 		else {
-			dialog.showMessageBox(window.win, {
+			const result = dialog.showMessageBox(window.win, {
 				title: product.nameLong,
 				type: 'warning',
 				buttons: [mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")), mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
 				message: localize('appCrashed', "The window has crashed"),
 				detail: localize('appCrashedDetail', "We are sorry for the inconvenience! You can reopen the window to continue where you left off."),
 				noLink: true
-			}, result => {
-				if (!window.win) {
-					return; // Return early if the window has been going down already
-				}
-
-				if (result === 0) {
-					window.reload();
-				} else if (result === 1) {
-					this.onBeforeWindowClose(window); // 'close' event will not be fired on destroy(), so run it manually
-					window.win.destroy(); // make sure to destroy the window as it has crashed
-				}
 			});
+
+			if (!window.win) {
+				return; // Return early if the window has been going down already
+			}
+
+			if (result === 0) {
+				window.reload();
+			} else if (result === 1) {
+				this.onBeforeWindowClose(window); // 'close' event will not be fired on destroy(), so run it manually
+				window.win.destroy(); // make sure to destroy the window as it has crashed
+			}
 		}
 	}
 
@@ -1654,21 +1615,20 @@ class FileDialog {
 
 		// Show Dialog
 		const focusedWindow = this.windowsMainService.getWindowById(options.windowId) || this.windowsMainService.getFocusedWindow();
-		dialog.showOpenDialog(focusedWindow && focusedWindow.win, options.dialogOptions, paths => {
-			if (paths && paths.length > 0) {
-				if (isMacintosh) {
-					paths = paths.map(path => normalizeNFC(path)); // normalize paths returned from the OS
-				}
-
-				// Remember path in storage for next time
-				this.stateService.setItem(FileDialog.workingDirPickerStorageKey, dirname(paths[0]));
-
-				// Return
-				return clb(paths);
+		let paths = dialog.showOpenDialog(focusedWindow && focusedWindow.win, options.dialogOptions);
+		if (paths && paths.length > 0) {
+			if (isMacintosh) {
+				paths = paths.map(path => normalizeNFC(path)); // normalize paths returned from the OS
 			}
 
-			return clb(void (0));
-		});
+			// Remember path in storage for next time
+			this.stateService.setItem(FileDialog.workingDirPickerStorageKey, dirname(paths[0]));
+
+			// Return
+			return clb(paths);
+		}
+
+		return clb(void (0));
 	}
 }
 

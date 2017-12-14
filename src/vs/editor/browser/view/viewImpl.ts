@@ -472,8 +472,8 @@ export class View extends ViewEventHandler {
 		return this.outgoingEvents;
 	}
 
-	public createOverviewRuler(cssClassName: string, minimumHeight: number, maximumHeight: number): OverviewRuler {
-		return new OverviewRuler(this._context, cssClassName, minimumHeight, maximumHeight);
+	public createOverviewRuler(cssClassName: string): OverviewRuler {
+		return new OverviewRuler(this._context, cssClassName);
 	}
 
 	public change(callback: (changeAccessor: editorBrowser.IViewZoneChangeAccessor) => any): boolean {

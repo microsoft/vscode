@@ -42,6 +42,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { clipboard } from 'electron';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
+import { memoize } from 'vs/base/common/decorators';
 
 const $ = dom.$;
 
@@ -73,7 +74,7 @@ export class Repl extends Panel implements IPrivateReplService {
 
 	private tree: ITree;
 	private renderer: ReplExpressionsRenderer;
-	private characterWidthSurveyor: HTMLElement;
+	private container: HTMLElement;
 	private treeContainer: HTMLElement;
 	private replInput: ReplInputEditor;
 	private replInputContainer: HTMLElement;
@@ -128,16 +129,9 @@ export class Repl extends Panel implements IPrivateReplService {
 
 	public create(parent: Builder): TPromise<void> {
 		super.create(parent);
-		const container = dom.append(parent.getHTMLElement(), $('.repl'));
-		this.treeContainer = dom.append(container, $('.repl-tree'));
-		this.createReplInput(container);
-
-		this.characterWidthSurveyor = dom.append(container, $('.surveyor'));
-		this.characterWidthSurveyor.textContent = Repl.HALF_WIDTH_TYPICAL;
-		for (let i = 0; i < 10; i++) {
-			this.characterWidthSurveyor.textContent += this.characterWidthSurveyor.textContent;
-		}
-		this.characterWidthSurveyor.style.fontSize = isMacintosh ? '12px' : '14px';
+		this.container = dom.append(parent.getHTMLElement(), $('.repl'));
+		this.treeContainer = dom.append(this.container, $('.repl-tree'));
+		this.createReplInput(this.container);
 
 		this.renderer = this.instantiationService.createInstance(ReplExpressionsRenderer);
 		const controller = this.instantiationService.createInstance(ReplExpressionsController, new ReplExpressionsActionProvider(this.instantiationService), MenuId.DebugConsoleContext);
@@ -242,7 +236,7 @@ export class Repl extends Panel implements IPrivateReplService {
 	public layout(dimension: Dimension): void {
 		this.dimension = dimension;
 		if (this.tree) {
-			this.renderer.setWidth(dimension.width - 25, this.characterWidthSurveyor.clientWidth / this.characterWidthSurveyor.textContent.length);
+			this.renderer.setWidth(dimension.width - 25, this.characterWidth);
 			const treeHeight = dimension.height - this.replInputHeight;
 			this.treeContainer.style.height = `${treeHeight}px`;
 			this.tree.layout(treeHeight);
@@ -250,6 +244,18 @@ export class Repl extends Panel implements IPrivateReplService {
 		this.replInputContainer.style.height = `${this.replInputHeight}px`;
 
 		this.replInput.layout({ width: dimension.width - 20, height: this.replInputHeight });
+	}
+
+	@memoize
+	private get characterWidth(): number {
+		const characterWidthSurveyor = dom.append(this.container, $('.surveyor'));
+		characterWidthSurveyor.textContent = Repl.HALF_WIDTH_TYPICAL;
+		for (let i = 0; i < 10; i++) {
+			characterWidthSurveyor.textContent += characterWidthSurveyor.textContent;
+		}
+		characterWidthSurveyor.style.fontSize = isMacintosh ? '12px' : '14px';
+
+		return characterWidthSurveyor.clientWidth / characterWidthSurveyor.textContent.length;
 	}
 
 	public focus(): void {

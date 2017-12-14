@@ -103,14 +103,22 @@ export class SuggestController implements IEditorContribution {
 			}
 			this._widget.showTriggered(e.auto);
 		}));
+		let lastSelectedItem: ICompletionItem;
+		this._toDispose.push(this._model.onDidSuggest(e => {
+			let index = this._memory.select(this._editor.getModel().getLanguageIdentifier(), e.completionModel.items, lastSelectedItem);
+			if (index >= 0) {
+				lastSelectedItem = e.completionModel.items[index];
+			} else {
+				index = 0;
+				lastSelectedItem = undefined;
+			}
+			this._widget.showSuggestions(e.completionModel, index, e.isFrozen, e.auto);
+		}));
 		this._toDispose.push(this._model.onDidCancel(e => {
 			if (this._widget && !e.retrigger) {
 				this._widget.hideWidget();
+				lastSelectedItem = undefined;
 			}
-		}));
-		this._toDispose.push(this._model.onDidSuggest(e => {
-			let index = this._memory.select(this._editor.getModel().getLanguageIdentifier(), e.completionModel.items);
-			this._widget.showSuggestions(e.completionModel, index, e.isFrozen, e.auto);
 		}));
 
 		// Manage the acceptSuggestionsOnEnter context key
@@ -185,7 +193,7 @@ export class SuggestController implements IEditorContribution {
 		}
 	}
 
-	private _onDidSelectItem(item: ICompletionItem): void {
+	protected _onDidSelectItem(item: ICompletionItem): void {
 		if (!item) {
 			this._model.cancel();
 			return;

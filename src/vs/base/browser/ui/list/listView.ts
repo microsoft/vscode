@@ -18,6 +18,7 @@ import { isWindows } from 'vs/base/common/platform';
 import * as browser from 'vs/base/browser/browser';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { memoize } from 'vs/base/common/decorators';
+import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
 
 function canUseTranslate3d(): boolean {
 	if (browser.isFirefox) {
@@ -71,6 +72,9 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private rowsContainer: HTMLElement;
 	private scrollableElement: ScrollableElement;
 	private splicing = false;
+	private dragAndDropScrollInterval: number;
+	private dragAndDropScrollTimeout: number;
+	private dragAndDropMouseY: number;
 	private disposables: IDisposable[];
 
 	constructor(
@@ -113,6 +117,9 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		this.scrollableElement.onScroll(this.onScroll, this, this.disposables);
 		domEvent(this.rowsContainer, TouchEventType.Change)(this.onTouchChange, this, this.disposables);
+
+		const onDragOver = mapEvent(domEvent(this.rowsContainer, 'dragover'), e => new DragMouseEvent(e));
+		onDragOver(this.onDragOver, this, this.disposables);
 
 		this.layout();
 	}
@@ -359,6 +366,58 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		event.stopPropagation();
 
 		this.scrollTop -= event.translationY;
+	}
+
+	private onDragOver(event: DragMouseEvent): void {
+		this.setupDragAndDropScrollInterval();
+		this.dragAndDropMouseY = event.posy;
+	}
+
+	private setupDragAndDropScrollInterval(): void {
+		var viewTop = DOM.getTopLeftOffset(this._domNode).top;
+
+		if (!this.dragAndDropScrollInterval) {
+			this.dragAndDropScrollInterval = window.setInterval(() => {
+				if (this.dragAndDropMouseY === undefined) {
+					return;
+				}
+
+				var diff = this.dragAndDropMouseY - viewTop;
+				var scrollDiff = 0;
+				var upperLimit = this.renderHeight - 35;
+
+				if (diff < 35) {
+					scrollDiff = Math.max(-14, 0.2 * (diff - 35));
+				} else if (diff > upperLimit) {
+					scrollDiff = Math.min(14, 0.2 * (diff - upperLimit));
+				}
+
+				this.scrollTop += scrollDiff;
+			}, 10);
+
+			this.cancelDragAndDropScrollTimeout();
+
+			this.dragAndDropScrollTimeout = window.setTimeout(() => {
+				this.cancelDragAndDropScrollInterval();
+				this.dragAndDropScrollTimeout = null;
+			}, 1000);
+		}
+	}
+
+	private cancelDragAndDropScrollInterval(): void {
+		if (this.dragAndDropScrollInterval) {
+			window.clearInterval(this.dragAndDropScrollInterval);
+			this.dragAndDropScrollInterval = null;
+		}
+
+		this.cancelDragAndDropScrollTimeout();
+	}
+
+	private cancelDragAndDropScrollTimeout(): void {
+		if (this.dragAndDropScrollTimeout) {
+			window.clearTimeout(this.dragAndDropScrollTimeout);
+			this.dragAndDropScrollTimeout = null;
+		}
 	}
 
 	// Util

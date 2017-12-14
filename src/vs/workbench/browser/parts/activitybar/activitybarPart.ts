@@ -18,7 +18,7 @@ import { Part } from 'vs/workbench/browser/part';
 import { GlobalActivityActionItem, GlobalActivityAction, ViewletActivityAction, ToggleViewletAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
-import { IPartService, Position as SideBarPosition } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Parts, Position as SideBarPosition } from 'vs/workbench/services/part/common/partService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -39,6 +39,7 @@ export class ActivitybarPart extends Part {
 		badgeForeground: ACTIVITY_BAR_BADGE_FOREGROUND,
 		dragAndDropBackground: ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND
 	};
+	private static readonly ACTION_HEIGHT = 50;
 
 	public _serviceBrand: any;
 
@@ -72,7 +73,7 @@ export class ActivitybarPart extends Part {
 			getDefaultCompositeId: () => this.viewletService.getDefaultViewletId(),
 			hidePart: () => this.partService.setSideBarHidden(true),
 			colors: ActivitybarPart.COLORS,
-			overflowActionSize: 50
+			overflowActionSize: ActivitybarPart.ACTION_HEIGHT
 		});
 		this.registerListeners();
 	}
@@ -87,9 +88,9 @@ export class ActivitybarPart extends Part {
 		this.toUnbind.push(this.compositeBar.onDidContextMenu(e => this.showContextMenu(e)));
 	}
 
-	public showActivity(viewletOrActionId: string, badge: IBadge, clazz?: string): IDisposable {
+	public showActivity(viewletOrActionId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable {
 		if (this.viewletService.getViewlet(viewletOrActionId)) {
-			return this.compositeBar.showActivity(viewletOrActionId, badge, clazz);
+			return this.compositeBar.showActivity(viewletOrActionId, badge, clazz, priority);
 		}
 
 		return this.showGlobalActivity(viewletOrActionId, badge);
@@ -184,6 +185,9 @@ export class ActivitybarPart extends Part {
 	 * Layout title, content and status area in the given dimension.
 	 */
 	public layout(dimension: Dimension): Dimension[] {
+		if (!this.partService.isVisible(Parts.ACTIVITYBAR_PART)) {
+			return [dimension];
+		}
 
 		// Pass to super
 		const sizes = super.layout(dimension);
@@ -193,7 +197,7 @@ export class ActivitybarPart extends Part {
 		let availableHeight = this.dimension.height;
 		if (this.globalActionBar) {
 			// adjust height for global actions showing
-			availableHeight -= (this.globalActionBar.items.length * this.globalActionBar.domNode.clientHeight);
+			availableHeight -= (this.globalActionBar.items.length * ActivitybarPart.ACTION_HEIGHT);
 		}
 		this.compositeBar.layout(new Dimension(dimension.width, availableHeight));
 

@@ -38,6 +38,7 @@ import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/commo
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IEditorInputFactory, EditorInput } from 'vs/workbench/common/editor';
+import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 
 used();
 
@@ -341,7 +342,7 @@ class WelcomePage {
 		this.updateInstalledExtensions(container, installedExtensions);
 		this.disposables.push(this.instantiationService.invokeFunction(onExtensionChanged)(ids => {
 			for (const id of ids) {
-				if (container.querySelector(`.installExtension[data-extension="${id}"], .enabledExtension[data-extension="${id}"]`)) {
+				if (container.querySelector(`.installExtension[data-extension="${stripVersion(id.id)}"], .enabledExtension[data-extension="${stripVersion(id.id)}"]`)) {
 					const installedExtensions = this.instantiationService.invokeFunction(getInstalledExtensions);
 					this.updateInstalledExtensions(container, installedExtensions);
 					break;
@@ -398,7 +399,7 @@ class WelcomePage {
 			extensionId: extensionSuggestion.id,
 		});
 		this.instantiationService.invokeFunction(getInstalledExtensions).then(extensions => {
-			const installedExtension = arrays.first(extensions, extension => extension.identifier.id === extensionSuggestion.id);
+			const installedExtension = arrays.first(extensions, extension => stripVersion(extension.identifier.id) === extensionSuggestion.id);
 			if (installedExtension && installedExtension.globallyEnabled) {
 				/* __GDPR__FRAGMENT__
 					"WelcomePageInstalled-1" : {
@@ -415,18 +416,18 @@ class WelcomePage {
 				this.messageService.show(Severity.Info, strings.alreadyInstalled.replace('{0}', extensionSuggestion.name));
 				return;
 			}
-			const foundAndInstalled = installedExtension ? TPromise.as(true) : this.extensionGalleryService.query({ names: [extensionSuggestion.id], source: telemetryFrom })
+			const foundAndInstalled = installedExtension ? TPromise.as(installedExtension.identifier) : this.extensionGalleryService.query({ names: [extensionSuggestion.id], source: telemetryFrom })
 				.then(result => {
 					const [extension] = result.firstPage;
 					if (!extension) {
-						return false;
+						return null;
 					}
 					return this.extensionManagementService.installFromGallery(extension)
 						.then(() => {
 							// TODO: Do this as part of the install to avoid multiple events.
-							return this.extensionEnablementService.setEnablement({ id: extensionSuggestion.id }, EnablementState.Disabled);
+							return this.extensionEnablementService.setEnablement(extension.identifier, EnablementState.Disabled);
 						}).then(() => {
-							return true;
+							return extension.identifier;
 						});
 				});
 			this.messageService.show(Severity.Info, {
@@ -444,10 +445,10 @@ class WelcomePage {
 							.map(extension => {
 								return this.extensionEnablementService.setEnablement(extension.identifier, EnablementState.Disabled);
 							}) : []).then(() => {
-								return foundAndInstalled.then(found => {
+								return foundAndInstalled.then(foundExtension => {
 									messageDelay.cancel();
-									if (found) {
-										return this.extensionEnablementService.setEnablement({ id: extensionSuggestion.id }, EnablementState.Enabled)
+									if (foundExtension) {
+										return this.extensionEnablementService.setEnablement(foundExtension, EnablementState.Enabled)
 											.then(() => {
 												/* __GDPR__FRAGMENT__
 													"WelcomePageInstalled-2" : {
@@ -558,7 +559,7 @@ class WelcomePage {
 				elements[i].classList.remove('installed');
 			}
 			extensions.filter(ext => ext.globallyEnabled)
-				.map(ext => ext.identifier)
+				.map(ext => stripVersion(ext.identifier.id))
 				.forEach(id => {
 					const install = container.querySelectorAll(`.installExtension[data-extension="${id}"]`);
 					for (let i = 0; i < install.length; i++) {
@@ -577,10 +578,14 @@ class WelcomePage {
 	}
 }
 
+function stripVersion(id: string): string {
+	return getIdAndVersionFromLocalExtensionId(id).id;
+}
+
 
 export class WelcomeInputFactory implements IEditorInputFactory {
 
-	static ID = welcomeInputTypeId;
+	static readonly ID = welcomeInputTypeId;
 
 	public serialize(editorInput: EditorInput): string {
 		return '{}';

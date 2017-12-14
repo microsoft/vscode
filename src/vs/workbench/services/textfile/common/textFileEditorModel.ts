@@ -145,8 +145,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					// We have received reports of users seeing delete events even though the file still
 					// exists (network shares issue: https://github.com/Microsoft/vscode/issues/13665).
 					// Since we do not want to mark the model as orphaned, we have to check if the
-					// file is really gone and not just a faulty file event (TODO@Ben revisit when we
-					// have a more stable file watcher in place for this scenario).
+					// file is really gone and not just a faulty file event.
 					checkOrphanedPromise = TPromise.timeout(100).then(() => {
 						if (this.disposed) {
 							return true;
@@ -713,7 +712,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				overwriteEncoding: options.overwriteEncoding,
 				mtime: this.lastResolvedDiskStat.mtime,
 				encoding: this.getEncoding(),
-				etag: this.lastResolvedDiskStat.etag
+				etag: this.lastResolvedDiskStat.etag,
+				writeElevated: options.writeElevated
 			}).then(stat => {
 				diag(`doSave(${versionId}) - after updateContent()`, this.resource, new Date());
 

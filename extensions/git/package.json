@@ -518,7 +518,7 @@
         {
           "command": "git.init",
           "group": "navigation",
-          "when": "config.git.enabled && !scmProvider && gitOpenRepositoryCount == 0"
+          "when": "config.git.enabled && !scmProvider && gitOpenRepositoryCount == 0 && workspaceFolderCount != 0"
         },
         {
           "command": "git.commit",
@@ -827,6 +827,11 @@
           "description": "%config.path%",
           "default": null,
           "isExecutable": true
+        },
+        "git.autoRepositoryDetection": {
+          "type": "boolean",
+          "description": "%config.autoRepositoryDetection%",
+          "default": true
         },
         "git.autorefresh": {
           "type": "boolean",

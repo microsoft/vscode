@@ -56,6 +56,7 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common
 import { getPathLabel } from 'vs/base/common/labels';
 import { extractResources } from 'vs/workbench/browser/editor';
 import { relative } from 'path';
+import { DataTransfers } from 'vs/base/browser/dnd';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -793,10 +794,10 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		// Apply some datatransfer types to allow for dragging the element outside of the application
 		if (source) {
 			if (!source.isDirectory) {
-				originalEvent.dataTransfer.setData('DownloadURL', [MIME_BINARY, source.name, source.resource.toString()].join(':'));
+				originalEvent.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, source.name, source.resource.toString()].join(':'));
 			}
 
-			originalEvent.dataTransfer.setData('text/plain', getPathLabel(source.resource));
+			originalEvent.dataTransfer.setData(DataTransfers.TEXT, getPathLabel(source.resource));
 		}
 	}
 
@@ -913,18 +914,22 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			if (folders.length > 0) {
 
 				// If we are in no-workspace context, ask for confirmation to create a workspace
-				let confirmed = true;
+				let confirmedPromise = TPromise.wrap(true);
 				if (this.contextService.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
-					confirmed = this.messageService.confirmSync({
+					confirmedPromise = this.messageService.confirm({
 						message: folders.length > 1 ? nls.localize('dropFolders', "Do you want to add the folders to the workspace?") : nls.localize('dropFolder', "Do you want to add the folder to the workspace?"),
 						type: 'question',
 						primaryButton: folders.length > 1 ? nls.localize('addFolders', "&&Add Folders") : nls.localize('addFolder', "&&Add Folder")
 					});
 				}
 
-				if (confirmed) {
-					return this.workspaceEditingService.addFolders(folders);
-				}
+				return confirmedPromise.then(confirmed => {
+					if (confirmed) {
+						return this.workspaceEditingService.addFolders(folders);
+					}
+
+					return void 0;
+				});
 			}
 
 			// Handle dropped files (only support FileStat as target)
@@ -947,7 +952,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		// Handle confirm setting
 		const confirmDragAndDrop = !isCopy && this.configurationService.getValue<boolean>(FileDragAndDrop.CONFIRM_DND_SETTING_KEY);
 		if (confirmDragAndDrop) {
-			confirmPromise = this.messageService.confirm({
+			confirmPromise = this.messageService.confirmWithCheckbox({
 				message: nls.localize('confirmMove', "Are you sure you want to move '{0}'?", source.name),
 				checkbox: {
 					label: nls.localize('doNotAskAgain', "Do not ask me again")
@@ -1039,18 +1044,20 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 							};
 
 							// Move with overwrite if the user confirms
-							if (this.messageService.confirmSync(confirm)) {
-								const targetDirty = this.textFileService.getDirty().filter(d => resources.isEqualOrParent(d, targetResource, !isLinux /* ignorecase */));
+							return this.messageService.confirm(confirm).then(confirmed => {
+								if (confirmed) {
+									const targetDirty = this.textFileService.getDirty().filter(d => resources.isEqualOrParent(d, targetResource, !isLinux /* ignorecase */));
 
-								// Make sure to revert all dirty in target first to be able to overwrite properly
-								return this.textFileService.revertAll(targetDirty, { soft: true /* do not attempt to load content from disk */ }).then(() => {
+									// Make sure to revert all dirty in target first to be able to overwrite properly
+									return this.textFileService.revertAll(targetDirty, { soft: true /* do not attempt to load content from disk */ }).then(() => {
 
-									// Then continue to do the move operation
-									return this.fileService.moveFile(source.resource, targetResource, true).then(onSuccess, error => onError(error, true));
-								});
-							}
+										// Then continue to do the move operation
+										return this.fileService.moveFile(source.resource, targetResource, true).then(onSuccess, error => onError(error, true));
+									});
+								}
 
-							return onError();
+								return onError();
+							});
 						}
 
 						return onError(error, true);

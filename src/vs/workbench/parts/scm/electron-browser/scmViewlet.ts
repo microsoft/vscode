@@ -8,7 +8,7 @@
 import 'vs/css!./media/scmViewlet';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import Event, { Emitter, chain, mapEvent } from 'vs/base/common/event';
+import Event, { Emitter, chain, mapEvent, anyEvent } from 'vs/base/common/event';
 import { domEvent, stop } from 'vs/base/browser/event';
 import { basename } from 'vs/base/common/paths';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -45,7 +45,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
-import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { IMessage, InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Command } from 'vs/editor/common/modes';
@@ -696,7 +696,8 @@ export class RepositoryPanel extends ViewletPanel {
 		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IEditorGroupService protected editorGroupService: IEditorGroupService,
 		@IContextKeyService protected contextKeyService: IContextKeyService,
-		@IInstantiationService protected instantiationService: IInstantiationService
+		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IConfigurationService protected configurationService: IConfigurationService
 	) {
 		super(repository.provider.label, {}, keybindingService, contextMenuService);
 		this.menus = instantiationService.createInstance(SCMMenus, repository.provider);
@@ -754,9 +755,62 @@ export class RepositoryPanel extends ViewletPanel {
 			this.inputBox.setPlaceHolder(placeholder);
 		};
 
-		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, { flexibleHeight: true });
+		const validation = (text: string): IMessage => {
+			const setting = this.configurationService.getValue<'always' | 'warn' | 'off'>('scm.inputCounter');
+
+			if (setting === 'off') {
+				return null;
+			}
+
+			let position = this.inputBox.inputElement.selectionStart;
+			let start = 0, end;
+			let match: RegExpExecArray;
+			const regex = /\r?\n/g;
+
+			while ((match = regex.exec(text)) && position > match.index) {
+				start = match.index + match[0].length;
+			}
+
+			end = match ? match.index : text.length;
+
+			const line = text.substring(start, end);
+
+			const lineWarningLength = this.repository.input.lineWarningLength;
+
+			if (lineWarningLength === undefined) {
+				return {
+					content: localize('commitMessageInfo', "{0} characters in current line", text.length),
+					type: MessageType.INFO
+				};
+			}
+
+			if (line.length <= lineWarningLength) {
+				if (setting !== 'always') {
+					return null;
+				}
+
+				return {
+					content: localize('commitMessageCountdown', "{0} characters left in current line", lineWarningLength - line.length),
+					type: MessageType.INFO
+				};
+			} else {
+				return {
+					content: localize('commitMessageWarning', "{0} characters over {1} in current line", line.length - lineWarningLength, lineWarningLength),
+					type: MessageType.WARNING
+				};
+			}
+		};
+
+		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, {
+			flexibleHeight: true,
+			validationOptions: { validation: validation }
+		});
 		this.disposables.push(attachInputBoxStyler(this.inputBox, this.themeService));
 		this.disposables.push(this.inputBox);
+
+		const onKeyUp = domEvent(this.inputBox.inputElement, 'keyup');
+		const onMouseUp = domEvent(this.inputBox.inputElement, 'mouseup');
+		anyEvent<any>(onKeyUp, onMouseUp)(() => this.inputBox.validate(), null, this.disposables);
 
 		this.inputBox.value = this.repository.input.value;
 		this.inputBox.onDidChange(value => this.repository.input.value = value, null, this.disposables);

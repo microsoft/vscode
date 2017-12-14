@@ -9,6 +9,12 @@
         },
         {
             type: 'label',
+            name: '*dev-question',
+            action: 'close',
+            comment: "We have a great developer community [over on slack](https://aka.ms/vscode-dev-community) where extension authors help each other. This is a great place for you to ask questions and find support.\n\nHappy Coding!"
+        },
+        {
+            type: 'label',
             name: '*extension-candidate',
             action: 'close',
             comment: "We try to keep VS Code lean and we think the functionality you're asking for is great for a VS Code extension. Maybe you can already find one that suits you in the [VS Code Marketplace](https://aka.ms/vscodemarketplace). Just in case, in a few simple steps you can get started [writing your own extension](https://aka.ms/vscodewritingextensions). See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"

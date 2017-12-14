@@ -15,6 +15,9 @@ import * as os from 'os';
 import * as fs from 'fs';
 import { whenDeleted } from 'vs/base/node/pfs';
 import { findFreePort } from 'vs/base/node/ports';
+import { resolveTerminalEncoding } from 'vs/base/node/encoding';
+import * as iconv from 'iconv-lite';
+import { writeFileAndFlushSync } from 'vs/base/node/extfs';
 
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 	return !!argv['install-source']
@@ -37,14 +40,49 @@ export async function main(argv: string[]): TPromise<any> {
 		return TPromise.as(null);
 	}
 
+	// Help
 	if (args.help) {
 		console.log(buildHelpMessage(product.nameLong, product.applicationName, pkg.version));
-	} else if (args.version) {
+	}
+
+	// Version Info
+	else if (args.version) {
 		console.log(`${pkg.version}\n${product.commit}\n${process.arch}`);
-	} else if (shouldSpawnCliProcess(args)) {
+	}
+
+	// Extensions Management
+	else if (shouldSpawnCliProcess(args)) {
 		const mainCli = new TPromise<IMainCli>(c => require(['vs/code/node/cliProcessMain'], c));
 		return mainCli.then(cli => cli.main(args));
-	} else {
+	}
+
+	// Write Elevated
+	else if (args['write-elevated-helper']) {
+		const source = args._[0];
+		const target = args._[1];
+
+		// Validate
+		if (
+			!source || !target || source === target ||					// make sure source and target are provided and are not the same
+			!paths.isAbsolute(source) || !paths.isAbsolute(target) ||	// make sure both source and target are absolute paths
+			!fs.existsSync(source) || !fs.statSync(source).isFile() ||	// make sure source exists as file
+			!fs.existsSync(target) || !fs.statSync(target).isFile()		// make sure target exists as file
+		) {
+			return TPromise.wrapError(new Error('Using --write-elevated-helper with invalid arguments.'));
+		}
+
+		// Write source to target
+		try {
+			writeFileAndFlushSync(target, fs.readFileSync(source));
+		} catch (error) {
+			return TPromise.wrapError(new Error(`Using --write-elevated-helper resulted in an error: ${error}`));
+		}
+
+		return TPromise.as(null);
+	}
+
+	// Just Code
+	else {
 		const env = assign({}, process.env, {
 			// this will signal Code that it was spawned from this module
 			'VSCODE_CLI': '1',
@@ -55,7 +93,9 @@ export async function main(argv: string[]): TPromise<any> {
 
 		let processCallbacks: ((child: ChildProcess) => Thenable<any>)[] = [];
 
-		if (args.verbose) {
+		const verbose = args.verbose || args.status;
+
+		if (verbose) {
 			env['ELECTRON_ENABLE_LOGGING'] = '1';
 
 			processCallbacks.push(child => {
@@ -68,7 +108,7 @@ export async function main(argv: string[]): TPromise<any> {
 
 		// If we are running with input from stdin, pipe that into a file and
 		// open this file via arguments. Ignore this when we are passed with
-		// paths to open. 
+		// paths to open.
 		let isReadingFromStdin: boolean;
 		try {
 			isReadingFromStdin = args._.length === 0 && !process.stdin.isTTY; // Via https://twitter.com/MylesBorins/status/782009479382626304
@@ -79,12 +119,15 @@ export async function main(argv: string[]): TPromise<any> {
 		let stdinFilePath: string;
 		if (isReadingFromStdin) {
 			let stdinFileError: Error;
-			stdinFilePath = paths.join(os.tmpdir(), `stdin-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 6)}.txt`);
+			stdinFilePath = paths.join(os.tmpdir(), `code-stdin-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 3)}.txt`);
 			try {
+				const stdinFileStream = fs.createWriteStream(stdinFilePath);
+				resolveTerminalEncoding(verbose).done(encoding => {
 
-				// Pipe into tmp file
-				process.stdin.setEncoding('utf8');
-				process.stdin.pipe(fs.createWriteStream(stdinFilePath));
+					// Pipe into tmp file using terminals encoding
+					const converterStream = iconv.decodeStream(encoding);
+					process.stdin.pipe(converterStream).pipe(stdinFileStream);
+				});
 
 				// Make sure to open tmp file
 				argv.push(stdinFilePath);
@@ -97,7 +140,7 @@ export async function main(argv: string[]): TPromise<any> {
 				stdinFileError = error;
 			}
 
-			if (args.verbose) {
+			if (verbose) {
 				if (stdinFileError) {
 					console.error(`Failed to create file to read via stdin: ${stdinFileError.toString()}`);
 				} else {
@@ -122,7 +165,7 @@ export async function main(argv: string[]): TPromise<any> {
 				waitMarkerError = error;
 			}
 
-			if (args.verbose) {
+			if (verbose) {
 				if (waitMarkerError) {
 					console.error(`Failed to create marker file for --wait: ${waitMarkerError.toString()}`);
 				} else {
@@ -195,7 +238,7 @@ export async function main(argv: string[]): TPromise<any> {
 			env
 		};
 
-		if (!args.verbose) {
+		if (!verbose) {
 			options['stdio'] = 'ignore';
 		}
 

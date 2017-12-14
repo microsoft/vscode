@@ -48,11 +48,14 @@ const options: minimist.Opts = {
 		'show-versions',
 		'nolazy',
 		'skip-getting-started',
+		'skip-release-notes',
 		'sticky-quickopen',
 		'disable-telemetry',
 		'disable-updates',
 		'disable-crash-reporter',
-		'skip-add-to-recently-opened'
+		'skip-add-to-recently-opened',
+		'status',
+		'write-elevated-helper'
 	],
 	alias: {
 		add: 'a',
@@ -61,6 +64,7 @@ const options: minimist.Opts = {
 		wait: 'w',
 		diff: 'd',
 		goto: 'g',
+		status: 's',
 		'new-window': 'n',
 		'reuse-window': 'r',
 		performance: 'p',
@@ -136,6 +140,7 @@ export const optionsHelp: { [name: string]: string; } = {
 	'--inspect-brk-extensions': localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection uri."),
 	'-r, --reuse-window': localize('reuseWindow', "Force opening a file or folder in the last active window."),
 	'--user-data-dir <dir>': localize('userDataDir', "Specifies the directory that user data is kept in, useful when running as root."),
+	'--log <level>': localize('log', "Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'."),
 	'--verbose': localize('verbose', "Print verbose output (implies --wait)."),
 	'-w, --wait': localize('wait', "Wait for the files to be closed before returning."),
 	'--extensions-dir <dir>': localize('extensionHomePath', "Set the root path for extensions."),
@@ -146,6 +151,7 @@ export const optionsHelp: { [name: string]: string; } = {
 	'--enable-proposed-api <extension-id>': localize('experimentalApis', "Enables proposed api features for an extension."),
 	'--disable-extensions': localize('disableExtensions', "Disable all installed extensions."),
 	'--disable-gpu': localize('disableGPU', "Disable GPU hardware acceleration."),
+	'-s, --status': localize('status', "Print process usage and diagnostics information."),
 	'-v, --version': localize('version', "Print version."),
 	'-h, --help': localize('help', "Print usage.")
 };

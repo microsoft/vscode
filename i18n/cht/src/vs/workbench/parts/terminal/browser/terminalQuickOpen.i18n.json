@@ -6,7 +6,7 @@
 {
 	"termEntryAriaLabel": "{0} , 終端機選擇器",
 	"termCreateEntryAriaLabel": "{0}，建立新的終端機",
-	"'workbench.action.terminal.newplus": "$(plus) 建立新的整合式終端機",
+	"workbench.action.terminal.newplus": "$(plus) 建立新的整合式終端機",
 	"noTerminalsMatching": "無相符的終端機",
 	"noTerminalsFound": "無開啟的終端機"
 }

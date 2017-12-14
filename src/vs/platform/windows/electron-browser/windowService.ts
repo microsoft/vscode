@@ -123,11 +123,11 @@ export class WindowService implements IWindowService {
 		return this.windowsService.showWindow(this.windowId);
 	}
 
-	showMessageBoxSync(options: Electron.MessageBoxOptions): number {
-		return remote.dialog.showMessageBox(remote.getCurrentWindow(), options);
+	showMessageBox(options: Electron.MessageBoxOptions): TPromise<number> {
+		return TPromise.wrap(remote.dialog.showMessageBox(remote.getCurrentWindow(), options));
 	}
 
-	showMessageBox(options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult> {
+	showMessageBoxWithCheckbox(options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult> {
 		return new TPromise((c, e) => {
 			return remote.dialog.showMessageBox(remote.getCurrentWindow(), options, (response: number, checkboxChecked: boolean) => {
 				c({ button: response, checkboxChecked });
@@ -135,7 +135,7 @@ export class WindowService implements IWindowService {
 		});
 	}
 
-	showSaveDialog(options: Electron.SaveDialogOptions, callback?: (fileName: string) => void): string {
+	showSaveDialog(options: Electron.SaveDialogOptions): TPromise<string> {
 
 		function normalizePath(path: string): string {
 			if (path && isMacintosh) {
@@ -145,14 +145,10 @@ export class WindowService implements IWindowService {
 			return path;
 		}
 
-		if (callback) {
-			return remote.dialog.showSaveDialog(remote.getCurrentWindow(), options, path => callback(normalizePath(path)));
-		}
-
-		return normalizePath(remote.dialog.showSaveDialog(remote.getCurrentWindow(), options)); // https://github.com/electron/electron/issues/4936
+		return TPromise.wrap(normalizePath(remote.dialog.showSaveDialog(remote.getCurrentWindow(), options))); // https://github.com/electron/electron/issues/4936
 	}
 
-	showOpenDialog(options: Electron.OpenDialogOptions, callback?: (fileNames: string[]) => void): string[] {
+	showOpenDialog(options: Electron.OpenDialogOptions): TPromise<string[]> {
 
 		function normalizePaths(paths: string[]): string[] {
 			if (paths && paths.length > 0 && isMacintosh) {
@@ -162,11 +158,7 @@ export class WindowService implements IWindowService {
 			return paths;
 		}
 
-		if (callback) {
-			return remote.dialog.showOpenDialog(remote.getCurrentWindow(), options, paths => callback(normalizePaths(paths)));
-		}
-
-		return normalizePaths(remote.dialog.showOpenDialog(remote.getCurrentWindow(), options)); // https://github.com/electron/electron/issues/4936
+		return TPromise.wrap(normalizePaths(remote.dialog.showOpenDialog(remote.getCurrentWindow(), options))); // https://github.com/electron/electron/issues/4936
 	}
 
 	updateTouchBar(items: ICommandAction[][]): TPromise<void> {

@@ -31,6 +31,7 @@
 	"minimap.maxColumn": "Limitar el ancho del minimapa para presentar como mucho un número de columnas determinado",
 	"find.seedSearchStringFromSelection": "Controla si se inicializa la cadena de búsqueda en Buscar widget en la selección del editor",
 	"find.autoFindInSelection": "Controla si el indicador Buscar en selección se activa cuando se seleccionan varios caracteres o líneas de texto en el editor",
+	"find.globalFindClipboard": "Controla si el widget de búsqueda debería leer o modificar el portapapeles de busqueda compartido en macOS",
 	"wordWrap.off": "Las líneas no se ajustarán nunca.",
 	"wordWrap.on": "Las líneas se ajustarán en el ancho de la ventanilla.",
 	"wordWrap.wordWrapColumn": "Las líneas se ajustarán en \"editor.wordWrapColumn\".",
@@ -93,8 +94,8 @@
 	"links": "Controla si el editor debe detectar enlaces y hacerlos cliqueables",
 	"colorDecorators": "Controla si el editor debe representar el Selector de colores y los elementos Decorator de color en línea.",
 	"codeActions": "Permite que el foco de acción del código",
+	"selectionClipboard": "Controla si el portapapeles principal de Linux debe admitirse.",
 	"sideBySide": "Controla si el editor de diferencias muestra las diferencias en paralelo o alineadas.",
 	"ignoreTrimWhitespace": "Controla si el editor de diferencias muestra los cambios de espacio inicial o espacio final como diferencias.",
-	"renderIndicators": "Controla si el editor de diff muestra indicadores +/- para cambios agregados/quitados",
-	"selectionClipboard": "Controla si el portapapeles principal de Linux debe admitirse."
+	"renderIndicators": "Controla si el editor de diff muestra indicadores +/- para cambios agregados/quitados"
 }

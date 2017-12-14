@@ -28,6 +28,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import * as pfs from 'vs/base/node/pfs';
 import * as os from 'os';
 import { flatten, distinct } from 'vs/base/common/arrays';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 interface IExtensionsContent {
 	recommendations: string[];
@@ -43,9 +44,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	private _fileBasedRecommendations: { [id: string]: number; } = Object.create(null);
 	private _exeBasedRecommendations: { [id: string]: string; } = Object.create(null);
 	private _availableRecommendations: { [pattern: string]: string[] } = Object.create(null);
-	private importantRecommendations: { [id: string]: { name: string; pattern: string; } } = Object.create(null);
-	private importantRecommendationsIgnoreList: string[];
-	private _allRecommendations: string[] = [];
 	private _disposables: IDisposable[] = [];
 
 	private _allWorkspaceRecommendedExtensions: string[] = [];
@@ -61,16 +59,16 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IMessageService private messageService: IMessageService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super();
 
-		if (!this._galleryService.isEnabled()) {
+		if (!this._galleryService.isEnabled() || this.environmentService.extensionDevelopmentPath) {
 			return;
 		}
 
-
-		this._suggestTips();
+		this._suggestFileBasedRecommendations();
 		this._suggestWorkspaceRecommendations();
 
 		// Executable based recommendations carry out a lot of file stats, so run them after 10 secs
@@ -136,7 +134,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		const fileBased = Object.keys(this._fileBasedRecommendations)
 			.sort((a, b) => {
 				if (this._fileBasedRecommendations[a] === this._fileBasedRecommendations[b]) {
-					if (product.extensionImportantTips[a]) {
+					if (!product.extensionImportantTips || product.extensionImportantTips[a]) {
 						return -1;
 					}
 					if (product.extensionImportantTips[b]) {
@@ -152,19 +150,15 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		return Object.keys(this._exeBasedRecommendations);
 	}
 
-
-
 	getKeymapRecommendations(): string[] {
 		return product.keymapExtensionTips || [];
 	}
 
-	private _suggestTips() {
+	private _suggestFileBasedRecommendations() {
 		const extensionTips = product.extensionTips;
 		if (!extensionTips) {
 			return;
 		}
-		this.importantRecommendations = product.extensionImportantTips || Object.create(null);
-		this.importantRecommendationsIgnoreList = <string[]>JSON.parse(this.storageService.get('extensionsAssistant/importantRecommendationsIgnore', StorageScope.GLOBAL, '[]'));
 
 		// group ids by pattern, like {**/*.md} -> [ext.foo1, ext.bar2]
 		this._availableRecommendations = Object.create(null);
@@ -189,8 +183,9 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			}
 		});
 
+		const allRecommendations = [];
 		forEach(this._availableRecommendations, ({ value: ids }) => {
-			this._allRecommendations.push(...ids);
+			allRecommendations.push(...ids);
 		});
 
 		// retrieve ids of previous recommendations
@@ -198,7 +193,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 		if (Array.isArray<string>(storedRecommendationsJson)) {
 			for (let id of <string[]>storedRecommendationsJson) {
-				if (this._allRecommendations.indexOf(id) > -1) {
+				if (allRecommendations.indexOf(id) > -1) {
 					this._fileBasedRecommendations[id] = Date.now();
 				}
 			}
@@ -207,7 +202,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			forEach(storedRecommendationsJson, entry => {
 				if (typeof entry.value === 'number') {
 					const diff = (now - entry.value) / milliSecondsInADay;
-					if (diff <= 7 && this._allRecommendations.indexOf(entry.key) > -1) {
+					if (diff <= 7 && allRecommendations.indexOf(entry.key) > -1) {
 						this._fileBasedRecommendations[entry.key] = entry.value;
 					}
 				}
@@ -246,17 +241,18 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			);
 
 			const config = this.configurationService.getValue<IExtensionsConfiguration>(ConfigurationKey);
+			const importantRecommendationsIgnoreList = <string[]>JSON.parse(this.storageService.get('extensionsAssistant/importantRecommendationsIgnore', StorageScope.GLOBAL, '[]'));
 
-			if (config.ignoreRecommendations) {
+			if (config.ignoreRecommendations || !product.extensionImportantTips) {
 				return;
 			}
 
 			this.extensionsService.getInstalled(LocalExtensionType.User).done(local => {
-				Object.keys(this.importantRecommendations)
-					.filter(id => this.importantRecommendationsIgnoreList.indexOf(id) === -1)
+				Object.keys(product.extensionImportantTips)
+					.filter(id => importantRecommendationsIgnoreList.indexOf(id) === -1)
 					.filter(id => local.every(local => `${local.manifest.publisher}.${local.manifest.name}` !== id))
 					.forEach(id => {
-						const { pattern, name } = this.importantRecommendations[id];
+						const { pattern, name } = product.extensionImportantTips[id];
 
 						if (!match(pattern, uri.fsPath)) {
 							return;
@@ -297,10 +293,10 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 									*/
 									this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'show', extensionId: name });
 									return recommendationsAction.run();
-								case 2: this.importantRecommendationsIgnoreList.push(id);
+								case 2: importantRecommendationsIgnoreList.push(id);
 									this.storageService.store(
 										'extensionsAssistant/importantRecommendationsIgnore',
-										JSON.stringify(this.importantRecommendationsIgnoreList),
+										JSON.stringify(importantRecommendationsIgnoreList),
 										StorageScope.GLOBAL
 									);
 									/* __GDPR__
@@ -353,7 +349,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 			this.extensionsService.getInstalled(LocalExtensionType.User).done(local => {
 				const recommendations = allRecommendations
-					.filter(id => local.every(local => `${local.manifest.publisher}.${local.manifest.name}` !== id));
+					.filter(id => local.every(local => `${local.manifest.publisher.toLowerCase()}.${local.manifest.name.toLowerCase()}` !== id));
 
 				if (!recommendations.length) {
 					return;

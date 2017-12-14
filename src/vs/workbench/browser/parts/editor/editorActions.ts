@@ -323,11 +323,13 @@ export abstract class BaseFocusSideGroupAction extends Action {
 		else if (referenceEditor) {
 			const history = this.historyService.getHistory();
 			for (let input of history) {
-				if (input instanceof EditorInput && input.supportsSplitEditor()) {
-					return this.editorService.openEditor(input, { pinned: true }, this.getTargetEditorSide());
+				if (input instanceof EditorInput) {
+					if (input.supportsSplitEditor()) {
+						return this.editorService.openEditor(input, { pinned: true }, this.getTargetEditorSide());
+					}
+				} else {
+					return this.editorService.openEditor({ resource: (input as IResourceInput).resource, options: { pinned: true } }, this.getTargetEditorSide());
 				}
-
-				return this.editorService.openEditor({ resource: (input as IResourceInput).resource, options: { pinned: true } }, this.getTargetEditorSide());
 			}
 		}
 
@@ -583,9 +585,14 @@ export class RevertAndCloseEditorAction extends Action {
 			const input = activeEditor.input;
 			const position = activeEditor.position;
 
-			return activeEditor.input.revert().then(ok =>
-				this.editorService.closeEditor(position, input)
-			);
+			// first try a normal revert where the contents of the editor are restored
+			return activeEditor.input.revert().then(() => this.editorService.closeEditor(position, input), error => {
+				// if that fails, since we are about to close the editor, we accept that
+				// the editor cannot be reverted and instead do a soft revert that just
+				// enables us to close the editor. With this, a user can always close a
+				// dirty editor even when reverting fails.
+				return activeEditor.input.revert({ soft: true }).then(() => this.editorService.closeEditor(position, input));
+			});
 		}
 
 		return TPromise.as(false);
@@ -662,24 +669,25 @@ export class CloseAllEditorsAction extends Action {
 		}
 
 		// Otherwise ask for combined confirmation
-		const confirm = this.textFileService.confirmSave();
-		if (confirm === ConfirmResult.CANCEL) {
-			return void 0;
-		}
-
-		let saveOrRevertPromise: TPromise<boolean>;
-		if (confirm === ConfirmResult.DONT_SAVE) {
-			saveOrRevertPromise = this.textFileService.revertAll(null, { soft: true }).then(() => true);
-		} else {
-			saveOrRevertPromise = this.textFileService.saveAll(true).then(res => res.results.every(r => r.success));
-		}
-
-		return saveOrRevertPromise.then(success => {
-			if (success) {
-				return this.editorService.closeAllEditors();
+		return this.textFileService.confirmSave().then(confirm => {
+			if (confirm === ConfirmResult.CANCEL) {
+				return void 0;
 			}
 
-			return void 0;
+			let saveOrRevertPromise: TPromise<boolean>;
+			if (confirm === ConfirmResult.DONT_SAVE) {
+				saveOrRevertPromise = this.textFileService.revertAll(null, { soft: true }).then(() => true);
+			} else {
+				saveOrRevertPromise = this.textFileService.saveAll(true).then(res => res.results.every(r => r.success));
+			}
+
+			return saveOrRevertPromise.then(success => {
+				if (success) {
+					return this.editorService.closeAllEditors();
+				}
+
+				return void 0;
+			});
 		});
 	}
 }

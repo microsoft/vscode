@@ -210,34 +210,35 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		if (folders && folders.length && this.fileService) {
 			return this.fileService.resolveFiles(folders.map(resource => ({ resource }))).then(results => {
 				const names = (<IFileStat[]>[]).concat(...results.map(result => result.success ? (result.stat.children || []) : [])).map(c => c.name);
+				const nameSet = names.reduce((s, n) => s.add(n.toLowerCase()), new Set());
 
-				tags['workspace.grunt'] = this.searchArray(names, /^gruntfile\.js$/i);
-				tags['workspace.gulp'] = this.searchArray(names, /^gulpfile\.js$/i);
-				tags['workspace.jake'] = this.searchArray(names, /^jakefile\.js$/i);
+				tags['workspace.grunt'] = nameSet.has('gruntfile.js');
+				tags['workspace.gulp'] = nameSet.has('gulpfile.js');
+				tags['workspace.jake'] = nameSet.has('jakefile.js');
 
-				tags['workspace.tsconfig'] = this.searchArray(names, /^tsconfig\.json$/i);
-				tags['workspace.jsconfig'] = this.searchArray(names, /^jsconfig\.json$/i);
-				tags['workspace.config.xml'] = this.searchArray(names, /^config\.xml/i);
-				tags['workspace.vsc.extension'] = this.searchArray(names, /^vsc-extension-quickstart\.md/i);
+				tags['workspace.tsconfig'] = nameSet.has('tsconfig.json');
+				tags['workspace.jsconfig'] = nameSet.has('jsconfig.json');
+				tags['workspace.config.xml'] = nameSet.has('config.xml');
+				tags['workspace.vsc.extension'] = nameSet.has('vsc-extension-quickstart.md');
 
-				tags['workspace.ASP5'] = this.searchArray(names, /^project\.json$/i) && this.searchArray(names, /^.+\.cs$/i);
+				tags['workspace.ASP5'] = nameSet.has('project.json') && this.searchArray(names, /^.+\.cs$/i);
 				tags['workspace.sln'] = this.searchArray(names, /^.+\.sln$|^.+\.csproj$/i);
-				tags['workspace.unity'] = this.searchArray(names, /^Assets$/i) && this.searchArray(names, /^Library$/i) && this.searchArray(names, /^ProjectSettings/i);
-				tags['workspace.npm'] = this.searchArray(names, /^package\.json$|^node_modules$/i);
-				tags['workspace.bower'] = this.searchArray(names, /^bower\.json$|^bower_components$/i);
+				tags['workspace.unity'] = nameSet.has('assets') && nameSet.has('library') && nameSet.has('projectsettings');
+				tags['workspace.npm'] = nameSet.has('package.json') || nameSet.has('node_modules');
+				tags['workspace.bower'] = nameSet.has('bower.json') || nameSet.has('bower_components');
 
-				tags['workspace.yeoman.code.ext'] = this.searchArray(names, /^vsc-extension-quickstart\.md$/i);
+				tags['workspace.yeoman.code.ext'] = nameSet.has('vsc-extension-quickstart.md');
 
-				let mainActivity = this.searchArray(names, /^MainActivity\.cs$/i) || this.searchArray(names, /^MainActivity\.fs$/i);
-				let appDelegate = this.searchArray(names, /^AppDelegate\.cs$/i) || this.searchArray(names, /^AppDelegate\.fs$/i);
-				let androidManifest = this.searchArray(names, /^AndroidManifest\.xml$/i);
+				let mainActivity = nameSet.has('mainactivity.cs') || nameSet.has('mainactivity.fs');
+				let appDelegate = nameSet.has('appdelegate.cs') || nameSet.has('appdelegate.fs');
+				let androidManifest = nameSet.has('androidmanifest.xml');
 
-				let platforms = this.searchArray(names, /^platforms$/i);
-				let plugins = this.searchArray(names, /^plugins$/i);
-				let www = this.searchArray(names, /^www$/i);
-				let properties = this.searchArray(names, /^Properties/i);
-				let resources = this.searchArray(names, /^Resources/i);
-				let jni = this.searchArray(names, /^JNI/i);
+				let platforms = nameSet.has('platforms');
+				let plugins = nameSet.has('plugins');
+				let www = nameSet.has('www');
+				let properties = nameSet.has('properties');
+				let resources = nameSet.has('resources');
+				let jni = nameSet.has('jni');
 
 				if (tags['workspace.config.xml'] &&
 					!tags['workspace.language.cs'] && !tags['workspace.language.vb'] && !tags['workspace.language.aspx']) {
@@ -260,8 +261,8 @@ export class WorkspaceStats implements IWorkbenchContribution {
 					tags['workspace.android.cpp'] = true;
 				}
 
-				tags['workspace.reactNative'] = this.searchArray(names, /^android$/i) && this.searchArray(names, /^ios$/i) &&
-					this.searchArray(names, /^index\.android\.js$/i) && this.searchArray(names, /^index\.ios\.js$/i);
+				tags['workspace.reactNative'] = nameSet.has('android') && nameSet.has('ios') &&
+					nameSet.has('index.android.js') && nameSet.has('index.ios.js');
 
 				return tags;
 			}, error => { onUnexpectedError(error); return null; });

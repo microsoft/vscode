@@ -939,7 +939,7 @@ export class CodeMenu {
 
 		let reportIssuesItem: Electron.MenuItem = null;
 		if (product.reportIssueUrl) {
-			const label = nls.localize({ key: 'miReportIssues', comment: ['&& denotes a mnemonic'] }, "Report &&Issues");
+			const label = nls.localize({ key: 'miReportIssue', comment: ['&& denotes a mnemonic', 'Translate this to "Report Issue in English" in all languages please!'] }, "Report &&Issue");
 
 			if (this.windowsMainService.getWindowCount() > 0) {
 				reportIssuesItem = this.createMenuItem(label, 'workbench.action.reportIssues');
@@ -1097,11 +1097,6 @@ export class CodeMenu {
 		const enabled = typeof arg3 === 'boolean' ? arg3 : this.windowsMainService.getWindowCount() > 0;
 		const checked = typeof arg4 === 'boolean' ? arg4 : false;
 
-		let commandId: string;
-		if (typeof arg2 === 'string') {
-			commandId = arg2;
-		}
-
 		const options: Electron.MenuItemConstructorOptions = {
 			label,
 			click,
@@ -1111,6 +1106,13 @@ export class CodeMenu {
 		if (checked) {
 			options['type'] = 'checkbox';
 			options['checked'] = checked;
+		}
+
+		let commandId: string;
+		if (typeof arg2 === 'string') {
+			commandId = arg2;
+		} else if (Array.isArray(arg2)) {
+			commandId = arg2[0];
 		}
 
 		return new MenuItem(this.withKeybinding(commandId, options));
@@ -1215,18 +1217,18 @@ export class CodeMenu {
 			buttons.push(mnemonicButtonLabel(nls.localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"))); // https://github.com/Microsoft/vscode/issues/37608
 		}
 
-		dialog.showMessageBox(lastActiveWindow && lastActiveWindow.win, {
+		const result = dialog.showMessageBox(lastActiveWindow && lastActiveWindow.win, {
 			title: product.nameLong,
 			type: 'info',
 			message: product.nameLong,
 			detail: `\n${detail}`,
 			buttons,
 			noLink: true
-		}, result => {
-			if (isWindows && result === 1) {
-				clipboard.writeText(detail);
-			}
 		});
+
+		if (isWindows && result === 1) {
+			clipboard.writeText(detail);
+		}
 
 		this.reportMenuActionTelemetry('showAboutDialog');
 	}

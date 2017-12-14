@@ -25,7 +25,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 		extHostContext: IExtHostContext,
 		@IQuickOpenService quickOpenService: IQuickOpenService
 	) {
-		this._proxy = extHostContext.get(ExtHostContext.ExtHostQuickOpen);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostQuickOpen);
 		this._quickOpenService = quickOpenService;
 	}
 

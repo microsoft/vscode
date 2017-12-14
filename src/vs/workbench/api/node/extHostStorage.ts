@@ -12,7 +12,7 @@ export class ExtHostStorage {
 	private _proxy: MainThreadStorageShape;
 
 	constructor(mainContext: IMainContext) {
-		this._proxy = mainContext.get(MainContext.MainThreadStorage);
+		this._proxy = mainContext.getProxy(MainContext.MainThreadStorage);
 	}
 
 	getValue<T>(shared: boolean, key: string, defaultValue?: T): TPromise<T> {

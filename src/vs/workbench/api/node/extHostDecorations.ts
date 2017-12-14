@@ -5,7 +5,7 @@
 'use strict';
 
 import * as vscode from 'vscode';
-import URI from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { MainContext, IMainContext, ExtHostDecorationsShape, MainThreadDecorationsShape, DecorationData } from 'vs/workbench/api/node/extHost.protocol';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from 'vs/workbench/api/node/extHostTypes';
@@ -19,7 +19,7 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 	private readonly _proxy: MainThreadDecorationsShape;
 
 	constructor(mainContext: IMainContext) {
-		this._proxy = mainContext.get(MainContext.MainThreadDecorations);
+		this._proxy = mainContext.getProxy(MainContext.MainThreadDecorations);
 	}
 
 	registerDecorationProvider(provider: vscode.DecorationProvider, label: string): vscode.Disposable {
@@ -38,9 +38,9 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 		});
 	}
 
-	$providerDecorations(handle: number, uri: URI): TPromise<DecorationData> {
+	$providerDecorations(handle: number, data: UriComponents): TPromise<DecorationData> {
 		const provider = this._provider.get(handle);
-		return asWinJsPromise(token => provider.provideDecoration(uri, token)).then(data => {
+		return asWinJsPromise(token => provider.provideDecoration(URI.revive(data), token)).then(data => {
 			return data && <DecorationData>[data.priority, data.bubble, data.title, data.abbreviation, data.color, data.source];
 		});
 	}

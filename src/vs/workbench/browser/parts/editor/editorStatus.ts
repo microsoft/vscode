@@ -765,7 +765,7 @@ function isWritableBaseEditor(e: IBaseEditor): boolean {
 
 export class ShowLanguageExtensionsAction extends Action {
 
-	static ID = 'workbench.action.showLanguageExtensions';
+	static readonly ID = 'workbench.action.showLanguageExtensions';
 
 	constructor(
 		private fileExtension: string,
@@ -885,7 +885,7 @@ export class ChangeModeAction extends Action {
 			picks.unshift(autoDetectMode);
 		}
 
-		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language Mode") }).then(pick => {
+		return this.quickOpenService.pick(picks, { placeHolder: nls.localize('pickLanguage', "Select Language Mode"), matchOnDescription: true }).then(pick => {
 			if (!pick) {
 				return;
 			}

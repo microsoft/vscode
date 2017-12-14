@@ -74,6 +74,8 @@ export interface ISCMInput {
 
 	placeholder: string;
 	readonly onDidChangePlaceholder: Event<string>;
+
+	lineWarningLength: number | undefined;
 }
 
 export interface ISCMRepository extends IDisposable {

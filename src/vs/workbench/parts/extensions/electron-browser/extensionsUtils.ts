@@ -53,9 +53,9 @@ export class KeymapExtensions implements IWorkbenchContribution {
 	private checkForOtherKeymaps(extensionIdentifier: IExtensionIdentifier): TPromise<void> {
 		return this.instantiationService.invokeFunction(getInstalledExtensions).then(extensions => {
 			const keymaps = extensions.filter(extension => isKeymapExtension(this.tipsService, extension));
-			const extension = arrays.first(keymaps, extension => extension.identifier.id === extensionIdentifier.id);
+			const extension = arrays.first(keymaps, extension => stripVersion(extension.identifier.id) === extensionIdentifier.id);
 			if (extension && extension.globallyEnabled) {
-				const otherKeymaps = keymaps.filter(extension => extension.identifier.id !== extensionIdentifier.id && extension.globallyEnabled);
+				const otherKeymaps = keymaps.filter(extension => stripVersion(extension.identifier.id) !== extensionIdentifier.id && extension.globallyEnabled);
 				if (otherKeymaps.length) {
 					return this.promptForDisablingOtherKeymaps(extension, otherKeymaps);
 				}
@@ -65,25 +65,8 @@ export class KeymapExtensions implements IWorkbenchContribution {
 	}
 
 	private promptForDisablingOtherKeymaps(newKeymap: IExtensionStatus, oldKeymaps: IExtensionStatus[]): TPromise<void> {
-		/* __GDPR__FRAGMENT__
-			"KeyMapsData" : {
-				"newKeymap" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"oldKeymaps": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		const telemetryData: { [key: string]: any; } = {
-			newKeymap: newKeymap.identifier,
-			oldKeymaps: oldKeymaps.map(k => k.identifier)
-		};
 
-		/* __GDPR__
-			"disableOtherKeymapsConfirmation" : {
-				"${include}": [
-					"${KeyMapsData}"
-				]
-			}
-		*/
-		this.telemetryService.publicLog('disableOtherKeymapsConfirmation', telemetryData);
+
 		const message = localize('disableOtherKeymapsConfirmation', "Disable other keymaps ({0}) to avoid conflicts between keybindings?", oldKeymaps.map(k => `'${k.local.manifest.displayName}'`).join(', '));
 		const options = [
 			localize('yes', "Yes"),
@@ -92,13 +75,16 @@ export class KeymapExtensions implements IWorkbenchContribution {
 		return this.choiceService.choose(Severity.Info, message, options, 1, false)
 			.then(value => {
 				const confirmed = value === 0;
-				telemetryData['confirmed'] = confirmed;
+				const telemetryData: { [key: string]: any; } = {
+					newKeymap: newKeymap.identifier,
+					oldKeymaps: oldKeymaps.map(k => k.identifier),
+					confirmed
+				};
 				/* __GDPR__
 					"disableOtherKeymaps" : {
-						"confirmed" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-						"${include}": [
-							"${KeyMapsData}"
-						]
+						"newKeymap" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"oldKeymaps": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"confirmed" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 					}
 				*/
 				this.telemetryService.publicLog('disableOtherKeymaps', telemetryData);
@@ -143,7 +129,7 @@ export function getInstalledExtensions(accessor: ServicesAccessor): TPromise<IEx
 			.then(disabledExtensions => {
 				return extensions.map(extension => {
 					return {
-						identifier: { id: adoptToGalleryExtensionId(extension.identifier.id), uuid: extension.identifier.uuid },
+						identifier: { id: adoptToGalleryExtensionId(stripVersion(extension.identifier.id)), uuid: extension.identifier.uuid },
 						local: extension,
 						globallyEnabled: disabledExtensions.every(disabled => !areSameExtensions(disabled, extension.identifier))
 					};
@@ -154,7 +140,7 @@ export function getInstalledExtensions(accessor: ServicesAccessor): TPromise<IEx
 
 export function isKeymapExtension(tipsService: IExtensionTipsService, extension: IExtensionStatus): boolean {
 	const cats = extension.local.manifest.categories;
-	return cats && cats.indexOf('Keymaps') !== -1 || tipsService.getKeymapRecommendations().indexOf(extension.identifier.id) !== -1;
+	return cats && cats.indexOf('Keymaps') !== -1 || tipsService.getKeymapRecommendations().indexOf(stripVersion(extension.identifier.id)) !== -1;
 }
 
 function stripVersion(id: string): string {
@@ -173,38 +159,16 @@ export class BetterMergeDisabled implements IWorkbenchContribution {
 		extensionService.whenInstalledExtensionsRegistered().then(() => {
 			if (storageService.getBoolean(BetterMergeDisabledNowKey, StorageScope.GLOBAL, false)) {
 				storageService.remove(BetterMergeDisabledNowKey, StorageScope.GLOBAL);
-				/* __GDPR__
-					"betterMergeDisabled" : {}
-				*/
-				telemetryService.publicLog('betterMergeDisabled');
 				messageService.show(Severity.Info, {
 					message: localize('betterMergeDisabled', "The Better Merge extension is now built-in, the installed extension was disabled and can be uninstalled."),
 					actions: [
 						new Action('uninstall', localize('uninstall', "Uninstall"), null, true, () => {
-							/* __GDPR__
-								"betterMergeUninstall" : {
-									"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-								}
-							*/
-							telemetryService.publicLog('betterMergeUninstall', {
-								outcome: 'uninstall',
-							});
 							return extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
 								return Promise.all(extensions.filter(e => stripVersion(e.identifier.id) === BetterMergeId)
 									.map(e => extensionManagementService.uninstall(e, true)));
 							});
 						}),
-						new Action('later', localize('later', "Later"), null, true, () => {
-							/* __GDPR__
-								"betterMergeUninstall" : {
-									"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-								}
-							*/
-							telemetryService.publicLog('betterMergeUninstall', {
-								outcome: 'later',
-							});
-							return TPromise.as(true);
-						})
+						new Action('later', localize('later', "Later"), null, true)
 					]
 				});
 			}

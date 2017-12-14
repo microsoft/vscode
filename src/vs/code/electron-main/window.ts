@@ -17,7 +17,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import product from 'vs/platform/node/product';
-import pkg from 'vs/platform/node/package';
 import { IWindowSettings, MenuBarVisibility, IWindowConfiguration, ReadyState, IRunActionInWindowRequest } from 'vs/platform/windows/common/windows';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
@@ -26,6 +25,7 @@ import { IWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/worksp
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
 import { ICommandAction } from 'vs/platform/actions/common/actions';
 import { mark, exportEntries } from 'vs/base/common/performance';
+import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 
 export interface IWindowState {
 	width?: number;
@@ -97,6 +97,8 @@ export class CodeWindow implements ICodeWindow {
 	private currentConfig: IWindowConfiguration;
 	private pendingLoadConfig: IWindowConfiguration;
 
+	private marketplaceHeadersPromise: TPromise<object>;
+
 	private touchBarGroups: Electron.TouchBarSegmentedControl[];
 
 	constructor(
@@ -122,6 +124,9 @@ export class CodeWindow implements ICodeWindow {
 
 		// macOS: touch bar support
 		this.createTouchBar();
+
+		// Request handling
+		this.handleMarketplaceRequests();
 
 		// Eventing
 		this.registerListeners();
@@ -189,7 +194,7 @@ export class CodeWindow implements ICodeWindow {
 		this._win = new BrowserWindow(options);
 		this._id = this._win.id;
 
-		// TODO@Ben Bug in Electron (https://github.com/electron/electron/issues/10862). On multi-monitor setups,
+		// Bug in Electron (https://github.com/electron/electron/issues/10862). On multi-monitor setups,
 		// it can happen that the position we set to the window is not the correct one on the display.
 		// To workaround, we ask the window for its position and set it again if not matching.
 		// This only applies if the window is not fullscreen or maximized and multiple monitors are used.
@@ -202,7 +207,7 @@ export class CodeWindow implements ICodeWindow {
 					}
 				}
 			} catch (err) {
-				this.logService.log(`Unexpected error fixing window position on windows with multiple windows: ${err}\n${err.stack}`);
+				this.logService.warn(`Unexpected error fixing window position on windows with multiple windows: ${err}\n${err.stack}`);
 			}
 		}
 
@@ -330,17 +335,21 @@ export class CodeWindow implements ICodeWindow {
 		return this._readyState;
 	}
 
-	private registerListeners(): void {
-		const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
-		const headers = {
-			'X-Market-Client-Id': `VSCode ${pkg.version}`,
-			'User-Agent': `VSCode ${pkg.version}`,
-			'X-Market-User-Id': this.environmentService.machineUUID
-		};
+	private handleMarketplaceRequests(): void {
 
+		// Resolve marketplace headers
+		this.marketplaceHeadersPromise = resolveMarketplaceHeaders(this.environmentService);
+
+		// Inject headers when requests are incoming
+		const urls = ['https://marketplace.visualstudio.com/*', 'https://*.vsassets.io/*'];
 		this._win.webContents.session.webRequest.onBeforeSendHeaders({ urls }, (details: any, cb: any) => {
-			cb({ cancel: false, requestHeaders: objects.assign(details.requestHeaders, headers) });
+			this.marketplaceHeadersPromise.done(headers => {
+				cb({ cancel: false, requestHeaders: objects.assign(details.requestHeaders, headers) });
+			});
 		});
+	}
+
+	private registerListeners(): void {
 
 		// Prevent loading of svgs
 		this._win.webContents.session.webRequest.onBeforeRequest(null, (details, callback) => {
@@ -554,6 +563,9 @@ export class CodeWindow implements ICodeWindow {
 
 	private getUrl(windowConfiguration: IWindowConfiguration): string {
 
+		// Set window ID
+		windowConfiguration.windowId = this._win.id;
+
 		// Set zoomlevel
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 		const zoomLevel = windowConfig && windowConfig.zoomLevel;
@@ -575,7 +587,6 @@ export class CodeWindow implements ICodeWindow {
 		// Perf Counters
 		windowConfiguration.perfEntries = exportEntries();
 		windowConfiguration.perfStartTime = global.perfStartTime;
-		windowConfiguration.perfAppReady = global.perfAppReady;
 		windowConfiguration.perfWindowLoadTime = Date.now();
 
 		// Config (combination of process.argv and window configuration)
@@ -671,7 +682,7 @@ export class CodeWindow implements ICodeWindow {
 			try {
 				state = this.validateWindowState(state);
 			} catch (err) {
-				this.logService.log(`Unexpected error validating window state: ${err}\n${err.stack}`); // somehow display API can be picky about the state to validate
+				this.logService.warn(`Unexpected error validating window state: ${err}\n${err.stack}`); // somehow display API can be picky about the state to validate
 			}
 		}
 

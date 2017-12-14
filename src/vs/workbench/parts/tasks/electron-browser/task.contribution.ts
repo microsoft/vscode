@@ -1666,40 +1666,50 @@ class TaskService implements ITaskService {
 		if (this._taskSystem instanceof TerminalTaskSystem) {
 			return false;
 		}
-		if (this._taskSystem.canAutoTerminate() || this.messageService.confirmSync({
-			message: nls.localize('TaskSystem.runningTask', 'There is a task running. Do you want to terminate it?'),
-			primaryButton: nls.localize({ key: 'TaskSystem.terminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task"),
-			type: 'question'
-		})) {
-			return this._taskSystem.terminateAll().then((responses) => {
-				let success = true;
-				let code: number = undefined;
-				for (let response of responses) {
-					success = success && response.success;
-					// We only have a code in the old output runner which only has one task
-					// So we can use the first code.
-					if (code === void 0 && response.code !== void 0) {
-						code = response.code;
-					}
-				}
-				if (success) {
-					this._taskSystem = null;
-					this.disposeTaskSystemListeners();
-					return false; // no veto
-				} else if (code && code === TerminateResponseCode.ProcessNotFound) {
-					return !this.messageService.confirmSync({
-						message: nls.localize('TaskSystem.noProcess', 'The launched task doesn\'t exist anymore. If the task spawned background processes exiting VS Code might result in orphaned processes. To avoid this start the last background process with a wait flag.'),
-						primaryButton: nls.localize({ key: 'TaskSystem.exitAnyways', comment: ['&& denotes a mnemonic'] }, "&&Exit Anyways"),
-						type: 'info'
-					});
-				}
-				return true; // veto
-			}, (err) => {
-				return true; // veto
-			});
+
+		let terminatePromise: TPromise<boolean>;
+		if (this._taskSystem.canAutoTerminate()) {
+			terminatePromise = TPromise.wrap(true);
 		} else {
-			return true; // veto
+			terminatePromise = this.messageService.confirm({
+				message: nls.localize('TaskSystem.runningTask', 'There is a task running. Do you want to terminate it?'),
+				primaryButton: nls.localize({ key: 'TaskSystem.terminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task"),
+				type: 'question'
+			});
 		}
+
+		return terminatePromise.then(terminate => {
+			if (terminate) {
+				return this._taskSystem.terminateAll().then((responses) => {
+					let success = true;
+					let code: number = undefined;
+					for (let response of responses) {
+						success = success && response.success;
+						// We only have a code in the old output runner which only has one task
+						// So we can use the first code.
+						if (code === void 0 && response.code !== void 0) {
+							code = response.code;
+						}
+					}
+					if (success) {
+						this._taskSystem = null;
+						this.disposeTaskSystemListeners();
+						return false; // no veto
+					} else if (code && code === TerminateResponseCode.ProcessNotFound) {
+						return this.messageService.confirm({
+							message: nls.localize('TaskSystem.noProcess', 'The launched task doesn\'t exist anymore. If the task spawned background processes exiting VS Code might result in orphaned processes. To avoid this start the last background process with a wait flag.'),
+							primaryButton: nls.localize({ key: 'TaskSystem.exitAnyways', comment: ['&& denotes a mnemonic'] }, "&&Exit Anyways"),
+							type: 'info'
+						}).then(confirmed => !confirmed);
+					}
+					return true; // veto
+				}, (err) => {
+					return true; // veto
+				});
+			}
+
+			return true; // veto
+		});
 	}
 
 	private getConfigureAction(code: TaskErrors): Action {

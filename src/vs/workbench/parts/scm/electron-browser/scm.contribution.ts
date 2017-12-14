@@ -23,7 +23,7 @@ import * as nls from 'vs/nls';
 
 class OpenSCMViewletAction extends ToggleViewletAction {
 
-	static ID = VIEWLET_ID;
+	static readonly ID = VIEWLET_ID;
 	static LABEL = nls.localize('toggleGitViewlet', "Show Git");
 
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
@@ -63,11 +63,9 @@ Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions
 	nls.localize('view', "View")
 );
 
-// Register configuration
-const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-configurationRegistry.registerConfiguration({
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'scm',
-	order: 20,
+	order: 5,
 	title: nls.localize('scmConfigurationTitle', "SCM"),
 	type: 'object',
 	properties: {
@@ -75,6 +73,18 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'showSingleSourceControlProvider' }, "Whether to show Source Control Provider for single repository."),
 			default: false
+		},
+		'scm.diffDecorations': {
+			type: 'string',
+			enum: ['all', 'gutter', 'overview', 'none'],
+			default: 'all',
+			description: nls.localize('diffDecorations', "Controls diff decorations in the editor.")
+		},
+		'scm.inputCounter': {
+			type: 'string',
+			enum: ['always', 'warn', 'off'],
+			default: 'warn',
+			description: nls.localize('inputCounter', "Controls when to display the input counter.")
 		}
 	}
 });

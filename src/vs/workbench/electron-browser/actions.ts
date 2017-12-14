@@ -25,7 +25,7 @@ import { IExtensionManagementService, LocalExtensionType, ILocalExtension, IExte
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import paths = require('vs/base/common/paths');
 import { isMacintosh, isLinux, language } from 'vs/base/common/platform';
-import { IQuickOpenService, IFilePickOpenEntry, ISeparator, IPickOpenAction, IPickOpenItem } from 'vs/platform/quickOpen/common/quickOpen';
+import { IQuickOpenService, IFilePickOpenEntry, ISeparator, IPickOpenAction, IPickOpenItem, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import * as browser from 'vs/base/browser/browser';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
@@ -43,9 +43,10 @@ import { IPanel } from 'vs/workbench/common/panel';
 import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { FileKind, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService, ActivationTimes } from 'vs/platform/extensions/common/extensions';
 import { getEntries } from 'vs/base/common/performance';
 import { IEditor } from 'vs/platform/editor/common/editor';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 
 // --- actions
 
@@ -90,7 +91,7 @@ export class CloseCurrentWindowAction extends Action {
 
 export class CloseWorkspaceAction extends Action {
 
-	static ID = 'workbench.action.closeFolder';
+	static readonly ID = 'workbench.action.closeFolder';
 	static LABEL = nls.localize('closeWorkspace', "Close Workspace");
 
 	constructor(
@@ -116,7 +117,7 @@ export class CloseWorkspaceAction extends Action {
 
 export class NewWindowAction extends Action {
 
-	static ID = 'workbench.action.newWindow';
+	static readonly ID = 'workbench.action.newWindow';
 	static LABEL = nls.localize('newWindow', "New Window");
 
 	constructor(
@@ -134,7 +135,7 @@ export class NewWindowAction extends Action {
 
 export class ToggleFullScreenAction extends Action {
 
-	static ID = 'workbench.action.toggleFullScreen';
+	static readonly ID = 'workbench.action.toggleFullScreen';
 	static LABEL = nls.localize('toggleFullScreen', "Toggle Full Screen");
 
 	constructor(id: string, label: string, @IWindowService private windowService: IWindowService) {
@@ -148,7 +149,7 @@ export class ToggleFullScreenAction extends Action {
 
 export class ToggleMenuBarAction extends Action {
 
-	static ID = 'workbench.action.toggleMenuBar';
+	static readonly ID = 'workbench.action.toggleMenuBar';
 	static LABEL = nls.localize('toggleMenuBar', "Toggle Menu Bar");
 
 	private static readonly menuBarVisibilityKey = 'window.menuBarVisibility';
@@ -182,7 +183,7 @@ export class ToggleMenuBarAction extends Action {
 
 export class ToggleDevToolsAction extends Action {
 
-	static ID = 'workbench.action.toggleDevTools';
+	static readonly ID = 'workbench.action.toggleDevTools';
 	static LABEL = nls.localize('toggleDevTools', "Toggle Developer Tools");
 
 	constructor(id: string, label: string, @IWindowService private windowsService: IWindowService) {
@@ -359,7 +360,15 @@ export class ShowStartupPerformance extends Action {
 			(<any>console).groupEnd();
 
 			(<any>console).group('Extension Activation Stats');
-			(<any>console).table(this.extensionService.getExtensionsActivationTimes());
+			let extensionsActivationTimes: { [id: string]: ActivationTimes; } = {};
+			let extensionsStatus = this.extensionService.getExtensionsStatus();
+			for (let id in extensionsStatus) {
+				const status = extensionsStatus[id];
+				if (status.activationTimes) {
+					extensionsActivationTimes[id] = status.activationTimes;
+				}
+			}
+			(<any>console).table(extensionsActivationTimes);
 			(<any>console).groupEnd();
 
 			(<any>console).group('Raw Startup Timers (CSV)');
@@ -549,7 +558,7 @@ export class ShowStartupPerformance extends Action {
 
 export class ReloadWindowAction extends Action {
 
-	static ID = 'workbench.action.reloadWindow';
+	static readonly ID = 'workbench.action.reloadWindow';
 	static LABEL = nls.localize('reloadWindow', "Reload Window");
 
 	constructor(
@@ -645,7 +654,7 @@ class CloseWindowAction extends Action implements IPickOpenAction {
 
 export class SwitchWindow extends BaseSwitchWindow {
 
-	static ID = 'workbench.action.switchWindow';
+	static readonly ID = 'workbench.action.switchWindow';
 	static LABEL = nls.localize('switchWindow', "Switch Window...");
 
 	constructor(
@@ -667,7 +676,7 @@ export class SwitchWindow extends BaseSwitchWindow {
 
 export class QuickSwitchWindow extends BaseSwitchWindow {
 
-	static ID = 'workbench.action.quickSwitchWindow';
+	static readonly ID = 'workbench.action.quickSwitchWindow';
 	static LABEL = nls.localize('quickSwitchWindow', "Quick Switch Window...");
 
 	constructor(
@@ -877,7 +886,7 @@ export class CloseMessagesAction extends Action {
 export class ReportIssueAction extends Action {
 
 	public static readonly ID = 'workbench.action.reportIssues';
-	public static readonly LABEL = nls.localize('reportIssues', "Report Issues");
+	public static readonly LABEL = nls.localize({ key: 'reportIssueInEnglish', comment: ['Translate this to "Report Issue in English" in all languages please!'] }, "Report Issue");
 
 	constructor(
 		id: string,
@@ -990,13 +999,13 @@ export class ReportPerformanceIssueAction extends Action {
 	}
 
 	public run(appendix?: string): TPromise<boolean> {
-		return this.integrityService.isPure().then(res => {
+		this.integrityService.isPure().then(res => {
 			const issueUrl = this.generatePerformanceIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date, res.isPure, appendix);
 
 			window.open(issueUrl);
-
-			return TPromise.as(true);
 		});
+
+		return TPromise.wrap(true);
 	}
 
 	private generatePerformanceIssueUrl(baseUrl: string, name: string, version: string, commit: string, date: string, isPure: boolean, appendix?: string): string {
@@ -1180,7 +1189,7 @@ export class OpenTipsAndTricksUrlAction extends Action {
 
 export class ToggleSharedProcessAction extends Action {
 
-	static ID = 'workbench.action.toggleSharedProcess';
+	static readonly ID = 'workbench.action.toggleSharedProcess';
 	static LABEL = nls.localize('toggleSharedProcess', "Toggle Shared Process");
 
 	constructor(id: string, label: string, @IWindowsService private windowsService: IWindowsService) {
@@ -1672,6 +1681,84 @@ export class ConfigureLocaleAction extends Action {
 			});
 		}, (error) => {
 			throw new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", getPathLabel(file, this.contextService), error));
+		});
+	}
+}
+
+export class OpenLogsFolderAction extends Action {
+
+	static readonly ID = 'workbench.action.openLogsFolder';
+	static LABEL = nls.localize('openLogsFolder', "Open Logs Folder");
+
+	constructor(id: string, label: string,
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IWindowsService private windowsService: IWindowsService,
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<void> {
+		return this.windowsService.showItemInFolder(paths.join(this.environmentService.logsPath, 'main.log'));
+	}
+}
+
+export class ShowLogsAction extends Action {
+
+	static readonly ID = 'workbench.action.showLogs';
+	static LABEL = nls.localize('showLogs', "Show Logs...");
+
+	constructor(id: string, label: string,
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IWindowService private windowService: IWindowService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<void> {
+		const entries: IPickOpenEntry[] = [
+			{ id: 'main', label: nls.localize('mainProcess', "Main"), run: () => this.editorService.openEditor({ resource: URI.file(paths.join(this.environmentService.logsPath, 'main.log')) }) },
+			{ id: 'shared', label: nls.localize('sharedProcess', "Shared"), run: () => this.editorService.openEditor({ resource: URI.file(paths.join(this.environmentService.logsPath, 'sharedprocess.log')) }) },
+			{ id: 'renderer', label: nls.localize('rendererProcess', "Renderer"), run: () => this.editorService.openEditor({ resource: URI.file(paths.join(this.environmentService.logsPath, `renderer${this.windowService.getCurrentWindowId()}.log`)) }) },
+			{ id: 'extenshionHost', label: nls.localize('extensionHost', "Extension Host"), run: () => this.editorService.openEditor({ resource: URI.file(paths.join(this.environmentService.logsPath, `exthost${this.windowService.getCurrentWindowId()}.log`)) }) }
+		];
+
+		return this.quickOpenService.pick(entries, { placeHolder: nls.localize('selectProcess', "Select process") }).then(entry => {
+			if (entry) {
+				entry.run(null);
+			}
+		});
+	}
+}
+
+export class SetLogLevelAction extends Action {
+
+	static readonly ID = 'workbench.action.setLogLevel';
+	static LABEL = nls.localize('setLogLevel', "Set Log Level");
+
+	constructor(id: string, label: string,
+		@IQuickOpenService private quickOpenService: IQuickOpenService,
+		@ILogService private logService: ILogService
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<void> {
+		const entries = [
+			{ label: nls.localize('trace', "Trace"), level: LogLevel.Trace },
+			{ label: nls.localize('debug', "Debug"), level: LogLevel.Debug },
+			{ label: nls.localize('info', "Info"), level: LogLevel.Info },
+			{ label: nls.localize('warn', "Warning"), level: LogLevel.Warning },
+			{ label: nls.localize('err', "Error"), level: LogLevel.Error },
+			{ label: nls.localize('critical', "Critical"), level: LogLevel.Critical },
+			{ label: nls.localize('off', "Off"), level: LogLevel.Off }
+		];
+
+		return this.quickOpenService.pick(entries, { placeHolder: nls.localize('selectLogLevel', "Select log level"), autoFocus: { autoFocusIndex: this.logService.getLevel() } }).then(entry => {
+			if (entry) {
+				this.logService.setLevel(entry.level);
+			}
 		});
 	}
 }

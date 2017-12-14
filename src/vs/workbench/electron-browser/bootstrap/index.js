@@ -7,7 +7,7 @@
 
 'use strict';
 
-/*global window,document,define,Monaco_Loader_Init*/
+/*global window,document,define*/
 
 const perf = require('../../../base/common/performance');
 perf.mark('renderer/started');
@@ -55,15 +55,6 @@ function parseURLQueryArgs() {
 		.map(function (param) { return param.split('='); })
 		.filter(function (param) { return param.length === 2; })
 		.reduce(function (r, param) { r[param[0]] = decodeURIComponent(param[1]); return r; }, {});
-}
-
-function createScript(src, onload) {
-	const script = document.createElement('script');
-	script.src = src;
-	script.addEventListener('load', onload);
-
-	const head = document.getElementsByTagName('head')[0];
-	head.insertBefore(script, head.lastChild);
 }
 
 function uriFromPath(_path) {
@@ -153,73 +144,60 @@ function main() {
 	}
 
 	// Load the loader and start loading the workbench
-	const rootUrl = uriFromPath(configuration.appRoot) + '/out';
+	const loaderFilename = configuration.appRoot + '/out/vs/loader.js';
+	const loaderSource = require('fs').readFileSync(loaderFilename);
+	require('vm').runInThisContext(loaderSource, { filename: loaderFilename });
 
-	function onLoader() {
-		window.nodeRequire = require.__$__nodeRequire;
+	window.nodeRequire = require.__$__nodeRequire;
 
-		define('fs', ['original-fs'], function (originalFS) { return originalFS; }); // replace the patched electron fs with the original node fs for all AMD code
+	define('fs', ['original-fs'], function (originalFS) { return originalFS; }); // replace the patched electron fs with the original node fs for all AMD code
 
-		window.MonacoEnvironment = {};
+	window.MonacoEnvironment = {};
 
-		const onNodeCachedData = window.MonacoEnvironment.onNodeCachedData = [];
-		require.config({
-			baseUrl: rootUrl,
-			'vs/nls': nlsConfig,
-			recordStats: !!configuration.performance,
-			nodeCachedDataDir: configuration.nodeCachedDataDir,
-			onNodeCachedData: function () { onNodeCachedData.push(arguments); },
-			nodeModules: [/*BUILD->INSERT_NODE_MODULES*/]
-		});
+	const onNodeCachedData = window.MonacoEnvironment.onNodeCachedData = [];
+	require.config({
+		baseUrl: uriFromPath(configuration.appRoot) + '/out',
+		'vs/nls': nlsConfig,
+		recordStats: !!configuration.performance,
+		nodeCachedDataDir: configuration.nodeCachedDataDir,
+		onNodeCachedData: function () { onNodeCachedData.push(arguments); },
+		nodeModules: [/*BUILD->INSERT_NODE_MODULES*/]
+	});
 
-		if (nlsConfig.pseudo) {
-			require(['vs/nls'], function (nlsPlugin) {
-				nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
-			});
-		}
-
-		// Perf Counters
-		const timers = window.MonacoEnvironment.timers = {
-			isInitialStartup: !!configuration.isInitialStartup,
-			hasAccessibilitySupport: !!configuration.accessibilitySupport,
-			start: configuration.perfStartTime,
-			appReady: configuration.perfAppReady,
-			windowLoad: configuration.perfWindowLoadTime,
-			beforeLoadWorkbenchMain: Date.now()
-		};
-
-		const workbenchMainClock = perf.time('loadWorkbenchMain');
-		require([
-			'vs/workbench/workbench.main',
-			'vs/nls!vs/workbench/workbench.main',
-			'vs/css!vs/workbench/workbench.main'
-		], function () {
-			workbenchMainClock.stop();
-			timers.afterLoadWorkbenchMain = Date.now();
-
-			process.lazyEnv.then(function () {
-				perf.mark('main/startup');
-				require('vs/workbench/electron-browser/main')
-					.startup(configuration)
-					.done(function () {
-						unbind(); // since the workbench is running, unbind our developer related listeners and let the workbench handle them
-					}, function (error) {
-						onError(error, enableDeveloperTools);
-					});
-			});
+	if (nlsConfig.pseudo) {
+		require(['vs/nls'], function (nlsPlugin) {
+			nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
 		});
 	}
 
-	// In the bundled version the nls plugin is packaged with the loader so the NLS Plugins
-	if (typeof Monaco_Loader_Init === 'function') {
-		const loader = Monaco_Loader_Init();
-		//eslint-disable-next-line no-global-assign
-		define = loader.define; require = loader.require;
-		onLoader();
+	// Perf Counters
+	window.MonacoEnvironment.timers = {
+		isInitialStartup: !!configuration.isInitialStartup,
+		hasAccessibilitySupport: !!configuration.accessibilitySupport,
+		start: configuration.perfStartTime,
+		windowLoad: configuration.perfWindowLoadTime
+	};
 
-	} else {
-		createScript(rootUrl + '/vs/loader.js', onLoader);
-	}
+	perf.mark('willLoadWorkbenchMain');
+	require([
+		'vs/workbench/workbench.main',
+		'vs/nls!vs/workbench/workbench.main',
+		'vs/css!vs/workbench/workbench.main'
+	], function () {
+		perf.mark('didLoadWorkbenchMain');
+
+		process.lazyEnv.then(function () {
+			perf.mark('main/startup');
+			require('vs/workbench/electron-browser/main')
+				.startup(configuration)
+				.done(function () {
+					unbind(); // since the workbench is running, unbind our developer related listeners and let the workbench handle them
+				}, function (error) {
+					onError(error, enableDeveloperTools);
+				});
+		});
+	});
+
 }
 
 main();

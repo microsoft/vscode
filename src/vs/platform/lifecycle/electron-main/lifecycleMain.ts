@@ -124,7 +124,7 @@ export class LifecycleService implements ILifecycleService {
 
 		// before-quit
 		app.on('before-quit', (e) => {
-			this.logService.log('Lifecycle#before-quit');
+			this.logService.trace('Lifecycle#before-quit');
 
 			if (!this.quitRequested) {
 				this._onBeforeQuit.fire(); // only send this if this is the first quit request we have
@@ -135,7 +135,7 @@ export class LifecycleService implements ILifecycleService {
 
 		// window-all-closed
 		app.on('window-all-closed', () => {
-			this.logService.log('Lifecycle#window-all-closed');
+			this.logService.trace('Lifecycle#window-all-closed');
 
 			// Windows/Linux: we quit when all windows have closed
 			// Mac: we only quit when quit was requested
@@ -150,11 +150,11 @@ export class LifecycleService implements ILifecycleService {
 		// Window Before Closing: Main -> Renderer
 		window.win.on('close', e => {
 			const windowId = window.id;
-			this.logService.log('Lifecycle#window-before-close', windowId);
+			this.logService.trace('Lifecycle#window-before-close', windowId);
 
 			// The window already acknowledged to be closed
 			if (this.windowToCloseRequest[windowId]) {
-				this.logService.log('Lifecycle#window-close', windowId);
+				this.logService.trace('Lifecycle#window-close', windowId);
 
 				delete this.windowToCloseRequest[windowId];
 
@@ -183,7 +183,7 @@ export class LifecycleService implements ILifecycleService {
 			return TPromise.as<boolean>(false);
 		}
 
-		this.logService.log('Lifecycle#unload()', window.id);
+		this.logService.trace('Lifecycle#unload()', window.id);
 
 		const windowUnloadReason = this.quitRequested ? UnloadReason.QUIT : reason;
 
@@ -247,7 +247,7 @@ export class LifecycleService implements ILifecycleService {
 	 * by the user or not.
 	 */
 	public quit(fromUpdate?: boolean): TPromise<boolean /* veto */> {
-		this.logService.log('Lifecycle#quit()');
+		this.logService.trace('Lifecycle#quit()');
 
 		if (!this.pendingQuitPromise) {
 			this.pendingQuitPromise = new TPromise<boolean>(c => {

@@ -11,6 +11,8 @@
 	"oneSettingFound": "Coincide 1 configuración",
 	"settingsFound": "{0} configuraciones coincidentes",
 	"totalSettingsMessage": "{0} configuraciones en total",
+	"defaultSettings": "Configuración predeterminada",
+	"defaultFolderSettings": "Configuración de carpeta predeterminada",
 	"defaultEditorReadonly": "Editar en el editor de lado de mano derecha para reemplazar valores predeterminados.",
 	"preferencesAriaLabel": "Preferencias predeterminadas. Editor de texto de solo lectura."
 }

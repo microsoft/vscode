@@ -62,12 +62,12 @@ export interface IMessageService {
 	/**
 	 * Ask the user for confirmation.
 	 */
-	confirmSync(confirmation: IConfirmation): boolean;
+	confirm(confirmation: IConfirmation): TPromise<boolean>;
 
 	/**
-	 * Ask the user for confirmation without blocking.
+	 * Ask the user for confirmation with a checkbox.
 	 */
-	confirm(confirmation: IConfirmation): TPromise<IConfirmationResult>;
+	confirmWithCheckbox(confirmation: IConfirmation): TPromise<IConfirmationResult>;
 }
 
 export const IChoiceService = createDecorator<IChoiceService>('choiceService');

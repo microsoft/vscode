@@ -22,10 +22,6 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { isEqual } from 'vs/base/common/paths';
 import { RunOnceScheduler } from 'vs/base/common/async';
 
-export interface ILegacyRecentlyOpened extends IRecentlyOpened {
-	folders: string[]; // TODO@Ben migration
-}
-
 export class HistoryMainService implements IHistoryMainService {
 
 	private static readonly MAX_TOTAL_RECENT_ENTRIES = 100;
@@ -179,9 +175,9 @@ export class HistoryMainService implements IHistoryMainService {
 		let files: string[];
 
 		// Get from storage
-		const storedRecents = this.stateService.getItem<IRecentlyOpened>(HistoryMainService.recentlyOpenedStorageKey) as ILegacyRecentlyOpened;
+		const storedRecents = this.stateService.getItem<IRecentlyOpened>(HistoryMainService.recentlyOpenedStorageKey);
 		if (storedRecents) {
-			workspaces = storedRecents.workspaces || storedRecents.folders || [];
+			workspaces = storedRecents.workspaces || [];
 			files = storedRecents.files || [];
 		} else {
 			workspaces = [];
@@ -281,7 +277,7 @@ export class HistoryMainService implements IHistoryMainService {
 		try {
 			app.setJumpList(jumpList);
 		} catch (error) {
-			this.logService.log('#setJumpList', error); // since setJumpList is relatively new API, make sure to guard for errors
+			this.logService.warn('#setJumpList', error); // since setJumpList is relatively new API, make sure to guard for errors
 		}
 	}
 }

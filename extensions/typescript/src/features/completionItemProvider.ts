@@ -378,13 +378,13 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		});
 	}
 
-	private isValidFunctionCompletionContext(filepath: string, position: Position): Promise<boolean> {
-		const args = vsPositionToTsFileLocation(filepath, position);
+	private async isValidFunctionCompletionContext(filepath: string, position: Position): Promise<boolean> {
 		// Workaround for https://github.com/Microsoft/TypeScript/issues/12677
 		// Don't complete function calls inside of destructive assigments or imports
-		return this.client.execute('quickinfo', args).then(infoResponse => {
+		try {
+			const infoResponse = await this.client.execute('quickinfo', vsPositionToTsFileLocation(filepath, position));
 			const info = infoResponse.body;
-			switch (info && info.kind as string) {
+			switch (info && info.kind) {
 				case 'var':
 				case 'let':
 				case 'const':
@@ -393,36 +393,54 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 				default:
 					return true;
 			}
-		}, () => {
+		} catch (e) {
 			return true;
-		});
+		}
 	}
 
 	private snippetForFunctionCall(detail: CompletionEntryDetails): SnippetString {
-		const suggestionArgumentNames: string[] = [];
+		let hasOptionalParameters = false;
+		let hasAddedParameters = false;
+
+		const snippet = new SnippetString();
+		snippet.appendText(detail.name);
+		snippet.appendText('(');
+
 		let parenCount = 0;
-		for (let i = 0; i < detail.displayParts.length; ++i) {
+		let i = 0;
+		for (; i < detail.displayParts.length; ++i) {
 			const part = detail.displayParts[i];
 			// Only take top level paren names
 			if (part.kind === 'parameterName' && parenCount === 1) {
-				suggestionArgumentNames.push(`\${${i + 1}:${part.text}}`);
+				const next = detail.displayParts[i + 1];
+				// Skip optional parameters
+				const nameIsFollowedByOptionalIndicator = next && next.text === '?';
+				if (!nameIsFollowedByOptionalIndicator) {
+					if (hasAddedParameters) {
+						snippet.appendText(', ');
+					}
+					hasAddedParameters = true;
+					snippet.appendPlaceholder(part.text);
+				}
+				hasOptionalParameters = hasOptionalParameters || nameIsFollowedByOptionalIndicator;
 			} else if (part.kind === 'punctuation') {
 				if (part.text === '(') {
 					++parenCount;
 				} else if (part.text === ')') {
 					--parenCount;
+				} else if (part.text === '...' && parenCount === 1) {
+					// Found rest parmeter. Do not fill in any further arguments
+					hasOptionalParameters = true;
+					break;
 				}
 			}
 		}
-
-		let codeSnippet = detail.name;
-		if (suggestionArgumentNames.length > 0) {
-			codeSnippet += '(' + suggestionArgumentNames.join(', ') + ')$0';
-		} else {
-			codeSnippet += '()';
+		if (hasOptionalParameters) {
+			snippet.appendTabstop();
 		}
-
-		return new SnippetString(codeSnippet);
+		snippet.appendText(')');
+		snippet.appendTabstop(0);
+		return snippet;
 	}
 
 	private getConfiguration(resource: Uri): Configuration {

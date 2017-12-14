@@ -6,10 +6,10 @@
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import uri from 'vs/base/common/uri';
-import { IDebugService, IConfig, IDebugConfigurationProvider } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint } from 'vs/workbench/parts/debug/common/debug';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext, IExtHostContext } from '../node/extHost.protocol';
+import { ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext, IExtHostContext, IBreakpointsDelta, ISourceBreakpointData, IFunctionBreakpointData } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import severity from 'vs/base/common/severity';
 
@@ -18,13 +18,14 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 
 	private _proxy: ExtHostDebugServiceShape;
 	private _toDispose: IDisposable[];
+	private _breakpointEventsActive: boolean;
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@IDebugService private debugService: IDebugService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 	) {
-		this._proxy = extHostContext.get(ExtHostContext.ExtHostDebugService);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDebugService);
 		this._toDispose = [];
 		this._toDispose.push(debugService.onDidNewProcess(proc => this._proxy.$acceptDebugSessionStarted(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.getName(false))));
 		this._toDispose.push(debugService.onDidEndProcess(proc => this._proxy.$acceptDebugSessionTerminated(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.getName(false))));
@@ -35,6 +36,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 				this._proxy.$acceptDebugSessionActiveChanged(undefined);
 			}
 		}));
+
 		this._toDispose.push(debugService.onDidCustomEvent(event => {
 			if (event && event.sessionId) {
 				const process = this.debugService.getModel().getProcesses().filter(p => p.getId() === event.sessionId).pop();
@@ -47,6 +49,73 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape {
 
 	public dispose(): void {
 		this._toDispose = dispose(this._toDispose);
+	}
+
+	public $startBreakpointEvents(): TPromise<any> {
+
+		if (!this._breakpointEventsActive) {
+			this._breakpointEventsActive = true;
+
+			// set up a handler to send more
+			this._toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(e => {
+				if (e) {
+					const delta: IBreakpointsDelta = {};
+					if (e.added) {
+						delta.added = this.toWire(e.added);
+					}
+					if (e.removed) {
+						delta.removed = e.removed.map(x => x.getId());
+					}
+					if (e.changed) {
+						delta.changed = this.toWire(e.changed);
+					}
+
+					if (delta.added || delta.removed || delta.changed) {
+						this._proxy.$acceptBreakpointsDelta(delta);
+					}
+				}
+			}));
+
+			// send all breakpoints
+			const bps = this.debugService.getModel().getBreakpoints();
+			const fbps = this.debugService.getModel().getFunctionBreakpoints();
+			if (bps.length > 0 || fbps.length > 0) {
+				this._proxy.$acceptBreakpointsDelta({
+					added: this.toWire(bps).concat(this.toWire(fbps))
+				});
+			}
+		}
+
+		return TPromise.wrap<void>(undefined);
+	}
+
+	private toWire(bps: (IBreakpoint | IFunctionBreakpoint)[]): (ISourceBreakpointData | IFunctionBreakpointData)[] {
+
+		return bps.map(bp => {
+			if ('name' in bp) {
+				const fbp = <IFunctionBreakpoint>bp;
+				return <IFunctionBreakpointData>{
+					type: 'function',
+					id: bp.getId(),
+					enabled: bp.enabled,
+					functionName: fbp.name,
+					hitCondition: bp.hitCondition,
+					/* condition: bp.condition */
+				};
+			} else {
+				const sbp = <IBreakpoint>bp;
+				return <ISourceBreakpointData>{
+					type: 'source',
+					id: bp.getId(),
+					enabled: bp.enabled,
+					condition: sbp.condition,
+					hitCondition: bp.hitCondition,
+					uri: sbp.uri,
+					line: sbp.lineNumber > 0 ? sbp.lineNumber - 1 : 0,
+					character: (typeof sbp.column === 'number' && sbp.column > 0) ? sbp.column - 1 : 0
+				};
+			}
+		});
 	}
 
 	public $registerDebugConfigurationProvider(debugType: string, hasProvide: boolean, hasResolve: boolean, handle: number): TPromise<void> {
