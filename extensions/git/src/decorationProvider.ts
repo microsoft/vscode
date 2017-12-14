@@ -10,25 +10,26 @@ import * as path from 'path';
 import { Repository, GitResourceGroup, Status } from './repository';
 import { Model } from './model';
 import { debounce } from './decorators';
-import { filterEvent, dispose } from './util';
+import { filterEvent, dispose, anyEvent, mapEvent, fireEvent } from './util';
 import { Submodule, GitErrorCodes } from './git';
 
 type Callback = { resolve: (status: boolean) => void, reject: (err: any) => void };
 
 class GitIgnoreDecorationProvider implements DecorationProvider {
 
-	private readonly _onDidChangeDecorations = new EventEmitter<Uri[]>();
-	readonly onDidChangeDecorations: Event<Uri[]> = this._onDidChangeDecorations.event;
-
+	readonly onDidChangeDecorations: Event<Uri[]>;
 	private queue = new Map<string, { repository: Repository; queue: Map<string, Callback>; }>();
 	private disposables: Disposable[] = [];
 
 	constructor(private model: Model) {
-		this.disposables.push(
-			window.registerDecorationProvider(this),
-			filterEvent(workspace.onDidSaveTextDocument, e => e.fileName.endsWith('.gitignore'))(_ => this._onDidChangeDecorations.fire())
-			//todo@joh -> events when the ignore status actually changes, not only when the file changes
-		);
+		//todo@joh -> events when the ignore status actually changes, not only when the file changes
+		this.onDidChangeDecorations = fireEvent(anyEvent<any>(
+			filterEvent(workspace.onDidSaveTextDocument, e => e.fileName.endsWith('.gitignore')),
+			model.onDidOpenRepository,
+			model.onDidCloseRepository
+		));
+
+		this.disposables.push(window.registerDecorationProvider(this));
 	}
 
 	provideDecoration(uri: Uri): Promise<DecorationData | undefined> {
