@@ -321,6 +321,9 @@ export class TitlebarPart extends Part implements ITitleService {
 			}, 0 /* need a timeout because we are in capture phase */);
 		}, void 0, true /* use capture to know the currently active element properly */);
 
+		// Now that there exists a titelbar, we don't need the whole page to be a drag region anymore
+		(document.body.style as any).webkitAppRegion = '';
+
 		return this.titleContainer;
 	}
 

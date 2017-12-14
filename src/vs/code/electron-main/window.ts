@@ -590,6 +590,7 @@ export class CodeWindow implements ICodeWindow {
 		// Theme
 		windowConfiguration.baseTheme = this.getBaseTheme();
 		windowConfiguration.backgroundColor = this.getBackgroundColor();
+		windowConfiguration.hiddenTitleBar = this.hasHiddenTitleBarStyle();
 
 		// Perf Counters
 		windowConfiguration.perfEntries = exportEntries();
