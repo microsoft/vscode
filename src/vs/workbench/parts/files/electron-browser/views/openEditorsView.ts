@@ -592,7 +592,7 @@ export class ActionProvider extends ContributableActionProvider {
 				const resource = openEditor.getResource();
 				if (resource) {
 					// Open to side
-					result.unshift(this.instantiationService.createInstance(OpenToSideAction, undefined, resource, false));
+					result.unshift(this.instantiationService.createInstance(OpenToSideAction, resource));
 
 					if (!openEditor.isUntitled()) {
 
@@ -637,11 +637,11 @@ export class ActionProvider extends ContributableActionProvider {
 						result.push(compareWithSavedAction);
 					}
 
-					const runCompareAction = this.instantiationService.createInstance(CompareResourcesAction, resource, undefined);
+					const runCompareAction = this.instantiationService.createInstance(CompareResourcesAction, resource);
 					if (runCompareAction._isEnabled()) {
 						result.push(runCompareAction);
 					}
-					result.push(this.instantiationService.createInstance(SelectResourceForCompareAction, resource, undefined));
+					result.push(this.instantiationService.createInstance(SelectResourceForCompareAction, resource));
 
 					result.push(new Separator());
 				}

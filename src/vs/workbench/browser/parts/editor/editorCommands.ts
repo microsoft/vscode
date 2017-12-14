@@ -8,7 +8,7 @@ import * as types from 'vs/base/common/types';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { ActiveEditorMoveArguments, ActiveEditorMovePositioning, ActiveEditorMovePositioningBy, EditorCommands, TextCompareEditorVisible, toResource } from 'vs/workbench/common/editor';
+import { ActiveEditorMoveArguments, ActiveEditorMovePositioning, ActiveEditorMovePositioningBy, EditorCommands, TextCompareEditorVisible, IEditorContext, EditorInput } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditor, Position, POSITIONS } from 'vs/platform/editor/common/editor';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -19,18 +19,11 @@ import { IMessageService, Severity, CloseAction } from 'vs/platform/message/comm
 import { Action } from 'vs/base/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IListService } from 'vs/platform/list/browser/listService';
-import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import URI from 'vs/base/common/uri';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { basename } from 'vs/base/common/paths';
 
 export const CLOSE_UNMODIFIED_EDITORS_COMMAND_ID = 'workbench.command.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.command.closeEditorsInGroup';
-export const OPEN_TO_SIDE_COMMAND_ID = 'workbench.command.openToSide';
-export const REVERT_FILE_COMMAND_ID = 'workbench.command.files.revert';
-
+export const CLOSE_EDITOR_COMMAND_ID = 'workbench.command.closeActiveEditor';
+export const CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.command.closeOtherEditors';
 
 export function setup(): void {
 	registerActiveEditorMoveCommand();
@@ -291,11 +284,11 @@ function registerExplorerCommands() {
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: undefined,
 		primary: undefined,
-		handler: (accessor, args: any) => {
+		handler: (accessor, args: IEditorContext) => {
 			const editorGroupService = accessor.get(IEditorGroupService);
 			const editorService = accessor.get(IWorkbenchEditorService);
 
-			let position = context ? editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
+			let position = args ? editorGroupService.getStacksModel().positionOfGroup(args.group) : null;
 
 			// If position is not passed in take the position of the active editor.
 			if (typeof position !== 'number') {
@@ -318,11 +311,11 @@ function registerExplorerCommands() {
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: undefined,
 		primary: undefined,
-		handler: (accessor, args: any) => {
+		handler: (accessor, args: IEditorContext) => {
 			const editorGroupService = accessor.get(IEditorGroupService);
 			const editorService = accessor.get(IWorkbenchEditorService);
 
-			let position = context ? editorGroupService.getStacksModel().positionOfGroup(context.group) : null;
+			let position = args ? editorGroupService.getStacksModel().positionOfGroup(args.group) : null;
 			if (typeof position !== 'number') {
 				const activeEditor = editorService.getActiveEditor();
 				if (activeEditor) {
@@ -339,53 +332,66 @@ function registerExplorerCommands() {
 	});
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: OPEN_TO_SIDE_COMMAND_ID,
+		id: CLOSE_EDITOR_COMMAND_ID,
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: undefined,
 		primary: undefined,
-		handler: (accessor, args: any) => {
+		handler: (accessor, args: IEditorContext) => {
+			const editorGroupService = accessor.get(IEditorGroupService);
 			const editorService = accessor.get(IWorkbenchEditorService);
-			const listService = accessor.get(IListService);
-			const tree = listService.lastFocusedList;
-			// Remove highlight
-			if (tree instanceof Tree) {
-				tree.clearHighlight();
+
+			const position = args ? editorGroupService.getStacksModel().positionOfGroup(args.group) : null;
+
+			// Close Active Editor
+			if (typeof position !== 'number') {
+				const activeEditor = editorService.getActiveEditor();
+				if (activeEditor) {
+					return editorService.closeEditor(activeEditor.position, activeEditor.input);
+				}
 			}
 
-			// Set side input
-			return editorService.openEditor({
-				resource: this.resource,
-				options: {
-					preserveFocus: this.preserveFocus
+			let input = args ? args.editor : null;
+			if (!input) {
+
+				// Get Top Editor at Position
+				const visibleEditors = editorService.getVisibleEditors();
+				if (visibleEditors[position]) {
+					input = visibleEditors[position].input;
 				}
-			}, true);
+			}
+
+			if (input) {
+				return editorService.closeEditor(position, input);
+			}
+
+			return TPromise.as(false);
 		}
 	});
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: REVERT_FILE_COMMAND_ID,
+		id: CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID,
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: undefined,
 		primary: undefined,
-		handler: (accessor, args: any) => {
-			let resource: URI;
+		handler: (accessor, args: IEditorContext) => {
+			const editorGroupService = accessor.get(IEditorGroupService);
 			const editorService = accessor.get(IWorkbenchEditorService);
-			const textFileService = accessor.get(ITextFileService);
-			const messageService = accessor.get(IMessageService);
 
-			if (this.resource) {
-				resource = this.resource;
-			} else {
-				resource = toResource(editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
+			let position = args ? editorGroupService.getStacksModel().positionOfGroup(args.group) : null;
+			let input = args ? args.editor : null;
+
+			// If position or input are not passed in take the position and input of the active editor.
+			const active = editorService.getActiveEditor();
+			if (active) {
+				position = typeof position === 'number' ? position : active.position;
+				input = input ? input : <EditorInput>active.input;
 			}
 
-			if (resource && resource.scheme !== 'untitled') {
-				return textFileService.revert(resource, { force: true }).then(null, error => {
-					messageService.show(Severity.Error, nls.localize('genericRevertError', "Failed to revert '{0}': {1}", basename(resource.fsPath), toErrorMessage(error, false)));
-				});
+			if (typeof position === 'number' && input) {
+				return editorService.closeEditors(position, { except: input });
 			}
 
-			return TPromise.as(true);
+			return TPromise.as(false);
 		}
 	});
 }

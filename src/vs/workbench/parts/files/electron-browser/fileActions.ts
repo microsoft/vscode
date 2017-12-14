@@ -44,7 +44,7 @@ import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorViewState, IModel } from 'vs/editor/common/editorCommon';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { withFocusedFilesExplorer, revealInOSCommand, revealInExplorerCommand, copyPathCommand } from 'vs/workbench/parts/files/electron-browser/fileCommands';
+import { withFocusedFilesExplorer, REVERT_FILE_COMMAND_ID, OPEN_TO_SIDE_COMMAND_ID, COMPARE_WITH_SAVED_SCHEMA, COMPARE_WITH_SAVED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, globalResourceToCompare, REVEAL_IN_OS_COMMAND_ID, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -53,7 +53,6 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { OPEN_TO_SIDE_COMMAND_ID, REVERT_FILE_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 
 export interface IEditableData {
 	action: IAction;
@@ -1123,6 +1122,7 @@ export class OpenToSideAction extends Action {
 	public static readonly LABEL = nls.localize('openToSide', "Open to the Side");
 
 	constructor(
+		private resource: URI,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@ICommandService private commandService: ICommandService
 	) {
@@ -1137,35 +1137,23 @@ export class OpenToSideAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		return this.commandService.executeCommand(OPEN_TO_SIDE_COMMAND_ID);
+		return this.commandService.executeCommand(OPEN_TO_SIDE_COMMAND_ID, { resource: this.resource });
 	}
 }
 
-let globalResourceToCompare: URI;
 export class SelectResourceForCompareAction extends Action {
 	private resource: URI;
-	private tree: ITree;
 
-	constructor(resource: URI, tree: ITree) {
+	constructor(resource: URI, @ICommandService private commandService: ICommandService) {
 		super('workbench.files.action.selectForCompare', nls.localize('compareSource', "Select for Compare"));
 
-		this.tree = tree;
 		this.resource = resource;
 		this.enabled = true;
 	}
 
 	public run(): TPromise<any> {
+		return this.commandService.executeCommand(SELECT_FOR_COMPARE_COMMAND_ID, { resource: this.resource });
 
-		// Remember as source file to compare
-		globalResourceToCompare = this.resource;
-
-		// Remove highlight
-		if (this.tree) {
-			this.tree.clearHighlight();
-			this.tree.DOMFocus();
-		}
-
-		return TPromise.as(null);
 	}
 }
 
@@ -1218,19 +1206,16 @@ export class GlobalCompareResourcesAction extends Action {
 
 // Compare with Resource
 export class CompareResourcesAction extends Action {
-	private tree: ITree;
 	private resource: URI;
 
 	constructor(
 		resource: URI,
-		tree: ITree,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IWorkbenchEditorService private commandService: ICommandService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		super('workbench.files.action.compareFiles', CompareResourcesAction.computeLabel(resource, contextService, environmentService));
 
-		this.tree = tree;
 		this.resource = resource;
 	}
 
@@ -1263,18 +1248,7 @@ export class CompareResourcesAction extends Action {
 			return false;
 		}
 
-		// Check if file was deleted or moved meanwhile (explorer only)
-		if (this.tree) {
-			const input = this.tree.getInput();
-			if (input instanceof FileStat || input instanceof Model) {
-				const exists = input instanceof Model ? input.findClosest(globalResourceToCompare) : input.find(globalResourceToCompare);
-				if (!exists) {
-					globalResourceToCompare = null;
-
-					return false;
-				}
-			}
-		}
+		// TODO@Isidor Check if file was deleted or moved meanwhile (explorer only)
 
 		// Check if target is identical to source
 		if (this.resource.toString() === globalResourceToCompare.toString()) {
@@ -1285,16 +1259,7 @@ export class CompareResourcesAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-
-		// Remove highlight
-		if (this.tree) {
-			this.tree.clearHighlight();
-		}
-
-		return this.editorService.openEditor({
-			leftResource: globalResourceToCompare,
-			rightResource: this.resource
-		});
+		return this.commandService.executeCommand(COMPARE_RESOURCE_COMMAND_ID, { resource: this.resource });
 	}
 }
 
@@ -1667,7 +1632,7 @@ export class RevertFileAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		return this.commandService.executeCommand(REVERT_FILE_COMMAND_ID);
+		return this.commandService.executeCommand(REVERT_FILE_COMMAND_ID, { resource: this.resource });
 	}
 }
 
@@ -1728,8 +1693,8 @@ export class ShowActiveFileInExplorer extends Action {
 		id: string,
 		label: string,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IMessageService private messageService: IMessageService
+		@IMessageService private messageService: IMessageService,
+		@ICommandService private commandService: ICommandService
 	) {
 		super(id, label);
 	}
@@ -1737,7 +1702,7 @@ export class ShowActiveFileInExplorer extends Action {
 	public run(): TPromise<any> {
 		const resource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true });
 		if (resource) {
-			this.instantiationService.invokeFunction.apply(this.instantiationService, [revealInExplorerCommand, resource]);
+			this.commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, { resource });
 		} else {
 			this.messageService.show(severity.Info, nls.localize('openFileToShow', "Open a file first to show it in the explorer"));
 		}
@@ -1830,7 +1795,7 @@ export class RevealInOSAction extends Action {
 
 	constructor(
 		private resource: URI,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@ICommandService private commandService: ICommandService
 	) {
 		super('revealFileInOS', RevealInOSAction.LABEL);
 
@@ -1838,9 +1803,7 @@ export class RevealInOSAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		this.instantiationService.invokeFunction.apply(this.instantiationService, [revealInOSCommand, this.resource]);
-
-		return TPromise.as(true);
+		return this.commandService.executeCommand(REVEAL_IN_OS_COMMAND_ID, { resource: this.resource });
 	}
 }
 
@@ -1852,15 +1815,13 @@ export class GlobalRevealInOSAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@ICommandService private commandService: ICommandService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		this.instantiationService.invokeFunction.apply(this.instantiationService, [revealInOSCommand]);
-
-		return TPromise.as(true);
+		return this.commandService.executeCommand(REVEAL_IN_OS_COMMAND_ID);
 	}
 }
 
@@ -1870,7 +1831,7 @@ export class CopyPathAction extends Action {
 
 	constructor(
 		private resource: URI,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@ICommandService private commandService: ICommandService
 	) {
 		super('copyFilePath', CopyPathAction.LABEL);
 
@@ -1878,9 +1839,7 @@ export class CopyPathAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		this.instantiationService.invokeFunction.apply(this.instantiationService, [copyPathCommand, this.resource]);
-
-		return TPromise.as(true);
+		return this.commandService.executeCommand(COPY_PATH_COMMAND_ID, { resource: this.resource });
 	}
 }
 
@@ -1892,15 +1851,13 @@ export class GlobalCopyPathAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@ICommandService private commandService: ICommandService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		this.instantiationService.invokeFunction.apply(this.instantiationService, [copyPathCommand]);
-
-		return TPromise.as(true);
+		return this.commandService.executeCommand(COPY_PATH_COMMAND_ID);
 	}
 }
 
@@ -1970,15 +1927,13 @@ export class CompareWithSavedAction extends Action {
 	public static readonly ID = 'workbench.files.action.compareWithSaved';
 	public static readonly LABEL = nls.localize('compareWithSaved', "Compare Active File with Saved");
 
-	private static readonly SCHEME = 'showModifications';
-
 	private resource: URI;
 	private toDispose: IDisposable[];
 
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@ICommandService private commandService: ICommandService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITextModelService textModelService: ITextModelService
 	) {
@@ -1990,7 +1945,7 @@ export class CompareWithSavedAction extends Action {
 		const provider = instantiationService.createInstance(FileOnDiskContentProvider);
 		this.toDispose.push(provider);
 
-		const registrationDisposal = textModelService.registerTextModelContentProvider(CompareWithSavedAction.SCHEME, provider);
+		const registrationDisposal = textModelService.registerTextModelContentProvider(COMPARE_WITH_SAVED_SCHEMA, provider);
 		this.toDispose.push(registrationDisposal);
 	}
 
@@ -1999,21 +1954,7 @@ export class CompareWithSavedAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		let resource: URI;
-		if (this.resource) {
-			resource = this.resource;
-		} else {
-			resource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
-		}
-
-		if (resource && resource.scheme === 'file') {
-			const name = paths.basename(resource.fsPath);
-			const editorLabel = nls.localize('modifiedLabel', "{0} (on disk) ↔ {1}", name, name);
-
-			return this.editorService.openEditor({ leftResource: URI.from({ scheme: CompareWithSavedAction.SCHEME, path: resource.fsPath }), rightResource: resource, label: editorLabel });
-		}
-
-		return TPromise.as(true);
+		return this.commandService.executeCommand(COMPARE_WITH_SAVED_COMMAND_ID, { resource: this.resource });
 	}
 
 	public dispose(): void {

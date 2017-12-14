@@ -18,7 +18,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { FileStat, Model } from 'vs/workbench/parts/files/common/explorerModel';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { AddRootFolderAction, RemoveRootFolderAction, OpenFolderSettingsAction } from 'vs/workbench/browser/actions/workspaceActions';
-import { copyFocusedFilesExplorerViewItem, revealInOSFocusedFilesExplorerItem, openFocusedExplorerItemSideBySideCommand, copyPathOfFocusedExplorerItem, copyPathCommand, revealInExplorerCommand, revealInOSCommand, openWindowCommand, deleteFocusedFilesExplorerViewItemCommand, moveFocusedFilesExplorerViewItemToTrashCommand, renameFocusedFilesExplorerViewItemCommand } from 'vs/workbench/parts/files/electron-browser/fileCommands';
+import { copyFocusedFilesExplorerViewItem, revealInOSFocusedFilesExplorerItem, openFocusedExplorerItemSideBySideCommand, copyPathOfFocusedExplorerItem, openWindowCommand, deleteFocusedFilesExplorerViewItemCommand, moveFocusedFilesExplorerViewItemToTrashCommand, renameFocusedFilesExplorerViewItemCommand, REVEAL_IN_OS_COMMAND_ID, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -51,7 +51,7 @@ class FilesViewerActionContributor extends ActionBarContributor {
 
 		// Open side by side
 		if (!stat.isDirectory) {
-			actions.push(this.instantiationService.createInstance(OpenToSideAction, tree, stat.resource, false));
+			actions.push(this.instantiationService.createInstance(OpenToSideAction, stat.resource));
 			separateOpen = true;
 		}
 
@@ -75,13 +75,13 @@ class FilesViewerActionContributor extends ActionBarContributor {
 		else if (!stat.isDirectory) {
 
 			// Run Compare
-			const runCompareAction = this.instantiationService.createInstance(CompareResourcesAction, stat.resource, tree);
+			const runCompareAction = this.instantiationService.createInstance(CompareResourcesAction, stat.resource);
 			if (runCompareAction._isEnabled()) {
 				actions.push(runCompareAction);
 			}
 
 			// Select for Compare
-			actions.push(this.instantiationService.createInstance(SelectResourceForCompareAction, stat.resource, tree));
+			actions.push(this.instantiationService.createInstance(SelectResourceForCompareAction, stat.resource));
 
 			actions.push(new Separator(null, 100));
 		}
@@ -296,14 +296,11 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 // Editor Title Context Menu
-appendEditorTitleContextMenuItem('_workbench.action.files.revealInOS', RevealInOSAction.LABEL, revealInOSCommand);
-appendEditorTitleContextMenuItem('_workbench.action.files.copyPath', CopyPathAction.LABEL, copyPathCommand);
-appendEditorTitleContextMenuItem('_workbench.action.files.revealInExplorer', nls.localize('revealInSideBar', "Reveal in Side Bar"), revealInExplorerCommand);
+appendEditorTitleContextMenuItem(REVEAL_IN_OS_COMMAND_ID, RevealInOSAction.LABEL);
+appendEditorTitleContextMenuItem(COPY_PATH_COMMAND_ID, CopyPathAction.LABEL);
+appendEditorTitleContextMenuItem(REVEAL_IN_EXPLORER_COMMAND_ID, nls.localize('revealInSideBar', "Reveal in Side Bar"));
 
-function appendEditorTitleContextMenuItem(id: string, title: string, command: ICommandHandler): void {
-
-	// Command
-	CommandsRegistry.registerCommand(id, command);
+function appendEditorTitleContextMenuItem(id: string, title: string): void {
 
 	// Menu
 	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
