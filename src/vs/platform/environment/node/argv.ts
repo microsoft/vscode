@@ -157,7 +157,7 @@ export const optionsHelp: { [name: string]: string; } = {
 	'-v, --version': localize('version', "Print version."),
 	'-h, --help': localize('help', "Print usage."),
 	'--inspect-all': localize('inspect-all', "Start processes in debug mode and print debug ports to console"),
-	'--cpu-profile <port>': localize('cpu-profile', "Collect CPU profile from debug port")
+	'--cpu-profile <port>': localize('cpu-profile', "Collect CPU profile from debug port. Run with \"--status\" to get list of valid ports.")
 };
 
 export function formatOptions(options: { [name: string]: string; }, columns: number): string {

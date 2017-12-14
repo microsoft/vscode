@@ -57,7 +57,7 @@ export async function cpuProfile(debugPortStr: string): Promise<void> {
 	let debugPort = Number(debugPortStr);
 
 	if (!isNumber(debugPort)) {
-		console.error('Please provide valid debug port.');
+		console.error(`${debugPort} is invalid. Run with "--status" to get list of valid ports.`);
 		return;
 	}
 
@@ -80,7 +80,7 @@ export async function cpuProfile(debugPortStr: string): Promise<void> {
 			options = { port: debugPort };
 		}
 
-		console.log('Start profiling, press CTRL-C to stop.');
+		console.log('Profiling started, press Ctrl+C to stop.');
 		const targetProcess = await profiler.startProfiling(options);
 		const filenamePrefix = paths.join(os.homedir(), `CPU-${new Date().toISOString().replace(/[\-:]/g, '')}.cpuprofile`);
 
