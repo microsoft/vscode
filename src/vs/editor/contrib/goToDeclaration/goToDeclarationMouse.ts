@@ -14,7 +14,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { Location, DefinitionProviderRegistry } from 'vs/editor/common/modes';
+import { DefinitionProviderRegistry, DefinitionAndSpan } from 'vs/editor/common/modes';
 import { ICodeEditor, IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { getDefinitionsAtPosition } from './goToDeclaration';
@@ -101,7 +101,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 		this.throttler.queue(() => {
 			return state.validate(this.editor)
 				? this.findDefinition(mouseEvent.target)
-				: TPromise.wrap<Location[]>(null);
+				: TPromise.wrap<DefinitionAndSpan[]>(null);
 
 		}).then(results => {
 			if (!results || !results.length || !state.validate(this.editor)) {
@@ -121,11 +121,11 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 			else {
 				let result = results[0];
 
-				if (!result.uri) {
+				if (!result.definition.uri) {
 					return;
 				}
 
-				this.textModelResolverService.createModelReference(result.uri).then(ref => {
+				this.textModelResolverService.createModelReference(result.definition.uri).then(ref => {
 
 					if (!ref.object || !ref.object.textEditorModel) {
 						ref.dispose();
@@ -133,7 +133,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 					}
 
 					const { object: { textEditorModel } } = ref;
-					const { startLineNumber } = result.range;
+					const { startLineNumber } = result.definition.range;
 
 					if (textEditorModel.getLineMaxColumn(startLineNumber) === 0) {
 						ref.dispose();
@@ -156,8 +156,16 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 					const previewRange = new Range(startLineNumber, 1, endLineNumber + 1, 1);
 					const value = textEditorModel.getValueInRange(previewRange).replace(new RegExp(`^\\s{${minIndent - 1}}`, 'gm'), '').trim();
 
+					let wordRange: Range;
+					if (result.span) {
+						const range = result.span.range;
+						wordRange = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
+					} else {
+						wordRange = new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
+					}
+
 					this.addDecoration(
-						new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn),
+						wordRange,
 						new MarkdownString().appendCodeblock(this.modeService.getModeIdByFilenameOrFirstLine(textEditorModel.uri.fsPath), value)
 					);
 					ref.dispose();
@@ -193,7 +201,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 			DefinitionProviderRegistry.has(this.editor.getModel());
 	}
 
-	private findDefinition(target: IMouseTarget): TPromise<Location[]> {
+	private findDefinition(target: IMouseTarget): TPromise<DefinitionAndSpan[]> {
 		let model = this.editor.getModel();
 		if (!model) {
 			return TPromise.as(null);

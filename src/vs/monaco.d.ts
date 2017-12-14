@@ -4677,6 +4677,11 @@ declare module monaco.languages {
 		range: IRange;
 	}
 
+	export interface DefinitionAndSpan {
+		span?: Location;
+		definition: Location;
+	}
+
 	/**
 	 * The definition of a symbol represented as one or many [locations](#Location).
 	 * For most programming languages there is only one location at which a symbol is
@@ -4693,7 +4698,7 @@ declare module monaco.languages {
 		/**
 		 * Provide the definition of the symbol at the given position and document.
 		 */
-		provideDefinition(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
+		provideDefinition(model: editor.IReadOnlyModel, position: Position, token: CancellationToken): Definition | DefinitionAndSpan | Thenable<Definition | DefinitionAndSpan>;
 	}
 
 	/**

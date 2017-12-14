@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as Proto from '../protocol';
-
+import { ITypeScriptServiceClient } from '../typescriptService';
 
 export const tsTextSpanToVsRange = (span: Proto.TextSpan) =>
 	new vscode.Range(
@@ -28,3 +28,10 @@ export const vsRangeToTsFileRange = (file: string, range: vscode.Range): Proto.F
 	endLine: range.end.line + 1,
 	endOffset: range.end.character + 1
 });
+
+export const tsFileSpanToVsLocation = (client: ITypeScriptServiceClient, span: Proto.FileSpan): vscode.Location | undefined => {
+	const resource = client.asUrl(span.file);
+	return resource
+		? new vscode.Location(resource, tsTextSpanToVsRange(span))
+		: undefined;
+};

@@ -110,16 +110,21 @@ class DefinitionAdapter {
 		this._provider = provider;
 	}
 
-	provideDefinition(resource: URI, position: IPosition): TPromise<modes.Definition> {
+	provideDefinition(resource: URI, position: IPosition): TPromise<modes.Definition | modes.DefinitionAndSpan[]> {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = TypeConverters.toPosition(position);
 		return asWinJsPromise(token => this._provider.provideDefinition(doc, pos, token)).then(value => {
+			if (!value) {
+				return undefined;
+			}
+
 			if (Array.isArray(value)) {
 				return value.map(TypeConverters.location.from);
-			} else if (value) {
-				return TypeConverters.location.from(value);
+			} else if ((value as vscode.DefinitionAndSpan).definitions) {
+				return TypeConverters.DefinitionAndSpan.from(value as vscode.DefinitionAndSpan);
+			} else {
+				return TypeConverters.location.from(value as vscode.Location);
 			}
-			return undefined;
 		});
 	}
 }
@@ -874,7 +879,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideDefinition(handle: number, resource: URI, position: IPosition): TPromise<modes.Definition> {
+	$provideDefinition(handle: number, resource: URI, position: IPosition): TPromise<modes.Definition | modes.DefinitionAndSpan[]> {
 		return this._withAdapter(handle, DefinitionAdapter, adapter => adapter.provideDefinition(resource, position));
 	}
 
