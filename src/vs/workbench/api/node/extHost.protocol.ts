@@ -31,6 +31,7 @@ import * as modes from 'vs/editor/common/modes';
 import { ITextSource } from 'vs/editor/common/model/textSource';
 
 import { IConfigurationData, ConfigurationTarget, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
+import { IConfig } from 'vs/workbench/parts/debug/common/debug';
 
 import { IPickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
@@ -446,7 +447,7 @@ export type DebugSessionUUID = string;
 export interface MainThreadDebugServiceShape extends IDisposable {
 	$registerDebugConfigurationProvider(type: string, hasProvideMethod: boolean, hasResolveMethod: boolean, handle: number): TPromise<any>;
 	$unregisterDebugConfigurationProvider(handle: number): TPromise<any>;
-	$startDebugging(folder: URI | undefined, nameOrConfig: string | vscode.DebugConfiguration): TPromise<boolean>;
+	$startDebugging(folder: UriComponents | undefined, nameOrConfig: string | vscode.DebugConfiguration): TPromise<boolean>;
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): TPromise<any>;
 	$appendDebugConsole(value: string): TPromise<any>;
 	$startBreakpointEvents(): TPromise<any>;
@@ -691,7 +692,7 @@ export interface IBreakpointData {
 
 export interface ISourceBreakpointData extends IBreakpointData {
 	type: 'source';
-	uri: URI;
+	uri: UriComponents;
 	line: number;
 	character: number;
 }
@@ -708,8 +709,8 @@ export interface IBreakpointsDelta {
 }
 
 export interface ExtHostDebugServiceShape {
-	$resolveDebugConfiguration(handle: number, folder: URI | undefined, debugConfiguration: any): TPromise<any>;
-	$provideDebugConfigurations(handle: number, folder: URI | undefined): TPromise<any[]>;
+	$resolveDebugConfiguration(handle: number, folder: UriComponents | undefined, debugConfiguration: IConfig): TPromise<IConfig>;
+	$provideDebugConfigurations(handle: number, folder: UriComponents | undefined): TPromise<IConfig[]>;
 	$acceptDebugSessionStarted(id: DebugSessionUUID, type: string, name: string): void;
 	$acceptDebugSessionTerminated(id: DebugSessionUUID, type: string, name: string): void;
 	$acceptDebugSessionActiveChanged(id: DebugSessionUUID | undefined, type?: string, name?: string): void;
@@ -733,7 +734,7 @@ export interface ExtHostWindowShape {
 export const MainContext = {
 	MainThreadCommands: <ProxyIdentifier<MainThreadCommandsShape>>createMainId<MainThreadCommandsShape>('MainThreadCommands'),
 	MainThreadConfiguration: createMainId<MainThreadConfigurationShape>('MainThreadConfiguration', ProxyType.CustomMarshaller),
-	MainThreadDebugService: createMainId<MainThreadDebugServiceShape>('MainThreadDebugService', ProxyType.CustomMarshaller),
+	MainThreadDebugService: createMainId<MainThreadDebugServiceShape>('MainThreadDebugService'),
 	MainThreadDecorations: createMainId<MainThreadDecorationsShape>('MainThreadDecorations'),
 	MainThreadDiagnostics: createMainId<MainThreadDiagnosticsShape>('MainThreadDiagnostics'),
 	MainThreadDialogs: createMainId<MainThreadDiaglogsShape>('MainThreadDiaglogs'),
@@ -764,7 +765,7 @@ export const ExtHostContext = {
 	ExtHostCommands: createExtId<ExtHostCommandsShape>('ExtHostCommands'),
 	ExtHostConfiguration: createExtId<ExtHostConfigurationShape>('ExtHostConfiguration', ProxyType.CustomMarshaller),
 	ExtHostDiagnostics: createExtId<ExtHostDiagnosticsShape>('ExtHostDiagnostics'),
-	ExtHostDebugService: createExtId<ExtHostDebugServiceShape>('ExtHostDebugService', ProxyType.CustomMarshaller),
+	ExtHostDebugService: createExtId<ExtHostDebugServiceShape>('ExtHostDebugService'),
 	ExtHostDecorations: createExtId<ExtHostDecorationsShape>('ExtHostDecorations'),
 	ExtHostDocumentsAndEditors: createExtId<ExtHostDocumentsAndEditorsShape>('ExtHostDocumentsAndEditors'),
 	ExtHostDocuments: createExtId<ExtHostDocumentsShape>('ExtHostDocuments'),
