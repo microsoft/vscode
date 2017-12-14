@@ -68,5 +68,6 @@
 	"colors.deleted": "Color for deleted resources.",
 	"colors.untracked": "Color for untracked resources.",
 	"colors.ignored": "Color for ignored resources.",
-	"colors.conflict": "Color for resources with conflicts."
+	"colors.conflict": "Color for resources with conflicts.",
+	"colors.submodule": "Color for submodule resources."
 }

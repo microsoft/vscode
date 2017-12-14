@@ -15,7 +15,7 @@ import * as filetype from 'file-type';
 import { assign, uniqBy, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent } from './util';
 import { CancellationToken } from 'vscode';
 
-const readfile = denodeify<string>(fs.readFile);
+const readfile = denodeify<string, string | null, string>(fs.readFile);
 
 export interface IGit {
 	path: string;
@@ -535,6 +535,72 @@ export class GitStatusParser {
 	}
 }
 
+export interface Submodule {
+	name: string;
+	path: string;
+	url: string;
+}
+
+export function parseGitmodules(raw: string): Submodule[] {
+	const regex = /\r?\n/g;
+	let position = 0;
+	let match: RegExpExecArray | null = null;
+
+	const result: Submodule[] = [];
+	let submodule: Partial<Submodule> = {};
+
+	function parseLine(line: string): void {
+		const sectionMatch = /^\s*\[submodule "([^"]+)"\]\s*$/.exec(line);
+
+		if (sectionMatch) {
+			if (submodule.name && submodule.path && submodule.url) {
+				result.push(submodule as Submodule);
+			}
+
+			const name = sectionMatch[1];
+
+			if (name) {
+				submodule = { name };
+				return;
+			}
+		}
+
+		if (!submodule) {
+			return;
+		}
+
+		const propertyMatch = /^\s*(\w+) = (.*)$/.exec(line);
+
+		if (!propertyMatch) {
+			return;
+		}
+
+		const [, key, value] = propertyMatch;
+
+		switch (key) {
+			case 'path': submodule.path = value; break;
+			case 'url': submodule.url = value; break;
+		}
+	}
+
+	while (match = regex.exec(raw)) {
+		parseLine(raw.substring(position, match.index));
+		position = match.index + match[0].length;
+	}
+
+	parseLine(raw.substring(position));
+
+	if (submodule.name && submodule.path && submodule.url) {
+		result.push(submodule as Submodule);
+	}
+
+	return result;
+}
+
+export interface DiffOptions {
+	cached?: boolean;
+}
+
 export class Repository {
 
 	constructor(
@@ -671,6 +737,19 @@ export class Repository {
 			// TODO@JOAO: read the setting OUTSIDE!
 			return { mimetype: 'text/plain' };
 		}
+	}
+
+	async diff(path: string, options: DiffOptions = {}): Promise<string> {
+		const args = ['diff'];
+
+		if (options.cached) {
+			args.push('--cached');
+		}
+
+		args.push('--', path);
+
+		const result = await this.run(args);
+		return result.stdout;
 	}
 
 	async add(paths: string[]): Promise<void> {
@@ -1180,5 +1259,25 @@ export class Repository {
 		}
 
 		return { hash: match[1], message: match[2] };
+	}
+
+	async updateSubmodules(paths: string[]): Promise<void> {
+		const args = ['submodule', 'update', '--', ...paths];
+		await this.run(args);
+	}
+
+	async getSubmodules(): Promise<Submodule[]> {
+		const gitmodulesPath = path.join(this.root, '.gitmodules');
+
+		try {
+			const gitmodulesRaw = await readfile(gitmodulesPath, 'utf8');
+			return parseGitmodules(gitmodulesRaw);
+		} catch (err) {
+			if (/ENOENT/.test(err.message)) {
+				return [];
+			}
+
+			throw err;
+		}
 	}
 }

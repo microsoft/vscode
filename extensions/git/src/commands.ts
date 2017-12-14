@@ -7,12 +7,13 @@
 
 import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor, CancellationTokenSource, StatusBarAlignment } from 'vscode';
 import { Ref, RefType, Git, GitErrorCodes, Branch } from './git';
-import { Repository, Resource, Status, CommitOptions, ResourceGroupType } from './repository';
+import { Repository, Resource, Status, CommitOptions, ResourceGroupType, RepositoryState } from './repository';
 import { Model } from './model';
 import { toGitUri, fromGitUri } from './uri';
 import { grep, eventToPromise, isDescendant } from './util';
 import { applyLineChanges, intersectDiffWithRange, toLineRanges, invertLineChange } from './staging';
 import * as path from 'path';
+import { lstat, Stats } from 'fs';
 import * as os from 'os';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
@@ -168,8 +169,28 @@ export class CommandCenter {
 	}
 
 	private async _openResource(resource: Resource, preview?: boolean, preserveFocus?: boolean, preserveSelection?: boolean): Promise<void> {
-		const left = await this.getLeftResource(resource);
-		const right = await this.getRightResource(resource);
+		let stat: Stats | undefined;
+
+		try {
+			stat = await new Promise<Stats>((c, e) => lstat(resource.resourceUri.fsPath, (err, stat) => err ? e(err) : c(stat)));
+		} catch (err) {
+			// noop
+		}
+
+		let left: Uri | undefined;
+		let right: Uri | undefined;
+
+		if (stat && stat.isDirectory()) {
+			const repository = this.model.getRepositoryForSubmodule(resource.resourceUri);
+
+			if (repository) {
+				right = toGitUri(resource.resourceUri, resource.resourceGroupType === ResourceGroupType.Index ? 'index' : 'wt', { submoduleOf: repository.root });
+			}
+		} else {
+			left = await this.getLeftResource(resource);
+			right = await this.getRightResource(resource);
+		}
+
 		const title = this.getTitle(resource);
 
 		if (!right) {
@@ -1689,11 +1710,16 @@ export class CommandCenter {
 		const isSingleResource = arg instanceof Uri;
 
 		const groups = resources.reduce((result, resource) => {
-			const repository = this.model.getRepository(resource);
+			let repository = this.model.getRepository(resource);
 
 			if (!repository) {
 				console.warn('Could not find git repository for ', resource);
 				return result;
+			}
+
+			// Could it be a submodule?
+			if (resource.fsPath === repository.root) {
+				repository = this.model.getRepositoryForSubmodule(resource) || repository;
 			}
 
 			const tuple = result.filter(p => p.repository === repository)[0];

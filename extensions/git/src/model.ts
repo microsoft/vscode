@@ -101,8 +101,11 @@ export class Model {
 	}
 
 	private onPossibleGitRepositoryChange(uri: Uri): void {
-		const possibleGitRepositoryPath = uri.fsPath.replace(/\.git.*$/, '');
-		this.possibleGitRepositoryPaths.add(possibleGitRepositoryPath);
+		this.eventuallyScanPossibleGitRepository(uri.fsPath.replace(/\.git.*$/, ''));
+	}
+
+	private eventuallyScanPossibleGitRepository(path: string) {
+		this.possibleGitRepositoryPaths.add(path);
 		this.eventuallyScanPossibleGitRepositories();
 	}
 
@@ -213,11 +216,20 @@ export class Model {
 		const disappearListener = onDidDisappearRepository(() => dispose());
 		const changeListener = repository.onDidChangeRepository(uri => this._onDidChangeRepository.fire({ repository, uri }));
 		const originalResourceChangeListener = repository.onDidChangeOriginalResource(uri => this._onDidChangeOriginalResource.fire({ repository, uri }));
+		const scanSubmodules = () => {
+			repository.submodules
+				.map(r => path.join(repository.root, r.path))
+				.forEach(p => this.eventuallyScanPossibleGitRepository(p));
+		};
+
+		const statusListener = repository.onDidRunGitStatus(scanSubmodules);
+		scanSubmodules();
 
 		const dispose = () => {
 			disappearListener.dispose();
 			changeListener.dispose();
 			originalResourceChangeListener.dispose();
+			statusListener.dispose();
 			repository.dispose();
 
 			this.openRepositories = this.openRepositories.filter(e => e !== openRepository);
@@ -281,12 +293,21 @@ export class Model {
 		if (hint instanceof Uri) {
 			const resourcePath = hint.fsPath;
 
-			for (const liveRepository of this.openRepositories) {
-				const relativePath = path.relative(liveRepository.repository.root, resourcePath);
-
-				if (isDescendant(liveRepository.repository.root, resourcePath)) {
-					return liveRepository;
+			outer:
+			for (const liveRepository of this.openRepositories.sort((a, b) => b.repository.root.length - a.repository.root.length)) {
+				if (!isDescendant(liveRepository.repository.root, resourcePath)) {
+					continue;
 				}
+
+				for (const submodule of liveRepository.repository.submodules) {
+					const submoduleRoot = path.join(liveRepository.repository.root, submodule.path);
+
+					if (isDescendant(submoduleRoot, resourcePath)) {
+						continue outer;
+					}
+				}
+
+				return liveRepository;
 			}
 
 			return undefined;
@@ -301,6 +322,20 @@ export class Model {
 
 			if (hint === repository.mergeGroup || hint === repository.indexGroup || hint === repository.workingTreeGroup) {
 				return liveRepository;
+			}
+		}
+
+		return undefined;
+	}
+
+	getRepositoryForSubmodule(submoduleUri: Uri): Repository | undefined {
+		for (const repository of this.repositories) {
+			for (const submodule of repository.submodules) {
+				const submodulePath = path.join(repository.root, submodule.path);
+
+				if (submodulePath === submoduleUri.fsPath) {
+					return repository;
+				}
 			}
 		}
 

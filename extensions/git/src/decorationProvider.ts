@@ -6,10 +6,12 @@
 'use strict';
 
 import { window, workspace, Uri, Disposable, Event, EventEmitter, DecorationData, DecorationProvider, ThemeColor } from 'vscode';
+import * as path from 'path';
 import { Repository, GitResourceGroup, Status } from './repository';
 import { Model } from './model';
 import { debounce } from './decorators';
 import { filterEvent } from './util';
+import { Submodule } from './git';
 
 class GitIgnoreDecorationProvider implements DecorationProvider {
 
@@ -65,6 +67,12 @@ class GitIgnoreDecorationProvider implements DecorationProvider {
 
 class GitDecorationProvider implements DecorationProvider {
 
+	private static SubmoduleDecorationData: DecorationData = {
+		title: 'Submodule',
+		abbreviation: 'S',
+		color: new ThemeColor('gitDecoration.submoduleResourceForeground')
+	};
+
 	private readonly _onDidChangeDecorations = new EventEmitter<Uri[]>();
 	readonly onDidChangeDecorations: Event<Uri[]> = this._onDidChangeDecorations.event;
 
@@ -80,6 +88,8 @@ class GitDecorationProvider implements DecorationProvider {
 
 	private onDidRunGitStatus(): void {
 		let newDecorations = new Map<string, DecorationData>();
+
+		this.collectSubmoduleDecorationData(newDecorations);
 		this.collectDecorationData(this.repository.indexGroup, newDecorations);
 		this.collectDecorationData(this.repository.workingTreeGroup, newDecorations);
 		this.collectDecorationData(this.repository.mergeGroup, newDecorations);
@@ -99,6 +109,12 @@ class GitDecorationProvider implements DecorationProvider {
 				bucket.set(r.original.toString(), r.resourceDecoration);
 			}
 		});
+	}
+
+	private collectSubmoduleDecorationData(bucket: Map<string, DecorationData>): void {
+		for (const submodule of this.repository.submodules) {
+			bucket.set(Uri.file(path.join(this.repository.root, submodule.path)).toString(), GitDecorationProvider.SubmoduleDecorationData);
+		}
 	}
 
 	provideDecoration(uri: Uri): DecorationData | undefined {
