@@ -943,26 +943,16 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		`);
 	}
 
-	collector.addRule(`
-		.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container >  .tab.sizing-shrink > .tab-label::after {
-			background: linear-gradient(to left, ${theme.getColor(TAB_INACTIVE_BACKGROUND)}, transparent);
-		}
-
-		.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container >  .tab.sizing-shrink.active > .tab-label::after {
-			background: linear-gradient(to left, ${theme.getColor(TAB_ACTIVE_BACKGROUND)}, transparent);
-		}
-
-		.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container >  .tab.sizing-shrink.dragged-over:not(.active) > .tab-label::after {
-			background: linear-gradient(to left, ${theme.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND)}, transparent);
-		}
-	`);
-
 	// Hover Background
 	const tabHoverBackground = theme.getColor(TAB_HOVER_BACKGROUND);
 	if (tabHoverBackground) {
 		collector.addRule(`
 			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .tabs-container > .tab:hover  {
 				background: ${tabHoverBackground} !important;
+			}
+
+			.monaco-shell:not(.hc-black) .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .tabs-container >  .tab.sizing-shrink:hover > .tab-label::after {
+				background: linear-gradient(to left, ${theme.getColor(TAB_HOVER_BACKGROUND)}, transparent);
 			}
 		`);
 	}
@@ -973,6 +963,11 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.inactive .tabs-container > .tab:hover  {
 				background: ${tabUnfocusedHoverBackground} !important;
 			}
+
+			.monaco-shell:not(.hc-black) .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.inactive .tabs-container >  .tab.sizing-shrink:hover > .tab-label::after {
+				background: linear-gradient(to left, ${theme.getColor(TAB_UNFOCUSED_HOVER_BACKGROUND)}, transparent);
+			}
+
 		`);
 	}
 
@@ -994,4 +989,28 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			}
 		`);
 	}
+
+	const editorDragAndDropBackground = theme.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND);
+	if (editorDragAndDropBackground) {
+		collector.addRule(`
+		.monaco-shell:not(.hc-black) .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container >  .tab.sizing-shrink.dragged-over:not(.active) > .tab-label::after {
+				background: linear-gradient(to left, ${theme.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND)}, transparent);
+			}
+		`);
+	}
+
+	const tabInactiveBackground = theme.getColor(TAB_INACTIVE_BACKGROUND);
+	if (tabInactiveBackground) {
+		collector.addRule(`
+		.monaco-shell:not(.hc-black) .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container >  .tab.sizing-shrink > .tab-label::after {
+				background: linear-gradient(to left, ${theme.getColor(TAB_INACTIVE_BACKGROUND)}, transparent);
+			}
+		`);
+	}
+
+	collector.addRule(`
+		.monaco-shell:not(.hc-black) .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container >  .tab.sizing-shrink.active > .tab-label::after {
+			background: linear-gradient(to left, ${theme.getColor(TAB_ACTIVE_BACKGROUND)}, transparent);
+		}
+	`);
 });

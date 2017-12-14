@@ -34,10 +34,6 @@
 	text-overflow: ellipsis;
 }
 
-.sizing-shrink > .monaco-icon-label > .monaco-icon-label-description-container {
-	text-overflow: clip;
-}
-
 .monaco-icon-label > .monaco-icon-label-description-container > .label-name {
 	color: inherit;
 	white-space: pre; /* enable to show labels that include multiple whitespaces */

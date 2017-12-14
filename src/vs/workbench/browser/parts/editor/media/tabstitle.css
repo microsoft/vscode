@@ -85,6 +85,9 @@
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .tab-label {
 	margin-top: auto;
 	margin-bottom: auto;
+}
+
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-shrink .tab-label {
 	position: relative;
 }
 
@@ -101,6 +104,14 @@
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-fit .monaco-icon-label,
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.sizing-fit .monaco-icon-label > .monaco-icon-label-description-container {
 	overflow: visible; /* fixes https://github.com/Microsoft/vscode/issues/20182 */
+}
+
+.sizing-shrink > .monaco-icon-label > .monaco-icon-label-description-container {
+	text-overflow: clip;
+}
+
+.hc-black .sizing-shrink > .monaco-icon-label > .monaco-icon-label-description-container {
+	text-overflow: ellipsis;
 }
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab .monaco-icon-label::before {
