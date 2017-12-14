@@ -35,7 +35,7 @@ export class MainThreadDecorations implements MainThreadDecorationsShape {
 			label,
 			onDidChange: emitter.event,
 			provideDecorations: (uri) => {
-				return this._proxy.$providerDecorations(handle, uri).then(data => {
+				return this._proxy.$provideDecorations(handle, uri).then(data => {
 					if (!data) {
 						return undefined;
 					}
