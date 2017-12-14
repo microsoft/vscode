@@ -15,9 +15,9 @@ import { wireCancellationToken } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position as EditorPosition } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
-import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
+import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ISerializedLanguageConfiguration, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule } from '../node/extHost.protocol';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
+import { LanguageConfiguration, IndentationRule, OnEnterRule } from 'vs/editor/common/modes/languageConfiguration';
 import { IHeapService } from './mainThreadHeapService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
@@ -328,14 +328,57 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- configuration
 
-	$setLanguageConfiguration(handle: number, languageId: string, _configuration: vscode.LanguageConfiguration): TPromise<any> {
+	private static _reviveRegExp(regExp: ISerializedRegExp): RegExp {
+		if (typeof regExp === 'undefined') {
+			return undefined;
+		}
+		if (regExp === null) {
+			return null;
+		}
+		return new RegExp(regExp.pattern, regExp.flags);
+	}
+
+	private static _reviveIndentationRule(indentationRule: ISerializedIndentationRule): IndentationRule {
+		if (typeof indentationRule === 'undefined') {
+			return undefined;
+		}
+		if (indentationRule === null) {
+			return null;
+		}
+		return {
+			decreaseIndentPattern: MainThreadLanguageFeatures._reviveRegExp(indentationRule.decreaseIndentPattern),
+			increaseIndentPattern: MainThreadLanguageFeatures._reviveRegExp(indentationRule.increaseIndentPattern),
+			indentNextLinePattern: MainThreadLanguageFeatures._reviveRegExp(indentationRule.indentNextLinePattern),
+			unIndentedLinePattern: MainThreadLanguageFeatures._reviveRegExp(indentationRule.unIndentedLinePattern),
+		};
+	}
+
+	private static _reviveOnEnterRule(onEnterRule: ISerializedOnEnterRule): OnEnterRule {
+		return {
+			beforeText: MainThreadLanguageFeatures._reviveRegExp(onEnterRule.beforeText),
+			afterText: MainThreadLanguageFeatures._reviveRegExp(onEnterRule.afterText),
+			action: onEnterRule.action
+		};
+	}
+
+	private static _reviveOnEnterRules(onEnterRules: ISerializedOnEnterRule[]): OnEnterRule[] {
+		if (typeof onEnterRules === 'undefined') {
+			return undefined;
+		}
+		if (onEnterRules === null) {
+			return null;
+		}
+		return onEnterRules.map(MainThreadLanguageFeatures._reviveOnEnterRule);
+	}
+
+	$setLanguageConfiguration(handle: number, languageId: string, _configuration: ISerializedLanguageConfiguration): TPromise<any> {
 
 		let configuration: LanguageConfiguration = {
 			comments: _configuration.comments,
 			brackets: _configuration.brackets,
-			wordPattern: _configuration.wordPattern,
-			indentationRules: _configuration.indentationRules,
-			onEnterRules: _configuration.onEnterRules,
+			wordPattern: MainThreadLanguageFeatures._reviveRegExp(_configuration.wordPattern),
+			indentationRules: MainThreadLanguageFeatures._reviveIndentationRule(_configuration.indentationRules),
+			onEnterRules: MainThreadLanguageFeatures._reviveOnEnterRules(_configuration.onEnterRules),
 
 			autoClosingPairs: null,
 			surroundingPairs: null,

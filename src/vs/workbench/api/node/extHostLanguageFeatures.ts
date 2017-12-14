@@ -17,7 +17,7 @@ import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
 import { ExtHostDiagnostics, DiagnosticCollection } from 'vs/workbench/api/node/extHostDiagnostics';
 import { asWinJsPromise } from 'vs/base/common/async';
-import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IExtHostSuggestResult, IExtHostSuggestion, IWorkspaceSymbols, IWorkspaceSymbol, IdObject } from './extHost.protocol';
+import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IExtHostSuggestResult, IExtHostSuggestion, IWorkspaceSymbols, IWorkspaceSymbol, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
@@ -1089,6 +1089,52 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	// --- configuration
 
+	private static _serializeRegExp(regExp: RegExp): ISerializedRegExp {
+		if (typeof regExp === 'undefined') {
+			return undefined;
+		}
+		if (regExp === null) {
+			return null;
+		}
+		return {
+			pattern: regExp.source,
+			flags: (regExp.global ? 'g' : '') + (regExp.ignoreCase ? 'i' : '') + (regExp.multiline ? 'm' : ''),
+		};
+	}
+
+	private static _serializeIndentationRule(indentationRule: vscode.IndentationRule): ISerializedIndentationRule {
+		if (typeof indentationRule === 'undefined') {
+			return undefined;
+		}
+		if (indentationRule === null) {
+			return null;
+		}
+		return {
+			decreaseIndentPattern: ExtHostLanguageFeatures._serializeRegExp(indentationRule.decreaseIndentPattern),
+			increaseIndentPattern: ExtHostLanguageFeatures._serializeRegExp(indentationRule.increaseIndentPattern),
+			indentNextLinePattern: ExtHostLanguageFeatures._serializeRegExp(indentationRule.indentNextLinePattern),
+			unIndentedLinePattern: ExtHostLanguageFeatures._serializeRegExp(indentationRule.unIndentedLinePattern),
+		};
+	}
+
+	private static _serializeOnEnterRule(onEnterRule: vscode.OnEnterRule): ISerializedOnEnterRule {
+		return {
+			beforeText: ExtHostLanguageFeatures._serializeRegExp(onEnterRule.beforeText),
+			afterText: ExtHostLanguageFeatures._serializeRegExp(onEnterRule.afterText),
+			action: onEnterRule.action
+		};
+	}
+
+	private static _serializeOnEnterRules(onEnterRules: vscode.OnEnterRule[]): ISerializedOnEnterRule[] {
+		if (typeof onEnterRules === 'undefined') {
+			return undefined;
+		}
+		if (onEnterRules === null) {
+			return null;
+		}
+		return onEnterRules.map(ExtHostLanguageFeatures._serializeOnEnterRule);
+	}
+
 	setLanguageConfiguration(languageId: string, configuration: vscode.LanguageConfiguration): vscode.Disposable {
 		let { wordPattern } = configuration;
 
@@ -1105,7 +1151,16 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		}
 
 		const handle = this._nextHandle();
-		this._proxy.$setLanguageConfiguration(handle, languageId, configuration);
+		const serializedConfiguration: ISerializedLanguageConfiguration = {
+			comments: configuration.comments,
+			brackets: configuration.brackets,
+			wordPattern: ExtHostLanguageFeatures._serializeRegExp(configuration.wordPattern),
+			indentationRules: ExtHostLanguageFeatures._serializeIndentationRule(configuration.indentationRules),
+			onEnterRules: ExtHostLanguageFeatures._serializeOnEnterRules(configuration.onEnterRules),
+			__electricCharacterSupport: configuration.__electricCharacterSupport,
+			__characterPairSupport: configuration.__characterPairSupport,
+		};
+		this._proxy.$setLanguageConfiguration(handle, languageId, serializedConfiguration);
 		return this._createDisposable(handle);
 	}
 }

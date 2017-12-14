@@ -51,6 +51,7 @@ import { SerializedError } from 'vs/base/common/errors';
 import { IStat, IFileChange } from 'vs/platform/files/common/files';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { CommentRule, CharacterPair, EnterAction } from 'vs/editor/common/modes/languageConfiguration';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -234,6 +235,45 @@ export interface MainThreadErrorsShape extends IDisposable {
 	$onUnexpectedError(err: any | SerializedError): void;
 }
 
+export interface ISerializedRegExp {
+	pattern: string;
+	flags?: string;
+}
+export interface ISerializedIndentationRule {
+	decreaseIndentPattern: ISerializedRegExp;
+	increaseIndentPattern: ISerializedRegExp;
+	indentNextLinePattern?: ISerializedRegExp;
+	unIndentedLinePattern?: ISerializedRegExp;
+}
+export interface ISerializedOnEnterRule {
+	beforeText: ISerializedRegExp;
+	afterText?: ISerializedRegExp;
+	action: EnterAction;
+}
+export interface ISerializedLanguageConfiguration {
+	comments?: CommentRule;
+	brackets?: CharacterPair[];
+	wordPattern?: ISerializedRegExp;
+	indentationRules?: ISerializedIndentationRule;
+	onEnterRules?: ISerializedOnEnterRule[];
+	__electricCharacterSupport?: {
+		brackets?: any;
+		docComment?: {
+			scope: string;
+			open: string;
+			lineStart: string;
+			close?: string;
+		};
+	};
+	__characterPairSupport?: {
+		autoClosingPairs: {
+			open: string;
+			close: string;
+			notIn?: string[];
+		}[];
+	};
+}
+
 export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$unregister(handle: number): TPromise<any>;
 	$registerOutlineSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
@@ -255,7 +295,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerSignatureHelpProvider(handle: number, selector: vscode.DocumentSelector, triggerCharacter: string[]): TPromise<any>;
 	$registerDocumentLinkProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
 	$registerDocumentColorProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
-	$setLanguageConfiguration(handle: number, languageId: string, configuration: vscode.LanguageConfiguration): TPromise<any>;
+	$setLanguageConfiguration(handle: number, languageId: string, configuration: ISerializedLanguageConfiguration): TPromise<any>;
 }
 
 export interface MainThreadLanguagesShape extends IDisposable {
