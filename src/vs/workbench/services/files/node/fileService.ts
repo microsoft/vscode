@@ -918,21 +918,26 @@ export class FileService implements IFileService {
 						}
 					}
 
-					let mode = stat.mode;
-					const readonly = !(mode & 128);
-
 					// Throw if file is readonly and we are not instructed to overwrite
-					if (readonly && !options.overwriteReadonly) {
-						return TPromise.wrapError<boolean>(new FileOperationError(
-							nls.localize('fileReadOnlyError', "File is Read Only"),
-							FileOperationResult.FILE_READ_ONLY
-						));
-					}
+					if (!(stat.mode & 128) /* readonly */) {
+						if (!options.overwriteReadonly) {
+							return this.readOnlyError<boolean>();
+						}
 
-					if (readonly) {
+						// Try to change mode to writeable
+						let mode = stat.mode;
 						mode = mode | 128;
+						return pfs.chmod(absolutePath, mode).then(() => {
 
-						return pfs.chmod(absolutePath, mode).then(() => exists);
+							// Make sure to check the mode again, it could have failed
+							return pfs.stat(absolutePath).then(stat => {
+								if (!(stat.mode & 128) /* readonly */) {
+									return this.readOnlyError<boolean>();
+								}
+
+								return exists;
+							});
+						});
 					}
 
 					return TPromise.as<boolean>(exists);
@@ -941,6 +946,13 @@ export class FileService implements IFileService {
 
 			return TPromise.as<boolean>(exists);
 		});
+	}
+
+	private readOnlyError<T>(): TPromise<T> {
+		return TPromise.wrapError<T>(new FileOperationError(
+			nls.localize('fileReadOnlyError', "File is Read Only"),
+			FileOperationResult.FILE_READ_ONLY
+		));
 	}
 
 	public watchFileChanges(resource: uri): void {

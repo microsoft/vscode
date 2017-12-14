@@ -174,7 +174,7 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 
 			let errorMessage: string;
 			if (isReadonly) {
-				errorMessage = nls.localize('readonlySaveError', "Failed to save '{0}': File is write protected. Select 'Overwrite' to remove protection.", paths.basename(resource.fsPath));
+				errorMessage = nls.localize('readonlySaveError', "Failed to save '{0}': File is write protected. Select 'Overwrite' to attempt to remove protection.", paths.basename(resource.fsPath));
 			} else {
 				errorMessage = nls.localize('genericSaveError', "Failed to save '{0}': {1}", paths.basename(resource.fsPath), toErrorMessage(error, false));
 			}
