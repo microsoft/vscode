@@ -174,7 +174,8 @@ export class CodeWindow implements ICodeWindow {
 		}
 
 		let useCustomTitleStyle = false;
-		if ((isWindows || isMacintosh) && (!windowConfig || !windowConfig.titleBarStyle || windowConfig.titleBarStyle === 'custom')) {
+		if ((isWindows && windowConfig && windowConfig.titleBarStyle === 'custom') ||
+			(isMacintosh && (!windowConfig || !windowConfig.titleBarStyle || windowConfig.titleBarStyle === 'custom'))) {
 			const isDev = !this.environmentService.isBuilt || !!config.extensionDevelopmentPath;
 			if (!isMacintosh || !isDev) {
 				useCustomTitleStyle = true; // not enabled when developing due to https://github.com/electron/electron/issues/3647
