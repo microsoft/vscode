@@ -961,12 +961,8 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
-	showMessageBox(options: Electron.MessageBoxOptions): TPromise<number> {
-		return TPromise.wrap(0);
-	}
-
-	showMessageBoxWithCheckbox(options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult> {
-		return TPromise.as(void 0);
+	showMessageBox(options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult> {
+		return TPromise.wrap({ button: 0 });
 	}
 
 	showSaveDialog(options: Electron.SaveDialogOptions): TPromise<string> {
@@ -1196,6 +1192,18 @@ export class TestWindowsService implements IWindowsService {
 
 	// TODO: this is a bit backwards
 	startCrashReporter(config: Electron.CrashReporterStartOptions): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	showMessageBox(windowId: number, options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult> {
+		return TPromise.as(void 0);
+	}
+
+	showSaveDialog(windowId: number, options: Electron.SaveDialogOptions): TPromise<string> {
+		return TPromise.as(void 0);
+	}
+
+	showOpenDialog(windowId: number, options: Electron.OpenDialogOptions): TPromise<string[]> {
 		return TPromise.as(void 0);
 	}
 }
