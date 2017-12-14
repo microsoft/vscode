@@ -154,13 +154,9 @@ export class TerminalInstance implements ITerminalInstance {
 		});
 
 		this._initDimensions();
+		this._initialCwd = this._getCwd(this._shellLaunchConfig, this._historyService.getLastActiveWorkspaceRoot('file'));
 		this._xtermReadyPromise = this._createProcessAndXterm();
-		this._xtermReadyPromise.then(() => {
-			// Only attach xterm.js to the DOM if the terminal panel has been opened before.
-			if (this._container) {
-				this.attachToElement(this._container);
-			}
-		});
+		this.attachToElement(this._container);
 	}
 
 	public addDisposable(disposable: lifecycle.IDisposable): void {
@@ -169,17 +165,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 	private async _createProcessAndXterm(): TPromise<void> {
 		let _createProcessPromise = this._envService.args['inspect-all'] ? this._createProcessInDebugMode() : TPromise.as(this._createProcess());
-
 		await _createProcessPromise;
-
-		if (platform.isWindows) {
-			this._processReady.then(() => {
-				if (!this._isDisposed) {
-					this._windowsShellHelper = new WindowsShellHelper(this._processId, this, this._xterm);
-				}
-			});
-		}
-
 		await this._createXterm();
 	}
 
@@ -283,7 +269,6 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 		this._xterm.winptyCompatInit();
 		this._xterm.on('lineFeed', () => this._onLineFeed());
-		this._process.on('message', (message) => this._sendPtyDataToXterm(message));
 		this._xterm.on('data', (data) => {
 			if (this._processId) {
 				// Send data if the pty is ready
@@ -304,6 +289,10 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public attachToElement(container: HTMLElement): void {
+		// Only attach xterm.js to the DOM if the terminal panel has been opened before.
+		if (!container) {
+			return;
+		}
 		this._xtermReadyPromise.then(() => {
 			if (this._wrapperElement) {
 				throw new Error('The terminal instance has already been attached to a container');
@@ -616,7 +605,6 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 
 		const lastActiveWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot('file');
-		this._initialCwd = this._getCwd(this._shellLaunchConfig, lastActiveWorkspaceRootUri);
 
 		// Resolve env vars from config and shell
 		const lastActiveWorkspaceRoot = this._workspaceContextService.getWorkspaceFolder(lastActiveWorkspaceRootUri);
@@ -651,27 +639,21 @@ export class TerminalInstance implements ITerminalInstance {
 			};
 			this._process.on('message', this._messageTitleListener);
 		}
-		this._process.on('message', (message) => {
-			if (message.type === 'pid') {
-				this._processId = message.content;
-
-				// Send any queued data that's waiting
-				if (this._preLaunchInputQueue.length > 0) {
-					this._process.send({
-						event: 'input',
-						data: this._preLaunchInputQueue
-					});
-					this._preLaunchInputQueue = null;
-				}
-				this._onProcessIdReady.fire(this);
-			}
-		});
+		this._process.on('message', message => this._onPtyMessage(message));
 		this._process.on('exit', exitCode => this._onPtyProcessExit(exitCode));
 		setTimeout(() => {
 			if (this._processState === ProcessState.LAUNCHING) {
 				this._processState = ProcessState.RUNNING;
 			}
 		}, LAUNCHING_DURATION);
+
+		if (platform.isWindows) {
+			this._processReady.then(() => {
+				if (!this._isDisposed) {
+					this._windowsShellHelper = new WindowsShellHelper(this._processId, this, this._xterm);
+				}
+			});
+		}
 	}
 
 	// TODO: Should be protected
@@ -684,14 +666,24 @@ export class TerminalInstance implements ITerminalInstance {
 		return env;
 	}
 
-	private _sendPtyDataToXterm(message: { type: string, content: string }): void {
+	private _onPtyMessage(message: { type: string, content: string }): void {
 		if (message.type === 'data') {
 			if (this._widgetManager) {
 				this._widgetManager.closeMessage();
 			}
-			if (this._xterm) {
-				this._xterm.write(message.content);
+			this._xtermReadyPromise.then(() => this._xterm.write(message.content));
+		} else if (message.type === 'pid') {
+			this._processId = parseInt(message.content, 10);
+
+			// Send any queued data that's waiting
+			if (this._preLaunchInputQueue.length > 0) {
+				this._process.send({
+					event: 'input',
+					data: this._preLaunchInputQueue
+				});
+				this._preLaunchInputQueue = null;
 			}
+			this._onProcessIdReady.fire(this);
 		}
 	}
 
@@ -799,7 +791,6 @@ export class TerminalInstance implements ITerminalInstance {
 		if (oldTitle !== this._title) {
 			this.setTitle(this._title, true);
 		}
-		this._process.on('message', (message) => this._sendPtyDataToXterm(message));
 
 		// Clean up waitOnExit state
 		if (this._isExiting && this._shellLaunchConfig.waitOnExit) {
@@ -807,8 +798,6 @@ export class TerminalInstance implements ITerminalInstance {
 			this._isExiting = false;
 		}
 
-		// Set the new shell launch config
-		this._shellLaunchConfig = shell;
 	}
 
 	public static mergeEnvironments(parent: IStringDictionary<string>, other: IStringDictionary<string>) {
