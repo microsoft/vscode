@@ -133,6 +133,12 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 				throw new ExpectedError('Terminating...');
 			}
 
+			// Log uploader usage info
+			if (environmentService.args['upload-logs']) {
+				logService.warn('Warning: The --upload-logs argument can only be used if Code is already running. Please run it again after Code has started.');
+				throw new ExpectedError('Terminating...');
+			}
+
 			// dock might be hidden at this case due to a retry
 			if (platform.isMacintosh) {
 				app.dock.show();
@@ -170,7 +176,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 					// Skip this if we are running with --wait where it is expected that we wait for a while.
 					// Also skip when gathering diagnostics (--status) which can take a longer time.
 					let startupWarningDialogHandle: number;
-					if (!environmentService.wait && !environmentService.status) {
+					if (!environmentService.wait && !environmentService.status && !environmentService['upload-logs']) {
 						startupWarningDialogHandle = setTimeout(() => {
 							showStartupWarningDialog(
 								localize('secondInstanceNoResponse', "Another instance of {0} is running but not responding", product.nameShort),
@@ -187,6 +193,13 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 						return service.getMainProcessInfo().then(info => {
 							return printDiagnostics(info).then(() => TPromise.wrapError(new ExpectedError()));
 						});
+					}
+
+					// Log uploader
+					if (environmentService.args['upload-logs']) {
+						return import('vs/code/electron-main/logUploader')
+							.then(logUploader => logUploader.uploadLogs(channel))
+							.then(() => TPromise.wrapError(new ExpectedError()));
 					}
 
 					logService.trace('Sending env to running instance...');
