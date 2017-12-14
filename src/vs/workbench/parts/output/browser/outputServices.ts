@@ -29,6 +29,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
 import { IPanel } from 'vs/workbench/common/panel';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
@@ -249,7 +250,8 @@ export class OutputService implements IOutputService {
 		@IPanelService private panelService: IPanelService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IModelService modelService: IModelService,
-		@ITextModelService textModelResolverService: ITextModelService
+		@ITextModelService textModelResolverService: ITextModelService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 	) {
 		const channels = this.getChannels();
 		this.activeChannelId = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, channels && channels.length > 0 ? channels[0].id : null);
@@ -277,6 +279,10 @@ export class OutputService implements IOutputService {
 		this.activeChannelId = id;
 		return this.doShowChannel(id, preserveFocus)
 			.then(() => this._onActiveOutputChannel.fire(id));
+	}
+
+	showChannelInEditor(channelId: string): TPromise<void> {
+		return this.editorService.openEditor(this.createInput(channelId)) as TPromise;
 	}
 
 	getChannel(id: string): IOutputChannel {
@@ -340,7 +346,7 @@ export class OutputService implements IOutputService {
 		return channel.show()
 			.then(() => {
 				this.storageService.store(OUTPUT_ACTIVE_CHANNEL_KEY, channelId, StorageScope.WORKSPACE);
-				this._outputPanel.setInput(this.createInput(this.getChannel(channelId)), EditorOptions.create({ preserveFocus: preserveFocus }));
+				this._outputPanel.setInput(this.createInput(channelId), EditorOptions.create({ preserveFocus: preserveFocus }));
 				if (!preserveFocus) {
 					this._outputPanel.focus();
 				}
@@ -354,9 +360,10 @@ export class OutputService implements IOutputService {
 		}
 	}
 
-	private createInput(channel: IOutputChannel): ResourceEditorInput {
-		const resource = URI.from({ scheme: OUTPUT_SCHEME, path: channel.id });
-		return this.instantiationService.createInstance(ResourceEditorInput, nls.localize('output', "Output"), channel ? nls.localize('channel', "for '{0}'", channel.label) : '', resource);
+	private createInput(channelId: string): ResourceEditorInput {
+		const channelData = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannel(channelId);
+		const resource = URI.from({ scheme: OUTPUT_SCHEME, path: channelData.id });
+		return this.instantiationService.createInstance(ResourceEditorInput, nls.localize('output', "{0} - Output", channelData.label), nls.localize('channel', "Output channel for '{0}'", channelData.label), resource);
 	}
 }
 

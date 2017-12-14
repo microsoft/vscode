@@ -52,6 +52,23 @@ export class ClearOutputAction extends Action {
 	}
 }
 
+export class OpenInEditorAction extends Action {
+
+	public static readonly ID = 'workbench.output.action.openInEditor';
+	public static readonly LABEL = nls.localize('openInEditor', "Open in Editor");
+
+	constructor(
+		id: string, label: string,
+		@IOutputService private outputService: IOutputService
+	) {
+		super(id, label, 'output-action open-output');
+	}
+
+	public run(): TPromise<any> {
+		return this.outputService.showChannelInEditor(this.outputService.getActiveChannel().id);
+	}
+}
+
 export class ToggleOutputScrollLockAction extends Action {
 
 	public static readonly ID = 'workbench.output.action.toggleOutputScrollLock';
