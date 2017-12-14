@@ -67,12 +67,10 @@ class GitIgnoreDecorationProvider implements DecorationProvider {
 
 class GitDecorationProvider implements DecorationProvider {
 
-	private static SubmoduleDecorationData = {
-		source: 'git.resource',
+	private static SubmoduleDecorationData: DecorationData = {
 		title: 'Submodule',
 		abbreviation: 'S',
-		color: new ThemeColor('gitDecoration.submoduleResourceForeground'),
-		priority: 1
+		color: new ThemeColor('gitDecoration.submoduleResourceForeground')
 	};
 
 	private readonly _onDidChangeDecorations = new EventEmitter<Uri[]>();
@@ -90,10 +88,11 @@ class GitDecorationProvider implements DecorationProvider {
 
 	private onDidRunGitStatus(): void {
 		let newDecorations = new Map<string, DecorationData>();
+
+		this.collectSubmoduleDecorationData(newDecorations);
 		this.collectDecorationData(this.repository.indexGroup, newDecorations);
 		this.collectDecorationData(this.repository.workingTreeGroup, newDecorations);
 		this.collectDecorationData(this.repository.mergeGroup, newDecorations);
-		this.collectSubmoduleDecorationData(newDecorations);
 
 		const uris = new Set([...this.decorations.keys()].concat([...newDecorations.keys()]));
 		this.decorations = newDecorations;
