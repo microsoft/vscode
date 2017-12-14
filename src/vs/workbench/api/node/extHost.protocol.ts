@@ -492,15 +492,15 @@ export interface ExtHostWorkspaceShape {
 }
 
 export interface ExtHostFileSystemShape {
-	$utimes(handle: number, resource: URI, mtime: number, atime: number): TPromise<IStat>;
-	$stat(handle: number, resource: URI): TPromise<IStat>;
-	$read(handle: number, offset: number, count: number, resource: URI): TPromise<number>;
-	$write(handle: number, resource: URI, content: number[]): TPromise<void>;
-	$unlink(handle: number, resource: URI): TPromise<void>;
-	$move(handle: number, resource: URI, target: URI): TPromise<IStat>;
-	$mkdir(handle: number, resource: URI): TPromise<IStat>;
-	$readdir(handle: number, resource: URI): TPromise<[URI, IStat][]>;
-	$rmdir(handle: number, resource: URI): TPromise<void>;
+	$utimes(handle: number, resource: UriComponents, mtime: number, atime: number): TPromise<IStat>;
+	$stat(handle: number, resource: UriComponents): TPromise<IStat>;
+	$read(handle: number, offset: number, count: number, resource: UriComponents): TPromise<number>;
+	$write(handle: number, resource: UriComponents, content: number[]): TPromise<void>;
+	$unlink(handle: number, resource: UriComponents): TPromise<void>;
+	$move(handle: number, resource: UriComponents, target: UriComponents): TPromise<IStat>;
+	$mkdir(handle: number, resource: UriComponents): TPromise<IStat>;
+	$readdir(handle: number, resource: UriComponents): TPromise<[UriComponents, IStat][]>;
+	$rmdir(handle: number, resource: UriComponents): TPromise<void>;
 	$fileFiles(handle: number, session: number, query: string): TPromise<void>;
 }
 
@@ -705,7 +705,7 @@ export const ExtHostContext = {
 	ExtHostDocumentSaveParticipant: createExtId<ExtHostDocumentSaveParticipantShape>('ExtHostDocumentSaveParticipant'),
 	ExtHostEditors: createExtId<ExtHostEditorsShape>('ExtHostEditors', ProxyType.CustomMarshaller),
 	ExtHostTreeViews: createExtId<ExtHostTreeViewsShape>('ExtHostTreeViews'),
-	ExtHostFileSystem: createExtId<ExtHostFileSystemShape>('ExtHostFileSystem', ProxyType.CustomMarshaller),
+	ExtHostFileSystem: createExtId<ExtHostFileSystemShape>('ExtHostFileSystem'),
 	ExtHostFileSystemEventService: createExtId<ExtHostFileSystemEventServiceShape>('ExtHostFileSystemEventService'),
 	ExtHostHeapService: createExtId<ExtHostHeapServiceShape>('ExtHostHeapMonitor'),
 	ExtHostLanguageFeatures: createExtId<ExtHostLanguageFeaturesShape>('ExtHostLanguageFeatures', ProxyType.CustomMarshaller),
