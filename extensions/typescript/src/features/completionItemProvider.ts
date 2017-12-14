@@ -399,8 +399,13 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 	}
 
 	private snippetForFunctionCall(detail: CompletionEntryDetails): SnippetString {
-		const suggestionArgumentNames: string[] = [];
-		let hasOptionalParemeters = false;
+		let hasOptionalParameters = false;
+		let hasAddedParameters = false;
+
+		const snippet = new SnippetString();
+		snippet.appendText(detail.name);
+		snippet.appendText('(');
+
 		let parenCount = 0;
 		let i = 0;
 		for (; i < detail.displayParts.length; ++i) {
@@ -411,9 +416,13 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 				// Skip optional parameters
 				const nameIsFollowedByOptionalIndicator = next && next.text === '?';
 				if (!nameIsFollowedByOptionalIndicator) {
-					suggestionArgumentNames.push(`\${${i + 1}:${part.text}}`);
+					if (hasAddedParameters) {
+						snippet.appendText(', ');
+					}
+					hasAddedParameters = true;
+					snippet.appendPlaceholder(part.text);
 				}
-				hasOptionalParemeters = hasOptionalParemeters || nameIsFollowedByOptionalIndicator;
+				hasOptionalParameters = hasOptionalParameters || nameIsFollowedByOptionalIndicator;
 			} else if (part.kind === 'punctuation') {
 				if (part.text === '(') {
 					++parenCount;
@@ -421,13 +430,17 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 					--parenCount;
 				} else if (part.text === '...' && parenCount === 1) {
 					// Found rest parmeter. Do not fill in any further arguments
-					hasOptionalParemeters = true;
+					hasOptionalParameters = true;
 					break;
 				}
 			}
 		}
-		const codeSnippet = `${detail.name}(${suggestionArgumentNames.join(', ')}${hasOptionalParemeters ? '${' + i + '}' : ''})$0`;
-		return new SnippetString(codeSnippet);
+		if (hasOptionalParameters) {
+			snippet.appendTabstop();
+		}
+		snippet.appendText(')');
+		snippet.appendTabstop(0);
+		return snippet;
 	}
 
 	private getConfiguration(resource: Uri): Configuration {

@@ -59,7 +59,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 	readonly onDidChangeWorkspace: Event<vscode.WorkspaceFoldersChangeEvent> = this._onDidChangeWorkspace.event;
 
 	constructor(mainContext: IMainContext, data: IWorkspaceData) {
-		this._proxy = mainContext.get(MainContext.MainThreadWorkspace);
+		this._proxy = mainContext.getProxy(MainContext.MainThreadWorkspace);
 		this._workspace = Workspace2.fromData(data);
 	}
 

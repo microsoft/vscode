@@ -143,8 +143,8 @@ export class WindowService implements IWindowService {
 		return this.windowsService.showWindow(this.windowId);
 	}
 
-	showMessageBox(options: Electron.MessageBoxOptions): number {
-		return remote.dialog.showMessageBox(remote.getCurrentWindow(), options);
+	showMessageBox(options: Electron.MessageBoxOptions): TPromise<number> {
+		return TPromise.wrap(remote.dialog.showMessageBox(remote.getCurrentWindow(), options));
 	}
 
 	showMessageBoxWithCheckbox(options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult> {
@@ -155,7 +155,7 @@ export class WindowService implements IWindowService {
 		});
 	}
 
-	showSaveDialog(options: Electron.SaveDialogOptions): string {
+	showSaveDialog(options: Electron.SaveDialogOptions): TPromise<string> {
 
 		function normalizePath(path: string): string {
 			if (path && isMacintosh) {
@@ -165,10 +165,10 @@ export class WindowService implements IWindowService {
 			return path;
 		}
 
-		return normalizePath(remote.dialog.showSaveDialog(remote.getCurrentWindow(), options)); // https://github.com/electron/electron/issues/4936
+		return TPromise.wrap(normalizePath(remote.dialog.showSaveDialog(remote.getCurrentWindow(), options))); // https://github.com/electron/electron/issues/4936
 	}
 
-	showOpenDialog(options: Electron.OpenDialogOptions): string[] {
+	showOpenDialog(options: Electron.OpenDialogOptions): TPromise<string[]> {
 
 		function normalizePaths(paths: string[]): string[] {
 			if (paths && paths.length > 0 && isMacintosh) {
@@ -178,7 +178,7 @@ export class WindowService implements IWindowService {
 			return paths;
 		}
 
-		return normalizePaths(remote.dialog.showOpenDialog(remote.getCurrentWindow(), options)); // https://github.com/electron/electron/issues/4936
+		return TPromise.wrap(normalizePaths(remote.dialog.showOpenDialog(remote.getCurrentWindow(), options))); // https://github.com/electron/electron/issues/4936
 	}
 
 	updateTouchBar(items: ICommandAction[][]): TPromise<void> {

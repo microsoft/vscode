@@ -29,7 +29,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IConfigurationService private _configurationService: IConfigurationService
 	) {
-		this._proxy = extHostContext.get(ExtHostContext.ExtHostWorkspace);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostWorkspace);
 		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._toDispose);
 		this._contextService.onDidChangeWorkbenchState(this._onDidChangeWorkspace, this, this._toDispose);
 	}
@@ -123,4 +123,3 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		});
 	}
 }
-

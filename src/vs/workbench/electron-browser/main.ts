@@ -6,6 +6,7 @@
 'use strict';
 
 import nls = require('vs/nls');
+import * as perf from 'vs/base/common/performance';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { WorkbenchShell } from 'vs/workbench/electron-browser/shell';
 import * as browser from 'vs/base/browser/browser';
@@ -88,7 +89,7 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 		return domContentLoaded().then(() => {
 
 			// Open Shell
-			timerService.beforeWorkbenchOpen = Date.now();
+			perf.mark('willStartWorkbench');
 			const shell = new WorkbenchShell(document.body, {
 				contextService: workspaceService,
 				configurationService: workspaceService,

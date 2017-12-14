@@ -95,9 +95,9 @@ export abstract class TextFileService implements ITextFileService {
 
 	abstract resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent>;
 
-	abstract promptForPath(defaultPath: string): string;
+	abstract promptForPath(defaultPath: string): TPromise<string>;
 
-	abstract confirmSave(resources?: URI[]): ConfirmResult;
+	abstract confirmSave(resources?: URI[]): TPromise<ConfirmResult>;
 
 	public get onAutoSaveConfigurationChange(): Event<IAutoSaveConfiguration> {
 		return this._onAutoSaveConfigurationChange.event;
@@ -254,35 +254,36 @@ export abstract class TextFileService implements ITextFileService {
 	}
 
 	private confirmBeforeShutdown(): boolean | TPromise<boolean> {
-		const confirm = this.confirmSave();
+		return this.confirmSave().then(confirm => {
 
-		// Save
-		if (confirm === ConfirmResult.SAVE) {
-			return this.saveAll(true /* includeUntitled */, { skipSaveParticipants: true }).then(result => {
-				if (result.results.some(r => !r.success)) {
-					return true; // veto if some saves failed
-				}
+			// Save
+			if (confirm === ConfirmResult.SAVE) {
+				return this.saveAll(true /* includeUntitled */, { skipSaveParticipants: true }).then(result => {
+					if (result.results.some(r => !r.success)) {
+						return true; // veto if some saves failed
+					}
+
+					return this.noVeto({ cleanUpBackups: true });
+				});
+			}
+
+			// Don't Save
+			else if (confirm === ConfirmResult.DONT_SAVE) {
+
+				// Make sure to revert untitled so that they do not restore
+				// see https://github.com/Microsoft/vscode/issues/29572
+				this.untitledEditorService.revertAll();
 
 				return this.noVeto({ cleanUpBackups: true });
-			});
-		}
+			}
 
-		// Don't Save
-		else if (confirm === ConfirmResult.DONT_SAVE) {
+			// Cancel
+			else if (confirm === ConfirmResult.CANCEL) {
+				return true; // veto
+			}
 
-			// Make sure to revert untitled so that they do not restore
-			// see https://github.com/Microsoft/vscode/issues/29572
-			this.untitledEditorService.revertAll();
-
-			return this.noVeto({ cleanUpBackups: true });
-		}
-
-		// Cancel
-		else if (confirm === ConfirmResult.CANCEL) {
-			return true; // veto
-		}
-
-		return void 0;
+			return void 0;
+		});
 	}
 
 	private noVeto(options: { cleanUpBackups: boolean }): boolean | TPromise<boolean> {
@@ -423,7 +424,7 @@ export abstract class TextFileService implements ITextFileService {
 	private doSaveAll(fileResources: URI[], untitledResources: URI[], options?: ISaveOptions): TPromise<ITextFileOperationResult> {
 
 		// Handle files first that can just be saved
-		return this.doSaveAllFiles(fileResources, options).then(result => {
+		return this.doSaveAllFiles(fileResources, options).then(async result => {
 
 			// Preflight for untitled to handle cancellation from the dialog
 			const targetsForUntitled: URI[] = [];
@@ -439,7 +440,7 @@ export abstract class TextFileService implements ITextFileService {
 
 					// Otherwise ask user
 					else {
-						targetPath = this.promptForPath(this.suggestFileName(untitled));
+						targetPath = await this.promptForPath(this.suggestFileName(untitled));
 						if (!targetPath) {
 							return TPromise.as({
 								results: [...fileResources, ...untitledResources].map(r => {
@@ -529,29 +530,37 @@ export abstract class TextFileService implements ITextFileService {
 	public saveAs(resource: URI, target?: URI, options?: ISaveOptions): TPromise<URI> {
 
 		// Get to target resource
-		if (!target) {
+		let targetPromise: TPromise<URI>;
+		if (target) {
+			targetPromise = TPromise.wrap(target);
+		} else {
 			let dialogPath = resource.fsPath;
 			if (resource.scheme === UNTITLED_SCHEMA) {
 				dialogPath = this.suggestFileName(resource);
 			}
 
-			const pathRaw = this.promptForPath(dialogPath);
-			if (pathRaw) {
-				target = URI.file(pathRaw);
+			targetPromise = this.promptForPath(dialogPath).then(pathRaw => {
+				if (pathRaw) {
+					return URI.file(pathRaw);
+				}
+
+				return void 0;
+			});
+		}
+
+		return targetPromise.then(target => {
+			if (!target) {
+				return TPromise.as(null); // user canceled
 			}
-		}
 
-		if (!target) {
-			return TPromise.as(null); // user canceled
-		}
+			// Just save if target is same as models own resource
+			if (resource.toString() === target.toString()) {
+				return this.save(resource, options).then(() => resource);
+			}
 
-		// Just save if target is same as models own resource
-		if (resource.toString() === target.toString()) {
-			return this.save(resource, options).then(() => resource);
-		}
-
-		// Do it
-		return this.doSaveAs(resource, target, options);
+			// Do it
+			return this.doSaveAs(resource, target, options);
+		});
 	}
 
 	private doSaveAs(resource: URI, target?: URI, options?: ISaveOptions): TPromise<URI> {

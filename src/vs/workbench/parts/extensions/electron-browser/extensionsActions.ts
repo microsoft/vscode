@@ -66,25 +66,25 @@ export class InstallVSIXAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		const result = this.windowsService.showOpenDialog({
+		return this.windowsService.showOpenDialog({
 			title: localize('installFromVSIX', "Install from VSIX"),
 			filters: [{ name: 'VSIX Extensions', extensions: ['vsix'] }],
 			properties: ['openFile'],
 			buttonLabel: mnemonicButtonLabel(localize({ key: 'installButton', comment: ['&& denotes a mnemonic'] }, "&&Install"))
-		});
+		}).then(result => {
+			if (!result) {
+				return TPromise.as(null);
+			}
 
-		if (!result) {
-			return TPromise.as(null);
-		}
-
-		return TPromise.join(result.map(vsix => this.extensionsWorkbenchService.install(vsix))).then(() => {
-			this.messageService.show(
-				severity.Info,
-				{
-					message: localize('InstallVSIXAction.success', "Successfully installed the extension. Restart to enable it."),
-					actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('InstallVSIXAction.reloadNow', "Reload Now"))]
-				}
-			);
+			return TPromise.join(result.map(vsix => this.extensionsWorkbenchService.install(vsix))).then(() => {
+				this.messageService.show(
+					severity.Info,
+					{
+						message: localize('InstallVSIXAction.success', "Successfully installed the extension. Restart to enable it."),
+						actions: [this.instantiationService.createInstance(ReloadWindowAction, ReloadWindowAction.ID, localize('InstallVSIXAction.reloadNow', "Reload Now"))]
+					}
+				);
+			});
 		});
 	}
 }

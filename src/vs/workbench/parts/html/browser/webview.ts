@@ -196,6 +196,10 @@ export default class Webview {
 		this._onDidClickLink.dispose();
 		this._disposables = dispose(this._disposables);
 
+		if (this._contextKey) {
+			this._contextKey.reset();
+		}
+
 		if (this._webview.parentElement) {
 			this._webview.parentElement.removeChild(this._webview);
 			const findWidgetDomNode = this._webviewFindWidget.getDomNode();

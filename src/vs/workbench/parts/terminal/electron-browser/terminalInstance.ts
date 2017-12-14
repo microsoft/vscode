@@ -41,10 +41,7 @@ import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspac
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
 
-// Enable search functionality in xterm.js instance
-XTermTerminal.loadAddon('search');
-// Enable the winpty compatibility addon which will simulate wraparound mode
-XTermTerminal.loadAddon('winptyCompat');
+let Terminal: typeof XTermTerminal;
 
 enum ProcessState {
 	// The process has not been initialized yet.
@@ -99,6 +96,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _initialCwd: string;
 	private _windowsShellHelper: WindowsShellHelper;
 	private _onLineDataListeners: ((lineData: string) => void)[];
+	private _xtermReadyPromise: TPromise<void>;
 
 	private _widgetManager: TerminalWidgetManager;
 	private _linkHandler: TerminalLinkHandler;
@@ -154,7 +152,6 @@ export class TerminalInstance implements ITerminalInstance {
 
 		this._initDimensions();
 		this._createProcess();
-		this._createXterm();
 
 		if (platform.isWindows) {
 			this._processReady.then(() => {
@@ -164,10 +161,13 @@ export class TerminalInstance implements ITerminalInstance {
 			});
 		}
 
-		// Only attach xterm.js to the DOM if the terminal panel has been opened before.
-		if (_container) {
-			this.attachToElement(_container);
-		}
+		this._xtermReadyPromise = this._createXterm();
+		this._xtermReadyPromise.then(() => {
+			// Only attach xterm.js to the DOM if the terminal panel has been opened before.
+			if (_container) {
+				this.attachToElement(_container);
+			}
+		});
 	}
 
 	public addDisposable(disposable: lifecycle.IDisposable): void {
@@ -252,9 +252,16 @@ export class TerminalInstance implements ITerminalInstance {
 	/**
 	 * Create xterm.js instance and attach data listeners.
 	 */
-	protected _createXterm(): void {
+	protected async _createXterm(): TPromise<void> {
+		if (!Terminal) {
+			Terminal = (await import('xterm')).Terminal;
+			// Enable search functionality in xterm.js instance
+			Terminal.loadAddon('search');
+			// Enable the winpty compatibility addon which will simulate wraparound mode
+			Terminal.loadAddon('winptyCompat');
+		}
 		const font = this._configHelper.getFont(true);
-		this._xterm = new XTermTerminal({
+		this._xterm = new Terminal({
 			scrollback: this._configHelper.config.scrollback,
 			theme: this._getXtermTheme(),
 			fontFamily: font.fontFamily,
@@ -288,100 +295,102 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public attachToElement(container: HTMLElement): void {
-		if (this._wrapperElement) {
-			throw new Error('The terminal instance has already been attached to a container');
-		}
-
-		this._container = container;
-		this._wrapperElement = document.createElement('div');
-		dom.addClass(this._wrapperElement, 'terminal-wrapper');
-		this._xtermElement = document.createElement('div');
-
-		// Attach the xterm object to the DOM, exposing it to the smoke tests
-		(<any>this._wrapperElement).xterm = this._xterm;
-
-		this._xterm.open(this._xtermElement);
-		this._xterm.attachCustomKeyEventHandler((event: KeyboardEvent) => {
-			// Disable all input if the terminal is exiting
-			if (this._isExiting) {
-				return false;
+		this._xtermReadyPromise.then(() => {
+			if (this._wrapperElement) {
+				throw new Error('The terminal instance has already been attached to a container');
 			}
 
-			// Skip processing by xterm.js of keyboard events that resolve to commands described
-			// within commandsToSkipShell
-			const standardKeyboardEvent = new StandardKeyboardEvent(event);
-			const resolveResult = this._keybindingService.softDispatch(standardKeyboardEvent, standardKeyboardEvent.target);
-			if (resolveResult && this._skipTerminalCommands.some(k => k === resolveResult.commandId)) {
-				event.preventDefault();
-				return false;
-			}
+			this._container = container;
+			this._wrapperElement = document.createElement('div');
+			dom.addClass(this._wrapperElement, 'terminal-wrapper');
+			this._xtermElement = document.createElement('div');
 
-			// If tab focus mode is on, tab is not passed to the terminal
-			if (TabFocus.getTabFocusMode() && event.keyCode === 9) {
-				return false;
-			}
+			// Attach the xterm object to the DOM, exposing it to the smoke tests
+			(<any>this._wrapperElement).xterm = this._xterm;
 
-			return undefined;
+			this._xterm.open(this._xtermElement);
+			this._xterm.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+				// Disable all input if the terminal is exiting
+				if (this._isExiting) {
+					return false;
+				}
+
+				// Skip processing by xterm.js of keyboard events that resolve to commands described
+				// within commandsToSkipShell
+				const standardKeyboardEvent = new StandardKeyboardEvent(event);
+				const resolveResult = this._keybindingService.softDispatch(standardKeyboardEvent, standardKeyboardEvent.target);
+				if (resolveResult && this._skipTerminalCommands.some(k => k === resolveResult.commandId)) {
+					event.preventDefault();
+					return false;
+				}
+
+				// If tab focus mode is on, tab is not passed to the terminal
+				if (TabFocus.getTabFocusMode() && event.keyCode === 9) {
+					return false;
+				}
+
+				return undefined;
+			});
+			this._instanceDisposables.push(dom.addDisposableListener(this._xterm.element, 'mouseup', (event: KeyboardEvent) => {
+				// Wait until mouseup has propagated through the DOM before
+				// evaluating the new selection state.
+				setTimeout(() => this._refreshSelectionContextKey(), 0);
+			}));
+
+			// xterm.js currently drops selection on keyup as we need to handle this case.
+			this._instanceDisposables.push(dom.addDisposableListener(this._xterm.element, 'keyup', (event: KeyboardEvent) => {
+				// Wait until keyup has propagated through the DOM before evaluating
+				// the new selection state.
+				setTimeout(() => this._refreshSelectionContextKey(), 0);
+			}));
+
+			const xtermHelper: HTMLElement = <HTMLElement>this._xterm.element.querySelector('.xterm-helpers');
+			const focusTrap: HTMLElement = document.createElement('div');
+			focusTrap.setAttribute('tabindex', '0');
+			dom.addClass(focusTrap, 'focus-trap');
+			this._instanceDisposables.push(dom.addDisposableListener(focusTrap, 'focus', (event: FocusEvent) => {
+				let currentElement = focusTrap;
+				while (!dom.hasClass(currentElement, 'part')) {
+					currentElement = currentElement.parentElement;
+				}
+				const hidePanelElement = <HTMLElement>currentElement.querySelector('.hide-panel-action');
+				hidePanelElement.focus();
+			}));
+			xtermHelper.insertBefore(focusTrap, this._xterm.textarea);
+
+			this._instanceDisposables.push(dom.addDisposableListener(this._xterm.textarea, 'focus', (event: KeyboardEvent) => {
+				this._terminalFocusContextKey.set(true);
+			}));
+			this._instanceDisposables.push(dom.addDisposableListener(this._xterm.textarea, 'blur', (event: KeyboardEvent) => {
+				this._terminalFocusContextKey.reset();
+				this._refreshSelectionContextKey();
+			}));
+			this._instanceDisposables.push(dom.addDisposableListener(this._xterm.element, 'focus', (event: KeyboardEvent) => {
+				this._terminalFocusContextKey.set(true);
+			}));
+			this._instanceDisposables.push(dom.addDisposableListener(this._xterm.element, 'blur', (event: KeyboardEvent) => {
+				this._terminalFocusContextKey.reset();
+				this._refreshSelectionContextKey();
+			}));
+
+			this._wrapperElement.appendChild(this._xtermElement);
+			this._widgetManager = new TerminalWidgetManager(this._wrapperElement);
+			this._linkHandler.setWidgetManager(this._widgetManager);
+			this._container.appendChild(this._wrapperElement);
+
+			const computedStyle = window.getComputedStyle(this._container);
+			const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
+			const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
+			this.layout(new Dimension(width, height));
+			this.setVisible(this._isVisible);
+			this.updateConfig();
+
+			// If IShellLaunchConfig.waitOnExit was true and the process finished before the terminal
+			// panel was initialized.
+			if (this._xterm.getOption('disableStdin')) {
+				this._attachPressAnyKeyToCloseListener();
+			}
 		});
-		this._instanceDisposables.push(dom.addDisposableListener(this._xterm.element, 'mouseup', (event: KeyboardEvent) => {
-			// Wait until mouseup has propagated through the DOM before
-			// evaluating the new selection state.
-			setTimeout(() => this._refreshSelectionContextKey(), 0);
-		}));
-
-		// xterm.js currently drops selection on keyup as we need to handle this case.
-		this._instanceDisposables.push(dom.addDisposableListener(this._xterm.element, 'keyup', (event: KeyboardEvent) => {
-			// Wait until keyup has propagated through the DOM before evaluating
-			// the new selection state.
-			setTimeout(() => this._refreshSelectionContextKey(), 0);
-		}));
-
-		const xtermHelper: HTMLElement = <HTMLElement>this._xterm.element.querySelector('.xterm-helpers');
-		const focusTrap: HTMLElement = document.createElement('div');
-		focusTrap.setAttribute('tabindex', '0');
-		dom.addClass(focusTrap, 'focus-trap');
-		this._instanceDisposables.push(dom.addDisposableListener(focusTrap, 'focus', (event: FocusEvent) => {
-			let currentElement = focusTrap;
-			while (!dom.hasClass(currentElement, 'part')) {
-				currentElement = currentElement.parentElement;
-			}
-			const hidePanelElement = <HTMLElement>currentElement.querySelector('.hide-panel-action');
-			hidePanelElement.focus();
-		}));
-		xtermHelper.insertBefore(focusTrap, this._xterm.textarea);
-
-		this._instanceDisposables.push(dom.addDisposableListener(this._xterm.textarea, 'focus', (event: KeyboardEvent) => {
-			this._terminalFocusContextKey.set(true);
-		}));
-		this._instanceDisposables.push(dom.addDisposableListener(this._xterm.textarea, 'blur', (event: KeyboardEvent) => {
-			this._terminalFocusContextKey.reset();
-			this._refreshSelectionContextKey();
-		}));
-		this._instanceDisposables.push(dom.addDisposableListener(this._xterm.element, 'focus', (event: KeyboardEvent) => {
-			this._terminalFocusContextKey.set(true);
-		}));
-		this._instanceDisposables.push(dom.addDisposableListener(this._xterm.element, 'blur', (event: KeyboardEvent) => {
-			this._terminalFocusContextKey.reset();
-			this._refreshSelectionContextKey();
-		}));
-
-		this._wrapperElement.appendChild(this._xtermElement);
-		this._widgetManager = new TerminalWidgetManager(this._wrapperElement);
-		this._linkHandler.setWidgetManager(this._widgetManager);
-		this._container.appendChild(this._wrapperElement);
-
-		const computedStyle = window.getComputedStyle(this._container);
-		const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
-		const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
-		this.layout(new Dimension(width, height));
-		this.setVisible(this._isVisible);
-		this.updateConfig();
-
-		// If IShellLaunchConfig.waitOnExit was true and the process finished before the terminal
-		// panel was initialized.
-		if (this._xterm.getOption('disableStdin')) {
-			this._attachPressAnyKeyToCloseListener();
-		}
 	}
 
 	public registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number, validationCallback?: (uri: string, callback: (isValid: boolean) => void) => void): number {

@@ -4,16 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-export interface IThreadService {
+export interface IRPCProtocol {
 	/**
-	 * Always returns a proxy.
+	 * Returns a proxy to an object addressable/named in the extension host process.
+	 * > **Note:** Arguments or results of type `URI` or `RegExp` will be serialized/deserialized automatically,
+	 * > but this has a performance cost, as each argument/result must be visited.
+	 * >
+	 * > Use `getFast` for a proxy where such arguments are not automatically serialized/deserialized.
 	 */
-	get<T>(identifier: ProxyIdentifier<T>): T;
+	getProxy<T>(identifier: ProxyIdentifier<T>): T;
 
 	/**
-	 * Register instance.
+	 * Returns a proxy to an object addressable/named in the extension host process.
+	 * > **Note:** Arguments or results of type `URI` or `RegExp` will **not** be serialized/deserialized automatically.
 	 */
-	set<T, R extends T>(identifier: ProxyIdentifier<T>, value: R): R;
+	getFastProxy<T>(identifier: ProxyIdentifier<T>): T;
+
+	/**
+	 * Register manually created instance.
+	 */
+	set<T, R extends T>(identifier: ProxyIdentifier<T>, instance: R): R;
 
 	/**
 	 * Assert these identifiers are already registered via `.set`.

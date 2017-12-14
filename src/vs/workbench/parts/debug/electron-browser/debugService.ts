@@ -870,8 +870,8 @@ export class DebugService implements debug.IDebugService {
 				if (session.disconnected) {
 					return TPromise.as(null);
 				}
-				this._onDidNewProcess.fire(process);
 				this.focusStackFrameAndEvaluate(null, process);
+				this._onDidNewProcess.fire(process);
 
 				const internalConsoleOptions = configuration.internalConsoleOptions || this.configurationService.getValue<debug.IDebugConfiguration>('debug').internalConsoleOptions;
 				if (internalConsoleOptions === 'openOnSessionStart' || (this.firstSessionStart && internalConsoleOptions === 'openOnFirstSessionStart')) {

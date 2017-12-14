@@ -7,6 +7,7 @@
 	"selectTheme.label": "Tema de color",
 	"themes.category.light": "temas claros",
 	"themes.category.dark": "temas oscuros",
+	"themes.category.hc": "temas de alto contraste",
 	"installColorThemes": "Instalar temas de color adicionales...",
 	"themes.selectTheme": "Seleccione el tema de color (flecha arriba/abajo para vista previa)",
 	"selectIconTheme.label": "Tema de icono de archivo",

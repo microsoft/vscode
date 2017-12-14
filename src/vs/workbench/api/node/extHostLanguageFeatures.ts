@@ -800,7 +800,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		heapMonitor: ExtHostHeapService,
 		diagnostics: ExtHostDiagnostics
 	) {
-		this._proxy = mainContext.get(MainContext.MainThreadLanguageFeatures);
+		this._proxy = mainContext.getProxy(MainContext.MainThreadLanguageFeatures);
 		this._documents = documents;
 		this._commands = commands;
 		this._heapService = heapMonitor;

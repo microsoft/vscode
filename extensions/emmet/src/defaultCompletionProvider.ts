@@ -23,6 +23,12 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 		const isSyntaxMapped = mappedLanguages[document.languageId] ? true : false;
 		let syntax = getEmmetMode((isSyntaxMapped ? mappedLanguages[document.languageId] : document.languageId), excludedLanguages);
 
+		if (!syntax
+			|| emmetConfig['showExpandedAbbreviation'] === 'never'
+			|| ((isSyntaxMapped || syntax === 'jsx') && emmetConfig['showExpandedAbbreviation'] !== 'always')) {
+			return;
+		}
+
 		const helper = getEmmetHelper();
 		const extractAbbreviationResults = helper.extractAbbreviation(document, position);
 		if (!extractAbbreviationResults) {
@@ -44,12 +50,6 @@ export class DefaultCompletionItemProvider implements vscode.CompletionItemProvi
 			if (!syntax || !isValidLocationForEmmetAbbreviation(document, currentNode, syntax, position, extractAbbreviationResults.abbreviationRange)) {
 				return;
 			}
-		}
-
-		if (!syntax
-			|| ((isSyntaxMapped || syntax === 'jsx')
-				&& emmetConfig['showExpandedAbbreviation'] !== 'always')) {
-			return;
 		}
 
 		let noiseCheckPromise: Thenable<any> = Promise.resolve();

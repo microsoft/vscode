@@ -7,9 +7,11 @@
 	"extensionsCommands": "Kiegészítők kezelése",
 	"galleryExtensionsCommands": "Kiegészítők telepítése a galériából",
 	"extension": "Kiegészítő",
+	"runtimeExtension": "Futó kiegészítők",
 	"extensions": "Kiegészítők",
 	"view": "Nézet",
 	"developer": "Fejlesztői",
 	"extensionsConfigurationTitle": "Kiegészítők",
-	"extensionsAutoUpdate": "Kiegészítők automatikus frissítése"
+	"extensionsAutoUpdate": "Kiegészítők automatikus frissítése",
+	"extensionsIgnoreRecommendations": "Ha az értéke true, nem jelenik meg több kiegészítőajánlást tartalmazó értesítés."
 }

@@ -308,7 +308,7 @@ export class MainThreadDocumentsAndEditors {
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IEditorGroupService editorGroupService: IEditorGroupService
 	) {
-		this._proxy = extHostContext.get(ExtHostContext.ExtHostDocumentsAndEditors);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentsAndEditors);
 
 		const mainThreadDocuments = new MainThreadDocuments(this, extHostContext, this._modelService, modeService, this._textFileService, fileService, textModelResolverService, untitledEditorService);
 		extHostContext.set(MainContext.MainThreadDocuments, mainThreadDocuments);

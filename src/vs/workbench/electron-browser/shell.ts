@@ -252,7 +252,7 @@ export class WorkbenchShell {
 		});
 
 		// Telemetry: startup metrics
-		this.timerService.workbenchStarted = Date.now();
+		perf.mark('didStartWorkbench');
 		this.extensionService.whenInstalledExtensionsRegistered().done(() => {
 			/* __GDPR__
 				"startupTime" : {

@@ -9,5 +9,6 @@
 	"extensionHostProcess.crash": "Der Erweiterungshost wurde unerwartet beendet.",
 	"extensionHostProcess.unresponsiveCrash": "Der Erweiterungshost wurde beendet, weil er nicht reagiert hat.",
 	"overwritingExtension": "Die Erweiterung \"{0}\" wird mit \"{1}\" überschrieben.",
-	"extensionUnderDevelopment": "Die Entwicklungserweiterung unter \"{0}\" wird geladen."
+	"extensionUnderDevelopment": "Die Entwicklungserweiterung unter \"{0}\" wird geladen.",
+	"extensionCache.invalid": "Erweiterungen wurden auf der Festplatte geändert. Bitte laden Sie das Fenster erneut."
 }

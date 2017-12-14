@@ -46,11 +46,10 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as vscode from 'vscode';
 import * as paths from 'vs/base/common/paths';
-import { MainContext, ExtHostContext, IInitData } from './extHost.protocol';
+import { MainContext, ExtHostContext, IInitData, IExtHostContext } from './extHost.protocol';
 import * as languageConfiguration from 'vs/editor/common/modes/languageConfiguration';
 import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
-import { ExtHostThreadService } from 'vs/workbench/services/thread/node/extHostThreadService';
-import { ProxyIdentifier } from 'vs/workbench/services/thread/common/threadService';
+import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 import { ExtHostDialogs } from 'vs/workbench/api/node/extHostDialogs';
 import { ExtHostFileSystem } from 'vs/workbench/api/node/extHostFileSystem';
 import { FileChangeType, FileType } from 'vs/platform/files/common/files';
@@ -79,7 +78,7 @@ function proposedApiFunction<T>(extension: IExtensionDescription, fn: T): T {
  */
 export function createApiFactory(
 	initData: IInitData,
-	threadService: ExtHostThreadService,
+	threadService: IExtHostContext,
 	extHostWorkspace: ExtHostWorkspace,
 	extHostConfiguration: ExtHostConfiguration,
 	extensionService: ExtHostExtensionService,
@@ -92,10 +91,10 @@ export function createApiFactory(
 	const extHostDocumentsAndEditors = threadService.set(ExtHostContext.ExtHostDocumentsAndEditors, new ExtHostDocumentsAndEditors(threadService));
 	const extHostDocuments = threadService.set(ExtHostContext.ExtHostDocuments, new ExtHostDocuments(threadService, extHostDocumentsAndEditors));
 	const extHostDocumentContentProviders = threadService.set(ExtHostContext.ExtHostDocumentContentProviders, new ExtHostDocumentContentProvider(threadService, extHostDocumentsAndEditors));
-	const extHostDocumentSaveParticipant = threadService.set(ExtHostContext.ExtHostDocumentSaveParticipant, new ExtHostDocumentSaveParticipant(logService, extHostDocuments, threadService.get(MainContext.MainThreadEditors)));
+	const extHostDocumentSaveParticipant = threadService.set(ExtHostContext.ExtHostDocumentSaveParticipant, new ExtHostDocumentSaveParticipant(logService, extHostDocuments, threadService.getProxy(MainContext.MainThreadEditors)));
 	const extHostEditors = threadService.set(ExtHostContext.ExtHostEditors, new ExtHostEditors(threadService, extHostDocumentsAndEditors));
 	const extHostCommands = threadService.set(ExtHostContext.ExtHostCommands, new ExtHostCommands(threadService, extHostHeapService, logService));
-	const extHostTreeViews = threadService.set(ExtHostContext.ExtHostTreeViews, new ExtHostTreeViews(threadService.get(MainContext.MainThreadTreeViews), extHostCommands));
+	const extHostTreeViews = threadService.set(ExtHostContext.ExtHostTreeViews, new ExtHostTreeViews(threadService.getProxy(MainContext.MainThreadTreeViews), extHostCommands));
 	threadService.set(ExtHostContext.ExtHostWorkspace, extHostWorkspace);
 	const extHostDebugService = threadService.set(ExtHostContext.ExtHostDebugService, new ExtHostDebugService(threadService, extHostWorkspace));
 	threadService.set(ExtHostContext.ExtHostConfiguration, extHostConfiguration);
@@ -118,7 +117,7 @@ export function createApiFactory(
 	const extHostMessageService = new ExtHostMessageService(threadService);
 	const extHostDialogs = new ExtHostDialogs(threadService);
 	const extHostStatusBar = new ExtHostStatusBar(threadService);
-	const extHostProgress = new ExtHostProgress(threadService.get(MainContext.MainThreadProgress));
+	const extHostProgress = new ExtHostProgress(threadService.getProxy(MainContext.MainThreadProgress));
 	const extHostOutputService = new ExtHostOutputService(threadService);
 	const extHostLanguages = new ExtHostLanguages(threadService);
 
