@@ -19,7 +19,7 @@ import { IPathWithLineAndColumn, parseLineAndColumnAware } from 'vs/code/node/pa
 import { ILifecycleService, UnloadReason, IWindowUnloadEvent } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, INativeOpenDialogOptions, ReadyState, IPathsToWaitFor, IEnterWorkspaceResult } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, OpenContext, IPath, IWindowConfiguration, INativeOpenDialogOptions, ReadyState, IPathsToWaitFor, IEnterWorkspaceResult, IMessageBoxResult } from 'vs/platform/windows/common/windows';
 import { getLastActiveWindow, findBestWindowOrFolderForFile, findWindowOnWorkspace, findWindowOnExtensionDevelopmentPath, findWindowOnWorkspaceOrFolderPath } from 'vs/code/node/windowsFinder';
 import CommonEvent, { Emitter } from 'vs/base/common/event';
 import product from 'vs/platform/node/product';
@@ -108,7 +108,7 @@ export class WindowsManager implements IWindowsMainService {
 	private windowsState: IWindowsState;
 	private lastClosedWindowState: IWindowState;
 
-	private fileDialog: FileDialog;
+	private dialogs: Dialogs;
 	private workspacesManager: WorkspacesManager;
 
 	private _onWindowReady = new Emitter<CodeWindow>();
@@ -147,7 +147,7 @@ export class WindowsManager implements IWindowsMainService {
 			this.windowsState.openedWindows = [];
 		}
 
-		this.fileDialog = new FileDialog(environmentService, telemetryService, stateService, this);
+		this.dialogs = new Dialogs(environmentService, telemetryService, stateService, this);
 		this.workspacesManager = new WorkspacesManager(workspacesMainService, backupMainService, environmentService, this);
 	}
 
@@ -1519,7 +1519,23 @@ export class WindowsManager implements IWindowsMainService {
 			}
 		}
 
-		this.fileDialog.pickAndOpen(internalOptions);
+		this.dialogs.pickAndOpen(internalOptions);
+	}
+
+	public showMessageBox(win: CodeWindow, options: Electron.MessageBoxOptions): TPromise<number> {
+		return this.dialogs.showMessageBox(win, options);
+	}
+
+	public showMessageBoxWithCheckbox(win: CodeWindow, options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult> {
+		return this.dialogs.showMessageBoxWithCheckbox(win, options);
+	}
+
+	public showSaveDialog(win: CodeWindow, options: Electron.SaveDialogOptions): TPromise<string> {
+		return this.dialogs.showSaveDialog(win, options);
+	}
+
+	public showOpenDialog(win: CodeWindow, options: Electron.OpenDialogOptions): TPromise<string[]> {
+		return this.dialogs.showOpenDialog(win, options);
 	}
 
 	public quit(): void {
@@ -1545,7 +1561,7 @@ interface IInternalNativeOpenDialogOptions extends INativeOpenDialogOptions {
 	pickFiles?: boolean;
 }
 
-class FileDialog {
+class Dialogs {
 
 	private static readonly workingDirPickerStorageKey = 'pickerWorkingDir';
 
@@ -1593,7 +1609,7 @@ class FileDialog {
 
 		// Ensure defaultPath
 		if (!options.dialogOptions.defaultPath) {
-			options.dialogOptions.defaultPath = this.stateService.getItem<string>(FileDialog.workingDirPickerStorageKey);
+			options.dialogOptions.defaultPath = this.stateService.getItem<string>(Dialogs.workingDirPickerStorageKey);
 		}
 
 		// Ensure properties
@@ -1622,13 +1638,49 @@ class FileDialog {
 			}
 
 			// Remember path in storage for next time
-			this.stateService.setItem(FileDialog.workingDirPickerStorageKey, dirname(paths[0]));
+			this.stateService.setItem(Dialogs.workingDirPickerStorageKey, dirname(paths[0]));
 
 			// Return
 			return clb(paths);
 		}
 
 		return clb(void (0));
+	}
+
+	public showMessageBox(window: CodeWindow, options: Electron.MessageBoxOptions): TPromise<number> {
+		return TPromise.wrap(dialog.showMessageBox(window.win, options));
+	}
+
+	public showMessageBoxWithCheckbox(window: CodeWindow, options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult> {
+		return new TPromise((c, e) => {
+			return dialog.showMessageBox(window.win, options, (response: number, checkboxChecked: boolean) => {
+				c({ button: response, checkboxChecked });
+			});
+		});
+	}
+
+	public showSaveDialog(window: CodeWindow, options: Electron.SaveDialogOptions): TPromise<string> {
+		function normalizePath(path: string): string {
+			if (path && isMacintosh) {
+				path = normalizeNFC(path); // normalize paths returned from the OS
+			}
+
+			return path;
+		}
+
+		return TPromise.wrap(normalizePath(dialog.showSaveDialog(window.win, options))); // https://github.com/electron/electron/issues/4936
+	}
+
+	public showOpenDialog(window: CodeWindow, options: Electron.OpenDialogOptions): TPromise<string[]> {
+		function normalizePaths(paths: string[]): string[] {
+			if (paths && paths.length > 0 && isMacintosh) {
+				paths = paths.map(path => normalizeNFC(path)); // normalize paths returned from the OS
+			}
+
+			return paths;
+		}
+
+		return TPromise.wrap(normalizePaths(dialog.showOpenDialog(window.win, options))); // https://github.com/electron/electron/issues/4936
 	}
 }
 

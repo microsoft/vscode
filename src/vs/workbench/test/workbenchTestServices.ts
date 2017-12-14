@@ -1198,6 +1198,22 @@ export class TestWindowsService implements IWindowsService {
 	startCrashReporter(config: Electron.CrashReporterStartOptions): TPromise<void> {
 		return TPromise.as(void 0);
 	}
+
+	showMessageBox(windowId: number, options: Electron.MessageBoxOptions): TPromise<number> {
+		return TPromise.as(void 0);
+	}
+
+	showMessageBoxWithCheckbox(windowId: number, options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult> {
+		return TPromise.as(void 0);
+	}
+
+	showSaveDialog(windowId: number, options: Electron.SaveDialogOptions): TPromise<string> {
+		return TPromise.as(void 0);
+	}
+
+	showOpenDialog(windowId: number, options: Electron.OpenDialogOptions): TPromise<string[]> {
+		return TPromise.as(void 0);
+	}
 }
 
 export class TestTextResourceConfigurationService implements ITextResourceConfigurationService {

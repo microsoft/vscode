@@ -98,10 +98,16 @@ export interface IWindowsService {
 	onWindowFocus: Event<number>;
 	onWindowBlur: Event<number>;
 
+	// Dialogs
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
+	showMessageBox(windowId: number, options: Electron.MessageBoxOptions): TPromise<number>;
+	showMessageBoxWithCheckbox(windowId: number, options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult>;
+	showSaveDialog(windowId: number, options: Electron.SaveDialogOptions): TPromise<string>;
+	showOpenDialog(windowId: number, options: Electron.OpenDialogOptions): TPromise<string[]>;
+
 	reloadWindow(windowId: number): TPromise<void>;
 	openDevTools(windowId: number): TPromise<void>;
 	toggleDevTools(windowId: number): TPromise<void>;
