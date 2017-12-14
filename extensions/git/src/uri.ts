@@ -38,9 +38,9 @@ export function toGitUri(uri: Uri, ref: string, options: GitUriOptions = {}): Ur
 	let path = uri.path;
 
 	if (options.replaceFileExtension) {
-		path = path + `${path}.git`;
+		path = `${path}.git`;
 	} else if (options.submoduleOf) {
-		path = path + `${path}.diff`;
+		path = `${path}.diff`;
 	}
 
 	return uri.with({
