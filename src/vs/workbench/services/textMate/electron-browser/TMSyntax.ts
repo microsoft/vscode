@@ -140,6 +140,23 @@ export class TextMateService implements ITextMateService {
 			}
 		});
 
+		// Generate some color map until the grammar registry is loaded
+		let colorTheme = this._themeService.getColorTheme();
+		let defaultForeground: Color = Color.transparent;
+		let defaultBackground: Color = Color.transparent;
+		for (let i = 0, len = colorTheme.tokenColors.length; i < len; i++) {
+			let rule = colorTheme.tokenColors[i];
+			if (!rule.scope) {
+				if (rule.settings.foreground) {
+					defaultForeground = Color.fromHex(rule.settings.foreground);
+				}
+				if (rule.settings.background) {
+					defaultBackground = Color.fromHex(rule.settings.background);
+				}
+			}
+		}
+		TokenizationRegistry.setColorMap([null, defaultForeground, defaultBackground]);
+
 		this._modeService.onDidCreateMode((mode) => {
 			let modeId = mode.getId();
 			if (this._languageToScope.has(modeId)) {
