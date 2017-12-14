@@ -834,7 +834,11 @@ export class Repository implements Disposable {
 						// paths are separated by the null-character
 						resolve(new Set<string>(data.split('\0')));
 					} else {
-						reject(new GitError({ stdout: data, stderr, exitCode }));
+						if (/ is in submodule /.test(stderr)) {
+							reject(new GitError({ stdout: data, stderr, exitCode, gitErrorCode: GitErrorCodes.IsInSubmodule }));
+						} else {
+							reject(new GitError({ stdout: data, stderr, exitCode }));
+						}
 					}
 				};
 

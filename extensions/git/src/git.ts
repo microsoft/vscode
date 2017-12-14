@@ -318,7 +318,8 @@ export const GitErrorCodes = {
 	NoLocalChanges: 'NoLocalChanges',
 	NoStashFound: 'NoStashFound',
 	LocalChangesOverwritten: 'LocalChangesOverwritten',
-	NoUpstreamBranch: 'NoUpstreamBranch'
+	NoUpstreamBranch: 'NoUpstreamBranch',
+	IsInSubmodule: 'IsInSubmodule'
 };
 
 function getGitErrorCode(stderr: string): string | undefined {
