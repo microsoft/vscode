@@ -9,6 +9,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostContext, MainThreadCommandsShape, ExtHostCommandsShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import { revive } from 'vs/base/common/marshalling';
 
 @extHostNamedCustomer(MainContext.MainThreadCommands)
 export class MainThreadCommands implements MainThreadCommandsShape {
@@ -70,6 +71,9 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 	}
 
 	$executeCommand<T>(id: string, args: any[]): Thenable<T> {
+		for (let i = 0; i < args.length; i++) {
+			args[i] = revive(args[i], 0);
+		}
 		return this._commandService.executeCommand<T>(id, ...args);
 	}
 
