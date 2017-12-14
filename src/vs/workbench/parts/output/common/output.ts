@@ -7,10 +7,8 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
-import nls = require('vs/nls');
 import URI from 'vs/base/common/uri';
 
 /**
@@ -196,20 +194,3 @@ class OutputChannelRegistry implements IOutputChannelRegistry {
 }
 
 Registry.add(Extensions.OutputChannels, new OutputChannelRegistry());
-
-export class OutputEditors {
-
-	private static instances: { [channel: string]: ResourceEditorInput; } = Object.create(null);
-
-	public static getInstance(instantiationService: IInstantiationService, channel: IOutputChannel): ResourceEditorInput {
-		if (OutputEditors.instances[channel.id]) {
-			return OutputEditors.instances[channel.id];
-		}
-
-		const resource = URI.from({ scheme: OUTPUT_SCHEME, path: channel.id });
-
-		OutputEditors.instances[channel.id] = instantiationService.createInstance(ResourceEditorInput, nls.localize('output', "Output"), channel ? nls.localize('channel', "for '{0}'", channel.label) : '', resource);
-
-		return OutputEditors.instances[channel.id];
-	}
-}

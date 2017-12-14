@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import strings = require('vs/base/common/strings');
 import Event, { Emitter } from 'vs/base/common/event';
@@ -13,7 +14,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorOptions } from 'vs/workbench/common/editor';
-import { IOutputChannelIdentifier, OutputEditors, IOutputEvent, IOutputChannel, IOutputService, IOutputDelta, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry, MAX_OUTPUT_LENGTH, OUTPUT_SCHEME, OUTPUT_MIME, Extensions as OutputExt } from 'vs/workbench/parts/output/common/output';
+import { IOutputChannelIdentifier, IOutputEvent, IOutputChannel, IOutputService, IOutputDelta, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry, MAX_OUTPUT_LENGTH, OUTPUT_SCHEME, OUTPUT_MIME } from 'vs/workbench/parts/output/common/output';
 import { OutputPanel } from 'vs/workbench/parts/output/browser/outputPanel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -26,6 +27,8 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
+import { IPanel } from 'vs/workbench/common/panel';
+import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
@@ -253,17 +256,17 @@ export class OutputService implements IOutputService {
 
 		instantiationService.createInstance(OutputLinkProvider);
 
-		this._outputContentProvider = instantiationService.createInstance(OutputContentProvider, this);
-
 		// Register as text model content provider for output
+		this._outputContentProvider = instantiationService.createInstance(OutputContentProvider, this);
 		textModelResolverService.registerTextModelContentProvider(OUTPUT_SCHEME, this._outputContentProvider);
 
-		(<IOutputChannelRegistry>Registry.as(OutputExt.OutputChannels)).onDidRegisterChannel(channel => this.showActiveChannel(channel));
+		this.onDidPanelOpen(this.panelService.getActivePanel());
+		panelService.onDidPanelOpen(this.onDidPanelOpen, this);
+		panelService.onDidPanelClose(this.onDidPanelClose, this);
 	}
 
 	showChannel(id: string, preserveFocus?: boolean): TPromise<void> {
-		const panel = this.panelService.getActivePanel();
-		if (this.activeChannelId === id && panel && panel.getId() === OUTPUT_PANEL_ID) {
+		if (this.isChannelShown(id)) {
 			return TPromise.as(null);
 		}
 
@@ -275,18 +278,8 @@ export class OutputService implements IOutputService {
 		}
 
 		this.activeChannelId = id;
-		const activeChannel = <OutputChannel>this.getChannel(id);
-		return activeChannel.show()
-			.then(() => {
-				this.storageService.store(OUTPUT_ACTIVE_CHANNEL_KEY, this.activeChannelId, StorageScope.WORKSPACE);
-				this._onActiveOutputChannel.fire(id); // emit event that a new channel is active
-
-				return this.panelService.openPanel(OUTPUT_PANEL_ID, !preserveFocus)
-					.then((outputPanel: OutputPanel) => {
-						this._outputPanel = outputPanel;
-						return outputPanel && outputPanel.setInput(OutputEditors.getInstance(this.instantiationService, this.getChannel(this.activeChannelId)), EditorOptions.create({ preserveFocus: preserveFocus }));
-					});
-			});
+		return this.doShowChannel(id, preserveFocus)
+			.then(() => this._onActiveOutputChannel.fire(id));
 	}
 
 	getChannel(id: string): IOutputChannel {
@@ -314,6 +307,26 @@ export class OutputService implements IOutputService {
 		return this.getChannel(this.activeChannelId);
 	}
 
+	private isChannelShown(channelId: string): boolean {
+		const panel = this.panelService.getActivePanel();
+		return panel && panel.getId() === OUTPUT_PANEL_ID && this.activeChannelId === channelId;
+	}
+
+	private onDidPanelClose(panel: IPanel): void {
+		if (this._outputPanel && panel.getId() === OUTPUT_PANEL_ID) {
+			this._outputPanel.clearInput();
+		}
+	}
+
+	private onDidPanelOpen(panel: IPanel): void {
+		if (panel && panel.getId() === OUTPUT_PANEL_ID) {
+			this._outputPanel = <OutputPanel>this.panelService.getActivePanel();
+			if (this.activeChannelId) {
+				this.doShowChannel(this.activeChannelId, true);
+			}
+		}
+	}
+
 	private removeOutput(channelId: string): void {
 		Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).removeChannel(channelId);
 		if (this.activeChannelId === channelId) {
@@ -326,10 +339,21 @@ export class OutputService implements IOutputService {
 		}
 	}
 
-	private showActiveChannel(id: string): void {
-		if (this.activeChannelId === id) {
-			this.showChannel(id);
-		}
+	private doShowChannel(channelId: string, preserveFocus: boolean): TPromise<void> {
+		const activeChannel = <OutputChannel>this.getChannel(channelId);
+		return activeChannel.show()
+			.then(() => {
+				this.storageService.store(OUTPUT_ACTIVE_CHANNEL_KEY, channelId, StorageScope.WORKSPACE);
+				this._outputPanel.setInput(this.createInput(this.getChannel(channelId)), EditorOptions.create({ preserveFocus: preserveFocus }));
+				if (!preserveFocus) {
+					this._outputPanel.focus();
+				}
+			});
+	}
+
+	private createInput(channel: IOutputChannel): ResourceEditorInput {
+		const resource = URI.from({ scheme: OUTPUT_SCHEME, path: channel.id });
+		return this.instantiationService.createInstance(ResourceEditorInput, nls.localize('output', "Output"), channel ? nls.localize('channel', "for '{0}'", channel.label) : '', resource);
 	}
 }
 
