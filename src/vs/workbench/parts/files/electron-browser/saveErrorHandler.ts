@@ -101,10 +101,12 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 
 	public onSaveError(error: any, model: ITextFileEditorModel): void {
 		let message: IMessageWithAction | string;
+
+		const fileOperationError = error as FileOperationError;
 		const resource = model.getResource();
 
 		// Dirty write prevention
-		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
+		if (fileOperationError.fileOperationResult === FileOperationResult.FILE_MODIFIED_SINCE) {
 
 			// If the user tried to save from the opened conflict editor, show its message again
 			// Otherwise show the message that will lead the user into the save conflict editor.
@@ -117,16 +119,43 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 
 		// Any other save error
 		else {
-			const isReadonly = (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_READ_ONLY;
-			const isPermissionDenied = (<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_PERMISSION_DENIED;
 			const actions: Action[] = [];
 
+			const isReadonly = fileOperationError.fileOperationResult === FileOperationResult.FILE_READ_ONLY;
+			const triedToMakeWriteable = isReadonly && fileOperationError.options && fileOperationError.options.overwriteReadonly;
+			const isPermissionDenied = fileOperationError.fileOperationResult === FileOperationResult.FILE_PERMISSION_DENIED;
+
 			// Save Elevated
-			if (isPermissionDenied) {
-				actions.push(new Action('workbench.files.action.saveElevated', nls.localize('saveElevated', "Retry as Admin..."), null, true, () => {
+			if (isPermissionDenied || triedToMakeWriteable) {
+				actions.push(new Action('workbench.files.action.saveElevated', triedToMakeWriteable ? nls.localize('overwriteElevated', "Overwrite as Admin...") : nls.localize('saveElevated', "Retry as Admin..."), null, true, () => {
 					if (!model.isDisposed()) {
-						model.save({ writeElevated: true }).done(null, errors.onUnexpectedError);
+						model.save({
+							writeElevated: true,
+							overwriteReadonly: triedToMakeWriteable
+						}).done(null, errors.onUnexpectedError);
 					}
+
+					return TPromise.as(true);
+				}));
+			}
+
+			// Overwrite
+			else if (isReadonly) {
+				actions.push(new Action('workbench.files.action.overwrite', nls.localize('overwrite', "Overwrite"), null, true, () => {
+					if (!model.isDisposed()) {
+						model.save({ overwriteReadonly: true }).done(null, errors.onUnexpectedError);
+					}
+
+					return TPromise.as(true);
+				}));
+			}
+
+			// Retry
+			else {
+				actions.push(new Action('workbench.files.action.retry', nls.localize('retry', "Retry"), null, true, () => {
+					const saveFileAction = this.instantiationService.createInstance(SaveFileAction, SaveFileAction.ID, SaveFileAction.LABEL);
+					saveFileAction.setResource(resource);
+					saveFileAction.run().done(() => saveFileAction.dispose(), errors.onUnexpectedError);
 
 					return TPromise.as(true);
 				}));
@@ -150,31 +179,18 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 				return TPromise.as(true);
 			}));
 
-			// Retry
-			if (isReadonly) {
-				actions.push(new Action('workbench.files.action.overwrite', nls.localize('overwrite', "Overwrite"), null, true, () => {
-					if (!model.isDisposed()) {
-						model.save({ overwriteReadonly: true }).done(null, errors.onUnexpectedError);
-					}
-
-					return TPromise.as(true);
-				}));
-			} else if (!isPermissionDenied) {
-				actions.push(new Action('workbench.files.action.retry', nls.localize('retry', "Retry"), null, true, () => {
-					const saveFileAction = this.instantiationService.createInstance(SaveFileAction, SaveFileAction.ID, SaveFileAction.LABEL);
-					saveFileAction.setResource(resource);
-					saveFileAction.run().done(() => saveFileAction.dispose(), errors.onUnexpectedError);
-
-					return TPromise.as(true);
-				}));
-			}
-
 			// Cancel
 			actions.push(CancelAction);
 
 			let errorMessage: string;
 			if (isReadonly) {
-				errorMessage = nls.localize('readonlySaveError', "Failed to save '{0}': File is write protected. Select 'Overwrite' to attempt to remove protection.", paths.basename(resource.fsPath));
+				if (triedToMakeWriteable) {
+					errorMessage = nls.localize('readonlySaveErrorAdmin', "Failed to save '{0}': File is write protected. Select 'Overwrite as Admin' to retry as administrator.", paths.basename(resource.fsPath));
+				} else {
+					errorMessage = nls.localize('readonlySaveError', "Failed to save '{0}': File is write protected. Select 'Overwrite' to attempt to remove protection.", paths.basename(resource.fsPath));
+				}
+			} else if (isPermissionDenied) {
+				errorMessage = nls.localize('permissionDeniedSaveError', "Failed to save '{0}': Insufficient permissions. Select 'Retry as Admin' to retry as administrator.", paths.basename(resource.fsPath));
 			} else {
 				errorMessage = nls.localize('genericSaveError', "Failed to save '{0}': {1}", paths.basename(resource.fsPath), toErrorMessage(error, false));
 			}

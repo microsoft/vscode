@@ -249,7 +249,8 @@ export class RemoteFileService extends FileService {
 					if (options.acceptTextOnly && detected.mimes.indexOf(MIME_BINARY) >= 0) {
 						return TPromise.wrapError<IStreamContent>(new FileOperationError(
 							localize('fileBinaryError', "File seems to be binary and cannot be opened as text"),
-							FileOperationResult.FILE_IS_BINARY
+							FileOperationResult.FILE_IS_BINARY,
+							options
 						));
 					}
 
@@ -324,7 +325,7 @@ export class RemoteFileService extends FileService {
 
 				return prepare.then(exists => {
 					if (exists && options && !options.overwrite) {
-						return TPromise.wrapError(new FileOperationError('EEXIST', FileOperationResult.FILE_MODIFIED_SINCE));
+						return TPromise.wrapError(new FileOperationError('EEXIST', FileOperationResult.FILE_MODIFIED_SINCE, options));
 					}
 					return this._doUpdateContent(provider, resource, content || '', {});
 				}).then(fileStat => {

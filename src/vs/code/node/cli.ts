@@ -57,7 +57,7 @@ export async function main(argv: string[]): TPromise<any> {
 	}
 
 	// Write Elevated
-	else if (args['write-elevated-helper']) {
+	else if (args['sudo-write']) {
 		const source = args._[0];
 		const target = args._[1];
 
@@ -68,14 +68,31 @@ export async function main(argv: string[]): TPromise<any> {
 			!fs.existsSync(source) || !fs.statSync(source).isFile() ||	// make sure source exists as file
 			!fs.existsSync(target) || !fs.statSync(target).isFile()		// make sure target exists as file
 		) {
-			return TPromise.wrapError(new Error('Using --write-elevated-helper with invalid arguments.'));
+			return TPromise.wrapError(new Error('Using --sudo-write with invalid arguments.'));
 		}
 
-		// Write source to target
 		try {
+
+			// Check for readonly status and chmod if so if we are told so
+			let targetMode: number;
+			let restoreMode = false;
+			if (!!args['sudo-chmod']) {
+				targetMode = fs.statSync(target).mode;
+				if (!(targetMode & 128) /* readonly */) {
+					fs.chmodSync(target, targetMode | 128);
+					restoreMode = true;
+				}
+			}
+
+			// Write source to target
 			writeFileAndFlushSync(target, fs.readFileSync(source));
+
+			// Restore previous mode as needed
+			if (restoreMode) {
+				fs.chmodSync(target, targetMode);
+			}
 		} catch (error) {
-			return TPromise.wrapError(new Error(`Using --write-elevated-helper resulted in an error: ${error}`));
+			return TPromise.wrapError(new Error(`Using --sudo-write resulted in an error: ${error}`));
 		}
 
 		return TPromise.as(null);

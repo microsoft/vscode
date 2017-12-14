@@ -262,7 +262,8 @@ export class FileService implements IFileService {
 		if (resource.scheme !== 'file' || !resource.fsPath) {
 			return TPromise.wrapError<IStreamContent>(new FileOperationError(
 				nls.localize('fileInvalidPath', "Invalid file resource ({0})", resource.toString(true)),
-				FileOperationResult.FILE_INVALID_PATH
+				FileOperationResult.FILE_INVALID_PATH,
+				options
 			));
 		}
 
@@ -298,7 +299,8 @@ export class FileService implements IFileService {
 			if (stat.isDirectory) {
 				return onStatError(new FileOperationError(
 					nls.localize('fileIsDirectoryError', "File is directory"),
-					FileOperationResult.FILE_IS_DIRECTORY
+					FileOperationResult.FILE_IS_DIRECTORY,
+					options
 				));
 			}
 
@@ -306,7 +308,8 @@ export class FileService implements IFileService {
 			if (options && options.etag && options.etag === stat.etag) {
 				return onStatError(new FileOperationError(
 					nls.localize('fileNotModifiedError', "File not modified since"),
-					FileOperationResult.FILE_NOT_MODIFIED_SINCE
+					FileOperationResult.FILE_NOT_MODIFIED_SINCE,
+					options
 				));
 			}
 
@@ -314,7 +317,8 @@ export class FileService implements IFileService {
 			if (typeof stat.size === 'number' && stat.size > MAX_FILE_SIZE) {
 				return onStatError(new FileOperationError(
 					nls.localize('fileTooLargeError', "File too large to open"),
-					FileOperationResult.FILE_TOO_LARGE
+					FileOperationResult.FILE_TOO_LARGE,
+					options
 				));
 			}
 
@@ -325,7 +329,8 @@ export class FileService implements IFileService {
 			if (err.code === 'ENOENT') {
 				return onStatError(new FileOperationError(
 					nls.localize('fileNotFoundError', "File not found ({0})", resource.toString(true)),
-					FileOperationResult.FILE_NOT_FOUND
+					FileOperationResult.FILE_NOT_FOUND,
+					options
 				));
 			}
 
@@ -374,7 +379,8 @@ export class FileService implements IFileService {
 						// Wrap file not found errors
 						err = new FileOperationError(
 							nls.localize('fileNotFoundError', "File not found ({0})", resource.toString(true)),
-							FileOperationResult.FILE_NOT_FOUND
+							FileOperationResult.FILE_NOT_FOUND,
+							options
 						);
 					}
 
@@ -391,7 +397,8 @@ export class FileService implements IFileService {
 							// Wrap EISDIR errors (fs.open on a directory works, but you cannot read from it)
 							err = new FileOperationError(
 								nls.localize('fileIsDirectoryError', "File is directory"),
-								FileOperationResult.FILE_IS_DIRECTORY
+								FileOperationResult.FILE_IS_DIRECTORY,
+								options
 							);
 						}
 						if (decoder) {
@@ -442,7 +449,8 @@ export class FileService implements IFileService {
 							// stop when reading too much
 							finish(new FileOperationError(
 								nls.localize('fileTooLargeError', "File too large to open"),
-								FileOperationResult.FILE_TOO_LARGE
+								FileOperationResult.FILE_TOO_LARGE,
+								options
 							));
 						} else if (err) {
 							// some error happened
@@ -464,7 +472,8 @@ export class FileService implements IFileService {
 									// Return error early if client only accepts text and this is not text
 									finish(new FileOperationError(
 										nls.localize('fileBinaryError', "File seems to be binary and cannot be opened as text"),
-										FileOperationResult.FILE_IS_BINARY
+										FileOperationResult.FILE_IS_BINARY,
+										options
 									));
 
 								} else {
@@ -553,7 +562,8 @@ export class FileService implements IFileService {
 			if (error.code === 'EACCES' || error.code === 'EPERM') {
 				return TPromise.wrapError(new FileOperationError(
 					nls.localize('filePermission', "Permission denied writing to file ({0})", resource.toString(true)),
-					FileOperationResult.FILE_PERMISSION_DENIED
+					FileOperationResult.FILE_PERMISSION_DENIED,
+					options
 				));
 			}
 
@@ -600,7 +610,14 @@ export class FileService implements IFileService {
 				return (import('sudo-prompt')).then(sudoPrompt => {
 					return new TPromise<void>((c, e) => {
 						const promptOptions = { name: this.options.elevationSupport.promptTitle.replace('-', ''), icns: this.options.elevationSupport.promptIcnsPath };
-						sudoPrompt.exec(`"${this.options.elevationSupport.cliPath}" --write-elevated-helper "${tmpPath}" "${absolutePath}"`, promptOptions, (error: string, stdout: string, stderr: string) => {
+
+						const sudoCommand: string[] = [`"${this.options.elevationSupport.cliPath}"`];
+						if (options.overwriteReadonly) {
+							sudoCommand.push('--sudo-chmod');
+						}
+						sudoCommand.push('--sudo-write', `"${tmpPath}"`, `"${absolutePath}"`);
+
+						sudoPrompt.exec(sudoCommand.join(' '), promptOptions, (error: string, stdout: string, stderr: string) => {
 							if (error || stderr) {
 								e(error || stderr);
 							} else {
@@ -622,7 +639,8 @@ export class FileService implements IFileService {
 			if (!(error instanceof FileOperationError)) {
 				error = new FileOperationError(
 					nls.localize('filePermission', "Permission denied writing to file ({0})", resource.toString(true)),
-					FileOperationResult.FILE_PERMISSION_DENIED
+					FileOperationResult.FILE_PERMISSION_DENIED,
+					options
 				);
 			}
 
@@ -645,7 +663,8 @@ export class FileService implements IFileService {
 			if (exists && !options.overwrite) {
 				return TPromise.wrapError<IFileStat>(new FileOperationError(
 					nls.localize('fileExists', "File to create already exists ({0})", resource.toString(true)),
-					FileOperationResult.FILE_MODIFIED_SINCE
+					FileOperationResult.FILE_MODIFIED_SINCE,
+					options
 				));
 			}
 
@@ -914,14 +933,14 @@ export class FileService implements IFileService {
 
 						// Find out if content length has changed
 						if (options.etag !== etag(stat.size, options.mtime)) {
-							return TPromise.wrapError<boolean>(new FileOperationError(nls.localize('fileModifiedError', "File Modified Since"), FileOperationResult.FILE_MODIFIED_SINCE));
+							return TPromise.wrapError<boolean>(new FileOperationError(nls.localize('fileModifiedError', "File Modified Since"), FileOperationResult.FILE_MODIFIED_SINCE, options));
 						}
 					}
 
 					// Throw if file is readonly and we are not instructed to overwrite
 					if (!(stat.mode & 128) /* readonly */) {
 						if (!options.overwriteReadonly) {
-							return this.readOnlyError<boolean>();
+							return this.readOnlyError<boolean>(options);
 						}
 
 						// Try to change mode to writeable
@@ -932,7 +951,7 @@ export class FileService implements IFileService {
 							// Make sure to check the mode again, it could have failed
 							return pfs.stat(absolutePath).then(stat => {
 								if (!(stat.mode & 128) /* readonly */) {
-									return this.readOnlyError<boolean>();
+									return this.readOnlyError<boolean>(options);
 								}
 
 								return exists;
@@ -948,10 +967,11 @@ export class FileService implements IFileService {
 		});
 	}
 
-	private readOnlyError<T>(): TPromise<T> {
+	private readOnlyError<T>(options: IUpdateContentOptions): TPromise<T> {
 		return TPromise.wrapError<T>(new FileOperationError(
 			nls.localize('fileReadOnlyError', "File is Read Only"),
-			FileOperationResult.FILE_READ_ONLY
+			FileOperationResult.FILE_READ_ONLY,
+			options
 		));
 	}
 
