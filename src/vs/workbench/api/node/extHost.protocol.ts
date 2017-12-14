@@ -436,7 +436,7 @@ export interface ExtHostDocumentContentProvidersShape {
 }
 
 export interface IModelAddedData {
-	url: URI;
+	uri: UriComponents;
 	versionId: number;
 	lines: string[];
 	EOL: string;
@@ -456,7 +456,7 @@ export interface ExtHostDocumentSaveParticipantShape {
 
 export interface ITextEditorAddData {
 	id: string;
-	document: URI;
+	documentUri: UriComponents;
 	options: IResolvedTextEditorConfiguration;
 	selections: ISelection[];
 	editorPosition: EditorPosition;
@@ -699,7 +699,7 @@ export const ExtHostContext = {
 	ExtHostDiagnostics: createExtId<ExtHostDiagnosticsShape>('ExtHostDiagnostics'),
 	ExtHostDebugService: createExtId<ExtHostDebugServiceShape>('ExtHostDebugService', ProxyType.CustomMarshaller),
 	ExtHostDecorations: createExtId<ExtHostDecorationsShape>('ExtHostDecorations'),
-	ExtHostDocumentsAndEditors: createExtId<ExtHostDocumentsAndEditorsShape>('ExtHostDocumentsAndEditors', ProxyType.CustomMarshaller),
+	ExtHostDocumentsAndEditors: createExtId<ExtHostDocumentsAndEditorsShape>('ExtHostDocumentsAndEditors'),
 	ExtHostDocuments: createExtId<ExtHostDocumentsShape>('ExtHostDocuments'),
 	ExtHostDocumentContentProviders: createExtId<ExtHostDocumentContentProvidersShape>('ExtHostDocumentContentProviders'),
 	ExtHostDocumentSaveParticipant: createExtId<ExtHostDocumentSaveParticipantShape>('ExtHostDocumentSaveParticipant'),
