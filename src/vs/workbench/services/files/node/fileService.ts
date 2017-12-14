@@ -597,7 +597,7 @@ export class FileService implements IFileService {
 		const absolutePath = this.toAbsolutePath(resource);
 
 		// 1.) check file
-		return this.checkFile(absolutePath, options).then(exists => {
+		return this.checkFile(absolutePath, options, options.overwriteReadonly /* ignore readonly if we overwrite readonly, this is handled via sudo later */).then(exists => {
 			const writeOptions: IUpdateContentOptions = assign(Object.create(null), options);
 			writeOptions.writeElevated = false;
 			writeOptions.encoding = this.getEncoding(resource, options.encoding);
@@ -920,7 +920,7 @@ export class FileService implements IFileService {
 		return null;
 	}
 
-	private checkFile(absolutePath: string, options: IUpdateContentOptions = Object.create(null)): TPromise<boolean /* exists */> {
+	private checkFile(absolutePath: string, options: IUpdateContentOptions = Object.create(null), ignoreReadonly?: boolean): TPromise<boolean /* exists */> {
 		return pfs.exists(absolutePath).then(exists => {
 			if (exists) {
 				return pfs.stat(absolutePath).then(stat => {
@@ -938,7 +938,7 @@ export class FileService implements IFileService {
 					}
 
 					// Throw if file is readonly and we are not instructed to overwrite
-					if (!(stat.mode & 128) /* readonly */) {
+					if (!ignoreReadonly && !(stat.mode & 128) /* readonly */) {
 						if (!options.overwriteReadonly) {
 							return this.readOnlyError<boolean>(options);
 						}
