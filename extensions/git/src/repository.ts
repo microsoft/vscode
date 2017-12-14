@@ -302,7 +302,8 @@ export enum Operation {
 	Tag = 'Tag',
 	Stash = 'Stash',
 	CheckIgnore = 'CheckIgnore',
-	LSTree = 'LSTree'
+	LSTree = 'LSTree',
+	SubmoduleUpdate = 'SubmoduleUpdate'
 }
 
 function isReadOnly(operation: Operation): boolean {
@@ -606,8 +607,18 @@ export class Repository implements Disposable {
 		await this.run(Operation.Clean, async () => {
 			const toClean: string[] = [];
 			const toCheckout: string[] = [];
+			const submodulesToUpdate: string[] = [];
 
 			resources.forEach(r => {
+				const fsPath = r.fsPath;
+
+				for (const submodule of this.submodules) {
+					if (path.join(this.root, submodule.path) === fsPath) {
+						submodulesToUpdate.push(fsPath);
+						return;
+					}
+				}
+
 				const raw = r.toString();
 				const scmResource = find(this.workingTreeGroup.resourceStates, sr => sr.resourceUri.toString() === raw);
 
@@ -618,11 +629,11 @@ export class Repository implements Disposable {
 				switch (scmResource.type) {
 					case Status.UNTRACKED:
 					case Status.IGNORED:
-						toClean.push(r.fsPath);
+						toClean.push(fsPath);
 						break;
 
 					default:
-						toCheckout.push(r.fsPath);
+						toCheckout.push(fsPath);
 						break;
 				}
 			});
@@ -635,6 +646,10 @@ export class Repository implements Disposable {
 
 			if (toCheckout.length > 0) {
 				promises.push(this.repository.checkout('', toCheckout));
+			}
+
+			if (submodulesToUpdate.length > 0) {
+				promises.push(this.repository.updateSubmodules(submodulesToUpdate));
 			}
 
 			await Promise.all(promises);

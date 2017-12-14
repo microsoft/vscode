@@ -1187,21 +1187,6 @@ export class Repository {
 		return uniqBy(rawRemotes, remote => remote.name);
 	}
 
-	async getSubmodules(): Promise<Submodule[]> {
-		const gitmodulesPath = path.join(this.root, '.gitmodules');
-
-		try {
-			const gitmodulesRaw = await readfile(gitmodulesPath, 'utf8');
-			return parseGitmodules(gitmodulesRaw);
-		} catch (err) {
-			if (/ENOENT/.test(err.message)) {
-				return [];
-			}
-
-			throw err;
-		}
-	}
-
 	async getBranch(name: string): Promise<Branch> {
 		if (name === 'HEAD') {
 			return this.getHEAD();
@@ -1274,5 +1259,25 @@ export class Repository {
 		}
 
 		return { hash: match[1], message: match[2] };
+	}
+
+	async updateSubmodules(paths: string[]): Promise<void> {
+		const args = ['submodule', 'update', '--', ...paths];
+		await this.run(args);
+	}
+
+	async getSubmodules(): Promise<Submodule[]> {
+		const gitmodulesPath = path.join(this.root, '.gitmodules');
+
+		try {
+			const gitmodulesRaw = await readfile(gitmodulesPath, 'utf8');
+			return parseGitmodules(gitmodulesRaw);
+		} catch (err) {
+			if (/ENOENT/.test(err.message)) {
+				return [];
+			}
+
+			throw err;
+		}
 	}
 }
