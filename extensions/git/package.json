@@ -951,6 +951,15 @@
           "dark": "#6c6cc4",
           "highContrast": "#6c6cc4"
         }
+      },
+      {
+        "id": "gitDecoration.submoduleResourceForeground",
+        "description": "%colors.submodule%",
+        "defaults": {
+          "light": "#1258a7",
+          "dark": "#8db9e2",
+          "highContrast": "#8db9e2"
+        }
       }
     ]
   },
