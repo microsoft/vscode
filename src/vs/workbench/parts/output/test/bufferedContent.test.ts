@@ -17,7 +17,7 @@ suite('Workbench - Output Buffered Content', () => {
 		assert.equal(bufferedContent.getDelta().value, 'firstsecondthird');
 		bufferedContent.clear();
 		assert.equal(bufferedContent.getDelta().value, '');
-		assert.equal(bufferedContent.getDelta(delta).value, '');
+		assert.equal(bufferedContent.getDelta(delta.id).value, '');
 	});
 
 	test('Buffered Content - Appending Output', () => {
@@ -26,13 +26,13 @@ suite('Workbench - Output Buffered Content', () => {
 		const firstDelta = bufferedContent.getDelta();
 		bufferedContent.append('second');
 		bufferedContent.append('third');
-		const secondDelta = bufferedContent.getDelta(firstDelta);
+		const secondDelta = bufferedContent.getDelta(firstDelta.id);
 		assert.equal(secondDelta.append, true);
 		assert.equal(secondDelta.value, 'secondthird');
 		bufferedContent.append('fourth');
 		bufferedContent.append('fifth');
-		assert.equal(bufferedContent.getDelta(firstDelta).value, 'secondthirdfourthfifth');
-		assert.equal(bufferedContent.getDelta(secondDelta).value, 'fourthfifth');
+		assert.equal(bufferedContent.getDelta(firstDelta.id).value, 'secondthirdfourthfifth');
+		assert.equal(bufferedContent.getDelta(secondDelta.id).value, 'fourthfifth');
 	});
 
 	test('Buffered Content - Lots of Output', function () {
@@ -45,13 +45,13 @@ suite('Workbench - Output Buffered Content', () => {
 			bufferedContent.append(i.toString());
 			longString += i.toString();
 		}
-		const secondDelta = bufferedContent.getDelta(firstDelta);
+		const secondDelta = bufferedContent.getDelta(firstDelta.id);
 		assert.equal(secondDelta.append, true);
 		assert.equal(secondDelta.value.substr(secondDelta.value.length - 4), '4999');
 		longString = longString + longString + longString + longString;
 		bufferedContent.append(longString);
 		bufferedContent.append(longString);
-		const thirdDelta = bufferedContent.getDelta(firstDelta);
+		const thirdDelta = bufferedContent.getDelta(firstDelta.id);
 		assert.equal(!!thirdDelta.append, true);
 		assert.equal(thirdDelta.value.substr(thirdDelta.value.length - 4), '4999');
 
