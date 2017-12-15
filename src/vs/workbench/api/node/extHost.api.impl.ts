@@ -569,6 +569,7 @@ export function createApiFactory(
 			Hover: extHostTypes.Hover,
 			IndentAction: languageConfiguration.IndentAction,
 			Location: extHostTypes.Location,
+			LogLevel: extHostTypes.LogLevel,
 			MarkdownString: extHostTypes.MarkdownString,
 			OverviewRulerLane: EditorCommon.OverviewRulerLane,
 			ParameterInformation: extHostTypes.ParameterInformation,
