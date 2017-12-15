@@ -29,6 +29,8 @@ import * as pfs from 'vs/base/node/pfs';
 import * as os from 'os';
 import { flatten, distinct } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { guessMimeTypes, MIME_UNKNOWN } from 'vs/base/common/mime';
+import { ShowLanguageExtensionsAction } from 'vs/workbench/browser/parts/editor/editorStatus';
 
 interface IExtensionsContent {
 	recommendations: string[];
@@ -256,6 +258,9 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 	private _suggest(model: ITextModel): void {
 		const uri = model.uri;
+		let hasSuggestion = false;
+		let mimeTypes = guessMimeTypes(uri.fsPath);
+		let fileExtension = paths.extname(uri.fsPath);
 
 		if (!uri || uri.scheme !== Schemas.file) {
 			return;
@@ -296,6 +301,9 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				}
 				const id = recommendationsToSuggest[0];
 				const name = product.extensionImportantTips[id]['name'];
+
+				// Indicates we have a suggested extension via the whitelist
+				hasSuggestion = true;
 
 				let message = localize('reallyRecommended2', "The '{0}' extension is recommended for this file type.", name);
 				// Temporary fix for the only extension pack we recommend. See https://github.com/Microsoft/vscode/issues/35364
@@ -365,6 +373,45 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 					this.telemetryService.publicLog('extensionRecommendations:popup', { userReaction: 'cancelled', extensionId: name });
 				});
 
+
+				const fileExtensionSuggestionIgnoreList = <string[]>JSON.parse(this.storageService.get
+					('extensionsAssistant/fileExtensionsSuggestion', StorageScope.GLOBAL, '[]'));
+
+				if (!hasSuggestion &&
+					fileExtension &&
+					fileExtensionSuggestionIgnoreList.indexOf(fileExtension) === -1 &&
+					mimeTypes.length === 1 &&
+					mimeTypes[0] === MIME_UNKNOWN) {
+
+					let message = localize('showLanguageExtensions', "Search Marketplace Extensions for '{0}'...", fileExtension);
+
+					const searchMarketplaceAction = this.instantiationService.createInstance(ShowLanguageExtensionsAction, fileExtension);
+
+					const options = [
+						localize('ok', "OK"),
+						localize('neverShowAgain', "Don't show again"),
+						localize('close', "Close")
+					];
+
+					this.choiceService.choose(Severity.Info, message, options, 3).done(choice => {
+						switch (choice) {
+							case 0:
+								return searchMarketplaceAction.run();
+							case 1:
+								fileExtensionSuggestionIgnoreList.push(fileExtension);
+								this.storageService.store(
+									'extensionsAssistant/fileExtensionsSuggestion',
+									JSON.stringify(fileExtensionSuggestionIgnoreList),
+									StorageScope.GLOBAL
+								);
+								return this.ignoreExtensionRecommendations();
+							case 2:
+								return TPromise.as(null);
+						}
+
+						return TPromise.as(null);
+					}, () => { return TPromise.as(null); });
+				}
 			});
 		});
 	}
