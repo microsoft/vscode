@@ -29,7 +29,7 @@ export function setup(): void {
 	registerActiveEditorMoveCommand();
 	registerDiffEditorCommands();
 	registerOpenEditorAtIndexCommands();
-	registerExplorerCommands();
+	registerEditorCommands();
 	handleCommandDeprecations();
 }
 
@@ -277,7 +277,7 @@ function registerOpenEditorAtIndexCommands(): void {
 	}
 }
 
-function registerExplorerCommands() {
+function registerEditorCommands() {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: CLOSE_UNMODIFIED_EDITORS_COMMAND_ID,
