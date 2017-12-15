@@ -232,7 +232,7 @@ documents.onDidClose(event => {
 });
 
 let pendingValidationRequests: { [uri: string]: NodeJS.Timer; } = {};
-const validationDelayMs = 200;
+const validationDelayMs = 500;
 
 function cleanPendingValidation(textDocument: TextDocument): void {
 	let request = pendingValidationRequests[textDocument.uri];
