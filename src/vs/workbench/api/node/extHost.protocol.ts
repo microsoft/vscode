@@ -14,7 +14,7 @@ import {
 
 import * as vscode from 'vscode';
 
-import URI, { UriComponents } from 'vs/base/common/uri';
+import { UriComponents } from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 
