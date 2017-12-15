@@ -17,6 +17,8 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 
 export const TextCompareEditorVisible = new RawContextKey<boolean>('textCompareEditorVisible', false);
+export const EditorFocusedInOpenEditorsContext = new RawContextKey<boolean>('editorFocusedInOpenEditors', false);
+export const GroupFocusedInOpenEditorsContext = new RawContextKey<boolean>('groupFocusedInOpenEditors', false);
 
 export enum ConfirmResult {
 	SAVE,

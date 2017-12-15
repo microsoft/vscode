@@ -23,7 +23,6 @@ import { MessageType, IInputValidator } from 'vs/base/browser/ui/inputbox/inputB
 import { ITree, IHighlightEvent, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID, FileOnDiskContentProvider } from 'vs/workbench/parts/files/common/files';
-import labels = require('vs/base/common/labels');
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { toResource, IEditorIdentifier } from 'vs/workbench/common/editor';
@@ -44,7 +43,7 @@ import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorViewState, IModel } from 'vs/editor/common/editorCommon';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { withFocusedFilesExplorer, REVERT_FILE_COMMAND_ID, OPEN_TO_SIDE_COMMAND_ID, COMPARE_WITH_SAVED_SCHEMA, COMPARE_WITH_SAVED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, globalResourceToCompare, REVEAL_IN_OS_COMMAND_ID, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID } from 'vs/workbench/parts/files/electron-browser/fileCommands';
+import { withFocusedFilesExplorer, REVERT_FILE_COMMAND_ID, OPEN_TO_SIDE_COMMAND_ID, COMPARE_WITH_SAVED_SCHEMA, COMPARE_WITH_SAVED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, globalResourceToCompare, REVEAL_IN_OS_COMMAND_ID, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, computeLabelForCompare } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -1213,31 +1212,9 @@ export class CompareResourcesAction extends Action {
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
-		super('workbench.files.action.compareFiles', CompareResourcesAction.computeLabel(resource, contextService, environmentService));
+		super('workbench.files.action.compareFiles', computeLabelForCompare(resource, contextService, environmentService));
 
 		this.resource = resource;
-	}
-
-	private static computeLabel(resource: URI, contextService: IWorkspaceContextService, environmentService: IEnvironmentService): string {
-		if (globalResourceToCompare) {
-			let leftResourceName = paths.basename(globalResourceToCompare.fsPath);
-			let rightResourceName = paths.basename(resource.fsPath);
-
-			// If the file names are identical, add more context by looking at the parent folder
-			if (leftResourceName === rightResourceName) {
-				const folderPaths = labels.shorten([
-					labels.getPathLabel(resources.dirname(globalResourceToCompare), contextService, environmentService),
-					labels.getPathLabel(resources.dirname(resource), contextService, environmentService)
-				]);
-
-				leftResourceName = paths.join(folderPaths[0], leftResourceName);
-				rightResourceName = paths.join(folderPaths[1], rightResourceName);
-			}
-
-			return nls.localize('compareWith', "Compare '{0}' with '{1}'", leftResourceName, rightResourceName);
-		}
-
-		return nls.localize('compareFiles', "Compare Files");
 	}
 
 	public _isEnabled(): boolean {

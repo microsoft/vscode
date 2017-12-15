@@ -9,6 +9,8 @@ import nls = require('vs/nls');
 import paths = require('vs/base/common/paths');
 import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
+import * as labels from 'vs/base/common/labels';
+import * as resources from 'vs/base/common/resources';
 import URI from 'vs/base/common/uri';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource, IEditorContext } from 'vs/workbench/common/editor';
@@ -24,7 +26,6 @@ import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
-import { getPathLabel } from 'vs/base/common/labels';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { basename } from 'vs/base/common/paths';
@@ -33,6 +34,7 @@ import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 // Commands
 
@@ -217,6 +219,28 @@ export const revealInOSFocusedFilesExplorerItem = (accessor: ServicesAccessor) =
 	});
 };
 
+export function computeLabelForCompare(resource: URI, contextService: IWorkspaceContextService, environmentService: IEnvironmentService): string {
+	if (globalResourceToCompare) {
+		let leftResourceName = paths.basename(globalResourceToCompare.fsPath);
+		let rightResourceName = paths.basename(resource.fsPath);
+
+		// If the file names are identical, add more context by looking at the parent folder
+		if (leftResourceName === rightResourceName) {
+			const folderPaths = labels.shorten([
+				labels.getPathLabel(resources.dirname(globalResourceToCompare), contextService, environmentService),
+				labels.getPathLabel(resources.dirname(resource), contextService, environmentService)
+			]);
+
+			leftResourceName = paths.join(folderPaths[0], leftResourceName);
+			rightResourceName = paths.join(folderPaths[1], rightResourceName);
+		}
+
+		return nls.localize('compareWith', "Compare '{0}' with '{1}'", leftResourceName, rightResourceName);
+	}
+
+	return nls.localize('compareFiles', "Compare Files");
+}
+
 export let globalResourceToCompare: URI;
 
 function registerFileCommands(): void {
@@ -295,6 +319,15 @@ function registerFileCommands(): void {
 		}
 	});
 
+	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+		group: 'compare',
+
+		command: {
+			id: COMPARE_WITH_SAVED_COMMAND_ID,
+			title: nls.localize('compareWithSaved', "Compare with Saved")
+		}
+	});
+
 	CommandsRegistry.registerCommand({
 		id: SELECT_FOR_COMPARE_COMMAND_ID,
 		handler: (accessor, args: IEditorContext) => {
@@ -307,6 +340,14 @@ function registerFileCommands(): void {
 			}
 
 			globalResourceToCompare = args.resource;
+		}
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+		group: 'compare',
+		command: {
+			id: SELECT_FOR_COMPARE_COMMAND_ID,
+			title: nls.localize('compareSource', "Select for Compare")
 		}
 	});
 
@@ -325,6 +366,14 @@ function registerFileCommands(): void {
 				leftResource: globalResourceToCompare,
 				rightResource: args.resource
 			});
+		}
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+		group: 'compare',
+		command: {
+			id: COMPARE_RESOURCE_COMMAND_ID,
+			title: nls.localize('compareWithChosen', "Compare With Chosen")
 		}
 	});
 
@@ -366,7 +415,7 @@ function registerFileCommands(): void {
 
 			if (resource) {
 				const clipboardService = accessor.get(IClipboardService);
-				clipboardService.writeText(resource.scheme === 'file' ? getPathLabel(resource) : resource.toString());
+				clipboardService.writeText(resource.scheme === 'file' ? labels.getPathLabel(resource) : resource.toString());
 			} else {
 				const messageService = accessor.get(IMessageService);
 				messageService.show(severity.Info, nls.localize('openFileToCopy', "Open a file first to copy its path"));

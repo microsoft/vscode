@@ -8,7 +8,7 @@ import * as types from 'vs/base/common/types';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { ActiveEditorMoveArguments, ActiveEditorMovePositioning, ActiveEditorMovePositioningBy, EditorCommands, TextCompareEditorVisible, IEditorContext, EditorInput } from 'vs/workbench/common/editor';
+import { ActiveEditorMoveArguments, ActiveEditorMovePositioning, ActiveEditorMovePositioningBy, EditorCommands, TextCompareEditorVisible, IEditorContext, EditorInput, EditorFocusedInOpenEditorsContext } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditor, Position, POSITIONS } from 'vs/platform/editor/common/editor';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -317,7 +317,8 @@ function registerEditorCommands() {
 		command: {
 			id: CLOSE_UNMODIFIED_EDITORS_COMMAND_ID,
 			title: CLOSE_UNMODIFIED_EDITORS_LABEL
-		}
+		},
+		when: EditorFocusedInOpenEditorsContext
 	});
 
 	CommandsRegistry.registerCommand({
@@ -347,7 +348,8 @@ function registerEditorCommands() {
 		command: {
 			id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
 			title: CLOSE_EDITORS_IN_GROUP_LABEL
-		}
+		},
+		when: EditorFocusedInOpenEditorsContext
 	});
 
 	CommandsRegistry.registerCommand({
@@ -389,7 +391,8 @@ function registerEditorCommands() {
 		command: {
 			id: CLOSE_EDITOR_COMMAND_ID,
 			title: CLOSE_EDITOR_LABEL
-		}
+		},
+		when: EditorFocusedInOpenEditorsContext
 	});
 
 	CommandsRegistry.registerCommand({
@@ -421,6 +424,7 @@ function registerEditorCommands() {
 		command: {
 			id: CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID,
 			title: CLOSE_OTHER_EDITORS_IN_GROUP_LABEL
-		}
+		},
+		when: EditorFocusedInOpenEditorsContext
 	});
 }

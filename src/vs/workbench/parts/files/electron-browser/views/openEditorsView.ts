@@ -14,8 +14,8 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Position, IEditorInput } from 'vs/platform/editor/common/editor';
-import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup } from 'vs/workbench/common/editor';
-import { SaveAllAction, SaveAllInGroupAction, SaveFileAction, RevertFileAction, SaveFileAsAction, CompareWithSavedAction, CompareResourcesAction, SelectResourceForCompareAction } from 'vs/workbench/parts/files/electron-browser/fileActions';
+import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup, EditorFocusedInOpenEditorsContext, GroupFocusedInOpenEditorsContext } from 'vs/workbench/common/editor';
+import { SaveAllAction, SaveAllInGroupAction, SaveFileAction, RevertFileAction, SaveFileAsAction } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { IViewletViewOptions, IViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { OpenEditorsFocusedContext, ExplorerFocusedContext, IFilesConfiguration } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
@@ -23,7 +23,7 @@ import { OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { CloseAllEditorsAction, CloseUnmodifiedEditorsInGroupAction, CloseEditorsInGroupAction, CloseEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { ToggleEditorLayoutAction } from 'vs/workbench/browser/actions/toggleEditorLayout';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -59,6 +59,8 @@ export class OpenEditorsView extends ViewsViewletPanel {
 	private list: WorkbenchList<OpenEditor | IEditorGroup>;
 	private contributedContextMenu: IMenu;
 	private needsRefresh: boolean;
+	private editorFocusedContext: IContextKey<boolean>;
+	private groupFocusedContext: IContextKey<boolean>;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -150,8 +152,19 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		// Bind context keys
 		OpenEditorsFocusedContext.bindTo(this.list.contextKeyService);
 		ExplorerFocusedContext.bindTo(this.list.contextKeyService);
+		this.editorFocusedContext = EditorFocusedInOpenEditorsContext.bindTo(this.contextKeyService);
+		this.groupFocusedContext = GroupFocusedInOpenEditorsContext.bindTo(this.contextKeyService);
 
 		this.disposables.push(this.list.onContextMenu(e => this.onListContextMenu(e)));
+		this.list.onFocusChange(e => {
+			this.editorFocusedContext.reset();
+			this.groupFocusedContext.reset();
+			if (e.elements.length && e.elements[0] instanceof OpenEditor) {
+				this.editorFocusedContext.set(true);
+			} else if (e.elements.length) {
+				this.groupFocusedContext.set(true);
+			}
+		});
 
 		// Open when selecting via keyboard
 		this.disposables.push(this.list.onMouseClick(e => this.onMouseClick(e, false)));
@@ -635,23 +648,6 @@ export class ActionProvider extends ContributableActionProvider {
 					result.push(saveAsAction);
 				}
 
-				// Compare Actions
-				result.push(new Separator());
-
-				if (!openEditor.isUntitled()) {
-					const compareWithSavedAction = this.instantiationService.createInstance(CompareWithSavedAction, CompareWithSavedAction.ID, nls.localize('compareWithSaved', "Compare with Saved"));
-					compareWithSavedAction.setResource(resource);
-					compareWithSavedAction.enabled = openEditor.isDirty();
-					result.push(compareWithSavedAction);
-				}
-
-				const runCompareAction = this.instantiationService.createInstance(CompareResourcesAction, resource);
-				if (runCompareAction._isEnabled()) {
-					result.push(runCompareAction);
-				}
-				result.push(this.instantiationService.createInstance(SelectResourceForCompareAction, resource));
-
-				result.push(new Separator());
 			}
 		}
 
