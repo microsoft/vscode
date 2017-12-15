@@ -22,7 +22,7 @@ import { IEditorGroupService, GroupArrangement } from 'vs/workbench/services/gro
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { CLOSE_UNMODIFIED_EDITORS_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { CLOSE_UNMODIFIED_EDITORS_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_LABEL, CLOSE_UNMODIFIED_EDITORS_LABEL, CLOSE_EDITOR_LABEL, CLOSE_OTHER_EDITORS_IN_GROUP_LABEL } from 'vs/workbench/browser/parts/editor/editorCommands';
 
 export class SplitEditorAction extends Action {
 
@@ -527,7 +527,7 @@ export function toEditorQuickOpenEntry(element: any): IEditorQuickOpenEntry {
 export class CloseEditorAction extends Action {
 
 	public static readonly ID = 'workbench.action.closeActiveEditor';
-	public static readonly LABEL = nls.localize('closeEditor', "Close Editor");
+	public static readonly LABEL = CLOSE_EDITOR_LABEL;
 
 	constructor(
 		id: string,
@@ -671,7 +671,7 @@ export class CloseAllEditorsAction extends Action {
 export class CloseUnmodifiedEditorsInGroupAction extends Action {
 
 	public static readonly ID = 'workbench.action.closeUnmodifiedEditors';
-	public static readonly LABEL = nls.localize('closeUnmodifiedEditors', "Close Unmodified Editors in Group");
+	public static readonly LABEL = CLOSE_UNMODIFIED_EDITORS_LABEL;
 
 	constructor(
 		id: string,
@@ -720,7 +720,7 @@ export class CloseEditorsInOtherGroupsAction extends Action {
 export class CloseOtherEditorsInGroupAction extends Action {
 
 	public static readonly ID = 'workbench.action.closeOtherEditors';
-	public static readonly LABEL = nls.localize('closeOtherEditorsInGroup', "Close Other Editors");
+	public static readonly LABEL = CLOSE_OTHER_EDITORS_IN_GROUP_LABEL;
 
 	constructor(
 		id: string,
@@ -738,7 +738,7 @@ export class CloseOtherEditorsInGroupAction extends Action {
 export class CloseEditorsInGroupAction extends Action {
 
 	public static readonly ID = 'workbench.action.closeEditorsInGroup';
-	public static readonly LABEL = nls.localize('closeEditorsInGroup', "Close All Editors in Group");
+	public static readonly LABEL = CLOSE_EDITORS_IN_GROUP_LABEL;
 
 	constructor(
 		id: string,

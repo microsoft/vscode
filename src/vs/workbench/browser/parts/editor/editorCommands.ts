@@ -19,11 +19,20 @@ import { IMessageService, Severity, CloseAction } from 'vs/platform/message/comm
 import { Action } from 'vs/base/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 
 export const CLOSE_UNMODIFIED_EDITORS_COMMAND_ID = 'workbench.command.closeUnmodifiedEditors';
+export const CLOSE_UNMODIFIED_EDITORS_LABEL = nls.localize('closeUnmodifiedEditors', "Close Unmodified Editors in Group");
+
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.command.closeEditorsInGroup';
+export const CLOSE_EDITORS_IN_GROUP_LABEL = nls.localize('closeEditorsInGroup', "Close All Editors in Group");
+
 export const CLOSE_EDITOR_COMMAND_ID = 'workbench.command.closeActiveEditor';
+export const CLOSE_EDITOR_LABEL = nls.localize('closeEditor', "Close Editor");
+
 export const CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.command.closeOtherEditors';
+export const CLOSE_OTHER_EDITORS_IN_GROUP_LABEL = nls.localize('closeOtherEditorsInGroup', "Close Other Editors");
+
 
 export function setup(): void {
 	registerActiveEditorMoveCommand();
@@ -303,6 +312,14 @@ function registerEditorCommands() {
 		}
 	});
 
+	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+		group: 'close',
+		command: {
+			id: CLOSE_UNMODIFIED_EDITORS_COMMAND_ID,
+			title: CLOSE_UNMODIFIED_EDITORS_LABEL
+		}
+	});
+
 	CommandsRegistry.registerCommand({
 		id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
 		handler: (accessor, args: IEditorContext) => {
@@ -322,6 +339,14 @@ function registerEditorCommands() {
 			}
 
 			return TPromise.as(false);
+		}
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+		group: 'close',
+		command: {
+			id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
+			title: CLOSE_EDITORS_IN_GROUP_LABEL
 		}
 	});
 
@@ -359,6 +384,14 @@ function registerEditorCommands() {
 		}
 	});
 
+	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+		group: 'close',
+		command: {
+			id: CLOSE_EDITOR_COMMAND_ID,
+			title: CLOSE_EDITOR_LABEL
+		}
+	});
+
 	CommandsRegistry.registerCommand({
 		id: CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID,
 		handler: (accessor, args: IEditorContext) => {
@@ -380,6 +413,14 @@ function registerEditorCommands() {
 			}
 
 			return TPromise.as(false);
+		}
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+		group: 'close',
+		command: {
+			id: CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID,
+			title: CLOSE_OTHER_EDITORS_IN_GROUP_LABEL
 		}
 	});
 }

@@ -31,6 +31,8 @@ import { basename } from 'vs/base/common/paths';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { isWindows, isMacintosh } from 'vs/base/common/platform';
 
 // Commands
 
@@ -263,6 +265,14 @@ function registerFileCommands(): void {
 		}
 	});
 
+	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+		group: 'file',
+		command: {
+			id: OPEN_TO_SIDE_COMMAND_ID,
+			title: nls.localize('openToSide', "Open to the Side")
+		}
+	});
+
 	CommandsRegistry.registerCommand({
 		id: COMPARE_WITH_SAVED_COMMAND_ID,
 		handler: (accessor, args: IEditorContext) => {
@@ -364,6 +374,14 @@ function registerFileCommands(): void {
 		}
 	});
 
+	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+		group: 'file',
+		command: {
+			id: COPY_PATH_COMMAND_ID,
+			title: nls.localize('copyPath', "Copy Path")
+		}
+	});
+
 	CommandsRegistry.registerCommand({
 		id: REVEAL_IN_EXPLORER_COMMAND_ID,
 		handler: (accessor, args: IEditorContext) => {
@@ -385,6 +403,14 @@ function registerFileCommands(): void {
 					}
 				}
 			});
+		}
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+		group: 'file',
+		command: {
+			id: REVEAL_IN_EXPLORER_COMMAND_ID,
+			title: isWindows ? nls.localize('revealInWindows', "Reveal in Explorer") : isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder")
 		}
 	});
 }

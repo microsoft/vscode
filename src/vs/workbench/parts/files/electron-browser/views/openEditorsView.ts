@@ -15,13 +15,13 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Position, IEditorInput } from 'vs/platform/editor/common/editor';
 import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup } from 'vs/workbench/common/editor';
-import { SaveAllAction, SaveAllInGroupAction, OpenToSideAction, SaveFileAction, RevertFileAction, SaveFileAsAction, CompareWithSavedAction, CompareResourcesAction, SelectResourceForCompareAction } from 'vs/workbench/parts/files/electron-browser/fileActions';
+import { SaveAllAction, SaveAllInGroupAction, SaveFileAction, RevertFileAction, SaveFileAsAction, CompareWithSavedAction, CompareResourcesAction, SelectResourceForCompareAction } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { IViewletViewOptions, IViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { OpenEditorsFocusedContext, ExplorerFocusedContext, IFilesConfiguration } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { CloseAllEditorsAction, CloseUnmodifiedEditorsInGroupAction, CloseEditorsInGroupAction, CloseOtherEditorsInGroupAction, CloseEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
+import { CloseAllEditorsAction, CloseUnmodifiedEditorsInGroupAction, CloseEditorsInGroupAction, CloseEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { ToggleEditorLayoutAction } from 'vs/workbench/browser/actions/toggleEditorLayout';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { EditorGroup } from 'vs/workbench/common/editor/editorStacksModel';
@@ -94,6 +94,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 			this.needsRefresh = false;
 		}, this.structuralRefreshDelay);
 		this.contributedContextMenu = menuService.createMenu(MenuId.OpenEditorsContext, contextKeyService);
+		this.contributedContextMenu.getActions();
 
 		// update on model changes
 		this.disposables.push(this.model.onModelChanged(e => this.onEditorStacksModelChanged(e)));
@@ -288,7 +289,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 			return;
 		}
 
-		// Do a minimal tree update based on if the change is structural or not #6670
+		// Do a minimal list update based on if the change is structural or not #6670
 		if (e.structural) {
 			this.listRefreshScheduler.schedule(this.structuralRefreshDelay);
 		} else if (!this.listRefreshScheduler.isScheduled()) {
@@ -585,85 +586,75 @@ export class ActionProvider extends ContributableActionProvider {
 	}
 
 	public getSecondaryActions(element: any): TPromise<IAction[]> {
-		return super.getSecondaryActions(undefined, element).then(result => {
-			const autoSaveEnabled = this.textFileService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY;
+		const result: IAction[] = [];
+		const autoSaveEnabled = this.textFileService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY;
 
-			if (element instanceof EditorGroup) {
-				if (!autoSaveEnabled) {
-					result.push(this.instantiationService.createInstance(SaveAllInGroupAction, SaveAllInGroupAction.ID, nls.localize('saveAll', "Save All")));
-					result.push(new Separator());
-				}
-
-				result.push(this.instantiationService.createInstance(CloseUnmodifiedEditorsInGroupAction, CloseUnmodifiedEditorsInGroupAction.ID, nls.localize('closeAllUnmodified', "Close Unmodified")));
-				result.push(this.instantiationService.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, nls.localize('closeAll', "Close All")));
-			} else {
-				const openEditor = <OpenEditor>element;
-				const resource = openEditor.getResource();
-				if (resource) {
-					// Open to side
-					result.unshift(this.instantiationService.createInstance(OpenToSideAction, resource));
-
-					if (!openEditor.isUntitled()) {
-
-						// Files: Save / Revert
-						if (!autoSaveEnabled) {
-							result.push(new Separator());
-
-							const saveAction = this.instantiationService.createInstance(SaveFileAction, SaveFileAction.ID, SaveFileAction.LABEL);
-							saveAction.setResource(resource);
-							saveAction.enabled = openEditor.isDirty();
-							result.push(saveAction);
-
-							const revertAction = this.instantiationService.createInstance(RevertFileAction, RevertFileAction.ID, RevertFileAction.LABEL);
-							revertAction.setResource(resource);
-							revertAction.enabled = openEditor.isDirty();
-							result.push(revertAction);
-						}
-					}
-
-					// Untitled: Save / Save As
-					if (openEditor.isUntitled()) {
-						result.push(new Separator());
-
-						if (this.untitledEditorService.hasAssociatedFilePath(resource)) {
-							let saveUntitledAction = this.instantiationService.createInstance(SaveFileAction, SaveFileAction.ID, SaveFileAction.LABEL);
-							saveUntitledAction.setResource(resource);
-							result.push(saveUntitledAction);
-						}
-
-						let saveAsAction = this.instantiationService.createInstance(SaveFileAsAction, SaveFileAsAction.ID, SaveFileAsAction.LABEL);
-						saveAsAction.setResource(resource);
-						result.push(saveAsAction);
-					}
-
-					// Compare Actions
-					result.push(new Separator());
-
-					if (!openEditor.isUntitled()) {
-						const compareWithSavedAction = this.instantiationService.createInstance(CompareWithSavedAction, CompareWithSavedAction.ID, nls.localize('compareWithSaved', "Compare with Saved"));
-						compareWithSavedAction.setResource(resource);
-						compareWithSavedAction.enabled = openEditor.isDirty();
-						result.push(compareWithSavedAction);
-					}
-
-					const runCompareAction = this.instantiationService.createInstance(CompareResourcesAction, resource);
-					if (runCompareAction._isEnabled()) {
-						result.push(runCompareAction);
-					}
-					result.push(this.instantiationService.createInstance(SelectResourceForCompareAction, resource));
-
-					result.push(new Separator());
-				}
-
-				result.push(this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, nls.localize('close', "Close")));
-				const closeOtherEditorsInGroupAction = this.instantiationService.createInstance(CloseOtherEditorsInGroupAction, CloseOtherEditorsInGroupAction.ID, nls.localize('closeOthers', "Close Others"));
-				closeOtherEditorsInGroupAction.enabled = openEditor.editorGroup.count > 1;
-				result.push(closeOtherEditorsInGroupAction);
-				result.push(this.instantiationService.createInstance(CloseUnmodifiedEditorsInGroupAction, CloseUnmodifiedEditorsInGroupAction.ID, nls.localize('closeAllUnmodified', "Close Unmodified")));
-				result.push(this.instantiationService.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, nls.localize('closeAll', "Close All")));
+		if (element instanceof EditorGroup) {
+			if (!autoSaveEnabled) {
+				result.push(this.instantiationService.createInstance(SaveAllInGroupAction, SaveAllInGroupAction.ID, nls.localize('saveAll', "Save All")));
+				result.push(new Separator());
 			}
 
-			return result;
-		});
+			result.push(this.instantiationService.createInstance(CloseUnmodifiedEditorsInGroupAction, CloseUnmodifiedEditorsInGroupAction.ID, nls.localize('closeAllUnmodified', "Close Unmodified")));
+			result.push(this.instantiationService.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, nls.localize('closeAll', "Close All")));
+		} else {
+			const openEditor = <OpenEditor>element;
+			const resource = openEditor.getResource();
+			if (resource) {
+
+				if (!openEditor.isUntitled()) {
+
+					// Files: Save / Revert
+					if (!autoSaveEnabled) {
+						result.push(new Separator());
+
+						const saveAction = this.instantiationService.createInstance(SaveFileAction, SaveFileAction.ID, SaveFileAction.LABEL);
+						saveAction.setResource(resource);
+						saveAction.enabled = openEditor.isDirty();
+						result.push(saveAction);
+
+						const revertAction = this.instantiationService.createInstance(RevertFileAction, RevertFileAction.ID, RevertFileAction.LABEL);
+						revertAction.setResource(resource);
+						revertAction.enabled = openEditor.isDirty();
+						result.push(revertAction);
+					}
+				}
+
+				// Untitled: Save / Save As
+				if (openEditor.isUntitled()) {
+					result.push(new Separator());
+
+					if (this.untitledEditorService.hasAssociatedFilePath(resource)) {
+						let saveUntitledAction = this.instantiationService.createInstance(SaveFileAction, SaveFileAction.ID, SaveFileAction.LABEL);
+						saveUntitledAction.setResource(resource);
+						result.push(saveUntitledAction);
+					}
+
+					let saveAsAction = this.instantiationService.createInstance(SaveFileAsAction, SaveFileAsAction.ID, SaveFileAsAction.LABEL);
+					saveAsAction.setResource(resource);
+					result.push(saveAsAction);
+				}
+
+				// Compare Actions
+				result.push(new Separator());
+
+				if (!openEditor.isUntitled()) {
+					const compareWithSavedAction = this.instantiationService.createInstance(CompareWithSavedAction, CompareWithSavedAction.ID, nls.localize('compareWithSaved', "Compare with Saved"));
+					compareWithSavedAction.setResource(resource);
+					compareWithSavedAction.enabled = openEditor.isDirty();
+					result.push(compareWithSavedAction);
+				}
+
+				const runCompareAction = this.instantiationService.createInstance(CompareResourcesAction, resource);
+				if (runCompareAction._isEnabled()) {
+					result.push(runCompareAction);
+				}
+				result.push(this.instantiationService.createInstance(SelectResourceForCompareAction, resource));
+
+				result.push(new Separator());
+			}
+		}
+
+		return TPromise.as(result);
 	}
 }
