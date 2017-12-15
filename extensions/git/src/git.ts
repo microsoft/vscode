@@ -1150,7 +1150,7 @@ export class Repository {
 	}
 
 	async getRefs(): Promise<Ref[]> {
-		const result = await this.run(['for-each-ref', '--format', '%(refname) %(objectname)']);
+		const result = await this.run(['for-each-ref', '--format', '%(refname) %(objectname)', '--sort', '-committerdate']);
 
 		const fn = (line: string): Ref | null => {
 			let match: RegExpExecArray | null;
