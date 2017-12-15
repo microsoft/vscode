@@ -1209,7 +1209,7 @@ export class CompareResourcesAction extends Action {
 
 	constructor(
 		resource: URI,
-		@IWorkbenchEditorService private commandService: ICommandService,
+		@ICommandService private commandService: ICommandService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {

@@ -40,6 +40,8 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ContributableActionProvider } from 'vs/workbench/browser/actions';
 import { memoize } from 'vs/base/common/decorators';
+import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 
 const $ = dom.$;
 
@@ -55,6 +57,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 	private listRefreshScheduler: RunOnceScheduler;
 	private structuralRefreshDelay: number;
 	private list: WorkbenchList<OpenEditor | IEditorGroup>;
+	private contributedContextMenu: IMenu;
 	private needsRefresh: boolean;
 
 	constructor(
@@ -70,7 +73,8 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IThemeService private themeService: IThemeService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IMenuService menuService: IMenuService
 	) {
 		super({
 			...(options as IViewOptions),
@@ -89,6 +93,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 			}
 			this.needsRefresh = false;
 		}, this.structuralRefreshDelay);
+		this.contributedContextMenu = menuService.createMenu(MenuId.OpenEditorsContext, contextKeyService);
 
 		// update on model changes
 		this.disposables.push(this.model.onModelChanged(e => this.onEditorStacksModelChanged(e)));
@@ -266,10 +271,14 @@ export class OpenEditorsView extends ViewsViewletPanel {
 
 	private onListContextMenu(e: IListContextMenuEvent<OpenEditor | IEditorGroup>): void {
 		const element = e.element;
+		const getActionsContext = () => element instanceof OpenEditor ? { group: element.editorGroup, editor: element.editorInput, resource: element.editorInput.getResource() } : { group: element };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
-			getActions: () => this.actionProvider.getSecondaryActions(element),
-			getActionsContext: () => element instanceof OpenEditor ? { group: element.editorGroup, editor: element.editorInput } : { group: element }
+			getActions: () => this.actionProvider.getSecondaryActions(element).then(actions => {
+				fillInActions(this.contributedContextMenu, { arg: getActionsContext() }, actions);
+				return actions;
+			}),
+			getActionsContext
 		});
 	}
 
