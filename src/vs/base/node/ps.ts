@@ -223,6 +223,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 						reject(new Error(`Root process ${rootPid} not found`));
 					}
 				} catch (error) {
+					console.log(stdout);
 					reject(error);
 				}
 			});
