@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { Node, HtmlNode, Rule } from 'EmmetNode';
+import { Node, HtmlNode, Rule, Property } from 'EmmetNode';
 import { getEmmetHelper, getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode } from './util';
 
 const trimRegex = /[\u00a0]*[\d|#|\-|\*|\u2022]+\.?/;
@@ -223,6 +223,23 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 			return true;
 		}
 
+		// Fix for https://github.com/Microsoft/vscode/issues/34162
+		// Other than sass, stylus, we can make use of the terminator tokens to validate position
+		if (syntax !== 'sass' && syntax !== 'stylus' && currentNode.type === 'property') {
+			const propertyNode = <Property>currentNode;
+			if (propertyNode.terminatorToken
+				&& propertyNode.separator
+				&& position.isAfterOrEqual(propertyNode.separatorToken.end)
+				&& position.isBeforeOrEqual(propertyNode.terminatorToken.start)) {
+				return false;
+			}
+			if (!propertyNode.terminatorToken
+				&& propertyNode.separator
+				&& position.isAfterOrEqual(propertyNode.separatorToken.end)) {
+				return false;
+			}
+		}
+
 		// If current node is a rule or at-rule, then perform additional checks to ensure
 		// emmet suggestions are not provided in the rule selector
 		if (currentNode.type !== 'rule' && currentNode.type !== 'at-rule') {
@@ -242,7 +259,10 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 		if (currentCssNode.parent
 			&& (currentCssNode.parent.type === 'rule' || currentCssNode.parent.type === 'at-rule')
 			&& currentCssNode.selectorToken
-			&& position.line !== currentCssNode.selectorToken.end.line) {
+			&& position.line !== currentCssNode.selectorToken.end.line
+			&& currentCssNode.selectorToken.start.character === abbreviationRange.start.character
+			&& currentCssNode.selectorToken.start.line === abbreviationRange.start.line
+		) {
 			return true;
 		}
 

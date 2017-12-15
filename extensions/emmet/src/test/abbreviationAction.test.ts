@@ -42,6 +42,13 @@ const scssContents = `
 		p40
 	}
 }
+.foo {
+	margin: 10px;
+	margin: a
+	.hoo {
+		color: #000;
+	}
+}
 `;
 
 const htmlContents = `
@@ -373,6 +380,71 @@ suite('Tests for Expand Abbreviations (CSS)', () => {
 		});
 	});
 
+	test('Skip when typing property values when there is a property in the next line (CSS)', () => {
+		const testContent = `
+.foo {
+	margin: a
+	margin: 10px;
+}		
+		`;
+
+		return withRandomFileEditor(testContent, 'css', (editor, doc) => {
+			editor.selection = new Selection(2, 10, 2, 10);
+			return expandEmmetAbbreviation(null).then(() => {
+				assert.equal(editor.document.getText(), testContent);
+				const cancelSrc = new CancellationTokenSource();
+				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(2, 10), cancelSrc.token);
+				if (completionPromise) {
+					assert.equal(1, 2, `Invalid completion at property value`);
+				}
+				return Promise.resolve();
+			});
+		});
+	});
+
+	test('Skip when typing property values when there is a property in the previous line (CSS)', () => {
+		const testContent = `
+.foo {
+	margin: 10px;
+	margin: a
+}
+		`;
+
+		return withRandomFileEditor(testContent, 'css', (editor, doc) => {
+			editor.selection = new Selection(3, 10, 3, 10);
+			return expandEmmetAbbreviation(null).then(() => {
+				assert.equal(editor.document.getText(), testContent);
+				const cancelSrc = new CancellationTokenSource();
+				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(3, 10), cancelSrc.token);
+				if (completionPromise) {
+					assert.equal(1, 2, `Invalid completion at property value`);
+				}
+				return Promise.resolve();
+			});
+		});
+	});
+
+	test('Skip when typing property values when it is the only property in the rule (CSS)', () => {
+		const testContent = `
+.foo {
+	margin: a
+}		
+		`;
+
+		return withRandomFileEditor(testContent, 'css', (editor, doc) => {
+			editor.selection = new Selection(2, 10, 2, 10);
+			return expandEmmetAbbreviation(null).then(() => {
+				assert.equal(editor.document.getText(), testContent);
+				const cancelSrc = new CancellationTokenSource();
+				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(2, 10), cancelSrc.token);
+				if (completionPromise) {
+					assert.equal(1, 2, `Invalid completion at property value`);
+				}
+				return Promise.resolve();
+			});
+		});
+	});
+
 	test('Expand abbreviation in completion list (CSS)', () => {
 		const abbreviation = 'm10';
 		const expandedText = 'margin: 10px;';
@@ -430,8 +502,20 @@ suite('Tests for Expand Abbreviations (CSS)', () => {
 			const completionPromise2 = completionProvider.provideCompletionItems(editor.document, new Position(5, 5), cancelSrc.token);
 			const completionPromise3 = completionProvider.provideCompletionItems(editor.document, new Position(11, 4), cancelSrc.token);
 			const completionPromise4 = completionProvider.provideCompletionItems(editor.document, new Position(14, 5), cancelSrc.token);
+			if (!completionPromise1) {
+				assert.equal(1, 2, `Problem with expanding padding abbreviations at line 3 col 4`);
+			}
+			if (!completionPromise2) {
+				assert.equal(1, 2, `Problem with expanding padding abbreviations at line 5 col 5`);
+			}
+			if (!completionPromise3) {
+				assert.equal(1, 2, `Problem with expanding padding abbreviations at line 11 col 4`);
+			}
+			if (!completionPromise4) {
+				assert.equal(1, 2, `Problem with expanding padding abbreviations at line 14 col 5`);
+			}
+
 			if (!completionPromise1 || !completionPromise2 || !completionPromise3 || !completionPromise4) {
-				assert.equal(1, 2, `Problem with expanding padding abbreviations`);
 				return Promise.resolve();
 			}
 
@@ -513,6 +597,21 @@ m10
 		});
 	});
 
+});
+
+	test('Skip when typing property values when there is a nested rule in the next line (SCSS)', () => {
+		return withRandomFileEditor(scssContents, 'scss', (editor, doc) => {
+			editor.selection = new Selection(19, 10, 19, 10);
+			return expandEmmetAbbreviation(null).then(() => {
+				assert.equal(editor.document.getText(), scssContents);
+				const cancelSrc = new CancellationTokenSource();
+				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(19, 10), cancelSrc.token);
+				if (completionPromise) {
+					assert.equal(1, 2, `Invalid completion at property value`);
+				}
+				return Promise.resolve();
+			});
+		});
 });
 
 suite('Tests for Wrap with Abbreviations', () => {
