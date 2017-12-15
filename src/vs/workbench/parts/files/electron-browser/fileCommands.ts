@@ -31,11 +31,10 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { basename } from 'vs/base/common/paths';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 // Commands
 
-registerFileCommands();
 export const REVEAL_IN_OS_COMMAND_ID = 'workbench.command.files.revealInOS';
 export const REVEAL_IN_EXPLORER_COMMAND_ID = 'workbench.command.files.revealInExplorer';
 export const REVERT_FILE_COMMAND_ID = 'workbench.command.files.revert';
@@ -45,6 +44,8 @@ export const COMPARE_RESOURCE_COMMAND_ID = 'workbench.files.command.compareFiles
 export const COMPARE_WITH_SAVED_COMMAND_ID = 'workbench.files.command.compareWithSaved';
 export const COMPARE_WITH_SAVED_SCHEMA = 'showModifications';
 export const COPY_PATH_COMMAND_ID = 'workbench.command.files.copyPath';
+
+registerFileCommands();
 
 export const openWindowCommand = (accessor: ServicesAccessor, paths: string[], forceNewWindow: boolean) => {
 	const windowsService = accessor.get(IWindowsService);
@@ -246,12 +247,8 @@ function registerFileCommands(): void {
 		}
 	});
 
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: OPEN_TO_SIDE_COMMAND_ID,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: undefined,
-		primary: undefined,
-		handler: (accessor, args: IEditorContext) => {
+	CommandsRegistry.registerCommand({
+		id: OPEN_TO_SIDE_COMMAND_ID, handler: (accessor, args) => {
 			const editorService = accessor.get(IWorkbenchEditorService);
 			const listService = accessor.get(IListService);
 			const tree = listService.lastFocusedList;

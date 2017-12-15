@@ -1153,7 +1153,6 @@ export class SelectResourceForCompareAction extends Action {
 
 	public run(): TPromise<any> {
 		return this.commandService.executeCommand(SELECT_FOR_COMPARE_COMMAND_ID, { resource: this.resource });
-
 	}
 }
 
