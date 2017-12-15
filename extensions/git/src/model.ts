@@ -8,7 +8,7 @@
 import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, ConfigurationChangeEvent } from 'vscode';
 import { Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
-import { dispose, anyEvent, filterEvent, IDisposable, isDescendant } from './util';
+import { dispose, anyEvent, filterEvent, IDisposable, isDescendant, find, firstIndex } from './util';
 import { Git, GitErrorCodes } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -27,7 +27,7 @@ class RepositoryPick implements QuickPickItem {
 			.join(' ');
 	}
 
-	constructor(public readonly repository: Repository) { }
+	constructor(public readonly repository: Repository, public readonly index: number) { }
 }
 
 export interface ModelChangeEvent {
@@ -256,7 +256,16 @@ export class Model {
 			throw new Error(localize('no repositories', "There are no available repositories"));
 		}
 
-		const picks = this.openRepositories.map(e => new RepositoryPick(e.repository));
+		const picks = this.openRepositories.map((e, index) => new RepositoryPick(e.repository, index));
+		const active = window.activeTextEditor;
+		const repository = active && this.getRepository(active.document.fileName);
+		const index = firstIndex(picks, pick => pick.repository === repository);
+
+		// Move repository pick containing the active text editor to appear first
+		if (index > -1) {
+			picks.unshift(...picks.splice(index, 1));
+		}
+
 		const placeHolder = localize('pick repo', "Choose a repository");
 		const pick = await window.showQuickPick(picks, { placeHolder });
 

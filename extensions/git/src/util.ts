@@ -195,6 +195,16 @@ export function uniqueFilter<T>(keyFn: (t: T) => string): (t: T) => boolean {
 	};
 }
 
+export function firstIndex<T>(array: T[], fn: (t: T) => boolean): number {
+	for (let i = 0; i < array.length; i++) {
+		if (fn(array[i])) {
+			return i;
+		}
+	}
+
+	return -1;
+}
+
 export function find<T>(array: T[], fn: (t: T) => boolean): T | undefined {
 	let result: T | undefined = undefined;
 
