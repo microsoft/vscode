@@ -11,18 +11,17 @@ import Severity from 'vs/base/common/severity';
 import { DiagnosticCollection } from 'vs/workbench/api/node/extHostDiagnostics';
 import { Diagnostic, DiagnosticSeverity, Range } from 'vs/workbench/api/node/extHostTypes';
 import { MainThreadDiagnosticsShape } from 'vs/workbench/api/node/extHost.protocol';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 
 suite('ExtHostDiagnostics', () => {
 
 	class DiagnosticsShape extends mock<MainThreadDiagnosticsShape>() {
-		$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): TPromise<any> {
-			return TPromise.as(null);
+		$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void {
+			//
 		}
-		$clear(owner: string): TPromise<any> {
-			return TPromise.as(null);
+		$clear(owner: string): void {
+			//
 		}
 	}
 
@@ -165,7 +164,7 @@ suite('ExtHostDiagnostics', () => {
 
 		let lastEntries: [UriComponents, IMarkerData[]][];
 		let collection = new DiagnosticCollection('test', new class extends DiagnosticsShape {
-			$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): TPromise<any> {
+			$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void {
 				lastEntries = entries;
 				return super.$changeMany(owner, entries);
 			}
@@ -239,7 +238,7 @@ suite('ExtHostDiagnostics', () => {
 
 		let lastEntries: [UriComponents, IMarkerData[]][];
 		let collection = new DiagnosticCollection('test', new class extends DiagnosticsShape {
-			$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): TPromise<any> {
+			$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void {
 				lastEntries = entries;
 				return super.$changeMany(owner, entries);
 			}

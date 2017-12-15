@@ -54,20 +54,18 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 		});
 	}
 
-	$registerCommand(id: string): TPromise<any> {
+	$registerCommand(id: string): void {
 		this._disposables.set(
 			id,
 			CommandsRegistry.registerCommand(id, (accessor, ...args) => this._proxy.$executeContributedCommand(id, ...args))
 		);
-		return undefined;
 	}
 
-	$unregisterCommand(id: string): TPromise<any> {
+	$unregisterCommand(id: string): void {
 		if (this._disposables.has(id)) {
 			this._disposables.get(id).dispose();
 			this._disposables.delete(id);
 		}
-		return undefined;
 	}
 
 	$executeCommand<T>(id: string, args: any[]): Thenable<T> {

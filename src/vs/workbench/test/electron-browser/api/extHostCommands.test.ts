@@ -8,7 +8,6 @@
 import * as assert from 'assert';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { MainThreadCommandsShape } from 'vs/workbench/api/node/extHost.protocol';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { OneGetThreadService } from './testThreadService';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
@@ -21,12 +20,11 @@ suite('ExtHostCommands', function () {
 		let lastUnregister: string;
 
 		const shape = new class extends mock<MainThreadCommandsShape>() {
-			$registerCommand(id: string): TPromise<any> {
-				return undefined;
+			$registerCommand(id: string): void {
+				//
 			}
-			$unregisterCommand(id: string): TPromise<any> {
+			$unregisterCommand(id: string): void {
 				lastUnregister = id;
-				return undefined;
 			}
 		};
 
@@ -42,12 +40,11 @@ suite('ExtHostCommands', function () {
 		let unregisterCounter = 0;
 
 		const shape = new class extends mock<MainThreadCommandsShape>() {
-			$registerCommand(id: string): TPromise<any> {
-				return undefined;
+			$registerCommand(id: string): void {
+				//
 			}
-			$unregisterCommand(id: string): TPromise<any> {
+			$unregisterCommand(id: string): void {
 				unregisterCounter += 1;
-				return undefined;
 			}
 		};
 

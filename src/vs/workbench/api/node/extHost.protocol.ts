@@ -102,8 +102,8 @@ export interface IMainContext extends IRPCProtocol {
 // --- main thread
 
 export interface MainThreadCommandsShape extends IDisposable {
-	$registerCommand(id: string): TPromise<any>;
-	$unregisterCommand(id: string): TPromise<any>;
+	$registerCommand(id: string): void;
+	$unregisterCommand(id: string): void;
 	$executeCommand<T>(id: string, args: any[]): Thenable<T>;
 	$getCommands(): Thenable<string[]>;
 }
@@ -114,8 +114,8 @@ export interface MainThreadConfigurationShape extends IDisposable {
 }
 
 export interface MainThreadDiagnosticsShape extends IDisposable {
-	$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): TPromise<any>;
-	$clear(owner: string): TPromise<any>;
+	$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void;
+	$clear(owner: string): void;
 }
 
 export interface MainThreadDialogOpenOptions {
@@ -152,7 +152,7 @@ export interface MainThreadDocumentContentProvidersShape extends IDisposable {
 
 export interface MainThreadDocumentsShape extends IDisposable {
 	$tryCreateDocument(options?: { language?: string; content?: string; }): TPromise<UriComponents>;
-	$tryOpenDocument(uri: UriComponents): TPromise<any>;
+	$tryOpenDocument(uri: UriComponents): TPromise<void>;
 	$trySaveDocument(uri: UriComponents): TPromise<boolean>;
 }
 
@@ -216,14 +216,14 @@ export interface MainThreadEditorsShape extends IDisposable {
 	$removeTextEditorDecorationType(key: string): void;
 	$tryShowEditor(id: string, position: EditorPosition): TPromise<void>;
 	$tryHideEditor(id: string): TPromise<void>;
-	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): TPromise<any>;
-	$trySetDecorations(id: string, key: string, ranges: editorCommon.IDecorationOptions[]): TPromise<any>;
-	$trySetDecorationsFast(id: string, key: string, ranges: number[]): TPromise<any>;
-	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): TPromise<any>;
-	$trySetSelections(id: string, selections: ISelection[]): TPromise<any>;
+	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): TPromise<void>;
+	$trySetDecorations(id: string, key: string, ranges: editorCommon.IDecorationOptions[]): TPromise<void>;
+	$trySetDecorationsFast(id: string, key: string, ranges: number[]): TPromise<void>;
+	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): TPromise<void>;
+	$trySetSelections(id: string, selections: ISelection[]): TPromise<void>;
 	$tryApplyEdits(id: string, modelVersionId: number, edits: editorCommon.ISingleEditOperation[], opts: IApplyEditsOptions): TPromise<boolean>;
 	$tryApplyWorkspaceEdit(workspaceResourceEdits: IWorkspaceResourceEdit[]): TPromise<boolean>;
-	$tryInsertSnippet(id: string, template: string, selections: IRange[], opts: IUndoStopOptions): TPromise<any>;
+	$tryInsertSnippet(id: string, template: string, selections: IRange[], opts: IUndoStopOptions): TPromise<boolean>;
 	$getDiffInformation(id: string): TPromise<editorCommon.ILineChange[]>;
 }
 
@@ -352,7 +352,7 @@ export interface MainThreadStatusBarShape extends IDisposable {
 
 export interface MainThreadStorageShape extends IDisposable {
 	$getValue<T>(shared: boolean, key: string): TPromise<T>;
-	$setValue(shared: boolean, key: string, value: any): TPromise<any>;
+	$setValue(shared: boolean, key: string, value: any): TPromise<void>;
 }
 
 export interface MainThreadTelemetryShape extends IDisposable {
