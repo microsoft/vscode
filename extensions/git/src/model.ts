@@ -27,7 +27,7 @@ class RepositoryPick implements QuickPickItem {
 			.join(' ');
 	}
 
-	constructor(public readonly repository: Repository) { }
+	constructor(public readonly repository: Repository, public readonly index: number) { }
 }
 
 export interface ModelChangeEvent {
@@ -256,7 +256,34 @@ export class Model {
 			throw new Error(localize('no repositories', "There are no available repositories"));
 		}
 
-		const picks = this.openRepositories.map(e => new RepositoryPick(e.repository));
+		const picks = this.openRepositories.map((e, index) => new RepositoryPick(e.repository, index));
+
+		// Sort picks such that repositories containing the active text editor
+		// appear first.
+		const active = window.activeTextEditor;
+		if (active && active.document.fileName) {
+			const hasActiveEditor = (root: string) => {
+				const relative = path.relative(root, active.document.fileName);
+				return !!relative && !relative.startsWith('..') && !path.isAbsolute(relative);
+			};
+			picks.sort((a, b) => {
+				const aHas = hasActiveEditor(a.repository.root);
+				const bHas = hasActiveEditor(b.repository.root);
+				if (aHas !== bHas) {
+					return aHas ? -1 : 1;
+				}
+				if (aHas && a.repository.root.length !== b.repository.root.length) {
+					// Both a and b contain the active editor document, so one
+					// is an ancestor of the other. We prefer to return the
+					// child (likely a submodule) since the active editor will
+					// be part of that repo. Child is the longer path.
+					return b.repository.root.length - a.repository.root.length;
+				}
+				// Otherwise everything else is equal, so keeps the positions stable
+				return a.index - b.index;
+			});
+		}
+
 		const placeHolder = localize('pick repo', "Choose a repository");
 		const pick = await window.showQuickPick(picks, { placeHolder });
 
