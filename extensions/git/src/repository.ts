@@ -182,7 +182,7 @@ export class Resource implements SourceControlResourceState {
 		return { strikeThrough, faded, tooltip, light, dark, letter, color, source: 'git.resource' /*todo@joh*/ };
 	}
 
-	get letter(): string | undefined {
+	get letter(): string {
 		switch (this.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.MODIFIED:
@@ -207,12 +207,10 @@ export class Resource implements SourceControlResourceState {
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
 				return 'C';
-			default:
-				return undefined;
 		}
 	}
 
-	get color(): ThemeColor | undefined {
+	get color(): ThemeColor {
 		switch (this.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.MODIFIED:
@@ -235,8 +233,6 @@ export class Resource implements SourceControlResourceState {
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
 				return new ThemeColor('gitDecoration.conflictingResourceForeground');
-			default:
-				return undefined;
 		}
 	}
 
@@ -261,7 +257,7 @@ export class Resource implements SourceControlResourceState {
 		}
 	}
 
-	get resourceDecoration(): DecorationData | undefined {
+	get resourceDecoration(): DecorationData {
 		const title = this.tooltip;
 		const abbreviation = this.letter;
 		const color = this.color;
