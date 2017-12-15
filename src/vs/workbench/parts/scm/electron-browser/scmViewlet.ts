@@ -56,7 +56,7 @@ import { format } from 'vs/base/common/strings';
 import { ISpliceable, ISequence, ISplice } from 'vs/base/common/sequence';
 import { firstIndex } from 'vs/base/common/arrays';
 import { WorkbenchList, IListService } from 'vs/platform/list/browser/listService';
-import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 // TODO@Joao
 // Need to subclass MenuItemActionItem in order to respect
