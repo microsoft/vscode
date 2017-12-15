@@ -504,7 +504,10 @@ export class CommandCenter {
 			}
 
 			if (resource) {
-				uris = [...resourceStates.map(r => r.resourceUri), resource.resourceUri];
+				const resources = ([resource, ...resourceStates] as Resource[])
+					.filter(r => r.type !== Status.DELETED && r.type !== Status.INDEX_DELETED);
+
+				uris = resources.map(r => r.resourceUri);
 			}
 		}
 
