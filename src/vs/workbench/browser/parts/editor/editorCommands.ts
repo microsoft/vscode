@@ -14,7 +14,7 @@ import { IEditor, Position, POSITIONS } from 'vs/platform/editor/common/editor';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import { EditorStacksModel } from 'vs/workbench/common/editor/editorStacksModel';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IMessageService, Severity, CloseAction } from 'vs/platform/message/common/message';
 import { Action } from 'vs/base/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -279,11 +279,8 @@ function registerOpenEditorAtIndexCommands(): void {
 
 function registerEditorCommands() {
 
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
+	CommandsRegistry.registerCommand({
 		id: CLOSE_UNMODIFIED_EDITORS_COMMAND_ID,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: undefined,
-		primary: undefined,
 		handler: (accessor, args: IEditorContext) => {
 			const editorGroupService = accessor.get(IEditorGroupService);
 			const editorService = accessor.get(IWorkbenchEditorService);
@@ -306,11 +303,8 @@ function registerEditorCommands() {
 		}
 	});
 
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
+	CommandsRegistry.registerCommand({
 		id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: undefined,
-		primary: undefined,
 		handler: (accessor, args: IEditorContext) => {
 			const editorGroupService = accessor.get(IEditorGroupService);
 			const editorService = accessor.get(IWorkbenchEditorService);
@@ -331,11 +325,8 @@ function registerEditorCommands() {
 		}
 	});
 
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
+	CommandsRegistry.registerCommand({
 		id: CLOSE_EDITOR_COMMAND_ID,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: undefined,
-		primary: undefined,
 		handler: (accessor, args: IEditorContext) => {
 			const editorGroupService = accessor.get(IEditorGroupService);
 			const editorService = accessor.get(IWorkbenchEditorService);
@@ -368,11 +359,8 @@ function registerEditorCommands() {
 		}
 	});
 
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
+	CommandsRegistry.registerCommand({
 		id: CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: undefined,
-		primary: undefined,
 		handler: (accessor, args: IEditorContext) => {
 			const editorGroupService = accessor.get(IEditorGroupService);
 			const editorService = accessor.get(IWorkbenchEditorService);

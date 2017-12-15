@@ -25,7 +25,6 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { getPathLabel } from 'vs/base/common/labels';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { basename } from 'vs/base/common/paths';
@@ -220,11 +219,8 @@ export let globalResourceToCompare: URI;
 
 function registerFileCommands(): void {
 
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
+	CommandsRegistry.registerCommand({
 		id: REVERT_FILE_COMMAND_ID,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: undefined,
-		primary: undefined,
 		handler: (accessor, args: IEditorContext) => {
 			let resource: URI;
 			const editorService = accessor.get(IWorkbenchEditorService);
@@ -267,11 +263,8 @@ function registerFileCommands(): void {
 		}
 	});
 
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
+	CommandsRegistry.registerCommand({
 		id: COMPARE_WITH_SAVED_COMMAND_ID,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: undefined,
-		primary: undefined,
 		handler: (accessor, args: IEditorContext) => {
 			const editorService = accessor.get(IWorkbenchEditorService);
 			let resource: URI;
@@ -292,11 +285,8 @@ function registerFileCommands(): void {
 		}
 	});
 
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
+	CommandsRegistry.registerCommand({
 		id: SELECT_FOR_COMPARE_COMMAND_ID,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: undefined,
-		primary: undefined,
 		handler: (accessor, args: IEditorContext) => {
 			const listService = accessor.get(IListService);
 			const tree = listService.lastFocusedList;
@@ -310,11 +300,8 @@ function registerFileCommands(): void {
 		}
 	});
 
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
+	CommandsRegistry.registerCommand({
 		id: COMPARE_RESOURCE_COMMAND_ID,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: undefined,
-		primary: undefined,
 		handler: (accessor, args: IEditorContext) => {
 			const editorService = accessor.get(IWorkbenchEditorService);
 			const listService = accessor.get(IListService);
@@ -331,11 +318,8 @@ function registerFileCommands(): void {
 		}
 	});
 
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
+	CommandsRegistry.registerCommand({
 		id: REVEAL_IN_OS_COMMAND_ID,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: undefined,
-		primary: undefined,
 		handler: (accessor, args: IEditorContext) => {
 			// Without resource, try to look at the active editor
 			let resource = args.resource;
@@ -354,11 +338,8 @@ function registerFileCommands(): void {
 		}
 	});
 
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
+	CommandsRegistry.registerCommand({
 		id: COPY_PATH_COMMAND_ID,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: undefined,
-		primary: undefined,
 		handler: (accessor, args: IEditorContext) => {
 			let resource = args.resource;
 			// Without resource, try to look at the active editor
@@ -383,11 +364,8 @@ function registerFileCommands(): void {
 		}
 	});
 
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
+	CommandsRegistry.registerCommand({
 		id: REVEAL_IN_EXPLORER_COMMAND_ID,
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: undefined,
-		primary: undefined,
 		handler: (accessor, args: IEditorContext) => {
 			const viewletService = accessor.get(IViewletService);
 			const contextService = accessor.get(IWorkspaceContextService);
