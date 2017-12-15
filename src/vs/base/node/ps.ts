@@ -158,10 +158,10 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 				}
 			};
 
-			const execMain = path.basename(process.execPath).replace(/ /g, '` ');
-			const script = URI.parse(require.toUrl('vs/base/node/ps-win.ps1')).fsPath.replace(/ /g, '` ');
-			const commandLine = `${script} -ProcessName ${execMain} -MaxSamples 3`;
-			const cmd = spawn('powershell.exe', ['-ExecutionPolicy', 'Bypass', '-Command', commandLine]);
+			const execMain = path.basename(process.execPath);
+			const script = URI.parse(require.toUrl('vs/base/node/ps-win.ps1')).fsPath;
+			const commandLine = `& {& '${script}' -ProcessName '${execMain}' -MaxSamples 3}`;
+			const cmd = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', commandLine]);
 
 			let stdout = '';
 			let stderr = '';
