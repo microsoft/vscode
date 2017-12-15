@@ -702,11 +702,21 @@
           "group": "1_modification"
         },
         {
+          "command": "git.openFile",
+          "when": "scmProvider == git && scmResourceGroup == merge",
+          "group": "navigation"
+        },
+        {
           "command": "git.stage",
           "when": "scmProvider == git && scmResourceGroup == merge",
           "group": "inline"
         },
         {
+          "command": "git.openFile",
+          "when": "scmProvider == git && scmResourceGroup == merge",
+          "group": "inline0"
+        },
+        {
           "command": "git.openChange",
           "when": "scmProvider == git && scmResourceGroup == index",
           "group": "navigation"
@@ -730,6 +740,11 @@
           "command": "git.unstage",
           "when": "scmProvider == git && scmResourceGroup == index",
           "group": "inline"
+        },
+        {
+          "command": "git.openFile",
+          "when": "scmProvider == git && scmResourceGroup == index",
+          "group": "inline0"
         },
         {
           "command": "git.openChange",
@@ -765,6 +780,11 @@
           "command": "git.stage",
           "when": "scmProvider == git && scmResourceGroup == workingTree",
           "group": "inline"
+        },
+        {
+          "command": "git.openFile",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "inline0"
         },
         {
           "command": "git.ignore",
