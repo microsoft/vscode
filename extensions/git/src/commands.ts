@@ -351,7 +351,6 @@ export class CommandCenter {
 
 		const config = workspace.getConfiguration('git');
 		let value = config.get<string>('defaultCloneDirectory') || os.homedir();
-		value = value.replace(/^~/, os.homedir());
 
 		const parentPath = await window.showInputBox({
 			prompt: localize('parent', "Parent Directory"),
@@ -379,7 +378,7 @@ export class CommandCenter {
 		statusBarItem.command = cancelCommandId;
 		statusBarItem.show();
 
-		const clonePromise = this.git.clone(url, parentPath, tokenSource.token);
+		const clonePromise = this.git.clone(url, parentPath.replace(/^~/, os.homedir()), tokenSource.token);
 
 		try {
 			window.withProgress({ location: ProgressLocation.SourceControl, title: localize('cloning', "Cloning git repository...") }, () => clonePromise);
@@ -1326,7 +1325,7 @@ export class CommandCenter {
 
 		const remoteRefs = repository.refs;
 		const remoteRefsFiltered = remoteRefs.filter(r => (r.remote === remotePick.label));
-		const branchPicks = remoteRefsFiltered.map(r => ({ label: r.name})) as {label : string; description : string}[];
+		const branchPicks = remoteRefsFiltered.map(r => ({ label: r.name })) as { label: string; description: string }[];
 		const branchPick = await window.showQuickPick(branchPicks, { placeHolder });
 
 		if (!branchPick) {
@@ -1335,7 +1334,7 @@ export class CommandCenter {
 
 		const remoteCharCnt = remotePick.label.length;
 
-		repository.pull(false, remotePick.label, branchPick.label.slice(remoteCharCnt+1));
+		repository.pull(false, remotePick.label, branchPick.label.slice(remoteCharCnt + 1));
 	}
 
 	@command('git.pull', { repository: true })
