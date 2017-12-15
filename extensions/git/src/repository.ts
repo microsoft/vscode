@@ -818,8 +818,15 @@ export class Repository implements Disposable {
 				}
 
 				// https://git-scm.com/docs/git-check-ignore#git-check-ignore--z
-				const child = this.repository.stream(['check-ignore', '-z', '--stdin'], { stdio: [null, null, null] });
-				child.stdin.end(filePaths.join('\0'), 'utf8');
+
+				// Using -z results in Error Invalid or unexpected token
+				// The checkIgnore succeeds with the correct result and no error code
+
+				// const child = this.repository.stream(['check-ignore', '-z', '--stdin'], { stdio: [null, null, null] });
+				// child.stdin.end(filePaths.join('\0'), 'utf8');
+
+				const child = this.repository.stream(['check-ignore', '--stdin'], { stdio: [null, null, null] });
+				child.stdin.end(filePaths.join('\n'), 'utf8');
 
 				const onExit = (exitCode: number) => {
 					if (exitCode === 1) {
@@ -827,7 +834,11 @@ export class Repository implements Disposable {
 						resolve(new Set<string>());
 					} else if (exitCode === 0) {
 						// paths are separated by the null-character
-						resolve(new Set<string>(data.split('\0')));
+						// resolve(new Set<string>(data.split('\0')));
+
+						// Use \n as separator when not using -z
+						resolve(new Set<string>(data.split('\n')));
+
 					} else {
 						if (/ is in submodule /.test(stderr)) {
 							reject(new GitError({ stdout: data, stderr, exitCode, gitErrorCode: GitErrorCodes.IsInSubmodule }));

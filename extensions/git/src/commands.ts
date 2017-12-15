@@ -984,8 +984,21 @@ export class CommandCenter {
 		const config = workspace.getConfiguration('git');
 		const enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
 		const enableCommitSigning = config.get<boolean>('enableCommitSigning') === true;
+		const enableUnsavedResourceCheck = config.get<boolean>('enableUnsavedResourceCheck', true);
 		const noStagedChanges = repository.indexGroup.resourceStates.length === 0;
 		const noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
+
+		// Flag if user has unsaved, tracked files
+		if (enableUnsavedResourceCheck) {
+			const continueCommit = await this.unsavedResourceCheck(repository);
+
+			if (continueCommit === 'no') {
+				return false;
+			}
+			if (continueCommit === 'disable-warning') {
+				config.update('enableUnsavedResourceCheck', false, true);
+			}
+		}
 
 		// no changes, and the user has not configured to commit all in this case
 		if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit) {
@@ -1740,6 +1753,56 @@ export class CommandCenter {
 			.map(({ repository, resources }) => fn(repository as Repository, isSingleResource ? resources[0] : resources));
 
 		return Promise.all(promises);
+	}
+
+	private async unsavedResourceCheck(repository: Repository): Promise<string> {
+
+		// Filter all dirty, not untitled
+		// Check results for ignored files
+		// Remove ignored files from list
+		// If length > 0, flag unsaved warning
+
+		let dirtyFilePaths = Array.from(workspace.textDocuments.filter(r => {
+			return r.isDirty && r.uri.scheme === 'file' && !r.isUntitled &&
+				!path.relative(repository.root, r.uri.fsPath).startsWith('..');
+		}), r => {
+			return r.uri.fsPath;
+		});
+
+		let ignoreSet = new Set<string>();
+		try {
+			ignoreSet = await repository.checkIgnore(dirtyFilePaths);
+		} catch (err) {
+			console.error(err);
+			window.showErrorMessage(err, { modal: false });
+			return 'no';
+		}
+
+		if (ignoreSet.size) {
+			ignoreSet.forEach(i => {
+				if (i !== undefined && (dirtyFilePaths.indexOf(eval(i)) >= 0)) {
+					dirtyFilePaths.splice(dirtyFilePaths.indexOf(eval(i)), 1);
+				}
+			});
+		}
+
+		if (dirtyFilePaths.length) {
+			const message = localize('unsavedResourcesMessage', "There {0} ({1}) Unsaved, Tracked {2}.\n\nDo you want to continue with the commit ? ", (dirtyFilePaths.length < 2 ? 'is' : 'are'), dirtyFilePaths.length, (dirtyFilePaths.length < 2 ? 'file' : 'files'));
+			const yes = localize('yes', "Yes");
+			const no = localize('no', "No");
+			const disableWarning = localize('disableWarning', "Disable Warning");
+
+			const pick = await window.showWarningMessage(message, { modal: true }, yes, disableWarning);
+
+			if (pick === yes) {
+				return 'yes';
+			} else if (pick === disableWarning) {
+				return 'disable-warning';
+			} else {
+				return 'no';
+			}
+		}
+		return 'yes';
 	}
 
 	dispose(): void {
