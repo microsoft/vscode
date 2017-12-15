@@ -49,7 +49,6 @@ function createCompile(build: boolean, emitError?: boolean): (token?: util.ICanc
 			.pipe(tsFilter)
 			.pipe(util.loadSourcemaps())
 			.pipe(ts(token))
-			// .pipe(build ? reloadTypeScriptNodeModule() : es.through())
 			.pipe(noDeclarationsFilter)
 			.pipe(build ? nls() : es.through())
 			.pipe(noDeclarationsFilter.restore)
@@ -98,53 +97,6 @@ export function watchTask(out: string, build: boolean): () => NodeJS.ReadWriteSt
 			.pipe(gulp.dest(out))
 			.pipe(monacodtsTask(out, true));
 	};
-}
-
-function reloadTypeScriptNodeModule(): NodeJS.ReadWriteStream {
-	var util = require('gulp-util');
-	function log(message: any, ...rest: any[]): void {
-		util.log(util.colors.cyan('[memory watch dog]'), message, ...rest);
-	}
-
-	function heapUsed(): string {
-		return (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2) + ' MB';
-	}
-
-	return es.through(function (data) {
-		this.emit('data', data);
-	}, function () {
-
-		log('memory usage after compilation finished: ' + heapUsed());
-
-		// It appears we are running into some variant of
-		// https://bugs.chromium.org/p/v8/issues/detail?id=2073
-		//
-		// Even though all references are dropped, some
-		// optimized methods in the TS compiler end up holding references
-		// to the entire TypeScript language host (>600MB)
-		//
-		// The idea is to force v8 to drop references to these
-		// optimized methods, by "reloading" the typescript node module
-
-		log('Reloading typescript node module...');
-
-		var resolvedName = require.resolve('typescript');
-
-		var originalModule = require.cache[resolvedName];
-		delete require.cache[resolvedName];
-		var newExports = require('typescript');
-		require.cache[resolvedName] = originalModule;
-
-		for (var prop in newExports) {
-			if (newExports.hasOwnProperty(prop)) {
-				originalModule.exports[prop] = newExports[prop];
-			}
-		}
-
-		log('typescript node module reloaded.');
-
-		this.emit('end');
-	});
 }
 
 function monacodtsTask(out: string, isWatch: boolean): NodeJS.ReadWriteStream {
