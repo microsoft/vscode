@@ -133,7 +133,7 @@ const copyrightHeader = [
 	' *  Copyright (c) Microsoft Corporation. All rights reserved.',
 	' *  Licensed under the MIT License. See License.txt in the project root for license information.',
 	' *--------------------------------------------------------------------------------------------*/'
-].join('\n');
+];
 
 gulp.task('eslint', () => {
 	return vfs.src(all, { base: '.', follow: true, allowEmpty: true })
@@ -186,7 +186,8 @@ const hygiene = exports.hygiene = (some, options) => {
 	});
 
 	const copyrights = es.through(function (file) {
-		if (file.contents.toString('utf8').indexOf(copyrightHeader) !== 0) {
+		const fullCopyrightHeader = options.usingAutoCRLF ? copyrightHeader.join('\r\n') : copyrightHeader.join('\n');
+		if (file.contents.toString('utf8').indexOf(fullCopyrightHeader) !== 0) {
 			console.error(file.relative + ': Missing or bad copyright statement');
 			errorCount++;
 		}
@@ -195,7 +196,8 @@ const hygiene = exports.hygiene = (some, options) => {
 	});
 
 	const formatting = es.map(function (file, cb) {
-		tsfmt.processString(file.path, file.contents.toString('utf8'), {
+		const fileContents = options.usingAutoCRLF ? file.contents.toString('utf8').replace(/\r\n/g, '\n') : file.contents.toString('utf8');
+		tsfmt.processString(file.path, fileContents, {
 			verify: true,
 			tsfmt: true,
 			// verbose: true
@@ -241,7 +243,7 @@ const hygiene = exports.hygiene = (some, options) => {
 	const result = vfs.src(some || all, { base: '.', follow: true, allowEmpty: true })
 		.pipe(filter(f => !f.stat.isDirectory()))
 		.pipe(filter(eolFilter))
-		.pipe(options.skipEOL ? es.through() : eol)
+		.pipe(options.usingAutoCRLF ? es.through() : eol)
 		.pipe(filter(indentationFilter))
 		.pipe(indentation)
 		.pipe(filter(copyrightFilter))
@@ -288,10 +290,10 @@ if (require.main === module) {
 	});
 
 	cp.exec('git config core.autocrlf', (err, out) => {
-		const skipEOL = out.trim() === 'true';
+		const usingAutoCRLF = out.trim() === 'true';
 
 		if (process.argv.length > 2) {
-			return hygiene(process.argv.slice(2), { skipEOL: skipEOL }).on('error', err => {
+			return hygiene(process.argv.slice(2), { usingAutoCRLF: usingAutoCRLF }).on('error', err => {
 				console.error();
 				console.error(err);
 				process.exit(1);
@@ -310,7 +312,7 @@ if (require.main === module) {
 				.filter(l => !!l);
 
 			if (some.length > 0) {
-				hygiene(some, { skipEOL: skipEOL }).on('error', err => {
+				hygiene(some, { usingAutoCRLF: usingAutoCRLF }).on('error', err => {
 					console.error();
 					console.error(err);
 					process.exit(1);
