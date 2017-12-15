@@ -45,9 +45,25 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 		}));
 
 		this.toDispose.push(dom.addStandardDisposableListener(this.selectElement, 'keydown', (e) => {
-			if (e.equals(KeyCode.Space) || e.equals(KeyCode.Enter)) {
-				// Space is used to expand select box, do not propagate it (prevent action bar action run)
-				dom.EventHelper.stop(e);
+			let showSelect = false;
+
+			switch (process.platform) {
+				case 'darwin':
+					if (e.keyCode === KeyCode.DownArrow || e.keyCode === KeyCode.UpArrow || e.keyCode === KeyCode.Space) {
+						showSelect = true;
+					}
+					break;
+				case 'win32':
+				default:
+					if (e.keyCode === KeyCode.DownArrow && e.altKey || e.keyCode === KeyCode.Space || e.keyCode === KeyCode.Enter) {
+						showSelect = true;
+					}
+					break;
+			}
+
+			if (showSelect) {
+				// Space, Enter, is used to expand select box, do not propagate it (prevent action bar action run)
+				e.stopPropagation();
 			}
 		}));
 	}

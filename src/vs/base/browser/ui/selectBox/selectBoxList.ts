@@ -19,7 +19,7 @@ import { ISelectBoxDelegate, ISelectBoxStyles, ISelectData } from 'vs/base/brows
 
 const $ = dom.$;
 
-export const SELECT_OPTION_ENTRY_TEMPLATE_ID = 'selectOption.entry.template';
+const SELECT_OPTION_ENTRY_TEMPLATE_ID = 'selectOption.entry.template';
 
 export interface ISelectOptionItem {
 	optionText: string;
@@ -142,13 +142,6 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 				index: e.target.selectedIndex,
 				selected: e.target.value
 			});
-		}));
-
-		this.toDispose.push(dom.addStandardDisposableListener(this.selectElement, 'keydown', (e) => {
-			if (e.equals(KeyCode.Space) || e.equals(KeyCode.Enter)) {
-				// Space is used to expand select box, do not propagate it (prevent action bar action run)
-				e.stopPropagation();
-			}
 		}));
 
 		// Have to implement both keyboard and mouse controllers to handle disabled options
@@ -441,7 +434,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		if (container && !!this.options) {
 			let longest = 0;
 
-			for (var index = 0; index < this.options.length; index++) {
+			for (let index = 0; index < this.options.length; index++) {
 				if (this.options[index].length > this.options[longest].length) {
 					longest = index;
 				}
@@ -455,8 +448,8 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	}
 
 	private cloneElementFont(source: HTMLElement, target: HTMLElement) {
-		var fontSize = window.getComputedStyle(source, null).getPropertyValue('font-size');
-		var fontFamily = window.getComputedStyle(source, null).getPropertyValue('font-family');
+		const fontSize = window.getComputedStyle(source, null).getPropertyValue('font-size');
+		const fontFamily = window.getComputedStyle(source, null).getPropertyValue('font-family');
 		target.style.fontFamily = fontFamily;
 		target.style.fontSize = fontSize;
 	}

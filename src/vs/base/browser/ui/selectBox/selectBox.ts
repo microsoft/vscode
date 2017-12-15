@@ -16,6 +16,7 @@ import { SelectBoxNative } from 'vs/base/browser/ui/selectBox/selectBoxNative';
 import { SelectBoxList } from 'vs/base/browser/ui/selectBox/selectBoxList';
 
 // Public SelectBox interface - Calls routed to appropriate select implementation class
+
 export interface ISelectBoxDelegate {
 	// Public SelectBox Interface
 	readonly onDidSelect: Event<ISelectData>;
