@@ -73,12 +73,18 @@ export class ListService implements IListService {
 }
 
 const RawWorkbenchListFocusContextKey = new RawContextKey<boolean>('listFocus', true);
+export const WorkbenchListSupportsMultiSelectContextKey = new RawContextKey<boolean>('listSupportsMultiselect', true);
 export const WorkbenchListFocusContextKey = ContextKeyExpr.and(RawWorkbenchListFocusContextKey, ContextKeyExpr.not(InputFocusedContextKey));
 
 export type Widget = List<any> | PagedList<any> | ITree;
 
 function createScopedContextKeyService(contextKeyService: IContextKeyService, widget: Widget): IContextKeyService {
 	const result = contextKeyService.createScoped(widget.getHTMLElement());
+
+	if (widget instanceof List || widget instanceof PagedList) {
+		WorkbenchListSupportsMultiSelectContextKey.bindTo(result);
+	}
+
 	RawWorkbenchListFocusContextKey.bindTo(result);
 	return result;
 }
