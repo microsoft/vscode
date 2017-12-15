@@ -719,10 +719,17 @@ export interface ExtHostDebugServiceShape {
 }
 
 
+export interface DecorationRequest {
+	readonly id: number;
+	readonly handle: number;
+	readonly uri: UriComponents;
+}
+
 export type DecorationData = [number, boolean, string, string, ThemeColor, string];
+export type DecorationReply = { [id: number]: DecorationData };
 
 export interface ExtHostDecorationsShape {
-	$provideDecorations(handle: number, uri: UriComponents): TPromise<DecorationData>;
+	$provideDecorations(requests: DecorationRequest[]): TPromise<DecorationReply>;
 }
 
 export interface ExtHostWindowShape {
