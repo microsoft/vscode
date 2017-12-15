@@ -74,9 +74,14 @@ export function compileTask(out: string, build: boolean): () => NodeJS.ReadWrite
 			gulp.src('node_modules/typescript/lib/lib.d.ts'),
 		);
 
+		// Do not write .d.ts files to disk, as they are not needed there.
+		const dtsFilter = util.filter(data => !/\.d\.ts$/.test(data.path));
+
 		return src
 			.pipe(compile())
+			.pipe(dtsFilter)
 			.pipe(gulp.dest(out))
+			.pipe(dtsFilter.restore)
 			.pipe(monacodtsTask(out, false));
 	};
 }
@@ -92,14 +97,21 @@ export function watchTask(out: string, build: boolean): () => NodeJS.ReadWriteSt
 		);
 		const watchSrc = watch('src/**', { base: 'src' });
 
+		// Do not write .d.ts files to disk, as they are not needed there.
+		const dtsFilter = util.filter(data => !/\.d\.ts$/.test(data.path));
+
 		return watchSrc
 			.pipe(util.incremental(compile, src, true))
+			.pipe(dtsFilter)
 			.pipe(gulp.dest(out))
+			.pipe(dtsFilter.restore)
 			.pipe(monacodtsTask(out, true));
 	};
 }
 
 function monacodtsTask(out: string, isWatch: boolean): NodeJS.ReadWriteStream {
+
+	const basePath = path.resolve(process.cwd(), out);
 
 	const neededFiles: { [file: string]: boolean; } = {};
 	monacodts.getFilesToWatch(out).forEach(function (filePath) {
@@ -148,7 +160,7 @@ function monacodtsTask(out: string, isWatch: boolean): NodeJS.ReadWriteStream {
 	}
 
 	resultStream = es.through(function (data) {
-		const filePath = path.normalize(data.path);
+		const filePath = path.normalize(path.resolve(basePath, data.relative));
 		if (neededFiles[filePath]) {
 			setInputFile(filePath, data.contents.toString());
 		}
