@@ -6,6 +6,7 @@
 'use strict';
 
 import paths = require('path');
+import cp = require('child_process');
 import fs = require('fs');
 import os = require('os');
 import crypto = require('crypto');
@@ -605,6 +606,12 @@ export class FileService implements IFileService {
 			// 2.) write to a temporary file to be able to copy over later
 			const tmpPath = paths.join(this.tmpPath, `code-elevated-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 6)}`);
 			return this.updateContent(uri.file(tmpPath), value, writeOptions).then(() => {
+
+				if (isWindows) {
+					cp.execFile(uri.parse(require.toUrl('vs/workbench/services/files/node/elevate/win32/Code.exe')).fsPath);
+
+					return this.resolve(resource);
+				}
 
 				// 3.) invoke our CLI as super user
 				return (import('sudo-prompt')).then(sudoPrompt => {
