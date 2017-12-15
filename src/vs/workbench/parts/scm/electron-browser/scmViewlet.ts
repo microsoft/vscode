@@ -56,7 +56,7 @@ import { format } from 'vs/base/common/strings';
 import { ISpliceable, ISequence, ISplice } from 'vs/base/common/sequence';
 import { firstIndex } from 'vs/base/common/arrays';
 import { WorkbenchList, IListService } from 'vs/platform/list/browser/listService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 
 // TODO@Joao
 // Need to subclass MenuItemActionItem in order to respect
@@ -1035,12 +1035,14 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
-		@IExtensionService extensionService: IExtensionService
+		@IExtensionService extensionService: IExtensionService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(VIEWLET_ID, { showHeaderInTitleWhenSingleView: true }, telemetryService, themeService);
 
 		this.menus = instantiationService.createInstance(SCMMenus, undefined);
 		this.menus.onDidChangeTitle(this.updateTitleArea, this, this.disposables);
+		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 	}
 
 	async create(parent: Builder): TPromise<void> {
@@ -1055,6 +1057,12 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 		this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
 		this.scmService.repositories.forEach(r => this.onDidAddRepository(r));
 		this.onDidChangeRepositories();
+	}
+
+	private onConfigurationUpdated(e: IConfigurationChangeEvent): void {
+		if (e.affectsConfiguration('scm.showSingleSourceControlProvider')) {
+			this.onDidChangeRepositories();
+		}
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
@@ -1087,7 +1095,8 @@ export class SCMViewlet extends PanelViewlet implements IViewModel {
 	private onDidChangeRepositories(): void {
 		toggleClass(this.el, 'empty', this.scmService.repositories.length === 0);
 
-		const shouldMainPanelBeVisible = this.scmService.repositories.length > 1;
+		const shouldMainPanelBeVisible = this.scmService.repositories.length >
+			(this.configurationService.getValue('scm.showSingleSourceControlProvider') ? 0 : 1);
 
 		if (!!this.mainPanel === shouldMainPanelBeVisible) {
 			return;

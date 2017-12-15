@@ -5,7 +5,6 @@
 
 'use strict';
 
-import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { DirtyDiffWorkbenchController } from './dirtydiffDecorator';
@@ -20,11 +19,12 @@ import { StatusUpdater, StatusBarController } from './scmActivity';
 import { SCMViewlet } from 'vs/workbench/parts/scm/electron-browser/scmViewlet';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import * as nls from 'vs/nls';
 
 class OpenSCMViewletAction extends ToggleViewletAction {
 
 	static readonly ID = VIEWLET_ID;
-	static LABEL = localize('toggleGitViewlet', "Show Git");
+	static LABEL = nls.localize('toggleGitViewlet', "Show Git");
 
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
 		super(id, label, VIEWLET_ID, viewletService, editorService);
@@ -37,7 +37,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 const viewletDescriptor = new ViewletDescriptor(
 	SCMViewlet,
 	VIEWLET_ID,
-	localize('source control', "Source Control"),
+	nls.localize('source control', "Source Control"),
 	'scm',
 	36
 );
@@ -53,32 +53,38 @@ Registry.as(WorkbenchExtensions.Workbench)
 
 // Register Action to Open Viewlet
 Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions).registerWorkbenchAction(
-	new SyncActionDescriptor(OpenSCMViewletAction, VIEWLET_ID, localize('toggleSCMViewlet', "Show SCM"), {
+	new SyncActionDescriptor(OpenSCMViewletAction, VIEWLET_ID, nls.localize('toggleSCMViewlet', "Show SCM"), {
 		primary: null,
 		win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
 		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
 		mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_G }
 	}),
 	'View: Show SCM',
-	localize('view', "View")
+	nls.localize('view', "View")
 );
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'scm',
 	order: 5,
+	title: nls.localize('scmConfigurationTitle', "SCM"),
 	type: 'object',
 	properties: {
+		'scm.showSingleSourceControlProvider': {
+			type: 'boolean',
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'showSingleSourceControlProvider' }, "Whether to show Source Control Provider for single repository."),
+			default: false
+		},
 		'scm.diffDecorations': {
 			type: 'string',
 			enum: ['all', 'gutter', 'overview', 'none'],
 			default: 'all',
-			description: localize('diffDecorations', "Controls diff decorations in the editor.")
+			description: nls.localize('diffDecorations', "Controls diff decorations in the editor.")
 		},
 		'scm.inputCounter': {
 			type: 'string',
 			enum: ['always', 'warn', 'off'],
 			default: 'warn',
-			description: localize('inputCounter', "Controls when to display the input counter.")
+			description: nls.localize('inputCounter', "Controls when to display the input counter.")
 		}
 	}
 });
