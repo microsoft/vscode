@@ -968,13 +968,15 @@
     "file-type": "^7.2.0",
     "iconv-lite": "0.4.19",
     "vscode-extension-telemetry": "0.0.8",
-    "vscode-nls": "2.0.2"
+    "vscode-nls": "2.0.2",
+    "which": "^1.3.0"
   },
   "devDependencies": {
     "@types/byline": "4.2.31",
     "@types/file-type": "^5.2.1",
     "@types/mocha": "2.2.43",
     "@types/node": "7.0.43",
+    "@types/which": "^1.0.28",
     "mocha": "^3.2.0"
   }
 }
