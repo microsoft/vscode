@@ -919,6 +919,11 @@
           "description": "%config.enableCommitSigning%",
           "default": false
         },
+        "git.openWithDiffEditor": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.openWithDiffEditor%"
+        },
         "git.decorations.enabled": {
           "type": "boolean",
           "default": true,

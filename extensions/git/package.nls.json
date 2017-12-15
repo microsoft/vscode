@@ -62,6 +62,7 @@
 	"config.defaultCloneDirectory": "The default location where to clone a git repository",
 	"config.enableSmartCommit": "Commit all changes when there are no staged changes.",
 	"config.enableCommitSigning": "Enables commit signing with GPG.",
+	"config.openWithDiffEditor": "Opens file in diff editor when clicked on.",
 	"config.discardAllScope": "Controls what changes are discarded by the `Discard all changes` command. `all` discards all changes. `tracked` discards only tracked files. `prompt` shows a prompt dialog every time the action is run.",
 	"config.decorations.enabled": "Controls if Git contributes colors and badges to the explorer and the open editors view.",
 	"colors.modified": "Color for modified resources.",

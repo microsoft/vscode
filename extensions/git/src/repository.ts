@@ -70,11 +70,21 @@ export class Resource implements SourceControlResourceState {
 
 	@memoize
 	get command(): Command {
-		return {
-			command: 'git.openResource',
-			title: localize('open', "Open"),
-			arguments: [this]
-		};
+		const openWithDiffEditor = workspace.getConfiguration('git').get<boolean>('openWithDiffEditor');
+
+		if (openWithDiffEditor === true) {
+			return {
+				command: 'git.openResource',
+				title: localize('open', "Open"),
+				arguments: [this]
+			};
+		} else {
+			return {
+				command: 'git.openFile',
+				title: localize('open', "Open"),
+				arguments: [this]
+			};
+		}
 	}
 
 	get resourceGroupType(): ResourceGroupType { return this._resourceGroupType; }
