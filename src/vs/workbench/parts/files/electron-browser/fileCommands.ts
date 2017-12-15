@@ -35,7 +35,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 
 // Commands
 
-registerExplorerCommands();
+registerFileCommands();
 export const REVEAL_IN_OS_COMMAND_ID = 'workbench.command.files.revealInOS';
 export const REVEAL_IN_EXPLORER_COMMAND_ID = 'workbench.command.files.revealInExplorer';
 export const REVERT_FILE_COMMAND_ID = 'workbench.command.files.revert';
@@ -217,7 +217,7 @@ export const revealInOSFocusedFilesExplorerItem = (accessor: ServicesAccessor) =
 
 export let globalResourceToCompare: URI;
 
-function registerExplorerCommands(): void {
+function registerFileCommands(): void {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: REVERT_FILE_COMMAND_ID,
