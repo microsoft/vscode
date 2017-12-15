@@ -230,19 +230,30 @@ class FileDecorationChangeEvent implements IResourceDecorationChangeEvent {
 class DecorationProviderWrapper {
 
 	readonly data = TernarySearchTree.forPaths<Thenable<void> | IDecorationData>();
-
-	private _listener: IDisposable;
+	private readonly _dispoable: IDisposable;
 
 	constructor(
 		private readonly _provider: IDecorationsProvider,
 		private readonly _uriEmitter: Emitter<URI | URI[]>,
 		private readonly _flushEmitter: Emitter<IResourceDecorationChangeEvent>
 	) {
-		//
+		this._dispoable = this._provider.onDidChange(uris => {
+			if (!uris) {
+				// flush event -> drop all data, can affect everything
+				this.data.clear();
+				this._flushEmitter.fire({ affectsResource() { return true; } });
+
+			} else {
+				// selective changes -> drop for resource, fetch again, send event
+				for (const uri of uris) {
+					this._fetchData(uri);
+				}
+			}
+		});
 	}
 
 	dispose(): void {
-		this._listener.dispose();
+		this._dispoable.dispose();
 		this.data.clear();
 	}
 
@@ -283,11 +294,7 @@ class DecorationProviderWrapper {
 	}
 
 	private _fetchData(uri: URI): IDecorationData {
-		// listen to provider changes only after
-		// we have asked it for data...
-		this._ensureIsListening();
 
-		// retrieve data, do the dance
 		const dataOrThenable = this._provider.provideDecorations(uri);
 		if (!isThenable(dataOrThenable)) {
 			// sync -> we have a result now
@@ -312,24 +319,6 @@ class DecorationProviderWrapper {
 			this._uriEmitter.fire(uri);
 		}
 		return deco;
-	}
-
-	private _ensureIsListening(): void {
-		if (!this._listener) {
-			this._listener = this._provider.onDidChange(uris => {
-				if (!uris) {
-					// flush event -> drop all data, can affect everything
-					this.data.clear();
-					this._flushEmitter.fire({ affectsResource() { return true; } });
-
-				} else {
-					// selective changes -> drop for resource, fetch again, send event
-					for (const uri of uris) {
-						this._fetchData(uri);
-					}
-				}
-			});
-		}
 	}
 }
 
