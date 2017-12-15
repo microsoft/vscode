@@ -277,8 +277,8 @@ export class OutputService implements IOutputService {
 		}
 
 		this.activeChannelId = id;
-		return this.doShowChannel(id, preserveFocus)
-			.then(() => this._onActiveOutputChannel.fire(id));
+		const promise: TPromise<any> = this._outputPanel ? this.doShowChannel(id, preserveFocus) : this.panelService.openPanel(OUTPUT_PANEL_ID);
+		return promise.then(() => this._onActiveOutputChannel.fire(id));
 	}
 
 	showChannelInEditor(channelId: string): TPromise<void> {
@@ -342,15 +342,19 @@ export class OutputService implements IOutputService {
 	}
 
 	private doShowChannel(channelId: string, preserveFocus: boolean): TPromise<void> {
-		const channel = <OutputChannel>this.getChannel(channelId);
-		return channel.show()
-			.then(() => {
-				this.storageService.store(OUTPUT_ACTIVE_CHANNEL_KEY, channelId, StorageScope.WORKSPACE);
-				this._outputPanel.setInput(this.createInput(channelId), EditorOptions.create({ preserveFocus: preserveFocus }));
-				if (!preserveFocus) {
-					this._outputPanel.focus();
-				}
-			});
+		if (this._outputPanel) {
+			const channel = <OutputChannel>this.getChannel(channelId);
+			return channel.show()
+				.then(() => {
+					this.storageService.store(OUTPUT_ACTIVE_CHANNEL_KEY, channelId, StorageScope.WORKSPACE);
+					this._outputPanel.setInput(this.createInput(channelId), EditorOptions.create({ preserveFocus: preserveFocus }));
+					if (!preserveFocus) {
+						this._outputPanel.focus();
+					}
+				});
+		} else {
+			return TPromise.as(null);
+		}
 	}
 
 	private doHideChannel(channelId): void {
