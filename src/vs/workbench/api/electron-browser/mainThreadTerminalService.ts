@@ -38,7 +38,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			name,
 			executable: shellPath,
 			args: shellArgs,
-			cwd: cwd,
+			cwd,
 			waitOnExit,
 			ignoreConfigurationCwd: true,
 			env
