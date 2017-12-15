@@ -57,7 +57,11 @@ export class MainThreadCommands implements MainThreadCommandsShape {
 	$registerCommand(id: string): void {
 		this._disposables.set(
 			id,
-			CommandsRegistry.registerCommand(id, (accessor, ...args) => this._proxy.$executeContributedCommand(id, ...args))
+			CommandsRegistry.registerCommand(id, (accessor, ...args) => {
+				return this._proxy.$executeContributedCommand(id, ...args).then(result => {
+					return revive(result, 0);
+				});
+			})
 		);
 	}
 
