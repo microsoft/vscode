@@ -314,9 +314,7 @@ class CodeActionAdapter {
 						title: candidate.title,
 						command: candidate.command && this._commands.toInternal(candidate.command),
 						diagnostics: candidate.diagnostics && candidate.diagnostics.map(DiagnosticCollection.toMarkerData),
-						edits: Array.isArray(candidate.edits)
-							? TypeConverters.WorkspaceEdit.fromTextEdits(resource, candidate.edits)
-							: candidate.edits && TypeConverters.WorkspaceEdit.from(candidate.edits),
+						edits: candidate.edit && TypeConverters.WorkspaceEdit.from(candidate.edit),
 					});
 				}
 			}

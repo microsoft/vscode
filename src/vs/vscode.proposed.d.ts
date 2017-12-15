@@ -210,11 +210,11 @@ declare module 'vscode' {
 		title: string;
 
 		/**
-		 * Optional edit that performs the code action.
+		 * A workspace edit this code action performs.
 		 *
-		 * Either `command` or `edits` must be provided for a `CodeAction`.
+		 * *Note* that either an [`edit`](CodeAction#edit) or a [`command`](CodeAction#command) must be supplied.
 		 */
-		edits?: TextEdit[] | WorkspaceEdit;
+		edit?: WorkspaceEdit;
 
 		/**
 		 * Diagnostics that this code action resolves.
@@ -222,9 +222,9 @@ declare module 'vscode' {
 		diagnostics?: Diagnostic[];
 
 		/**
-		 * Optional command that performs the code action.
+		 * A command this code action performs.
 		 *
-		 * Executed after `edits` if any edits are provided. Either `command` or `edits` must be provided for a `CodeAction`.
+		 * *Note* that either an [`edit`](CodeAction#edit) or a [`command`](CodeAction#command) must be supplied.
 		 */
 		command?: Command;
 
@@ -237,7 +237,7 @@ declare module 'vscode' {
 		 * @param title The title of the code action.
 		 * @param edits The edit of the code action.
 		 */
-		constructor(title: string, edits?: TextEdit[] | WorkspaceEdit);
+		constructor(title: string, edit?: WorkspaceEdit);
 	}
 
 	export interface CodeActionProvider {
