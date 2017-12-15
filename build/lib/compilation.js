@@ -22,6 +22,9 @@ var rootDir = path.join(__dirname, '../../src');
 var options = require('../../src/tsconfig.json').compilerOptions;
 options.verbose = false;
 options.sourceMap = true;
+if (process.env['VSCODE_NO_SOURCEMAP']) {
+    options.sourceMap = false;
+}
 options.rootDir = rootDir;
 options.sourceRoot = util.toFileUri(rootDir);
 function createCompile(build, emitError) {
