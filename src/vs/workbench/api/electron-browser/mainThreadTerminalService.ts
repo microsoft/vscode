@@ -33,11 +33,12 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		// when the extension host process goes down ?
 	}
 
-	public $createTerminal(name?: string, shellPath?: string, shellArgs?: string[], env?: { [key: string]: string }, waitOnExit?: boolean): TPromise<number> {
+	public $createTerminal(name?: string, shellPath?: string, shellArgs?: string[], cwd?: string, env?: { [key: string]: string }, waitOnExit?: boolean): TPromise<number> {
 		const shellLaunchConfig: IShellLaunchConfig = {
 			name,
 			executable: shellPath,
 			args: shellArgs,
+			cwd,
 			waitOnExit,
 			ignoreConfigurationCwd: true,
 			env
