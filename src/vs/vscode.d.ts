@@ -839,6 +839,16 @@ declare module 'vscode' {
 		/**
 		 * CSS styling property that will be applied to text enclosed by a decoration.
 		 */
+		fontStyle?: string;
+
+		/**
+		 * CSS styling property that will be applied to text enclosed by a decoration.
+		 */
+		fontWeight?: string;
+
+		/**
+		 * CSS styling property that will be applied to text enclosed by a decoration.
+		 */
 		textDecoration?: string;
 
 		/**
@@ -902,6 +912,14 @@ declare module 'vscode' {
 		 * CSS styling property that will be applied to text enclosed by a decoration.
 		 */
 		borderColor?: string | ThemeColor;
+		/**
+		 * CSS styling property that will be applied to the decoration attachment.
+		 */
+		fontStyle?: string;
+		/**
+		 * CSS styling property that will be applied to the decoration attachment.
+		 */
+		fontWeight?: string;
 		/**
 		 * CSS styling property that will be applied to the decoration attachment.
 		 */
