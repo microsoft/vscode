@@ -317,8 +317,7 @@ function registerEditorCommands() {
 		command: {
 			id: CLOSE_UNMODIFIED_EDITORS_COMMAND_ID,
 			title: CLOSE_UNMODIFIED_EDITORS_LABEL
-		},
-		when: EditorFocusedInOpenEditorsContext
+		}
 	});
 
 	CommandsRegistry.registerCommand({
@@ -348,8 +347,7 @@ function registerEditorCommands() {
 		command: {
 			id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
 			title: CLOSE_EDITORS_IN_GROUP_LABEL
-		},
-		when: EditorFocusedInOpenEditorsContext
+		}
 	});
 
 	CommandsRegistry.registerCommand({

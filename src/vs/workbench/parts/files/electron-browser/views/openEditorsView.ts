@@ -14,8 +14,8 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Position, IEditorInput } from 'vs/platform/editor/common/editor';
-import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup, EditorFocusedInOpenEditorsContext, GroupFocusedInOpenEditorsContext } from 'vs/workbench/common/editor';
-import { SaveAllAction, SaveAllInGroupAction, SaveFileAction, RevertFileAction, SaveFileAsAction } from 'vs/workbench/parts/files/electron-browser/fileActions';
+import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup, EditorFocusedInOpenEditorsContext, GroupFocusedInOpenEditorsContext, UntitledEditorFocusedInOpenEditorsContext } from 'vs/workbench/common/editor';
+import { SaveAllAction, SaveAllInGroupAction } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { IViewletViewOptions, IViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { OpenEditorsFocusedContext, ExplorerFocusedContext, IFilesConfiguration } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
@@ -60,6 +60,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 	private contributedContextMenu: IMenu;
 	private needsRefresh: boolean;
 	private editorFocusedContext: IContextKey<boolean>;
+	private untitledEditorFocusedContext: IContextKey<boolean>;
 	private groupFocusedContext: IContextKey<boolean>;
 
 	constructor(
@@ -153,15 +154,19 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		OpenEditorsFocusedContext.bindTo(this.list.contextKeyService);
 		ExplorerFocusedContext.bindTo(this.list.contextKeyService);
 		this.editorFocusedContext = EditorFocusedInOpenEditorsContext.bindTo(this.contextKeyService);
+		this.untitledEditorFocusedContext = UntitledEditorFocusedInOpenEditorsContext.bindTo(this.contextKeyService);
 		this.groupFocusedContext = GroupFocusedInOpenEditorsContext.bindTo(this.contextKeyService);
 
 		this.disposables.push(this.list.onContextMenu(e => this.onListContextMenu(e)));
 		this.list.onFocusChange(e => {
 			this.editorFocusedContext.reset();
 			this.groupFocusedContext.reset();
-			if (e.elements.length && e.elements[0] instanceof OpenEditor) {
+			this.untitledEditorFocusedContext.reset();
+			const element = e.elements.length ? e.elements[0] : undefined;
+			if (element instanceof OpenEditor) {
 				this.editorFocusedContext.set(true);
-			} else if (e.elements.length) {
+				this.untitledEditorFocusedContext.set(element.isUntitled());
+			} else if (!!element) {
 				this.groupFocusedContext.set(true);
 			}
 		});
@@ -218,7 +223,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 
 	@memoize
 	private get actionProvider(): ActionProvider {
-		return new ActionProvider(this.instantiationService, this.textFileService, this.untitledEditorService);
+		return new ActionProvider(this.instantiationService, this.textFileService);
 	}
 
 	private get elements(): (IEditorGroup | OpenEditor)[] {
@@ -592,8 +597,7 @@ export class ActionProvider extends ContributableActionProvider {
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
+		@ITextFileService private textFileService: ITextFileService
 	) {
 		super();
 	}
@@ -606,48 +610,6 @@ export class ActionProvider extends ContributableActionProvider {
 			if (!autoSaveEnabled) {
 				result.push(this.instantiationService.createInstance(SaveAllInGroupAction, SaveAllInGroupAction.ID, nls.localize('saveAll', "Save All")));
 				result.push(new Separator());
-			}
-
-			result.push(this.instantiationService.createInstance(CloseUnmodifiedEditorsInGroupAction, CloseUnmodifiedEditorsInGroupAction.ID, nls.localize('closeAllUnmodified', "Close Unmodified")));
-			result.push(this.instantiationService.createInstance(CloseEditorsInGroupAction, CloseEditorsInGroupAction.ID, nls.localize('closeAll', "Close All")));
-		} else {
-			const openEditor = <OpenEditor>element;
-			const resource = openEditor.getResource();
-			if (resource) {
-
-				if (!openEditor.isUntitled()) {
-
-					// Files: Save / Revert
-					if (!autoSaveEnabled) {
-						result.push(new Separator());
-
-						const saveAction = this.instantiationService.createInstance(SaveFileAction, SaveFileAction.ID, SaveFileAction.LABEL);
-						saveAction.setResource(resource);
-						saveAction.enabled = openEditor.isDirty();
-						result.push(saveAction);
-
-						const revertAction = this.instantiationService.createInstance(RevertFileAction, RevertFileAction.ID, RevertFileAction.LABEL);
-						revertAction.setResource(resource);
-						revertAction.enabled = openEditor.isDirty();
-						result.push(revertAction);
-					}
-				}
-
-				// Untitled: Save / Save As
-				if (openEditor.isUntitled()) {
-					result.push(new Separator());
-
-					if (this.untitledEditorService.hasAssociatedFilePath(resource)) {
-						let saveUntitledAction = this.instantiationService.createInstance(SaveFileAction, SaveFileAction.ID, SaveFileAction.LABEL);
-						saveUntitledAction.setResource(resource);
-						result.push(saveUntitledAction);
-					}
-
-					let saveAsAction = this.instantiationService.createInstance(SaveFileAsAction, SaveFileAsAction.ID, SaveFileAsAction.LABEL);
-					saveAsAction.setResource(resource);
-					result.push(saveAsAction);
-				}
-
 			}
 		}
 

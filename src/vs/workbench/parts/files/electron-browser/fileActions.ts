@@ -39,11 +39,10 @@ import { Position, IResourceInput, IUntitledResourceInput } from 'vs/platform/ed
 import { IInstantiationService, IConstructorSignature2, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction, IConfirmationResult } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
-import { IEditorViewState, IModel } from 'vs/editor/common/editorCommon';
+import { IModel } from 'vs/editor/common/editorCommon';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { withFocusedFilesExplorer, REVERT_FILE_COMMAND_ID, OPEN_TO_SIDE_COMMAND_ID, COMPARE_WITH_SAVED_SCHEMA, COMPARE_WITH_SAVED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, globalResourceToCompare, REVEAL_IN_OS_COMMAND_ID, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, computeLabelForCompare } from 'vs/workbench/parts/files/electron-browser/fileCommands';
+import { withFocusedFilesExplorer, REVERT_FILE_COMMAND_ID, OPEN_TO_SIDE_COMMAND_ID, COMPARE_WITH_SAVED_SCHEMA, COMPARE_WITH_SAVED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, globalResourceToCompare, REVEAL_IN_OS_COMMAND_ID, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, computeLabelForCompare, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL, SAVE_FILE_AS_LABEL } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -1247,154 +1246,63 @@ export class RefreshViewExplorerAction extends Action {
 	}
 }
 
-export abstract class BaseSaveFileAction extends BaseErrorReportingAction {
-	constructor(
-		id: string,
-		label: string,
-		messageService: IMessageService
-	) {
-		super(id, label, messageService);
-	}
+export class SaveFileAction extends BaseErrorReportingAction {
 
-	public run(context?: any): TPromise<boolean> {
-		return this.doRun(context).then(() => true, error => {
-			this.onError(error);
-			return null;
-		});
-	}
+	public static readonly ID = 'workbench.action.files.save';
+	public static readonly LABEL = SAVE_FILE_LABEL;
 
-	protected abstract doRun(context?: any): TPromise<boolean>;
-}
-
-export abstract class BaseSaveOneFileAction extends BaseSaveFileAction {
 	private resource: URI;
 
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IMessageService messageService: IMessageService,
-		@IFileService private fileService: IFileService
+		@ICommandService private commandService: ICommandService,
+		@IMessageService messageService: IMessageService
 	) {
 		super(id, label, messageService);
-
-		this.enabled = true;
 	}
-
-	public abstract isSaveAs(): boolean;
 
 	public setResource(resource: URI): void {
 		this.resource = resource;
 	}
 
-	protected doRun(context: any): TPromise<boolean> {
-		let source: URI;
-		if (this.resource) {
-			source = this.resource;
-		} else {
-			source = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true });
-		}
-
-		if (source && (this.fileService.canHandleResource(source) || source.scheme === 'untitled')) {
-
-			// Save As (or Save untitled with associated path)
-			if (this.isSaveAs() || source.scheme === 'untitled') {
-				let encodingOfSource: string;
-				if (source.scheme === 'untitled') {
-					encodingOfSource = this.untitledEditorService.getEncoding(source);
-				} else if (source.scheme === 'file') {
-					const textModel = this.textFileService.models.get(source);
-					encodingOfSource = textModel && textModel.getEncoding(); // text model can be null e.g. if this is a binary file!
-				}
-
-				let viewStateOfSource: IEditorViewState;
-				const activeEditor = this.editorService.getActiveEditor();
-				const editor = getCodeEditor(activeEditor);
-				if (editor) {
-					const activeResource = toResource(activeEditor.input, { supportSideBySide: true });
-					if (activeResource && (this.fileService.canHandleResource(activeResource) || source.scheme === 'untitled') && activeResource.toString() === source.toString()) {
-						viewStateOfSource = editor.saveViewState();
-					}
-				}
-
-				// Special case: an untitled file with associated path gets saved directly unless "saveAs" is true
-				let savePromise: TPromise<URI>;
-				if (!this.isSaveAs() && source.scheme === 'untitled' && this.untitledEditorService.hasAssociatedFilePath(source)) {
-					savePromise = this.textFileService.save(source).then((result) => {
-						if (result) {
-							return URI.file(source.fsPath);
-						}
-
-						return null;
-					});
-				}
-
-				// Otherwise, really "Save As..."
-				else {
-					savePromise = this.textFileService.saveAs(source);
-				}
-
-				return savePromise.then((target) => {
-					if (!target || target.toString() === source.toString()) {
-						return void 0; // save canceled or same resource used
-					}
-
-					const replaceWith: IResourceInput = {
-						resource: target,
-						encoding: encodingOfSource,
-						options: {
-							pinned: true,
-							viewState: viewStateOfSource
-						}
-					};
-
-					return this.editorService.replaceEditors([{
-						toReplace: { resource: source },
-						replaceWith
-					}]).then(() => true);
-				});
-			}
-
-			// Pin the active editor if we are saving it
-			if (!this.resource) {
-				const editor = this.editorService.getActiveEditor();
-				if (editor) {
-					this.editorGroupService.pinEditor(editor.position, editor.input);
-				}
-			}
-
-			// Just save
-			return this.textFileService.save(source, { force: true /* force a change to the file to trigger external watchers if any */ });
-		}
-
-		return TPromise.as(false);
+	public run(context?: any): TPromise<boolean> {
+		return this.commandService.executeCommand(SAVE_FILE_COMMAND_ID, { resource: this.resource }).then(() => true, error => {
+			this.onError(error);
+			return null;
+		});
 	}
 }
 
-export class SaveFileAction extends BaseSaveOneFileAction {
-
-	public static readonly ID = 'workbench.action.files.save';
-	public static readonly LABEL = nls.localize('save', "Save");
-
-	public isSaveAs(): boolean {
-		return false;
-	}
-}
-
-export class SaveFileAsAction extends BaseSaveOneFileAction {
+export class SaveFileAsAction extends BaseErrorReportingAction {
 
 	public static readonly ID = 'workbench.action.files.saveAs';
-	public static readonly LABEL = nls.localize('saveAs', "Save As...");
+	public static readonly LABEL = SAVE_FILE_AS_LABEL;
 
-	public isSaveAs(): boolean {
-		return true;
+	private resource: URI;
+
+	constructor(
+		id: string,
+		label: string,
+		@ICommandService private commandService: ICommandService,
+		@IMessageService messageService: IMessageService
+	) {
+		super(id, label, messageService);
+	}
+
+	public setResource(resource: URI): void {
+		this.resource = resource;
+	}
+
+	public run(context?: any): TPromise<boolean> {
+		return this.commandService.executeCommand(SAVE_FILE_AS_COMMAND_ID, { resource: this.resource }).then(() => true, error => {
+			this.onError(error);
+			return null;
+		});
 	}
 }
 
-export abstract class BaseSaveAllAction extends BaseSaveFileAction {
+export abstract class BaseSaveAllAction extends BaseErrorReportingAction {
 	private toDispose: IDisposable[];
 	private lastIsDirty: boolean;
 
@@ -1438,6 +1346,13 @@ export abstract class BaseSaveAllAction extends BaseSaveFileAction {
 			this.enabled = this.textFileService.isDirty();
 			this.lastIsDirty = this.enabled;
 		}
+	}
+
+	public run(context?: any): TPromise<boolean> {
+		return this.doRun(context).then(() => true, error => {
+			this.onError(error);
+			return null;
+		});
 	}
 
 	protected doRun(context: any): TPromise<boolean> {

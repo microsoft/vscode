@@ -44,6 +44,7 @@ const openEditorsVisibleId = 'openEditorsVisible';
 const openEditorsFocusId = 'openEditorsFocus';
 const explorerViewletFocusId = 'explorerViewletFocus';
 const explorerResourceIsFolderId = 'explorerResourceIsFolder';
+const autoSaveDisabled = 'autoSaveDisabled';
 
 export const ExplorerViewletVisibleContext = new RawContextKey<boolean>(explorerViewletVisibleId, true);
 export const ExplorerFolderContext = new RawContextKey<boolean>(explorerResourceIsFolderId, false);
@@ -51,6 +52,7 @@ export const FilesExplorerFocusedContext = new RawContextKey<boolean>(filesExplo
 export const OpenEditorsVisibleContext = new RawContextKey<boolean>(openEditorsVisibleId, false);
 export const OpenEditorsFocusedContext = new RawContextKey<boolean>(openEditorsFocusId, true);
 export const ExplorerFocusedContext = new RawContextKey<boolean>(explorerViewletFocusId, true);
+export const AutoSaveDisabledContext = new RawContextKey<boolean>(autoSaveDisabled, true);
 
 export const OpenEditorsVisibleCondition = ContextKeyExpr.has(openEditorsVisibleId);
 export const FilesExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has(explorerViewletVisibleId), ContextKeyExpr.has(filesExplorerFocusId), ContextKeyExpr.not(InputFocusedContextKey));

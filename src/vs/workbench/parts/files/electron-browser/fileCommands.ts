@@ -13,13 +13,13 @@ import * as labels from 'vs/base/common/labels';
 import * as resources from 'vs/base/common/resources';
 import URI from 'vs/base/common/uri';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { toResource, IEditorContext } from 'vs/workbench/common/editor';
+import { toResource, IEditorContext, EditorFocusedInOpenEditorsContext, UntitledEditorNotFocusedInOpenEditorsContext, UntitledEditorFocusedInOpenEditorsContext } from 'vs/workbench/common/editor';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/electron-browser/explorerViewlet';
-import { VIEWLET_ID, explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
+import { VIEWLET_ID, explorerItemToFileResource, AutoSaveDisabledContext } from 'vs/workbench/parts/files/common/files';
 import { FileStat, OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
 import errors = require('vs/base/common/errors');
 import { ITree } from 'vs/base/parts/tree/browser/tree';
@@ -35,6 +35,12 @@ import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/c
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
+import { IEditorViewState } from 'vs/editor/common/editorCommon';
+import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 
 // Commands
 
@@ -47,6 +53,13 @@ export const COMPARE_RESOURCE_COMMAND_ID = 'workbench.files.command.compareFiles
 export const COMPARE_WITH_SAVED_COMMAND_ID = 'workbench.files.command.compareWithSaved';
 export const COMPARE_WITH_SAVED_SCHEMA = 'showModifications';
 export const COPY_PATH_COMMAND_ID = 'workbench.command.files.copyPath';
+
+export const SAVE_FILE_AS_COMMAND_ID = 'workbench.command.files.saveAs';
+export const SAVE_FILE_AS_LABEL = nls.localize('saveAs', "Save As...");
+export const SAVE_FILE_COMMAND_ID = 'workbench.command.files.save';
+export const SAVE_FILE_LABEL = nls.localize('save', "Save");
+export const BASE_SAVE_ONE_FILE_COMMAND_ID = 'workbench.command.files.saveAs';
+
 
 registerFileCommands();
 
@@ -269,6 +282,15 @@ function registerFileCommands(): void {
 		}
 	});
 
+	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+		group: 'save',
+		command: {
+			id: REVERT_FILE_COMMAND_ID,
+			title: nls.localize('revert', "Revert File")
+		},
+		when: ContextKeyExpr.and(EditorFocusedInOpenEditorsContext, AutoSaveDisabledContext, UntitledEditorNotFocusedInOpenEditorsContext)
+	});
+
 	CommandsRegistry.registerCommand({
 		id: OPEN_TO_SIDE_COMMAND_ID, handler: (accessor, args) => {
 			const editorService = accessor.get(IWorkbenchEditorService);
@@ -294,7 +316,8 @@ function registerFileCommands(): void {
 		command: {
 			id: OPEN_TO_SIDE_COMMAND_ID,
 			title: nls.localize('openToSide', "Open to the Side")
-		}
+		},
+		when: EditorFocusedInOpenEditorsContext
 	});
 
 	CommandsRegistry.registerCommand({
@@ -321,11 +344,11 @@ function registerFileCommands(): void {
 
 	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		group: 'compare',
-
 		command: {
 			id: COMPARE_WITH_SAVED_COMMAND_ID,
 			title: nls.localize('compareWithSaved', "Compare with Saved")
-		}
+		},
+		when: EditorFocusedInOpenEditorsContext
 	});
 
 	CommandsRegistry.registerCommand({
@@ -348,7 +371,8 @@ function registerFileCommands(): void {
 		command: {
 			id: SELECT_FOR_COMPARE_COMMAND_ID,
 			title: nls.localize('compareSource', "Select for Compare")
-		}
+		},
+		when: EditorFocusedInOpenEditorsContext
 	});
 
 	CommandsRegistry.registerCommand({
@@ -374,7 +398,8 @@ function registerFileCommands(): void {
 		command: {
 			id: COMPARE_RESOURCE_COMMAND_ID,
 			title: nls.localize('compareWithChosen', "Compare With Chosen")
-		}
+		},
+		when: EditorFocusedInOpenEditorsContext
 	});
 
 	CommandsRegistry.registerCommand({
@@ -428,7 +453,8 @@ function registerFileCommands(): void {
 		command: {
 			id: COPY_PATH_COMMAND_ID,
 			title: nls.localize('copyPath', "Copy Path")
-		}
+		},
+		when: EditorFocusedInOpenEditorsContext
 	});
 
 	CommandsRegistry.registerCommand({
@@ -460,6 +486,133 @@ function registerFileCommands(): void {
 		command: {
 			id: REVEAL_IN_EXPLORER_COMMAND_ID,
 			title: isWindows ? nls.localize('revealInWindows', "Reveal in Explorer") : isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder")
+		},
+		when: EditorFocusedInOpenEditorsContext
+	});
+
+	CommandsRegistry.registerCommand({
+		id: SAVE_FILE_AS_COMMAND_ID,
+		handler: (accessor, args: IEditorContext) => {
+			const commandService = accessor.get(ICommandService);
+			return commandService.executeCommand(BASE_SAVE_ONE_FILE_COMMAND_ID, args.resource, true);
+		}
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+		group: 'save',
+		command: {
+			id: SAVE_FILE_AS_COMMAND_ID,
+			title: SAVE_FILE_AS_LABEL
+		},
+		when: ContextKeyExpr.and(EditorFocusedInOpenEditorsContext, UntitledEditorFocusedInOpenEditorsContext)
+	});
+
+	CommandsRegistry.registerCommand({
+		id: SAVE_FILE_COMMAND_ID,
+		handler: (accessor, args: IEditorContext) => {
+			const commandService = accessor.get(ICommandService);
+			return commandService.executeCommand(BASE_SAVE_ONE_FILE_COMMAND_ID, args.resource, false);
+		}
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+		group: 'save',
+		command: {
+			id: SAVE_FILE_AS_COMMAND_ID,
+			title: SAVE_FILE_LABEL
+		},
+		when: ContextKeyExpr.and(EditorFocusedInOpenEditorsContext)
+	});
+
+	CommandsRegistry.registerCommand({
+		id: BASE_SAVE_ONE_FILE_COMMAND_ID,
+		handler: (accessor, resource: URI, isSaveAs: boolean) => {
+			const editorService = accessor.get(IWorkbenchEditorService);
+			const fileService = accessor.get(IFileService);
+			const untitledEditorService = accessor.get(IUntitledEditorService);
+			const textFileService = accessor.get(ITextFileService);
+			const editorGroupService = accessor.get(IEditorGroupService);
+
+			let source: URI;
+			if (resource) {
+				source = resource;
+			} else {
+				source = toResource(editorService.getActiveEditorInput(), { supportSideBySide: true });
+			}
+
+			if (source && (fileService.canHandleResource(source) || source.scheme === 'untitled')) {
+
+				// Save As (or Save untitled with associated path)
+				if (isSaveAs || source.scheme === 'untitled') {
+					let encodingOfSource: string;
+					if (source.scheme === 'untitled') {
+						encodingOfSource = untitledEditorService.getEncoding(source);
+					} else if (source.scheme === 'file') {
+						const textModel = textFileService.models.get(source);
+						encodingOfSource = textModel && textModel.getEncoding(); // text model can be null e.g. if this is a binary file!
+					}
+
+					let viewStateOfSource: IEditorViewState;
+					const activeEditor = editorService.getActiveEditor();
+					const editor = getCodeEditor(activeEditor);
+					if (editor) {
+						const activeResource = toResource(activeEditor.input, { supportSideBySide: true });
+						if (activeResource && (fileService.canHandleResource(activeResource) || source.scheme === 'untitled') && activeResource.toString() === source.toString()) {
+							viewStateOfSource = editor.saveViewState();
+						}
+					}
+
+					// Special case: an untitled file with associated path gets saved directly unless "saveAs" is true
+					let savePromise: TPromise<URI>;
+					if (!isSaveAs && source.scheme === 'untitled' && untitledEditorService.hasAssociatedFilePath(source)) {
+						savePromise = textFileService.save(source).then((result) => {
+							if (result) {
+								return URI.file(source.fsPath);
+							}
+
+							return null;
+						});
+					}
+
+					// Otherwise, really "Save As..."
+					else {
+						savePromise = textFileService.saveAs(source);
+					}
+
+					return savePromise.then((target) => {
+						if (!target || target.toString() === source.toString()) {
+							return void 0; // save canceled or same resource used
+						}
+
+						const replaceWith: IResourceInput = {
+							resource: target,
+							encoding: encodingOfSource,
+							options: {
+								pinned: true,
+								viewState: viewStateOfSource
+							}
+						};
+
+						return editorService.replaceEditors([{
+							toReplace: { resource: source },
+							replaceWith
+						}]).then(() => true);
+					});
+				}
+
+				// Pin the active editor if we are saving it
+				if (!resource) {
+					const editor = editorService.getActiveEditor();
+					if (editor) {
+						editorGroupService.pinEditor(editor.position, editor.input);
+					}
+				}
+
+				// Just save
+				return textFileService.save(source, { force: true /* force a change to the file to trigger external watchers if any */ });
+			}
+
+			return TPromise.as(false);
 		}
 	});
 }
