@@ -367,7 +367,7 @@ declare module 'vscode' {
 
 	export interface ExtensionContext {
 		/**
-		 * A logger
+		 * This extension's logger
 		 */
 		logger: Logger;
 	}
