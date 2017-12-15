@@ -276,27 +276,27 @@ export interface ISerializedLanguageConfiguration {
 }
 
 export interface MainThreadLanguageFeaturesShape extends IDisposable {
-	$unregister(handle: number): TPromise<any>;
-	$registerOutlineSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
-	$registerCodeLensSupport(handle: number, selector: vscode.DocumentSelector, eventHandle: number): TPromise<any>;
-	$emitCodeLensEvent(eventHandle: number, event?: any): TPromise<any>;
-	$registerDeclaractionSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
-	$registerImplementationSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
-	$registerTypeDefinitionSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
-	$registerHoverProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
-	$registerDocumentHighlightProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
-	$registerReferenceSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
-	$registerQuickFixSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
-	$registerDocumentFormattingSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
-	$registerRangeFormattingSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
-	$registerOnTypeFormattingSupport(handle: number, selector: vscode.DocumentSelector, autoFormatTriggerCharacters: string[]): TPromise<any>;
-	$registerNavigateTypeSupport(handle: number): TPromise<any>;
-	$registerRenameSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
-	$registerSuggestSupport(handle: number, selector: vscode.DocumentSelector, triggerCharacters: string[], supportsResolveDetails: boolean): TPromise<any>;
-	$registerSignatureHelpProvider(handle: number, selector: vscode.DocumentSelector, triggerCharacter: string[]): TPromise<any>;
-	$registerDocumentLinkProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
-	$registerDocumentColorProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
-	$setLanguageConfiguration(handle: number, languageId: string, configuration: ISerializedLanguageConfiguration): TPromise<any>;
+	$unregister(handle: number): void;
+	$registerOutlineSupport(handle: number, selector: vscode.DocumentSelector): void;
+	$registerCodeLensSupport(handle: number, selector: vscode.DocumentSelector, eventHandle: number): void;
+	$emitCodeLensEvent(eventHandle: number, event?: any): void;
+	$registerDeclaractionSupport(handle: number, selector: vscode.DocumentSelector): void;
+	$registerImplementationSupport(handle: number, selector: vscode.DocumentSelector): void;
+	$registerTypeDefinitionSupport(handle: number, selector: vscode.DocumentSelector): void;
+	$registerHoverProvider(handle: number, selector: vscode.DocumentSelector): void;
+	$registerDocumentHighlightProvider(handle: number, selector: vscode.DocumentSelector): void;
+	$registerReferenceSupport(handle: number, selector: vscode.DocumentSelector): void;
+	$registerQuickFixSupport(handle: number, selector: vscode.DocumentSelector): void;
+	$registerDocumentFormattingSupport(handle: number, selector: vscode.DocumentSelector): void;
+	$registerRangeFormattingSupport(handle: number, selector: vscode.DocumentSelector): void;
+	$registerOnTypeFormattingSupport(handle: number, selector: vscode.DocumentSelector, autoFormatTriggerCharacters: string[]): void;
+	$registerNavigateTypeSupport(handle: number): void;
+	$registerRenameSupport(handle: number, selector: vscode.DocumentSelector): void;
+	$registerSuggestSupport(handle: number, selector: vscode.DocumentSelector, triggerCharacters: string[], supportsResolveDetails: boolean): void;
+	$registerSignatureHelpProvider(handle: number, selector: vscode.DocumentSelector, triggerCharacter: string[]): void;
+	$registerDocumentLinkProvider(handle: number, selector: vscode.DocumentSelector): void;
+	$registerDocumentColorProvider(handle: number, selector: vscode.DocumentSelector): void;
+	$setLanguageConfiguration(handle: number, languageId: string, configuration: ISerializedLanguageConfiguration): void;
 }
 
 export interface MainThreadLanguagesShape extends IDisposable {
