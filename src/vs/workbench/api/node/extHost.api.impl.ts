@@ -63,13 +63,21 @@ export interface IExtensionApiFactory {
 	(extension: IExtensionDescription): typeof vscode;
 }
 
+export function checkProposedApiEnabled(extension: IExtensionDescription): void {
+	if (!extension.enableProposedApi) {
+		throwProposedApiError(extension);
+	}
+}
+
+function throwProposedApiError(extension: IExtensionDescription): never {
+	throw new Error(`[${extension.id}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extension.id}`);
+}
+
 function proposedApiFunction<T>(extension: IExtensionDescription, fn: T): T {
 	if (extension.enableProposedApi) {
 		return fn;
 	} else {
-		return <any>(() => {
-			throw new Error(`[${extension.id}]: Proposed API is only available when running out of dev or with the following command line switch: --enable-proposed-api ${extension.id}`);
-		});
+		return <any>throwProposedApiError;
 	}
 }
 

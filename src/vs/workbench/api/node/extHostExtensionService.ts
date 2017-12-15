@@ -12,7 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/node/extensionDescriptionRegistry';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostStorage } from 'vs/workbench/api/node/extHostStorage';
-import { createApiFactory, initializeExtensionApi } from 'vs/workbench/api/node/extHost.api.impl';
+import { createApiFactory, initializeExtensionApi, checkProposedApiEnabled } from 'vs/workbench/api/node/extHost.api.impl';
 import { MainContext, MainThreadExtensionServiceShape, IWorkspaceData, IEnvironment, IInitData, ExtHostExtensionServiceShape, MainThreadTelemetryShape, IExtHostContext } from './extHost.protocol';
 import { IExtensionMemento, ExtensionsActivator, ActivatedExtension, IExtensionAPI, IExtensionContext, EmptyExtension, IExtensionModule, ExtensionActivationTimesBuilder, ExtensionActivationTimes, ExtensionActivationReason, ExtensionActivatedByEvent } from 'vs/workbench/api/node/extHostExtensionActivator';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
@@ -344,7 +344,10 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				get extensionPath() { return extensionDescription.extensionFolderPath; },
 				storagePath: this._storagePath.value(extensionDescription),
 				asAbsolutePath: (relativePath: string) => { return join(extensionDescription.extensionFolderPath, relativePath); },
-				get logger() { return that._extHostLogService.getExtLogger(extensionDescription.id); }
+				get logger() {
+					checkProposedApiEnabled(extensionDescription);
+					return that._extHostLogService.getExtLogger(extensionDescription.id);
+				}
 			});
 		});
 	}
