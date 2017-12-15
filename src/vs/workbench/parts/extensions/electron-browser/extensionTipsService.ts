@@ -31,6 +31,7 @@ import { flatten, distinct } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { guessMimeTypes, MIME_UNKNOWN } from 'vs/base/common/mime';
 import { ShowLanguageExtensionsAction } from 'vs/workbench/browser/parts/editor/editorStatus';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 interface IExtensionsContent {
 	recommendations: string[];
@@ -63,7 +64,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IMessageService private messageService: IMessageService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@ILifecycleService lifecycleService: ILifecycleService
 	) {
 		super();
 
@@ -71,7 +73,10 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			return;
 		}
 
-		this._suggestFileBasedRecommendations();
+		lifecycleService.when(LifecyclePhase.Eventually).then(() => {
+			this._suggestFileBasedRecommendations();
+		});
+
 		this.promptWorkspaceRecommendationsPromise = this._suggestWorkspaceRecommendations();
 
 		// Executable based recommendations carry out a lot of file stats, so run them after 10 secs
