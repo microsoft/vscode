@@ -52,7 +52,8 @@ export interface ParsedArgs {
 	'disable-updates'?: string;
 	'disable-crash-reporter'?: string;
 	'skip-add-to-recently-opened'?: boolean;
-	'write-elevated-helper'?: boolean;
+	'sudo-write'?: boolean;
+	'sudo-chmod'?: boolean;
 }
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');

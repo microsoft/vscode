@@ -100,10 +100,15 @@ export interface IWindowsService {
 	onWindowMaximize: Event<number>;
 	onWindowUnmaximize: Event<number>;
 
+	// Dialogs
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
 	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
+	showMessageBox(windowId: number, options: MessageBoxOptions): TPromise<IMessageBoxResult>;
+	showSaveDialog(windowId: number, options: SaveDialogOptions): TPromise<string>;
+	showOpenDialog(windowId: number, options: OpenDialogOptions): TPromise<string[]>;
+
 	reloadWindow(windowId: number): TPromise<void>;
 	openDevTools(windowId: number): TPromise<void>;
 	toggleDevTools(windowId: number): TPromise<void>;
@@ -199,10 +204,9 @@ export interface IWindowService {
 	minimizeWindow(): TPromise<void>;
 	onWindowTitleDoubleClick(): TPromise<void>;
 	show(): TPromise<void>;
-	showMessageBox(options: MessageBoxOptions): TPromise<number>;
+	showMessageBox(options: MessageBoxOptions): TPromise<IMessageBoxResult>;
 	showSaveDialog(options: SaveDialogOptions): TPromise<string>;
 	showOpenDialog(options: OpenDialogOptions): TPromise<string[]>;
-	showMessageBoxWithCheckbox(options: MessageBoxOptions): TPromise<IMessageBoxResult>;
 }
 
 export type MenuBarVisibility = 'default' | 'visible' | 'toggle' | 'hidden';

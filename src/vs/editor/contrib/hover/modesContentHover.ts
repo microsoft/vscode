@@ -154,7 +154,7 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 
 export class ModesContentHoverWidget extends ContentHoverWidget {
 
-	static ID = 'editor.contrib.modesContentHoverWidget';
+	static readonly ID = 'editor.contrib.modesContentHoverWidget';
 
 	private _messages: HoverPart[];
 	private _lastRange: Range;

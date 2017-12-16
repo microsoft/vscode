@@ -92,7 +92,7 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 	}
 
 	public createDocumentData(options?: { language?: string; content?: string }): TPromise<URI> {
-		return this._proxy.$tryCreateDocument(options);
+		return this._proxy.$tryCreateDocument(options).then(data => URI.revive(data));
 	}
 
 	public $acceptModelModeChanged(strURL: string, oldModeId: string, newModeId: string): void {

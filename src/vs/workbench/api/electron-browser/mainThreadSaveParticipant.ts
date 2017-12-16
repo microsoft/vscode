@@ -15,7 +15,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
 import { trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
-import { getDocumentFormattingEdits } from 'vs/editor/contrib/format/format';
+import { getDocumentFormattingEdits, NoProviderError } from 'vs/editor/contrib/format/format';
 import { EditOperationsCommand } from 'vs/editor/contrib/format/formatCommand';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
@@ -199,7 +199,13 @@ class FormatOnSaveParticipant implements ISaveParticipantParticipant {
 			setTimeout(reject, 750);
 			getDocumentFormattingEdits(model, { tabSize, insertSpaces })
 				.then(edits => this._editorWorkerService.computeMoreMinimalEdits(model.uri, edits))
-				.then(resolve, reject);
+				.then(resolve, err => {
+					if (!(err instanceof Error) || err.name !== NoProviderError.Name) {
+						reject(err);
+					} else {
+						resolve();
+					}
+				});
 
 		}).then(edits => {
 			if (edits && versionNow === model.getVersionId()) {

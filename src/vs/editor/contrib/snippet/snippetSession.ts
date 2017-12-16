@@ -272,7 +272,7 @@ export class SnippetSession {
 		const snippets: OneSnippet[] = [];
 
 		const modelBasedVariableResolver = new ModelBasedVariableResolver(model);
-		const clipboardVariableResolver = new ClipboardBasedVariableResolver(editor.invokeWithinContext(accessor => accessor.get(IClipboardService, optional)));
+		const clipboardService = editor.invokeWithinContext(accessor => accessor.get(IClipboardService, optional));
 
 		let delta = 0;
 
@@ -286,11 +286,11 @@ export class SnippetSession {
 		// the original index. that allows you to create correct
 		// offset-based selection logic without changing the
 		// primary selection
-		const indexedSelection = editor.getSelections()
+		const indexedSelections = editor.getSelections()
 			.map((selection, idx) => ({ selection, idx }))
 			.sort((a, b) => Range.compareRangesUsingStarts(a.selection, b.selection));
 
-		for (const { selection, idx } of indexedSelection) {
+		for (const { selection, idx } of indexedSelections) {
 
 			// extend selection with the `overwriteBefore` and `overwriteAfter` and then
 			// compare if this matches the extensions of the primary selection
@@ -317,7 +317,7 @@ export class SnippetSession {
 				.parse(adjustedTemplate, true, enforceFinalTabstop)
 				.resolveVariables(new CompositeSnippetVariableResolver([
 					modelBasedVariableResolver,
-					clipboardVariableResolver,
+					new ClipboardBasedVariableResolver(clipboardService, idx, indexedSelections.length),
 					new SelectionBasedVariableResolver(model, selection)
 				]));
 

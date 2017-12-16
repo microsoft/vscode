@@ -46,14 +46,7 @@ export class RPCProtocol implements IRPCProtocol {
 
 	public getProxy<T>(identifier: ProxyIdentifier<T>): T {
 		if (!this._proxies[identifier.id]) {
-			this._proxies[identifier.id] = this._createProxy(identifier.id, true);
-		}
-		return this._proxies[identifier.id];
-	}
-
-	public getFastProxy<T>(identifier: ProxyIdentifier<T>): T {
-		if (!this._proxies[identifier.id]) {
-			this._proxies[identifier.id] = this._createProxy(identifier.id, false);
+			this._proxies[identifier.id] = this._createProxy(identifier.id, identifier.isFancy);
 		}
 		return this._proxies[identifier.id];
 	}

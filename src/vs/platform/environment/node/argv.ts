@@ -55,7 +55,8 @@ const options: minimist.Opts = {
 		'disable-crash-reporter',
 		'skip-add-to-recently-opened',
 		'status',
-		'write-elevated-helper'
+		'sudo-write',
+		'sudo-chmod'
 	],
 	alias: {
 		add: 'a',

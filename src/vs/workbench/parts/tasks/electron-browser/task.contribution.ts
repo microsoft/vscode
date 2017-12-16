@@ -681,7 +681,7 @@ class TaskService implements ITaskService {
 	}
 
 	private showOutput(): void {
-		this._outputChannel.show(true);
+		this.outputService.showChannel(this._outputChannel.id, true);
 	}
 
 	private disposeTaskSystemListeners(): void {
@@ -1278,7 +1278,7 @@ class TaskService implements ITaskService {
 							this._outputChannel.append('Error: ');
 							this._outputChannel.append(error.message);
 							this._outputChannel.append('\n');
-							this._outputChannel.show(true);
+							this.outputService.showChannel(this._outputChannel.id, true);
 						}
 					} finally {
 						if (--counter === 0) {
@@ -1616,7 +1616,7 @@ class TaskService implements ITaskService {
 				result = true;
 				this._outputChannel.append(line + '\n');
 			});
-			this._outputChannel.show(true);
+			this.outputService.showChannel(this._outputChannel.id, true);
 		}
 		return result;
 	}
@@ -1748,7 +1748,7 @@ class TaskService implements ITaskService {
 			this.messageService.show(Severity.Error, nls.localize('TaskSystem.unknownError', 'An error has occurred while running a task. See task log for details.'));
 		}
 		if (showOutput) {
-			this._outputChannel.show(true);
+			this.outputService.showChannel(this._outputChannel.id, true);
 		}
 	}
 

@@ -31,7 +31,7 @@ define([], function () {
 	}
 
 	function exportEntries() {
-		return global._performanceEntries.splice(0);
+		return global._performanceEntries.slice(0);
 	}
 
 	function getEntries(type, name) {

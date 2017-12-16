@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IModel } from 'vs/editor/common/editorCommon';
@@ -63,8 +63,8 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 		}
 	}
 
-	$onVirtualDocumentChange(uri: URI, value: ITextSource): void {
-		const model = this._modelService.getModel(uri);
+	$onVirtualDocumentChange(uri: UriComponents, value: ITextSource): void {
+		const model = this._modelService.getModel(URI.revive(uri));
 		if (!model) {
 			return;
 		}

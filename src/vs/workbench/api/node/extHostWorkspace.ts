@@ -18,14 +18,23 @@ import { TernarySearchTree } from 'vs/base/common/map';
 class Workspace2 extends Workspace {
 
 	static fromData(data: IWorkspaceData) {
-		return data ? new Workspace2(data) : null;
+		if (!data) {
+			return null;
+		} else {
+			const { id, name, folders } = data;
+			return new Workspace2(
+				id,
+				name,
+				folders.map(({ uri, name, index }) => new WorkspaceFolder({ name, index, uri: URI.revive(uri) }))
+			);
+		}
 	}
 
 	private readonly _workspaceFolders: vscode.WorkspaceFolder[] = [];
 	private readonly _structure = TernarySearchTree.forPaths<vscode.WorkspaceFolder>();
 
-	private constructor(data: IWorkspaceData) {
-		super(data.id, data.name, data.folders.map(folder => new WorkspaceFolder(folder)));
+	private constructor(id: string, name: string, folders: WorkspaceFolder[]) {
+		super(id, name, folders);
 
 		// setup the workspace folder data structure
 		this.folders.forEach(({ name, uri, index }) => {
@@ -181,7 +190,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape {
 		if (token) {
 			token.onCancellationRequested(() => this._proxy.$cancelSearch(requestId));
 		}
-		return result;
+		return result.then(data => data.map(URI.revive));
 	}
 
 	saveAll(includeUntitled?: boolean): Thenable<boolean> {

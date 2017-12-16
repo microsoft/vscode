@@ -106,7 +106,7 @@ export default class TypeScriptQuickFixProvider implements vscode.CodeActionProv
 	private getCommandForAction(action: Proto.CodeAction): vscode.CodeAction {
 		return {
 			title: action.description,
-			edits: getEditForCodeAction(this.client, action),
+			edit: getEditForCodeAction(this.client, action),
 			command: action.commands ? {
 				command: ApplyCodeActionCommand.ID,
 				arguments: [action],

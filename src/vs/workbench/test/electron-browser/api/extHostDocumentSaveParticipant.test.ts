@@ -42,7 +42,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			addedDocuments: [{
 				isDirty: false,
 				modeId: 'foo',
-				url: resource,
+				uri: resource,
 				versionId: 1,
 				lines: ['foo'],
 				EOL: '\n',
@@ -324,15 +324,16 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			$tryApplyWorkspaceEdit(_edits: IWorkspaceResourceEdit[]) {
 
 				for (const { resource, edits } of _edits) {
+					const uri = URI.revive(resource);
 					for (const { newText, range } of edits) {
-						documents.$acceptModelChanged(resource.toString(), {
+						documents.$acceptModelChanged(uri.toString(), {
 							changes: [{
 								range,
 								rangeLength: undefined,
 								text: newText
 							}],
 							eol: undefined,
-							versionId: documents.getDocumentData(resource).version + 1
+							versionId: documents.getDocumentData(uri).version + 1
 						}, true);
 					}
 				}

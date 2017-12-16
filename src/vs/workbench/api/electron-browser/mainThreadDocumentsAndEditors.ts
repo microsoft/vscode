@@ -398,7 +398,7 @@ export class MainThreadDocumentsAndEditors {
 
 	private _toModelAddData(model: IModel): IModelAddedData {
 		return {
-			url: model.uri,
+			uri: model.uri,
 			versionId: model.getVersionId(),
 			lines: model.getLinesContent(),
 			EOL: model.getEOL(),
@@ -410,7 +410,7 @@ export class MainThreadDocumentsAndEditors {
 	private _toTextEditorAddData(textEditor: MainThreadTextEditor): ITextEditorAddData {
 		return {
 			id: textEditor.getId(),
-			document: textEditor.getModel().uri,
+			documentUri: textEditor.getModel().uri,
 			options: textEditor.getConfiguration(),
 			selections: textEditor.getSelections(),
 			editorPosition: this._findEditorPosition(textEditor)

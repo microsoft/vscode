@@ -13,9 +13,6 @@ export function OneGetThreadService(thing: any): IRPCProtocol {
 		getProxy<T>(): T {
 			return thing;
 		},
-		getFastProxy<T>(): T {
-			return thing;
-		},
 		set<T, R extends T>(identifier: ProxyIdentifier<T>, value: R): R {
 			return value;
 		},
@@ -124,15 +121,6 @@ export class TestThreadService extends AbstractTestThreadService implements IRPC
 	}
 
 	getProxy<T>(identifier: ProxyIdentifier<T>): T {
-		return this._get(identifier);
-	}
-
-	getFastProxy<T>(identifier: ProxyIdentifier<T>): T {
-		return this._get(identifier);
-	}
-
-	_get<T>(identifier: ProxyIdentifier<T>): T {
-
 		let id = identifier.id;
 		if (this._locals[id]) {
 			return this._locals[id];

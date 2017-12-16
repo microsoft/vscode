@@ -30,16 +30,16 @@ export const jsTsLanguageConfiguration = {
 			action: { indentAction: IndentAction.None, appendText: ' * ' }
 		}, {
 			// e.g.  * ...|
-			beforeText: /^(\t|(\ \ ))*\ \*(\ ([^\*]|\*(?!\/))*)?$/,
+			beforeText: /^(\t|[ ])*[ ]\*([ ]([^\*]|\*(?!\/))*)?$/,
 			action: { indentAction: IndentAction.None, appendText: '* ' }
 		}, {
 			// e.g.  */|
-			beforeText: /^(\t|(\ \ ))*\ \*\/\s*$/,
+			beforeText: /^(\t|[ ])*[ ]\*\/\s*$/,
 			action: { indentAction: IndentAction.None, removeText: 1 }
 		},
 		{
 			// e.g.  *-----*/|
-			beforeText: /^(\t|(\ \ ))*\ \*[^/]*\*\/\s*$/,
+			beforeText: /^(\t|[ ])*[ ]\*[^/]*\*\/\s*$/,
 			action: { indentAction: IndentAction.None, removeText: 1 }
 		}
 	]

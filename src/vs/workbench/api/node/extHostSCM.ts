@@ -12,7 +12,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
-import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext } from './extHost.protocol';
+import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape } from './extHost.protocol';
 import { sortedDiff } from 'vs/base/common/arrays';
 import { comparePaths } from 'vs/base/common/comparers';
 import * as vscode from 'vscode';
@@ -442,7 +442,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	}
 }
 
-export class ExtHostSCM {
+export class ExtHostSCM implements ExtHostSCMShape {
 
 	private static _handlePool: number = 0;
 
@@ -524,8 +524,8 @@ export class ExtHostSCM {
 		return inputBox;
 	}
 
-	$provideOriginalResource(sourceControlHandle: number, uri: URI): TPromise<URI> {
-		this.logService.trace('ExtHostSCM#$provideOriginalResource', sourceControlHandle, uri);
+	$provideOriginalResource(sourceControlHandle: number, uriString: string): TPromise<string> {
+		this.logService.trace('ExtHostSCM#$provideOriginalResource', sourceControlHandle, uriString);
 
 		const sourceControl = this._sourceControls.get(sourceControlHandle);
 
@@ -533,10 +533,8 @@ export class ExtHostSCM {
 			return TPromise.as(null);
 		}
 
-		return asWinJsPromise(token => {
-			const result = sourceControl.quickDiffProvider.provideOriginalResource(uri, token);
-			return result && URI.parse(result.toString());
-		});
+		return asWinJsPromise(token => sourceControl.quickDiffProvider.provideOriginalResource(URI.parse(uriString), token))
+			.then(result => result && result.toString());
 	}
 
 	$onInputBoxValueChange(sourceControlHandle: number, value: string): TPromise<void> {

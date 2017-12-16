@@ -327,12 +327,10 @@ export function mv(source: string, target: string, callback: (error: Error) => v
 // See https://github.com/nodejs/node/blob/v5.10.0/lib/fs.js#L1194
 let canFlush = true;
 export function writeFileAndFlush(path: string, data: string | NodeBuffer, options: { mode?: number; flag?: string; }, callback: (error: Error) => void): void {
+	options = ensureOptions(options);
+
 	if (!canFlush) {
 		return fs.writeFile(path, data, options, callback);
-	}
-
-	if (!options) {
-		options = { mode: 0o666, flag: 'w' };
 	}
 
 	// Open the file with same flags and mode as fs.writeFile()
@@ -364,12 +362,10 @@ export function writeFileAndFlush(path: string, data: string | NodeBuffer, optio
 }
 
 export function writeFileAndFlushSync(path: string, data: string | NodeBuffer, options?: { mode?: number; flag?: string; }): void {
+	options = ensureOptions(options);
+
 	if (!canFlush) {
 		return fs.writeFileSync(path, data, options);
-	}
-
-	if (!options) {
-		options = { mode: 0o666, flag: 'w' };
 	}
 
 	// Open the file with same flags and mode as fs.writeFile()
@@ -390,6 +386,24 @@ export function writeFileAndFlushSync(path: string, data: string | NodeBuffer, o
 	} finally {
 		fs.closeSync(fd);
 	}
+}
+
+function ensureOptions(options?: { mode?: number; flag?: string; }): { mode: number, flag: string } {
+	if (!options) {
+		return { mode: 0o666, flag: 'w' };
+	}
+
+	const ensuredOptions = { mode: options.mode, flag: options.flag };
+
+	if (typeof ensuredOptions.mode !== 'number') {
+		ensuredOptions.mode = 0o666;
+	}
+
+	if (typeof ensuredOptions.flag !== 'string') {
+		ensuredOptions.flag = 'w';
+	}
+
+	return ensuredOptions;
 }
 
 /**

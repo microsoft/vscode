@@ -165,7 +165,7 @@ export class ShowReleaseNotesAction extends AbstractShowReleaseNotesAction {
 
 export class ShowCurrentReleaseNotesAction extends AbstractShowReleaseNotesAction {
 
-	static ID = 'update.showCurrentReleaseNotes';
+	static readonly ID = 'update.showCurrentReleaseNotes';
 	static LABEL = nls.localize('showReleaseNotes', "Show Release Notes");
 
 	constructor(

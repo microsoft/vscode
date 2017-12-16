@@ -241,7 +241,8 @@ class MainThreadSCMProvider implements ISCMProvider {
 			return TPromise.as(null);
 		}
 
-		return this.proxy.$provideOriginalResource(this.handle, uri);
+		return this.proxy.$provideOriginalResource(this.handle, uri.toString())
+			.then(result => result && URI.parse(result));
 	}
 
 	toJSON(): any {

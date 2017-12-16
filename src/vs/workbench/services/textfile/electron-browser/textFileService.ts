@@ -130,7 +130,7 @@ export class TextFileService extends AbstractTextFileService {
 			opts.defaultId = 2;
 		}
 
-		return this.windowService.showMessageBox(opts).then(choice => buttons[choice].result);
+		return this.windowService.showMessageBox(opts).then(result => buttons[result.button].result);
 	}
 
 	public promptForPath(defaultPath: string): TPromise<string> {

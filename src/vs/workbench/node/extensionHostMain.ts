@@ -26,6 +26,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { RPCProtocol } from 'vs/workbench/services/extensions/node/rpcProtocol';
+import URI from 'vs/base/common/uri';
 
 // const nativeExit = process.exit.bind(process);
 function patchProcess(allowExit: boolean) {
@@ -98,7 +99,7 @@ export class ExtensionHostMain {
 		this._logService.trace('initData', initData);
 
 		this._extHostConfiguration = new ExtHostConfiguration(rpcProtocol.getProxy(MainContext.MainThreadConfiguration), extHostWorkspace, initData.configuration);
-		this._extensionService = new ExtHostExtensionService(initData, rpcProtocol, extHostWorkspace, this._extHostConfiguration, this._logService);
+		this._extensionService = new ExtHostExtensionService(initData, rpcProtocol, extHostWorkspace, this._extHostConfiguration, this._logService, environmentService);
 
 		// error forwarding and stack trace scanning
 		const extensionErrors = new WeakMap<Error, IExtensionDescription>();
@@ -234,7 +235,7 @@ export class ExtensionHostMain {
 		// find exact path
 
 		for (const { uri } of this._workspace.folders) {
-			if (await pfs.exists(join(uri.fsPath, fileName))) {
+			if (await pfs.exists(join(URI.revive(uri).fsPath, fileName))) {
 				// the file was found
 				return (
 					this._extensionService.activateById(extensionId, new ExtensionActivatedByEvent(true, `workspaceContains:${fileName}`))
@@ -261,7 +262,7 @@ export class ExtensionHostMain {
 			includes[globPattern] = true;
 		});
 
-		const folderQueries = this._workspace.folders.map(folder => ({ folder: folder.uri }));
+		const folderQueries = this._workspace.folders.map(folder => ({ folder: URI.revive(folder.uri) }));
 		const config = this._extHostConfiguration.getConfiguration('search');
 		const useRipgrep = config.get('useRipgrep', true);
 		const followSymlinks = config.get('followSymlinks', true);

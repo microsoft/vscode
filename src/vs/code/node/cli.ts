@@ -18,6 +18,7 @@ import { findFreePort } from 'vs/base/node/ports';
 import { resolveTerminalEncoding } from 'vs/base/node/encoding';
 import * as iconv from 'iconv-lite';
 import { writeFileAndFlushSync } from 'vs/base/node/extfs';
+import { isWindows } from 'vs/base/common/platform';
 
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 	return !!argv['install-source']
@@ -57,7 +58,7 @@ export async function main(argv: string[]): TPromise<any> {
 	}
 
 	// Write Elevated
-	else if (args['write-elevated-helper']) {
+	else if (args['sudo-write']) {
 		const source = args._[0];
 		const target = args._[1];
 
@@ -68,14 +69,44 @@ export async function main(argv: string[]): TPromise<any> {
 			!fs.existsSync(source) || !fs.statSync(source).isFile() ||	// make sure source exists as file
 			!fs.existsSync(target) || !fs.statSync(target).isFile()		// make sure target exists as file
 		) {
-			return TPromise.wrapError(new Error('Using --write-elevated-helper with invalid arguments.'));
+			return TPromise.wrapError(new Error('Using --sudo-write with invalid arguments.'));
 		}
 
-		// Write source to target
 		try {
-			writeFileAndFlushSync(target, fs.readFileSync(source));
+
+			// Check for readonly status and chmod if so if we are told so
+			let targetMode: number;
+			let restoreMode = false;
+			if (!!args['sudo-chmod']) {
+				targetMode = fs.statSync(target).mode;
+				if (!(targetMode & 128) /* readonly */) {
+					fs.chmodSync(target, targetMode | 128);
+					restoreMode = true;
+				}
+			}
+
+			// Write source to target
+			const data = fs.readFileSync(source);
+			try {
+				writeFileAndFlushSync(target, data);
+			} catch (error) {
+				// On Windows and if the file exists with an EPERM error, we try a different strategy of saving the file
+				// by first truncating the file and then writing with r+ mode. This helps to save hidden files on Windows
+				// (see https://github.com/Microsoft/vscode/issues/931)
+				if (isWindows && error.code === 'EPERM') {
+					fs.truncateSync(target, 0);
+					writeFileAndFlushSync(target, data, { flag: 'r+' });
+				} else {
+					throw error;
+				}
+			}
+
+			// Restore previous mode as needed
+			if (restoreMode) {
+				fs.chmodSync(target, targetMode);
+			}
 		} catch (error) {
-			return TPromise.wrapError(new Error(`Using --write-elevated-helper resulted in an error: ${error}`));
+			return TPromise.wrapError(new Error(`Using --sudo-write resulted in an error: ${error}`));
 		}
 
 		return TPromise.as(null);

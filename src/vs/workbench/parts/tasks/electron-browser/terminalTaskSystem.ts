@@ -88,7 +88,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	protected showOutput(): void {
-		this.outputChannel.show(true);
+		this.outputService.showChannel(this.outputChannel.id, true);
 	}
 
 	public run(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult {

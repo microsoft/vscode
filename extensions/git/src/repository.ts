@@ -6,7 +6,7 @@
 'use strict';
 
 import { Uri, Command, EventEmitter, Event, scm, SourceControl, SourceControlInputBox, SourceControlResourceGroup, SourceControlResourceState, SourceControlResourceDecorations, Disposable, ProgressLocation, window, workspace, WorkspaceEdit, ThemeColor, DecorationData, Memento } from 'vscode';
-import { Repository as BaseRepository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash, RefType, GitError } from './git';
+import { Repository as BaseRepository, Ref, Branch, Remote, Commit, GitErrorCodes, Stash, RefType, GitError, Submodule, DiffOptions } from './git';
 import { anyEvent, filterEvent, eventToPromise, dispose, find, isDescendant, IDisposable, onceEvent, EmptyDisposable, debounceEvent } from './util';
 import { memoize, throttle, debounce } from './decorators';
 import { toGitUri } from './uri';
@@ -105,7 +105,7 @@ export class Resource implements SourceControlResourceState {
 		}
 	};
 
-	private getIconPath(theme: string): Uri | undefined {
+	private getIconPath(theme: string): Uri {
 		switch (this.type) {
 			case Status.INDEX_MODIFIED: return Resource.Icons[theme].Modified;
 			case Status.MODIFIED: return Resource.Icons[theme].Modified;
@@ -123,7 +123,6 @@ export class Resource implements SourceControlResourceState {
 			case Status.DELETED_BY_US: return Resource.Icons[theme].Conflict;
 			case Status.BOTH_ADDED: return Resource.Icons[theme].Conflict;
 			case Status.BOTH_MODIFIED: return Resource.Icons[theme].Conflict;
-			default: return void 0;
 		}
 	}
 
@@ -182,7 +181,7 @@ export class Resource implements SourceControlResourceState {
 		return { strikeThrough, faded, tooltip, light, dark, letter, color, source: 'git.resource' /*todo@joh*/ };
 	}
 
-	get letter(): string | undefined {
+	get letter(): string {
 		switch (this.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.MODIFIED:
@@ -207,12 +206,10 @@ export class Resource implements SourceControlResourceState {
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
 				return 'C';
-			default:
-				return undefined;
 		}
 	}
 
-	get color(): ThemeColor | undefined {
+	get color(): ThemeColor {
 		switch (this.type) {
 			case Status.INDEX_MODIFIED:
 			case Status.MODIFIED:
@@ -235,8 +232,6 @@ export class Resource implements SourceControlResourceState {
 			case Status.BOTH_ADDED:
 			case Status.BOTH_MODIFIED:
 				return new ThemeColor('gitDecoration.conflictingResourceForeground');
-			default:
-				return undefined;
 		}
 	}
 
@@ -261,7 +256,7 @@ export class Resource implements SourceControlResourceState {
 		}
 	}
 
-	get resourceDecoration(): DecorationData | undefined {
+	get resourceDecoration(): DecorationData {
 		const title = this.tooltip;
 		const abbreviation = this.letter;
 		const color = this.color;
@@ -280,6 +275,7 @@ export class Resource implements SourceControlResourceState {
 
 export enum Operation {
 	Status = 'Status',
+	Diff = 'Diff',
 	Add = 'Add',
 	RevertFiles = 'RevertFiles',
 	Commit = 'Commit',
@@ -301,7 +297,8 @@ export enum Operation {
 	Tag = 'Tag',
 	Stash = 'Stash',
 	CheckIgnore = 'CheckIgnore',
-	LSTree = 'LSTree'
+	LSTree = 'LSTree',
+	SubmoduleUpdate = 'SubmoduleUpdate'
 }
 
 function isReadOnly(operation: Operation): boolean {
@@ -474,6 +471,11 @@ export class Repository implements Disposable {
 		return this._remotes;
 	}
 
+	private _submodules: Submodule[] = [];
+	get submodules(): Submodule[] {
+		return this._submodules;
+	}
+
 	private _operations = new OperationsImpl();
 	get operations(): Operations { return this._operations; }
 
@@ -552,7 +554,7 @@ export class Repository implements Disposable {
 			return;
 		}
 
-		return toGitUri(uri, '', true);
+		return toGitUri(uri, '', { replaceFileExtension: true });
 	}
 
 	private async updateCommitTemplate(): Promise<void> {
@@ -563,19 +565,13 @@ export class Repository implements Disposable {
 		}
 	}
 
-	// @throttle
-	// async init(): Promise<void> {
-	// 	if (this.state !== State.NotAGitRepository) {
-	// 		return;
-	// 	}
-
-	// 	await this.git.init(this.workspaceRoot.fsPath);
-	// 	await this.status();
-	// }
-
 	@throttle
 	async status(): Promise<void> {
 		await this.run(Operation.Status);
+	}
+
+	diff(path: string, options: DiffOptions = {}): Promise<string> {
+		return this.run(Operation.Diff, () => this.repository.diff(path, options));
 	}
 
 	async add(resources: Uri[]): Promise<void> {
@@ -606,8 +602,18 @@ export class Repository implements Disposable {
 		await this.run(Operation.Clean, async () => {
 			const toClean: string[] = [];
 			const toCheckout: string[] = [];
+			const submodulesToUpdate: string[] = [];
 
 			resources.forEach(r => {
+				const fsPath = r.fsPath;
+
+				for (const submodule of this.submodules) {
+					if (path.join(this.root, submodule.path) === fsPath) {
+						submodulesToUpdate.push(fsPath);
+						return;
+					}
+				}
+
 				const raw = r.toString();
 				const scmResource = find(this.workingTreeGroup.resourceStates, sr => sr.resourceUri.toString() === raw);
 
@@ -618,11 +624,11 @@ export class Repository implements Disposable {
 				switch (scmResource.type) {
 					case Status.UNTRACKED:
 					case Status.IGNORED:
-						toClean.push(r.fsPath);
+						toClean.push(fsPath);
 						break;
 
 					default:
-						toCheckout.push(r.fsPath);
+						toCheckout.push(fsPath);
 						break;
 				}
 			});
@@ -635,6 +641,10 @@ export class Repository implements Disposable {
 
 			if (toCheckout.length > 0) {
 				promises.push(this.repository.checkout('', toCheckout));
+			}
+
+			if (submodulesToUpdate.length > 0) {
+				promises.push(this.repository.updateSubmodules(submodulesToUpdate));
 			}
 
 			await Promise.all(promises);
@@ -819,7 +829,11 @@ export class Repository implements Disposable {
 						// paths are separated by the null-character
 						resolve(new Set<string>(data.split('\0')));
 					} else {
-						reject(new GitError({ stdout: data, stderr, exitCode }));
+						if (/ is in submodule /.test(stderr)) {
+							reject(new GitError({ stdout: data, stderr, exitCode, gitErrorCode: GitErrorCodes.IsInSubmodule }));
+						} else {
+							reject(new GitError({ stdout: data, stderr, exitCode }));
+						}
 					}
 				};
 
@@ -929,11 +943,12 @@ export class Repository implements Disposable {
 			// noop
 		}
 
-		const [refs, remotes] = await Promise.all([this.repository.getRefs(), this.repository.getRemotes()]);
+		const [refs, remotes, submodules] = await Promise.all([this.repository.getRefs(), this.repository.getRemotes(), this.repository.getSubmodules()]);
 
 		this._HEAD = HEAD;
 		this._refs = refs;
 		this._remotes = remotes;
+		this._submodules = submodules;
 
 		const index: Resource[] = [];
 		const workingTree: Resource[] = [];

@@ -21,7 +21,7 @@
     "smoketest": "cd test/smoke && mocha"
   },
   "dependencies": {
-    "applicationinsights": "0.17.1",
+    "applicationinsights": "0.18.0",
     "fast-plist": "0.1.2",
     "gc-signals": "^0.0.1",
     "getmac": "1.0.7",

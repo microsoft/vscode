@@ -31,6 +31,7 @@ import 'vs/workbench/browser/actions/toggleZenMode';
 import 'vs/workbench/browser/actions/toggleTabsVisibility';
 import 'vs/workbench/parts/preferences/electron-browser/preferences.contribution';
 import 'vs/workbench/parts/preferences/browser/keybindingsEditorContribution';
+import 'vs/workbench/parts/logs/electron-browser/logs.contribution';
 
 import 'vs/workbench/browser/parts/quickopen/quickopen.contribution';
 import 'vs/workbench/parts/quickopen/browser/quickopen.contribution';

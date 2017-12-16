@@ -15,13 +15,14 @@ import { wireCancellationToken } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position as EditorPosition } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
-import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
+import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ISerializedLanguageConfiguration, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, LocationDto, SymbolInformationDto, WorkspaceEditDto, ResourceEditDto, CodeActionDto } from '../node/extHost.protocol';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { LanguageConfiguration } from 'vs/editor/common/modes/languageConfiguration';
+import { LanguageConfiguration, IndentationRule, OnEnterRule } from 'vs/editor/common/modes/languageConfiguration';
 import { IHeapService } from './mainThreadHeapService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { toLanguageSelector } from 'vs/workbench/api/node/extHostTypeConverters';
+import URI from 'vs/base/common/uri';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
@@ -47,29 +48,78 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}
 	}
 
-	$unregister(handle: number): TPromise<any> {
+	$unregister(handle: number): void {
 		let registration = this._registrations[handle];
 		if (registration) {
 			registration.dispose();
 			delete this._registrations[handle];
 		}
-		return undefined;
 	}
+
+	//#region --- revive functions
+
+	private static _reviveLocationDto(data: LocationDto): modes.Location;
+	private static _reviveLocationDto(data: LocationDto[]): modes.Location[];
+	private static _reviveLocationDto(data: LocationDto | LocationDto[]): modes.Location | modes.Location[] {
+		if (!data) {
+			return <modes.Location>data;
+		} else if (Array.isArray(data)) {
+			data.forEach(l => MainThreadLanguageFeatures._reviveLocationDto(l));
+			return <modes.Location[]>data;
+		} else {
+			data.uri = URI.revive(data.uri);
+			return <modes.Location>data;
+		}
+	}
+
+	private static _reviveSymbolInformationDto(data: SymbolInformationDto): modes.SymbolInformation;
+	private static _reviveSymbolInformationDto(data: SymbolInformationDto[]): modes.SymbolInformation[];
+	private static _reviveSymbolInformationDto(data: SymbolInformationDto | SymbolInformationDto[]): modes.SymbolInformation | modes.SymbolInformation[] {
+		if (!data) {
+			return <modes.SymbolInformation>data;
+		} else if (Array.isArray(data)) {
+			data.forEach(MainThreadLanguageFeatures._reviveSymbolInformationDto);
+			return <modes.SymbolInformation[]>data;
+		} else {
+			data.location = MainThreadLanguageFeatures._reviveLocationDto(data.location);
+			return <modes.SymbolInformation>data;
+		}
+	}
+
+	private static _reviveResourceEditDto(data: ResourceEditDto): modes.IResourceEdit {
+		data.resource = URI.revive(data.resource);
+		return <modes.IResourceEdit>data;
+	}
+
+	private static _reviveWorkspaceEditDto(data: WorkspaceEditDto): modes.WorkspaceEdit {
+		if (data && data.edits) {
+			data.edits.forEach(MainThreadLanguageFeatures._reviveResourceEditDto);
+		}
+		return <modes.WorkspaceEdit>data;
+	}
+
+	private static _reviveCodeActionDto(data: CodeActionDto[]): modes.CodeAction[] {
+		if (data) {
+			data.forEach(code => MainThreadLanguageFeatures._reviveWorkspaceEditDto(code.edits));
+		}
+		return <modes.CodeAction[]>data;
+	}
+
+	//#endregion
 
 	// --- outline
 
-	$registerOutlineSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
+	$registerOutlineSupport(handle: number, selector: vscode.DocumentSelector): void {
 		this._registrations[handle] = modes.DocumentSymbolProviderRegistry.register(toLanguageSelector(selector), <modes.DocumentSymbolProvider>{
 			provideDocumentSymbols: (model: IReadOnlyModel, token: CancellationToken): Thenable<modes.SymbolInformation[]> => {
-				return wireCancellationToken(token, this._proxy.$provideDocumentSymbols(handle, model.uri));
+				return wireCancellationToken(token, this._proxy.$provideDocumentSymbols(handle, model.uri)).then(MainThreadLanguageFeatures._reviveSymbolInformationDto);
 			}
 		});
-		return undefined;
 	}
 
 	// --- code lens
 
-	$registerCodeLensSupport(handle: number, selector: vscode.DocumentSelector, eventHandle: number): TPromise<any> {
+	$registerCodeLensSupport(handle: number, selector: vscode.DocumentSelector, eventHandle: number): void {
 
 		const provider = <modes.CodeLensProvider>{
 			provideCodeLenses: (model: IReadOnlyModel, token: CancellationToken): modes.ICodeLensSymbol[] | Thenable<modes.ICodeLensSymbol[]> => {
@@ -87,111 +137,100 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}
 
 		this._registrations[handle] = modes.CodeLensProviderRegistry.register(toLanguageSelector(selector), provider);
-		return undefined;
 	}
 
-	$emitCodeLensEvent(eventHandle: number, event?: any): TPromise<any> {
+	$emitCodeLensEvent(eventHandle: number, event?: any): void {
 		const obj = this._registrations[eventHandle];
 		if (obj instanceof Emitter) {
 			obj.fire(event);
 		}
-		return undefined;
 	}
 
 	// --- declaration
 
-	$registerDeclaractionSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
+	$registerDeclaractionSupport(handle: number, selector: vscode.DocumentSelector): void {
 		this._registrations[handle] = modes.DefinitionProviderRegistry.register(toLanguageSelector(selector), <modes.DefinitionProvider>{
 			provideDefinition: (model, position, token): Thenable<modes.Definition> => {
-				return wireCancellationToken(token, this._proxy.$provideDefinition(handle, model.uri, position));
+				return wireCancellationToken(token, this._proxy.$provideDefinition(handle, model.uri, position)).then(MainThreadLanguageFeatures._reviveLocationDto);
 			}
 		});
-		return undefined;
 	}
 
-	$registerImplementationSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
+	$registerImplementationSupport(handle: number, selector: vscode.DocumentSelector): void {
 		this._registrations[handle] = modes.ImplementationProviderRegistry.register(toLanguageSelector(selector), <modes.ImplementationProvider>{
 			provideImplementation: (model, position, token): Thenable<modes.Definition> => {
-				return wireCancellationToken(token, this._proxy.$provideImplementation(handle, model.uri, position));
+				return wireCancellationToken(token, this._proxy.$provideImplementation(handle, model.uri, position)).then(MainThreadLanguageFeatures._reviveLocationDto);
 			}
 		});
-		return undefined;
 	}
 
-	$registerTypeDefinitionSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
+	$registerTypeDefinitionSupport(handle: number, selector: vscode.DocumentSelector): void {
 		this._registrations[handle] = modes.TypeDefinitionProviderRegistry.register(toLanguageSelector(selector), <modes.TypeDefinitionProvider>{
 			provideTypeDefinition: (model, position, token): Thenable<modes.Definition> => {
-				return wireCancellationToken(token, this._proxy.$provideTypeDefinition(handle, model.uri, position));
+				return wireCancellationToken(token, this._proxy.$provideTypeDefinition(handle, model.uri, position)).then(MainThreadLanguageFeatures._reviveLocationDto);
 			}
 		});
-		return undefined;
 	}
 
 	// --- extra info
 
-	$registerHoverProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
+	$registerHoverProvider(handle: number, selector: vscode.DocumentSelector): void {
 		this._registrations[handle] = modes.HoverProviderRegistry.register(toLanguageSelector(selector), <modes.HoverProvider>{
 			provideHover: (model: IReadOnlyModel, position: EditorPosition, token: CancellationToken): Thenable<modes.Hover> => {
 				return wireCancellationToken(token, this._proxy.$provideHover(handle, model.uri, position));
 			}
 		});
-		return undefined;
 	}
 
 	// --- occurrences
 
-	$registerDocumentHighlightProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
+	$registerDocumentHighlightProvider(handle: number, selector: vscode.DocumentSelector): void {
 		this._registrations[handle] = modes.DocumentHighlightProviderRegistry.register(toLanguageSelector(selector), <modes.DocumentHighlightProvider>{
 			provideDocumentHighlights: (model: IReadOnlyModel, position: EditorPosition, token: CancellationToken): Thenable<modes.DocumentHighlight[]> => {
 				return wireCancellationToken(token, this._proxy.$provideDocumentHighlights(handle, model.uri, position));
 			}
 		});
-		return undefined;
 	}
 
 	// --- references
 
-	$registerReferenceSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
+	$registerReferenceSupport(handle: number, selector: vscode.DocumentSelector): void {
 		this._registrations[handle] = modes.ReferenceProviderRegistry.register(toLanguageSelector(selector), <modes.ReferenceProvider>{
 			provideReferences: (model: IReadOnlyModel, position: EditorPosition, context: modes.ReferenceContext, token: CancellationToken): Thenable<modes.Location[]> => {
-				return wireCancellationToken(token, this._proxy.$provideReferences(handle, model.uri, position, context));
+				return wireCancellationToken(token, this._proxy.$provideReferences(handle, model.uri, position, context)).then(MainThreadLanguageFeatures._reviveLocationDto);
 			}
 		});
-		return undefined;
 	}
 
 	// --- quick fix
 
-	$registerQuickFixSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
+	$registerQuickFixSupport(handle: number, selector: vscode.DocumentSelector): void {
 		this._registrations[handle] = modes.CodeActionProviderRegistry.register(toLanguageSelector(selector), <modes.CodeActionProvider>{
 			provideCodeActions: (model: IReadOnlyModel, range: EditorRange, token: CancellationToken): Thenable<modes.CodeAction[]> => {
-				return this._heapService.trackRecursive(wireCancellationToken(token, this._proxy.$provideCodeActions(handle, model.uri, range)));
+				return this._heapService.trackRecursive(wireCancellationToken(token, this._proxy.$provideCodeActions(handle, model.uri, range))).then(MainThreadLanguageFeatures._reviveCodeActionDto);
 			}
 		});
-		return undefined;
 	}
 
 	// --- formatting
 
-	$registerDocumentFormattingSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
+	$registerDocumentFormattingSupport(handle: number, selector: vscode.DocumentSelector): void {
 		this._registrations[handle] = modes.DocumentFormattingEditProviderRegistry.register(toLanguageSelector(selector), <modes.DocumentFormattingEditProvider>{
 			provideDocumentFormattingEdits: (model: IReadOnlyModel, options: modes.FormattingOptions, token: CancellationToken): Thenable<ISingleEditOperation[]> => {
 				return wireCancellationToken(token, this._proxy.$provideDocumentFormattingEdits(handle, model.uri, options));
 			}
 		});
-		return undefined;
 	}
 
-	$registerRangeFormattingSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
+	$registerRangeFormattingSupport(handle: number, selector: vscode.DocumentSelector): void {
 		this._registrations[handle] = modes.DocumentRangeFormattingEditProviderRegistry.register(toLanguageSelector(selector), <modes.DocumentRangeFormattingEditProvider>{
 			provideDocumentRangeFormattingEdits: (model: IReadOnlyModel, range: EditorRange, options: modes.FormattingOptions, token: CancellationToken): Thenable<ISingleEditOperation[]> => {
 				return wireCancellationToken(token, this._proxy.$provideDocumentRangeFormattingEdits(handle, model.uri, range, options));
 			}
 		});
-		return undefined;
 	}
 
-	$registerOnTypeFormattingSupport(handle: number, selector: vscode.DocumentSelector, autoFormatTriggerCharacters: string[]): TPromise<any> {
+	$registerOnTypeFormattingSupport(handle: number, selector: vscode.DocumentSelector, autoFormatTriggerCharacters: string[]): void {
 		this._registrations[handle] = modes.OnTypeFormattingEditProviderRegistry.register(toLanguageSelector(selector), <modes.OnTypeFormattingEditProvider>{
 
 			autoFormatTriggerCharacters,
@@ -200,46 +239,41 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				return wireCancellationToken(token, this._proxy.$provideOnTypeFormattingEdits(handle, model.uri, position, ch, options));
 			}
 		});
-		return undefined;
 	}
 
 	// --- navigate type
 
-	$registerNavigateTypeSupport(handle: number): TPromise<any> {
+	$registerNavigateTypeSupport(handle: number): void {
 		let lastResultId: number;
 		this._registrations[handle] = WorkspaceSymbolProviderRegistry.register(<IWorkspaceSymbolProvider>{
 			provideWorkspaceSymbols: (search: string): TPromise<modes.SymbolInformation[]> => {
-
 				return this._proxy.$provideWorkspaceSymbols(handle, search).then(result => {
 					if (lastResultId !== undefined) {
 						this._proxy.$releaseWorkspaceSymbols(handle, lastResultId);
 					}
 					lastResultId = result._id;
-					return result.symbols;
+					return MainThreadLanguageFeatures._reviveSymbolInformationDto(result.symbols);
 				});
 			},
 			resolveWorkspaceSymbol: (item: modes.SymbolInformation): TPromise<modes.SymbolInformation> => {
-				return this._proxy.$resolveWorkspaceSymbol(handle, item);
+				return this._proxy.$resolveWorkspaceSymbol(handle, item).then(i => MainThreadLanguageFeatures._reviveSymbolInformationDto(i));
 			}
 		});
-		return undefined;
 	}
 
 	// --- rename
 
-	$registerRenameSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
+	$registerRenameSupport(handle: number, selector: vscode.DocumentSelector): void {
 		this._registrations[handle] = modes.RenameProviderRegistry.register(toLanguageSelector(selector), <modes.RenameProvider>{
 			provideRenameEdits: (model: IReadOnlyModel, position: EditorPosition, newName: string, token: CancellationToken): Thenable<modes.WorkspaceEdit> => {
-				return wireCancellationToken(token, this._proxy.$provideRenameEdits(handle, model.uri, position, newName));
+				return wireCancellationToken(token, this._proxy.$provideRenameEdits(handle, model.uri, position, newName)).then(MainThreadLanguageFeatures._reviveWorkspaceEditDto);
 			}
 		});
-		return undefined;
 	}
 
 	// --- suggest
 
-	$registerSuggestSupport(handle: number, selector: vscode.DocumentSelector, triggerCharacters: string[], supportsResolveDetails: boolean): TPromise<any> {
-
+	$registerSuggestSupport(handle: number, selector: vscode.DocumentSelector, triggerCharacters: string[], supportsResolveDetails: boolean): void {
 		this._registrations[handle] = modes.SuggestRegistry.register(toLanguageSelector(selector), <modes.ISuggestSupport>{
 			triggerCharacters,
 			provideCompletionItems: (model: IReadOnlyModel, position: EditorPosition, context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> => {
@@ -258,12 +292,11 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				? (model, position, suggestion, token) => wireCancellationToken(token, this._proxy.$resolveCompletionItem(handle, model.uri, position, suggestion))
 				: undefined
 		});
-		return undefined;
 	}
 
 	// --- parameter hints
 
-	$registerSignatureHelpProvider(handle: number, selector: vscode.DocumentSelector, triggerCharacter: string[]): TPromise<any> {
+	$registerSignatureHelpProvider(handle: number, selector: vscode.DocumentSelector, triggerCharacter: string[]): void {
 		this._registrations[handle] = modes.SignatureHelpProviderRegistry.register(toLanguageSelector(selector), <modes.SignatureHelpProvider>{
 
 			signatureHelpTriggerCharacters: triggerCharacter,
@@ -273,12 +306,11 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			}
 
 		});
-		return undefined;
 	}
 
 	// --- links
 
-	$registerDocumentLinkProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
+	$registerDocumentLinkProvider(handle: number, selector: vscode.DocumentSelector): void {
 		this._registrations[handle] = modes.LinkProviderRegistry.register(toLanguageSelector(selector), <modes.LinkProvider>{
 			provideLinks: (model, token) => {
 				return this._heapService.trackRecursive(wireCancellationToken(token, this._proxy.$provideDocumentLinks(handle, model.uri)));
@@ -287,12 +319,11 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				return wireCancellationToken(token, this._proxy.$resolveDocumentLink(handle, link));
 			}
 		});
-		return undefined;
 	}
 
 	// --- colors
 
-	$registerDocumentColorProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any> {
+	$registerDocumentColorProvider(handle: number, selector: vscode.DocumentSelector): void {
 		const proxy = this._proxy;
 		this._registrations[handle] = modes.ColorProviderRegistry.register(toLanguageSelector(selector), <modes.DocumentColorProvider>{
 			provideDocumentColors: (model, token) => {
@@ -322,20 +353,61 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				}));
 			}
 		});
-
-		return TPromise.as(null);
 	}
 
 	// --- configuration
 
-	$setLanguageConfiguration(handle: number, languageId: string, _configuration: vscode.LanguageConfiguration): TPromise<any> {
+	private static _reviveRegExp(regExp: ISerializedRegExp): RegExp {
+		if (typeof regExp === 'undefined') {
+			return undefined;
+		}
+		if (regExp === null) {
+			return null;
+		}
+		return new RegExp(regExp.pattern, regExp.flags);
+	}
+
+	private static _reviveIndentationRule(indentationRule: ISerializedIndentationRule): IndentationRule {
+		if (typeof indentationRule === 'undefined') {
+			return undefined;
+		}
+		if (indentationRule === null) {
+			return null;
+		}
+		return {
+			decreaseIndentPattern: MainThreadLanguageFeatures._reviveRegExp(indentationRule.decreaseIndentPattern),
+			increaseIndentPattern: MainThreadLanguageFeatures._reviveRegExp(indentationRule.increaseIndentPattern),
+			indentNextLinePattern: MainThreadLanguageFeatures._reviveRegExp(indentationRule.indentNextLinePattern),
+			unIndentedLinePattern: MainThreadLanguageFeatures._reviveRegExp(indentationRule.unIndentedLinePattern),
+		};
+	}
+
+	private static _reviveOnEnterRule(onEnterRule: ISerializedOnEnterRule): OnEnterRule {
+		return {
+			beforeText: MainThreadLanguageFeatures._reviveRegExp(onEnterRule.beforeText),
+			afterText: MainThreadLanguageFeatures._reviveRegExp(onEnterRule.afterText),
+			action: onEnterRule.action
+		};
+	}
+
+	private static _reviveOnEnterRules(onEnterRules: ISerializedOnEnterRule[]): OnEnterRule[] {
+		if (typeof onEnterRules === 'undefined') {
+			return undefined;
+		}
+		if (onEnterRules === null) {
+			return null;
+		}
+		return onEnterRules.map(MainThreadLanguageFeatures._reviveOnEnterRule);
+	}
+
+	$setLanguageConfiguration(handle: number, languageId: string, _configuration: ISerializedLanguageConfiguration): void {
 
 		let configuration: LanguageConfiguration = {
 			comments: _configuration.comments,
 			brackets: _configuration.brackets,
-			wordPattern: _configuration.wordPattern,
-			indentationRules: _configuration.indentationRules,
-			onEnterRules: _configuration.onEnterRules,
+			wordPattern: MainThreadLanguageFeatures._reviveRegExp(_configuration.wordPattern),
+			indentationRules: MainThreadLanguageFeatures._reviveIndentationRule(_configuration.indentationRules),
+			onEnterRules: MainThreadLanguageFeatures._reviveOnEnterRules(_configuration.onEnterRules),
 
 			autoClosingPairs: null,
 			surroundingPairs: null,
@@ -360,8 +432,6 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		if (languageIdentifier) {
 			this._registrations[handle] = LanguageConfigurationRegistry.register(languageIdentifier, configuration);
 		}
-
-		return undefined;
 	}
 
 }
