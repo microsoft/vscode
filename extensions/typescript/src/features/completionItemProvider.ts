@@ -22,6 +22,7 @@ let localize = nls.loadMessageBundle();
 
 class MyCompletionItem extends CompletionItem {
 	public readonly source: string | undefined;
+
 	constructor(
 		public readonly position: Position,
 		public readonly document: TextDocument,
@@ -41,18 +42,19 @@ class MyCompletionItem extends CompletionItem {
 		this.commitCharacters = MyCompletionItem.getCommitCharacters(enableDotCompletions, !useCodeSnippetsOnMethodSuggest, entry.kind);
 
 		if (entry.replacementSpan) {
-			let span: protocol.TextSpan = entry.replacementSpan;
-			// The indexing for the range returned by the server uses 1-based indexing.
-			// We convert to 0-based indexing.
-			this.textEdit = TextEdit.replace(tsTextSpanToVsRange(span), entry.name);
-		} else {
+			this.range = tsTextSpanToVsRange(entry.replacementSpan);
+		}
+	}
+
+	public resolve(): void {
+		if (!this.range) {
 			// Try getting longer, prefix based range for completions that span words
-			const wordRange = document.getWordRangeAtPosition(position);
-			const text = document.getText(new Range(position.line, Math.max(0, position.character - entry.name.length), position.line, position.character)).toLowerCase();
-			const entryName = entry.name.toLowerCase();
+			const wordRange = this.document.getWordRangeAtPosition(this.position);
+			const text = this.document.getText(new Range(this.position.line, Math.max(0, this.position.character - this.label.length), this.position.line, this.position.character)).toLowerCase();
+			const entryName = this.label.toLowerCase();
 			for (let i = entryName.length; i >= 0; --i) {
-				if (text.endsWith(entryName.substr(0, i)) && (!wordRange || wordRange.start.character > position.character - i)) {
-					this.range = new Range(position.line, Math.max(0, position.character - i), position.line, position.character);
+				if (text.endsWith(entryName.substr(0, i)) && (!wordRange || wordRange.start.character > this.position.character - i)) {
+					this.range = new Range(this.position.line, Math.max(0, this.position.character - i), this.position.line, this.position.character);
 					break;
 				}
 			}
@@ -185,7 +187,6 @@ namespace Configuration {
 	export const nameSuggestions = 'nameSuggestions';
 	export const quickSuggestionsForPaths = 'quickSuggestionsForPaths';
 	export const autoImportSuggestions = 'autoImportSuggestions.enabled';
-
 }
 
 export default class TypeScriptCompletionItemProvider implements CompletionItemProvider {
@@ -314,10 +315,14 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			return null;
 		}
 
+
 		const filepath = this.client.normalizePath(item.document.uri);
 		if (!filepath) {
 			return null;
 		}
+
+		item.resolve();
+
 		const args: CompletionDetailsRequestArgs = {
 			...vsPositionToTsFileLocation(filepath, item.position),
 			entryNames: [
