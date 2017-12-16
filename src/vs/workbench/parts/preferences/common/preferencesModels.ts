@@ -401,6 +401,10 @@ export class DefaultSettings extends Disposable {
 		return DefaultSettings._RAW;
 	}
 
+	getSettingByName(name: string): ISetting {
+		return this._settingsByName && this._settingsByName.get(name);
+	}
+
 	private getRegisteredGroups(): ISettingsGroup[] {
 		const configurations = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurations().slice();
 		return this.removeEmptySettingsGroups(configurations.sort(this.compareConfigurationNodes)
@@ -557,7 +561,6 @@ export class DefaultSettings extends Disposable {
 export class DefaultSettingsEditorModel extends AbstractSettingsModel implements ISettingsEditorModel {
 
 	private _model: IModel;
-	private _settingsByName: Map<string, ISetting>;
 
 	private _onDidChangeGroups: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeGroups: Event<void> = this._onDidChangeGroups.event;
@@ -573,8 +576,6 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		this._register(defaultSettings.onDidChange(() => this._onDidChangeGroups.fire()));
 		this._model = reference.object.textEditorModel;
 		this._register(this.onDispose(() => reference.dispose()));
-
-		this.initAllSettingsMap();
 	}
 
 	public get uri(): URI {
@@ -649,20 +650,9 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return null;
 	}
 
-	private initAllSettingsMap(): void {
-		this._settingsByName = new Map<string, ISetting>();
-		for (const group of this.settingsGroups) {
-			for (const section of group.sections) {
-				for (const setting of section.settings) {
-					this._settingsByName.set(setting.key, setting);
-				}
-			}
-		}
-	}
-
 	private getMostRelevantSettings(rankedSettingNames: string[]): ISettingsGroup {
 		const settings = rankedSettingNames.map(key => {
-			const setting = this._settingsByName.get(key);
+			const setting = this.defaultSettings.getSettingByName(key);
 			if (setting) {
 				return <ISetting>{
 					description: setting.description,

@@ -30,7 +30,7 @@ import { IHistoryService } from 'vs/workbench/services/history/common/history';
 
 export class OpenFileAction extends Action {
 
-	static ID = 'workbench.action.files.openFile';
+	static readonly ID = 'workbench.action.files.openFile';
 	static LABEL = nls.localize('openFile', "Open File...");
 
 	constructor(
@@ -50,7 +50,7 @@ export class OpenFileAction extends Action {
 
 export class OpenFolderAction extends Action {
 
-	static ID = 'workbench.action.files.openFolder';
+	static readonly ID = 'workbench.action.files.openFolder';
 	static LABEL = nls.localize('openFolder', "Open Folder...");
 
 	constructor(
@@ -70,7 +70,7 @@ export class OpenFolderAction extends Action {
 
 export class OpenFileFolderAction extends Action {
 
-	static ID = 'workbench.action.files.openFileFolder';
+	static readonly ID = 'workbench.action.files.openFileFolder';
 	static LABEL = nls.localize('openFileFolder', "Open...");
 
 	constructor(
@@ -140,7 +140,7 @@ export abstract class BaseWorkspacesAction extends Action {
 		super(id, label);
 	}
 
-	protected pickFolders(buttonLabel: string, title: string): string[] {
+	protected pickFolders(buttonLabel: string, title: string): TPromise<string[]> {
 		return this.windowService.showOpenDialog({
 			buttonLabel,
 			title,
@@ -195,7 +195,7 @@ function isUntitledWorkspace(path: string, environmentService: IEnvironmentServi
 
 export class AddRootFolderAction extends BaseWorkspacesAction {
 
-	static ID = 'workbench.action.addRootFolder';
+	static readonly ID = 'workbench.action.addRootFolder';
 	static LABEL = nls.localize('addFolderToWorkspace', "Add Folder to Workspace...");
 
 	constructor(
@@ -212,19 +212,20 @@ export class AddRootFolderAction extends BaseWorkspacesAction {
 	}
 
 	public run(): TPromise<any> {
-		const folders = super.pickFolders(mnemonicButtonLabel(nls.localize({ key: 'add', comment: ['&& denotes a mnemonic'] }, "&&Add")), nls.localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"));
-		if (!folders || !folders.length) {
-			return TPromise.as(null);
-		}
+		return super.pickFolders(mnemonicButtonLabel(nls.localize({ key: 'add', comment: ['&& denotes a mnemonic'] }, "&&Add")), nls.localize('addFolderToWorkspaceTitle', "Add Folder to Workspace")).then(folders => {
+			if (!folders || !folders.length) {
+				return null;
+			}
 
-		// Add and show Files Explorer viewlet
-		return this.workspaceEditingService.addFolders(folders.map(folder => ({ uri: URI.file(folder) }))).then(() => this.viewletService.openViewlet(this.viewletService.getDefaultViewletId(), true));
+			// Add and show Files Explorer viewlet
+			return this.workspaceEditingService.addFolders(folders.map(folder => ({ uri: URI.file(folder) }))).then(() => this.viewletService.openViewlet(this.viewletService.getDefaultViewletId(), true));
+		});
 	}
 }
 
 export class GlobalRemoveRootFolderAction extends BaseWorkspacesAction {
 
-	static ID = 'workbench.action.removeRootFolder';
+	static readonly ID = 'workbench.action.removeRootFolder';
 	static LABEL = nls.localize('globalRemoveFolderFromWorkspace', "Remove Folder from Workspace...");
 
 	constructor(
@@ -260,7 +261,7 @@ export class GlobalRemoveRootFolderAction extends BaseWorkspacesAction {
 
 export class RemoveRootFolderAction extends Action {
 
-	static ID = 'workbench.action.removeRootFolder';
+	static readonly ID = 'workbench.action.removeRootFolder';
 	static LABEL = nls.localize('removeFolderFromWorkspace', "Remove Folder from Workspace");
 
 	constructor(
@@ -279,7 +280,7 @@ export class RemoveRootFolderAction extends Action {
 
 export class OpenFolderSettingsAction extends Action {
 
-	static ID = 'workbench.action.openFolderSettings';
+	static readonly ID = 'workbench.action.openFolderSettings';
 	static LABEL = nls.localize('openFolderSettings', "Open Folder Settings");
 
 	constructor(
@@ -301,7 +302,7 @@ export class OpenFolderSettingsAction extends Action {
 
 export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 
-	static ID = 'workbench.action.saveWorkspaceAs';
+	static readonly ID = 'workbench.action.saveWorkspaceAs';
 	static LABEL = nls.localize('saveWorkspaceAsAction', "Save Workspace As...");
 
 	constructor(
@@ -317,23 +318,24 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 	}
 
 	public run(): TPromise<any> {
-		const configPath = this.getNewWorkspaceConfigPath();
-		if (configPath) {
-			switch (this.contextService.getWorkbenchState()) {
-				case WorkbenchState.EMPTY:
-				case WorkbenchState.FOLDER:
-					const folders = this.contextService.getWorkspace().folders.map(folder => ({ uri: folder.uri }));
-					return this.workspaceEditingService.createAndEnterWorkspace(folders, configPath);
+		return this.getNewWorkspaceConfigPath().then(configPath => {
+			if (configPath) {
+				switch (this.contextService.getWorkbenchState()) {
+					case WorkbenchState.EMPTY:
+					case WorkbenchState.FOLDER:
+						const folders = this.contextService.getWorkspace().folders.map(folder => ({ uri: folder.uri }));
+						return this.workspaceEditingService.createAndEnterWorkspace(folders, configPath);
 
-				case WorkbenchState.WORKSPACE:
-					return this.workspaceEditingService.saveAndEnterWorkspace(configPath);
+					case WorkbenchState.WORKSPACE:
+						return this.workspaceEditingService.saveAndEnterWorkspace(configPath);
+				}
 			}
-		}
 
-		return TPromise.as(null);
+			return null;
+		});
 	}
 
-	private getNewWorkspaceConfigPath(): string {
+	private getNewWorkspaceConfigPath(): TPromise<string> {
 		return this.windowService.showSaveDialog({
 			buttonLabel: mnemonicButtonLabel(nls.localize({ key: 'save', comment: ['&& denotes a mnemonic'] }, "&&Save")),
 			title: nls.localize('saveWorkspace', "Save Workspace"),
@@ -345,7 +347,7 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 
 export class OpenWorkspaceAction extends Action {
 
-	static ID = 'workbench.action.openWorkspace';
+	static readonly ID = 'workbench.action.openWorkspace';
 	static LABEL = nls.localize('openWorkspaceAction', "Open Workspace...");
 
 	constructor(

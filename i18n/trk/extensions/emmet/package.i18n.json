@@ -49,5 +49,8 @@
 	"emmetPreferencesBemModifierSeparator": "BEM filtresi kullanırken sınıflar için kullanılacak niteleyici ayrıcı",
 	"emmetPreferencesFilterCommentBefore": "Yorum filtresi uygulandığında eşleşen öğenin önüne yerleştirilmesi gereken yorumun tanımı.",
 	"emmetPreferencesFilterCommentAfter": "Yorum filtresi uygulandığında eşleşen öğenin ardına yerleştirilmesi gereken yorumun tanımı.",
-	"emmetPreferencesFilterCommentTrigger": "Yorum filterinin uygulanması için kısaltmada bulunması gereken virgülle ayrılmış öznitelik adları listesi"
+	"emmetPreferencesFilterCommentTrigger": "Yorum filterinin uygulanması için kısaltmada bulunması gereken virgülle ayrılmış öznitelik adları listesi",
+	"emmetPreferencesFormatNoIndentTags": "İçe girintilenmemesi gereken bir etiket adları dizisi",
+	"emmetPreferencesFormatForceIndentTags": "Her zaman içe girintilenmesi gereken bir etiket adları dizisi",
+	"emmetPreferencesAllowCompactBoolean": "Doğruysa, boole niteliklerinin öz gösterimi üretilir"
 }

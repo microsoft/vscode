@@ -124,7 +124,7 @@ function formatEnvironment(info: IMainProcessInfo): string {
 
 	const output: string[] = [];
 	output.push(`Version:          ${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`);
-	output.push(`OS Version:       ${os.type()} ${os.arch()} ${os.release()})`);
+	output.push(`OS Version:       ${os.type()} ${os.arch()} ${os.release()}`);
 	const cpus = os.cpus();
 	if (cpus && cpus.length > 0) {
 		output.push(`CPUs:             ${cpus[0].model} (${cpus.length} x ${cpus[0].speed})`);
@@ -135,6 +135,7 @@ function formatEnvironment(info: IMainProcessInfo): string {
 	}
 	output.push(`VM:               ${Math.round((virtualMachineHint.value() * 100))}%`);
 	output.push(`Screen Reader:    ${app.isAccessibilitySupportEnabled() ? 'yes' : 'no'}`);
+	output.push(`Process Argv:     ${info.mainArguments.join(' ')}`);
 
 	return output.join('\n');
 }
@@ -145,7 +146,7 @@ function formatProcessList(info: IMainProcessInfo, rootProcess: ProcessItem): st
 
 	const output: string[] = [];
 
-	output.push('CPU %\tMem MB\tProcess');
+	output.push('CPU %\tMem MB\t   PID\tProcess');
 
 	formatProcessItem(mapPidToWindowTitle, output, rootProcess, 0);
 
@@ -169,7 +170,7 @@ function formatProcessItem(mapPidToWindowTitle: Map<number, string>, output: str
 		}
 	}
 	const memory = process.platform === 'win32' ? item.mem : (os.totalmem() * (item.mem / 100));
-	output.push(`${pad(Number(item.load.toFixed(0)), 5, ' ')}\t${pad(Number((memory / MB).toFixed(0)), 6, ' ')}\t${name}`);
+	output.push(`${pad(Number(item.load.toFixed(0)), 5, ' ')}\t${pad(Number((memory / MB).toFixed(0)), 6, ' ')}\t${pad(Number((item.pid).toFixed(0)), 6, ' ')}\t${name}`);
 
 	// Recurse into children if any
 	if (Array.isArray(item.children)) {

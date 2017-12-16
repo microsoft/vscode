@@ -50,7 +50,8 @@
 }
 
 .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar {
-	line-height: 32px;
+	line-height: 30px;
+	height: 35px;
 }
 
 .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:first-child {
@@ -62,7 +63,8 @@
 	padding-left: 16px;
 	padding-right: 16px;
 	font-size: 11px;
-	padding-bottom: 4px; /* puts the bottom border down */
+	padding-bottom: 3px; /* puts the bottom border down */
+	padding-top: 2px;
 	display: flex;
 }
 

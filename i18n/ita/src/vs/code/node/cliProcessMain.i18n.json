@@ -8,6 +8,7 @@
 	"notInstalled": "L'estensione '{0}' non è installata.",
 	"useId": "Assicurarsi di usare l'ID estensione completo, incluso l'editore, ad esempio {0}",
 	"successVsixInstall": "L'estensione '{0}' è stata installata.",
+	"cancelVsixInstall": "Installazione dell'estensione '{0}' annullata.",
 	"alreadyInstalled": "L'estensione '{0}' è già installata.",
 	"foundExtension": "L'estensione '{0}' è stata trovata nel Marketplace.",
 	"installing": "Installazione...",

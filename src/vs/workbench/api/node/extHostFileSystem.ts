@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import URI from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { MainContext, IMainContext, ExtHostFileSystemShape, MainThreadFileSystemShape } from './extHost.protocol';
 import * as vscode from 'vscode';
@@ -19,7 +19,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	private _handlePool: number = 0;
 
 	constructor(mainContext: IMainContext) {
-		this._proxy = mainContext.get(MainContext.MainThreadFileSystem);
+		this._proxy = mainContext.getProxy(MainContext.MainThreadFileSystem);
 	}
 
 	registerFileSystemProvider(scheme: string, provider: vscode.FileSystemProvider) {
@@ -42,37 +42,37 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		};
 	}
 
-	$utimes(handle: number, resource: URI, mtime: number, atime: number): TPromise<IStat, any> {
-		return asWinJsPromise(token => this._provider.get(handle).utimes(resource, mtime, atime));
+	$utimes(handle: number, resource: UriComponents, mtime: number, atime: number): TPromise<IStat, any> {
+		return asWinJsPromise(token => this._provider.get(handle).utimes(URI.revive(resource), mtime, atime));
 	}
-	$stat(handle: number, resource: URI): TPromise<IStat, any> {
-		return asWinJsPromise(token => this._provider.get(handle).stat(resource));
+	$stat(handle: number, resource: UriComponents): TPromise<IStat, any> {
+		return asWinJsPromise(token => this._provider.get(handle).stat(URI.revive(resource)));
 	}
-	$read(handle: number, offset: number, count: number, resource: URI): TPromise<number> {
+	$read(handle: number, offset: number, count: number, resource: UriComponents): TPromise<number> {
 		const progress = {
 			report: chunk => {
 				this._proxy.$reportFileChunk(handle, resource, [].slice.call(chunk));
 			}
 		};
-		return asWinJsPromise(token => this._provider.get(handle).read(resource, offset, count, progress));
+		return asWinJsPromise(token => this._provider.get(handle).read(URI.revive(resource), offset, count, progress));
 	}
-	$write(handle: number, resource: URI, content: number[]): TPromise<void, any> {
-		return asWinJsPromise(token => this._provider.get(handle).write(resource, Buffer.from(content)));
+	$write(handle: number, resource: UriComponents, content: number[]): TPromise<void, any> {
+		return asWinJsPromise(token => this._provider.get(handle).write(URI.revive(resource), Buffer.from(content)));
 	}
-	$unlink(handle: number, resource: URI): TPromise<void, any> {
-		return asWinJsPromise(token => this._provider.get(handle).unlink(resource));
+	$unlink(handle: number, resource: UriComponents): TPromise<void, any> {
+		return asWinJsPromise(token => this._provider.get(handle).unlink(URI.revive(resource)));
 	}
-	$move(handle: number, resource: URI, target: URI): TPromise<IStat, any> {
-		return asWinJsPromise(token => this._provider.get(handle).move(resource, target));
+	$move(handle: number, resource: UriComponents, target: UriComponents): TPromise<IStat, any> {
+		return asWinJsPromise(token => this._provider.get(handle).move(URI.revive(resource), URI.revive(target)));
 	}
-	$mkdir(handle: number, resource: URI): TPromise<IStat, any> {
-		return asWinJsPromise(token => this._provider.get(handle).mkdir(resource));
+	$mkdir(handle: number, resource: UriComponents): TPromise<IStat, any> {
+		return asWinJsPromise(token => this._provider.get(handle).mkdir(URI.revive(resource)));
 	}
-	$readdir(handle: number, resource: URI): TPromise<[URI, IStat][], any> {
-		return asWinJsPromise(token => this._provider.get(handle).readdir(resource));
+	$readdir(handle: number, resource: UriComponents): TPromise<[UriComponents, IStat][], any> {
+		return asWinJsPromise(token => this._provider.get(handle).readdir(URI.revive(resource)));
 	}
-	$rmdir(handle: number, resource: URI): TPromise<void, any> {
-		return asWinJsPromise(token => this._provider.get(handle).rmdir(resource));
+	$rmdir(handle: number, resource: UriComponents): TPromise<void, any> {
+		return asWinJsPromise(token => this._provider.get(handle).rmdir(URI.revive(resource)));
 	}
 	$fileFiles(handle: number, session: number, query: string): TPromise<void> {
 		const provider = this._provider.get(handle);

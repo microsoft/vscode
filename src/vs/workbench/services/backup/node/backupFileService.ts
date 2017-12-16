@@ -135,7 +135,7 @@ export class BackupFileService implements IBackupFileService {
 
 	public loadBackupResource(resource: Uri): TPromise<Uri> {
 		return this.ready.then(model => {
-			const backupResource = this.getBackupResource(resource);
+			const backupResource = this.toBackupResource(resource);
 			if (!backupResource) {
 				return void 0;
 			}
@@ -155,7 +155,7 @@ export class BackupFileService implements IBackupFileService {
 		}
 
 		return this.ready.then(model => {
-			const backupResource = this.getBackupResource(resource);
+			const backupResource = this.toBackupResource(resource);
 			if (!backupResource) {
 				return void 0;
 			}
@@ -175,7 +175,7 @@ export class BackupFileService implements IBackupFileService {
 
 	public discardResourceBackup(resource: Uri): TPromise<void> {
 		return this.ready.then(model => {
-			const backupResource = this.getBackupResource(resource);
+			const backupResource = this.toBackupResource(resource);
 			if (!backupResource) {
 				return void 0;
 			}
@@ -218,7 +218,7 @@ export class BackupFileService implements IBackupFileService {
 		return textSource.lines.slice(1).join(textSource.EOL); // The first line of a backup text file is the file name
 	}
 
-	protected getBackupResource(resource: Uri): Uri {
+	public toBackupResource(resource: Uri): Uri {
 		if (!this.backupEnabled) {
 			return null;
 		}

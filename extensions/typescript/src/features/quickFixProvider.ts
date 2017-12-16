@@ -9,10 +9,26 @@ import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { vsRangeToTsFileRange } from '../utils/convert';
 import FormattingConfigurationManager from './formattingConfigurationManager';
-import { getEditForCodeAction } from '../utils/codeAction';
+import { getEditForCodeAction, applyCodeActionCommands } from '../utils/codeAction';
+import { Command, CommandManager } from '../utils/commandManager';
 
 interface NumberSet {
 	[key: number]: boolean;
+}
+
+class ApplyCodeActionCommand implements Command {
+	public static readonly ID = '_typescript.applyCodeActionCommand';
+	public readonly id = ApplyCodeActionCommand.ID;
+
+	constructor(
+		private readonly client: ITypeScriptServiceClient
+	) { }
+
+	public async execute(
+		actions: Proto.CodeAction
+	): Promise<boolean> {
+		return applyCodeActionCommands(this.client, actions);
+	}
 }
 
 export default class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
@@ -20,8 +36,11 @@ export default class TypeScriptQuickFixProvider implements vscode.CodeActionProv
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
-		private readonly formattingConfigurationManager: FormattingConfigurationManager
-	) { }
+		private readonly formattingConfigurationManager: FormattingConfigurationManager,
+		commandManager: CommandManager
+	) {
+		commandManager.register(new ApplyCodeActionCommand(client));
+	}
 
 	public provideCodeActions(
 		_document: vscode.TextDocument,
@@ -87,7 +106,12 @@ export default class TypeScriptQuickFixProvider implements vscode.CodeActionProv
 	private getCommandForAction(action: Proto.CodeAction): vscode.CodeAction {
 		return {
 			title: action.description,
-			edits: getEditForCodeAction(this.client, action),
+			edit: getEditForCodeAction(this.client, action),
+			command: action.commands ? {
+				command: ApplyCodeActionCommand.ID,
+				arguments: [action],
+				title: action.description
+			} : undefined,
 			diagnostics: []
 		};
 	}

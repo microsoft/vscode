@@ -70,7 +70,7 @@ export abstract class TerminalService implements ITerminalService {
 		this.onInstanceDisposed((terminalInstance) => { this._removeInstance(terminalInstance); });
 	}
 
-	protected abstract _showTerminalCloseConfirmation(): boolean;
+	protected abstract _showTerminalCloseConfirmation(): TPromise<boolean>;
 	public abstract createInstance(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
 	public abstract getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
 	public abstract selectDefaultWindowsShell(): TPromise<string>;

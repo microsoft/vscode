@@ -33,7 +33,7 @@ export class CommandService extends Disposable implements ICommandService {
 	}
 
 	executeCommand<T>(id: string, ...args: any[]): TPromise<T> {
-		this._logService.info('CommandService#executeCommand', id);
+		this._logService.trace('CommandService#executeCommand', id);
 
 		// we always send an activation event, but
 		// we don't wait for it when the extension

@@ -31,6 +31,7 @@
 	"minimap.maxColumn": "Limiter la largeur de la minicarte pour afficher au maximum un certain nombre de colonnes",
 	"find.seedSearchStringFromSelection": "Contrôle si nous remplissons la chaîne à rechercher dans le Widget Recherche à partir de la sélection de l'éditeur",
 	"find.autoFindInSelection": "Contrôle si l'indicateur Rechercher dans la sélection est activé quand plusieurs caractères ou lignes de texte sont sélectionnés dans l'éditeur",
+	"find.globalFindClipboard": "Contrôle si le Widget Recherche doit lire ou modifier le presse-papiers partagé sur macOS",
 	"wordWrap.off": "Le retour automatique à la ligne n'est jamais effectué.",
 	"wordWrap.on": "Le retour automatique à la ligne s'effectue en fonction de la largeur de la fenêtre d'affichage.",
 	"wordWrap.wordWrapColumn": "Le retour automatique à la ligne s'effectue en fonction de 'editor.wordWrapColumn'.",

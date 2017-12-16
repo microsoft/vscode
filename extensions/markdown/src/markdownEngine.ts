@@ -7,7 +7,6 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { TableOfContentsProvider } from './tableOfContentsProvider';
 import { MarkdownIt, Token } from 'markdown-it';
-import { OpenDocumentLinkCommand } from './commands';
 
 const FrontMatterRegex = /^---\s*[^]*?(-{3}|\.{3})\s*/;
 
@@ -139,17 +138,21 @@ export class MarkdownEngine {
 			try {
 				let uri = vscode.Uri.parse(link);
 				if (!uri.scheme && uri.path) {
-					let p = uri.path;
 					// Assume it must be a file
-					if (p[0] === '/') {
+					const fragment = uri.fragment;
+					if (uri.path[0] === '/') {
 						const root = vscode.workspace.getWorkspaceFolder(this.currentDocument);
 						if (root) {
-							p = path.join(root.uri.fsPath, uri.path);
+							uri = vscode.Uri.file(path.join(root.uri.fsPath, uri.path));
 						}
 					} else {
-						p = path.join(path.dirname(this.currentDocument.path), uri.path);
+						uri = vscode.Uri.file(path.join(path.dirname(this.currentDocument.path), uri.path));
 					}
-					return OpenDocumentLinkCommand.createCommandUri(p, uri.fragment).toString();
+
+					if (fragment) {
+						uri = uri.with({ fragment });
+					}
+					return normalizeLink(uri.toString(true));
 				}
 			} catch (e) {
 				// noop

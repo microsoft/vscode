@@ -236,7 +236,7 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 }
 
 function showStartupWarningDialog(message: string, detail: string): void {
-	dialog.showMessageBox(null, {
+	dialog.showMessageBox({
 		title: product.nameLong,
 		type: 'warning',
 		buttons: [mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],

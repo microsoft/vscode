@@ -19,8 +19,10 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import URI from 'vs/base/common/uri';
 import { IEditorOptions, Position as EditorPosition } from 'vs/platform/editor/common/editor';
 import { openFolderCommand, openFileInNewWindowCommand, openFileFolderInNewWindowCommand, openFolderInNewWindowCommand, openWorkspaceInNewWindowCommand } from 'vs/workbench/browser/actions/workspaceActions';
-import { WorkbenchListFocusContextKey, IListService } from 'vs/platform/list/browser/listService';
+import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey } from 'vs/platform/list/browser/listService';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
+import { range } from 'vs/base/common/arrays';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 // --- List Commands
 
@@ -296,6 +298,22 @@ export function registerCommands(): void {
 				if (focus) {
 					tree.setSelection([focus], { origin: 'keyboard' });
 				}
+			}
+		}
+	});
+
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: 'list.selectAll',
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: ContextKeyExpr.and(WorkbenchListFocusContextKey, WorkbenchListSupportsMultiSelectContextKey),
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_A,
+		handler: (accessor) => {
+			const focused = accessor.get(IListService).lastFocusedList;
+
+			// List
+			if (focused instanceof List || focused instanceof PagedList) {
+				const list = focused;
+				list.setSelection(range(list.length));
 			}
 		}
 	});

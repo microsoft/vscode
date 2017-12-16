@@ -7,7 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import { IAction, Action } from 'vs/base/common/actions';
-import { IOutputService, OUTPUT_PANEL_ID } from 'vs/workbench/parts/output/common/output';
+import { IOutputService, OUTPUT_PANEL_ID, IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/parts/output/common/output';
 import { SelectActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -16,6 +16,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export class ToggleOutputAction extends TogglePanelAction {
 
@@ -49,6 +50,23 @@ export class ClearOutputAction extends Action {
 		this.panelService.getActivePanel().focus();
 
 		return TPromise.as(true);
+	}
+}
+
+export class OpenInEditorAction extends Action {
+
+	public static readonly ID = 'workbench.output.action.openInEditor';
+	public static readonly LABEL = nls.localize('openInEditor', "Open in Editor");
+
+	constructor(
+		id: string, label: string,
+		@IOutputService private outputService: IOutputService
+	) {
+		super(id, label, 'output-action open-output');
+	}
+
+	public run(): TPromise<any> {
+		return this.outputService.showChannelInEditor(this.outputService.getActiveChannel().id);
 	}
 }
 
@@ -100,7 +118,7 @@ export class SwitchOutputAction extends Action {
 	}
 
 	public run(channelId?: string): TPromise<any> {
-		return this.outputService.getChannel(channelId).show();
+		return this.outputService.showChannel(channelId);
 	}
 }
 
@@ -114,10 +132,9 @@ export class SwitchOutputActionItem extends SelectActionItem {
 	) {
 		super(null, action, [], 0, contextViewService);
 
-		this.toDispose.push(this.outputService.onOutputChannel(() => {
-			const activeChannelIndex = this.getSelected(this.outputService.getActiveChannel().id);
-			this.setOptions(this.getOptions(), activeChannelIndex);
-		}));
+		let outputChannelRegistry = <IOutputChannelRegistry>Registry.as(OutputExt.OutputChannels);
+		this.toDispose.push(outputChannelRegistry.onDidRegisterChannel(() => this.updateOtions()));
+		this.toDispose.push(outputChannelRegistry.onDidRemoveChannel(() => this.updateOtions()));
 		this.toDispose.push(this.outputService.onActiveOutputChannel(activeChannelId => this.setOptions(this.getOptions(), this.getSelected(activeChannelId))));
 		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
 
@@ -132,6 +149,11 @@ export class SwitchOutputActionItem extends SelectActionItem {
 
 	private getOptions(): string[] {
 		return this.outputService.getChannels().map(c => c.label);
+	}
+
+	private updateOtions(): void {
+		const activeChannelIndex = this.getSelected(this.outputService.getActiveChannel().id);
+		this.setOptions(this.getOptions(), activeChannelIndex);
 	}
 
 	private getSelected(outputId: string): number {

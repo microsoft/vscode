@@ -6,6 +6,7 @@
 {
 	"viewCategory": "Anzeigen",
 	"problems.view.toggle.label": "Probleme umschalten",
+	"problems.view.focus.label": "Probleme fokussieren",
 	"problems.panel.configuration.title": "Ansicht \"Probleme\"",
 	"problems.panel.configuration.autoreveal": "Steuert, ob die Ansicht \"Probleme\" automatisch Dateien anzeigen sollte, wenn diese geöffnet werden.",
 	"markers.panel.title.problems": "Probleme",

@@ -31,6 +31,7 @@
 	"minimap.maxColumn": "최대 특정 수의 열을 렌더링하도록 미니맵의 너비를 제한합니다.",
 	"find.seedSearchStringFromSelection": "편집기 선택에서 Find Widget의 검색 문자열을 시딩할지 설정합니다.",
 	"find.autoFindInSelection": "편집기에서 여러 글자 또는 행을 선택했을 때 Find in Selection 플래그를 켤지 설정합니다.",
+	"find.globalFindClipboard": "macOS에서 Find Widget이 공유 클립보드 찾기를 읽거나 수정해야 할지 설정합니다.",
 	"wordWrap.off": "줄이 바뀌지 않습니다.",
 	"wordWrap.on": "뷰포트 너비에서 줄이 바뀝니다.",
 	"wordWrap.wordWrapColumn": "`editor.wordWrapColumn`에서 줄이 바뀝니다.",

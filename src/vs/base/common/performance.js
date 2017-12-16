@@ -31,14 +31,14 @@ define([], function () {
 	}
 
 	function exportEntries() {
-		return global._performanceEntries.splice(0);
+		return global._performanceEntries.slice(0);
 	}
 
-	function getEntries(type) {
+	function getEntries(type, name) {
 		const result = [];
 		const entries = global._performanceEntries;
 		for (let i = 0; i < entries.length; i += 4) {
-			if (entries[i] === type) {
+			if (entries[i] === type && (name === void 0 || entries[i + 1] === name)) {
 				result.push({
 					type: entries[i],
 					name: entries[i + 1],
@@ -51,6 +51,39 @@ define([], function () {
 		return result.sort((a, b) => {
 			return a.startTime - b.startTime;
 		});
+	}
+
+	function getEntry(type, name) {
+		const entries = global._performanceEntries;
+		for (let i = 0; i < entries.length; i += 4) {
+			if (entries[i] === type && entries[i + 1] === name) {
+				return {
+					type: entries[i],
+					name: entries[i + 1],
+					startTime: entries[i + 2],
+					duration: entries[i + 3],
+				};
+			}
+		}
+	}
+
+	function getDuration(from, to) {
+		const entries = global._performanceEntries;
+		let name = from;
+		let startTime = 0;
+		for (let i = 0; i < entries.length; i += 4) {
+			if (entries[i + 1] === name) {
+				if (name === from) {
+					// found `from` (start of interval)
+					name = to;
+					startTime = entries[i + 2];
+				} else {
+					// from `to` (end of interval)
+					return entries[i + 2] - startTime;
+				}
+			}
+		}
+		return 0;
 	}
 
 	function mark(name) {
@@ -103,6 +136,8 @@ define([], function () {
 		measure: measure,
 		time: time,
 		getEntries: getEntries,
+		getEntry: getEntry,
+		getDuration: getDuration,
 		importEntries: importEntries,
 		exportEntries: exportEntries
 	};

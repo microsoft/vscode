@@ -49,5 +49,8 @@
 	"emmetPreferencesBemModifierSeparator": "Módosító elválasztó osztályok megadásánál BEM-szűrő használata esetén",
 	"emmetPreferencesFilterCommentBefore": "Annak a megjegyzésnek a definíciója, ami az illeszkedő elem elé kerül a megjegyzésszűrő alkalmazása esetén.",
 	"emmetPreferencesFilterCommentAfter": "Annak a megjegyzésnek a definíciója, ami az illeszkedő elem mögé kerül a megjegyzésszűrő alkalmazása esetén.",
-	"emmetPreferencesFilterCommentTrigger": "Attribútumnevek vesszővel elválasztott listája, amelyeknek léteznie kell a megjegyzésszűrő alkalmazásához."
+	"emmetPreferencesFilterCommentTrigger": "Attribútumnevek vesszővel elválasztott listája, amelyeknek léteznie kell a megjegyzésszűrő alkalmazásához.",
+	"emmetPreferencesFormatNoIndentTags": "Azon elemek neveit tartalmazó tömb, melyek nem kapnak belső indentálást",
+	"emmetPreferencesFormatForceIndentTags": "Azon elemek neveit tartalmazó tömb, melyek mindig kapnak belső indentálást",
+	"emmetPreferencesAllowCompactBoolean": "Ha az értéke true, a logikai értékeket tartalmazó attribútumok esetén a rövidített jelölés lesz használva"
 }

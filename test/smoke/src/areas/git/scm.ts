@@ -13,7 +13,7 @@ const SCM_RESOURCE = `${VIEWLET} .monaco-list-row > .resource`;
 const SCM_RESOURCE_GROUP = `${VIEWLET} .monaco-list-row > .resource-group`;
 const REFRESH_COMMAND = `div[id="workbench.parts.sidebar"] .actions-container a.action-label[title="Refresh"]`;
 const COMMIT_COMMAND = `div[id="workbench.parts.sidebar"] .actions-container a.action-label[title="Commit"]`;
-const SCM_RESOURCE_CLICK = name => `${SCM_RESOURCE} .monaco-icon-label[title$="${name}"]`;
+const SCM_RESOURCE_CLICK = name => `${SCM_RESOURCE} .monaco-icon-label[title*="${name}"]`;
 const SCM_RESOURCE_GROUP_COMMAND_CLICK = name => `${SCM_RESOURCE_GROUP} .actions .action-label[title="${name}"]`;
 
 export interface Change {
@@ -49,7 +49,7 @@ export class SCM extends Viewlet {
 		const result = await this.spectron.webclient.selectorExecute(SCM_RESOURCE,
 			div => (Array.isArray(div) ? div : [div]).map(element => {
 				const name = element.querySelector('.label-name') as HTMLElement;
-				const icon = element.querySelector('.monaco-icon-label') as HTMLElement;
+				const icon = element.querySelector('.decoration-icon') as HTMLElement;
 				const actionElementList = element.querySelectorAll('.actions .action-label');
 				const actionElements: any[] = [];
 
@@ -60,7 +60,7 @@ export class SCM extends Viewlet {
 
 				return {
 					name: name.textContent,
-					type: (icon.title || '').replace(/^([^,]+),.*$/, '$1'),
+					type: (icon.title || ''),
 					element,
 					actionElements
 				};

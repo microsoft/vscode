@@ -686,6 +686,10 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	}
 
 	public getVerticalSashHeight(sash: Sash): number {
+		if (sash === this.sashXTwo && !this.partService.isVisible(Parts.PANEL_PART)) {
+			return 0;
+		}
+
 		return this.sidebarHeight;
 	}
 

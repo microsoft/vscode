@@ -168,7 +168,7 @@ connection.onDidChangeConfiguration((change) => {
 });
 
 let pendingValidationRequests: { [uri: string]: NodeJS.Timer } = {};
-const validationDelayMs = 200;
+const validationDelayMs = 500;
 
 // The content of a text document has changed. This event is emitted
 // when the text document first opened or when its content has changed.

@@ -9,6 +9,8 @@
 	"foldAction.label": "Plegar",
 	"foldRecursivelyAction.label": "Plegar de forma recursiva",
 	"foldAllBlockComments.label": "Cerrar todos los comentarios de bloqueo",
+	"foldAllMarkerRegions.label": "Plegar todas las regiones",
+	"unfoldAllMarkerRegions.label": "Desplegar Todas las Regiones",
 	"foldAllAction.label": "Plegar todo",
 	"unfoldAllAction.label": "Desplegar todo",
 	"foldLevelAction.label": "Nivel de plegamiento {0}"
