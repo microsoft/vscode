@@ -82,17 +82,24 @@ const mockExtensionGallery: IGalleryExtension[] = [
 		})
 ];
 
-const mockRecommendedExtensions = [
-	'mockPublisher1.mockExtension1',
-	'MOCKPUBLISHER2.mockextension2',
-	'badlyformattedextension',
-	'unknown.extension'
-];
+const mockTestFull = {
+	recommendedExtensions: [
+		'mockPublisher1.mockExtension1',
+		'MOCKPUBLISHER2.mockextension2',
+		'badlyformattedextension',
+		'MOCKPUBLISHER2.mockextension2',
+		'unknown.extension'
+	],
+	validRecommendedExtensions: [
+		'mockPublisher1.mockExtension1',
+		'MOCKPUBLISHER2.mockextension2'
+	]
+};
 
-const mockValidRecommendedExtensions = [
-	'mockPublisher1.mockExtension1',
-	'MOCKPUBLISHER2.mockextension2'
-];
+const mockTestEmpty = {
+	recommendedExtensions: [],
+	validRecommendedExtensions: []
+};
 
 function aPage<T>(...objects: T[]): IPager<T> {
 	return { firstPage: objects, total: objects.length, pageSize: objects.length, getPage: () => null };
@@ -117,19 +124,19 @@ function aGalleryExtension(name: string, properties: any = {}, galleryExtensionP
 	return <IGalleryExtension>galleryExtension;
 }
 
-function setUpFolderWorkspace(folderName: string): TPromise<{ parentDir: string, folderDir: string }> {
+function setUpFolderWorkspace(folderName: string, recommendedExtensions: string[]): TPromise<{ parentDir: string, folderDir: string }> {
 	const id = uuid.generateUuid();
 	const parentDir = path.join(os.tmpdir(), 'vsctests', id);
-	return setUpFolder(folderName, parentDir).then(folderDir => ({ parentDir, folderDir }));
+	return setUpFolder(folderName, parentDir, recommendedExtensions).then(folderDir => ({ parentDir, folderDir }));
 }
 
-function setUpFolder(folderName: string, parentDir: string): TPromise<string> {
+function setUpFolder(folderName: string, parentDir: string, recommendedExtensions: string[]): TPromise<string> {
 	const folderDir = path.join(parentDir, folderName);
 	const workspaceSettingsDir = path.join(folderDir, '.vscode');
 	return mkdirp(workspaceSettingsDir, 493).then(() => {
 		const configPath = path.join(workspaceSettingsDir, 'extensions.json');
 		fs.writeFileSync(configPath, JSON.stringify({
-			'recommendations': mockRecommendedExtensions
+			'recommendations': recommendedExtensions
 		}, null, '\t'));
 		return folderDir;
 	});
@@ -176,17 +183,7 @@ suite('ExtensionsTipsService Test', () => {
 	});
 
 	setup(() => {
-		return setUpFolderWorkspace('myFolder').then(({ parentDir, folderDir }) => {
-			parentResource = parentDir;
-			const myWorkspace = testWorkspace(URI.from({ scheme: 'file', path: folderDir }));
-			workspaceService = new TestContextService(myWorkspace);
-			instantiationService.stub(IWorkspaceContextService, workspaceService);
-			instantiationService.stub(IFileService, new FileService(workspaceService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), { disableWatcher: true }));
-			instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage<IGalleryExtension>(...mockExtensionGallery));
-
-			testObject = instantiationService.createInstance(ExtensionTipsService);
-
-		});
+		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage<IGalleryExtension>(...mockExtensionGallery));
 	});
 
 	teardown((done) => {
@@ -197,15 +194,32 @@ suite('ExtensionsTipsService Test', () => {
 		}
 	});
 
-	test('test workspace folder recommendations', () => {
-		return testObject.getWorkspaceRecommendations().then(recommendations => {
-			assert.equal(recommendations.length, mockValidRecommendedExtensions.length);
+	function runTestCase(testCase): TPromise<void> {
+		return setUpFolderWorkspace('myFolder', testCase.recommendedExtensions).then(({ parentDir, folderDir }) => {
+			parentResource = parentDir;
+			const myWorkspace = testWorkspace(URI.from({ scheme: 'file', path: folderDir }));
+			workspaceService = new TestContextService(myWorkspace);
+			instantiationService.stub(IWorkspaceContextService, workspaceService);
+			instantiationService.stub(IFileService, new FileService(workspaceService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), { disableWatcher: true }));
+			testObject = instantiationService.createInstance(ExtensionTipsService);
+		}).then(() => {
+			return testObject.getWorkspaceRecommendations();
+		}).then(recommendations => {
+			assert.equal(recommendations.length, testCase.validRecommendedExtensions.length);
 			let lowerRecommendations = recommendations.map(x => x.toLowerCase());
-			let lowerValidRecommendations = mockValidRecommendedExtensions.map(x => x.toLowerCase());
+			let lowerValidRecommendations = testCase.validRecommendedExtensions.map(x => x.toLowerCase());
 
 			lowerRecommendations.forEach(x => {
 				assert.equal(lowerValidRecommendations.indexOf(x) > -1, true);
 			});
 		});
+	}
+
+	test('test workspace folder recommendations', () => {
+		return runTestCase(mockTestFull);
+	});
+
+	test('test workspace folder recommendations with empty array', () => {
+		return runTestCase(mockTestEmpty);
 	});
 });
