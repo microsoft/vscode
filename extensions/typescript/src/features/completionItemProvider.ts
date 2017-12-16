@@ -376,7 +376,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 			documentation.appendMarkdown('\n\n');
 		}
 
-		Previewer.addmarkdownDocumentation(documentation, detail.documentation, detail.tags);
+		Previewer.addMarkdownDocumentation(documentation, detail.documentation, detail.tags);
 		item.documentation = documentation;
 
 		if (detail.codeActions && detail.codeActions.length) {
