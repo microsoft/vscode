@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, Range, SnippetString, workspace, ProviderResult, CompletionContext, Uri, MarkdownString, window, QuickPickItem } from 'vscode';
+import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, Range, SnippetString, workspace, CompletionContext, Uri, MarkdownString, window, QuickPickItem } from 'vscode';
 
 import { ITypeScriptServiceClient } from '../typescriptService';
 import TypingsStatus from '../utils/typingsStatus';
 
+import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
-import { CompletionEntry, CompletionsRequestArgs, CompletionDetailsRequestArgs, CompletionEntryDetails, CodeAction } from '../protocol';
 import * as Previewer from '../utils/previewer';
 import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
 
@@ -18,7 +18,7 @@ import { applyCodeAction } from '../utils/codeAction';
 import * as languageModeIds from '../utils/languageModeIds';
 import { CommandManager, Command } from '../utils/commandManager';
 
-let localize = nls.loadMessageBundle();
+const localize = nls.loadMessageBundle();
 
 class MyCompletionItem extends CompletionItem {
 	public readonly source: string | undefined;
@@ -27,7 +27,7 @@ class MyCompletionItem extends CompletionItem {
 	constructor(
 		public readonly position: Position,
 		public readonly document: TextDocument,
-		entry: CompletionEntry,
+		entry: Proto.CompletionEntry,
 		enableDotCompletions: boolean,
 		useCodeSnippetsOnMethodSuggest: boolean
 	) {
@@ -106,7 +106,11 @@ class MyCompletionItem extends CompletionItem {
 		return CompletionItemKind.Property;
 	}
 
-	private static getCommitCharacters(enableDotCompletions: boolean, enableCallCompletions: boolean, kind: string): string[] | undefined {
+	private static getCommitCharacters(
+		enableDotCompletions: boolean,
+		enableCallCompletions: boolean,
+		kind: string
+	): string[] | undefined {
 		switch (kind) {
 			case PConst.Kind.memberGetAccessor:
 			case PConst.Kind.memberSetAccessor:
@@ -142,7 +146,7 @@ class ApplyCompletionCodeActionCommand implements Command {
 		private readonly client: ITypeScriptServiceClient
 	) { }
 
-	public async execute(_file: string, codeActions: CodeAction[]): Promise<boolean> {
+	public async execute(_file: string, codeActions: Proto.CodeAction[]): Promise<boolean> {
 		if (codeActions.length === 0) {
 			return true;
 		}
@@ -257,7 +261,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		}
 
 		try {
-			const args: CompletionsRequestArgs = {
+			const args: Proto.CompletionsRequestArgs = {
 				...vsPositionToTsFileLocation(file, position),
 				includeExternalModuleExports: config.autoImportSuggestions
 			};
@@ -312,81 +316,86 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		}
 	}
 
-	public resolveCompletionItem(item: CompletionItem, token: CancellationToken): ProviderResult<CompletionItem> {
+	public async resolveCompletionItem(
+		item: CompletionItem,
+		token: CancellationToken
+	): Promise<CompletionItem | undefined> {
 		if (!(item instanceof MyCompletionItem)) {
-			return null;
+			return undefined;
 		}
-
 
 		const filepath = this.client.normalizePath(item.document.uri);
 		if (!filepath) {
-			return null;
+			return undefined;
 		}
 
 		item.resolve();
 
-		const args: CompletionDetailsRequestArgs = {
+		const args: Proto.CompletionDetailsRequestArgs = {
 			...vsPositionToTsFileLocation(filepath, item.position),
 			entryNames: [
 				item.source ? { name: item.label, source: item.source } : item.label
 			]
 		};
-		return this.client.execute('completionEntryDetails', args, token).then((response) => {
-			const details = response.body;
-			if (!details || !details.length || !details[0]) {
-				return item;
-			}
-			const detail = details[0];
-			item.detail = Previewer.plain(detail.displayParts);
-			const documentation = new MarkdownString();
-			if (detail.source) {
-				let importPath = `'${Previewer.plain(detail.source)}'`;
 
-				if (this.client.apiVersion.has260Features() && !this.client.apiVersion.has262Features()) {
-					// Try to resolve the real import name that will be added
-					if (detail.codeActions && detail.codeActions[0]) {
-						const action = detail.codeActions[0];
-						if (action.changes[0] && action.changes[0].textChanges[0]) {
-							const textChange = action.changes[0].textChanges[0];
-							const matchedImport = textChange.newText.match(/(['"])(.+?)\1/);
-							if (matchedImport) {
-								importPath = matchedImport[0];
-								item.detail += ` — from ${matchedImport[0]}`;
-							}
+		let response: Proto.CompletionDetailsResponse;
+		try {
+			response = await this.client.execute('completionEntryDetails', args, token);
+		} catch {
+			return item;
+		}
+
+		const details = response.body;
+		if (!details || !details.length || !details[0]) {
+			return item;
+		}
+		const detail = details[0];
+		item.detail = Previewer.plain(detail.displayParts);
+		const documentation = new MarkdownString();
+		if (detail.source) {
+			let importPath = `'${Previewer.plain(detail.source)}'`;
+
+			if (this.client.apiVersion.has260Features() && !this.client.apiVersion.has262Features()) {
+				// Try to resolve the real import name that will be added
+				if (detail.codeActions && detail.codeActions[0]) {
+					const action = detail.codeActions[0];
+					if (action.changes[0] && action.changes[0].textChanges[0]) {
+						const textChange = action.changes[0].textChanges[0];
+						const matchedImport = textChange.newText.match(/(['"])(.+?)\1/);
+						if (matchedImport) {
+							importPath = matchedImport[0];
+							item.detail += ` — from ${matchedImport[0]}`;
 						}
 					}
-					documentation.appendMarkdown(localize('autoImportLabel', 'Auto import from {0}', importPath));
-				} else {
-					const autoImportLabel = localize('autoImportLabel', 'Auto import from {0}', importPath);
-					item.detail = `${autoImportLabel}\n${item.detail}`;
 				}
-				documentation.appendMarkdown('\n\n');
+				documentation.appendMarkdown(localize('autoImportLabel', 'Auto import from {0}', importPath));
+			} else {
+				const autoImportLabel = localize('autoImportLabel', 'Auto import from {0}', importPath);
+				item.detail = `${autoImportLabel}\n${item.detail}`;
 			}
+			documentation.appendMarkdown('\n\n');
+		}
 
-			Previewer.addmarkdownDocumentation(documentation, detail.documentation, detail.tags);
-			item.documentation = documentation;
+		Previewer.addmarkdownDocumentation(documentation, detail.documentation, detail.tags);
+		item.documentation = documentation;
 
-			if (detail.codeActions && detail.codeActions.length) {
-				item.command = {
-					title: '',
-					command: ApplyCompletionCodeActionCommand.ID,
-					arguments: [filepath, detail.codeActions]
-				};
+		if (detail.codeActions && detail.codeActions.length) {
+			item.command = {
+				title: '',
+				command: ApplyCompletionCodeActionCommand.ID,
+				arguments: [filepath, detail.codeActions]
+			};
+		}
+
+		if (detail && item.useCodeSnippet) {
+			const shouldCompleteFunction = await this.isValidFunctionCompletionContext(filepath, item.position);
+			if (shouldCompleteFunction) {
+				item.insertText = this.snippetForFunctionCall(detail);
 			}
-
-			if (detail && item.useCodeSnippet) {
-				return this.isValidFunctionCompletionContext(filepath, item.position).then(shouldCompleteFunction => {
-					if (shouldCompleteFunction) {
-						item.insertText = this.snippetForFunctionCall(detail);
-					}
-					return item;
-				});
-			}
-
 			return item;
-		}, () => {
-			return item;
-		});
+		}
+
+		return item;
 	}
 
 	private async isValidFunctionCompletionContext(filepath: string, position: Position): Promise<boolean> {
@@ -409,7 +418,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 		}
 	}
 
-	private snippetForFunctionCall(detail: CompletionEntryDetails): SnippetString {
+	private snippetForFunctionCall(detail: Proto.CompletionEntryDetails): SnippetString {
 		let hasOptionalParameters = false;
 		let hasAddedParameters = false;
 
