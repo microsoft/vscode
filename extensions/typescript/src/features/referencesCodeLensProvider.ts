@@ -7,7 +7,7 @@ import { CodeLens, CancellationToken, TextDocument, Range, Location, workspace }
 import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 
-import { TypeScriptBaseCodeLensProvider, ReferencesCodeLens } from './baseCodeLensProvider';
+import { TypeScriptBaseCodeLensProvider, ReferencesCodeLens, CachedNavTreeResponse } from './baseCodeLensProvider';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
 
@@ -17,9 +17,10 @@ const localize = nls.loadMessageBundle();
 export default class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvider {
 	public constructor(
 		client: ITypeScriptServiceClient,
-		private readonly language: string
+		private readonly language: string,
+		cachedResponse: CachedNavTreeResponse
 	) {
-		super(client);
+		super(client, cachedResponse);
 	}
 
 	public updateConfiguration(): void {
