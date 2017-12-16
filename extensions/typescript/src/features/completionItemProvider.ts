@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, TextEdit, Range, SnippetString, workspace, ProviderResult, CompletionContext, Uri, MarkdownString, window, QuickPickItem } from 'vscode';
+import { CompletionItem, TextDocument, Position, CompletionItemKind, CompletionItemProvider, CancellationToken, Range, SnippetString, workspace, ProviderResult, CompletionContext, Uri, MarkdownString, window, QuickPickItem } from 'vscode';
 
 import { ITypeScriptServiceClient } from '../typescriptService';
 import TypingsStatus from '../utils/typingsStatus';
@@ -22,13 +22,14 @@ let localize = nls.loadMessageBundle();
 
 class MyCompletionItem extends CompletionItem {
 	public readonly source: string | undefined;
+	public readonly useCodeSnippet: boolean;
 
 	constructor(
 		public readonly position: Position,
 		public readonly document: TextDocument,
 		entry: CompletionEntry,
 		enableDotCompletions: boolean,
-		public readonly useCodeSnippetsOnMethodSuggest: boolean
+		useCodeSnippetsOnMethodSuggest: boolean
 	) {
 		super(entry.name);
 		this.source = entry.source;
@@ -40,6 +41,7 @@ class MyCompletionItem extends CompletionItem {
 		this.kind = MyCompletionItem.convertKind(entry.kind);
 		this.position = position;
 		this.commitCharacters = MyCompletionItem.getCommitCharacters(enableDotCompletions, !useCodeSnippetsOnMethodSuggest, entry.kind);
+		this.useCodeSnippet = useCodeSnippetsOnMethodSuggest && (this.kind === CompletionItemKind.Function || this.kind === CompletionItemKind.Method);
 
 		if (entry.replacementSpan) {
 			this.range = tsTextSpanToVsRange(entry.replacementSpan);
@@ -372,7 +374,7 @@ export default class TypeScriptCompletionItemProvider implements CompletionItemP
 				};
 			}
 
-			if (detail && item.useCodeSnippetsOnMethodSuggest && (item.kind === CompletionItemKind.Function || item.kind === CompletionItemKind.Method)) {
+			if (detail && item.useCodeSnippet) {
 				return this.isValidFunctionCompletionContext(filepath, item.position).then(shouldCompleteFunction => {
 					if (shouldCompleteFunction) {
 						item.insertText = this.snippetForFunctionCall(detail);
