@@ -608,10 +608,17 @@ export class FileService implements IFileService {
 			return this.updateContent(uri.file(tmpPath), value, writeOptions).then(() => {
 				let sudoPromise: Thenable<void>;
 
-				// Windows: Use Code.exe helper
+				// Windows: Use code-writer.exe helper
 				if (isWindows) {
 					sudoPromise = new TPromise<void>((c, e) => {
-						cp.exec(uri.parse(require.toUrl('vs/workbench/services/files/node/elevate/win32/Code.exe')).fsPath, (error, stdout, stderr) => {
+						let codeWriter: string;
+						if (process.arch === 'x64') {
+							codeWriter = uri.parse(require.toUrl('vs/workbench/services/files/node/elevate/win32/code-writer-x64.exe')).fsPath;
+						} else {
+							codeWriter = uri.parse(require.toUrl('vs/workbench/services/files/node/elevate/win32/code-writer-ia32.exe')).fsPath;
+						}
+
+						cp.exec(`"${codeWriter}" "${tmpPath}" "${absolutePath}"`, (error, stdout, stderr) => {
 							if (error || stderr) {
 								e(error || stderr);
 							} else {
