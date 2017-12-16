@@ -31,7 +31,11 @@ class MyCompletionItem extends CompletionItem {
 	) {
 		super(entry.name);
 		this.source = entry.source;
-		this.sortText = entry.sortText;
+
+		// Make sure isRecommended property always comes first
+		// https://github.com/Microsoft/vscode/issues/40325
+		this.sortText = entry.isRecommended ? '\0' : entry.sortText;
+
 		this.kind = MyCompletionItem.convertKind(entry.kind);
 		this.position = position;
 		this.commitCharacters = MyCompletionItem.getCommitCharacters(enableDotCompletions, !useCodeSnippetsOnMethodSuggest, entry.kind);
