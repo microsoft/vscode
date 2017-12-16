@@ -654,8 +654,13 @@ export class FileService implements IFileService {
 				// 3.) invoke our CLI as super user
 				return sudoPromise.then(() => {
 
-					// 3.) resolve again
-					return this.resolve(resource);
+					// 3.) delete temp file
+					return pfs.del(tmpPath, this.tmpPath).then(() => {
+
+						// 4.) resolve again
+						return this.resolve(resource);
+					});
+
 				});
 			});
 		}).then(null, error => {
