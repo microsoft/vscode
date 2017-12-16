@@ -63,28 +63,44 @@
 
 	/**
 	 * Find the html elements that are at a specific pixel offset on the page.
+	 *
+	 * @returns {{ previous: { element: any, line: number }, next?: { element: any, line: number } }}
 	 */
 	function getLineElementsAtPageOffset(offset) {
-		const lines = document.getElementsByClassName('code-line');
-		const position = offset - window.scrollY;
-		let previous = null;
-		for (const element of lines) {
+		const allLines = document.getElementsByClassName('code-line');
+		/** @type {Element[]} */
+		const lines = Array.prototype.filter.call(allLines, element => {
 			const line = +element.getAttribute('data-line');
-			if (isNaN(line)) {
-				continue;
+			return !isNaN(line)
+		});
+
+		const position = offset - window.scrollY;
+
+		let lo = -1;
+		let hi = lines.length - 1;
+		while (lo + 1 < hi) {
+			const mid = Math.floor((lo + hi) / 2);
+			const bounds = lines[mid].getBoundingClientRect();
+			if (bounds.top + bounds.height >= position) {
+				hi = mid;
+			} else {
+				lo = mid;
 			}
-			const bounds = element.getBoundingClientRect();
-			const entry = { element, line };
-			if (position < bounds.top) {
-				if (previous && previous.fractional < 1) {
-					previous.line += previous.fractional;
-					return { previous };
-				}
-				return { previous, next: entry };
-			}
-			entry.fractional = (position - bounds.top) / (bounds.height);
-			previous = entry;
 		}
+
+		const hiElement = lines[hi];
+		const hiLine = +hiElement.getAttribute('data-line');
+		if (hi >= 1 && hiElement.getBoundingClientRect().top > position) {
+			const loElement = lines[lo];
+			const loLine = +loElement.getAttribute('data-line');
+			const bounds = loElement.getBoundingClientRect();
+			const previous = { element: loElement, line: loLine + (position - bounds.top) / (bounds.height) };
+			const next = { element: hiElement, line: hiLine, fractional: 0 };
+			return { previous, next };
+		}
+
+		const bounds = hiElement.getBoundingClientRect();
+		const previous = { element: hiElement, line: hiLine + (position - bounds.top) / (bounds.height) };
 		return { previous };
 	}
 
