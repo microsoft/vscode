@@ -398,9 +398,16 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 						localize('close', "Close")
 					];
 
-					this.choiceService.choose(Severity.Info, message, options, 3).done(choice => {
+					this.choiceService.choose(Severity.Info, message, options, 2).done(choice => {
 						switch (choice) {
 							case 0:
+								/* __GDPR__
+									"fileExtensionSuggestion:popup" : {
+										"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+										"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+									}
+								*/
+								this.telemetryService.publicLog('fileExtensionSuggestion:popup', { userReaction: 'ok', fileExtension: fileExtension });
 								return searchMarketplaceAction.run();
 							case 1:
 								fileExtensionSuggestionIgnoreList.push(fileExtension);
@@ -409,13 +416,34 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 									JSON.stringify(fileExtensionSuggestionIgnoreList),
 									StorageScope.GLOBAL
 								);
+								/* __GDPR__
+									"fileExtensionSuggestion:popup" : {
+										"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+										"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+									}
+								*/
+								this.telemetryService.publicLog('fileExtensionSuggestion:popup', { userReaction: 'neverShowAgain', fileExtension: fileExtension });
+
 								return this.ignoreExtensionRecommendations();
 							case 2:
-								return TPromise.as(null);
-						}
+								/* __GDPR__
+									"fileExtensionSuggestion:popup" : {
+										"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+										"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+									}
+								*/
+								this.telemetryService.publicLog('fileExtensionSuggestion:popup', { userReaction: 'close', fileExtension: fileExtension });
 
-						return TPromise.as(null);
-					}, () => { return TPromise.as(null); });
+						}
+					}, () => {
+						/* __GDPR__
+							"fileExtensionSuggestion:popup" : {
+								"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+								"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+							}
+						*/
+						this.telemetryService.publicLog('fileExtensionSuggestion:popup', { userReaction: 'cancelled', fileExtension: fileExtension });
+					});
 				}
 			});
 		});
