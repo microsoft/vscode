@@ -16,6 +16,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { join } from 'vs/base/common/paths';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import Event from 'vs/base/common/event';
+import { LocalSearchProvider, RemoteSearchProvider } from 'vs/workbench/parts/preferences/electron-browser/preferencesSearch';
 
 export interface IWorkbenchSettingsConfiguration {
 	workbench: {
@@ -58,7 +59,8 @@ export interface ISetting {
 
 export interface IFilterResult {
 	query: string;
-	filteredGroups: ISettingsGroup[];
+	filteredSettings: ISetting[];
+	searchedSettings?: ISetting[];
 	allGroups: ISettingsGroup[];
 	matches: IRange[];
 	metadata?: IFilterMetadata;
@@ -158,14 +160,15 @@ export const IPreferencesSearchService = createDecorator<IPreferencesSearchServi
 export interface IPreferencesSearchService {
 	_serviceBrand: any;
 
-	remoteSearchAllowed: boolean;
 	endpoint: IEndpointDetails;
 	onRemoteSearchEnablementChanged: Event<boolean>;
 
-	startSearch(filter: string, remote: boolean): IPreferencesSearchModel;
+	getLocalSearchProvider(filter: string): LocalSearchProvider;
+	getRemoteSearchProvider(filter: string): RemoteSearchProvider;
 }
 
 export interface IPreferencesSearchModel {
+	startRemoteSearch(): void;
 	filterPreferences(preferencesModel: ISettingsEditorModel): TPromise<IFilterResult>;
 }
 

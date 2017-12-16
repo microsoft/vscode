@@ -19,7 +19,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IRequestService } from 'vs/platform/request/node/request';
 import { asJson } from 'vs/base/node/request';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export interface IEndpointDetails {
@@ -42,7 +42,7 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 		this._register(configurationService.onDidChangeConfiguration(() => this._onRemoteSearchEnablementChanged.fire(this.remoteSearchAllowed)));
 	}
 
-	get remoteSearchAllowed(): boolean {
+	private get remoteSearchAllowed(): boolean {
 		if (this.environmentService.appQuality === 'stable') {
 			return false;
 		}
@@ -69,8 +69,12 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 		}
 	}
 
-	startSearch(filter: string, remote: boolean): PreferencesSearchModel {
-		return this.instantiationService.createInstance(PreferencesSearchModel, this, filter, remote);
+	getRemoteSearchProvider(filter: string): RemoteSearchProvider {
+		return this.instantiationService.createInstance(RemoteSearchProvider, filter, this.endpoint);
+	}
+
+	getLocalSearchProvider(filter: string): LocalSearchProvider {
+		return this.instantiationService.createInstance(LocalSearchProvider, filter);
 	}
 }
 
@@ -79,15 +83,15 @@ export class PreferencesSearchModel implements IPreferencesSearchModel {
 	private _remoteProvider: RemoteSearchProvider;
 
 	constructor(
-		private provider: IPreferencesSearchService, private filter: string, remote: boolean,
-		@IInstantiationService instantiationService: IInstantiationService,
+		private provider: IPreferencesSearchService, private filter: string,
+		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITelemetryService private telemetryService: ITelemetryService
 	) {
-		this._localProvider = new LocalSearchProvider(filter);
+		this._localProvider = instantiationService.createInstance(LocalSearchProvider, filter);
+	}
 
-		if (remote && filter) {
-			this._remoteProvider = instantiationService.createInstance(RemoteSearchProvider, filter, this.provider.endpoint);
-		}
+	startRemoteSearch(): void {
+		this._remoteProvider = this.instantiationService.createInstance(RemoteSearchProvider, this.filter, this.provider.endpoint);
 	}
 
 	filterPreferences(preferencesModel: ISettingsEditorModel): TPromise<IFilterResult> {
@@ -95,7 +99,9 @@ export class PreferencesSearchModel implements IPreferencesSearchModel {
 			return TPromise.wrap(null);
 		}
 
+
 		if (this._remoteProvider) {
+			this._localProvider.filterPreferences(preferencesModel);
 			return this._remoteProvider.filterPreferences(preferencesModel).then(null, err => {
 				const message = errors.getErrorMessage(err);
 
@@ -116,7 +122,7 @@ export class PreferencesSearchModel implements IPreferencesSearchModel {
 	}
 }
 
-class LocalSearchProvider {
+export class LocalSearchProvider {
 	private _filter: string;
 
 	constructor(filter: string) {
@@ -124,6 +130,10 @@ class LocalSearchProvider {
 	}
 
 	filterPreferences(preferencesModel: ISettingsEditorModel): TPromise<IFilterResult> {
+		if (!this._filter) {
+			return TPromise.wrap(null);
+		}
+
 		const regex = strings.createRegExp(this._filter, false, { global: true });
 
 		const groupFilter = (group: ISettingsGroup) => {
@@ -134,13 +144,15 @@ class LocalSearchProvider {
 			return new SettingMatches(this._filter, setting, true, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
 		};
 
+		// Could be a different relationship - "apply" searchModel to some set of prefs. Then "render" the results in the prefs model
 		return TPromise.wrap(preferencesModel.filterSettings(this._filter, groupFilter, settingMatcher));
 	}
 }
 
-class RemoteSearchProvider {
+export class RemoteSearchProvider implements IDisposable {
 	private _filter: string;
 	private _remoteSearchP: TPromise<IFilterMetadata>;
+	private _isDisposed = false;
 
 	constructor(filter: string, endpoint: IEndpointDetails,
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -152,7 +164,7 @@ class RemoteSearchProvider {
 
 	filterPreferences(preferencesModel: ISettingsEditorModel): TPromise<IFilterResult> {
 		return this._remoteSearchP.then(remoteResult => {
-			if (remoteResult) {
+			if (!this._isDisposed && remoteResult) {
 				let sortedNames = Object.keys(remoteResult.scoredResults).sort((a, b) => remoteResult.scoredResults[b] - remoteResult.scoredResults[a]);
 				if (sortedNames.length) {
 					const highScore = remoteResult.scoredResults[sortedNames[0]];
@@ -168,6 +180,10 @@ class RemoteSearchProvider {
 				return null;
 			}
 		});
+	}
+
+	dispose(): void {
+		this._isDisposed = true;
 	}
 
 	private getSettingsFromBing(filter: string, endpoint: IEndpointDetails): TPromise<IFilterMetadata> {

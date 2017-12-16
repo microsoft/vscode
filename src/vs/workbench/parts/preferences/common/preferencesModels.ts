@@ -30,60 +30,62 @@ export abstract class AbstractSettingsModel extends EditorModel {
 		const allGroups = this.settingsGroups;
 
 		if (!filter) {
-			return {
-				filteredGroups: allGroups,
-				allGroups,
-				matches: [],
-				query: filter
-			};
+			throw new Error(`don't`);
+			// return {
+			// 	filteredGroups: allGroups,
+			// 	allGroups,
+			// 	matches: [],
+			// 	query: filter
+			// };
 		}
 
-		const group = this.filterByGroupTerm(filter);
-		if (group) {
-			return {
-				filteredGroups: [group],
-				allGroups,
-				matches: [],
-				query: filter
-			};
-		}
+		// Hm
+		// const group = this.filterByGroupTerm(filter);
+		// if (group) {
+		// 	return {
+		// 		filteredGroups: [group],
+		// 		allGroups,
+		// 		matches: [],
+		// 		query: filter
+		// 	};
+		// }
 
+		const filteredSettings: ISetting[] = [];
 		const matches: IRange[] = [];
-		const filteredGroups: ISettingsGroup[] = [];
+		// const filteredGroups: ISettingsGroup[] = [];
 		for (const group of allGroups) {
 			const groupMatched = groupFilter(group);
-			const sections: ISettingsSection[] = [];
 			for (const section of group.sections) {
-				const settings: ISetting[] = [];
 				for (const setting of section.settings) {
 					const settingMatches = settingMatcher(setting);
 					if (groupMatched || settingMatches && settingMatches.length) {
-						settings.push(setting);
+						filteredSettings.push(setting);
 					}
 
-					if (settingMatches) {
-						matches.push(...settingMatches);
-					}
+					// if (settingMatches) {
+					// 	matches.push(...settingMatches);
+					// }
 				}
-				if (settings.length) {
-					sections.push({
-						title: section.title,
-						settings,
-						titleRange: section.titleRange
-					});
-				}
+				// if (settings.length) {
+				// 	sections.push({
+				// 		title: section.title,
+				// 		settings,
+				// 		titleRange: section.titleRange
+				// 	});
+				// }
 			}
-			if (sections.length) {
-				filteredGroups.push({
-					id: group.id,
-					title: group.title,
-					titleRange: group.titleRange,
-					sections,
-					range: group.range
-				});
-			}
+			// if (sections.length) {
+			// 	filteredGroups.push({
+			// 		id: group.id,
+			// 		title: group.title,
+			// 		titleRange: group.titleRange,
+			// 		sections,
+			// 		range: group.range
+			// 	});
+			// }
 		}
-		return { filteredGroups, matches, allGroups, query: filter };
+
+		return { filteredSettings, matches, allGroups, query: filter };
 	}
 
 	private filterByGroupTerm(filter: string): ISettingsGroup {
@@ -588,34 +590,38 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 
 	public filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher, mostRelevantSettings?: string[]): IFilterResult {
 		if (mostRelevantSettings) {
-			const mostRelevantGroup = this.renderMostRelevantSettings(mostRelevantSettings);
+			// const mostRelevantGroup = this.renderLiteralResultSettings(mostRelevantSettings);
 
-			// calculate match ranges
-			const matches = mostRelevantGroup.sections[0].settings.reduce((prev, s) => {
-				return prev.concat(settingMatcher(s));
-			}, []);
+			// // calculate match ranges
+			// const matches = mostRelevantGroup.sections[0].settings.reduce((prev, s) => {
+			// 	return prev.concat(settingMatcher(s));
+			// }, []);
 
-			return {
-				allGroups: [...this.settingsGroups, mostRelevantGroup],
-				filteredGroups: mostRelevantGroup.sections[0].settings.length ? [mostRelevantGroup] : [],
-				matches,
-				query: filter
-			};
+			// return {
+			// 	allGroups: [...this.settingsGroups, mostRelevantGroup],
+			// 	filteredGroups: mostRelevantGroup.sections[0].settings.length ? [mostRelevantGroup] : [],
+			// 	matches,
+			// 	query: filter
+			// };
 		} else {
 			// Do local search and add empty 'most relevant' group
-			const mostRelevantGroup = this.renderMostRelevantSettings([]);
 			const result = this.doFilterSettings(filter, groupFilter, settingMatcher);
-			result.allGroups = [...result.allGroups, mostRelevantGroup];
+			const literalResultGroup = this.renderLiteralResultSettings(result.filteredSettings);
+			const matches = literalResultGroup.sections[0].settings.reduce((prev, s) => {
+				return prev.concat(settingMatcher(s));
+			}, []);
+			result.matches = matches;
+			result.allGroups = [...result.allGroups, literalResultGroup];
 			return result;
 		}
 	}
 
-	private renderMostRelevantSettings(mostRelevantSettings: string[]): ISettingsGroup {
+	private renderLiteralResultSettings(literalResultSettings: ISetting[]): ISettingsGroup {
 		const mostRelevantLineOffset = tail(this.settingsGroups).range.endLineNumber + 2;
 		const builder = new SettingsContentBuilder(mostRelevantLineOffset - 1);
 		builder.pushLine(',');
-		const mostRelevantGroup = this.getMostRelevantSettings(mostRelevantSettings);
-		builder.pushGroups([mostRelevantGroup]);
+		const literalResultGroup = this.getLiteralResultsGroup(literalResultSettings);
+		builder.pushGroups([literalResultGroup]);
 		builder.pushLine('');
 
 		// note: 1-indexed line numbers here
@@ -630,7 +636,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			}
 		]);
 
-		return mostRelevantGroup;
+		return literalResultGroup;
 	}
 
 	public findValueMatches(filter: string, setting: ISetting): IRange[] {
@@ -650,9 +656,9 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return null;
 	}
 
-	private getMostRelevantSettings(rankedSettingNames: string[]): ISettingsGroup {
-		const settings = rankedSettingNames.map(key => {
-			const setting = this.defaultSettings.getSettingByName(key);
+	private getSettings(rankedSettingNames: (string|ISetting)[]): ISetting[] {
+		return rankedSettingNames.map(thing => {
+			const setting = typeof thing === 'string' ? this.defaultSettings.getSettingByName(thing) : thing;
 			if (setting) {
 				return <ISetting>{
 					description: setting.description,
@@ -665,15 +671,17 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			}
 			return null;
 		}).filter(setting => !!setting);
+	}
 
+	private getLiteralResultsGroup(rankedSettings: ISetting[]): ISettingsGroup {
 		return <ISettingsGroup>{
-			id: 'mostRelevant',
+			id: 'literalResults',
 			range: null,
-			title: nls.localize('mostRelevant', "Most Relevant"),
+			title: nls.localize('literalResults', "Literal Results"),
 			titleRange: null,
 			sections: [
 				{
-					settings
+					settings: this.getSettings(rankedSettings)
 				}
 			]
 		};

@@ -58,6 +58,9 @@ import { MessageController } from 'vs/editor/contrib/message/messageController';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { LocalSearchProvider, RemoteSearchProvider } from 'vs/workbench/parts/preferences/electron-browser/preferencesSearch';
+
+type whatever = any;
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
 	public static ID: string = 'workbench.editorinputs.preferencesEditorInput';
@@ -250,11 +253,8 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	private onInputChanged(): void {
-		if (this.searchWidget.fuzzyEnabled) {
-			this.triggerThrottledFilter();
-		} else {
-			this.filterPreferences();
-		}
+		this.triggerThrottledFilter();
+		this.filterPreferences();
 	}
 
 	private triggerThrottledFilter(): void {
@@ -281,14 +281,15 @@ export class PreferencesEditor extends BaseEditor {
 	private filterPreferences(): TPromise<void> {
 		this.memento['fuzzyEnabled'] = this.searchWidget.fuzzyEnabled;
 		const filter = this.searchWidget.getValue().trim();
-		return this.preferencesRenderers.filterPreferences({ filter, fuzzy: this.searchWidget.fuzzyEnabled }).then(result => {
-			this.showSearchResultsMessage(result.count);
-			if (result.count === 0) {
-				this.latestEmptyFilters.push(filter);
-			}
-			this.preferencesRenderers.focusFirst();
-			this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(filter, result.metadata));
-		}, onUnexpectedError);
+		return this.preferencesRenderers.filterPreferences(filter).then(() => { });
+		// return this.preferencesRenderers.filterPreferences(filter).then(result => {
+		// 	this.showSearchResultsMessage(result.count);
+		// 	if (result.count === 0) {
+		// 		this.latestEmptyFilters.push(filter);
+		// 	}
+		// 	this.preferencesRenderers.focusFirst();
+		// 	this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(filter, result.metadata));
+		// }, onUnexpectedError);
 	}
 
 	private showSearchResultsMessage(count: number): void {
@@ -391,10 +392,11 @@ class PreferencesRenderers extends Disposable {
 	private _settingsNavigator: SettingsNavigator;
 	private _filtersInProgress: TPromise<any>[];
 	private _searchCriteria: ISearchCriteria;
-	private _currentSearchModel: IPreferencesSearchModel;
-	private _currentFilterModel: IPreferencesSearchModel;
-	private _defaultPrefsThrottle: ThrottledDelayer<void>;
-	private _editablePrefsThrottle: ThrottledDelayer<void>;
+
+	private _currentLocalSearchProvider: LocalSearchProvider;
+	private _currentRemoteSearchProvider: RemoteSearchProvider;
+
+	private _remoteSearchThrottle: ThrottledDelayer<void>;
 
 	private _onTriggeredFuzzy: Emitter<void> = this._register(new Emitter<void>());
 	public onTriggeredFuzzy: Event<void> = this._onTriggeredFuzzy.event;
@@ -407,8 +409,7 @@ class PreferencesRenderers extends Disposable {
 	) {
 		super();
 
-		this._defaultPrefsThrottle = new ThrottledDelayer(200);
-		this._editablePrefsThrottle = new ThrottledDelayer(200);
+		this._remoteSearchThrottle = new ThrottledDelayer(200);
 	}
 
 	get defaultPreferencesRenderer(): IPreferencesRenderer<ISetting> {
@@ -442,40 +443,55 @@ class PreferencesRenderers extends Disposable {
 			this._editablePreferencesRendererDisposables = dispose(this._editablePreferencesRendererDisposables);
 			if (this._editablePreferencesRenderer) {
 				(<ISettingsEditorModel>this._editablePreferencesRenderer.preferencesModel).onDidChangeGroups(() => {
-					if (this._currentSearchModel) {
-						this._filterEditablePreferences()
-							.then(() => {
-								const count = this.consolidateAndUpdate();
-								this._onDidFilterResultsCountChange.fire(count);
-							});
+					if (this._currentLocalSearchProvider) {
+						console.log(`how does this happen`);
+						// this._filterEditablePreferences()
+						// 	.then(() => {
+						// 		const count = this.consolidateAndUpdate();
+						// 		this._onDidFilterResultsCountChange.fire(count);
+						// 	});
 					}
 				}, this, this._editablePreferencesRendererDisposables);
 			}
 		}
 	}
 
-	filterPreferences(criteria: ISearchCriteria): TPromise<{ count: number, metadata: IFilterMetadata }> {
-		this._searchCriteria = criteria;
+	searchPreferences(filter: string): whatever {
+		if (this._currentRemoteSearchProvider) {
+			// actually, cancel promise
+			this._currentRemoteSearchProvider.dispose();
+		}
 
+		this._currentRemoteSearchProvider = this.preferencesSearchService.getRemoteSearchProvider(filter);
+
+		// call twice with two prefs models
+		// this._currentRemoteSearchProvider
+	}
+
+	filterPreferences(filter: string): TPromise<{ count: number, metadata: IFilterMetadata }> {
 		if (this._filtersInProgress) {
 			// Resolved/rejected promises have no .cancel()
 			this._filtersInProgress.forEach(p => p.cancel && p.cancel());
 		}
 
-		this._currentFilterModel = this.preferencesSearchService.startSearch(this._searchCriteria.filter, false);
-		this._currentSearchModel = this.preferencesSearchService.startSearch(this._searchCriteria.filter, true);
-		this._filtersInProgress = [this._filterDefaultPreferences(), this._filterEditablePreferences()];
+		this._currentLocalSearchProvider = this.preferencesSearchService.getLocalSearchProvider(filter);
+		this._filterPreferences(filter, this.defaultPreferencesRenderer, this._currentLocalSearchProvider);
+		this._filterPreferences(filter, this.editablePreferencesRenderer, this._currentLocalSearchProvider);
 
-		return TPromise.join<IFilterResult>(this._filtersInProgress).then(() => {
-			const count = this.consolidateAndUpdate();
-			return { count, metadata: this._defaultPreferencesFilterResult && this._defaultPreferencesFilterResult.metadata };
-		});
+		// this._filtersInProgress = [this._filterDefaultPreferences(), this._filterEditablePreferences()];
+
+		// return TPromise.join<IFilterResult>(this._filtersInProgress).then(() => {
+		// 	const count = this.consolidateAndUpdate();
+		// 	return { count, metadata: this._defaultPreferencesFilterResult && this._defaultPreferencesFilterResult.metadata };
+		// });
+
+		return TPromise.wrap(null);
 	}
 
 	focusFirst(): void {
 		// Focus first match in both renderers
-		this._focusPreference(this._getFirstSettingFromTheGroups(this._defaultPreferencesFilterResult ? this._defaultPreferencesFilterResult.filteredGroups : []), this._defaultPreferencesRenderer);
-		this._focusPreference(this._getFirstSettingFromTheGroups(this._editablePreferencesFilterResult ? this._editablePreferencesFilterResult.filteredGroups : []), this._editablePreferencesRenderer);
+		// this._focusPreference(this._getFirstSettingFromTheGroups(this._defaultPreferencesFilterResult ? this._defaultPreferencesFilterResult.filteredGroups : []), this._defaultPreferencesRenderer);
+		// this._focusPreference(this._getFirstSettingFromTheGroups(this._editablePreferencesFilterResult ? this._editablePreferencesFilterResult.filteredGroups : []), this._editablePreferencesRenderer);
 
 		this._settingsNavigator.first(); // Move to first
 	}
@@ -490,21 +506,21 @@ class PreferencesRenderers extends Disposable {
 		this._focusPreference(setting, this._editablePreferencesRenderer);
 	}
 
-	private _filterDefaultPreferences(): TPromise<void> {
-		if (this._searchCriteria && this._defaultPreferencesRenderer) {
-			return this._filterPreferences(this._searchCriteria, this._defaultPreferencesRenderer, this._currentSearchModel, this._currentFilterModel, this._defaultPrefsThrottle)
-				.then(filterResult => { this._defaultPreferencesFilterResult = filterResult; });
-		}
-		return TPromise.wrap(null);
-	}
+	// private _filterDefaultPreferences(): TPromise<void> {
+	// 	if (this._searchCriteria && this._defaultPreferencesRenderer) {
+	// 		return this._filterPreferences(this._searchCriteria, this._defaultPreferencesRenderer, this._currentSearchModel, this._currentFilterModel, this._remoteSearchThrottle)
+	// 			.then(filterResult => { this._defaultPreferencesFilterResult = filterResult; });
+	// 	}
+	// 	return TPromise.wrap(null);
+	// }
 
-	private _filterEditablePreferences(): TPromise<void> {
-		if (this._searchCriteria && this._editablePreferencesRenderer) {
-			return this._filterPreferences(this._searchCriteria, this._editablePreferencesRenderer, this._currentSearchModel, this._currentFilterModel, this._editablePrefsThrottle)
-				.then(filterResult => { this._editablePreferencesFilterResult = filterResult; });
-		}
-		return TPromise.wrap(null);
-	}
+	// private _filterEditablePreferences(): TPromise<void> {
+	// 	if (this._searchCriteria && this._editablePreferencesRenderer) {
+	// 		return this._filterPreferences(this._searchCriteria, this._editablePreferencesRenderer, this._currentSearchModel, this._currentFilterModel, this._editablePrefsThrottle)
+	// 			.then(filterResult => { this._editablePreferencesFilterResult = filterResult; });
+	// 	}
+	// 	return TPromise.wrap(null);
+	// }
 
 	private _getFirstSettingFromTheGroups(allGroups: ISettingsGroup[]): ISetting {
 		if (allGroups.length) {
@@ -519,35 +535,20 @@ class PreferencesRenderers extends Disposable {
 		return preferencesRenderer ? (<ISettingsEditorModel>preferencesRenderer.preferencesModel).settingsGroups : [];
 	}
 
-	private _filterPreferences(searchCriteria: ISearchCriteria, preferencesRenderer: IPreferencesRenderer<ISetting>, searchModel: IPreferencesSearchModel, filterModel: IPreferencesSearchModel, throttle: ThrottledDelayer<void>): TPromise<IFilterResult> {
-		if (preferencesRenderer && searchCriteria) {
-			const prefFilterP = filterModel.filterPreferences(<ISettingsEditorModel>preferencesRenderer.preferencesModel).then(filterResult => {
-				preferencesRenderer.filterPreferences(filterResult, this.preferencesSearchService.remoteSearchAllowed);
+	private _filterPreferences(filter: string, preferencesRenderer: IPreferencesRenderer<ISetting>, provider: LocalSearchProvider): TPromise<IFilterResult> {
+		if (preferencesRenderer) {
+			return provider.filterPreferences(<ISettingsEditorModel>preferencesRenderer.preferencesModel).then(filterResult => {
+				preferencesRenderer.filterPreferences(filterResult);
 				return filterResult;
 			});
-
-			return throttle.trigger(() => {
-				const prefSearchP = searchModel.filterPreferences(<ISettingsEditorModel>preferencesRenderer.preferencesModel);
-
-				return prefFilterP.then(filterResult => {
-					prefSearchP.then(filterResult2 => {
-						if (filterResult2) {
-							filterResult.filteredGroups.push(...filterResult2.filteredGroups);
-							filterResult.metadata = filterResult2.metadata;
-							filterResult.matches.push(...filterResult2.matches);
-
-							preferencesRenderer.filterPreferences(filterResult, this.preferencesSearchService.remoteSearchAllowed);
-						}
-					});
-				});
-			});
 		}
+
 		return TPromise.as(null);
 	}
 
 	private consolidateAndUpdate(): number {
-		const defaultPreferencesFilteredGroups = this._defaultPreferencesFilterResult ? this._defaultPreferencesFilterResult.filteredGroups : this._getAllPreferences(this._defaultPreferencesRenderer);
-		const editablePreferencesFilteredGroups = this._editablePreferencesFilterResult ? this._editablePreferencesFilterResult.filteredGroups : this._getAllPreferences(this._editablePreferencesRenderer);
+		// const defaultPreferencesFilteredGroups = this._defaultPreferencesFilterResult ? this._defaultPreferencesFilterResult.filteredGroups : this._getAllPreferences(this._defaultPreferencesRenderer);
+		// const editablePreferencesFilteredGroups = this._editablePreferencesFilterResult ? this._editablePreferencesFilterResult.filteredGroups : this._getAllPreferences(this._editablePreferencesRenderer);
 		const consolidatedSettings = this._consolidateSettings(editablePreferencesFilteredGroups, defaultPreferencesFilteredGroups);
 
 		this._settingsNavigator = new SettingsNavigator(this._searchCriteria.filter ? consolidatedSettings : []);
