@@ -25,7 +25,8 @@
 
 		// makes the window draggable if there is no frame on Windows
 		if  (config.execPath.endsWith('exe') && config.hiddenTitleBar) {
-			document.body.style.webkitAppRegion = 'drag';
+			document.documentElement.style.webkitAppRegion = 'drag';
+			document.documentElement.style.height = '100%';
 		}
 
 		// adds a stylesheet with the backgrdound color
