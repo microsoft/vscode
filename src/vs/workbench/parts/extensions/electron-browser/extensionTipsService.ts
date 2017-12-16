@@ -110,25 +110,22 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	private processWorkspaceRecommendations(extensionsContent: IExtensionsContent): TPromise<string[]> {
 		const regEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
 
-		if (extensionsContent && extensionsContent.recommendations) {
+		if (extensionsContent && extensionsContent.recommendations && extensionsContent.recommendations.length) {
+			let countBadRecommendations = 0;
+			let badRecommendationsString = '';
 			let filteredRecommendations = extensionsContent.recommendations.filter((element, position) => {
-				return extensionsContent.recommendations.indexOf(element) === position && regEx.test(element);
+				if (!regEx.test(element)) {
+					countBadRecommendations++;
+					badRecommendationsString += `${element} (bad format) Expected: <provider>.<name>\n`;
+					return false;
+				} else if (extensionsContent.recommendations.indexOf(element) !== position) {
+					countBadRecommendations++;
+					badRecommendationsString += `${element} (duplicate)\n`;
+					return false;
+				}
+
+				return true;
 			});
-
-			if (filteredRecommendations.length !== extensionsContent.recommendations.length) {
-				let badlyFormattedRecommendations = extensionsContent.recommendations.filter(element => {
-					return filteredRecommendations.indexOf(element) === -1;
-				});
-
-				let badRecommendationsString = '';
-				badlyFormattedRecommendations.forEach(element => {
-					badRecommendationsString += element + '\n';
-				});
-
-				console.log(badlyFormattedRecommendations.length +
-					' extension(s) in workspace recommendations are incorrectly formatted. Expected <publisher>.<extension name>:\n' +
-					badRecommendationsString);
-			}
 
 			return this._galleryService.query({ names: filteredRecommendations }).then(pager => {
 				let page = pager.firstPage;
@@ -136,20 +133,20 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 					return extension.identifier.id.toLowerCase();
 				});
 
-
 				if (validRecommendations.length !== filteredRecommendations.length) {
-					let unknownExtensions = filteredRecommendations.filter(element => {
-						return validRecommendations.indexOf(element.toLowerCase()) === -1;
+					filteredRecommendations.forEach(element => {
+						if (validRecommendations.indexOf(element.toLowerCase()) === -1) {
+							countBadRecommendations++;
+							badRecommendationsString += `${element} (not found in gallery)\n`;
+						}
 					});
+				}
 
-					let unknownExtensionsString = '';
-					unknownExtensions.forEach(element => {
-						unknownExtensionsString += element + '\n';
-					});
-
-					console.log(unknownExtensions.length +
-						' extension(s) in workspace recommendations were not found in the gallery:\n' +
-						unknownExtensionsString);
+				if (countBadRecommendations > 0) {
+					console.log('The below ' +
+						countBadRecommendations +
+						' extension(s) in workspace recommendations have issues:\n' +
+						badRecommendationsString);
 				}
 
 				return validRecommendations;
