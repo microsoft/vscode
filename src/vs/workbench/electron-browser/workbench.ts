@@ -1119,7 +1119,6 @@ export class Workbench implements IPartService {
 
 		if (!isMacintosh && this.getCustomTitleBarStyle()) {
 			this.windowService.isMaximized().then((max) => {
-				console.log(this);
 				this.workbenchLayout.onMaximizeChange(max);
 				this.workbenchLayout.layout();
 			});
