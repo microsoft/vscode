@@ -473,6 +473,14 @@ suite('QueryBuilder', () => {
 						}]
 					}
 				],
+				[
+					'../',
+					<ISearchPathsResult>{
+						searchPaths: [{
+							searchPath: getUri('foo/')
+						}]
+					}
+				]
 			];
 			cases.forEach(testIncludesDataItem);
 		});

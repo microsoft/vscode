@@ -26,6 +26,9 @@ import * as nls from 'vscode-nls';
 import { TypeScriptServiceConfiguration, TsServerLogLevel } from './utils/configuration';
 import { TypeScriptVersionProvider, TypeScriptVersion } from './utils/versionProvider';
 import { TypeScriptVersionPicker } from './utils/versionPicker';
+import * as fileSchemes from './utils/fileSchemes';
+import { inferredProjectConfig } from './utils/tsconfig';
+
 const localize = nls.loadMessageBundle();
 
 interface CallbackItem {
@@ -107,8 +110,7 @@ class RequestQueue {
 }
 
 export default class TypeScriptServiceClient implements ITypeScriptServiceClient {
-	public static readonly WALK_THROUGH_SNIPPET_SCHEME = 'walkThroughSnippet';
-	private static readonly WALK_THROUGH_SNIPPET_SCHEME_COLON = `${TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME}:`;
+	private static readonly WALK_THROUGH_SNIPPET_SCHEME_COLON = `${fileSchemes.walkThroughSnippet}:`;
 
 	private pathSeparator: string;
 
@@ -329,11 +331,9 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 						this.error('Starting TSServer failed with error.', err);
 						window.showErrorMessage(localize('serverCouldNotBeStarted', 'TypeScript language server couldn\'t be started. Error message is: {0}', err.message || err));
 						/* __GDPR__
-							"error" : {
-								"message": { "classification": "CustomerContent", "purpose": "PerformanceAndHealth" }
-							}
+							"error" : {}
 						*/
-						this.logTelemetry('error', { message: err.message });
+						this.logTelemetry('error');
 						this.resetClientVersion();
 						return;
 					}
@@ -475,20 +475,12 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	}
 
 	private getCompilerOptionsForInferredProjects(configuration: TypeScriptServiceConfiguration): Proto.ExternalProjectCompilerOptions {
-		const compilerOptions: Proto.ExternalProjectCompilerOptions = {
-			module: 'CommonJS' as Proto.ModuleKind,
-			target: 'ES6' as Proto.ScriptTarget,
+		return {
+			...inferredProjectConfig(configuration),
+			allowJs: true,
 			allowSyntheticDefaultImports: true,
 			allowNonTsExtensions: true,
-			allowJs: true,
-			jsx: 'Preserve' as Proto.JsxEmit
 		};
-
-		if (this.apiVersion.has230Features()) {
-			compilerOptions.checkJs = configuration.checkJs;
-			compilerOptions.experimentalDecorators = configuration.experimentalDecorators;
-		}
-		return compilerOptions;
 	}
 
 	private serviceExited(restart: boolean): void {
@@ -555,15 +547,15 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	}
 
 	public normalizePath(resource: Uri): string | null {
-		if (resource.scheme === TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME) {
+		if (resource.scheme === fileSchemes.walkThroughSnippet) {
 			return resource.toString();
 		}
 
-		if (resource.scheme === 'untitled' && this._apiVersion.has213Features()) {
+		if (resource.scheme === fileSchemes.untitled && this._apiVersion.has213Features()) {
 			return resource.toString();
 		}
 
-		if (resource.scheme !== 'file') {
+		if (resource.scheme !== fileSchemes.file) {
 			return null;
 		}
 		const result = resource.fsPath;
@@ -576,7 +568,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 
 	public asUrl(filepath: string): Uri {
 		if (filepath.startsWith(TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME_COLON)
-			|| (filepath.startsWith('untitled:') && this._apiVersion.has213Features())
+			|| (filepath.startsWith(fileSchemes.untitled + ':') && this._apiVersion.has213Features())
 		) {
 			return Uri.parse(filepath);
 		}
@@ -589,7 +581,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 			return undefined;
 		}
 
-		if (resource.scheme === 'file' || resource.scheme === 'untitled') {
+		if (resource.scheme === fileSchemes.file || resource.scheme === fileSchemes.untitled) {
 			for (const root of roots.sort((a, b) => a.uri.fsPath.length - b.uri.fsPath.length)) {
 				if (resource.fsPath.startsWith(root.uri.fsPath + path.sep)) {
 					return root.uri.fsPath;

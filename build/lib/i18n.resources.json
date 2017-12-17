@@ -71,6 +71,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/parts/logs",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/parts/nps",
 			"project": "vscode-workbench"
 		},

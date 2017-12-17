@@ -49,5 +49,8 @@
 	"emmetPreferencesBemModifierSeparator": "Modifizierertrennzeichen für Klassen unter Verwendung des BEM-Filters",
 	"emmetPreferencesFilterCommentBefore": "Eine Kommentardefinition, die vor dem abgeglichenen Element platziert werden muss, wenn ein Kommentarfilter angewendet wird.",
 	"emmetPreferencesFilterCommentAfter": "Eine Kommentardefinition, die nach dem abgeglichenen Element platziert werden muss, wenn ein Kommentarfilter angewendet wird.",
-	"emmetPreferencesFilterCommentTrigger": "Eine durch Trennzeichen getrennte Liste von Attributnamen, die in abgekürzter Form vorliegen müssen, damit der Kommentarfilter angewendet werden kann"
+	"emmetPreferencesFilterCommentTrigger": "Eine durch Trennzeichen getrennte Liste von Attributnamen, die in abgekürzter Form vorliegen müssen, damit der Kommentarfilter angewendet werden kann",
+	"emmetPreferencesFormatNoIndentTags": "Ein Array von Tagnamen, die keinen inneren Einzug erhalten",
+	"emmetPreferencesFormatForceIndentTags": "Ein Array von Tagnamen, die immer einen inneren Einzug erhalten",
+	"emmetPreferencesAllowCompactBoolean": "Bei TRUE wird eine kompakte Notation boolescher Attribute erzeugt"
 }

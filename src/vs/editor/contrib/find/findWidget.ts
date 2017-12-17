@@ -153,6 +153,15 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				this._updateToggleSelectionFindButton();
 			}
 		}));
+		this._register(this._codeEditor.onDidFocusEditor(() => {
+			if (this._isVisible) {
+				let globalBufferTerm = this._controller.getGlobalBufferTerm();
+				if (globalBufferTerm && globalBufferTerm !== this._state.searchString) {
+					this._state.change({ searchString: globalBufferTerm }, true);
+					this._findInput.select();
+				}
+			}
+		}));
 		this._findInputFocused = CONTEXT_FIND_INPUT_FOCUSED.bindTo(contextKeyService);
 		this._focusTracker = this._register(dom.trackFocus(this._findInput.inputBox.inputElement));
 		this._register(this._focusTracker.onDidFocus(() => {
@@ -170,10 +179,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 						this._state.change({ searchScope: selection }, true);
 					}
 				}
-			}
-			let globalBufferTerm = this._controller.getGlobalBufferTerm();
-			if (globalBufferTerm) {
-				this._state.change({ searchString: globalBufferTerm }, true);
 			}
 		}));
 		this._register(this._focusTracker.onDidBlur(() => {

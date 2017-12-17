@@ -48,7 +48,6 @@ export class ViewCursor {
 	private _isVisible: boolean;
 
 	private _position: Position;
-	private _isInEditableRange: boolean;
 
 	private _lastRenderedContent: string;
 	private _renderData: ViewCursorRenderData;
@@ -77,7 +76,6 @@ export class ViewCursor {
 		this._domNode.setDisplay('none');
 
 		this.updatePosition(new Position(1, 1));
-		this._isInEditableRange = true;
 
 		this._lastRenderedContent = '';
 		this._renderData = null;
@@ -85,10 +83,6 @@ export class ViewCursor {
 
 	public getDomNode(): FastDomNode<HTMLElement> {
 		return this._domNode;
-	}
-
-	public getIsInEditableRange(): boolean {
-		return this._isInEditableRange;
 	}
 
 	public getPosition(): Position {
@@ -123,9 +117,8 @@ export class ViewCursor {
 		return true;
 	}
 
-	public onCursorPositionChanged(position: Position, isInEditableRange: boolean): boolean {
+	public onCursorPositionChanged(position: Position): boolean {
 		this.updatePosition(position);
-		this._isInEditableRange = isInEditableRange;
 		return true;
 	}
 

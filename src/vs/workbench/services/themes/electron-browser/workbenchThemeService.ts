@@ -87,7 +87,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	}
 
 	private get tokenColorCustomizations(): ITokenColorCustomizations {
-		return this.configurationService.getValue<ITokenColorCustomizations>(CUSTOM_EDITOR_COLORS_SETTING);
+		return this.configurationService.getValue<ITokenColorCustomizations>(CUSTOM_EDITOR_COLORS_SETTING) || {};
 	}
 
 	constructor(

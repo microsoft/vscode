@@ -39,6 +39,7 @@
 	"compareSource": "Seleziona per il confronto",
 	"globalCompareFile": "Confronta file attivo con...",
 	"openFileToCompare": "Aprire prima un file per confrontarlo con un altro file.",
+	"compareWith": "Confronta '{0}' con '{1}'",
 	"compareFiles": "Confronta file",
 	"refresh": "Aggiorna",
 	"save": "Salva",
@@ -68,5 +69,7 @@
 	"invalidFileNameError": "Il nome **{0}** non è valido per un nome file o un nome di cartella. Scegliere un nome diverso.",
 	"filePathTooLongError": "Con il nome **{0}** il percorso diventa troppo lungo. Scegliere un nome più breve.",
 	"compareWithSaved": "Confronta file attivo con file salvato",
-	"compareWithClipboard": "Confronta il file attivo con gli appunti"
+	"modifiedLabel": "{0} (su disco) ↔ {1}",
+	"compareWithClipboard": "Confronta il file attivo con gli appunti",
+	"clipboardComparisonLabel": "Appunti ↔ {0}"
 }

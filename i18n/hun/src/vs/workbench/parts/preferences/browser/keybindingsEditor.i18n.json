@@ -8,7 +8,7 @@
 	"SearchKeybindings.AriaLabel": "Billentyűparancsok keresése",
 	"SearchKeybindings.Placeholder": "Billentyűparancsok keresése",
 	"sortByPrecedene": "Rendezés precedencia szerint",
-	"header-message": "Haladó beállításokhoz nyissa meg és szerkessze a következőt:",
+	"header-message": "További, haladó testreszabáshoz nyissa meg és szerkessze a következő fájlt:",
 	"keybindings-file-name": "keybindings.json",
 	"keybindingsLabel": "Billentyűparancsok",
 	"changeLabel": "Billentyűparancs módosítása",

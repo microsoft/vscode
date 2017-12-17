@@ -20,6 +20,10 @@
 	"openExplorerOnEnd": "Apre automaticamente la visualizzazione di esplorazione al termine di una sessione di debug",
 	"inlineValues": "Mostra i valori delle variabili inline nell'editor durante il debug",
 	"hideActionBar": "Controlla se nascondere la barra delle azioni mobile di debug",
+	"never": "Non mostrare mai debug nella barra di stato",
+	"always": "Visualizzare sempre debug nella barra di stato",
+	"onFirstSessionStart": "Mostra debug nella barra solo stato dopo il primo avvio del debug",
+	"showInStatusBar": "Controlla se rendere visibile la barra di stato del debug",
 	"openDebug": "Controlla se la viewlet di debug debba essere aperta all'avvio della sessione di debug.",
 	"launch": "Configurazione globale per l'esecuzione del debug. Può essere usata come un'alternativa a \"launch.json\" "
 }

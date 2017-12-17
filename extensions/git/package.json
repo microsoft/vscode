@@ -518,7 +518,7 @@
         {
           "command": "git.init",
           "group": "navigation",
-          "when": "config.git.enabled && !scmProvider && gitOpenRepositoryCount == 0"
+          "when": "config.git.enabled && !scmProvider && gitOpenRepositoryCount == 0 && workspaceFolderCount != 0"
         },
         {
           "command": "git.commit",
@@ -702,11 +702,21 @@
           "group": "1_modification"
         },
         {
+          "command": "git.openFile",
+          "when": "scmProvider == git && scmResourceGroup == merge",
+          "group": "navigation"
+        },
+        {
           "command": "git.stage",
           "when": "scmProvider == git && scmResourceGroup == merge",
           "group": "inline"
         },
         {
+          "command": "git.openFile",
+          "when": "scmProvider == git && scmResourceGroup == merge",
+          "group": "inline0"
+        },
+        {
           "command": "git.openChange",
           "when": "scmProvider == git && scmResourceGroup == index",
           "group": "navigation"
@@ -730,6 +740,11 @@
           "command": "git.unstage",
           "when": "scmProvider == git && scmResourceGroup == index",
           "group": "inline"
+        },
+        {
+          "command": "git.openFile",
+          "when": "scmProvider == git && scmResourceGroup == index",
+          "group": "inline0"
         },
         {
           "command": "git.openChange",
@@ -765,6 +780,11 @@
           "command": "git.stage",
           "when": "scmProvider == git && scmResourceGroup == workingTree",
           "group": "inline"
+        },
+        {
+          "command": "git.openFile",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "inline0"
         },
         {
           "command": "git.ignore",
@@ -827,6 +847,11 @@
           "description": "%config.path%",
           "default": null,
           "isExecutable": true
+        },
+        "git.autoRepositoryDetection": {
+          "type": "boolean",
+          "description": "%config.autoRepositoryDetection%",
+          "default": true
         },
         "git.autorefresh": {
           "type": "boolean",
@@ -946,6 +971,15 @@
           "dark": "#6c6cc4",
           "highContrast": "#6c6cc4"
         }
+      },
+      {
+        "id": "gitDecoration.submoduleResourceForeground",
+        "description": "%colors.submodule%",
+        "defaults": {
+          "light": "#1258a7",
+          "dark": "#8db9e2",
+          "highContrast": "#8db9e2"
+        }
       }
     ]
   },
@@ -954,13 +988,15 @@
     "file-type": "^7.2.0",
     "iconv-lite": "0.4.19",
     "vscode-extension-telemetry": "0.0.8",
-    "vscode-nls": "2.0.2"
+    "vscode-nls": "2.0.2",
+    "which": "^1.3.0"
   },
   "devDependencies": {
     "@types/byline": "4.2.31",
     "@types/file-type": "^5.2.1",
     "@types/mocha": "2.2.43",
     "@types/node": "7.0.43",
+    "@types/which": "^1.0.28",
     "mocha": "^3.2.0"
   }
 }

@@ -40,13 +40,21 @@ export function printDiagnostics(info: IMainProcessInfo): Promise<any> {
 				console.log(`|  Window (${window.title})`);
 
 				window.folders.forEach(folder => {
-					console.log(`|    Folder (${basename(folder)})`);
-					const stats = collectWorkspaceStats(folder, ['node_modules', '.git']);
-					console.log(formatWorkspaceStats(stats));
+					try {
+						const stats = collectWorkspaceStats(folder, ['node_modules', '.git']);
+						let countMessage = `${stats.fileCount} files`;
+						if (stats.maxFilesReached) {
+							countMessage = `more than ${countMessage}`;
+						}
+						console.log(`|    Folder (${basename(folder)}): ${countMessage}`);
+						console.log(formatWorkspaceStats(stats));
 
-					const launchConfigs = collectLaunchConfigs(folder);
-					if (launchConfigs.length > 0) {
-						console.log(formatLaunchConfigs(launchConfigs));
+						const launchConfigs = collectLaunchConfigs(folder);
+						if (launchConfigs.length > 0) {
+							console.log(formatLaunchConfigs(launchConfigs));
+						}
+					} catch (error) {
+						console.log(`|      Error: Unable to collect workpsace stats for folder ${folder} (${error.toString()})`);
 					}
 				});
 			});
@@ -62,7 +70,7 @@ function formatWorkspaceStats(workspaceStats: WorkspaceStats): string {
 	let col = 0;
 
 	const appendAndWrap = (name: string, count: number) => {
-		const item = count > 1 ? ` ${name}(${count})` : ` ${name}`;
+		const item = ` ${name}(${count})`;
 
 		if (col + item.length > lineLength) {
 			output.push(line);
@@ -116,7 +124,7 @@ function formatEnvironment(info: IMainProcessInfo): string {
 
 	const output: string[] = [];
 	output.push(`Version:          ${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`);
-	output.push(`OS Version:       ${os.type()} ${os.arch()} ${os.release()})`);
+	output.push(`OS Version:       ${os.type()} ${os.arch()} ${os.release()}`);
 	const cpus = os.cpus();
 	if (cpus && cpus.length > 0) {
 		output.push(`CPUs:             ${cpus[0].model} (${cpus.length} x ${cpus[0].speed})`);
@@ -127,6 +135,7 @@ function formatEnvironment(info: IMainProcessInfo): string {
 	}
 	output.push(`VM:               ${Math.round((virtualMachineHint.value() * 100))}%`);
 	output.push(`Screen Reader:    ${app.isAccessibilitySupportEnabled() ? 'yes' : 'no'}`);
+	output.push(`Process Argv:     ${info.mainArguments.join(' ')}`);
 
 	return output.join('\n');
 }
@@ -137,7 +146,7 @@ function formatProcessList(info: IMainProcessInfo, rootProcess: ProcessItem): st
 
 	const output: string[] = [];
 
-	output.push('CPU %\tMem MB\tProcess');
+	output.push('CPU %\tMem MB\t   PID\tProcess');
 
 	formatProcessItem(mapPidToWindowTitle, output, rootProcess, 0);
 
@@ -160,7 +169,8 @@ function formatProcessItem(mapPidToWindowTitle: Map<number, string>, output: str
 			name = `${name} (${mapPidToWindowTitle.get(item.pid)})`;
 		}
 	}
-	output.push(`${pad(Number(item.load.toFixed(0)), 5, ' ')}\t${pad(Number(((os.totalmem() * (item.mem / 100)) / MB).toFixed(0)), 6, ' ')}\t${name}`);
+	const memory = process.platform === 'win32' ? item.mem : (os.totalmem() * (item.mem / 100));
+	output.push(`${pad(Number(item.load.toFixed(0)), 5, ' ')}\t${pad(Number((memory / MB).toFixed(0)), 6, ' ')}\t${pad(Number((item.pid).toFixed(0)), 6, ' ')}\t${name}`);
 
 	// Recurse into children if any
 	if (Array.isArray(item.children)) {

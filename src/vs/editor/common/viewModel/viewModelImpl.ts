@@ -428,7 +428,11 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		return this.model.getPositionAt(resultOffset);
 	}
 
-	public getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean): string {
+	public getEOL(): string {
+		return this.model.getEOL();
+	}
+
+	public getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean): string | string[] {
 		const newLineCharacter = this.model.getEOL();
 
 		ranges = ranges.slice(0);
@@ -459,7 +463,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		for (let i = 0; i < nonEmptyRanges.length; i++) {
 			result.push(this.getValueInRange(nonEmptyRanges[i], editorCommon.EndOfLinePreference.TextDefined));
 		}
-		return result.join(newLineCharacter);
+		return result.length === 1 ? result[0] : result;
 	}
 
 	public getHTMLToCopy(viewRanges: Range[], emptySelectionClipboard: boolean): string {

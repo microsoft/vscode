@@ -39,6 +39,7 @@
 	"typescript.openTsServerLog.title": "TS 서버 로그 열기",
 	"typescript.restartTsServer": "TS 서버 다시 시작",
 	"typescript.selectTypeScriptVersion.title": "TypeScript 버전 선택",
+	"typescript.reportStyleChecksAsWarnings": "스타일 검사를 경고로 보고",
 	"jsDocCompletion.enabled": "자동 JSDoc 주석 사용/사용 안 함",
 	"javascript.implicitProjectConfig.checkJs": "JavaScript 파일의 의미 체계 검사를 사용/사용하지 않습니다. 기존 jsconfig.json 또는 tsconfig.json 파일은 이 설정을 재정의합니다. TypeScript >=2.3.1이 필요합니다. ",
 	"typescript.npm": "자동 입력 인식에 사용된 NPM 실행 파일 경로를 지정합니다. TypeScript >= 2.3.4가 필요합니다.",

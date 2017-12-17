@@ -86,9 +86,9 @@ declare module 'vscode' {
 	// todo@joh discover files etc
 	export interface FileSystemProvider {
 
-		onDidChange?: Event<FileChange[]>;
+		readonly onDidChange?: Event<FileChange[]>;
 
-		root: Uri;
+		readonly root: Uri;
 
 		// more...
 		//
@@ -199,36 +199,45 @@ declare module 'vscode' {
 	//#endregion
 
 	/**
-	 * Represents an action that can be performed in code.
-	 *
-	 * Shown using the [light bulb](https://code.visualstudio.com/docs/editor/editingevolved#_code-action)
+	 * A code action represents a change that can be performed in code, e.g. to fix a problem or
+	 * to refactor code.
 	 */
 	export class CodeAction {
+
 		/**
-		 * Label used to identify the code action in UI.
+		 * A short, human-readanle, title for this code action.
 		 */
 		title: string;
 
 		/**
-		 * Optional command that performs the code action.
+		 * A workspace edit this code action performs.
 		 *
-		 * Executed after `edits` if any edits are provided. Either `command` or `edits` must be provided for a `CodeAction`.
+		 * *Note* that either an [`edit`](CodeAction#edit) or a [`command`](CodeAction#command) must be supplied.
 		 */
-		command?: Command;
-
-		/**
-		 * Optional edit that performs the code action.
-		 *
-		 * Either `command` or `edits` must be provided for a `CodeAction`.
-		 */
-		edits?: TextEdit[] | WorkspaceEdit;
+		edit?: WorkspaceEdit;
 
 		/**
 		 * Diagnostics that this code action resolves.
 		 */
 		diagnostics?: Diagnostic[];
 
-		constructor(title: string, edits?: TextEdit[] | WorkspaceEdit);
+		/**
+		 * A command this code action performs.
+		 *
+		 * *Note* that either an [`edit`](CodeAction#edit) or a [`command`](CodeAction#command) must be supplied.
+		 */
+		command?: Command;
+
+		/**
+		 * Creates a new code action.
+		 *
+		 * A code action must have at least a [title](#CodeAction.title) and either [edits](#CodeAction.edits)
+		 * or a [command](#CodeAction.command).
+		 *
+		 * @param title The title of the code action.
+		 * @param edits The edit of the code action.
+		 */
+		constructor(title: string, edit?: WorkspaceEdit);
 	}
 
 	export interface CodeActionProvider {
@@ -283,11 +292,10 @@ declare module 'vscode' {
 		readonly changed: Breakpoint[];
 	}
 
-	export interface Breakpoint {
-		/**
-		 * Type of breakpoint.
-		 */
-		readonly type: 'source' | 'function';
+	/**
+	 * The base class of all breakpoint types.
+	 */
+	export class Breakpoint {
 		/**
 		 * Is breakpoint enabled.
 		 */
@@ -300,31 +308,67 @@ declare module 'vscode' {
 		 * An optional expression that controls how many hits of the breakpoint are ignored.
 		 */
 		readonly hitCondition?: string;
+
+		protected constructor(enabled: boolean, condition: string, hitCondition: string);
 	}
 
-	export interface SourceBreakpoint extends Breakpoint {
+	/**
+	 * A breakpoint specified by a source location.
+	 */
+	export class SourceBreakpoint extends Breakpoint {
 		/**
-		 * Breakpoint type 'source'.
+		 * The source and line position of this breakpoint.
 		 */
-		readonly type: 'source';
-		/**
-		 * The source to which this breakpoint is attached.
-		 */
-		readonly source: Uri;
-		/**
-		 * The line and character position of the breakpoint.
-		 */
-		readonly location: Position;
+		readonly location: Location;
+
+		private constructor(enabled: boolean, condition: string, hitCondition: string, location: Location);
 	}
 
-	export interface FunctionBreakpoint extends Breakpoint {
-		/**
-		 * Breakpoint type 'function'.
-		 */
-		readonly type: 'function';
+	/**
+	 * A breakpoint specified by a function name.
+	 */
+	export class FunctionBreakpoint extends Breakpoint {
 		/**
 		 * The name of the function to which this breakpoint is attached.
 		 */
 		readonly functionName: string;
+
+		private constructor(enabled: boolean, condition: string, hitCondition: string, functionName: string);
+	}
+
+	/**
+	 * The severity level of a log message
+	 */
+	export enum LogLevel {
+		Trace = 1,
+		Debug = 2,
+		Info = 3,
+		Warning = 4,
+		Error = 5,
+		Critical = 6,
+		Off = 7
+	}
+
+	/**
+	 * A logger for writing to an extension's log file, and accessing its dedicated log directory.
+	 */
+	export interface Logger {
+		readonly onDidChangeLogLevel: Event<LogLevel>;
+		readonly currentLevel: LogLevel;
+		readonly logDirectory: Thenable<string>;
+
+		trace(message: string, ...args: any[]): void;
+		debug(message: string, ...args: any[]): void;
+		info(message: string, ...args: any[]): void;
+		warn(message: string, ...args: any[]): void;
+		error(message: string | Error, ...args: any[]): void;
+		critical(message: string | Error, ...args: any[]): void;
+	}
+
+	export interface ExtensionContext {
+		/**
+		 * This extension's logger
+		 */
+		logger: Logger;
 	}
 }

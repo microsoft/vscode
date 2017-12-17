@@ -172,19 +172,7 @@ export class WalkThroughPart extends BaseEditor {
 				if (node instanceof HTMLAnchorElement && node.href) {
 					let baseElement = window.document.getElementsByTagName('base')[0] || window.location;
 					if (baseElement && node.href.indexOf(baseElement.href) >= 0 && node.hash) {
-						let scrollTarget = this.content.querySelector(node.hash);
-						/* __GDPR__
-							"revealInDocument" : {
-								"hash" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"broken": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
-								"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-							}
-						*/
-						this.telemetryService.publicLog('revealInDocument', {
-							hash: node.hash,
-							broken: !scrollTarget,
-							from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined
-						});
+						const scrollTarget = this.content.querySelector(node.hash);
 						const innerContent = this.content.firstElementChild;
 						if (scrollTarget && innerContent) {
 							const targetTop = scrollTarget.getBoundingClientRect().top - 20;
@@ -210,18 +198,6 @@ export class WalkThroughPart extends BaseEditor {
 	}
 
 	private open(uri: URI) {
-		if (uri.scheme === 'http' || uri.scheme === 'https') {
-			/* __GDPR__
-				"openExternal" : {
-					"uri" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			this.telemetryService.publicLog('openExternal', {
-				uri: uri.toString(true),
-				from: this.input instanceof WalkThroughInput ? this.input.getTelemetryFrom() : undefined
-			});
-		}
 		if (uri.scheme === 'command' && uri.path === 'git.clone' && !CommandsRegistry.getCommand('git.clone')) {
 			this.messageService.show(Severity.Info, localize('walkThrough.gitNotFound', "It looks like Git is not installed on your system."));
 			return;

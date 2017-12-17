@@ -37,6 +37,19 @@
           "git-rebase-todo"
         ],
         "configuration": "./git-rebase.language-configuration.json"
+      },
+      {
+        "id": "diff",
+        "aliases": [
+          "Diff",
+          "diff"
+        ],
+        "extensions": [
+          ".patch",
+          ".diff",
+          ".rej"
+        ],
+        "configuration": "./diff.language-configuration.json"
       }
     ],
     "grammars": [
@@ -49,12 +62,19 @@
         "language": "git-rebase",
         "scopeName": "text.git-rebase",
         "path": "./syntaxes/git-rebase.tmLanguage.json"
+      },
+      {
+        "language": "diff",
+        "scopeName": "source.diff",
+        "path": "./syntaxes/diff.tmLanguage"
       }
     ],
     "configurationDefaults": {
-			"[git-commit]": {
-				"editor.rulers": [72]
-			}
-		}
+      "[git-commit]": {
+        "editor.rulers": [
+          72
+        ]
+      }
+    }
   }
 }

@@ -8,7 +8,7 @@
 import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, ConfigurationChangeEvent } from 'vscode';
 import { Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
-import { dispose, anyEvent, filterEvent, IDisposable } from './util';
+import { dispose, anyEvent, filterEvent, IDisposable, isDescendant, find, firstIndex } from './util';
 import { Git, GitErrorCodes } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -27,7 +27,7 @@ class RepositoryPick implements QuickPickItem {
 			.join(' ');
 	}
 
-	constructor(public readonly repository: Repository) { }
+	constructor(public readonly repository: Repository, public readonly index: number) { }
 }
 
 export interface ModelChangeEvent {
@@ -42,10 +42,6 @@ export interface OriginalResourceChangeEvent {
 
 interface OpenRepository extends Disposable {
 	repository: Repository;
-}
-
-function isParent(parent: string, child: string): boolean {
-	return child.startsWith(parent);
 }
 
 export class Model {
@@ -105,8 +101,11 @@ export class Model {
 	}
 
 	private onPossibleGitRepositoryChange(uri: Uri): void {
-		const possibleGitRepositoryPath = uri.fsPath.replace(/\.git.*$/, '');
-		this.possibleGitRepositoryPaths.add(possibleGitRepositoryPath);
+		this.eventuallyScanPossibleGitRepository(uri.fsPath.replace(/\.git.*$/, ''));
+	}
+
+	private eventuallyScanPossibleGitRepository(path: string) {
+		this.possibleGitRepositoryPaths.add(path);
 		this.eventuallyScanPossibleGitRepositories();
 	}
 
@@ -132,7 +131,7 @@ export class Model {
 			.map(folder => this.getOpenRepository(folder.uri))
 			.filter(r => !!r)
 			.filter(r => !activeRepositories.has(r!.repository))
-			.filter(r => !(workspace.workspaceFolders || []).some(f => isParent(f.uri.fsPath, r!.repository.root))) as OpenRepository[];
+			.filter(r => !(workspace.workspaceFolders || []).some(f => isDescendant(f.uri.fsPath, r!.repository.root))) as OpenRepository[];
 
 		possibleRepositoryFolders.forEach(p => this.tryOpenRepository(p.uri.fsPath));
 		openRepositoriesToDispose.forEach(r => r.dispose());
@@ -153,6 +152,13 @@ export class Model {
 	}
 
 	private onDidChangeVisibleTextEditors(editors: TextEditor[]): void {
+		const config = workspace.getConfiguration('git');
+		const enabled = config.get<boolean>('autoRepositoryDetection') === true;
+
+		if (!enabled) {
+			return;
+		}
+
 		editors.forEach(editor => {
 			const uri = editor.document.uri;
 
@@ -210,11 +216,20 @@ export class Model {
 		const disappearListener = onDidDisappearRepository(() => dispose());
 		const changeListener = repository.onDidChangeRepository(uri => this._onDidChangeRepository.fire({ repository, uri }));
 		const originalResourceChangeListener = repository.onDidChangeOriginalResource(uri => this._onDidChangeOriginalResource.fire({ repository, uri }));
+		const scanSubmodules = () => {
+			repository.submodules
+				.map(r => path.join(repository.root, r.path))
+				.forEach(p => this.eventuallyScanPossibleGitRepository(p));
+		};
+
+		const statusListener = repository.onDidRunGitStatus(scanSubmodules);
+		scanSubmodules();
 
 		const dispose = () => {
 			disappearListener.dispose();
 			changeListener.dispose();
 			originalResourceChangeListener.dispose();
+			statusListener.dispose();
 			repository.dispose();
 
 			this.openRepositories = this.openRepositories.filter(e => e !== openRepository);
@@ -241,7 +256,16 @@ export class Model {
 			throw new Error(localize('no repositories', "There are no available repositories"));
 		}
 
-		const picks = this.openRepositories.map(e => new RepositoryPick(e.repository));
+		const picks = this.openRepositories.map((e, index) => new RepositoryPick(e.repository, index));
+		const active = window.activeTextEditor;
+		const repository = active && this.getRepository(active.document.fileName);
+		const index = firstIndex(picks, pick => pick.repository === repository);
+
+		// Move repository pick containing the active text editor to appear first
+		if (index > -1) {
+			picks.unshift(...picks.splice(index, 1));
+		}
+
 		const placeHolder = localize('pick repo', "Choose a repository");
 		const pick = await window.showQuickPick(picks, { placeHolder });
 
@@ -278,12 +302,21 @@ export class Model {
 		if (hint instanceof Uri) {
 			const resourcePath = hint.fsPath;
 
-			for (const liveRepository of this.openRepositories) {
-				const relativePath = path.relative(liveRepository.repository.root, resourcePath);
-
-				if (!/^\.\./.test(relativePath)) {
-					return liveRepository;
+			outer:
+			for (const liveRepository of this.openRepositories.sort((a, b) => b.repository.root.length - a.repository.root.length)) {
+				if (!isDescendant(liveRepository.repository.root, resourcePath)) {
+					continue;
 				}
+
+				for (const submodule of liveRepository.repository.submodules) {
+					const submoduleRoot = path.join(liveRepository.repository.root, submodule.path);
+
+					if (isDescendant(submoduleRoot, resourcePath)) {
+						continue outer;
+					}
+				}
+
+				return liveRepository;
 			}
 
 			return undefined;
@@ -298,6 +331,20 @@ export class Model {
 
 			if (hint === repository.mergeGroup || hint === repository.indexGroup || hint === repository.workingTreeGroup) {
 				return liveRepository;
+			}
+		}
+
+		return undefined;
+	}
+
+	getRepositoryForSubmodule(submoduleUri: Uri): Repository | undefined {
+		for (const repository of this.repositories) {
+			for (const submodule of repository.submodules) {
+				const submodulePath = path.join(repository.root, submodule.path);
+
+				if (submodulePath === submoduleUri.fsPath) {
+					return repository;
+				}
 			}
 		}
 

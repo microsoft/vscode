@@ -20,6 +20,7 @@ import { MockContextKeyService, MockKeybindingService } from 'vs/platform/keybin
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 class TestTerminalInstance extends TerminalInstance {
 	public _getCwd(shell: IShellLaunchConfig, root: Uri): string {
@@ -27,7 +28,7 @@ class TestTerminalInstance extends TerminalInstance {
 	}
 
 	protected _createProcess(): void { }
-	protected _createXterm(): void { }
+	protected _createXterm(): TPromise<void> { return TPromise.as(void 0); }
 }
 
 suite('Workbench - TerminalInstance', () => {

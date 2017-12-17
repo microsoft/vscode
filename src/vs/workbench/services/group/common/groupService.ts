@@ -26,6 +26,7 @@ export interface IEditorTabOptions {
 	showIcons?: boolean;
 	previewEditors?: boolean;
 	labelFormat?: 'default' | 'short' | 'medium' | 'long';
+	iconTheme?: string;
 }
 
 export interface IMoveOptions {

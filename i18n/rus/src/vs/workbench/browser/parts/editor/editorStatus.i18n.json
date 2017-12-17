@@ -52,5 +52,6 @@
 	"screenReaderDetectedExplanation.question": "Вы используете средство чтения с экрана в VS Code?",
 	"screenReaderDetectedExplanation.answerYes": "Да",
 	"screenReaderDetectedExplanation.answerNo": "Нет",
-	"screenReaderDetectedExplanation.body1": "Теперь среда VS Code оптимизирована для средства чтения с экрана."
+	"screenReaderDetectedExplanation.body1": "Теперь среда VS Code оптимизирована для средства чтения с экрана.",
+	"screenReaderDetectedExplanation.body2": "Некоторые функции редактора (например, перенос слов, сворачивание и т.д.) будут работать по-другому."
 }

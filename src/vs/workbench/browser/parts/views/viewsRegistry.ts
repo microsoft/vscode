@@ -45,7 +45,7 @@ export interface IViewDescriptor {
 
 	readonly order?: number;
 
-	readonly size?: number;
+	readonly weight?: number;
 
 	readonly collapsed?: boolean;
 

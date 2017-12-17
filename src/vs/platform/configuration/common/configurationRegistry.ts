@@ -52,6 +52,11 @@ export interface IConfigurationRegistry {
 	getConfigurationProperties(): { [qualifiedKey: string]: IConfigurationPropertySchema };
 
 	/**
+	 * Returns all excluded configurations settings of all configuration nodes contributed to this registry.
+	 */
+	getExcludedConfigurationProperties(): { [qualifiedKey: string]: IConfigurationPropertySchema };
+
+	/**
 	 * Register the identifiers for editor configurations
 	 */
 	registerOverrideIdentifiers(identifiers: string[]): void;
@@ -67,6 +72,7 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	isExecutable?: boolean;
 	scope?: ConfigurationScope;
 	notMultiRootAdopted?: boolean;
+	included?: boolean;
 }
 
 export interface IConfigurationNode {
@@ -97,6 +103,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 
 	private configurationContributors: IConfigurationNode[];
 	private configurationProperties: { [qualifiedKey: string]: IJSONSchema };
+	private excludedConfigurationProperties: { [qualifiedKey: string]: IJSONSchema };
 	private editorConfigurationSchema: IJSONSchema;
 	private overrideIdentifiers: string[] = [];
 	private overridePropertyPattern: string;
@@ -108,6 +115,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		this.configurationContributors = [];
 		this.editorConfigurationSchema = { properties: {}, patternProperties: {}, additionalProperties: false, errorMessage: 'Unknown editor configuration setting' };
 		this.configurationProperties = {};
+		this.excludedConfigurationProperties = {};
 		this.computeOverridePropertyPattern();
 
 		contributionRegistry.registerSchema(editorConfigurationSchemaId, this.editorConfigurationSchema);
@@ -191,8 +199,17 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 				if (property.scope === void 0) {
 					property.scope = scope;
 				}
-				// add to properties map
-				this.configurationProperties[key] = properties[key];
+
+				// Add to properties maps
+				// Property is included by default if 'included' is unspecified
+				if (properties[key].hasOwnProperty('included') && !properties[key].included) {
+					this.excludedConfigurationProperties[key] = properties[key];
+					delete properties[key];
+					continue;
+				} else {
+					this.configurationProperties[key] = properties[key];
+				}
+
 				propertyKeys.push(key);
 			}
 		}
@@ -211,6 +228,10 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 
 	getConfigurationProperties(): { [qualifiedKey: string]: IConfigurationPropertySchema } {
 		return this.configurationProperties;
+	}
+
+	getExcludedConfigurationProperties(): { [qualifiedKey: string]: IConfigurationPropertySchema } {
+		return this.excludedConfigurationProperties;
 	}
 
 	private registerJSONConfiguration(configuration: IConfigurationNode) {

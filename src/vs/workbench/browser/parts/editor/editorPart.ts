@@ -164,6 +164,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				tabCloseButton: editorConfig.tabCloseButton,
 				tabSizing: editorConfig.tabSizing,
 				labelFormat: editorConfig.labelFormat,
+				iconTheme: config.workbench.iconTheme
 			};
 
 			this.revealIfOpen = editorConfig.revealIfOpen;
@@ -175,6 +176,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				tabCloseButton: 'right',
 				tabSizing: 'fit',
 				labelFormat: 'default',
+				iconTheme: 'vs-seti'
 			};
 
 			this.revealIfOpen = false;
@@ -207,7 +209,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 	}
 
 	private onConfigurationUpdated(event: IConfigurationChangeEvent): void {
-		if (event.affectsConfiguration('workbench.editor')) {
+		if (event.affectsConfiguration('workbench.editor') || event.affectsConfiguration('workbench.iconTheme')) {
 			const configuration = this.configurationService.getValue<IWorkbenchEditorConfiguration>();
 			if (configuration && configuration.workbench && configuration.workbench.editor) {
 				const editorConfig = configuration.workbench.editor;
@@ -230,6 +232,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 					tabSizing: editorConfig.tabSizing,
 					showTabs: this.forceHideTabs ? false : editorConfig.showTabs,
 					labelFormat: editorConfig.labelFormat,
+					iconTheme: configuration.workbench.iconTheme
 				};
 
 				if (!this.doNotFireTabOptionsChanged && !objects.equals(oldTabOptions, this.tabOptions)) {
@@ -559,7 +562,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Recover by closing the active editor (if the input is still the active one)
 		if (group.activeEditor === input) {
-			this.doCloseActiveEditor(group);
+			this.doCloseActiveEditor(group, !(options && options.preserveFocus) /* still preserve focus as needed */);
 		}
 	}
 
@@ -689,9 +692,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		}
 
 		// Check for dirty and veto
-		const editorsToClose = arrays.flatten(groups.map(group => group.getEditors().map(editor => { return { group, editor }; })));
-
-		return this.handleDirty(editorsToClose).then(veto => {
+		return this.handleDirty(arrays.flatten(groups.map(group => group.getEditors(true /* in MRU order */).map(editor => { return { group, editor }; })))).then(veto => {
 			if (veto) {
 				return;
 			}
@@ -706,19 +707,24 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 			return TPromise.wrap<void>(null);
 		}
 
-		let editors = group.getEditors();
+		let editorsToClose = group.getEditors(true /* in MRU order */);
+
+		// Filter: unmodified only
 		if (filter.unmodifiedOnly) {
-			editors = editors.filter(e => !e.isDirty());
+			editorsToClose = editorsToClose.filter(e => !e.isDirty());
+		}
+
+		// Filter: direction (left / right)
+		if (!types.isUndefinedOrNull(filter.direction)) {
+			editorsToClose = (filter.direction === Direction.LEFT) ? editorsToClose.slice(0, group.indexOf(filter.except)) : editorsToClose.slice(group.indexOf(filter.except) + 1);
+		}
+
+		// Filter: except
+		else {
+			editorsToClose = editorsToClose.filter(e => !filter.except || !e.matches(filter.except));
 		}
 
 		// Check for dirty and veto
-		let editorsToClose: EditorInput[];
-		if (types.isUndefinedOrNull(filter.direction)) {
-			editorsToClose = editors.filter(e => !filter.except || !e.matches(filter.except));
-		} else {
-			editorsToClose = (filter.direction === Direction.LEFT) ? editors.slice(0, group.indexOf(filter.except)) : editors.slice(group.indexOf(filter.except) + 1);
-		}
-
 		return this.handleDirty(editorsToClose.map(editor => { return { group, editor }; }), true /* ignore if opened in other group */).then(veto => {
 			if (veto) {
 				return;
@@ -814,17 +820,28 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		const { editor } = identifier;
 
-		const res = editor.confirmSave();
-		switch (res) {
-			case ConfirmResult.SAVE:
-				return editor.save().then(ok => !ok);
+		// Switch to editor that we want to handle
+		return this.openEditor(identifier.editor, null, this.stacks.positionOfGroup(identifier.group)).then(() => {
+			return editor.confirmSave().then(res => {
+				switch (res) {
+					case ConfirmResult.SAVE:
+						return editor.save().then(ok => !ok);
 
-			case ConfirmResult.DONT_SAVE:
-				return editor.revert().then(ok => !ok);
+					case ConfirmResult.DONT_SAVE:
+						// first try a normal revert where the contents of the editor are restored
+						return editor.revert().then(ok => !ok, error => {
+							// if that fails, since we are about to close the editor, we accept that
+							// the editor cannot be reverted and instead do a soft revert that just
+							// enables us to close the editor. With this, a user can always close a
+							// dirty editor even when reverting fails.
+							return editor.revert({ soft: true }).then(ok => !ok);
+						});
 
-			case ConfirmResult.CANCEL:
-				return TPromise.as(true); // veto
-		}
+					case ConfirmResult.CANCEL:
+						return true; // veto
+				}
+			});
+		});
 	}
 
 	private countEditors(editor: EditorInput): number {

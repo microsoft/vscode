@@ -17,6 +17,7 @@ import fs = require('fs');
 import URI from 'vscode-uri';
 import * as URL from 'url';
 import Strings = require('./utils/strings');
+import { formatError, runSafe } from './utils/errors';
 import { JSONDocument, JSONSchema, LanguageSettings, getLanguageService, DocumentLanguageSettings } from 'vscode-json-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
 
@@ -41,6 +42,10 @@ namespace SchemaContentChangeNotification {
 
 // Create a connection for the server
 let connection: IConnection = createConnection();
+
+process.on('unhandledRejection', e => {
+	connection.console.error(formatError(`Unhandled exception`, e));
+});
 
 console.log = connection.console.log.bind(connection.console);
 console.error = connection.console.error.bind(connection.console);
@@ -227,7 +232,7 @@ documents.onDidClose(event => {
 });
 
 let pendingValidationRequests: { [uri: string]: NodeJS.Timer; } = {};
-const validationDelayMs = 200;
+const validationDelayMs = 500;
 
 function cleanPendingValidation(textDocument: TextDocument): void {
 	let request = pendingValidationRequests[textDocument.uri];
@@ -251,14 +256,17 @@ function validateTextDocument(textDocument: TextDocument): void {
 		connection.sendDiagnostics({ uri: textDocument.uri, diagnostics: [] });
 		return;
 	}
+	try {
+		let jsonDocument = getJSONDocument(textDocument);
 
-	let jsonDocument = getJSONDocument(textDocument);
-
-	let documentSettings: DocumentLanguageSettings = textDocument.languageId === 'jsonc' ? { comments: 'ignore', trailingCommas: 'ignore' } : { comments: 'error', trailingCommas: 'error' };
-	languageService.doValidation(textDocument, jsonDocument, documentSettings).then(diagnostics => {
-		// Send the computed diagnostics to VSCode.
-		connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
-	});
+		let documentSettings: DocumentLanguageSettings = textDocument.languageId === 'jsonc' ? { comments: 'ignore', trailingCommas: 'ignore' } : { comments: 'error', trailingCommas: 'error' };
+		languageService.doValidation(textDocument, jsonDocument, documentSettings).then(diagnostics => {
+			// Send the computed diagnostics to VSCode.
+			connection.sendDiagnostics({ uri: textDocument.uri, diagnostics });
+		});
+	} catch (e) {
+		connection.console.error(formatError(`Error while validating ${textDocument.uri}`, e));
+	}
 }
 
 connection.onDidChangeWatchedFiles((change) => {
@@ -287,48 +295,62 @@ function getJSONDocument(document: TextDocument): JSONDocument {
 }
 
 connection.onCompletion(textDocumentPosition => {
-	let document = documents.get(textDocumentPosition.textDocument.uri);
-	let jsonDocument = getJSONDocument(document);
-	return languageService.doComplete(document, textDocumentPosition.position, jsonDocument);
+	return runSafe(() => {
+		let document = documents.get(textDocumentPosition.textDocument.uri);
+		let jsonDocument = getJSONDocument(document);
+		return languageService.doComplete(document, textDocumentPosition.position, jsonDocument);
+	}, null, `Error while computing completions for ${textDocumentPosition.textDocument.uri}`);
 });
 
 connection.onCompletionResolve(completionItem => {
-	return languageService.doResolve(completionItem);
+	return runSafe(() => {
+		return languageService.doResolve(completionItem);
+	}, null, `Error while resolving completion proposal`);
 });
 
 connection.onHover(textDocumentPositionParams => {
-	let document = documents.get(textDocumentPositionParams.textDocument.uri);
-	let jsonDocument = getJSONDocument(document);
-	return languageService.doHover(document, textDocumentPositionParams.position, jsonDocument);
+	return runSafe(() => {
+		let document = documents.get(textDocumentPositionParams.textDocument.uri);
+		let jsonDocument = getJSONDocument(document);
+		return languageService.doHover(document, textDocumentPositionParams.position, jsonDocument);
+	}, null, `Error while computing hover for ${textDocumentPositionParams.textDocument.uri}`);
 });
 
 connection.onDocumentSymbol(documentSymbolParams => {
-	let document = documents.get(documentSymbolParams.textDocument.uri);
-	let jsonDocument = getJSONDocument(document);
-	return languageService.findDocumentSymbols(document, jsonDocument);
+	return runSafe(() => {
+		let document = documents.get(documentSymbolParams.textDocument.uri);
+		let jsonDocument = getJSONDocument(document);
+		return languageService.findDocumentSymbols(document, jsonDocument);
+	}, [], `Error while computing document symbols for ${documentSymbolParams.textDocument.uri}`);
 });
 
 connection.onDocumentRangeFormatting(formatParams => {
-	let document = documents.get(formatParams.textDocument.uri);
-	return languageService.format(document, formatParams.range, formatParams.options);
+	return runSafe(() => {
+		let document = documents.get(formatParams.textDocument.uri);
+		return languageService.format(document, formatParams.range, formatParams.options);
+	}, [], `Error while formatting range for ${formatParams.textDocument.uri}`);
 });
 
 connection.onRequest(DocumentColorRequest.type, params => {
-	let document = documents.get(params.textDocument.uri);
-	if (document) {
-		let jsonDocument = getJSONDocument(document);
-		return languageService.findDocumentColors(document, jsonDocument);
-	}
-	return [];
+	return runSafe(() => {
+		let document = documents.get(params.textDocument.uri);
+		if (document) {
+			let jsonDocument = getJSONDocument(document);
+			return languageService.findDocumentColors(document, jsonDocument);
+		}
+		return [];
+	}, [], `Error while computing document colors for ${params.textDocument.uri}`);
 });
 
 connection.onRequest(ColorPresentationRequest.type, params => {
-	let document = documents.get(params.textDocument.uri);
-	if (document) {
-		let jsonDocument = getJSONDocument(document);
-		return languageService.getColorPresentations(document, jsonDocument, params.color, params.range);
-	}
-	return [];
+	return runSafe(() => {
+		let document = documents.get(params.textDocument.uri);
+		if (document) {
+			let jsonDocument = getJSONDocument(document);
+			return languageService.getColorPresentations(document, jsonDocument, params.color, params.range);
+		}
+		return [];
+	}, [], `Error while computing color presentationsd for ${params.textDocument.uri}`);
 });
 
 // Listen on the connection

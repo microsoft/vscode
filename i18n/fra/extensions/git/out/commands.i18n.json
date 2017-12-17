@@ -14,6 +14,7 @@
 	"cloning": "Clonage du dépôt git...",
 	"openrepo": "Ouvrir le dépôt",
 	"proposeopen": "Voulez-vous ouvrir le dépôt cloné ?",
+	"init": "Choisir le dossier d’espace de travail dans lequel initialiser le dépôt git",
 	"init repo": "Initialiser le dépôt",
 	"create repo": "Initialiser le dépôt",
 	"are you sure": "Ceci va créer un dépôt Git dans '{0}'. Êtes-vous sûr de vouloir continuer ?",

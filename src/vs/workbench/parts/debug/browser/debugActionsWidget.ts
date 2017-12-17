@@ -38,6 +38,11 @@ export const debugToolBarBackground = registerColor('debugToolBar.background', {
 	light: '#F3F3F3',
 	hc: '#000000'
 }, localize('debugToolBarBackground', "Debug toolbar background color."));
+export const debugToolBarBorder = registerColor('debugToolBar.border', {
+	dark: null,
+	light: null,
+	hc: null
+}, localize('debugToolBarBorder', "Debug toolbar border color."));
 
 export class DebugActionsWidget extends Themable implements IWorkbenchContribution {
 
@@ -159,9 +164,16 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 			this.$el.style('box-shadow', widgetShadowColor ? `0 5px 8px ${widgetShadowColor}` : null);
 
 			const contrastBorderColor = this.getColor(contrastBorder);
-			this.$el.style('border-style', contrastBorderColor ? 'solid' : null);
-			this.$el.style('border-width', contrastBorderColor ? '1px' : null);
-			this.$el.style('border-color', contrastBorderColor);
+			const borderColor = this.getColor(debugToolBarBorder);
+
+			if (contrastBorderColor) {
+				this.$el.style('border', `1px solid ${contrastBorderColor}`);
+			} else {
+				this.$el.style({
+					'border': borderColor ? `solid ${borderColor}` : 'none',
+					'border-width': '1px 0'
+				});
+			}
 		}
 	}
 

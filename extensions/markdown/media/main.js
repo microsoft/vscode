@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
+// @ts-check
 'use strict';
 
 (function () {
@@ -27,6 +27,13 @@
 				fn.apply(context, args);
 			}
 		};
+	}
+
+	function postMessage(command, args) {
+		window.parent.postMessage({
+			command: 'did-click-link',
+			data: `command:${command}?${encodeURIComponent(JSON.stringify(args))}`
+		}, 'file://');
 	}
 
 	/**
@@ -196,13 +203,33 @@
 		const offset = event.pageY;
 		const line = getEditorLineNumberForPageOffset(offset);
 		if (!isNaN(line)) {
-			const args = [settings.source, line];
-			window.parent.postMessage({
-				command: "did-click-link",
-				data: `command:_markdown.didClick?${encodeURIComponent(JSON.stringify(args))}`
-			}, "file://");
+			postMessage('_markdown.didClick', [settings.source, line]);
 		}
 	});
+
+	document.addEventListener('click', event => {
+		if (!event) {
+			return;
+		}
+
+		const baseElement = document.getElementsByTagName('base')[0];
+
+		/** @type {any} */
+		let node = event.target;
+		while (node) {
+			if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
+				if (node.href.startsWith('file://')) {
+					const [path, fragment] = node.href.replace(/^file:\/\//i, '').split('#');
+					postMessage('_markdown.openDocumentLink', { path, fragment });
+					event.preventDefault();
+					event.stopPropagation();
+					break;
+				}
+				break;
+			}
+			node = node.parentNode;
+		}
+	}, true);
 
 	if (settings.scrollEditorWithPreview) {
 		window.addEventListener('scroll', throttle(() => {
@@ -211,11 +238,7 @@
 			} else {
 				const line = getEditorLineNumberForPageOffset(window.scrollY);
 				if (!isNaN(line)) {
-					const args = [settings.source, line];
-					window.parent.postMessage({
-						command: 'did-click-link',
-						data: `command:_markdown.revealLine?${encodeURIComponent(JSON.stringify(args))}`
-					}, 'file://');
+					postMessage('_markdown.revealLine', [settings.source, line]);
 				}
 			}
 		}, 50));

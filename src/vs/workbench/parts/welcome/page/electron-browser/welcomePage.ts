@@ -585,7 +585,7 @@ function stripVersion(id: string): string {
 
 export class WelcomeInputFactory implements IEditorInputFactory {
 
-	static ID = welcomeInputTypeId;
+	static readonly ID = welcomeInputTypeId;
 
 	public serialize(editorInput: EditorInput): string {
 		return '{}';

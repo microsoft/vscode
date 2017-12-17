@@ -6,7 +6,7 @@
 {
 	"termEntryAriaLabel": "{0}、ターミナル ピッカー",
 	"termCreateEntryAriaLabel": "{0} 、新しいターミナルの作成",
-	"'workbench.action.terminal.newplus": "$(plus) 新しい統合ターミナルの作成",
+	"workbench.action.terminal.newplus": "$(plus) 新しい統合ターミナルの作成",
 	"noTerminalsMatching": "一致するターミナルがありません",
 	"noTerminalsFound": "開いているターミナルがありません"
 }

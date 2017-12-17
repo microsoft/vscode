@@ -99,12 +99,14 @@ export class PreferencesSearchModel implements IPreferencesSearchModel {
 			return this._remoteProvider.filterPreferences(preferencesModel).then(null, err => {
 				const message = errors.getErrorMessage(err);
 
-				/* __GDPR__
-					"defaultSettings.searchError" : {
-						"message": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-				*/
-				this.telemetryService.publicLog('defaultSettings.searchError', { message });
+				if (message.toLowerCase() !== 'canceled') {
+					/* __GDPR__
+						"defaultSettings.searchError" : {
+							"message": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					*/
+					this.telemetryService.publicLog('defaultSettings.searchError', { message });
+				}
 
 				return this._localProvider.filterPreferences(preferencesModel);
 			});
@@ -247,11 +249,11 @@ function prepareUrl(query: string, endpoint: IEndpointDetails, buildNumber: numb
 	query = escapeSpecialChars(query);
 	const boost = 10;
 	const userQuery = `(${query})^${boost}`;
-	const encodedQuery = encodeURIComponent(userQuery + ' || ' + query);
 
 	// Appending Fuzzy after each word.
 	query = query.replace(/\ +/g, '~ ') + '~';
 
+	const encodedQuery = encodeURIComponent(userQuery + ' || ' + query);
 	let url = `${endpoint.urlBase}?`;
 	if (endpoint.key) {
 		url += `search=${encodedQuery}`;

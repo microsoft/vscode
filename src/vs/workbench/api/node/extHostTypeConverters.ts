@@ -241,18 +241,6 @@ export namespace WorkspaceEdit {
 		return result;
 	}
 
-	export function fromTextEdits(uri: vscode.Uri, textEdits: vscode.TextEdit[]): modes.WorkspaceEdit {
-		const result: modes.WorkspaceEdit = { edits: [] };
-		for (let textEdit of textEdits) {
-			result.edits.push({
-				resource: uri,
-				newText: textEdit.newText,
-				range: fromRange(textEdit.range)
-			});
-		}
-		return result;
-	}
-
 	export function to(value: modes.WorkspaceEdit) {
 		const result = new types.WorkspaceEdit();
 		for (const edit of value.edits) {

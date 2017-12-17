@@ -6,6 +6,11 @@
 {
 	"openEditors": "已開啟的編輯器",
 	"openEditosrSection": "開放式編輯器區段",
-	"treeAriaLabel": "開啟的編輯器: 使用中檔案的清單",
-	"dirtyCounter": "{0} 未儲存"
+	"dirtyCounter": "{0} 未儲存",
+	"saveAll": "全部儲存",
+	"closeAllUnmodified": "關閉未變更的檔案",
+	"closeAll": "全部關閉",
+	"compareWithSaved": "與已儲存的檔案比較",
+	"close": "關閉",
+	"closeOthers": "關閉其他"
 }

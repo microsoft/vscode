@@ -14,6 +14,7 @@
 	"cloning": "Clonando repositório do Git...",
 	"openrepo": "Abrir Repositório",
 	"proposeopen": "Gostaria de abrir o repositório clonado?",
+	"init": "Escolher a pasta de trabalho para inicializar o git repo",
 	"init repo": "Inicializar Repositório",
 	"create repo": "Inicializar Repositório",
 	"are you sure": "Isto irá criar um repositório Git em '{0}'. Tem certeza que deseja continuar?",

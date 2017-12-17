@@ -7,12 +7,13 @@
 
 import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor, CancellationTokenSource, StatusBarAlignment } from 'vscode';
 import { Ref, RefType, Git, GitErrorCodes, Branch } from './git';
-import { Repository, Resource, Status, CommitOptions, ResourceGroupType } from './repository';
+import { Repository, Resource, Status, CommitOptions, ResourceGroupType, RepositoryState } from './repository';
 import { Model } from './model';
 import { toGitUri, fromGitUri } from './uri';
-import { grep } from './util';
+import { grep, eventToPromise, isDescendant } from './util';
 import { applyLineChanges, intersectDiffWithRange, toLineRanges, invertLineChange } from './staging';
 import * as path from 'path';
+import { lstat, Stats } from 'fs';
 import * as os from 'os';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
@@ -168,8 +169,28 @@ export class CommandCenter {
 	}
 
 	private async _openResource(resource: Resource, preview?: boolean, preserveFocus?: boolean, preserveSelection?: boolean): Promise<void> {
-		const left = await this.getLeftResource(resource);
-		const right = await this.getRightResource(resource);
+		let stat: Stats | undefined;
+
+		try {
+			stat = await new Promise<Stats>((c, e) => lstat(resource.resourceUri.fsPath, (err, stat) => err ? e(err) : c(stat)));
+		} catch (err) {
+			// noop
+		}
+
+		let left: Uri | undefined;
+		let right: Uri | undefined;
+
+		if (stat && stat.isDirectory()) {
+			const repository = this.model.getRepositoryForSubmodule(resource.resourceUri);
+
+			if (repository) {
+				right = toGitUri(resource.resourceUri, resource.resourceGroupType === ResourceGroupType.Index ? 'index' : 'wt', { submoduleOf: repository.root });
+			}
+		} else {
+			left = await this.getLeftResource(resource);
+			right = await this.getRightResource(resource);
+		}
+
 		const title = this.getTitle(resource);
 
 		if (!right) {
@@ -207,30 +228,31 @@ export class CommandCenter {
 		}
 
 		try {
-			if (ref === '~') {
+			let gitRef = ref;
+
+			if (gitRef === '~') {
 				const uriString = uri.toString();
 				const [indexStatus] = repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
-				ref = indexStatus ? '' : 'HEAD';
+				gitRef = indexStatus ? '' : 'HEAD';
 			}
 
-			const { size, object } = await repository.lstree(ref, uri.fsPath);
-
-			if (size > 1000000) { // 1 MB
-				return Uri.parse(`data:;label:${path.basename(uri.fsPath)};description:${ref},`);
-			}
-
+			const { size, object } = await repository.lstree(gitRef, uri.fsPath);
 			const { mimetype, encoding } = await repository.detectObjectType(object);
 
 			if (mimetype === 'text/plain') {
 				return toGitUri(uri, ref);
 			}
 
-			if (ImageMimetypes.indexOf(mimetype) > -1) {
-				const contents = await repository.buffer(ref, uri.fsPath);
-				return Uri.parse(`data:${mimetype};label:${path.basename(uri.fsPath)};description:${ref};size:${size};base64,${contents.toString('base64')}`);
+			if (size > 1000000) { // 1 MB
+				return Uri.parse(`data:;label:${path.basename(uri.fsPath)};description:${gitRef},`);
 			}
 
-			return Uri.parse(`data:;label:${path.basename(uri.fsPath)};description:${ref},`);
+			if (ImageMimetypes.indexOf(mimetype) > -1) {
+				const contents = await repository.buffer(gitRef, uri.fsPath);
+				return Uri.parse(`data:${mimetype};label:${path.basename(uri.fsPath)};description:${gitRef};size:${size};base64,${contents.toString('base64')}`);
+			}
+
+			return Uri.parse(`data:;label:${path.basename(uri.fsPath)};description:${gitRef},`);
 
 		} catch (err) {
 			return toGitUri(uri, ref);
@@ -329,7 +351,6 @@ export class CommandCenter {
 
 		const config = workspace.getConfiguration('git');
 		let value = config.get<string>('defaultCloneDirectory') || os.homedir();
-		value = value.replace(/^~/, os.homedir());
 
 		const parentPath = await window.showInputBox({
 			prompt: localize('parent', "Parent Directory"),
@@ -357,11 +378,10 @@ export class CommandCenter {
 		statusBarItem.command = cancelCommandId;
 		statusBarItem.show();
 
-		const clonePromise = this.git.clone(url, parentPath, tokenSource.token);
+		const clonePromise = this.git.clone(url, parentPath.replace(/^~/, os.homedir()), tokenSource.token);
 
 		try {
 			window.withProgress({ location: ProgressLocation.SourceControl, title: localize('cloning', "Cloning git repository...") }, () => clonePromise);
-			// window.withProgress({ location: ProgressLocation.Window, title: localize('cloning', "Cloning git repository...") }, () => clonePromise);
 
 			const repositoryPath = await clonePromise;
 
@@ -407,35 +427,52 @@ export class CommandCenter {
 
 	@command('git.init')
 	async init(): Promise<void> {
-		const homeUri = Uri.file(os.homedir());
-		const defaultUri = workspace.workspaceFolders && workspace.workspaceFolders.length > 0
-			? Uri.file(workspace.workspaceFolders[0].uri.fsPath)
-			: homeUri;
+		let path: string | undefined;
 
-		const result = await window.showOpenDialog({
-			canSelectFiles: false,
-			canSelectFolders: true,
-			canSelectMany: false,
-			defaultUri,
-			openLabel: localize('init repo', "Initialize Repository")
-		});
+		if (workspace.workspaceFolders && workspace.workspaceFolders.length > 1) {
+			const placeHolder = localize('init', "Pick workspace folder to initialize git repo in");
+			const items = workspace.workspaceFolders.map(folder => ({ label: folder.name, description: folder.uri.fsPath, folder }));
+			const item = await window.showQuickPick(items, { placeHolder, ignoreFocusOut: true });
 
-		if (!result || result.length === 0) {
-			return;
-		}
-
-		const uri = result[0];
-
-		if (homeUri.toString().startsWith(uri.toString())) {
-			const yes = localize('create repo', "Initialize Repository");
-			const answer = await window.showWarningMessage(localize('are you sure', "This will create a Git repository in '{0}'. Are you sure you want to continue?", uri.fsPath), yes);
-
-			if (answer !== yes) {
+			if (!item) {
 				return;
 			}
+
+			path = item.folder.uri.fsPath;
 		}
 
-		const path = uri.fsPath;
+		if (!path) {
+			const homeUri = Uri.file(os.homedir());
+			const defaultUri = workspace.workspaceFolders && workspace.workspaceFolders.length > 0
+				? Uri.file(workspace.workspaceFolders[0].uri.fsPath)
+				: homeUri;
+
+			const result = await window.showOpenDialog({
+				canSelectFiles: false,
+				canSelectFolders: true,
+				canSelectMany: false,
+				defaultUri,
+				openLabel: localize('init repo', "Initialize Repository")
+			});
+
+			if (!result || result.length === 0) {
+				return;
+			}
+
+			const uri = result[0];
+
+			if (homeUri.toString().startsWith(uri.toString())) {
+				const yes = localize('create repo', "Initialize Repository");
+				const answer = await window.showWarningMessage(localize('are you sure', "This will create a Git repository in '{0}'. Are you sure you want to continue?", uri.fsPath), yes);
+
+				if (answer !== yes) {
+					return;
+				}
+			}
+
+			path = uri.fsPath;
+		}
+
 		await this.git.init(path);
 		await this.model.tryOpenRepository(path);
 	}
@@ -466,7 +503,10 @@ export class CommandCenter {
 			}
 
 			if (resource) {
-				uris = [...resourceStates.map(r => r.resourceUri), resource.resourceUri];
+				const resources = ([resource, ...resourceStates] as Resource[])
+					.filter(r => r.type !== Status.DELETED && r.type !== Status.INDEX_DELETED);
+
+				uris = resources.map(r => r.resourceUri);
 			}
 		}
 
@@ -921,6 +961,25 @@ export class CommandCenter {
 		getCommitMessage: () => Promise<string | undefined>,
 		opts?: CommitOptions
 	): Promise<boolean> {
+		const unsavedTextDocuments = workspace.textDocuments
+			.filter(d => !d.isUntitled && d.isDirty && isDescendant(repository.root, d.uri.fsPath));
+
+		if (unsavedTextDocuments.length > 0) {
+			const message = unsavedTextDocuments.length === 1
+				? localize('unsaved files single', "The following file is unsaved: {0}.\n\nWould you like to save it before comitting?", path.basename(unsavedTextDocuments[0].uri.fsPath))
+				: localize('unsaved files', "There are {0} unsaved files.\n\nWould you like to save them before comitting?", unsavedTextDocuments.length);
+			const saveAndCommit = localize('save and commit', "Save All & Commit");
+			const commit = localize('commit', "Commit Anyway");
+			const pick = await window.showWarningMessage(message, { modal: true }, saveAndCommit, commit);
+
+			if (pick === saveAndCommit) {
+				await Promise.all(unsavedTextDocuments.map(d => d.save()));
+				await repository.status();
+			} else if (pick !== commit) {
+				return false; // do not commit on cancel
+			}
+		}
+
 		const config = workspace.getConfiguration('git');
 		const enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
 		const enableCommitSigning = config.get<boolean>('enableCommitSigning') === true;
@@ -945,6 +1004,8 @@ export class CommandCenter {
 
 		if (!opts) {
 			opts = { all: noStagedChanges };
+		} else if (!opts.all && noStagedChanges) {
+			opts = { ...opts, all: true };
 		}
 
 		// enable signing of commits if configurated
@@ -978,8 +1039,21 @@ export class CommandCenter {
 				return message;
 			}
 
+			let value: string | undefined = undefined;
+
+			if (opts && opts.amend && repository.HEAD && repository.HEAD.commit) {
+				value = (await repository.getCommit(repository.HEAD.commit)).message;
+			}
+
+			const getPreviousCommitMessage = async () => {
+				//Only return the previous commit message if it's an amend commit and the repo already has a commit
+				if (opts && opts.amend && repository.HEAD && repository.HEAD.commit) {
+					return (await repository.getCommit('HEAD')).message;
+				}
+			};
+
 			return await window.showInputBox({
-				value: opts && opts.defaultMsg,
+				value,
 				placeHolder: localize('commit message', "Commit message"),
 				prompt: localize('provide commit message', "Please provide a commit message"),
 				ignoreFocusOut: true
@@ -1023,15 +1097,7 @@ export class CommandCenter {
 
 	@command('git.commitStagedAmend', { repository: true })
 	async commitStagedAmend(repository: Repository): Promise<void> {
-		let msg;
-		if (repository.HEAD) {
-			if (repository.HEAD.commit) {
-				let id = repository.HEAD.commit;
-				let commit = await repository.getCommit(id);
-				msg = commit.message;
-			}
-		}
-		await this.commitWithAnyInput(repository, { all: false, amend: true, defaultMsg: msg });
+		await this.commitWithAnyInput(repository, { all: false, amend: true });
 	}
 
 	@command('git.commitAll', { repository: true })
@@ -1249,25 +1315,26 @@ export class CommandCenter {
 			return;
 		}
 
-		const picks = remotes.map(r => ({ label: r.name, description: r.url }));
+		const remotePicks = remotes.map(r => ({ label: r.name, description: r.url }));
 		const placeHolder = localize('pick remote pull repo', "Pick a remote to pull the branch from");
-		const pick = await window.showQuickPick(picks, { placeHolder });
+		const remotePick = await window.showQuickPick(remotePicks, { placeHolder });
 
-		if (!pick) {
+		if (!remotePick) {
 			return;
 		}
 
-		const branchName = await window.showInputBox({
-			placeHolder: localize('branch name', "Branch name"),
-			prompt: localize('provide branch name', "Please provide a branch name"),
-			ignoreFocusOut: true
-		});
+		const remoteRefs = repository.refs;
+		const remoteRefsFiltered = remoteRefs.filter(r => (r.remote === remotePick.label));
+		const branchPicks = remoteRefsFiltered.map(r => ({ label: r.name })) as { label: string; description: string }[];
+		const branchPick = await window.showQuickPick(branchPicks, { placeHolder });
 
-		if (!branchName) {
+		if (!branchPick) {
 			return;
 		}
 
-		repository.pull(false, pick.label, branchName);
+		const remoteCharCnt = remotePick.label.length;
+
+		repository.pull(false, remotePick.label, branchPick.label.slice(remoteCharCnt + 1));
 	}
 
 	@command('git.pull', { repository: true })
@@ -1303,7 +1370,27 @@ export class CommandCenter {
 			return;
 		}
 
-		await repository.push();
+		if (!repository.HEAD || !repository.HEAD.name) {
+			window.showWarningMessage(localize('nobranch', "Please check out a branch to push to a remote."));
+			return;
+		}
+
+		try {
+			await repository.push();
+		} catch (err) {
+			if (err.gitErrorCode !== GitErrorCodes.NoUpstreamBranch) {
+				throw err;
+			}
+
+			const branchName = repository.HEAD.name;
+			const message = localize('confirm publish branch', "The branch '{0}' has no upstream branch. Would you like to publish this branch?", branchName);
+			const yes = localize('ok', "OK");
+			const pick = await window.showWarningMessage(message, { modal: true }, yes);
+
+			if (pick === yes) {
+				await this.publish(repository);
+			}
+		}
 	}
 
 	@command('git.pushWithTags', { repository: true })
@@ -1447,7 +1534,10 @@ export class CommandCenter {
 	}
 
 	private async _stash(repository: Repository, includeUntracked = false): Promise<void> {
-		if (repository.workingTreeGroup.resourceStates.length === 0) {
+		const noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
+		const noStagedChanges = repository.indexGroup.resourceStates.length === 0;
+
+		if (noUnstagedChanges && noStagedChanges) {
 			window.showInformationMessage(localize('no changes stash', "There are no changes to stash."));
 			return;
 		}
@@ -1623,11 +1713,16 @@ export class CommandCenter {
 		const isSingleResource = arg instanceof Uri;
 
 		const groups = resources.reduce((result, resource) => {
-			const repository = this.model.getRepository(resource);
+			let repository = this.model.getRepository(resource);
 
 			if (!repository) {
 				console.warn('Could not find git repository for ', resource);
 				return result;
+			}
+
+			// Could it be a submodule?
+			if (resource.fsPath === repository.root) {
+				repository = this.model.getRepositoryForSubmodule(resource) || repository;
 			}
 
 			const tuple = result.filter(p => p.repository === repository)[0];

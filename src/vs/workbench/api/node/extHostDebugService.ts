@@ -11,8 +11,8 @@ import { MainContext, MainThreadDebugServiceShape, ExtHostDebugServiceShape, Deb
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 
 import * as vscode from 'vscode';
-import URI from 'vs/base/common/uri';
-import * as types from 'vs/workbench/api/node/extHostTypes';
+import URI, { UriComponents } from 'vs/base/common/uri';
+import { Disposable, Position, Location, SourceBreakpoint, FunctionBreakpoint } from 'vs/workbench/api/node/extHostTypes';
 
 
 export class ExtHostDebugService implements ExtHostDebugServiceShape {
@@ -61,7 +61,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		this._onDidChangeActiveDebugSession = new Emitter<vscode.DebugSession>();
 		this._onDidReceiveDebugSessionCustomEvent = new Emitter<vscode.DebugSessionCustomEvent>();
 
-		this._debugServiceProxy = mainContext.get(MainContext.MainThreadDebugService);
+		this._debugServiceProxy = mainContext.getProxy(MainContext.MainThreadDebugService);
 
 		this._onDidChangeBreakpoints = new Emitter<vscode.BreakpointsChangeEvent>({
 			onFirstListenerAdd: () => {
@@ -103,9 +103,9 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 		if (delta.added) {
 			a = delta.added.map(bpd => {
-				const id = bpd.id;
-				this._breakpoints.set(id, this.fromWire(bpd));
-				return bpd;
+				const bp = this.fromWire(bpd);
+				this._breakpoints.set(bpd.id, bp);
+				return bp;
 			});
 		}
 
@@ -121,9 +121,9 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 		if (delta.changed) {
 			c = delta.changed.map(bpd => {
-				const id = bpd.id;
-				this._breakpoints.set(id, this.fromWire(bpd));
-				return bpd;
+				const bp = this.fromWire(bpd);
+				this._breakpoints.set(bpd.id, bp);
+				return bp;
 			});
 		}
 
@@ -135,30 +135,29 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 	}
 
 	private fromWire(bp: ISourceBreakpointData | IFunctionBreakpointData): vscode.Breakpoint {
-		delete bp.id;
-		if (bp.type === 'source') {
-			(<any>bp).source = URI.parse(bp.sourceUriStr);
-			delete bp.sourceUriStr;
+		if (bp.type === 'function') {
+			return new FunctionBreakpoint(bp.enabled, bp.condition, bp.hitCondition, bp.functionName);
 		}
-		return bp;
+		const uri = URI.revive(bp.uri);
+		return new SourceBreakpoint(bp.enabled, bp.condition, bp.hitCondition, new Location(uri, new Position(bp.line, bp.character)));
 	}
 
 	public registerDebugConfigurationProvider(type: string, provider: vscode.DebugConfigurationProvider): vscode.Disposable {
 		if (!provider) {
-			return new types.Disposable(() => { });
+			return new Disposable(() => { });
 		}
 
 		let handle = this.nextHandle();
 		this._handlers.set(handle, provider);
 		this._debugServiceProxy.$registerDebugConfigurationProvider(type, !!provider.provideDebugConfigurations, !!provider.resolveDebugConfiguration, handle);
 
-		return new types.Disposable(() => {
+		return new Disposable(() => {
 			this._handlers.delete(handle);
 			this._debugServiceProxy.$unregisterDebugConfigurationProvider(handle);
 		});
 	}
 
-	public $provideDebugConfigurations(handle: number, folderUri: URI | undefined): TPromise<vscode.DebugConfiguration[]> {
+	public $provideDebugConfigurations(handle: number, folderUri: UriComponents | undefined): TPromise<vscode.DebugConfiguration[]> {
 		let handler = this._handlers.get(handle);
 		if (!handler) {
 			return TPromise.wrapError<vscode.DebugConfiguration[]>(new Error('no handler found'));
@@ -169,7 +168,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		return asWinJsPromise(token => handler.provideDebugConfigurations(this.getFolder(folderUri), token));
 	}
 
-	public $resolveDebugConfiguration(handle: number, folderUri: URI | undefined, debugConfiguration: vscode.DebugConfiguration): TPromise<vscode.DebugConfiguration> {
+	public $resolveDebugConfiguration(handle: number, folderUri: UriComponents | undefined, debugConfiguration: vscode.DebugConfiguration): TPromise<vscode.DebugConfiguration> {
 		let handler = this._handlers.get(handle);
 		if (!handler) {
 			return TPromise.wrapError<vscode.DebugConfiguration>(new Error('no handler found'));
@@ -234,10 +233,11 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		this._onDidReceiveDebugSessionCustomEvent.fire(ee);
 	}
 
-	private getFolder(folderUri: URI | undefined) {
-		if (folderUri) {
+	private getFolder(_folderUri: UriComponents | undefined) {
+		if (_folderUri) {
+			const folderUriString = URI.revive(_folderUri).toString();
 			const folders = this._workspace.getWorkspaceFolders();
-			const found = folders.filter(f => f.uri.toString() === folderUri.toString());
+			const found = folders.filter(f => f.uri.toString() === folderUriString);
 			if (found && found.length > 0) {
 				return found[0];
 			}

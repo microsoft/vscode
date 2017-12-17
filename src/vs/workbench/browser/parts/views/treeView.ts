@@ -36,6 +36,7 @@ export class TreeView extends TreeViewsViewletPanel {
 	private treeInputPromise: TPromise<void>;
 
 	private dataProviderElementChangeListener: IDisposable;
+	private elementsToRefresh: ITreeItem[] = [];
 
 	constructor(
 		options: IViewletViewOptions,
@@ -113,10 +114,6 @@ export class TreeView extends TreeViewsViewletPanel {
 		return createActionItem(action, this.keybindingService, this.messageService);
 	}
 
-	public setVisible(visible: boolean): TPromise<void> {
-		return super.setVisible(visible);
-	}
-
 	private setInput(): TPromise<void> {
 		if (this.tree) {
 			if (!this.treeInputPromise) {
@@ -172,15 +169,30 @@ export class TreeView extends TreeViewsViewletPanel {
 		}
 	}
 
+	protected updateTreeVisibility(tree: WorkbenchTree, isVisible: boolean): void {
+		super.updateTreeVisibility(tree, isVisible);
+		if (isVisible && this.elementsToRefresh.length) {
+			this.doRefresh(this.elementsToRefresh);
+			this.elementsToRefresh = [];
+		}
+	}
+
 	private refresh(elements: ITreeItem[]): void {
-		if (elements) {
-			for (const element of elements) {
-				this.tree.refresh(element);
-			}
-		} else {
+		if (!elements) {
 			const root: ITreeItem = this.tree.getInput();
 			root.children = null; // reset children
-			this.tree.refresh(root);
+			elements = [root];
+		}
+		if (this.isVisible() && this.isExpanded()) {
+			this.doRefresh(elements);
+		} else {
+			this.elementsToRefresh.push(...elements);
+		}
+	}
+
+	private doRefresh(elements: ITreeItem[]): void {
+		for (const element of elements) {
+			this.tree.refresh(element);
 		}
 	}
 

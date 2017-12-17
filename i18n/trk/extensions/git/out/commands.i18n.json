@@ -14,6 +14,7 @@
 	"cloning": "Git deposu kopyalanıyor...",
 	"openrepo": "Depoyu Aç",
 	"proposeopen": "Kopyalanan depoyu açmak ister misiniz?",
+	"init": "Git deposunun oluşturulacağı çalışma alanı klasörünü seçin",
 	"init repo": "Depo Oluştur",
 	"create repo": "Depo Oluştur",
 	"are you sure": "Bu, '{0}' dizininde bir Git deposu oluşturacak. Devam etmek istediğinizden emin misiniz?",

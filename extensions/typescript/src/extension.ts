@@ -16,7 +16,7 @@ import * as languageConfigurations from './utils/languageConfigurations';
 import { standardLanguageDescriptions } from './utils/languageDescription';
 import ManagedFileContextManager from './utils/managedFileContext';
 import { lazy, Lazy } from './utils/lazy';
-import TypeScriptServiceClient from './typescriptServiceClient';
+import * as fileSchemes from './utils/fileSchemes';
 
 export function activate(
 	context: vscode.ExtensionContext
@@ -86,7 +86,6 @@ function registerCommands(
 	commandManager.register(new commands.JavaScriptGoToProjectConfigCommand(lazyClientHost));
 }
 
-
 function isSupportedDocument(
 	supportedLanguage: string[],
 	document: vscode.TextDocument
@@ -94,10 +93,5 @@ function isSupportedDocument(
 	if (supportedLanguage.indexOf(document.languageId) < 0) {
 		return false;
 	}
-	const scheme = document.uri.scheme;
-	return (
-		scheme === TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME
-		|| scheme === 'untitled'
-		|| scheme === 'file'
-	);
+	return fileSchemes.isSupportedScheme(document.uri.scheme);
 }

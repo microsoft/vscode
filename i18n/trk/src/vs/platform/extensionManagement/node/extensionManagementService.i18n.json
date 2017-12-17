@@ -9,7 +9,7 @@
 	"installingOutdatedExtension": "Bu eklentinin daha yeni bir sürümü zaten yüklü. Bunu, daha eski bir sürümle geçersiz kılmak ister misiniz?",
 	"override": "Geçersiz Kıl",
 	"cancel": "İptal",
-	"notFoundCopatible": "Yükleme başarısız oldu çünkü, '{0}' eklentisinin uyumlu olduğu VS Code'un '{1}' sürümü bulunamadı.",
+	"notFoundCompatible": "Yükleme başarısız oldu çünkü, '{0}' eklentisinin uyumlu olduğu VS Code'un '{1}' sürümü bulunamadı.",
 	"quitCode": "Yükleme başarısız oldu çünkü, eklentinin eski bir örneği hâlâ çalışıyor. Yeniden yüklemeden önce lütfen VS Code'dan çıkın ve tekrar açın.",
 	"exitCode": "Yükleme başarısız oldu çünkü, eklentinin eski bir örneği hâlâ çalışıyor. Yeniden yüklemeden önce lütfen VS Code'dan çıkın ve tekrar açın.",
 	"notFoundCompatibleDependency": "Yükleme başarısız oldu çünkü, bağımlılığı bulunan '{0}' eklentisinin uyumlu olduğu VS Code'un '{1}' sürümü bulunamadı.",

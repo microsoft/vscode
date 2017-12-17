@@ -49,5 +49,8 @@
 	"emmetPreferencesBemModifierSeparator": "使用 BEM 篩選時用於類別的修飾詞分隔符號",
 	"emmetPreferencesFilterCommentBefore": "套用註解篩選時必須置於相符元素前的註解定義。",
 	"emmetPreferencesFilterCommentAfter": "套用註解篩選時必須置於相符元素後的註解定義。 ",
-	"emmetPreferencesFilterCommentTrigger": "必須採用縮寫以套用註解篩選的屬性名稱逗點分隔清單"
+	"emmetPreferencesFilterCommentTrigger": "必須採用縮寫以套用註解篩選的屬性名稱逗點分隔清單",
+	"emmetPreferencesFormatNoIndentTags": "陣列的標籤名稱不應向內縮排",
+	"emmetPreferencesFormatForceIndentTags": "陣列的標籤名稱應總是向內縮排",
+	"emmetPreferencesAllowCompactBoolean": "若為 true，則生成布林屬性的嚴謹表示法"
 }
