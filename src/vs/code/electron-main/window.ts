@@ -174,7 +174,7 @@ export class CodeWindow implements ICodeWindow {
 		}
 
 		let useCustomTitleStyle = false;
-		if ((isWindows && windowConfig && windowConfig.titleBarStyle === 'custom') ||
+		if ((!isMacintosh && windowConfig && windowConfig.titleBarStyle === 'custom') ||
 			(isMacintosh && (!windowConfig || !windowConfig.titleBarStyle || windowConfig.titleBarStyle === 'custom'))) {
 			const isDev = !this.environmentService.isBuilt || !!config.extensionDevelopmentPath;
 			if (!isMacintosh || !isDev) {
@@ -189,7 +189,7 @@ export class CodeWindow implements ICodeWindow {
 		if (useCustomTitleStyle) {
 			options.titleBarStyle = 'hidden';
 			this.hiddenTitleBarStyle = true;
-			if (isWindows) {
+			if (!isMacintosh) {
 				options.frame = false;
 			}
 		}

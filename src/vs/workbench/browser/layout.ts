@@ -783,7 +783,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	}
 
 	public onMaximizeChange(maximized: boolean): void {
-		if (isWindows) {
+		if (!isMacintosh) {
 			this.titlebarBaseHeight = maximized ? 23 : this.partLayoutInfo.titlebar.height;
 		} else {
 			this.titlebarBaseHeight = this.partLayoutInfo.titlebar.height;

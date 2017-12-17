@@ -734,9 +734,6 @@ export class Workbench implements IPartService {
 	}
 
 	private getCustomTitleBarStyle(): 'custom' {
-		if (!isMacintosh && !isWindows) {
-			return null; // custom title bar is only supported on Mac and Windows currently
-		}
 
 		const isDev = !this.environmentService.isBuilt || this.environmentService.isExtensionDevelopment;
 		if (isMacintosh && isDev) {

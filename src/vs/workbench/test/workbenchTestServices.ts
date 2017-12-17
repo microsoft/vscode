@@ -1130,10 +1130,6 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
-	addMaximizeListener(windowId: number, listener: (maximized: boolean) => void): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-
 	onWindowTitleDoubleClick(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}

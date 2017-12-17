@@ -231,7 +231,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		const SVGNS = 'http://www.w3.org/2000/svg';
 		this.titleContainer = $(parent);
 
-		if (isWindows) {
+		if (!isMacintosh) {
 			$(this.titleContainer).img({ class: 'window-appicon', src: path.join(this.environmentService.appRoot, 'resources/linux/code.png') });
 		}
 
@@ -265,7 +265,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			return el;
 		};
 
-		if (isWindows) {
+		if (!isMacintosh) {
 			// The svgs and styles for the titlebar come from the electron-titlebar-windows package
 			$(this.titleContainer).div({ class: 'window-icon' }, (builder) => {
 				const svg = $svg('svg', { x: 0, y: 0, viewBox: '0 0 10 1' });
