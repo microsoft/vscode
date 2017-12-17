@@ -23,8 +23,8 @@
 		const baseTheme = config.baseTheme || 'vs';
 		document.body.className = 'monaco-shell ' + baseTheme;
 
-		// makes the window draggable if there is no frame on Windows
-		if  (config.execPath.endsWith('exe') && config.hiddenTitleBar) {
+		// makes the window draggable if there is no frame
+		if  (config.frameless) {
 			document.documentElement.style.webkitAppRegion = 'drag';
 			document.documentElement.style.height = '100%';
 		}

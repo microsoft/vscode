@@ -323,7 +323,7 @@ export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 	highContrast?: boolean;
 	baseTheme?: string;
 	backgroundColor?: string;
-	hiddenTitleBar?: boolean;
+	frameless?: boolean;
 	accessibilitySupport?: boolean;
 
 	perfEntries: PerformanceEntry[];
