@@ -114,13 +114,13 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			let countBadRecommendations = 0;
 			let badRecommendationsString = '';
 			let filteredRecommendations = extensionsContent.recommendations.filter((element, position) => {
-				if (!regEx.test(element)) {
+				if (extensionsContent.recommendations.indexOf(element) !== position) {
+					// This is a duplicate entry, it doesn't hurt anybody
+					// but it shouldn't be sent in the gallery query
+					return false;
+				} else if (!regEx.test(element)) {
 					countBadRecommendations++;
 					badRecommendationsString += `${element} (bad format) Expected: <provider>.<name>\n`;
-					return false;
-				} else if (extensionsContent.recommendations.indexOf(element) !== position) {
-					countBadRecommendations++;
-					badRecommendationsString += `${element} (duplicate)\n`;
 					return false;
 				}
 
@@ -137,7 +137,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 					filteredRecommendations.forEach(element => {
 						if (validRecommendations.indexOf(element.toLowerCase()) === -1) {
 							countBadRecommendations++;
-							badRecommendationsString += `${element} (not found in gallery)\n`;
+							badRecommendationsString += `${element} (not found in marketplace)\n`;
 						}
 					});
 				}
