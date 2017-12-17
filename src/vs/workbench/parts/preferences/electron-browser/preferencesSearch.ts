@@ -99,12 +99,14 @@ export class PreferencesSearchModel implements IPreferencesSearchModel {
 			return this._remoteProvider.filterPreferences(preferencesModel).then(null, err => {
 				const message = errors.getErrorMessage(err);
 
-				/* __GDPR__
-					"defaultSettings.searchError" : {
-						"message": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-					}
-				*/
-				this.telemetryService.publicLog('defaultSettings.searchError', { message });
+				if (message.toLowerCase() !== 'canceled') {
+					/* __GDPR__
+						"defaultSettings.searchError" : {
+							"message": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+						}
+					*/
+					this.telemetryService.publicLog('defaultSettings.searchError', { message });
+				}
 
 				return this._localProvider.filterPreferences(preferencesModel);
 			});
