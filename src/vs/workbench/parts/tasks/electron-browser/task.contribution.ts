@@ -2020,24 +2020,25 @@ class TaskService implements ITaskService {
 						return;
 					}
 				}
-			}
-			if (activeTasks.length === 1) {
-				this.terminate(activeTasks[0]).then(handleTerminateResponse);
-				return;
-			}
-			this.showQuickPick(activeTasks,
-				nls.localize('TaskService.taskToTerminate', 'Select task to terminate'),
-				{
-					label: nls.localize('TaskService.noTaskRunning', 'No task is currently running'),
-					task: null
-				},
-				false, true
-			).then((task) => {
-				if (task === void 0 || task === null) {
+			} else {
+				if (activeTasks.length === 1) {
+					this.terminate(activeTasks[0]).then(handleTerminateResponse);
 					return;
 				}
-				this.terminate(task).then(handleTerminateResponse);
-			});
+				this.showQuickPick(activeTasks,
+					nls.localize('TaskService.taskToTerminate', 'Select task to terminate'),
+					{
+						label: nls.localize('TaskService.noTaskRunning', 'No task is currently running'),
+						task: null
+					},
+					false, true
+				).then((task) => {
+					if (task === void 0 || task === null) {
+						return;
+					}
+					this.terminate(task).then(handleTerminateResponse);
+				});
+			}
 		});
 	}
 
@@ -2053,24 +2054,25 @@ class TaskService implements ITaskService {
 						return;
 					}
 				}
-			}
-			if (activeTasks.length === 1) {
-				this.restart(activeTasks[0]);
-				return;
-			}
-			this.showQuickPick(activeTasks,
-				nls.localize('TaskService.taskToRestart', 'Select the task to restart'),
-				{
-					label: nls.localize('TaskService.noTaskToRestart', 'No task to restart'),
-					task: null
-				},
-				false, true
-			).then((task) => {
-				if (task === void 0 || task === null) {
+			} else {
+				if (activeTasks.length === 1) {
+					this.restart(activeTasks[0]);
 					return;
 				}
-				this.restart(task);
-			});
+				this.showQuickPick(activeTasks,
+					nls.localize('TaskService.taskToRestart', 'Select the task to restart'),
+					{
+						label: nls.localize('TaskService.noTaskToRestart', 'No task to restart'),
+						task: null
+					},
+					false, true
+				).then((task) => {
+					if (task === void 0 || task === null) {
+						return;
+					}
+					this.restart(task);
+				});
+			}
 		});
 	}
 
