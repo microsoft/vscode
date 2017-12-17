@@ -30,31 +30,31 @@
 	zoom: 1; /* prevent zooming */
 }
 
-/*************\
-| Windows CSS |
-\*************/
+/***********************\
+| Windows and Linux CSS |
+\***********************/
 
-.monaco-workbench.windows > .part.titlebar {
+.monaco-workbench.windows > .part.titlebar, .monaco-workbench.linux > .part.titlebar {
 	line-height: 25px;
 	height: 25px;
 	padding: 0 0 0 0.5em;
 	-webkit-app-region: no-drag;
 }
 
-.monaco-workbench.windows > .part.titlebar > .window-title {
+.monaco-workbench.windows > .part.titlebar > .window-title, .monaco-workbench.linux > .part.titlebar > .window-title  {
 	line-height: 25px;
 	flex-grow: 1;
 	margin-left: 0.35em;
 	-webkit-app-region: drag;
 }
 
-.monaco-workbench.windows > .part.titlebar > .window-appicon {
+.monaco-workbench > .part.titlebar > .window-appicon {
 	width: calc(16em / 12);
 	height: calc(16em / 12);
 	-webkit-app-region: no-drag;
 }
 
-.monaco-workbench.windows > .part.titlebar > .window-icon {
+.monaco-workbench > .part.titlebar > .window-icon {
 	width: calc(46em / 12);
 	height: calc(100% - 1.5em / 12);
 	margin-bottom: calc(1.5em / 12);
@@ -68,21 +68,21 @@
 	display: none;
 }
 
-.monaco-workbench.windows > .part.titlebar > .window-icon svg {
+.monaco-workbench > .part.titlebar > .window-icon svg {
 	width: calc(10em / 12);
 	height: calc(10em / 12);
 	shape-rendering: crispEdges;
 }
 
-.monaco-workbench.windows > .part.titlebar > .window-icon:hover {
+.monaco-workbench > .part.titlebar > .window-icon:hover {
 	background-color: rgba(255, 255, 255, 0.1);
 }
 
-.monaco-workbench.windows > .part.titlebar.light > .window-icon:hover {
+.monaco-workbench > .part.titlebar.light > .window-icon:hover {
 	background-color: rgba(0, 0, 0, 0.1);
 }
 
-.monaco-workbench.windows > .part.titlebar.titlebar > .window-close:hover {
+.monaco-workbench > .part.titlebar.titlebar > .window-close:hover {
 	background-color: rgba(232, 17, 35, 0.9);
 	color: rgba(255, 255, 255, 1);
 }
