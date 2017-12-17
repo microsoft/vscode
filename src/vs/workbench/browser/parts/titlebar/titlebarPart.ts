@@ -232,7 +232,13 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.titleContainer = $(parent);
 
 		if (!isMacintosh) {
-			$(this.titleContainer).img({ class: 'window-appicon', src: path.join(this.environmentService.appRoot, 'resources/linux/code.png') });
+			$(this.titleContainer).img({
+				class: 'window-appicon',
+				src: path.join(this.environmentService.appRoot, 'resources/linux/code.png')
+			}).on(DOM.EventType.DBLCLICK, (e) => {
+				DOM.EventHelper.stop(e, true);
+				this.windowService.closeWindow().then(null, errors.onUnexpectedError);
+			});
 		}
 
 		// Title
