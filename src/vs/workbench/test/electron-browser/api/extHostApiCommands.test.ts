@@ -13,7 +13,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as types from 'vs/workbench/api/node/extHostTypes';
 import * as EditorCommon from 'vs/editor/common/editorCommon';
 import { Model as EditorModel } from 'vs/editor/common/model/model';
-import { TestThreadService } from './testThreadService';
+import { TestRPCProtocol } from './testThreadService';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -45,7 +45,7 @@ const model: EditorCommon.IModel = EditorModel.createFromString(
 	undefined,
 	URI.parse('far://testing/file.b'));
 
-let threadService: TestThreadService;
+let threadService: TestRPCProtocol;
 let extHost: ExtHostLanguageFeatures;
 let mainThread: MainThreadLanguageFeatures;
 let commands: ExtHostCommands;
@@ -63,7 +63,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		let inst: IInstantiationService;
 		{
 			let instantiationService = new TestInstantiationService();
-			threadService = new TestThreadService();
+			threadService = new TestRPCProtocol();
 			instantiationService.stub(IHeapService, {
 				_serviceBrand: undefined,
 				trackRecursive(args) {
@@ -116,7 +116,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 		commands = new ExtHostCommands(threadService, heapService, new NullLogService());
 		threadService.set(ExtHostContext.ExtHostCommands, commands);
-		threadService.setTestInstance(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, threadService));
+		threadService.set(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, threadService));
 		ExtHostApiCommands.register(commands);
 
 		const diagnostics = new ExtHostDiagnostics(threadService);
@@ -125,7 +125,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		extHost = new ExtHostLanguageFeatures(threadService, extHostDocuments, commands, heapService, diagnostics);
 		threadService.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
-		mainThread = <MainThreadLanguageFeatures>threadService.setTestInstance(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures, threadService));
+		mainThread = <MainThreadLanguageFeatures>threadService.set(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures, threadService));
 
 		threadService.sync().then(done, done);
 	});
