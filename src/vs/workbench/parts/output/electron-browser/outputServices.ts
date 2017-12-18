@@ -32,7 +32,6 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { RotatingLogger } from 'spdlog';
 import { toLocalISOString } from 'vs/base/common/date';
-import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
@@ -290,8 +289,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ILifecycleService lifecycleService: ILifecycleService
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super();
 		const channels = this.getChannels();
@@ -305,8 +303,6 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		this.onDidPanelOpen(this.panelService.getActivePanel());
 		panelService.onDidPanelOpen(this.onDidPanelOpen, this);
 		panelService.onDidPanelClose(this.onDidPanelClose, this);
-
-		lifecycleService.onShutdown(() => this.dispose());
 	}
 
 	provideTextContent(resource: URI): TPromise<IModel> {
@@ -413,10 +409,5 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		const channelData = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels).getChannel(channelId);
 		const label = channelData ? channelData.label : channelId;
 		return this.instantiationService.createInstance(ResourceEditorInput, nls.localize('output', "{0} - Output", label), nls.localize('channel', "Output channel for '{0}'", label), resource);
-	}
-
-	dispose(): void {
-		this.channels.forEach(channel => channel.dispose());
-		super.dispose();
 	}
 }
