@@ -143,7 +143,10 @@ abstract class AbstractOutputChannel extends Disposable {
 			model.applyEdits([EditOperation.insert(new Position(lastLine, lastLineMaxColumn), content)]);
 			this.endOffset = this.endOffset + new Buffer(content).byteLength;
 			if (!this.scrollLock) {
-				(<OutputPanel>this.panelService.getActivePanel()).revealLastLine();
+				const panel = this.panelService.getActivePanel();
+				if (panel && panel.getId() === OUTPUT_PANEL_ID) {
+					(<OutputPanel>panel).revealLastLine();
+				}
 			}
 		}
 	}
