@@ -64,7 +64,7 @@ function validateThemeId(theme: string): string {
 }
 
 export interface IColorCustomizations {
-	[colorId: string]: string;
+	[colorIdOrThemeSettingsId: string]: string | IColorCustomizations;
 }
 
 export class WorkbenchThemeService implements IWorkbenchThemeService {
@@ -151,9 +151,34 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		// update settings schema setting
 		this.colorThemeStore.onDidChange(themes => {
-			colorThemeSettingSchema.enum = themes.map(t => t.settingsId);
-			colorThemeSettingSchema.enumDescriptions = themes.map(t => themeData.description || '');
+			const colorThemeSettingSchemaEnum = [];
+			const colorThemeSettingSchemaEnumDescriptions = [];
+			const themeSpecificEditorColorProperties = {};
+			const themeSpecificWorkbenchColorProperties = {};
+			const copyColorCustomizationsSchema = JSON.parse(JSON.stringify(colorCustomizationsSchema));
+			const copyColorConfigurationProperties = JSON.parse(JSON.stringify(customEditorColorSetting));
+
+			themes.forEach(t => {
+				colorThemeSettingSchemaEnum.push(t.settingsId);
+				colorThemeSettingSchemaEnumDescriptions.push(themeData.description || '');
+				const themeId = `[${t.settingsId}]`;
+				themeSpecificWorkbenchColorProperties[themeId] = copyColorCustomizationsSchema;
+				themeSpecificEditorColorProperties[themeId] = copyColorConfigurationProperties;
+			});
+
+			colorThemeSettingSchema.enum = colorThemeSettingSchemaEnum;
+			colorThemeSettingSchema.enumDescriptions = colorThemeSettingSchemaEnumDescriptions;
+			themeSettingsConfiguration.properties[CUSTOM_WORKBENCH_COLORS_SETTING].properties = {
+				...colorThemeSchema.colorsSchema.properties,
+				...themeSpecificWorkbenchColorProperties
+			};
+			customEditorColorConfiguration.properties[CUSTOM_EDITOR_COLORS_SETTING].properties = {
+				...customEditorColorConfigurationProperties,
+				...themeSpecificEditorColorProperties
+			};
+
 			configurationRegistry.notifyConfigurationSchemaUpdated(themeSettingsConfiguration);
+			configurationRegistry.notifyConfigurationSchemaUpdated(customEditorColorConfiguration);
 		});
 		this.iconThemeStore.onDidChange(themes => {
 			iconThemeSettingSchema.enum = [null, ...themes.map(t => t.settingsId)];
@@ -483,7 +508,7 @@ const iconThemeSettingSchema: IConfigurationPropertySchema = {
 	errorMessage: nls.localize('iconThemeError', "File icon theme is unknown or not installed.")
 };
 const colorCustomizationsSchema: IConfigurationPropertySchema = {
-	type: ['object'],
+	type: 'object',
 	description: nls.localize('workbenchColors', "Overrides colors from the currently selected color theme."),
 	properties: colorThemeSchema.colorsSchema.properties,
 	additionalProperties: false,
@@ -523,27 +548,29 @@ function tokenGroupSettings(description: string) {
 	};
 }
 
-configurationRegistry.registerConfiguration({
+const customEditorColorConfigurationProperties = {
+	comments: tokenGroupSettings(nls.localize('editorColors.comments', "Sets the colors and styles for comments")),
+	strings: tokenGroupSettings(nls.localize('editorColors.strings', "Sets the colors and styles for strings literals.")),
+	keywords: tokenGroupSettings(nls.localize('editorColors.keywords', "Sets the colors and styles for keywords.")),
+	numbers: tokenGroupSettings(nls.localize('editorColors.numbers', "Sets the colors and styles for number literals.")),
+	types: tokenGroupSettings(nls.localize('editorColors.types', "Sets the colors and styles for type declarations and references.")),
+	functions: tokenGroupSettings(nls.localize('editorColors.functions', "Sets the colors and styles for functions declarations and references.")),
+	variables: tokenGroupSettings(nls.localize('editorColors.variables', "Sets the colors and styles for variables declarations and references.")),
+	[CUSTOM_EDITOR_SCOPE_COLORS_SETTING]: colorThemeSchema.tokenColorsSchema(nls.localize('editorColors.textMateRules', 'Sets colors and styles using textmate theming rules (advanced).'))
+};
+const customEditorColorSetting = {
+	description: nls.localize('editorColors', "Overrides editor colors and font style from the currently selected color theme."),
+	default: {},
+	additionalProperties: false,
+	properties: customEditorColorConfigurationProperties
+};
+const customEditorColorConfiguration: IConfigurationNode = {
 	id: 'editor',
 	order: 7.2,
 	type: 'object',
 	properties: {
-		[CUSTOM_EDITOR_COLORS_SETTING]: {
-			description: nls.localize('editorColors', "Overrides editor colors and font style from the currently selected color theme."),
-			type: 'object',
-			default: {},
-			additionalProperties: false,
-			properties: {
-				comments: tokenGroupSettings(nls.localize('editorColors.comments', "Sets the colors and styles for comments")),
-				strings: tokenGroupSettings(nls.localize('editorColors.strings', "Sets the colors and styles for strings literals.")),
-				keywords: tokenGroupSettings(nls.localize('editorColors.keywords', "Sets the colors and styles for keywords.")),
-				numbers: tokenGroupSettings(nls.localize('editorColors.numbers', "Sets the colors and styles for number literals.")),
-				types: tokenGroupSettings(nls.localize('editorColors.types', "Sets the colors and styles for type declarations and references.")),
-				functions: tokenGroupSettings(nls.localize('editorColors.functions', "Sets the colors and styles for functions declarations and references.")),
-				variables: tokenGroupSettings(nls.localize('editorColors.variables', "Sets the colors and styles for variables declarations and references.")),
-				[CUSTOM_EDITOR_SCOPE_COLORS_SETTING]: colorThemeSchema.tokenColorsSchema(nls.localize('editorColors.textMateRules', 'Sets colors and styles using textmate theming rules (advanced).'))
-			}
-		}
+		[CUSTOM_EDITOR_COLORS_SETTING]: customEditorColorSetting
 	}
-});
+};
+configurationRegistry.registerConfiguration(customEditorColorConfiguration);
 
