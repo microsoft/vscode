@@ -441,9 +441,17 @@ export class FileService implements IFileService {
 					}
 				};
 
+				let currentPosition: number = (options && options.position) || null;
+
 				const readChunk = () => {
-					fs.read(fd, chunkBuffer, 0, chunkBuffer.length, null, (err, bytesRead) => {
+					fs.read(fd, chunkBuffer, 0, chunkBuffer.length, currentPosition, (err, bytesRead) => {
 						totalBytesRead += bytesRead;
+
+						if (typeof currentPosition === 'number') {
+							// if we received a position argument as option we need to ensure that
+							// we advance the position by the number of bytesread
+							currentPosition += bytesRead;
+						}
 
 						if (totalBytesRead > MAX_FILE_SIZE) {
 							// stop when reading too much
