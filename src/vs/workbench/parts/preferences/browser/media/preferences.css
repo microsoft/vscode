@@ -43,7 +43,7 @@
 	margin-left: 33px;
 	margin-right: 5px;
 	cursor: pointer;
-	display: flex;
+	display: block;
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
