@@ -28,6 +28,7 @@ declare module 'spdlog' {
 		error(message: string);
 		critical(message: string);
 		setLevel(level: number);
+		clearFormatters();
 		flush(): void;
 		drop(): void;
 	}
