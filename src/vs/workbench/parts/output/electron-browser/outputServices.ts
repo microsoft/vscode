@@ -35,7 +35,7 @@ import { toLocalISOString } from 'vs/base/common/date';
 
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
-class OutputFileHandler extends Disposable {
+class OutputFileListener extends Disposable {
 
 	private _onDidChange: Emitter<void> = new Emitter<void>();
 	readonly onDidContentChange: Event<void> = this._onDidChange.event;
@@ -58,11 +58,6 @@ class OutputFileHandler extends Disposable {
 		}));
 	}
 
-	loadContent(from: number): TPromise<string> {
-		return this.fileService.resolveContent(this.file)
-			.then(({ value }) => value.substring(from));
-	}
-
 	unwatch(): void {
 		this.fileService.unwatchFileChanges(this.file);
 		this.disposables = dispose(this.disposables);
@@ -76,44 +71,34 @@ class OutputFileHandler extends Disposable {
 
 interface OutputChannel extends IOutputChannel {
 	readonly onDispose: Event<void>;
-	resolve(): TPromise<string>;
+	createModel(): TPromise<IModel>;
 }
 
-class FileOutputChannel extends Disposable implements OutputChannel {
+abstract class AbstractOutputChannel extends Disposable {
+
+	scrollLock: boolean = false;
 
 	protected _onDispose: Emitter<void> = new Emitter<void>();
 	readonly onDispose: Event<void> = this._onDispose.event;
 
-	scrollLock: boolean = false;
-
 	protected readonly file: URI;
-	private readonly fileHandler: OutputFileHandler;
 
-	private updateInProgress: boolean = false;
-	private modelUpdater: RunOnceScheduler;
-	private startOffset: number;
-	private endOffset: number;
+	protected startOffset: number = 0;
+	protected endOffset: number = 0;
+	protected modelUpdater: RunOnceScheduler;
 
 	constructor(
-		private readonly outputChannelIdentifier: IOutputChannelIdentifier,
-		@IFileService protected fileService: IFileService,
-		@IModelService private modelService: IModelService,
-		@IPanelService private panelService: IPanelService
+		protected readonly outputChannelIdentifier: IOutputChannelIdentifier,
+		protected fileService: IFileService,
+		private modelService: IModelService,
+		private modeService: IModeService,
+		private panelService: IPanelService
 	) {
 		super();
 		this.file = outputChannelIdentifier.file;
-		this.startOffset = 0;
-		this.endOffset = 0;
 
-		this.modelUpdater = new RunOnceScheduler(() => this.doUpdate(), 300);
+		this.modelUpdater = new RunOnceScheduler(() => this.updateModel(), 300);
 		this._register(toDisposable(() => this.modelUpdater.cancel()));
-
-		this.fileHandler = this._register(new OutputFileHandler(this.file, this.fileService));
-		this._register(this.fileHandler.onDidContentChange(() => this.onDidContentChange()));
-		this._register(toDisposable(() => this.fileHandler.unwatch()));
-
-		this._register(this.modelService.onModelAdded(this.onModelAdded, this));
-		this._register(this.modelService.onModelRemoved(this.onModelRemoved, this));
 	}
 
 	get id(): string {
@@ -124,11 +109,10 @@ class FileOutputChannel extends Disposable implements OutputChannel {
 		return this.outputChannelIdentifier.label;
 	}
 
-	append(message: string): void {
-		throw new Error('Not supported');
-	}
-
 	clear(): void {
+		if (this.modelUpdater.isScheduled()) {
+			this.modelUpdater.cancel();
+		}
 		this.startOffset = this.endOffset;
 		const model = this.getModel();
 		if (model) {
@@ -136,44 +120,22 @@ class FileOutputChannel extends Disposable implements OutputChannel {
 		}
 	}
 
-	resolve(): TPromise<string> {
-		return this.fileHandler.loadContent(this.startOffset);
+	createModel(): TPromise<IModel> {
+		return this.fileService.resolveContent(this.file, { position: this.startOffset })
+			.then(content => {
+				const model = this.modelService.createModel(content.value, this.modeService.getOrCreateMode(OUTPUT_MIME), URI.from({ scheme: OUTPUT_SCHEME, path: this.id }));
+				this.endOffset = this.startOffset + new Buffer(model.getValueLength()).byteLength;
+				this.onModelCreated(model);
+				const disposables: IDisposable[] = [];
+				disposables.push(model.onWillDispose(() => {
+					this.onModelWillDispose(model);
+					dispose(disposables);
+				}));
+				return model;
+			});
 	}
 
-	private onModelAdded(model: IModel): void {
-		if (model.uri.fsPath === this.id) {
-			this.endOffset = this.startOffset + new Buffer(model.getValueLength()).byteLength;
-			this.fileHandler.watch();
-		}
-	}
-
-	private onModelRemoved(model: IModel): void {
-		if (model.uri.fsPath === this.id) {
-			this.fileHandler.unwatch();
-		}
-	}
-
-	private onDidContentChange(): void {
-		if (!this.updateInProgress) {
-			this.updateInProgress = true;
-			this.modelUpdater.schedule();
-		}
-	}
-
-	private doUpdate(): void {
-		let model = this.getModel();
-		if (model) {
-			this.fileHandler.loadContent(this.endOffset)
-				.then(content => {
-					this.appendContent(content);
-					this.updateInProgress = false;
-				}, () => this.updateInProgress = false);
-		} else {
-			this.updateInProgress = false;
-		}
-	}
-
-	private appendContent(content: string): void {
+	protected appendContent(content: string): void {
 		const model = this.getModel();
 		if (model && content) {
 			const lastLine = model.getLineCount();
@@ -191,41 +153,116 @@ class FileOutputChannel extends Disposable implements OutputChannel {
 		return model && !model.isDisposed() ? model : null;
 	}
 
+	protected onModelCreated(model: IModel) { }
+	protected onModelWillDispose(model: IModel) { }
+	protected updateModel() { }
+
 	dispose(): void {
 		this._onDispose.fire();
 		super.dispose();
 	}
 }
 
-class AppendableFileOutoutChannel extends FileOutputChannel implements OutputChannel {
+class FileOutputChannel extends AbstractOutputChannel implements OutputChannel {
 
-	private outputWriter: RotatingLogger;
-	private flushScheduler: RunOnceScheduler;
+	private readonly fileHandler: OutputFileListener;
+
+	private updateInProgress: boolean = false;
 
 	constructor(
 		outputChannelIdentifier: IOutputChannelIdentifier,
 		@IFileService fileService: IFileService,
 		@IModelService modelService: IModelService,
-		@IPanelService panelService: IPanelService,
+		@IModeService modeService: IModeService,
+		@IPanelService panelService: IPanelService
 	) {
-		super(outputChannelIdentifier, fileService, modelService, panelService);
+		super(outputChannelIdentifier, fileService, modelService, modeService, panelService);
+
+		this.fileHandler = this._register(new OutputFileListener(this.file, fileService));
+		this._register(this.fileHandler.onDidContentChange(() => this.onDidContentChange()));
+		this._register(toDisposable(() => this.fileHandler.unwatch()));
+	}
+
+	append(message: string): void {
+		throw new Error('Not supported');
+	}
+
+	protected updateModel(): void {
+		let model = this.getModel();
+		if (model) {
+			this.fileService.resolveContent(this.file, { position: this.endOffset })
+				.then(content => {
+					this.appendContent(content.value);
+					this.updateInProgress = false;
+				}, () => this.updateInProgress = false);
+		} else {
+			this.updateInProgress = false;
+		}
+	}
+
+	protected onModelCreated(model: IModel): void {
+		this.fileHandler.watch();
+	}
+
+	protected onModelWillDispose(model: IModel): void {
+		this.fileHandler.unwatch();
+	}
+
+	private onDidContentChange(): void {
+		if (!this.updateInProgress) {
+			this.updateInProgress = true;
+			this.modelUpdater.schedule();
+		}
+	}
+}
+
+class AppendableFileOutputChannel extends AbstractOutputChannel implements OutputChannel {
+
+	private outputWriter: RotatingLogger;
+	private appendedMessage = '';
+
+	constructor(
+		outputChannelIdentifier: IOutputChannelIdentifier,
+		@IFileService fileService: IFileService,
+		@IModelService modelService: IModelService,
+		@IModeService modeService: IModeService,
+		@IPanelService panelService: IPanelService
+	) {
+		super(outputChannelIdentifier, fileService, modelService, modeService, panelService);
+
 		this.outputWriter = new RotatingLogger(this.id, this.file.fsPath, 1024 * 1024 * 5, 1);
 		this.outputWriter.clearFormatters();
-
-		this.flushScheduler = new RunOnceScheduler(() => this.outputWriter.flush(), 300);
-		this._register(toDisposable(() => this.flushScheduler.cancel()));
-
-		this._register(modelService.onModelAdded(model => {
-			if (model.uri.fsPath === this.id && !this.flushScheduler.isScheduled()) {
-				this.flushScheduler.schedule();
-			}
-		}));
 	}
 
 	append(message: string): void {
 		this.outputWriter.critical(message);
-		if (this.getModel() && !this.flushScheduler.isScheduled()) {
-			this.flushScheduler.schedule();
+		const model = this.getModel();
+		if (model) {
+			this.appendedMessage += message;
+			if (!this.modelUpdater.isScheduled()) {
+				this.modelUpdater.schedule();
+			}
+		}
+	}
+
+	clear(): void {
+		super.clear();
+		this.appendedMessage = '';
+	}
+
+	createModel(): TPromise<IModel> {
+		this.outputWriter.flush();
+		this.appendedMessage = '';
+		return super.createModel();
+	}
+
+	protected updateModel(): void {
+		let model = this.getModel();
+		if (model) {
+			if (this.appendedMessage) {
+				this.appendContent(this.appendedMessage);
+				this.appendedMessage = '';
+			}
 		}
 	}
 }
@@ -247,8 +284,6 @@ export class OutputService implements IOutputService, ITextModelContentProvider 
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPanelService private panelService: IPanelService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IModelService private modelService: IModelService,
-		@IModeService private modeService: IModeService,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEnvironmentService private environmentService: IEnvironmentService
@@ -268,8 +303,7 @@ export class OutputService implements IOutputService, ITextModelContentProvider 
 
 	provideTextContent(resource: URI): TPromise<IModel> {
 		const channel = <OutputChannel>this.getChannel(resource.fsPath);
-		return channel.resolve()
-			.then(content => this.modelService.createModel(content, this.modeService.getOrCreateMode(OUTPUT_MIME), resource));
+		return channel.createModel();
 	}
 
 	showChannel(id: string, preserveFocus?: boolean): TPromise<void> {
@@ -332,7 +366,7 @@ export class OutputService implements IOutputService, ITextModelContentProvider 
 		}
 		const sessionId = toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '');
 		const file = URI.file(paths.join(this.environmentService.logsPath, 'outputs', `${id}.${sessionId}.log`));
-		return this.instantiationService.createInstance(AppendableFileOutoutChannel, { id, label: channelData ? channelData.label : '', file });
+		return this.instantiationService.createInstance(AppendableFileOutputChannel, { id, label: channelData ? channelData.label : '', file });
 	}
 
 

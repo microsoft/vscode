@@ -29,6 +29,9 @@ declare module 'spdlog' {
 		critical(message: string);
 		setLevel(level: number);
 		clearFormatters();
+		/**
+		 * A synchronous operation to flush the contents into file
+		*/
 		flush(): void;
 		drop(): void;
 	}
