@@ -70,7 +70,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 	}
 
 	private get relativeFile(): string {
-		return (this.workspaceRoot) ? relative(this.workspaceRoot, this.file) : this.file;
+		return (this.workspaceRoot) ? paths.normalize(relative(this.workspaceRoot, this.file)) : this.file;
 	}
 
 	private get fileBasename(): string {

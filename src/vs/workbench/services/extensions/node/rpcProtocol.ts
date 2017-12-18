@@ -56,11 +56,7 @@ export class RPCProtocol implements IRPCProtocol {
 			get: (target, name: string) => {
 				if (!target[name] && name.charCodeAt(0) === CharCode.DollarSign) {
 					target[name] = (...myArgs: any[]) => {
-						return (
-							isFancy
-								? this.fancyRemoteCall(proxyId, name, myArgs)
-								: this.remoteCall(proxyId, name, myArgs)
-						);
+						return this._remoteCall(proxyId, name, myArgs, isFancy);
 					};
 				}
 				return target[name];
@@ -188,14 +184,6 @@ export class RPCProtocol implements IRPCProtocol {
 			throw new Error('Unknown method ' + methodName + ' on actor ' + proxyId);
 		}
 		return method.apply(actor, args);
-	}
-
-	private remoteCall(proxyId: string, methodName: string, args: any[]): TPromise<any> {
-		return this._remoteCall(proxyId, methodName, args, false);
-	}
-
-	private fancyRemoteCall(proxyId: string, methodName: string, args: any[]): TPromise<any> {
-		return this._remoteCall(proxyId, methodName, args, true);
 	}
 
 	private _remoteCall(proxyId: string, methodName: string, args: any[], isFancy: boolean): TPromise<any> {

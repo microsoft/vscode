@@ -12,7 +12,7 @@ import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumen
 import { TextDocumentSaveReason, TextEdit, Position, EndOfLine } from 'vs/workbench/api/node/extHostTypes';
 import { MainThreadEditorsShape, IWorkspaceResourceEdit } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostDocumentSaveParticipant } from 'vs/workbench/api/node/extHostDocumentSaveParticipant';
-import { OneGetThreadService } from './testThreadService';
+import { SingleProxyRPCProtocol } from './testRPCProtocol';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import * as vscode from 'vscode';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
@@ -37,7 +37,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 	};
 
 	setup(() => {
-		const documentsAndEditors = new ExtHostDocumentsAndEditors(OneGetThreadService(null));
+		const documentsAndEditors = new ExtHostDocumentsAndEditors(SingleProxyRPCProtocol(null));
 		documentsAndEditors.$acceptDocumentsAndEditorsDelta({
 			addedDocuments: [{
 				isDirty: false,
@@ -48,7 +48,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 				EOL: '\n',
 			}]
 		});
-		documents = new ExtHostDocuments(OneGetThreadService(null), documentsAndEditors);
+		documents = new ExtHostDocuments(SingleProxyRPCProtocol(null), documentsAndEditors);
 	});
 
 	test('no listeners, no problem', () => {
