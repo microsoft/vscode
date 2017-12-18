@@ -83,11 +83,11 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 	private _configurationWriter: ConfigurationWriter;
 
 	private get colorCustomizations(): IColorCustomizations {
-		return this.configurationService.getValue<IColorCustomizations>(CUSTOM_WORKBENCH_COLORS_SETTING);
+		return this.configurationService.getValue<IColorCustomizations>(CUSTOM_WORKBENCH_COLORS_SETTING) || {};
 	}
 
 	private get tokenColorCustomizations(): ITokenColorCustomizations {
-		return this.configurationService.getValue<ITokenColorCustomizations>(CUSTOM_EDITOR_COLORS_SETTING);
+		return this.configurationService.getValue<ITokenColorCustomizations>(CUSTOM_EDITOR_COLORS_SETTING) || {};
 	}
 
 	constructor(
@@ -529,6 +529,7 @@ configurationRegistry.registerConfiguration({
 	type: 'object',
 	properties: {
 		[CUSTOM_EDITOR_COLORS_SETTING]: {
+			type: 'object',
 			description: nls.localize('editorColors', "Overrides editor colors and font style from the currently selected color theme."),
 			default: {},
 			additionalProperties: false,
