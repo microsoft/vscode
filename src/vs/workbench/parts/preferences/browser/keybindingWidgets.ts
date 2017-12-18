@@ -145,6 +145,9 @@ export class DefineKeybindingWidget extends Widget {
 
 	private _onHide = this._register(new Emitter<void>());
 
+	private _onDidChange = this._register(new Emitter<[ResolvedKeybinding, ResolvedKeybinding]>());
+	public onDidChange: Event<[ResolvedKeybinding, ResolvedKeybinding]> = this._onDidChange.event;
+
 	constructor(
 		parent: HTMLElement,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -216,7 +219,7 @@ export class DefineKeybindingWidget extends Widget {
 		}));
 
 		this._keybindingInputWidget = this._register(this.instantiationService.createInstance(KeybindingInputWidget, this._domNode.domNode, {}));
-		this._register(this._keybindingInputWidget.onKeybinding(keybinding => this.printKeybinding(keybinding)));
+		this._register(this._keybindingInputWidget.onKeybinding(keybinding => { this.printKeybinding(keybinding); this._onDidChange.fire(keybinding); }));
 		this._register(this._keybindingInputWidget.onEnter(() => this.hide()));
 		this._register(this._keybindingInputWidget.onEscape(() => this.onCancel()));
 		this._register(this._keybindingInputWidget.onBlur(() => this.onCancel()));
@@ -234,6 +237,17 @@ export class DefineKeybindingWidget extends Widget {
 			this._outputNode.appendChild(document.createTextNode(nls.localize('defineKeybinding.chordsTo', "chord to")));
 			new KeybindingLabel(this._outputNode, OS).set(this._chordPart, null);
 		}
+	}
+
+	public printConflicts(numConflicts: number): void {
+		let outputString: string = nls.localize('defineKeybinding.conflicts', "Conflict(s)");
+		if (numConflicts > 0) {
+			outputString = '(' + numConflicts + ' ' + outputString + ')';
+		}
+		else {
+			outputString = '';
+		}
+		this._outputNode.appendChild(document.createTextNode(outputString));
 	}
 
 	private onCancel(): void {

@@ -261,11 +261,29 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		return TPromise.as(null);
 	}
 
+	showOverlayConflicts(keybinding: [ResolvedKeybinding, ResolvedKeybinding]): void {
+		const [firstPart, chordPart] = keybinding;
+		let searchLabel = firstPart.getAriaLabel();
+		if (chordPart !== null) {
+			searchLabel += ' ' + chordPart.getAriaLabel();
+		}
+		const keybindingsEntries: IKeybindingItemEntry[] = this.keybindingsEditorModel.fetch(searchLabel, this.sortByPrecedence.checked);
+		let conflictsList: IKeybindingItemEntry[] = [];
+		for (let keybindingEntry of keybindingsEntries) {
+			let binding = keybindingEntry.keybindingItem.keybinding;
+			if (binding !== null && binding.getAriaLabel() === searchLabel) {
+				conflictsList.push(keybindingEntry);
+			}
+		}
+		this.defineKeybindingWidget.printConflicts(conflictsList.length);
+	}
+
 	private createOverlayContainer(parent: HTMLElement): void {
 		this.overlayContainer = DOM.append(parent, $('.overlay-container'));
 		this.overlayContainer.style.position = 'absolute';
 		this.overlayContainer.style.zIndex = '10';
 		this.defineKeybindingWidget = this._register(this.instantiationService.createInstance(DefineKeybindingWidget, this.overlayContainer));
+		this._register(this.defineKeybindingWidget.onDidChange(keybinding => this.showOverlayConflicts(keybinding)));
 		this.hideOverlayContainer();
 	}
 
