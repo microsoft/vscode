@@ -533,6 +533,11 @@ export class CommandCenter {
 		}
 	}
 
+	@command('git.openFile2')
+	async openFile2(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+		this.openFile(arg, ...resourceStates);
+	}
+
 	@command('git.openHEADFile')
 	async openHEADFile(arg?: Resource | Uri): Promise<void> {
 		let resource: Resource | undefined = undefined;
