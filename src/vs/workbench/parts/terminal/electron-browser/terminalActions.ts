@@ -21,6 +21,7 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { ActionBarContributor } from 'vs/workbench/browser/actions';
 import { TerminalEntry } from 'vs/workbench/parts/terminal/browser/terminalQuickOpen';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { PICK_WORKSPACE_FOLDER_COMMAND } from 'vs/workbench/browser/actions/workspaceActions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -430,9 +431,10 @@ export class SwitchTerminalInstanceActionItem extends SelectActionItem {
 	constructor(
 		action: IAction,
 		@ITerminalService private terminalService: ITerminalService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IContextViewService contextViewService: IContextViewService
 	) {
-		super(null, action, terminalService.getInstanceLabels(), terminalService.activeTerminalInstanceIndex);
+		super(null, action, terminalService.getInstanceLabels(), terminalService.activeTerminalInstanceIndex, contextViewService);
 
 		this.toDispose.push(terminalService.onInstancesChanged(this._updateItems, this));
 		this.toDispose.push(terminalService.onActiveInstanceChanged(this._updateItems, this));

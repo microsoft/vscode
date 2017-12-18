@@ -15,6 +15,7 @@ import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { Registry } from 'vs/platform/registry/common/platform';
 
 export class ToggleOutputAction extends TogglePanelAction {
@@ -126,9 +127,10 @@ export class SwitchOutputActionItem extends SelectActionItem {
 	constructor(
 		action: IAction,
 		@IOutputService private outputService: IOutputService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IContextViewService contextViewService: IContextViewService
 	) {
-		super(null, action, [], 0);
+		super(null, action, [], 0, contextViewService);
 
 		let outputChannelRegistry = <IOutputChannelRegistry>Registry.as(OutputExt.OutputChannels);
 		this.toDispose.push(outputChannelRegistry.onDidRegisterChannel(() => this.updateOtions()));
