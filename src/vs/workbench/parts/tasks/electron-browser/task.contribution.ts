@@ -2020,25 +2020,25 @@ class TaskService implements ITaskService {
 						return;
 					}
 				}
-			} else {
-				if (activeTasks.length === 1) {
-					this.terminate(activeTasks[0]).then(handleTerminateResponse);
+			}
+			// if we are in the old task system (0.1.0), terminate the running task if no arg was passed
+			if (!this.inTerminal() && activeTasks.length === 1 && !Types.isString(arg)) {
+				this.terminate(activeTasks[0]).then(handleTerminateResponse);
+				return;
+			}
+			this.showQuickPick(activeTasks,
+				nls.localize('TaskService.taskToTerminate', 'Select task to terminate'),
+				{
+					label: nls.localize('TaskService.noTaskRunning', 'No task is currently running'),
+					task: null
+				},
+				false, true
+			).then((task) => {
+				if (task === void 0 || task === null) {
 					return;
 				}
-				this.showQuickPick(activeTasks,
-					nls.localize('TaskService.taskToTerminate', 'Select task to terminate'),
-					{
-						label: nls.localize('TaskService.noTaskRunning', 'No task is currently running'),
-						task: null
-					},
-					false, true
-				).then((task) => {
-					if (task === void 0 || task === null) {
-						return;
-					}
-					this.terminate(task).then(handleTerminateResponse);
-				});
-			}
+				this.terminate(task).then(handleTerminateResponse);
+			});
 		});
 	}
 
@@ -2054,25 +2054,25 @@ class TaskService implements ITaskService {
 						return;
 					}
 				}
-			} else {
-				if (activeTasks.length === 1) {
-					this.restart(activeTasks[0]);
+			}
+			// if we are in the old task system (0.1.0), restart the running task if no arg was passed
+			if (!this.inTerminal() && activeTasks.length === 1 && !Types.isString(arg)) {
+				this.restart(activeTasks[0]);
+				return;
+			}
+			this.showQuickPick(activeTasks,
+				nls.localize('TaskService.taskToRestart', 'Select the task to restart'),
+				{
+					label: nls.localize('TaskService.noTaskToRestart', 'No task to restart'),
+					task: null
+				},
+				false, true
+			).then((task) => {
+				if (task === void 0 || task === null) {
 					return;
 				}
-				this.showQuickPick(activeTasks,
-					nls.localize('TaskService.taskToRestart', 'Select the task to restart'),
-					{
-						label: nls.localize('TaskService.noTaskToRestart', 'No task to restart'),
-						task: null
-					},
-					false, true
-				).then((task) => {
-					if (task === void 0 || task === null) {
-						return;
-					}
-					this.restart(task);
-				});
-			}
+				this.restart(task);
+			});
 		});
 	}
 
