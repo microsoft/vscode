@@ -236,7 +236,6 @@ class AppendableFileOutputChannel extends AbstractOutputChannel implements Outpu
 
 		this.outputWriter = new RotatingLogger(this.id, this.file.fsPath, 1024 * 1024 * 30, 5);
 		this.outputWriter.clearFormatters();
-		this._register(toDisposable(() => this.outputWriter.drop()));
 	}
 
 	append(message: string): void {
