@@ -13,7 +13,7 @@ import * as labels from 'vs/base/common/labels';
 import * as resources from 'vs/base/common/resources';
 import URI from 'vs/base/common/uri';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { toResource, IEditorContext, EditorFocusedInOpenEditorsContext, UntitledEditorNotFocusedInOpenEditorsContext, UntitledEditorFocusedInOpenEditorsContext } from 'vs/workbench/common/editor';
+import { toResource, IEditorContext } from 'vs/workbench/common/editor';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -35,12 +35,13 @@ import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/c
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
+import { CLOSE_UNMODIFIED_EDITORS_COMMAND_ID, CLOSE_UNMODIFIED_EDITORS_LABEL, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_LABEL, CLOSE_EDITOR_COMMAND_ID, CLOSE_EDITOR_LABEL, CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_OTHER_EDITORS_IN_GROUP_LABEL } from 'vs/workbench/browser/parts/editor/editorCommands';
 
 // Commands
 
@@ -59,6 +60,10 @@ export const SAVE_FILE_AS_LABEL = nls.localize('saveAs', "Save As...");
 export const SAVE_FILE_COMMAND_ID = 'workbench.command.files.save';
 export const SAVE_FILE_LABEL = nls.localize('save', "Save");
 
+export const EditorFocusedInOpenEditorsContext = new RawContextKey<boolean>('editorFocusedInOpenEditors', false);
+export const UntitledEditorFocusedInOpenEditorsContext = new RawContextKey<boolean>('untitledEditorFocusedInOpenEditors', false);
+export const UntitledEditorNotFocusedInOpenEditorsContext: ContextKeyExpr = UntitledEditorFocusedInOpenEditorsContext.toNegated();
+export const GroupFocusedInOpenEditorsContext = new RawContextKey<boolean>('groupFocusedInOpenEditors', false);
 
 registerFileCommands();
 registerMenuItems();
@@ -532,24 +537,6 @@ function registerFileCommands(): void {
 function registerMenuItems(): void {
 
 	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-		group: 'save',
-		command: {
-			id: REVERT_FILE_COMMAND_ID,
-			title: nls.localize('revert', "Revert File")
-		},
-		when: ContextKeyExpr.and(EditorFocusedInOpenEditorsContext, AutoSaveDisabledContext, UntitledEditorNotFocusedInOpenEditorsContext)
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-		group: 'file',
-		command: {
-			id: OPEN_TO_SIDE_COMMAND_ID,
-			title: nls.localize('openToSide', "Open to the Side")
-		},
-		when: EditorFocusedInOpenEditorsContext
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		group: 'compare',
 		command: {
 			id: COMPARE_WITH_SAVED_COMMAND_ID,
@@ -579,6 +566,15 @@ function registerMenuItems(): void {
 	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		group: 'file',
 		command: {
+			id: OPEN_TO_SIDE_COMMAND_ID,
+			title: nls.localize('openToSide', "Open to the Side")
+		},
+		when: EditorFocusedInOpenEditorsContext
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+		group: 'file',
+		command: {
 			id: COPY_PATH_COMMAND_ID,
 			title: nls.localize('copyPath', "Copy Path")
 		},
@@ -597,6 +593,15 @@ function registerMenuItems(): void {
 	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		group: 'save',
 		command: {
+			id: REVERT_FILE_COMMAND_ID,
+			title: nls.localize('revert', "Revert File")
+		},
+		when: ContextKeyExpr.and(EditorFocusedInOpenEditorsContext, AutoSaveDisabledContext, UntitledEditorNotFocusedInOpenEditorsContext)
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+		group: 'save',
+		command: {
 			id: SAVE_FILE_AS_COMMAND_ID,
 			title: SAVE_FILE_AS_LABEL
 		},
@@ -610,5 +615,39 @@ function registerMenuItems(): void {
 			title: SAVE_FILE_LABEL
 		},
 		when: ContextKeyExpr.and(EditorFocusedInOpenEditorsContext)
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+		group: 'close',
+		command: {
+			id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
+			title: CLOSE_EDITORS_IN_GROUP_LABEL
+		}
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+		group: 'close',
+		command: {
+			id: CLOSE_UNMODIFIED_EDITORS_COMMAND_ID,
+			title: CLOSE_UNMODIFIED_EDITORS_LABEL
+		}
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+		group: 'close',
+		command: {
+			id: CLOSE_EDITOR_COMMAND_ID,
+			title: CLOSE_EDITOR_LABEL
+		},
+		when: EditorFocusedInOpenEditorsContext
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+		group: 'close',
+		command: {
+			id: CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID,
+			title: CLOSE_OTHER_EDITORS_IN_GROUP_LABEL
+		},
+		when: EditorFocusedInOpenEditorsContext
 	});
 }

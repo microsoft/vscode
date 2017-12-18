@@ -8,7 +8,7 @@ import * as types from 'vs/base/common/types';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { ActiveEditorMoveArguments, ActiveEditorMovePositioning, ActiveEditorMovePositioningBy, EditorCommands, TextCompareEditorVisible, IEditorContext, EditorInput, EditorFocusedInOpenEditorsContext } from 'vs/workbench/common/editor';
+import { ActiveEditorMoveArguments, ActiveEditorMovePositioning, ActiveEditorMovePositioningBy, EditorCommands, TextCompareEditorVisible, IEditorContext, EditorInput } from 'vs/workbench/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditor, Position, POSITIONS } from 'vs/platform/editor/common/editor';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -19,7 +19,6 @@ import { IMessageService, Severity, CloseAction } from 'vs/platform/message/comm
 import { Action } from 'vs/base/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 
 export const CLOSE_UNMODIFIED_EDITORS_COMMAND_ID = 'workbench.command.closeUnmodifiedEditors';
 export const CLOSE_UNMODIFIED_EDITORS_LABEL = nls.localize('closeUnmodifiedEditors', "Close Unmodified Editors in Group");
@@ -312,14 +311,6 @@ function registerEditorCommands() {
 		}
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-		group: 'close',
-		command: {
-			id: CLOSE_UNMODIFIED_EDITORS_COMMAND_ID,
-			title: CLOSE_UNMODIFIED_EDITORS_LABEL
-		}
-	});
-
 	CommandsRegistry.registerCommand({
 		id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
 		handler: (accessor, args: IEditorContext) => {
@@ -339,14 +330,6 @@ function registerEditorCommands() {
 			}
 
 			return TPromise.as(false);
-		}
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-		group: 'close',
-		command: {
-			id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
-			title: CLOSE_EDITORS_IN_GROUP_LABEL
 		}
 	});
 
@@ -384,15 +367,6 @@ function registerEditorCommands() {
 		}
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-		group: 'close',
-		command: {
-			id: CLOSE_EDITOR_COMMAND_ID,
-			title: CLOSE_EDITOR_LABEL
-		},
-		when: EditorFocusedInOpenEditorsContext
-	});
-
 	CommandsRegistry.registerCommand({
 		id: CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID,
 		handler: (accessor, args: IEditorContext) => {
@@ -415,14 +389,5 @@ function registerEditorCommands() {
 
 			return TPromise.as(false);
 		}
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-		group: 'close',
-		command: {
-			id: CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID,
-			title: CLOSE_OTHER_EDITORS_IN_GROUP_LABEL
-		},
-		when: EditorFocusedInOpenEditorsContext
 	});
 }
