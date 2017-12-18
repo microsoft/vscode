@@ -142,7 +142,7 @@ class FileOutputChannel extends Disposable implements OutputChannel {
 
 	private onModelAdded(model: IModel): void {
 		if (model.uri.fsPath === this.id) {
-			this.endOffset = this.startOffset + model.getValueLength();
+			this.endOffset = this.startOffset + new Buffer(model.getValueLength()).byteLength;
 			this.fileHandler.watch();
 		}
 	}
@@ -164,21 +164,25 @@ class FileOutputChannel extends Disposable implements OutputChannel {
 		let model = this.getModel();
 		if (model) {
 			this.fileHandler.loadContent(this.endOffset)
-				.then(delta => {
-					model = this.getModel();
-					if (model && delta) {
-						const lastLine = model.getLineCount();
-						const lastLineMaxColumn = model.getLineMaxColumn(lastLine);
-						model.applyEdits([EditOperation.insert(new Position(lastLine, lastLineMaxColumn), delta)]);
-						this.endOffset = this.endOffset + delta.length;
-						if (!this.scrollLock) {
-							(<OutputPanel>this.panelService.getActivePanel()).revealLastLine();
-						}
-					}
+				.then(content => {
+					this.appendContent(content);
 					this.updateInProgress = false;
 				}, () => this.updateInProgress = false);
 		} else {
 			this.updateInProgress = false;
+		}
+	}
+
+	private appendContent(content: string): void {
+		const model = this.getModel();
+		if (model && content) {
+			const lastLine = model.getLineCount();
+			const lastLineMaxColumn = model.getLineMaxColumn(lastLine);
+			model.applyEdits([EditOperation.insert(new Position(lastLine, lastLineMaxColumn), content)]);
+			this.endOffset = this.endOffset + new Buffer(content).byteLength;
+			if (!this.scrollLock) {
+				(<OutputPanel>this.panelService.getActivePanel()).revealLastLine();
+			}
 		}
 	}
 
