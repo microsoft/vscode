@@ -34,9 +34,17 @@ class MyCompletionItem extends CompletionItem {
 		super(entry.name);
 		this.source = entry.source;
 
-		// Make sure isRecommended property always comes first
-		// https://github.com/Microsoft/vscode/issues/40325
-		this.sortText = entry.isRecommended ? '\0' : entry.sortText;
+		if (entry.isRecommended) {
+			// Make sure isRecommended property always comes first
+			// https://github.com/Microsoft/vscode/issues/40325
+			this.sortText = '\0' + entry.sortText;
+		} else if (entry.source) {
+			// De-prioritze auto-imports
+			// https://github.com/Microsoft/vscode/issues/40311
+			this.sortText = '\uffff' + entry.sortText;
+		} else {
+			this.sortText = entry.sortText;
+		}
 
 		this.kind = MyCompletionItem.convertKind(entry.kind);
 		this.position = position;
