@@ -585,4 +585,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		}
 	}
 
+	public dispose(): void {
+		this.toDispose = dispose(this.toDispose);
+	}
 }

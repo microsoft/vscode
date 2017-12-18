@@ -97,7 +97,7 @@ export function attachInputBoxStyler(widget: IThemable, themeService: IThemeServ
 	} as IInputBoxStyleOverrides, widget);
 }
 
-export interface ISelectBoxStyleOverrides extends IStyleOverrides {
+export interface ISelectBoxStyleOverrides extends IStyleOverrides, IListStyleOverrides {
 	selectBackground?: ColorIdentifier;
 	selectForeground?: ColorIdentifier;
 	selectBorder?: ColorIdentifier;

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import * as dom from 'vs/base/browser/dom';
@@ -149,4 +149,7 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 		return option;
 	}
 
+	public dispose(): void {
+		this.toDispose = dispose(this.toDispose);
+	}
 }
