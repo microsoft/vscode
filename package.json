@@ -25,6 +25,7 @@
     "check-monaco-editor-compilation": "tsc -p src/tsconfig.monaco.json --noEmit"
   },
   "dependencies": {
+    "@types/which": "^1.0.28",
     "applicationinsights": "0.18.0",
     "fast-plist": "0.1.2",
     "gc-signals": "^0.0.1",
