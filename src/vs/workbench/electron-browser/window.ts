@@ -48,6 +48,7 @@ import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/work
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { AccessibilitySupport, isRootUser, isWindows, isMacintosh } from 'vs/base/common/platform';
 import product from 'vs/platform/node/product';
+import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), null, true, () => document.execCommand('undo') && TPromise.as(true)),
@@ -351,7 +352,8 @@ export class ElectronWindow extends Themable {
 	}
 
 	private updateTouchbarMenu(): void {
-		if (!isMacintosh) {
+		const touchBarEnabledValue = this.configurationService.getValue<boolean>('workbench.touchBar.enabled')
+		if (!isMacintosh || !touchBarEnabledValue) {
 			return; // macOS only
 		}
 
