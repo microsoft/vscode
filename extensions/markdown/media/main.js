@@ -29,6 +29,10 @@
 		};
 	}
 
+	/**
+	 * @param {string} command
+	 * @param {any[]} args
+	 */
 	function postMessage(command, args) {
 		window.parent.postMessage({
 			command: 'did-click-link',
@@ -37,23 +41,46 @@
 	}
 
 	/**
+	 * @typedef {{ element: Element, line: number }} CodeLineElement
+	 */
+
+	/**
+	 * @return {CodeLineElement[]}
+	 */
+	const getCodeLineElements = (() => {
+		/** @type {CodeLineElement[]} */
+		let elements;
+		return () => {
+			if (!elements) {
+				elements = Array.prototype.map.call(
+					document.getElementsByClassName('code-line'),
+					element => {
+						const line = +element.getAttribute('data-line');
+						return { element, line }
+					})
+					.filter(x => !isNaN(x.line));
+			}
+			return elements;
+		};
+	})()
+
+	/**
 	 * Find the html elements that map to a specific target line in the editor.
 	 *
 	 * If an exact match, returns a single element. If the line is between elements,
 	 * returns the element prior to and the element after the given line.
+	 *
+	 * @param {number} targetLine
+	 *
+	 * @returns {{ previous: CodeLineElement, next?: CodeLineElement }}
 	 */
 	function getElementsForSourceLine(targetLine) {
-		const lines = document.getElementsByClassName('code-line');
-		let previous = lines[0] && +lines[0].getAttribute('data-line') ? { line: +lines[0].getAttribute('data-line'), element: lines[0] } : null;
-		for (const element of lines) {
-			const lineNumber = +element.getAttribute('data-line');
-			if (isNaN(lineNumber)) {
-				continue;
-			}
-			const entry = { line: lineNumber, element: element };
-			if (lineNumber === targetLine) {
+		const lines = getCodeLineElements();
+		let previous = lines[0] || null;
+		for (const entry of lines) {
+			if (entry.line === targetLine) {
 				return { previous: entry, next: null };
-			} else if (lineNumber > targetLine) {
+			} else if (entry.line > targetLine) {
 				return { previous, next: entry };
 			}
 			previous = entry;
@@ -64,15 +91,10 @@
 	/**
 	 * Find the html elements that are at a specific pixel offset on the page.
 	 *
-	 * @returns {{ previous: { element: any, line: number }, next?: { element: any, line: number } }}
+	 * @returns {{ previous: CodeLineElement, next?: CodeLineElement }}
 	 */
 	function getLineElementsAtPageOffset(offset) {
-		const allLines = document.getElementsByClassName('code-line');
-		/** @type {Element[]} */
-		const lines = Array.prototype.filter.call(allLines, element => {
-			const line = +element.getAttribute('data-line');
-			return !isNaN(line)
-		});
+		const lines = getCodeLineElements()
 
 		const position = offset - window.scrollY;
 
@@ -80,7 +102,7 @@
 		let hi = lines.length - 1;
 		while (lo + 1 < hi) {
 			const mid = Math.floor((lo + hi) / 2);
-			const bounds = lines[mid].getBoundingClientRect();
+			const bounds = lines[mid].element.getBoundingClientRect();
 			if (bounds.top + bounds.height >= position) {
 				hi = mid;
 			} else {
@@ -89,18 +111,16 @@
 		}
 
 		const hiElement = lines[hi];
-		const hiLine = +hiElement.getAttribute('data-line');
-		if (hi >= 1 && hiElement.getBoundingClientRect().top > position) {
+		if (hi >= 1 && hiElement.element.getBoundingClientRect().top > position) {
 			const loElement = lines[lo];
-			const loLine = +loElement.getAttribute('data-line');
-			const bounds = loElement.getBoundingClientRect();
-			const previous = { element: loElement, line: loLine + (position - bounds.top) / (bounds.height) };
-			const next = { element: hiElement, line: hiLine, fractional: 0 };
+			const bounds = loElement.element.getBoundingClientRect();
+			const previous = { element: loElement.element, line: loElement.line + (position - bounds.top) / (bounds.height) };
+			const next = { element: hiElement.element, line: hiElement.line, fractional: 0 };
 			return { previous, next };
 		}
 
-		const bounds = hiElement.getBoundingClientRect();
-		const previous = { element: hiElement, line: hiLine + (position - bounds.top) / (bounds.height) };
+		const bounds = hiElement.element.getBoundingClientRect();
+		const previous = { element: hiElement.element, line: hiElement.line + (position - bounds.top) / (bounds.height) };
 		return { previous };
 	}
 
@@ -110,6 +130,8 @@
 
 	/**
 	 * Attempt to reveal the element for a source line in the editor.
+	 *
+	 * @param {number} line
 	 */
 	function scrollToRevealSourceLine(line) {
 		const { previous, next } = getElementsForSourceLine(line);
