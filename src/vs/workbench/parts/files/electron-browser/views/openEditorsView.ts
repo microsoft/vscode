@@ -31,15 +31,13 @@ import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/th
 import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IDelegate, IRenderer, IListContextMenuEvent, IListMouseEvent } from 'vs/base/browser/ui/list/list';
 import { EditorLabel } from 'vs/workbench/browser/labels';
-import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ContributableActionProvider } from 'vs/workbench/browser/actions';
-import { memoize } from 'vs/base/common/decorators';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { EditorFocusedInOpenEditorsContext, UntitledEditorFocusedInOpenEditorsContext, GroupFocusedInOpenEditorsContext } from 'vs/workbench/parts/files/electron-browser/fileCommands';
@@ -222,11 +220,6 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		}
 	}
 
-	@memoize
-	private get actionProvider(): ActionProvider {
-		return new ActionProvider(this.instantiationService, this.textFileService);
-	}
-
 	private get elements(): (IEditorGroup | OpenEditor)[] {
 		const result: (IEditorGroup | OpenEditor)[] = [];
 		this.model.groups.forEach(g => {
@@ -294,10 +287,11 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		const getActionsContext = () => element instanceof OpenEditor ? { group: element.editorGroup, editor: element.editorInput, resource: element.editorInput.getResource() } : { group: element };
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
-			getActions: () => this.actionProvider.getSecondaryActions(element).then(actions => {
+			getActions: () => {
+				const actions = [];
 				fillInActions(this.contributedContextMenu, { arg: getActionsContext() }, actions);
-				return actions;
-			}),
+				return TPromise.as(actions);
+			},
 			getActionsContext
 		});
 	}
@@ -591,29 +585,5 @@ class OpenEditorRenderer implements IRenderer<OpenEditor, IOpenEditorTemplateDat
 		templateData.actionBar.dispose();
 		templateData.root.dispose();
 		dispose(templateData.toDispose);
-	}
-}
-
-export class ActionProvider extends ContributableActionProvider {
-
-	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITextFileService private textFileService: ITextFileService
-	) {
-		super();
-	}
-
-	public getSecondaryActions(element: any): TPromise<IAction[]> {
-		const result: IAction[] = [];
-		const autoSaveEnabled = this.textFileService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY;
-
-		if (element instanceof EditorGroup) {
-			if (!autoSaveEnabled) {
-				result.push(this.instantiationService.createInstance(SaveAllInGroupAction, SaveAllInGroupAction.ID, nls.localize('saveAll', "Save All")));
-				result.push(new Separator());
-			}
-		}
-
-		return TPromise.as(result);
 	}
 }

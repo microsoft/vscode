@@ -25,7 +25,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID, FileOnDiskContentProvider } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
-import { toResource, IEditorIdentifier } from 'vs/workbench/common/editor';
+import { toResource } from 'vs/workbench/common/editor';
 import { FileStat, Model, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerModel';
 import { ExplorerView } from 'vs/workbench/parts/files/electron-browser/views/explorerView';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/electron-browser/explorerViewlet';
@@ -35,14 +35,14 @@ import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { Position, IResourceInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
+import { Position, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature2, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction, IConfirmationResult } from 'vs/platform/message/common/message';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { withFocusedFilesExplorer, REVERT_FILE_COMMAND_ID, OPEN_TO_SIDE_COMMAND_ID, COMPARE_WITH_SAVED_SCHEMA, COMPARE_WITH_SAVED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, globalResourceToCompare, REVEAL_IN_OS_COMMAND_ID, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, computeLabelForCompare, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL, SAVE_FILE_AS_LABEL } from 'vs/workbench/parts/files/electron-browser/fileCommands';
+import { withFocusedFilesExplorer, REVERT_FILE_COMMAND_ID, OPEN_TO_SIDE_COMMAND_ID, COMPARE_WITH_SAVED_SCHEMA, COMPARE_WITH_SAVED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, globalResourceToCompare, REVEAL_IN_OS_COMMAND_ID, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, computeLabelForCompare, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL, SAVE_FILE_AS_LABEL, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID, SAVE_FILES_COMMAND_ID, SAVE_FILES_LABEL } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -1309,12 +1309,10 @@ export abstract class BaseSaveAllAction extends BaseErrorReportingAction {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
+		@ICommandService protected commandService: ICommandService,
 		@IMessageService messageService: IMessageService,
-		@IFileService protected fileService: IFileService
 	) {
 		super(id, label, messageService);
 
@@ -1325,8 +1323,8 @@ export abstract class BaseSaveAllAction extends BaseErrorReportingAction {
 		this.registerListeners();
 	}
 
-	protected abstract getSaveAllArguments(context?: any): any;
 	protected abstract includeUntitled(): boolean;
+	protected abstract doRun(context: any): TPromise<any>;
 
 	private registerListeners(): void {
 
@@ -1355,82 +1353,6 @@ export abstract class BaseSaveAllAction extends BaseErrorReportingAction {
 		});
 	}
 
-	protected doRun(context: any): TPromise<boolean> {
-		const stacks = this.editorGroupService.getStacksModel();
-
-		// Store some properties per untitled file to restore later after save is completed
-		const mapUntitledToProperties: { [resource: string]: { encoding: string; indexInGroups: number[]; activeInGroups: boolean[] } } = Object.create(null);
-		this.untitledEditorService.getDirty().forEach(resource => {
-			const activeInGroups: boolean[] = [];
-			const indexInGroups: number[] = [];
-			const encoding = this.untitledEditorService.getEncoding(resource);
-
-			// For each group
-			stacks.groups.forEach((group, groupIndex) => {
-
-				// Find out if editor is active in group
-				const activeEditor = group.activeEditor;
-				const activeResource = toResource(activeEditor, { supportSideBySide: true });
-				activeInGroups[groupIndex] = (activeResource && activeResource.toString() === resource.toString());
-
-				// Find index of editor in group
-				indexInGroups[groupIndex] = -1;
-				group.getEditors().forEach((editor, editorIndex) => {
-					const editorResource = toResource(editor, { supportSideBySide: true });
-					if (editorResource && editorResource.toString() === resource.toString()) {
-						indexInGroups[groupIndex] = editorIndex;
-						return;
-					}
-				});
-			});
-
-			mapUntitledToProperties[resource.toString()] = { encoding, indexInGroups, activeInGroups };
-		});
-
-		// Save all
-		return this.textFileService.saveAll(this.getSaveAllArguments(context)).then(results => {
-
-			// Reopen saved untitled editors
-			const untitledToReopen: { input: IResourceInput, position: Position }[] = [];
-
-			results.results.forEach(result => {
-				if (!result.success || result.source.scheme !== 'untitled') {
-					return;
-				}
-
-				const untitledProps = mapUntitledToProperties[result.source.toString()];
-				if (!untitledProps) {
-					return;
-				}
-
-				// For each position where the untitled file was opened
-				untitledProps.indexInGroups.forEach((indexInGroup, index) => {
-					if (indexInGroup >= 0) {
-						untitledToReopen.push({
-							input: {
-								resource: result.target,
-								encoding: untitledProps.encoding,
-								options: {
-									pinned: true,
-									index: indexInGroup,
-									preserveFocus: true,
-									inactive: !untitledProps.activeInGroups[index]
-								}
-							},
-							position: index
-						});
-					}
-				});
-			});
-
-			if (untitledToReopen.length) {
-				return this.editorService.openEditors(untitledToReopen).then(() => true);
-			}
-
-			return void 0;
-		});
-	}
-
 	public dispose(): void {
 		this.toDispose = dispose(this.toDispose);
 
@@ -1441,14 +1363,14 @@ export abstract class BaseSaveAllAction extends BaseErrorReportingAction {
 export class SaveAllAction extends BaseSaveAllAction {
 
 	public static readonly ID = 'workbench.action.files.saveAll';
-	public static readonly LABEL = nls.localize('saveAll', "Save All");
+	public static readonly LABEL = SAVE_ALL_LABEL;
 
 	public get class(): string {
 		return 'explorer-action save-all';
 	}
 
-	protected getSaveAllArguments(): boolean {
-		return this.includeUntitled();
+	protected doRun(context: any): TPromise<any> {
+		return this.commandService.executeCommand(SAVE_ALL_COMMAND_ID);
 	}
 
 	protected includeUntitled(): boolean {
@@ -1459,27 +1381,14 @@ export class SaveAllAction extends BaseSaveAllAction {
 export class SaveAllInGroupAction extends BaseSaveAllAction {
 
 	public static readonly ID = 'workbench.files.action.saveAllInGroup';
-	public static readonly LABEL = nls.localize('saveAllInGroup', "Save All in Group");
+	public static readonly LABEL = SAVE_ALL_IN_GROUP_LABEL;
 
 	public get class(): string {
 		return 'explorer-action save-all';
 	}
 
-	protected getSaveAllArguments(editorIdentifier: IEditorIdentifier): any {
-		if (!editorIdentifier) {
-			return this.includeUntitled();
-		}
-
-		const editorGroup = editorIdentifier.group;
-		const resourcesToSave: URI[] = [];
-		editorGroup.getEditors().forEach(editor => {
-			const resource = toResource(editor, { supportSideBySide: true });
-			if (resource && (resource.scheme === 'untitled' || this.fileService.canHandleResource(resource))) {
-				resourcesToSave.push(resource);
-			}
-		});
-
-		return resourcesToSave;
+	protected doRun(context: any): TPromise<any> {
+		return this.commandService.executeCommand(SAVE_ALL_IN_GROUP_COMMAND_ID);
 	}
 
 	protected includeUntitled(): boolean {
@@ -1490,10 +1399,10 @@ export class SaveAllInGroupAction extends BaseSaveAllAction {
 export class SaveFilesAction extends BaseSaveAllAction {
 
 	public static readonly ID = 'workbench.action.files.saveFiles';
-	public static readonly LABEL = nls.localize('saveFiles', "Save All Files");
+	public static readonly LABEL = SAVE_FILES_LABEL;
 
-	protected getSaveAllArguments(): boolean {
-		return this.includeUntitled();
+	protected doRun(context: any): TPromise<any> {
+		return this.commandService.executeCommand(SAVE_FILES_COMMAND_ID, false);
 	}
 
 	protected includeUntitled(): boolean {

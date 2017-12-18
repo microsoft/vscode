@@ -36,7 +36,7 @@ import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { IResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
@@ -59,6 +59,15 @@ export const SAVE_FILE_AS_COMMAND_ID = 'workbench.command.files.saveAs';
 export const SAVE_FILE_AS_LABEL = nls.localize('saveAs', "Save As...");
 export const SAVE_FILE_COMMAND_ID = 'workbench.command.files.save';
 export const SAVE_FILE_LABEL = nls.localize('save', "Save");
+
+export const SAVE_ALL_COMMAND_ID = 'workbench.command.files.saveAll';
+export const SAVE_ALL_LABEL = nls.localize('saveAll', "Save All");
+
+export const SAVE_ALL_IN_GROUP_COMMAND_ID = 'workbench.command.files.saveAllInGroup';
+export const SAVE_ALL_IN_GROUP_LABEL = nls.localize('saveAllInGroup', "Save All in Group");
+
+export const SAVE_FILES_COMMAND_ID = 'workbench.command.files.saveFiles';
+export const SAVE_FILES_LABEL = nls.localize('saveFiles', "Save All Files");
 
 export const EditorFocusedInOpenEditorsContext = new RawContextKey<boolean>('editorFocusedInOpenEditors', false);
 export const UntitledEditorFocusedInOpenEditorsContext = new RawContextKey<boolean>('untitledEditorFocusedInOpenEditors', false);
@@ -261,8 +270,8 @@ export function computeLabelForCompare(resource: URI, contextService: IWorkspace
 
 export let globalResourceToCompare: URI;
 
-function save(editorService: IWorkbenchEditorService, fileService: IFileService, untitledEditorService: IUntitledEditorService,
-	textFileService: ITextFileService, editorGroupService: IEditorGroupService, resource: URI, isSaveAs: boolean): TPromise<any> {
+function save(resource: URI, isSaveAs: boolean, editorService: IWorkbenchEditorService, fileService: IFileService, untitledEditorService: IUntitledEditorService,
+	textFileService: ITextFileService, editorGroupService: IEditorGroupService): TPromise<any> {
 
 	let source: URI;
 	if (resource) {
@@ -346,6 +355,83 @@ function save(editorService: IWorkbenchEditorService, fileService: IFileService,
 	return TPromise.as(false);
 }
 
+function saveAll(saveAllArguments: any, editorService: IWorkbenchEditorService, untitledEditorService: IUntitledEditorService,
+	textFileService: ITextFileService, editorGroupService: IEditorGroupService): TPromise<any> {
+
+	const stacks = editorGroupService.getStacksModel();
+
+	// Store some properties per untitled file to restore later after save is completed
+	const mapUntitledToProperties: { [resource: string]: { encoding: string; indexInGroups: number[]; activeInGroups: boolean[] } } = Object.create(null);
+	untitledEditorService.getDirty().forEach(resource => {
+		const activeInGroups: boolean[] = [];
+		const indexInGroups: number[] = [];
+		const encoding = untitledEditorService.getEncoding(resource);
+
+		// For each group
+		stacks.groups.forEach((group, groupIndex) => {
+
+			// Find out if editor is active in group
+			const activeEditor = group.activeEditor;
+			const activeResource = toResource(activeEditor, { supportSideBySide: true });
+			activeInGroups[groupIndex] = (activeResource && activeResource.toString() === resource.toString());
+
+			// Find index of editor in group
+			indexInGroups[groupIndex] = -1;
+			group.getEditors().forEach((editor, editorIndex) => {
+				const editorResource = toResource(editor, { supportSideBySide: true });
+				if (editorResource && editorResource.toString() === resource.toString()) {
+					indexInGroups[groupIndex] = editorIndex;
+					return;
+				}
+			});
+		});
+
+		mapUntitledToProperties[resource.toString()] = { encoding, indexInGroups, activeInGroups };
+	});
+
+	// Save all
+	return textFileService.saveAll(saveAllArguments).then(results => {
+
+		// Reopen saved untitled editors
+		const untitledToReopen: { input: IResourceInput, position: Position }[] = [];
+
+		results.results.forEach(result => {
+			if (!result.success || result.source.scheme !== 'untitled') {
+				return;
+			}
+
+			const untitledProps = mapUntitledToProperties[result.source.toString()];
+			if (!untitledProps) {
+				return;
+			}
+
+			// For each position where the untitled file was opened
+			untitledProps.indexInGroups.forEach((indexInGroup, index) => {
+				if (indexInGroup >= 0) {
+					untitledToReopen.push({
+						input: {
+							resource: result.target,
+							encoding: untitledProps.encoding,
+							options: {
+								pinned: true,
+								index: indexInGroup,
+								preserveFocus: true,
+								inactive: !untitledProps.activeInGroups[index]
+							}
+						},
+						position: index
+					});
+				}
+			});
+		});
+
+		if (untitledToReopen.length) {
+			return editorService.openEditors(untitledToReopen).then(() => true);
+		}
+
+		return void 0;
+	});
+}
 
 
 function registerFileCommands(): void {
@@ -522,14 +608,50 @@ function registerFileCommands(): void {
 	CommandsRegistry.registerCommand({
 		id: SAVE_FILE_AS_COMMAND_ID,
 		handler: (accessor, args: IEditorContext) => {
-			return save(accessor.get(IWorkbenchEditorService), accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService), args.resource, true);
+			return save(args.resource, true, accessor.get(IWorkbenchEditorService), accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService));
 		}
 	});
 
 	CommandsRegistry.registerCommand({
 		id: SAVE_FILE_COMMAND_ID,
 		handler: (accessor, args: IEditorContext) => {
-			return save(accessor.get(IWorkbenchEditorService), accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService), args.resource, false);
+			return save(args.resource, true, accessor.get(IWorkbenchEditorService), accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService));
+		}
+	});
+
+	CommandsRegistry.registerCommand({
+		id: SAVE_ALL_COMMAND_ID,
+		handler: (accessor, args: IEditorContext) => {
+			return saveAll(true, accessor.get(IWorkbenchEditorService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService));
+		}
+	});
+
+	CommandsRegistry.registerCommand({
+		id: SAVE_ALL_IN_GROUP_COMMAND_ID,
+		handler: (accessor, args: IEditorContext) => {
+			let saveAllArg: any;
+			if (!args) {
+				saveAllArg = true;
+			} else {
+				const fileService = accessor.get(IFileService);
+				const editorGroup = args.group;
+				saveAllArg = [];
+				editorGroup.getEditors().forEach(editor => {
+					const resource = toResource(editor, { supportSideBySide: true });
+					if (resource && (resource.scheme === 'untitled' || fileService.canHandleResource(resource))) {
+						saveAllArg.push(resource);
+					}
+				});
+			}
+
+			return saveAll(saveAllArg, accessor.get(IWorkbenchEditorService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService));
+		}
+	});
+
+	CommandsRegistry.registerCommand({
+		id: SAVE_FILES_COMMAND_ID,
+		handler: (accessor, args: IEditorContext) => {
+			return saveAll(false, accessor.get(IWorkbenchEditorService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService));
 		}
 	});
 }
@@ -611,8 +733,35 @@ function registerMenuItems(): void {
 	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		group: 'save',
 		command: {
-			id: SAVE_FILE_AS_COMMAND_ID,
+			id: SAVE_FILE_COMMAND_ID,
 			title: SAVE_FILE_LABEL
+		},
+		when: ContextKeyExpr.and(EditorFocusedInOpenEditorsContext)
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+		group: 'save',
+		command: {
+			id: SAVE_ALL_COMMAND_ID,
+			title: SAVE_ALL_LABEL
+		},
+		when: ContextKeyExpr.and(EditorFocusedInOpenEditorsContext)
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+		group: 'save',
+		command: {
+			id: SAVE_ALL_IN_GROUP_COMMAND_ID,
+			title: SAVE_ALL_IN_GROUP_LABEL
+		},
+		when: ContextKeyExpr.and(GroupFocusedInOpenEditorsContext)
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+		group: 'save',
+		command: {
+			id: SAVE_FILES_COMMAND_ID,
+			title: SAVE_FILES_LABEL
 		},
 		when: ContextKeyExpr.and(EditorFocusedInOpenEditorsContext)
 	});
