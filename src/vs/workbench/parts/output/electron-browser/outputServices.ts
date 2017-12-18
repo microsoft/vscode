@@ -230,7 +230,7 @@ class AppendableFileOutputChannel extends AbstractOutputChannel implements Outpu
 	) {
 		super(outputChannelIdentifier, fileService, modelService, modeService, panelService);
 
-		this.outputWriter = new RotatingLogger(this.id, this.file.fsPath, 1024 * 1024 * 5, 1);
+		this.outputWriter = new RotatingLogger(this.id, this.file.fsPath, 1024 * 1024 * 30, 5);
 		this.outputWriter.clearFormatters();
 	}
 
