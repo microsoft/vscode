@@ -240,6 +240,28 @@ export class CreateNewTerminalAction extends Action {
 	}
 }
 
+export class CreateNewInActiveWorkspaceTerminalAction extends Action {
+
+	public static readonly ID = 'workbench.action.terminal.newInActiveWorkspace';
+	public static readonly LABEL = nls.localize('workbench.action.terminal.newInActiveWorkspace', "Create New Integrated Terminal (In Active Workspace)");
+
+	constructor(
+		id: string, label: string,
+		@ITerminalService private terminalService: ITerminalService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		const instance = this.terminalService.createInstance(undefined, true);
+		if (!instance) {
+			return TPromise.as(void 0);
+		}
+		this.terminalService.setActiveInstance(instance);
+		return this.terminalService.showPanel(true);
+	}
+}
+
 export class FocusActiveTerminalAction extends Action {
 
 	public static readonly ID = 'workbench.action.terminal.focus';
