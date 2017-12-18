@@ -168,11 +168,11 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 			colorThemeSettingSchema.enum = colorThemeSettingSchemaEnum;
 			colorThemeSettingSchema.enumDescriptions = colorThemeSettingSchemaEnumDescriptions;
-			themeSettingsConfiguration.properties[CUSTOM_WORKBENCH_COLORS_SETTING].properties = {
+			colorCustomizationsSchema.properties = {
 				...colorThemeSchema.colorsSchema.properties,
 				...themeSpecificWorkbenchColorProperties
 			};
-			customEditorColorConfiguration.properties[CUSTOM_EDITOR_COLORS_SETTING].properties = {
+			customEditorColorSetting.properties = {
 				...customEditorColorConfigurationProperties,
 				...themeSpecificEditorColorProperties
 			};
