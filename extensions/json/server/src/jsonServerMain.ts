@@ -105,7 +105,7 @@ let schemaRequestService = (uri: string): Thenable<string> => {
 		return connection.sendRequest(VSCodeContentRequest.type, uri).then(responseText => {
 			return responseText;
 		}, error => {
-			return error.message;
+			return Promise.reject(error.message);
 		});
 	}
 	if (uri.indexOf('//schema.management.azure.com/') !== -1) {
