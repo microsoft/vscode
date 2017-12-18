@@ -866,7 +866,8 @@ export class DirtyDiffModel {
 		private _editorModel: IModel,
 		@ISCMService private scmService: ISCMService,
 		@IEditorWorkerService private editorWorkerService: IEditorWorkerService,
-		@ITextModelService private textModelResolverService: ITextModelService
+		@ITextModelService private textModelResolverService: ITextModelService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		this.diffDelayer = new ThrottledDelayer<IChange[]>(200);
 
@@ -927,7 +928,9 @@ export class DirtyDiffModel {
 				return TPromise.as([]); // Files too large
 			}
 
-			return this.editorWorkerService.computeDirtyDiff(originalURI, this._editorModel.uri, true);
+			const ignoreTrimWhitespace = this.configurationService.getValue<boolean>('diffEditor.ignoreTrimWhitespace');
+
+			return this.editorWorkerService.computeDirtyDiff(originalURI, this._editorModel.uri, ignoreTrimWhitespace);
 		});
 	}
 
