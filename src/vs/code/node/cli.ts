@@ -140,14 +140,7 @@ export async function main(argv: string[]): TPromise<any> {
 			// if we detect that data flows into via stdin after a certain timeout.
 			else if (args._.length === 0) {
 				processCallbacks.push(child => new TPromise(c => {
-
-					// wait for 1s maximum...
-					setTimeout(() => {
-						c(void 0);
-					}, 1000);
-
-					// ...but finish early if we detect data
-					process.stdin.on('data', () => {
+					const dataListener = () => {
 						if (isWindows) {
 							console.log(`Run with '${product.applicationName} -' to read output from another program (e.g. 'echo Hello World | ${product.applicationName} -').`);
 						} else {
@@ -155,7 +148,17 @@ export async function main(argv: string[]): TPromise<any> {
 						}
 
 						c(void 0);
-					});
+					};
+
+					// wait for 1s maximum...
+					setTimeout(() => {
+						process.stdin.removeListener('data', dataListener);
+
+						c(void 0);
+					}, 1000);
+
+					// ...but finish early if we detect data
+					process.stdin.once('data', dataListener);
 				}));
 			}
 		}
