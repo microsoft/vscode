@@ -100,12 +100,20 @@ export async function main(argv: string[]): TPromise<any> {
 
 				// prepare temp file to read stdin to
 				stdinFilePath = paths.join(os.tmpdir(), `code-stdin-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 3)}.txt`);
-				let stdinFileError: Error;
-				try {
-					const stdinFileStream = fs.createWriteStream(stdinFilePath);
-					resolveTerminalEncoding(verbose).done(encoding => {
 
-						// Pipe into tmp file using terminals encoding
+				// open tmp file for writing
+				let stdinFileError: Error;
+				let stdinFileStream: fs.WriteStream;
+				try {
+					stdinFileStream = fs.createWriteStream(stdinFilePath);
+				} catch (error) {
+					stdinFileError = error;
+				}
+
+				if (!stdinFileError) {
+
+					// Pipe into tmp file using terminals encoding
+					resolveTerminalEncoding(verbose).done(encoding => {
 						const converterStream = iconv.decodeStream(encoding);
 						process.stdin.pipe(converterStream).pipe(stdinFileStream);
 					});
@@ -117,8 +125,6 @@ export async function main(argv: string[]): TPromise<any> {
 					argv.push('--wait');
 					argv.push('--skip-add-to-recently-opened');
 					args.wait = true;
-				} catch (error) {
-					stdinFileError = error;
 				}
 
 				if (verbose) {
