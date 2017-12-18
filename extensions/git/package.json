@@ -69,6 +69,15 @@
         }
       },
       {
+        "command": "git.openFile2",
+        "title": "%command.openFile%",
+        "category": "Git",
+        "icon": {
+          "light": "resources/icons/light/open-file-mono.svg",
+          "dark": "resources/icons/dark/open-file-mono.svg"
+        }
+      },
+      {
         "command": "git.openHEADFile",
         "title": "%command.openHEADFile%",
         "category": "Git"
@@ -367,6 +376,10 @@
         },
         {
           "command": "git.revertChange",
+          "when": "false"
+        },
+        {
+          "command": "git.openFile2",
           "when": "false"
         },
         {
@@ -712,7 +725,7 @@
           "group": "inline"
         },
         {
-          "command": "git.openFile",
+          "command": "git.openFile2",
           "when": "scmProvider == git && scmResourceGroup == merge",
           "group": "inline0"
         },
@@ -742,7 +755,7 @@
           "group": "inline"
         },
         {
-          "command": "git.openFile",
+          "command": "git.openFile2",
           "when": "scmProvider == git && scmResourceGroup == index",
           "group": "inline0"
         },
@@ -782,7 +795,7 @@
           "group": "inline"
         },
         {
-          "command": "git.openFile",
+          "command": "git.openFile2",
           "when": "scmProvider == git && scmResourceGroup == workingTree",
           "group": "inline0"
         },

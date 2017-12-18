@@ -55,7 +55,6 @@ function assertDiff(originalLines: string[], modifiedLines: string[], expectedCh
 	var diffComputer = new DiffComputer(originalLines, modifiedLines, {
 		shouldPostProcessCharChanges: shouldPostProcessCharChanges || false,
 		shouldIgnoreTrimWhitespace: shouldIgnoreTrimWhitespace || false,
-		shouldConsiderTrimWhitespaceInEmptyCase: true,
 		shouldMakePrettyDiff: true
 	});
 	var changes = diffComputer.computeDiff();

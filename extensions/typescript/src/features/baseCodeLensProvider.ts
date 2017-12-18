@@ -19,12 +19,29 @@ export class ReferencesCodeLens extends CodeLens {
 	}
 }
 
+export class CachedNavTreeResponse {
+	response?: Promise<Proto.NavTreeResponse>;
+	version: number = -1;
+	document: string = '';
+
+	matches(document: TextDocument): boolean {
+		return this.version === document.version && this.document === document.uri.toString();
+	}
+
+	update(document: TextDocument, response: Promise<Proto.NavTreeResponse>) {
+		this.response = response;
+		this.version = document.version;
+		this.document = document.uri.toString();
+	}
+}
+
 export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider {
 	private enabled: boolean = true;
 	private onDidChangeCodeLensesEmitter = new EventEmitter<void>();
 
 	public constructor(
-		protected client: ITypeScriptServiceClient
+		protected client: ITypeScriptServiceClient,
+		private cachedResponse: CachedNavTreeResponse
 	) { }
 
 	public get onDidChangeCodeLenses(): Event<void> {
@@ -48,10 +65,15 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 			return [];
 		}
 		try {
-			const response = await this.client.execute('navtree', { file: filepath }, token);
+			if (!this.cachedResponse.matches(document)) {
+				this.cachedResponse.update(document, this.client.execute('navtree', { file: filepath }, token));
+			}
+
+			const response = await this.cachedResponse.response;
 			if (!response) {
 				return [];
 			}
+
 			const tree = response.body;
 			const referenceableSpans: Range[] = [];
 			if (tree && tree.childItems) {

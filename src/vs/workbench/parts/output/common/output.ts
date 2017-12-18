@@ -41,14 +41,6 @@ export const MAX_OUTPUT_LENGTH = 10000 /* Max. number of output lines to show in
 
 export const CONTEXT_IN_OUTPUT = new RawContextKey<boolean>('inOutput', false);
 
-/**
- * The output event informs when new output got received.
- */
-export interface IOutputEvent {
-	channelId: string;
-	isClear: boolean;
-}
-
 export const IOutputService = createDecorator<IOutputService>(OUTPUT_SERVICE_ID);
 
 /**
@@ -85,20 +77,9 @@ export interface IOutputService {
 	showChannelInEditor(id: string): TPromise<void>;
 
 	/**
-	 * Allows to register on Output events.
-	 */
-	onOutput: Event<IOutputEvent>;
-
-	/**
 	 * Allows to register on active output channel change.
 	 */
 	onActiveOutputChannel: Event<string>;
-}
-
-export interface IOutputDelta {
-	readonly value: string;
-	readonly id: number;
-	readonly append?: boolean;
 }
 
 export interface IOutputChannel {
