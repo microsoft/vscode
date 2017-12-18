@@ -9,6 +9,8 @@ import * as assert from 'assert';
 import { firstIndex } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
 import { ParsedArgs } from '../common/environment';
+import { isWindows } from 'vs/base/common/platform';
+import product from 'vs/platform/node/product';
 
 const options: minimist.Opts = {
 	string: [
@@ -127,6 +129,7 @@ export function parseArgs(args: string[]): ParsedArgs {
 }
 
 export const optionsHelp: { [name: string]: string; } = {
+	'-': isWindows ? localize('stdinWindows', "Read output from another program (e.g. 'echo Hello World | {0} -').", product.applicationName) : localize('stdinUnix', "Read from stdin (e.g. 'ps aux | grep code | {0} -').", product.applicationName),
 	'-d, --diff <file> <file>': localize('diff', "Compare two files with each other."),
 	'-a, --add <dir>': localize('add', "Add folder(s) to the last active window."),
 	'-g, --goto <file:line[:character]>': localize('goto', "Open a file at the path on the specified line and character position."),

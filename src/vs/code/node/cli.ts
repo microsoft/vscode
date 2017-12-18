@@ -17,6 +17,7 @@ import { whenDeleted } from 'vs/base/node/pfs';
 import { findFreePort } from 'vs/base/node/ports';
 import { resolveTerminalEncoding } from 'vs/base/node/encoding';
 import * as iconv from 'iconv-lite';
+import { isWindows } from 'vs/base/common/platform';
 
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 	return !!argv['install-source']
@@ -58,17 +59,15 @@ export async function main(argv: string[]): TPromise<any> {
 	// Just Code
 	else {
 		const env = assign({}, process.env, {
-			// this will signal Code that it was spawned from this module
-			'VSCODE_CLI': '1',
+			'VSCODE_CLI': '1', // this will signal Code that it was spawned from this module
 			'ELECTRON_NO_ATTACH_CONSOLE': '1'
 		});
 
 		delete env['ELECTRON_RUN_AS_NODE'];
 
-		let processCallbacks: ((child: ChildProcess) => Thenable<any>)[] = [];
+		const processCallbacks: ((child: ChildProcess) => Thenable<any>)[] = [];
 
 		const verbose = args.verbose || args.status;
-
 		if (verbose) {
 			env['ELECTRON_ENABLE_LOGGING'] = '1';
 
@@ -80,46 +79,78 @@ export async function main(argv: string[]): TPromise<any> {
 			});
 		}
 
-		// If we are running with input from stdin, pipe that into a file and
-		// open this file via arguments. Ignore this when we are passed with
-		// paths to open.
-		let isReadingFromStdin: boolean;
+		let stdinWithoutTty: boolean;
 		try {
-			isReadingFromStdin = args._.length === 0 && !process.stdin.isTTY; // Via https://twitter.com/MylesBorins/status/782009479382626304
+			stdinWithoutTty = !process.stdin.isTTY; // Via https://twitter.com/MylesBorins/status/782009479382626304
 		} catch (error) {
 			// Windows workaround for https://github.com/nodejs/node/issues/11656
 		}
 
 		let stdinFilePath: string;
-		if (isReadingFromStdin) {
-			let stdinFileError: Error;
-			stdinFilePath = paths.join(os.tmpdir(), `code-stdin-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 3)}.txt`);
-			try {
-				const stdinFileStream = fs.createWriteStream(stdinFilePath);
-				resolveTerminalEncoding(verbose).done(encoding => {
+		if (stdinWithoutTty) {
 
-					// Pipe into tmp file using terminals encoding
-					const converterStream = iconv.decodeStream(encoding);
-					process.stdin.pipe(converterStream).pipe(stdinFileStream);
-				});
+			// Read from stdin: we require a single "-" argument to be passed in order to start reading from
+			// stdin. We do this because there is no reliable way to find out if data is piped to stdin. Just
+			// checking for stdin being connected to a TTY is not enough (https://github.com/Microsoft/vscode/issues/40351)
+			if (args._.length === 1 && args._[0] === '-') {
 
-				// Make sure to open tmp file
-				argv.push(stdinFilePath);
+				// remove the "-" argument when we read from stdin
+				args._ = [];
+				argv = argv.filter(a => a !== '-');
 
-				// Enable --wait to get all data and ignore adding this to history
-				argv.push('--wait');
-				argv.push('--skip-add-to-recently-opened');
-				args.wait = true;
-			} catch (error) {
-				stdinFileError = error;
+				// prepare temp file to read stdin to
+				stdinFilePath = paths.join(os.tmpdir(), `code-stdin-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 3)}.txt`);
+				let stdinFileError: Error;
+				try {
+					const stdinFileStream = fs.createWriteStream(stdinFilePath);
+					resolveTerminalEncoding(verbose).done(encoding => {
+
+						// Pipe into tmp file using terminals encoding
+						const converterStream = iconv.decodeStream(encoding);
+						process.stdin.pipe(converterStream).pipe(stdinFileStream);
+					});
+
+					// Make sure to open tmp file
+					argv.push(stdinFilePath);
+
+					// Enable --wait to get all data and ignore adding this to history
+					argv.push('--wait');
+					argv.push('--skip-add-to-recently-opened');
+					args.wait = true;
+				} catch (error) {
+					stdinFileError = error;
+				}
+
+				if (verbose) {
+					if (stdinFileError) {
+						console.error(`Failed to create file to read via stdin: ${stdinFileError.toString()}`);
+					} else {
+						console.log(`Reading from stdin via: ${stdinFilePath}`);
+					}
+				}
 			}
 
-			if (verbose) {
-				if (stdinFileError) {
-					console.error(`Failed to create file to read via stdin: ${stdinFileError.toString()}`);
-				} else {
-					console.log(`Reading from stdin via: ${stdinFilePath}`);
-				}
+			// If the user pipes data via stdin but forgot to add the "-" argument, help by printing a message
+			// if we detect that data flows into via stdin after a certain timeout.
+			else if (args._.length === 0) {
+				processCallbacks.push(child => new TPromise(c => {
+
+					// wait for 1s maximum...
+					setTimeout(() => {
+						c(void 0);
+					}, 1000);
+
+					// ...but finish early if we detect data
+					process.stdin.on('data', () => {
+						if (isWindows) {
+							console.log(`Run with '${product.applicationName} -' to read output from another program (e.g. 'echo Hello World | ${product.applicationName} -').`);
+						} else {
+							console.log(`Run with '${product.applicationName} -' to read from stdin (e.g. 'ps aux | grep code | ${product.applicationName} -').`);
+						}
+
+						c(void 0);
+					});
+				}));
 			}
 		}
 
