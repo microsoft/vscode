@@ -9,6 +9,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
 import { ISelectBoxDelegate, ISelectBoxStyles, ISelectData } from 'vs/base/browser/ui/selectBox/selectBox';
+import { isMacintosh } from 'vs/base/common/platform';
 
 export class SelectBoxNative implements ISelectBoxDelegate {
 
@@ -47,18 +48,14 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 		this.toDispose.push(dom.addStandardDisposableListener(this.selectElement, 'keydown', (e) => {
 			let showSelect = false;
 
-			switch (process.platform) {
-				case 'darwin':
-					if (e.keyCode === KeyCode.DownArrow || e.keyCode === KeyCode.UpArrow || e.keyCode === KeyCode.Space) {
-						showSelect = true;
-					}
-					break;
-				case 'win32':
-				default:
-					if (e.keyCode === KeyCode.DownArrow && e.altKey || e.keyCode === KeyCode.Space || e.keyCode === KeyCode.Enter) {
-						showSelect = true;
-					}
-					break;
+			if (isMacintosh) {
+				if (e.keyCode === KeyCode.DownArrow || e.keyCode === KeyCode.UpArrow || e.keyCode === KeyCode.Space) {
+					showSelect = true;
+				}
+			} else {
+				if (e.keyCode === KeyCode.DownArrow && e.altKey || e.keyCode === KeyCode.Space || e.keyCode === KeyCode.Enter) {
+					showSelect = true;
+				}
 			}
 
 			if (showSelect) {

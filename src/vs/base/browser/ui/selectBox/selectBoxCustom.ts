@@ -18,6 +18,7 @@ import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { domEvent } from 'vs/base/browser/event';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ISelectBoxDelegate, ISelectBoxStyles, ISelectData } from 'vs/base/browser/ui/selectBox/selectBox';
+import { isMacintosh } from 'vs/base/common/platform';
 
 const $ = dom.$;
 
@@ -173,18 +174,14 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 			let showDropDown = false;
 
 			// Create and drop down select list on keyboard select
-			switch (process.platform) {
-				case 'darwin':
-					if (event.keyCode === KeyCode.DownArrow || event.keyCode === KeyCode.UpArrow || event.keyCode === KeyCode.Space || event.keyCode === KeyCode.Enter) {
-						showDropDown = true;
-					}
-					break;
-				case 'win32':
-				default:
-					if (event.keyCode === KeyCode.DownArrow && event.altKey || event.keyCode === KeyCode.Space || event.keyCode === KeyCode.Enter) {
-						showDropDown = true;
-					}
-					break;
+			if (isMacintosh) {
+				if (event.keyCode === KeyCode.DownArrow || event.keyCode === KeyCode.UpArrow || event.keyCode === KeyCode.Space || event.keyCode === KeyCode.Enter) {
+					showDropDown = true;
+				}
+			} else {
+				if (event.keyCode === KeyCode.DownArrow && event.altKey || event.keyCode === KeyCode.Space || event.keyCode === KeyCode.Enter) {
+					showDropDown = true;
+				}
 			}
 
 			if (showDropDown) {
