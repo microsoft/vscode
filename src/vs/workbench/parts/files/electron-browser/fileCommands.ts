@@ -659,34 +659,8 @@ function registerFileCommands(): void {
 function registerMenuItems(): void {
 
 	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-		group: 'compare',
-		command: {
-			id: COMPARE_WITH_SAVED_COMMAND_ID,
-			title: nls.localize('compareWithSaved', "Compare with Saved")
-		},
-		when: EditorFocusedInOpenEditorsContext
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-		group: 'compare',
-		command: {
-			id: SELECT_FOR_COMPARE_COMMAND_ID,
-			title: nls.localize('compareSource', "Select for Compare")
-		},
-		when: EditorFocusedInOpenEditorsContext
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-		group: 'compare',
-		command: {
-			id: COMPARE_RESOURCE_COMMAND_ID,
-			title: nls.localize('compareWithChosen', "Compare With Chosen")
-		},
-		when: EditorFocusedInOpenEditorsContext
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-		group: 'file',
+		group: '1_files',
+		order: 10,
 		command: {
 			id: OPEN_TO_SIDE_COMMAND_ID,
 			title: nls.localize('openToSide', "Open to the Side")
@@ -695,16 +669,8 @@ function registerMenuItems(): void {
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-		group: 'file',
-		command: {
-			id: COPY_PATH_COMMAND_ID,
-			title: nls.localize('copyPath', "Copy Path")
-		},
-		when: EditorFocusedInOpenEditorsContext
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-		group: 'file',
+		group: '1_files',
+		order: 20,
 		command: {
 			id: REVEAL_IN_EXPLORER_COMMAND_ID,
 			title: isWindows ? nls.localize('revealInWindows', "Reveal in Explorer") : isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder")
@@ -713,25 +679,18 @@ function registerMenuItems(): void {
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-		group: 'save',
+		group: '1_files',
+		order: 40,
 		command: {
-			id: REVERT_FILE_COMMAND_ID,
-			title: nls.localize('revert', "Revert File")
+			id: COPY_PATH_COMMAND_ID,
+			title: nls.localize('copyPath', "Copy Path")
 		},
-		when: ContextKeyExpr.and(EditorFocusedInOpenEditorsContext, AutoSaveDisabledContext, UntitledEditorNotFocusedInOpenEditorsContext)
+		when: EditorFocusedInOpenEditorsContext
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-		group: 'save',
-		command: {
-			id: SAVE_FILE_AS_COMMAND_ID,
-			title: SAVE_FILE_AS_LABEL
-		},
-		when: ContextKeyExpr.and(EditorFocusedInOpenEditorsContext, UntitledEditorFocusedInOpenEditorsContext)
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-		group: 'save',
+		group: '2_save',
+		order: 10,
 		command: {
 			id: SAVE_FILE_COMMAND_ID,
 			title: SAVE_FILE_LABEL
@@ -740,7 +699,26 @@ function registerMenuItems(): void {
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-		group: 'save',
+		group: '2_save',
+		order: 20,
+		command: {
+			id: REVERT_FILE_COMMAND_ID,
+			title: nls.localize('revert', "Revert File")
+		},
+		when: ContextKeyExpr.and(EditorFocusedInOpenEditorsContext, AutoSaveDisabledContext, UntitledEditorNotFocusedInOpenEditorsContext)
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+		group: '2_save',
+		command: {
+			id: SAVE_FILE_AS_COMMAND_ID,
+			title: SAVE_FILE_AS_LABEL
+		},
+		when: ContextKeyExpr.and(EditorFocusedInOpenEditorsContext, UntitledEditorFocusedInOpenEditorsContext)
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+		group: '2_save',
 		command: {
 			id: SAVE_ALL_COMMAND_ID,
 			title: SAVE_ALL_LABEL
@@ -749,7 +727,7 @@ function registerMenuItems(): void {
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-		group: 'save',
+		group: '2_save',
 		command: {
 			id: SAVE_ALL_IN_GROUP_COMMAND_ID,
 			title: SAVE_ALL_IN_GROUP_LABEL
@@ -758,7 +736,7 @@ function registerMenuItems(): void {
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-		group: 'save',
+		group: '2_save',
 		command: {
 			id: SAVE_FILES_COMMAND_ID,
 			title: SAVE_FILES_LABEL
@@ -767,23 +745,38 @@ function registerMenuItems(): void {
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-		group: 'close',
+		group: '3_compare',
+		order: 10,
 		command: {
-			id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
-			title: CLOSE_EDITORS_IN_GROUP_LABEL
-		}
+			id: COMPARE_WITH_SAVED_COMMAND_ID,
+			title: nls.localize('compareWithSaved', "Compare with Saved")
+		},
+		when: EditorFocusedInOpenEditorsContext
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-		group: 'close',
+		group: '3_compare',
+		order: 20,
 		command: {
-			id: CLOSE_UNMODIFIED_EDITORS_COMMAND_ID,
-			title: CLOSE_UNMODIFIED_EDITORS_LABEL
-		}
+			id: COMPARE_RESOURCE_COMMAND_ID,
+			title: nls.localize('compareWithChosen', "Compare With Chosen")
+		},
+		when: EditorFocusedInOpenEditorsContext
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-		group: 'close',
+		group: '3_compare',
+		order: 30,
+		command: {
+			id: SELECT_FOR_COMPARE_COMMAND_ID,
+			title: nls.localize('compareSource', "Select for Compare")
+		},
+		when: EditorFocusedInOpenEditorsContext
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+		group: '4_close',
+		order: 10,
 		command: {
 			id: CLOSE_EDITOR_COMMAND_ID,
 			title: CLOSE_EDITOR_LABEL
@@ -792,11 +785,30 @@ function registerMenuItems(): void {
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-		group: 'close',
+		group: '4_close',
+		order: 20,
 		command: {
 			id: CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID,
 			title: CLOSE_OTHER_EDITORS_IN_GROUP_LABEL
 		},
 		when: EditorFocusedInOpenEditorsContext
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+		group: '4_close',
+		order: 30,
+		command: {
+			id: CLOSE_UNMODIFIED_EDITORS_COMMAND_ID,
+			title: CLOSE_UNMODIFIED_EDITORS_LABEL
+		}
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+		group: '4_close',
+		order: 40,
+		command: {
+			id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
+			title: CLOSE_EDITORS_IN_GROUP_LABEL
+		}
 	});
 }
