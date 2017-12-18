@@ -13,6 +13,7 @@ import { Git, GitErrorCodes } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as nls from 'vscode-nls';
+import { fromGitUri } from './uri';
 
 const localize = nls.loadMessageBundle();
 
@@ -300,7 +301,13 @@ export class Model {
 		}
 
 		if (hint instanceof Uri) {
-			const resourcePath = hint.fsPath;
+			let resourcePath: string;
+
+			if (hint.scheme === 'git') {
+				resourcePath = fromGitUri(hint).path;
+			} else {
+				resourcePath = hint.fsPath;
+			}
 
 			outer:
 			for (const liveRepository of this.openRepositories.sort((a, b) => b.repository.root.length - a.repository.root.length)) {
