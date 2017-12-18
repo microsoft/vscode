@@ -129,7 +129,6 @@ export function parseArgs(args: string[]): ParsedArgs {
 }
 
 export const optionsHelp: { [name: string]: string; } = {
-	'-': isWindows ? localize('stdinWindows', "Read output from another program (e.g. 'echo Hello World | {0} -').", product.applicationName) : localize('stdinUnix', "Read from stdin (e.g. 'ps aux | grep code | {0} -').", product.applicationName),
 	'-d, --diff <file> <file>': localize('diff', "Compare two files with each other."),
 	'-a, --add <dir>': localize('add', "Add folder(s) to the last active window."),
 	'-g, --goto <file:line[:character]>': localize('goto', "Open a file at the path on the specified line and character position."),
@@ -198,6 +197,8 @@ export function buildHelpMessage(fullName: string, name: string, version: string
 	return `${fullName} ${version}
 
 ${ localize('usage', "Usage")}: ${executable} [${localize('options', "options")}] [${localize('paths', 'paths')}...]
+
+${ isWindows ? localize('stdinWindows', "To read output from another program, append '-' (e.g. 'echo Hello World | {0} -')", product.applicationName) : localize('stdinUnix', "To read from stdin, append '-' (e.g. 'ps aux | grep code | {0} -')", product.applicationName)}
 
 ${ localize('optionsUpperCase', "Options")}:
 ${formatOptions(optionsHelp, columns)}`;
