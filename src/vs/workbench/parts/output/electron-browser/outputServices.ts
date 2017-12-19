@@ -194,7 +194,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 	) {
 		super(outputChannelIdentifier, fileService, modelService, modeService, panelService);
 
-		this.outputWriter = new RotatingLogger(this.id, this.file.fsPath, 1024 * 5, 1);
+		this.outputWriter = new RotatingLogger(this.id, this.file.fsPath, 1024 * 1024 * 30, 1);
 		this.outputWriter.clearFormatters();
 		this._register(watchOutputDirectory(paths.dirname(this.file.fsPath), logService, (eventType, file) => this.onFileChangedInOutputDirector(eventType, file)));
 	}
