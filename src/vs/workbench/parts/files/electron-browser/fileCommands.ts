@@ -19,14 +19,14 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/electron-browser/explorerViewlet';
-import { VIEWLET_ID, explorerItemToFileResource, AutoSaveDisabledContext } from 'vs/workbench/parts/files/common/files';
+import { VIEWLET_ID, explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
 import { FileStat, OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
 import errors = require('vs/base/common/errors');
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, AutoSaveNotAfterDelayContext } from 'vs/workbench/services/textfile/common/textfiles';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { basename } from 'vs/base/common/paths';
 import { IListService } from 'vs/platform/list/browser/listService';
@@ -695,7 +695,7 @@ function registerMenuItems(): void {
 			id: SAVE_FILE_COMMAND_ID,
 			title: SAVE_FILE_LABEL
 		},
-		when: ContextKeyExpr.and(EditorFocusedInOpenEditorsContext)
+		when: ContextKeyExpr.and(EditorFocusedInOpenEditorsContext, AutoSaveNotAfterDelayContext)
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -705,7 +705,7 @@ function registerMenuItems(): void {
 			id: REVERT_FILE_COMMAND_ID,
 			title: nls.localize('revert', "Revert File")
 		},
-		when: ContextKeyExpr.and(EditorFocusedInOpenEditorsContext, AutoSaveDisabledContext, UntitledEditorNotFocusedInOpenEditorsContext)
+		when: ContextKeyExpr.and(EditorFocusedInOpenEditorsContext, AutoSaveNotAfterDelayContext, UntitledEditorNotFocusedInOpenEditorsContext)
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -720,28 +720,10 @@ function registerMenuItems(): void {
 	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		group: '2_save',
 		command: {
-			id: SAVE_ALL_COMMAND_ID,
-			title: SAVE_ALL_LABEL
-		},
-		when: ContextKeyExpr.and(EditorFocusedInOpenEditorsContext)
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-		group: '2_save',
-		command: {
 			id: SAVE_ALL_IN_GROUP_COMMAND_ID,
 			title: SAVE_ALL_IN_GROUP_LABEL
 		},
-		when: ContextKeyExpr.and(GroupFocusedInOpenEditorsContext)
-	});
-
-	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-		group: '2_save',
-		command: {
-			id: SAVE_FILES_COMMAND_ID,
-			title: SAVE_FILES_LABEL
-		},
-		when: ContextKeyExpr.and(EditorFocusedInOpenEditorsContext)
+		when: ContextKeyExpr.and(GroupFocusedInOpenEditorsContext, AutoSaveNotAfterDelayContext)
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -751,7 +733,7 @@ function registerMenuItems(): void {
 			id: COMPARE_WITH_SAVED_COMMAND_ID,
 			title: nls.localize('compareWithSaved', "Compare with Saved")
 		},
-		when: EditorFocusedInOpenEditorsContext
+		when: ContextKeyExpr.and(EditorFocusedInOpenEditorsContext, UntitledEditorNotFocusedInOpenEditorsContext)
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -761,7 +743,7 @@ function registerMenuItems(): void {
 			id: COMPARE_RESOURCE_COMMAND_ID,
 			title: nls.localize('compareWithChosen', "Compare With Chosen")
 		},
-		when: EditorFocusedInOpenEditorsContext
+		when: ContextKeyExpr.and(EditorFocusedInOpenEditorsContext, )
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
