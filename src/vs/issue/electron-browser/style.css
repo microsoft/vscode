@@ -5,15 +5,10 @@
 
 * {
 	box-sizing: border-box;
-	font-family: 'Helvetica Neue', 'Helvetica', sans-serif;
 }
 html {
 	padding: 40px 40px 80px 40px;
-}
-
-pre code {
-	font-family: 'Menlo', 'Courier New', 'Courier', monospace;
-	font-size: 14px;
+	font-family: 'Helvetica Neue', 'Helvetica', sans-serif;
 }
 
 #block-container {
@@ -27,15 +22,24 @@ pre code {
 	font-size: 1.25rem;
 }
 
+.block .block-info {
+	width: 100%;
+	font-family: 'Menlo', 'Courier New', 'Courier', monospace;
+	font-size: 14px;
+	overflow: auto;
+	overflow-wrap: break-word;
+}
+pre {
+	margin: 0;
+}
+pre code {
+	font-family: 'Menlo', 'Courier New', 'Courier', monospace;
+}
+
 #issue-reporter {
 	max-width: 80vw;
 	margin-left: auto;
 	margin-right: auto;
-}
-.block-info {
-	width: 100%;
-	overflow: auto;
-	overflow-wrap: break-word;
 }
 #github-submit-btn {
 	margin-top: 4rem;

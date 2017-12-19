@@ -9,15 +9,13 @@ const state = {
 
 };
 
-const render = (state) => {
+// const render = (state) => {
 
-};
+// };
 
-const rendererBlocks = (state) => {
+// const rendererBlocks = (state) => {
 
-};
-
-let diagnosticInfo = { };
+// };
 
 electron.ipcRenderer.on('issueInfoResponse', (event, arg) => {
 	const { systemInfo, processInfo, workspaceInfo } = arg;
@@ -26,12 +24,6 @@ electron.ipcRenderer.on('issueInfoResponse', (event, arg) => {
 	state.workspaceInfo = workspaceInfo;
 
 	updateAllBlocks(state);
-
-	diagnosticInfo = {
-		systemInfo,
-		processInfo,
-		workspaceInfo
-	};
 });
 
 electron.ipcRenderer.send('issueInfoRequest');
@@ -53,17 +45,17 @@ window.submit = () => {
 
 	const issueBody = `### System Info
 \`\`\`
-${diagnosticInfo.systemInfo}
+${state.systemInfo}
 \`\`\`
 
 ### Process Info
 \`\`\`
-${diagnosticInfo.processInfo}
+${state.processInfo}
 \`\`\`
 
 ### Workspace Info
 \`\`\`
-${diagnosticInfo.workspaceInfo};
+${state.workspaceInfo};
 \`\`\`
 
 ### Repro Steps
@@ -81,10 +73,38 @@ function updateAllBlocks(state) {
 }
 
 const updateSystemInfo = (state) => {
-	document.querySelector('.block-system .block-info code').textContent = '\n' + state.systemInfo;
+	const target = document.querySelector('.block-system .block-info');
+	let tableHtml = '';
+	Object.keys(state.systemInfo).forEach(k => {
+		tableHtml += `
+<tr>
+	<td>${k}</td>
+	<td>${state.systemInfo[k]}</td>
+</tr>`;
+	});
+	target.innerHTML = `<table>${tableHtml}</table>`;
 };
 const updateProcessInfo = (state) => {
-	document.querySelector('.block-process .block-info code').textContent = '\n' + state.processInfo;
+	const target = document.querySelector('.block-process .block-info');
+
+	let tableHtml = `
+<tr>
+	<th>pid</th>
+	<th>CPU %</th>
+	<th>Memory (MB)</th>
+	<th>Name</th>
+</tr>
+`;
+	state.processInfo.forEach(p => {
+		tableHtml += `
+<tr>
+	<td>${p.pid}</td>
+	<td>${p.cpu}</td>
+	<td>${p.memory}</td>
+	<td>${p.name}</td>
+</tr>`;
+	});
+	target.innerHTML = `<table>${tableHtml}</table>`;
 };
 const updateWorkspaceInfo = (state) => {
 	document.querySelector('.block-workspace .block-info code').textContent = '\n' + state.workspaceInfo;

@@ -240,7 +240,7 @@ function getProcessItem(mapPidToWindowTitle: Map<number, string>, processes: Pro
 	if (isRoot) {
 		name = `${product.applicationName} main`;
 	} else {
-		name = `${repeat('  ', indent)} ${item.name}`;
+		name = `${repeat('--', indent)} ${item.name}`;
 
 		if (item.name === 'window') {
 			name = `${name} (${mapPidToWindowTitle.get(item.pid)})`;
