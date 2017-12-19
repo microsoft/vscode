@@ -107,14 +107,54 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			.then(content => this.processWorkspaceRecommendations(json.parse(content.value, [])), err => []);
 	}
 
-	private processWorkspaceRecommendations(extensionsContent: IExtensionsContent): string[] {
-		if (extensionsContent && extensionsContent.recommendations) {
-			const regEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
-			return extensionsContent.recommendations.filter((element, position) => {
-				return extensionsContent.recommendations.indexOf(element) === position && regEx.test(element);
+	private processWorkspaceRecommendations(extensionsContent: IExtensionsContent): TPromise<string[]> {
+		const regEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
+
+		if (extensionsContent && extensionsContent.recommendations && extensionsContent.recommendations.length) {
+			let countBadRecommendations = 0;
+			let badRecommendationsString = '';
+			let filteredRecommendations = extensionsContent.recommendations.filter((element, position) => {
+				if (extensionsContent.recommendations.indexOf(element) !== position) {
+					// This is a duplicate entry, it doesn't hurt anybody
+					// but it shouldn't be sent in the gallery query
+					return false;
+				} else if (!regEx.test(element)) {
+					countBadRecommendations++;
+					badRecommendationsString += `${element} (bad format) Expected: <provider>.<name>\n`;
+					return false;
+				}
+
+				return true;
+			});
+
+			return this._galleryService.query({ names: filteredRecommendations }).then(pager => {
+				let page = pager.firstPage;
+				let validRecommendations = page.map(extension => {
+					return extension.identifier.id.toLowerCase();
+				});
+
+				if (validRecommendations.length !== filteredRecommendations.length) {
+					filteredRecommendations.forEach(element => {
+						if (validRecommendations.indexOf(element.toLowerCase()) === -1) {
+							countBadRecommendations++;
+							badRecommendationsString += `${element} (not found in marketplace)\n`;
+						}
+					});
+				}
+
+				if (countBadRecommendations > 0) {
+					console.log('The below ' +
+						countBadRecommendations +
+						' extension(s) in workspace recommendations have issues:\n' +
+						badRecommendationsString);
+				}
+
+				return validRecommendations;
 			});
 		}
-		return [];
+
+		return TPromise.as([]);
+
 	}
 
 	private onWorkspaceFoldersChanged(event: IWorkspaceFoldersChangeEvent): void {
