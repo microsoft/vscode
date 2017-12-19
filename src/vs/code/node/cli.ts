@@ -222,6 +222,11 @@ export async function main(argv: string[]): TPromise<any> {
 			}
 		}
 
+		// If --issue is specified, launch BrowserWindow
+		if (args.issue) {
+			argv.push(`--inspect-brk=1235`);
+		}
+
 		// If we are started with --wait create a random temporary file
 		// and pass it over to the starting instance. We can use this file
 		// to wait for it to be deleted to monitor that the edited file

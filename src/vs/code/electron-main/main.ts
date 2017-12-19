@@ -45,6 +45,8 @@ import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { printDiagnostics } from 'vs/code/electron-main/diagnostics';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
+import { IIssueService } from 'vs/platform/issue/common/issue';
+import { IssueService } from 'vs/platform/issue/electron-main/issueService';
 
 function createServices(args: ParsedArgs, bufferLogService: BufferLogService): IInstantiationService {
 	const services = new ServiceCollection();
@@ -67,6 +69,7 @@ function createServices(args: ParsedArgs, bufferLogService: BufferLogService): I
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 	services.set(IURLService, new SyncDescriptor(URLService, args['open-url'] ? args._urls : []));
+	services.set(IIssueService, new SyncDescriptor(IssueService));
 	services.set(IBackupMainService, new SyncDescriptor(BackupMainService));
 
 	return new InstantiationService(services, true);
@@ -103,6 +106,7 @@ class ExpectedError extends Error {
 
 function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	const logService = accessor.get(ILogService);
+	const issueService = accessor.get(IIssueService);
 	const environmentService = accessor.get(IEnvironmentService);
 	const requestService = accessor.get(IRequestService);
 
@@ -127,6 +131,11 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 
 	function setup(retry: boolean): TPromise<Server> {
 		return serve(environmentService.mainIPCHandle).then(server => {
+			console.log(environmentService.args);
+
+			if (environmentService.args.issue) {
+				issueService.openReporter().then(() => TPromise.as(null));
+			}
 
 			// Print --status usage info
 			if (environmentService.args.status) {

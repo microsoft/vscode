@@ -76,6 +76,8 @@ class Main {
 			const arg = argv['uninstall-extension'];
 			const ids: string[] = typeof arg === 'string' ? [arg] : arg;
 			return this.uninstallExtension(ids);
+		} else if (argv['issue']) {
+			console.log('here');
 		}
 		return undefined;
 	}
@@ -193,6 +195,7 @@ class Main {
 const eventPrefix = 'monacoworkbench';
 
 export function main(argv: ParsedArgs): TPromise<void> {
+
 	const services = new ServiceCollection();
 
 	const environmentService = new EnvironmentService(argv, process.execPath);
