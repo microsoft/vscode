@@ -329,7 +329,7 @@ connection.onDocumentLinks(documentLinkParam => {
 	return links;
 });
 
-function getRootFolder(docUri: string): string | undefined | null {
+function getRootFolder(docUri: string): string | undefined {
 	if (workspaceFolders) {
 		for (let folder of workspaceFolders) {
 			let folderURI = folder.uri;
@@ -337,7 +337,7 @@ function getRootFolder(docUri: string): string | undefined | null {
 				folderURI = folderURI + '/';
 			}
 			if (startsWith(docUri, folderURI)) {
-				return folderURI;
+				return uri.parse(folderURI).fsPath;
 			}
 		}
 		return void 0;
