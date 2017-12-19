@@ -486,6 +486,10 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		const expected = await ExtensionScanner.scanExtensions(input, new NullLogger());
 
 		const cacheContents = await this._readExtensionCache(environmentService, cacheKey);
+		if (!cacheContents) {
+			// Cache has been deleted by someone else, which is perfectly fine...
+			return;
+		}
 		const actual = cacheContents.result;
 
 		if (objects.equals(expected, actual)) {
