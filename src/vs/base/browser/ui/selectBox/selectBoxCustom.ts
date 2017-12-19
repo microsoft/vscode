@@ -88,10 +88,9 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	private selectDropDownListContainer: HTMLElement;
 	private widthControlElement: HTMLElement;
 
-	constructor(options: string[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles, toDispose: IDisposable[]) {
+	constructor(options: string[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles) {
 
-		// Disposables handled by caller
-		this.toDispose = toDispose;
+		this.toDispose = [];
 
 		this.selectElement = document.createElement('select');
 		this.selectElement.className = 'select-box';
