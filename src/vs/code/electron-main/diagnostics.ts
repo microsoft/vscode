@@ -12,14 +12,32 @@ import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
 import * as os from 'os';
 import { virtualMachineHint } from 'vs/base/node/id';
-import { repeat, pad } from 'vs/base/common/strings';
+import { repeat } from 'vs/base/common/strings';
 import { isWindows } from 'vs/base/common/platform';
 import { app } from 'electron';
 import { basename } from 'path';
 
+export interface SystemInfo {
+	Version: string;
+	'OS Version': string;
+	CPUs?: string;
+	'Memory (System)': string;
+	'Load (avg)'?: string;
+	VM: string;
+	'Screen Reader': string;
+	'Process Argv': string;
+}
+
+export interface ProcessInfo {
+	cpu: number;
+	memory: number;
+	pid: number;
+	name: string;
+}
+
 export interface DiagnosticInfo {
-	systemInfo?: string;
-	processInfo?: string;
+	systemInfo?: SystemInfo;
+	processInfo?: ProcessInfo[];
 	workspaceInfo?: string;
 }
 
@@ -27,8 +45,8 @@ export function buildDiagnostics(info: IMainProcessInfo): Promise<DiagnosticInfo
 	return listProcesses(info.mainPID).then(rootProcess => {
 		const diagnosticInfo: DiagnosticInfo = {};
 
-		diagnosticInfo.systemInfo = formatEnvironment(info);
-		diagnosticInfo.processInfo = formatProcessList(info, rootProcess);
+		diagnosticInfo.systemInfo = getSystemInfo(info);
+		diagnosticInfo.processInfo = getProcessList(info, rootProcess);
 		diagnosticInfo.workspaceInfo = '';
 
 		const workspaceInfoMessages = [];
@@ -64,8 +82,8 @@ export function buildDiagnostics(info: IMainProcessInfo): Promise<DiagnosticInfo
 		}
 
 		return {
-			systemInfo: formatEnvironment(info),
-			processInfo: formatProcessList(info, rootProcess),
+			systemInfo: getSystemInfo(info),
+			processInfo: getProcessList(info, rootProcess),
 			workspaceInfo: workspaceInfoMessages.join('\n')
 		};
 	});
@@ -76,11 +94,11 @@ export function printDiagnostics(info: IMainProcessInfo): Promise<any> {
 
 		// Environment Info
 		console.log('');
-		console.log(formatEnvironment(info));
+		console.log(getSystemInfo(info));
 
 		// Process List
 		console.log('');
-		console.log(formatProcessList(info, rootProcess));
+		console.log(getProcessList(info, rootProcess));
 
 		// Workspace Stats
 		if (info.windows.some(window => window.folders && window.folders.length > 0)) {
@@ -172,44 +190,47 @@ function formatLaunchConfigs(configs: WorkspaceStatItem[]): string {
 	return output.join('\n');
 }
 
-function formatEnvironment(info: IMainProcessInfo): string {
+function getSystemInfo(info: IMainProcessInfo): SystemInfo {
 	const MB = 1024 * 1024;
 	const GB = 1024 * MB;
 
-	const output: string[] = [];
-	output.push(`Version:          ${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`);
-	output.push(`OS Version:       ${os.type()} ${os.arch()} ${os.release()}`);
+	const systemInfo: SystemInfo = {
+		Version: `${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`,
+		'OS Version': `${os.type()} ${os.arch()} ${os.release()}`,
+		'Memory (System)': `${(os.totalmem() / GB).toFixed(2)}GB (${(os.freemem() / GB).toFixed(2)}GB free)`,
+		VM: `${Math.round((virtualMachineHint.value() * 100))}%`,
+		'Screen Reader': `${app.isAccessibilitySupportEnabled() ? 'yes' : 'no'}`,
+		'Process Argv': `${info.mainArguments.join(' ')}`
+	};
+
 	const cpus = os.cpus();
 	if (cpus && cpus.length > 0) {
-		output.push(`CPUs:             ${cpus[0].model} (${cpus.length} x ${cpus[0].speed})`);
+		systemInfo.CPUs = `${cpus[0].model} (${cpus.length} x ${cpus[0].speed})`;
 	}
-	output.push(`Memory (System):  ${(os.totalmem() / GB).toFixed(2)}GB (${(os.freemem() / GB).toFixed(2)}GB free)`);
-	if (!isWindows) {
-		output.push(`Load (avg):       ${os.loadavg().map(l => Math.round(l)).join(', ')}`); // only provided on Linux/macOS
-	}
-	output.push(`VM:               ${Math.round((virtualMachineHint.value() * 100))}%`);
-	output.push(`Screen Reader:    ${app.isAccessibilitySupportEnabled() ? 'yes' : 'no'}`);
-	output.push(`Process Argv:     ${info.mainArguments.join(' ')}`);
 
-	return output.join('\n');
+	if (!isWindows) {
+		systemInfo['Load (avg'] = `${os.loadavg().map(l => Math.round(l)).join(', ')}`;
+	}
+
+
+	return systemInfo;
 }
 
-function formatProcessList(info: IMainProcessInfo, rootProcess: ProcessItem): string {
+function getProcessList(info: IMainProcessInfo, rootProcess: ProcessItem): ProcessInfo[] {
 	const mapPidToWindowTitle = new Map<number, string>();
 	info.windows.forEach(window => mapPidToWindowTitle.set(window.pid, window.title));
 
-	const output: string[] = [];
-
-	output.push('CPU %\tMem MB\t   PID\tProcess');
+	const processes: ProcessInfo[] = [];
+	getProcessItem(mapPidToWindowTitle, processes, rootProcess, 0);
 
 	if (rootProcess) {
-		formatProcessItem(mapPidToWindowTitle, output, rootProcess, 0);
+		getProcessItem(mapPidToWindowTitle, output, rootProcess, 0);
 	}
 
-	return output.join('\n');
+	return processes;
 }
 
-function formatProcessItem(mapPidToWindowTitle: Map<number, string>, output: string[], item: ProcessItem, indent: number): void {
+function getProcessItem(mapPidToWindowTitle: Map<number, string>, processes: ProcessInfo[], item: ProcessItem, indent: number): void {
 	const isRoot = (indent === 0);
 
 	const MB = 1024 * 1024;
@@ -226,10 +247,15 @@ function formatProcessItem(mapPidToWindowTitle: Map<number, string>, output: str
 		}
 	}
 	const memory = process.platform === 'win32' ? item.mem : (os.totalmem() * (item.mem / 100));
-	output.push(`${pad(Number(item.load.toFixed(0)), 5, ' ')}\t${pad(Number((memory / MB).toFixed(0)), 6, ' ')}\t${pad(Number((item.pid).toFixed(0)), 6, ' ')}\t${name}`);
+	processes.push({
+		cpu: Number(item.load.toFixed(0)),
+		memory: Number((memory / MB).toFixed(0)),
+		pid: Number((item.pid).toFixed(0)),
+		name
+	});
 
 	// Recurse into children if any
 	if (Array.isArray(item.children)) {
-		item.children.forEach(child => formatProcessItem(mapPidToWindowTitle, output, child, indent + 1));
+		item.children.forEach(child => getProcessItem(mapPidToWindowTitle, processes, child, indent + 1));
 	}
 }
