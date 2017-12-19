@@ -34,11 +34,10 @@ export class IssueChannelClient implements IIssueService {
 
 	_serviceBrand: any;
 
-	constructor(private channel: IChannel) { }
+	constructor(private channel: IIssueChannel) { }
 
 	openReporter(): TPromise<void> {
-		console.log(this.channel);
-		return TPromise.as(null);
+		return this.channel.call('openIssueReporter');
 	}
 
 	getRunningExtensions(): TPromise<any> {

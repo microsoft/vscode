@@ -46,6 +46,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IExtensionService, ActivationTimes } from 'vs/platform/extensions/common/extensions';
 import { getEntries } from 'vs/base/common/performance';
 import { IEditor } from 'vs/platform/editor/common/editor';
+import { IIssueService } from 'vs/platform/issue/common/issue';
 
 // --- actions
 
@@ -856,6 +857,25 @@ export class CloseMessagesAction extends Action {
 		}
 
 		return TPromise.as(true);
+	}
+}
+
+export class OpenIssueReporterAction extends Action {
+	public static readonly ID = 'workbench.action.openIssueReporter';
+	public static readonly LABEL = nls.localize('openIssueReporter', "Open Issue Reporter");
+
+	constructor(
+		id: string,
+		label: string,
+		@IIssueService private issueService: IIssueService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<boolean> {
+		return this.issueService.openReporter().then(() => {
+			return TPromise.as(true);
+		});
 	}
 }
 
