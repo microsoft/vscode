@@ -21,7 +21,6 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ExplorerViewlet } from 'vs/workbench/parts/files/electron-browser/explorerViewlet';
 import { VIEWLET_ID, ExplorerFocusCondition } from 'vs/workbench/parts/files/common/files';
 import { FileStat } from 'vs/workbench/parts/files/common/explorerModel';
-import errors = require('vs/base/common/errors');
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -31,7 +30,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { basename } from 'vs/base/common/paths';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
