@@ -157,7 +157,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			const themeSpecificWorkbenchColorProperties = {};
 			const copyColorCustomizationsSchema = { ...colorCustomizationsSchema };
 			copyColorCustomizationsSchema.properties = colorThemeSchema.colorsSchema.properties;
-			const copyCustomEditorColorSchema = { ...customEditorColorSetting };
+			const copyCustomEditorColorSchema = { ...customEditorColorSchema };
 			copyCustomEditorColorSchema.properties = customEditorColorConfigurationProperties;
 
 			themes.forEach(t => {
@@ -174,7 +174,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				...colorThemeSchema.colorsSchema.properties,
 				...themeSpecificWorkbenchColorProperties
 			};
-			customEditorColorSetting.properties = {
+			customEditorColorSchema.properties = {
 				...customEditorColorConfigurationProperties,
 				...themeSpecificEditorColorProperties
 			};
@@ -560,7 +560,7 @@ const customEditorColorConfigurationProperties = {
 	variables: tokenGroupSettings(nls.localize('editorColors.variables', "Sets the colors and styles for variables declarations and references.")),
 	[CUSTOM_EDITOR_SCOPE_COLORS_SETTING]: colorThemeSchema.tokenColorsSchema(nls.localize('editorColors.textMateRules', 'Sets colors and styles using textmate theming rules (advanced).'))
 };
-const customEditorColorSetting = {
+const customEditorColorSchema: IConfigurationPropertySchema = {
 	description: nls.localize('editorColors', "Overrides editor colors and font style from the currently selected color theme."),
 	default: {},
 	additionalProperties: false,
@@ -571,7 +571,7 @@ const customEditorColorConfiguration: IConfigurationNode = {
 	order: 7.2,
 	type: 'object',
 	properties: {
-		[CUSTOM_EDITOR_COLORS_SETTING]: customEditorColorSetting
+		[CUSTOM_EDITOR_COLORS_SETTING]: customEditorColorSchema
 	}
 };
 configurationRegistry.registerConfiguration(customEditorColorConfiguration);
