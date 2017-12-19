@@ -84,7 +84,7 @@ suite('Configuration Resolver Service', () => {
 		if (platform.isWindows) {
 			assert.strictEqual(configurationResolverService.resolve(workspace, '${env:key1} - ${env:Key1}'), 'Value for key1 - Value for key1');
 		} else {
-			assert.strictEqual(configurationResolverService.resolve(workspace, '${env:key1} - ${env:Key1}'), 'Value for key1 - ${env:Key1}');
+			assert.strictEqual(configurationResolverService.resolve(workspace, '${env:key1} - ${env:Key1}'), 'Value for key1 - ');
 		}
 	});
 
