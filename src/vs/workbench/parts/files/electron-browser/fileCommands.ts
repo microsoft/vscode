@@ -70,6 +70,7 @@ export const SAVE_FILES_COMMAND_ID = 'workbench.command.files.saveFiles';
 export const SAVE_FILES_LABEL = nls.localize('saveFiles', "Save All Files");
 
 export const EditorFocusedInOpenEditorsContext = new RawContextKey<boolean>('editorFocusedInOpenEditors', false);
+export const EditorWithResourceFocusedInOpenEditorsContext = new RawContextKey<boolean>('editorWithResourceFocusedInOpenEditors', false);
 export const UntitledEditorFocusedInOpenEditorsContext = new RawContextKey<boolean>('untitledEditorFocusedInOpenEditors', false);
 export const UntitledEditorNotFocusedInOpenEditorsContext: ContextKeyExpr = UntitledEditorFocusedInOpenEditorsContext.toNegated();
 export const GroupFocusedInOpenEditorsContext = new RawContextKey<boolean>('groupFocusedInOpenEditors', false);
@@ -615,7 +616,7 @@ function registerFileCommands(): void {
 	CommandsRegistry.registerCommand({
 		id: SAVE_FILE_COMMAND_ID,
 		handler: (accessor, args: IEditorContext) => {
-			return save(args.resource, true, accessor.get(IWorkbenchEditorService), accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService));
+			return save(args.resource, false, accessor.get(IWorkbenchEditorService), accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService));
 		}
 	});
 
@@ -665,7 +666,7 @@ function registerMenuItems(): void {
 			id: OPEN_TO_SIDE_COMMAND_ID,
 			title: nls.localize('openToSide', "Open to the Side")
 		},
-		when: EditorFocusedInOpenEditorsContext
+		when: EditorWithResourceFocusedInOpenEditorsContext
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -675,7 +676,7 @@ function registerMenuItems(): void {
 			id: REVEAL_IN_EXPLORER_COMMAND_ID,
 			title: isWindows ? nls.localize('revealInWindows', "Reveal in Explorer") : isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder")
 		},
-		when: EditorFocusedInOpenEditorsContext
+		when: EditorWithResourceFocusedInOpenEditorsContext
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -685,7 +686,7 @@ function registerMenuItems(): void {
 			id: COPY_PATH_COMMAND_ID,
 			title: nls.localize('copyPath', "Copy Path")
 		},
-		when: EditorFocusedInOpenEditorsContext
+		when: EditorWithResourceFocusedInOpenEditorsContext
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -695,7 +696,7 @@ function registerMenuItems(): void {
 			id: SAVE_FILE_COMMAND_ID,
 			title: SAVE_FILE_LABEL
 		},
-		when: ContextKeyExpr.and(EditorFocusedInOpenEditorsContext, AutoSaveNotAfterDelayContext)
+		when: ContextKeyExpr.and(EditorWithResourceFocusedInOpenEditorsContext, AutoSaveNotAfterDelayContext)
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -705,7 +706,7 @@ function registerMenuItems(): void {
 			id: REVERT_FILE_COMMAND_ID,
 			title: nls.localize('revert', "Revert File")
 		},
-		when: ContextKeyExpr.and(EditorFocusedInOpenEditorsContext, AutoSaveNotAfterDelayContext, UntitledEditorNotFocusedInOpenEditorsContext)
+		when: ContextKeyExpr.and(EditorWithResourceFocusedInOpenEditorsContext, AutoSaveNotAfterDelayContext, UntitledEditorNotFocusedInOpenEditorsContext)
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -714,7 +715,7 @@ function registerMenuItems(): void {
 			id: SAVE_FILE_AS_COMMAND_ID,
 			title: SAVE_FILE_AS_LABEL
 		},
-		when: ContextKeyExpr.and(EditorFocusedInOpenEditorsContext, UntitledEditorFocusedInOpenEditorsContext)
+		when: ContextKeyExpr.and(EditorWithResourceFocusedInOpenEditorsContext, UntitledEditorFocusedInOpenEditorsContext)
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -733,7 +734,7 @@ function registerMenuItems(): void {
 			id: COMPARE_WITH_SAVED_COMMAND_ID,
 			title: nls.localize('compareWithSaved', "Compare with Saved")
 		},
-		when: ContextKeyExpr.and(EditorFocusedInOpenEditorsContext, UntitledEditorNotFocusedInOpenEditorsContext)
+		when: ContextKeyExpr.and(EditorWithResourceFocusedInOpenEditorsContext, UntitledEditorNotFocusedInOpenEditorsContext)
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -743,7 +744,7 @@ function registerMenuItems(): void {
 			id: COMPARE_RESOURCE_COMMAND_ID,
 			title: nls.localize('compareWithChosen', "Compare With Chosen")
 		},
-		when: ContextKeyExpr.and(EditorFocusedInOpenEditorsContext, )
+		when: ContextKeyExpr.and(EditorWithResourceFocusedInOpenEditorsContext, )
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -753,7 +754,7 @@ function registerMenuItems(): void {
 			id: SELECT_FOR_COMPARE_COMMAND_ID,
 			title: nls.localize('compareSource', "Select for Compare")
 		},
-		when: EditorFocusedInOpenEditorsContext
+		when: EditorWithResourceFocusedInOpenEditorsContext
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {

@@ -29,7 +29,7 @@ import { DEFAULT_TERMINAL_WINDOWS, DEFAULT_TERMINAL_LINUX_READY, DEFAULT_TERMINA
 import { WinTerminalService, MacTerminalService, LinuxTerminalService } from 'vs/workbench/parts/execution/electron-browser/terminalService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { EditorFocusedInOpenEditorsContext } from 'vs/workbench/parts/files/electron-browser/fileCommands';
+import { EditorWithResourceFocusedInOpenEditorsContext } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 
 if (env.isWindows) {
 	registerSingleton(ITerminalService, WinTerminalService);
@@ -244,7 +244,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		title: env.isWindows ? nls.localize('scopedConsoleActionWin', "Open in Command Prompt") :
 			nls.localize('scopedConsoleActionMacLinux', "Open in Terminal")
 	},
-	when: EditorFocusedInOpenEditorsContext
+	when: EditorWithResourceFocusedInOpenEditorsContext
 });
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -254,5 +254,5 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		id: OPEN_INTEGRATED_TERMINAL_COMMAND_ID,
 		title: nls.localize('openFolderInIntegratedTerminal', "Open in Terminal")
 	},
-	when: EditorFocusedInOpenEditorsContext
+	when: EditorWithResourceFocusedInOpenEditorsContext
 });

@@ -40,7 +40,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
-import { EditorFocusedInOpenEditorsContext, UntitledEditorFocusedInOpenEditorsContext, GroupFocusedInOpenEditorsContext } from 'vs/workbench/parts/files/electron-browser/fileCommands';
+import { EditorFocusedInOpenEditorsContext, UntitledEditorFocusedInOpenEditorsContext, GroupFocusedInOpenEditorsContext, EditorWithResourceFocusedInOpenEditorsContext } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 
 const $ = dom.$;
 
@@ -59,6 +59,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 	private contributedContextMenu: IMenu;
 	private needsRefresh: boolean;
 	private editorFocusedContext: IContextKey<boolean>;
+	private editorWithResourceFocusedContext: IContextKey<boolean>;
 	private untitledEditorFocusedContext: IContextKey<boolean>;
 	private groupFocusedContext: IContextKey<boolean>;
 
@@ -153,17 +154,20 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		OpenEditorsFocusedContext.bindTo(this.list.contextKeyService);
 		ExplorerFocusedContext.bindTo(this.list.contextKeyService);
 		this.editorFocusedContext = EditorFocusedInOpenEditorsContext.bindTo(this.contextKeyService);
+		this.editorWithResourceFocusedContext = EditorWithResourceFocusedInOpenEditorsContext.bindTo(this.contextKeyService);
 		this.untitledEditorFocusedContext = UntitledEditorFocusedInOpenEditorsContext.bindTo(this.contextKeyService);
 		this.groupFocusedContext = GroupFocusedInOpenEditorsContext.bindTo(this.contextKeyService);
 
 		this.disposables.push(this.list.onContextMenu(e => this.onListContextMenu(e)));
 		this.list.onFocusChange(e => {
 			this.editorFocusedContext.reset();
+			this.editorWithResourceFocusedContext.reset();
 			this.groupFocusedContext.reset();
 			this.untitledEditorFocusedContext.reset();
 			const element = e.elements.length ? e.elements[0] : undefined;
 			if (element instanceof OpenEditor) {
 				this.editorFocusedContext.set(true);
+				this.editorWithResourceFocusedContext.set(!!element.getResource());
 				this.untitledEditorFocusedContext.set(element.isUntitled());
 			} else if (!!element) {
 				this.groupFocusedContext.set(true);
