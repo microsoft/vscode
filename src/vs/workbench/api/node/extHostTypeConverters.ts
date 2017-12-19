@@ -614,9 +614,13 @@ function doToLanguageSelector(selector: string | vscode.DocumentFilter): string 
 		return selector;
 	}
 
-	return {
-		language: selector.language,
-		scheme: selector.scheme,
-		pattern: toGlobPattern(selector.pattern)
-	};
+	if (selector) {
+		return {
+			language: selector.language,
+			scheme: selector.scheme,
+			pattern: toGlobPattern(selector.pattern)
+		};
+	}
+
+	return undefined;
 }
