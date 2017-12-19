@@ -155,15 +155,17 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			const colorThemeSettingSchemaEnumDescriptions = [];
 			const themeSpecificEditorColorProperties = {};
 			const themeSpecificWorkbenchColorProperties = {};
-			const copyColorCustomizationsSchema = JSON.parse(JSON.stringify(colorCustomizationsSchema));
-			const copyColorConfigurationProperties = JSON.parse(JSON.stringify(customEditorColorSetting));
+			const copyColorCustomizationsSchema = { ...colorCustomizationsSchema };
+			copyColorCustomizationsSchema.properties = colorThemeSchema.colorsSchema.properties;
+			const copyCustomEditorColorSchema = { ...customEditorColorSetting };
+			copyCustomEditorColorSchema.properties = customEditorColorConfigurationProperties;
 
 			themes.forEach(t => {
 				colorThemeSettingSchemaEnum.push(t.settingsId);
 				colorThemeSettingSchemaEnumDescriptions.push(themeData.description || '');
 				const themeId = `[${t.settingsId}]`;
 				themeSpecificWorkbenchColorProperties[themeId] = copyColorCustomizationsSchema;
-				themeSpecificEditorColorProperties[themeId] = copyColorConfigurationProperties;
+				themeSpecificEditorColorProperties[themeId] = copyCustomEditorColorSchema;
 			});
 
 			colorThemeSettingSchema.enum = colorThemeSettingSchemaEnum;
@@ -510,7 +512,7 @@ const iconThemeSettingSchema: IConfigurationPropertySchema = {
 const colorCustomizationsSchema: IConfigurationPropertySchema = {
 	type: 'object',
 	description: nls.localize('workbenchColors', "Overrides colors from the currently selected color theme."),
-	properties: colorThemeSchema.colorsSchema.properties,
+	properties: {},
 	additionalProperties: false,
 	default: {},
 	defaultSnippets: [{
@@ -562,7 +564,7 @@ const customEditorColorSetting = {
 	description: nls.localize('editorColors', "Overrides editor colors and font style from the currently selected color theme."),
 	default: {},
 	additionalProperties: false,
-	properties: customEditorColorConfigurationProperties
+	properties: {}
 };
 const customEditorColorConfiguration: IConfigurationNode = {
 	id: 'editor',
