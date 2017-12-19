@@ -114,7 +114,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 
 	private pathSeparator: string;
 
-	private _onReady: { promise: Promise<void>; resolve: () => void; reject: () => void; };
+	private _onReady?: { promise: Promise<void>; resolve: () => void; reject: () => void; };
 	private _configuration: TypeScriptServiceConfiguration;
 	private versionProvider: TypeScriptVersionProvider;
 	private versionPicker: TypeScriptVersionPicker;
@@ -163,7 +163,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		var p = new Promise<void>((resolve, reject) => {
 			this._onReady = { promise: p, resolve, reject };
 		});
-		this._onReady.promise = p;
+		this._onReady!.promise = p;
 
 		this.servicePromise = null;
 		this.lastError = null;
@@ -268,7 +268,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	}
 
 	public onReady(): Promise<void> {
-		return this._onReady.promise;
+		return this._onReady!.promise;
 	}
 
 	private info(message: string, data?: any): void {
@@ -379,7 +379,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 						(msg) => { this.dispatchMessage(msg); },
 						error => { this.error('ReaderError', error); });
 
-					this._onReady.resolve();
+					this._onReady!.resolve();
 					resolve(childProcess);
 					this._onTsServerStarted.fire();
 
