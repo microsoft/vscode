@@ -480,9 +480,9 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 
 		// SetUp list mouse controller - control navigation, disabled items, focus
 
-		chain(domEvent(this.selectList.getHTMLElement(), 'mousedown'))
+		chain(domEvent(this.selectList.getHTMLElement(), 'mouseup'))
 			.filter(() => this.selectList.length > 0)
-			.on(e => this.onMouseDown(e), this, this.toDispose);
+			.on(e => this.onMouseUp(e), this, this.toDispose);
 
 		this.toDispose.push(this.selectList.onDidBlur(e => this.onListBlur()));
 	}
@@ -490,7 +490,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	// List methods
 
 	// List mouse controller - active exit, select option, fire onDidSelect, return focus to parent select
-	private onMouseDown(e: MouseEvent): void {
+	private onMouseUp(e: MouseEvent): void {
 
 		// Check our mouse event is on an option (not scrollbar)
 		if (!e.toElement.classList.contains('option-text')) {
