@@ -22,7 +22,7 @@ import { copyFocusedFilesExplorerViewItem, openWindowCommand, deleteFocusedFiles
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { explorerItemToFileResource, FilesExplorerFocusCondition } from 'vs/workbench/parts/files/common/files';
+import { FilesExplorerFocusCondition } from 'vs/workbench/parts/files/common/files';
 
 class FilesViewerActionContributor extends ActionBarContributor {
 
@@ -149,40 +149,9 @@ class FilesViewerActionContributor extends ActionBarContributor {
 	}
 }
 
-class ExplorerViewersActionContributor extends ActionBarContributor {
-
-	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
-		super();
-	}
-
-	public hasSecondaryActions(context: any): boolean {
-		const element = context.element;
-
-		// Contribute only on Files (File Explorer and Open Files Viewer)
-		return !!explorerItemToFileResource(element);
-	}
-
-	public getSecondaryActions(context: any): IAction[] {
-		const actions: IAction[] = [];
-		const fileResource = explorerItemToFileResource(context.element);
-		const resource = fileResource.resource;
-
-		// Reveal file in OS native explorer
-		if (resource.scheme === 'file') {
-			actions.push(this.instantiationService.createInstance(RevealInOSAction, resource));
-		}
-
-		// Copy Path
-		actions.push(this.instantiationService.createInstance(CopyPathAction, resource));
-
-		return actions;
-	}
-}
-
 // Contribute to Viewers that show Files
 const actionBarRegistry = Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar);
 actionBarRegistry.registerActionBarContributor(Scope.VIEWER, FilesViewerActionContributor);
-actionBarRegistry.registerActionBarContributor(Scope.VIEWER, ExplorerViewersActionContributor);
 
 // Contribute Global Actions
 const category = nls.localize('filesCategory', "File");
