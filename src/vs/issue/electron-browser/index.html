@@ -1,0 +1,82 @@
+<!-- Copyright (C) Microsoft Corporation. All rights reserved. -->
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<style>
+			* {
+				box-sizing: border-box;
+			}
+			html {
+				padding: 40px 40px 80px 40px;
+			}
+			#issue-reporter {
+				max-width: 80vw;
+				margin-left: auto;
+				margin-right: auto;
+			}
+			.block-info {
+				width: 100%;
+				overflow: auto;
+				overflow-wrap: break-word;
+			}
+			#github-submit-btn {
+				margin-top: 4rem;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="issue-reporter">
+			<h1>VS Code Issue Reporter</h1>
+			<div id="block-container">
+				<div class="block block-system">
+					<h2 class="block-title">
+						System Info
+					</h2>
+					<pre class="block-info">
+						<code></code>
+					</pre>
+				</div>
+				<div class="block block-process">
+					<h2 class="block-title">
+						Processes
+					</h2>
+					<pre class="block-info">
+						<code></code>
+					</pre>
+				</div>
+				<div class="block block-workspace">
+					<h2 class="block-title">
+						Workspace Stats
+					</h2>
+					<pre class="block-info">
+						<code></code>
+					</pre>
+				</div>
+				<div class="block block-extensions">
+					<h2 class="block-title">
+						Extension Info
+					</h2>
+					<div class="block-info-table">
+						<button onclick="renderExtensionsInfo()">Get Extensions Info</button>
+					</div>
+				</div>
+				<div class="block block-repro">
+					<h2 class="block-title">
+						Repro Steps
+					</h2>
+					<div class="block-info-text">
+						<textarea name="repro" id="" cols="100" rows="15"></textarea>
+					</div>
+				</div>
+			</div>
+
+			<button id="github-submit-btn" onclick="window.submit()">Submit GitHub Issue</button>
+		</div>
+	</body>
+
+	<script src="index.js"></script>
+
+	<script>
+	</script>
+</html>

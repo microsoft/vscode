@@ -54,6 +54,7 @@ import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces
 import { getMachineId } from 'vs/base/node/id';
 import { IIssueService } from 'vs/platform/issue/common/issue';
 import { IssueChannel } from 'vs/platform/issue/common/issueIpc';
+import { IssueService } from 'vs/platform/issue/electron-main/issueService';
 
 export class CodeApplication {
 
@@ -310,6 +311,7 @@ export class CodeApplication {
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsManager, machineId));
 		services.set(IWindowsService, new SyncDescriptor(WindowsService, this.sharedProcess));
 		services.set(ILaunchService, new SyncDescriptor(LaunchService));
+		services.set(IIssueService, new SyncDescriptor(IssueService));
 
 		// Telemtry
 		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
@@ -357,6 +359,7 @@ export class CodeApplication {
 		const issueService = accessor.get(IIssueService);
 		const issueChannel = new IssueChannel(issueService);
 		this.electronIpcServer.registerChannel('issue', issueChannel);
+		// this.sharedProcessClient.done(client => client.registerChannel('issue', issueChannel));
 
 		const workspacesService = accessor.get(IWorkspacesMainService);
 		const workspacesChannel = appInstantiationService.createInstance(WorkspacesChannel, workspacesService);
@@ -435,6 +438,12 @@ export class CodeApplication {
 
 		// Start shared process here
 		this.sharedProcess.spawn();
+
+		// Launch Issue BrowserWindow if --issue is specified
+		if (this.environmentService.args.issue) {
+			const issueService = accessor.get(IIssueService);
+			issueService.openReporter();
+		}
 	}
 
 	private dispose(): void {

@@ -106,7 +106,7 @@ class ExpectedError extends Error {
 
 function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 	const logService = accessor.get(ILogService);
-	const issueService = accessor.get(IIssueService);
+	// const issueService = accessor.get(IIssueService);
 	const environmentService = accessor.get(IEnvironmentService);
 	const requestService = accessor.get(IRequestService);
 
@@ -131,12 +131,6 @@ function setupIPC(accessor: ServicesAccessor): TPromise<Server> {
 
 	function setup(retry: boolean): TPromise<Server> {
 		return serve(environmentService.mainIPCHandle).then(server => {
-			console.log(environmentService.args);
-
-			if (environmentService.args.issue) {
-				issueService.openReporter().then(() => TPromise.as(null));
-			}
-
 			// Print --status usage info
 			if (environmentService.args.status) {
 				logService.warn('Warning: The --status argument can only be used if Code is already running. Please run it again after Code has started.');

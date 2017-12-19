@@ -11,6 +11,7 @@ import { IIssueService } from './issue';
 
 export interface IIssueChannel extends IChannel {
 	call(command: 'openIssueReporter'): TPromise<void>;
+	call(command: 'getRunningExtensions'): TPromise<any>;
 	call(command: string, arg?: any): TPromise<any>;
 }
 
@@ -22,6 +23,8 @@ export class IssueChannel implements IIssueChannel {
 		switch (command) {
 			case 'openIssueReporter':
 				return this.service.openReporter();
+			case 'getRunningExtensions':
+				return this.service.getRunningExtensions();
 		}
 		return undefined;
 	}
@@ -34,6 +37,11 @@ export class IssueChannelClient implements IIssueService {
 	constructor(private channel: IChannel) { }
 
 	openReporter(): TPromise<void> {
+		console.log(this.channel);
+		return TPromise.as(null);
+	}
+
+	getRunningExtensions(): TPromise<any> {
 		console.log(this.channel);
 		return TPromise.as(null);
 	}

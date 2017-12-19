@@ -14,4 +14,5 @@ export const IIssueService = createDecorator<IIssueService>(ID);
 export interface IIssueService {
 	_serviceBrand: any;
 	openReporter(): TPromise<void>;
+	getRunningExtensions(): TPromise<any>;
 }

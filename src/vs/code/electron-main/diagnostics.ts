@@ -17,6 +17,60 @@ import { isWindows } from 'vs/base/common/platform';
 import { app } from 'electron';
 import { basename } from 'path';
 
+export interface DiagnosticInfo {
+	systemInfo?: string;
+	processInfo?: string;
+	workspaceInfo?: string;
+}
+
+export function buildDiagnostics(info: IMainProcessInfo): Promise<DiagnosticInfo> {
+	return listProcesses(info.mainPID).then(rootProcess => {
+		const diagnosticInfo: DiagnosticInfo = {};
+
+		diagnosticInfo.systemInfo = formatEnvironment(info);
+		diagnosticInfo.processInfo = formatProcessList(info, rootProcess);
+		diagnosticInfo.workspaceInfo = '';
+
+		const workspaceInfoMessages = [];
+
+		// Workspace Stats
+		if (info.windows.some(window => window.folders && window.folders.length > 0)) {
+			info.windows.forEach(window => {
+				if (window.folders.length === 0) {
+					return;
+				}
+
+				workspaceInfoMessages.push(`|  Window (${window.title})`);
+
+				window.folders.forEach(folder => {
+					try {
+						const stats = collectWorkspaceStats(folder, ['node_modules', '.git']);
+						let countMessage = `${stats.fileCount} files`;
+						if (stats.maxFilesReached) {
+							countMessage = `more than ${countMessage}`;
+						}
+						workspaceInfoMessages.push(`|    Folder (${basename(folder)}): ${countMessage}`);
+						workspaceInfoMessages.push(formatWorkspaceStats(stats));
+
+						const launchConfigs = collectLaunchConfigs(folder);
+						if (launchConfigs.length > 0) {
+							workspaceInfoMessages.push(formatLaunchConfigs(launchConfigs));
+						}
+					} catch (error) {
+						workspaceInfoMessages.push(`|      Error: Unable to collect workpsace stats for folder ${folder} (${error.toString()})`);
+					}
+				});
+			});
+		}
+
+		return {
+			systemInfo: formatEnvironment(info),
+			processInfo: formatProcessList(info, rootProcess),
+			workspaceInfo: workspaceInfoMessages.join('\n')
+		};
+	});
+}
+
 export function printDiagnostics(info: IMainProcessInfo): Promise<any> {
 	return listProcesses(info.mainPID).then(rootProcess => {
 
