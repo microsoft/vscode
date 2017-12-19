@@ -66,9 +66,9 @@ export class SelectBox extends Widget implements ISelectBoxDelegate {
 
 		// Instantiate select implementation based on platform
 		if (isMacintosh) {
-			this.selectBoxDelegate = new SelectBoxNative(options, selected, styles, this.toDispose);
+			this.selectBoxDelegate = new SelectBoxNative(options, selected, styles);
 		} else {
-			this.selectBoxDelegate = new SelectBoxList(options, selected, contextViewProvider, styles, this.toDispose);
+			this.selectBoxDelegate = new SelectBoxList(options, selected, contextViewProvider, styles);
 		}
 
 		this.toDispose.push(this.selectBoxDelegate);
@@ -112,7 +112,6 @@ export class SelectBox extends Widget implements ISelectBoxDelegate {
 
 	public dispose(): void {
 		this.toDispose = dispose(this.toDispose);
-
 		super.dispose();
 	}
 }

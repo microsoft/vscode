@@ -20,12 +20,13 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 	private toDispose: IDisposable[];
 	private styles: ISelectBoxStyles;
 
-	constructor(options: string[], selected: number, styles: ISelectBoxStyles, toDispose: IDisposable[]) {
+	constructor(options: string[], selected: number, styles: ISelectBoxStyles) {
+
+		this.toDispose = [];
 
 		this.selectElement = document.createElement('select');
 		this.selectElement.className = 'select-box';
 
-		this.toDispose = toDispose;
 		this._onDidSelect = new Emitter<ISelectData>();
 
 		this.styles = styles;
