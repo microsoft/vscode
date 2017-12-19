@@ -156,7 +156,8 @@ class RemoteSearchProvider {
 				let sortedNames = Object.keys(remoteResult.scoredResults).sort((a, b) => remoteResult.scoredResults[b] - remoteResult.scoredResults[a]);
 				if (sortedNames.length) {
 					const highScore = remoteResult.scoredResults[sortedNames[0]];
-					sortedNames = sortedNames.filter(name => remoteResult.scoredResults[name] >= highScore / 2);
+					const minScore = highScore / 5;
+					sortedNames = sortedNames.filter(name => remoteResult.scoredResults[name] >= minScore);
 				}
 
 				const settingMatcher = this.getRemoteSettingMatcher(sortedNames, preferencesModel);
