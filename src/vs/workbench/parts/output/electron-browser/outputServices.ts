@@ -32,6 +32,7 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { RotatingLogger } from 'spdlog';
 import { toLocalISOString } from 'vs/base/common/date';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
 
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
@@ -90,8 +91,8 @@ abstract class AbstractOutputChannel extends Disposable {
 	constructor(
 		protected readonly outputChannelIdentifier: IOutputChannelIdentifier,
 		protected fileService: IFileService,
-		private modelService: IModelService,
-		private modeService: IModeService,
+		protected modelService: IModelService,
+		protected modeService: IModeService,
 		private panelService: IPanelService
 	) {
 		super();
@@ -229,21 +230,27 @@ class AppendableFileOutputChannel extends AbstractOutputChannel implements Outpu
 		@IFileService fileService: IFileService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
-		@IPanelService panelService: IPanelService
+		@IPanelService panelService: IPanelService,
+		@IMessageService private messageService: IMessageService
 	) {
 		super(outputChannelIdentifier, fileService, modelService, modeService, panelService);
-
-		this.outputWriter = new RotatingLogger(this.id, this.file.fsPath, 1024 * 1024 * 30, 5);
+		try {
+			this.outputWriter = new RotatingLogger(this.id, this.file.fsPath, 1024 * 1024 * 30, 5);
+		} catch (e) {
+			this.messageService.show(Severity.Error, e);
+		}
 		this.outputWriter.clearFormatters();
 	}
 
 	append(message: string): void {
-		this.outputWriter.critical(message);
-		const model = this.getModel();
-		if (model) {
-			this.appendedMessage += message;
-			if (!this.modelUpdater.isScheduled()) {
-				this.modelUpdater.schedule();
+		if (this.outputWriter) {
+			this.outputWriter.critical(message);
+			const model = this.getModel();
+			if (model) {
+				this.appendedMessage += message;
+				if (!this.modelUpdater.isScheduled()) {
+					this.modelUpdater.schedule();
+				}
 			}
 		}
 	}
@@ -254,9 +261,12 @@ class AppendableFileOutputChannel extends AbstractOutputChannel implements Outpu
 	}
 
 	createModel(): TPromise<IModel> {
-		this.outputWriter.flush();
-		this.appendedMessage = '';
-		return super.createModel();
+		if (this.outputWriter) {
+			this.outputWriter.flush();
+			this.appendedMessage = '';
+			return super.createModel();
+		}
+		return TPromise.as(this.modelService.createModel('', this.modeService.getOrCreateMode(OUTPUT_MIME), URI.from({ scheme: OUTPUT_SCHEME, path: this.id })));
 	}
 
 	protected updateModel(): void {
