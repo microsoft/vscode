@@ -35,15 +35,13 @@ import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { Position, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
+import { IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature2, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction, IConfirmationResult } from 'vs/platform/message/common/message';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { withFocusedFilesExplorer, REVERT_FILE_COMMAND_ID, OPEN_TO_SIDE_COMMAND_ID, COMPARE_WITH_SAVED_SCHEMA, COMPARE_WITH_SAVED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, globalResourceToCompare, REVEAL_IN_OS_COMMAND_ID, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, computeLabelForCompare, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL, SAVE_FILE_AS_LABEL, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID, SAVE_FILES_COMMAND_ID, SAVE_FILES_LABEL } from 'vs/workbench/parts/files/electron-browser/fileCommands';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { withFocusedFilesExplorer, REVERT_FILE_COMMAND_ID, COMPARE_WITH_SAVED_COMMAND_ID, REVEAL_IN_OS_COMMAND_ID, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL, SAVE_FILE_AS_LABEL, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID, SAVE_FILES_COMMAND_ID, SAVE_FILES_LABEL, COMPARE_WITH_SAVED_SCHEMA } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { once } from 'vs/base/common/event';
@@ -1112,47 +1110,6 @@ export class DuplicateFileAction extends BaseFileAction {
 	}
 }
 
-// Open to the side
-export class OpenToSideAction extends Action {
-
-	public static readonly ID = 'explorer.openToSide';
-	public static readonly LABEL = nls.localize('openToSide', "Open to the Side");
-
-	constructor(
-		private resource: URI,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@ICommandService private commandService: ICommandService
-	) {
-		super(OpenToSideAction.ID, OpenToSideAction.LABEL);
-
-		this.updateEnablement();
-	}
-
-	private updateEnablement(): void {
-		const activeEditor = this.editorService.getActiveEditor();
-		this.enabled = (!activeEditor || activeEditor.position !== Position.THREE);
-	}
-
-	public run(): TPromise<any> {
-		return this.commandService.executeCommand(OPEN_TO_SIDE_COMMAND_ID, { resource: this.resource });
-	}
-}
-
-export class SelectResourceForCompareAction extends Action {
-	private resource: URI;
-
-	constructor(resource: URI, @ICommandService private commandService: ICommandService) {
-		super('workbench.files.action.selectForCompare', nls.localize('compareSource', "Select for Compare"));
-
-		this.resource = resource;
-		this.enabled = true;
-	}
-
-	public run(): TPromise<any> {
-		return this.commandService.executeCommand(SELECT_FOR_COMPARE_COMMAND_ID, { resource: this.resource });
-	}
-}
-
 // Global Compare with
 export class GlobalCompareResourcesAction extends Action {
 
@@ -1197,43 +1154,6 @@ export class GlobalCompareResourcesAction extends Action {
 		}
 
 		return TPromise.as(true);
-	}
-}
-
-// Compare with Resource
-export class CompareResourcesAction extends Action {
-	private resource: URI;
-
-	constructor(
-		resource: URI,
-		@ICommandService private commandService: ICommandService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IEnvironmentService environmentService: IEnvironmentService
-	) {
-		super('workbench.files.action.compareFiles', computeLabelForCompare(resource, contextService, environmentService));
-
-		this.resource = resource;
-	}
-
-	public _isEnabled(): boolean {
-
-		// Need at least a resource to compare
-		if (!globalResourceToCompare) {
-			return false;
-		}
-
-		// TODO@Isidor Check if file was deleted or moved meanwhile (explorer only)
-
-		// Check if target is identical to source
-		if (this.resource.toString() === globalResourceToCompare.toString()) {
-			return false;
-		}
-
-		return true;
-	}
-
-	public run(): TPromise<any> {
-		return this.commandService.executeCommand(COMPARE_RESOURCE_COMMAND_ID, { resource: this.resource });
 	}
 }
 

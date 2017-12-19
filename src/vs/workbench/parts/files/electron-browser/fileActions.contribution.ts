@@ -9,7 +9,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Action, IAction } from 'vs/base/common/actions';
 import { ActionItem, BaseActionItem, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions, ActionBarContributor } from 'vs/workbench/browser/actions';
-import { GlobalNewUntitledFileAction, SaveFileAsAction, ShowOpenedFileInNewWindow, CopyPathAction, GlobalCopyPathAction, RevealInOSAction, GlobalRevealInOSAction, pasteIntoFocusedFilesExplorerViewItem, FocusOpenEditorsView, FocusFilesExplorer, GlobalCompareResourcesAction, GlobalNewFileAction, GlobalNewFolderAction, RevertFileAction, SaveFilesAction, SaveAllAction, SaveFileAction, MoveFileToTrashAction, TriggerRenameFileAction, PasteFileAction, CopyFileAction, SelectResourceForCompareAction, CompareResourcesAction, NewFolderAction, NewFileAction, OpenToSideAction, ShowActiveFileInExplorer, CollapseExplorerView, RefreshExplorerView, CompareWithSavedAction, CompareWithClipboardAction } from 'vs/workbench/parts/files/electron-browser/fileActions';
+import { GlobalNewUntitledFileAction, SaveFileAsAction, ShowOpenedFileInNewWindow, CopyPathAction, GlobalCopyPathAction, RevealInOSAction, GlobalRevealInOSAction, pasteIntoFocusedFilesExplorerViewItem, FocusOpenEditorsView, FocusFilesExplorer, GlobalCompareResourcesAction, GlobalNewFileAction, GlobalNewFolderAction, RevertFileAction, SaveFilesAction, SaveAllAction, SaveFileAction, MoveFileToTrashAction, TriggerRenameFileAction, PasteFileAction, CopyFileAction, NewFolderAction, NewFileAction, ShowActiveFileInExplorer, CollapseExplorerView, RefreshExplorerView, CompareWithSavedAction, CompareWithClipboardAction } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { revertLocalChangesCommand, acceptLocalChangesCommand, CONFLICT_RESOLUTION_CONTEXT } from 'vs/workbench/parts/files/electron-browser/saveErrorHandler';
 import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
@@ -44,19 +44,8 @@ class FilesViewerActionContributor extends ActionBarContributor {
 		const stat = (<FileStat | Model>context.element);
 		const tree = context.viewer;
 		const actions: IAction[] = [];
-		let separateOpen = false;
 		if (stat instanceof Model) {
 			return [this.instantiationService.createInstance(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL)];
-		}
-
-		// Open side by side
-		if (!stat.isDirectory) {
-			actions.push(this.instantiationService.createInstance(OpenToSideAction, stat.resource));
-			separateOpen = true;
-		}
-
-		if (separateOpen) {
-			actions.push(new Separator(null, 50));
 		}
 
 		// Directory Actions
@@ -69,21 +58,6 @@ class FilesViewerActionContributor extends ActionBarContributor {
 			actions.push(this.instantiationService.createInstance(NewFolderAction, tree, <FileStat>stat));
 
 			actions.push(new Separator(null, 50));
-		}
-
-		// Compare Files (of same extension)
-		else if (!stat.isDirectory) {
-
-			// Run Compare
-			const runCompareAction = this.instantiationService.createInstance(CompareResourcesAction, stat.resource);
-			if (runCompareAction._isEnabled()) {
-				actions.push(runCompareAction);
-			}
-
-			// Select for Compare
-			actions.push(this.instantiationService.createInstance(SelectResourceForCompareAction, stat.resource));
-
-			actions.push(new Separator(null, 100));
 		}
 
 		// Workspace Root Folder Actions

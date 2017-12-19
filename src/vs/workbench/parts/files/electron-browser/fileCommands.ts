@@ -10,7 +10,6 @@ import paths = require('vs/base/common/paths');
 import severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as labels from 'vs/base/common/labels';
-import * as resources from 'vs/base/common/resources';
 import URI from 'vs/base/common/uri';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource, IEditorContext } from 'vs/workbench/common/editor';
@@ -19,7 +18,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/electron-browser/explorerViewlet';
-import { VIEWLET_ID, ExplorerFocusCondition } from 'vs/workbench/parts/files/common/files';
+import { VIEWLET_ID, ExplorerFocusCondition, ExplorerFolderContext } from 'vs/workbench/parts/files/common/files';
 import { FileStat } from 'vs/workbench/parts/files/common/explorerModel';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -33,7 +32,6 @@ import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -73,7 +71,6 @@ export const SAVE_FILES_LABEL = nls.localize('saveFiles', "Save All Files");
 export const EditorFocusedInOpenEditorsContext = new RawContextKey<boolean>('editorFocusedInOpenEditors', false);
 export const EditorWithResourceFocusedInOpenEditorsContext = new RawContextKey<boolean>('editorWithResourceFocusedInOpenEditors', false);
 export const UntitledEditorFocusedInOpenEditorsContext = new RawContextKey<boolean>('untitledEditorFocusedInOpenEditors', false);
-export const UntitledEditorNotFocusedInOpenEditorsContext: ContextKeyExpr = UntitledEditorFocusedInOpenEditorsContext.toNegated();
 export const GroupFocusedInOpenEditorsContext = new RawContextKey<boolean>('groupFocusedInOpenEditors', false);
 
 export const openWindowCommand = (accessor: ServicesAccessor, paths: string[], forceNewWindow: boolean) => {
@@ -149,30 +146,7 @@ export const copyFocusedFilesExplorerViewItem = (accessor: ServicesAccessor) => 
 	runActionOnFocusedFilesExplorerViewItem(accessor, 'filesExplorer.copy');
 };
 
-
-export function computeLabelForCompare(resource: URI, contextService: IWorkspaceContextService, environmentService: IEnvironmentService): string {
-	if (globalResourceToCompare) {
-		let leftResourceName = paths.basename(globalResourceToCompare.fsPath);
-		let rightResourceName = paths.basename(resource.fsPath);
-
-		// If the file names are identical, add more context by looking at the parent folder
-		if (leftResourceName === rightResourceName) {
-			const folderPaths = labels.shorten([
-				labels.getPathLabel(resources.dirname(globalResourceToCompare), contextService, environmentService),
-				labels.getPathLabel(resources.dirname(resource), contextService, environmentService)
-			]);
-
-			leftResourceName = paths.join(folderPaths[0], leftResourceName);
-			rightResourceName = paths.join(folderPaths[1], rightResourceName);
-		}
-
-		return nls.localize('compareWith', "Compare '{0}' with '{1}'", leftResourceName, rightResourceName);
-	}
-
-	return nls.localize('compareFiles', "Compare Files");
-}
-
-export let globalResourceToCompare: URI;
+let globalResourceToCompare: URI;
 
 function save(resource: URI, isSaveAs: boolean, editorService: IWorkbenchEditorService, fileService: IFileService, untitledEditorService: IUntitledEditorService,
 	textFileService: ITextFileService, editorGroupService: IEditorGroupService): TPromise<any> {
@@ -584,21 +558,22 @@ CommandsRegistry.registerCommand({
 
 // Menu registration - open editors
 
+
+const openToSideCommand = {
+	id: OPEN_TO_SIDE_COMMAND_ID,
+	title: nls.localize('openToSide', "Open to the Side")
+};
+MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
+	group: '1_files',
+	order: 10,
+	command: openToSideCommand,
+	when: EditorWithResourceFocusedInOpenEditorsContext
+});
+
 const revealInOsCommand = {
 	id: REVEAL_IN_OS_COMMAND_ID,
 	title: isWindows ? nls.localize('revealInWindows', "Reveal in Explorer") : isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder")
 };
-
-MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-	group: '1_files',
-	order: 10,
-	command: {
-		id: OPEN_TO_SIDE_COMMAND_ID,
-		title: nls.localize('openToSide', "Open to the Side")
-	},
-	when: EditorWithResourceFocusedInOpenEditorsContext
-});
-
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: '1_files',
 	order: 20,
@@ -606,13 +581,14 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	when: EditorWithResourceFocusedInOpenEditorsContext
 });
 
+const copyPathCommand = {
+	id: COPY_PATH_COMMAND_ID,
+	title: nls.localize('copyPath', "Copy Path")
+};
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: '1_files',
 	order: 40,
-	command: {
-		id: COPY_PATH_COMMAND_ID,
-		title: nls.localize('copyPath', "Copy Path")
-	},
+	command: copyPathCommand,
 	when: EditorWithResourceFocusedInOpenEditorsContext
 });
 
@@ -633,7 +609,7 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		id: REVERT_FILE_COMMAND_ID,
 		title: nls.localize('revert', "Revert File")
 	},
-	when: ContextKeyExpr.and(EditorWithResourceFocusedInOpenEditorsContext, AutoSaveNotAfterDelayContext, UntitledEditorNotFocusedInOpenEditorsContext)
+	when: ContextKeyExpr.and(EditorWithResourceFocusedInOpenEditorsContext, AutoSaveNotAfterDelayContext, UntitledEditorFocusedInOpenEditorsContext.toNegated())
 });
 
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
@@ -661,26 +637,28 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		id: COMPARE_WITH_SAVED_COMMAND_ID,
 		title: nls.localize('compareWithSaved', "Compare with Saved")
 	},
-	when: ContextKeyExpr.and(EditorWithResourceFocusedInOpenEditorsContext, UntitledEditorNotFocusedInOpenEditorsContext)
+	when: ContextKeyExpr.and(EditorWithResourceFocusedInOpenEditorsContext, UntitledEditorFocusedInOpenEditorsContext.toNegated())
 });
 
+const compareResourceCommand = {
+	id: COMPARE_RESOURCE_COMMAND_ID,
+	title: nls.localize('compareWithChosen', "Compare with Chosen")
+};
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: '3_compare',
 	order: 20,
-	command: {
-		id: COMPARE_RESOURCE_COMMAND_ID,
-		title: nls.localize('compareWithChosen', "Compare with Chosen")
-	},
+	command: compareResourceCommand,
 	when: ContextKeyExpr.and(EditorWithResourceFocusedInOpenEditorsContext, )
 });
 
+const selectForCompareCommand = {
+	id: SELECT_FOR_COMPARE_COMMAND_ID,
+	title: nls.localize('compareSource', "Select for Compare")
+};
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: '3_compare',
 	order: 30,
-	command: {
-		id: SELECT_FOR_COMPARE_COMMAND_ID,
-		title: nls.localize('compareSource', "Select for Compare")
-	},
+	command: selectForCompareCommand,
 	when: EditorWithResourceFocusedInOpenEditorsContext
 });
 
@@ -726,6 +704,13 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	group: '1_files',
+	order: 10,
+	command: openToSideCommand,
+	when: ContextKeyExpr.and(ResourceContextKey.Scheme.isEqualTo('file'), ExplorerFolderContext.toNegated())
+});
+
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+	group: '1_files',
 	order: 20,
 	command: revealInOsCommand,
 	when: ResourceContextKey.Scheme.isEqualTo('file')
@@ -734,9 +719,20 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	group: '1_files',
 	order: 40,
-	command: {
-		id: COPY_PATH_COMMAND_ID,
-		title: nls.localize('copyPath', "Copy Path")
-	},
+	command: copyPathCommand,
 	when: ResourceContextKey.Scheme.isEqualTo('file')
+});
+
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+	group: '3_compare',
+	order: 20,
+	command: compareResourceCommand,
+	when: ContextKeyExpr.and(ExplorerFolderContext.toNegated(), ResourceContextKey.Scheme.isEqualTo('file'))
+});
+
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+	group: '3_compare',
+	order: 30,
+	command: selectForCompareCommand,
+	when: ContextKeyExpr.and(ExplorerFolderContext.toNegated(), ResourceContextKey.Scheme.isEqualTo('file'))
 });
