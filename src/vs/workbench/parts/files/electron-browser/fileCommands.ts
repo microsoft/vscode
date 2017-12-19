@@ -41,7 +41,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
-import { CLOSE_UNMODIFIED_EDITORS_COMMAND_ID, CLOSE_UNMODIFIED_EDITORS_LABEL, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_LABEL, CLOSE_EDITOR_COMMAND_ID, CLOSE_EDITOR_LABEL, CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_OTHER_EDITORS_IN_GROUP_LABEL } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { CLOSE_UNMODIFIED_EDITORS_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 
 // Commands
 
@@ -762,7 +762,7 @@ function registerMenuItems(): void {
 		order: 10,
 		command: {
 			id: CLOSE_EDITOR_COMMAND_ID,
-			title: CLOSE_EDITOR_LABEL
+			title: nls.localize('close', "Close")
 		},
 		when: EditorFocusedInOpenEditorsContext
 	});
@@ -772,7 +772,7 @@ function registerMenuItems(): void {
 		order: 20,
 		command: {
 			id: CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID,
-			title: CLOSE_OTHER_EDITORS_IN_GROUP_LABEL
+			title: nls.localize('closeOthers', "Close Others")
 		},
 		when: EditorFocusedInOpenEditorsContext
 	});
@@ -782,7 +782,7 @@ function registerMenuItems(): void {
 		order: 30,
 		command: {
 			id: CLOSE_UNMODIFIED_EDITORS_COMMAND_ID,
-			title: CLOSE_UNMODIFIED_EDITORS_LABEL
+			title: nls.localize('closeUnmodified', "Close Unmodified")
 		}
 	});
 
@@ -791,7 +791,7 @@ function registerMenuItems(): void {
 		order: 40,
 		command: {
 			id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
-			title: CLOSE_EDITORS_IN_GROUP_LABEL
+			title: nls.localize('closeAll', "Close All")
 		}
 	});
 }

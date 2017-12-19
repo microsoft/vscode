@@ -30,6 +30,7 @@ import { WinTerminalService, MacTerminalService, LinuxTerminalService } from 'vs
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { EditorWithResourceFocusedInOpenEditorsContext } from 'vs/workbench/parts/files/electron-browser/fileCommands';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 if (env.isWindows) {
 	registerSingleton(ITerminalService, WinTerminalService);
@@ -129,7 +130,7 @@ class OpenIntegratedTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		return this.commandService.executeCommand(OPEN_INTEGRATED_TERMINAL_COMMAND_ID, this.resource);
+		return this.commandService.executeCommand(OPEN_CONSOLE_COMMAND_ID, this.resource);
 	}
 }
 
@@ -188,7 +189,6 @@ Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).registe
 	env.isWindows ? 'Open New Command Prompt' : 'Open New Terminal'
 );
 
-const OPEN_INTEGRATED_TERMINAL_COMMAND_ID = 'workbench.command.terminal.openFolderInIntegratedTerminal';
 const OPEN_CONSOLE_COMMAND_ID = 'workbench.command.terminal.openNativeConsole';
 
 function getPathToOpen(resource: uri, historyService: IHistoryService, editorService: IWorkbenchEditorService): string {
@@ -210,27 +210,22 @@ function getPathToOpen(resource: uri, historyService: IHistoryService, editorSer
 }
 
 CommandsRegistry.registerCommand({
-	id: OPEN_INTEGRATED_TERMINAL_COMMAND_ID,
-	handler: (accessor, args: IEditorContext) => {
-		const integratedTerminalService = accessor.get(IIntegratedTerminalService);
-		let pathToOpen = getPathToOpen(args.resource, accessor.get(IHistoryService), accessor.get(IWorkbenchEditorService));
-
-		const instance = integratedTerminalService.createInstance({ cwd: pathToOpen }, true);
-		if (instance) {
-			integratedTerminalService.setActiveInstance(instance);
-			integratedTerminalService.showPanel(true);
-		}
-
-		return TPromise.as(null);
-	}
-});
-
-CommandsRegistry.registerCommand({
 	id: OPEN_CONSOLE_COMMAND_ID,
 	handler: (accessor, args: IEditorContext) => {
-		const terminalService = accessor.get(ITerminalService);
-		let pathToOpen = getPathToOpen(args.resource, accessor.get(IHistoryService), accessor.get(IWorkbenchEditorService));
-		terminalService.openTerminal(pathToOpen);
+		const configurationService = accessor.get(IConfigurationService);
+		const pathToOpen = getPathToOpen(args.resource, accessor.get(IHistoryService), accessor.get(IWorkbenchEditorService));
+		if (configurationService.getValue<ITerminalConfiguration>().terminal.explorerKind === 'integrated') {
+			const integratedTerminalService = accessor.get(IIntegratedTerminalService);
+
+			const instance = integratedTerminalService.createInstance({ cwd: pathToOpen }, true);
+			if (instance) {
+				integratedTerminalService.setActiveInstance(instance);
+				integratedTerminalService.showPanel(true);
+			}
+		} else {
+			const terminalService = accessor.get(ITerminalService);
+			terminalService.openTerminal(pathToOpen);
+		}
 
 		return TPromise.as(null);
 	}
@@ -244,15 +239,5 @@ MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 		title: env.isWindows ? nls.localize('scopedConsoleActionWin', "Open in Command Prompt") :
 			nls.localize('scopedConsoleActionMacLinux', "Open in Terminal")
 	},
-	when: EditorWithResourceFocusedInOpenEditorsContext
-});
-
-MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-	group: '1_files',
-	order: 30,
-	command: {
-		id: OPEN_INTEGRATED_TERMINAL_COMMAND_ID,
-		title: nls.localize('openFolderInIntegratedTerminal', "Open in Terminal")
-	},
-	when: EditorWithResourceFocusedInOpenEditorsContext
+	when: ContextKeyExpr.and(EditorWithResourceFocusedInOpenEditorsContext)
 });
