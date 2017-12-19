@@ -19,8 +19,8 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/electron-browser/explorerViewlet';
-import { VIEWLET_ID, explorerItemToFileResource } from 'vs/workbench/parts/files/common/files';
-import { FileStat, OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
+import { VIEWLET_ID, ExplorerFocusCondition } from 'vs/workbench/parts/files/common/files';
+import { FileStat } from 'vs/workbench/parts/files/common/explorerModel';
 import errors = require('vs/base/common/errors');
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -31,7 +31,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { basename } from 'vs/base/common/paths';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -42,18 +42,20 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { CLOSE_UNMODIFIED_EDITORS_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 
 // Commands
 
-export const REVEAL_IN_OS_COMMAND_ID = 'workbench.command.files.revealInOS';
+export const REVEAL_IN_OS_COMMAND_ID = 'revealFileInOS';
 export const REVEAL_IN_EXPLORER_COMMAND_ID = 'workbench.command.files.revealInExplorer';
 export const REVERT_FILE_COMMAND_ID = 'workbench.command.files.revert';
-export const OPEN_TO_SIDE_COMMAND_ID = 'workbench.command.openToSide';
+export const OPEN_TO_SIDE_COMMAND_ID = 'explorer.openToSide';
 export const SELECT_FOR_COMPARE_COMMAND_ID = 'workbench.files.command.selectForCompare';
 export const COMPARE_RESOURCE_COMMAND_ID = 'workbench.files.command.compareFiles';
 export const COMPARE_WITH_SAVED_COMMAND_ID = 'workbench.files.command.compareWithSaved';
 export const COMPARE_WITH_SAVED_SCHEMA = 'showModifications';
-export const COPY_PATH_COMMAND_ID = 'workbench.command.files.copyPath';
+export const COPY_PATH_COMMAND_ID = 'copyFilePath';
 
 export const SAVE_FILE_AS_COMMAND_ID = 'workbench.command.files.saveAs';
 export const SAVE_FILE_AS_LABEL = nls.localize('saveAs', "Save As...");
@@ -82,34 +84,6 @@ export const openWindowCommand = (accessor: ServicesAccessor, paths: string[], f
 	const windowsService = accessor.get(IWindowsService);
 	windowsService.openWindow(paths, { forceNewWindow });
 };
-
-function openFocusedFilesExplorerViewItem(accessor: ServicesAccessor, sideBySide: boolean): void {
-	withFocusedFilesExplorerViewItem(accessor).then(res => {
-		if (res) {
-
-			// Directory: Toggle expansion
-			if (res.item.isDirectory) {
-				res.tree.toggleExpansion(res.item);
-			}
-
-			// File: Open
-			else {
-				const editorService = accessor.get(IWorkbenchEditorService);
-				editorService.openEditor({ resource: res.item.resource }, sideBySide).done(null, errors.onUnexpectedError);
-			}
-		}
-	});
-}
-
-function openFocusedOpenedEditorsViewItem(accessor: ServicesAccessor, sideBySide: boolean): void {
-	withFocusedOpenEditorsViewItem(accessor).then(res => {
-		if (res) {
-			const editorService = accessor.get(IWorkbenchEditorService);
-
-			editorService.openEditor(res.item.editorInput, null, sideBySide);
-		}
-	});
-}
 
 function runActionOnFocusedFilesExplorerViewItem(accessor: ServicesAccessor, id: string, context?: any): void {
 	withFocusedFilesExplorerViewItem(accessor).then(res => {
@@ -162,41 +136,6 @@ export function withFocusedFilesExplorer(accessor: ServicesAccessor): TPromise<{
 	});
 }
 
-function withFocusedOpenEditorsViewItem(accessor: ServicesAccessor): TPromise<{ explorer: ExplorerViewlet, item: OpenEditor }> {
-	return withVisibleExplorer(accessor).then(explorer => {
-		if (!explorer || !explorer.getOpenEditorsView() || !explorer.getOpenEditorsView().getList()) {
-			return void 0; // empty folder or hidden explorer
-		}
-
-		const list = explorer.getOpenEditorsView().getList();
-
-		// Ignore if in highlight mode or not focused
-		const focused = list.getFocusedElements();
-		const focus = focused.length ? focused[0] : undefined;
-		if (!list.isDOMFocused() || !(focus instanceof OpenEditor)) {
-			return void 0;
-		}
-
-		return { explorer, item: focus };
-	});
-}
-
-function withFocusedExplorerItem(accessor: ServicesAccessor): TPromise<FileStat | OpenEditor> {
-	return withFocusedFilesExplorerViewItem(accessor).then(res => {
-		if (res) {
-			return res.item;
-		}
-
-		return withFocusedOpenEditorsViewItem(accessor).then(res => {
-			if (res) {
-				return res.item as FileStat | OpenEditor;
-			}
-
-			return void 0;
-		});
-	});
-}
-
 export const renameFocusedFilesExplorerViewItemCommand = (accessor: ServicesAccessor) => {
 	runActionOnFocusedFilesExplorerViewItem(accessor, 'renameFile');
 };
@@ -213,39 +152,6 @@ export const copyFocusedFilesExplorerViewItem = (accessor: ServicesAccessor) => 
 	runActionOnFocusedFilesExplorerViewItem(accessor, 'filesExplorer.copy');
 };
 
-export const copyPathOfFocusedExplorerItem = (accessor: ServicesAccessor) => {
-	withFocusedExplorerItem(accessor).then(item => {
-		const file = explorerItemToFileResource(item);
-		if (!file) {
-			return TPromise.as(undefined);
-		}
-
-		const commandService = accessor.get(ICommandService);
-		return commandService.executeCommand(COPY_PATH_COMMAND_ID, { resource: file.resource });
-	});
-};
-
-export const openFocusedExplorerItemSideBySideCommand = (accessor: ServicesAccessor) => {
-	withFocusedExplorerItem(accessor).then(item => {
-		if (item instanceof FileStat) {
-			openFocusedFilesExplorerViewItem(accessor, true);
-		} else {
-			openFocusedOpenedEditorsViewItem(accessor, true);
-		}
-	});
-};
-
-export const revealInOSFocusedFilesExplorerItem = (accessor: ServicesAccessor) => {
-	withFocusedExplorerItem(accessor).then(item => {
-		const file = explorerItemToFileResource(item);
-		if (!file) {
-			return TPromise.as(undefined);
-		}
-
-		const commandService = accessor.get(ICommandService);
-		return commandService.executeCommand(REVEAL_IN_OS_COMMAND_ID, { resource: file.resource });
-	});
-};
 
 export function computeLabelForCompare(resource: URI, contextService: IWorkspaceContextService, environmentService: IEnvironmentService): string {
 	if (globalResourceToCompare) {
@@ -461,7 +367,13 @@ function registerFileCommands(): void {
 		}
 	});
 
-	CommandsRegistry.registerCommand({
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: ExplorerFocusCondition,
+		primary: KeyMod.CtrlCmd | KeyCode.Enter,
+		mac: {
+			primary: KeyMod.WinCtrl | KeyCode.Enter
+		},
 		id: OPEN_TO_SIDE_COMMAND_ID, handler: (accessor, args) => {
 			const editorService = accessor.get(IWorkbenchEditorService);
 			const listService = accessor.get(IListService);
@@ -536,8 +448,14 @@ function registerFileCommands(): void {
 		}
 	});
 
-	CommandsRegistry.registerCommand({
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: REVEAL_IN_OS_COMMAND_ID,
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: ExplorerFocusCondition,
+		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R,
+		win: {
+			primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_R
+		},
 		handler: (accessor, args: IEditorContext) => {
 			// Without resource, try to look at the active editor
 			let resource = args.resource;
@@ -556,7 +474,13 @@ function registerFileCommands(): void {
 		}
 	});
 
-	CommandsRegistry.registerCommand({
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		when: ExplorerFocusCondition,
+		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C,
+		win: {
+			primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_C
+		},
 		id: COPY_PATH_COMMAND_ID,
 		handler: (accessor, args: IEditorContext) => {
 			let resource = args.resource;
@@ -673,7 +597,7 @@ function registerMenuItems(): void {
 		group: '1_files',
 		order: 20,
 		command: {
-			id: REVEAL_IN_EXPLORER_COMMAND_ID,
+			id: REVEAL_IN_OS_COMMAND_ID,
 			title: isWindows ? nls.localize('revealInWindows', "Reveal in Explorer") : isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder")
 		},
 		when: EditorWithResourceFocusedInOpenEditorsContext

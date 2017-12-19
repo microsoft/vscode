@@ -18,11 +18,11 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { FileStat, Model } from 'vs/workbench/parts/files/common/explorerModel';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { AddRootFolderAction, RemoveRootFolderAction, OpenFolderSettingsAction } from 'vs/workbench/browser/actions/workspaceActions';
-import { copyFocusedFilesExplorerViewItem, revealInOSFocusedFilesExplorerItem, openFocusedExplorerItemSideBySideCommand, copyPathOfFocusedExplorerItem, openWindowCommand, deleteFocusedFilesExplorerViewItemCommand, moveFocusedFilesExplorerViewItemToTrashCommand, renameFocusedFilesExplorerViewItemCommand, REVEAL_IN_OS_COMMAND_ID, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID } from 'vs/workbench/parts/files/electron-browser/fileCommands';
+import { copyFocusedFilesExplorerViewItem, openWindowCommand, deleteFocusedFilesExplorerViewItemCommand, moveFocusedFilesExplorerViewItemToTrashCommand, renameFocusedFilesExplorerViewItemCommand, REVEAL_IN_OS_COMMAND_ID, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { explorerItemToFileResource, ExplorerFocusCondition, FilesExplorerFocusCondition } from 'vs/workbench/parts/files/common/files';
+import { explorerItemToFileResource, FilesExplorerFocusCondition } from 'vs/workbench/parts/files/common/files';
 
 class FilesViewerActionContributor extends ActionBarContributor {
 
@@ -214,17 +214,6 @@ CommandsRegistry.registerCommand('_files.windowOpen', openWindowCommand);
 const explorerCommandsWeightBonus = 10; // give our commands a little bit more weight over other default list/tree commands
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'explorer.openToSide',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(explorerCommandsWeightBonus),
-	when: ExplorerFocusCondition,
-	primary: KeyMod.CtrlCmd | KeyCode.Enter,
-	mac: {
-		primary: KeyMod.WinCtrl | KeyCode.Enter
-	},
-	handler: openFocusedExplorerItemSideBySideCommand
-});
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'renameFile',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(explorerCommandsWeightBonus),
 	when: FilesExplorerFocusCondition,
@@ -271,28 +260,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: FilesExplorerFocusCondition,
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
 	handler: pasteIntoFocusedFilesExplorerViewItem
-});
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'copyFilePath',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(explorerCommandsWeightBonus),
-	when: ExplorerFocusCondition,
-	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C,
-	win: {
-		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_C
-	},
-	handler: copyPathOfFocusedExplorerItem
-});
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: 'revealFileInOS',
-	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(explorerCommandsWeightBonus),
-	when: ExplorerFocusCondition,
-	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R,
-	win: {
-		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_R
-	},
-	handler: revealInOSFocusedFilesExplorerItem
 });
 
 // Editor Title Context Menu
