@@ -42,7 +42,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { withFocusedFilesExplorer, REVERT_FILE_COMMAND_ID, OPEN_TO_SIDE_COMMAND_ID, COMPARE_WITH_SAVED_SCHEMA, COMPARE_WITH_SAVED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, globalResourceToCompare, REVEAL_IN_OS_COMMAND_ID, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, computeLabelForCompare, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL, SAVE_FILE_AS_LABEL, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID, SAVE_FILES_COMMAND_ID, SAVE_FILES_LABEL } from 'vs/workbench/parts/files/electron-browser/fileCommands';
+import { withFocusedFilesExplorer, REVERT_FILE_COMMAND_ID, OPEN_TO_SIDE_COMMAND_ID, COMPARE_WITH_SAVED_SCHEMA, COMPARE_WITH_SAVED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, globalResourceToCompare, REVEAL_IN_OS_COMMAND_ID, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, computeLabelForCompare, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL, SAVE_FILE_AS_LABEL, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID, SAVE_FILES_COMMAND_ID, SAVE_FILES_LABEL } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -1381,7 +1381,7 @@ export class SaveAllAction extends BaseSaveAllAction {
 export class SaveAllInGroupAction extends BaseSaveAllAction {
 
 	public static readonly ID = 'workbench.files.action.saveAllInGroup';
-	public static readonly LABEL = SAVE_ALL_IN_GROUP_LABEL;
+	public static readonly LABEL = nls.localize('saveAllInGroup', "Save All in Group");
 
 	public get class(): string {
 		return 'explorer-action save-all';

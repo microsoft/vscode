@@ -43,7 +43,7 @@ import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { CLOSE_UNMODIFIED_EDITORS_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 
 // Commands
 
@@ -53,20 +53,19 @@ export const REVERT_FILE_COMMAND_ID = 'workbench.command.files.revert';
 export const OPEN_TO_SIDE_COMMAND_ID = 'explorer.openToSide';
 export const SELECT_FOR_COMPARE_COMMAND_ID = 'workbench.files.command.selectForCompare';
 export const COMPARE_RESOURCE_COMMAND_ID = 'workbench.files.command.compareFiles';
-export const COMPARE_WITH_SAVED_COMMAND_ID = 'workbench.files.command.compareWithSaved';
+export const COMPARE_WITH_SAVED_COMMAND_ID = 'workbench.files.action.compareWithSaved';
 export const COMPARE_WITH_SAVED_SCHEMA = 'showModifications';
 export const COPY_PATH_COMMAND_ID = 'copyFilePath';
 
 export const SAVE_FILE_AS_COMMAND_ID = 'workbench.command.files.saveAs';
 export const SAVE_FILE_AS_LABEL = nls.localize('saveAs', "Save As...");
-export const SAVE_FILE_COMMAND_ID = 'workbench.command.files.save';
+export const SAVE_FILE_COMMAND_ID = 'workbench.action.files.save';
 export const SAVE_FILE_LABEL = nls.localize('save', "Save");
 
 export const SAVE_ALL_COMMAND_ID = 'workbench.command.files.saveAll';
 export const SAVE_ALL_LABEL = nls.localize('saveAll', "Save All");
 
-export const SAVE_ALL_IN_GROUP_COMMAND_ID = 'workbench.command.files.saveAllInGroup';
-export const SAVE_ALL_IN_GROUP_LABEL = nls.localize('saveAllInGroup', "Save All in Group");
+export const SAVE_ALL_IN_GROUP_COMMAND_ID = 'workbench.action.files.saveAllInGroup';
 
 export const SAVE_FILES_COMMAND_ID = 'workbench.command.files.saveFiles';
 export const SAVE_FILES_LABEL = nls.localize('saveFiles', "Save All Files");
@@ -393,8 +392,11 @@ function registerFileCommands(): void {
 		}
 	});
 
-	CommandsRegistry.registerCommand({
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: COMPARE_WITH_SAVED_COMMAND_ID,
+		when: undefined,
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_D),
 		handler: (accessor, args: IEditorContext) => {
 			const editorService = accessor.get(IWorkbenchEditorService);
 			let resource: URI;
@@ -537,7 +539,10 @@ function registerFileCommands(): void {
 		}
 	});
 
-	CommandsRegistry.registerCommand({
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		when: undefined,
+		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+		primary: KeyMod.CtrlCmd | KeyCode.KEY_S,
 		id: SAVE_FILE_COMMAND_ID,
 		handler: (accessor, args: IEditorContext) => {
 			return save(args.resource, false, accessor.get(IWorkbenchEditorService), accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService));
@@ -646,7 +651,7 @@ function registerMenuItems(): void {
 		group: '2_save',
 		command: {
 			id: SAVE_ALL_IN_GROUP_COMMAND_ID,
-			title: SAVE_ALL_IN_GROUP_LABEL
+			title: nls.localize('saveAll', "Save All")
 		},
 		when: ContextKeyExpr.and(GroupFocusedInOpenEditorsContext, AutoSaveNotAfterDelayContext)
 	});
