@@ -33,6 +33,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { RotatingLogger } from 'spdlog';
 import { toLocalISOString } from 'vs/base/common/date';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
@@ -286,6 +287,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 
 	private channels: Map<string, OutputChannel> = new Map<string, OutputChannel>();
 	private activeChannelId: string;
+	private readonly windowSession: string;
 
 	private _onActiveOutputChannel: Emitter<string> = new Emitter<string>();
 	readonly onActiveOutputChannel: Event<string> = this._onActiveOutputChannel.event;
@@ -299,7 +301,8 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IWindowService private windowService: IWindowService,
 	) {
 		super();
 		const channels = this.getChannels();
@@ -313,6 +316,8 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		this.onDidPanelOpen(this.panelService.getActivePanel());
 		panelService.onDidPanelOpen(this.onDidPanelOpen, this);
 		panelService.onDidPanelClose(this.onDidPanelClose, this);
+
+		this.windowSession = `${this.windowService.getCurrentWindowId()}_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`;
 	}
 
 	provideTextContent(resource: URI): TPromise<IModel> {
@@ -378,8 +383,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		if (channelData && channelData.file) {
 			return this.instantiationService.createInstance(FileOutputChannel, channelData);
 		}
-		const sessionId = toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '');
-		const file = URI.file(paths.join(this.environmentService.logsPath, 'outputs', `${id}.${sessionId}.log`));
+		const file = URI.file(paths.join(this.environmentService.logsPath, `outputs_${this.windowSession}`, `${id}.log`));
 		return this.instantiationService.createInstance(AppendableFileOutputChannel, { id, label: channelData ? channelData.label : '', file });
 	}
 
