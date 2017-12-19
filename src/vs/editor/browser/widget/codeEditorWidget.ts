@@ -392,6 +392,16 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		viewEventBus.onKeyDown = (e) => this._onKeyDown.fire(e);
 	}
 
+	public restoreViewState(s: editorCommon.ICodeEditorViewState): void {
+		super.restoreViewState(s);
+		if (!this.cursor || !this.hasView) {
+			return;
+		}
+		if (s && s.cursorState && s.viewState) {
+			this._view.restoreState(this.viewModel.viewLayout.reduceRestoreState(s.viewState));
+		}
+	}
+
 	protected _detachModel(): editorCommon.IModel {
 		let removeDomNode: HTMLElement = null;
 

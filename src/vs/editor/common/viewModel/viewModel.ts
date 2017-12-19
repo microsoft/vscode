@@ -63,7 +63,7 @@ export interface IViewLayout {
 	getWhitespaces(): IEditorWhitespace[];
 
 	saveState(): IViewState;
-	restoreState(state: IViewState): void;
+	reduceRestoreState(state: IViewState): { scrollLeft: number; scrollTop: number; };
 
 	isAfterLines(verticalOffset: number): boolean;
 	getLineNumberAtVerticalOffset(verticalOffset: number): number;
