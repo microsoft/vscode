@@ -12,6 +12,8 @@
 	background-size: 21px;
 	background-repeat: no-repeat;
 	background-position: 16px 7px;
+	z-index: 100;
+	pointer-events: none;
 }
 
 .monaco-shell-content {
@@ -42,11 +44,18 @@
 	font-weight: 200;
 	opacity: 0;
 	line-height: 1.4em;
+	color: #3a3a3a;
+	text-shadow: 2px 2px 4px rgb(138, 138, 138);
 	transform: translate(0,-40px);
 	transition-delay: 0.2s;
 	transition-duration: 0.8s;
 	transition-property: transform, opacity;
 	transition-timing-function: ease-out;
+}
+
+.monaco-shell.vs-dark .happy-holidays-text {
+	color: #fdfdfd;
+	text-shadow: 2px 2px 4px rgb(25, 25, 25);
 }
 
 .happy-holidays-text.animate {
