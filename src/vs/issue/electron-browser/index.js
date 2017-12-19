@@ -5,14 +5,27 @@
 
 const electron = require('electron');
 
+const state = {
+
+};
+
+const render = (state) => {
+
+};
+
+const rendererBlocks = (state) => {
+
+};
+
 let diagnosticInfo = { };
 
 electron.ipcRenderer.on('issueInfoResponse', (event, arg) => {
 	const { systemInfo, processInfo, workspaceInfo } = arg;
+	state.systemInfo = systemInfo;
+	state.processInfo = processInfo;
+	state.workspaceInfo = workspaceInfo;
 
-	document.querySelector('.block-system .block-info code').textContent = '\n' + systemInfo;
-	document.querySelector('.block-process .block-info code').textContent = '\n' + processInfo;
-	document.querySelector('.block-workspace .block-info code').textContent = '\n' + workspaceInfo;
+	updateAllBlocks(state);
 
 	diagnosticInfo = {
 		systemInfo,
@@ -59,4 +72,20 @@ ${reproSteps}
 `;
 
 	electron.shell.openExternal(baseUrl + encodeURIComponent(issueBody));
+};
+
+function updateAllBlocks(state) {
+	updateSystemInfo(state);
+	updateProcessInfo(state);
+	updateWorkspaceInfo(state);
+}
+
+const updateSystemInfo = (state) => {
+	document.querySelector('.block-system .block-info code').textContent = '\n' + state.systemInfo;
+};
+const updateProcessInfo = (state) => {
+	document.querySelector('.block-process .block-info code').textContent = '\n' + state.processInfo;
+};
+const updateWorkspaceInfo = (state) => {
+	document.querySelector('.block-workspace .block-info code').textContent = '\n' + state.workspaceInfo;
 };

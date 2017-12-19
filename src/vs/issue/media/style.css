@@ -1,0 +1,57 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+* {
+	box-sizing: border-box;
+	font-family: 'Helvetica Neue', 'Helvetica', sans-serif;
+}
+html {
+	padding: 40px 40px 80px 40px;
+}
+
+pre code {
+	font-family: 'Menlo', 'Courier New', 'Courier', monospace;
+	font-size: 14px;
+}
+
+#block-container {
+	margin-top: 20px;
+}
+
+.block {
+	margin-bottom: 20px;
+}
+.block summary {
+	font-size: 1.25rem;
+}
+
+#issue-reporter {
+	max-width: 80vw;
+	margin-left: auto;
+	margin-right: auto;
+}
+.block-info {
+	width: 100%;
+	overflow: auto;
+	overflow-wrap: break-word;
+}
+#github-submit-btn {
+	margin-top: 4rem;
+}
+
+button {
+	display: inline-block;
+	font-weight: 400;
+	line-height: 1.25;
+	text-align: center;
+	white-space: nowrap;
+	vertical-align: middle;
+	user-select: none;
+	border: 1px solid transparent;
+	padding: .5rem 1rem;
+	font-size: 1rem;
+	border-radius: .25rem;
+	transition: all .2s ease-in-out;
+}
