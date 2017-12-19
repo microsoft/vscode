@@ -20,7 +20,7 @@ import severity from 'vs/base/common/severity';
 import diagnostics = require('vs/base/common/diagnostics');
 import { Action, IAction } from 'vs/base/common/actions';
 import { MessageType, IInputValidator } from 'vs/base/browser/ui/inputbox/inputBox';
-import { ITree, IHighlightEvent, IActionProvider } from 'vs/base/parts/tree/browser/tree';
+import { ITree, IHighlightEvent } from 'vs/base/parts/tree/browser/tree';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID, FileOnDiskContentProvider } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -58,7 +58,6 @@ export interface IEditableData {
 }
 
 export interface IFileViewletState {
-	actionProvider: IActionProvider;
 	getEditableData(stat: IFileStat): IEditableData;
 	setEditable(stat: IFileStat, editableData: IEditableData): void;
 	clearEditable(stat: IFileStat): void;

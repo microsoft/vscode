@@ -671,7 +671,7 @@ function registerMenuItems(): void {
 		order: 20,
 		command: {
 			id: COMPARE_RESOURCE_COMMAND_ID,
-			title: nls.localize('compareWithChosen', "Compare With Chosen")
+			title: nls.localize('compareWithChosen', "Compare with Chosen")
 		},
 		when: ContextKeyExpr.and(EditorWithResourceFocusedInOpenEditorsContext, )
 	});
