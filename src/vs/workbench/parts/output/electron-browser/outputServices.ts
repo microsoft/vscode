@@ -38,6 +38,8 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ILogService } from 'vs/platform/log/common/log';
 import { binarySearch } from 'vs/base/common/arrays';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
 
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
@@ -68,8 +70,9 @@ function watchOutputDirectory(outputDir: string, logService: ILogService, onChan
 
 
 interface OutputChannel extends IOutputChannel {
-	readonly onDispose: Event<void>;
+	readonly file: URI;
 	loadModel(): TPromise<IModel>;
+	readonly onDispose: Event<void>;
 }
 
 abstract class AbstractFileOutputChannel extends Disposable {
@@ -81,7 +84,7 @@ abstract class AbstractFileOutputChannel extends Disposable {
 
 	protected modelUpdater: RunOnceScheduler;
 	protected model: IModel;
-	protected readonly file: URI;
+	readonly file: URI;
 	protected startOffset: number = 0;
 	protected endOffset: number = 0;
 
@@ -376,7 +379,8 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IWindowService windowService: IWindowService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@ILogService private logService: ILogService
+		@ILogService private logService: ILogService,
+		@IMessageService private messageService: IMessageService
 	) {
 		super();
 		const channels = this.getChannels();
@@ -418,7 +422,19 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	}
 
 	showChannelInEditor(channelId: string): TPromise<void> {
-		return this.editorService.openEditor(this.createInput(channelId)) as TPromise;
+		const channel = <OutputChannel>this.getChannel(channelId);
+		if (channel.file) {
+			return this.editorService.openEditor({ resource: channel.file })
+				.then(editor => {
+					const codeEditor = editor.getControl() as ICodeEditor;
+					codeEditor.updateOptions({
+						readOnly: true
+					});
+					codeEditor.revealLine(codeEditor.getModel().getLineCount() - 1);
+				});
+		}
+		this.messageService.show(Severity.Info, nls.localize('noFile', "There is no file associated to this channel"));
+		return TPromise.as(null);
 	}
 
 	getChannel(id: string): IOutputChannel {
@@ -513,6 +529,7 @@ class BufferredOutputChannel extends Disposable implements OutputChannel {
 
 	readonly id: string;
 	readonly label: string;
+	readonly file: URI = null;
 	scrollLock: boolean = false;
 
 	private _onDispose: Emitter<void> = new Emitter<void>();

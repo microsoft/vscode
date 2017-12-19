@@ -53,16 +53,16 @@ export class ClearOutputAction extends Action {
 	}
 }
 
-export class OpenInEditorAction extends Action {
+export class OpenFileAction extends Action {
 
-	public static readonly ID = 'workbench.output.action.openInEditor';
-	public static readonly LABEL = nls.localize('openInEditor', "Open in Editor");
+	public static readonly ID = 'workbench.output.action.openFile';
+	public static readonly LABEL = nls.localize('openFile', "Open File");
 
 	constructor(
 		id: string, label: string,
 		@IOutputService private outputService: IOutputService
 	) {
-		super(id, label, 'output-action open-output');
+		super(id, label, 'output-action open-file');
 	}
 
 	public run(): TPromise<any> {
