@@ -24,7 +24,7 @@ import { OutputLinkProvider } from 'vs/workbench/parts/output/common/outputLinkP
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { RunOnceScheduler, ThrottledDelayer } from 'vs/base/common/async';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
@@ -183,6 +183,7 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 	private outputWriter: RotatingLogger;
 	private appendedMessage = '';
 	private loadingFromFileInProgress: boolean = false;
+	private resettingDelayer: ThrottledDelayer<void>;
 
 	constructor(
 		outputChannelIdentifier: IOutputChannelIdentifier,
@@ -194,9 +195,12 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 	) {
 		super(outputChannelIdentifier, fileService, modelService, modeService, panelService);
 
-		this.outputWriter = new RotatingLogger(this.id, this.file.fsPath, 1024 * 1024 * 30, 1);
+		// Use one rotating file to check for main file reset
+		this.outputWriter = new RotatingLogger(this.id, this.file.fsPath, 1024 * 10, 1);
 		this.outputWriter.clearFormatters();
 		this._register(watchOutputDirectory(paths.dirname(this.file.fsPath), logService, (eventType, file) => this.onFileChangedInOutputDirector(eventType, file)));
+
+		this.resettingDelayer = new ThrottledDelayer<void>(50);
 	}
 
 	append(message: string): void {
@@ -253,8 +257,9 @@ class OutputChannelBackedByFile extends AbstractFileOutputChannel implements Out
 	}
 
 	private onFileChangedInOutputDirector(eventType: string, fileName: string): void {
-		if (paths.basename(this.file.fsPath) === fileName) {
-			this.resetModel();
+		// Check if rotating file has changed. It changes only when the main file exceeds its limit.
+		if (`${paths.basename(this.file.fsPath)}.1` === fileName) {
+			this.resettingDelayer.trigger(() => this.resetModel());
 		}
 	}
 }
