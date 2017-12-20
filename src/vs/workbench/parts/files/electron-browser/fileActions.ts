@@ -568,7 +568,7 @@ export abstract class BaseCreateAction extends BaseRenameAction {
 }
 
 /* Create New File (only used internally by explorerViewer) */
-export class CreateFileAction extends BaseCreateAction {
+class CreateFileAction extends BaseCreateAction {
 
 	public static readonly ID = 'workbench.files.action.createFileFromExplorer';
 	public static readonly LABEL = nls.localize('createNewFile', "New File");
@@ -596,7 +596,7 @@ export class CreateFileAction extends BaseCreateAction {
 }
 
 /* Create New Folder (only used internally by explorerViewer) */
-export class CreateFolderAction extends BaseCreateAction {
+class CreateFolderAction extends BaseCreateAction {
 
 	public static readonly ID = 'workbench.files.action.createFolderFromExplorer';
 	public static readonly LABEL = nls.localize('createNewFolder', "New Folder");

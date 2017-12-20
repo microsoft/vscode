@@ -18,30 +18,27 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/electron-browser/explorerViewlet';
-import { VIEWLET_ID, ExplorerFocusCondition, ExplorerFolderContext } from 'vs/workbench/parts/files/common/files';
+import { VIEWLET_ID, ExplorerFocusCondition } from 'vs/workbench/parts/files/common/files';
 import { FileStat } from 'vs/workbench/parts/files/common/explorerModel';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
-import { ITextFileService, AutoSaveNotAfterDelayContext } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { basename } from 'vs/base/common/paths';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { isWindows, isMacintosh } from 'vs/base/common/platform';
-import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
-import { CLOSE_UNMODIFIED_EDITORS_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
-import { ResourceContextKey } from 'vs/workbench/common/resources';
 
 // Commands
 
@@ -546,184 +543,4 @@ CommandsRegistry.registerCommand({
 	handler: (accessor) => {
 		return saveAll(false, accessor.get(IWorkbenchEditorService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService));
 	}
-});
-
-// Menu registration - open editors
-
-const openToSideCommand = {
-	id: OPEN_TO_SIDE_COMMAND_ID,
-	title: nls.localize('openToSide', "Open to the Side")
-};
-MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-	group: '1_files',
-	order: 10,
-	command: openToSideCommand,
-	when: EditorWithResourceFocusedInOpenEditorsContext
-});
-
-const revealInOsCommand = {
-	id: REVEAL_IN_OS_COMMAND_ID,
-	title: isWindows ? nls.localize('revealInWindows', "Reveal in Explorer") : isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder")
-};
-MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-	group: '1_files',
-	order: 20,
-	command: revealInOsCommand,
-	when: EditorWithResourceFocusedInOpenEditorsContext
-});
-
-const copyPathCommand = {
-	id: COPY_PATH_COMMAND_ID,
-	title: nls.localize('copyPath', "Copy Path")
-};
-MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-	group: '1_files',
-	order: 40,
-	command: copyPathCommand,
-	when: EditorWithResourceFocusedInOpenEditorsContext
-});
-
-MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-	group: '2_save',
-	order: 10,
-	command: {
-		id: SAVE_FILE_COMMAND_ID,
-		title: SAVE_FILE_LABEL
-	},
-	when: ContextKeyExpr.and(EditorWithResourceFocusedInOpenEditorsContext, AutoSaveNotAfterDelayContext)
-});
-
-MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-	group: '2_save',
-	order: 20,
-	command: {
-		id: REVERT_FILE_COMMAND_ID,
-		title: nls.localize('revert', "Revert File")
-	},
-	when: ContextKeyExpr.and(EditorWithResourceFocusedInOpenEditorsContext, AutoSaveNotAfterDelayContext, UntitledEditorFocusedInOpenEditorsContext.toNegated())
-});
-
-MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-	group: '2_save',
-	command: {
-		id: SAVE_FILE_AS_COMMAND_ID,
-		title: SAVE_FILE_AS_LABEL
-	},
-	when: ContextKeyExpr.and(EditorWithResourceFocusedInOpenEditorsContext, UntitledEditorFocusedInOpenEditorsContext)
-});
-
-MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-	group: '2_save',
-	command: {
-		id: SAVE_ALL_IN_GROUP_COMMAND_ID,
-		title: nls.localize('saveAll', "Save All")
-	},
-	when: ContextKeyExpr.and(GroupFocusedInOpenEditorsContext, AutoSaveNotAfterDelayContext)
-});
-
-MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-	group: '3_compare',
-	order: 10,
-	command: {
-		id: COMPARE_WITH_SAVED_COMMAND_ID,
-		title: nls.localize('compareWithSaved', "Compare with Saved")
-	},
-	when: ContextKeyExpr.and(EditorWithResourceFocusedInOpenEditorsContext, UntitledEditorFocusedInOpenEditorsContext.toNegated())
-});
-
-const compareResourceCommand = {
-	id: COMPARE_RESOURCE_COMMAND_ID,
-	title: nls.localize('compareWithChosen', "Compare with Chosen")
-};
-MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-	group: '3_compare',
-	order: 20,
-	command: compareResourceCommand,
-	when: ContextKeyExpr.and(EditorWithResourceFocusedInOpenEditorsContext, )
-});
-
-const selectForCompareCommand = {
-	id: SELECT_FOR_COMPARE_COMMAND_ID,
-	title: nls.localize('compareSource', "Select for Compare")
-};
-MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-	group: '3_compare',
-	order: 30,
-	command: selectForCompareCommand,
-	when: EditorWithResourceFocusedInOpenEditorsContext
-});
-
-MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-	group: '4_close',
-	order: 10,
-	command: {
-		id: CLOSE_EDITOR_COMMAND_ID,
-		title: nls.localize('close', "Close")
-	},
-	when: EditorFocusedInOpenEditorsContext
-});
-
-MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-	group: '4_close',
-	order: 20,
-	command: {
-		id: CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID,
-		title: nls.localize('closeOthers', "Close Others")
-	},
-	when: EditorFocusedInOpenEditorsContext
-});
-
-MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-	group: '4_close',
-	order: 30,
-	command: {
-		id: CLOSE_UNMODIFIED_EDITORS_COMMAND_ID,
-		title: nls.localize('closeUnmodified', "Close Unmodified")
-	}
-});
-
-MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
-	group: '4_close',
-	order: 40,
-	command: {
-		id: CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
-		title: nls.localize('closeAll', "Close All")
-	}
-});
-
-// Menu registration - explorer
-
-MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '1_files',
-	order: 10,
-	command: openToSideCommand,
-	when: ContextKeyExpr.and(ResourceContextKey.Scheme.isEqualTo('file'), ExplorerFolderContext.toNegated())
-});
-
-MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '1_files',
-	order: 20,
-	command: revealInOsCommand,
-	when: ResourceContextKey.Scheme.isEqualTo('file')
-});
-
-MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '1_files',
-	order: 40,
-	command: copyPathCommand,
-	when: ResourceContextKey.Scheme.isEqualTo('file')
-});
-
-MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '3_compare',
-	order: 20,
-	command: compareResourceCommand,
-	when: ContextKeyExpr.and(ExplorerFolderContext.toNegated(), ResourceContextKey.Scheme.isEqualTo('file'))
-});
-
-MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '3_compare',
-	order: 30,
-	command: selectForCompareCommand,
-	when: ContextKeyExpr.and(ExplorerFolderContext.toNegated(), ResourceContextKey.Scheme.isEqualTo('file'))
 });
