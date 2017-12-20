@@ -12,7 +12,7 @@ import * as os from 'os';
 import { TPromise } from 'vs/base/common/winjs.base';
 import uuid = require('vs/base/common/uuid');
 import { mkdirp } from 'vs/base/node/pfs';
-import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, IGalleryExtensionAssets, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionTipsService } from 'vs/workbench/parts/extensions/electron-browser/extensionTipsService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/node/extensionGalleryService';
@@ -32,26 +32,111 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/workbench/services/files/node/fileService';
 import extfs = require('vs/base/node/extfs');
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IPager } from 'vs/base/common/paging';
+import { assign } from 'vs/base/common/objects';
+import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { generateUuid } from 'vs/base/common/uuid';
 
-const expectedWorkspaceRecommendations = [
-	'eg2.tslint',
-	'dbaeumer.vscode-eslint',
-	'msjsdiag.debugger-for-chrome'
+const mockExtensionGallery: IGalleryExtension[] = [
+	aGalleryExtension('MockExtension1', {
+		displayName: 'Mock Extension 1',
+		version: '1.5',
+		publisherId: 'mockPublisher1Id',
+		publisher: 'mockPublisher1',
+		publisherDisplayName: 'Mock Publisher 1',
+		description: 'Mock Description',
+		installCount: 1000,
+		rating: 4,
+		ratingCount: 100
+	}, {
+			dependencies: ['pub.1'],
+		}, {
+			manifest: { uri: 'uri:manifest', fallbackUri: 'fallback:manifest' },
+			readme: { uri: 'uri:readme', fallbackUri: 'fallback:readme' },
+			changelog: { uri: 'uri:changelog', fallbackUri: 'fallback:changlog' },
+			download: { uri: 'uri:download', fallbackUri: 'fallback:download' },
+			icon: { uri: 'uri:icon', fallbackUri: 'fallback:icon' },
+			license: { uri: 'uri:license', fallbackUri: 'fallback:license' },
+			repository: { uri: 'uri:repository', fallbackUri: 'fallback:repository' },
+		}),
+	aGalleryExtension('MockExtension2', {
+		displayName: 'Mock Extension 2',
+		version: '1.5',
+		publisherId: 'mockPublisher2Id',
+		publisher: 'mockPublisher2',
+		publisherDisplayName: 'Mock Publisher 2',
+		description: 'Mock Description',
+		installCount: 1000,
+		rating: 4,
+		ratingCount: 100
+	}, {
+			dependencies: ['pub.1', 'pub.2'],
+		}, {
+			manifest: { uri: 'uri:manifest', fallbackUri: 'fallback:manifest' },
+			readme: { uri: 'uri:readme', fallbackUri: 'fallback:readme' },
+			changelog: { uri: 'uri:changelog', fallbackUri: 'fallback:changlog' },
+			download: { uri: 'uri:download', fallbackUri: 'fallback:download' },
+			icon: { uri: 'uri:icon', fallbackUri: 'fallback:icon' },
+			license: { uri: 'uri:license', fallbackUri: 'fallback:license' },
+			repository: { uri: 'uri:repository', fallbackUri: 'fallback:repository' },
+		})
 ];
 
-function setUpFolderWorkspace(folderName: string): TPromise<{ parentDir: string, folderDir: string }> {
-	const id = uuid.generateUuid();
-	const parentDir = path.join(os.tmpdir(), 'vsctests', id);
-	return setUpFolder(folderName, parentDir).then(folderDir => ({ parentDir, folderDir }));
+const mockTestFull = {
+	recommendedExtensions: [
+		'mockPublisher1.mockExtension1',
+		'MOCKPUBLISHER2.mockextension2',
+		'badlyformattedextension',
+		'MOCKPUBLISHER2.mockextension2',
+		'unknown.extension'
+	],
+	validRecommendedExtensions: [
+		'mockPublisher1.mockExtension1',
+		'MOCKPUBLISHER2.mockextension2'
+	]
+};
+
+const mockTestEmpty = {
+	recommendedExtensions: [],
+	validRecommendedExtensions: []
+};
+
+function aPage<T>(...objects: T[]): IPager<T> {
+	return { firstPage: objects, total: objects.length, pageSize: objects.length, getPage: () => null };
 }
 
-function setUpFolder(folderName: string, parentDir: string): TPromise<string> {
+const noAssets: IGalleryExtensionAssets = {
+	changelog: null,
+	download: null,
+	icon: null,
+	license: null,
+	manifest: null,
+	readme: null,
+	repository: null
+};
+
+function aGalleryExtension(name: string, properties: any = {}, galleryExtensionProperties: any = {}, assets: IGalleryExtensionAssets = noAssets): IGalleryExtension {
+	const galleryExtension = <IGalleryExtension>Object.create({});
+	assign(galleryExtension, { name, publisher: 'pub', version: '1.0.0', properties: {}, assets: {} }, properties);
+	assign(galleryExtension.properties, { dependencies: [] }, galleryExtensionProperties);
+	assign(galleryExtension.assets, assets);
+	galleryExtension.identifier = { id: getGalleryExtensionId(galleryExtension.publisher, galleryExtension.name), uuid: generateUuid() };
+	return <IGalleryExtension>galleryExtension;
+}
+
+function setUpFolderWorkspace(folderName: string, recommendedExtensions: string[]): TPromise<{ parentDir: string, folderDir: string }> {
+	const id = uuid.generateUuid();
+	const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+	return setUpFolder(folderName, parentDir, recommendedExtensions).then(folderDir => ({ parentDir, folderDir }));
+}
+
+function setUpFolder(folderName: string, parentDir: string, recommendedExtensions: string[]): TPromise<string> {
 	const folderDir = path.join(parentDir, folderName);
 	const workspaceSettingsDir = path.join(folderDir, '.vscode');
 	return mkdirp(workspaceSettingsDir, 493).then(() => {
 		const configPath = path.join(workspaceSettingsDir, 'extensions.json');
 		fs.writeFileSync(configPath, JSON.stringify({
-			'recommendations': expectedWorkspaceRecommendations
+			'recommendations': recommendedExtensions
 		}, null, '\t'));
 		return folderDir;
 	});
@@ -98,16 +183,7 @@ suite('ExtensionsTipsService Test', () => {
 	});
 
 	setup(() => {
-		return setUpFolderWorkspace('myFolder').then(({ parentDir, folderDir }) => {
-			parentResource = parentDir;
-			const myWorkspace = testWorkspace(URI.from({ scheme: 'file', path: folderDir }));
-			workspaceService = new TestContextService(myWorkspace);
-			instantiationService.stub(IWorkspaceContextService, workspaceService);
-			instantiationService.stub(IFileService, new FileService(workspaceService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), { disableWatcher: true }));
-
-			testObject = instantiationService.createInstance(ExtensionTipsService);
-
-		});
+		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage<IGalleryExtension>(...mockExtensionGallery));
 	});
 
 	teardown((done) => {
@@ -118,10 +194,32 @@ suite('ExtensionsTipsService Test', () => {
 		}
 	});
 
-	test('test workspace folder recommendations', () => {
-		return testObject.getWorkspaceRecommendations().then(recommendations => {
-			assert.equal(recommendations.length, expectedWorkspaceRecommendations.length);
-			recommendations.forEach(x => assert.equal(expectedWorkspaceRecommendations.indexOf(x) > -1, true));
+	function runTestCase(testCase): TPromise<void> {
+		return setUpFolderWorkspace('myFolder', testCase.recommendedExtensions).then(({ parentDir, folderDir }) => {
+			parentResource = parentDir;
+			const myWorkspace = testWorkspace(URI.from({ scheme: 'file', path: folderDir }));
+			workspaceService = new TestContextService(myWorkspace);
+			instantiationService.stub(IWorkspaceContextService, workspaceService);
+			instantiationService.stub(IFileService, new FileService(workspaceService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), { disableWatcher: true }));
+			testObject = instantiationService.createInstance(ExtensionTipsService);
+		}).then(() => {
+			return testObject.getWorkspaceRecommendations();
+		}).then(recommendations => {
+			assert.equal(recommendations.length, testCase.validRecommendedExtensions.length);
+			let lowerRecommendations = recommendations.map(x => x.toLowerCase());
+			let lowerValidRecommendations = testCase.validRecommendedExtensions.map(x => x.toLowerCase());
+
+			lowerRecommendations.forEach(x => {
+				assert.equal(lowerValidRecommendations.indexOf(x) > -1, true);
+			});
 		});
+	}
+
+	test('test workspace folder recommendations', () => {
+		return runTestCase(mockTestFull);
+	});
+
+	test('test workspace folder recommendations with empty array', () => {
+		return runTestCase(mockTestEmpty);
 	});
 });

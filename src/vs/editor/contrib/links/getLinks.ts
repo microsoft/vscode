@@ -25,6 +25,13 @@ export class Link implements ILink {
 		this._provider = provider;
 	}
 
+	toJSON(): ILink {
+		return {
+			range: this.range,
+			url: this.url
+		};
+	}
+
 	get range(): IRange {
 		return this._link.range;
 	}

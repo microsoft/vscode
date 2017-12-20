@@ -162,7 +162,7 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 		return undefined;
 	}
 
-	$trySetSelections(id: string, selections: ISelection[]): TPromise<any> {
+	$trySetSelections(id: string, selections: ISelection[]): TPromise<void> {
 		if (!this._documentsAndEditors.getEditor(id)) {
 			return TPromise.wrapError(disposed(`TextEditor(${id})`));
 		}
@@ -170,7 +170,7 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 		return TPromise.as(null);
 	}
 
-	$trySetDecorations(id: string, key: string, ranges: IDecorationOptions[]): TPromise<any> {
+	$trySetDecorations(id: string, key: string, ranges: IDecorationOptions[]): TPromise<void> {
 		if (!this._documentsAndEditors.getEditor(id)) {
 			return TPromise.wrapError(disposed(`TextEditor(${id})`));
 		}
@@ -178,7 +178,7 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 		return TPromise.as(null);
 	}
 
-	$trySetDecorationsFast(id: string, key: string, ranges: number[]): TPromise<any> {
+	$trySetDecorationsFast(id: string, key: string, ranges: number[]): TPromise<void> {
 		if (!this._documentsAndEditors.getEditor(id)) {
 			return TPromise.wrapError(disposed(`TextEditor(${id})`));
 		}
@@ -186,7 +186,7 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 		return TPromise.as(null);
 	}
 
-	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): TPromise<any> {
+	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): TPromise<void> {
 		if (!this._documentsAndEditors.getEditor(id)) {
 			return TPromise.wrapError(disposed(`TextEditor(${id})`));
 		}
@@ -194,7 +194,7 @@ export class MainThreadEditors implements MainThreadEditorsShape {
 		return undefined;
 	}
 
-	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): TPromise<any> {
+	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): TPromise<void> {
 		if (!this._documentsAndEditors.getEditor(id)) {
 			return TPromise.wrapError(disposed(`TextEditor(${id})`));
 		}

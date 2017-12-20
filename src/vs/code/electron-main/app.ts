@@ -264,7 +264,7 @@ export class CodeApplication {
 			// Spawn shared process
 			this.sharedProcess = new SharedProcess(this.environmentService, machineId, this.userEnv);
 			this.toDispose.push(this.sharedProcess);
-			this.sharedProcessClient = TPromise.timeout(5000).then(() => this.sharedProcess.whenReady()).then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
+			this.sharedProcessClient = this.sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
 
 			// Services
 			const appInstantiationService = this.initServices(machineId);

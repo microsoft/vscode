@@ -244,6 +244,9 @@ function _processIconThemeDocument(id: string, iconThemeDocumentPath: string, ic
 
 			let languageIds = associations.languageIds;
 			if (languageIds) {
+				if (!languageIds.jsonc && languageIds.json) {
+					languageIds.jsonc = languageIds.json;
+				}
 				for (let languageId in languageIds) {
 					addSelector(`${qualifier} .${escapeCSS(languageId)}-lang-file-icon.file-icon::before`, languageIds[languageId]);
 					result.hasFileIcons = true;

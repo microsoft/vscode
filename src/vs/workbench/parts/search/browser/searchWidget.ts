@@ -29,6 +29,9 @@ import { attachInputBoxStyler, attachFindInputBoxStyler, attachButtonStyler } fr
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { CONTEXT_FIND_WIDGET_NOT_VISIBLE } from 'vs/editor/contrib/find/findModel';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 export interface ISearchWidgetOptions {
 	value?: string;
@@ -92,6 +95,8 @@ export class SearchWidget extends Widget {
 	private replaceActionBar: ActionBar;
 
 	private searchHistory: HistoryNavigator<string>;
+	private ignoreGlobalFindBufferOnNextFocus = false;
+	private previousGlobalFindBufferValue: string;
 
 	private _onSearchSubmit = this._register(new Emitter<boolean>());
 	public onSearchSubmit: Event<boolean> = this._onSearchSubmit.event;
@@ -118,6 +123,8 @@ export class SearchWidget extends Widget {
 		@IThemeService private themeService: IThemeService,
 		@IContextKeyService private keyBindingService: IContextKeyService,
 		@IKeybindingService private keyBindingService2: IKeybindingService,
+		@IClipboardService private clipboardServce: IClipboardService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
 		this.searchHistory = new HistoryNavigator<string>(options.history);
@@ -127,7 +134,9 @@ export class SearchWidget extends Widget {
 		this.render(container, options);
 	}
 
-	public focus(select: boolean = true, focusReplace: boolean = false): void {
+	public focus(select: boolean = true, focusReplace: boolean = false, suppressGlobalSearchBuffer = false): void {
+		this.ignoreGlobalFindBufferOnNextFocus = suppressGlobalSearchBuffer;
+
 		if (focusReplace && this.isReplaceShown()) {
 			this.replaceInput.focus();
 			if (select) {
@@ -241,7 +250,22 @@ export class SearchWidget extends Widget {
 		}));
 
 		this.searchInputFocusTracker = this._register(dom.trackFocus(this.searchInput.inputBox.inputElement));
-		this._register(this.searchInputFocusTracker.onDidFocus(() => this.searchInputBoxFocused.set(true)));
+		this._register(this.searchInputFocusTracker.onDidFocus(() => {
+			this.searchInputBoxFocused.set(true);
+
+			const useGlobalFindBuffer = this.configurationService.getValue<IEditorOptions>('editor').find.globalFindClipboard;
+			if (!this.ignoreGlobalFindBufferOnNextFocus && useGlobalFindBuffer) {
+				const globalBufferText = this.clipboardServce.readFindText();
+				if (this.previousGlobalFindBufferValue !== globalBufferText) {
+					this.searchInput.setValue(globalBufferText);
+					this.searchInput.select();
+				}
+
+				this.previousGlobalFindBufferValue = globalBufferText;
+			}
+
+			this.ignoreGlobalFindBufferOnNextFocus = false;
+		}));
 		this._register(this.searchInputFocusTracker.onDidBlur(() => this.searchInputBoxFocused.set(false)));
 	}
 

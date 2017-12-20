@@ -524,7 +524,7 @@ suite('FileService', () => {
 
 	test('resolveFile', function (done: () => void) {
 		service.resolveFile(uri.file(testDir), { resolveTo: [uri.file(path.join(testDir, 'deep'))] }).done(r => {
-			assert.equal(r.children.length, 7);
+			assert.equal(r.children.length, 8);
 
 			const deep = utils.getByName(r, 'deep');
 			assert.equal(deep.children.length, 4);
@@ -540,7 +540,7 @@ suite('FileService', () => {
 		]).then(res => {
 			const r1 = res[0].stat;
 
-			assert.equal(r1.children.length, 7);
+			assert.equal(r1.children.length, 8);
 
 			const deep = utils.getByName(r1, 'deep');
 			assert.equal(deep.children.length, 4);
@@ -878,5 +878,23 @@ suite('FileService', () => {
 				});
 			});
 		});
+	});
+
+	test('resolveContent - from position (ASCII)', function (done: () => void) {
+		const resource = uri.file(path.join(testDir, 'small.txt'));
+
+		service.resolveContent(resource, { position: 6 }).done(content => {
+			assert.equal(content.value, 'File');
+			done();
+		}, error => onError(error, done));
+	});
+
+	test('resolveContent - from position (with umlaut)', function (done: () => void) {
+		const resource = uri.file(path.join(testDir, 'small_umlaut.txt'));
+
+		service.resolveContent(resource, { position: new Buffer('Small File with Ü').length }).done(content => {
+			assert.equal(content.value, 'mlaut');
+			done();
+		}, error => onError(error, done));
 	});
 });

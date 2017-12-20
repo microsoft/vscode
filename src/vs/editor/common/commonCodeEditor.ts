@@ -651,7 +651,6 @@ export abstract class CommonCodeEditor extends Disposable {
 				// Backwards compatibility
 				this.cursor.restoreState([<editorCommon.ICursorState>cursorState]);
 			}
-			this.viewModel.viewLayout.restoreState(codeEditorState.viewState);
 
 			let contributionsState = s.contributionsState || {};
 			let keys = Object.keys(this._contributions);

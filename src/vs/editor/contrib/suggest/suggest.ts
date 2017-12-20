@@ -233,11 +233,6 @@ let _provider = new class implements ISuggestSupport {
 
 SuggestRegistry.register('*', _provider);
 
-/**
- *
- * @param editor
- * @param suggestions
- */
 export function showSimpleSuggestions(editor: ICodeEditor, suggestions: ISuggestion[]) {
 	setTimeout(() => {
 		_suggestions = suggestions;

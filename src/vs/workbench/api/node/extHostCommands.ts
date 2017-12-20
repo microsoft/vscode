@@ -101,7 +101,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 				}
 			});
 
-			return this._proxy.$executeCommand<T>(id, args);
+			return this._proxy.$executeCommand<T>(id, args).then(result => revive(result, 0));
 		}
 	}
 

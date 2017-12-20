@@ -102,8 +102,8 @@ export interface IMainContext extends IRPCProtocol {
 // --- main thread
 
 export interface MainThreadCommandsShape extends IDisposable {
-	$registerCommand(id: string): TPromise<any>;
-	$unregisterCommand(id: string): TPromise<any>;
+	$registerCommand(id: string): void;
+	$unregisterCommand(id: string): void;
 	$executeCommand<T>(id: string, args: any[]): Thenable<T>;
 	$getCommands(): Thenable<string[]>;
 }
@@ -114,8 +114,8 @@ export interface MainThreadConfigurationShape extends IDisposable {
 }
 
 export interface MainThreadDiagnosticsShape extends IDisposable {
-	$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): TPromise<any>;
-	$clear(owner: string): TPromise<any>;
+	$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void;
+	$clear(owner: string): void;
 }
 
 export interface MainThreadDialogOpenOptions {
@@ -152,7 +152,7 @@ export interface MainThreadDocumentContentProvidersShape extends IDisposable {
 
 export interface MainThreadDocumentsShape extends IDisposable {
 	$tryCreateDocument(options?: { language?: string; content?: string; }): TPromise<UriComponents>;
-	$tryOpenDocument(uri: UriComponents): TPromise<any>;
+	$tryOpenDocument(uri: UriComponents): TPromise<void>;
 	$trySaveDocument(uri: UriComponents): TPromise<boolean>;
 }
 
@@ -216,14 +216,14 @@ export interface MainThreadEditorsShape extends IDisposable {
 	$removeTextEditorDecorationType(key: string): void;
 	$tryShowEditor(id: string, position: EditorPosition): TPromise<void>;
 	$tryHideEditor(id: string): TPromise<void>;
-	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): TPromise<any>;
-	$trySetDecorations(id: string, key: string, ranges: editorCommon.IDecorationOptions[]): TPromise<any>;
-	$trySetDecorationsFast(id: string, key: string, ranges: number[]): TPromise<any>;
-	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): TPromise<any>;
-	$trySetSelections(id: string, selections: ISelection[]): TPromise<any>;
+	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): TPromise<void>;
+	$trySetDecorations(id: string, key: string, ranges: editorCommon.IDecorationOptions[]): TPromise<void>;
+	$trySetDecorationsFast(id: string, key: string, ranges: number[]): TPromise<void>;
+	$tryRevealRange(id: string, range: IRange, revealType: TextEditorRevealType): TPromise<void>;
+	$trySetSelections(id: string, selections: ISelection[]): TPromise<void>;
 	$tryApplyEdits(id: string, modelVersionId: number, edits: editorCommon.ISingleEditOperation[], opts: IApplyEditsOptions): TPromise<boolean>;
 	$tryApplyWorkspaceEdit(workspaceResourceEdits: IWorkspaceResourceEdit[]): TPromise<boolean>;
-	$tryInsertSnippet(id: string, template: string, selections: IRange[], opts: IUndoStopOptions): TPromise<any>;
+	$tryInsertSnippet(id: string, template: string, selections: IRange[], opts: IUndoStopOptions): TPromise<boolean>;
 	$getDiffInformation(id: string): TPromise<editorCommon.ILineChange[]>;
 }
 
@@ -276,27 +276,27 @@ export interface ISerializedLanguageConfiguration {
 }
 
 export interface MainThreadLanguageFeaturesShape extends IDisposable {
-	$unregister(handle: number): TPromise<any>;
-	$registerOutlineSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
-	$registerCodeLensSupport(handle: number, selector: vscode.DocumentSelector, eventHandle: number): TPromise<any>;
-	$emitCodeLensEvent(eventHandle: number, event?: any): TPromise<any>;
-	$registerDeclaractionSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
-	$registerImplementationSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
-	$registerTypeDefinitionSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
-	$registerHoverProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
-	$registerDocumentHighlightProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
-	$registerReferenceSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
-	$registerQuickFixSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
-	$registerDocumentFormattingSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
-	$registerRangeFormattingSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
-	$registerOnTypeFormattingSupport(handle: number, selector: vscode.DocumentSelector, autoFormatTriggerCharacters: string[]): TPromise<any>;
-	$registerNavigateTypeSupport(handle: number): TPromise<any>;
-	$registerRenameSupport(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
-	$registerSuggestSupport(handle: number, selector: vscode.DocumentSelector, triggerCharacters: string[], supportsResolveDetails: boolean): TPromise<any>;
-	$registerSignatureHelpProvider(handle: number, selector: vscode.DocumentSelector, triggerCharacter: string[]): TPromise<any>;
-	$registerDocumentLinkProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
-	$registerDocumentColorProvider(handle: number, selector: vscode.DocumentSelector): TPromise<any>;
-	$setLanguageConfiguration(handle: number, languageId: string, configuration: ISerializedLanguageConfiguration): TPromise<any>;
+	$unregister(handle: number): void;
+	$registerOutlineSupport(handle: number, selector: vscode.DocumentSelector): void;
+	$registerCodeLensSupport(handle: number, selector: vscode.DocumentSelector, eventHandle: number): void;
+	$emitCodeLensEvent(eventHandle: number, event?: any): void;
+	$registerDeclaractionSupport(handle: number, selector: vscode.DocumentSelector): void;
+	$registerImplementationSupport(handle: number, selector: vscode.DocumentSelector): void;
+	$registerTypeDefinitionSupport(handle: number, selector: vscode.DocumentSelector): void;
+	$registerHoverProvider(handle: number, selector: vscode.DocumentSelector): void;
+	$registerDocumentHighlightProvider(handle: number, selector: vscode.DocumentSelector): void;
+	$registerReferenceSupport(handle: number, selector: vscode.DocumentSelector): void;
+	$registerQuickFixSupport(handle: number, selector: vscode.DocumentSelector): void;
+	$registerDocumentFormattingSupport(handle: number, selector: vscode.DocumentSelector): void;
+	$registerRangeFormattingSupport(handle: number, selector: vscode.DocumentSelector): void;
+	$registerOnTypeFormattingSupport(handle: number, selector: vscode.DocumentSelector, autoFormatTriggerCharacters: string[]): void;
+	$registerNavigateTypeSupport(handle: number): void;
+	$registerRenameSupport(handle: number, selector: vscode.DocumentSelector): void;
+	$registerSuggestSupport(handle: number, selector: vscode.DocumentSelector, triggerCharacters: string[], supportsResolveDetails: boolean): void;
+	$registerSignatureHelpProvider(handle: number, selector: vscode.DocumentSelector, triggerCharacter: string[]): void;
+	$registerDocumentLinkProvider(handle: number, selector: vscode.DocumentSelector): void;
+	$registerDocumentColorProvider(handle: number, selector: vscode.DocumentSelector): void;
+	$setLanguageConfiguration(handle: number, languageId: string, configuration: ISerializedLanguageConfiguration): void;
 }
 
 export interface MainThreadLanguagesShape extends IDisposable {
@@ -328,7 +328,7 @@ export interface MainThreadProgressShape extends IDisposable {
 }
 
 export interface MainThreadTerminalServiceShape extends IDisposable {
-	$createTerminal(name?: string, shellPath?: string, shellArgs?: string[], env?: { [key: string]: string }, waitOnExit?: boolean): TPromise<number>;
+	$createTerminal(name?: string, shellPath?: string, shellArgs?: string[], cwd?: string, env?: { [key: string]: string }, waitOnExit?: boolean): TPromise<number>;
 	$dispose(terminalId: number): void;
 	$hide(terminalId: number): void;
 	$sendText(terminalId: number, text: string, addNewLine: boolean): void;
@@ -352,7 +352,7 @@ export interface MainThreadStatusBarShape extends IDisposable {
 
 export interface MainThreadStorageShape extends IDisposable {
 	$getValue<T>(shared: boolean, key: string): TPromise<T>;
-	$setValue(shared: boolean, key: string, value: any): TPromise<any>;
+	$setValue(shared: boolean, key: string, value: any): TPromise<void>;
 }
 
 export interface MainThreadTelemetryShape extends IDisposable {
@@ -750,7 +750,7 @@ export const MainContext = {
 	MainThreadEditors: createMainId<MainThreadEditorsShape>('MainThreadEditors'),
 	MainThreadErrors: createMainId<MainThreadErrorsShape>('MainThreadErrors'),
 	MainThreadTreeViews: createMainId<MainThreadTreeViewsShape>('MainThreadTreeViews'),
-	MainThreadLanguageFeatures: createMainId<MainThreadLanguageFeaturesShape>('MainThreadLanguageFeatures', ProxyType.CustomMarshaller),
+	MainThreadLanguageFeatures: createMainId<MainThreadLanguageFeaturesShape>('MainThreadLanguageFeatures'),
 	MainThreadLanguages: createMainId<MainThreadLanguagesShape>('MainThreadLanguages'),
 	MainThreadMessageService: createMainId<MainThreadMessageServiceShape>('MainThreadMessageService'),
 	MainThreadOutputService: createMainId<MainThreadOutputServiceShape>('MainThreadOutputService'),

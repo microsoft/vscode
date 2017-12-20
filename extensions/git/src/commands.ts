@@ -11,7 +11,7 @@ import { Repository, Resource, Status, CommitOptions, ResourceGroupType, Reposit
 import { Model } from './model';
 import { toGitUri, fromGitUri } from './uri';
 import { grep, eventToPromise, isDescendant } from './util';
-import { applyLineChanges, intersectDiffWithRange, toLineRanges, invertLineChange } from './staging';
+import { applyLineChanges, intersectDiffWithRange, toLineRanges, invertLineChange, getModifiedRange } from './staging';
 import * as path from 'path';
 import { lstat, Stats } from 'fs';
 import * as os from 'os';
@@ -351,7 +351,6 @@ export class CommandCenter {
 
 		const config = workspace.getConfiguration('git');
 		let value = config.get<string>('defaultCloneDirectory') || os.homedir();
-		value = value.replace(/^~/, os.homedir());
 
 		const parentPath = await window.showInputBox({
 			prompt: localize('parent', "Parent Directory"),
@@ -379,7 +378,7 @@ export class CommandCenter {
 		statusBarItem.command = cancelCommandId;
 		statusBarItem.show();
 
-		const clonePromise = this.git.clone(url, parentPath, tokenSource.token);
+		const clonePromise = this.git.clone(url, parentPath.replace(/^~/, os.homedir()), tokenSource.token);
 
 		try {
 			window.withProgress({ location: ProgressLocation.SourceControl, title: localize('cloning', "Cloning git repository...") }, () => clonePromise);
@@ -504,7 +503,10 @@ export class CommandCenter {
 			}
 
 			if (resource) {
-				uris = [...resourceStates.map(r => r.resourceUri), resource.resourceUri];
+				const resources = ([resource, ...resourceStates] as Resource[])
+					.filter(r => r.type !== Status.DELETED && r.type !== Status.INDEX_DELETED);
+
+				uris = resources.map(r => r.resourceUri);
 			}
 		}
 
@@ -529,6 +531,11 @@ export class CommandCenter {
 
 			await commands.executeCommand<void>('vscode.open', uri, opts);
 		}
+	}
+
+	@command('git.openFile2')
+	async openFile2(arg?: Resource | Uri, ...resourceStates: SourceControlResourceState[]): Promise<void> {
+		this.openFile(arg, ...resourceStates);
 	}
 
 	@command('git.openHEADFile')
@@ -729,10 +736,7 @@ export class CommandCenter {
 		const modifiedDocument = textEditor.document;
 		const selections = textEditor.selections;
 		const selectedChanges = changes.filter(change => {
-			const modifiedRange = change.modifiedEndLineNumber === 0
-				? new Range(modifiedDocument.lineAt(change.modifiedStartLineNumber - 1).range.end, modifiedDocument.lineAt(change.modifiedStartLineNumber).range.start)
-				: new Range(modifiedDocument.lineAt(change.modifiedStartLineNumber - 1).range.start, modifiedDocument.lineAt(change.modifiedEndLineNumber - 1).range.end);
-
+			const modifiedRange = getModifiedRange(modifiedDocument, change);
 			return selections.every(selection => !selection.intersection(modifiedRange));
 		});
 
@@ -1313,25 +1317,26 @@ export class CommandCenter {
 			return;
 		}
 
-		const picks = remotes.map(r => ({ label: r.name, description: r.url }));
+		const remotePicks = remotes.map(r => ({ label: r.name, description: r.url }));
 		const placeHolder = localize('pick remote pull repo', "Pick a remote to pull the branch from");
-		const pick = await window.showQuickPick(picks, { placeHolder });
+		const remotePick = await window.showQuickPick(remotePicks, { placeHolder });
 
-		if (!pick) {
+		if (!remotePick) {
 			return;
 		}
 
-		const branchName = await window.showInputBox({
-			placeHolder: localize('branch name', "Branch name"),
-			prompt: localize('provide branch name', "Please provide a branch name"),
-			ignoreFocusOut: true
-		});
+		const remoteRefs = repository.refs;
+		const remoteRefsFiltered = remoteRefs.filter(r => (r.remote === remotePick.label));
+		const branchPicks = remoteRefsFiltered.map(r => ({ label: r.name })) as { label: string; description: string }[];
+		const branchPick = await window.showQuickPick(branchPicks, { placeHolder });
 
-		if (!branchName) {
+		if (!branchPick) {
 			return;
 		}
 
-		repository.pull(false, pick.label, branchName);
+		const remoteCharCnt = remotePick.label.length;
+
+		repository.pull(false, remotePick.label, branchPick.label.slice(remoteCharCnt + 1));
 	}
 
 	@command('git.pull', { repository: true })

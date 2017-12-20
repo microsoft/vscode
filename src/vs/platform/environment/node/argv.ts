@@ -9,6 +9,8 @@ import * as assert from 'assert';
 import { firstIndex } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
 import { ParsedArgs } from '../common/environment';
+import { isWindows } from 'vs/base/common/platform';
+import product from 'vs/platform/node/product';
 
 const options: minimist.Opts = {
 	string: [
@@ -198,6 +200,8 @@ export function buildHelpMessage(fullName: string, name: string, version: string
 	return `${fullName} ${version}
 
 ${ localize('usage', "Usage")}: ${executable} [${localize('options', "options")}] [${localize('paths', 'paths')}...]
+
+${ isWindows ? localize('stdinWindows', "To read output from another program, append '-' (e.g. 'echo Hello World | {0} -')", product.applicationName) : localize('stdinUnix', "To read from stdin, append '-' (e.g. 'ps aux | grep code | {0} -')", product.applicationName)}
 
 ${ localize('optionsUpperCase', "Options")}:
 ${formatOptions(optionsHelp, columns)}`;

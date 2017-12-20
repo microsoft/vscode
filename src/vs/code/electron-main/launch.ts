@@ -106,6 +106,16 @@ export class LaunchService implements ILaunchService {
 		this.logService.trace('Received data from other instance: ', args, userEnv);
 
 		// Check early for open-url which is handled in URL service
+		const openUrl = this.startOpenUrl(args);
+		if (openUrl) {
+			return openUrl;
+		}
+
+		// Otherwise handle in windows service
+		return this.startOpenWindow(args, userEnv);
+	}
+
+	private startOpenUrl(args: ParsedArgs): TPromise<void> {
 		const openUrlArg = args['open-url'] || [];
 		const openUrl = typeof openUrlArg === 'string' ? [openUrlArg] : openUrlArg;
 		if (openUrl.length > 0) {
@@ -114,7 +124,10 @@ export class LaunchService implements ILaunchService {
 			return TPromise.as(null);
 		}
 
-		// Otherwise handle in windows service
+		return void 0;
+	}
+
+	private startOpenWindow(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void> {
 		const context = !!userEnv['VSCODE_CLI'] ? OpenContext.CLI : OpenContext.DESKTOP;
 		let usedWindows: ICodeWindow[];
 		if (!!args.extensionDevelopmentPath) {
