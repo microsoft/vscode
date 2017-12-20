@@ -171,7 +171,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 					const extensionPath = path.join(this.extensionsPath, id);
 					return pfs.rimraf(extensionPath)
 						.then(() => this.unsetUninstalled(id))
-						.then(() => this.logService.info('Reomved the extension:', id));
+						.then(() => this.logService.info('Removed the extension:', id));
 				}
 				return null;
 			});
@@ -488,6 +488,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			nls.localize('uninstallAll', "All"),
 			nls.localize('cancel', "Cancel")
 		];
+		this.logService.info('Requesting for confirmation to uninstall extension with dependencies', extension.identifier.id);
 		return this.choiceService.choose(Severity.Info, message, options, 2, true)
 			.then<void>(value => {
 				if (value === 0) {
@@ -512,6 +513,7 @@ export class ExtensionManagementService implements IExtensionManagementService {
 			nls.localize('ok', "OK"),
 			nls.localize('cancel', "Cancel")
 		];
+		this.logService.info('Requesting for confirmation to uninstall extension', extension.identifier.id);
 		return this.choiceService.choose(Severity.Info, message, options, 1, true)
 			.then<void>(value => {
 				if (value === 0) {
