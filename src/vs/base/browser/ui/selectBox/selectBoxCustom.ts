@@ -73,6 +73,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 
 	private static SELECT_DROPDOWN_BOTTOM_MARGIN = 10;
 
+	private _isVisible: boolean;
 	private selectElement: HTMLSelectElement;
 	private options: string[];
 	private selected: number;
@@ -91,6 +92,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	constructor(options: string[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles) {
 
 		this.toDispose = [];
+		this._isVisible = false;
 
 		this.selectElement = document.createElement('select');
 		this.selectElement.className = 'select-box';
@@ -150,8 +152,13 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		// Intercept mouse events to override normal select actions on parents
 
 		this.toDispose.push(dom.addDisposableListener(this.selectElement, dom.EventType.CLICK, (e) => {
-			this.showSelectDropDown();
 			dom.EventHelper.stop(e);
+
+			if (this._isVisible) {
+				this.hideSelectDropDown();
+			} else {
+				this.showSelectDropDown();
+			}
 		}));
 
 		this.toDispose.push(dom.addDisposableListener(this.selectElement, dom.EventType.MOUSE_UP, (e) => {
@@ -347,10 +354,11 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	// ContextView dropdown methods
 
 	private showSelectDropDown() {
-		if (!this.contextViewProvider) {
+		if (!this.contextViewProvider || this._isVisible) {
 			return;
 		}
 
+		this._isVisible = true;
 		this.cloneElementFont(this.selectElement, this.selectDropDownContainer);
 		this.contextViewProvider.showContextView({
 			getAnchor: () => this.selectElement,
@@ -364,9 +372,11 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	}
 
 	private hideSelectDropDown() {
-		if (!this.contextViewProvider) {
+		if (!this.contextViewProvider || !this._isVisible) {
 			return;
 		}
+
+		this._isVisible = false;
 		this.contextViewProvider.hideContextView();
 	}
 
