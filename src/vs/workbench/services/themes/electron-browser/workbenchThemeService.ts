@@ -151,8 +151,6 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		// update settings schema setting
 		this.colorThemeStore.onDidChange(themes => {
-			const colorThemeSettingSchemaEnum = [];
-			const colorThemeSettingSchemaEnumDescriptions = [];
 			const enumDescription = themeData.description || '';
 			const themeSpecificEditorColorProperties = {};
 			const themeSpecificWorkbenchColorProperties = {};
@@ -162,15 +160,13 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			copyCustomEditorColorSchema.properties = customEditorColorConfigurationProperties;
 
 			themes.forEach(t => {
-				colorThemeSettingSchemaEnum.push(t.settingsId);
-				colorThemeSettingSchemaEnumDescriptions.push(enumDescription);
+				colorThemeSettingSchema.enum.push(t.settingsId);
+				colorThemeSettingSchema.enumDescriptions.push(enumDescription);
 				const themeId = `[${t.settingsId}]`;
 				themeSpecificWorkbenchColorProperties[themeId] = copyColorCustomizationsSchema;
 				themeSpecificEditorColorProperties[themeId] = copyCustomEditorColorSchema;
 			});
 
-			colorThemeSettingSchema.enum = colorThemeSettingSchemaEnum;
-			colorThemeSettingSchema.enumDescriptions = colorThemeSettingSchemaEnumDescriptions;
 			colorCustomizationsSchema.properties = {
 				...colorThemeSchema.colorsSchema.properties,
 				...themeSpecificWorkbenchColorProperties
