@@ -5,7 +5,6 @@
 'use strict';
 
 import { createConnection, IConnection, TextDocuments, InitializeParams, InitializeResult, RequestType, DocumentRangeFormattingRequest, Disposable, DocumentSelector, TextDocumentPositionParams, ServerCapabilities, Position } from 'vscode-languageserver';
-import { DocumentContext } from 'vscode-html-languageservice';
 import { TextDocument, Diagnostic, DocumentLink, SymbolInformation } from 'vscode-languageserver-types';
 import { getLanguageModes, LanguageModes, Settings } from './modes/languageModes';
 
@@ -15,13 +14,11 @@ import { DidChangeWorkspaceFoldersNotification, WorkspaceFolder } from 'vscode-l
 
 import { format } from './modes/formatting';
 import { pushAll } from './utils/arrays';
-import { endsWith, startsWith } from './utils/strings';
-
-import * as url from 'url';
-import * as path from 'path';
+import { getDocumentContext } from './utils/documentContext';
 import uri from 'vscode-uri';
 
 import * as nls from 'vscode-nls';
+
 nls.config(process.env['VSCODE_NLS_CONFIG']);
 
 namespace TagCloseRequest {
@@ -41,7 +38,6 @@ let documents: TextDocuments = new TextDocuments();
 // for open, change and close text document events
 documents.listen(connection);
 
-let workspacePath: string | undefined | null;
 let workspaceFolders: WorkspaceFolder[] | undefined;
 
 var languageModes: LanguageModes;
@@ -77,8 +73,13 @@ function getDocumentSettings(textDocument: TextDocument, needsDocumentSettings: 
 connection.onInitialize((params: InitializeParams): InitializeResult => {
 	let initializationOptions = params.initializationOptions;
 
-	workspacePath = params.rootPath;
 	workspaceFolders = (<any>params).workspaceFolders;
+	if (!Array.isArray(workspaceFolders)) {
+		workspaceFolders = [];
+		if (params.rootPath) {
+			workspaceFolders.push({ name: '', uri: uri.file(params.rootPath).toString() });
+		}
+	}
 
 	languageModes = getLanguageModes(initializationOptions ? initializationOptions.embeddedLanguages : { css: true, javascript: true });
 	documents.onDidClose(e => {
@@ -305,45 +306,19 @@ connection.onDocumentRangeFormatting(async formatParams => {
 
 connection.onDocumentLinks(documentLinkParam => {
 	let document = documents.get(documentLinkParam.textDocument.uri);
-	let documentContext: DocumentContext = {
-		resolveReference: (ref, base) => {
-			if (base) {
-				ref = url.resolve(base, ref);
-			}
-			if (ref[0] === '/') {
-				let root = getRootFolder(document.uri);
-				if (root) {
-					return uri.file(path.join(root, ref)).toString();
-				}
-			}
-			return url.resolve(document.uri, ref);
-		},
-
-	};
 	let links: DocumentLink[] = [];
-	languageModes.getAllModesInDocument(document).forEach(m => {
-		if (m.findDocumentLinks) {
-			pushAll(links, m.findDocumentLinks(document, documentContext));
-		}
-	});
+	if (document) {
+		let documentContext = getDocumentContext(document.uri, workspaceFolders);
+		languageModes.getAllModesInDocument(document).forEach(m => {
+			if (m.findDocumentLinks) {
+				pushAll(links, m.findDocumentLinks(document, documentContext));
+			}
+		});
+	}
 	return links;
 });
 
-function getRootFolder(docUri: string): string | undefined {
-	if (workspaceFolders) {
-		for (let folder of workspaceFolders) {
-			let folderURI = folder.uri;
-			if (!endsWith(folderURI, '/')) {
-				folderURI = folderURI + '/';
-			}
-			if (startsWith(docUri, folderURI)) {
-				return uri.parse(folderURI).fsPath;
-			}
-		}
-		return void 0;
-	}
-	return workspacePath;
-}
+
 
 connection.onDocumentSymbol(documentSymbolParms => {
 	let document = documents.get(documentSymbolParms.textDocument.uri);
