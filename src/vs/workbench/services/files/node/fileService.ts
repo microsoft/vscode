@@ -621,9 +621,9 @@ export class FileService implements IFileService {
 
 						const sudoCommand: string[] = [`"${this.options.elevationSupport.cliPath}"`];
 						if (options.overwriteReadonly) {
-							sudoCommand.push('--sudo-chmod');
+							sudoCommand.push('--file-chmod');
 						}
-						sudoCommand.push('--sudo-write', `"${tmpPath}"`, `"${absolutePath}"`);
+						sudoCommand.push('--file-write', `"${tmpPath}"`, `"${absolutePath}"`);
 
 						sudoPrompt.exec(sudoCommand.join(' '), promptOptions, (error: string, stdout: string, stderr: string) => {
 							if (error || stderr) {
