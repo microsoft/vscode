@@ -6,11 +6,10 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
-import { CharacterPair, IndentationRule, IndentAction, EnterAction, OnEnterRule } from 'vs/editor/common/modes/languageConfiguration';
+import { CharacterPair, IndentAction, EnterAction, OnEnterRule } from 'vs/editor/common/modes/languageConfiguration';
 
 export interface IOnEnterSupportOptions {
 	brackets?: CharacterPair[];
-	indentationRules?: IndentationRule;
 	regExpRules?: OnEnterRule[];
 }
 
@@ -24,7 +23,6 @@ interface IProcessedBracketPair {
 export class OnEnterSupport {
 
 	private readonly _brackets: IProcessedBracketPair[];
-	private readonly _indentationRules: IndentationRule;
 	private readonly _regExpRules: OnEnterRule[];
 
 	constructor(opts?: IOnEnterSupportOptions) {
@@ -44,7 +42,6 @@ export class OnEnterSupport {
 			};
 		});
 		this._regExpRules = opts.regExpRules || [];
-		this._indentationRules = opts.indentationRules;
 	}
 
 	public onEnter(oneLineAboveText: string, beforeEnterText: string, afterEnterText: string): EnterAction {
@@ -113,4 +110,3 @@ export class OnEnterSupport {
 		}
 	}
 }
-

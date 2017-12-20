@@ -9,5 +9,6 @@
 	"extensionHostProcess.crash": "扩展宿主意外终止。",
 	"extensionHostProcess.unresponsiveCrash": "扩展宿主因没有响应而被终止。",
 	"overwritingExtension": "使用扩展程序 {1} 覆盖扩展程序 {0}。",
-	"extensionUnderDevelopment": "正在 {0} 处加载开发扩展程序"
+	"extensionUnderDevelopment": "正在 {0} 处加载开发扩展程序",
+	"extensionCache.invalid": "扩展在磁盘上已被修改。请重新加载窗口。"
 }

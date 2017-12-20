@@ -10,7 +10,8 @@
 	"vscode.extension.contributes.snippets": "添加代码段。",
 	"vscode.extension.contributes.snippets-language": "此代码片段参与的语言标识符。",
 	"vscode.extension.contributes.snippets-path": "代码片段文件的路径。该路径相对于扩展文件夹，通常以 \"./snippets/\" 开头。",
-	"badVariableUse": "“{0}”代码片段很可能混淆了片段变量和片段占位符。有关详细信息，请访问 https://code.visualstudio.com/docs/editor/userdefinedsnippets#_snippet-syntax。",
+	"badVariableUse": "扩展“{0}”中的一个或多个代码片段很可能混淆了片段变量和片段占位符 (有关详细信息，请访问 https://code.visualstudio.com/docs/editor/userdefinedsnippets#_snippet-syntax )",
+	"badFile": "无法读取代码片段文件“{0}”。",
 	"source.snippet": "用户代码片段",
 	"detail.snippet": "{0} ({1})",
 	"snippetSuggest.longLabel": "{0}，{1}"

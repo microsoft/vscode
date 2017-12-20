@@ -134,10 +134,10 @@ suite('Workbench - TerminalLinkHandler', () => {
 
 				const supportedLinkFormats: LinkFormatInfo[] = [
 					{ urlFormat: '{0}' },
-					// { urlFormat: '{0} on line {1}', line: '5' },
-					// { urlFormat: '{0} on line {1}, column {2}', line: '5', column: '3' },
-					// { urlFormat: '{0}:line {1}', line: '5' },
-					// { urlFormat: '{0}:line {1}, column {2}', line: '5', column: '3' },
+					{ urlFormat: '{0} on line {1}', line: '5' },
+					{ urlFormat: '{0} on line {1}, column {2}', line: '5', column: '3' },
+					{ urlFormat: '{0}:line {1}', line: '5' },
+					{ urlFormat: '{0}:line {1}, column {2}', line: '5', column: '3' },
 					{ urlFormat: '{0}({1})', line: '5' },
 					{ urlFormat: '{0} ({1})', line: '5' },
 					{ urlFormat: '{0}({1},{2})', line: '5', column: '3' },
@@ -171,7 +171,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 		test('Windows', () => {
 			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Windows, 'C:\\base', null, null, null);
 
-			let stub = sinon.stub(path, 'join', function (arg1, arg2) {
+			let stub = sinon.stub(path, 'join', function (arg1: string, arg2: string) {
 				return arg1 + '\\' + arg2;
 			});
 			assert.equal(linkHandler.preprocessPath('./src/file1'), 'C:\\base\\./src/file1');
@@ -184,7 +184,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 		test('Linux', () => {
 			const linkHandler = new TestTerminalLinkHandler(new TestXterm(), Platform.Linux, '/base', null, null, null);
 
-			let stub = sinon.stub(path, 'join', function (arg1, arg2) {
+			let stub = sinon.stub(path, 'join', function (arg1: string, arg2: string) {
 				return arg1 + '/' + arg2;
 			});
 

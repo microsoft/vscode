@@ -15,10 +15,13 @@
 .extension-editor > .header {
 	display: flex;
 	height: 128px;
-	background: rgba(128, 128, 128, 0.15);
 	padding: 20px;
 	overflow: hidden;
 	font-size: 14px;
+}
+
+.extension-editor > .header.recommended {
+	height: 140px;
 }
 
 .extension-editor > .header > .icon {
@@ -58,8 +61,21 @@
 	white-space: nowrap;
 }
 
+.vs .extension-editor > .header > .details > .title > .preview {
+	color: white;
+}
+
+.extension-editor > .header > .details > .title > .preview {
+	background: rgb(214, 63, 38);
+	font-size: 10px;
+	font-style: italic;
+	margin-left: 10px;
+	padding: 0px 4px;
+	border-radius: 4px;
+}
+
 .extension-editor > .header > .details > .subtitle {
-	padding-top: 10px;
+	padding-top: 6px;
 	white-space: nowrap;
 	height: 20px;
 	line-height: 20px;
@@ -81,14 +97,14 @@
 }
 
 .extension-editor > .header > .details > .description {
-	margin-top: 14px;
+	margin-top: 10px;
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	overflow: hidden;
 }
 
 .extension-editor > .header > .details > .actions {
-	margin-top: 14px;
+	margin-top: 10px;
 }
 
 .extension-editor > .header > .details > .actions > .monaco-action-bar {
@@ -102,6 +118,16 @@
 .extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label {
 	font-weight: 600;
 	padding: 1px 6px;
+}
+
+.extension-editor > .header.recommended > .details > .recommendation {
+	display: none;
+}
+
+.extension-editor > .header.recommended > .details > .recommendation {
+	display: block;
+	margin-top: 10px;
+	font-size: 13px;
 }
 
 .extension-editor > .body {

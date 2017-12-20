@@ -6,6 +6,7 @@
 'use strict';
 
 import nls = require('vs/nls');
+import * as perf from 'vs/base/common/performance';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { WorkbenchShell } from 'vs/workbench/electron-browser/shell';
 import * as browser from 'vs/base/browser/browser';
@@ -17,7 +18,7 @@ import paths = require('vs/base/common/paths');
 import uri from 'vs/base/common/uri';
 import strings = require('vs/base/common/strings');
 import { IWorkspaceContextService, Workspace, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { WorkspaceService } from 'vs/workbench/services/configuration/node/configuration';
+import { WorkspaceService } from 'vs/workbench/services/configuration/node/configurationService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { realpath } from 'vs/base/node/pfs';
@@ -32,20 +33,18 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { StorageService, inMemoryLocalStorageInstance } from 'vs/platform/storage/common/storageService';
 import { Client as ElectronIPCClient } from 'vs/base/parts/ipc/electron-browser/ipc.electron-browser';
-import { webFrame, remote } from 'electron';
+import { webFrame } from 'electron';
 import { UpdateChannelClient } from 'vs/platform/update/common/updateIpc';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { URLChannelClient } from 'vs/platform/url/common/urlIpc';
 import { IURLService } from 'vs/platform/url/common/url';
 import { WorkspacesChannelClient } from 'vs/platform/workspaces/common/workspacesIpc';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
-import { CredentialsChannelClient } from 'vs/platform/credentials/node/credentialsIpc';
+import { createLogService } from 'vs/platform/log/node/spdlogService';
 
 import fs = require('fs');
+import { ConsoleLogService, MultiplexLogService } from 'vs/platform/log/common/log';
 gracefulFs.gracefulify(fs); // enable gracefulFs
-
-const currentWindowId = remote.getCurrentWindow().id;
 
 export function startup(configuration: IWindowConfiguration): TPromise<void> {
 
@@ -70,28 +69,32 @@ export function startup(configuration: IWindowConfiguration): TPromise<void> {
 }
 
 function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
-	const mainProcessClient = new ElectronIPCClient(String(`window${currentWindowId}`));
-	const mainServices = createMainProcessServices(mainProcessClient);
+	const mainProcessClient = new ElectronIPCClient(String(`window${configuration.windowId}`));
+	const mainServices = createMainProcessServices(mainProcessClient, configuration);
 
 	const environmentService = new EnvironmentService(configuration, configuration.execPath);
+	const spdlogService = createLogService(`renderer${configuration.windowId}`, environmentService);
+	const consoleLogService = new ConsoleLogService(environmentService);
+	const logService = new MultiplexLogService([consoleLogService, spdlogService]);
+
+	logService.trace('openWorkbench configuration', JSON.stringify(configuration));
 
 	// Since the configuration service is one of the core services that is used in so many places, we initialize it
 	// right before startup of the workbench shell to have its data ready for consumers
-	return createAndInitializeWorkspaceService(configuration, environmentService, <IWorkspacesService>mainServices.get(IWorkspacesService)).then(workspaceService => {
+	return createAndInitializeWorkspaceService(configuration, environmentService).then(workspaceService => {
+
 		const timerService = new TimerService((<any>window).MonacoEnvironment.timers as IInitData, workspaceService.getWorkbenchState() === WorkbenchState.EMPTY);
 		const storageService = createStorageService(workspaceService, environmentService);
 
-		timerService.beforeDOMContentLoaded = Date.now();
-
 		return domContentLoaded().then(() => {
-			timerService.afterDOMContentLoaded = Date.now();
 
 			// Open Shell
-			timerService.beforeWorkbenchOpen = Date.now();
+			perf.mark('willStartWorkbench');
 			const shell = new WorkbenchShell(document.body, {
 				contextService: workspaceService,
 				configurationService: workspaceService,
 				environmentService,
+				logService,
 				timerService,
 				storageService
 			}, mainServices, configuration);
@@ -109,22 +112,25 @@ function openWorkbench(configuration: IWindowConfiguration): TPromise<void> {
 	});
 }
 
-function createAndInitializeWorkspaceService(configuration: IWindowConfiguration, environmentService: EnvironmentService, workspacesService: IWorkspacesService): TPromise<WorkspaceService> {
-	return validateWorkspacePath(configuration).then(() => {
-		const workspaceService = new WorkspaceService(environmentService, workspacesService);
+function createAndInitializeWorkspaceService(configuration: IWindowConfiguration, environmentService: EnvironmentService): TPromise<WorkspaceService> {
+	return validateSingleFolderPath(configuration).then(() => {
+		const workspaceService = new WorkspaceService(environmentService);
 
 		return workspaceService.initialize(configuration.workspace || configuration.folderPath || configuration).then(() => workspaceService, error => workspaceService);
 	});
 }
 
-function validateWorkspacePath(configuration: IWindowConfiguration): TPromise<void> {
+function validateSingleFolderPath(configuration: IWindowConfiguration): TPromise<void> {
+
+	// Return early if we do not have a single folder path
 	if (!configuration.folderPath) {
-		return TPromise.as(null);
+		return TPromise.as(void 0);
 	}
 
+	// Otherwise: use realpath to resolve symbolic links to the truth
 	return realpath(configuration.folderPath).then(realFolderPath => {
 
-		// for some weird reason, node adds a trailing slash to UNC paths
+		// For some weird reason, node adds a trailing slash to UNC paths
 		// we never ever want trailing slashes as our workspace path unless
 		// someone opens root ("/").
 		// See also https://github.com/nodejs/io.js/issues/1765
@@ -132,12 +138,19 @@ function validateWorkspacePath(configuration: IWindowConfiguration): TPromise<vo
 			realFolderPath = strings.rtrim(realFolderPath, paths.nativeSep);
 		}
 
-		// update config
-		configuration.folderPath = realFolderPath;
+		return realFolderPath;
 	}, error => {
-		errors.onUnexpectedError(error);
+		if (configuration.verbose) {
+			errors.onUnexpectedError(error);
+		}
 
-		return null; // treat invalid paths as empty workspace
+		// Treat any error case as empty workbench case (no folder path)
+		return null;
+
+	}).then(realFolderPathOrNull => {
+
+		// Update config with real path if we have one
+		configuration.folderPath = realFolderPathOrNull;
 	});
 }
 
@@ -177,7 +190,7 @@ function createStorageService(workspaceService: IWorkspaceContextService, enviro
 	return new StorageService(storage, storage, workspaceId, secondaryWorkspaceId);
 }
 
-function createMainProcessServices(mainProcessClient: ElectronIPCClient): ServiceCollection {
+function createMainProcessServices(mainProcessClient: ElectronIPCClient, configuration: IWindowConfiguration): ServiceCollection {
 	const serviceCollection = new ServiceCollection();
 
 	const windowsChannel = mainProcessClient.getChannel('windows');
@@ -187,13 +200,10 @@ function createMainProcessServices(mainProcessClient: ElectronIPCClient): Servic
 	serviceCollection.set(IUpdateService, new SyncDescriptor(UpdateChannelClient, updateChannel));
 
 	const urlChannel = mainProcessClient.getChannel('url');
-	serviceCollection.set(IURLService, new SyncDescriptor(URLChannelClient, urlChannel, currentWindowId));
+	serviceCollection.set(IURLService, new SyncDescriptor(URLChannelClient, urlChannel, configuration.windowId));
 
 	const workspacesChannel = mainProcessClient.getChannel('workspaces');
 	serviceCollection.set(IWorkspacesService, new WorkspacesChannelClient(workspacesChannel));
-
-	const credentialsChannel = mainProcessClient.getChannel('credentials');
-	serviceCollection.set(ICredentialsService, new CredentialsChannelClient(credentialsChannel));
 
 	return serviceCollection;
 }

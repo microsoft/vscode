@@ -33,5 +33,6 @@
 	"schema.fontSize": "Quando estiver utilizando uma fonte: O tamanho da fonte em porcentagem para a fonte de texto. Se não for definido, o padrão é o tamanho na definição de fonte.",
 	"schema.fontId": "Quando estiver utilizando uma fonte: A identificação da fonte. Se não for definido, o padrão é a primeira definição de fonte.",
 	"schema.light": "Associações opcionais para ícones de arquivo em temas de cor clara.",
-	"schema.highContrast": "Associações opcionais para ícones de arquivo em temas de alto contraste."
+	"schema.highContrast": "Associações opcionais para ícones de arquivo em temas de alto contraste.",
+	"schema.hidesExplorerArrows": "Define se as setas do explorador de arquivos devem ser ocultadas quando este tema está ativo."
 }

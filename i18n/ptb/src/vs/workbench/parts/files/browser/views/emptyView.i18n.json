@@ -6,6 +6,8 @@
 {
 	"noWorkspace": "Nenhuma Pasta Aberta",
 	"explorerSection": "Seção de Explorador de Arquivos",
-	"noWorkspaceHelp": "Você ainda não abriu uma pasta.",
+	"noWorkspaceHelp": "Você ainda não adicionou uma pasta no espaço de trabalho.",
+	"addFolder": "Adicionar pasta",
+	"noFolderHelp": "Você ainda não abriu uma pasta.",
 	"openFolder": "Abrir Pasta"
 }

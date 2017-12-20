@@ -6,7 +6,7 @@
 'use strict';
 
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectBorder, inputBorder, foreground, editorBackground, contrastBorder, inputActiveOptionBorder, listFocusBackground, listFocusForeground, listActiveSelectionBackground, listActiveSelectionForeground, listInactiveSelectionForeground, listInactiveSelectionBackground, listInactiveFocusForeground, listInactiveFocusBackground, listHoverBackground, listHoverForeground, listDropBackground, pickerGroupBorder, pickerGroupForeground, widgetShadow, inputValidationInfoBorder, inputValidationInfoBackground, inputValidationWarningBorder, inputValidationWarningBackground, inputValidationErrorBorder, inputValidationErrorBackground, activeContrastBorder, buttonForeground, buttonBackground, buttonHoverBackground, ColorFunction, lighten, badgeBackground, badgeForeground, progressBarBackground } from 'vs/platform/theme/common/colorRegistry';
+import { focusBorder, inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectBorder, inputBorder, foreground, editorBackground, contrastBorder, inputActiveOptionBorder, listFocusBackground, listFocusForeground, listActiveSelectionBackground, listActiveSelectionForeground, listInactiveSelectionForeground, listInactiveSelectionBackground, listInactiveFocusForeground, listInactiveFocusBackground, listHoverBackground, listHoverForeground, listDropBackground, pickerGroupBorder, pickerGroupForeground, widgetShadow, inputValidationInfoBorder, inputValidationInfoBackground, inputValidationWarningBorder, inputValidationWarningBackground, inputValidationErrorBorder, inputValidationErrorBackground, activeContrastBorder, buttonForeground, buttonBackground, buttonHoverBackground, ColorFunction, lighten, badgeBackground, badgeForeground, progressBarBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 export type styleFn = (colors: { [name: string]: ColorIdentifier }) => void;
@@ -97,17 +97,25 @@ export function attachInputBoxStyler(widget: IThemable, themeService: IThemeServ
 	} as IInputBoxStyleOverrides, widget);
 }
 
-export interface ISelectBoxStyleOverrides extends IStyleOverrides {
+export interface ISelectBoxStyleOverrides extends IStyleOverrides, IListStyleOverrides {
 	selectBackground?: ColorIdentifier;
 	selectForeground?: ColorIdentifier;
 	selectBorder?: ColorIdentifier;
+	focusBorder?: ColorIdentifier;
 }
 
 export function attachSelectBoxStyler(widget: IThemable, themeService: IThemeService, style?: ISelectBoxStyleOverrides): IDisposable {
 	return attachStyler(themeService, {
 		selectBackground: (style && style.selectBackground) || selectBackground,
 		selectForeground: (style && style.selectForeground) || selectForeground,
-		selectBorder: (style && style.selectBorder) || selectBorder
+		selectBorder: (style && style.selectBorder) || selectBorder,
+		focusBorder: (style && style.focusBorder) || focusBorder,
+		listFocusBackground: (style && style.listFocusBackground) || listFocusBackground,
+		listFocusForeground: (style && style.listFocusForeground) || listFocusForeground,
+		listFocusOutline: (style && style.listFocusOutline) || activeContrastBorder,
+		listHoverBackground: (style && style.listHoverBackground) || listHoverBackground,
+		listHoverForeground: (style && style.listHoverForeground) || listHoverForeground,
+		listHoverOutline: (style && style.listFocusOutline) || activeContrastBorder
 	} as ISelectBoxStyleOverrides, widget);
 }
 
@@ -133,7 +141,7 @@ export interface IQuickOpenStyleOverrides extends IListStyleOverrides, IInputBox
 	widgetShadow?: ColorIdentifier;
 	pickerGroupForeground?: ColorIdentifier;
 	pickerGroupBorder?: ColorIdentifier;
-};
+}
 
 export function attachQuickOpenStyler(widget: IThemable, themeService: IThemeService, style?: IQuickOpenStyleOverrides): IDisposable {
 	return attachStyler(themeService, {

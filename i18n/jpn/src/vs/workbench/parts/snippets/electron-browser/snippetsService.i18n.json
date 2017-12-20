@@ -10,7 +10,8 @@
 	"vscode.extension.contributes.snippets": "スニペットを提供します。",
 	"vscode.extension.contributes.snippets-language": "このスニペットの提供先の言語識別子です。",
 	"vscode.extension.contributes.snippets-path": "スニペット ファイルのパス。拡張機能フォルダーの相対パスであり、通常 './snippets/' で始まります。",
-	"badVariableUse": "スニペット \"{0}\" は、スニペット変数とスニペット プレースホルダーを混乱させる可能性が非常にあります。詳細については https://code.visualstudio.com/docs/editor/userdefinedsnippets#_snippet-syntax をご覧ください。",
+	"badVariableUse": "拡張機能 '{0}' の 1 つまたは複数のスニペットは、スニペット変数とスニペット プレース ホルダーを混乱させる可能性が非常にあります。 (詳細については、 https://code.visualstudio.com/docs/editor/userdefinedsnippets#_snippet-syntax を参照してください)",
+	"badFile": "スニペット ファイル \"{0}\" を読み込むことができませんでした。",
 	"source.snippet": "ユーザー スニペット",
 	"detail.snippet": "{0} ({1})",
 	"snippetSuggest.longLabel": "{0}, {1}"

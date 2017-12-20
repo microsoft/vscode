@@ -9,9 +9,8 @@ import 'vs/css!./contextMenuHandler';
 import { $, Builder } from 'vs/base/browser/builder';
 import { combinedDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IActionRunner, ActionRunner, IAction } from 'vs/base/common/actions';
+import { IActionRunner, ActionRunner, IAction, IRunEvent } from 'vs/base/common/actions';
 import { Menu } from 'vs/base/browser/ui/menu/menu';
-import { EventType } from 'vs/base/common/events';
 import Severity from 'vs/base/common/severity';
 
 import { IContextViewService, IContextMenuDelegate } from 'vs/platform/contextview/browser/contextView';
@@ -42,19 +41,25 @@ export class ContextMenuHandler {
 
 		let hideViewOnRun = false;
 
-		this.toDispose.push(this.actionRunner.addListener(EventType.BEFORE_RUN, (e: any) => {
+		this.toDispose.push(this.actionRunner.onDidBeforeRun((e: IRunEvent) => {
 			if (this.telemetryService) {
+				/* __GDPR__
+					"workbenchActionExecuted" : {
+						"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
 				this.telemetryService.publicLog('workbenchActionExecuted', { id: e.action.id, from: 'contextMenu' });
 			}
 
-			hideViewOnRun = !!e.retainActionItem;
+			hideViewOnRun = !!(<any>e).retainActionItem;
 
 			if (!hideViewOnRun) {
 				this.contextViewService.hideContextView(false);
 			}
 		}));
 
-		this.toDispose.push(this.actionRunner.addListener(EventType.RUN, (e: any) => {
+		this.toDispose.push(this.actionRunner.onDidRun((e: IRunEvent) => {
 			if (hideViewOnRun) {
 				this.contextViewService.hideContextView(false);
 			}
@@ -74,7 +79,7 @@ export class ContextMenuHandler {
 		}
 		if (container) {
 			this.$el = $(container);
-			this.$el.on('mousedown', (e: MouseEvent) => this.onMouseDown(e));
+			this.$el.on('mousedown', (e: Event) => this.onMouseDown(e as MouseEvent));
 		}
 	}
 
@@ -99,11 +104,11 @@ export class ContextMenuHandler {
 						actionRunner: this.actionRunner
 					});
 
-					let listener1 = menu.addListener(EventType.CANCEL, (e: any) => {
+					let listener1 = menu.onDidCancel(() => {
 						this.contextViewService.hideContextView(true);
 					});
 
-					let listener2 = menu.addListener(EventType.BLUR, (e: any) => {
+					let listener2 = menu.onDidBlur(() => {
 						this.contextViewService.hideContextView(true);
 					});
 

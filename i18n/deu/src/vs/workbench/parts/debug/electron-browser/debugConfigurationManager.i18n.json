@@ -15,7 +15,6 @@
 	"vscode.extension.contributes.debuggers.initialConfigurations": "Konfigurationen zum Generieren der anfänglichen Datei \"launch.json\".",
 	"vscode.extension.contributes.debuggers.languages": "Liste der Sprachen, für die die Debugerweiterung als \"Standarddebugger\" angesehen werden kann",
 	"vscode.extension.contributes.debuggers.adapterExecutableCommand": "Wenn dies festgelegt ist, ruft der VS Code diesen Befehl auf, um den ausführbaren Pfad des Debugadapters und die zu übergebenden Argumente zu bestimmen.",
-	"vscode.extension.contributes.debuggers.startSessionCommand": "Wenn dies festgelegt ist, ruft der VS Code diesen Befehl für die Debug- oder Ausführungsaktionen aus, die für diese Erweiterung bestimmt sind.",
 	"vscode.extension.contributes.debuggers.configurationSnippets": "Snippets zum Hinzufügen neuer Konfigurationen in \"launch.json\".",
 	"vscode.extension.contributes.debuggers.configurationAttributes": "JSON-Schemakonfigurationen zum Überprüfen von \"launch.json\".",
 	"vscode.extension.contributes.debuggers.windows": "Windows-spezifische Einstellungen.",

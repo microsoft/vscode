@@ -19,6 +19,7 @@ import { FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import pkg from 'vs/platform/node/package';
 import product, { ISurveyData } from 'vs/platform/node/product';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 class LanguageSurvey {
 
@@ -88,6 +89,7 @@ class LanguageSurvey {
 		const message = nls.localize('helpUs', "Help us improve our support for {0}", data.languageId);
 
 		const takeSurveyAction = new Action('takeSurvey', nls.localize('takeShortSurvey', "Take Short Survey"), '', true, () => {
+			// __GDPR__TODO__ Need to move away from dynamic event names as those cannot be registered statically
 			telemetryService.publicLog(`${data.surveyId}.survey/takeShortSurvey`);
 			return telemetryService.getTelemetryInfo().then(info => {
 				window.open(`${data.surveyUrl}?o=${encodeURIComponent(process.platform)}&v=${encodeURIComponent(pkg.version)}&m=${encodeURIComponent(info.machineId)}`);
@@ -97,12 +99,14 @@ class LanguageSurvey {
 		});
 
 		const remindMeLaterAction = new Action('later', nls.localize('remindLater', "Remind Me later"), '', true, () => {
+			// __GDPR__TODO__ Need to move away from dynamic event names as those cannot be registered statically
 			telemetryService.publicLog(`${data.surveyId}.survey/remindMeLater`);
 			storageService.store(SESSION_COUNT_KEY, sessionCount - 3, StorageScope.GLOBAL);
 			return TPromise.as(null);
 		});
 
 		const neverAgainAction = new Action('never', nls.localize('neverAgain', "Don't Show Again"), '', true, () => {
+			// __GDPR__TODO__ Need to move away from dynamic event names as those cannot be registered statically
 			telemetryService.publicLog(`${data.surveyId}.survey/dontShowAgain`);
 			storageService.store(IS_CANDIDATE_KEY, false, StorageScope.GLOBAL);
 			storageService.store(SKIP_VERSION_KEY, pkg.version, StorageScope.GLOBAL);
@@ -110,6 +114,7 @@ class LanguageSurvey {
 		});
 
 		const actions = [neverAgainAction, remindMeLaterAction, takeSurveyAction];
+		// __GDPR__TODO__ Need to move away from dynamic event names as those cannot be registered statically
 		telemetryService.publicLog(`${data.surveyId}.survey/userAsked`);
 		messageService.show(Severity.Info, { message, actions });
 	}
@@ -117,8 +122,6 @@ class LanguageSurvey {
 }
 
 class LanguageSurveysContribution implements IWorkbenchContribution {
-
-	private surveys: LanguageSurvey[];
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -128,16 +131,12 @@ class LanguageSurveysContribution implements IWorkbenchContribution {
 		@IFileService fileService: IFileService,
 		@IModelService modelService: IModelService
 	) {
-		this.surveys = product.surveys.filter(surveyData => surveyData.surveyId && surveyData.editCount && surveyData.languageId && surveyData.surveyUrl && surveyData.userProbability).map(surveyData =>
+		product.surveys.filter(surveyData => surveyData.surveyId && surveyData.editCount && surveyData.languageId && surveyData.surveyUrl && surveyData.userProbability).map(surveyData =>
 			new LanguageSurvey(surveyData, instantiationService, storageService, messageService, telemetryService, fileService, modelService));
-	}
-
-	getId(): string {
-		return 'languagesurveys.contribution';
 	}
 }
 
 if (language === 'en' && product.surveys && product.surveys.length) {
 	const workbenchRegistry = <IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench);
-	workbenchRegistry.registerWorkbenchContribution(LanguageSurveysContribution);
+	workbenchRegistry.registerWorkbenchContribution(LanguageSurveysContribution, LifecyclePhase.Running);
 }

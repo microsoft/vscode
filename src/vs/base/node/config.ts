@@ -11,6 +11,7 @@ import * as objects from 'vs/base/common/objects';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import Event, { Emitter } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
+import * as extfs from 'vs/base/node/extfs';
 
 export interface IConfigurationChangeEvent<T> {
 	config: T;
@@ -151,9 +152,8 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 		}
 
 		try {
-			const watcher = fs.watch(path);
-			watcher.on('change', (type, file) => this.onConfigFileChange(type, file.toString(), isParentFolder));
-			watcher.on('error', (code, signal) => this.options.onError(`Error watching ${path} for configuration changes (${code}, ${signal})`));
+			const watcher = extfs.watch(path, (type, file) => this.onConfigFileChange(type, file, isParentFolder));
+			watcher.on('error', (code: number, signal: string) => this.options.onError(`Error watching ${path} for configuration changes (${code}, ${signal})`));
 
 			this.disposables.push(toDisposable(() => {
 				watcher.removeAllListeners();
@@ -209,7 +209,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 			return fallback;
 		}
 
-		const value = this.cache ? this.cache[key] : void 0;
+		const value = this.cache ? (this.cache as any)[key] : void 0;
 
 		return typeof value !== 'undefined' ? value : fallback;
 	}

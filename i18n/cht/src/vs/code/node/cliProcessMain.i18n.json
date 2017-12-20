@@ -8,6 +8,7 @@
 	"notInstalled": "未安裝擴充功能 '{0}'。",
 	"useId": "請確定您使用完整擴充功能識別碼 (包括發行者)，例如: {0}",
 	"successVsixInstall": "已成功安裝延伸模組 '{0}'!",
+	"cancelVsixInstall": "已取消安裝擴充功能 \"{0}\"。",
 	"alreadyInstalled": "已安裝過擴充功能 '{0}'。",
 	"foundExtension": "在市集中找到 '{0}'。",
 	"installing": "正在安裝...",

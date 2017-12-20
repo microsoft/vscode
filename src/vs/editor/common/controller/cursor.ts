@@ -12,10 +12,10 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection, SelectionDirection, ISelection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { CursorColumns, CursorConfiguration, EditOperationResult, CursorContext, CursorState, RevealTarget, IColumnSelectData, ICursors } from 'vs/editor/common/controller/cursorCommon';
+import { CursorColumns, CursorConfiguration, EditOperationResult, CursorContext, CursorState, RevealTarget, IColumnSelectData, ICursors, EditOperationType } from 'vs/editor/common/controller/cursorCommon';
 import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
-import { TextModelEventType, ModelRawContentChangedEvent, RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
+import { RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
@@ -98,6 +98,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	private _isHandling: boolean;
 	private _isDoingComposition: boolean;
 	private _columnSelectData: IColumnSelectData;
+	private _prevEditOperationType: EditOperationType;
 
 	constructor(configuration: editorCommon.IConfiguration, model: editorCommon.IModel, viewModel: IViewModel) {
 		super();
@@ -110,29 +111,14 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		this._isHandling = false;
 		this._isDoingComposition = false;
 		this._columnSelectData = null;
+		this._prevEditOperationType = EditOperationType.Other;
 
-		this._register(this._model.addBulkListener((events) => {
+		this._register(this._model.onDidChangeRawContent((e) => {
 			if (this._isHandling) {
 				return;
 			}
 
-			let hadContentChange = false;
-			let hadFlushEvent = false;
-			for (let i = 0, len = events.length; i < len; i++) {
-				const event = events[i];
-				const eventType = event.type;
-
-				if (eventType === TextModelEventType.ModelRawContentChanged2) {
-					hadContentChange = true;
-					const rawChangeEvent = <ModelRawContentChangedEvent>event.data;
-					hadFlushEvent = hadFlushEvent || rawChangeEvent.containsEvent(RawContentChangedType.Flush);
-				}
-			}
-
-			if (!hadContentChange) {
-				return;
-			}
-
+			let hadFlushEvent = e.containsEvent(RawContentChangedType.Flush);
 			this._onModelContentChanged(hadFlushEvent);
 		}));
 
@@ -278,6 +264,9 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	}
 
 	private _onModelContentChanged(hadFlushEvent: boolean): void {
+
+		this._prevEditOperationType = EditOperationType.Other;
+
 		if (hadFlushEvent) {
 			// a model.setValue() was called
 			this._cursors.dispose();
@@ -322,6 +311,14 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		this.setStates(source, CursorChangeReason.NotSet, CursorState.fromModelSelections(selections));
 	}
 
+	public getPrevEditOperationType(): EditOperationType {
+		return this._prevEditOperationType;
+	}
+
+	public setPrevEditOperationType(type: EditOperationType): void {
+		this._prevEditOperationType = type;
+	}
+
 	// ------ auxiliary handling logic
 
 	private _executeEditOperation(opResult: EditOperationResult): void {
@@ -344,6 +341,8 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		if (result) {
 			// The commands were applied correctly
 			this._interpretCommandResult(result);
+
+			this._prevEditOperationType = opResult.type;
 		}
 
 		if (opResult.shouldPushStackElementAfter) {
@@ -370,20 +369,11 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 			return false;
 		}
 
-
-		let isInEditableRange: boolean = true;
-		if (this._model.hasEditableRange()) {
-			const editableRange = this._model.getEditableRange();
-			if (!editableRange.containsPosition(newState.cursorState[0].modelState.position)) {
-				isInEditableRange = false;
-			}
-		}
-
 		const selections = this._cursors.getSelections();
 		const viewSelections = this._cursors.getViewSelections();
 
 		// Let the view get the event first.
-		this._emit([new viewEvents.ViewCursorStateChangedEvent(viewSelections, isInEditableRange)]);
+		this._emit([new viewEvents.ViewCursorStateChangedEvent(viewSelections)]);
 
 		// Only after the view has been notified, let the rest of the world know...
 		if (!oldState
@@ -464,7 +454,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 				case H.Paste:
 					cursorChangeReason = CursorChangeReason.Paste;
-					this._paste(<string>payload.text, <boolean>payload.pasteOnNewLine);
+					this._paste(<string>payload.text, <boolean>payload.pasteOnNewLine, <string[]>payload.multicursorText);
 					break;
 
 				case H.Cut:
@@ -515,20 +505,20 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 				}
 
 				// Here we must interpret each typed character individually, that's why we create a new context
-				this._executeEditOperation(TypeOperations.typeWithInterceptors(this.context.config, this.context.model, this.getSelections(), chr));
+				this._executeEditOperation(TypeOperations.typeWithInterceptors(this._prevEditOperationType, this.context.config, this.context.model, this.getSelections(), chr));
 			}
 
 		} else {
-			this._executeEditOperation(TypeOperations.typeWithoutInterceptors(this.context.config, this.context.model, this.getSelections(), text));
+			this._executeEditOperation(TypeOperations.typeWithoutInterceptors(this._prevEditOperationType, this.context.config, this.context.model, this.getSelections(), text));
 		}
 	}
 
 	private _replacePreviousChar(text: string, replaceCharCnt: number): void {
-		this._executeEditOperation(TypeOperations.replacePreviousChar(this.context.config, this.context.model, this.getSelections(), text, replaceCharCnt));
+		this._executeEditOperation(TypeOperations.replacePreviousChar(this._prevEditOperationType, this.context.config, this.context.model, this.getSelections(), text, replaceCharCnt));
 	}
 
-	private _paste(text: string, pasteOnNewLine: boolean): void {
-		this._executeEditOperation(TypeOperations.paste(this.context.config, this.context.model, this.getSelections(), pasteOnNewLine, text));
+	private _paste(text: string, pasteOnNewLine: boolean, multicursorText: string[]): void {
+		this._executeEditOperation(TypeOperations.paste(this.context.config, this.context.model, this.getSelections(), text, pasteOnNewLine, multicursorText));
 	}
 
 	private _cut(): void {
@@ -538,14 +528,14 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	private _externalExecuteCommand(command: editorCommon.ICommand): void {
 		this._cursors.killSecondaryCursors();
 
-		this._executeEditOperation(new EditOperationResult([command], {
+		this._executeEditOperation(new EditOperationResult(EditOperationType.Other, [command], {
 			shouldPushStackElementBefore: false,
 			shouldPushStackElementAfter: false
 		}));
 	}
 
 	private _externalExecuteCommands(commands: editorCommon.ICommand[]): void {
-		this._executeEditOperation(new EditOperationResult(commands, {
+		this._executeEditOperation(new EditOperationResult(EditOperationType.Other, commands, {
 			shouldPushStackElementBefore: false,
 			shouldPushStackElementAfter: false
 		}));
@@ -555,8 +545,8 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 interface IExecContext {
 	readonly model: editorCommon.IModel;
 	readonly selectionsBefore: Selection[];
-	readonly selectionStartMarkers: string[];
-	readonly positionMarkers: string[];
+	readonly trackedRanges: string[];
+	readonly trackedRangesDirection: SelectionDirection[];
 }
 
 interface ICommandData {
@@ -576,15 +566,14 @@ class CommandExecutor {
 		const ctx: IExecContext = {
 			model: model,
 			selectionsBefore: selectionsBefore,
-			selectionStartMarkers: [],
-			positionMarkers: []
+			trackedRanges: [],
+			trackedRangesDirection: []
 		};
 
 		const result = this._innerExecuteCommands(ctx, commands);
 
-		for (let i = 0; i < ctx.selectionStartMarkers.length; i++) {
-			ctx.model._removeMarker(ctx.selectionStartMarkers[i]);
-			ctx.model._removeMarker(ctx.positionMarkers[i]);
+		for (let i = 0, len = ctx.trackedRanges.length; i < len; i++) {
+			ctx.model._setTrackedRange(ctx.trackedRanges[i], null, editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
 		}
 
 		return result;
@@ -602,17 +591,6 @@ class CommandExecutor {
 		}
 
 		const rawOperations = commandsData.operations;
-
-		const editableRange = ctx.model.getEditableRange();
-		const editableRangeStart = editableRange.getStartPosition();
-		const editableRangeEnd = editableRange.getEndPosition();
-		for (let i = 0, len = rawOperations.length; i < len; i++) {
-			const operationRange = rawOperations[i].range;
-			if (!editableRangeStart.isBeforeOrEqual(operationRange.getStartPosition()) || !operationRange.getEndPosition().isBeforeOrEqual(editableRangeEnd)) {
-				// These commands are outside of the editable range
-				return null;
-			}
-		}
 
 		const loserCursorsMap = this._getLoserCursorMap(rawOperations);
 		if (loserCursorsMap.hasOwnProperty('0')) {
@@ -661,9 +639,11 @@ class CommandExecutor {
 
 						getTrackedSelection: (id: string) => {
 							const idx = parseInt(id, 10);
-							const selectionStartMarker = ctx.model._getMarker(ctx.selectionStartMarkers[idx]);
-							const positionMarker = ctx.model._getMarker(ctx.positionMarkers[idx]);
-							return new Selection(selectionStartMarker.lineNumber, selectionStartMarker.column, positionMarker.lineNumber, positionMarker.column);
+							const range = ctx.model._getTrackedRange(ctx.trackedRanges[idx]);
+							if (ctx.trackedRangesDirection[idx] === SelectionDirection.LTR) {
+								return new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
+							}
+							return new Selection(range.endLineNumber, range.endColumn, range.startLineNumber, range.startColumn);
 						}
 					});
 				} else {
@@ -750,37 +730,31 @@ class CommandExecutor {
 		};
 
 		const trackSelection = (selection: Selection, trackPreviousOnEmpty?: boolean) => {
-			let selectionMarkerStickToPreviousCharacter: boolean;
-			let positionMarkerStickToPreviousCharacter: boolean;
-
+			let stickiness: editorCommon.TrackedRangeStickiness;
 			if (selection.isEmpty()) {
-				// Try to lock it with surrounding text
 				if (typeof trackPreviousOnEmpty === 'boolean') {
-					selectionMarkerStickToPreviousCharacter = trackPreviousOnEmpty;
-					positionMarkerStickToPreviousCharacter = trackPreviousOnEmpty;
+					if (trackPreviousOnEmpty) {
+						stickiness = editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore;
+					} else {
+						stickiness = editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingAfter;
+					}
 				} else {
+					// Try to lock it with surrounding text
 					const maxLineColumn = ctx.model.getLineMaxColumn(selection.startLineNumber);
 					if (selection.startColumn === maxLineColumn) {
-						selectionMarkerStickToPreviousCharacter = true;
-						positionMarkerStickToPreviousCharacter = true;
+						stickiness = editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore;
 					} else {
-						selectionMarkerStickToPreviousCharacter = false;
-						positionMarkerStickToPreviousCharacter = false;
+						stickiness = editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingAfter;
 					}
 				}
 			} else {
-				if (selection.getDirection() === SelectionDirection.LTR) {
-					selectionMarkerStickToPreviousCharacter = false;
-					positionMarkerStickToPreviousCharacter = true;
-				} else {
-					selectionMarkerStickToPreviousCharacter = true;
-					positionMarkerStickToPreviousCharacter = false;
-				}
+				stickiness = editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 			}
 
-			const l = ctx.selectionStartMarkers.length;
-			ctx.selectionStartMarkers[l] = ctx.model._addMarker(0, selection.selectionStartLineNumber, selection.selectionStartColumn, selectionMarkerStickToPreviousCharacter);
-			ctx.positionMarkers[l] = ctx.model._addMarker(0, selection.positionLineNumber, selection.positionColumn, positionMarkerStickToPreviousCharacter);
+			const l = ctx.trackedRanges.length;
+			const id = ctx.model._setTrackedRange(null, selection, stickiness);
+			ctx.trackedRanges[l] = id;
+			ctx.trackedRangesDirection[l] = selection.getDirection();
 			return l.toString();
 		};
 

@@ -31,7 +31,7 @@ export interface ITypeData {
 
 export class TextAreaState {
 
-	public static EMPTY = new TextAreaState('', 0, 0, null, null);
+	public static readonly EMPTY = new TextAreaState('', 0, 0, null, null);
 
 	public readonly value: string;
 	public readonly selectionStart: number;
@@ -45,19 +45,6 @@ export class TextAreaState {
 		this.selectionEnd = selectionEnd;
 		this.selectionStartPosition = selectionStartPosition;
 		this.selectionEndPosition = selectionEndPosition;
-	}
-
-	public equals(other: TextAreaState): boolean {
-		if (other instanceof TextAreaState) {
-			return (
-				this.value === other.value
-				&& this.selectionStart === other.selectionStart
-				&& this.selectionEnd === other.selectionEnd
-				&& Position.equals(this.selectionStartPosition, other.selectionStartPosition)
-				&& Position.equals(this.selectionEndPosition, other.selectionEndPosition)
-			);
-		}
-		return false;
 	}
 
 	public toString(): string {
@@ -228,7 +215,7 @@ export class TextAreaState {
 }
 
 export class PagedScreenReaderStrategy {
-	private static _LINES_PER_PAGE = 10;
+	private static readonly _LINES_PER_PAGE = 10;
 
 	private static _getPageOfLine(lineNumber: number): number {
 		return Math.floor((lineNumber - 1) / PagedScreenReaderStrategy._LINES_PER_PAGE);
@@ -241,7 +228,7 @@ export class PagedScreenReaderStrategy {
 		return new Range(startLineNumber, 1, endLineNumber + 1, 1);
 	}
 
-	public static fromEditorSelection(previousState: TextAreaState, model: ISimpleModel, selection: Range): TextAreaState {
+	public static fromEditorSelection(previousState: TextAreaState, model: ISimpleModel, selection: Range, trimLongText: boolean): TextAreaState {
 
 		let selectionStartPage = PagedScreenReaderStrategy._getPageOfLine(selection.startLineNumber);
 		let selectionStartPageRange = PagedScreenReaderStrategy._getRangeForPage(selectionStartPage);
@@ -273,15 +260,17 @@ export class PagedScreenReaderStrategy {
 
 		// Chromium handles very poorly text even of a few thousand chars
 		// Cut text to avoid stalling the entire UI
-		const LIMIT_CHARS = 500;
-		if (pretext.length > LIMIT_CHARS) {
-			pretext = pretext.substring(pretext.length - LIMIT_CHARS, pretext.length);
-		}
-		if (posttext.length > LIMIT_CHARS) {
-			posttext = posttext.substring(0, LIMIT_CHARS);
-		}
-		if (text.length > 2 * LIMIT_CHARS) {
-			text = text.substring(0, LIMIT_CHARS) + String.fromCharCode(8230) + text.substring(text.length - LIMIT_CHARS, text.length);
+		if (trimLongText) {
+			const LIMIT_CHARS = 500;
+			if (pretext.length > LIMIT_CHARS) {
+				pretext = pretext.substring(pretext.length - LIMIT_CHARS, pretext.length);
+			}
+			if (posttext.length > LIMIT_CHARS) {
+				posttext = posttext.substring(0, LIMIT_CHARS);
+			}
+			if (text.length > 2 * LIMIT_CHARS) {
+				text = text.substring(0, LIMIT_CHARS) + String.fromCharCode(8230) + text.substring(text.length - LIMIT_CHARS, text.length);
+			}
 		}
 
 		return new TextAreaState(pretext + text + posttext, pretext.length, pretext.length + text.length, new Position(selection.startLineNumber, selection.startColumn), new Position(selection.endLineNumber, selection.endColumn));

@@ -9,16 +9,26 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/platform/commands/common/commandService';
-import { IExtensionService, ExtensionPointContribution, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService, ExtensionPointContribution, IExtensionDescription, IExtensionHostInformation, ProfileSession } from 'vs/platform/extensions/common/extensions';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IExtensionPoint } from 'vs/platform/extensions/common/extensionsRegistry';
+import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
+import { SimpleConfigurationService } from 'vs/editor/standalone/browser/simpleServices';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import Event, { Emitter } from 'vs/base/common/event';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 class SimpleExtensionService implements IExtensionService {
 	_serviceBrand: any;
-	activateByEvent(activationEvent: string): TPromise<void> {
-		return this.onReady().then(() => { });
+	private _onDidRegisterExtensions = new Emitter<IExtensionDescription[]>();
+	get onDidRegisterExtensions(): Event<IExtensionDescription[]> {
+		return this._onDidRegisterExtensions.event;
 	}
-	onReady(): TPromise<boolean> {
+	onDidChangeExtensionsStatus = null;
+	activateByEvent(activationEvent: string): TPromise<void> {
+		return this.whenInstalledExtensionsRegistered().then(() => { });
+	}
+	whenInstalledExtensionsRegistered(): TPromise<boolean> {
 		return TPromise.as(true);
 	}
 	readExtensionPointContributions<T>(extPoint: IExtensionPoint<T>): TPromise<ExtensionPointContribution<T>[]> {
@@ -27,11 +37,14 @@ class SimpleExtensionService implements IExtensionService {
 	getExtensionsStatus() {
 		return undefined;
 	}
-	getExtensionsActivationTimes() {
+	getExtensionHostInformation(): IExtensionHostInformation {
 		return undefined;
 	}
 	getExtensions(): TPromise<IExtensionDescription[]> {
 		return TPromise.wrap([]);
+	}
+	startExtensionHostProfile(): TPromise<ProfileSession> {
+		throw new Error('Not implemented');
 	}
 	restartExtensionHost(): void {
 	}
@@ -62,7 +75,7 @@ suite('CommandService', function () {
 				lastEvent = activationEvent;
 				return super.activateByEvent(activationEvent);
 			}
-		});
+		}, new ContextKeyService(new SimpleConfigurationService()), new NullLogService());
 
 		return service.executeCommand('foo').then(() => {
 			assert.ok(lastEvent, 'onCommand:foo');
@@ -80,7 +93,7 @@ suite('CommandService', function () {
 			activateByEvent(activationEvent: string): TPromise<void> {
 				return TPromise.wrapError<void>(new Error('bad_activate'));
 			}
-		});
+		}, new ContextKeyService(new SimpleConfigurationService()), new NullLogService());
 
 		return service.executeCommand('foo').then(() => assert.ok(false), err => {
 			assert.equal(err.message, 'bad_activate');
@@ -92,17 +105,66 @@ suite('CommandService', function () {
 		let callCounter = 0;
 		let reg = CommandsRegistry.registerCommand('bar', () => callCounter += 1);
 
-		let resolve: Function;
 		let service = new CommandService(new InstantiationService(), new class extends SimpleExtensionService {
-			onReady() {
-				return new TPromise<boolean>(_resolve => { resolve = _resolve; });
+			whenInstalledExtensionsRegistered() {
+				return new TPromise<boolean>(_resolve => { /*ignore*/ });
 			}
-		});
+		}, new ContextKeyService(new SimpleConfigurationService()), new NullLogService());
 
-		return service.executeCommand('bar').then(() => {
+		service.executeCommand('bar');
+		assert.equal(callCounter, 1);
+		reg.dispose();
+	});
+
+	test('issue #34913: !onReady, unknown command', function () {
+
+		let callCounter = 0;
+		let resolveFunc: Function;
+		// let reg = CommandsRegistry.registerCommand('bar', () => callCounter += 1);
+
+		let service = new CommandService(new InstantiationService(), new class extends SimpleExtensionService {
+			whenInstalledExtensionsRegistered() {
+				return new TPromise<boolean>(_resolve => { resolveFunc = _resolve; });
+			}
+		}, new ContextKeyService(new SimpleConfigurationService()), new NullLogService());
+
+		let r = service.executeCommand('bar');
+		assert.equal(callCounter, 0);
+
+		let reg = CommandsRegistry.registerCommand('bar', () => callCounter += 1);
+		resolveFunc(true);
+
+		return r.then(() => {
 			reg.dispose();
 			assert.equal(callCounter, 1);
 		});
 	});
 
+	test('honor command-precondition', function () {
+		let contextKeyService = new ContextKeyService(new SimpleConfigurationService());
+		let commandService = new CommandService(
+			new InstantiationService(),
+			new SimpleExtensionService(),
+			contextKeyService,
+			new NullLogService()
+		);
+
+		let counter = 0;
+		let reg = CommandsRegistry.registerCommand({
+			id: 'bar',
+			handler: () => { counter += 1; },
+			precondition: ContextKeyExpr.has('foocontext')
+		});
+
+		return commandService.executeCommand('bar').then(() => {
+			assert.throws(() => { });
+		}, () => {
+			contextKeyService.setContext('foocontext', true);
+			return commandService.executeCommand('bar');
+		}).then(() => {
+			assert.equal(counter, 1);
+			reg.dispose();
+		});
+
+	});
 });

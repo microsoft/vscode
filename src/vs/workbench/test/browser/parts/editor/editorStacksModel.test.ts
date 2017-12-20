@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 import { EditorStacksModel, EditorGroup, EditorCloseEvent } from 'vs/workbench/common/editor/editorStacksModel';
-import { EditorInput, IFileEditorInput, IEditorIdentifier, IEditorGroup, IStacksModelChangeEvent, IEditorRegistry, Extensions as EditorExtensions, IEditorInputFactory, IEditorCloseEvent } from 'vs/workbench/common/editor';
+import { Extensions as EditorExtensions, IEditorInputFactoryRegistry, EditorInput, IFileEditorInput, IEditorIdentifier, IEditorGroup, IStacksModelChangeEvent, IEditorInputFactory, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import { TestStorageService, TestLifecycleService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -17,12 +17,12 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Position, Direction } from 'vs/platform/editor/common/editor';
+import { Position, Direction, IEditorModel } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import 'vs/workbench/browser/parts/editor/baseEditor';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 function create(): EditorStacksModel {
 	let inst = new TestInstantiationService();
@@ -61,7 +61,7 @@ interface GroupEvents {
 }
 
 function modelListener(model: EditorStacksModel): ModelEvents {
-	const modelEvents = {
+	const modelEvents: ModelEvents = {
 		opened: [],
 		activated: [],
 		closed: [],
@@ -87,7 +87,7 @@ function modelListener(model: EditorStacksModel): ModelEvents {
 }
 
 function groupListener(group: EditorGroup): GroupEvents {
-	const groupEvents = {
+	const groupEvents: GroupEvents = {
 		opened: [],
 		closed: [],
 		activated: [],
@@ -112,7 +112,7 @@ class TestEditorInput extends EditorInput {
 		super();
 	}
 	public getTypeId() { return 'testEditorInput'; }
-	public resolve() { return null; }
+	public resolve(): TPromise<IEditorModel> { return null; }
 
 	public matches(other: TestEditorInput): boolean {
 		return other && this.id === other.id && other instanceof TestEditorInput;
@@ -132,7 +132,7 @@ class NonSerializableTestEditorInput extends EditorInput {
 		super();
 	}
 	public getTypeId() { return 'testEditorInput-nonSerializable'; }
-	public resolve() { return null; }
+	public resolve(): TPromise<IEditorModel> { return null; }
 
 	public matches(other: TestEditorInput): boolean {
 		return other && this.id === other.id && other instanceof NonSerializableTestEditorInput;
@@ -145,7 +145,7 @@ class TestFileEditorInput extends EditorInput implements IFileEditorInput {
 		super();
 	}
 	public getTypeId() { return 'testFileEditorInput'; }
-	public resolve() { return null; }
+	public resolve(): TPromise<IEditorModel> { return null; }
 
 	public matches(other: TestEditorInput): boolean {
 		return other && this.id === other.id && other instanceof TestFileEditorInput;
@@ -202,7 +202,7 @@ class TestEditorInputFactory implements IEditorInputFactory {
 	}
 }
 
-(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditorInputFactory('testEditorInput', TestEditorInputFactory);
+(<IEditorInputFactoryRegistry>Registry.as(EditorExtensions.EditorInputFactories)).registerEditorInputFactory('testEditorInput', TestEditorInputFactory);
 
 suite('Editor Stacks Model', () => {
 
@@ -365,6 +365,7 @@ suite('Editor Stacks Model', () => {
 
 		model.moveGroup(group3, 1);
 		assert.equal(events.moved.length, 2);
+		assert.ok(group2);
 	});
 
 	test('Groups - Event Aggregation', function () {
@@ -505,7 +506,7 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.activeEditor, void 0);
 		assert.equal(events.closed[0].editor, input1);
 		assert.equal(events.closed[0].index, 0);
-		assert.equal(events.closed[0].pinned, true);
+		assert.equal(events.closed[0].replaced, false);
 
 		// Active && Preview
 		const input2 = input();
@@ -528,7 +529,7 @@ suite('Editor Stacks Model', () => {
 		assert.equal(group.activeEditor, void 0);
 		assert.equal(events.closed[1].editor, input2);
 		assert.equal(events.closed[1].index, 0);
-		assert.equal(events.closed[1].pinned, false);
+		assert.equal(events.closed[1].replaced, false);
 
 		group.closeEditor(input2);
 		assert.equal(group.count, 0);
@@ -747,6 +748,8 @@ suite('Editor Stacks Model', () => {
 		assert.equal(events.opened[2], input3);
 		assert.equal(events.closed[0].editor, input1);
 		assert.equal(events.closed[1].editor, input2);
+		assert.equal(events.closed[0].replaced, true);
+		assert.equal(events.closed[1].replaced, true);
 
 		const mru = group.getEditors(true);
 		assert.equal(mru[0], input3);
@@ -1199,7 +1202,7 @@ suite('Editor Stacks Model', () => {
 		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
 		inst.stub(IConfigurationService, config);
 
-		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
+		(<IEditorInputFactoryRegistry>Registry.as(EditorExtensions.EditorInputFactories)).setInstantiationService(inst);
 
 		let model: EditorStacksModel = inst.createInstance(EditorStacksModel, true);
 		let group = model.openGroup('group');
@@ -1244,7 +1247,7 @@ suite('Editor Stacks Model', () => {
 		inst.stub(IConfigurationService, config);
 
 
-		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
+		(<IEditorInputFactoryRegistry>Registry.as(EditorExtensions.EditorInputFactories)).setInstantiationService(inst);
 
 		let model: EditorStacksModel = inst.createInstance(EditorStacksModel, true);
 
@@ -1327,7 +1330,7 @@ suite('Editor Stacks Model', () => {
 		inst.stub(IConfigurationService, config);
 
 
-		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
+		(<IEditorInputFactoryRegistry>Registry.as(EditorExtensions.EditorInputFactories)).setInstantiationService(inst);
 
 		let model: EditorStacksModel = inst.createInstance(EditorStacksModel, true);
 
@@ -1378,7 +1381,7 @@ suite('Editor Stacks Model', () => {
 		inst.stub(IConfigurationService, config);
 
 
-		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
+		(<IEditorInputFactoryRegistry>Registry.as(EditorExtensions.EditorInputFactories)).setInstantiationService(inst);
 
 		let model: EditorStacksModel = inst.createInstance(EditorStacksModel, true);
 
@@ -1419,7 +1422,7 @@ suite('Editor Stacks Model', () => {
 		config.setUserConfiguration('workbench', { editor: { openPositioning: 'right' } });
 		inst.stub(IConfigurationService, config);
 
-		(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).setInstantiationService(inst);
+		(<IEditorInputFactoryRegistry>Registry.as(EditorExtensions.EditorInputFactories)).setInstantiationService(inst);
 
 		let model: EditorStacksModel = inst.createInstance(EditorStacksModel, false);
 
@@ -1498,6 +1501,13 @@ suite('Editor Stacks Model', () => {
 		previous = model.previous(true /* jump groups */);
 		assert.equal(previous.group, group1);
 		assert.equal(previous.editor, input3);
+
+		model.setActive(<EditorGroup>previous.group);
+		(<EditorGroup>next.group).setActive(<EditorInput>previous.editor);
+
+		const last = model.last();
+		assert.equal(last.group, group1);
+		assert.equal(last.editor, input3);
 	});
 
 	test('Stack - Multiple Editors - Navigation (in group)', function () {

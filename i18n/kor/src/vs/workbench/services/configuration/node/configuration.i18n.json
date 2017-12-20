@@ -13,7 +13,12 @@
 	"invalid.title": "'configuration.title'은 문자열이어야 합니다.",
 	"vscode.extension.contributes.defaultConfiguration": "언어별로 기본 편집기 구성 설정을 적용합니다.",
 	"invalid.properties": "'configuration.properties'는 개체여야 합니다.",
-	"workspaceConfig.folders.description": "작업 영역에 로드할 폴더 목록입니다. 파일 경로를 사용해야 합니다. 예: `/root/folderA` 또는 `./folderA`(작업 영역 파일의 위치를 기준으로 확인할 상대 경로인 경우)",
-	"workspaceConfig.folder.description": "파일 경로입니다. 예: `/root/folderA` 또는 `./folderA`(작업 영역 파일의 위치를 기준으로 확인할 상대 경로인 경우)",
-	"workspaceConfig.settings.description": "작업 영역 설정"
+	"invalid.allOf": "'configuration.allOf'는 사용되지 않으며 더 이상 사용해서는 안됩니다. 대신 여러 구성 섹션을 배열로 'configuration' 기여 지점에 전달하세요.",
+	"workspaceConfig.folders.description": "작업 영역에 로드되는 폴더 목록입니다.",
+	"workspaceConfig.path.description": "파일 경로입니다. 예: `/root/folderA` 또는 `./folderA`(작업 영역 파일의 위치를 기준으로 확인할 상대 경로인 경우)",
+	"workspaceConfig.name.description": "폴더에 대한 선택적 이름입니다.",
+	"workspaceConfig.uri.description": "폴더의 URI",
+	"workspaceConfig.settings.description": "작업 영역 설정",
+	"workspaceConfig.extensions.description": "작업 영역 확장",
+	"unknownWorkspaceProperty": "알 수 없는 작업 영역 구성 속성"
 }

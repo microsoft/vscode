@@ -31,6 +31,17 @@ export const enum RevealTarget {
 	BottomMost = 2
 }
 
+/**
+ * This is an operation type that will be recorded for undo/redo purposes.
+ * The goal is to introduce an undo stop when the controller switches between different operation types.
+ */
+export const enum EditOperationType {
+	Other = 0,
+	Typing = 1,
+	DeletingLeft = 2,
+	DeletingRight = 3
+}
+
 export interface ICursors {
 	readonly context: CursorContext;
 	getPrimaryCursor(): CursorState;
@@ -45,6 +56,9 @@ export interface ICursors {
 	revealRange(revealHorizontal: boolean, viewRange: Range, verticalType: VerticalRevealType, scrollType: ScrollType): void;
 
 	scrollTo(desiredScrollTop: number): void;
+
+	getPrevEditOperationType(): EditOperationType;
+	setPrevEditOperationType(type: EditOperationType): void;
 }
 
 export interface CharacterMap {
@@ -68,7 +82,9 @@ export class CursorConfiguration {
 	public readonly autoClosingPairsOpen: CharacterMap;
 	public readonly autoClosingPairsClose: CharacterMap;
 	public readonly surroundingPairs: CharacterMap;
-	public readonly electricChars: { [key: string]: boolean; };
+
+	private readonly _languageIdentifier: LanguageIdentifier;
+	private _electricChars: { [key: string]: boolean; };
 
 	public static shouldRecreate(e: IConfigurationChangedEvent): boolean {
 		return (
@@ -88,6 +104,8 @@ export class CursorConfiguration {
 		modelOptions: TextModelResolvedOptions,
 		configuration: IConfiguration
 	) {
+		this._languageIdentifier = languageIdentifier;
+
 		let c = configuration.editor;
 
 		this.readOnly = c.readOnly;
@@ -105,14 +123,7 @@ export class CursorConfiguration {
 		this.autoClosingPairsOpen = {};
 		this.autoClosingPairsClose = {};
 		this.surroundingPairs = {};
-		this.electricChars = {};
-
-		let electricChars = CursorConfiguration._getElectricCharacters(languageIdentifier);
-		if (electricChars) {
-			for (let i = 0; i < electricChars.length; i++) {
-				this.electricChars[electricChars[i]] = true;
-			}
-		}
+		this._electricChars = null;
 
 		let autoClosingPairs = CursorConfiguration._getAutoClosingPairs(languageIdentifier);
 		if (autoClosingPairs) {
@@ -128,6 +139,19 @@ export class CursorConfiguration {
 				this.surroundingPairs[surroundingPairs[i].open] = surroundingPairs[i].close;
 			}
 		}
+	}
+
+	public get electricChars() {
+		if (!this._electricChars) {
+			this._electricChars = {};
+			let electricChars = CursorConfiguration._getElectricCharacters(this._languageIdentifier);
+			if (electricChars) {
+				for (let i = 0; i < electricChars.length; i++) {
+					this._electricChars[electricChars[i]] = true;
+				}
+			}
+		}
+		return this._electricChars;
 	}
 
 	public normalizeIndentation(str: string): string {
@@ -321,11 +345,6 @@ export class CursorContext {
 		return this.viewModel.getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
 	}
 
-	public getCompletelyVisibleModelRangeAtScrollTop(scrollTop: number): Range {
-		const viewRange = this.viewModel.getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
-		return this.viewModel.coordinatesConverter.convertViewRangeToModelRange(viewRange);
-	}
-
 	public getVerticalOffsetForViewLine(viewLineNumber: number): number {
 		return this.viewModel.viewLayout.getVerticalOffsetForLineNumber(viewLineNumber);
 	}
@@ -362,50 +381,6 @@ export class CursorState {
 		return states;
 	}
 
-	public static ensureInEditableRange(context: CursorContext, states: CursorState[]): CursorState[] {
-		const model = context.model;
-		if (!model.hasEditableRange()) {
-			return states;
-		}
-
-		const modelEditableRange = model.getEditableRange();
-		const viewEditableRange = context.convertModelRangeToViewRange(modelEditableRange);
-
-		let result: CursorState[] = [];
-		for (let i = 0, len = states.length; i < len; i++) {
-			const state = states[i];
-
-			if (state.modelState) {
-				const newModelState = CursorState._ensureInEditableRange(state.modelState, modelEditableRange);
-				result[i] = newModelState ? CursorState.fromModelState(newModelState) : state;
-			} else {
-				const newViewState = CursorState._ensureInEditableRange(state.viewState, viewEditableRange);
-				result[i] = newViewState ? CursorState.fromViewState(newViewState) : state;
-			}
-		}
-		return result;
-	}
-
-	private static _ensureInEditableRange(state: SingleCursorState, editableRange: Range): SingleCursorState {
-		const position = state.position;
-
-		if (position.lineNumber < editableRange.startLineNumber || (position.lineNumber === editableRange.startLineNumber && position.column < editableRange.startColumn)) {
-			return new SingleCursorState(
-				state.selectionStart, state.selectionStartLeftoverVisibleColumns,
-				new Position(editableRange.startLineNumber, editableRange.startColumn), 0
-			);
-		}
-
-		if (position.lineNumber > editableRange.endLineNumber || (position.lineNumber === editableRange.endLineNumber && position.column > editableRange.endColumn)) {
-			return new SingleCursorState(
-				state.selectionStart, state.selectionStartLeftoverVisibleColumns,
-				new Position(editableRange.endLineNumber, editableRange.endColumn), 0
-			);
-		}
-
-		return null;
-	}
-
 	readonly modelState: SingleCursorState;
 	readonly viewState: SingleCursorState;
 
@@ -422,17 +397,20 @@ export class CursorState {
 export class EditOperationResult {
 	_editOperationResultBrand: void;
 
+	readonly type: EditOperationType;
 	readonly commands: ICommand[];
 	readonly shouldPushStackElementBefore: boolean;
 	readonly shouldPushStackElementAfter: boolean;
 
 	constructor(
+		type: EditOperationType,
 		commands: ICommand[],
 		opts: {
 			shouldPushStackElementBefore: boolean;
 			shouldPushStackElementAfter: boolean;
 		}
 	) {
+		this.type = type;
 		this.commands = commands;
 		this.shouldPushStackElementBefore = opts.shouldPushStackElementBefore;
 		this.shouldPushStackElementAfter = opts.shouldPushStackElementAfter;

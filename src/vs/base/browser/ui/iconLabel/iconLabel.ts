@@ -11,7 +11,7 @@ import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlighte
 import { IMatch } from 'vs/base/common/filters';
 import uri from 'vs/base/common/uri';
 import paths = require('vs/base/common/paths');
-import { IWorkspaceFolderProvider, getPathLabel, IUserHomeProvider } from 'vs/base/common/labels';
+import { IWorkspaceFolderProvider, getPathLabel, IUserHomeProvider, getBaseLabel } from 'vs/base/common/labels';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 
 export interface IIconLabelCreationOptions {
@@ -88,13 +88,15 @@ export class IconLabel {
 	constructor(container: HTMLElement, options?: IIconLabelCreationOptions) {
 		this.domNode = new FastLabelNode(dom.append(container, dom.$('.monaco-icon-label')));
 
+		const labelDescriptionContainer = new FastLabelNode(dom.append(this.domNode.element, dom.$('.monaco-icon-label-description-container')));
+
 		if (options && options.supportHighlights) {
-			this.labelNode = new HighlightedLabel(dom.append(this.domNode.element, dom.$('a.label-name')));
+			this.labelNode = new HighlightedLabel(dom.append(labelDescriptionContainer.element, dom.$('a.label-name')));
 		} else {
-			this.labelNode = new FastLabelNode(dom.append(this.domNode.element, dom.$('a.label-name')));
+			this.labelNode = new FastLabelNode(dom.append(labelDescriptionContainer.element, dom.$('a.label-name')));
 		}
 
-		this.descriptionNode = new FastLabelNode(dom.append(this.domNode.element, dom.$('span.label-description')));
+		this.descriptionNode = new FastLabelNode(dom.append(labelDescriptionContainer.element, dom.$('span.label-description')));
 	}
 
 	public get element(): HTMLElement {
@@ -161,6 +163,6 @@ export class FileLabel extends IconLabel {
 	public setFile(file: uri, provider: IWorkspaceFolderProvider, userHome: IUserHomeProvider): void {
 		const parent = paths.dirname(file.fsPath);
 
-		this.setValue(paths.basename(file.fsPath), parent && parent !== '.' ? getPathLabel(parent, provider, userHome) : '', { title: file.fsPath });
+		this.setValue(getBaseLabel(file), parent && parent !== '.' ? getPathLabel(parent, provider, userHome) : '', { title: file.fsPath });
 	}
 }

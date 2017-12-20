@@ -16,10 +16,28 @@ import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/p
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { PICK_WORKSPACE_FOLDER_COMMAND } from 'vs/workbench/browser/actions/workspaceActions';
 
+export class OpenRawDefaultSettingsAction extends Action {
+
+	public static readonly ID = 'workbench.action.openRawDefaultSettings';
+	public static readonly LABEL = nls.localize('openRawDefaultSettings', "Open Raw Default Settings");
+
+	constructor(
+		id: string,
+		label: string,
+		@IPreferencesService private preferencesService: IPreferencesService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		return this.preferencesService.openRawDefaultSettings();
+	}
+}
+
 export class OpenGlobalSettingsAction extends Action {
 
-	public static ID = 'workbench.action.openGlobalSettings';
-	public static LABEL = nls.localize('openGlobalSettings', "Open User Settings");
+	public static readonly ID = 'workbench.action.openGlobalSettings';
+	public static readonly LABEL = nls.localize('openGlobalSettings', "Open User Settings");
 
 	constructor(
 		id: string,
@@ -36,8 +54,8 @@ export class OpenGlobalSettingsAction extends Action {
 
 export class OpenGlobalKeybindingsAction extends Action {
 
-	public static ID = 'workbench.action.openGlobalKeybindings';
-	public static LABEL = nls.localize('openGlobalKeybindings', "Open Keyboard Shortcuts");
+	public static readonly ID = 'workbench.action.openGlobalKeybindings';
+	public static readonly LABEL = nls.localize('openGlobalKeybindings', "Open Keyboard Shortcuts");
 
 	constructor(
 		id: string,
@@ -54,8 +72,8 @@ export class OpenGlobalKeybindingsAction extends Action {
 
 export class OpenGlobalKeybindingsFileAction extends Action {
 
-	public static ID = 'workbench.action.openGlobalKeybindingsFile';
-	public static LABEL = nls.localize('openGlobalKeybindingsFile', "Open Keyboard Shortcuts File");
+	public static readonly ID = 'workbench.action.openGlobalKeybindingsFile';
+	public static readonly LABEL = nls.localize('openGlobalKeybindingsFile', "Open Keyboard Shortcuts File");
 
 	constructor(
 		id: string,
@@ -72,8 +90,8 @@ export class OpenGlobalKeybindingsFileAction extends Action {
 
 export class OpenWorkspaceSettingsAction extends Action {
 
-	public static ID = 'workbench.action.openWorkspaceSettings';
-	public static LABEL = nls.localize('openWorkspaceSettings', "Open Workspace Settings");
+	public static readonly ID = 'workbench.action.openWorkspaceSettings';
+	public static readonly LABEL = nls.localize('openWorkspaceSettings', "Open Workspace Settings");
 
 	private disposables: IDisposable[] = [];
 
@@ -102,10 +120,11 @@ export class OpenWorkspaceSettingsAction extends Action {
 	}
 }
 
+export const OPEN_FOLDER_SETTINGS_COMMAND = '_workbench.action.openFolderSettings';
 export class OpenFolderSettingsAction extends Action {
 
-	public static ID = 'workbench.action.openFolderSettings';
-	public static LABEL = nls.localize('openFolderSettings', "Open Folder Settings");
+	public static readonly ID = 'workbench.action.openFolderSettings';
+	public static readonly LABEL = nls.localize('openFolderSettings', "Open Folder Settings");
 
 	private disposables: IDisposable[] = [];
 
@@ -113,7 +132,6 @@ export class OpenFolderSettingsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IPreferencesService private preferencesService: IPreferencesService,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 		@ICommandService private commandService: ICommandService
 	) {
@@ -131,7 +149,7 @@ export class OpenFolderSettingsAction extends Action {
 		return this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND)
 			.then(workspaceFolder => {
 				if (workspaceFolder) {
-					return this.preferencesService.openFolderSettings(workspaceFolder.uri);
+					return this.commandService.executeCommand(OPEN_FOLDER_SETTINGS_COMMAND, workspaceFolder);
 				}
 				return null;
 			});
@@ -145,8 +163,8 @@ export class OpenFolderSettingsAction extends Action {
 
 export class ConfigureLanguageBasedSettingsAction extends Action {
 
-	public static ID = 'workbench.action.configureLanguageBasedSettings';
-	public static LABEL = nls.localize('configureLanguageBasedSettings', "Configure Language Specific Settings...");
+	public static readonly ID = 'workbench.action.configureLanguageBasedSettings';
+	public static readonly LABEL = nls.localize('configureLanguageBasedSettings', "Configure Language Specific Settings...");
 
 	constructor(
 		id: string,

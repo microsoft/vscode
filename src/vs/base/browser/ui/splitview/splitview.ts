@@ -6,1043 +6,420 @@
 'use strict';
 
 import 'vs/css!./splitview';
-import lifecycle = require('vs/base/common/lifecycle');
-import ee = require('vs/base/common/eventEmitter');
+import { IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import Event, { mapEvent, Emitter } from 'vs/base/common/event';
 import types = require('vs/base/common/types');
 import dom = require('vs/base/browser/dom');
-import numbers = require('vs/base/common/numbers');
-import sash = require('vs/base/browser/ui/sash/sash');
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import Event, { Emitter } from 'vs/base/common/event';
-import { Color } from 'vs/base/common/color';
+import { clamp } from 'vs/base/common/numbers';
+import { range, firstIndex } from 'vs/base/common/arrays';
+import { Sash, Orientation, ISashEvent as IBaseSashEvent } from 'vs/base/browser/ui/sash/sash';
+export { Orientation } from 'vs/base/browser/ui/sash/sash';
 
-export enum Orientation {
-	VERTICAL,
-	HORIZONTAL
-}
-
-export enum ViewSizing {
-	Flexible,
-	Fixed
-}
-
-export interface IOptions {
+export interface ISplitViewOptions {
 	orientation?: Orientation; // default Orientation.VERTICAL
-	canChangeOrderByDragAndDrop?: boolean;
 }
 
-export interface ISashEvent {
+export interface IView {
+	readonly minimumSize: number;
+	readonly maximumSize: number;
+	readonly onDidChange: Event<number | undefined>;
+	render(container: HTMLElement, orientation: Orientation): void;
+	layout(size: number, orientation: Orientation): void;
+}
+
+interface ISashEvent {
+	sash: Sash;
 	start: number;
 	current: number;
 }
 
-export interface IViewOptions {
-	sizing?: ViewSizing;
-	fixedSize?: number;
-	minimumSize?: number;
-}
-
-export interface IView extends ee.IEventEmitter {
-	preferredSize: number;
+interface IViewItem {
+	view: IView;
 	size: number;
-	sizing: ViewSizing;
-	fixedSize: number;
-	minimumSize: number;
-	maximumSize: number;
-	draggableElement?: HTMLElement;
-	draggableLabel?: string;
-	render(container: HTMLElement, orientation: Orientation): void;
-	layout(size: number, orientation: Orientation): void;
-	focus(): void;
+	container: HTMLElement;
+	disposable: IDisposable;
+	layout(): void;
 }
 
-interface IState {
-	start?: number;
-	sizes?: number[];
-	up?: number[];
-	down?: number[];
-	maxUp?: number;
-	maxDown?: number;
-	collapses: number[];
-	expands: number[];
+interface ISashItem {
+	sash: Sash;
+	disposable: IDisposable;
 }
 
-export abstract class View extends ee.EventEmitter implements IView {
-
-	size: number;
-	protected _sizing: ViewSizing;
-	protected _fixedSize: number;
-	protected _minimumSize: number;
-
-	constructor(public preferredSize: number, opts: IViewOptions) {
-		super();
-
-		this.size = 0;
-		this._sizing = types.isUndefined(opts.sizing) ? ViewSizing.Flexible : opts.sizing;
-		this._fixedSize = types.isUndefined(opts.fixedSize) ? 22 : opts.fixedSize;
-		this._minimumSize = types.isUndefined(opts.minimumSize) ? 22 : opts.minimumSize;
-	}
-
-	get sizing(): ViewSizing { return this._sizing; }
-	get fixedSize(): number { return this._fixedSize; }
-	get minimumSize(): number { return this.sizing === ViewSizing.Fixed ? this.fixedSize : this._minimumSize; }
-	get maximumSize(): number { return this.sizing === ViewSizing.Fixed ? this.fixedSize : Number.POSITIVE_INFINITY; }
-
-	protected setFlexible(size?: number): void {
-		this._sizing = ViewSizing.Flexible;
-		this.emit('change', types.isUndefined(size) ? this._minimumSize : size);
-	}
-
-	protected setFixed(size?: number): void {
-		this._sizing = ViewSizing.Fixed;
-		this._fixedSize = types.isUndefined(size) ? this._fixedSize : size;
-		this.emit('change', this._fixedSize);
-	}
-
-	abstract render(container: HTMLElement, orientation: Orientation): void;
-	abstract focus(): void;
-	abstract layout(size: number, orientation: Orientation): void;
+interface ISashDragState {
+	index: number;
+	start: number;
+	sizes: number[];
+	minDelta: number;
+	maxDelta: number;
 }
 
-export interface IHeaderViewOptions extends IHeaderViewStyles, IViewOptions {
-	headerSize?: number;
+enum State {
+	Idle,
+	Busy
 }
 
-export interface IHeaderViewStyles {
-	headerForeground?: Color;
-	headerBackground?: Color;
-	headerHighContrastBorder?: Color;
+function pushToEnd<T>(arr: T[], value: T): T[] {
+	let didFindValue = false;
+
+	const result = arr.filter(v => {
+		if (v === value) {
+			didFindValue = true;
+			return false;
+		}
+
+		return true;
+	});
+
+	if (didFindValue) {
+		result.push(value);
+	}
+
+	return result;
 }
 
-const headerDefaultOpts = {
-	headerBackground: Color.fromHex('#808080').transparent(0.2)
-};
-
-export abstract class HeaderView extends View {
-
-	private _headerSize: number;
-	private _showHeader: boolean;
-
-	protected header: HTMLElement;
-	protected body: HTMLElement;
-
-	private headerForeground: Color;
-	private headerBackground: Color;
-	private headerHighContrastBorder: Color;
-
-	constructor(initialSize: number, opts: IHeaderViewOptions) {
-		super(initialSize, opts);
-
-		this._headerSize = types.isUndefined(opts.headerSize) ? 22 : opts.headerSize;
-		this._showHeader = this._headerSize > 0;
-
-		this.headerForeground = opts.headerForeground;
-		this.headerBackground = opts.headerBackground || headerDefaultOpts.headerBackground;
-		this.headerHighContrastBorder = opts.headerHighContrastBorder;
-	}
-
-	style(styles: IHeaderViewStyles): void {
-		this.headerForeground = styles.headerForeground;
-		this.headerBackground = styles.headerBackground;
-		this.headerHighContrastBorder = styles.headerHighContrastBorder;
-
-		this.applyStyles();
-	}
-
-	protected get headerSize(): number {
-		return this._showHeader ? this._headerSize : 0;
-	}
-
-	protected applyStyles(): void {
-		if (this.header) {
-			const headerForegroundColor = this.headerForeground ? this.headerForeground.toString() : null;
-			const headerBackgroundColor = this.headerBackground ? this.headerBackground.toString() : null;
-			const headerHighContrastBorderColor = this.headerHighContrastBorder ? this.headerHighContrastBorder.toString() : null;
-
-			this.header.style.color = headerForegroundColor;
-			this.header.style.backgroundColor = headerBackgroundColor;
-			this.header.style.borderTop = headerHighContrastBorderColor ? `1px solid ${headerHighContrastBorderColor}` : null;
-		}
-	}
-
-	get draggableElement(): HTMLElement { return this.header; }
-
-	render(container: HTMLElement, orientation: Orientation): void {
-		this.header = document.createElement('div');
-		this.header.className = 'header';
-
-		let headerSize = this.headerSize + 'px';
-
-		if (orientation === Orientation.HORIZONTAL) {
-			this.header.style.width = headerSize;
-		} else {
-			this.header.style.height = headerSize;
-		}
-
-		if (this._showHeader) {
-			this.renderHeader(this.header);
-			container.appendChild(this.header);
-		}
-
-		this.body = document.createElement('div');
-		this.body.className = 'body';
-
-		this.layoutBodyContainer(orientation);
-		this.renderBody(this.body);
-		container.appendChild(this.body);
-
-		this.applyStyles();
-	}
-
-	showHeader(): boolean {
-		if (!this._showHeader) {
-			if (!this.body.parentElement.contains(this.header)) {
-				this.renderHeader(this.header);
-				this.body.parentElement.insertBefore(this.header, this.body);
-			}
-			dom.removeClass(this.header, 'hide');
-			this._showHeader = true;
-			return true;
-		}
-		return false;
-	}
-
-	hideHeader(): boolean {
-		if (this._showHeader) {
-			dom.addClass(this.header, 'hide');
-			this._showHeader = false;
-			return true;
-		}
-		return false;
-	}
-
-	layout(size: number, orientation: Orientation): void {
-		this.layoutBodyContainer(orientation);
-		this.layoutBody(size - this.headerSize);
-	}
-
-	private layoutBodyContainer(orientation: Orientation): void {
-		let size = `calc(100% - ${this.headerSize}px)`;
-
-		if (orientation === Orientation.HORIZONTAL) {
-			this.body.style.width = size;
-		} else {
-			this.body.style.height = size;
-		}
-	}
-
-	dispose(): void {
-		this.header = null;
-		this.body = null;
-
-		super.dispose();
-	}
-
-	protected abstract renderHeader(container: HTMLElement): void;
-	protected abstract renderBody(container: HTMLElement): void;
-	protected abstract layoutBody(size: number): void;
-}
-
-export interface IAbstractCollapsibleViewOptions {
-	sizing: ViewSizing;
-	ariaHeaderLabel?: string;
-	bodySize?: number;
-	initialState?: CollapsibleState;
-}
-
-export enum CollapsibleState {
-	EXPANDED,
-	COLLAPSED
-}
-
-export abstract class AbstractCollapsibleView extends HeaderView {
-
-	protected state: CollapsibleState;
-
-	private ariaHeaderLabel: string;
-	private headerClickListener: lifecycle.IDisposable;
-	private headerKeyListener: lifecycle.IDisposable;
-	private focusTracker: dom.IFocusTracker;
-	private _bodySize: number;
-	private _previousSize: number = null;
-	private readonly viewSizing: ViewSizing;
-
-	constructor(initialSize: number | undefined, opts: IAbstractCollapsibleViewOptions) {
-		super(initialSize, opts);
-		this.viewSizing = opts.sizing;
-		this.ariaHeaderLabel = opts.ariaHeaderLabel;
-
-		this.setBodySize(types.isUndefined(opts.bodySize) ? 22 : opts.bodySize);
-
-		if (typeof this.preferredSize === 'undefined') {
-			this.preferredSize = this._bodySize + this.headerSize;
-		}
-
-		this.changeState(types.isUndefined(opts.initialState) ? CollapsibleState.EXPANDED : opts.initialState);
-	}
-
-	get previousSize(): number {
-		return this._previousSize;
-	}
-
-	setBodySize(bodySize: number) {
-		this._bodySize = bodySize;
-		this.updateSize();
-	}
-
-	private updateSize() {
-		if (this.viewSizing === ViewSizing.Fixed) {
-			this.setFixed(this.state === CollapsibleState.EXPANDED ? this._bodySize + this.headerSize : this.headerSize);
-		} else {
-			this._minimumSize = this._bodySize + this.headerSize;
-			this._previousSize = !this.previousSize || this._previousSize < this._minimumSize ? this._minimumSize : this._previousSize;
-			if (this.state === CollapsibleState.EXPANDED) {
-				this.setFlexible(this._previousSize || this._minimumSize);
-			} else {
-				this._previousSize = this.size || this._minimumSize;
-				this.setFixed(this.headerSize);
-			}
-		}
-	}
-
-	render(container: HTMLElement, orientation: Orientation): void {
-		super.render(container, orientation);
-
-		dom.addClass(this.header, 'collapsible');
-		dom.addClass(this.body, 'collapsible');
-
-		// Keyboard access
-		this.header.setAttribute('tabindex', '0');
-		this.header.setAttribute('role', 'toolbar');
-		if (this.ariaHeaderLabel) {
-			this.header.setAttribute('aria-label', this.ariaHeaderLabel);
-		}
-		this.header.setAttribute('aria-expanded', String(this.state === CollapsibleState.EXPANDED));
-		this.headerKeyListener = dom.addDisposableListener(this.header, dom.EventType.KEY_DOWN, (e) => {
-			let event = new StandardKeyboardEvent(e);
-			let eventHandled = false;
-			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space) || (event.equals(KeyCode.LeftArrow) && this.state === CollapsibleState.EXPANDED) || (event.equals(KeyCode.RightArrow) && this.state === CollapsibleState.COLLAPSED)) {
-				this.toggleExpansion();
-				eventHandled = true;
-			} else if (event.equals(KeyCode.Escape)) {
-				this.header.blur();
-				eventHandled = true;
-			} else if (event.equals(KeyCode.UpArrow)) {
-				this.emit('focusPrevious');
-				eventHandled = true;
-			} else if (event.equals(KeyCode.DownArrow)) {
-				this.emit('focusNext');
-				eventHandled = true;
-			}
-
-			if (eventHandled) {
-				dom.EventHelper.stop(event, true);
-			}
-		});
-
-		// Mouse access
-		this.headerClickListener = dom.addDisposableListener(this.header, dom.EventType.CLICK, () => this.toggleExpansion());
-
-		// Track state of focus in header so that other components can adjust styles based on that
-		// (for example show or hide actions based on the state of being focused or not)
-		this.focusTracker = dom.trackFocus(this.header);
-		this.focusTracker.addFocusListener(() => {
-			dom.addClass(this.header, 'focused');
-		});
-
-		this.focusTracker.addBlurListener(() => {
-			dom.removeClass(this.header, 'focused');
-		});
-	}
-
-	focus(): void {
-		if (this.header) {
-			this.header.focus();
-		}
-	}
-
-	layout(size: number, orientation: Orientation): void {
-		this.layoutHeader();
-		super.layout(size, orientation);
-	}
-
-	isExpanded(): boolean {
-		return this.state === CollapsibleState.EXPANDED;
-	}
-
-	expand(): void {
-		if (this.isExpanded()) {
-			return;
-		}
-
-		this.changeState(CollapsibleState.EXPANDED);
-	}
-
-	collapse(): void {
-		if (!this.isExpanded()) {
-			return;
-		}
-
-		this.changeState(CollapsibleState.COLLAPSED);
-	}
-
-	toggleExpansion(): void {
-		if (this.isExpanded()) {
-			this.collapse();
-		} else {
-			this.expand();
-		}
-	}
-
-	private layoutHeader(): void {
-		if (!this.header) {
-			return;
-		}
-
-		if (this.state === CollapsibleState.COLLAPSED) {
-			dom.addClass(this.header, 'collapsed');
-		} else {
-			dom.removeClass(this.header, 'collapsed');
-		}
-	}
-
-	protected changeState(state: CollapsibleState): void {
-		this.state = state;
-
-		if (this.header) {
-			this.header.setAttribute('aria-expanded', String(this.state === CollapsibleState.EXPANDED));
-		}
-
-		this.layoutHeader();
-		this.updateSize();
-	}
-
-	showHeader(): boolean {
-		const result = super.showHeader();
-		if (result) {
-			this.updateSize();
-		}
-		return result;
-	}
-
-	hideHeader(): boolean {
-		const result = super.hideHeader();
-		if (result) {
-			this.updateSize();
-		}
-		return result;
-	}
-
-	dispose(): void {
-		if (this.headerClickListener) {
-			this.headerClickListener.dispose();
-			this.headerClickListener = null;
-		}
-
-		if (this.headerKeyListener) {
-			this.headerKeyListener.dispose();
-			this.headerKeyListener = null;
-		}
-
-		if (this.focusTracker) {
-			this.focusTracker.dispose();
-			this.focusTracker = null;
-		}
-
-		super.dispose();
-	}
-}
-
-class PlainView extends View {
-	render() { }
-	focus() { }
-	layout() { }
-}
-
-class DeadView extends PlainView {
-
-	constructor(view: IView) {
-		super(view.size, { sizing: ViewSizing.Fixed, fixedSize: 0 });
-	}
-}
-
-class VoidView extends PlainView {
-
-	constructor() {
-		super(0, { sizing: ViewSizing.Fixed, minimumSize: 0, fixedSize: 0 });
-	}
-
-	setFlexible(size?: number): void {
-		super.setFlexible(size);
-	}
-
-	setFixed(size?: number): void {
-		super.setFixed(size);
-	}
-}
-
-function sum(arr: number[]): number {
-	return arr.reduce((a, b) => a + b);
-}
-
-export interface SplitViewStyles {
-	dropBackground?: Color;
-}
-
-export class SplitView extends lifecycle.Disposable implements
-	sash.IHorizontalSashLayoutProvider,
-	sash.IVerticalSashLayoutProvider {
+export class SplitView implements IDisposable {
 
 	private orientation: Orientation;
-	private canDragAndDrop: boolean;
 	private el: HTMLElement;
-	private size: number;
-	private viewElements: HTMLElement[];
-	private views: IView[];
-	private viewChangeListeners: lifecycle.IDisposable[];
-	private viewFocusPreviousListeners: lifecycle.IDisposable[];
-	private viewFocusNextListeners: lifecycle.IDisposable[];
-	private viewFocusListeners: lifecycle.IDisposable[];
-	private viewDnDListeners: lifecycle.IDisposable[][];
-	private sashOrientation: sash.Orientation;
-	private sashes: sash.Sash[];
-	private sashesListeners: lifecycle.IDisposable[];
-	private measureContainerSize: () => number;
-	private layoutViewElement: (viewElement: HTMLElement, size: number) => void;
-	private eventWrapper: (event: sash.ISashEvent) => ISashEvent;
-	private animationTimeout: number;
-	private state: IState;
-	private draggedView: IView;
-	private dropBackground: Color;
+	private size = 0;
+	private contentSize = 0;
+	private viewItems: IViewItem[] = [];
+	private sashItems: ISashItem[] = [];
+	private sashDragState: ISashDragState;
+	private state: State = State.Idle;
 
-	private _onFocus: Emitter<IView> = this._register(new Emitter<IView>());
-	readonly onFocus: Event<IView> = this._onFocus.event;
-
-	private _onDidOrderChange: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidOrderChange: Event<void> = this._onDidOrderChange.event;
+	private _onDidSashChange = new Emitter<void>();
+	readonly onDidSashChange = this._onDidSashChange.event;
 
 	get length(): number {
-		return this.views.length;
+		return this.viewItems.length;
 	}
 
-	constructor(container: HTMLElement, options?: IOptions) {
-		super();
-		options = options || {};
-
+	constructor(container: HTMLElement, options: ISplitViewOptions = {}) {
 		this.orientation = types.isUndefined(options.orientation) ? Orientation.VERTICAL : options.orientation;
-		this.canDragAndDrop = !!options.canChangeOrderByDragAndDrop;
 
 		this.el = document.createElement('div');
-		dom.addClass(this.el, 'monaco-split-view');
+		dom.addClass(this.el, 'monaco-split-view2');
 		dom.addClass(this.el, this.orientation === Orientation.VERTICAL ? 'vertical' : 'horizontal');
 		container.appendChild(this.el);
+	}
 
-		this.size = null;
-		this.viewElements = [];
-		this.views = [];
-		this.viewChangeListeners = [];
-		this.viewFocusPreviousListeners = [];
-		this.viewFocusNextListeners = [];
-		this.viewFocusListeners = [];
-		this.viewDnDListeners = [];
-		this.sashes = [];
-		this.sashesListeners = [];
-		this.animationTimeout = null;
-
-		this.sashOrientation = this.orientation === Orientation.VERTICAL
-			? sash.Orientation.HORIZONTAL
-			: sash.Orientation.VERTICAL;
-
-		if (this.orientation === Orientation.VERTICAL) {
-			this.measureContainerSize = () => dom.getContentHeight(container);
-			this.layoutViewElement = (viewElement, size) => viewElement.style.height = size + 'px';
-			this.eventWrapper = e => { return { start: e.startY, current: e.currentY }; };
-		} else {
-			this.measureContainerSize = () => dom.getContentWidth(container);
-			this.layoutViewElement = (viewElement, size) => viewElement.style.width = size + 'px';
-			this.eventWrapper = e => { return { start: e.startX, current: e.currentX }; };
+	addView(view: IView, size: number, index = this.viewItems.length): void {
+		if (this.state !== State.Idle) {
+			throw new Error('Cant modify splitview');
 		}
 
-		// The void space exists to handle the case where all other views are fixed size
-		this.addView(new VoidView(), 0);
-	}
+		this.state = State.Busy;
 
-	getView(index: number): IView | undefined {
-		return this.views[index];
-	}
+		// Add view
+		const container = dom.$('.split-view-view');
 
-	getViews<T extends IView>(): T[] {
-		return <T[]>this.views.slice(0, this.views.length - 1);
-	}
-
-	addView(view: IView, index = this.views.length - 1): void {
-		/**
-		 * Reset size to null. This will layout newly added views to initial weights.
-		 */
-		this.size = null;
-
-		let viewCount = this.views.length;
-
-		// Create view container
-		let viewElement = document.createElement('div');
-		dom.addClass(viewElement, 'split-view-view');
-		this.viewElements.splice(index, 0, viewElement);
-
-		// Create view
-		view.render(viewElement, this.orientation);
-		this.views.splice(index, 0, view);
-
-		// Render view
-		if (index === viewCount) {
-			this.el.appendChild(viewElement);
+		if (index === this.viewItems.length) {
+			this.el.appendChild(container);
 		} else {
-			this.el.insertBefore(viewElement, this.el.children.item(index));
+			this.el.insertBefore(container, this.el.children.item(index));
 		}
 
-		// Listen to Drag and Drop
-		this.viewDnDListeners[index] = this.createDnDListeners(view, viewElement);
+		const onChangeDisposable = view.onDidChange(size => this.onViewChange(item, size));
+		const containerDisposable = toDisposable(() => this.el.removeChild(container));
+		const disposable = combinedDisposable([onChangeDisposable, containerDisposable]);
+
+		const layoutContainer = this.orientation === Orientation.VERTICAL
+			? size => item.container.style.height = `${item.size}px`
+			: size => item.container.style.width = `${item.size}px`;
+
+		const layout = () => {
+			layoutContainer(item.size);
+			item.view.layout(item.size, this.orientation);
+		};
+
+		size = Math.round(size);
+		const item: IViewItem = { view, container, size, layout, disposable };
+		this.viewItems.splice(index, 0, item);
 
 		// Add sash
-		if (this.views.length > 2) {
-			let s = new sash.Sash(this.el, this, { orientation: this.sashOrientation });
-			this.sashes.splice(index - 1, 0, s);
-			this.sashesListeners.push(s.addListener('start', e => this.onSashStart(s, this.eventWrapper(e))));
-			this.sashesListeners.push(s.addListener('change', e => this.onSashChange(s, this.eventWrapper(e))));
+		if (this.viewItems.length > 1) {
+			const orientation = this.orientation === Orientation.VERTICAL ? Orientation.HORIZONTAL : Orientation.VERTICAL;
+			const layoutProvider = this.orientation === Orientation.VERTICAL ? { getHorizontalSashTop: sash => this.getSashPosition(sash) } : { getVerticalSashLeft: sash => this.getSashPosition(sash) };
+			const sash = new Sash(this.el, layoutProvider, { orientation });
+			const sashEventMapper = this.orientation === Orientation.VERTICAL
+				? (e: IBaseSashEvent) => ({ sash, start: e.startY, current: e.currentY })
+				: (e: IBaseSashEvent) => ({ sash, start: e.startX, current: e.currentX });
+
+			const onStart = mapEvent(sash.onDidStart, sashEventMapper);
+			const onStartDisposable = onStart(this.onSashStart, this);
+			const onChange = mapEvent(sash.onDidChange, sashEventMapper);
+			const onSashChangeDisposable = onChange(this.onSashChange, this);
+			const onEnd = mapEvent<void, void>(sash.onDidEnd, () => null);
+			const onEndDisposable = onEnd(() => this._onDidSashChange.fire());
+
+			const disposable = combinedDisposable([onStartDisposable, onSashChangeDisposable, onEndDisposable, sash]);
+			const sashItem: ISashItem = { sash, disposable };
+
+			this.sashItems.splice(index - 1, 0, sashItem);
 		}
 
-		this.viewChangeListeners.splice(index, 0, view.addListener('change', size => this.onViewChange(view, size)));
-		this.onViewChange(view, view.minimumSize);
-
-		let viewFocusTracker = dom.trackFocus(viewElement);
-		this.viewFocusListeners.splice(index, 0, viewFocusTracker);
-		viewFocusTracker.addFocusListener(() => this._onFocus.fire(view));
-
-		this.viewFocusPreviousListeners.splice(index, 0, view.addListener('focusPrevious', () => index > 0 && this.views[index - 1].focus()));
-		this.viewFocusNextListeners.splice(index, 0, view.addListener('focusNext', () => index < this.views.length && this.views[index + 1].focus()));
+		view.render(container, this.orientation);
+		this.relayout();
+		this.state = State.Idle;
 	}
 
-	removeView(view: IView): void {
-		let index = this.views.indexOf(view);
+	removeView(index: number): void {
+		if (this.state !== State.Idle) {
+			throw new Error('Cant modify splitview');
+		}
 
-		if (index < 0) {
+		this.state = State.Busy;
+
+		if (index < 0 || index >= this.viewItems.length) {
 			return;
 		}
 
-		this.size = null;
-		let deadView = new DeadView(view);
-		this.views[index] = deadView;
-		this.onViewChange(deadView, 0);
+		// Remove view
+		const viewItem = this.viewItems.splice(index, 1)[0];
+		viewItem.disposable.dispose();
 
-		let sashIndex = Math.max(index - 1, 0);
-		if (sashIndex < this.sashes.length) {
-			this.sashes[sashIndex].dispose();
-			this.sashes.splice(sashIndex, 1);
+		// Remove sash
+		if (this.viewItems.length >= 1) {
+			const sashIndex = Math.max(index - 1, 0);
+			const sashItem = this.sashItems.splice(sashIndex, 1)[0];
+			sashItem.disposable.dispose();
 		}
 
-		this.viewChangeListeners[index].dispose();
-		this.viewChangeListeners.splice(index, 1);
-
-		this.viewFocusPreviousListeners[index].dispose();
-		this.viewFocusPreviousListeners.splice(index, 1);
-
-		this.viewFocusListeners[index].dispose();
-		this.viewFocusListeners.splice(index, 1);
-
-		this.viewFocusNextListeners[index].dispose();
-		this.viewFocusNextListeners.splice(index, 1);
-
-		lifecycle.dispose(this.viewDnDListeners[index]);
-		this.viewDnDListeners.splice(index, 1);
-
-		this.views.splice(index, 1);
-		this.el.removeChild(this.viewElements[index]);
-		this.viewElements.splice(index, 1);
-
-		deadView.dispose();
-		view.dispose();
+		this.relayout();
+		this.state = State.Idle;
 	}
 
-	layout(size?: number): void {
-		size = size || this.measureContainerSize();
+	moveView(from: number, to: number): void {
+		if (this.state !== State.Idle) {
+			throw new Error('Cant modify splitview');
+		}
 
-		if (this.size === null) {
-			this.size = size;
-			this.initialLayout();
+		this.state = State.Busy;
+
+		if (from < 0 || from >= this.viewItems.length) {
 			return;
 		}
 
-		size = Math.max(size, this.views.reduce((t, v) => t + v.minimumSize, 0));
-
-		let diff = Math.abs(this.size - size);
-		let up = numbers.countToArray(this.views.length - 1, -1);
-
-		let collapses = this.views.map(v => v.size - v.minimumSize);
-		let expands = this.views.map(v => v.maximumSize - v.size);
-
-		if (size < this.size) {
-			this.expandCollapse(Math.min(diff, sum(collapses)), collapses, expands, up, []);
-		} else if (size > this.size) {
-			this.expandCollapse(Math.min(diff, sum(expands)), collapses, expands, [], up);
-		}
-
-		this.size = size;
-		this.layoutViews();
-	}
-
-	style(styles: SplitViewStyles): void {
-		this.dropBackground = styles.dropBackground;
-	}
-
-	private createDnDListeners(view: IView, viewElement: HTMLElement): lifecycle.IDisposable[] {
-		if (!this.canDragAndDrop || view instanceof VoidView) {
-			return [];
-		}
-
-		const disposables: lifecycle.IDisposable[] = [];
-
-		// Allow to drag
-		if (view.draggableElement) {
-			view.draggableElement.draggable = true;
-			disposables.push(dom.addDisposableListener(view.draggableElement, dom.EventType.DRAG_START, (e: DragEvent) => {
-				e.dataTransfer.effectAllowed = 'move';
-
-				const dragImage = document.createElement('div');
-				dragImage.className = 'monaco-tree-drag-image';
-				dragImage.textContent = view.draggableLabel ? view.draggableLabel : view.draggableElement.textContent;
-				document.body.appendChild(dragImage);
-				e.dataTransfer.setDragImage(dragImage, -10, -10);
-				setTimeout(() => document.body.removeChild(dragImage), 0);
-
-				this.draggedView = view;
-			}));
-		}
-
-		// Drag enter
-		let counter = 0; // see https://github.com/Microsoft/vscode/issues/14470
-		disposables.push(dom.addDisposableListener(viewElement, dom.EventType.DRAG_ENTER, (e: DragEvent) => {
-			if (this.draggedView && this.draggedView !== view) {
-				counter++;
-				this.updateFromDragging(view, viewElement, true);
-			}
-		}));
-
-		// Drag leave
-		disposables.push(dom.addDisposableListener(viewElement, dom.EventType.DRAG_LEAVE, (e: DragEvent) => {
-			if (this.draggedView && this.draggedView !== view) {
-				counter--;
-				if (counter === 0) {
-					this.updateFromDragging(view, viewElement, false);
-				}
-			}
-		}));
-
-		// Drag end
-		disposables.push(dom.addDisposableListener(viewElement, dom.EventType.DRAG_END, (e: DragEvent) => {
-			if (this.draggedView) {
-				counter = 0;
-				this.updateFromDragging(view, viewElement, false);
-				this.draggedView = null;
-			}
-		}));
-
-		// Drop
-		disposables.push(dom.addDisposableListener(viewElement, dom.EventType.DROP, (e: DragEvent) => {
-			dom.EventHelper.stop(e, true);
-			counter = 0;
-			this.updateFromDragging(view, viewElement, false);
-			if (this.draggedView && this.draggedView !== view) {
-				this.move(this.views.indexOf(this.draggedView), this.views.indexOf(view));
-			}
-			this.draggedView = null;
-		}));
-
-		return disposables;
-	}
-
-	private updateFromDragging(view: IView, viewElement: HTMLElement, isDragging: boolean): void {
-		viewElement.style.backgroundColor = isDragging && this.dropBackground ? this.dropBackground.toString() : null;
-	}
-
-	private move(fromIndex: number, toIndex: number): void {
-		if (fromIndex < 0 || toIndex > this.views.length - 2) {
+		if (to < 0 || to >= this.viewItems.length) {
 			return;
 		}
 
-		const [viewChangeListener] = this.viewChangeListeners.splice(fromIndex, 1);
-		this.viewChangeListeners.splice(toIndex, 0, viewChangeListener);
-
-		const [viewFocusPreviousListener] = this.viewFocusPreviousListeners.splice(fromIndex, 1);
-		this.viewFocusPreviousListeners.splice(toIndex, 0, viewFocusPreviousListener);
-
-		const [viewFocusListener] = this.viewFocusListeners.splice(fromIndex, 1);
-		this.viewFocusListeners.splice(toIndex, 0, viewFocusListener);
-
-		const [viewFocusNextListener] = this.viewFocusNextListeners.splice(fromIndex, 1);
-		this.viewFocusNextListeners.splice(toIndex, 0, viewFocusNextListener);
-
-		const [viewDnDListeners] = this.viewDnDListeners.splice(fromIndex, 1);
-		this.viewDnDListeners.splice(toIndex, 0, viewDnDListeners);
-
-		const [view] = this.views.splice(fromIndex, 1);
-		this.views.splice(toIndex, 0, view);
-
-		this.el.removeChild(this.viewElements[fromIndex]);
-		this.el.insertBefore(this.viewElements[fromIndex], this.viewElements[toIndex < fromIndex ? toIndex : toIndex + 1]);
-		const [viewElement] = this.viewElements.splice(fromIndex, 1);
-		this.viewElements.splice(toIndex, 0, viewElement);
-
-		this.layout();
-
-		this._onDidOrderChange.fire();
-	}
-
-	private onSashStart(sash: sash.Sash, event: ISashEvent): void {
-		let i = this.sashes.indexOf(sash);
-		let collapses = this.views.map(v => v.size - v.minimumSize);
-		let expands = this.views.map(v => v.maximumSize - v.size);
-
-		let up = numbers.countToArray(i, -1);
-		let down = numbers.countToArray(i + 1, this.views.length);
-
-		let collapsesUp = up.map(i => collapses[i]);
-		let collapsesDown = down.map(i => collapses[i]);
-		let expandsUp = up.map(i => expands[i]);
-		let expandsDown = down.map(i => expands[i]);
-
-		this.state = {
-			start: event.start,
-			sizes: this.views.map(v => v.size),
-			up: up,
-			down: down,
-			maxUp: Math.min(sum(collapsesUp), sum(expandsDown)),
-			maxDown: Math.min(sum(expandsUp), sum(collapsesDown)),
-			collapses: collapses,
-			expands: expands
-		};
-	}
-
-	private onSashChange(sash: sash.Sash, event: ISashEvent): void {
-		let diff = event.current - this.state.start;
-
-		for (let i = 0; i < this.views.length; i++) {
-			this.views[i].size = this.views[i].preferredSize = this.state.sizes[i];
+		if (from === to) {
+			return;
 		}
 
-		if (diff < 0) {
-			this.expandCollapse(Math.min(-diff, this.state.maxUp), this.state.collapses, this.state.expands, this.state.up, this.state.down);
+		const viewItem = this.viewItems.splice(from, 1)[0];
+		this.viewItems.splice(to, 0, viewItem);
+
+		if (to + 1 < this.viewItems.length) {
+			this.el.insertBefore(viewItem.container, this.viewItems[to + 1].container);
 		} else {
-			this.expandCollapse(Math.min(diff, this.state.maxDown), this.state.collapses, this.state.expands, this.state.down, this.state.up);
+			this.el.appendChild(viewItem.container);
 		}
 
 		this.layoutViews();
+		this.state = State.Idle;
 	}
 
-	// Main algorithm
-	private expandCollapse(collapse: number, collapses: number[], expands: number[], collapseIndexes: number[], expandIndexes: number[]): void {
-		let totalCollapse = collapse;
-		let totalExpand = totalCollapse;
-
-		collapseIndexes.forEach(i => {
-			let collapse = Math.min(collapses[i], totalCollapse);
-			totalCollapse -= collapse;
-			this.views[i].size -= collapse;
-		});
-
-		expandIndexes.forEach(i => {
-			let expand = Math.min(expands[i], totalExpand);
-			totalExpand -= expand;
-			this.views[i].size += expand;
-		});
+	private relayout(lowPriorityIndex?: number): void {
+		const contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
+		this.resize(this.viewItems.length - 1, this.size - contentSize, undefined, lowPriorityIndex);
 	}
 
-	private initialLayout(): void {
-		let totalWeight = 0;
-		let fixedSize = 0;
+	layout(size: number): void {
+		const previousSize = Math.max(this.size, this.contentSize);
+		this.size = size;
+		this.resize(this.viewItems.length - 1, size - previousSize);
+	}
 
-		this.views.forEach((v, i) => {
-			if (v.sizing === ViewSizing.Flexible) {
-				totalWeight += v.preferredSize;
-			} else {
-				fixedSize += v.fixedSize;
-			}
-		});
+	private onSashStart({ sash, start }: ISashEvent): void {
+		const index = firstIndex(this.sashItems, item => item.sash === sash);
+		const sizes = this.viewItems.map(i => i.size);
 
-		let flexibleSize = this.size - fixedSize;
+		const upIndexes = range(index, -1);
+		const collapseUp = upIndexes.reduce((r, i) => r + (sizes[i] - this.viewItems[i].view.minimumSize), 0);
+		const expandUp = upIndexes.reduce((r, i) => r + (this.viewItems[i].view.maximumSize - sizes[i]), 0);
 
-		this.views.forEach((v, i) => {
-			if (v.sizing === ViewSizing.Flexible) {
-				if (totalWeight === 0) {
-					v.size = flexibleSize;
-				} else {
-					v.size = v.preferredSize * flexibleSize / totalWeight;
-				}
-			} else {
-				v.size = v.fixedSize;
-			}
-		});
+		const downIndexes = range(index + 1, this.viewItems.length);
+		const collapseDown = downIndexes.reduce((r, i) => r + (sizes[i] - this.viewItems[i].view.minimumSize), 0);
+		const expandDown = downIndexes.reduce((r, i) => r + (this.viewItems[i].view.maximumSize - sizes[i]), 0);
 
-		// Leftover
-		let index = this.getLastFlexibleViewIndex();
-		if (index >= 0) {
-			this.views[index].size += this.size - this.views.reduce((t, v) => t + v.size, 0);
+		const minDelta = -Math.min(collapseUp, expandDown);
+		const maxDelta = Math.min(collapseDown, expandUp);
+
+		this.sashDragState = { start, index, sizes, minDelta, maxDelta };
+	}
+
+	private onSashChange({ sash, current }: ISashEvent): void {
+		const { index, start, sizes, minDelta, maxDelta } = this.sashDragState;
+		const delta = clamp(current - start, minDelta, maxDelta);
+
+		this.resize(index, delta, sizes);
+	}
+
+	private onViewChange(item: IViewItem, size: number | undefined): void {
+		const index = this.viewItems.indexOf(item);
+
+		if (index < 0 || index >= this.viewItems.length) {
+			return;
 		}
 
-		// Layout
+		size = typeof size === 'number' ? size : item.size;
+		size = clamp(size, item.view.minimumSize, item.view.maximumSize);
+		item.size = size;
+		this.relayout(index);
+	}
+
+	resizeView(index: number, size: number): void {
+		if (this.state !== State.Idle) {
+			throw new Error('Cant modify splitview');
+		}
+
+		this.state = State.Busy;
+
+		if (index < 0 || index >= this.viewItems.length) {
+			return;
+		}
+
+		const item = this.viewItems[index];
+		size = Math.round(size);
+		size = clamp(size, item.view.minimumSize, item.view.maximumSize);
+		let delta = size - item.size;
+
+		if (delta !== 0 && index < this.viewItems.length - 1) {
+			const downIndexes = range(index + 1, this.viewItems.length);
+			const collapseDown = downIndexes.reduce((r, i) => r + (this.viewItems[i].size - this.viewItems[i].view.minimumSize), 0);
+			const expandDown = downIndexes.reduce((r, i) => r + (this.viewItems[i].view.maximumSize - this.viewItems[i].size), 0);
+			const deltaDown = clamp(delta, -expandDown, collapseDown);
+
+			this.resize(index, deltaDown);
+			delta -= deltaDown;
+		}
+
+		if (delta !== 0 && index > 0) {
+			const upIndexes = range(index - 1, -1);
+			const collapseUp = upIndexes.reduce((r, i) => r + (this.viewItems[i].size - this.viewItems[i].view.minimumSize), 0);
+			const expandUp = upIndexes.reduce((r, i) => r + (this.viewItems[i].view.maximumSize - this.viewItems[i].size), 0);
+			const deltaUp = clamp(-delta, -collapseUp, expandUp);
+
+			this.resize(index - 1, deltaUp);
+		}
+
+		this.state = State.Idle;
+	}
+
+	getViewSize(index: number): number {
+		if (index < 0 || index >= this.viewItems.length) {
+			return -1;
+		}
+
+		return this.viewItems[index].size;
+	}
+
+	private resize(index: number, delta: number, sizes = this.viewItems.map(i => i.size), lowPriorityIndex?: number): void {
+		if (index < 0 || index >= this.viewItems.length) {
+			return;
+		}
+
+		if (delta !== 0) {
+			let upIndexes = range(index, -1);
+			let downIndexes = range(index + 1, this.viewItems.length);
+
+			if (typeof lowPriorityIndex === 'number') {
+				upIndexes = pushToEnd(upIndexes, lowPriorityIndex);
+				downIndexes = pushToEnd(downIndexes, lowPriorityIndex);
+			}
+
+			const upItems = upIndexes.map(i => this.viewItems[i]);
+			const upSizes = upIndexes.map(i => sizes[i]);
+
+			const downItems = downIndexes.map(i => this.viewItems[i]);
+			const downSizes = downIndexes.map(i => sizes[i]);
+
+			for (let i = 0, deltaUp = delta; deltaUp !== 0 && i < upItems.length; i++) {
+				const item = upItems[i];
+				const size = clamp(upSizes[i] + deltaUp, item.view.minimumSize, item.view.maximumSize);
+				const viewDelta = size - upSizes[i];
+
+				deltaUp -= viewDelta;
+				item.size = size;
+			}
+
+			for (let i = 0, deltaDown = delta; deltaDown !== 0 && i < downItems.length; i++) {
+				const item = downItems[i];
+				const size = clamp(downSizes[i] - deltaDown, item.view.minimumSize, item.view.maximumSize);
+				const viewDelta = size - downSizes[i];
+
+				deltaDown += viewDelta;
+				item.size = size;
+			}
+		}
+
+		let contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
+		let emptyDelta = this.size - contentSize;
+
+		for (let i = this.viewItems.length - 1; emptyDelta > 0 && i >= 0; i--) {
+			const item = this.viewItems[i];
+			const size = clamp(item.size + emptyDelta, item.view.minimumSize, item.view.maximumSize);
+			const viewDelta = size - item.size;
+
+			emptyDelta -= viewDelta;
+			item.size = size;
+		}
+
+		this.contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
+
 		this.layoutViews();
-	}
-
-	private getLastFlexibleViewIndex(exceptIndex: number = null): number {
-		for (let i = this.views.length - 1; i >= 0; i--) {
-			if (exceptIndex === i) {
-				continue;
-			}
-			if (this.views[i].sizing === ViewSizing.Flexible) {
-				return i;
-			}
-		}
-
-		return -1;
 	}
 
 	private layoutViews(): void {
-		for (let i = 0; i < this.views.length; i++) {
-			// Layout the view elements
-			this.layoutViewElement(this.viewElements[i], this.views[i].size);
-
-			// Layout the views themselves
-			this.views[i].layout(this.views[i].size, this.orientation);
-		}
-
-		// Layout the sashes
-		this.sashes.forEach(s => s.layout());
+		this.viewItems.forEach(item => item.layout());
+		this.sashItems.forEach(item => item.sash.layout());
 
 		// Update sashes enablement
 		let previous = false;
-		let collapsesDown = this.views.map(v => previous = (v.size - v.minimumSize > 0) || previous);
+		const collapsesDown = this.viewItems.map(i => previous = (i.size - i.view.minimumSize > 0) || previous);
 
 		previous = false;
-		let expandsDown = this.views.map(v => previous = (v.maximumSize - v.size > 0) || previous);
+		const expandsDown = this.viewItems.map(i => previous = (i.view.maximumSize - i.size > 0) || previous);
 
-		let reverseViews = this.views.slice().reverse();
+		const reverseViews = [...this.viewItems].reverse();
 		previous = false;
-		let collapsesUp = reverseViews.map(v => previous = (v.size - v.minimumSize > 0) || previous).reverse();
+		const collapsesUp = reverseViews.map(i => previous = (i.size - i.view.minimumSize > 0) || previous).reverse();
 
 		previous = false;
-		let expandsUp = reverseViews.map(v => previous = (v.maximumSize - v.size > 0) || previous).reverse();
+		const expandsUp = reverseViews.map(i => previous = (i.view.maximumSize - i.size > 0) || previous).reverse();
 
-		this.sashes.forEach((s, i) => {
+		this.sashItems.forEach((s, i) => {
 			if ((collapsesDown[i] && expandsUp[i + 1]) || (expandsDown[i] && collapsesUp[i + 1])) {
-				s.enable();
+				s.sash.enable();
 			} else {
-				s.disable();
+				s.sash.disable();
 			}
 		});
 	}
 
-	private onViewChange(view: IView, size: number): void {
-		if (view !== this.voidView) {
-			if (this.areAllViewsFixed()) {
-				this.voidView.setFlexible();
-			} else {
-				this.voidView.setFixed();
+	private getSashPosition(sash: Sash): number {
+		let position = 0;
+
+		for (let i = 0; i < this.sashItems.length; i++) {
+			position += this.viewItems[i].size;
+
+			if (this.sashItems[i].sash === sash) {
+				return position;
 			}
 		}
 
-		if (this.size === null) {
-			return;
-		}
-
-		if (size === view.size) {
-			return;
-		}
-
-		this.setupAnimation();
-
-		let index = this.views.indexOf(view);
-		let diff = Math.abs(size - view.size);
-		let up = numbers.countToArray(index - 1, -1);
-		let down = numbers.countToArray(index + 1, this.views.length);
-		let downUp = down.concat(up);
-
-		let collapses = this.views.map(v => Math.max(v.size - v.minimumSize, 0));
-		let expands = this.views.map(v => Math.max(v.maximumSize - v.size, 0));
-
-		let collapse: number, collapseIndexes: number[], expandIndexes: number[];
-
-		if (size < view.size) {
-			collapse = Math.min(downUp.reduce((t, i) => t + expands[i], 0), diff);
-			collapseIndexes = [index];
-			expandIndexes = downUp;
-
-		} else {
-			collapse = Math.min(downUp.reduce((t, i) => t + collapses[i], 0), diff);
-			collapseIndexes = downUp;
-			expandIndexes = [index];
-		}
-
-		this.expandCollapse(collapse, collapses, expands, collapseIndexes, expandIndexes);
-		this.layoutViews();
-	}
-
-	private setupAnimation(): void {
-		if (types.isNumber(this.animationTimeout)) {
-			window.clearTimeout(this.animationTimeout);
-		}
-
-		dom.addClass(this.el, 'animated');
-		this.animationTimeout = window.setTimeout(() => this.clearAnimation(), 200);
-	}
-
-	private clearAnimation(): void {
-		this.animationTimeout = null;
-		dom.removeClass(this.el, 'animated');
-	}
-
-	private get voidView(): VoidView {
-		return this.views[this.views.length - 1] as VoidView;
-	}
-
-	private areAllViewsFixed(): boolean {
-		return this.views.every((v, i) => v.sizing === ViewSizing.Fixed || i === this.views.length - 1);
-	}
-
-	getVerticalSashLeft(sash: sash.Sash): number {
-		return this.getSashPosition(sash);
-	}
-
-	getHorizontalSashTop(sash: sash.Sash): number {
-		return this.getSashPosition(sash);
-	}
-
-	private getSashPosition(sash: sash.Sash): number {
-		let index = this.sashes.indexOf(sash);
-		let position = 0;
-
-		for (let i = 0; i <= index; i++) {
-			position += this.views[i].size;
-		}
-
-		return position;
+		return 0;
 	}
 
 	dispose(): void {
-		if (types.isNumber(this.animationTimeout)) {
-			window.clearTimeout(this.animationTimeout);
-		}
-		this.orientation = null;
-		this.size = null;
-		this.viewElements.forEach(e => this.el.removeChild(e));
-		this.el = null;
-		this.viewElements = [];
-		this.views = lifecycle.dispose(this.views);
-		this.sashes = lifecycle.dispose(this.sashes);
-		this.sashesListeners = lifecycle.dispose(this.sashesListeners);
-		this.measureContainerSize = null;
-		this.layoutViewElement = null;
-		this.eventWrapper = null;
-		this.state = null;
+		this.viewItems.forEach(i => i.disposable.dispose());
+		this.viewItems = [];
 
-		super.dispose();
+		this.sashItems.forEach(i => i.disposable.dispose());
+		this.sashItems = [];
 	}
 }

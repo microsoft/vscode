@@ -4,15 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { mixin } from 'vs/base/common/objects';
+import { mixin, deepClone } from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
 import Event, { Emitter } from 'vs/base/common/event';
-import { WorkspaceConfiguration } from 'vscode';
+import * as vscode from 'vscode';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
-import { ExtHostConfigurationShape, MainThreadConfigurationShape } from './extHost.protocol';
+import { ExtHostConfigurationShape, MainThreadConfigurationShape, IWorkspaceConfigurationChangeEventData, IConfigurationInitData } from './extHost.protocol';
 import { ConfigurationTarget as ExtHostConfigurationTarget } from './extHostTypes';
-import { IConfigurationData, Configuration } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IConfigurationData, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { Configuration, ConfigurationChangeEvent, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
+import { WorkspaceConfigurationChangeEvent } from 'vs/workbench/services/configuration/common/configurationModels';
+import { StrictResourceMap } from 'vs/base/common/map';
+import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 
 function lookUp(tree: any, key: string) {
 	if (key) {
@@ -35,30 +38,36 @@ type ConfigurationInspect<T> = {
 
 export class ExtHostConfiguration implements ExtHostConfigurationShape {
 
-	private readonly _onDidChangeConfiguration = new Emitter<void>();
+	private readonly _onDidChangeConfiguration = new Emitter<vscode.ConfigurationChangeEvent>();
 	private readonly _proxy: MainThreadConfigurationShape;
 	private readonly _extHostWorkspace: ExtHostWorkspace;
-	private _configuration: Configuration<any>;
+	private _configurationScopes: Map<string, ConfigurationScope>;
+	private _configuration: Configuration;
 
-	constructor(proxy: MainThreadConfigurationShape, extHostWorkspace: ExtHostWorkspace, data: IConfigurationData<any>) {
+	constructor(proxy: MainThreadConfigurationShape, extHostWorkspace: ExtHostWorkspace, data: IConfigurationInitData) {
 		this._proxy = proxy;
 		this._extHostWorkspace = extHostWorkspace;
-		this._configuration = Configuration.parse(data, extHostWorkspace.workspace);
+		this._configuration = Configuration.parse(data);
+		this._readConfigurationScopes(data.configurationScopes);
 	}
 
-	get onDidChangeConfiguration(): Event<void> {
+	get onDidChangeConfiguration(): Event<vscode.ConfigurationChangeEvent> {
 		return this._onDidChangeConfiguration && this._onDidChangeConfiguration.event;
 	}
 
-	$acceptConfigurationChanged(data: IConfigurationData<any>) {
-		this._configuration = Configuration.parse(data, this._extHostWorkspace.workspace);
-		this._onDidChangeConfiguration.fire(undefined);
+	$acceptConfigurationChanged(data: IConfigurationData, eventData: IWorkspaceConfigurationChangeEventData) {
+		this._configuration = Configuration.parse(data);
+		this._onDidChangeConfiguration.fire(this._toConfigurationChangeEvent(eventData));
 	}
 
-	getConfiguration(section?: string, resource?: URI): WorkspaceConfiguration {
-		const config = section
-			? lookUp(this._configuration.getValue(null, { resource }), section)
-			: this._configuration.getValue(null, { resource });
+	getConfiguration(section?: string, resource?: URI, extensionId?: string): vscode.WorkspaceConfiguration {
+		const config = deepClone(section
+			? lookUp(this._configuration.getValue(null, { resource }, this._extHostWorkspace.workspace), section)
+			: this._configuration.getValue(null, { resource }, this._extHostWorkspace.workspace));
+
+		if (section) {
+			this._validateConfigurationAccess(section, resource, extensionId);
+		}
 
 		function parseConfigurationTarget(arg: boolean | ExtHostConfigurationTarget): ConfigurationTarget {
 			if (arg === void 0 || arg === null) {
@@ -71,15 +80,16 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 			switch (arg) {
 				case ExtHostConfigurationTarget.Global: return ConfigurationTarget.USER;
 				case ExtHostConfigurationTarget.Workspace: return ConfigurationTarget.WORKSPACE;
-				case ExtHostConfigurationTarget.WorkspaceFolder: return ConfigurationTarget.FOLDER;
+				case ExtHostConfigurationTarget.WorkspaceFolder: return ConfigurationTarget.WORKSPACE_FOLDER;
 			}
 		}
 
-		const result: WorkspaceConfiguration = {
+		const result: vscode.WorkspaceConfiguration = {
 			has(key: string): boolean {
 				return typeof lookUp(config, key) !== 'undefined';
 			},
-			get<T>(key: string, defaultValue?: T): T {
+			get: <T>(key: string, defaultValue?: T) => {
+				this._validateConfigurationAccess(section ? `${section}.${key}` : key, resource, extensionId);
 				let result = lookUp(config, key);
 				if (typeof result === 'undefined') {
 					result = defaultValue;
@@ -97,14 +107,14 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 			},
 			inspect: <T>(key: string): ConfigurationInspect<T> => {
 				key = section ? `${section}.${key}` : key;
-				const config = this._configuration.lookup<T>(key, { resource });
+				const config = deepClone(this._configuration.inspect<T>(key, { resource }, this._extHostWorkspace.workspace));
 				if (config) {
 					return {
 						key,
 						defaultValue: config.default,
 						globalValue: config.user,
 						workspaceValue: config.workspace,
-						workspaceFolderValue: config.folder
+						workspaceFolderValue: config.workspaceFolder
 					};
 				}
 				return undefined;
@@ -115,6 +125,49 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 			mixin(result, config, false);
 		}
 
-		return <WorkspaceConfiguration>Object.freeze(result);
+		return <vscode.WorkspaceConfiguration>Object.freeze(result);
+	}
+
+	private _validateConfigurationAccess(key: string, resource: URI, extensionId: string): void {
+		const scope = this._configurationScopes.get(key);
+		const extensionIdText = extensionId ? `[${extensionId}] ` : '';
+		if (ConfigurationScope.RESOURCE === scope) {
+			if (resource === void 0) {
+				console.warn(`${extensionIdText}Accessing a resource scoped configuration without providing a resource is not expected. To get the effective value for '${key}', provide the URI of a resource or 'null' for any resource.`);
+			}
+			return;
+		}
+		if (ConfigurationScope.WINDOW === scope) {
+			if (resource) {
+				console.warn(`${extensionIdText}Accessing a window scoped configuration for a resource is not expected. To associate '${key}' to a resource, define its scope to 'resource' in configuration contributions in 'package.json'.`);
+			}
+			return;
+		}
+	}
+
+	private _readConfigurationScopes(scopes: ConfigurationScope[]): void {
+		this._configurationScopes = new Map<string, ConfigurationScope>();
+		if (scopes.length) {
+			const defaultKeys = this._configuration.keys(this._extHostWorkspace.workspace).default;
+			if (defaultKeys.length === scopes.length) {
+				for (let i = 0; i < defaultKeys.length; i++) {
+					this._configurationScopes.set(defaultKeys[i], scopes[i]);
+				}
+			}
+		}
+	}
+
+	private _toConfigurationChangeEvent(data: IWorkspaceConfigurationChangeEventData): vscode.ConfigurationChangeEvent {
+		const changedConfiguration = new ConfigurationModel(data.changedConfiguration.contents, data.changedConfiguration.keys, data.changedConfiguration.overrides);
+		const changedConfigurationByResource: StrictResourceMap<ConfigurationModel> = new StrictResourceMap<ConfigurationModel>();
+		for (const key of Object.keys(data.changedConfigurationByResource)) {
+			const resource = URI.parse(key);
+			const model = data.changedConfigurationByResource[key];
+			changedConfigurationByResource.set(resource, new ConfigurationModel(model.contents, model.keys, model.overrides));
+		}
+		const event = new WorkspaceConfigurationChangeEvent(new ConfigurationChangeEvent(changedConfiguration, changedConfigurationByResource), this._extHostWorkspace.workspace);
+		return Object.freeze({
+			affectsConfiguration: (section: string, resource?: URI) => event.affectsConfiguration(section, resource)
+		});
 	}
 }

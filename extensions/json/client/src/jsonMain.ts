@@ -6,7 +6,7 @@
 
 import * as path from 'path';
 
-import { workspace, languages, ExtensionContext, extensions, Uri, TextDocument, ColorInformation, Color, ColorPresentation } from 'vscode';
+import { workspace, languages, ExtensionContext, extensions, Uri, TextDocument, ColorInformation, Color, ColorPresentation, LanguageConfiguration } from 'vscode';
 import { LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType, DidChangeConfigurationNotification } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { ConfigurationFeature } from 'vscode-languageclient/lib/configuration.proposed';
@@ -19,6 +19,10 @@ let localize = nls.loadMessageBundle();
 
 namespace VSCodeContentRequest {
 	export const type: RequestType<string, string, any, any> = new RequestType('vscode/content');
+}
+
+namespace SchemaContentChangeNotification {
+	export const type: NotificationType<string, any> = new NotificationType('json/schemaContent');
 }
 
 export interface ISchemaAssociations {
@@ -46,10 +50,6 @@ interface Settings {
 	};
 }
 
-interface JSONSettings {
-	schemas: JSONSchemaSettings[];
-}
-
 interface JSONSchemaSettings {
 	fileMatch?: string[];
 	url?: string;
@@ -58,14 +58,16 @@ interface JSONSchemaSettings {
 
 export function activate(context: ExtensionContext) {
 
+	let toDispose = context.subscriptions;
+
 	let packageInfo = getPackageInfo(context);
 	let telemetryReporter: TelemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
-	context.subscriptions.push(telemetryReporter);
+	toDispose.push(telemetryReporter);
 
 	// The server is implemented in node
 	let serverModule = context.asAbsolutePath(path.join('server', 'out', 'jsonServerMain.js'));
 	// The debug options for the server
-	let debugOptions = { execArgv: ['--nolazy', '--inspect=6004'] };
+	let debugOptions = { execArgv: ['--nolazy', '--inspect=6046'] };
 
 	// If the extension is launch in debug mode the debug server options are use
 	// Otherwise the run options are used
@@ -74,7 +76,7 @@ export function activate(context: ExtensionContext) {
 		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
 	};
 
-	let documentSelector = ['json'];
+	let documentSelector = ['json', 'jsonc'];
 
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
@@ -97,6 +99,7 @@ export function activate(context: ExtensionContext) {
 	client.registerFeature(new ConfigurationFeature(client));
 
 	let disposable = client.start();
+	toDispose.push(disposable);
 	client.onReady().then(() => {
 		client.onTelemetry(e => {
 			if (telemetryReporter) {
@@ -114,10 +117,18 @@ export function activate(context: ExtensionContext) {
 			});
 		});
 
+		let handleContentChange = (uri: Uri) => {
+			if (uri.scheme === 'vscode' && uri.authority === 'schemas') {
+				client.sendNotification(SchemaContentChangeNotification.type, uri.toString());
+			}
+		};
+		toDispose.push(workspace.onDidChangeTextDocument(e => handleContentChange(e.document.uri)));
+		toDispose.push(workspace.onDidCloseTextDocument(d => handleContentChange(d.uri)));
+
 		client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociation(context));
 
 		// register color provider
-		context.subscriptions.push(languages.registerColorProvider(documentSelector, {
+		toDispose.push(languages.registerColorProvider(documentSelector, {
 			provideDocumentColors(document: TextDocument): Thenable<ColorInformation[]> {
 				let params: DocumentColorParams = {
 					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document)
@@ -130,10 +141,11 @@ export function activate(context: ExtensionContext) {
 					});
 				});
 			},
-			provideColorPresentations(document: TextDocument, colorInfo: ColorInformation): Thenable<ColorPresentation[]> {
+			provideColorPresentations(color: Color, context): Thenable<ColorPresentation[]> {
 				let params: ColorPresentationParams = {
-					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
-					colorInfo: { range: client.code2ProtocolConverter.asRange(colorInfo.range), color: colorInfo.color }
+					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(context.document),
+					color: color,
+					range: client.code2ProtocolConverter.asRange(context.range)
 				};
 				return client.sendRequest(ColorPresentationRequest.type, params).then(presentations => {
 					return presentations.map(p => {
@@ -147,17 +159,15 @@ export function activate(context: ExtensionContext) {
 		}));
 	});
 
-	// Push the disposable to the context's subscriptions so that the
-	// client can be deactivated on extension deactivation
-	context.subscriptions.push(disposable);
-
-	languages.setLanguageConfiguration('json', {
+	let languageConfiguration: LanguageConfiguration = {
 		wordPattern: /("(?:[^\\\"]*(?:\\.)?)*"?)|[^\s{}\[\],:]+/,
 		indentationRules: {
 			increaseIndentPattern: /^.*(\{[^}]*|\[[^\]]*)$/,
 			decreaseIndentPattern: /^\s*[}\]],?\s*$/
 		}
-	});
+	};
+	languages.setLanguageConfiguration('json', languageConfiguration);
+	languages.setLanguageConfiguration('jsonc', languageConfiguration);
 }
 
 function getSchemaAssociation(context: ExtensionContext): ISchemaAssociations {
@@ -195,7 +205,6 @@ function getSchemaAssociation(context: ExtensionContext): ISchemaAssociations {
 
 function getSettings(): Settings {
 	let httpSettings = workspace.getConfiguration('http');
-	let jsonSettings = workspace.getConfiguration('json');
 
 	let settings: Settings = {
 		http: {
@@ -203,7 +212,7 @@ function getSettings(): Settings {
 			proxyStrictSSL: httpSettings.get('proxyStrictSSL')
 		},
 		json: {
-			format: jsonSettings.get('format'),
+			format: workspace.getConfiguration('json').get('format'),
 			schemas: [],
 		}
 	};
@@ -233,7 +242,7 @@ function getSettings(): Settings {
 	};
 
 	// merge global and folder settings. Qualify all file matches with the folder path.
-	let globalSettings = jsonSettings.get<JSONSchemaSettings[]>('schemas');
+	let globalSettings = workspace.getConfiguration('json', null).get<JSONSchemaSettings[]>('schemas');
 	if (Array.isArray(globalSettings)) {
 		collectSchemaSettings(globalSettings, workspace.rootPath);
 	}
@@ -249,8 +258,8 @@ function getSettings(): Settings {
 					folderPath = folderPath + '/';
 				}
 				collectSchemaSettings(folderSchemas, folderUri.fsPath, folderPath + '*');
-			};
-		};
+			}
+		}
 	}
 	return settings;
 }

@@ -8,16 +8,16 @@
 import * as DOM from 'vs/base/browser/dom';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { escape } from 'vs/base/common/strings';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { removeMarkdownEscapes, IMarkdownString } from 'vs/base/common/htmlContent';
 import { marked } from 'vs/base/common/marked/marked';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { isThenable } from 'vs/base/common/async';
 
 export interface RenderOptions {
 	className?: string;
 	inline?: boolean;
 	actionCallback?: (content: string, event?: IMouseEvent) => void;
-	codeBlockRenderer?: (modeId: string, value: string) => string | TPromise<string>;
+	codeBlockRenderer?: (modeId: string, value: string) => string | Thenable<string>;
 }
 
 function createElement(options: RenderOptions): HTMLElement {
@@ -29,13 +29,13 @@ function createElement(options: RenderOptions): HTMLElement {
 	return element;
 }
 
-export function renderText(text: string, options: RenderOptions = {}): Node {
+export function renderText(text: string, options: RenderOptions = {}): HTMLElement {
 	const element = createElement(options);
 	element.textContent = text;
 	return element;
 }
 
-export function renderFormattedText(formattedText: string, options: RenderOptions = {}): Node {
+export function renderFormattedText(formattedText: string, options: RenderOptions = {}): HTMLElement {
 	const element = createElement(options);
 	_renderFormattedText(element, parseFormattedText(formattedText), options.actionCallback);
 	return element;
@@ -50,12 +50,10 @@ export function renderFormattedText(formattedText: string, options: RenderOption
 export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions = {}): HTMLElement {
 	const element = createElement(options);
 
-	const { codeBlockRenderer, actionCallback } = options;
-
 	// signal to code-block render that the
 	// element has been created
 	let signalInnerHTML: Function;
-	const withInnerHTML = new TPromise(c => signalInnerHTML = c);
+	const withInnerHTML = new Promise(c => signalInnerHTML = c);
 
 	const renderer = new marked.Renderer();
 	renderer.image = (href: string, title: string, text: string) => {
@@ -124,17 +122,17 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 				return value;
 			}
 
-			if (TPromise.is(value)) {
+			if (isThenable(value)) {
 				// when code-block rendering is async we return sync
 				// but update the node with the real result later.
 				const id = defaultGenerator.nextId();
-				TPromise.join([value, withInnerHTML]).done(values => {
+				Promise.all([value, withInnerHTML]).then(values => {
 					const strValue = values[0] as string;
 					const span = element.querySelector(`div[data-code="${id}"]`);
 					if (span) {
 						span.innerHTML = strValue;
 					}
-				}, err => {
+				}).catch(err => {
 					// ignore
 				});
 				return `<div class="code" data-code="${id}">${escape(code)}</div>`;

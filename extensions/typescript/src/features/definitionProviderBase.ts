@@ -6,39 +6,39 @@
 import { TextDocument, Position, CancellationToken, Location } from 'vscode';
 
 import * as Proto from '../protocol';
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
 import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
 
 export default class TypeScriptDefinitionProviderBase {
 	constructor(
-		private client: ITypescriptServiceClient) { }
+		private client: ITypeScriptServiceClient) { }
 
-	protected getSymbolLocations(
+	protected async getSymbolLocations(
 		definitionType: 'definition' | 'implementation' | 'typeDefinition',
 		document: TextDocument,
 		position: Position,
 		token: CancellationToken | boolean
-	): Promise<Location[] | null> {
+	): Promise<Location[] | undefined> {
 		const filepath = this.client.normalizePath(document.uri);
 		if (!filepath) {
-			return Promise.resolve(null);
+			return undefined;
 		}
+
 		const args = vsPositionToTsFileLocation(filepath, position);
-		return this.client.execute(definitionType, args, token).then(response => {
+		try {
+			const response = await this.client.execute(definitionType, args, token);
 			const locations: Proto.FileSpan[] = (response && response.body) || [];
 			if (!locations || locations.length === 0) {
 				return [];
 			}
 			return locations.map(location => {
 				const resource = this.client.asUrl(location.file);
-				if (resource === null) {
-					return null;
-				} else {
-					return new Location(resource, tsTextSpanToVsRange(location));
-				}
-			}).filter(x => x !== null) as Location[];
-		}, () => {
+				return resource
+					? new Location(resource, tsTextSpanToVsRange(location))
+					: undefined;
+			}).filter(x => x) as Location[];
+		} catch {
 			return [];
-		});
+		}
 	}
 }

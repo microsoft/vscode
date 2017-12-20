@@ -7,10 +7,8 @@
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import * as network from 'vs/base/common/network';
-import { IDataSource, ITree, IRenderer, IAccessibilityProvider, ISorter, IActionProvider } from 'vs/base/parts/tree/browser/tree';
-import { IActionRunner } from 'vs/base/common/actions';
+import { IDataSource, ITree, IRenderer, IAccessibilityProvider, ISorter } from 'vs/base/parts/tree/browser/tree';
 import Severity from 'vs/base/common/severity';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel, ResourceLabel } from 'vs/workbench/browser/labels';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
@@ -77,13 +75,11 @@ export class DataSource implements IDataSource {
 
 export class Renderer implements IRenderer {
 
-	private static RESOURCE_TEMPLATE_ID = 'resource-template';
-	private static FILE_RESOURCE_TEMPLATE_ID = 'file-resource-template';
-	private static MARKER_TEMPLATE_ID = 'marker-template';
+	private static readonly RESOURCE_TEMPLATE_ID = 'resource-template';
+	private static readonly FILE_RESOURCE_TEMPLATE_ID = 'file-resource-template';
+	private static readonly MARKER_TEMPLATE_ID = 'marker-template';
 
-	constructor(private actionRunner: IActionRunner,
-		private actionProvider: IActionProvider,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService
 	) {

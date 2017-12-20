@@ -6,6 +6,7 @@
 {
 	"badgeTitle": "{0} - {1}",
 	"titleKeybinding": "{0} ({1})",
+	"removeFromActivityBar": "Auf Aktivitätsleiste ausblenden",
 	"keepInActivityBar": "In Aktivitätsleiste behalten",
 	"additionalViews": "Zusätzliche Ansichten",
 	"numberBadge": "{0} ({1})",

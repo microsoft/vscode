@@ -68,6 +68,7 @@ interface Asset {
 	mooncakeUrl: string;
 	hash: string;
 	sha256hash: string;
+	size: number;
 }
 
 function createOrUpdate(commit: string, quality: string, platform: string, type: string, release: NewDocument, asset: Asset, isUpdate: boolean): Promise<void> {
@@ -156,7 +157,7 @@ async function publish(commit: string, quality: string, platform: string, type: 
 
 	console.log('Publishing...');
 	console.log('Quality:', quality);
-	console.log('Platforn:', platform);
+	console.log('Platform:', platform);
 	console.log('Type:', type);
 	console.log('Name:', name);
 	console.log('Version:', version);
@@ -164,6 +165,11 @@ async function publish(commit: string, quality: string, platform: string, type: 
 	console.log('Is Update:', isUpdate);
 	console.log('Is Released:', isReleased);
 	console.log('File:', file);
+
+	const stat = await new Promise<fs.Stats>((c, e) => fs.stat(file, (err, stat) => err ? e(err) : c(stat)));
+	const size = stat.size;
+
+	console.log('Size:', size);
 
 	const stream = fs.createReadStream(file);
 	const [sha1hash, sha256hash] = await Promise.all([hashStream('sha1', stream), hashStream('sha256', stream)]);
@@ -224,7 +230,8 @@ async function publish(commit: string, quality: string, platform: string, type: 
 		url: `${process.env['AZURE_CDN_URL']}/${quality}/${blobName}`,
 		mooncakeUrl: `${process.env['MOONCAKE_CDN_URL']}/${quality}/${blobName}`,
 		hash: sha1hash,
-		sha256hash
+		sha256hash,
+		size
 	};
 
 	const release = {

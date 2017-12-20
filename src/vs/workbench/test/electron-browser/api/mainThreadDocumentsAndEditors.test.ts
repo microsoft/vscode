@@ -7,14 +7,14 @@
 
 import * as assert from 'assert';
 import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/electron-browser/mainThreadDocumentsAndEditors';
-import { OneGetThreadService } from './testThreadService';
+import { SingleProxyRPCProtocol } from './testRPCProtocol';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { MockCodeEditorService } from 'vs/editor/test/common/mocks/mockCodeEditorService';
+import { TestCodeEditorService } from 'vs/editor/test/browser/testCodeEditorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta } from 'vs/workbench/api/node/extHost.protocol';
-import { mockCodeEditor } from 'vs/editor/test/common/mocks/mockCodeEditor';
+import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import Event from 'vs/base/common/event';
@@ -22,10 +22,9 @@ import Event from 'vs/base/common/event';
 suite('MainThreadDocumentsAndEditors', () => {
 
 	let modelService: ModelServiceImpl;
-	let codeEditorService: MockCodeEditorService;
+	let codeEditorService: TestCodeEditorService;
 	let textFileService: ITextFileService;
 	let workbenchEditorService: IWorkbenchEditorService;
-	let documentAndEditor: MainThreadDocumentsAndEditors;
 	let deltas: IDocumentsAndEditorsDelta[] = [];
 	const hugeModelString = new Array(2 + (50 * 1024 * 1024)).join('-');
 
@@ -34,9 +33,9 @@ suite('MainThreadDocumentsAndEditors', () => {
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('editor', { 'detectIndentation': false });
 		modelService = new ModelServiceImpl(null, configService);
-		codeEditorService = new MockCodeEditorService();
+		codeEditorService = new TestCodeEditorService();
 		textFileService = new class extends mock<ITextFileService>() {
-			isDirty() { return false; };
+			isDirty() { return false; }
 			models = <any>{
 				onModelSaved: Event.None,
 				onModelReverted: Event.None,
@@ -49,11 +48,12 @@ suite('MainThreadDocumentsAndEditors', () => {
 		};
 		const editorGroupService = new class extends mock<IEditorGroupService>() {
 			onEditorsChanged = Event.None;
-			onEditorsMoved = Event.None;
+			onEditorGroupMoved = Event.None;
 		};
 
-		documentAndEditor = new MainThreadDocumentsAndEditors(
-			OneGetThreadService(new class extends mock<ExtHostDocumentsAndEditorsShape>() {
+		/* tslint:disable */
+		new MainThreadDocumentsAndEditors(
+			SingleProxyRPCProtocol(new class extends mock<ExtHostDocumentsAndEditorsShape>() {
 				$acceptDocumentsAndEditorsDelta(delta) { deltas.push(delta); }
 			}),
 			modelService,
@@ -65,8 +65,8 @@ suite('MainThreadDocumentsAndEditors', () => {
 			null,
 			null,
 			editorGroupService,
-			null
 		);
+		/* tslint:enable */
 	});
 
 
@@ -104,7 +104,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 		this.timeout(1000 * 60); // increase timeout for this one test
 
 		const model = modelService.createModel(hugeModelString, null, null);
-		const editor = mockCodeEditor(null, { model, wordWrap: 'off', wordWrapMinified: false });
+		const editor = createTestCodeEditor(model);
 
 		assert.equal(deltas.length, 1);
 		deltas.length = 0;
@@ -113,7 +113,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 	});
 
 	test('ignore editor w/o model', () => {
-		const editor = mockCodeEditor([], {});
+		const editor = createTestCodeEditor(null);
 		editor.setModel(null);
 		codeEditorService.addCodeEditor(editor);
 		assert.equal(deltas.length, 1);
@@ -129,7 +129,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 		deltas.length = 0;
 
 		const model = modelService.createModel('farboo', null, null);
-		codeEditorService.addCodeEditor(mockCodeEditor(null, { model }));
+		codeEditorService.addCodeEditor(createTestCodeEditor(model));
 
 		assert.equal(deltas.length, 2);
 		const [first, second] = deltas;
@@ -149,7 +149,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 	test('editor with dispos-ed/-ing model', () => {
 		modelService.createModel('foobar', null, null);
 		const model = modelService.createModel('farboo', null, null);
-		const editor = mockCodeEditor(null, { model });
+		const editor = createTestCodeEditor(model);
 		codeEditorService.addCodeEditor(editor);
 
 		// ignore things until now
@@ -158,6 +158,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 		modelService.destroyModel(model.uri);
 		assert.equal(deltas.length, 1);
 		const [first] = deltas;
+
 		assert.equal(first.newActiveEditor, null);
 		assert.equal(first.removedEditors.length, 1);
 		assert.equal(first.removedDocuments.length, 1);

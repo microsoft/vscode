@@ -26,6 +26,7 @@
 	"editKeybindingLabel": "Cambiar enlace de teclado",
 	"addKeybindingLabelWithKey": "Agregar enlace de teclado {0}",
 	"addKeybindingLabel": "Agregar enlace de teclado",
+	"title": "{0} ({1})",
 	"commandAriaLabel": "El comando es {0}.",
 	"keybindingAriaLabel": "El enlace de teclado es {0}.",
 	"noKeybinding": "No se ha asignado ningún enlace de teclado.",

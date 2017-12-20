@@ -6,12 +6,12 @@
 'use strict';
 
 import * as assert from 'assert';
-import { SnippetFile } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
+import { Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
 
-suite('TMSnippets', function () {
+suite('SnippetRewrite', function () {
 
 	function assertRewrite(input: string, expected: string | boolean): void {
-		const actual = SnippetFile._rewriteBogousVariables(input);
+		const actual = Snippet._rewriteBogousVariables(input);
 		assert.equal(actual, expected);
 	}
 
@@ -42,5 +42,12 @@ suite('TMSnippets', function () {
 
 	test('Snippet choices: unable to escape comma and pipe, #31521', function () {
 		assertRewrite('console.log(${1|not\\, not, five, 5, 1   23|});', false);
+	});
+
+	test('lazy bogous variable rewrite', function () {
+		const snippet = new Snippet('foo', 'prefix', 'desc', 'This is ${bogous} because it is a ${var}', 'source');
+		assert.equal(snippet.body, 'This is ${bogous} because it is a ${var}');
+		assert.equal(snippet.codeSnippet, 'This is ${1:bogous} because it is a ${2:var}');
+		assert.equal(snippet.isBogous, true);
 	});
 });

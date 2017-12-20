@@ -11,7 +11,7 @@ import { MainContext, MainThreadEditorsShape, IWorkspaceResourceEdit } from 'vs/
 import URI from 'vs/base/common/uri';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
-import { OneGetThreadService, TestThreadService } from 'vs/workbench/test/electron-browser/api/testThreadService';
+import { SingleProxyRPCProtocol, TestRPCProtocol } from 'vs/workbench/test/electron-browser/api/testRPCProtocol';
 import { ExtHostEditors } from 'vs/workbench/api/node/extHostTextEditors';
 
 suite('ExtHostTextEditors.applyWorkspaceEdit', () => {
@@ -23,25 +23,25 @@ suite('ExtHostTextEditors.applyWorkspaceEdit', () => {
 	setup(() => {
 		workspaceResourceEdits = null;
 
-		let threadService = new TestThreadService();
-		threadService.setTestInstance(MainContext.MainThreadEditors, new class extends mock<MainThreadEditorsShape>() {
+		let rpcProtocol = new TestRPCProtocol();
+		rpcProtocol.set(MainContext.MainThreadEditors, new class extends mock<MainThreadEditorsShape>() {
 			$tryApplyWorkspaceEdit(_workspaceResourceEdits: IWorkspaceResourceEdit[]): TPromise<boolean> {
 				workspaceResourceEdits = _workspaceResourceEdits;
 				return TPromise.as(true);
 			}
 		});
-		const documentsAndEditors = new ExtHostDocumentsAndEditors(OneGetThreadService(null));
+		const documentsAndEditors = new ExtHostDocumentsAndEditors(SingleProxyRPCProtocol(null));
 		documentsAndEditors.$acceptDocumentsAndEditorsDelta({
 			addedDocuments: [{
 				isDirty: false,
 				modeId: 'foo',
-				url: resource,
+				uri: resource,
 				versionId: 1337,
 				lines: ['foo'],
 				EOL: '\n',
 			}]
 		});
-		editors = new ExtHostEditors(threadService, documentsAndEditors);
+		editors = new ExtHostEditors(rpcProtocol, documentsAndEditors);
 	});
 
 	test('uses version id if document available', () => {

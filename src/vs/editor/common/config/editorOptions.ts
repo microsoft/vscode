@@ -86,6 +86,11 @@ export interface IEditorFindOptions {
 	 * Controls if Find in Selection flag is turned on when multiple lines of text are selected in the editor.
 	 */
 	autoFindInSelection: boolean;
+	/**
+	 * @internal
+	 * Controls if the Find Widget should read or modify the shared find clipboard on macOS
+	 */
+	globalFindClipboard: boolean;
 }
 
 /**
@@ -160,7 +165,7 @@ export interface IEditorOptions {
 	 * Otherwise, line numbers will not be rendered.
 	 * Defaults to true.
 	 */
-	lineNumbers?: 'on' | 'off' | 'relative' | ((lineNumber: number) => string);
+	lineNumbers?: 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
 	/**
 	 * Should the corresponding line be selected when clicking on the line number?
 	 * Defaults to true.
@@ -739,6 +744,10 @@ export interface InternalEditorMinimapOptions {
 export interface InternalEditorFindOptions {
 	readonly seedSearchStringFromSelection: boolean;
 	readonly autoFindInSelection: boolean;
+	/**
+	 * @internal
+	 */
+	readonly globalFindClipboard: boolean;
 }
 
 export interface EditorWrappingInfo {
@@ -753,14 +762,21 @@ export interface EditorWrappingInfo {
 	readonly wordWrapBreakObtrusiveCharacters: string;
 }
 
+export const enum RenderLineNumbersType {
+	Off = 0,
+	On = 1,
+	Relative = 2,
+	Interval = 3,
+	Custom = 4
+}
+
 export interface InternalEditorViewOptions {
 	readonly extraEditorClassName: string;
 	readonly disableMonospaceOptimizations: boolean;
 	readonly rulers: number[];
 	readonly ariaLabel: string;
-	readonly renderLineNumbers: boolean;
+	readonly renderLineNumbers: RenderLineNumbersType;
 	readonly renderCustomLineNumbers: (lineNumber: number) => string;
-	readonly renderRelativeLineNumbers: boolean;
 	readonly selectOnLineNumbers: boolean;
 	readonly glyphMargin: boolean;
 	readonly revealHorizontalRightPadding: number;
@@ -1029,7 +1045,6 @@ export class InternalEditorOptions {
 			&& a.ariaLabel === b.ariaLabel
 			&& a.renderLineNumbers === b.renderLineNumbers
 			&& a.renderCustomLineNumbers === b.renderCustomLineNumbers
-			&& a.renderRelativeLineNumbers === b.renderRelativeLineNumbers
 			&& a.selectOnLineNumbers === b.selectOnLineNumbers
 			&& a.glyphMargin === b.glyphMargin
 			&& a.revealHorizontalRightPadding === b.revealHorizontalRightPadding
@@ -1106,6 +1121,7 @@ export class InternalEditorOptions {
 		return (
 			a.seedSearchStringFromSelection === b.seedSearchStringFromSelection
 			&& a.autoFindInSelection === b.autoFindInSelection
+			&& a.globalFindClipboard === b.globalFindClipboard
 		);
 	}
 
@@ -1544,7 +1560,8 @@ export class EditorOptionsValidator {
 
 		return {
 			seedSearchStringFromSelection: _boolean(opts.seedSearchStringFromSelection, defaults.seedSearchStringFromSelection),
-			autoFindInSelection: _boolean(opts.autoFindInSelection, defaults.autoFindInSelection)
+			autoFindInSelection: _boolean(opts.autoFindInSelection, defaults.autoFindInSelection),
+			globalFindClipboard: _boolean(opts.globalFindClipboard, defaults.globalFindClipboard)
 		};
 	}
 
@@ -1558,9 +1575,8 @@ export class EditorOptionsValidator {
 			rulers.sort();
 		}
 
-		let renderLineNumbers: boolean = defaults.renderLineNumbers;
+		let renderLineNumbers: RenderLineNumbersType = defaults.renderLineNumbers;
 		let renderCustomLineNumbers: (lineNumber: number) => string = defaults.renderCustomLineNumbers;
-		let renderRelativeLineNumbers: boolean = defaults.renderRelativeLineNumbers;
 
 		if (typeof opts.lineNumbers !== 'undefined') {
 			let lineNumbers = opts.lineNumbers;
@@ -1573,21 +1589,16 @@ export class EditorOptionsValidator {
 			}
 
 			if (typeof lineNumbers === 'function') {
-				renderLineNumbers = true;
+				renderLineNumbers = RenderLineNumbersType.Custom;
 				renderCustomLineNumbers = lineNumbers;
-				renderRelativeLineNumbers = false;
+			} else if (lineNumbers === 'interval') {
+				renderLineNumbers = RenderLineNumbersType.Interval;
 			} else if (lineNumbers === 'relative') {
-				renderLineNumbers = true;
-				renderCustomLineNumbers = null;
-				renderRelativeLineNumbers = true;
+				renderLineNumbers = RenderLineNumbersType.Relative;
 			} else if (lineNumbers === 'on') {
-				renderLineNumbers = true;
-				renderCustomLineNumbers = null;
-				renderRelativeLineNumbers = false;
+				renderLineNumbers = RenderLineNumbersType.On;
 			} else {
-				renderLineNumbers = false;
-				renderCustomLineNumbers = null;
-				renderRelativeLineNumbers = false;
+				renderLineNumbers = RenderLineNumbersType.Off;
 			}
 		}
 
@@ -1627,7 +1638,6 @@ export class EditorOptionsValidator {
 			ariaLabel: _string(opts.ariaLabel, defaults.ariaLabel),
 			renderLineNumbers: renderLineNumbers,
 			renderCustomLineNumbers: renderCustomLineNumbers,
-			renderRelativeLineNumbers: renderRelativeLineNumbers,
 			selectOnLineNumbers: _boolean(opts.selectOnLineNumbers, defaults.selectOnLineNumbers),
 			glyphMargin: _boolean(opts.glyphMargin, defaults.glyphMargin),
 			revealHorizontalRightPadding: _clampedInt(opts.revealHorizontalRightPadding, defaults.revealHorizontalRightPadding, 0, 1000),
@@ -1730,7 +1740,6 @@ export class InternalEditorOptionsFactory {
 				ariaLabel: (accessibilityIsOff ? nls.localize('accessibilityOffAriaLabel', "The editor is not accessible at this time. Press Alt+F1 for options.") : opts.viewInfo.ariaLabel),
 				renderLineNumbers: opts.viewInfo.renderLineNumbers,
 				renderCustomLineNumbers: opts.viewInfo.renderCustomLineNumbers,
-				renderRelativeLineNumbers: opts.viewInfo.renderRelativeLineNumbers,
 				selectOnLineNumbers: opts.viewInfo.selectOnLineNumbers,
 				glyphMargin: opts.viewInfo.glyphMargin,
 				revealHorizontalRightPadding: opts.viewInfo.revealHorizontalRightPadding,
@@ -1748,7 +1757,7 @@ export class InternalEditorOptionsFactory {
 				renderControlCharacters: (accessibilityIsOn ? false : opts.viewInfo.renderControlCharacters), // DISABLED WHEN SCREEN READER IS ATTACHED
 				fontLigatures: (accessibilityIsOn ? false : opts.viewInfo.fontLigatures), // DISABLED WHEN SCREEN READER IS ATTACHED
 				renderIndentGuides: (accessibilityIsOn ? false : opts.viewInfo.renderIndentGuides), // DISABLED WHEN SCREEN READER IS ATTACHED
-				renderLineHighlight: (accessibilityIsOn ? 'none' : opts.viewInfo.renderLineHighlight), // DISABLED WHEN SCREEN READER IS ATTACHED
+				renderLineHighlight: opts.viewInfo.renderLineHighlight,
 				scrollbar: opts.viewInfo.scrollbar,
 				minimap: {
 					enabled: (accessibilityIsOn ? false : opts.viewInfo.minimap.enabled), // DISABLED WHEN SCREEN READER IS ATTACHED
@@ -1822,7 +1831,7 @@ export class InternalEditorOptionsFactory {
 			outerHeight: env.outerHeight,
 			showGlyphMargin: opts.viewInfo.glyphMargin,
 			lineHeight: env.fontInfo.lineHeight,
-			showLineNumbers: opts.viewInfo.renderLineNumbers,
+			showLineNumbers: (opts.viewInfo.renderLineNumbers !== RenderLineNumbersType.Off),
 			lineNumbersMinChars: opts.lineNumbersMinChars,
 			lineNumbersDigitCount: env.lineNumbersDigitCount,
 			lineDecorationsWidth: lineDecorationsWidth,
@@ -2093,7 +2102,7 @@ export class EditorLayoutProvider {
 
 const DEFAULT_WINDOWS_FONT_FAMILY = 'Consolas, \'Courier New\', monospace';
 const DEFAULT_MAC_FONT_FAMILY = 'Menlo, Monaco, \'Courier New\', monospace';
-const DEFAULT_LINUX_FONT_FAMILY = '\'Droid Sans Mono\', \'Courier New\', monospace, \'Droid Sans Fallback\'';
+const DEFAULT_LINUX_FONT_FAMILY = '\'Droid Sans Mono\', \'monospace\', monospace, \'Droid Sans Fallback\'';
 
 /**
  * @internal
@@ -2152,9 +2161,8 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		disableMonospaceOptimizations: false,
 		rulers: [],
 		ariaLabel: nls.localize('editorViewAccessibleLabel', "Editor content"),
-		renderLineNumbers: true,
+		renderLineNumbers: RenderLineNumbersType.On,
 		renderCustomLineNumbers: null,
-		renderRelativeLineNumbers: false,
 		selectOnLineNumbers: true,
 		glyphMargin: true,
 		revealHorizontalRightPadding: 30,
@@ -2222,7 +2230,8 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		matchBrackets: true,
 		find: {
 			seedSearchStringFromSelection: true,
-			autoFindInSelection: false
+			autoFindInSelection: false,
+			globalFindClipboard: true
 		},
 		colorDecorators: true,
 		lightbulbEnabled: true

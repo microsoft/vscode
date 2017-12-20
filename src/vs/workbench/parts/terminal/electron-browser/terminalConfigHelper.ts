@@ -14,6 +14,8 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShellLaunchConfig, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY } from 'vs/workbench/parts/terminal/common/terminal';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Severity from 'vs/base/common/severity';
+import { isFedora } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { deepClone } from 'vs/base/common/objects';
 
 interface IEditorConfiguration {
 	editor: IEditorOptions;
@@ -27,6 +29,9 @@ interface IFullTerminalConfiguration {
 
 const DEFAULT_LINE_HEIGHT = 1.0;
 
+const MINIMUM_FONT_SIZE = 6;
+const MAXIMUM_FONT_SIZE = 25;
+
 /**
  * Encapsulates terminal configuration logic, the primary purpose of this file is so that platform
  * specific test cases can be written.
@@ -38,7 +43,6 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	private _lastFontMeasurement: ITerminalFont;
 
 	public constructor(
-		private _platform: platform.Platform,
 		@IConfigurationService private _configurationService: IConfigurationService,
 		@IWorkspaceConfigurationService private _workspaceConfigurationService: IWorkspaceConfigurationService,
 		@IChoiceService private _choiceService: IChoiceService,
@@ -46,7 +50,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	}
 
 	public get config(): ITerminalConfiguration {
-		return this._configurationService.getConfiguration<IFullTerminalConfiguration>().terminal.integrated;
+		return deepClone(this._configurationService.getValue<IFullTerminalConfiguration>().terminal.integrated);
 	}
 
 	private _measureFont(fontFamily: string, fontSize: number, lineHeight: number): ITerminalFont {
@@ -84,17 +88,30 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	 * Gets the font information based on the terminal.integrated.fontFamily
 	 * terminal.integrated.fontSize, terminal.integrated.lineHeight configuration properties
 	 */
-	public getFont(): ITerminalFont {
-		const config = this._configurationService.getConfiguration();
+	public getFont(excludeDimensions?: boolean): ITerminalFont {
+		const config = this._configurationService.getValue();
 		const editorConfig = (<IEditorConfiguration>config).editor;
 		const terminalConfig = this.config;
 
-		const fontFamily = terminalConfig.fontFamily || editorConfig.fontFamily;
-		let fontSize = this._toInteger(terminalConfig.fontSize, 0);
-		if (fontSize <= 0) {
-			fontSize = EDITOR_FONT_DEFAULTS.fontSize;
+		let fontFamily = terminalConfig.fontFamily || editorConfig.fontFamily;
+
+		// Work around bad font on Fedora
+		if (!terminalConfig.fontFamily) {
+			if (isFedora) {
+				fontFamily = '\'DejaVu Sans Mono\'';
+			}
 		}
+
+		let fontSize = this._toInteger(terminalConfig.fontSize, MINIMUM_FONT_SIZE, MAXIMUM_FONT_SIZE, EDITOR_FONT_DEFAULTS.fontSize);
 		const lineHeight = terminalConfig.lineHeight ? Math.max(terminalConfig.lineHeight, 1) : DEFAULT_LINE_HEIGHT;
+
+		if (excludeDimensions) {
+			return {
+				fontFamily,
+				fontSize,
+				lineHeight
+			};
+		}
 
 		return this._measureFont(fontFamily, fontSize, lineHeight);
 	}
@@ -106,8 +123,8 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	public mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig): void {
 		// Check whether there is a workspace setting
 		const platformKey = platform.isWindows ? 'windows' : platform.isMacintosh ? 'osx' : 'linux';
-		const shellConfigValue = this._workspaceConfigurationService.lookup<string>(`terminal.integrated.shell.${platformKey}`);
-		const shellArgsConfigValue = this._workspaceConfigurationService.lookup<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
+		const shellConfigValue = this._workspaceConfigurationService.inspect<string>(`terminal.integrated.shell.${platformKey}`);
+		const shellArgsConfigValue = this._workspaceConfigurationService.inspect<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
 
 		// Check if workspace setting exists and whether it's whitelisted
 		let isWorkspaceShellAllowed = false;
@@ -163,13 +180,16 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		}
 	}
 
-	private _toInteger(source: any, minimum?: number): number {
+	private _toInteger(source: any, minimum: number, maximum: number, fallback: number): number {
 		let r = parseInt(source, 10);
 		if (isNaN(r)) {
-			r = 0;
+			return fallback;
 		}
 		if (typeof minimum === 'number') {
 			r = Math.max(minimum, r);
+		}
+		if (typeof maximum === 'number') {
+			r = Math.min(maximum, r);
 		}
 		return r;
 	}

@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/workbench/parts/search/browser/search.contribution'; // load contributions
+import 'vs/workbench/parts/search/electron-browser/search.contribution'; // load contributions
 import * as assert from 'assert';
 import * as fs from 'fs';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -41,7 +41,7 @@ declare var __dirname: string;
 // git clone --separate-git-dir=testGit --no-checkout --single-branch https://chromium.googlesource.com/chromium/src testWorkspace
 // cd testWorkspace; git checkout 39a7f93d67f7
 // Run from repository root folder with (test.bat on Windows): ./scripts/test-int-mocha.sh --grep TextSearch.performance --timeout 500000 --testWorkspace <path>
-suite('TextSearch performance (integration)', () => {
+suite.skip('TextSearch performance (integration)', () => {
 
 	test('Measure', () => {
 		if (process.env['VSCODE_PID']) {
@@ -156,14 +156,14 @@ class TestTelemetryService implements ITelemetryService {
 		const event = { name: eventName, data: data };
 		this.events.push(event);
 		this.emitter.fire(event);
-		return TPromise.as<void>(null);
+		return TPromise.wrap<void>(null);
 	}
 
 	public getTelemetryInfo(): TPromise<ITelemetryInfo> {
-		return TPromise.as({
+		return TPromise.wrap({
 			instanceId: 'someValue.instanceId',
 			sessionId: 'someValue.sessionId',
 			machineId: 'someValue.machineId'
 		});
 	}
-};
+}

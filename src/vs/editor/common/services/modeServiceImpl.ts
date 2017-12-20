@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IMode, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { FrankensteinMode } from 'vs/editor/common/modes/abstractMode';
 import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
-import { IModeLookupResult, IModeService } from 'vs/editor/common/services/modeService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 export class ModeServiceImpl implements IModeService {
 	public _serviceBrand: any;
@@ -21,10 +21,10 @@ export class ModeServiceImpl implements IModeService {
 	private readonly _onDidCreateMode: Emitter<IMode> = new Emitter<IMode>();
 	public readonly onDidCreateMode: Event<IMode> = this._onDidCreateMode.event;
 
-	constructor() {
+	constructor(warnOnOverwrite = false) {
 		this._instantiatedModes = {};
 
-		this._registry = new LanguagesRegistry();
+		this._registry = new LanguagesRegistry(true, warnOnOverwrite);
 	}
 
 	protected _onReady(): TPromise<boolean> {
@@ -92,22 +92,6 @@ export class ModeServiceImpl implements IModeService {
 	}
 
 	// --- instantiation
-
-	public lookup(commaSeparatedMimetypesOrCommaSeparatedIds: string): IModeLookupResult[] {
-		var r: IModeLookupResult[] = [];
-		var modeIds = this._registry.extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds);
-
-		for (var i = 0; i < modeIds.length; i++) {
-			var modeId = modeIds[i];
-
-			r.push({
-				modeId: modeId,
-				isInstantiated: this._instantiatedModes.hasOwnProperty(modeId)
-			});
-		}
-
-		return r;
-	}
 
 	public getMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): IMode {
 		var modeIds = this._registry.extractModeIds(commaSeparatedMimetypesOrCommaSeparatedIds);

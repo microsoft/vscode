@@ -17,13 +17,12 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Part } from 'vs/workbench/browser/part';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { StatusbarAlignment, IStatusbarRegistry, Extensions, IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { IStatusbarService, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
-import { getCodeEditor } from 'vs/editor/common/services/codeEditorService';
+import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Action } from 'vs/base/common/actions';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
@@ -37,8 +36,8 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 	public _serviceBrand: any;
 
-	private static PRIORITY_PROP = 'priority';
-	private static ALIGNMENT_PROP = 'alignment';
+	private static readonly PRIORITY_PROP = 'priority';
+	private static readonly ALIGNMENT_PROP = 'alignment';
 
 	private statusItemsContainer: Builder;
 	private statusMsgDispose: IDisposable;
@@ -287,23 +286,6 @@ class StatusBarEntryItem implements IStatusbarItem {
 	private executeCommand(id: string, args?: any[]) {
 		args = args || [];
 
-		// Lookup built in commands
-		const builtInActionDescriptor = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).getWorkbenchAction(id);
-		if (builtInActionDescriptor) {
-			const action = this.instantiationService.createInstance(builtInActionDescriptor.syncDescriptor);
-
-			if (action.enabled) {
-				this.telemetryService.publicLog('workbenchActionExecuted', { id: action.id, from: 'status bar' });
-				(action.run() || TPromise.as(null)).done(() => {
-					action.dispose();
-				}, (err) => this.messageService.show(Severity.Error, toErrorMessage(err)));
-			} else {
-				this.messageService.show(Severity.Warning, nls.localize('canNotRun', "Command '{0}' is currently not enabled and can not be run.", action.label || id));
-			}
-
-			return;
-		}
-
 		// Maintain old behaviour of always focusing the editor here
 		const activeEditor = this.editorService.getActiveEditor();
 		const codeEditor = getCodeEditor(activeEditor);
@@ -311,7 +293,13 @@ class StatusBarEntryItem implements IStatusbarItem {
 			codeEditor.focus();
 		}
 
-		// Fallback to the command service for any other case
+		/* __GDPR__
+			"workbenchActionExecuted" : {
+				"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		this.telemetryService.publicLog('workbenchActionExecuted', { id, from: 'status bar' });
 		this.commandService.executeCommand(id, ...args).done(undefined, err => this.messageService.show(Severity.Error, toErrorMessage(err)));
 	}
 }

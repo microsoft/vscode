@@ -61,7 +61,8 @@ declare module monaco {
 
 		public static as(value: null): Promise<null>;
 		public static as(value: undefined): Promise<undefined>;
-		public static as<T, TPromise extends PromiseLike<T>>(value: TPromise): TPromise;
+		public static as<T>(value: PromiseLike<T>): PromiseLike<T>;
+		public static as<T, SomePromise extends PromiseLike<T>>(value: SomePromise): SomePromise;
 		public static as<T>(value: T): Promise<T>;
 
 		public static is(value: any): value is PromiseLike<any>;
@@ -109,7 +110,7 @@ declare module monaco {
 	 *
 	 *
 	 */
-	export class Uri {
+	export class Uri implements UriComponents {
 		static isUri(thing: any): thing is Uri;
 		/**
 		 * scheme is the 'http' part of 'http://www.msft.com/some/path?query#fragment'.
@@ -161,8 +162,16 @@ declare module monaco {
 		 * @param skipEncoding Do not encode the result, default is `false`
 		 */
 		toString(skipEncoding?: boolean): string;
-		toJSON(): any;
-		static revive(data: any): Uri;
+		toJSON(): object;
+		static revive(data: UriComponents | any): Uri;
+	}
+
+	export interface UriComponents {
+		scheme: string;
+		authority: string;
+		path: string;
+		query: string;
+		fragment: string;
 	}
 
 	/**
@@ -578,10 +587,6 @@ declare module monaco {
 		 */
 		getStartPosition(): Position;
 		/**
-		 * Clone this range.
-		 */
-		cloneRange(): Range;
-		/**
 		 * Transform to a user presentable string representation.
 		 */
 		toString(): string;
@@ -778,7 +783,6 @@ declare module monaco.editor {
 	export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneDiffEditor;
 
 	export interface IDiffNavigator {
-		revealFirst: boolean;
 		canNavigate(): boolean;
 		next(): void;
 		previous(): void;
@@ -940,6 +944,51 @@ declare module monaco.editor {
 		 * A label to be used to identify the web worker for debugging purposes.
 		 */
 		label?: string;
+	}
+
+	/**
+	 * Description of an action contribution
+	 */
+	export interface IActionDescriptor {
+		/**
+		 * An unique identifier of the contributed action.
+		 */
+		id: string;
+		/**
+		 * A label of the action that will be presented to the user.
+		 */
+		label: string;
+		/**
+		 * Precondition rule.
+		 */
+		precondition?: string;
+		/**
+		 * An array of keybindings for the action.
+		 */
+		keybindings?: number[];
+		/**
+		 * The keybinding rule (condition on top of precondition).
+		 */
+		keybindingContext?: string;
+		/**
+		 * Control if the action should show up in the context menu and where.
+		 * The context menu of the editor has these default:
+		 *   navigation - The navigation group comes first in all cases.
+		 *   1_modification - This group comes next and contains commands that modify your code.
+		 *   9_cutcopypaste - The last default group with the basic editing commands.
+		 * You can also create your own group.
+		 * Defaults to null (don't show in context menu).
+		 */
+		contextMenuGroupId?: string;
+		/**
+		 * Control the order in the context menu group.
+		 */
+		contextMenuOrder?: number;
+		/**
+		 * Method that will be executed when the action is triggered.
+		 * @param editor The editor instance is passed in as a convinience
+		 */
+		run(editor: ICodeEditor): void | Promise<void>;
 	}
 
 	/**
@@ -1188,10 +1237,6 @@ declare module monaco.editor {
 		 * Options associated with this decoration.
 		 */
 		readonly options: IModelDecorationOptions;
-		/**
-		 * A flag describing if this is a problem decoration (e.g. warning/error).
-		 */
-		readonly isForValidation: boolean;
 	}
 
 	/**
@@ -1642,12 +1687,6 @@ declare module monaco.editor {
 	}
 
 	/**
-	 * A model that can track markers.
-	 */
-	export interface ITextModelWithMarkers extends ITextModel {
-	}
-
-	/**
 	 * Describes the behavior of decorations when typing/editing near their edges.
 	 * Note: Please do not edit the values, as they very carefully match `DecorationRangeBehavior`
 	 */
@@ -1717,12 +1756,18 @@ declare module monaco.editor {
 		 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
 		 */
 		getAllDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
+		/**
+		 * Gets all the decorations that should be rendered in the overview ruler as an array.
+		 * @param ownerId If set, it will ignore decorations belonging to other owners.
+		 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
+		 */
+		getOverviewRulerDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
 	}
 
 	/**
 	 * An editable text model.
 	 */
-	export interface IEditableTextModel extends ITextModelWithMarkers {
+	export interface IEditableTextModel extends ITextModel {
 		/**
 		 * Normalize a string containing whitespace according to indentation rules (converts to spaces or to tabs).
 		 */
@@ -1766,7 +1811,7 @@ declare module monaco.editor {
 	/**
 	 * A model.
 	 */
-	export interface IModel extends IReadOnlyModel, IEditableTextModel, ITextModelWithMarkers, ITokenizedModel, ITextModelWithDecorations {
+	export interface IModel extends IReadOnlyModel, IEditableTextModel, ITokenizedModel, ITextModelWithDecorations {
 		/**
 		 * An event emitted when the contents of the model have changed.
 		 * @event
@@ -1868,61 +1913,9 @@ declare module monaco.editor {
 		readonly charChanges: ICharChange[];
 	}
 
-	/**
-	 * Information about a line in the diff editor
-	 */
-	export interface IDiffLineInformation {
-		readonly equivalentLineNumber: number;
-	}
-
 	export interface INewScrollPosition {
 		scrollLeft?: number;
 		scrollTop?: number;
-	}
-
-	/**
-	 * Description of an action contribution
-	 */
-	export interface IActionDescriptor {
-		/**
-		 * An unique identifier of the contributed action.
-		 */
-		id: string;
-		/**
-		 * A label of the action that will be presented to the user.
-		 */
-		label: string;
-		/**
-		 * Precondition rule.
-		 */
-		precondition?: string;
-		/**
-		 * An array of keybindings for the action.
-		 */
-		keybindings?: number[];
-		/**
-		 * The keybinding rule (condition on top of precondition).
-		 */
-		keybindingContext?: string;
-		/**
-		 * Control if the action should show up in the context menu and where.
-		 * The context menu of the editor has these default:
-		 *   navigation - The navigation group comes first in all cases.
-		 *   1_modification - This group comes next and contains commands that modify your code.
-		 *   9_cutcopypaste - The last default group with the basic editing commands.
-		 * You can also create your own group.
-		 * Defaults to null (don't show in context menu).
-		 */
-		contextMenuGroupId?: string;
-		/**
-		 * Control the order in the context menu group.
-		 */
-		contextMenuOrder?: number;
-		/**
-		 * Method that will be executed when the action is triggered.
-		 * @param editor The editor instance is passed in as a convinience
-		 */
-		run(editor: ICommonCodeEditor): void | Promise<void>;
 	}
 
 	export interface IEditorAction {
@@ -2021,10 +2014,6 @@ declare module monaco.editor {
 		 * Returns true if this editor has keyboard focus (e.g. cursor is blinking).
 		 */
 		isFocused(): boolean;
-		/**
-		 * Returns all actions associated with this editor.
-		 */
-		getActions(): IEditorAction[];
 		/**
 		 * Returns all actions associated with this editor.
 		 */
@@ -2179,234 +2168,6 @@ declare module monaco.editor {
 		restoreViewState?(state: any): void;
 	}
 
-	export interface ICommonCodeEditor extends IEditor {
-		/**
-		 * An event emitted when the content of the current model has changed.
-		 * @event
-		 */
-		onDidChangeModelContent(listener: (e: IModelContentChangedEvent) => void): IDisposable;
-		/**
-		 * An event emitted when the language of the current model has changed.
-		 * @event
-		 */
-		onDidChangeModelLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
-		/**
-		 * An event emitted when the language configuration of the current model has changed.
-		 * @event
-		 */
-		onDidChangeModelLanguageConfiguration(listener: (e: IModelLanguageConfigurationChangedEvent) => void): IDisposable;
-		/**
-		 * An event emitted when the options of the current model has changed.
-		 * @event
-		 */
-		onDidChangeModelOptions(listener: (e: IModelOptionsChangedEvent) => void): IDisposable;
-		/**
-		 * An event emitted when the configuration of the editor has changed. (e.g. `editor.updateOptions()`)
-		 * @event
-		 */
-		onDidChangeConfiguration(listener: (e: IConfigurationChangedEvent) => void): IDisposable;
-		/**
-		 * An event emitted when the cursor position has changed.
-		 * @event
-		 */
-		onDidChangeCursorPosition(listener: (e: ICursorPositionChangedEvent) => void): IDisposable;
-		/**
-		 * An event emitted when the cursor selection has changed.
-		 * @event
-		 */
-		onDidChangeCursorSelection(listener: (e: ICursorSelectionChangedEvent) => void): IDisposable;
-		/**
-		 * An event emitted when the model of this editor has changed (e.g. `editor.setModel()`).
-		 * @event
-		 */
-		onDidChangeModel(listener: (e: IModelChangedEvent) => void): IDisposable;
-		/**
-		 * An event emitted when the decorations of the current model have changed.
-		 * @event
-		 */
-		onDidChangeModelDecorations(listener: (e: IModelDecorationsChangedEvent) => void): IDisposable;
-		/**
-		 * An event emitted when the text inside this editor gained focus (i.e. cursor blinking).
-		 * @event
-		 */
-		onDidFocusEditorText(listener: () => void): IDisposable;
-		/**
-		 * An event emitted when the text inside this editor lost focus.
-		 * @event
-		 */
-		onDidBlurEditorText(listener: () => void): IDisposable;
-		/**
-		 * An event emitted when the text inside this editor or an editor widget gained focus.
-		 * @event
-		 */
-		onDidFocusEditor(listener: () => void): IDisposable;
-		/**
-		 * An event emitted when the text inside this editor or an editor widget lost focus.
-		 * @event
-		 */
-		onDidBlurEditor(listener: () => void): IDisposable;
-		/**
-		 * Saves current view state of the editor in a serializable object.
-		 */
-		saveViewState(): ICodeEditorViewState;
-		/**
-		 * Restores the view state of the editor from a serializable object generated by `saveViewState`.
-		 */
-		restoreViewState(state: ICodeEditorViewState): void;
-		/**
-		 * Returns true if this editor or one of its widgets has keyboard focus.
-		 */
-		hasWidgetFocus(): boolean;
-		/**
-		 * Get a contribution of this editor.
-		 * @id Unique identifier of the contribution.
-		 * @return The contribution or null if contribution not found.
-		 */
-		getContribution<T extends IEditorContribution>(id: string): T;
-		/**
-		 * Type the getModel() of IEditor.
-		 */
-		getModel(): IModel;
-		/**
-		 * Returns the current editor's configuration
-		 */
-		getConfiguration(): InternalEditorOptions;
-		/**
-		 * Get value of the current model attached to this editor.
-		 * @see IModel.getValue
-		 */
-		getValue(options?: {
-			preserveBOM: boolean;
-			lineEnding: string;
-		}): string;
-		/**
-		 * Set the value of the current model attached to this editor.
-		 * @see IModel.setValue
-		 */
-		setValue(newValue: string): void;
-		/**
-		 * Get the scrollWidth of the editor's viewport.
-		 */
-		getScrollWidth(): number;
-		/**
-		 * Get the scrollLeft of the editor's viewport.
-		 */
-		getScrollLeft(): number;
-		/**
-		 * Get the scrollHeight of the editor's viewport.
-		 */
-		getScrollHeight(): number;
-		/**
-		 * Get the scrollTop of the editor's viewport.
-		 */
-		getScrollTop(): number;
-		/**
-		 * Change the scrollLeft of the editor's viewport.
-		 */
-		setScrollLeft(newScrollLeft: number): void;
-		/**
-		 * Change the scrollTop of the editor's viewport.
-		 */
-		setScrollTop(newScrollTop: number): void;
-		/**
-		 * Change the scroll position of the editor's viewport.
-		 */
-		setScrollPosition(position: INewScrollPosition): void;
-		/**
-		 * Get an action that is a contribution to this editor.
-		 * @id Unique identifier of the contribution.
-		 * @return The action or null if action not found.
-		 */
-		getAction(id: string): IEditorAction;
-		/**
-		 * Execute a command on the editor.
-		 * The edits will land on the undo-redo stack, but no "undo stop" will be pushed.
-		 * @param source The source of the call.
-		 * @param command The command to execute
-		 */
-		executeCommand(source: string, command: ICommand): void;
-		/**
-		 * Push an "undo stop" in the undo-redo stack.
-		 */
-		pushUndoStop(): boolean;
-		/**
-		 * Execute edits on the editor.
-		 * The edits will land on the undo-redo stack, but no "undo stop" will be pushed.
-		 * @param source The source of the call.
-		 * @param edits The edits to execute.
-		 * @param endCursoState Cursor state after the edits were applied.
-		 */
-		executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursoState?: Selection[]): boolean;
-		/**
-		 * Execute multiple (concommitent) commands on the editor.
-		 * @param source The source of the call.
-		 * @param command The commands to execute
-		 */
-		executeCommands(source: string, commands: ICommand[]): void;
-		/**
-		 * Get all the decorations on a line (filtering out decorations from other editors).
-		 */
-		getLineDecorations(lineNumber: number): IModelDecoration[];
-		/**
-		 * All decorations added through this call will get the ownerId of this editor.
-		 * @see IModel.deltaDecorations
-		 */
-		deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
-		/**
-		 * Get the layout info for the editor.
-		 */
-		getLayoutInfo(): EditorLayoutInfo;
-	}
-
-	export interface ICommonDiffEditor extends IEditor {
-		/**
-		 * An event emitted when the diff information computed by this diff editor has been updated.
-		 * @event
-		 */
-		onDidUpdateDiff(listener: () => void): IDisposable;
-		/**
-		 * Saves current view state of the editor in a serializable object.
-		 */
-		saveViewState(): IDiffEditorViewState;
-		/**
-		 * Restores the view state of the editor from a serializable object generated by `saveViewState`.
-		 */
-		restoreViewState(state: IDiffEditorViewState): void;
-		/**
-		 * Type the getModel() of IEditor.
-		 */
-		getModel(): IDiffEditorModel;
-		/**
-		 * Get the `original` editor.
-		 */
-		getOriginalEditor(): ICommonCodeEditor;
-		/**
-		 * Get the `modified` editor.
-		 */
-		getModifiedEditor(): ICommonCodeEditor;
-		/**
-		 * Get the computed diff information.
-		 */
-		getLineChanges(): ILineChange[];
-		/**
-		 * Get information based on computed diff about a line number from the original model.
-		 * If the diff computation is not finished or the model is missing, will return null.
-		 */
-		getDiffLineInformationForOriginal(lineNumber: number): IDiffLineInformation;
-		/**
-		 * Get information based on computed diff about a line number from the modified model.
-		 * If the diff computation is not finished or the model is missing, will return null.
-		 */
-		getDiffLineInformationForModified(lineNumber: number): IDiffLineInformation;
-		/**
-		 * @see ICodeEditor.getValue
-		 */
-		getValue(options?: {
-			preserveBOM: boolean;
-			lineEnding: string;
-		}): string;
-	}
-
 	/**
 	 * The type of the `IEditor`.
 	 */
@@ -2482,18 +2243,6 @@ declare module monaco.editor {
 	 * An event describing that model decorations have changed.
 	 */
 	export interface IModelDecorationsChangedEvent {
-		/**
-		 * Lists of ids for added decorations.
-		 */
-		readonly addedDecorations: string[];
-		/**
-		 * Lists of ids for changed decorations.
-		 */
-		readonly changedDecorations: string[];
-		/**
-		 * List of ids for removed decorations.
-		 */
-		readonly removedDecorations: string[];
 	}
 
 	/**
@@ -2740,7 +2489,7 @@ declare module monaco.editor {
 		 * Otherwise, line numbers will not be rendered.
 		 * Defaults to true.
 		 */
-		lineNumbers?: 'on' | 'off' | 'relative' | ((lineNumber: number) => string);
+		lineNumbers?: 'on' | 'off' | 'relative' | 'interval' | ((lineNumber: number) => string);
 		/**
 		 * Should the corresponding line be selected when clicking on the line number?
 		 * Defaults to true.
@@ -3266,14 +3015,21 @@ declare module monaco.editor {
 		readonly wordWrapBreakObtrusiveCharacters: string;
 	}
 
+	export const enum RenderLineNumbersType {
+		Off = 0,
+		On = 1,
+		Relative = 2,
+		Interval = 3,
+		Custom = 4,
+	}
+
 	export interface InternalEditorViewOptions {
 		readonly extraEditorClassName: string;
 		readonly disableMonospaceOptimizations: boolean;
 		readonly rulers: number[];
 		readonly ariaLabel: string;
-		readonly renderLineNumbers: boolean;
+		readonly renderLineNumbers: RenderLineNumbersType;
 		readonly renderCustomLineNumbers: (lineNumber: number) => string;
-		readonly renderRelativeLineNumbers: boolean;
 		readonly selectOnLineNumbers: boolean;
 		readonly glyphMargin: boolean;
 		readonly revealHorizontalRightPadding: number;
@@ -3768,7 +3524,72 @@ declare module monaco.editor {
 	/**
 	 * A rich code editor.
 	 */
-	export interface ICodeEditor extends ICommonCodeEditor {
+	export interface ICodeEditor extends IEditor {
+		/**
+		 * An event emitted when the content of the current model has changed.
+		 * @event
+		 */
+		onDidChangeModelContent(listener: (e: IModelContentChangedEvent) => void): IDisposable;
+		/**
+		 * An event emitted when the language of the current model has changed.
+		 * @event
+		 */
+		onDidChangeModelLanguage(listener: (e: IModelLanguageChangedEvent) => void): IDisposable;
+		/**
+		 * An event emitted when the language configuration of the current model has changed.
+		 * @event
+		 */
+		onDidChangeModelLanguageConfiguration(listener: (e: IModelLanguageConfigurationChangedEvent) => void): IDisposable;
+		/**
+		 * An event emitted when the options of the current model has changed.
+		 * @event
+		 */
+		onDidChangeModelOptions(listener: (e: IModelOptionsChangedEvent) => void): IDisposable;
+		/**
+		 * An event emitted when the configuration of the editor has changed. (e.g. `editor.updateOptions()`)
+		 * @event
+		 */
+		onDidChangeConfiguration(listener: (e: IConfigurationChangedEvent) => void): IDisposable;
+		/**
+		 * An event emitted when the cursor position has changed.
+		 * @event
+		 */
+		onDidChangeCursorPosition(listener: (e: ICursorPositionChangedEvent) => void): IDisposable;
+		/**
+		 * An event emitted when the cursor selection has changed.
+		 * @event
+		 */
+		onDidChangeCursorSelection(listener: (e: ICursorSelectionChangedEvent) => void): IDisposable;
+		/**
+		 * An event emitted when the model of this editor has changed (e.g. `editor.setModel()`).
+		 * @event
+		 */
+		onDidChangeModel(listener: (e: IModelChangedEvent) => void): IDisposable;
+		/**
+		 * An event emitted when the decorations of the current model have changed.
+		 * @event
+		 */
+		onDidChangeModelDecorations(listener: (e: IModelDecorationsChangedEvent) => void): IDisposable;
+		/**
+		 * An event emitted when the text inside this editor gained focus (i.e. cursor blinking).
+		 * @event
+		 */
+		onDidFocusEditorText(listener: () => void): IDisposable;
+		/**
+		 * An event emitted when the text inside this editor lost focus.
+		 * @event
+		 */
+		onDidBlurEditorText(listener: () => void): IDisposable;
+		/**
+		 * An event emitted when the text inside this editor or an editor widget gained focus.
+		 * @event
+		 */
+		onDidFocusEditor(listener: () => void): IDisposable;
+		/**
+		 * An event emitted when the text inside this editor or an editor widget lost focus.
+		 * @event
+		 */
+		onDidBlurEditor(listener: () => void): IDisposable;
 		/**
 		 * An event emitted on a "mouseup".
 		 * @event
@@ -3815,6 +3636,129 @@ declare module monaco.editor {
 		 */
 		onDidScrollChange(listener: (e: IScrollEvent) => void): IDisposable;
 		/**
+		 * Saves current view state of the editor in a serializable object.
+		 */
+		saveViewState(): ICodeEditorViewState;
+		/**
+		 * Restores the view state of the editor from a serializable object generated by `saveViewState`.
+		 */
+		restoreViewState(state: ICodeEditorViewState): void;
+		/**
+		 * Returns true if this editor or one of its widgets has keyboard focus.
+		 */
+		hasWidgetFocus(): boolean;
+		/**
+		 * Get a contribution of this editor.
+		 * @id Unique identifier of the contribution.
+		 * @return The contribution or null if contribution not found.
+		 */
+		getContribution<T extends IEditorContribution>(id: string): T;
+		/**
+		 * Type the getModel() of IEditor.
+		 */
+		getModel(): IModel;
+		/**
+		 * Returns the current editor's configuration
+		 */
+		getConfiguration(): InternalEditorOptions;
+		/**
+		 * Get value of the current model attached to this editor.
+		 * @see IModel.getValue
+		 */
+		getValue(options?: {
+			preserveBOM: boolean;
+			lineEnding: string;
+		}): string;
+		/**
+		 * Set the value of the current model attached to this editor.
+		 * @see IModel.setValue
+		 */
+		setValue(newValue: string): void;
+		/**
+		 * Get the scrollWidth of the editor's viewport.
+		 */
+		getScrollWidth(): number;
+		/**
+		 * Get the scrollLeft of the editor's viewport.
+		 */
+		getScrollLeft(): number;
+		/**
+		 * Get the scrollHeight of the editor's viewport.
+		 */
+		getScrollHeight(): number;
+		/**
+		 * Get the scrollTop of the editor's viewport.
+		 */
+		getScrollTop(): number;
+		/**
+		 * Change the scrollLeft of the editor's viewport.
+		 */
+		setScrollLeft(newScrollLeft: number): void;
+		/**
+		 * Change the scrollTop of the editor's viewport.
+		 */
+		setScrollTop(newScrollTop: number): void;
+		/**
+		 * Change the scroll position of the editor's viewport.
+		 */
+		setScrollPosition(position: INewScrollPosition): void;
+		/**
+		 * Get an action that is a contribution to this editor.
+		 * @id Unique identifier of the contribution.
+		 * @return The action or null if action not found.
+		 */
+		getAction(id: string): IEditorAction;
+		/**
+		 * Execute a command on the editor.
+		 * The edits will land on the undo-redo stack, but no "undo stop" will be pushed.
+		 * @param source The source of the call.
+		 * @param command The command to execute
+		 */
+		executeCommand(source: string, command: ICommand): void;
+		/**
+		 * Push an "undo stop" in the undo-redo stack.
+		 */
+		pushUndoStop(): boolean;
+		/**
+		 * Execute edits on the editor.
+		 * The edits will land on the undo-redo stack, but no "undo stop" will be pushed.
+		 * @param source The source of the call.
+		 * @param edits The edits to execute.
+		 * @param endCursoState Cursor state after the edits were applied.
+		 */
+		executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursoState?: Selection[]): boolean;
+		/**
+		 * Execute multiple (concommitent) commands on the editor.
+		 * @param source The source of the call.
+		 * @param command The commands to execute
+		 */
+		executeCommands(source: string, commands: ICommand[]): void;
+		/**
+		 * Get all the decorations on a line (filtering out decorations from other editors).
+		 */
+		getLineDecorations(lineNumber: number): IModelDecoration[];
+		/**
+		 * All decorations added through this call will get the ownerId of this editor.
+		 * @see IModel.deltaDecorations
+		 */
+		deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
+		/**
+		 * Get the layout info for the editor.
+		 */
+		getLayoutInfo(): EditorLayoutInfo;
+		/**
+		 * Returns the range that is currently centered in the view port.
+		 */
+		getCenteredRangeInViewport(): Range;
+		/**
+		 * Get the vertical position (top offset) for the line w.r.t. to the first line.
+		 */
+		getTopForLineNumber(lineNumber: number): number;
+		/**
+		 * Get the vertical position (top offset) for the position w.r.t. to the first line.
+		 */
+		getTopForPosition(lineNumber: number, column: number): number;
+		/**
 		 * Returns the editor's dom node
 		 */
 		getDomNode(): HTMLElement;
@@ -3849,10 +3793,6 @@ declare module monaco.editor {
 		 */
 		changeViewZones(callback: (accessor: IViewZoneChangeAccessor) => void): void;
 		/**
-		 * Returns the range that is currently centered in the view port.
-		 */
-		getCenteredRangeInViewport(): Range;
-		/**
 		 * Get the horizontal position (left offset) for the column w.r.t to the beginning of the line.
 		 * This method works only if the line `lineNumber` is currently rendered (in the editor's viewport).
 		 * Use this method with caution.
@@ -3862,14 +3802,6 @@ declare module monaco.editor {
 		 * Force an editor render now.
 		 */
 		render(): void;
-		/**
-		 * Get the vertical position (top offset) for the line w.r.t. to the first line.
-		 */
-		getTopForLineNumber(lineNumber: number): number;
-		/**
-		 * Get the vertical position (top offset) for the position w.r.t. to the first line.
-		 */
-		getTopForPosition(lineNumber: number, column: number): number;
 		/**
 		 * Get the hit test target at coordinates `clientX` and `clientY`.
 		 * The coordinates are relative to the top-left of the viewport.
@@ -3896,13 +3828,59 @@ declare module monaco.editor {
 	}
 
 	/**
+	 * Information about a line in the diff editor
+	 */
+	export interface IDiffLineInformation {
+		readonly equivalentLineNumber: number;
+	}
+
+	/**
 	 * A rich diff editor.
 	 */
-	export interface IDiffEditor extends ICommonDiffEditor {
+	export interface IDiffEditor extends IEditor {
 		/**
 		 * @see ICodeEditor.getDomNode
 		 */
 		getDomNode(): HTMLElement;
+		/**
+		 * An event emitted when the diff information computed by this diff editor has been updated.
+		 * @event
+		 */
+		onDidUpdateDiff(listener: () => void): IDisposable;
+		/**
+		 * Saves current view state of the editor in a serializable object.
+		 */
+		saveViewState(): IDiffEditorViewState;
+		/**
+		 * Restores the view state of the editor from a serializable object generated by `saveViewState`.
+		 */
+		restoreViewState(state: IDiffEditorViewState): void;
+		/**
+		 * Type the getModel() of IEditor.
+		 */
+		getModel(): IDiffEditorModel;
+		/**
+		 * Get the `original` editor.
+		 */
+		getOriginalEditor(): ICodeEditor;
+		/**
+		 * Get the `modified` editor.
+		 */
+		getModifiedEditor(): ICodeEditor;
+		/**
+		 * Get the computed diff information.
+		 */
+		getLineChanges(): ILineChange[];
+		/**
+		 * Get information based on computed diff about a line number from the original model.
+		 * If the diff computation is not finished or the model is missing, will return null.
+		 */
+		getDiffLineInformationForOriginal(lineNumber: number): IDiffLineInformation;
+		/**
+		 * Get information based on computed diff about a line number from the modified model.
+		 * If the diff computation is not finished or the model is missing, will return null.
+		 */
+		getDiffLineInformationForModified(lineNumber: number): IDiffLineInformation;
 	}
 
 	export class FontInfo extends BareFontInfo {
@@ -4102,7 +4080,7 @@ declare module monaco.languages {
 		/**
 		 * Provide commands for the given document and range.
 		 */
-		provideCodeActions(model: editor.IReadOnlyModel, range: Range, context: CodeActionContext, token: CancellationToken): Command[] | Thenable<Command[]>;
+		provideCodeActions(model: editor.IReadOnlyModel, range: Range, context: CodeActionContext, token: CancellationToken): (Command | CodeAction)[] | Thenable<(Command | CodeAction)[]>;
 	}
 
 	/**
@@ -4172,6 +4150,10 @@ declare module monaco.languages {
 		 * A human-readable string that represents a doc-comment.
 		 */
 		documentation?: string;
+		/**
+		 * A command that should be run upon acceptance of this item.
+		 */
+		command?: Command;
 		/**
 		 * A string that should be used when comparing this item
 		 * with other items. When `falsy` the [label](#CompletionItem.label)
@@ -4362,18 +4344,31 @@ declare module monaco.languages {
 	}
 
 	/**
+	 * Describes language specific folding markers such as '#region' and '#endregion'.
+	 * The start and end regexes will be tested against the contents of all lines and must be designed efficiently:
+	 * - the regex should start with '^'
+	 * - regexp flags (i, g) are ignored
+	 */
+	export interface FoldingMarkers {
+		start: RegExp;
+		end: RegExp;
+	}
+
+	/**
 	 * Describes folding rules for a language.
 	 */
 	export interface FoldingRules {
-		indendationBasedFolding?: {
-			/**
-			 * Used by the indentation based strategy to decide wheter empty lines belong to the previous or the next block.
-			 * A language adheres to the off-side rule if blocks in that language are expressed by their indentation.
-			 * See [wikipedia](https://en.wikipedia.org/wiki/Off-side_rule) for more information.
-			 * If not set, `false` is used and empty lines belong to the previous block.
-			 */
-			offSide: boolean;
-		};
+		/**
+		 * Used by the indentation based strategy to decide wheter empty lines belong to the previous or the next block.
+		 * A language adheres to the off-side rule if blocks in that language are expressed by their indentation.
+		 * See [wikipedia](https://en.wikipedia.org/wiki/Off-side_rule) for more information.
+		 * If not set, `false` is used and empty lines belong to the previous block.
+		 */
+		offSide?: boolean;
+		/**
+		 * Region markers used by the language.
+		 */
+		markers?: FoldingMarkers;
 	}
 
 	/**
@@ -4519,6 +4514,13 @@ declare module monaco.languages {
 	export enum SuggestTriggerKind {
 		Invoke = 0,
 		TriggerCharacter = 1,
+	}
+
+	export interface CodeAction {
+		title: string;
+		command?: Command;
+		edits?: WorkspaceEdit;
+		diagnostics?: editor.IMarkerData[];
 	}
 
 	/**

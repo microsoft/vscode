@@ -9,7 +9,7 @@ import { canceled } from 'vs/base/common/errors';
 
 export abstract class V8Protocol {
 
-	private static TWO_CRLF = '\r\n\r\n';
+	private static readonly TWO_CRLF = '\r\n\r\n';
 
 	private outputStream: stream.Writable;
 	private sequence: number;

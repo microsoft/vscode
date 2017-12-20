@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/panelviewlet';
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
@@ -10,7 +11,7 @@ import { ColorIdentifier, contrastBorder } from 'vs/platform/theme/common/colorR
 import { attachStyler, IColorMapping, IThemable } from 'vs/platform/theme/common/styler';
 import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND } from 'vs/workbench/common/theme';
 import { Dimension, Builder } from 'vs/base/browser/builder';
-import { append, $ } from 'vs/base/browser/dom';
+import { append, $, trackFocus } from 'vs/base/browser/dom';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { firstIndex } from 'vs/base/common/arrays';
 import { IAction, IActionRunner } from 'vs/base/common/actions';
@@ -23,7 +24,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { PanelView, IPanelOptions, Panel } from 'vs/base/browser/ui/splitview/panelview';
+import { PanelView, IPanelViewOptions, IPanelOptions, Panel } from 'vs/base/browser/ui/splitview/panelview';
 
 export interface IPanelColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -50,8 +51,8 @@ export abstract class ViewletPanel extends Panel {
 	private _onDidFocus = new Emitter<void>();
 	readonly onDidFocus: Event<void> = this._onDidFocus.event;
 
-	private actionRunner: IActionRunner;
-	private toolbar: ToolBar;
+	protected actionRunner: IActionRunner;
+	protected toolbar: ToolBar;
 
 	constructor(
 		readonly title: string,
@@ -62,6 +63,14 @@ export abstract class ViewletPanel extends Panel {
 		super(options);
 
 		this.actionRunner = options.actionRunner;
+	}
+
+	render(container: HTMLElement): void {
+		super.render(container);
+
+		const focusTracker = trackFocus(container);
+		this.disposables.push(focusTracker);
+		this.disposables.push(focusTracker.onDidFocus(() => this._onDidFocus.fire()));
 	}
 
 	protected renderHeader(container: HTMLElement): void {
@@ -114,7 +123,7 @@ export abstract class ViewletPanel extends Panel {
 	}
 }
 
-export interface IViewsViewletOptions {
+export interface IViewsViewletOptions extends IPanelViewOptions {
 	showHeaderInTitleWhenSingleView: boolean;
 }
 
@@ -129,13 +138,17 @@ export class PanelViewlet extends Viewlet {
 	private panelItems: IViewletPanelItem[] = [];
 	private panelview: PanelView;
 
+	get onDidSashChange(): Event<void> {
+		return this.panelview.onDidSashChange;
+	}
+
 	protected get length(): number {
 		return this.panelItems.length;
 	}
 
 	constructor(
 		id: string,
-		private options: Partial<IViewsViewletOptions>,
+		private options: IViewsViewletOptions,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -146,7 +159,8 @@ export class PanelViewlet extends Viewlet {
 		super.create(parent);
 
 		const container = parent.getHTMLElement();
-		this.panelview = this._register(new PanelView(container));
+		this.panelview = this._register(new PanelView(container, this.options));
+		this.panelview.onDidDrop(({ from, to }) => this.movePanel(from as ViewletPanel, to as ViewletPanel));
 	}
 
 	getTitle(): string {
@@ -241,9 +255,9 @@ export class PanelViewlet extends Viewlet {
 			return;
 		}
 
-
 		const [panelItem] = this.panelItems.splice(fromIndex, 1);
-		this.panelItems.splice(toIndex < fromIndex ? toIndex : toIndex - 1, 0, panelItem);
+		this.panelItems.splice(toIndex, 0, panelItem);
+
 		this.panelview.movePanel(from, to);
 	}
 
@@ -251,8 +265,13 @@ export class PanelViewlet extends Viewlet {
 		this.panelview.resizePanel(panel, size);
 	}
 
-	private updateViewHeaders(): void {
+	getPanelSize(panel: ViewletPanel): number {
+		return this.panelview.getPanelSize(panel);
+	}
+
+	protected updateViewHeaders(): void {
 		if (this.isSingleView()) {
+			this.panelItems[0].panel.setExpanded(true);
 			this.panelItems[0].panel.headerVisible = false;
 		} else {
 			this.panelItems.forEach(i => i.panel.headerVisible = true);

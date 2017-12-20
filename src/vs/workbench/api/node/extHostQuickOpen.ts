@@ -5,7 +5,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { wireCancellationToken } from 'vs/base/common/async';
+import { wireCancellationToken, asWinJsPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { QuickPickOptions, QuickPickItem, InputBoxOptions, WorkspaceFolderPickOptions, WorkspaceFolder } from 'vscode';
 import { MainContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, MyQuickPickItems, IMainContext } from './extHost.protocol';
@@ -21,10 +21,10 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 	private _commands: ExtHostCommands;
 
 	private _onDidSelectItem: (handle: number) => void;
-	private _validateInput: (input: string) => string;
+	private _validateInput: (input: string) => string | Thenable<string>;
 
 	constructor(mainContext: IMainContext, workspace: ExtHostWorkspace, commands: ExtHostCommands) {
-		this._proxy = mainContext.get(MainContext.MainThreadQuickOpen);
+		this._proxy = mainContext.getProxy(MainContext.MainThreadQuickOpen);
 		this._workspace = workspace;
 		this._commands = commands;
 	}
@@ -120,7 +120,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 
 	$validateInput(input: string): TPromise<string> {
 		if (this._validateInput) {
-			return TPromise.as(this._validateInput(input));
+			return asWinJsPromise(_ => this._validateInput(input));
 		}
 		return undefined;
 	}
@@ -128,12 +128,12 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 	// ---- workspace folder picker
 
 	showWorkspaceFolderPick(options?: WorkspaceFolderPickOptions, token = CancellationToken.None): Thenable<WorkspaceFolder> {
-		return this._commands.executeCommand('_workbench.pickWorkspaceFolder', [options]).then((folder: WorkspaceFolder) => {
-			if (!folder) {
+		return this._commands.executeCommand('_workbench.pickWorkspaceFolder', [options]).then((selectedFolder: WorkspaceFolder) => {
+			if (!selectedFolder) {
 				return undefined;
 			}
 
-			return this._workspace.getWorkspaceFolders().filter(folder => folder.uri.toString() === folder.uri.toString())[0];
+			return this._workspace.getWorkspaceFolders().filter(folder => folder.uri.toString() === selectedFolder.uri.toString())[0];
 		});
 	}
 }

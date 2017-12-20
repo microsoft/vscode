@@ -41,10 +41,6 @@
 	right: 1px;
 }
 
-.monaco-workbench > .activitybar > .content .monaco-action-bar .action-label.toggle-more {
-	-webkit-mask: url('ellipsis-global.svg') no-repeat 50% 50%;
-}
-
 .monaco-workbench > .activitybar > .content .monaco-action-bar .badge {
 	position: absolute;
 	top: 5px;

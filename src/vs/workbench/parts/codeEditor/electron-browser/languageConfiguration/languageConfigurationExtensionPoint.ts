@@ -5,6 +5,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
+import * as types from 'vs/base/common/types';
 import { parse, ParseError } from 'vs/base/common/json';
 import { readFile } from 'vs/base/node/pfs';
 import { CharacterPair, LanguageConfiguration, IAutoClosingPair, IAutoClosingPairConditional, IndentationRule, CommentRule, FoldingRules } from 'vs/editor/common/modes/languageConfiguration';
@@ -36,6 +37,26 @@ interface ILanguageConfiguration {
 	wordPattern?: string | IRegExp;
 	indentationRules?: IIndentationRules;
 	folding?: FoldingRules;
+}
+
+function isStringArr(something: string[]): boolean {
+	if (!Array.isArray(something)) {
+		return false;
+	}
+	for (let i = 0, len = something.length; i < len; i++) {
+		if (typeof something[i] !== 'string') {
+			return false;
+		}
+	}
+	return true;
+
+}
+
+function isCharacterPair(something: CharacterPair): boolean {
+	return (
+		isStringArr(something)
+		&& something.length === 2
+	);
 }
 
 export class LanguageConfigurationFileHandler {
@@ -80,24 +101,177 @@ export class LanguageConfigurationFileHandler {
 		});
 	}
 
+	private _extractValidCommentRule(languageIdentifier: LanguageIdentifier, configuration: ILanguageConfiguration): CommentRule {
+		const source = configuration.comments;
+		if (typeof source === 'undefined') {
+			return null;
+		}
+		if (!types.isObject(source)) {
+			console.warn(`[${languageIdentifier.language}]: language configuration: expected \`comments\` to be an object.`);
+			return null;
+		}
+
+		let result: CommentRule = null;
+		if (typeof source.lineComment !== 'undefined') {
+			if (typeof source.lineComment !== 'string') {
+				console.warn(`[${languageIdentifier.language}]: language configuration: expected \`comments.lineComment\` to be a string.`);
+			} else {
+				result = result || {};
+				result.lineComment = source.lineComment;
+			}
+		}
+		if (typeof source.blockComment !== 'undefined') {
+			if (!isCharacterPair(source.blockComment)) {
+				console.warn(`[${languageIdentifier.language}]: language configuration: expected \`comments.blockComment\` to be an array of two strings.`);
+			} else {
+				result = result || {};
+				result.blockComment = source.blockComment;
+			}
+		}
+		return result;
+	}
+
+	private _extractValidBrackets(languageIdentifier: LanguageIdentifier, configuration: ILanguageConfiguration): CharacterPair[] {
+		const source = configuration.brackets;
+		if (typeof source === 'undefined') {
+			return null;
+		}
+		if (!Array.isArray(source)) {
+			console.warn(`[${languageIdentifier.language}]: language configuration: expected \`brackets\` to be an array.`);
+			return null;
+		}
+
+		let result: CharacterPair[] = null;
+		for (let i = 0, len = source.length; i < len; i++) {
+			const pair = source[i];
+			if (!isCharacterPair(pair)) {
+				console.warn(`[${languageIdentifier.language}]: language configuration: expected \`brackets[${i}]\` to be an array of two strings.`);
+				continue;
+			}
+
+			result = result || [];
+			result.push(pair);
+		}
+		return result;
+	}
+
+	private _extractValidAutoClosingPairs(languageIdentifier: LanguageIdentifier, configuration: ILanguageConfiguration): IAutoClosingPairConditional[] {
+		const source = configuration.autoClosingPairs;
+		if (typeof source === 'undefined') {
+			return null;
+		}
+		if (!Array.isArray(source)) {
+			console.warn(`[${languageIdentifier.language}]: language configuration: expected \`autoClosingPairs\` to be an array.`);
+			return null;
+		}
+
+		let result: IAutoClosingPairConditional[] = null;
+		for (let i = 0, len = source.length; i < len; i++) {
+			const pair = source[i];
+			if (Array.isArray(pair)) {
+				if (!isCharacterPair(pair)) {
+					console.warn(`[${languageIdentifier.language}]: language configuration: expected \`autoClosingPairs[${i}]\` to be an array of two strings or an object.`);
+					continue;
+				}
+				result = result || [];
+				result.push({ open: pair[0], close: pair[1] });
+			} else {
+				if (!types.isObject(pair)) {
+					console.warn(`[${languageIdentifier.language}]: language configuration: expected \`autoClosingPairs[${i}]\` to be an array of two strings or an object.`);
+					continue;
+				}
+				if (typeof pair.open !== 'string') {
+					console.warn(`[${languageIdentifier.language}]: language configuration: expected \`autoClosingPairs[${i}].open\` to be a string.`);
+					continue;
+				}
+				if (typeof pair.close !== 'string') {
+					console.warn(`[${languageIdentifier.language}]: language configuration: expected \`autoClosingPairs[${i}].close\` to be a string.`);
+					continue;
+				}
+				if (typeof pair.notIn !== 'undefined') {
+					if (!isStringArr(pair.notIn)) {
+						console.warn(`[${languageIdentifier.language}]: language configuration: expected \`autoClosingPairs[${i}].notIn\` to be a string array.`);
+						continue;
+					}
+				}
+				result = result || [];
+				result.push({ open: pair.open, close: pair.close, notIn: pair.notIn });
+			}
+		}
+		return result;
+	}
+
+	private _extractValidSurroundingPairs(languageIdentifier: LanguageIdentifier, configuration: ILanguageConfiguration): IAutoClosingPair[] {
+		const source = configuration.surroundingPairs;
+		if (typeof source === 'undefined') {
+			return null;
+		}
+		if (!Array.isArray(source)) {
+			console.warn(`[${languageIdentifier.language}]: language configuration: expected \`surroundingPairs\` to be an array.`);
+			return null;
+		}
+
+		let result: IAutoClosingPair[] = null;
+		for (let i = 0, len = source.length; i < len; i++) {
+			const pair = source[i];
+			if (Array.isArray(pair)) {
+				if (!isCharacterPair(pair)) {
+					console.warn(`[${languageIdentifier.language}]: language configuration: expected \`surroundingPairs[${i}]\` to be an array of two strings or an object.`);
+					continue;
+				}
+				result = result || [];
+				result.push({ open: pair[0], close: pair[1] });
+			} else {
+				if (!types.isObject(pair)) {
+					console.warn(`[${languageIdentifier.language}]: language configuration: expected \`surroundingPairs[${i}]\` to be an array of two strings or an object.`);
+					continue;
+				}
+				if (typeof pair.open !== 'string') {
+					console.warn(`[${languageIdentifier.language}]: language configuration: expected \`surroundingPairs[${i}].open\` to be a string.`);
+					continue;
+				}
+				if (typeof pair.close !== 'string') {
+					console.warn(`[${languageIdentifier.language}]: language configuration: expected \`surroundingPairs[${i}].close\` to be a string.`);
+					continue;
+				}
+				result = result || [];
+				result.push({ open: pair.open, close: pair.close });
+			}
+		}
+		return result;
+	}
+
+	// private _mapCharacterPairs(pairs: (CharacterPair | IAutoClosingPairConditional)[]): IAutoClosingPairConditional[] {
+	// 	return pairs.map(pair => {
+	// 		if (Array.isArray(pair)) {
+	// 			return { open: pair[0], close: pair[1] };
+	// 		}
+	// 		return <IAutoClosingPairConditional>pair;
+	// 	});
+	// }
+
 	private _handleConfig(languageIdentifier: LanguageIdentifier, configuration: ILanguageConfiguration): void {
 
 		let richEditConfig: LanguageConfiguration = {};
 
-		if (configuration.comments) {
-			richEditConfig.comments = configuration.comments;
+		const comments = this._extractValidCommentRule(languageIdentifier, configuration);
+		if (comments) {
+			richEditConfig.comments = comments;
 		}
 
-		if (configuration.brackets) {
-			richEditConfig.brackets = configuration.brackets;
+		const brackets = this._extractValidBrackets(languageIdentifier, configuration);
+		if (brackets) {
+			richEditConfig.brackets = brackets;
 		}
 
-		if (configuration.autoClosingPairs) {
-			richEditConfig.autoClosingPairs = this._mapCharacterPairs(configuration.autoClosingPairs);
+		const autoClosingPairs = this._extractValidAutoClosingPairs(languageIdentifier, configuration);
+		if (autoClosingPairs) {
+			richEditConfig.autoClosingPairs = autoClosingPairs;
 		}
 
-		if (configuration.surroundingPairs) {
-			richEditConfig.surroundingPairs = this._mapCharacterPairs(configuration.surroundingPairs);
+		const surroundingPairs = this._extractValidSurroundingPairs(languageIdentifier, configuration);
+		if (surroundingPairs) {
+			richEditConfig.surroundingPairs = surroundingPairs;
 		}
 
 		if (configuration.wordPattern) {
@@ -119,7 +293,12 @@ export class LanguageConfigurationFileHandler {
 		}
 
 		if (configuration.folding) {
-			richEditConfig.folding = configuration.folding;
+			let markers = configuration.folding.markers;
+
+			richEditConfig.folding = {
+				offSide: configuration.folding.offSide,
+				markers: markers ? { start: new RegExp(markers.start), end: new RegExp(markers.end) } : void 0
+			};
 		}
 
 		LanguageConfigurationRegistry.register(languageIdentifier, richEditConfig);
@@ -161,19 +340,11 @@ export class LanguageConfigurationFileHandler {
 
 		return null;
 	}
-
-	private _mapCharacterPairs(pairs: (CharacterPair | IAutoClosingPairConditional)[]): IAutoClosingPairConditional[] {
-		return pairs.map(pair => {
-			if (Array.isArray(pair)) {
-				return { open: pair[0], close: pair[1] };
-			}
-			return <IAutoClosingPairConditional>pair;
-		});
-	}
 }
 
 const schemaId = 'vscode://schemas/language-configuration';
 const schema: IJSONSchema = {
+	allowComments: true,
 	default: {
 		comments: {
 			blockComment: ['/*', '*/'],
@@ -387,14 +558,22 @@ const schema: IJSONSchema = {
 			type: 'object',
 			description: nls.localize('schema.folding', 'The language\'s folding settings.'),
 			properties: {
-				indendationBasedFolding: {
+				offSide: {
+					type: 'boolean',
+					description: nls.localize('schema.folding.offSide', 'A language adheres to the off-side rule if blocks in that language are expressed by their indentation. If set, empty lines belong to the subsequent block.'),
+				},
+				markers: {
 					type: 'object',
-					description: nls.localize('schema.folding.indendationBasedFolding', 'Settings for indentation based folding.'),
+					description: nls.localize('schema.folding.markers', 'Language specific folding markers such as \'#region\' and \'#endregion\'. The start and end regexes will be tested against the contents of all lines and must be designed efficiently'),
 					properties: {
-						offSide: {
-							type: 'boolean',
-							description: nls.localize('schema.folding.indendationBasedFolding.offSide', 'A language adheres to the off-side rule if blocks in that language are expressed by their indentation. If set, empty lines belong to the subsequent block.'),
-						}
+						start: {
+							type: 'string',
+							description: nls.localize('schema.folding.markers.start', 'The RegExp pattern for the start marker. The regexp must start with \'^\'.')
+						},
+						end: {
+							type: 'string',
+							description: nls.localize('schema.folding.markers.end', 'The RegExp pattern for the end marker. The regexp must start with \'^\'.')
+						},
 					}
 				}
 			}

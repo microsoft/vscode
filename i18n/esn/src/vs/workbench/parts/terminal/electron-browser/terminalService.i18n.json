@@ -10,6 +10,5 @@
 	"never again": "De acuerdo, no volver a mostrar este mensaje",
 	"terminal.integrated.chooseWindowsShell": "Seleccione el shell de terminal que desee, puede cambiarlo más adelante en la configuración",
 	"terminalService.terminalCloseConfirmationSingular": "Hay una sesión de terminal activa, ¿quiere terminarla?",
-	"terminalService.terminalCloseConfirmationPlural": "Hay {0} sesiones de terminal activas, ¿quiere terminarlas?",
-	"yes": "Sí"
+	"terminalService.terminalCloseConfirmationPlural": "Hay {0} sesiones de terminal activas, ¿quiere terminarlas?"
 }

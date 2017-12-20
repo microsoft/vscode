@@ -7,120 +7,6 @@
 
 declare module 'vscode' {
 
-	/**
-	 * Options to configure the behaviour of a file open dialog.
-	 */
-	export interface OpenDialogOptions {
-		/**
-		 * The resource the dialog shows when opened.
-		 */
-		defaultUri?: Uri;
-
-		/**
-		 * A human-readable string for the open button.
-		 */
-		openLabel?: string;
-
-		/**
-		 * Only allow to select files. *Note* that not all operating systems support
-		 * to select files and folders in one dialog instance.
-		 */
-		openFiles?: boolean;
-
-		/**
-		 * Only allow to select folders. *Note* that not all operating systems support
-		 * to select files and folders in one dialog instance.
-		 */
-		openFolders?: boolean;
-
-		/**
-		 * Allow to select many files or folders.
-		 */
-		openMany?: boolean;
-
-		/**
-		 * A set of file filters that are shown in the dialog, e.g.
-		 * ```ts
-		 * {
-		 * 	['Images']: ['*.png', '*.jpg']
-		 * 	['TypeScript']: ['*.ts', '*.tsx']
-		 * }
-		 * ```
-		 */
-		filters: { [name: string]: string[] };
-	}
-
-	/**
-	 * Options to configure the behaviour of a file save dialog.
-	 */
-	export interface SaveDialogOptions {
-		/**
-		 * The resource the dialog shows when opened.
-		 */
-		defaultUri?: Uri;
-
-		/**
-		 * A human-readable string for the save button.
-		 */
-		saveLabel?: string;
-
-		/**
-		 * A set of file filters that are shown in the dialog, e.g.
-		 * ```ts
-		 * {
-		 * 	['Images']: ['*.png', '*.jpg']
-		 * 	['TypeScript']: ['*.ts', '*.tsx']
-		 * }
-		 * ```
-		 */
-		filters: { [name: string]: string[] };
-	}
-
-	export namespace window {
-
-		/**
-		 * Shows a file open dialog to the user.
-		 *
-		 * @param options Options that control the dialog.
-		 * @returns A promise that resolves to the selected resources or `undefined`.
-		 */
-		export function showOpenDialog(options: OpenDialogOptions): Thenable<Uri[] | undefined>;
-
-		/**
-		 * Shows a file save dialog to the user.
-		 *
-		 * @param options Options that control the dialog.
-		 * @returns A promise that resolves to the selected resource or `undefined`.
-		 */
-		export function showSaveDialog(options: SaveDialogOptions): Thenable<Uri | undefined>;
-
-		/**
-		 * Shows a selection list of [workspace folders](#workspace.workspaceFolders) to pick from.
-		 * Returns `undefined` if no folder is open.
-		 *
-		 * @param options Configures the behavior of the workspace folder list.
-		 * @return A promise that resolves to the workspace folder or `undefined`.
-		 */
-		export function showWorkspaceFolderPick(options?: WorkspaceFolderPickOptions): Thenable<WorkspaceFolder | undefined>;
-	}
-
-	/**
-	 * Options to configure the behaviour of the [workspace folder](#WorkspaceFolder) pick UI.
-	 */
-	export interface WorkspaceFolderPickOptions {
-
-		/**
-		 * An optional string to show as place holder in the input box to guide the user what to pick on.
-		 */
-		placeHolder?: string;
-
-		/**
-		 * Set to `true` to keep the picker open when focus moves to another part of the editor or to another window.
-		 */
-		ignoreFocusOut?: boolean;
-	}
-
-
 	// export enum FileErrorCodes {
 	// 	/**
 	// 	 * Not owner.
@@ -192,6 +78,7 @@ declare module 'vscode' {
 	export interface FileStat {
 		id: number | string;
 		mtime: number;
+		// atime: number;
 		size: number;
 		type: FileType;
 	}
@@ -199,13 +86,13 @@ declare module 'vscode' {
 	// todo@joh discover files etc
 	export interface FileSystemProvider {
 
-		onDidChange?: Event<FileChange[]>;
+		readonly onDidChange?: Event<FileChange[]>;
 
-		root: Uri;
+		readonly root: Uri;
 
 		// more...
 		//
-		utimes(resource: Uri, mtime: number): Thenable<FileStat>;
+		utimes(resource: Uri, mtime: number, atime: number): Thenable<FileStat>;
 
 		stat(resource: Uri): Thenable<FileStat>;
 
@@ -239,6 +126,9 @@ declare module 'vscode' {
 
 		// todo@remote
 		// create(resource: Uri): Thenable<FileStat>;
+
+		// find files by names
+		findFiles?(query: string, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
 	}
 
 	export namespace workspace {
@@ -279,107 +169,206 @@ declare module 'vscode' {
 		export function registerDiffInformationCommand(command: string, callback: (diff: LineChange[], ...args: any[]) => any, thisArg?: any): Disposable;
 	}
 
-	/**
-	 * Represents a color in RGBA space.
-	 */
-	export class Color {
+	//#region decorations
 
-		/**
-		 * The red component of this color in the range [0-1].
-		 */
-		readonly red: number;
-
-		/**
-		 * The green component of this color in the range [0-1].
-		 */
-		readonly green: number;
-
-		/**
-		 * The blue component of this color in the range [0-1].
-		 */
-		readonly blue: number;
-
-		/**
-		 * The alpha component of this color in the range [0-1].
-		 */
-		readonly alpha: number;
-
-		constructor(red: number, green: number, blue: number, alpha: number);
+	//todo@joh -> make class
+	export interface DecorationData {
+		priority?: number;
+		title?: string;
+		bubble?: boolean;
+		abbreviation?: string;
+		color?: ThemeColor;
+		source?: string;
 	}
 
+	export interface SourceControlResourceDecorations {
+		source?: string;
+		letter?: string;
+		color?: ThemeColor;
+	}
+
+	export interface DecorationProvider {
+		onDidChangeDecorations: Event<undefined | Uri | Uri[]>;
+		provideDecoration(uri: Uri, token: CancellationToken): ProviderResult<DecorationData>;
+	}
+
+	export namespace window {
+		export function registerDecorationProvider(provider: DecorationProvider): Disposable;
+	}
+
+	//#endregion
+
 	/**
-	 * Represents a color range from a document.
+	 * A code action represents a change that can be performed in code, e.g. to fix a problem or
+	 * to refactor code.
 	 */
-	export class ColorInformation {
+	export class CodeAction {
 
 		/**
-		 * The range in the document where this color appers.
+		 * A short, human-readanle, title for this code action.
 		 */
-		range: Range;
+		title: string;
 
 		/**
-		 * The actual color value for this color range.
-		 */
-		color: Color;
-
-		/**
-		 * Creates a new color range.
+		 * A workspace edit this code action performs.
 		 *
-		 * @param range The range the color appears in. Must not be empty.
-		 * @param color The value of the color.
-		 * @param format The format in which this color is currently formatted.
+		 * *Note* that either an [`edit`](CodeAction#edit) or a [`command`](CodeAction#command) must be supplied.
 		 */
-		constructor(range: Range, color: Color);
-	}
-
-	export class ColorPresentation {
-		/**
-		 * The label of this color presentation. It will be shown on the color
-		 * picker header. By default this is also the text that is inserted when selecting
-		 * this color presentation.
-		 */
-		label: string;
-		/**
-		 * An [edit](#TextEdit) which is applied to a document when selecting
-		 * this presentation for the color.  When `falsy` the [label](#ColorPresentation.label)
-		 * is used.
-		 */
-		textEdit?: TextEdit;
-		/**
-		 * An optional array of additional [text edits](#TextEdit) that are applied when
-		 * selecting this color presentation. Edits must not overlap with the main [edit](#ColorPresentation.textEdit) nor with themselves.
-		 */
-		additionalTextEdits?: TextEdit[];
+		edit?: WorkspaceEdit;
 
 		/**
-		 * Creates a new color presentation.
+		 * Diagnostics that this code action resolves.
+		 */
+		diagnostics?: Diagnostic[];
+
+		/**
+		 * A command this code action performs.
 		 *
-		 * @param label The label of this color presentation.
+		 * *Note* that either an [`edit`](CodeAction#edit) or a [`command`](CodeAction#command) must be supplied.
 		 */
-		constructor(label: string);
+		command?: Command;
+
+		/**
+		 * Creates a new code action.
+		 *
+		 * A code action must have at least a [title](#CodeAction.title) and either [edits](#CodeAction.edits)
+		 * or a [command](#CodeAction.command).
+		 *
+		 * @param title The title of the code action.
+		 * @param edits The edit of the code action.
+		 */
+		constructor(title: string, edit?: WorkspaceEdit);
 	}
 
-	/**
-	 * The document color provider defines the contract between extensions and feature of
-	 * picking and modifying colors in the editor.
-	 */
-	export interface DocumentColorProvider {
+	export interface CodeActionProvider {
+
 		/**
-		 * Provide colors for the given document.
+		 * Provide commands for the given document and range.
+		 *
+		 * If implemented, overrides `provideCodeActions`
 		 *
 		 * @param document The document in which the command was invoked.
+		 * @param range The range for which the command was invoked.
+		 * @param context Context carrying additional information.
 		 * @param token A cancellation token.
-		 * @return An array of [color informations](#ColorInformation) or a thenable that resolves to such. The lack of a result
-		 * can be signaled by returning `undefined`, `null`, or an empty array.
+		 * @return An array of commands, quick fixes, or refactorings or a thenable of such. The lack of a result can be
+		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
-		provideDocumentColors(document: TextDocument, token: CancellationToken): ProviderResult<ColorInformation[]>;
-		/**
-		 * Provide representations for a color.
-		 */
-		provideColorPresentations(document: TextDocument, colorInfo: ColorInformation, token: CancellationToken): ProviderResult<ColorPresentation[]>;
+		provideCodeActions2?(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): ProviderResult<(Command | CodeAction)[]>;
 	}
 
-	export namespace languages {
-		export function registerColorProvider(selector: DocumentSelector, provider: DocumentColorProvider): Disposable;
+	export namespace debug {
+
+		/**
+		 * List of breakpoints.
+		 *
+		 * @readonly
+		 */
+		export let breakpoints: Breakpoint[];
+
+		/**
+		 * An event that is emitted when a breakpoint is added, removed, or changed.
+		 */
+		export const onDidChangeBreakpoints: Event<BreakpointsChangeEvent>;
+	}
+
+	/**
+	 * An event describing a change to the set of [breakpoints](#debug.Breakpoint).
+	 */
+	export interface BreakpointsChangeEvent {
+		/**
+		 * Added breakpoints.
+		 */
+		readonly added: Breakpoint[];
+
+		/**
+		 * Removed breakpoints.
+		 */
+		readonly removed: Breakpoint[];
+
+		/**
+		 * Changed breakpoints.
+		 */
+		readonly changed: Breakpoint[];
+	}
+
+	/**
+	 * The base class of all breakpoint types.
+	 */
+	export class Breakpoint {
+		/**
+		 * Is breakpoint enabled.
+		 */
+		readonly enabled: boolean;
+		/**
+		 * An optional expression for conditional breakpoints.
+		 */
+		readonly condition?: string;
+		/**
+		 * An optional expression that controls how many hits of the breakpoint are ignored.
+		 */
+		readonly hitCondition?: string;
+
+		protected constructor(enabled: boolean, condition: string, hitCondition: string);
+	}
+
+	/**
+	 * A breakpoint specified by a source location.
+	 */
+	export class SourceBreakpoint extends Breakpoint {
+		/**
+		 * The source and line position of this breakpoint.
+		 */
+		readonly location: Location;
+
+		private constructor(enabled: boolean, condition: string, hitCondition: string, location: Location);
+	}
+
+	/**
+	 * A breakpoint specified by a function name.
+	 */
+	export class FunctionBreakpoint extends Breakpoint {
+		/**
+		 * The name of the function to which this breakpoint is attached.
+		 */
+		readonly functionName: string;
+
+		private constructor(enabled: boolean, condition: string, hitCondition: string, functionName: string);
+	}
+
+	/**
+	 * The severity level of a log message
+	 */
+	export enum LogLevel {
+		Trace = 1,
+		Debug = 2,
+		Info = 3,
+		Warning = 4,
+		Error = 5,
+		Critical = 6,
+		Off = 7
+	}
+
+	/**
+	 * A logger for writing to an extension's log file, and accessing its dedicated log directory.
+	 */
+	export interface Logger {
+		readonly onDidChangeLogLevel: Event<LogLevel>;
+		readonly currentLevel: LogLevel;
+		readonly logDirectory: Thenable<string>;
+
+		trace(message: string, ...args: any[]): void;
+		debug(message: string, ...args: any[]): void;
+		info(message: string, ...args: any[]): void;
+		warn(message: string, ...args: any[]): void;
+		error(message: string | Error, ...args: any[]): void;
+		critical(message: string | Error, ...args: any[]): void;
+	}
+
+	export interface ExtensionContext {
+		/**
+		 * This extension's logger
+		 */
+		logger: Logger;
 	}
 }

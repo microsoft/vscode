@@ -90,8 +90,6 @@ export class View extends ViewEventHandler {
 	private overflowGuardContainer: FastDomNode<HTMLElement>;
 
 	// Actual mutable state
-	private _isDisposed: boolean;
-
 	private _renderAnimationFrame: IDisposable;
 
 	constructor(
@@ -103,7 +101,6 @@ export class View extends ViewEventHandler {
 		execCoreEditorCommandFunc: ExecCoreEditorCommandFunc
 	) {
 		super();
-		this._isDisposed = false;
 		this._cursor = cursor;
 		this._renderAnimationFrame = null;
 		this.outgoingEvents = new ViewOutgoingEvents(model);
@@ -344,7 +341,6 @@ export class View extends ViewEventHandler {
 	// --- end event handlers
 
 	public dispose(): void {
-		this._isDisposed = true;
 		if (this._renderAnimationFrame !== null) {
 			this._renderAnimationFrame.dispose();
 			this._renderAnimationFrame = null;
@@ -454,6 +450,13 @@ export class View extends ViewEventHandler {
 		this._scrollbar.delegateVerticalScrollbarMouseDown(browserEvent);
 	}
 
+	public restoreState(scrollPosition: { scrollLeft: number; scrollTop: number; }): void {
+		this._context.viewLayout.setScrollPositionNow({ scrollTop: scrollPosition.scrollTop });
+		this._renderNow();
+		this.viewLines.updateLineWidths();
+		this._context.viewLayout.setScrollPositionNow({ scrollLeft: scrollPosition.scrollLeft });
+	}
+
 	public getOffsetForColumn(modelLineNumber: number, modelColumn: number): number {
 		let modelPosition = this._context.model.validateModelPosition({
 			lineNumber: modelLineNumber,
@@ -476,8 +479,8 @@ export class View extends ViewEventHandler {
 		return this.outgoingEvents;
 	}
 
-	public createOverviewRuler(cssClassName: string, minimumHeight: number, maximumHeight: number): OverviewRuler {
-		return new OverviewRuler(this._context, cssClassName, minimumHeight, maximumHeight);
+	public createOverviewRuler(cssClassName: string): OverviewRuler {
+		return new OverviewRuler(this._context, cssClassName);
 	}
 
 	public change(callback: (changeAccessor: editorBrowser.IViewZoneChangeAccessor) => any): boolean {
@@ -531,10 +534,6 @@ export class View extends ViewEventHandler {
 		} else {
 			this._scheduleRender();
 		}
-	}
-
-	public setAriaActiveDescendant(id: string): void {
-		this._textAreaHandler.setAriaActiveDescendant(id);
 	}
 
 	public focus(): void {

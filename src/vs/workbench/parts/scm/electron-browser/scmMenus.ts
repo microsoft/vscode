@@ -28,7 +28,7 @@ export class SCMMenus implements IDisposable {
 	private disposables: IDisposable[] = [];
 
 	constructor(
-		private provider: ISCMProvider | undefined,
+		provider: ISCMProvider | undefined,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService private menuService: IMenuService
 	) {
@@ -88,7 +88,7 @@ export class SCMMenus implements IDisposable {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
-		fillInActions(menu, { shouldForwardArgs: true }, result, g => g === 'inline');
+		fillInActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
 
 		menu.dispose();
 		contextKeyService.dispose();

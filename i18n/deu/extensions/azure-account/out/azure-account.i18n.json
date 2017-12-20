@@ -6,6 +6,7 @@
 {
 	"azure-account.copyAndOpen": "Kopieren & Öffnen",
 	"azure-account.close": "Schließen",
+	"azure-account.login": "Anmelden",
 	"azure-account.loginFirst": "Nicht angemeldet, bitte zuerst anmelden.",
 	"azure-account.userCodeFailed": "Fehler beim Erfassen von Benutzercode.",
 	"azure-account.tokenFailed": "Token wird mit Gerätecode erfasst",

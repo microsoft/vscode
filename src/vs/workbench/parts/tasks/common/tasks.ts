@@ -24,13 +24,6 @@ export interface ShellConfiguration {
 	args?: string[];
 }
 
-export namespace ShellConfiguration {
-	export function is(value: any): value is ShellConfiguration {
-		let candidate: ShellConfiguration = value;
-		return candidate && Types.isString(candidate.executable) && (candidate.args === void 0 || Types.isStringArray(candidate.args));
-	}
-}
-
 export interface CommandOptions {
 
 	/**
@@ -273,6 +266,11 @@ export interface TaskDependency {
 	task: string;
 }
 
+export enum GroupType {
+	default = 'default',
+	user = 'user'
+}
+
 export interface ConfigurationProperties {
 
 	/**
@@ -291,9 +289,9 @@ export interface ConfigurationProperties {
 	group?: string;
 
 	/**
-	 * Whether this task is a primary task in the task group.
+	 * The group type
 	 */
-	isDefaultGroupEntry?: boolean;
+	groupType?: GroupType;
 
 	/**
 	 * The presentation options
@@ -448,13 +446,27 @@ export namespace Task {
 			return JSON.stringify(key);
 		}
 		if (ContributedTask.is(task)) {
-			let key: ContributedKey = { type: 'contributed', scope: task._source.scope, id: task.defines._key };
+			let key: ContributedKey = { type: 'contributed', scope: task._source.scope, id: task._id };
 			if (task._source.scope === TaskScope.Folder && task._source.workspaceFolder) {
 				key.folder = task._source.workspaceFolder.uri.toString();
 			}
 			return JSON.stringify(key);
 		}
 		return undefined;
+	}
+
+	export function getMapKey(task: Task): string {
+		if (CustomTask.is(task)) {
+			let workspaceFolder = task._source.config.workspaceFolder;
+			return workspaceFolder ? `${workspaceFolder.uri.toString()}|${task._id}` : task._id;
+		} else if (ContributedTask.is(task)) {
+			let workspaceFolder = task._source.workspaceFolder;
+			return workspaceFolder
+				? `${task._source.scope.toString()}|${workspaceFolder.uri.toString()}|${task._id}`
+				: `${task._source.scope.toString()}|${task._id}`;
+		} else {
+			return task._id;
+		}
 	}
 
 	export function getWorkspaceFolder(task: Task): IWorkspaceFolder | undefined {
@@ -522,6 +534,7 @@ export interface TaskSet {
 }
 
 export interface TaskDefinition {
+	extensionId: string;
 	taskType: string;
 	required: string[];
 	properties: IJSONSchemaMap;
@@ -556,6 +569,47 @@ export class TaskSorter {
 			return +1;
 		} else {
 			return 0;
+		}
+	}
+}
+
+export enum TaskEventKind {
+	Active = 'active',
+	Inactive = 'inactive',
+	Terminated = 'terminated',
+	Changed = 'changed',
+}
+
+
+export enum TaskRunType {
+	SingleRun = 'singleRun',
+	Background = 'background'
+}
+
+export interface TaskEvent {
+	kind: TaskEventKind;
+	taskId?: string;
+	taskName?: string;
+	runType?: TaskRunType;
+	group?: string;
+	__task?: Task;
+}
+
+export namespace TaskEvent {
+	export function create(kind: TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.Terminated, task: Task);
+	export function create(kind: TaskEventKind.Changed);
+	export function create(kind: TaskEventKind, task?: Task): TaskEvent {
+		if (task) {
+			return Object.freeze({
+				kind: kind,
+				taskId: task._id,
+				taskName: task.name,
+				runType: task.isBackground ? TaskRunType.Background : TaskRunType.SingleRun,
+				group: task.group,
+				__task: task,
+			});
+		} else {
+			return Object.freeze({ kind: TaskEventKind.Changed });
 		}
 	}
 }

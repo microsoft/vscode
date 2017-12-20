@@ -9,10 +9,9 @@ import * as fs from 'original-fs';
 import * as path from 'path';
 import * as electron from 'electron';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import Event, { Emitter, once, filterEvent } from 'vs/base/common/event';
+import Event, { Emitter, once, filterEvent, fromNodeEventEmitter } from 'vs/base/common/event';
 import { always, Throttler } from 'vs/base/common/async';
 import { memoize } from 'vs/base/common/decorators';
-import { fromEventEmitter } from 'vs/base/node/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Win32AutoUpdaterImpl } from './auto-updater.win32';
 import { LinuxAutoUpdaterImpl } from './auto-updater.linux';
@@ -22,6 +21,8 @@ import product from 'vs/platform/node/product';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IUpdateService, State, IAutoUpdater, IUpdate, IRawUpdate } from 'vs/platform/update/common/update';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class UpdateService implements IUpdateService {
 
@@ -52,22 +53,22 @@ export class UpdateService implements IUpdateService {
 
 	@memoize
 	private get onRawError(): Event<string> {
-		return fromEventEmitter(this.raw, 'error', (_, message) => message);
+		return fromNodeEventEmitter(this.raw, 'error', (_, message) => message);
 	}
 
 	@memoize
 	private get onRawUpdateNotAvailable(): Event<void> {
-		return fromEventEmitter<void>(this.raw, 'update-not-available');
+		return fromNodeEventEmitter<void>(this.raw, 'update-not-available');
 	}
 
 	@memoize
 	private get onRawUpdateAvailable(): Event<{ url: string; version: string; }> {
-		return filterEvent(fromEventEmitter(this.raw, 'update-available', (_, url, version) => ({ url, version })), ({ url }) => !!url);
+		return filterEvent(fromNodeEventEmitter(this.raw, 'update-available', (_, url, version) => ({ url, version })), ({ url }) => !!url);
 	}
 
 	@memoize
 	private get onRawUpdateDownloaded(): Event<IRawUpdate> {
-		return fromEventEmitter(this.raw, 'update-downloaded', (_, releaseNotes, version, date, url) => ({ releaseNotes, version, date }));
+		return fromNodeEventEmitter(this.raw, 'update-downloaded', (_, releaseNotes, version, date, url) => ({ releaseNotes, version, date }));
 	}
 
 	get state(): State {
@@ -87,7 +88,9 @@ export class UpdateService implements IUpdateService {
 		@IRequestService requestService: IRequestService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@ITelemetryService private telemetryService: ITelemetryService
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@ILogService private logService: ILogService
 	) {
 		if (process.platform === 'win32') {
 			this.raw = new Win32AutoUpdaterImpl(requestService);
@@ -96,6 +99,10 @@ export class UpdateService implements IUpdateService {
 		} else if (process.platform === 'darwin') {
 			this.raw = electron.autoUpdater;
 		} else {
+			return;
+		}
+
+		if (this.environmentService.disableUpdates) {
 			return;
 		}
 
@@ -116,7 +123,7 @@ export class UpdateService implements IUpdateService {
 
 		// Start checking for updates after 30 seconds
 		this.scheduleCheckForUpdates(30 * 1000)
-			.done(null, err => console.error(err));
+			.done(null, err => this.logService.error(err));
 	}
 
 	private scheduleCheckForUpdates(delay = 60 * 60 * 1000): TPromise<void> {
@@ -164,6 +171,11 @@ export class UpdateService implements IUpdateService {
 			if (!update) {
 				this._onUpdateNotAvailable.fire(explicit);
 				this.state = State.Idle;
+				/* __GDPR__
+					"update:notAvailable" : {
+						"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
 				this.telemetryService.publicLog('update:notAvailable', { explicit });
 
 			} else if (update.url) {
@@ -177,6 +189,13 @@ export class UpdateService implements IUpdateService {
 				this._availableUpdate = data;
 				this._onUpdateAvailable.fire({ url: update.url, version: update.version });
 				this.state = State.UpdateAvailable;
+				/* __GDPR__
+					"update:available" : {
+						"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"version": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"currentVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
 				this.telemetryService.publicLog('update:available', { explicit, version: update.version, currentVersion: product.commit });
 
 			} else {
@@ -189,6 +208,11 @@ export class UpdateService implements IUpdateService {
 				this._availableUpdate = data;
 				this._onUpdateReady.fire(data);
 				this.state = State.UpdateDownloaded;
+				/* __GDPR__
+					"update:downloaded" : {
+						"version" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
 				this.telemetryService.publicLog('update:downloaded', { version: update.version });
 			}
 
@@ -202,9 +226,7 @@ export class UpdateService implements IUpdateService {
 	}
 
 	private getUpdateChannel(): string {
-		const config = this.configurationService.getConfiguration<{ channel: string; }>('update');
-		const channel = config && config.channel;
-
+		const channel = this.configurationService.getValue<string>('update.channel');
 		return channel === 'none' ? null : product.quality;
 	}
 
@@ -248,7 +270,10 @@ export class UpdateService implements IUpdateService {
 			return TPromise.as(null);
 		}
 
+		this.logService.trace('update#quitAndInstall(): before lifecycle quit()');
+
 		this.lifecycleService.quit(true /* from update */).done(vetod => {
+			this.logService.trace(`update#quitAndInstall(): after lifecycle quit() with veto: ${vetod}`);
 			if (vetod) {
 				return;
 			}
@@ -257,9 +282,11 @@ export class UpdateService implements IUpdateService {
 			// we workaround this issue by forcing an explicit flush of the storage data.
 			// see also https://github.com/Microsoft/vscode/issues/172
 			if (process.platform === 'darwin') {
+				this.logService.trace('update#quitAndInstall(): calling flushStorageData()');
 				electron.session.defaultSession.flushStorageData();
 			}
 
+			this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 			this.raw.quitAndInstall();
 		});
 

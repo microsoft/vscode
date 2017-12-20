@@ -26,7 +26,7 @@ const VARIABLE = `${VIEWLET} .debug-variables .monaco-tree-row .expression`;
 const CONSOLE_OUTPUT = `.repl .output.expression`;
 const CONSOLE_INPUT_OUTPUT = `.repl .input-output-pair .output.expression .value`;
 
-const REPL_FOCUSED = '.repl-input-wrapper .monaco-editor.focused';
+const REPL_FOCUSED = '.repl-input-wrapper .monaco-editor textarea';
 
 export interface IStackFrame {
 	id: string;
@@ -41,7 +41,7 @@ export class Debug extends Viewlet {
 	}
 
 	async openDebugViewlet(): Promise<any> {
-		await this.spectron.command('workbench.view.debug');
+		await this.spectron.runCommand('workbench.view.debug');
 		await this.spectron.client.waitForElement(DEBUG_VIEW);
 	}
 
@@ -94,27 +94,31 @@ export class Debug extends Viewlet {
 		await this.spectron.client.waitForElement(NOT_DEBUG_STATUS_BAR);
 	}
 
-	async waitForStackFrame(func: (stackFrame: IStackFrame) => boolean): Promise<IStackFrame> {
+	async waitForStackFrame(func: (stackFrame: IStackFrame) => boolean, message: string): Promise<IStackFrame> {
 		return await this.spectron.client.waitFor(async () => {
 			const stackFrames = await this.getStackFrames();
 			return stackFrames.filter(func)[0];
-		}, void 0, 'Waiting for Stack Frame');
+		}, void 0, `Waiting for Stack Frame: ${message}`);
 	}
 
 	async waitForStackFrameLength(length: number): Promise<any> {
 		return await this.spectron.client.waitFor(() => this.getStackFrames(), stackFrames => stackFrames.length === length);
 	}
 
-	async focusStackFrame(name: string): Promise<any> {
-		const stackFrame = await this.waitForStackFrame(sf => sf.name === name);
+	async focusStackFrame(name: string, message: string): Promise<any> {
+		const stackFrame = await this.waitForStackFrame(sf => sf.name === name, message);
 		await this.spectron.client.spectron.client.elementIdClick(stackFrame.id);
 		await this.spectron.workbench.waitForTab(name);
 	}
 
 	async waitForReplCommand(text: string, accept: (result: string) => boolean): Promise<void> {
 		await this.spectron.workbench.quickopen.runCommand('Debug: Focus Debug Console');
-		await this.spectron.client.waitForElement(REPL_FOCUSED);
-		await this.spectron.client.type(text);
+		await this.spectron.client.waitForActiveElement(REPL_FOCUSED);
+		await this.spectron.client.setValue(REPL_FOCUSED, text);
+
+		// Wait for the keys to be picked up by the editor model such that repl evalutes what just got typed
+		await this.spectron.workbench.editor.waitForEditorContents('debug:input', s => s.indexOf(text) >= 0);
+		await this.spectron.client.keys(['Enter', 'NULL']);
 		await this.spectron.client.waitForElement(CONSOLE_INPUT_OUTPUT);
 		await this.spectron.client.waitFor(async () => {
 			const result = await this.getConsoleOutput();

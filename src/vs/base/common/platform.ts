@@ -127,9 +127,6 @@ interface IGlobals {
 const _globals = <IGlobals>(typeof self === 'object' ? self : global);
 export const globals: any = _globals;
 
-export function hasWebWorkerSupport(): boolean {
-	return typeof _globals.Worker !== 'undefined';
-}
 export const setTimeout = _globals.setTimeout.bind(_globals);
 export const clearTimeout = _globals.clearTimeout.bind(_globals);
 

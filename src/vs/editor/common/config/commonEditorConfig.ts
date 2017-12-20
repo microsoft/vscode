@@ -31,7 +31,7 @@ export interface ITabFocus {
 	setTabFocusMode(tabFocusMode: boolean): void;
 }
 
-export const TabFocus: ITabFocus = new class {
+export const TabFocus: ITabFocus = new class implements ITabFocus {
 	private _tabFocus: boolean = false;
 
 	private _onDidChangeTabFocus: Emitter<boolean> = new Emitter<boolean>();
@@ -203,9 +203,15 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.lineNumbers': {
 			'type': 'string',
-			'enum': ['off', 'on', 'relative'],
+			'enum': ['off', 'on', 'relative', 'interval'],
+			'enumDescriptions': [
+				nls.localize('lineNumbers.off', "Line numbers are not rendered."),
+				nls.localize('lineNumbers.on', "Line numbers are rendered as absolute number."),
+				nls.localize('lineNumbers.relative', "Line numbers are rendered as distance in lines to cursor position."),
+				nls.localize('lineNumbers.interval', "Line numbers are rendered every 10 lines.")
+			],
 			'default': 'on',
-			'description': nls.localize('lineNumbers', "Controls the display of line numbers. Possible values are 'on', 'off', and 'relative'. 'relative' shows the line count from the current cursor position.")
+			'description': nls.localize('lineNumbers', "Controls the display of line numbers. Possible values are 'on', 'off', 'relative' and 'interval'.")
 		},
 		'editor.rulers': {
 			'type': 'array',
@@ -213,7 +219,7 @@ const editorConfiguration: IConfigurationNode = {
 				'type': 'number'
 			},
 			'default': EDITOR_DEFAULTS.viewInfo.rulers,
-			'description': nls.localize('rulers', "Columns at which to show vertical rulers")
+			'description': nls.localize('rulers', "Render vertical rulers after a certain number of monospace characters. Use multiple values for multiple rulers. No rulers are drawn if array is empty")
 		},
 		'editor.wordSeparators': {
 			'type': 'string',
@@ -224,13 +230,13 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'number',
 			'default': EDITOR_MODEL_DEFAULTS.tabSize,
 			'minimum': 1,
-			'description': nls.localize('tabSize', "The number of spaces a tab is equal to. This setting is overriden based on the file contents when `editor.detectIndentation` is on."),
+			'description': nls.localize('tabSize', "The number of spaces a tab is equal to. This setting is overridden based on the file contents when `editor.detectIndentation` is on."),
 			'errorMessage': nls.localize('tabSize.errorMessage', "Expected 'number'. Note that the value \"auto\" has been replaced by the `editor.detectIndentation` setting.")
 		},
 		'editor.insertSpaces': {
 			'type': 'boolean',
 			'default': EDITOR_MODEL_DEFAULTS.insertSpaces,
-			'description': nls.localize('insertSpaces', "Insert spaces when pressing Tab. This setting is overriden based on the file contents when `editor.detectIndentation` is on."),
+			'description': nls.localize('insertSpaces', "Insert spaces when pressing Tab. This setting is overridden based on the file contents when `editor.detectIndentation` is on."),
 			'errorMessage': nls.localize('insertSpaces.errorMessage', "Expected 'boolean'. Note that the value \"auto\" has been replaced by the `editor.detectIndentation` setting.")
 		},
 		'editor.detectIndentation': {
@@ -283,6 +289,12 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.find.autoFindInSelection,
 			'description': nls.localize('find.autoFindInSelection', "Controls if Find in Selection flag is turned on when multiple characters or lines of text are selected in the editor")
+		},
+		'editor.find.globalFindClipboard': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.contribInfo.find.globalFindClipboard,
+			'description': nls.localize('find.globalFindClipboard', "Controls if the Find Widget should read or modify the shared find clipboard on macOS"),
+			'included': platform.isMacintosh
 		},
 		'editor.wordWrap': {
 			'type': 'string',
@@ -410,7 +422,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.autoIndent': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.autoIndent,
-			'description': nls.localize('autoIndent', "Controls if the editor should automatically adjust the indentation when users type, paste or move lines. Indentation rules of the language must be available. ")
+			'description': nls.localize('autoIndent', "Controls if the editor should automatically adjust the indentation when users type, paste or move lines. Indentation rules of the language must be available.")
 		},
 		'editor.suggestOnTriggerCharacters': {
 			'type': 'boolean',
@@ -603,6 +615,12 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.contribInfo.lightbulbEnabled,
 			'description': nls.localize('codeActions', "Enables the code action lightbulb")
 		},
+		'editor.selectionClipboard': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.contribInfo.selectionClipboard,
+			'description': nls.localize('selectionClipboard', "Controls if the Linux primary clipboard should be supported."),
+			'included': platform.isLinux
+		},
 		'diffEditor.renderSideBySide': {
 			'type': 'boolean',
 			'default': true,
@@ -620,13 +638,5 @@ const editorConfiguration: IConfigurationNode = {
 		}
 	}
 };
-
-if (platform.isLinux) {
-	editorConfiguration['properties']['editor.selectionClipboard'] = {
-		'type': 'boolean',
-		'default': EDITOR_DEFAULTS.contribInfo.selectionClipboard,
-		'description': nls.localize('selectionClipboard', "Controls if the Linux primary clipboard should be supported.")
-	};
-}
 
 configurationRegistry.registerConfiguration(editorConfiguration);

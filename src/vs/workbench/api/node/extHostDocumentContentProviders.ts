@@ -6,7 +6,7 @@
 
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import URI from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Disposable } from 'vs/workbench/api/node/extHostTypes';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -25,7 +25,7 @@ export class ExtHostDocumentContentProvider implements ExtHostDocumentContentPro
 	private readonly _documentsAndEditors: ExtHostDocumentsAndEditors;
 
 	constructor(mainContext: IMainContext, documentsAndEditors: ExtHostDocumentsAndEditors) {
-		this._proxy = mainContext.get(MainContext.MainThreadDocumentContentProviders);
+		this._proxy = mainContext.getProxy(MainContext.MainThreadDocumentContentProviders);
 		this._documentsAndEditors = documentsAndEditors;
 	}
 
@@ -47,7 +47,7 @@ export class ExtHostDocumentContentProvider implements ExtHostDocumentContentPro
 		if (typeof provider.onDidChange === 'function') {
 			subscription = provider.onDidChange(uri => {
 				if (this._documentsAndEditors.getDocument(uri.toString())) {
-					this.$provideTextDocumentContent(handle, <URI>uri).then(value => {
+					this.$provideTextDocumentContent(handle, uri).then(value => {
 
 						const document = this._documentsAndEditors.getDocument(uri.toString());
 						if (!document) {
@@ -60,7 +60,7 @@ export class ExtHostDocumentContentProvider implements ExtHostDocumentContentPro
 
 						// broadcast event when content changed
 						if (!document.equalLines(textSource)) {
-							return this._proxy.$onVirtualDocumentChange(<URI>uri, textSource);
+							return this._proxy.$onVirtualDocumentChange(uri, textSource);
 						}
 
 					}, onUnexpectedError);
@@ -78,11 +78,11 @@ export class ExtHostDocumentContentProvider implements ExtHostDocumentContentPro
 		});
 	}
 
-	$provideTextDocumentContent(handle: number, uri: URI): TPromise<string> {
+	$provideTextDocumentContent(handle: number, uri: UriComponents): TPromise<string> {
 		const provider = this._documentContentProviders.get(handle);
 		if (!provider) {
 			return TPromise.wrapError<string>(new Error(`unsupported uri-scheme: ${uri.scheme}`));
 		}
-		return asWinJsPromise(token => provider.provideTextDocumentContent(uri, token));
+		return asWinJsPromise(token => provider.provideTextDocumentContent(URI.revive(uri), token));
 	}
 }

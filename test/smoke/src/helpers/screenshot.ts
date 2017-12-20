@@ -7,28 +7,26 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as mkdirp from 'mkdirp';
 import { Application } from 'spectron';
-import { SCREENSHOTS_DIR } from '../spectron/application';
-
-function sanitize(name: string): string {
-	return name.replace(/[&*:\/]/g, '');
-}
+import { sanitize } from './utilities';
 
 export class ScreenCapturer {
 
 	private static counter = 0;
-	testName: string = 'default';
 
-	constructor(private application: Application, private suiteName: string) { }
+	constructor(
+		private application: Application,
+		public suiteName: string,
+		private screenshotsDirPath: string | undefined,
+	) { }
 
 	async capture(name: string): Promise<void> {
-		if (!SCREENSHOTS_DIR) {
+		if (!this.screenshotsDirPath) {
 			return;
 		}
 
 		const screenshotPath = path.join(
-			SCREENSHOTS_DIR,
+			this.screenshotsDirPath,
 			sanitize(this.suiteName),
-			sanitize(this.testName),
 			`${ScreenCapturer.counter++}-${sanitize(name)}.png`
 		);
 

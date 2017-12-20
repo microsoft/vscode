@@ -188,7 +188,6 @@ export class SimpleWorkerClient<T> extends Disposable {
 	private _onModuleLoaded: TPromise<string[]>;
 	private _protocol: SimpleWorkerProtocol;
 	private _lazyProxy: TPromise<T>;
-	private _lastRequestTimestamp = -1;
 
 	constructor(workerFactory: IWorkerFactory, moduleId: string) {
 		super();
@@ -244,7 +243,7 @@ export class SimpleWorkerClient<T> extends Disposable {
 		this._onModuleLoaded.then((availableMethods: string[]) => {
 			let proxy = <T>{};
 			for (let i = 0; i < availableMethods.length; i++) {
-				proxy[availableMethods[i]] = createProxyMethod(availableMethods[i], proxyMethodRequest);
+				(proxy as any)[availableMethods[i]] = createProxyMethod(availableMethods[i], proxyMethodRequest);
 			}
 			lazyProxyFulfill(proxy);
 		}, (e) => {
@@ -270,14 +269,9 @@ export class SimpleWorkerClient<T> extends Disposable {
 		return new ShallowCancelThenPromise(this._lazyProxy);
 	}
 
-	public getLastRequestTimestamp(): number {
-		return this._lastRequestTimestamp;
-	}
-
 	private _request(method: string, args: any[]): TPromise<any> {
 		return new TPromise<any>((c, e, p) => {
 			this._onModuleLoaded.then(() => {
-				this._lastRequestTimestamp = Date.now();
 				this._protocol.sendMessage(method, args).then(c, e);
 			}, e);
 		}, () => {
@@ -292,7 +286,7 @@ export class SimpleWorkerClient<T> extends Disposable {
 }
 
 export interface IRequestHandler {
-	_requestHandlerTrait: any;
+	_requestHandlerBrand: any;
 }
 
 /**

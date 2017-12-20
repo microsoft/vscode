@@ -329,7 +329,7 @@ export function registerCodeLensProvider(languageId: string, provider: modes.Cod
  */
 export function registerCodeActionProvider(languageId: string, provider: CodeActionProvider): IDisposable {
 	return modes.CodeActionProviderRegistry.register(languageId, {
-		provideCodeActions: (model: editorCommon.IReadOnlyModel, range: Range, token: CancellationToken): modes.Command[] | Thenable<modes.Command[]> => {
+		provideCodeActions: (model: editorCommon.IReadOnlyModel, range: Range, token: CancellationToken): (modes.Command | modes.CodeAction)[] | Thenable<(modes.Command | modes.CodeAction)[]> => {
 			let markers = StaticServices.markerService.get().read({ resource: model.uri }).filter(m => {
 				return Range.areIntersectingOrTouching(m, range);
 			});
@@ -411,7 +411,7 @@ export interface CodeActionProvider {
 	/**
 	 * Provide commands for the given document and range.
 	 */
-	provideCodeActions(model: editorCommon.IReadOnlyModel, range: Range, context: CodeActionContext, token: CancellationToken): modes.Command[] | Thenable<modes.Command[]>;
+	provideCodeActions(model: editorCommon.IReadOnlyModel, range: Range, context: CodeActionContext, token: CancellationToken): (modes.Command | modes.CodeAction)[] | Thenable<(modes.Command | modes.CodeAction)[]>;
 }
 
 /**
@@ -482,6 +482,10 @@ export interface CompletionItem {
 	 * A human-readable string that represents a doc-comment.
 	 */
 	documentation?: string;
+	/**
+	 * A command that should be run upon acceptance of this item.
+	 */
+	command?: modes.Command;
 	/**
 	 * A string that should be used when comparing this item
 	 * with other items. When `falsy` the [label](#CompletionItem.label)
@@ -627,6 +631,7 @@ class SuggestAdapter {
 			type: convertKind(item.kind),
 			detail: item.detail,
 			documentation: item.documentation,
+			command: item.command,
 			sortText: item.sortText,
 			filterText: item.filterText,
 			snippetType: 'internal'

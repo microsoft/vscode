@@ -8,6 +8,7 @@ import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import Event, { Emitter } from 'vs/base/common/event';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TextModel } from 'vs/editor/common/model/textModel';
@@ -21,9 +22,8 @@ import { LineTokens, LineToken } from 'vs/editor/common/core/lineTokens';
 import { getWordAtText } from 'vs/editor/common/model/wordHelper';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
 import { ITextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
-import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
-import { IndentRange, computeRanges } from 'vs/editor/common/model/indentRanges';
-import { ModelLinesTokens } from 'vs/editor/common/model/modelLine';
+import { IModelTokensChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { ModelLinesTokens, computeIndentLevel } from 'vs/editor/common/model/modelLine';
 
 class ModelTokensChangedEventBuilder {
 
@@ -50,7 +50,7 @@ class ModelTokensChangedEventBuilder {
 		}
 	}
 
-	public build(): textModelEvents.IModelTokensChangedEvent {
+	public build(): IModelTokensChangedEvent {
 		if (this._ranges.length === 0) {
 			return null;
 		}
@@ -62,7 +62,16 @@ class ModelTokensChangedEventBuilder {
 
 export class TextModelWithTokens extends TextModel implements editorCommon.ITokenizedModel {
 
-	private static MODE_TOKENIZATION_FAILED_MSG = nls.localize('mode.tokenizationSupportFailed', "The mode has failed while tokenizing the input.");
+	private static readonly MODE_TOKENIZATION_FAILED_MSG = nls.localize('mode.tokenizationSupportFailed', "The mode has failed while tokenizing the input.");
+
+	private readonly _onDidChangeLanguage: Emitter<IModelLanguageChangedEvent> = this._register(new Emitter<IModelLanguageChangedEvent>());
+	public readonly onDidChangeLanguage: Event<IModelLanguageChangedEvent> = this._onDidChangeLanguage.event;
+
+	private readonly _onDidChangeLanguageConfiguration: Emitter<IModelLanguageConfigurationChangedEvent> = this._register(new Emitter<IModelLanguageConfigurationChangedEvent>());
+	public readonly onDidChangeLanguageConfiguration: Event<IModelLanguageConfigurationChangedEvent> = this._onDidChangeLanguageConfiguration.event;
+
+	private readonly _onDidChangeTokens: Emitter<IModelTokensChangedEvent> = this._register(new Emitter<IModelTokensChangedEvent>());
+	public readonly onDidChangeTokens: Event<IModelTokensChangedEvent> = this._onDidChangeTokens.event;
 
 	private _languageIdentifier: LanguageIdentifier;
 	private _tokenizationListener: IDisposable;
@@ -71,7 +80,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 	private _invalidLineStartIndex: number;
 	private _lastState: IState;
 
-	private _indentRanges: IndentRange[];
 	private _languageRegistryListener: IDisposable;
 
 	private _revalidateTokensTimeout: number;
@@ -103,13 +111,11 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 		this._languageRegistryListener = LanguageConfigurationRegistry.onDidChange((e) => {
 			if (e.languageIdentifier.id === this._languageIdentifier.id) {
-				this._resetIndentRanges();
-				this._emitModelLanguageConfigurationEvent({});
+				this._onDidChangeLanguageConfiguration.fire({});
 			}
 		});
 
 		this._resetTokenizationState();
-		this._resetIndentRanges();
 	}
 
 	public dispose(): void {
@@ -129,7 +135,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		super._resetValue(newValue);
 		// Cancel tokenization, clear all tokens and begin tokenizing
 		this._resetTokenizationState();
-		this._resetIndentRanges();
 	}
 
 	protected _resetTokenizationState(): void {
@@ -168,29 +173,19 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		}
 	}
 
-	private _withModelTokensChangedEventBuilder<T>(callback: (eventBuilder: ModelTokensChangedEventBuilder) => T): T {
-		let eventBuilder = new ModelTokensChangedEventBuilder();
-
-		let result = callback(eventBuilder);
-
-		if (!this._isDisposing) {
-			let e = eventBuilder.build();
-			if (e) {
-				this._eventEmitter.emit(textModelEvents.TextModelEventType.ModelTokensChanged, e);
-			}
-		}
-
-		return result;
-	}
-
 	public forceTokenization(lineNumber: number): void {
 		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
 			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
 		}
 
-		this._withModelTokensChangedEventBuilder((eventBuilder) => {
-			this._updateTokensUntilLine(eventBuilder, lineNumber);
-		});
+		const eventBuilder = new ModelTokensChangedEventBuilder();
+
+		this._updateTokensUntilLine(eventBuilder, lineNumber);
+
+		const e = eventBuilder.build();
+		if (e) {
+			this._onDidChangeTokens.fire(e);
+		}
 	}
 
 	public isCheapToTokenize(lineNumber: number): boolean {
@@ -231,7 +226,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			return;
 		}
 
-		let e: textModelEvents.IModelLanguageChangedEvent = {
+		let e: IModelLanguageChangedEvent = {
 			oldLanguage: this._languageIdentifier.language,
 			newLanguage: languageIdentifier.language
 		};
@@ -240,7 +235,6 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 		// Cancel tokenization, clear all tokens and begin tokenizing
 		this._resetTokenizationState();
-		this._resetIndentRanges();
 
 		this.emitModelTokensChangedEvent({
 			ranges: [{
@@ -248,8 +242,8 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 				toLineNumber: this.getLineCount()
 			}]
 		});
-		this._emitModelModeChangedEvent(e);
-		this._emitModelLanguageConfigurationEvent({});
+		this._onDidChangeLanguage.fire(e);
+		this._onDidChangeLanguageConfiguration.fire({});
 	}
 
 	public getLanguageIdAtPosition(_lineNumber: number, _column: number): LanguageId {
@@ -295,56 +289,60 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 	private _revalidateTokensNow(toLineNumber: number = this._invalidLineStartIndex + 1000000): void {
 
-		this._withModelTokensChangedEventBuilder((eventBuilder) => {
+		const eventBuilder = new ModelTokensChangedEventBuilder();
 
-			toLineNumber = Math.min(this._lines.length, toLineNumber);
+		toLineNumber = Math.min(this._lines.length, toLineNumber);
 
-			var MAX_ALLOWED_TIME = 20,
-				fromLineNumber = this._invalidLineStartIndex + 1,
-				tokenizedChars = 0,
-				currentCharsToTokenize = 0,
-				currentEstimatedTimeToTokenize = 0,
-				sw = StopWatch.create(false),
-				elapsedTime: number;
+		var MAX_ALLOWED_TIME = 20,
+			fromLineNumber = this._invalidLineStartIndex + 1,
+			tokenizedChars = 0,
+			currentCharsToTokenize = 0,
+			currentEstimatedTimeToTokenize = 0,
+			sw = StopWatch.create(false),
+			elapsedTime: number;
 
-			// Tokenize at most 1000 lines. Estimate the tokenization speed per character and stop when:
-			// - MAX_ALLOWED_TIME is reached
-			// - tokenizing the next line would go above MAX_ALLOWED_TIME
+		// Tokenize at most 1000 lines. Estimate the tokenization speed per character and stop when:
+		// - MAX_ALLOWED_TIME is reached
+		// - tokenizing the next line would go above MAX_ALLOWED_TIME
 
-			for (var lineNumber = fromLineNumber; lineNumber <= toLineNumber; lineNumber++) {
-				elapsedTime = sw.elapsed();
-				if (elapsedTime > MAX_ALLOWED_TIME) {
-					// Stop if MAX_ALLOWED_TIME is reached
+		for (var lineNumber = fromLineNumber; lineNumber <= toLineNumber; lineNumber++) {
+			elapsedTime = sw.elapsed();
+			if (elapsedTime > MAX_ALLOWED_TIME) {
+				// Stop if MAX_ALLOWED_TIME is reached
+				toLineNumber = lineNumber - 1;
+				break;
+			}
+
+			// Compute how many characters will be tokenized for this line
+			currentCharsToTokenize = this._lines[lineNumber - 1].text.length;
+
+			if (tokenizedChars > 0) {
+				// If we have enough history, estimate how long tokenizing this line would take
+				currentEstimatedTimeToTokenize = (elapsedTime / tokenizedChars) * currentCharsToTokenize;
+				if (elapsedTime + currentEstimatedTimeToTokenize > MAX_ALLOWED_TIME) {
+					// Tokenizing this line will go above MAX_ALLOWED_TIME
 					toLineNumber = lineNumber - 1;
 					break;
 				}
-
-				// Compute how many characters will be tokenized for this line
-				currentCharsToTokenize = this._lines[lineNumber - 1].text.length;
-
-				if (tokenizedChars > 0) {
-					// If we have enough history, estimate how long tokenizing this line would take
-					currentEstimatedTimeToTokenize = (elapsedTime / tokenizedChars) * currentCharsToTokenize;
-					if (elapsedTime + currentEstimatedTimeToTokenize > MAX_ALLOWED_TIME) {
-						// Tokenizing this line will go above MAX_ALLOWED_TIME
-						toLineNumber = lineNumber - 1;
-						break;
-					}
-				}
-
-				this._updateTokensUntilLine(eventBuilder, lineNumber);
-				tokenizedChars += currentCharsToTokenize;
-
-				// Skip the lines that got tokenized
-				lineNumber = Math.max(lineNumber, this._invalidLineStartIndex + 1);
 			}
 
-			elapsedTime = sw.elapsed();
+			this._updateTokensUntilLine(eventBuilder, lineNumber);
+			tokenizedChars += currentCharsToTokenize;
 
-			if (this._invalidLineStartIndex < this._lines.length) {
-				this._beginBackgroundTokenization();
-			}
-		});
+			// Skip the lines that got tokenized
+			lineNumber = Math.max(lineNumber, this._invalidLineStartIndex + 1);
+		}
+
+		elapsedTime = sw.elapsed();
+
+		if (this._invalidLineStartIndex < this._lines.length) {
+			this._beginBackgroundTokenization();
+		}
+
+		const e = eventBuilder.build();
+		if (e) {
+			this._onDidChangeTokens.fire(e);
+		}
 	}
 
 	private _updateTokensUntilLine(eventBuilder: ModelTokensChangedEventBuilder, lineNumber: number): void {
@@ -409,21 +407,9 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		this._invalidLineStartIndex = Math.max(this._invalidLineStartIndex, endLineIndex + 1);
 	}
 
-	private emitModelTokensChangedEvent(e: textModelEvents.IModelTokensChangedEvent): void {
+	private emitModelTokensChangedEvent(e: IModelTokensChangedEvent): void {
 		if (!this._isDisposing) {
-			this._eventEmitter.emit(textModelEvents.TextModelEventType.ModelTokensChanged, e);
-		}
-	}
-
-	private _emitModelLanguageConfigurationEvent(e: textModelEvents.IModelLanguageConfigurationChangedEvent): void {
-		if (!this._isDisposing) {
-			this._eventEmitter.emit(textModelEvents.TextModelEventType.ModelLanguageConfigurationChanged, e);
-		}
-	}
-
-	private _emitModelModeChangedEvent(e: textModelEvents.IModelLanguageChangedEvent): void {
-		if (!this._isDisposing) {
-			this._eventEmitter.emit(textModelEvents.TextModelEventType.ModelLanguageChanged, e);
+			this._onDidChangeTokens.fire(e);
 		}
 	}
 
@@ -431,10 +417,10 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 	public getWordAtPosition(_position: IPosition): editorCommon.IWordAtPosition {
 		this._assertNotDisposed();
-		let position = this.validatePosition(_position);
-		let lineContent = this.getLineContent(position.lineNumber);
+		const position = this.validatePosition(_position);
+		const lineContent = this.getLineContent(position.lineNumber);
 
-		if (this._invalidLineStartIndex <= position.lineNumber) {
+		if (this._invalidLineStartIndex <= position.lineNumber - 1) {
 			// this line is not tokenized
 			return getWordAtText(
 				position.column,
@@ -444,30 +430,29 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 			);
 		}
 
-		let lineTokens = this._getLineTokens(position.lineNumber);
-		let offset = position.column - 1;
-		let token = lineTokens.findTokenAtOffset(offset);
+		const lineTokens = this._getLineTokens(position.lineNumber);
+		const offset = position.column - 1;
+		const token = lineTokens.findTokenAtOffset(offset);
+		const languageId = token.languageId;
 
-		let result = getWordAtText(
-			position.column,
-			LanguageConfigurationRegistry.getWordDefinition(token.languageId),
-			lineContent.substring(token.startOffset, token.endOffset),
-			token.startOffset
-		);
-
-		if (!result && token.hasPrev && token.startOffset === offset) {
-			// The position is right at the beginning of `modeIndex`, so try looking at `modeIndex` - 1 too
-
-			let prevToken = token.prev();
-			result = getWordAtText(
-				position.column,
-				LanguageConfigurationRegistry.getWordDefinition(prevToken.languageId),
-				lineContent.substring(prevToken.startOffset, prevToken.endOffset),
-				prevToken.startOffset
-			);
+		// go left until a different language is hit
+		let startOffset: number;
+		for (let leftToken = token.clone(); leftToken !== null && leftToken.languageId === languageId; leftToken = leftToken.prev()) {
+			startOffset = leftToken.startOffset;
 		}
 
-		return result;
+		// go right until a different language is hit
+		let endOffset: number;
+		for (let rightToken = token.clone(); rightToken !== null && rightToken.languageId === languageId; rightToken = rightToken.next()) {
+			endOffset = rightToken.endOffset;
+		}
+
+		return getWordAtText(
+			position.column,
+			LanguageConfigurationRegistry.getWordDefinition(languageId),
+			lineContent.substring(startOffset, endOffset),
+			startOffset
+		);
 	}
 
 	public getWordUntilPosition(position: IPosition): editorCommon.IWordAtPosition {
@@ -516,7 +501,7 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		let lineTokens = this._getLineTokens(lineNumber);
 		const lineText = this._lines[lineNumber - 1].text;
 
-		const currentToken = lineTokens.findTokenAtOffset(position.column - 1);
+		let currentToken = lineTokens.findTokenAtOffset(position.column - 1);
 		if (!currentToken) {
 			return null;
 		}
@@ -570,14 +555,14 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 
 		// If position is in between two tokens, try also looking in the previous token
 		if (currentToken.hasPrev && currentToken.startOffset === position.column - 1) {
-			const prevToken = currentToken.prev();
-			const prevModeBrackets = LanguageConfigurationRegistry.getBracketsSupport(prevToken.languageId);
+			const searchEndOffset = currentToken.startOffset;
+			currentToken = currentToken.prev();
+			const prevModeBrackets = LanguageConfigurationRegistry.getBracketsSupport(currentToken.languageId);
 
 			// check that previous token is not to be ignored
-			if (prevModeBrackets && !ignoreBracketsInToken(prevToken.tokenType)) {
+			if (prevModeBrackets && !ignoreBracketsInToken(currentToken.tokenType)) {
 				// limit search in case previous token is very large, there's no need to go beyond `maxBracketLength`
-				const searchStartOffset = Math.max(prevToken.startOffset, position.column - 1 - prevModeBrackets.maxBracketLength);
-				const searchEndOffset = currentToken.startOffset;
+				const searchStartOffset = Math.max(currentToken.startOffset, position.column - 1 - prevModeBrackets.maxBracketLength);
 				const foundBracket = BracketsUtils.findPrevBracketInToken(prevModeBrackets.reversedRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
 
 				// check that we didn't hit a bracket too far away from position
@@ -838,64 +823,99 @@ export class TextModelWithTokens extends TextModel implements editorCommon.IToke
 		};
 	}
 
-	protected _resetIndentRanges(): void {
-		this._indentRanges = null;
+	private _computeIndentLevel(lineIndex: number): number {
+		return computeIndentLevel(this._lines[lineIndex].text, this._options.tabSize);
 	}
 
-	private _getIndentRanges(): IndentRange[] {
-		if (!this._indentRanges) {
-			let foldingRules = LanguageConfigurationRegistry.getFoldingRules(this._languageIdentifier.id);
-			let offSide = foldingRules && foldingRules.indendationBasedFolding && foldingRules.indendationBasedFolding.offSide;
-			this._indentRanges = computeRanges(this, offSide);
+	public getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[] {
+		this._assertNotDisposed();
+		const lineCount = this.getLineCount();
+
+		if (startLineNumber < 1 || startLineNumber > lineCount) {
+			throw new Error('Illegal value ' + startLineNumber + ' for `startLineNumber`');
 		}
-		return this._indentRanges;
-	}
-
-	public getIndentRanges(): IndentRange[] {
-		this._assertNotDisposed();
-		let indentRanges = this._getIndentRanges();
-		return IndentRange.deepCloneArr(indentRanges);
-	}
-
-	public getLineIndentGuide(lineNumber: number): number {
-		this._assertNotDisposed();
-		if (lineNumber < 1 || lineNumber > this.getLineCount()) {
-			throw new Error('Illegal value ' + lineNumber + ' for `lineNumber`');
+		if (endLineNumber < 1 || endLineNumber > lineCount) {
+			throw new Error('Illegal value ' + endLineNumber + ' for `endLineNumber`');
 		}
 
-		let indentRanges = this._getIndentRanges();
+		const foldingRules = LanguageConfigurationRegistry.getFoldingRules(this._languageIdentifier.id);
+		const offSide = foldingRules && foldingRules.offSide;
 
-		for (let i = indentRanges.length - 1; i >= 0; i--) {
-			let rng = indentRanges[i];
+		let result: number[] = new Array<number>(endLineNumber - startLineNumber + 1);
 
-			if (rng.startLineNumber === lineNumber) {
-				return this._toValidLineIndentGuide(lineNumber, Math.ceil(rng.indent / this._options.tabSize));
+		let aboveContentLineIndex = -2; /* -2 is a marker for not having computed it */
+		let aboveContentLineIndent = -1;
+
+		let belowContentLineIndex = -2; /* -2 is a marker for not having computed it */
+		let belowContentLineIndent = -1;
+
+		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
+			let resultIndex = lineNumber - startLineNumber;
+
+			const currentIndent = this._computeIndentLevel(lineNumber - 1);
+			if (currentIndent >= 0) {
+				// This line has content (besides whitespace)
+				// Use the line's indent
+				aboveContentLineIndex = lineNumber - 1;
+				aboveContentLineIndent = currentIndent;
+				result[resultIndex] = Math.ceil(currentIndent / this._options.tabSize);
+				continue;
 			}
-			if (rng.startLineNumber < lineNumber && lineNumber <= rng.endLineNumber) {
-				return this._toValidLineIndentGuide(lineNumber, 1 + Math.floor(rng.indent / this._options.tabSize));
-			}
-			if (rng.endLineNumber + 1 === lineNumber) {
-				let bestIndent = rng.indent;
-				while (i > 0) {
-					i--;
-					rng = indentRanges[i];
-					if (rng.endLineNumber + 1 === lineNumber) {
-						bestIndent = rng.indent;
+
+			if (aboveContentLineIndex === -2) {
+				aboveContentLineIndex = -1;
+				aboveContentLineIndent = -1;
+
+				// must find previous line with content
+				for (let lineIndex = lineNumber - 2; lineIndex >= 0; lineIndex--) {
+					let indent = this._computeIndentLevel(lineIndex);
+					if (indent >= 0) {
+						aboveContentLineIndex = lineIndex;
+						aboveContentLineIndent = indent;
+						break;
 					}
 				}
-				return this._toValidLineIndentGuide(lineNumber, Math.ceil(bestIndent / this._options.tabSize));
+			}
+
+			if (belowContentLineIndex !== -1 && (belowContentLineIndex === -2 || belowContentLineIndex < lineNumber - 1)) {
+				belowContentLineIndex = -1;
+				belowContentLineIndent = -1;
+
+				// must find next line with content
+				for (let lineIndex = lineNumber; lineIndex < lineCount; lineIndex++) {
+					let indent = this._computeIndentLevel(lineIndex);
+					if (indent >= 0) {
+						belowContentLineIndex = lineIndex;
+						belowContentLineIndent = indent;
+						break;
+					}
+				}
+			}
+
+			if (aboveContentLineIndent === -1 || belowContentLineIndent === -1) {
+				// At the top or bottom of the file
+				result[resultIndex] = 0;
+
+			} else if (aboveContentLineIndent < belowContentLineIndent) {
+				// we are inside the region above
+				result[resultIndex] = (1 + Math.floor(aboveContentLineIndent / this._options.tabSize));
+
+			} else if (aboveContentLineIndent === belowContentLineIndent) {
+				// we are in between two regions
+				result[resultIndex] = Math.ceil(belowContentLineIndent / this._options.tabSize);
+
+			} else {
+
+				if (offSide) {
+					// same level as region below
+					result[resultIndex] = Math.ceil(belowContentLineIndent / this._options.tabSize);
+				} else {
+					// we are inside the region that ends below
+					result[resultIndex] = (1 + Math.floor(belowContentLineIndent / this._options.tabSize));
+				}
+
 			}
 		}
-
-		return 0;
-	}
-
-	private _toValidLineIndentGuide(lineNumber: number, indentGuide: number): number {
-		let lineIndentLevel = this._lines[lineNumber - 1].getIndentLevel();
-		if (lineIndentLevel === -1) {
-			return indentGuide;
-		}
-		let maxIndentGuide = Math.ceil(lineIndentLevel / this._options.tabSize);
-		return Math.min(maxIndentGuide, indentGuide);
+		return result;
 	}
 }

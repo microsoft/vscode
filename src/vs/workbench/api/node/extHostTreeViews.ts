@@ -7,17 +7,15 @@
 import { localize } from 'vs/nls';
 import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
-import { distinct } from 'vs/base/common/arrays';
 import { debounceEvent } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ExtHostTreeViewsShape, MainThreadTreeViewsShape } from './extHost.protocol';
 import { ITreeItem, TreeViewItemHandleArg } from 'vs/workbench/common/views';
-import { TreeItemCollapsibleState } from './extHostTypes';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
 import { asWinJsPromise } from 'vs/base/common/async';
 
-type TreeItemHandle = number;
+type TreeItemHandle = string;
 
 export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 
@@ -56,7 +54,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		return treeView.getTreeItems();
 	}
 
-	$getChildren(treeViewId: string, treeItemHandle?: number): TPromise<ITreeItem[]> {
+	$getChildren(treeViewId: string, treeItemHandle?: string): TPromise<ITreeItem[]> {
 		const treeView = this.treeViews.get(treeViewId);
 		if (!treeView) {
 			return TPromise.wrapError<ITreeItem[]>(new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId)));
@@ -70,13 +68,18 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 	}
 }
 
+interface TreeNode {
+	index: number;
+	handle: TreeItemHandle;
+	parent: TreeItemHandle;
+	children: TreeItemHandle[];
+}
+
 class ExtHostTreeView<T> extends Disposable {
 
-	private _itemHandlePool = 0;
-
-	private extElementsMap: Map<TreeItemHandle, T> = new Map<TreeItemHandle, T>();
-	private itemHandlesMap: Map<T, TreeItemHandle> = new Map<T, TreeItemHandle>();
-	private extChildrenElementsMap: Map<T, T[]> = new Map<T, T[]>();
+	private static ROOT_HANDLE = '0';
+	private elements: Map<TreeItemHandle, T> = new Map<TreeItemHandle, T>();
+	private nodes: Map<T, TreeNode> = new Map<T, TreeNode>();
 
 	constructor(private viewId: string, private dataProvider: vscode.TreeDataProvider<T>, private proxy: MainThreadTreeViewsShape, private commands: CommandsConverter) {
 		super();
@@ -87,12 +90,9 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	getTreeItems(): TPromise<ITreeItem[]> {
-		this.extChildrenElementsMap.clear();
-		this.extElementsMap.clear();
-		this.itemHandlesMap.clear();
-
+		this.clearAll();
 		return asWinJsPromise(() => this.dataProvider.getChildren())
-			.then(elements => this.processAndMapElements(elements));
+			.then(elements => this.resolveElements(elements));
 	}
 
 	getChildren(treeItemHandle: TreeItemHandle): TPromise<ITreeItem[]> {
@@ -104,75 +104,84 @@ class ExtHostTreeView<T> extends Disposable {
 		}
 
 		return asWinJsPromise(() => this.dataProvider.getChildren(extElement))
-			.then(childrenElements => this.processAndMapElements(childrenElements));
+			.then(childrenElements => this.resolveElements(childrenElements, treeItemHandle))
+			.then(childrenItems => {
+				this.nodes.get(extElement).children = childrenItems.map(c => c.handle);
+				return childrenItems;
+			});
 	}
 
 	getExtensionElement(treeItemHandle: TreeItemHandle): T {
-		return this.extElementsMap.get(treeItemHandle);
+		return this.elements.get(treeItemHandle);
 	}
 
 	private _refresh(elements: T[]): void {
 		const hasRoot = elements.some(element => !element);
 		if (hasRoot) {
-			this.proxy.$refresh(this.viewId, []);
+			this.proxy.$refresh(this.viewId);
 		} else {
-			const itemHandles = distinct(elements.map(element => this.itemHandlesMap.get(element))
-				.filter(itemHandle => !!itemHandle));
-			if (itemHandles.length) {
-				this.proxy.$refresh(this.viewId, itemHandles);
+			const handlesToUpdate = this.getHandlesToUpdate(elements);
+			if (handlesToUpdate.length) {
+				this._refreshHandles(handlesToUpdate);
 			}
 		}
 	}
 
-	private processAndMapElements(elements: T[]): TPromise<ITreeItem[]> {
+	private resolveElements(elements: T[], parentHandle?: TreeItemHandle): TPromise<ITreeItem[]> {
 		if (elements && elements.length) {
 			return TPromise.join(
 				elements.filter(element => !!element)
-					.map(element => {
-						if (this.extChildrenElementsMap.has(element)) {
-							return TPromise.wrapError<ITreeItem>(new Error(localize('treeView.duplicateElement', 'Element {0} is already registered', element)));
-						}
-						return this.resolveElement(element);
+					.map((element, index) => {
+						return this.resolveElement(element, index, parentHandle)
+							.then(treeItem => {
+								if (treeItem) {
+									this.nodes.set(element, {
+										index,
+										handle: treeItem.handle,
+										parent: parentHandle,
+										children: void 0
+									});
+									if (this.elements.has(treeItem.handle)) {
+										return TPromise.wrapError<ITreeItem>(new Error(localize('treeView.duplicateElement', 'Element {0} is already registered', element)));
+									}
+									this.elements.set(treeItem.handle, element);
+								}
+								return treeItem;
+							});
 					}))
 				.then(treeItems => treeItems.filter(treeItem => !!treeItem));
 		}
 		return TPromise.as([]);
 	}
 
-	private resolveElement(element: T): TPromise<ITreeItem> {
+	private resolveElement(element: T, index: number, parentHandle?: TreeItemHandle): TPromise<ITreeItem> {
 		return asWinJsPromise(() => this.dataProvider.getTreeItem(element))
-			.then(extTreeItem => {
-				const treeItem = this.massageTreeItem(extTreeItem);
-				if (treeItem) {
-					this.itemHandlesMap.set(element, treeItem.handle);
-					this.extElementsMap.set(treeItem.handle, element);
-					if (treeItem.collapsibleState === TreeItemCollapsibleState.Expanded) {
-						return this.getChildren(treeItem.handle).then(children => {
-							treeItem.children = children;
-							return treeItem;
-						});
-					} else {
-						return treeItem;
-					}
-				}
-				return null;
-			});
+			.then(extTreeItem => this.massageTreeItem(element, extTreeItem, index, parentHandle));
 	}
 
-	private massageTreeItem(extensionTreeItem: vscode.TreeItem): ITreeItem {
+	private massageTreeItem(element: T, extensionTreeItem: vscode.TreeItem, index: number, parentHandle: TreeItemHandle): ITreeItem {
 		if (!extensionTreeItem) {
 			return null;
 		}
 		const icon = this.getLightIconPath(extensionTreeItem);
+		const label = extensionTreeItem.label;
+		const handle = typeof element === 'string' ? element : this.generateHandle(label, index, parentHandle);
 		return {
-			handle: ++this._itemHandlePool,
-			label: extensionTreeItem.label,
+			handle,
+			parentHandle,
+			label,
 			command: extensionTreeItem.command ? this.commands.toInternal(extensionTreeItem.command) : void 0,
 			contextValue: extensionTreeItem.contextValue,
 			icon,
 			iconDark: this.getDarkIconPath(extensionTreeItem) || icon,
-			collapsibleState: extensionTreeItem.collapsibleState,
+			collapsibleState: extensionTreeItem.collapsibleState
 		};
+	}
+
+	private generateHandle(label: string, index: number, parentHandle: TreeItemHandle): TreeItemHandle {
+		parentHandle = parentHandle ? parentHandle : ExtHostTreeView.ROOT_HANDLE;
+		label = label.indexOf('/') !== -1 ? label.replace('/', '//') : label;
+		return `${parentHandle}/${index}:${label}`;
 	}
 
 	private getLightIconPath(extensionTreeItem: vscode.TreeItem): string {
@@ -199,29 +208,107 @@ class ExtHostTreeView<T> extends Disposable {
 		return URI.file(iconPath).toString();
 	}
 
-	private clearChildren(extElement: T): void {
-		const children = this.extChildrenElementsMap.get(extElement);
-		if (children) {
-			for (const child of children) {
-				this.clearElement(child);
+	private getHandlesToUpdate(elements: T[]): TreeItemHandle[] {
+		const elementsToUpdate = new Set<TreeItemHandle>();
+		for (const element of elements) {
+			let elementNode = this.nodes.get(element);
+			if (elementNode && !elementsToUpdate.has(elementNode.handle)) {
+				// check if an ancestor of extElement is already in the elements to update list
+				let currentNode = elementNode;
+				while (currentNode && currentNode.parent && !elementsToUpdate.has(currentNode.parent)) {
+					const parentElement = this.elements.get(currentNode.parent);
+					currentNode = this.nodes.get(parentElement);
+				}
+				if (!currentNode.parent) {
+					elementsToUpdate.add(elementNode.handle);
+				}
 			}
-			this.extChildrenElementsMap.delete(extElement);
 		}
+
+		const handlesToUpdate: TreeItemHandle[] = [];
+		// Take only top level elements
+		elementsToUpdate.forEach((handle) => {
+			const element = this.elements.get(handle);
+			let node = this.nodes.get(element);
+			if (node && !elementsToUpdate.has(node.parent)) {
+				handlesToUpdate.push(handle);
+			}
+		});
+
+		return handlesToUpdate;
 	}
 
-	private clearElement(extElement: T): void {
-		this.clearChildren(extElement);
+	private _refreshHandles(itemHandles: TreeItemHandle[]): TPromise<void> {
+		const itemsToRefresh: { [handle: string]: ITreeItem } = {};
+		const promises: TPromise<void>[] = [];
+		itemHandles.forEach(treeItemHandle => {
+			const extElement = this.getExtensionElement(treeItemHandle);
+			const node = this.nodes.get(extElement);
+			const promise = this.resolveElement(extElement, node.index, node.parent)
+				.then(treeItem => {
+					if (treeItemHandle !== treeItem.handle) {
+						// Update caches if handle changes
+						this.updateCaches(node, treeItem, extElement);
+					}
+					itemsToRefresh[treeItemHandle] = treeItem;
+				});
+			promises.push(promise);
+		});
+		return TPromise.join(promises)
+			.then(treeItems => {
+				this.proxy.$refresh(this.viewId, itemsToRefresh);
+			});
+	}
 
-		const treeItemhandle = this.itemHandlesMap.get(extElement);
-		this.itemHandlesMap.delete(extElement);
-		if (treeItemhandle) {
-			this.extElementsMap.delete(treeItemhandle);
+	private updateCaches(node: TreeNode, treeItem: ITreeItem, element: T): void {
+		if (node.parent) {
+			// Update parent's children handles
+			const parentElement = this.getExtensionElement(node.parent);
+			const parentNode = this.nodes.get(parentElement);
+			parentNode.children[node.index] = treeItem.handle;
 		}
+
+		// Update elements map
+		this.elements.delete(node.handle);
+		this.elements.set(treeItem.handle, element);
+
+		// Update node
+		node.handle = treeItem.handle;
+	}
+
+	private clearChildren(element: T): void {
+		let node = this.nodes.get(element);
+		if (node.children) {
+			for (const childHandle of node.children) {
+				const childEleement = this.elements.get(childHandle);
+				if (childEleement) {
+					this.clear(childEleement);
+				}
+			}
+		}
+		node.children = void 0;
+	}
+
+	private clear(element: T): void {
+		let node = this.nodes.get(element);
+		if (node.children) {
+			for (const childHandle of node.children) {
+				const childEleement = this.elements.get(childHandle);
+				if (childEleement) {
+					this.clear(childEleement);
+				}
+			}
+		}
+		this.nodes.delete(element);
+		this.elements.delete(node.handle);
+	}
+
+	private clearAll(): void {
+		this.elements.clear();
+		this.nodes.clear();
 	}
 
 	dispose() {
-		this.extElementsMap.clear();
-		this.itemHandlesMap.clear();
-		this.extChildrenElementsMap.clear();
+		this.clearAll();
 	}
 }

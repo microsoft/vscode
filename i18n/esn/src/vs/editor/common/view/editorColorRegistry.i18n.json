@@ -22,6 +22,8 @@
 	"errorBorder": "Color de borde de squigglies de error en el editor.",
 	"warningForeground": "Color de primer plano de squigglies de advertencia en el editor.",
 	"warningBorder": "Color de borde de squigglies de advertencia en el editor.",
+	"infoForeground": "Color de primer plano de los subrayados ondulados informativos en el editor.",
+	"infoBorder": "Color del borde de los subrayados ondulados informativos en el editor.",
 	"overviewRulerRangeHighlight": "Color de marcador de regla de información general para intervalos resaltados.",
 	"overviewRuleError": "Color de marcador de regla de información general para errores. ",
 	"overviewRuleWarning": "Color de marcador de regla de información general para advertencias.",

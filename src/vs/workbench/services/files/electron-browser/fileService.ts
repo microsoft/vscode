@@ -13,7 +13,7 @@ import errors = require('vs/base/common/errors');
 import uri from 'vs/base/common/uri';
 import { FileOperation, FileOperationEvent, IFileService, IFilesConfiguration, IResolveFileOptions, IFileStat, IResolveFileResult, IContent, IStreamContent, IImportResult, IResolveContentOptions, IUpdateContentOptions, FileChangesEvent, ICreateFileOptions } from 'vs/platform/files/common/files';
 import { FileService as NodeFileService, IFileServiceOptions, IEncodingOverride } from 'vs/workbench/services/files/node/fileService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Action } from 'vs/base/common/actions';
 import { IMessageService, IMessageWithAction, Severity, CloseAction } from 'vs/platform/message/common/message';
@@ -24,14 +24,16 @@ import Event, { Emitter } from 'vs/base/common/event';
 
 import { shell } from 'electron';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { isMacintosh } from 'vs/base/common/platform';
+import product from 'vs/platform/node/product';
 
 export class FileService implements IFileService {
 
 	public _serviceBrand: any;
 
 	// If we run with .NET framework < 4.5, we need to detect this error to inform the user
-	private static NET_VERSION_ERROR = 'System.MissingMethodException';
-	private static NET_VERSION_ERROR_IGNORE_KEY = 'ignoreNetVersionError';
+	private static readonly NET_VERSION_ERROR = 'System.MissingMethodException';
+	private static readonly NET_VERSION_ERROR_IGNORE_KEY = 'ignoreNetVersionError';
 
 	private raw: IFileService;
 
@@ -57,7 +59,7 @@ export class FileService implements IFileService {
 		this._onAfterOperation = new Emitter<FileOperationEvent>();
 		this.toUnbind.push(this._onAfterOperation);
 
-		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
+		const configuration = this.configurationService.getValue<IFilesConfiguration>();
 
 		let watcherIgnoredPatterns: string[] = [];
 		if (configuration.files && configuration.files.watcherExclude) {
@@ -70,11 +72,16 @@ export class FileService implements IFileService {
 			encodingOverride: this.getEncodingOverrides(),
 			watcherIgnoredPatterns,
 			verboseLogging: environmentService.verbose,
-			useExperimentalFileWatcher: configuration.files.useExperimentalFileWatcher
+			useExperimentalFileWatcher: configuration.files.useExperimentalFileWatcher,
+			elevationSupport: {
+				cliPath: this.environmentService.cliPath,
+				promptTitle: this.environmentService.appNameLong,
+				promptIcnsPath: (isMacintosh && this.environmentService.isBuilt) ? paths.join(paths.dirname(this.environmentService.appRoot), `${product.nameShort}.icns`) : void 0
+			}
 		};
 
 		// create service
-		this.raw = new NodeFileService(contextService, textResourceConfigurationService, configurationService, fileServiceConfig);
+		this.raw = new NodeFileService(contextService, textResourceConfigurationService, configurationService, lifecycleService, fileServiceConfig);
 
 		// Listeners
 		this.registerListeners();
@@ -89,6 +96,8 @@ export class FileService implements IFileService {
 	}
 
 	private onFileServiceError(msg: string): void {
+
+		// Forward to unexpected error handler
 		errors.onUnexpectedError(msg);
 
 		// Detect if we run < .NET Framework 4.5
@@ -119,7 +128,7 @@ export class FileService implements IFileService {
 		this.toUnbind.push(this.raw.onAfterOperation(e => this._onAfterOperation.fire(e)));
 
 		// Config changes
-		this.toUnbind.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(this.configurationService.getConfiguration<IFilesConfiguration>())));
+		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(e)));
 
 		// Root changes
 		this.toUnbind.push(this.contextService.onDidChangeWorkspaceFolders(() => this.onDidChangeWorkspaceFolders()));
@@ -142,8 +151,10 @@ export class FileService implements IFileService {
 		return encodingOverride;
 	}
 
-	private onConfigurationChange(configuration: IFilesConfiguration): void {
-		this.updateOptions(configuration.files);
+	private onConfigurationChange(event: IConfigurationChangeEvent): void {
+		if (event.affectsConfiguration('files.useExperimentalFileWatcher')) {
+			this.updateOptions({ useExperimentalFileWatcher: this.configurationService.getValue<boolean>('files.useExperimentalFileWatcher') });
+		}
 	}
 
 	public updateOptions(options: object): void {

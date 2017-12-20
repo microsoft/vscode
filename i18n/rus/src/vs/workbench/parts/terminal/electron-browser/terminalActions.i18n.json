@@ -16,7 +16,6 @@
 	"workbench.action.terminal.new.short": "Новый терминал",
 	"workbench.action.terminal.focus": "Фокус на терминале",
 	"workbench.action.terminal.focusNext": "Фокус на следующем терминале",
-	"workbench.action.terminal.focusAtIndex": "Фокус на терминале {0}",
 	"workbench.action.terminal.focusPrevious": "Фокус на предыдущем терминале",
 	"workbench.action.terminal.paste": "Вставить в активный терминал",
 	"workbench.action.terminal.DefaultShell": "Выбрать оболочку по умолчанию",
@@ -38,5 +37,6 @@
 	"workbench.action.terminal.focusFindWidget": "Выделить мини-приложение поиска",
 	"workbench.action.terminal.hideFindWidget": "Скрыть мини-приложение поиска",
 	"nextTerminalFindTerm": "Показать следующий найденный термин",
-	"previousTerminalFindTerm": "Показать предыдущий найденный термин"
+	"previousTerminalFindTerm": "Показать предыдущий найденный термин",
+	"quickOpenTerm": "Переключить активный терминал"
 }

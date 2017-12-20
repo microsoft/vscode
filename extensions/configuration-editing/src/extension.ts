@@ -14,12 +14,12 @@ import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 const decoration = vscode.window.createTextEditorDecorationType({
-	color: '#b1b1b1'
+	color: '#9e9e9e'
 });
 
 let pendingLaunchJsonDecoration: NodeJS.Timer;
 
-export function activate(context): void {
+export function activate(context: vscode.ExtensionContext): void {
 
 	//keybindings.json command-suggestions
 	context.subscriptions.push(registerKeybindingsCompletions());
@@ -60,7 +60,7 @@ function registerKeybindingsCompletions(): vscode.Disposable {
 }
 
 function registerSettingsCompletions(): vscode.Disposable {
-	return vscode.languages.registerCompletionItemProvider({ language: 'json', pattern: '**/settings.json' }, {
+	return vscode.languages.registerCompletionItemProvider({ language: 'jsonc', pattern: '**/settings.json' }, {
 		provideCompletionItems(document, position, token) {
 			return new SettingsDocument(document).provideCompletionItems(position, token);
 		}
@@ -173,7 +173,7 @@ function updateLaunchJsonDecorations(editor: vscode.TextEditor | undefined): voi
 	editor.setDecorations(decoration, ranges);
 }
 
-vscode.languages.registerDocumentSymbolProvider({ pattern: '**/launch.json', language: 'json' }, {
+vscode.languages.registerDocumentSymbolProvider({ pattern: '**/launch.json', language: 'jsonc' }, {
 	provideDocumentSymbols(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.ProviderResult<vscode.SymbolInformation[]> {
 		const result: vscode.SymbolInformation[] = [];
 		let name: string = '';

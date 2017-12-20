@@ -6,15 +6,14 @@
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import DOM = require('vs/base/browser/dom');
-import errors = require('vs/base/common/errors');
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Dimension, Builder } from 'vs/base/browser/builder';
 import { Action } from 'vs/base/common/actions';
-import { ITree, IFocusEvent, ISelectionEvent } from 'vs/base/parts/tree/browser/tree';
+import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { Composite, CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
+import { IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 
 export abstract class Viewlet extends Composite implements IViewlet {
 
@@ -24,140 +23,19 @@ export abstract class Viewlet extends Composite implements IViewlet {
 }
 
 /**
- * Helper subtype of viewlet for those that use a tree inside.
- */
-export abstract class ViewerViewlet extends Viewlet {
-
-	protected viewer: ITree;
-
-	private viewerContainer: Builder;
-	private wasLayouted: boolean;
-
-	public create(parent: Builder): TPromise<void> {
-		super.create(parent);
-
-		// Container for Viewer
-		this.viewerContainer = parent.div();
-
-		// Viewer
-		this.viewer = this.createViewer(this.viewerContainer);
-
-		// Eventing
-		this.toUnbind.push(this.viewer.addListener('selection', (e: ISelectionEvent) => this.onSelection(e)));
-		this.toUnbind.push(this.viewer.addListener('focus', (e: IFocusEvent) => this.onFocus(e)));
-
-		return TPromise.as(null);
-	}
-
-	/**
-	 * Called when an element in the viewer receives selection.
-	 */
-	public abstract onSelection(e: ISelectionEvent): void;
-
-	/**
-	 * Called when an element in the viewer receives focus.
-	 */
-	public abstract onFocus(e: IFocusEvent): void;
-
-	/**
-	 * Returns true if this viewlet is currently visible and false otherwise.
-	 */
-	public abstract createViewer(viewerContainer: Builder): ITree;
-
-	/**
-	 * Returns the viewer that is contained in this viewlet.
-	 */
-	public getViewer(): ITree {
-		return this.viewer;
-	}
-
-	public setVisible(visible: boolean): TPromise<void> {
-		let promise: TPromise<void>;
-
-		if (visible) {
-			promise = super.setVisible(visible);
-			this.getViewer().onVisible();
-		} else {
-			this.getViewer().onHidden();
-			promise = super.setVisible(visible);
-		}
-
-		return promise;
-	}
-
-	public focus(): void {
-		if (!this.viewer) {
-			return; // return early if viewlet has not yet been created
-		}
-
-		// Make sure the current selected element is revealed
-		const selection = this.viewer.getSelection();
-		if (selection.length > 0) {
-			this.reveal(selection[0], 0.5).done(null, errors.onUnexpectedError);
-		}
-
-		// Pass Focus to Viewer
-		this.viewer.DOMFocus();
-	}
-
-	public reveal(element: any, relativeTop?: number): TPromise<void> {
-		if (!this.viewer) {
-			return TPromise.as(null); // return early if viewlet has not yet been created
-		}
-
-		// The viewer cannot properly reveal without being layed out, so force it if not yet done
-		if (!this.wasLayouted) {
-			this.viewer.layout();
-		}
-
-		// Now reveal
-		return this.viewer.reveal(element, relativeTop);
-	}
-
-	public layout(dimension: Dimension): void {
-		if (!this.viewer) {
-			return; // return early if viewlet has not yet been created
-		}
-
-		// Pass on to Viewer
-		this.wasLayouted = true;
-		this.viewer.layout(dimension.height);
-	}
-
-	public getControl(): ITree {
-		return this.viewer;
-	}
-
-	public dispose(): void {
-
-		// Dispose Viewer
-		if (this.viewer) {
-			this.viewer.dispose();
-		}
-
-		super.dispose();
-	}
-}
-
-/**
  * A viewlet descriptor is a leightweight descriptor of a viewlet in the workbench.
  */
 export class ViewletDescriptor extends CompositeDescriptor<Viewlet> {
 
 	constructor(
-		moduleId: string,
-		ctorName: string,
+		ctor: IConstructorSignature0<Viewlet>,
 		id: string,
 		name: string,
 		cssClass?: string,
 		order?: number,
 		private _extensionId?: string
 	) {
-		super(moduleId, ctorName, id, name, cssClass, order);
-
-		if (_extensionId) {
-			this.appendStaticArguments([id]); // Pass viewletId to external viewlet, which doesn't know its id until runtime.
-		}
+		super(ctor, id, name, cssClass, order, id);
 	}
 
 	public get extensionId(): string {

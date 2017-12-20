@@ -7,7 +7,7 @@
 import Severity from 'vs/base/common/severity';
 import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
-import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
+import { Position as EditorPosition, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IDecorationOptions, EndOfLineSequence } from 'vs/editor/common/editorCommon';
 import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
@@ -17,6 +17,8 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 import * as htmlContent from 'vs/base/common/htmlContent';
+import { IRelativePattern } from 'vs/base/common/glob';
+import { LanguageSelector, LanguageFilter } from 'vs/editor/common/modes/languageSelector';
 
 export interface PositionLike {
 	line: number;
@@ -139,7 +141,7 @@ function isDecorationOptions(something: any): something is vscode.DecorationOpti
 	return (typeof something.range !== 'undefined');
 }
 
-function isDecorationOptionsArr(something: vscode.Range[] | vscode.DecorationOptions[]): something is vscode.DecorationOptions[] {
+export function isDecorationOptionsArr(something: vscode.Range[] | vscode.DecorationOptions[]): something is vscode.DecorationOptions[] {
 	if (something.length === 0) {
 		return true;
 	}
@@ -170,7 +172,7 @@ export namespace MarkdownString {
 		} else if (htmlContent.isMarkdownString(markup)) {
 			return markup;
 		} else if (typeof markup === 'string') {
-			return { value: <string>markup, isTrusted: true };
+			return { value: <string>markup };
 		} else {
 			return { value: '' };
 		}
@@ -179,6 +181,13 @@ export namespace MarkdownString {
 		const ret = new htmlContent.MarkdownString(value.value);
 		ret.isTrusted = value.isTrusted;
 		return ret;
+	}
+
+	export function fromStrict(value: string | types.MarkdownString): undefined | string | htmlContent.IMarkdownString {
+		if (!value) {
+			return undefined;
+		}
+		return typeof value === 'string' ? value : MarkdownString.from(value);
 	}
 }
 
@@ -215,6 +224,31 @@ export const TextEdit = {
 		return result;
 	}
 };
+
+export namespace WorkspaceEdit {
+	export function from(value: vscode.WorkspaceEdit): modes.WorkspaceEdit {
+		const result: modes.WorkspaceEdit = { edits: [] };
+		for (let entry of value.entries()) {
+			let [uri, textEdits] = entry;
+			for (let textEdit of textEdits) {
+				result.edits.push({
+					resource: uri,
+					newText: textEdit.newText,
+					range: fromRange(textEdit.range)
+				});
+			}
+		}
+		return result;
+	}
+
+	export function to(value: modes.WorkspaceEdit) {
+		const result = new types.WorkspaceEdit();
+		for (const edit of value.edits) {
+			result.replace(edit.resource, toRange(edit.range), edit.newText);
+		}
+		return result;
+	}
+}
 
 
 export namespace SymbolKind {
@@ -284,7 +318,7 @@ export const location = {
 	from(value: vscode.Location): modes.Location {
 		return {
 			range: value.range && fromRange(value.range),
-			uri: <URI>value.uri
+			uri: value.uri
 		};
 	},
 	to(value: modes.Location): types.Location {
@@ -403,13 +437,13 @@ export namespace Suggest {
 
 		return result;
 	}
-};
+}
 
 export namespace ParameterInformation {
 	export function from(info: types.ParameterInformation): modes.ParameterInformation {
 		return {
 			label: info.label,
-			documentation: info.documentation && MarkdownString.from(info.documentation)
+			documentation: MarkdownString.fromStrict(info.documentation)
 		};
 	}
 	export function to(info: modes.ParameterInformation): types.ParameterInformation {
@@ -425,7 +459,7 @@ export namespace SignatureInformation {
 	export function from(info: types.SignatureInformation): modes.SignatureInformation {
 		return {
 			label: info.label,
-			documentation: info.documentation && MarkdownString.from(info.documentation),
+			documentation: MarkdownString.fromStrict(info.documentation),
 			parameters: info.parameters && info.parameters.map(ParameterInformation.from)
 		};
 	}
@@ -535,4 +569,58 @@ export namespace ProgressLocation {
 		}
 		return undefined;
 	}
+}
+
+export function toTextEditorOptions(options?: vscode.TextDocumentShowOptions): ITextEditorOptions {
+	if (options) {
+		return {
+			pinned: typeof options.preview === 'boolean' ? !options.preview : undefined,
+			preserveFocus: options.preserveFocus,
+			selection: typeof options.selection === 'object' ? fromRange(options.selection) : undefined
+		} as ITextEditorOptions;
+	}
+
+	return undefined;
+}
+
+export function toGlobPattern(pattern: vscode.GlobPattern): string | IRelativePattern {
+	if (typeof pattern === 'string') {
+		return pattern;
+	}
+
+	if (!isRelativePattern(pattern)) {
+		return undefined;
+	}
+
+	return new types.RelativePattern(pattern.base, pattern.pattern);
+}
+
+function isRelativePattern(obj: any): obj is vscode.RelativePattern {
+	const rp = obj as vscode.RelativePattern;
+
+	return rp && typeof rp.base === 'string' && typeof rp.pattern === 'string';
+}
+
+export function toLanguageSelector(selector: vscode.DocumentSelector): LanguageSelector {
+	if (Array.isArray(selector)) {
+		return selector.map(sel => doToLanguageSelector(sel));
+	}
+
+	return doToLanguageSelector(selector);
+}
+
+function doToLanguageSelector(selector: string | vscode.DocumentFilter): string | LanguageFilter {
+	if (typeof selector === 'string') {
+		return selector;
+	}
+
+	if (selector) {
+		return {
+			language: selector.language,
+			scheme: selector.scheme,
+			pattern: toGlobPattern(selector.pattern)
+		};
+	}
+
+	return undefined;
 }

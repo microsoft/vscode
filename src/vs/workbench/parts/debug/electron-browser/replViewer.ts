@@ -16,8 +16,8 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ITree, IAccessibilityProvider, ContextMenuEvent, IDataSource, IRenderer, IActionProvider } from 'vs/base/parts/tree/browser/tree';
 import { ICancelableEvent } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IExpressionContainer, IExpression, IReplElementSource } from 'vs/workbench/parts/debug/common/debug';
-import { Model, OutputNameValueElement, Expression, OutputElement, Variable } from 'vs/workbench/parts/debug/common/debugModel';
-import { renderVariable, renderExpressionValue, IVariableTemplateData, BaseDebugController } from 'vs/workbench/parts/debug/electron-browser/debugViewer';
+import { Model, RawObjectReplElement, Expression, SimpleReplElement, Variable } from 'vs/workbench/parts/debug/common/debugModel';
+import { renderVariable, renderExpressionValue, IVariableTemplateData, BaseDebugController } from 'vs/workbench/parts/debug/electron-browser/baseDebugView';
 import { ClearReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { CopyAction, CopyAllAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -40,10 +40,10 @@ export class ReplExpressionsDataSource implements IDataSource {
 		if (element instanceof Model) {
 			return TPromise.as(element.getReplElements());
 		}
-		if (element instanceof OutputNameValueElement) {
-			return TPromise.as(element.getChildren());
+		if (element instanceof RawObjectReplElement) {
+			return element.getChildren();
 		}
-		if (element instanceof OutputElement) {
+		if (element instanceof SimpleReplElement) {
 			return TPromise.as(null);
 		}
 
@@ -62,7 +62,7 @@ interface IExpressionTemplateData {
 	annotation: HTMLElement;
 }
 
-interface IValueOutputTemplateData {
+interface ISimpleReplElementTemplateData {
 	container: HTMLElement;
 	value: HTMLElement;
 	source: HTMLElement;
@@ -70,7 +70,7 @@ interface IValueOutputTemplateData {
 	toDispose: lifecycle.IDisposable[];
 }
 
-interface IKeyValueOutputTemplateData {
+interface IRawObjectReplTemplateData {
 	container: HTMLElement;
 	expression: HTMLElement;
 	name: HTMLElement;
@@ -80,12 +80,12 @@ interface IKeyValueOutputTemplateData {
 
 export class ReplExpressionsRenderer implements IRenderer {
 
-	private static VARIABLE_TEMPLATE_ID = 'variable';
-	private static EXPRESSION_TEMPLATE_ID = 'inputOutputPair';
-	private static VALUE_OUTPUT_TEMPLATE_ID = 'outputValue';
-	private static NAME_VALUE_OUTPUT_TEMPLATE_ID = 'outputNameValue';
+	private static readonly VARIABLE_TEMPLATE_ID = 'variable';
+	private static readonly EXPRESSION_TEMPLATE_ID = 'expressionRepl';
+	private static readonly SIMPLE_REPL_ELEMENT_TEMPLATE_ID = 'simpleReplElement';
+	private static readonly RAW_OBJECT_REPL_ELEMENT_TEMPLATE_ID = 'rawObject';
 
-	private static LINE_HEIGHT_PX = 18;
+	private static readonly LINE_HEIGHT_PX = 18;
 
 	private width: number;
 	private characterWidth: number;
@@ -144,12 +144,12 @@ export class ReplExpressionsRenderer implements IRenderer {
 		if (element instanceof Expression) {
 			return ReplExpressionsRenderer.EXPRESSION_TEMPLATE_ID;
 		}
-		if (element instanceof OutputElement || (element instanceof Variable && !element.name)) {
-			// Variable with no name is a top level variable which should be rendered like an output element #17404
-			return ReplExpressionsRenderer.VALUE_OUTPUT_TEMPLATE_ID;
+		if (element instanceof SimpleReplElement || (element instanceof Variable && !element.name)) {
+			// Variable with no name is a top level variable which should be rendered like a repl element #17404
+			return ReplExpressionsRenderer.SIMPLE_REPL_ELEMENT_TEMPLATE_ID;
 		}
-		if (element instanceof OutputNameValueElement) {
-			return ReplExpressionsRenderer.NAME_VALUE_OUTPUT_TEMPLATE_ID;
+		if (element instanceof RawObjectReplElement) {
+			return ReplExpressionsRenderer.RAW_OBJECT_REPL_ELEMENT_TEMPLATE_ID;
 		}
 
 		return null;
@@ -176,8 +176,8 @@ export class ReplExpressionsRenderer implements IRenderer {
 			return data;
 		}
 
-		if (templateId === ReplExpressionsRenderer.VALUE_OUTPUT_TEMPLATE_ID) {
-			let data: IValueOutputTemplateData = Object.create(null);
+		if (templateId === ReplExpressionsRenderer.SIMPLE_REPL_ELEMENT_TEMPLATE_ID) {
+			let data: ISimpleReplElementTemplateData = Object.create(null);
 			dom.addClass(container, 'output');
 			let expression = dom.append(container, $('.output.expression.value-and-source'));
 
@@ -202,8 +202,8 @@ export class ReplExpressionsRenderer implements IRenderer {
 			return data;
 		}
 
-		if (templateId === ReplExpressionsRenderer.NAME_VALUE_OUTPUT_TEMPLATE_ID) {
-			let data: IKeyValueOutputTemplateData = Object.create(null);
+		if (templateId === ReplExpressionsRenderer.RAW_OBJECT_REPL_ELEMENT_TEMPLATE_ID) {
+			let data: IRawObjectReplTemplateData = Object.create(null);
 			dom.addClass(container, 'output');
 
 			data.container = container;
@@ -221,10 +221,10 @@ export class ReplExpressionsRenderer implements IRenderer {
 			renderVariable(tree, element, templateData, false);
 		} else if (templateId === ReplExpressionsRenderer.EXPRESSION_TEMPLATE_ID) {
 			this.renderExpression(tree, element, templateData);
-		} else if (templateId === ReplExpressionsRenderer.VALUE_OUTPUT_TEMPLATE_ID) {
-			this.renderOutputValue(element, templateData);
-		} else if (templateId === ReplExpressionsRenderer.NAME_VALUE_OUTPUT_TEMPLATE_ID) {
-			this.renderOutputNameValue(tree, element, templateData);
+		} else if (templateId === ReplExpressionsRenderer.SIMPLE_REPL_ELEMENT_TEMPLATE_ID) {
+			this.renderSimpleReplElement(element, templateData);
+		} else if (templateId === ReplExpressionsRenderer.RAW_OBJECT_REPL_ELEMENT_TEMPLATE_ID) {
+			this.renderRawObjectReplElement(tree, element, templateData);
 		}
 	}
 
@@ -232,7 +232,8 @@ export class ReplExpressionsRenderer implements IRenderer {
 		templateData.input.textContent = expression.name;
 		renderExpressionValue(expression, templateData.value, {
 			preserveWhitespace: !expression.hasChildren,
-			showHover: false
+			showHover: false,
+			colorize: true
 		});
 		if (expression.hasChildren) {
 			templateData.annotation.className = 'annotation octicon octicon-info';
@@ -240,12 +241,13 @@ export class ReplExpressionsRenderer implements IRenderer {
 		}
 	}
 
-	private renderOutputValue(output: OutputElement, templateData: IValueOutputTemplateData): void {
+	private renderSimpleReplElement(element: SimpleReplElement, templateData: ISimpleReplElementTemplateData): void {
 
 		// value
 		dom.clearNode(templateData.value);
-		templateData.value.className = '';
-		let result = this.handleANSIOutput(output.value);
+		// Reset classes to clear ansi decorations since templates are reused
+		templateData.value.className = 'value';
+		let result = this.handleANSIOutput(element.value);
 		if (typeof result === 'string') {
 			renderExpressionValue(result, templateData.value, {
 				preserveWhitespace: true,
@@ -255,30 +257,30 @@ export class ReplExpressionsRenderer implements IRenderer {
 			templateData.value.appendChild(result);
 		}
 
-		dom.addClass(templateData.value, (output.severity === severity.Warning) ? 'warn' : (output.severity === severity.Error) ? 'error' : 'info');
-		templateData.source.textContent = output.sourceData ? `${output.sourceData.source.name}:${output.sourceData.lineNumber}` : '';
-		templateData.source.title = output.sourceData ? output.sourceData.source.uri.toString() : '';
-		templateData.getReplElementSource = () => output.sourceData;
+		dom.addClass(templateData.value, (element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : 'info');
+		templateData.source.textContent = element.sourceData ? `${element.sourceData.source.name}:${element.sourceData.lineNumber}` : '';
+		templateData.source.title = element.sourceData ? element.sourceData.source.uri.toString() : '';
+		templateData.getReplElementSource = () => element.sourceData;
 	}
 
-	private renderOutputNameValue(tree: ITree, output: OutputNameValueElement, templateData: IKeyValueOutputTemplateData): void {
+	private renderRawObjectReplElement(tree: ITree, element: RawObjectReplElement, templateData: IRawObjectReplTemplateData): void {
 		// key
-		if (output.name) {
-			templateData.name.textContent = `${output.name}:`;
+		if (element.name) {
+			templateData.name.textContent = `${element.name}:`;
 		} else {
 			templateData.name.textContent = '';
 		}
 
 		// value
-		renderExpressionValue(output.value, templateData.value, {
+		renderExpressionValue(element.value, templateData.value, {
 			preserveWhitespace: true,
 			showHover: false
 		});
 
 		// annotation if any
-		if (output.annotation) {
+		if (element.annotation) {
 			templateData.annotation.className = 'annotation octicon octicon-info';
-			templateData.annotation.title = output.annotation;
+			templateData.annotation.title = element.annotation;
 		} else {
 			templateData.annotation.className = '';
 			templateData.annotation.title = '';
@@ -296,34 +298,46 @@ export class ReplExpressionsRenderer implements IRenderer {
 			if (text.charCodeAt(i) === 27) {
 				let index = i;
 				let chr = (++index < len ? text.charAt(index) : null);
+				let codes = [];
 				if (chr && chr === '[') {
 					let code: string = null;
-					chr = (++index < len ? text.charAt(index) : null);
-
-					if (chr && chr >= '0' && chr <= '9') {
-						code = chr;
+					while (chr !== 'm' && codes.length <= 7) {
 						chr = (++index < len ? text.charAt(index) : null);
-					}
 
-					if (chr && chr >= '0' && chr <= '9') {
-						code += chr;
-						chr = (++index < len ? text.charAt(index) : null);
-					}
+						if (chr && chr >= '0' && chr <= '9') {
+							code = chr;
+							chr = (++index < len ? text.charAt(index) : null);
+						}
 
-					if (code === null) {
-						code = '0';
+						if (chr && chr >= '0' && chr <= '9') {
+							code += chr;
+							chr = (++index < len ? text.charAt(index) : null);
+						}
+
+						if (code === null) {
+							code = '0';
+						}
+
+						codes.push(code);
 					}
 
 					if (chr === 'm') { // set text color/mode.
-
+						code = null;
 						// only respect text-foreground ranges and ignore the values for "black" & "white" because those
 						// only make sense in combination with text-background ranges which we currently not support
-						let parsedMode = parseInt(code, 10);
 						let token = document.createElement('span');
-						if ((parsedMode >= 30 && parsedMode <= 37) || (parsedMode >= 90 && parsedMode <= 97)) {
-							token.className = 'code' + parsedMode;
-						} else if (parsedMode === 1) {
-							token.className = 'code-bold';
+						token.className = '';
+						while (codes.length > 0) {
+							code = codes.pop();
+							let parsedMode = parseInt(code, 10);
+							if (token.className.length > 0) {
+								token.className += ' ';
+							}
+							if ((parsedMode >= 30 && parsedMode <= 37) || (parsedMode >= 90 && parsedMode <= 97)) {
+								token.className += 'code' + parsedMode;
+							} else if (parsedMode === 1) {
+								token.className += 'code-bold';
+							}
 						}
 
 						// we need a tokens container now
@@ -390,11 +404,11 @@ export class ReplExpressionsAccessibilityProvider implements IAccessibilityProvi
 		if (element instanceof Expression) {
 			return nls.localize('replExpressionAriaLabel', "Expression {0} has value {1}, read eval print loop, debug", (<Expression>element).name, (<Expression>element).value);
 		}
-		if (element instanceof OutputElement) {
-			return nls.localize('replValueOutputAriaLabel', "{0}, read eval print loop, debug", (<OutputElement>element).value);
+		if (element instanceof SimpleReplElement) {
+			return nls.localize('replValueOutputAriaLabel', "{0}, read eval print loop, debug", (<SimpleReplElement>element).value);
 		}
-		if (element instanceof OutputNameValueElement) {
-			return nls.localize('replKeyValueOutputAriaLabel', "Output variable {0} has value {1}, read eval print loop, debug", (<OutputNameValueElement>element).name, (<OutputNameValueElement>element).value);
+		if (element instanceof RawObjectReplElement) {
+			return nls.localize('replRawObjectAriaLabel', "Repl variable {0} has value {1}, read eval print loop, debug", (<RawObjectReplElement>element).name, (<RawObjectReplElement>element).value);
 		}
 
 		return null;
@@ -441,7 +455,7 @@ export class ReplExpressionsController extends BaseDebugController {
 	protected onLeftClick(tree: ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {
 		const mouseEvent = <IMouseEvent>eventish;
 		// input and output are one element in the tree => we only expand if the user clicked on the output.
-		if ((element.reference > 0 || (element instanceof OutputNameValueElement && element.hasChildren)) && mouseEvent.target.className.indexOf('input expression') === -1) {
+		if ((element.reference > 0 || (element instanceof RawObjectReplElement && element.hasChildren)) && mouseEvent.target.className.indexOf('input expression') === -1) {
 			super.onLeftClick(tree, element, eventish, origin);
 			tree.clearFocus();
 			tree.deselect(element);

@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 set -e
 
 # set agent specific npm cache
@@ -6,6 +6,9 @@ if [ -n "$AGENT_WORKFOLDER" ]
 then
 	export npm_config_cache="$AGENT_WORKFOLDER/npm-cache"
 	echo "Using npm cache: $npm_config_cache"
+
+	export YARN_CACHE_FOLDER="$AGENT_WORKFOLDER/yarn-cache"
+	echo "Using yarn cache: $YARN_CACHE_FOLDER"
 fi
 
 SUMMARY="Task;Duration"$'\n'

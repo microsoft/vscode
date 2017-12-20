@@ -10,21 +10,21 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
-import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 
 export class ToggleStatusbarVisibilityAction extends Action {
 
-	public static ID = 'workbench.action.toggleStatusbarVisibility';
-	public static LABEL = nls.localize('toggleStatusbar', "Toggle Status Bar Visibility");
+	public static readonly ID = 'workbench.action.toggleStatusbarVisibility';
+	public static readonly LABEL = nls.localize('toggleStatusbar', "Toggle Status Bar Visibility");
 
-	private static statusbarVisibleKey = 'workbench.statusBar.visible';
+	private static readonly statusbarVisibleKey = 'workbench.statusBar.visible';
 
 	constructor(
 		id: string,
 		label: string,
 		@IPartService private partService: IPartService,
-		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(id, label);
 
@@ -35,9 +35,7 @@ export class ToggleStatusbarVisibilityAction extends Action {
 		const visibility = this.partService.isVisible(Parts.STATUSBAR_PART);
 		const newVisibilityValue = !visibility;
 
-		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ToggleStatusbarVisibilityAction.statusbarVisibleKey, value: newVisibilityValue });
-
-		return TPromise.as(null);
+		return this.configurationService.updateValue(ToggleStatusbarVisibilityAction.statusbarVisibleKey, newVisibilityValue, ConfigurationTarget.USER);
 	}
 }
 

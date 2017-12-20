@@ -163,7 +163,7 @@ function extractKeyCode(e: KeyboardEvent): KeyCode {
 		return KeyCodeUtils.fromString(char);
 	}
 	return KEY_CODE_MAP[e.keyCode] || KeyCode.Unknown;
-};
+}
 
 export interface IKeyboardEvent {
 	readonly browserEvent: KeyboardEvent;

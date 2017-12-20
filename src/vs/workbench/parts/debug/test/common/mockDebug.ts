@@ -36,11 +36,14 @@ export class MockDebugService implements debug.IDebugService {
 		return null;
 	}
 
-	public focusStackFrameAndEvaluate(focusedStackFrame: debug.IStackFrame): TPromise<void> {
-		return TPromise.as(null);
+	public focusStackFrame(focusedStackFrame: debug.IStackFrame): void {
 	}
 
 	public addBreakpoints(uri: uri, rawBreakpoints: debug.IRawBreakpoint[]): TPromise<void> {
+		return TPromise.as(null);
+	}
+
+	public updateBreakpoints(uri: uri, data: { [id: string]: DebugProtocol.Breakpoint }): TPromise<void> {
 		return TPromise.as(null);
 	}
 
@@ -84,20 +87,8 @@ export class MockDebugService implements debug.IDebugService {
 
 	public removeWatchExpressions(id?: string): void { }
 
-	public evaluateWatchExpressions(): TPromise<void> {
-		return TPromise.as(null);
-	}
-
 	public startDebugging(root: IWorkspaceFolder, configOrName?: debug.IConfig | string, noDebug?: boolean): TPromise<any> {
 		return TPromise.as(null);
-	}
-
-	public createProcess(root: IWorkspaceFolder, config: debug.IConfig): TPromise<any> {
-		return TPromise.as(null);
-	}
-
-	public findProcessByUUID(uuid: string): debug.IProcess | null {
-		return null;
 	}
 
 	public restartProcess(): TPromise<any> {
@@ -183,8 +174,14 @@ export class MockSession implements debug.ISession {
 
 	public get onDidInitialize(): Event<DebugProtocol.InitializedEvent> {
 		const emitter = new Emitter<DebugProtocol.InitializedEvent>();
-		return emitter.event;;
+		return emitter.event;
 	}
+
+	public get onDidExitAdapter(): Event<debug.DebugEvent> {
+		const emitter = new Emitter<debug.DebugEvent>();
+		return emitter.event;
+	}
+
 
 	public custom(request: string, args: any): TPromise<DebugProtocol.Response> {
 		return TPromise.as(null);

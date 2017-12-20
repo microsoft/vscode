@@ -111,6 +111,12 @@ export class ContextMenuService implements IContextMenuService {
 	}
 
 	private runAction(actionRunner: IActionRunner, actionToRun: IAction, delegate: IContextMenuDelegate, event: IEvent): void {
+		/* __GDPR__
+			"workbenchActionExecuted" : {
+				"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		this.telemetryService.publicLog('workbenchActionExecuted', { id: actionToRun.id, from: 'contextMenu' });
 
 		const context = delegate.getActionsContext ? delegate.getActionsContext(event) : event;

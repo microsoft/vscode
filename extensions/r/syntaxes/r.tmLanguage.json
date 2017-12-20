@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Ikuyadeu/vscode-R/commit/b4fdb1db24cdd690e88bc2bbb7f608426e63da67",
+	"version": "https://github.com/Ikuyadeu/vscode-R/commit/b3ef459a3999160d97ea28f4754fda810417f99f",
 	"fileTypes": [
 		"R",
 		"r",
@@ -178,11 +178,15 @@
 					"name": "keyword.operator.arithmetic.r"
 				},
 				{
-					"match": "(=|<-|<<-|->|->>)",
+					"match": "==",
+					"name": "keyword.operator.comarison.r"
+				},
+				{
+					"match": "(:=|<-|<<-|->|->>)",
 					"name": "keyword.operator.assignment.r"
 				},
 				{
-					"match": "(==|!=|<>|<|>|<=|>=)",
+					"match": "(!=|<>|<|>|<=|>=|%in%)",
 					"name": "keyword.operator.comparison.r"
 				},
 				{
@@ -190,7 +194,7 @@
 					"name": "keyword.operator.logical.r"
 				},
 				{
-					"match": "(%in%|:=|%between%|%chin%|%like%|%\\+%|%\\+replace%|%:%|%do%|%dopar%|%>%|%<>%|%T>%|%\\$%)",
+					"match": "(%between%|%chin%|%like%|%\\+%|%\\+replace%|%:%|%do%|%dopar%|%>%|%<>%|%T>%|%\\$%)",
 					"name": "keyword.operator.other.r"
 				},
 				{
@@ -281,7 +285,7 @@
 							"name": "punctuation.section.brackets.single.begin.r"
 						}
 					},
-					"end": "\\](?!\\])",
+					"end": "\\]",
 					"endCaptures": {
 						"0": {
 							"name": "punctuation.section.brackets.single.end.r"
@@ -337,7 +341,7 @@
 		"function-declarations": {
 			"patterns": [
 				{
-					"begin": "^\\s*([a-zA-Z0-9._:]*)\\s*(<<?-|=)\\s*(?=function\\s*\\()",
+					"begin": "^\\s*([a-zA-Z._][\\w.:]*)\\s*(<<?-|=)\\s*(?=function\\s*\\()",
 					"beginCaptures": {
 						"1": {
 							"name": "entity.name.function.r"
@@ -349,7 +353,7 @@
 							"name": "keyword.control.r"
 						}
 					},
-					"end": "",
+					"end": "(?<=\\))",
 					"name": "meta.function.r",
 					"patterns": [
 						{
@@ -381,7 +385,10 @@
 					"contentName": "meta.function.parameters.r",
 					"patterns": [
 						{
-							"match": "[a-zA-Z._][a-zA-Z0-9._]*",
+							"include": "#comments"
+						},
+						{
+							"match": "(?:[a-zA-Z._][\\w.]*|`[^`]+`)",
 							"name": "variable.parameter.r"
 						},
 						{
@@ -402,7 +409,7 @@
 			]
 		},
 		"function-calls": {
-			"begin": "(?:\\b|(?=\\.))([a-zA-Z._][a-zA-Z0-9._]*)\\s*(\\()",
+			"begin": "(?:\\b|(?=\\.))((?:[a-zA-Z._][\\w.]*|`[^`]+`))\\s*(\\()",
 			"beginCaptures": {
 				"1": {
 					"name": "variable.function.r"
@@ -432,7 +439,7 @@
 					"contentName": "meta.function-call.parameters.r"
 				},
 				{
-					"match": "[a-zA-Z._][a-zA-Z0-9._]*(?=\\s[^=])",
+					"match": "(?:[a-zA-Z._][\\w.]*|`[^`]+`)(?=\\s[^=])",
 					"name": "variable.parameter.r"
 				},
 				{
@@ -480,7 +487,7 @@
 									"name": "variable.parameter.r"
 								}
 							},
-							"match": "(@param)\\s*([a-zA-Z._][a-zA-Z0-9._]*)"
+							"match": "(@param)\\s*((?:[a-zA-Z._][\\w.]*|`[^`]+`))"
 						},
 						{
 							"match": "@[a-zA-Z0-9]+",

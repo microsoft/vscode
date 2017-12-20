@@ -68,8 +68,8 @@ function getCommitSha(repoId, repoPath) {
 	});
 }
 
-exports.update = function (repoId, repoPath, dest, modifyGrammar) {
-	var contentPath = 'https://raw.githubusercontent.com/' + repoId + '/master/' + repoPath;
+exports.update = function (repoId, repoPath, dest, modifyGrammar, version = 'master') {
+	var contentPath = 'https://raw.githubusercontent.com/' + repoId + `/${version}/` + repoPath;
 	console.log('Reading from ' + contentPath);
 	return download(contentPath).then(function (content) {
 		var ext = path.extname(repoPath);

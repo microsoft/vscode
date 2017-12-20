@@ -22,5 +22,5 @@
 	"keybindings.json.when": "キーがアクティブの場合の条件。",
 	"keybindings.json.args": "実行するコマンドに渡す引数。",
 	"keyboardConfigurationTitle": "キーボード",
-	"dispatch": "`keydown.code` (推奨) または `keydown.keyCode` のいずれかを使用するキー操作のディスパッチ ロジックを制御します。"
+	"dispatch": "`code` (推奨) または `keyCode` のいずれかを使用するキー操作のディスパッチ ロジックを制御します。"
 }

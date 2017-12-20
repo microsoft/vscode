@@ -37,31 +37,29 @@ export interface IMenuItem {
 
 export class MenuId {
 
-	static readonly EditorTitle = new MenuId('1');
-	static readonly EditorTitleContext = new MenuId('2');
-	static readonly EditorContext = new MenuId('3');
-	static readonly ExplorerContext = new MenuId('4');
-	static readonly ProblemsPanelContext = new MenuId('5');
-	static readonly DebugVariablesContext = new MenuId('6');
-	static readonly DebugWatchContext = new MenuId('7');
-	static readonly DebugCallStackContext = new MenuId('8');
-	static readonly DebugBreakpointsContext = new MenuId('9');
-	static readonly DebugConsoleContext = new MenuId('10');
-	static readonly SCMTitle = new MenuId('11');
-	static readonly SCMResourceGroupContext = new MenuId('12');
-	static readonly SCMResourceContext = new MenuId('13');
-	static readonly CommandPalette = new MenuId('14');
-	static readonly ViewTitle = new MenuId('15');
-	static readonly ViewItemContext = new MenuId('16');
-	static readonly TouchBarContext = new MenuId('17');
+	private static ID = 1;
 
-	constructor(private _id: string) {
+	static readonly EditorTitle = new MenuId();
+	static readonly EditorTitleContext = new MenuId();
+	static readonly EditorContext = new MenuId();
+	static readonly ExplorerContext = new MenuId();
+	static readonly ProblemsPanelContext = new MenuId();
+	static readonly DebugVariablesContext = new MenuId();
+	static readonly DebugWatchContext = new MenuId();
+	static readonly DebugCallStackContext = new MenuId();
+	static readonly DebugBreakpointsContext = new MenuId();
+	static readonly DebugConsoleContext = new MenuId();
+	static readonly SCMTitle = new MenuId();
+	static readonly SCMSourceControl = new MenuId();
+	static readonly SCMResourceGroupContext = new MenuId();
+	static readonly SCMResourceContext = new MenuId();
+	static readonly SCMChangeContext = new MenuId();
+	static readonly CommandPalette = new MenuId();
+	static readonly ViewTitle = new MenuId();
+	static readonly ViewItemContext = new MenuId();
+	static readonly TouchBarContext = new MenuId();
 
-	}
-
-	get id(): string {
-		return this._id;
-	}
+	readonly id: string = String(MenuId.ID++);
 }
 
 export interface IMenuActionOptions {
@@ -90,7 +88,7 @@ export interface IMenuRegistry {
 	getMenuItems(loc: MenuId): IMenuItem[];
 }
 
-export const MenuRegistry: IMenuRegistry = new class {
+export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 
 	private _commands: { [id: string]: ICommandAction } = Object.create(null);
 

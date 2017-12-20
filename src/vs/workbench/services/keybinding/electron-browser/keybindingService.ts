@@ -28,7 +28,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { KeybindingIO, OutputBuilder, IUserKeybindingItem } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import * as nativeKeymap from 'native-keymap';
-import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
+import { IKeyboardMapper, CachedKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
 import { WindowsKeyboardMapper, IWindowsKeyboardMapping, windowsKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { IMacLinuxKeyboardMapping, MacLinuxKeyboardMapper, macLinuxKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
 import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper';
@@ -38,7 +38,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { onUnexpectedError } from 'vs/base/common/errors';
 
 export class KeyboardMapperFactory {
-	public static INSTANCE = new KeyboardMapperFactory();
+	public static readonly INSTANCE = new KeyboardMapperFactory();
 
 	private _layoutInfo: nativeKeymap.IKeyboardLayoutInfo;
 	private _rawMapping: nativeKeymap.IKeyboardMapping;
@@ -115,7 +115,9 @@ export class KeyboardMapperFactory {
 
 		this._initialized = true;
 		this._rawMapping = rawMapping;
-		this._keyboardMapper = KeyboardMapperFactory._createKeyboardMapper(this._layoutInfo, this._rawMapping);
+		this._keyboardMapper = new CachedKeyboardMapper(
+			KeyboardMapperFactory._createKeyboardMapper(this._layoutInfo, this._rawMapping)
+		);
 		this._onDidChangeKeyboardMapper.fire();
 	}
 
@@ -243,7 +245,7 @@ export const enum DispatchConfig {
 }
 
 function getDispatchConfig(configurationService: IConfigurationService): DispatchConfig {
-	const keyboard = configurationService.getConfiguration('keyboard');
+	const keyboard = configurationService.getValue('keyboard');
 	const r = (keyboard ? (<any>keyboard).dispatch : null);
 	return (r === 'keyCode' ? DispatchConfig.KeyCode : DispatchConfig.Code);
 }
@@ -259,16 +261,16 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		windowElement: Window,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService,
-		@ITelemetryService private telemetryService: ITelemetryService,
+		@ITelemetryService telemetryService: ITelemetryService,
 		@IMessageService messageService: IMessageService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IStatusbarService statusBarService: IStatusbarService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(contextKeyService, commandService, messageService, statusBarService);
+		super(contextKeyService, commandService, telemetryService, messageService, statusBarService);
 
 		let dispatchConfig = getDispatchConfig(configurationService);
-		configurationService.onDidUpdateConfiguration((e) => {
+		configurationService.onDidChangeConfiguration((e) => {
 			let newDispatchConfig = getDispatchConfig(configurationService);
 			if (dispatchConfig === newDispatchConfig) {
 				return;
@@ -318,6 +320,11 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		keybindingsTelemetry(telemetryService, this);
 		let data = KeyboardMapperFactory.INSTANCE.getCurrentKeyboardLayout();
+		/* __GDPR__
+			"keyboardLayout" : {
+				"currentKeyboardLayout": { "${inline}": [ "${IKeyboardLayoutInfo}" ] }
+			}
+		*/
 		telemetryService.publicLog('keyboardLayout', {
 			currentKeyboardLayout: data
 		});
@@ -405,7 +412,12 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		if (!isFirstTime) {
 			let cnt = extraUserKeybindings.length;
 
-			this.telemetryService.publicLog('customKeybindingsChanged', {
+			/* __GDPR__
+				"customKeybindingsChanged" : {
+					"keyCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
+			this._telemetryService.publicLog('customKeybindingsChanged', {
 				keyCount: cnt
 			});
 		}
@@ -557,25 +569,22 @@ let schema: IJSONSchema = {
 let schemaRegistry = <IJSONContributionRegistry>Registry.as(Extensions.JSONContribution);
 schemaRegistry.registerSchema(schemaId, schema);
 
-if (OS === OperatingSystem.Macintosh || OS === OperatingSystem.Linux) {
-
-	const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigExtensions.Configuration);
-	const keyboardConfiguration: IConfigurationNode = {
-		'id': 'keyboard',
-		'order': 15,
-		'type': 'object',
-		'title': nls.localize('keyboardConfigurationTitle', "Keyboard"),
-		'overridable': true,
-		'properties': {
-			'keyboard.dispatch': {
-				'type': 'string',
-				'enum': ['code', 'keyCode'],
-				'default': 'code',
-				'description': nls.localize('dispatch', "Controls the dispatching logic for key presses to use either `keydown.code` (recommended) or `keydown.keyCode`.")
-			}
+const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigExtensions.Configuration);
+const keyboardConfiguration: IConfigurationNode = {
+	'id': 'keyboard',
+	'order': 15,
+	'type': 'object',
+	'title': nls.localize('keyboardConfigurationTitle', "Keyboard"),
+	'overridable': true,
+	'properties': {
+		'keyboard.dispatch': {
+			'type': 'string',
+			'enum': ['code', 'keyCode'],
+			'default': 'code',
+			'description': nls.localize('dispatch', "Controls the dispatching logic for key presses to use either `code` (recommended) or `keyCode`."),
+			'included': OS === OperatingSystem.Macintosh || OS === OperatingSystem.Linux
 		}
-	};
+	}
+};
 
-	configurationRegistry.registerConfiguration(keyboardConfiguration);
-
-}
+configurationRegistry.registerConfiguration(keyboardConfiguration);

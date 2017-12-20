@@ -14,6 +14,10 @@
 			"language": "powershell",
 			"scopeName": "source.powershell",
 			"path": "./syntaxes/PowershellSyntax.tmLanguage"
+		}],
+		"snippets": [{
+			"language": "powershell",
+			"path": "./snippets/powershell.json"
 		}]
 	},
 	"scripts": {

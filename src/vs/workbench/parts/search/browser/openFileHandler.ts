@@ -12,6 +12,7 @@ import labels = require('vs/base/common/labels');
 import * as objects from 'vs/base/common/objects';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import URI from 'vs/base/common/uri';
+import * as resources from 'vs/base/common/resources';
 import { IIconLabelOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { getIconClasses } from 'vs/workbench/browser/labels';
@@ -32,7 +33,6 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IRange } from 'vs/editor/common/core/range';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/common/search';
-import { IExperimentService } from 'vs/platform/telemetry/common/experiments';
 
 export class FileQuickOpenModel extends QuickOpenModel {
 
@@ -88,15 +88,15 @@ export class FileEntry extends EditorQuickOpenEntry {
 		this.range = range;
 	}
 
-	public isFile(): boolean {
-		return true; // TODO@Ben debt with editor history merging
+	public mergeWithEditorHistory(): boolean {
+		return true;
 	}
 
 	public getInput(): IResourceInput | EditorInput {
 		const input: IResourceInput = {
 			resource: this.resource,
 			options: {
-				pinned: !this.configurationService.getConfiguration<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen
+				pinned: !this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor.enablePreviewFromQuickOpen
 			}
 		};
 
@@ -123,7 +123,6 @@ export class OpenFileHandler extends QuickOpenHandler {
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ISearchService private searchService: ISearchService,
-		@IExperimentService private experimentService: IExperimentService,
 		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super();
@@ -142,6 +141,9 @@ export class OpenFileHandler extends QuickOpenHandler {
 		if (!searchValue) {
 			return TPromise.as(new FileQuickOpenModel([]));
 		}
+
+		// Untildify file pattern
+		searchValue = labels.untildify(searchValue, this.environmentService.userHome);
 
 		// Do find results
 		return this.doFindResults(searchValue, this.cacheState.cacheKey, maxSortedResults);
@@ -171,7 +173,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 				const fileMatch = complete.results[i];
 
 				const label = paths.basename(fileMatch.resource.fsPath);
-				const description = labels.getPathLabel(paths.dirname(fileMatch.resource.fsPath), this.contextService, this.environmentService);
+				const description = labels.getPathLabel(resources.dirname(fileMatch.resource), this.contextService, this.environmentService);
 
 				results.push(this.instantiationService.createInstance(FileEntry, fileMatch.resource, label, description, iconClass));
 			}
@@ -196,7 +198,6 @@ export class OpenFileHandler extends QuickOpenHandler {
 			cacheKey: cacheKey,
 			maxResults: 0,
 			sortByScore: true,
-			useRipgrep: this.experimentService.getExperiments().ripgrepQuickSearch
 		};
 
 		const folderResources = this.contextService.getWorkspace().folders.map(folder => folder.uri);

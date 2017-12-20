@@ -13,7 +13,12 @@
 	"invalid.title": "configuration.title должно быть строкой",
 	"vscode.extension.contributes.defaultConfiguration": "Предоставляет параметры конфигурации редактора по умолчанию в соответствии с языком.",
 	"invalid.properties": "configuration.properties должно быть объектом",
-	"workspaceConfig.folders.description": "Список папок, которые будут загружены в рабочую область. Необходимо указывать пути к файлам, например, \"/root/folderA\" или \"./folderA\" для пути по отношению к файлу рабочей области.",
-	"workspaceConfig.folder.description": "Путь к файлу, например, \"/root/folderA\" или \"./folderA\" для пути по отношению к файлу рабочей области.",
-	"workspaceConfig.settings.description": "Параметры рабочей области"
+	"invalid.allOf": "Параметр 'configuration.allOf' является устаревшим, и использовать его не рекомендуется. Вместо этого передайте несколько параметров в виде массива в точку вклада 'configuration'.",
+	"workspaceConfig.folders.description": "Список папок, которые будут загружены в рабочую область.",
+	"workspaceConfig.path.description": "Путь к файлу, например, \"/root/folderA\" или \"./folderA\" для пути по отношению к файлу рабочей области.",
+	"workspaceConfig.name.description": "Необязательное имя папки.",
+	"workspaceConfig.uri.description": "URI папки",
+	"workspaceConfig.settings.description": "Параметры рабочей области",
+	"workspaceConfig.extensions.description": "Расширения рабочей области",
+	"unknownWorkspaceProperty": "Неизвестное свойство рабочей области"
 }

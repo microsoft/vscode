@@ -23,6 +23,10 @@ export interface IConfirmation {
 	detail?: string;
 	primaryButton?: string;
 	secondaryButton?: string;
+	checkbox?: {
+		label: string;
+		checked?: boolean;
+	};
 }
 
 export const CloseAction = new Action('close.message', nls.localize('close', "Close"), null, true, () => TPromise.as(true));
@@ -30,6 +34,11 @@ export const LaterAction = new Action('later.message', nls.localize('later', "La
 export const CancelAction = new Action('cancel.message', nls.localize('cancel', "Cancel"), null, true, () => TPromise.as(true));
 
 export const IMessageService = createDecorator<IMessageService>('messageService');
+
+export interface IConfirmationResult {
+	confirmed: boolean;
+	checkboxChecked?: boolean;
+}
 
 export interface IMessageService {
 
@@ -53,7 +62,12 @@ export interface IMessageService {
 	/**
 	 * Ask the user for confirmation.
 	 */
-	confirm(confirmation: IConfirmation): boolean;
+	confirm(confirmation: IConfirmation): TPromise<boolean>;
+
+	/**
+	 * Ask the user for confirmation with a checkbox.
+	 */
+	confirmWithCheckbox(confirmation: IConfirmation): TPromise<IConfirmationResult>;
 }
 
 export const IChoiceService = createDecorator<IChoiceService>('choiceService');

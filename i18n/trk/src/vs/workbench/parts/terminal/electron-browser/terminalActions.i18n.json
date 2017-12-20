@@ -16,7 +16,6 @@
 	"workbench.action.terminal.new.short": "Yeni Terminal",
 	"workbench.action.terminal.focus": "Terminale Odakla",
 	"workbench.action.terminal.focusNext": "Sonraki Terminale Odakla",
-	"workbench.action.terminal.focusAtIndex": "{0}. Terminale Odakla",
 	"workbench.action.terminal.focusPrevious": "Önceki Terminale Odakla",
 	"workbench.action.terminal.paste": "Aktif Terminale Yapıştır",
 	"workbench.action.terminal.DefaultShell": "Varsayılan Kabuğu Seç",
@@ -38,5 +37,6 @@
 	"workbench.action.terminal.focusFindWidget": "Bulma Aracına Odakla",
 	"workbench.action.terminal.hideFindWidget": "Bulma Aracını Gizle",
 	"nextTerminalFindTerm": "Sonraki Arama Terimini Göster",
-	"previousTerminalFindTerm": "Önceki Arama Terimini Göster"
+	"previousTerminalFindTerm": "Önceki Arama Terimini Göster",
+	"quickOpenTerm": "Aktif Terminali Değiştir"
 }

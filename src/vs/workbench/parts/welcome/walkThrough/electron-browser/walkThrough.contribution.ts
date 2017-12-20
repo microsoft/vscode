@@ -11,8 +11,7 @@ import { WalkThroughArrowUpAction, WalkThroughArrowDownAction, WalkThroughPageUp
 import { WalkThroughContentProvider, WalkThroughSnippetContentProvider } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughContentProvider';
 import { EditorWalkThroughAction, EditorWalkThroughInputFactory } from 'vs/workbench/parts/welcome/walkThrough/electron-browser/editor/editorWalkThrough';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
+import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
@@ -20,12 +19,15 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IEditorRegistry, Extensions as EditorExtensions, EditorDescriptor } from 'vs/workbench/browser/editor';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors)
-	.registerEditor(new EditorDescriptor(WalkThroughPart.ID,
+	.registerEditor(new EditorDescriptor(
+		WalkThroughPart,
+		WalkThroughPart.ID,
 		localize('walkThrough.editor.label', "Interactive Playground"),
-		'vs/workbench/parts/welcome/walkThrough/electron-browser/walkThroughPart',
-		'WalkThroughPart'),
+	),
 	[new SyncDescriptor(WalkThroughInput)]);
 
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
@@ -33,13 +35,13 @@ Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
 	new SyncActionDescriptor(EditorWalkThroughAction, EditorWalkThroughAction.ID, EditorWalkThroughAction.LABEL),
 	'Help: Interactive Playground', localize('help', "Help"));
 
-Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditorInputFactory(EditorWalkThroughInputFactory.ID, EditorWalkThroughInputFactory);
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(EditorWalkThroughInputFactory.ID, EditorWalkThroughInputFactory);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WalkThroughContentProvider);
+	.registerWorkbenchContribution(WalkThroughContentProvider, LifecyclePhase.Starting);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WalkThroughSnippetContentProvider);
+	.registerWorkbenchContribution(WalkThroughSnippetContentProvider, LifecyclePhase.Starting);
 
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
 	.registerWorkbenchAction(new SyncActionDescriptor(WalkThroughArrowUpAction, WalkThroughArrowUpAction.ID, WalkThroughArrowUpAction.LABEL, { primary: KeyCode.UpArrow }, ContextKeyExpr.and(WALK_THROUGH_FOCUS, EditorContextKeys.textFocus.toNegated())), 'Interactive Playground: Scroll Up (Line)', localize('interactivePlayground', "Interactive Playground"));

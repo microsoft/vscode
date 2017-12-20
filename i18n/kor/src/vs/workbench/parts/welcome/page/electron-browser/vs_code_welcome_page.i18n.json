@@ -9,7 +9,7 @@
 	"welcomePage.start": "시작",
 	"welcomePage.newFile": "새 파일",
 	"welcomePage.openFolder": "폴더 열기...",
-	"welcomePage.cloneGitRepository": "Git 리포지토리 복제...",
+	"welcomePage.addWorkspaceFolder": "작업 영역 폴더 추가...",
 	"welcomePage.recent": "최근 항목",
 	"welcomePage.moreRecent": "자세히...",
 	"welcomePage.noRecentFolders": "최근 폴더 없음",

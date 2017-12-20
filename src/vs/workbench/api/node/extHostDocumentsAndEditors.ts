@@ -8,10 +8,10 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { dispose } from 'vs/base/common/lifecycle';
 import { MainContext, ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, IMainContext } from './extHost.protocol';
 import { ExtHostDocumentData } from './extHostDocumentData';
-import { ExtHostTextEditor, ExtHostTextEditor2 } from './extHostTextEditor';
+import { ExtHostTextEditor } from './extHostTextEditor';
 import * as assert from 'assert';
 import * as typeConverters from './extHostTypeConverters';
-import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
+import URI from 'vs/base/common/uri';
 
 export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsShape {
 
@@ -30,8 +30,7 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 	readonly onDidChangeActiveTextEditor: Event<ExtHostTextEditor> = this._onDidChangeActiveTextEditor.event;
 
 	constructor(
-		private readonly _mainContext: IMainContext,
-		private readonly _extHostExtensions?: ExtHostExtensionService
+		private readonly _mainContext: IMainContext
 	) {
 	}
 
@@ -51,18 +50,19 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 
 		if (delta.addedDocuments) {
 			for (const data of delta.addedDocuments) {
-				assert.ok(!this._documents.has(data.url.toString()), `document '${data.url} already exists!'`);
+				const resource = URI.revive(data.uri);
+				assert.ok(!this._documents.has(resource.toString()), `document '${resource} already exists!'`);
 
 				const documentData = new ExtHostDocumentData(
-					this._mainContext.get(MainContext.MainThreadDocuments),
-					data.url,
+					this._mainContext.getProxy(MainContext.MainThreadDocuments),
+					resource,
 					data.lines,
 					data.EOL,
 					data.modeId,
 					data.versionId,
 					data.isDirty
 				);
-				this._documents.set(data.url.toString(), documentData);
+				this._documents.set(resource.toString(), documentData);
 				addedDocuments.push(documentData);
 			}
 		}
@@ -77,14 +77,13 @@ export class ExtHostDocumentsAndEditors implements ExtHostDocumentsAndEditorsSha
 
 		if (delta.addedEditors) {
 			for (const data of delta.addedEditors) {
-				assert.ok(this._documents.has(data.document.toString()), `document '${data.document}' does not exist`);
+				const resource = URI.revive(data.documentUri);
+				assert.ok(this._documents.has(resource.toString()), `document '${resource}' does not exist`);
 				assert.ok(!this._editors.has(data.id), `editor '${data.id}' already exists!`);
 
-				const documentData = this._documents.get(data.document.toString());
-				const editor = new ExtHostTextEditor2(
-					this._extHostExtensions,
-					this._mainContext.get(MainContext.MainThreadTelemetry),
-					this._mainContext.get(MainContext.MainThreadEditors),
+				const documentData = this._documents.get(resource.toString());
+				const editor = new ExtHostTextEditor(
+					this._mainContext.getProxy(MainContext.MainThreadEditors),
 					data.id,
 					documentData,
 					data.selections.map(typeConverters.toSelection),

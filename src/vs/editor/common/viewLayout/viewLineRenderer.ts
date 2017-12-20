@@ -9,6 +9,7 @@ import { CharCode } from 'vs/base/common/charCode';
 import { LineDecoration, LineDecorationsNormalizer } from 'vs/editor/common/viewLayout/lineDecorations';
 import * as strings from 'vs/base/common/strings';
 import { IStringBuilder, createStringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
 
 export const enum RenderWhitespace {
 	None = 0,
@@ -243,14 +244,14 @@ export function renderViewLine(input: RenderLineInput, sb: IStringBuilder): Rend
 			let classNames: string[] = [];
 			for (let i = 0, len = input.lineDecorations.length; i < len; i++) {
 				const lineDecoration = input.lineDecorations[i];
-				if (lineDecoration.insertsBeforeOrAfter) {
-					classNames[i] = input.lineDecorations[i].className;
+				if (lineDecoration.type !== InlineDecorationType.Regular) {
+					classNames.push(input.lineDecorations[i].className);
 					containsForeignElements = true;
 				}
 			}
 
 			if (containsForeignElements) {
-				content = `<span><span class="${classNames.join(' ')}">\u00a0</span></span>`;
+				content = `<span><span class="${classNames.join(' ')}"></span></span>`;
 			}
 		}
 
@@ -322,7 +323,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 	if (input.lineDecorations.length > 0) {
 		for (let i = 0, len = input.lineDecorations.length; i < len; i++) {
 			const lineDecoration = input.lineDecorations[i];
-			if (lineDecoration.insertsBeforeOrAfter) {
+			if (lineDecoration.type !== InlineDecorationType.Regular) {
 				containsForeignElements = true;
 				break;
 			}
@@ -531,7 +532,7 @@ function _applyRenderWhitespace(lineContent: string, len: number, tokens: LinePa
  */
 function _applyInlineDecorations(lineContent: string, len: number, tokens: LinePart[], _lineDecorations: LineDecoration[]): LinePart[] {
 	_lineDecorations.sort(LineDecoration.compare);
-	const lineDecorations = LineDecorationsNormalizer.normalize(_lineDecorations);
+	const lineDecorations = LineDecorationsNormalizer.normalize(lineContent, _lineDecorations);
 	const lineDecorationsLen = lineDecorations.length;
 
 	let lineDecorationIndex = 0;
@@ -566,6 +567,16 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: LineP
 			lastResultEndIndex = tokenEndIndex;
 			result[resultLen++] = new LinePart(lastResultEndIndex, tokenType);
 		}
+	}
+
+	const lastTokenEndIndex = tokens[tokens.length - 1].endIndex;
+	if (lineDecorationIndex < lineDecorationsLen && lineDecorations[lineDecorationIndex].startOffset === lastTokenEndIndex) {
+		let classNames: string[] = [];
+		while (lineDecorationIndex < lineDecorationsLen && lineDecorations[lineDecorationIndex].startOffset === lastTokenEndIndex) {
+			classNames.push(lineDecorations[lineDecorationIndex].className);
+			lineDecorationIndex++;
+		}
+		result[resultLen++] = new LinePart(lastResultEndIndex, classNames.join(' '));
 	}
 
 	return result;
@@ -618,7 +629,6 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 			{
 				let _charIndex = charIndex;
 				let _tabsCharDelta = tabsCharDelta;
-				let _charOffsetInPart = charOffsetInPart;
 
 				for (; _charIndex < partEndIndex; _charIndex++) {
 					const charCode = lineContent.charCodeAt(_charIndex);
@@ -626,20 +636,20 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 					if (charCode === CharCode.Tab) {
 						let insertSpacesCount = tabSize - (_charIndex + _tabsCharDelta) % tabSize;
 						_tabsCharDelta += insertSpacesCount - 1;
-						_charOffsetInPart += insertSpacesCount - 1;
 						partContentCnt += insertSpacesCount;
 					} else {
 						partContentCnt++;
 					}
-
-					_charOffsetInPart++;
 				}
 			}
 
-			if (!fontIsMonospace && !containsForeignElements) {
-				sb.appendASCIIString(' style="width:');
-				sb.appendASCIIString(String(spaceWidth * partContentCnt));
-				sb.appendASCIIString('px"');
+			if (!fontIsMonospace) {
+				const partIsOnlyWhitespace = (partType === 'vs-whitespace');
+				if (partIsOnlyWhitespace || !containsForeignElements) {
+					sb.appendASCIIString(' style="width:');
+					sb.appendASCIIString(String(spaceWidth * partContentCnt));
+					sb.appendASCIIString('px"');
+				}
 			}
 			sb.appendASCII(CharCode.GreaterThan);
 

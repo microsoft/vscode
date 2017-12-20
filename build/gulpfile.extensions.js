@@ -62,6 +62,8 @@ const tasks = compilations.map(function (tsconfigFile) {
 		const reporter = createReporter();
 
 		tsOptions.inlineSources = !!build;
+		tsOptions.base = path.dirname(absolutePath);
+
 		const compilation = tsb.create(tsOptions, null, null, err => reporter(err.toString()));
 
 		return function () {

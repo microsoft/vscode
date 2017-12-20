@@ -14,10 +14,9 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { CommonCodeEditor } from 'vs/editor/common/commonCodeEditor';
 import { CommonEditorConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { Range, IRange } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { EditorAction } from 'vs/editor/common/editorCommonExtensions';
-import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { EditorAction, EditorExtensionsRegistry, IEditorContributionCtor } from 'vs/editor/browser/editorExtensions';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { View, IOverlayWidgetData, IContentWidgetData } from 'vs/editor/browser/view/viewImpl';
@@ -27,12 +26,12 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
-import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
-import { CoreEditorCommand } from 'vs/editor/common/controller/coreCommands';
+import { CoreEditorCommand } from 'vs/editor/browser/controller/coreCommands';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder } from 'vs/editor/common/view/editorColorRegistry';
+import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoBorder, editorInfoForeground } from 'vs/editor/common/view/editorColorRegistry';
 import { Color } from 'vs/base/common/color';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import { ClassName } from 'vs/editor/common/model/intervalTree';
 
 export abstract class CodeEditorWidget extends CommonCodeEditor implements editorBrowser.ICodeEditor {
 
@@ -141,7 +140,7 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		this._codeEditorService.addCodeEditor(this);
 	}
 
-	protected abstract _getContributions(): editorBrowser.IEditorContributionCtor[];
+	protected abstract _getContributions(): IEditorContributionCtor[];
 	protected abstract _getActions(): EditorAction[];
 
 	protected _createConfiguration(options: IEditorOptions): CommonEditorConfiguration {
@@ -158,8 +157,8 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		super.dispose();
 	}
 
-	public createOverviewRuler(cssClassName: string, minimumHeight: number, maximumHeight: number): editorBrowser.IOverviewRuler {
-		return this._view.createOverviewRuler(cssClassName, minimumHeight, maximumHeight);
+	public createOverviewRuler(cssClassName: string): editorBrowser.IOverviewRuler {
+		return this._view.createOverviewRuler(cssClassName);
 	}
 
 	public getDomNode(): HTMLElement {
@@ -167,14 +166,6 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 			return null;
 		}
 		return this._view.domNode.domNode;
-	}
-
-	public getCompletelyVisibleLinesRangeInViewport(): Range {
-		if (!this.hasView) {
-			return null;
-		}
-		const viewRange = this.viewModel.getCompletelyVisibleViewRange();
-		return this.viewModel.coordinatesConverter.convertViewRangeToModelRange(viewRange);
 	}
 
 	public delegateVerticalScrollbarMouseDown(browserEvent: IMouseEvent): void {
@@ -292,36 +283,6 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		}
 	}
 
-	public getWhitespaces(): IEditorWhitespace[] {
-		if (!this.hasView) {
-			return [];
-		}
-		return this.viewModel.viewLayout.getWhitespaces();
-	}
-
-	private _getVerticalOffsetForPosition(modelLineNumber: number, modelColumn: number): number {
-		let modelPosition = this.model.validatePosition({
-			lineNumber: modelLineNumber,
-			column: modelColumn
-		});
-		let viewPosition = this.viewModel.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
-		return this.viewModel.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
-	}
-
-	public getTopForLineNumber(lineNumber: number): number {
-		if (!this.hasView) {
-			return -1;
-		}
-		return this._getVerticalOffsetForPosition(lineNumber, 1);
-	}
-
-	public getTopForPosition(lineNumber: number, column: number): number {
-		if (!this.hasView) {
-			return -1;
-		}
-		return this._getVerticalOffsetForPosition(lineNumber, column);
-	}
-
 	public getTargetAtClientPoint(clientX: number, clientY: number): editorBrowser.IMouseTarget {
 		if (!this.hasView) {
 			return null;
@@ -359,19 +320,6 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 			return;
 		}
 		this._view.render(true, false);
-	}
-
-	public setHiddenAreas(ranges: IRange[]): void {
-		if (this.viewModel) {
-			this.viewModel.setHiddenAreas(ranges.map(r => Range.lift(r)));
-		}
-	}
-
-	public setAriaActiveDescendant(id: string): void {
-		if (!this.hasView) {
-			return;
-		}
-		this._view.setAriaActiveDescendant(id);
 	}
 
 	public applyFontInfo(target: HTMLElement): void {
@@ -444,6 +392,16 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 		viewEventBus.onKeyDown = (e) => this._onKeyDown.fire(e);
 	}
 
+	public restoreViewState(s: editorCommon.ICodeEditorViewState): void {
+		super.restoreViewState(s);
+		if (!this.cursor || !this.hasView) {
+			return;
+		}
+		if (s && s.cursorState && s.viewState) {
+			this._view.restoreState(this.viewModel.viewLayout.reduceRestoreState(s.viewState));
+		}
+	}
+
 	protected _detachModel(): editorCommon.IModel {
 		let removeDomNode: HTMLElement = null;
 
@@ -477,6 +435,18 @@ export abstract class CodeEditorWidget extends CommonCodeEditor implements edito
 	}
 
 	// END decorations
+
+	protected _triggerEditorCommand(source: string, handlerId: string, payload: any): boolean {
+		const command = EditorExtensionsRegistry.getEditorCommand(handlerId);
+		if (command) {
+			payload = payload || {};
+			payload.source = source;
+			TPromise.as(command.runEditorCommand(null, this, payload)).done(null, onUnexpectedError);
+			return true;
+		}
+
+		return false;
+	}
 }
 
 class CodeEditorWidgetFocusTracker extends Disposable {
@@ -493,14 +463,14 @@ class CodeEditorWidgetFocusTracker extends Disposable {
 		this._hasFocus = false;
 		this._domFocusTracker = this._register(dom.trackFocus(domElement));
 
-		this._domFocusTracker.addFocusListener(() => {
+		this._register(this._domFocusTracker.onDidFocus(() => {
 			this._hasFocus = true;
 			this._onChange.fire(void 0);
-		});
-		this._domFocusTracker.addBlurListener(() => {
+		}));
+		this._register(this._domFocusTracker.onDidBlur(() => {
 			this._hasFocus = false;
 			this._onChange.fire(void 0);
-		});
+		}));
 	}
 
 	public hasFocus(): boolean {
@@ -508,7 +478,7 @@ class CodeEditorWidgetFocusTracker extends Disposable {
 	}
 }
 
-const squigglyStart = encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' height='3' width='6'><g fill='`);
+const squigglyStart = encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 6 3' enable-background='new 0 0 6 3' height='3' width='6'><g fill='`);
 const squigglyEnd = encodeURIComponent(`'><polygon points='5.5,0 2.5,3 1.1,3 4.1,0'/><polygon points='4,0 6,2 6,0.6 5.4,0'/><polygon points='0,2 1,3 2.4,3 0,0.6'/></g></svg>`);
 
 function getSquigglySVGData(color: Color) {
@@ -518,19 +488,28 @@ function getSquigglySVGData(color: Color) {
 registerThemingParticipant((theme, collector) => {
 	let errorBorderColor = theme.getColor(editorErrorBorder);
 	if (errorBorderColor) {
-		collector.addRule(`.monaco-editor .redsquiggly { border-bottom: 4px double ${errorBorderColor}; }`);
+		collector.addRule(`.monaco-editor .${ClassName.EditorErrorDecoration} { border-bottom: 4px double ${errorBorderColor}; }`);
 	}
 	let errorForeground = theme.getColor(editorErrorForeground);
 	if (errorForeground) {
-		collector.addRule(`.monaco-editor .redsquiggly { background: url("data:image/svg+xml,${getSquigglySVGData(errorForeground)}") repeat-x bottom left; }`);
+		collector.addRule(`.monaco-editor .${ClassName.EditorErrorDecoration} { background: url("data:image/svg+xml;utf8,${getSquigglySVGData(errorForeground)}") repeat-x bottom left; }`);
 	}
 
 	let warningBorderColor = theme.getColor(editorWarningBorder);
 	if (warningBorderColor) {
-		collector.addRule(`.monaco-editor .greensquiggly { border-bottom: 4px double ${warningBorderColor}; }`);
+		collector.addRule(`.monaco-editor .${ClassName.EditorWarningDecoration} { border-bottom: 4px double ${warningBorderColor}; }`);
 	}
 	let warningForeground = theme.getColor(editorWarningForeground);
 	if (warningForeground) {
-		collector.addRule(`.monaco-editor .greensquiggly { background: url("data:image/svg+xml;utf8,${getSquigglySVGData(warningForeground)}") repeat-x bottom left; }`);
+		collector.addRule(`.monaco-editor .${ClassName.EditorWarningDecoration} { background: url("data:image/svg+xml;utf8,${getSquigglySVGData(warningForeground)}") repeat-x bottom left; }`);
+	}
+
+	let infoBorderColor = theme.getColor(editorInfoBorder);
+	if (infoBorderColor) {
+		collector.addRule(`.monaco-editor .${ClassName.EditorInfoDecoration} { border-bottom: 4px double ${infoBorderColor}; }`);
+	}
+	let infoForeground = theme.getColor(editorInfoForeground);
+	if (infoForeground) {
+		collector.addRule(`.monaco-editor .${ClassName.EditorInfoDecoration} { background: url("data:image/svg+xml;utf8,${getSquigglySVGData(infoForeground)}") repeat-x bottom left; }`);
 	}
 });

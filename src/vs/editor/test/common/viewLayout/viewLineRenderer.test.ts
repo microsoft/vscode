@@ -10,6 +10,7 @@ import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { CharCode } from 'vs/base/common/charCode';
 import { MetadataConsts } from 'vs/editor/common/modes';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
+import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
 
 suite('viewLineRenderer.renderLine', () => {
 
@@ -700,7 +701,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			false,
 			0,
 			[createPart(21, 3)],
-			[new LineDecoration(1, 22, 'link', false)],
+			[new LineDecoration(1, 22, 'link', InlineDecorationType.Regular)],
 			4,
 			10,
 			-1,
@@ -735,7 +736,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 				createPart(84, 6),
 			],
 			[
-				new LineDecoration(13, 51, 'detected-link', false)
+				new LineDecoration(13, 51, 'detected-link', InlineDecorationType.Regular)
 			],
 			4,
 			10,
@@ -993,9 +994,9 @@ suite('viewLineRenderer.renderLine 2', () => {
 			0,
 			[createPart(11, 0)],
 			[
-				new LineDecoration(5, 7, 'a', false),
-				new LineDecoration(1, 3, 'b', false),
-				new LineDecoration(2, 8, 'c', false),
+				new LineDecoration(5, 7, 'a', InlineDecorationType.Regular),
+				new LineDecoration(1, 3, 'b', InlineDecorationType.Regular),
+				new LineDecoration(2, 8, 'c', InlineDecorationType.Regular),
 			],
 			4,
 			10,
@@ -1033,7 +1034,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 			false,
 			0,
 			[createPart(4, 3)],
-			[new LineDecoration(1, 2, 'before', true)],
+			[new LineDecoration(1, 2, 'before', InlineDecorationType.Before)],
 			4,
 			10,
 			-1,
@@ -1052,17 +1053,17 @@ suite('viewLineRenderer.renderLine 2', () => {
 		assert.deepEqual(actual.html, expected);
 	});
 
-	test('issue #30133: Empty lines don\'t render inline decorations', () => {
+	test('issue #32436: Non-monospace font + visible whitespace + After decorator causes line to "jump"', () => {
 
-		let lineContent = '';
+		let lineContent = '\tbla';
 
 		let actual = renderViewLine(new RenderLineInput(
 			false,
 			lineContent,
 			false,
 			0,
-			[createPart(0, 3)],
-			[new LineDecoration(1, 2, 'before', true)],
+			[createPart(4, 3)],
+			[new LineDecoration(2, 3, 'before', InlineDecorationType.Before)],
 			4,
 			10,
 			-1,
@@ -1073,7 +1074,123 @@ suite('viewLineRenderer.renderLine 2', () => {
 
 		let expected = [
 			'<span>',
-			'<span class="before">\u00a0</span>',
+			'<span class="vs-whitespace" style="width:40px">\u2192\u00a0\u00a0\u00a0</span>',
+			'<span class="mtk3 before">b</span>',
+			'<span class="mtk3">la</span>',
+			'</span>'
+		].join('');
+
+		assert.deepEqual(actual.html, expected);
+	});
+
+	test('issue #30133: Empty lines don\'t render inline decorations', () => {
+
+		let lineContent = '';
+
+		let actual = renderViewLine(new RenderLineInput(
+			false,
+			lineContent,
+			false,
+			0,
+			[createPart(0, 3)],
+			[new LineDecoration(1, 2, 'before', InlineDecorationType.Before)],
+			4,
+			10,
+			-1,
+			'all',
+			false,
+			true
+		));
+
+		let expected = [
+			'<span>',
+			'<span class="before"></span>',
+			'</span>'
+		].join('');
+
+		assert.deepEqual(actual.html, expected);
+	});
+
+	test('issue #37208: Collapsing bullet point containing emoji in Markdown document results in [??] character', () => {
+
+		let actual = renderViewLine(new RenderLineInput(
+			true,
+			'  1. 🙏',
+			false,
+			0,
+			[createPart(7, 3)],
+			[new LineDecoration(7, 8, 'inline-folded', InlineDecorationType.After)],
+			2,
+			10,
+			10000,
+			'none',
+			false,
+			false
+		));
+
+		let expected = [
+			'<span>',
+			'<span class="mtk3">\u00a0\u00a01.\u00a0</span>',
+			'<span class="mtk3 inline-folded">🙏</span>',
+			'</span>'
+		].join('');
+
+		assert.deepEqual(actual.html, expected);
+	});
+
+	test('issue #37401: Allow both before and after decorations on empty line', () => {
+
+		let actual = renderViewLine(new RenderLineInput(
+			true,
+			'',
+			false,
+			0,
+			[createPart(0, 3)],
+			[
+				new LineDecoration(1, 2, 'before', InlineDecorationType.Before),
+				new LineDecoration(0, 1, 'after', InlineDecorationType.After),
+			],
+			2,
+			10,
+			10000,
+			'none',
+			false,
+			false
+		));
+
+		let expected = [
+			'<span>',
+			'<span class="before after"></span>',
+			'</span>'
+		].join('');
+
+		assert.deepEqual(actual.html, expected);
+	});
+
+	test('issue #38935: GitLens end-of-line blame no longer rendering', () => {
+
+		let actual = renderViewLine(new RenderLineInput(
+			true,
+			'\t}',
+			false,
+			0,
+			[createPart(2, 3)],
+			[
+				new LineDecoration(3, 3, 'ced-TextEditorDecorationType2-5e9b9b3f-3 ced-TextEditorDecorationType2-3', InlineDecorationType.Before),
+				new LineDecoration(3, 3, 'ced-TextEditorDecorationType2-5e9b9b3f-4 ced-TextEditorDecorationType2-4', InlineDecorationType.After),
+			],
+			4,
+			10,
+			10000,
+			'none',
+			false,
+			false
+		));
+
+		let expected = [
+			'<span>',
+			'<span class="mtk3">\u00a0\u00a0\u00a0\u00a0}</span>',
+			'<span class="ced-TextEditorDecorationType2-5e9b9b3f-3 ced-TextEditorDecorationType2-3 ced-TextEditorDecorationType2-5e9b9b3f-4 ced-TextEditorDecorationType2-4"></span>',
 			'</span>'
 		].join('');
 

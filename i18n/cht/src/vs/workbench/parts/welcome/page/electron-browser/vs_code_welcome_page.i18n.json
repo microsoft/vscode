@@ -9,7 +9,7 @@
 	"welcomePage.start": "開始",
 	"welcomePage.newFile": "新增檔案",
 	"welcomePage.openFolder": "開啟資料夾...",
-	"welcomePage.cloneGitRepository": "複製 Git 存放庫...",
+	"welcomePage.addWorkspaceFolder": "新增工作區資料夾...",
 	"welcomePage.recent": "最近使用",
 	"welcomePage.moreRecent": "更多...",
 	"welcomePage.noRecentFolders": "沒有最近使用的資料夾",

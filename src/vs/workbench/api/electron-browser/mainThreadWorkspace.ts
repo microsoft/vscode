@@ -6,15 +6,14 @@
 
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
-import { ISearchService, QueryType, ISearchQuery } from 'vs/platform/search/common/search';
+import { ISearchService, QueryType, ISearchQuery, IFolderQuery, ISearchConfiguration } from 'vs/platform/search/common/search';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { MainThreadWorkspaceShape, ExtHostWorkspaceShape, ExtHostContext, MainContext, IExtHostContext } from '../node/extHost.protocol';
-import { IFileService } from 'vs/platform/files/common/files';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
-import { IExperimentService } from 'vs/platform/telemetry/common/experiments';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 @extHostNamedCustomer(MainContext.MainThreadWorkspace)
 export class MainThreadWorkspace implements MainThreadWorkspaceShape {
@@ -28,10 +27,9 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@ISearchService private readonly _searchService: ISearchService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@IExperimentService private _experimentService: IExperimentService,
-		@IFileService private readonly _fileService: IFileService
+		@IConfigurationService private _configurationService: IConfigurationService
 	) {
-		this._proxy = extHostContext.get(ExtHostContext.ExtHostWorkspace);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostWorkspace);
 		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._toDispose);
 		this._contextService.onDidChangeWorkbenchState(this._onDidChangeWorkspace, this, this._toDispose);
 	}
@@ -53,18 +51,41 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- search ---
 
-	$startSearch(include: string, exclude: string, maxResults: number, requestId: number): Thenable<URI[]> {
+	$startSearch(includePattern: string, includeFolder: string, excludePattern: string, maxResults: number, requestId: number): Thenable<URI[]> {
 		const workspace = this._contextService.getWorkspace();
 		if (!workspace.folders.length) {
 			return undefined;
 		}
+
+		let folderQueries: IFolderQuery[];
+		if (typeof includeFolder === 'string') {
+			folderQueries = [{ folder: URI.file(includeFolder) }]; // if base provided, only search in that folder
+		} else {
+			folderQueries = workspace.folders.map(folder => ({ folder: folder.uri })); // absolute pattern: search across all folders
+		}
+
+		if (!folderQueries) {
+			return undefined; // invalid query parameters
+		}
+
+		const useRipgrep = folderQueries.every(folderQuery => {
+			const folderConfig = this._configurationService.getValue<ISearchConfiguration>({ resource: folderQuery.folder });
+			return folderConfig.search.useRipgrep;
+		});
+
+		const ignoreSymlinks = folderQueries.every(folderQuery => {
+			const folderConfig = this._configurationService.getValue<ISearchConfiguration>({ resource: folderQuery.folder });
+			return !folderConfig.search.followSymlinks;
+		});
+
 		const query: ISearchQuery = {
-			folderQueries: workspace.folders.map(folder => ({ folder: folder.uri })),
+			folderQueries,
 			type: QueryType.File,
 			maxResults,
-			includePattern: { [include]: true },
-			excludePattern: { [exclude]: true },
-			useRipgrep: this._experimentService.getExperiments().ripgrepQuickSearch
+			includePattern: { [typeof includePattern === 'string' ? includePattern : undefined]: true },
+			excludePattern: { [typeof excludePattern === 'string' ? excludePattern : undefined]: true },
+			useRipgrep,
+			ignoreSymlinks
 		};
 		this._searchService.extendQuery(query);
 
@@ -102,4 +123,3 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		});
 	}
 }
-

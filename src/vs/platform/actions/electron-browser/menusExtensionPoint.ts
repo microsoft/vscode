@@ -37,8 +37,10 @@ namespace schema {
 			case 'editor/title/context': return MenuId.EditorTitleContext;
 			case 'debug/callstack/context': return MenuId.DebugCallStackContext;
 			case 'scm/title': return MenuId.SCMTitle;
+			case 'scm/sourceControl': return MenuId.SCMSourceControl;
 			case 'scm/resourceGroup/context': return MenuId.SCMResourceGroupContext;
 			case 'scm/resourceState/context': return MenuId.SCMResourceContext;
+			case 'scm/change/title': return MenuId.SCMChangeContext;
 			case 'view/title': return MenuId.ViewTitle;
 			case 'view/item/context': return MenuId.ViewItemContext;
 		}
@@ -137,6 +139,11 @@ namespace schema {
 			},
 			'scm/title': {
 				description: localize('menus.scmTitle', "The Source Control title menu"),
+				type: 'array',
+				items: menuItem
+			},
+			'scm/sourceControl': {
+				description: localize('menus.scmSourceControl', "The Source Control menu"),
 				type: 'array',
 				items: menuItem
 			},

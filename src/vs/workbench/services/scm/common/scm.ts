@@ -11,6 +11,8 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import Event from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Command } from 'vs/editor/common/modes';
+import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
+import { ISequence } from 'vs/base/common/sequence';
 
 export interface IBaselineResourceProvider {
 	getBaselineResource(resource: URI): TPromise<URI>;
@@ -24,17 +26,10 @@ export interface ISCMResourceDecorations {
 	tooltip?: string;
 	strikeThrough?: boolean;
 	faded?: boolean;
-}
 
-export interface ISCMResourceSplice {
-	start: number;
-	deleteCount: number;
-	resources: ISCMResource[];
-}
-
-export interface ISCMResourceCollection {
-	readonly resources: ISCMResource[];
-	readonly onDidSplice: Event<ISCMResourceSplice>;
+	source?: string;
+	letter?: string;
+	color?: ColorIdentifier;
 }
 
 export interface ISCMResource {
@@ -44,12 +39,12 @@ export interface ISCMResource {
 	open(): TPromise<void>;
 }
 
-export interface ISCMResourceGroup {
+export interface ISCMResourceGroup extends ISequence<ISCMResource> {
 	readonly provider: ISCMProvider;
 	readonly label: string;
 	readonly id: string;
-	readonly resourceCollection: ISCMResourceCollection;
 	readonly hideWhenEmpty: boolean;
+	readonly onDidChange: Event<void>;
 }
 
 export interface ISCMProvider extends IDisposable {
@@ -57,7 +52,9 @@ export interface ISCMProvider extends IDisposable {
 	readonly id: string;
 	readonly contextValue: string;
 
-	readonly resources: ISCMResourceGroup[];
+	readonly groups: ISequence<ISCMResourceGroup>;
+
+	// TODO@Joao: remove
 	readonly onDidChangeResources: Event<void>;
 
 	readonly rootUri?: URI;
@@ -74,6 +71,11 @@ export interface ISCMProvider extends IDisposable {
 export interface ISCMInput {
 	value: string;
 	readonly onDidChange: Event<string>;
+
+	placeholder: string;
+	readonly onDidChangePlaceholder: Event<string>;
+
+	lineWarningLength: number | undefined;
 }
 
 export interface ISCMRepository extends IDisposable {
@@ -88,7 +90,6 @@ export interface ISCMService {
 	readonly _serviceBrand: any;
 	readonly onDidAddRepository: Event<ISCMRepository>;
 	readonly onDidRemoveRepository: Event<ISCMRepository>;
-	readonly onDidChangeRepository: Event<ISCMRepository>;
 
 	readonly repositories: ISCMRepository[];
 

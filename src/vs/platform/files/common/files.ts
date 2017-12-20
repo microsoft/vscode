@@ -8,13 +8,13 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import paths = require('vs/base/common/paths');
 import URI from 'vs/base/common/uri';
 import glob = require('vs/base/common/glob');
-import events = require('vs/base/common/events');
 import { isLinux } from 'vs/base/common/platform';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 import { beginsWithIgnoreCase } from 'vs/base/common/strings';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { isEqualOrParent, isEqual } from 'vs/base/common/resources';
 
 export const IFileService = createDecorator<IFileService>('fileService');
 
@@ -33,11 +33,14 @@ export interface IFileService {
 	onAfterOperation: Event<FileOperationEvent>;
 
 	/**
-	 *
+	 * Registeres a file system provider for a certain scheme.
 	 */
-	registerProvider?(authority: string, provider: IFileSystemProvider): IDisposable;
+	registerProvider?(scheme: string, provider: IFileSystemProvider): IDisposable;
 
-	supportResource?(resource: URI): boolean;
+	/**
+	 * Checks if this file service can handle the given resource.
+	 */
+	canHandleResource?(resource: URI): boolean;
 
 	/**
 	 * Resolve the properties of a file identified by the resource.
@@ -178,7 +181,7 @@ export interface IFileSystemProvider {
 
 	// more...
 	//
-	utimes(resource: URI, mtime: number): TPromise<IStat>;
+	utimes(resource: URI, mtime: number, atime: number): TPromise<IStat>;
 	stat(resource: URI): TPromise<IStat>;
 	read(resource: URI, offset: number, count: number, progress: IProgress<Uint8Array>): TPromise<number>;
 	write(resource: URI, content: Uint8Array): TPromise<void>;
@@ -241,12 +244,11 @@ export interface IFileChange {
 	resource: URI;
 }
 
-export class FileChangesEvent extends events.Event {
+export class FileChangesEvent {
+
 	private _changes: IFileChange[];
 
 	constructor(changes: IFileChange[]) {
-		super();
-
 		this._changes = changes;
 	}
 
@@ -271,10 +273,10 @@ export class FileChangesEvent extends events.Event {
 
 			// For deleted also return true when deleted folder is parent of target path
 			if (type === FileChangeType.DELETED) {
-				return paths.isEqualOrParent(resource.fsPath, change.resource.fsPath, !isLinux /* ignorecase */);
+				return isEqualOrParent(resource, change.resource, !isLinux /* ignorecase */);
 			}
 
-			return paths.isEqual(resource.fsPath, change.resource.fsPath, !isLinux /* ignorecase */);
+			return isEqual(resource, change.resource, !isLinux /* ignorecase */);
 		});
 	}
 
@@ -445,6 +447,14 @@ export interface IContent extends IBaseStat {
 	encoding: string;
 }
 
+// this should eventually replace IContent such
+// that we have a clear separation between content
+// and metadata (TODO@Joh, TODO@Ben)
+export interface IContentData {
+	encoding: string;
+	stream: IStringStream;
+}
+
 /**
  * A Stream emitting strings.
  */
@@ -496,6 +506,12 @@ export interface IResolveContentOptions {
 	 * The optional guessEncoding parameter allows to guess encoding from content of the file.
 	 */
 	autoGuessEncoding?: boolean;
+
+	/**
+	 * Is an integer specifying where to begin reading from in the file. If position is null,
+	 * data will be read from the current file position.
+	 */
+	position?: number;
 }
 
 export interface IUpdateContentOptions {
@@ -514,6 +530,12 @@ export interface IUpdateContentOptions {
 	 * Whether to overwrite a file even if it is readonly.
 	 */
 	overwriteReadonly?: boolean;
+
+	/**
+	 * Wether to write to the file as elevated (admin) user. When setting this option a prompt will
+	 * ask the user to authenticate as super user.
+	 */
+	writeElevated?: boolean;
 
 	/**
 	 * The last known modification time of the file. This can be used to prevent dirty writes.
@@ -546,7 +568,7 @@ export interface IImportResult {
 }
 
 export class FileOperationError extends Error {
-	constructor(message: string, public fileOperationResult: FileOperationResult) {
+	constructor(message: string, public fileOperationResult: FileOperationResult, public options?: IResolveContentOptions & IUpdateContentOptions & ICreateFileOptions) {
 		super(message);
 	}
 }
@@ -559,15 +581,10 @@ export enum FileOperationResult {
 	FILE_MODIFIED_SINCE,
 	FILE_MOVE_CONFLICT,
 	FILE_READ_ONLY,
+	FILE_PERMISSION_DENIED,
 	FILE_TOO_LARGE,
 	FILE_INVALID_PATH
 }
-
-// See https://github.com/Microsoft/vscode/issues/30180
-const WIN32_MAX_FILE_SIZE = 300 * 1024 * 1024; // 300 MB
-const GENERAL_MAX_FILE_SIZE = 16 * 1024 * 1024 * 1024; // 16 GB
-
-export const MAX_FILE_SIZE = (typeof process === 'object' ? (process.arch === 'ia32' ? WIN32_MAX_FILE_SIZE : GENERAL_MAX_FILE_SIZE) : WIN32_MAX_FILE_SIZE);
 
 export const AutoSaveConfiguration = {
 	OFF: 'off',
@@ -583,6 +600,9 @@ export const HotExitConfiguration = {
 };
 
 export const CONTENT_CHANGE_EVENT_BUFFER_DELAY = 1000;
+
+export const FILES_ASSOCIATIONS_CONFIG = 'files.associations';
+export const FILES_EXCLUDE_CONFIG = 'files.exclude';
 
 export interface IFilesConfiguration {
 	files: {

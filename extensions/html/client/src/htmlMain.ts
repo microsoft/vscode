@@ -6,13 +6,12 @@
 
 import * as path from 'path';
 
-import { languages, ExtensionContext, IndentAction, Position, TextDocument, Color, ColorInformation, ColorPresentation } from 'vscode';
+import { languages, ExtensionContext, IndentAction, Position, TextDocument, Color, ColorInformation, ColorPresentation, Range, CompletionItem, CompletionItemKind, SnippetString } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams } from 'vscode-languageclient';
 import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
-import { ConfigurationFeature } from 'vscode-languageclient/lib/configuration.proposed';
 import { DocumentColorRequest, DocumentColorParams, ColorPresentationRequest, ColorPresentationParams } from 'vscode-languageserver-protocol/lib/protocol.colorProvider.proposed';
 
 import * as nls from 'vscode-nls';
@@ -32,7 +31,7 @@ export function activate(context: ExtensionContext) {
 	let toDispose = context.subscriptions;
 
 	let packageInfo = getPackageInfo(context);
-	let telemetryReporter: TelemetryReporter = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
+	let telemetryReporter: TelemetryReporter | null = packageInfo && new TelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
 	if (telemetryReporter) {
 		toDispose.push(telemetryReporter);
 	}
@@ -40,7 +39,7 @@ export function activate(context: ExtensionContext) {
 	// The server is implemented in node
 	let serverModule = context.asAbsolutePath(path.join('server', 'out', 'htmlServerMain.js'));
 	// The debug options for the server
-	let debugOptions = { execArgv: ['--nolazy', '--inspect=6004'] };
+	let debugOptions = { execArgv: ['--nolazy', '--inspect=6045'] };
 
 	// If the extension is launch in debug mode the debug server options are use
 	// Otherwise the run options are used
@@ -65,7 +64,7 @@ export function activate(context: ExtensionContext) {
 
 	// Create the language client and start the client.
 	let client = new LanguageClient('html', localize('htmlserver.name', 'HTML Language Server'), serverOptions, clientOptions);
-	client.registerFeature(new ConfigurationFeature(client));
+	client.registerProposedFeatures();
 
 	let disposable = client.start();
 	toDispose.push(disposable);
@@ -83,10 +82,11 @@ export function activate(context: ExtensionContext) {
 					});
 				});
 			},
-			provideColorPresentations(document: TextDocument, colorInfo: ColorInformation): Thenable<ColorPresentation[]> {
+			provideColorPresentations(color, context): Thenable<ColorPresentation[]> {
 				let params: ColorPresentationParams = {
-					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
-					colorInfo: { range: client.code2ProtocolConverter.asRange(colorInfo.range), color: colorInfo.color }
+					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(context.document),
+					color,
+					range: client.code2ProtocolConverter.asRange(context.range)
 				};
 				return client.sendRequest(ColorPresentationRequest.type, params).then(presentations => {
 					return presentations.map(p => {
@@ -124,7 +124,7 @@ export function activate(context: ExtensionContext) {
 		onEnterRules: [
 			{
 				beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
-				afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>$/i,
+				afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>/i,
 				action: { indentAction: IndentAction.IndentOutdent }
 			},
 			{
@@ -139,7 +139,7 @@ export function activate(context: ExtensionContext) {
 		onEnterRules: [
 			{
 				beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
-				afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>$/i,
+				afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>/i,
 				action: { indentAction: IndentAction.IndentOutdent }
 			},
 			{
@@ -154,7 +154,7 @@ export function activate(context: ExtensionContext) {
 		onEnterRules: [
 			{
 				beforeText: new RegExp(`<(?!(?:${EMPTY_ELEMENTS.join('|')}))([_:\\w][_:\\w-.\\d]*)([^/>]*(?!/)>)[^<]*$`, 'i'),
-				afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>$/i,
+				afterText: /^<\/([_:\w][_:\w-.\d]*)\s*>/i,
 				action: { indentAction: IndentAction.IndentOutdent }
 			},
 			{
@@ -163,9 +163,34 @@ export function activate(context: ExtensionContext) {
 			}
 		],
 	});
+
+	const regionCompletionRegExpr = /^(\s*)(<(!(-(-\s*(#\w*)?)?)?)?)?/;
+	languages.registerCompletionItemProvider(documentSelector, {
+		provideCompletionItems(doc, pos) {
+			let lineUntilPos = doc.getText(new Range(new Position(pos.line, 0), pos));
+			let match = lineUntilPos.match(regionCompletionRegExpr);
+			if (match) {
+				let range = new Range(new Position(pos.line, match[1].length), pos);
+				let beginProposal = new CompletionItem('#region', CompletionItemKind.Snippet);
+				beginProposal.range = range;
+				beginProposal.insertText = new SnippetString('<!-- #region $1-->');
+				beginProposal.documentation = localize('folding.start', 'Folding Region Start');
+				beginProposal.filterText = match[2];
+				beginProposal.sortText = 'za';
+				let endProposal = new CompletionItem('#endregion', CompletionItemKind.Snippet);
+				endProposal.range = range;
+				endProposal.insertText = new SnippetString('<!-- #endregion -->');
+				endProposal.documentation = localize('folding.end', 'Folding Region End');
+				endProposal.filterText = match[2];
+				endProposal.sortText = 'zb';
+				return [beginProposal, endProposal];
+			}
+			return null;
+		}
+	});
 }
 
-function getPackageInfo(context: ExtensionContext): IPackageInfo {
+function getPackageInfo(context: ExtensionContext): IPackageInfo | null {
 	let extensionPackage = require(context.asAbsolutePath('./package.json'));
 	if (extensionPackage) {
 		return {

@@ -25,7 +25,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 		@ITaskService private _taskService: ITaskService,
 		@IWorkspaceContextService private _workspaceContextServer: IWorkspaceContextService
 	) {
-		this._proxy = extHostContext.get(ExtHostContext.ExtHostTask);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTask);
 		this._activeHandles = Object.create(null);
 	}
 
@@ -44,6 +44,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 						if (ContributedTask.is(task)) {
 							let uri = (task._source as any as ExtensionTaskSourceTransfer).__workspaceFolder;
 							if (uri) {
+								delete (task._source as any as ExtensionTaskSourceTransfer).__workspaceFolder;
 								(task._source as any).workspaceFolder = this._workspaceContextServer.getWorkspaceFolder(uri);
 							}
 						}
@@ -53,12 +54,12 @@ export class MainThreadTask implements MainThreadTaskShape {
 			}
 		});
 		this._activeHandles[handle] = true;
-		return TPromise.as<void>(undefined);
+		return TPromise.wrap<void>(undefined);
 	}
 
 	public $unregisterTaskProvider(handle: number): TPromise<any> {
 		this._taskService.unregisterTaskProvider(handle);
 		delete this._activeHandles[handle];
-		return TPromise.as<void>(undefined);
+		return TPromise.wrap<void>(undefined);
 	}
 }

@@ -9,7 +9,6 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IMessageService } from 'vs/platform/message/common/message';
-import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
 import { IWindowsService, IWindowService, IWindowsConfiguration } from 'vs/platform/windows/common/windows';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { localize } from 'vs/nls';
@@ -17,6 +16,10 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import URI from 'vs/base/common/uri';
+import { isEqual } from 'vs/base/common/resources';
+import { isLinux } from 'vs/base/common/platform';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
 interface IConfiguration extends IWindowsConfiguration {
 	update: { channel: string; };
@@ -32,7 +35,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	private updateChannel: string;
 	private enableCrashReporter: boolean;
 
-	private firstFolderPath: string;
+	private firstFolderResource: URI;
 	private extensionHostRestarter: RunOnceScheduler;
 
 	private onDidChangeWorkspaceFoldersUnbind: IDisposable;
@@ -41,24 +44,23 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		@IWindowsService private windowsService: IWindowsService,
 		@IWindowService private windowService: IWindowService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IPreferencesService private preferencesService: IPreferencesService,
 		@IEnvironmentService private envService: IEnvironmentService,
 		@IMessageService private messageService: IMessageService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IExtensionService private extensionService: IExtensionService
 	) {
 		const workspace = this.contextService.getWorkspace();
-		this.firstFolderPath = workspace.folders.length > 0 ? workspace.folders[0].uri.fsPath : void 0;
+		this.firstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : void 0;
 		this.extensionHostRestarter = new RunOnceScheduler(() => this.extensionService.restartExtensionHost(), 10);
 
-		this.onConfigurationChange(configurationService.getConfiguration<IConfiguration>(), false);
+		this.onConfigurationChange(configurationService.getValue<IConfiguration>(), false);
 		this.handleWorkbenchState();
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(this.configurationService.getConfiguration<IConfiguration>(), true)));
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(this.configurationService.getValue<IConfiguration>(), true)));
 		this.toDispose.push(this.contextService.onDidChangeWorkbenchState(() => setTimeout(() => this.handleWorkbenchState())));
 	}
 
@@ -94,7 +96,7 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 			this.doConfirm(
 				localize('relaunchSettingMessage', "A setting has changed that requires a restart to take effect."),
 				localize('relaunchSettingDetail', "Press the restart button to restart {0} and enable the setting.", this.envService.appNameLong),
-				localize('restart', "Restart"),
+				localize('restart', "&&Restart"),
 				() => this.windowsService.relaunch(Object.create(null))
 			);
 		}
@@ -104,6 +106,12 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 
 		// React to folder changes when we are in workspace state
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+
+			// Update our known first folder path if we entered workspace
+			const workspace = this.contextService.getWorkspace();
+			this.firstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : void 0;
+
+			// Install workspace folder listener
 			if (!this.onDidChangeWorkspaceFoldersUnbind) {
 				this.onDidChangeWorkspaceFoldersUnbind = this.contextService.onDidChangeWorkspaceFolders(() => this.onDidChangeWorkspaceFolders());
 			}
@@ -119,9 +127,9 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 		const workspace = this.contextService.getWorkspace();
 
 		// Restart extension host if first root folder changed (impact on deprecated workspace.rootPath API)
-		const newFirstFolderPath = workspace.folders.length > 0 ? workspace.folders[0].uri.fsPath : void 0;
-		if (this.firstFolderPath !== newFirstFolderPath) {
-			this.firstFolderPath = newFirstFolderPath;
+		const newFirstFolderResource = workspace.folders.length > 0 ? workspace.folders[0].uri : void 0;
+		if (!isEqual(this.firstFolderResource, newFirstFolderResource, !isLinux)) {
+			this.firstFolderResource = newFirstFolderResource;
 
 			this.extensionHostRestarter.schedule(); // buffer calls to extension host restart
 		}
@@ -130,22 +138,20 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 	private doConfirm(message: string, detail: string, primaryButton: string, confirmed: () => void): void {
 		this.windowService.isFocused().then(focused => {
 			if (focused) {
-				const confirm = this.messageService.confirm({
+				return this.messageService.confirm({
 					type: 'info',
 					message,
 					detail,
 					primaryButton
+				}).then(confirm => {
+					if (confirm) {
+						confirmed();
+					}
 				});
-
-				if (confirm) {
-					confirmed();
-				}
 			}
-		});
-	}
 
-	public getId(): string {
-		return 'workbench.relauncher';
+			return void 0;
+		});
 	}
 
 	public dispose(): void {
@@ -154,4 +160,4 @@ export class SettingsChangeRelauncher implements IWorkbenchContribution {
 }
 
 const workbenchRegistry = <IWorkbenchContributionsRegistry>Registry.as(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(SettingsChangeRelauncher);
+workbenchRegistry.registerWorkbenchContribution(SettingsChangeRelauncher, LifecyclePhase.Running);

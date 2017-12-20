@@ -14,13 +14,11 @@ import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
 import { HtmlInput, HtmlInputOptions } from '../common/htmlInput';
 import { HtmlPreviewPart } from 'vs/workbench/parts/html/browser/htmlPreviewPart';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorDescriptor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
-import { WebviewElement } from 'vs/workbench/parts/html/browser/webview';
 import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
+import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 
 function getActivePreviewsForResource(accessor: ServicesAccessor, resource: URI | string) {
 	const uri = resource instanceof URI ? resource : URI.parse(resource);
@@ -31,10 +29,10 @@ function getActivePreviewsForResource(accessor: ServicesAccessor, resource: URI 
 }
 
 // --- Register Editor
-(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(HtmlPreviewPart.ID,
-	localize('html.editor.label', "Html Preview"),
-	'vs/workbench/parts/html/browser/htmlPreviewPart',
-	'HtmlPreviewPart'),
+(<IEditorRegistry>Registry.as(EditorExtensions.Editors)).registerEditor(new EditorDescriptor(
+	HtmlPreviewPart,
+	HtmlPreviewPart.ID,
+	localize('html.editor.label', "Html Preview")),
 	[new SyncDescriptor(HtmlInput)]);
 
 // --- Register Commands
@@ -119,7 +117,7 @@ CommandsRegistry.registerCommand('_webview.openDevTools', function () {
 	const elements = document.querySelectorAll('webview.ready');
 	for (let i = 0; i < elements.length; i++) {
 		try {
-			(elements.item(i) as WebviewElement).openDevTools();
+			(elements.item(i) as Electron.WebviewTag).openDevTools();
 		} catch (e) {
 			console.error(e);
 		}

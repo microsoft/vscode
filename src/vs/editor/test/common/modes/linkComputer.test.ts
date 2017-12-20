@@ -190,4 +190,11 @@ suite('Editor Modes - Link Computer', () => {
 			'           http://***/_api/web/lists/GetByTitle(\'Teambuildingaanvragen\')/items  '
 		);
 	});
+
+	test('issue #7855', () => {
+		assertLink(
+			'7. At this point, ServiceMain has been called.  There is no functionality presently in ServiceMain, but you can consult the [MSDN documentation](https://msdn.microsoft.com/en-us/library/windows/desktop/ms687414(v=vs.85).aspx) to add functionality as desired!',
+			'                                                                                                                                                 https://msdn.microsoft.com/en-us/library/windows/desktop/ms687414(v=vs.85).aspx                                  '
+		);
+	});
 });

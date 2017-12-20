@@ -21,20 +21,18 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
-import { Verbosity } from 'vs/platform/editor/common/editor';
+import { Verbosity, IRevertOptions } from 'vs/platform/editor/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 
 /**
  * A file editor input is the input type for the file editor of file system resources.
  */
 export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	private forceOpenAsBinary: boolean;
-
 	private textModelReference: TPromise<IReference<ITextEditorModel>>;
-
 	private name: string;
-
 	private toUnbind: IDisposable[];
 
 	/**
@@ -47,7 +45,8 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@ITextModelService private textModelResolverService: ITextModelService
+		@ITextModelService private textModelResolverService: ITextModelService,
+		@IHashService private hashService: IHashService
 	) {
 		super();
 
@@ -126,7 +125,6 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	@memoize
 	private get shortDescription(): string {
-
 		return paths.basename(labels.getPathLabel(resources.dirname(this.resource), void 0, this.environmentService));
 	}
 
@@ -216,7 +214,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return model.isDirty();
 	}
 
-	public confirmSave(): ConfirmResult {
+	public confirmSave(): TPromise<ConfirmResult> {
 		return this.textFileService.confirmSave([this.resource]);
 	}
 
@@ -224,8 +222,8 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		return this.textFileService.save(this.resource);
 	}
 
-	public revert(): TPromise<boolean> {
-		return this.textFileService.revert(this.resource);
+	public revert(options?: IRevertOptions): TPromise<boolean> {
+		return this.textFileService.revert(this.resource, options);
 	}
 
 	public getPreferredEditorId(candidates: string[]): string {
@@ -242,7 +240,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 		// Resolve as text
 		return this.textFileService.models.loadOrCreate(this.resource, { encoding: this.preferredEncoding, reload: refresh }).then(model => {
 
-			// TODO@Ben this is a bit ugly, because we first resolve the model and then resolve a model reference. the reason being that binary
+			// This is a bit ugly, because we first resolve the model and then resolve a model reference. the reason being that binary
 			// or very large files do not resolve to a text file model but should be opened as binary files without text. First calling into
 			// loadOrCreate ensures we are not creating model references for these kind of resources.
 			// In addition we have a bit of payload to take into account (encoding, reload) that the text resolver does not handle yet.
@@ -264,9 +262,7 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 	}
 
 	private resolveAsBinary(): TPromise<BinaryEditorModel> {
-		return this.instantiationService.createInstance(BinaryEditorModel, this.resource, this.getName())
-			.load()
-			.then(x => x as BinaryEditorModel);
+		return this.instantiationService.createInstance(BinaryEditorModel, this.resource, this.getName()).load().then(m => m as BinaryEditorModel);
 	}
 
 	public isResolved(): boolean {
@@ -275,8 +271,13 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	public getTelemetryDescriptor(): object {
 		const descriptor = super.getTelemetryDescriptor();
-		descriptor['resource'] = telemetryURIDescriptor(this.getResource());
+		descriptor['resource'] = telemetryURIDescriptor(this.getResource(), path => this.hashService.createSHA1(path));
 
+		/* __GDPR__FRAGMENT__
+			"EditorTelemetryDescriptor" : {
+				"resource": { "${inline}": [ "${URIDescriptor}" ] }
+			}
+		*/
 		return descriptor;
 	}
 

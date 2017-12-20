@@ -10,34 +10,32 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
-import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
 import { IPartService, Position } from 'vs/workbench/services/part/common/partService';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 export class ToggleSidebarPositionAction extends Action {
 
-	public static ID = 'workbench.action.toggleSidebarPosition';
-	public static LABEL = nls.localize('toggleLocation', "Toggle Side Bar Location");
+	public static readonly ID = 'workbench.action.toggleSidebarPosition';
+	public static readonly LABEL = nls.localize('toggleLocation', "Toggle Side Bar Location");
 
-	private static sidebarPositionConfigurationKey = 'workbench.sideBar.location';
+	private static readonly sidebarPositionConfigurationKey = 'workbench.sideBar.location';
 
 	constructor(
 		id: string,
 		label: string,
 		@IPartService private partService: IPartService,
-		@IConfigurationEditingService private configurationEditingService: IConfigurationEditingService
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(id, label);
 
-		this.enabled = !!this.partService && !!this.configurationEditingService;
+		this.enabled = !!this.partService && !!this.configurationService;
 	}
 
 	public run(): TPromise<any> {
 		const position = this.partService.getSideBarPosition();
 		const newPositionValue = (position === Position.LEFT) ? 'right' : 'left';
 
-		this.configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: ToggleSidebarPositionAction.sidebarPositionConfigurationKey, value: newPositionValue });
-
-		return TPromise.as(null);
+		return this.configurationService.updateValue(ToggleSidebarPositionAction.sidebarPositionConfigurationKey, newPositionValue, ConfigurationTarget.USER);
 	}
 }
 

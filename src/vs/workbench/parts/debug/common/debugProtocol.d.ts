@@ -178,7 +178,7 @@ declare module DebugProtocol {
 		// event: 'breakpoint';
 		body: {
 			/** The reason for the event.
-				Values: 'changed', 'new', etc.
+				Values: 'changed', 'new', 'removed', etc.
 			*/
 			reason: string;
 			/** The breakpoint. */
@@ -251,8 +251,8 @@ declare module DebugProtocol {
 		cwd: string;
 		/** List of arguments. The first argument is the command to run. */
 		args: string[];
-		/** Environment key-value pairs that are added to the default environment. */
-		env?: { [key: string]: string; };
+		/** Environment key-value pairs that are added to or removed from the default environment. */
+		env?: { [key: string]: string | null; };
 	}
 
 	/** Response to Initialize request. */
@@ -283,6 +283,8 @@ declare module DebugProtocol {
 		clientID?: string;
 		/** The ID of the debug adapter. */
 		adapterID: string;
+		/** The ISO-639 locale of the (frontend) client using this adapter, e.g. en-US or de-CH. */
+		locale?: string;
 		/** If true all line numbers are 1-based (default). */
 		linesStartAt1?: boolean;
 		/** If true all column numbers are 1-based (default). */
@@ -1273,7 +1275,18 @@ declare module DebugProtocol {
 	/** Optional properties of a variable that can be used to determine how to render the variable in the UI. */
 	export interface VariablePresentationHint {
 		/** The kind of variable. Before introducing additional values, try to use the listed values.
-			Values: 'property', 'method', 'class', 'data', 'event', 'baseClass', 'innerClass', 'interface', 'mostDerivedClass', etc.
+			Values:
+			'property': Indicates that the object is a property.
+			'method': Indicates that the object is a method.
+			'class': Indicates that the object is a class.
+			'data': Indicates that the object is data.
+			'event': Indicates that the object is an event.
+			'baseClass': Indicates that the object is a base class.
+			'innerClass': Indicates that the object is an inner class.
+			'interface': Indicates that the object is an interface.
+			'mostDerivedClass': Indicates that the object is the most derived class.
+			'virtual': Indicates that the object is virtual, that means it is a synthetic object introduced by the adapter for rendering purposes, e.g. an index range for large arrays.
+			etc.
 		*/
 		kind?: string;
 		/** Set of attributes represented as an array of strings. Before introducing additional values, try to use the listed values.

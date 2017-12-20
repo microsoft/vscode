@@ -54,11 +54,6 @@ class ProblemReporter implements IProblemReporter {
 		this.receivedMessage = true;
 		this.lastMessage = message;
 	}
-
-	public clearOutput(): void {
-		this.receivedMessage = false;
-		this.lastMessage = undefined;
-	}
 }
 
 class ConfiguationBuilder {
@@ -204,12 +199,12 @@ class CustomTaskBuilder {
 
 	public group(value: Tasks.TaskGroup): CustomTaskBuilder {
 		this.result.group = value;
-		this.result.isDefaultGroupEntry = false;
+		this.result.groupType = Tasks.GroupType.user;
 		return this;
 	}
 
-	public isPrimary(value: boolean): CustomTaskBuilder {
-		this.result.isDefaultGroupEntry = value;
+	public groupType(value: Tasks.GroupType): CustomTaskBuilder {
+		this.result.groupType = value;
 		return this;
 	}
 
@@ -240,7 +235,7 @@ class CustomTaskBuilder {
 
 class ProblemMatcherBuilder {
 
-	public static DEFAULT_UUID = UUID.generateUuid();
+	public static readonly DEFAULT_UUID = UUID.generateUuid();
 
 	public result: ProblemMatcher;
 
@@ -465,7 +460,7 @@ function assertTask(actual: Tasks.Task, expected: Tasks.Task) {
 	assert.strictEqual(typeof actual.problemMatchers, typeof expected.problemMatchers);
 	assert.strictEqual(actual.promptOnClose, expected.promptOnClose, 'promptOnClose');
 	assert.strictEqual(actual.group, expected.group, 'group');
-	assert.strictEqual(actual.isDefaultGroupEntry, expected.isDefaultGroupEntry, 'isPrimaryGroupEntry');
+	assert.strictEqual(actual.groupType, expected.groupType, 'groupType');
 	if (actual.problemMatchers && expected.problemMatchers) {
 		assert.strictEqual(actual.problemMatchers.length, expected.problemMatchers.length);
 		for (let i = 0; i < actual.problemMatchers.length; i++) {
@@ -1518,7 +1513,7 @@ suite('Tasks version 2.0.0', () => {
 		let builder = new ConfiguationBuilder();
 		builder.task('dir', 'dir').
 			group(Tasks.TaskGroup.Build).
-			isPrimary(true).
+			groupType(Tasks.GroupType.default).
 			command().suppressTaskName(true).
 			runtime(Tasks.RuntimeType.Shell).
 			presentation().echo(true);
@@ -1578,7 +1573,7 @@ suite('Tasks version 2.0.0', () => {
 		let builder = new ConfiguationBuilder();
 		builder.task('dir', 'dir').
 			group(Tasks.TaskGroup.Build).
-			isPrimary(true).
+			groupType(Tasks.GroupType.default).
 			command().suppressTaskName(true).
 			runtime(Tasks.RuntimeType.Shell).
 			presentation().echo(true);

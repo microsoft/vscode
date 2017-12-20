@@ -1,18 +1,18 @@
 [
 	{
 		"c": "@",
-		"t": "source.dosbatch",
+		"t": "source.batchfile keyword.operator.at.batchfile",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
 		}
 	},
 	{
 		"c": "echo",
-		"t": "source.dosbatch keyword.command.dosbatch",
+		"t": "source.batchfile keyword.command.batchfile",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -23,7 +23,7 @@
 	},
 	{
 		"c": " off",
-		"t": "source.dosbatch",
+		"t": "source.batchfile",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -34,7 +34,7 @@
 	},
 	{
 		"c": "setlocal",
-		"t": "source.dosbatch keyword.command.dosbatch",
+		"t": "source.batchfile keyword.command.batchfile",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -45,7 +45,7 @@
 	},
 	{
 		"c": "title",
-		"t": "source.dosbatch keyword.command.dosbatch",
+		"t": "source.batchfile keyword.command.batchfile",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -56,7 +56,7 @@
 	},
 	{
 		"c": " VSCode Dev",
-		"t": "source.dosbatch",
+		"t": "source.batchfile",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -67,7 +67,7 @@
 	},
 	{
 		"c": "pushd",
-		"t": "source.dosbatch keyword.command.dosbatch",
+		"t": "source.batchfile keyword.command.batchfile",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -78,7 +78,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.dosbatch",
+		"t": "source.batchfile",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -89,7 +89,7 @@
 	},
 	{
 		"c": "%",
-		"t": "source.dosbatch variable.parameter.function.dosbatch variable.parameter.function.begin.shell",
+		"t": "source.batchfile variable.parameter.batchfile punctuation.definition.variable.batchfile",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -100,7 +100,7 @@
 	},
 	{
 		"c": "~dp0",
-		"t": "source.dosbatch variable.parameter.function.dosbatch",
+		"t": "source.batchfile variable.parameter.batchfile",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -111,7 +111,7 @@
 	},
 	{
 		"c": "\\..",
-		"t": "source.dosbatch",
+		"t": "source.batchfile",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -121,8 +121,8 @@
 		}
 	},
 	{
-		"c": ":: Node modules",
-		"t": "source.dosbatch comment.line.colons.dosbatch",
+		"c": "::",
+		"t": "source.batchfile comment.line.colon.batchfile punctuation.definition.comment.batchfile",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -132,8 +132,19 @@
 		}
 	},
 	{
-		"c": "if not exist",
-		"t": "source.dosbatch keyword.control.conditional.if.dosbatch",
+		"c": " Node modules",
+		"t": "source.batchfile comment.line.colon.batchfile",
+		"r": {
+			"dark_plus": "comment: #608B4E",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "if",
+		"t": "source.batchfile keyword.control.conditional.batchfile",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -143,8 +154,52 @@
 		}
 	},
 	{
+		"c": " ",
+		"t": "source.batchfile",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "not",
+		"t": "source.batchfile keyword.operator.logical.batchfile",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.batchfile",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "exist",
+		"t": "source.batchfile keyword.other.special-method.batchfile",
+		"r": {
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6"
+		}
+	},
+	{
 		"c": " node_modules ",
-		"t": "source.dosbatch",
+		"t": "source.batchfile",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -155,7 +210,7 @@
 	},
 	{
 		"c": "call",
-		"t": "source.dosbatch keyword.control.statement.dosbatch",
+		"t": "source.batchfile keyword.control.statement.batchfile",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -166,7 +221,7 @@
 	},
 	{
 		"c": " .\\scripts\\npm.bat install",
-		"t": "source.dosbatch",
+		"t": "source.batchfile",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -176,8 +231,19 @@
 		}
 	},
 	{
-		"c": ":: Get electron",
-		"t": "source.dosbatch comment.line.colons.dosbatch",
+		"c": "::",
+		"t": "source.batchfile comment.line.colon.batchfile punctuation.definition.comment.batchfile",
+		"r": {
+			"dark_plus": "comment: #608B4E",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": " Get electron",
+		"t": "source.batchfile comment.line.colon.batchfile",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -188,7 +254,7 @@
 	},
 	{
 		"c": "node .\\node_modules\\gulp\\bin\\gulp.js electron",
-		"t": "source.dosbatch",
+		"t": "source.batchfile",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -198,8 +264,8 @@
 		}
 	},
 	{
-		"c": ":: Build",
-		"t": "source.dosbatch comment.line.colons.dosbatch",
+		"c": "::",
+		"t": "source.batchfile comment.line.colon.batchfile punctuation.definition.comment.batchfile",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -209,8 +275,19 @@
 		}
 	},
 	{
-		"c": "if not exist",
-		"t": "source.dosbatch keyword.control.conditional.if.dosbatch",
+		"c": " Build",
+		"t": "source.batchfile comment.line.colon.batchfile",
+		"r": {
+			"dark_plus": "comment: #608B4E",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": "if",
+		"t": "source.batchfile keyword.control.conditional.batchfile",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -220,8 +297,8 @@
 		}
 	},
 	{
-		"c": " out node .\\node_modules\\gulp\\bin\\gulp.js compile",
-		"t": "source.dosbatch",
+		"c": " ",
+		"t": "source.batchfile",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -231,8 +308,63 @@
 		}
 	},
 	{
-		"c": ":: Configuration",
-		"t": "source.dosbatch comment.line.colons.dosbatch",
+		"c": "not",
+		"t": "source.batchfile keyword.operator.logical.batchfile",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.batchfile",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "exist",
+		"t": "source.batchfile keyword.other.special-method.batchfile",
+		"r": {
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6"
+		}
+	},
+	{
+		"c": " out node .\\node_modules\\gulp\\bin\\gulp.js compile",
+		"t": "source.batchfile",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "::",
+		"t": "source.batchfile comment.line.colon.batchfile punctuation.definition.comment.batchfile",
+		"r": {
+			"dark_plus": "comment: #608B4E",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #608B4E",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668"
+		}
+	},
+	{
+		"c": " Configuration",
+		"t": "source.batchfile comment.line.colon.batchfile",
 		"r": {
 			"dark_plus": "comment: #608B4E",
 			"light_plus": "comment: #008000",
@@ -243,7 +375,7 @@
 	},
 	{
 		"c": "set",
-		"t": "source.dosbatch keyword.command.dosbatch",
+		"t": "source.batchfile keyword.command.batchfile",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -253,8 +385,41 @@
 		}
 	},
 	{
-		"c": " NODE_ENV=development",
-		"t": "source.dosbatch",
+		"c": " ",
+		"t": "source.batchfile",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "NODE_ENV",
+		"t": "source.batchfile variable.other.readwrite.batchfile",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": "=",
+		"t": "source.batchfile keyword.operator.assignment.batchfile",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": "development",
+		"t": "source.batchfile",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -265,7 +430,7 @@
 	},
 	{
 		"c": "call",
-		"t": "source.dosbatch keyword.control.statement.dosbatch",
+		"t": "source.batchfile keyword.control.statement.batchfile",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -276,7 +441,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.dosbatch",
+		"t": "source.batchfile",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -287,7 +452,7 @@
 	},
 	{
 		"c": "echo",
-		"t": "source.dosbatch keyword.command.dosbatch",
+		"t": "source.batchfile keyword.command.batchfile",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -298,7 +463,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.dosbatch",
+		"t": "source.batchfile",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -308,19 +473,41 @@
 		}
 	},
 	{
-		"c": "%%LINE:rem +=%%",
-		"t": "source.dosbatch variable.other.parsetime.dosbatch",
+		"c": "%%",
+		"t": "source.batchfile constant.character.escape.batchfile",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
+			"dark_plus": "constant.character.escape: #D7BA7D",
+			"light_plus": "constant.character.escape: #A31515",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+			"hc_black": "constant.character: #569CD6"
+		}
+	},
+	{
+		"c": "LINE:rem +=",
+		"t": "source.batchfile",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "%%",
+		"t": "source.batchfile constant.character.escape.batchfile",
+		"r": {
+			"dark_plus": "constant.character.escape: #D7BA7D",
+			"light_plus": "constant.character.escape: #A31515",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "constant.character: #569CD6"
 		}
 	},
 	{
 		"c": "popd",
-		"t": "source.dosbatch keyword.command.dosbatch",
+		"t": "source.batchfile keyword.command.batchfile",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",
@@ -331,7 +518,7 @@
 	},
 	{
 		"c": "endlocal",
-		"t": "source.dosbatch keyword.command.dosbatch",
+		"t": "source.batchfile keyword.command.batchfile",
 		"r": {
 			"dark_plus": "keyword: #569CD6",
 			"light_plus": "keyword: #0000FF",

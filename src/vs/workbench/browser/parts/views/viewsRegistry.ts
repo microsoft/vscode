@@ -6,14 +6,13 @@
 import Event, { Emitter } from 'vs/base/common/event';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ITreeViewDataProvider } from 'vs/workbench/common/views';
-import { IViewConstructorSignature } from 'vs/workbench/browser/parts/views/views';
+import { localize } from 'vs/nls';
 
 export class ViewLocation {
 
 	static readonly Explorer = new ViewLocation('explorer');
 	static readonly Debug = new ViewLocation('debug');
 	static readonly Extensions = new ViewLocation('extensions');
-	static readonly SCM = new ViewLocation('scm');
 
 	constructor(private _id: string) {
 	}
@@ -39,13 +38,16 @@ export interface IViewDescriptor {
 
 	readonly location: ViewLocation;
 
-	readonly ctor: IViewConstructorSignature;
+	// TODO do we really need this?!
+	readonly ctor: any;
 
 	readonly when?: ContextKeyExpr;
 
 	readonly order?: number;
 
-	readonly size?: number;
+	readonly weight?: number;
+
+	readonly collapsed?: boolean;
 
 	readonly canToggleVisibility?: boolean;
 }
@@ -72,7 +74,7 @@ export interface IViewsRegistry {
 
 }
 
-export const ViewsRegistry: IViewsRegistry = new class {
+export const ViewsRegistry: IViewsRegistry = new class implements IViewsRegistry {
 
 	private _onViewsRegistered: Emitter<IViewDescriptor[]> = new Emitter<IViewDescriptor[]>();
 	readonly onViewsRegistered: Event<IViewDescriptor[]> = this._onViewsRegistered.event;
@@ -93,6 +95,9 @@ export const ViewsRegistry: IViewsRegistry = new class {
 				if (!views) {
 					views = [];
 					this._views.set(viewDescriptor.location, views);
+				}
+				if (views.some(v => v.id === viewDescriptor.id)) {
+					throw new Error(localize('duplicateId', "A view with id `{0}` is already registered in the location `{1}`", viewDescriptor.id, viewDescriptor.location.id));
 				}
 				views.push(viewDescriptor);
 			}
@@ -116,8 +121,8 @@ export const ViewsRegistry: IViewsRegistry = new class {
 		this._onViewsDeregistered.fire(viewsToDeregister);
 	}
 
-	registerTreeViewDataProvider<T>(id: string, factory: ITreeViewDataProvider) {
-		if (!this.isViewRegistered(id)) {
+	registerTreeViewDataProvider(id: string, factory: ITreeViewDataProvider) {
+		if (!this.isDataProviderRegistered(id)) {
 			// TODO: throw error
 		}
 		this._treeViewDataPoviders.set(id, factory);
@@ -136,7 +141,7 @@ export const ViewsRegistry: IViewsRegistry = new class {
 		return this._treeViewDataPoviders.get(id);
 	}
 
-	private isViewRegistered(id: string): boolean {
+	private isDataProviderRegistered(id: string): boolean {
 		let registered = false;
 		this._views.forEach(views => registered = registered || views.some(view => view.id === id));
 		return registered;

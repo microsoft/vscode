@@ -11,6 +11,7 @@ import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/exten
 import { ViewLocation, ViewsRegistry, IViewDescriptor } from 'vs/workbench/browser/parts/views/viewsRegistry';
 import { TreeView } from 'vs/workbench/browser/parts/views/treeView';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { coalesce, } from 'vs/base/common/arrays';
 
 namespace schema {
 
@@ -82,30 +83,49 @@ namespace schema {
 	};
 }
 
-ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyViewDescriptor[] }>('views', [], schema.viewsContribution).setHandler(extensions => {
-	for (let extension of extensions) {
-		const { value, collector } = extension;
+ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyViewDescriptor[] }>('views', [], schema.viewsContribution)
+	.setHandler((extensions) => {
+		for (let extension of extensions) {
+			const { value, collector } = extension;
 
-		forEach(value, entry => {
-			if (!schema.isValidViewDescriptors(entry.value, collector)) {
-				return;
-			}
+			forEach(value, entry => {
+				if (!schema.isValidViewDescriptors(entry.value, collector)) {
+					return;
+				}
 
-			const location = ViewLocation.getContributedViewLocation(entry.key);
-			if (!location) {
-				collector.warn(localize('locationId.invalid', "`{0}` is not a valid view location", entry.key));
-				return;
-			}
+				const location = ViewLocation.getContributedViewLocation(entry.key);
+				if (!location) {
+					collector.warn(localize('locationId.invalid', "`{0}` is not a valid view location", entry.key));
+					return;
+				}
 
-			const viewDescriptors = entry.value.map(item => (<IViewDescriptor>{
-				id: item.id,
-				name: item.name,
-				ctor: TreeView,
-				location,
-				when: ContextKeyExpr.deserialize(item.when),
-				canToggleVisibility: true
-			}));
-			ViewsRegistry.registerViews(viewDescriptors);
-		});
-	}
-});
+				const registeredViews = ViewsRegistry.getViews(location);
+				const viewIds = [];
+				const viewDescriptors = coalesce(entry.value.map(item => {
+					const viewDescriptor = <IViewDescriptor>{
+						id: item.id,
+						name: item.name,
+						ctor: TreeView,
+						location,
+						when: ContextKeyExpr.deserialize(item.when),
+						canToggleVisibility: true,
+						collapsed: true
+					};
+
+					// validate
+					if (viewIds.indexOf(viewDescriptor.id) !== -1) {
+						collector.error(localize('duplicateView1', "Cannot register multiple views with same id `{0}` in the location `{1}`", viewDescriptor.id, viewDescriptor.location.id));
+						return null;
+					}
+					if (registeredViews.some(v => v.id === viewDescriptor.id)) {
+						collector.error(localize('duplicateView2', "A view with id `{0}` is already registered in the location `{1}`", viewDescriptor.id, viewDescriptor.location.id));
+						return null;
+					}
+
+					viewIds.push(viewDescriptor.id);
+					return viewDescriptor;
+				}));
+				ViewsRegistry.registerViews(viewDescriptors);
+			});
+		}
+	});

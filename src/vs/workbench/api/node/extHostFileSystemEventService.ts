@@ -6,9 +6,10 @@
 
 import Event, { Emitter } from 'vs/base/common/event';
 import { Disposable } from './extHostTypes';
-import { parse } from 'vs/base/common/glob';
+import { parse, IRelativePattern } from 'vs/base/common/glob';
 import { Uri, FileSystemWatcher as _FileSystemWatcher } from 'vscode';
 import { FileSystemEvents, ExtHostFileSystemEventServiceShape } from './extHost.protocol';
+import URI from 'vs/base/common/uri';
 
 class FileSystemWatcher implements _FileSystemWatcher {
 
@@ -30,7 +31,7 @@ class FileSystemWatcher implements _FileSystemWatcher {
 		return Boolean(this._config & 0b100);
 	}
 
-	constructor(dispatcher: Event<FileSystemEvents>, globPattern: string, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean) {
+	constructor(dispatcher: Event<FileSystemEvents>, globPattern: string | IRelativePattern, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean) {
 
 		this._config = 0;
 		if (ignoreCreateEvents) {
@@ -48,22 +49,25 @@ class FileSystemWatcher implements _FileSystemWatcher {
 		let subscription = dispatcher(events => {
 			if (!ignoreCreateEvents) {
 				for (let created of events.created) {
-					if (parsedPattern(created.fsPath)) {
-						this._onDidCreate.fire(created);
+					let uri = URI.revive(created);
+					if (parsedPattern(uri.fsPath)) {
+						this._onDidCreate.fire(uri);
 					}
 				}
 			}
 			if (!ignoreChangeEvents) {
 				for (let changed of events.changed) {
-					if (parsedPattern(changed.fsPath)) {
-						this._onDidChange.fire(changed);
+					let uri = URI.revive(changed);
+					if (parsedPattern(uri.fsPath)) {
+						this._onDidChange.fire(uri);
 					}
 				}
 			}
 			if (!ignoreDeleteEvents) {
 				for (let deleted of events.deleted) {
-					if (parsedPattern(deleted.fsPath)) {
-						this._onDidDelete.fire(deleted);
+					let uri = URI.revive(deleted);
+					if (parsedPattern(uri.fsPath)) {
+						this._onDidDelete.fire(uri);
 					}
 				}
 			}
@@ -96,7 +100,7 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 	constructor() {
 	}
 
-	public createFileSystemWatcher(globPattern: string, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): _FileSystemWatcher {
+	public createFileSystemWatcher(globPattern: string | IRelativePattern, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): _FileSystemWatcher {
 		return new FileSystemWatcher(this._emitter.event, globPattern, ignoreCreateEvents, ignoreChangeEvents, ignoreDeleteEvents);
 	}
 

@@ -141,7 +141,7 @@ var XLF = /** @class */ (function () {
     };
     XLF.prototype.addStringItem = function (item) {
         if (!item.id || !item.message) {
-            throw new Error('No item ID or value specified.');
+            throw new Error("No item ID or value specified: " + JSON.stringify(item));
         }
         this.appendNewLine("<trans-unit id=\"" + item.id + "\">", 4);
         this.appendNewLine("<source xml:lang=\"en\">" + item.message + "</source>", 6);

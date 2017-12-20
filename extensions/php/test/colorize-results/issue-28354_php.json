@@ -56,7 +56,7 @@
 	},
 	{
 		"c": "        ",
-		"t": "text.html.php meta.embedded.block.html source.js punctuation.whitespace.embedded.leading.php",
+		"t": "text.html.php meta.embedded.block.html source.js",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -89,7 +89,7 @@
 	},
 	{
 		"c": "foreach",
-		"t": "text.html.php meta.embedded.block.html source.js meta.embedded.block.php source.php keyword.control.php",
+		"t": "text.html.php meta.embedded.block.html source.js meta.embedded.block.php source.php keyword.control.foreach.php",
 		"r": {
 			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
@@ -210,7 +210,7 @@
 	},
 	{
 		"c": "{",
-		"t": "text.html.php meta.embedded.block.html source.js meta.embedded.block.php source.php punctuation.section.scope.begin.php",
+		"t": "text.html.php meta.embedded.block.html source.js meta.embedded.block.php source.php punctuation.definition.begin.bracket.curly.php",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",
@@ -430,7 +430,7 @@
 	},
 	{
 		"c": "}",
-		"t": "text.html.php meta.embedded.block.html source.js meta.embedded.block.php source.php punctuation.section.scope.end.php",
+		"t": "text.html.php meta.embedded.block.html source.js meta.embedded.block.php source.php punctuation.definition.end.bracket.curly.php",
 		"r": {
 			"dark_plus": "meta.embedded: #D4D4D4",
 			"light_plus": "meta.embedded: #000000",

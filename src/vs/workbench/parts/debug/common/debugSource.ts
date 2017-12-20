@@ -6,6 +6,8 @@
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
+import * as paths from 'vs/base/common/paths';
+import * as resources from 'vs/base/common/resources';
 import { DEBUG_SCHEME } from 'vs/workbench/parts/debug/common/debug';
 import { IRange } from 'vs/editor/common/core/range';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -26,7 +28,11 @@ export class Source {
 		if (this.raw.sourceReference > 0) {
 			this.uri = uri.parse(`${DEBUG_SCHEME}:${encodeURIComponent(path)}?session=${encodeURIComponent(sessionId)}&ref=${this.raw.sourceReference}`);
 		} else {
-			this.uri = uri.file(path);	// path should better be absolute!
+			if (paths.isAbsolute(path)) {
+				this.uri = uri.file(path); // path should better be absolute!
+			} else {
+				this.uri = uri.parse(path);
+			}
 		}
 	}
 
@@ -62,5 +68,46 @@ export class Source {
 				pinned: !preserveFocus && !this.inMemory
 			}
 		}, sideBySide);
+	}
+
+	public static getEncodedDebugData(modelUri: uri): { name: string, path: string, processId: string, sourceReference: number } {
+		let path: string;
+		let sourceReference: number;
+		let processId: string;
+
+		switch (modelUri.scheme) {
+			case 'file':
+				path = paths.normalize(modelUri.fsPath, true);
+				break;
+			case DEBUG_SCHEME:
+				path = modelUri.path;
+				if (modelUri.query) {
+					const keyvalues = modelUri.query.split('&');
+					for (let keyvalue of keyvalues) {
+						const pair = keyvalue.split('=');
+						if (pair.length === 2) {
+							switch (pair[0]) {
+								case 'session':
+									processId = decodeURIComponent(pair[1]);
+									break;
+								case 'ref':
+									sourceReference = parseInt(pair[1]);
+									break;
+							}
+						}
+					}
+				}
+				break;
+			default:
+				path = modelUri.toString();
+				break;
+		}
+
+		return {
+			name: resources.basenameOrAuthority(modelUri),
+			path,
+			sourceReference,
+			processId
+		};
 	}
 }

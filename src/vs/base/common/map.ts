@@ -7,15 +7,6 @@
 
 import URI from 'vs/base/common/uri';
 
-export interface Key {
-	toString(): string;
-}
-
-export interface Entry<K, T> {
-	key: K;
-	value: T;
-}
-
 export function values<K, V>(map: Map<K, V>): V[] {
 	const result: V[] = [];
 	map.forEach(value => result.push(value));
@@ -40,298 +31,337 @@ export function getOrSet<K, V>(map: Map<K, V>, key: K, value: V): V {
 	return result;
 }
 
-export interface ISerializedBoundedLinkedMap<T> {
-	entries: { key: string; value: T }[];
+export interface IKeyIterator {
+	reset(key: string): this;
+	next(): this;
+	join(parts: string[]): string;
+
+	hasNext(): boolean;
+	cmp(a: string): number;
+	value(): string;
 }
 
-interface LinkedEntry<K, T> extends Entry<K, T> {
-	next?: LinkedEntry<K, T>;
-	prev?: LinkedEntry<K, T>;
+export class StringIterator implements IKeyIterator {
+
+	private _value: string = '';
+	private _pos: number = 0;
+
+	reset(key: string): this {
+		this._value = key;
+		this._pos = 0;
+		return this;
+	}
+
+	next(): this {
+		this._pos += 1;
+		return this;
+	}
+
+	join(parts: string[]): string {
+		return parts.join('');
+	}
+
+	hasNext(): boolean {
+		return this._pos < this._value.length - 1;
+	}
+
+	cmp(a: string): number {
+		let aCode = a.charCodeAt(0);
+		let thisCode = this._value.charCodeAt(this._pos);
+		return aCode - thisCode;
+	}
+
+	value(): string {
+		return this._value[this._pos];
+	}
 }
 
-/**
- * A simple Map<T> that optionally allows to set a limit of entries to store. Once the limit is hit,
- * the cache will remove the entry that was last recently added. Or, if a ratio is provided below 1,
- * all elements will be removed until the ratio is full filled (e.g. 0.75 to remove 25% of old elements).
- */
-export class BoundedMap<T> {
-	private map: Map<string, LinkedEntry<string, T>>;
+export class PathIterator implements IKeyIterator {
 
-	private head: LinkedEntry<string, T>;
-	private tail: LinkedEntry<string, T>;
-	private ratio: number;
+	private static readonly _fwd = '/'.charCodeAt(0);
+	private static readonly _bwd = '\\'.charCodeAt(0);
 
-	constructor(private limit = Number.MAX_VALUE, ratio = 1, value?: ISerializedBoundedLinkedMap<T>) {
-		this.map = new Map<string, LinkedEntry<string, T>>();
-		this.ratio = limit * ratio;
+	private _value: string;
+	private _from: number;
+	private _to: number;
 
-		if (value) {
-			value.entries.forEach(entry => {
-				this.set(entry.key, entry.value);
-			});
-		}
+	reset(key: string): this {
+		this._value = key.replace(/\\$|\/$/, '');
+		this._from = 0;
+		this._to = 0;
+		return this.next();
 	}
 
-	public setLimit(limit: number): void {
-		if (limit < 0) {
-			return; // invalid limit
-		}
-
-		this.limit = limit;
-		while (this.map.size > this.limit) {
-			this.trim();
-		}
+	hasNext(): boolean {
+		return this._to < this._value.length;
 	}
 
-	public serialize(): ISerializedBoundedLinkedMap<T> {
-		const serialized: ISerializedBoundedLinkedMap<T> = { entries: [] };
-
-		this.map.forEach(entry => {
-			serialized.entries.push({ key: entry.key, value: entry.value });
-		});
-
-		return serialized;
+	join(parts: string[]): string {
+		return parts.join('/');
 	}
 
-	public get size(): number {
-		return this.map.size;
-	}
-
-	public set(key: string, value: T): boolean {
-		if (this.map.has(key)) {
-			return false; // already present!
-		}
-
-		const entry: LinkedEntry<string, T> = { key, value };
-		this.push(entry);
-
-		if (this.size > this.limit) {
-			this.trim();
-		}
-
-		return true;
-	}
-
-	public get(key: string): T {
-		const entry = this.map.get(key);
-
-		return entry ? entry.value : null;
-	}
-
-	public getOrSet(k: string, t: T): T {
-		const res = this.get(k);
-		if (res) {
-			return res;
-		}
-
-		this.set(k, t);
-
-		return t;
-	}
-
-	public delete(key: string): T {
-		const entry = this.map.get(key);
-
-		if (entry) {
-			this.map.delete(key);
-
-			if (entry.next) {
-				entry.next.prev = entry.prev; // [A]<-[x]<-[C] = [A]<-[C]
-			} else {
-				this.head = entry.prev; // [A]-[x] = [A]
-			}
-
-			if (entry.prev) {
-				entry.prev.next = entry.next; // [A]->[x]->[C] = [A]->[C]
-			} else {
-				this.tail = entry.next; // [x]-[A] = [A]
-			}
-
-			return entry.value;
-		}
-
-		return null;
-	}
-
-	public has(key: string): boolean {
-		return this.map.has(key);
-	}
-
-	public clear(): void {
-		this.map.clear();
-		this.head = null;
-		this.tail = null;
-	}
-
-	private push(entry: LinkedEntry<string, T>): void {
-		if (this.head) {
-			// [A]-[B] = [A]-[B]->[X]
-			entry.prev = this.head;
-			this.head.next = entry;
-		}
-
-		if (!this.tail) {
-			this.tail = entry;
-		}
-
-		this.head = entry;
-
-		this.map.set(entry.key, entry);
-	}
-
-	private trim(): void {
-		if (this.tail) {
-
-			// Remove all elements until ratio is reached
-			if (this.ratio < this.limit) {
-				let index = 0;
-				let current = this.tail;
-				while (current.next) {
-
-					// Remove the entry
-					this.map.delete(current.key);
-
-					// if we reached the element that overflows our ratio condition
-					// make its next element the new tail of the Map and adjust the size
-					if (index === this.ratio) {
-						this.tail = current.next;
-						this.tail.prev = null;
-
-						break;
-					}
-
-					// Move on
-					current = current.next;
-					index++;
+	next(): this {
+		// this._data = key.split(/[\\/]/).filter(s => !!s);
+		this._from = this._to;
+		let justSeps = true;
+		for (; this._to < this._value.length; this._to++) {
+			const ch = this._value.charCodeAt(this._to);
+			if (ch === PathIterator._fwd || ch === PathIterator._bwd) {
+				if (justSeps) {
+					this._from++;
+				} else {
+					break;
 				}
+			} else {
+				justSeps = false;
 			}
+		}
+		return this;
+	}
 
-			// Just remove the tail element
-			else {
-				this.map.delete(this.tail.key);
+	cmp(a: string): number {
 
-				// [x]-[B] = [B]
-				this.tail = this.tail.next;
-				if (this.tail) {
-					this.tail.prev = null;
+		let aPos = 0;
+		let aLen = a.length;
+		let thisPos = this._from;
+
+		while (aPos < aLen && thisPos < this._to) {
+			let cmp = a.charCodeAt(aPos) - this._value.charCodeAt(thisPos);
+			if (cmp !== 0) {
+				return cmp;
+			}
+			aPos += 1;
+			thisPos += 1;
+		}
+
+		if (aLen === this._to - this._from) {
+			return 0;
+		} else if (aPos < aLen) {
+			return -1;
+		} else {
+			return 1;
+		}
+	}
+
+	value(): string {
+		return this._value.substring(this._from, this._to);
+	}
+}
+
+class TernarySearchTreeNode<E> {
+	str: string;
+	element: E;
+	left: TernarySearchTreeNode<E>;
+	mid: TernarySearchTreeNode<E>;
+	right: TernarySearchTreeNode<E>;
+
+	isEmpty(): boolean {
+		return !this.left && !this.mid && !this.right && !this.element;
+	}
+}
+
+export class TernarySearchTree<E> {
+
+	static forPaths<E>(): TernarySearchTree<E> {
+		return new TernarySearchTree<E>(new PathIterator());
+	}
+
+	static forStrings<E>(): TernarySearchTree<E> {
+		return new TernarySearchTree<E>(new StringIterator());
+	}
+
+	private _iter: IKeyIterator;
+	private _root: TernarySearchTreeNode<E>;
+
+	constructor(segments: IKeyIterator) {
+		this._iter = segments;
+	}
+
+	clear(): void {
+		this._root = undefined;
+	}
+
+	set(key: string, element: E): E {
+		let iter = this._iter.reset(key);
+		let node: TernarySearchTreeNode<E>;
+
+		if (!this._root) {
+			this._root = new TernarySearchTreeNode<E>();
+			this._root.str = iter.value();
+		}
+
+		node = this._root;
+		while (true) {
+			let val = iter.cmp(node.str);
+			if (val > 0) {
+				// left
+				if (!node.left) {
+					node.left = new TernarySearchTreeNode<E>();
+					node.left.str = iter.value();
 				}
-			}
-		}
-	}
-}
+				node = node.left;
 
-// --- trie'ish datastructure
+			} else if (val < 0) {
+				// right
+				if (!node.right) {
+					node.right = new TernarySearchTreeNode<E>();
+					node.right.str = iter.value();
+				}
+				node = node.right;
 
-class Node<E> {
-	element?: E;
-	readonly children = new Map<string, Node<E>>();
-}
-
-export class TrieMap<K, V> {
-
-	private readonly _splitter: (key: K) => string[];
-	private _root = new Node<V>();
-
-	constructor(splitter: (key: K) => string[]) {
-		this._splitter = key => splitter(key).filter(part => Boolean(part));
-	}
-
-	insert(path: K, element: V): void {
-		const parts = this._splitter(path);
-		let i = 0;
-
-		// find insertion node
-		let node = this._root;
-		for (; i < parts.length; i++) {
-			let child = node.children.get(parts[i]);
-			if (child) {
-				node = child;
-				continue;
-			}
-			break;
-		}
-
-		// create new nodes
-		let newNode: Node<V>;
-		for (; i < parts.length; i++) {
-			newNode = new Node<V>();
-			node.children.set(parts[i], newNode);
-			node = newNode;
-		}
-
-		node.element = element;
-	}
-
-	lookUp(path: K): V {
-		const parts = this._splitter(path);
-
-		let { children } = this._root;
-		let node: Node<V>;
-		for (const part of parts) {
-			node = children.get(part);
-			if (!node) {
-				return undefined;
-			}
-			children = node.children;
-		}
-
-		return node.element;
-	}
-
-	findSubstr(path: K): V {
-		const parts = this._splitter(path);
-
-		let lastNode: Node<V>;
-		let { children } = this._root;
-		for (const part of parts) {
-			const node = children.get(part);
-			if (!node) {
+			} else if (iter.hasNext()) {
+				// mid
+				iter.next();
+				if (!node.mid) {
+					node.mid = new TernarySearchTreeNode<E>();
+					node.mid.str = iter.value();
+				}
+				node = node.mid;
+			} else {
 				break;
 			}
-			if (node.element) {
-				lastNode = node;
-			}
-			children = node.children;
 		}
+		const oldElement = node.element;
+		node.element = element;
+		return oldElement;
+	}
 
-		// return the last matching node
-		// that had an element
-		if (lastNode) {
-			return lastNode.element;
+	get(key: string): E {
+		let iter = this._iter.reset(key);
+		let node = this._root;
+		while (node) {
+			let val = iter.cmp(node.str);
+			if (val > 0) {
+				// left
+				node = node.left;
+			} else if (val < 0) {
+				// right
+				node = node.right;
+			} else if (iter.hasNext()) {
+				// mid
+				iter.next();
+				node = node.mid;
+			} else {
+				break;
+			}
+		}
+		return node ? node.element : undefined;
+	}
+
+	delete(key: string): void {
+
+		let iter = this._iter.reset(key);
+		let stack: [-1 | 0 | 1, TernarySearchTreeNode<E>][] = [];
+		let node = this._root;
+
+		// find and unset node
+		while (node) {
+			let val = iter.cmp(node.str);
+			if (val > 0) {
+				// left
+				stack.push([1, node]);
+				node = node.left;
+			} else if (val < 0) {
+				// right
+				stack.push([-1, node]);
+				node = node.right;
+			} else if (iter.hasNext()) {
+				// mid
+				iter.next();
+				stack.push([0, node]);
+				node = node.mid;
+			} else {
+				// remove element
+				node.element = undefined;
+
+				// clean up empty nodes
+				while (stack.length > 0 && node.isEmpty()) {
+					let [dir, parent] = stack.pop();
+					switch (dir) {
+						case 1: parent.left = undefined; break;
+						case 0: parent.mid = undefined; break;
+						case -1: parent.right = undefined; break;
+					}
+					node = parent;
+				}
+				break;
+			}
+		}
+	}
+
+	findSubstr(key: string): E {
+		let iter = this._iter.reset(key);
+		let node = this._root;
+		let candidate: E;
+		while (node) {
+			let val = iter.cmp(node.str);
+			if (val > 0) {
+				// left
+				node = node.left;
+			} else if (val < 0) {
+				// right
+				node = node.right;
+			} else if (iter.hasNext()) {
+				// mid
+				iter.next();
+				candidate = node.element || candidate;
+				node = node.mid;
+			} else {
+				break;
+			}
+		}
+		return node && node.element || candidate;
+	}
+
+	findSuperstr(key: string): TernarySearchTree<E> {
+		let iter = this._iter.reset(key);
+		let node = this._root;
+		while (node) {
+			let val = iter.cmp(node.str);
+			if (val > 0) {
+				// left
+				node = node.left;
+			} else if (val < 0) {
+				// right
+				node = node.right;
+			} else if (iter.hasNext()) {
+				// mid
+				iter.next();
+				node = node.mid;
+			} else {
+				// collect
+				if (!node.mid) {
+					return undefined;
+				}
+				let ret = new TernarySearchTree<E>(this._iter);
+				ret._root = node.mid;
+				return ret;
+			}
 		}
 		return undefined;
 	}
 
-	findSuperstr(path: K): TrieMap<K, V> {
-		const parts = this._splitter(path);
-
-		let { children } = this._root;
-		let node: Node<V>;
-		for (const part of parts) {
-			node = children.get(part);
-			if (!node) {
-				return undefined;
-			}
-			children = node.children;
-		}
-
-		const result = new TrieMap<K, V>(this._splitter);
-		result._root = node;
-		return result;
+	forEach(callback: (value: E, index: string) => any) {
+		this._forEach(this._root, [], callback);
 	}
-}
 
+	private _forEach(node: TernarySearchTreeNode<E>, parts: string[], callback: (value: E, index: string) => any) {
+		if (node) {
+			// left
+			this._forEach(node.left, parts, callback);
 
-/**
- * A trie map that allows for fast look up when keys are substrings
- * to the actual search keys (dir/subdir-problem).
- */
-export class StringTrieMap<E> extends TrieMap<string, E> {
+			// node
+			parts.push(node.str);
+			if (node.element) {
+				callback(node.element, this._iter.join(parts));
+			}
+			// mid
+			this._forEach(node.mid, parts, callback);
+			parts.pop();
 
-	static PathSplitter = (s: string) => s.split(/[\\/]/).filter(s => !!s);
-
-	constructor(splitter = StringTrieMap.PathSplitter) {
-		super(splitter);
+			// right
+			this._forEach(node.right, parts, callback);
+		}
 	}
 }
 
@@ -406,13 +436,11 @@ interface Item<K, V> {
 	value: V;
 }
 
-export namespace Touch {
-	export const None: 0 = 0;
-	export const First: 1 = 1;
-	export const Last: 2 = 2;
+export enum Touch {
+	None = 0,
+	AsOld = 1,
+	AsNew = 2
 }
-
-export type Touch = 0 | 1 | 2;
 
 export class LinkedMap<K, V> {
 
@@ -447,10 +475,13 @@ export class LinkedMap<K, V> {
 		return this._map.has(key);
 	}
 
-	public get(key: K): V | undefined {
+	public get(key: K, touch: Touch = Touch.None): V | undefined {
 		const item = this._map.get(key);
 		if (!item) {
 			return undefined;
+		}
+		if (touch !== Touch.None) {
+			this.touch(item, touch);
 		}
 		return item.value;
 	}
@@ -468,10 +499,10 @@ export class LinkedMap<K, V> {
 				case Touch.None:
 					this.addItemLast(item);
 					break;
-				case Touch.First:
+				case Touch.AsOld:
 					this.addItemFirst(item);
 					break;
-				case Touch.Last:
+				case Touch.AsNew:
 					this.addItemLast(item);
 					break;
 				default:
@@ -521,18 +552,6 @@ export class LinkedMap<K, V> {
 				callbackfn(current.value, current.key, this);
 			}
 			current = current.next;
-		}
-	}
-
-	public forEachReverse(callbackfn: (value: V, key: K, map: LinkedMap<K, V>) => void, thisArg?: any): void {
-		let current = this._tail;
-		while (current) {
-			if (thisArg) {
-				callbackfn.bind(thisArg)(current.value, current.key, this);
-			} else {
-				callbackfn(current.value, current.key, this);
-			}
-			current = current.previous;
 		}
 	}
 
@@ -596,6 +615,26 @@ export class LinkedMap<K, V> {
 	}
 	*/
 
+	protected trimOld(newSize: number) {
+		if (newSize >= this.size) {
+			return;
+		}
+		if (newSize === 0) {
+			this.clear();
+			return;
+		}
+		let current = this._head;
+		let currentSize = this.size;
+		while (current && currentSize > newSize) {
+			this._map.delete(current.key);
+			current = current.next;
+			currentSize--;
+		}
+		this._head = current;
+		this._size = currentSize;
+		current.previous = void 0;
+	}
+
 	private addItemFirst(item: Item<K, V>): void {
 		// First time Insert
 		if (!this._head && !this._tail) {
@@ -624,8 +663,8 @@ export class LinkedMap<K, V> {
 
 	private removeItem(item: Item<K, V>): void {
 		if (item === this._head && item === this._tail) {
-			this._head = undefined;
-			this._tail = undefined;
+			this._head = void 0;
+			this._tail = void 0;
 		}
 		else if (item === this._head) {
 			this._head = item.next;
@@ -648,11 +687,11 @@ export class LinkedMap<K, V> {
 		if (!this._head || !this._tail) {
 			throw new Error('Invalid list');
 		}
-		if ((touch !== Touch.First && touch !== Touch.Last)) {
+		if ((touch !== Touch.AsOld && touch !== Touch.AsNew)) {
 			return;
 		}
 
-		if (touch === Touch.First) {
+		if (touch === Touch.AsOld) {
 			if (item === this._head) {
 				return;
 			}
@@ -664,7 +703,7 @@ export class LinkedMap<K, V> {
 			if (item === this._tail) {
 				// previous must be defined since item was not head but is tail
 				// So there are more than on item in the map
-				previous!.next = undefined;
+				previous!.next = void 0;
 				this._tail = previous;
 			}
 			else {
@@ -674,11 +713,11 @@ export class LinkedMap<K, V> {
 			}
 
 			// Insert the node at head
-			item.previous = undefined;
+			item.previous = void 0;
 			item.next = this._head;
 			this._head.previous = item;
 			this._head = item;
-		} else if (touch === Touch.Last) {
+		} else if (touch === Touch.AsNew) {
 			if (item === this._tail) {
 				return;
 			}
@@ -690,17 +729,66 @@ export class LinkedMap<K, V> {
 			if (item === this._head) {
 				// next must be defined since item was not tail but is head
 				// So there are more than on item in the map
-				next!.previous = undefined;
+				next!.previous = void 0;
 				this._head = next;
 			} else {
 				// Both next and previous are not undefined since item was neither head nor tail.
 				next!.previous = previous;
 				previous!.next = next;
 			}
-			item.next = undefined;
+			item.next = void 0;
 			item.previous = this._tail;
 			this._tail.next = item;
 			this._tail = item;
+		}
+	}
+}
+
+export class LRUCache<K, V> extends LinkedMap<K, V> {
+
+	private _limit: number;
+	private _ratio: number;
+
+	constructor(limit: number, ratio: number = 1) {
+		super();
+		this._limit = limit;
+		this._ratio = Math.min(Math.max(0, ratio), 1);
+	}
+
+	public get limit(): number {
+		return this._limit;
+	}
+
+	public set limit(limit: number) {
+		this._limit = limit;
+		this.checkTrim();
+	}
+
+	public get ratio(): number {
+		return this._ratio;
+	}
+
+	public set ratio(ratio: number) {
+		this._ratio = Math.min(Math.max(0, ratio), 1);
+		this.checkTrim();
+	}
+
+	public get(key: K): V | undefined {
+		return super.get(key, Touch.AsNew);
+	}
+
+	public peek(key: K): V | undefined {
+		return super.get(key, Touch.None);
+	}
+
+	public set(key: K, value: V): void {
+		super.set(key, value, Touch.AsNew);
+		this.checkTrim();
+	}
+
+	private checkTrim() {
+		if (this.size > this._limit) {
+			this.trimOld(Math.round(this._limit * this._ratio));
 		}
 	}
 }

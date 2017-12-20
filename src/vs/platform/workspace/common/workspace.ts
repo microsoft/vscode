@@ -6,8 +6,9 @@
 
 import URI from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
+import * as resources from 'vs/base/common/resources';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { StringTrieMap } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/map';
 import Event from 'vs/base/common/event';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, IStoredWorkspaceFolder, isRawFileWorkspaceFolder, isRawUriWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { coalesce, distinct } from 'vs/base/common/arrays';
@@ -31,21 +32,6 @@ export interface IWorkspaceContextService {
 	_serviceBrand: any;
 
 	/**
-	 * Provides access to the workspace object the platform is running with. This may be null if the workbench was opened
-	 * without workspace (empty);
-	 */
-	getWorkspace(): IWorkspace;
-
-	/**
-	 * Return the state of the workbench.
-	 *
-	 * WorkbenchState.EMPTY - if the workbench was opened with empty window or file
-	 * WorkbenchState.FOLDER - if the workbench was opened with a folder
-	 * WorkbenchState.WORKSPACE - if the workbench was opened with a workspace
-	 */
-	getWorkbenchState(): WorkbenchState;
-
-	/**
 	 * An event which fires on workbench state changes.
 	 */
 	onDidChangeWorkbenchState: Event<WorkbenchState>;
@@ -59,6 +45,20 @@ export interface IWorkspaceContextService {
 	 * An event which fires on workspace folders change.
 	 */
 	onDidChangeWorkspaceFolders: Event<IWorkspaceFoldersChangeEvent>;
+
+	/**
+	 * Provides access to the workspace object the platform is running with.
+	 */
+	getWorkspace(): IWorkspace;
+
+	/**
+	 * Return the state of the workbench.
+	 *
+	 * WorkbenchState.EMPTY - if the workbench was opened with empty window or file
+	 * WorkbenchState.FOLDER - if the workbench was opened with a folder
+	 * WorkbenchState.WORKSPACE - if the workbench was opened with a workspace
+	 */
+	getWorkbenchState(): WorkbenchState;
 
 	/**
 	 * Returns the folder for the given resource from the workspace.
@@ -128,7 +128,7 @@ export interface IWorkspaceFolder extends IWorkspaceFolderData {
 
 export class Workspace implements IWorkspace {
 
-	private _foldersMap: StringTrieMap<WorkspaceFolder> = new StringTrieMap<WorkspaceFolder>();
+	private _foldersMap: TernarySearchTree<WorkspaceFolder> = TernarySearchTree.forPaths<WorkspaceFolder>();
 	private _folders: WorkspaceFolder[];
 
 	constructor(
@@ -191,9 +191,9 @@ export class Workspace implements IWorkspace {
 	}
 
 	private updateFoldersMap(): void {
-		this._foldersMap = new StringTrieMap<WorkspaceFolder>();
+		this._foldersMap = TernarySearchTree.forPaths<WorkspaceFolder>();
 		for (const folder of this.folders) {
-			this._foldersMap.insert(folder.uri.toString(), folder);
+			this._foldersMap.set(folder.uri.toString(), folder);
 		}
 	}
 
@@ -216,7 +216,7 @@ export class WorkspaceFolder implements IWorkspaceFolder {
 	}
 
 	toResource(relativePath: string): URI {
-		return URI.file(paths.join(this.uri.fsPath, relativePath));
+		return this.uri.with({ path: paths.join(this.uri.path, relativePath) });
 	}
 
 	toJSON(): IWorkspaceFolderData {
@@ -227,7 +227,7 @@ export class WorkspaceFolder implements IWorkspaceFolder {
 export function toWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], relativeTo?: URI): WorkspaceFolder[] {
 	let workspaceFolders = parseWorkspaceFolders(configuredFolders, relativeTo);
 	return ensureUnique(coalesce(workspaceFolders))
-		.map(({ uri, raw, name }, index) => new WorkspaceFolder({ uri, name: name || paths.basename(uri.fsPath), index }, raw));
+		.map(({ uri, raw, name }, index) => new WorkspaceFolder({ uri, name: name || resources.basenameOrAuthority(uri), index }, raw));
 }
 
 function parseWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], relativeTo: URI): WorkspaceFolder[] {
@@ -256,12 +256,12 @@ function toUri(path: string, relativeTo: URI): URI {
 			return URI.file(path);
 		}
 		if (relativeTo) {
-			return URI.file(paths.join(relativeTo.fsPath, path));
+			return relativeTo.with({ path: paths.join(relativeTo.path, path) });
 		}
 	}
 	return null;
 }
 
 function ensureUnique(folders: WorkspaceFolder[]): WorkspaceFolder[] {
-	return distinct(folders, folder => isLinux ? folder.uri.fsPath : folder.uri.fsPath.toLowerCase());
+	return distinct(folders, folder => isLinux ? folder.uri.toString() : folder.uri.toString().toLowerCase());
 }

@@ -42,7 +42,7 @@ const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IColorEx
 						type: 'string',
 						anyOf: [
 							colorReferenceSchema,
-							{ type: 'string', format: 'color' }
+							{ type: 'string', format: 'color-hex' }
 						]
 					},
 					dark: {
@@ -50,7 +50,7 @@ const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IColorEx
 						type: 'string',
 						anyOf: [
 							colorReferenceSchema,
-							{ type: 'string', format: 'color' }
+							{ type: 'string', format: 'color-hex' }
 						]
 					},
 					highContrast: {
@@ -58,7 +58,7 @@ const configurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IColorEx
 						type: 'string',
 						anyOf: [
 							colorReferenceSchema,
-							{ type: 'string', format: 'color' }
+							{ type: 'string', format: 'color-hex' }
 						]
 					}
 				}

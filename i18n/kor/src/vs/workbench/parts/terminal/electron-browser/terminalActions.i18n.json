@@ -16,7 +16,6 @@
 	"workbench.action.terminal.new.short": "새 터미널",
 	"workbench.action.terminal.focus": "터미널에 포커스",
 	"workbench.action.terminal.focusNext": "다음 터미널에 포커스",
-	"workbench.action.terminal.focusAtIndex": "{0} 터미널로 포커스 이동",
 	"workbench.action.terminal.focusPrevious": "이전 터미널에 포커스",
 	"workbench.action.terminal.paste": "활성 터미널에 붙여넣기",
 	"workbench.action.terminal.DefaultShell": "기본 셸 선택",
@@ -38,5 +37,6 @@
 	"workbench.action.terminal.focusFindWidget": "파인드 위젯 포커스",
 	"workbench.action.terminal.hideFindWidget": "파인드 위젯 숨기기",
 	"nextTerminalFindTerm": "다음 검색어 표시",
-	"previousTerminalFindTerm": "이전 검색어 표시"
+	"previousTerminalFindTerm": "이전 검색어 표시",
+	"quickOpenTerm": "활성 터미널 전환"
 }

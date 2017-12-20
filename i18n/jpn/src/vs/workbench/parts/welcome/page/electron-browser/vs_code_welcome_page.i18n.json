@@ -9,7 +9,7 @@
 	"welcomePage.start": "開始",
 	"welcomePage.newFile": "新しいファイル",
 	"welcomePage.openFolder": "フォルダーを開く...",
-	"welcomePage.cloneGitRepository": "Git リポジトリを複製...",
+	"welcomePage.addWorkspaceFolder": "ワークスペース フォルダーを追加…",
 	"welcomePage.recent": "最近",
 	"welcomePage.moreRecent": "その他",
 	"welcomePage.noRecentFolders": "最近使用したフォルダーなし",

@@ -214,7 +214,7 @@ export class HSVA {
 			m = ((r - g) / delta) + 4;
 		}
 
-		return new HSVA(m * 60, s, cmax, rgba.a);
+		return new HSVA(Math.round(m * 60), s, cmax, rgba.a);
 	}
 
 	// from http://www.rapidtables.com/convert/color/hsv-to-rgb.htm

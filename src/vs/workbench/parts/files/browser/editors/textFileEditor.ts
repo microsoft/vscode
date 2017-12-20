@@ -11,26 +11,23 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import types = require('vs/base/common/types');
 import paths = require('vs/base/common/paths');
 import { Action } from 'vs/base/common/actions';
-import { VIEWLET_ID, TEXT_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
+import { VIEWLET_ID, TEXT_FILE_EDITOR_ID, IExplorerViewlet } from 'vs/workbench/parts/files/common/files';
 import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { EditorOptions, TextEditorOptions, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
-import { ExplorerViewlet } from 'vs/workbench/parts/files/browser/explorerViewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { FileOperationError, FileOperationResult, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CancelAction } from 'vs/platform/message/common/message';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IModeService } from 'vs/editor/common/services/modeService';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 
 /**
@@ -38,7 +35,7 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
  */
 export class TextFileEditor extends BaseTextEditor {
 
-	public static ID = TEXT_FILE_EDITOR_ID;
+	public static readonly ID = TEXT_FILE_EDITOR_ID;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -47,15 +44,13 @@ export class TextFileEditor extends BaseTextEditor {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
-		@IHistoryService private historyService: IHistoryService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@IModeService modeService: IModeService,
 		@ITextFileService textFileService: ITextFileService,
 	) {
-		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, modeService, textFileService, editorGroupService);
+		super(TextFileEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorGroupService);
 
 		// Clear view state for deleted files
 		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFilesChanged(e)));
@@ -87,16 +82,6 @@ export class TextFileEditor extends BaseTextEditor {
 
 	public setInput(input: FileEditorInput, options?: EditorOptions): TPromise<void> {
 
-		// We have a current input in this editor and are about to either open a new editor or jump to a different
-		// selection inside the editor. Thus we store the current selection into the navigation history so that
-		// a user can navigate back to the exact position he left off.
-		if (this.input) {
-			const selection = this.getControl().getSelection();
-			if (selection) {
-				this.historyService.add(this.input, { startLineNumber: selection.startLineNumber, startColumn: selection.startColumn });
-			}
-		}
-
 		// Return early for same input unless we force to open
 		const forceOpen = options && options.forceOpen;
 		if (!forceOpen && input.matches(this.input)) {
@@ -106,7 +91,7 @@ export class TextFileEditor extends BaseTextEditor {
 				(<TextEditorOptions>options).apply(this.getControl(), ScrollType.Smooth);
 			}
 
-			return TPromise.as<void>(null);
+			return TPromise.wrap<void>(null);
 		}
 
 		// Remember view settings if input changes
@@ -204,8 +189,8 @@ export class TextFileEditor extends BaseTextEditor {
 
 			// Best we can do is to reveal the folder in the explorer
 			if (this.contextService.isInsideWorkspace(input.getResource())) {
-				this.viewletService.openViewlet(VIEWLET_ID, true).done((viewlet: ExplorerViewlet) => {
-					return viewlet.getExplorerView().select(input.getResource(), true);
+				this.viewletService.openViewlet(VIEWLET_ID, true).done(viewlet => {
+					return (viewlet as IExplorerViewlet).getExplorerView().select(input.getResource(), true);
 				}, errors.onUnexpectedError);
 			}
 		}, errors.onUnexpectedError);

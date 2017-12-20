@@ -6,6 +6,7 @@
 {
 	"badgeTitle": "{0} - {1}",
 	"titleKeybinding": "{0} ({1})",
+	"removeFromActivityBar": "Etkinlik Çubuğunda Gizle",
 	"keepInActivityBar": "Etkinlik Çubuğunda Tut",
 	"additionalViews": "Ek Görünümler",
 	"numberBadge": "{0} ({1})",

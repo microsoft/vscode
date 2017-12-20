@@ -5,22 +5,28 @@
 
 import { DocumentHighlightProvider, DocumentHighlight, DocumentHighlightKind, TextDocument, Position, Range, CancellationToken } from 'vscode';
 
-import { ITypescriptServiceClient } from '../typescriptService';
+import { ITypeScriptServiceClient } from '../typescriptService';
 import { tsTextSpanToVsRange, vsPositionToTsFileLocation } from '../utils/convert';
 
 
 export default class TypeScriptDocumentHighlightProvider implements DocumentHighlightProvider {
 	public constructor(
-		private client: ITypescriptServiceClient) { }
+		private client: ITypeScriptServiceClient) { }
 
-	public provideDocumentHighlights(resource: TextDocument, position: Position, token: CancellationToken): Promise<DocumentHighlight[]> {
+	public async provideDocumentHighlights(
+		resource: TextDocument,
+		position: Position,
+		token: CancellationToken
+	): Promise<DocumentHighlight[]> {
 		const filepath = this.client.normalizePath(resource.uri);
 		if (!filepath) {
-			return Promise.resolve<DocumentHighlight[]>([]);
+			return [];
 		}
+
 		const args = vsPositionToTsFileLocation(filepath, position);
-		return this.client.execute('occurrences', args, token).then((response): DocumentHighlight[] => {
-			let data = response.body;
+		try {
+			const response = await this.client.execute('occurrences', args, token);
+			const data = response.body;
 			if (data && data.length) {
 				// Workaround for https://github.com/Microsoft/TypeScript/issues/12780
 				// Don't highlight string occurrences
@@ -39,8 +45,8 @@ export default class TypeScriptDocumentHighlightProvider implements DocumentHigh
 						item.isWriteAccess ? DocumentHighlightKind.Write : DocumentHighlightKind.Read));
 			}
 			return [];
-		}, () => {
+		} catch {
 			return [];
-		});
+		}
 	}
 }

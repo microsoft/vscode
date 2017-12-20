@@ -733,7 +733,8 @@ declare module 'vscode' {
 		/**
 		 * An optional view column in which the [editor](#TextEditor) should be shown.
 		 * The default is the [one](#ViewColumn.One), other values are adjusted to
-		 * be __Min(column, columnCount + 1)__.
+		 * be `Min(column, columnCount + 1)`, the [active](#ViewColumn.Active)-column is
+		 * not adjusted.
 		 */
 		viewColumn?: ViewColumn;
 
@@ -838,6 +839,16 @@ declare module 'vscode' {
 		/**
 		 * CSS styling property that will be applied to text enclosed by a decoration.
 		 */
+		fontStyle?: string;
+
+		/**
+		 * CSS styling property that will be applied to text enclosed by a decoration.
+		 */
+		fontWeight?: string;
+
+		/**
+		 * CSS styling property that will be applied to text enclosed by a decoration.
+		 */
 		textDecoration?: string;
 
 		/**
@@ -901,6 +912,14 @@ declare module 'vscode' {
 		 * CSS styling property that will be applied to text enclosed by a decoration.
 		 */
 		borderColor?: string | ThemeColor;
+		/**
+		 * CSS styling property that will be applied to the decoration attachment.
+		 */
+		fontStyle?: string;
+		/**
+		 * CSS styling property that will be applied to the decoration attachment.
+		 */
+		fontWeight?: string;
 		/**
 		 * CSS styling property that will be applied to the decoration attachment.
 		 */
@@ -1504,6 +1523,96 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Options to configure the behaviour of the [workspace folder](#WorkspaceFolder) pick UI.
+	 */
+	export interface WorkspaceFolderPickOptions {
+
+		/**
+		 * An optional string to show as place holder in the input box to guide the user what to pick on.
+		 */
+		placeHolder?: string;
+
+		/**
+		 * Set to `true` to keep the picker open when focus moves to another part of the editor or to another window.
+		 */
+		ignoreFocusOut?: boolean;
+	}
+
+	/**
+	 * Options to configure the behaviour of a file open dialog.
+	 *
+	 * * Note 1: A dialog can select files, folders, or both. This is not true for Windows
+	 * which enforces to open either files or folder, but *not both*.
+	 * * Note 2: Explictly setting `canSelectFiles` and `canSelectFolders` to `false` is futile
+	 * and the editor then silently adjusts the options to select files.
+	 */
+	export interface OpenDialogOptions {
+		/**
+		 * The resource the dialog shows when opened.
+		 */
+		defaultUri?: Uri;
+
+		/**
+		 * A human-readable string for the open button.
+		 */
+		openLabel?: string;
+
+		/**
+		 * Allow to select files, defaults to `true`.
+		 */
+		canSelectFiles?: boolean;
+
+		/**
+		 * Allow to select folders, defaults to `false`.
+		 */
+		canSelectFolders?: boolean;
+
+		/**
+		 * Allow to select many files or folders.
+		 */
+		canSelectMany?: boolean;
+
+		/**
+		 * A set of file filters that are used by the dialog. Each entry is a human readable label,
+		 * like "TypeScript", and an array of extensions, e.g.
+		 * ```ts
+		 * {
+		 * 	'Images': ['png', 'jpg']
+		 * 	'TypeScript': ['ts', 'tsx']
+		 * }
+		 * ```
+		 */
+		filters?: { [name: string]: string[] };
+	}
+
+	/**
+	 * Options to configure the behaviour of a file save dialog.
+	 */
+	export interface SaveDialogOptions {
+		/**
+		 * The resource the dialog shows when opened.
+		 */
+		defaultUri?: Uri;
+
+		/**
+		 * A human-readable string for the save button.
+		 */
+		saveLabel?: string;
+
+		/**
+		 * A set of file filters that are used by the dialog. Each entry is a human readable label,
+		 * like "TypeScript", and an array of extensions, e.g.
+		 * ```ts
+		 * {
+		 * 	'Images': ['png', 'jpg']
+		 * 	'TypeScript': ['ts', 'tsx']
+		 * }
+		 * ```
+		 */
+		filters?: { [name: string]: string[] };
+	}
+
+	/**
 	 * Represents an action that is shown with an information, warning, or
 	 * error message.
 	 *
@@ -1586,8 +1695,54 @@ declare module 'vscode' {
 		 * @return A human readable string which is presented as diagnostic message.
 		 * Return `undefined`, `null`, or the empty string when 'value' is valid.
 		 */
-		validateInput?(value: string): string | undefined | null;
+		validateInput?(value: string): string | undefined | null | Thenable<string | undefined | null>;
 	}
+
+	/**
+	 * A relative pattern is a helper to construct glob patterns that are matched
+	 * relatively to a base path. The base path can either be an absolute file path
+	 * or a [workspace folder](#WorkspaceFolder).
+	 */
+	export class RelativePattern {
+
+		/**
+		 * A base file path to which this pattern will be matched against relatively.
+		 */
+		base: string;
+
+		/**
+		 * A file glob pattern like `*.{ts,js}` that will be matched on file paths
+		 * relative to the base path.
+		 *
+		 * Example: Given a base of `/home/work/folder` and a file path of `/home/work/folder/index.js`,
+		 * the file glob pattern will match on `index.js`.
+		 */
+		pattern: string;
+
+		/**
+		 * Creates a new relative pattern object with a base path and pattern to match. This pattern
+		 * will be matched on file paths relative to the base path.
+		 *
+		 * @param base A base file path to which this pattern will be matched against relatively.
+		 * @param pattern A file glob pattern like `*.{ts,js}` that will be matched on file paths
+		 * relative to the base path.
+		 */
+		constructor(base: WorkspaceFolder | string, pattern: string)
+	}
+
+	/**
+	 * A file glob pattern to match file paths against. This can either be a glob pattern string
+	 * (like `**​/*.{ts,js}` or `*.{ts,js}`) or a [relative pattern](#RelativePattern).
+	 *
+	 * Glob patterns can have the following syntax:
+	 * * `*` to match one or more characters in a path segment
+	 * * `?` to match on one character in a path segment
+	 * * `**` to match any number of path segments, including none
+	 * * `{}` to group conditions (e.g. `**​/*.{ts,js}` matches all TypeScript and JavaScript files)
+	 * * `[]` to declare a range of characters to match in a path segment (e.g., `example.[0-9]` to match on `example.0`, `example.1`, …)
+	 * * `[!...]` to negate a range of characters to match in a path segment (e.g., `example.[!0-9]` to match on `example.a`, `example.b`, but not `example.0`)
+	 */
+	export type GlobPattern = string | RelativePattern;
 
 	/**
 	 * A document filter denotes a document by different properties like
@@ -1595,7 +1750,7 @@ declare module 'vscode' {
 	 * its resource, or a glob-pattern that is applied to the [path](#TextDocument.fileName).
 	 *
 	 * @sample A language filter that applies to typescript files on disk: `{ language: 'typescript', scheme: 'file' }`
-	 * @sample A language filter that applies to all package.json paths: `{ language: 'json', pattern: '**∕package.json' }`
+	 * @sample A language filter that applies to all package.json paths: `{ language: 'json', pattern: '**​/package.json' }`
 	 */
 	export interface DocumentFilter {
 
@@ -1610,9 +1765,10 @@ declare module 'vscode' {
 		scheme?: string;
 
 		/**
-		 * A glob pattern, like `*.{ts,js}`.
+		 * A [glob pattern](#GlobPattern) that is matched on the absolute path of the document. Use a [relative pattern](#RelativePattern)
+		 * to filter documents to a [workspace folder](#WorkspaceFolder).
 		 */
-		pattern?: string;
+		pattern?: GlobPattern;
 	}
 
 	/**
@@ -1620,10 +1776,9 @@ declare module 'vscode' {
 	 * and [language filters](#DocumentFilter).
 	 *
 	 * @sample `let sel:DocumentSelector = 'typescript'`;
-	 * @sample `let sel:DocumentSelector = ['typescript', { language: 'json', pattern: '**∕tsconfig.json' }]`;
+	 * @sample `let sel:DocumentSelector = ['typescript', { language: 'json', pattern: '**​/tsconfig.json' }]`;
 	 */
 	export type DocumentSelector = string | DocumentFilter | (string | DocumentFilter)[];
-
 
 	/**
 	 * A provider result represents the values a provider, like the [`HoverProvider`](#HoverProvider),
@@ -1662,7 +1817,6 @@ declare module 'vscode' {
 	 * a [code action](#CodeActionProvider.provideCodeActions) is run.
 	 */
 	export interface CodeActionContext {
-
 		/**
 		 * An array of diagnostics.
 		 */
@@ -1857,6 +2011,13 @@ declare module 'vscode' {
 		 * @param value Markdown string.
 		 */
 		appendMarkdown(value: string): MarkdownString;
+
+		/**
+		 * Appends the given string as codeblock using the provided language.
+		 * @param value A code snippet.
+		 * @param language An optional [language identifier](#languages.getLanguages).
+		 */
+		appendCodeblock(value: string, language?: string): MarkdownString;
 	}
 
 	/**
@@ -2091,6 +2252,11 @@ declare module 'vscode' {
 		 * how to search given the query string, like substring, indexOf etc. To improve performance implementors can
 		 * skip the [location](#SymbolInformation.location) of symbols and implement `resolveWorkspaceSymbol` to do that
 		 * later.
+		 *
+		 * The `query`-parameter should be interpreted in a *relaxed way* as the editor will apply its own highlighting
+		 * and scoring on the results. A good rule of thumb is to match case-insensitive and to simply check that the
+		 * characters of *query* appear in their order in a candidate symbol. Don't use prefix, substring, or similar
+		 * strict matching.
 		 *
 		 * @param query A non-empty query string.
 		 * @param token A cancellation token.
@@ -2761,12 +2927,11 @@ declare module 'vscode' {
 	 * The completion item provider interface defines the contract between extensions and
 	 * [IntelliSense](https://code.visualstudio.com/docs/editor/intellisense).
 	 *
-	 * When computing *complete* completion items is expensive, providers can optionally implement
-	 * the `resolveCompletionItem`-function. In that case it is enough to return completion
-	 * items with a [label](#CompletionItem.label) from the
-	 * [provideCompletionItems](#CompletionItemProvider.provideCompletionItems)-function. Subsequently,
-	 * when a completion item is shown in the UI and gains focus this provider is asked to resolve
-	 * the item, like adding [doc-comment](#CompletionItem.documentation) or [details](#CompletionItem.detail).
+	 * Providers can delay the computation of the [`detail`](#CompletionItem.detail)
+	 * and [`documentation`](#CompletionItem.documentation) properties by implementing the
+	 * [`resolveCompletionItem`](#CompletionItemProvider.resolveCompletionItem)-function. However, properties that
+	 * are needed for the inital sorting and filtering, like `sortText`, `filterText`, `insertText`, and `range`, must
+	 * not be changed during resolve.
 	 *
 	 * Providers are asked for completions either explicitly by a user gesture or -depending on the configuration-
 	 * implicitly when typing words or trigger characters.
@@ -2853,6 +3018,133 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 */
 		resolveDocumentLink?(link: DocumentLink, token: CancellationToken): ProviderResult<DocumentLink>;
+	}
+
+	/**
+	 * Represents a color in RGBA space.
+	 */
+	export class Color {
+
+		/**
+		 * The red component of this color in the range [0-1].
+		 */
+		readonly red: number;
+
+		/**
+		 * The green component of this color in the range [0-1].
+		 */
+		readonly green: number;
+
+		/**
+		 * The blue component of this color in the range [0-1].
+		 */
+		readonly blue: number;
+
+		/**
+		 * The alpha component of this color in the range [0-1].
+		 */
+		readonly alpha: number;
+
+		/**
+		 * Creates a new color instance.
+		 *
+		 * @param red The red component.
+		 * @param green The green component.
+		 * @param blue The bluew component.
+		 * @param alpha The alpha component.
+		 */
+		constructor(red: number, green: number, blue: number, alpha: number);
+	}
+
+	/**
+	 * Represents a color range from a document.
+	 */
+	export class ColorInformation {
+
+		/**
+		 * The range in the document where this color appers.
+		 */
+		range: Range;
+
+		/**
+		 * The actual color value for this color range.
+		 */
+		color: Color;
+
+		/**
+		 * Creates a new color range.
+		 *
+		 * @param range The range the color appears in. Must not be empty.
+		 * @param color The value of the color.
+		 * @param format The format in which this color is currently formatted.
+		 */
+		constructor(range: Range, color: Color);
+	}
+
+	/**
+	 * A color presentation object describes how a [`color`](#Color) should be represented as text and what
+	 * edits are required to refer to it from source code.
+	 *
+	 * For some languages one color can have multiple presentations, e.g. css can represent the color red with
+	 * the constant `Red`, the hex-value `#ff0000`, or in rgba and hsla forms. In csharp other representations
+	 * apply, e.g `System.Drawing.Color.Red`.
+	 */
+	export class ColorPresentation {
+
+		/**
+		 * The label of this color presentation. It will be shown on the color
+		 * picker header. By default this is also the text that is inserted when selecting
+		 * this color presentation.
+		 */
+		label: string;
+
+		/**
+		 * An [edit](#TextEdit) which is applied to a document when selecting
+		 * this presentation for the color.  When `falsy` the [label](#ColorPresentation.label)
+		 * is used.
+		 */
+		textEdit?: TextEdit;
+
+		/**
+		 * An optional array of additional [text edits](#TextEdit) that are applied when
+		 * selecting this color presentation. Edits must not overlap with the main [edit](#ColorPresentation.textEdit) nor with themselves.
+		 */
+		additionalTextEdits?: TextEdit[];
+
+		/**
+		 * Creates a new color presentation.
+		 *
+		 * @param label The label of this color presentation.
+		 */
+		constructor(label: string);
+	}
+
+	/**
+	 * The document color provider defines the contract between extensions and feature of
+	 * picking and modifying colors in the editor.
+	 */
+	export interface DocumentColorProvider {
+
+		/**
+		 * Provide colors for the given document.
+		 *
+		 * @param document The document in which the command was invoked.
+		 * @param token A cancellation token.
+		 * @return An array of [color informations](#ColorInformation) or a thenable that resolves to such. The lack of a result
+		 * can be signaled by returning `undefined`, `null`, or an empty array.
+		 */
+		provideDocumentColors(document: TextDocument, token: CancellationToken): ProviderResult<ColorInformation[]>;
+
+		/**
+		 * Provide [representations](#ColorPresentation) for a color.
+		 *
+		 * @param color The color to show and insert.
+		 * @param context A context object with additional information
+		 * @param token A cancellation token.
+		 * @return An array of color presentations or a thenable that resolves to such. The lack of a result
+		 * can be signaled by returning `undefined`, `null`, or an empty array.
+		 */
+		provideColorPresentations(color: Color, context: { document: TextDocument, range: Range }, token: CancellationToken): ProviderResult<ColorPresentation[]>;
 	}
 
 	/**
@@ -3178,7 +3470,7 @@ declare module 'vscode' {
 		uri: Uri;
 
 		/**
-		 * The document range of this locations.
+		 * The document range of this location.
 		 */
 		range: Range;
 
@@ -3352,9 +3644,24 @@ declare module 'vscode' {
 	 * used to show editors side by side.
 	 */
 	export enum ViewColumn {
+		/**
+		 * A *symbolic* editor column representing the currently
+		 * active column. This value can be used when opening editors, but the
+		 * *resolved* [viewColumn](#TextEditor.viewColumn)-value of editors will always
+		 * be `One`, `Two`, `Three`, or `undefined` but never `Active`.
+		 */
 		Active = -1,
+		/**
+		 * The left most editor column.
+		 */
 		One = 1,
+		/**
+		 * The center editor column.
+		 */
 		Two = 2,
+		/**
+		 * The right most editor column.
+		 */
 		Three = 3
 	}
 
@@ -3932,12 +4239,12 @@ declare module 'vscode' {
 	export class Task {
 
 		/**
-		 * Creates a new task.
+		 * ~~Creates a new task.~~
 		 *
-		 * @deprecated: Use the new constructors that allow specifying a target for the task.
+		 * @deprecated Use the new constructors that allow specifying a target for the task.
 		 *
 		 * @param definition The task definition as defined in the taskDefinitions extension point.
-		 * @param scope The task's name. Is presented in the user interface.
+		 * @param name The task's name. Is presented in the user interface.
 		 * @param source The task's source (e.g. 'gulp', 'npm', ...). Is presented in the user interface.
 		 * @param execution The process or shell execution.
 		 * @param problemMatchers the names of problem matchers to use, like '$tsc'
@@ -3950,8 +4257,7 @@ declare module 'vscode' {
 		 * Creates a new task.
 		 *
 		 * @param definition The task definition as defined in the taskDefinitions extension point.
-		 * @param scope Specifies the task's scope. It is either a global or a workspace task or a task for a specific workspace folder.
-		 * @param workspaceFolder The workspace folder this task is created for.
+		 * @param target Specifies the task's target. It is either a global or a workspace task or a task for a specific workspace folder.
 		 * @param name The task's name. Is presented in the user interface.
 		 * @param source The task's source (e.g. 'gulp', 'npm', ...). Is presented in the user interface.
 		 * @param execution The process or shell execution.
@@ -4208,7 +4514,7 @@ declare module 'vscode' {
 		 * has changed. *Note* that the event also fires when the active editor changes
 		 * to `undefined`.
 		 */
-		export const onDidChangeActiveTextEditor: Event<TextEditor>;
+		export const onDidChangeActiveTextEditor: Event<TextEditor | undefined>;
 
 		/**
 		 * An [event](#Event) which fires when the array of [visible editors](#window.visibleTextEditors)
@@ -4254,8 +4560,9 @@ declare module 'vscode' {
 		 * to control where the editor is being shown. Might change the [active editor](#window.activeTextEditor).
 		 *
 		 * @param document A text document to be shown.
-		 * @param column A view column in which the editor should be shown. The default is the [one](#ViewColumn.One), other values
-		 * are adjusted to be __Min(column, columnCount + 1)__.
+		 * @param column A view column in which the [editor](#TextEditor) should be shown. The default is the [one](#ViewColumn.One), other values
+		 * are adjusted to be `Min(column, columnCount + 1)`, the [active](#ViewColumn.Active)-column is
+		 * not adjusted.
 		 * @param preserveFocus When `true` the editor will not take focus.
 		 * @return A promise that resolves to an [editor](#TextEditor).
 		 */
@@ -4266,7 +4573,7 @@ declare module 'vscode' {
 		 * to control options of the editor is being shown. Might change the [active editor](#window.activeTextEditor).
 		 *
 		 * @param document A text document to be shown.
-		 * @param options [Editor options](#ShowTextDocumentOptions) to configure the behavior of showing the [editor](#TextEditor).
+		 * @param options [Editor options](#TextDocumentShowOptions) to configure the behavior of showing the [editor](#TextEditor).
 		 * @return A promise that resolves to an [editor](#TextEditor).
 		 */
 		export function showTextDocument(document: TextDocument, options?: TextDocumentShowOptions): Thenable<TextEditor>;
@@ -4277,7 +4584,7 @@ declare module 'vscode' {
 		 * @see [openTextDocument](#openTextDocument)
 		 *
 		 * @param uri A resource identifier.
-		 * @param options [Editor options](#ShowTextDocumentOptions) to configure the behavior of showing the [editor](#TextEditor).
+		 * @param options [Editor options](#TextDocumentShowOptions) to configure the behavior of showing the [editor](#TextEditor).
 		 * @return A promise that resolves to an [editor](#TextEditor).
 		 */
 		export function showTextDocument(uri: Uri, options?: TextDocumentShowOptions): Thenable<TextEditor>;
@@ -4445,6 +4752,33 @@ declare module 'vscode' {
 		 * @return A promise that resolves to the selected item or `undefined`.
 		 */
 		export function showQuickPick<T extends QuickPickItem>(items: T[] | Thenable<T[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<T | undefined>;
+
+		/**
+		 * Shows a selection list of [workspace folders](#workspace.workspaceFolders) to pick from.
+		 * Returns `undefined` if no folder is open.
+		 *
+		 * @param options Configures the behavior of the workspace folder list.
+		 * @return A promise that resolves to the workspace folder or `undefined`.
+		 */
+		export function showWorkspaceFolderPick(options?: WorkspaceFolderPickOptions): Thenable<WorkspaceFolder | undefined>;
+
+		/**
+		 * Shows a file open dialog to the user which allows to select a file
+		 * for opening-purposes.
+		 *
+		 * @param options Options that control the dialog.
+		 * @returns A promise that resolves to the selected resources or `undefined`.
+		 */
+		export function showOpenDialog(options: OpenDialogOptions): Thenable<Uri[] | undefined>;
+
+		/**
+		 * Shows a file save dialog to the user which allows to select a file
+		 * for saving-purposes.
+		 *
+		 * @param options Options that control the dialog.
+		 * @returns A promise that resolves to the selected resource or `undefined`.
+		 */
+		export function showSaveDialog(options: SaveDialogOptions): Thenable<Uri | undefined>;
 
 		/**
 		 * Opens an input box to ask the user for input.
@@ -4669,6 +5003,16 @@ declare module 'vscode' {
 		 * Args for the custom shell executable, this does not work on Windows (see #8429)
 		 */
 		shellArgs?: string[];
+
+		/**
+		 * A path for the current working directory to be used for the terminal.
+		 */
+		cwd?: string;
+
+		/**
+		 * Object with environment variables that will be added to the VS Code process.
+		 */
+		env?: { [key: string]: string | null };
 	}
 
 	/**
@@ -4884,13 +5228,22 @@ declare module 'vscode' {
 		export let workspaceFolders: WorkspaceFolder[] | undefined;
 
 		/**
+		 * The name of the workspace. `undefined` when no folder
+		 * has been opened.
+		 *
+		 * @readonly
+		 */
+		export let name: string | undefined;
+
+		/**
 		 * An event that is emitted when a workspace folder is added or removed.
 		 */
 		export const onDidChangeWorkspaceFolders: Event<WorkspaceFoldersChangeEvent>;
 
 		/**
-		 * Returns a [workspace folder](#WorkspaceFolder) for the provided resource. When the resource
-		 * is a workspace folder itself, its parent workspace folder or `undefined` is returned.
+		 * Returns the [workspace folder](#WorkspaceFolder) that contains a given uri.
+		 * * returns `undefined` when the given uri doesn't match any workspace folder
+		 * * returns the *input* when the given uri is a workspace folder itself
 		 *
 		 * @param uri An uri.
 		 * @return A workspace folder or `undefined`
@@ -4914,30 +5267,35 @@ declare module 'vscode' {
 		/**
 		 * Creates a file system watcher.
 		 *
-		 * A glob pattern that filters the file events must be provided. Optionally, flags to ignore certain
-		 * kinds of events can be provided. To stop listening to events the watcher must be disposed.
+		 * A glob pattern that filters the file events on their absolute path must be provided. Optionally,
+		 * flags to ignore certain kinds of events can be provided. To stop listening to events the watcher must be disposed.
 		 *
 		 * *Note* that only files within the current [workspace folders](#workspace.workspaceFolders) can be watched.
 		 *
-		 * @param globPattern A glob pattern that is applied to the names of created, changed, and deleted files.
+		 * @param globPattern A [glob pattern](#GlobPattern) that is applied to the absolute paths of created, changed,
+		 * and deleted files. Use a [relative pattern](#RelativePattern) to limit events to a certain [workspace folder](#WorkspaceFolder).
 		 * @param ignoreCreateEvents Ignore when files have been created.
 		 * @param ignoreChangeEvents Ignore when files have been changed.
 		 * @param ignoreDeleteEvents Ignore when files have been deleted.
 		 * @return A new file system watcher instance.
 		 */
-		export function createFileSystemWatcher(globPattern: string, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): FileSystemWatcher;
+		export function createFileSystemWatcher(globPattern: GlobPattern, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): FileSystemWatcher;
 
 		/**
-		 * Find files in the workspace.
+		 * Find files across all [workspace folders](#workspace.workspaceFolders) in the workspace.
 		 *
-		 * @sample `findFiles('**∕*.js', '**∕node_modules∕**', 10)`
-		 * @param include A glob pattern that defines the files to search for.
-		 * @param exclude A glob pattern that defines files and folders to exclude.
+		 * @sample `findFiles('**​/*.js', '**​/node_modules/**', 10)`
+		 * @param include A [glob pattern](#GlobPattern) that defines the files to search for. The glob pattern
+		 * will be matched against the file paths of resulting matches relative to their workspace. Use a [relative pattern](#RelativePattern)
+		 * to restrict the search results to a [workspace folder](#WorkspaceFolder).
+		 * @param exclude  A [glob pattern](#GlobPattern) that defines files and folders to exclude. The glob pattern
+		 * will be matched against the file paths of resulting matches relative to their workspace.
 		 * @param maxResults An upper-bound for the result.
 		 * @param token A token that can be used to signal cancellation to the underlying search engine.
-		 * @return A thenable that resolves to an array of resource identifiers.
+		 * @return A thenable that resolves to an array of resource identifiers. Will return no results if no
+		 * [workspace folders](#workspace.workspaceFolders) are opened.
 		 */
-		export function findFiles(include: string, exclude?: string, maxResults?: number, token?: CancellationToken): Thenable<Uri[]>;
+		export function findFiles(include: GlobPattern, exclude?: GlobPattern, maxResults?: number, token?: CancellationToken): Thenable<Uri[]>;
 
 		/**
 		 * Save all dirty files.
@@ -5071,7 +5429,7 @@ declare module 'vscode' {
 		/**
 		 * An event that is emitted when the [configuration](#WorkspaceConfiguration) changed.
 		 */
-		export const onDidChangeConfiguration: Event<void>;
+		export const onDidChangeConfiguration: Event<ConfigurationChangeEvent>;
 
 		/**
 		 * Register a task provider.
@@ -5081,6 +5439,21 @@ declare module 'vscode' {
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerTaskProvider(type: string, provider: TaskProvider): Disposable;
+	}
+
+	/**
+	 * An event describing the change in Configuration
+	 */
+	export interface ConfigurationChangeEvent {
+
+		/**
+		 * Returns `true` if the given section for the given resource (if provided) is affected.
+		 *
+		 * @param section Configuration name, supports _dotted_ names.
+		 * @param resource A resource Uri.
+		 * @return `true` if the given section for the given resource (if provided) is affected.
+		 */
+		affectsConfiguration(section: string, resource?: Uri): boolean;
 	}
 
 	/**
@@ -5397,6 +5770,19 @@ declare module 'vscode' {
 		export function registerDocumentLinkProvider(selector: DocumentSelector, provider: DocumentLinkProvider): Disposable;
 
 		/**
+		 * Register a color provider.
+		 *
+		 * Multiple providers can be registered for a language. In that case providers are asked in
+		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
+		 * not cause a failure of the whole operation.
+		 *
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider A color provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerColorProvider(selector: DocumentSelector, provider: DocumentColorProvider): Disposable;
+
+		/**
 		 * Set a [language configuration](#LanguageConfiguration) for a language.
 		 *
 		 * @param language A language identifier like `typescript`.
@@ -5415,6 +5801,16 @@ declare module 'vscode' {
 		 * Setter and getter for the contents of the input box.
 		 */
 		value: string;
+
+		/**
+		 * A string to show as place holder in the input box to guide the user.
+		 */
+		placeholder: string;
+
+		/**
+		 * The warning threshold for lines in the input box.
+		 */
+		lineWarningLength: number | undefined;
 	}
 
 	interface QuickDiffProvider {
@@ -5615,7 +6011,7 @@ declare module 'vscode' {
 		 * ~~The [input box](#SourceControlInputBox) for the last source control
 		 * created by the extension.~~
 		 *
-		 * @deprecated Use [SourceControl.inputBox](#SourceControl.inputBox) instead
+		 * @deprecated Use SourceControl.inputBox instead
 		 */
 		export const inputBox: SourceControlInputBox;
 
@@ -5703,8 +6099,8 @@ declare module 'vscode' {
 
 	/**
 	 * A debug configuration provider allows to add the initial debug configurations to a newly created launch.json
-	 * and allows to resolve a launch configuration before it is used to start a new debug session.
-	 * A debug configuration provider is registered via #workspace.registerDebugConfigurationProvider.
+	 * and to resolve a launch configuration before it is used to start a new debug session.
+	 * A debug configuration provider is registered via #debug.registerDebugConfigurationProvider.
 	 */
 	export interface DebugConfigurationProvider {
 		/**
@@ -5721,13 +6117,34 @@ declare module 'vscode' {
 		 * Resolves a [debug configuration](#DebugConfiguration) by filling in missing values or by adding/changing/removing attributes.
 		 * If more than one debug configuration provider is registered for the same type, the resolveDebugConfiguration calls are chained
 		 * in arbitrary order and the initial debug configuration is piped through the chain.
+		 * Returning the value 'undefined' prevents the debug session from starting.
 		 *
 		 * @param folder The workspace folder from which the configuration originates from or undefined for a folderless setup.
 		 * @param debugConfiguration The [debug configuration](#DebugConfiguration) to resolve.
 		 * @param token A cancellation token.
-		 * @return The resolved debug configuration.
+		 * @return The resolved debug configuration or undefined.
 		 */
 		resolveDebugConfiguration?(folder: WorkspaceFolder | undefined, debugConfiguration: DebugConfiguration, token?: CancellationToken): ProviderResult<DebugConfiguration>;
+	}
+
+	/**
+	 * Represents the debug console.
+	 */
+	export interface DebugConsole {
+		/**
+		 * Append the given value to the debug console.
+		 *
+		 * @param value A string, falsy values will not be printed.
+		 */
+		append(value: string): void;
+
+		/**
+		 * Append the given value and a line feed character
+		 * to the debug console.
+		 *
+		 * @param value A string, falsy values will be printed.
+		 */
+		appendLine(value: string): void;
 	}
 
 	/**
@@ -5753,6 +6170,11 @@ declare module 'vscode' {
 		 * If no debug session is active, the value is `undefined`.
 		 */
 		export let activeDebugSession: DebugSession | undefined;
+
+		/**
+		 * The currently active [debug console](#DebugConsole).
+		 */
+		export let activeDebugConsole: DebugConsole;
 
 		/**
 		 * An [event](#Event) which fires when the [active debug session](#debug.activeDebugSession)

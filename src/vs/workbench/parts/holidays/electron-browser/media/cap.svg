@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="162.43" height="172.4" version="1.1" viewBox="0 0 162.43491 172.4019" xmlns="http://www.w3.org/2000/svg" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+<defs>
+<linearGradient id="b" x1="-2558.1" x2="-2603.7" y1="-14.056" y2="-120.57" gradientTransform="matrix(.28084 0 0 .30274 990.72 715.86)" gradientUnits="userSpaceOnUse">
+<stop stop-color="#000083" offset="0"/>
+<stop stop-color="#000083" stop-opacity="0" offset="1"/>
+</linearGradient>
+<linearGradient id="a" x1="-2659.7" x2="-2627.9" y1="162.42" y2="74.029" gradientTransform="matrix(.35934 0 0 .35934 1192.4 721.93)" gradientUnits="userSpaceOnUse">
+<stop stop-color="#000080" offset="0"/>
+<stop stop-color="#000080" stop-opacity="0" offset="1"/>
+</linearGradient>
+</defs>
+<g transform="translate(-153.46 -657.77)">
+<path d="m233.23 710.51c0.35553-2.2063 1.886-4.0483 4.5385-4.5618 3.795-4.8813 5.5468-9.9487 6.6988-15.07l28.691 3.0255c20.258 21.779 37.806 50.063 33.213 86.935l-119.42-58.623c12.796-8.152 28.939-12.814 46.279-11.706z" fill="#f00" stroke="#500" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.4374"/>
+<path d="m188.4 721.49c24.087-3.9531 42.172-0.17872 56.754 5.5845 26.11 12.708 48.845 28.541 61.961 53.283 3.3043 6.6201 6.1145 13.117 8.0521 19.395-0.58824 13.739-7.5321 17.656-11.48 26.203-3.4812 3.6929-5.6269 2.712-8.2249 3.3131l-0.14409-8.8818c-10.877-26.012-36.243-46.592-61.433-57.627-23.016-10.082-49.104-15.089-70.305-6.0678-2.4364 2.5476-4.6962 5.3244-7.1257 8.3557-3.3258-4.0178-1.9827-11.666-2.1475-17.861 6.4703-10.006 12.012-12.199 18.082-19.004 2.6275-3.1413 5.2586-7.2712 16.009-6.6931z" fill="#fdfefd" stroke="#500" stroke-width="1.4374"/>
+<ellipse cx="261.72" cy="679.66" rx="21.582" ry="21.196" fill="#fdfefd" stroke="#500" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.3942"/>
+<ellipse cx="261.95" cy="680.68" rx="18.054" ry="17.732" fill="url(#b)" opacity=".29218" stroke-width=".29158"/>
+<path d="m174.6 730.2c60.84-0.95096 109.31 18.746 137.57 70.42-2.9517 7.89-6.6122 14.363-10.526 20.327-19.7-47.573-86.601-82.907-144.65-72.781 2.3949-5.9895 11.318-11.979 17.605-17.968z" fill="url(#a)" opacity=".12757" stroke-width=".35934"/>
+<path d="m272.29 661.3c2.7572 3.339 4.413 7.5946 4.413 12.229 0 10.729-8.8624 19.427-19.786 19.427-6.6906 0-12.591-3.2711-16.17-8.2648 2.2553 9.3389 10.789 16.294 20.988 16.294 11.919 0 21.583-9.4945 21.583-21.201 0-7.9393-4.449-14.852-11.027-18.484z" opacity=".107" stroke-width=".35934"/>
+<path d="m233.18 710.49c2.8266-0.0477 5.347 0.22313 7.4833 0.51239" fill="none" stroke="#500" stroke-linecap="round" stroke-width="1.4374"/>
+</g>
+<metadata>
+<rdf:RDF>
+<cc:Work>
+<dc:format>image/svg+xml</dc:format>
+<dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+<cc:license rdf:resource="http://creativecommons.org/licenses/publicdomain/"/>
+<dc:publisher>
+<cc:Agent rdf:about="http://openclipart.org/">
+<dc:title>Openclipart</dc:title>
+</cc:Agent>
+</dc:publisher>
+</cc:Work>
+<cc:License rdf:about="http://creativecommons.org/licenses/publicdomain/">
+<cc:permits rdf:resource="http://creativecommons.org/ns#Reproduction"/>
+<cc:permits rdf:resource="http://creativecommons.org/ns#Distribution"/>
+<cc:permits rdf:resource="http://creativecommons.org/ns#DerivativeWorks"/>
+</cc:License>
+</rdf:RDF>
+</metadata>
+</svg>

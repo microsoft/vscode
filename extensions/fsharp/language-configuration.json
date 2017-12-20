@@ -22,8 +22,10 @@
 		["'", "'"]
 	],
 	"folding": {
-		"indendationBasedFolding": {
-			"offSide": true
+		"offSide": true,
+		"markers": {
+			"start": "^\\s*//\\s*#region\\b|^\\s*\\(\\*\\s*#region(.*)\\*\\)",
+			"end": "^\\s*//\\s*#endregion\\b|^\\s*\\(\\*\\s*#endregion\\s*\\*\\)"
 		}
 	}
 }

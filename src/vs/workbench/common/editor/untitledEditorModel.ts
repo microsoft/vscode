@@ -11,7 +11,7 @@ import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel'
 import URI from 'vs/base/common/uri';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
-import { IFilesConfiguration, CONTENT_CHANGE_EVENT_BUFFER_DELAY } from 'vs/platform/files/common/files';
+import { CONTENT_CHANGE_EVENT_BUFFER_DELAY } from 'vs/platform/files/common/files';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IMode } from 'vs/editor/common/modes';
@@ -94,12 +94,11 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 	private registerListeners(): void {
 
 		// Config Changes
-		this.toDispose.push(this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange()));
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange()));
 	}
 
 	private onConfigurationChange(): void {
-		const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(this.resource);
-		const configuredEncoding = configuration && configuration.files && configuration.files.encoding;
+		const configuredEncoding = this.configurationService.getValue<string>(this.resource, 'files.encoding');
 
 		if (this.configuredEncoding !== configuredEncoding) {
 			this.configuredEncoding = configuredEncoding;
@@ -185,16 +184,14 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 			this.setDirty(this.hasAssociatedFilePath || !!backupContent);
 
 			return this.doLoad(backupContent || this.initialValue || '').then(model => {
-				const configuration = this.configurationService.getConfiguration<IFilesConfiguration>(this.resource);
-
 				// Encoding
-				this.configuredEncoding = configuration && configuration.files && configuration.files.encoding;
+				this.configuredEncoding = this.configurationService.getValue<string>(this.resource, 'files.encoding');
 
 				// Listen to content changes
 				this.toDispose.push(this.textEditorModel.onDidChangeContent(() => this.onModelContentChanged()));
 
 				// Listen to mode changes
-				this.toDispose.push(this.textEditorModel.onDidChangeLanguage(() => this.onModelModeChanged()));
+				this.toDispose.push(this.textEditorModel.onDidChangeLanguage(() => this.onConfigurationChange())); // mode change can have impact on config
 
 				return model;
 			});
@@ -232,10 +229,6 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 
 		// Handle content change event buffered
 		this.contentChangeEventScheduler.schedule();
-	}
-
-	private onModelModeChanged(): void {
-		this.onConfigurationChange(); // mode change can have impact on config
 	}
 
 	public dispose(): void {

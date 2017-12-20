@@ -16,7 +16,6 @@
 	"workbench.action.terminal.new.short": "新しいターミナル",
 	"workbench.action.terminal.focus": "端末にフォーカス",
 	"workbench.action.terminal.focusNext": "次の端末にフォーカス",
-	"workbench.action.terminal.focusAtIndex": "ターミナル {0} にフォーカス",
 	"workbench.action.terminal.focusPrevious": "前のターミナルにフォーカス",
 	"workbench.action.terminal.paste": "アクティブなターミナルに貼り付け",
 	"workbench.action.terminal.DefaultShell": "既定のシェルの選択",
@@ -38,5 +37,6 @@
 	"workbench.action.terminal.focusFindWidget": "検索ウィジェットにフォーカスする",
 	"workbench.action.terminal.hideFindWidget": "検索ウィジェットを非表示にする",
 	"nextTerminalFindTerm": "次の検索語句を表示",
-	"previousTerminalFindTerm": "前の検索語句を表示"
+	"previousTerminalFindTerm": "前の検索語句を表示",
+	"quickOpenTerm": "アクティブなターミナルの切り替え"
 }

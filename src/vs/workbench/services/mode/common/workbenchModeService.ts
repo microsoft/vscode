@@ -9,13 +9,14 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import * as paths from 'vs/base/common/paths';
 import { TPromise } from 'vs/base/common/winjs.base';
 import mime = require('vs/base/common/mime');
-import { IFilesConfiguration } from 'vs/platform/files/common/files';
+import { IFilesConfiguration, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IExtensionPointUser, ExtensionMessageCollector, IExtensionPoint, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { ILanguageExtensionPoint, IValidLanguageExtensionPoint } from 'vs/editor/common/services/modeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export const languagesExtPoint: IExtensionPoint<ILanguageExtensionPoint[]> = ExtensionsRegistry.registerExtensionPoint<ILanguageExtensionPoint[]>('languages', [], {
 	description: nls.localize('vscode.extension.contributes.languages', 'Contributes language declarations.'),
@@ -84,9 +85,10 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 
 	constructor(
 		@IExtensionService extensionService: IExtensionService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IEnvironmentService environmentService: IEnvironmentService
 	) {
-		super();
+		super(environmentService.verbose || environmentService.isExtensionDevelopment || !environmentService.isBuilt);
 		this._configurationService = configurationService;
 		this._extensionService = extensionService;
 
@@ -123,7 +125,11 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 
 		});
 
-		this._configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(this._configurationService.getConfiguration<IFilesConfiguration>()));
+		this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(FILES_ASSOCIATIONS_CONFIG)) {
+				this.updateMime();
+			}
+		});
 
 		this.onDidCreateMode((mode) => {
 			this._extensionService.activateByEvent(`onLanguage:${mode.getId()}`).done(null, onUnexpectedError);
@@ -132,10 +138,8 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 
 	protected _onReady(): TPromise<boolean> {
 		if (!this._onReadyPromise) {
-			const configuration = this._configurationService.getConfiguration<IFilesConfiguration>();
-			this._onReadyPromise = this._extensionService.onReady().then(() => {
-				this.onConfigurationChange(configuration);
-
+			this._onReadyPromise = this._extensionService.whenInstalledExtensionsRegistered().then(() => {
+				this.updateMime();
 				return true;
 			});
 		}
@@ -143,7 +147,8 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 		return this._onReadyPromise;
 	}
 
-	private onConfigurationChange(configuration: IFilesConfiguration): void {
+	private updateMime(): void {
+		const configuration = this._configurationService.getValue<IFilesConfiguration>();
 
 		// Clear user configured mime associations
 		mime.clearTextMimes(true /* user configured */);

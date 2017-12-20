@@ -33,5 +33,6 @@
 	"schema.fontSize": "使用字型時: 文字字型的字型大小 (百分比)。如果未設定，預設為字型定義中的大小。",
 	"schema.fontId": "使用字型時: 字型識別碼。如果未設定，預設為第一個字型定義。",
 	"schema.light": "以淺色色彩佈景主題顯示檔案圖示的選擇性關聯。",
-	"schema.highContrast": "以高對比色彩佈景主題顯示檔案圖示的選擇性關聯。"
+	"schema.highContrast": "以高對比色彩佈景主題顯示檔案圖示的選擇性關聯。",
+	"schema.hidesExplorerArrows": "設定當此佈景主題在使用中時，是否該隱藏檔案總管的箭號。"
 }

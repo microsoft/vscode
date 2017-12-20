@@ -19,11 +19,21 @@ import { IMode } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IViewlet } from 'vs/workbench/common/viewlet';
+import { InputFocusedContextKey } from 'vs/platform/workbench/common/contextkeys';
 
 /**
  * Explorer viewlet id.
  */
 export const VIEWLET_ID = 'workbench.view.explorer';
+
+export interface IExplorerViewlet extends IViewlet {
+	getExplorerView(): IExplorerView;
+}
+
+export interface IExplorerView {
+	select(resource: URI, reveal?: boolean): TPromise<void>;
+}
 
 /**
  * Context Keys to use with keybindings for the Explorer and Open Editors view
@@ -37,14 +47,14 @@ const explorerResourceIsFolderId = 'explorerResourceIsFolder';
 
 export const ExplorerViewletVisibleContext = new RawContextKey<boolean>(explorerViewletVisibleId, true);
 export const ExplorerFolderContext = new RawContextKey<boolean>(explorerResourceIsFolderId, false);
-export const FilesExplorerFocusedContext = new RawContextKey<boolean>(filesExplorerFocusId, false);
+export const FilesExplorerFocusedContext = new RawContextKey<boolean>(filesExplorerFocusId, true);
 export const OpenEditorsVisibleContext = new RawContextKey<boolean>(openEditorsVisibleId, false);
-export const OpenEditorsFocusedContext = new RawContextKey<boolean>(openEditorsFocusId, false);
-export const ExplorerFocusedContext = new RawContextKey<boolean>(explorerViewletFocusId, false);
+export const OpenEditorsFocusedContext = new RawContextKey<boolean>(openEditorsFocusId, true);
+export const ExplorerFocusedContext = new RawContextKey<boolean>(explorerViewletFocusId, true);
 
 export const OpenEditorsVisibleCondition = ContextKeyExpr.has(openEditorsVisibleId);
-export const FilesExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has(explorerViewletVisibleId), ContextKeyExpr.has(filesExplorerFocusId));
-export const ExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has(explorerViewletVisibleId), ContextKeyExpr.has(explorerViewletFocusId));
+export const FilesExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has(explorerViewletVisibleId), ContextKeyExpr.has(filesExplorerFocusId), ContextKeyExpr.not(InputFocusedContextKey));
+export const ExplorerFocusCondition = ContextKeyExpr.and(ContextKeyExpr.has(explorerViewletVisibleId), ContextKeyExpr.has(explorerViewletFocusId), ContextKeyExpr.not(InputFocusedContextKey));
 
 /**
  * File editor input id.
@@ -69,7 +79,12 @@ export interface IFilesConfiguration extends IFilesConfiguration, IWorkbenchEdit
 		};
 		autoReveal: boolean;
 		enableDragAndDrop: boolean;
+		confirmDelete: boolean;
 		sortOrder: SortOrder;
+		decorations: {
+			colors: boolean;
+			badges: boolean;
+		};
 	};
 	editor: IEditorOptions;
 }
@@ -95,9 +110,9 @@ export function explorerItemToFileResource(obj: FileStat | OpenEditor): IFileRes
 	if (obj instanceof OpenEditor) {
 		const editor = obj as OpenEditor;
 		const resource = editor.getResource();
-		if (resource && resource.scheme === 'file') {
+		if (resource) {
 			return {
-				resource: editor.getResource()
+				resource
 			};
 		}
 	}
@@ -127,6 +142,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 	}
 
 	public provideTextContent(resource: URI): TPromise<IModel> {
+		const fileOnDiskResource = URI.file(resource.fsPath);
 
 		// Make sure our file from disk is resolved up to date
 		return this.resolveEditorModel(resource).then(codeEditorModel => {
@@ -134,7 +150,7 @@ export class FileOnDiskContentProvider implements ITextModelContentProvider {
 			// Make sure to keep contents on disk up to date when it changes
 			if (!this.fileWatcher) {
 				this.fileWatcher = this.fileService.onFileChanges(changes => {
-					if (changes.contains(resource, FileChangeType.UPDATED)) {
+					if (changes.contains(fileOnDiskResource, FileChangeType.UPDATED)) { //
 						this.resolveEditorModel(resource, false /* do not create if missing */).done(null, onUnexpectedError); // update model when resource changes
 					}
 				});

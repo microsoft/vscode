@@ -16,7 +16,6 @@
 	"workbench.action.terminal.new.short": "Nouveau terminal",
 	"workbench.action.terminal.focus": "Focus sur le terminal",
 	"workbench.action.terminal.focusNext": "Focus sur le terminal suivant",
-	"workbench.action.terminal.focusAtIndex": "Focus sur le terminal {0}",
 	"workbench.action.terminal.focusPrevious": "Focus sur le terminal précédent",
 	"workbench.action.terminal.paste": "Coller dans le terminal actif",
 	"workbench.action.terminal.DefaultShell": "Sélectionner l'interpréteur de commandes par défaut",
@@ -38,5 +37,6 @@
 	"workbench.action.terminal.focusFindWidget": "Focus sur le widget de recherche",
 	"workbench.action.terminal.hideFindWidget": "Masquer le widget de recherche",
 	"nextTerminalFindTerm": "Afficher le terme de recherche suivant",
-	"previousTerminalFindTerm": "Afficher le terme de recherche précédent"
+	"previousTerminalFindTerm": "Afficher le terme de recherche précédent",
+	"quickOpenTerm": "Changer de terminal actif"
 }

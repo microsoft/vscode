@@ -6,7 +6,7 @@
 {
 	"termEntryAriaLabel": "{0}, terminal seçici",
 	"termCreateEntryAriaLabel": "{0}, yeni terminal oluştur",
-	"'workbench.action.terminal.newplus": "$(plus) Yeni Entegre Terminal Oluştur",
+	"workbench.action.terminal.newplus": "$(plus) Yeni Entegre Terminal Oluştur",
 	"noTerminalsMatching": "Eşleşen terminal yok",
 	"noTerminalsFound": "Açık terminal yok"
 }
