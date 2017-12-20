@@ -7,6 +7,7 @@ import * as nls from 'vs/nls';
 import * as paths from 'vs/base/common/paths';
 import * as strings from 'vs/base/common/strings';
 import * as extfs from 'vs/base/node/extfs';
+import * as fs from 'fs';
 import { TPromise } from 'vs/base/common/winjs.base';
 import Event, { Emitter } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
@@ -27,7 +28,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { RunOnceScheduler, ThrottledDelayer } from 'vs/base/common/async';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
-import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IPanel } from 'vs/workbench/common/panel';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -66,6 +67,45 @@ function watchOutputDirectory(outputDir: string, logService: ILogService, onChan
 	return toDisposable(() => { });
 }
 
+const fileWatchers: Map<string, any[]> = new Map<string, any[]>();
+function watchFile(file: string, callback: () => void): IDisposable {
+
+	const onFileChange = (file: string) => {
+		for (const callback of fileWatchers.get(file)) {
+			callback();
+		}
+	};
+
+	let callbacks = fileWatchers.get(file);
+	if (!callbacks) {
+		callbacks = [];
+		fileWatchers.set(file, callbacks);
+		fs.watchFile(file, { interval: 1000 }, (current, previous) => {
+			if ((previous && !current) || (!previous && !current)) {
+				onFileChange(file);
+				return;
+			}
+			if (previous && current && previous.mtime !== current.mtime) {
+				onFileChange(file);
+				return;
+			}
+		});
+	}
+	callbacks.push(callback);
+	return toDisposable(() => {
+		let allCallbacks = fileWatchers.get(file);
+		allCallbacks.splice(allCallbacks.indexOf(callback), 1);
+		if (!allCallbacks.length) {
+			fs.unwatchFile(file);
+			fileWatchers.delete(file);
+		}
+	});
+}
+
+function unWatchAllFiles(): void {
+	fileWatchers.forEach((value, file) => fs.unwatchFile(file));
+	fileWatchers.clear();
+}
 
 interface OutputChannel extends IOutputChannel {
 	readonly file: URI;
@@ -269,27 +309,27 @@ class OutputFileListener extends Disposable {
 	private _onDidChange: Emitter<void> = new Emitter<void>();
 	readonly onDidContentChange: Event<void> = this._onDidChange.event;
 
+	private watching: boolean = false;
 	private disposables: IDisposable[] = [];
 
 	constructor(
 		private readonly file: URI,
-		private fileService: IFileService
 	) {
 		super();
 	}
 
 	watch(): void {
-		this.fileService.watchFileChanges(this.file);
-		this.disposables.push(this.fileService.onFileChanges(changes => {
-			if (changes.contains(this.file, FileChangeType.UPDATED)) {
-				this._onDidChange.fire();
-			}
-		}));
+		if (!this.watching) {
+			this.disposables.push(watchFile(this.file.fsPath, () => this._onDidChange.fire()));
+			this.watching = true;
+		}
 	}
 
 	unwatch(): void {
-		this.fileService.unwatchFileChanges(this.file);
-		this.disposables = dispose(this.disposables);
+		if (this.watching) {
+			this.disposables = dispose(this.disposables);
+			this.watching = false;
+		}
 	}
 
 	dispose(): void {
@@ -312,11 +352,12 @@ class FileOutputChannel extends AbstractFileOutputChannel implements OutputChann
 		modelUri: URI,
 		@IFileService fileService: IFileService,
 		@IModelService modelService: IModelService,
-		@IModeService modeService: IModeService
+		@IModeService modeService: IModeService,
+		@ILogService logService: ILogService,
 	) {
 		super(outputChannelIdentifier, modelUri, fileService, modelService, modeService);
 
-		this.fileHandler = this._register(new OutputFileListener(this.file, fileService));
+		this.fileHandler = this._register(new OutputFileListener(this.file));
 		this._register(this.fileHandler.onDidContentChange(() => this.onDidContentChange()));
 		this._register(toDisposable(() => this.fileHandler.unwatch()));
 	}
@@ -391,6 +432,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		panelService.onDidPanelClose(this.onDidPanelClose, this);
 		this.outputDir = paths.join(environmentService.logsPath, `output_${windowService.getCurrentWindowId()}_${toLocalISOString(new Date()).replace(/-|:|\.\d+Z$/g, '')}`);
 
+		this._register(toDisposable(() => unWatchAllFiles()));
 	}
 
 	provideTextContent(resource: URI): TPromise<IModel> {
