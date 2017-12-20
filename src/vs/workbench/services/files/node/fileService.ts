@@ -6,7 +6,6 @@
 'use strict';
 
 import paths = require('path');
-import cp = require('child_process');
 import fs = require('fs');
 import os = require('os');
 import crypto = require('crypto');
@@ -614,19 +613,19 @@ export class FileService implements IFileService {
 			// 2.) write to a temporary file to be able to copy over later
 			const tmpPath = paths.join(this.tmpPath, `code-elevated-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 6)}`);
 			return this.updateContent(uri.file(tmpPath), value, writeOptions).then(() => {
-				let sudoPromise: Thenable<void>;
 
-				// Windows: Use code-writer.exe helper
-				if (isWindows) {
-					sudoPromise = new TPromise<void>((c, e) => {
-						let codeWriter: string;
-						if (process.arch === 'x64') {
-							codeWriter = uri.parse(require.toUrl('vs/workbench/services/files/node/elevate/win32/code-writer-x64.exe')).fsPath;
-						} else {
-							codeWriter = uri.parse(require.toUrl('vs/workbench/services/files/node/elevate/win32/code-writer-ia32.exe')).fsPath;
+				// 3.) invoke our CLI as super user
+				return (import('sudo-prompt')).then(sudoPrompt => {
+					return new TPromise<void>((c, e) => {
+						const promptOptions = { name: this.options.elevationSupport.promptTitle.replace('-', ''), icns: this.options.elevationSupport.promptIcnsPath };
+
+						const sudoCommand: string[] = [`"${this.options.elevationSupport.cliPath}"`];
+						if (options.overwriteReadonly) {
+							sudoCommand.push('--sudo-chmod');
 						}
+						sudoCommand.push('--sudo-write', `"${tmpPath}"`, `"${absolutePath}"`);
 
-						cp.exec(`"${codeWriter}" "${tmpPath}" "${absolutePath}"`, (error, stdout, stderr) => {
+						sudoPrompt.exec(sudoCommand.join(' '), promptOptions, (error: string, stdout: string, stderr: string) => {
 							if (error || stderr) {
 								e(error || stderr);
 							} else {
@@ -634,33 +633,7 @@ export class FileService implements IFileService {
 							}
 						});
 					});
-				}
-
-				// Mac/Linux: Use sudo-prompt
-				else {
-					sudoPromise = (import('sudo-prompt')).then(sudoPrompt => {
-						return new TPromise<void>((c, e) => {
-							const promptOptions = { name: this.options.elevationSupport.promptTitle.replace('-', ''), icns: this.options.elevationSupport.promptIcnsPath };
-
-							const sudoCommand: string[] = [`"${this.options.elevationSupport.cliPath}"`];
-							if (options.overwriteReadonly) {
-								sudoCommand.push('--sudo-chmod');
-							}
-							sudoCommand.push('--sudo-write', `"${tmpPath}"`, `"${absolutePath}"`);
-
-							sudoPrompt.exec(sudoCommand.join(' '), promptOptions, (error: string, stdout: string, stderr: string) => {
-								if (error || stderr) {
-									e(error || stderr);
-								} else {
-									c(void 0);
-								}
-							});
-						});
-					});
-				}
-
-				// 3.) invoke our CLI as super user
-				return sudoPromise.then(() => {
+				}).then(() => {
 
 					// 3.) delete temp file
 					return pfs.del(tmpPath, this.tmpPath).then(() => {
@@ -668,7 +641,6 @@ export class FileService implements IFileService {
 						// 4.) resolve again
 						return this.resolve(resource);
 					});
-
 				});
 			});
 		}).then(null, error => {
