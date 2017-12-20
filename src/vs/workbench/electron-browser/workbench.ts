@@ -152,6 +152,7 @@ export class Workbench implements IPartService {
 	private static readonly panelHiddenStorageKey = 'workbench.panel.hidden';
 	private static readonly zenModeActiveStorageKey = 'workbench.zenmode.active';
 	private static readonly panelPositionStorageKey = 'workbench.panel.location';
+	private static readonly defaultPanelPositionStorageKey = 'workbench.panel.defaultLocation';
 
 	private static readonly sidebarPositionConfigurationKey = 'workbench.sideBar.location';
 	private static readonly statusbarVisibleConfigurationKey = 'workbench.statusBar.visible';
@@ -635,8 +636,7 @@ export class Workbench implements IPartService {
 		this.sideBarPosition = (sideBarPosition === 'right') ? Position.RIGHT : Position.LEFT;
 
 		// Panel position
-		const panelPosition = this.storageService.get(Workbench.panelPositionStorageKey, StorageScope.WORKSPACE, 'bottom');
-		this.panelPosition = (panelPosition === 'right') ? Position.RIGHT : Position.BOTTOM;
+		this.setPanelPositionFromStorageOrConfig();
 
 		// Statusbar visibility
 		const statusBarVisible = this.configurationService.getValue<string>(Workbench.statusbarVisibleConfigurationKey);
@@ -656,6 +656,12 @@ export class Workbench implements IPartService {
 			wasSideBarVisible: false,
 			wasPanelVisible: false
 		};
+	}
+
+	private setPanelPositionFromStorageOrConfig() {
+		const defaultPanelPosition = this.configurationService.getValue<string>(Workbench.defaultPanelPositionStorageKey);
+		const panelPosition = this.storageService.get(Workbench.panelPositionStorageKey, StorageScope.WORKSPACE, defaultPanelPosition);
+		this.panelPosition = (panelPosition === 'right') ? Position.RIGHT : Position.BOTTOM;
 	}
 
 	/**
@@ -1083,6 +1089,8 @@ export class Workbench implements IPartService {
 		if (newSidebarPosition !== this.getSideBarPosition()) {
 			this.setSideBarPosition(newSidebarPosition);
 		}
+
+		this.setPanelPositionFromStorageOrConfig();
 
 		const fontAliasing = this.configurationService.getValue<string>(Workbench.fontAliasingConfigurationKey);
 		if (fontAliasing !== this.fontAliasing) {
