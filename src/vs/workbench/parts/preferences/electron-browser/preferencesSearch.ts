@@ -97,7 +97,8 @@ export class LocalSearchProvider {
 		};
 
 		const settingMatcher = (setting: ISetting) => {
-			return new SettingMatches(this._filter, setting, true, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
+			const matches = new SettingMatches(this._filter, setting, true, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
+			return matches && matches.length ? matches : null;
 		};
 
 		const filterMatches = preferencesModel.filterSettings(this._filter, groupFilter, settingMatcher);
@@ -204,12 +205,10 @@ export class RemoteSearchProvider implements IDisposable {
 		return (setting: ISetting) => {
 			if (resultSet.has(setting.key)) {
 				const settingMatches = new SettingMatches(this._filter, setting, false, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
-				if (settingMatches.length) {
-					return settingMatches;
-				}
+				return settingMatches;
 			}
 
-			return [];
+			return null;
 		};
 	}
 }

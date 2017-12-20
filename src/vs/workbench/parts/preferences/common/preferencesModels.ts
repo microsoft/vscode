@@ -28,7 +28,8 @@ export abstract class AbstractSettingsModel extends EditorModel {
 	}
 
 	public filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher): IFilterMatch[] {
-		const allGroups = this.settingsGroups;
+		// TODO@Rob - exclude the Commonly Used settings group
+		const allGroups = this.settingsGroups.slice(1);
 
 		if (!filter) {
 			throw new Error(`don't`);
@@ -58,22 +59,24 @@ export abstract class AbstractSettingsModel extends EditorModel {
 			const groupMatched = groupFilter(group);
 			for (const section of group.sections) {
 				for (const setting of section.settings) {
-					const settingMatches = settingMatcher(setting).map(range => {
-						return new Range(
-							range.startLineNumber - setting.range.startLineNumber,
-							range.startColumn,
-							range.endLineNumber - setting.range.startLineNumber,
-							range.endColumn
-						);
-					});
+					const settingMatches = settingMatcher(setting);
 
-					if (groupMatched || settingMatches && settingMatches.length) {
-						filterMatches.push({ setting, matches: settingMatches });
+					if (groupMatched || settingMatches) {
+						const matches = settingMatches && settingMatches.map(range => {
+							return new Range(
+								range.startLineNumber - setting.range.startLineNumber,
+								range.startColumn,
+								range.endLineNumber - setting.range.startLineNumber,
+								range.endColumn
+							);
+						});
+
+						filterMatches.push({ setting, matches });
 					}
 
-					if (settingMatches) {
-						matches.push(...settingMatches);
-					}
+					// if (settingMatches) {
+					// 	matches.push(...settingMatches);
+					// }
 				}
 				// if (settings.length) {
 				// 	sections.push({

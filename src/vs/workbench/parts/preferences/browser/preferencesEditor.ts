@@ -25,7 +25,7 @@ import { CodeEditor } from 'vs/editor/browser/codeEditor';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import {
 	IPreferencesService, ISettingsGroup, ISetting, IFilterResult, IPreferencesSearchService,
-	CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, SETTINGS_EDITOR_COMMAND_SEARCH, SETTINGS_EDITOR_COMMAND_FOCUS_FILE, ISettingsEditorModel, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING, IFilterMetadata, IPreferencesSearchModel
+	CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, SETTINGS_EDITOR_COMMAND_SEARCH, SETTINGS_EDITOR_COMMAND_FOCUS_FILE, ISettingsEditorModel, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING, IFilterMetadata, IPreferencesSearchModel, IFilterResult2
 } from 'vs/workbench/parts/preferences/common/preferences';
 import { SettingsEditorModel, DefaultSettingsEditorModel } from 'vs/workbench/parts/preferences/common/preferencesModels';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -557,6 +557,7 @@ class PreferencesRenderers extends Disposable {
 			const model = <ISettingsEditorModel>preferencesRenderer.preferencesModel;
 			provider.filterPreferences(model).then(filterResult => {
 				if (filterResult) {
+					this._removeDuplicateResults(mergeResult, filterResult);
 					const result = model.renderSearchMatches(filterResult.filterMatches, filterResult.query);
 					if (mergeResult) {
 						result.filteredGroups = [...mergeResult.filteredGroups, ...result.filteredGroups];
@@ -569,6 +570,14 @@ class PreferencesRenderers extends Disposable {
 		}
 
 		return TPromise.as(null);
+	}
+
+	private _removeDuplicateResults(filterResult: IFilterResult, searchResult: IFilterResult2): void {
+		// Remove duplicates between local and remote results
+		// TODO simplify
+		const localSet = new Set<string>();
+		filterResult.filteredGroups[0].sections[0].settings.forEach(s => localSet.add(s.key));
+		searchResult.filterMatches = searchResult.filterMatches.filter(s => !localSet.has(s.setting.key));
 	}
 
 	private consolidateAndUpdate(): number {
