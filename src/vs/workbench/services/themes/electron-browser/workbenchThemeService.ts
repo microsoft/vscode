@@ -159,7 +159,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 			customEditorColorSchema.properties = customEditorColorConfigurationProperties;
 			const copyCustomEditorColorSchema = { ...customEditorColorSchema };
-			copyCustomEditorColorSchema.properties = { ...customEditorColorSchema.properties };
+			copyCustomEditorColorSchema.properties = { ...customEditorColorConfigurationProperties };
 
 			themes.forEach(t => {
 				colorThemeSettingSchema.enum.push(t.settingsId);
