@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { TreeModel, ITreeNode } from '../treeModel';
+import { TreeModel, ITreeNode } from 'vs/base/browser/ui/list/treeModel';
 
 suite('TreeModel2', () => {
 

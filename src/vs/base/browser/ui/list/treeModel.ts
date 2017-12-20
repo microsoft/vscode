@@ -17,13 +17,13 @@ export interface ITreeNode<T> {
 	readonly depth: number;
 }
 
-export class TreeNode<T> implements ITreeNode<T> {
+class TreeNode<T> implements ITreeNode<T> {
 
 	static createRoot<T>(): TreeNode<T> {
 		const node = new TreeNode<T>();
-		node._children = [];
-		node._count = 1;
-		node._depth = 0;
+		node.children = [];
+		node.count = 1;
+		node.depth = 0;
 		return node;
 	}
 
@@ -31,34 +31,29 @@ export class TreeNode<T> implements ITreeNode<T> {
 		const node = new TreeNode<T>();
 		list.push(node);
 
-		const { children, count } = treeElement.children.reduce((r, e) => {
-			const child = TreeNode.createNode<T>(e, depth + 1, list);
-			r.children.push(child);
-			r.count += child.count;
-			return r;
-		}, { children: [] as TreeNode<T>[], count: 1 });
+		let count = 1;
+		const children: TreeNode<T>[] = [];
 
-		node._element = treeElement.element;
-		node._children = children;
-		node._count = count;
-		node._depth = depth;
+		for (const element of treeElement.children) {
+			const node = TreeNode.createNode<T>(element, depth + 1, list);
+			children.push(node);
+			count += node.count;
+		}
+
+		node.element = treeElement.element;
+		node.children = children;
+		node.count = count;
+		node.depth = depth;
 
 		return node;
 	}
 
-	private _element: T;
-	public get element(): T { return this._element; }
+	element: T;
+	children: TreeNode<T>[];
+	count: number;
+	depth: number;
 
-	private _children: TreeNode<T>[];
-	public get children(): TreeNode<T>[] { return this._children; }
-
-	private _count = 1;
-	public get count(): number { return this._count; }
-
-	private _depth: number;
-	public get depth(): number { return this._depth; }
-
-	constructor() { }
+	private constructor() { }
 
 	splice(index: number, deleteCount: number, elements: ITreeElement<T>[]): { listDeleteCount: number; listElements: ITreeNode<T>[]; } {
 		const listElements = [] as ITreeNode<T>[];
@@ -69,7 +64,7 @@ export class TreeNode<T> implements ITreeNode<T> {
 		const deleted = this.children.splice(index, deleteCount, ...added);
 		const listDeleteCount = deleted.reduce((r, n) => r + n.count, 0);
 
-		this._count += listAddCount - listDeleteCount;
+		this.count += listAddCount - listDeleteCount;
 		return { listDeleteCount, listElements };
 	}
 }
