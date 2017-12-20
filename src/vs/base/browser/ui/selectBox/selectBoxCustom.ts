@@ -155,7 +155,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 			dom.EventHelper.stop(e);
 
 			if (this._isVisible) {
-				this.hideSelectDropDown();
+				this.hideSelectDropDown(true);
 			} else {
 				this.showSelectDropDown();
 			}
@@ -371,12 +371,16 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		});
 	}
 
-	private hideSelectDropDown() {
+	private hideSelectDropDown(focusSelect: boolean) {
 		if (!this.contextViewProvider || !this._isVisible) {
 			return;
 		}
 
 		this._isVisible = false;
+
+		if (focusSelect) {
+			this.selectElement.focus();
+		}
 		this.contextViewProvider.hideContextView();
 	}
 
@@ -521,7 +525,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 				index: this.selectElement.selectedIndex,
 				selected: this.selectElement.title
 			});
-			this.hideSelectDropDown();
+			this.hideSelectDropDown(true);
 		}
 		dom.EventHelper.stop(e);
 	}
@@ -534,7 +538,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 			selected: this.selectElement.title
 		});
 
-		this.hideSelectDropDown();
+		this.hideSelectDropDown(false);
 	}
 
 	// List keyboard controller
@@ -542,8 +546,8 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	private onEscape(e: StandardKeyboardEvent): void {
 		dom.EventHelper.stop(e);
 
-		this.hideSelectDropDown();
-		this.selectElement.focus();
+		this.hideSelectDropDown(true);
+
 		this._onDidSelect.fire({
 			index: this.selectElement.selectedIndex,
 			selected: this.selectElement.title
@@ -554,8 +558,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	private onEnter(e: StandardKeyboardEvent): void {
 		dom.EventHelper.stop(e);
 
-		this.selectElement.focus();
-		this.hideSelectDropDown();
+		this.hideSelectDropDown(true);
 		this._onDidSelect.fire({
 			index: this.selectElement.selectedIndex,
 			selected: this.selectElement.title
