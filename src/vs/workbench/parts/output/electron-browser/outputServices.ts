@@ -30,7 +30,6 @@ import { Position } from 'vs/editor/common/core/position';
 import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
 import { IPanel } from 'vs/workbench/common/panel';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { RotatingLogger } from 'spdlog';
 import { toLocalISOString } from 'vs/base/common/date';
@@ -39,7 +38,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { binarySearch } from 'vs/base/common/arrays';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IMessageService, Severity } from 'vs/platform/message/common/message';
-import { LogViewer } from 'vs/workbench/parts/output/browser/logViewer';
 import { Schemas } from 'vs/base/common/network';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
@@ -376,7 +374,6 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		@IPanelService private panelService: IPanelService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@ITextModelService textModelResolverService: ITextModelService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IWindowService windowService: IWindowService,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -533,8 +530,7 @@ export class LogContentProvider {
 	private channels: Map<string, OutputChannel> = new Map<string, OutputChannel>();
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 	}
 
@@ -554,13 +550,6 @@ export class LogContentProvider {
 		if (!channel) {
 			const channelDisposables = [];
 			channel = this.instantiationService.createInstance(FileOutputChannel, { id, label: '', file: resource.with({ scheme: Schemas.file }) }, resource);
-			channel.onDidAppendedContent(() => {
-				for (const editor of this.editorService.getVisibleEditors()) {
-					if (editor instanceof LogViewer && editor.input && channel.file.toString() === editor.input.getResource().toString()) {
-						editor.revealLastLine();
-					}
-				}
-			}, channelDisposables);
 			channel.onDispose(() => dispose(channelDisposables), channelDisposables);
 			this.channels.set(id, channel);
 		}
