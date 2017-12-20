@@ -13,7 +13,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { OutputService, LogContentProvider } from 'vs/workbench/parts/output/electron-browser/outputServices';
 import { ToggleOutputAction, ClearOutputAction } from 'vs/workbench/parts/output/browser/outputActions';
-import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_SCHEME } from 'vs/workbench/parts/output/common/output';
+import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_SCHEME, COMMAND_OPEN_LOG_VIEWER } from 'vs/workbench/parts/output/common/output';
 import { PanelRegistry, Extensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -23,8 +23,10 @@ import { LogViewer, LogViewerInput } from 'vs/workbench/parts/output/browser/log
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import URI from 'vs/base/common/uri';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 // Register Service
 registerSingleton(IOutputService, OutputService);
@@ -157,4 +159,12 @@ registerAction({
 	handler(accessor) {
 		accessor.get(IOutputService).getActiveChannel().clear();
 	}
+});
+
+CommandsRegistry.registerCommand(COMMAND_OPEN_LOG_VIEWER, function (accessor: ServicesAccessor, file: URI) {
+	if (file) {
+		const editorService = accessor.get(IWorkbenchEditorService);
+		return editorService.openEditor(accessor.get(IInstantiationService).createInstance(LogViewerInput, file));
+	}
+	return null;
 });

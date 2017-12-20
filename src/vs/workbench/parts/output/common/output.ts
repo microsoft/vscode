@@ -36,6 +36,11 @@ export const OUTPUT_MODE_ID = 'Log';
  */
 export const OUTPUT_PANEL_ID = 'workbench.panel.output';
 
+/**
+ * Open log viewer command id
+ */
+export const COMMAND_OPEN_LOG_VIEWER = 'workbench.action.openLogViewer';
+
 export const Extensions = {
 	OutputChannels: 'workbench.contributions.outputChannels'
 };
