@@ -59,10 +59,20 @@ export interface ISetting {
 
 export interface IFilterResult {
 	query: string;
-	filteredSettings: ISetting[];
-	searchedSettings?: ISetting[];
+	filteredGroups: ISettingsGroup[];
 	allGroups: ISettingsGroup[];
 	matches: IRange[];
+	metadata?: IFilterMetadata;
+}
+
+export interface IFilterMatch {
+	setting: ISetting;
+	matches: IRange[];
+}
+
+export interface IFilterResult2 {
+	query: string;
+	filterMatches: IFilterMatch[];
 	metadata?: IFilterMetadata;
 }
 
@@ -93,8 +103,10 @@ export interface ISettingsEditorModel extends IPreferencesEditorModel<ISetting> 
 	readonly onDidChangeGroups: Event<void>;
 	settingsGroups: ISettingsGroup[];
 	groupsTerms: string[];
-	filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher, mostRelevantSettings?: string[]): IFilterResult;
+	filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher, mostRelevantSettings?: string[]): IFilterMatch[];
 	findValueMatches(filter: string, setting: ISetting): IRange[];
+	renderFilteredMatches(filteredMatches: IFilterMatch[], filter: string): IFilterResult;
+	renderSearchMatches(searchMatches: IFilterMatch[], filter: string): IFilterResult;
 }
 
 export interface IKeybindingsEditorModel<T> extends IPreferencesEditorModel<T> {
@@ -165,11 +177,6 @@ export interface IPreferencesSearchService {
 
 	getLocalSearchProvider(filter: string): LocalSearchProvider;
 	getRemoteSearchProvider(filter: string): RemoteSearchProvider;
-}
-
-export interface IPreferencesSearchModel {
-	startRemoteSearch(): void;
-	filterPreferences(preferencesModel: ISettingsEditorModel): TPromise<IFilterResult>;
 }
 
 export const CONTEXT_SETTINGS_EDITOR = new RawContextKey<boolean>('inSettingsEditor', false);

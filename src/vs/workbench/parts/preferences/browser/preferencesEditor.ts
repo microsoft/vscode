@@ -60,8 +60,6 @@ import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { LocalSearchProvider, RemoteSearchProvider } from 'vs/workbench/parts/preferences/electron-browser/preferencesSearch';
 
-type whatever = any;
-
 export class PreferencesEditorInput extends SideBySideEditorInput {
 	public static ID: string = 'workbench.editorinputs.preferencesEditorInput';
 
@@ -114,7 +112,7 @@ export class PreferencesEditor extends BaseEditor {
 	private preferencesRenderers: PreferencesRenderers;
 
 	private delayedFilterLogging: Delayer<void>;
-	private filterThrottle: ThrottledDelayer<void>;
+	private searchThrottle: ThrottledDelayer<void>;
 
 	private latestEmptyFilters: string[] = [];
 	private lastFocusedWidget: SearchWidget | SideBySidePreferencesWidget = null;
@@ -134,7 +132,7 @@ export class PreferencesEditor extends BaseEditor {
 		this.defaultSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(this.contextKeyService);
 		this.focusSettingsContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(this.contextKeyService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
-		this.filterThrottle = new ThrottledDelayer(200);
+		this.searchThrottle = new ThrottledDelayer(200);
 		this.memento = this.getMemento(storageService, Scope.WORKSPACE);
 	}
 
@@ -164,11 +162,6 @@ export class PreferencesEditor extends BaseEditor {
 		this._register(this.sideBySidePreferencesWidget.onDidSettingsTargetChange(target => this.switchSettings(target)));
 
 		this.preferencesRenderers = this._register(new PreferencesRenderers(this.preferencesSearchService));
-
-		this._register(this.preferencesRenderers.onTriggeredFuzzy(() => {
-			this.searchWidget.fuzzyEnabled = true;
-			this.filterPreferences();
-		}));
 
 		this._register(this.preferencesRenderers.onDidFilterResultsCountChange(count => this.showSearchResultsMessage(count)));
 	}
@@ -258,7 +251,7 @@ export class PreferencesEditor extends BaseEditor {
 	}
 
 	private triggerThrottledFilter(): void {
-		this.filterThrottle.trigger(() => this.filterPreferences());
+		this.searchThrottle.trigger(() => this.searchPreferences());
 	}
 
 	private switchSettings(target: SettingsTarget): void {
@@ -278,8 +271,12 @@ export class PreferencesEditor extends BaseEditor {
 		});
 	}
 
+	private searchPreferences(): TPromise<void> {
+		const filter = this.searchWidget.getValue().trim();
+		return this.preferencesRenderers.searchPreferences(filter);
+	}
+
 	private filterPreferences(): TPromise<void> {
-		this.memento['fuzzyEnabled'] = this.searchWidget.fuzzyEnabled;
 		const filter = this.searchWidget.getValue().trim();
 		return this.preferencesRenderers.filterPreferences(filter).then(() => { });
 		// return this.preferencesRenderers.filterPreferences(filter).then(result => {
@@ -395,6 +392,8 @@ class PreferencesRenderers extends Disposable {
 
 	private _currentLocalSearchProvider: LocalSearchProvider;
 	private _currentRemoteSearchProvider: RemoteSearchProvider;
+	private _lastDefaultFilterResult: IFilterResult;
+	private _lastEditableFilterResult: IFilterResult;
 
 	private _remoteSearchThrottle: ThrottledDelayer<void>;
 
@@ -456,13 +455,16 @@ class PreferencesRenderers extends Disposable {
 		}
 	}
 
-	searchPreferences(filter: string): whatever {
+	searchPreferences(filter: string): TPromise<void> {
 		if (this._currentRemoteSearchProvider) {
 			// actually, cancel promise
 			this._currentRemoteSearchProvider.dispose();
 		}
 
 		this._currentRemoteSearchProvider = this.preferencesSearchService.getRemoteSearchProvider(filter);
+		this._searchPreferences(filter, this.defaultPreferencesRenderer, this._currentRemoteSearchProvider, this._lastDefaultFilterResult);
+		this._searchPreferences(filter, this.editablePreferencesRenderer, this._currentRemoteSearchProvider, this._lastEditableFilterResult);
+		return TPromise.wrap(null);
 
 		// call twice with two prefs models
 		// this._currentRemoteSearchProvider
@@ -475,8 +477,8 @@ class PreferencesRenderers extends Disposable {
 		}
 
 		this._currentLocalSearchProvider = this.preferencesSearchService.getLocalSearchProvider(filter);
-		this._filterPreferences(filter, this.defaultPreferencesRenderer, this._currentLocalSearchProvider);
-		this._filterPreferences(filter, this.editablePreferencesRenderer, this._currentLocalSearchProvider);
+		this._lastDefaultFilterResult = this._filterPreferences(filter, this.defaultPreferencesRenderer, this._currentLocalSearchProvider);
+		this._lastEditableFilterResult = this._filterPreferences(filter, this.editablePreferencesRenderer, this._currentLocalSearchProvider);
 
 		// this._filtersInProgress = [this._filterDefaultPreferences(), this._filterEditablePreferences()];
 
@@ -535,11 +537,34 @@ class PreferencesRenderers extends Disposable {
 		return preferencesRenderer ? (<ISettingsEditorModel>preferencesRenderer.preferencesModel).settingsGroups : [];
 	}
 
-	private _filterPreferences(filter: string, preferencesRenderer: IPreferencesRenderer<ISetting>, provider: LocalSearchProvider): TPromise<IFilterResult> {
+	private _filterPreferences(filter: string, preferencesRenderer: IPreferencesRenderer<ISetting>, provider: LocalSearchProvider): IFilterResult {
 		if (preferencesRenderer) {
-			return provider.filterPreferences(<ISettingsEditorModel>preferencesRenderer.preferencesModel).then(filterResult => {
-				preferencesRenderer.filterPreferences(filterResult);
-				return filterResult;
+			const model = <ISettingsEditorModel>preferencesRenderer.preferencesModel;
+			const filterResult = provider.filterPreferences(model);
+			if (filterResult) {
+				const result = model.renderFilteredMatches(filterResult.filterMatches, filterResult.query);
+				preferencesRenderer.filterPreferences(result);
+				return result;
+			}
+		}
+
+		preferencesRenderer.filterPreferences(null);
+		return null;
+	}
+
+	private _searchPreferences(filter: string, preferencesRenderer: IPreferencesRenderer<ISetting>, provider: RemoteSearchProvider, mergeResult: IFilterResult): TPromise<IFilterResult> {
+		if (preferencesRenderer) {
+			const model = <ISettingsEditorModel>preferencesRenderer.preferencesModel;
+			provider.filterPreferences(model).then(filterResult => {
+				if (filterResult) {
+					const result = model.renderSearchMatches(filterResult.filterMatches, filterResult.query);
+					if (mergeResult) {
+						result.filteredGroups = [...mergeResult.filteredGroups, ...result.filteredGroups];
+						result.matches = [...mergeResult.matches, ...result.matches];
+					}
+
+					preferencesRenderer.filterPreferences(result);
+				}
 			});
 		}
 

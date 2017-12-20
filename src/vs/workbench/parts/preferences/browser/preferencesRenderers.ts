@@ -7,7 +7,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import { Delayer } from 'vs/base/common/async';
 import * as strings from 'vs/base/common/strings';
-import { tail } from 'vs/base/common/arrays';
+import * as arrays from 'vs/base/common/arrays';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IAction } from 'vs/base/common/actions';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
@@ -246,6 +246,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 	private hiddenAreasRenderer: HiddenAreasRenderer;
 	private editSettingActionRenderer: EditSettingRenderer;
 	private feedbackWidgetRenderer: FeedbackWidgetRenderer;
+	private bracesHidingRenderer: BracesHidingRenderer;
 
 	private _onUpdatePreference: Emitter<{ key: string, value: any, source: ISetting, index: number }> = new Emitter<{ key: string, value: any, source: ISetting, index: number }>();
 	public readonly onUpdatePreference: Event<{ key: string, value: any, source: ISetting, index: number }> = this._onUpdatePreference.event;
@@ -271,8 +272,8 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.filteredMatchesRenderer = this._register(instantiationService.createInstance(FilteredMatchesRenderer, editor));
 		// this.editSettingActionRenderer = this._register(instantiationService.createInstance(EditSettingRenderer, editor, preferencesModel, this.settingHighlighter));
 		this.feedbackWidgetRenderer = this._register(instantiationService.createInstance(FeedbackWidgetRenderer, editor));
-		const parenthesisHidingRenderer = this._register(instantiationService.createInstance(StaticContentHidingRenderer, editor, preferencesModel));
-		this.hiddenAreasRenderer = this._register(instantiationService.createInstance(HiddenAreasRenderer, editor, [this.settingsGroupTitleRenderer, this.filteredMatchesRenderer, parenthesisHidingRenderer]));
+		this.bracesHidingRenderer = this._register(instantiationService.createInstance(BracesHidingRenderer, editor, preferencesModel));
+		this.hiddenAreasRenderer = this._register(instantiationService.createInstance(HiddenAreasRenderer, editor, [this.settingsGroupTitleRenderer, this.filteredMatchesRenderer, this.bracesHidingRenderer]));
 
 		// this._register(this.editSettingActionRenderer.onUpdateSetting(e => this._onUpdatePreference.fire(e)));
 		this._register(this.settingsGroupTitleRenderer.onHiddenAreasChanged(() => this.hiddenAreasRenderer.render()));
@@ -295,6 +296,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		// this.editSettingActionRenderer.render(this.preferencesModel.settingsGroups, this._associatedPreferencesModel);
 		this.feedbackWidgetRenderer.render(null);
 		this.settingHighlighter.clear(true);
+		this.bracesHidingRenderer.render(null, this.preferencesModel.settingsGroups);
 		this.settingsGroupTitleRenderer.showGroup(0);
 		this.hiddenAreasRenderer.render();
 	}
@@ -303,10 +305,11 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 		this.filterResult = filterResult;
 		if (filterResult) {
 			this.filteredMatchesRenderer.render(filterResult, this.preferencesModel.settingsGroups);
-			this.settingsGroupTitleRenderer.render(filterResult);
+			this.settingsGroupTitleRenderer.render(filterResult.filteredGroups);
 			this.feedbackWidgetRenderer.render(filterResult);
 			this.settingsHeaderRenderer.render(filterResult);
 			this.settingHighlighter.clear(true);
+			this.bracesHidingRenderer.render(filterResult, this.preferencesModel.settingsGroups);
 			// this.editSettingActionRenderer.render(filterResult.filteredGroups, this._associatedPreferencesModel);
 		} else {
 			this.settingHighlighter.clear(true);
@@ -315,6 +318,7 @@ export class DefaultSettingsRenderer extends Disposable implements IPreferencesR
 			this.settingsHeaderRenderer.render(null);
 			this.settingsGroupTitleRenderer.render(this.preferencesModel.settingsGroups);
 			this.settingsGroupTitleRenderer.showGroup(0);
+			this.bracesHidingRenderer.render(null, this.preferencesModel.settingsGroups);
 			// this.editSettingActionRenderer.render(this.preferencesModel.settingsGroups, this._associatedPreferencesModel);
 		}
 
@@ -372,45 +376,71 @@ export interface HiddenAreasProvider {
 	hiddenAreas: IRange[];
 }
 
-export class StaticContentHidingRenderer extends Disposable implements HiddenAreasProvider {
+export class BracesHidingRenderer extends Disposable implements HiddenAreasProvider {
+	private _result: IFilterResult;
+	private _settingsGroups: ISettingsGroup[];
 
-	constructor(private editor: ICodeEditor, private settingsEditorModel: ISettingsEditorModel
-	) {
+	constructor(private editor: ICodeEditor) {
 		super();
 	}
 
-	get hiddenAreas(): IRange[] {
-		const model = this.editor.getModel();
+	render(result: IFilterResult, settingsGroups: ISettingsGroup[]): void {
+		this._result = result;
+		this._settingsGroups = settingsGroups;
+	}
 
+	get hiddenAreas(): IRange[] {
 		// Hide extra chars for "search results" and "commonly used" groups
-		const settingsGroups = this.settingsEditorModel.settingsGroups;
-		const lastGroup = tail(settingsGroups);
-		return [
+		// const filteredGroup = this._result && this._result.filteredGroups && arrays.first(this._result.filteredGroups, g => g.id === 'literalResults');
+		// const searchGroup = this._result && this._result.filteredGroups && arrays.first(this._result.filteredGroups, g => g.id === 'searchResults');
+		const lastGroup = arrays.tail(this._settingsGroups);
+		const hiddenAreas = [
 			{
 				startLineNumber: 1,
-				startColumn: model.getLineMinColumn(1),
+				startColumn: 1,
 				endLineNumber: 2,
-				endColumn: model.getLineMaxColumn(2)
+				endColumn: 1
 			},
+			// End of Commonly Used
 			{
-				startLineNumber: settingsGroups[0].range.endLineNumber + 1,
-				startColumn: model.getLineMinColumn(settingsGroups[0].range.endLineNumber + 1),
-				endLineNumber: settingsGroups[0].range.endLineNumber + 4,
-				endColumn: model.getLineMaxColumn(settingsGroups[0].range.endLineNumber + 4)
+				startLineNumber: this._settingsGroups[0].range.endLineNumber + 1,
+				startColumn: this._settingsGroups[0].range.endLineNumber + 1,
+				endLineNumber: this._settingsGroups[0].range.endLineNumber + 4,
+				endColumn: this._settingsGroups[0].range.endLineNumber + 4
 			},
+			// End of the unfiltered groups
 			{
 				startLineNumber: lastGroup.range.endLineNumber + 1,
-				startColumn: model.getLineMinColumn(lastGroup.range.endLineNumber + 1),
-				endLineNumber: Math.min(model.getLineCount(), lastGroup.range.endLineNumber + 4),
-				endColumn: model.getLineMaxColumn(Math.min(model.getLineCount(), lastGroup.range.endLineNumber + 4))
-			},
-			{
-				startLineNumber: model.getLineCount() - 1,
-				startColumn: model.getLineMinColumn(model.getLineCount() - 1),
-				endLineNumber: model.getLineCount(),
-				endColumn: model.getLineMaxColumn(model.getLineCount())
+				startColumn: 1,
+				endLineNumber: lastGroup.range.endLineNumber + 2,
+				endColumn: 1
 			}
 		];
+
+		if (this._result) {
+			const model = this.editor.getModel();
+			this._result.filteredGroups.forEach((filteredGroup, i) => {
+				const nextGroup = this._result.filteredGroups[i + 1];
+
+				// Beginning of the filtered group
+				hiddenAreas.push({
+					startLineNumber: filteredGroup.range.startLineNumber - 4,
+					startColumn: 1,
+					endLineNumber: filteredGroup.range.startLineNumber - 3,
+					endColumn: 1
+				});
+
+				// Hide the extra padding lines after the filtered group
+				hiddenAreas.push({
+					startLineNumber: filteredGroup.range.endLineNumber + 1,
+					startColumn: 1,
+					endLineNumber: nextGroup ? nextGroup.range.startLineNumber - 4 : model.getLineCount(),
+					endColumn: 1
+				});
+			});
+		}
+
+		return hiddenAreas;
 	}
 
 }
@@ -427,7 +457,7 @@ class DefaultSettingsHeaderRenderer extends Disposable {
 	}
 
 	public render(filterResult: IFilterResult) {
-		const hasSettings = !filterResult || filterResult.filteredSettings.length > 0;
+		const hasSettings = !filterResult || filterResult.filteredGroups.length > 0;
 		const promptFuzzy = filterResult && !filterResult.metadata;
 		this.settingsHeaderWidget.toggleMessage(hasSettings, promptFuzzy);
 	}
@@ -723,7 +753,7 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 			this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, []);
 		});
 		if (result) {
-			this.hiddenAreas = this.computeHiddenRanges(result.filteredSettings, result.allGroups, model);
+			this.hiddenAreas = this.computeHiddenRanges(result.filteredGroups, result.allGroups, model);
 			this.editor.changeDecorations(changeAccessor => {
 				this.decorationIds = changeAccessor.deltaDecorations(this.decorationIds, result.matches.map(match => this.createDecoration(match, model)));
 			});
@@ -743,14 +773,14 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 		};
 	}
 
-	private computeHiddenRanges(filteredSettings: ISetting[], allSettingsGroups: ISettingsGroup[], model: editorCommon.IModel): IRange[] {
+	private computeHiddenRanges(filteredGroups: ISettingsGroup[], allSettingsGroups: ISettingsGroup[], model: editorCommon.IModel): IRange[] {
 		const notMatchesRanges: IRange[] = [];
-		if (filteredSettings) {
+		if (filteredGroups) {
 			notMatchesRanges.push({
-				startLineNumber: 0,
-				startColumn: 0,
-				endLineNumber: allSettingsGroups[allSettingsGroups.length - 2].range.endLineNumber,
-				endColumn: 0
+				startLineNumber: 1,
+				startColumn: 1,
+				endLineNumber: allSettingsGroups[allSettingsGroups.length - 1].range.endLineNumber + 2,
+				endColumn: 1
 			});
 		} else {
 			notMatchesRanges.push({
@@ -762,60 +792,6 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 		}
 
 		return notMatchesRanges;
-
-		// for (const group of allSettingsGroups) {
-		// 	const filteredGroup = filteredGroups.filter(g => g.title === group.title)[0];
-		// 	if (!filteredGroup || filteredGroup.sections.every(sect => sect.settings.length === 0)) {
-		// 		notMatchesRanges.push({
-		// 			startLineNumber: group.range.startLineNumber - 1,
-		// 			startColumn: model.getLineMinColumn(group.range.startLineNumber - 1),
-		// 			endLineNumber: group.range.endLineNumber,
-		// 			endColumn: model.getLineMaxColumn(group.range.endLineNumber),
-		// 		});
-		// 	} else {
-		// 		for (const section of group.sections) {
-		// 			if (section.titleRange) {
-		// 				if (!this.containsLine(section.titleRange.startLineNumber, filteredGroup)) {
-		// 					notMatchesRanges.push(this.createCompleteRange(section.titleRange, model));
-		// 				}
-		// 			}
-		// 			for (const setting of section.settings) {
-		// 				if (!this.containsLine(setting.range.startLineNumber, filteredGroup)) {
-		// 					notMatchesRanges.push(this.createCompleteRange(setting.range, model));
-		// 				}
-		// 			}
-		// 		}
-		// 	}
-		// }
-		// return notMatchesRanges;
-	}
-
-	private containsLine(lineNumber: number, settingsGroup: ISettingsGroup): boolean {
-		if (settingsGroup.titleRange && lineNumber >= settingsGroup.titleRange.startLineNumber && lineNumber <= settingsGroup.titleRange.endLineNumber) {
-			return true;
-		}
-
-		for (const section of settingsGroup.sections) {
-			if (section.titleRange && lineNumber >= section.titleRange.startLineNumber && lineNumber <= section.titleRange.endLineNumber) {
-				return true;
-			}
-
-			for (const setting of section.settings) {
-				if (lineNumber >= setting.range.startLineNumber && lineNumber <= setting.range.endLineNumber) {
-					return true;
-				}
-			}
-		}
-		return false;
-	}
-
-	private createCompleteRange(range: IRange, model: editorCommon.IModel): IRange {
-		return {
-			startLineNumber: range.startLineNumber,
-			startColumn: model.getLineMinColumn(range.startLineNumber),
-			endLineNumber: range.endLineNumber,
-			endColumn: model.getLineMaxColumn(range.endLineNumber)
-		};
 	}
 
 	public dispose() {

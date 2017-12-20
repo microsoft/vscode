@@ -6,7 +6,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import Event, { Emitter } from 'vs/base/common/event';
-import { ISettingsEditorModel, IFilterResult, ISetting, ISettingsGroup, IWorkbenchSettingsConfiguration, IFilterMetadata, IPreferencesSearchService, IPreferencesSearchModel } from 'vs/workbench/parts/preferences/common/preferences';
+import { ISettingsEditorModel, IFilterResult, ISetting, ISettingsGroup, IWorkbenchSettingsConfiguration, IFilterMetadata, IPreferencesSearchService, IPreferencesSearchModel, IFilterResult2 } from 'vs/workbench/parts/preferences/common/preferences';
 import { IRange } from 'vs/editor/common/core/range';
 import { distinct } from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
@@ -78,50 +78,6 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 	}
 }
 
-export class PreferencesSearchModel implements IPreferencesSearchModel {
-	private _localProvider: LocalSearchProvider;
-	private _remoteProvider: RemoteSearchProvider;
-
-	constructor(
-		private provider: IPreferencesSearchService, private filter: string,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITelemetryService private telemetryService: ITelemetryService
-	) {
-		this._localProvider = instantiationService.createInstance(LocalSearchProvider, filter);
-	}
-
-	startRemoteSearch(): void {
-		this._remoteProvider = this.instantiationService.createInstance(RemoteSearchProvider, this.filter, this.provider.endpoint);
-	}
-
-	filterPreferences(preferencesModel: ISettingsEditorModel): TPromise<IFilterResult> {
-		if (!this.filter) {
-			return TPromise.wrap(null);
-		}
-
-
-		if (this._remoteProvider) {
-			this._localProvider.filterPreferences(preferencesModel);
-			return this._remoteProvider.filterPreferences(preferencesModel).then(null, err => {
-				const message = errors.getErrorMessage(err);
-
-				if (message.toLowerCase() !== 'canceled') {
-					/* __GDPR__
-						"defaultSettings.searchError" : {
-							"message": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-						}
-					*/
-					this.telemetryService.publicLog('defaultSettings.searchError', { message });
-				}
-
-				return this._localProvider.filterPreferences(preferencesModel);
-			});
-		} else {
-			return this._localProvider.filterPreferences(preferencesModel);
-		}
-	}
-}
-
 export class LocalSearchProvider {
 	private _filter: string;
 
@@ -129,9 +85,9 @@ export class LocalSearchProvider {
 		this._filter = filter;
 	}
 
-	filterPreferences(preferencesModel: ISettingsEditorModel): TPromise<IFilterResult> {
+	filterPreferences(preferencesModel: ISettingsEditorModel): IFilterResult2 {
 		if (!this._filter) {
-			return TPromise.wrap(null);
+			return null;
 		}
 
 		const regex = strings.createRegExp(this._filter, false, { global: true });
@@ -144,8 +100,11 @@ export class LocalSearchProvider {
 			return new SettingMatches(this._filter, setting, true, (filter, setting) => preferencesModel.findValueMatches(filter, setting)).matches;
 		};
 
-		// Could be a different relationship - "apply" searchModel to some set of prefs. Then "render" the results in the prefs model
-		return TPromise.wrap(preferencesModel.filterSettings(this._filter, groupFilter, settingMatcher));
+		const filterMatches = preferencesModel.filterSettings(this._filter, groupFilter, settingMatcher);
+		return {
+			filterMatches,
+			query: this._filter
+		};
 	}
 }
 
@@ -162,7 +121,7 @@ export class RemoteSearchProvider implements IDisposable {
 		this._remoteSearchP = filter ? this.getSettingsFromBing(filter, endpoint) : TPromise.wrap(null);
 	}
 
-	filterPreferences(preferencesModel: ISettingsEditorModel): TPromise<IFilterResult> {
+	filterPreferences(preferencesModel: ISettingsEditorModel): TPromise<IFilterResult2> {
 		return this._remoteSearchP.then(remoteResult => {
 			if (!this._isDisposed && remoteResult) {
 				let sortedNames = Object.keys(remoteResult.scoredResults).sort((a, b) => remoteResult.scoredResults[b] - remoteResult.scoredResults[a]);
@@ -173,9 +132,13 @@ export class RemoteSearchProvider implements IDisposable {
 				}
 
 				const settingMatcher = this.getRemoteSettingMatcher(sortedNames, preferencesModel);
-				const result = preferencesModel.filterSettings(this._filter, group => null, settingMatcher, sortedNames);
-				result.metadata = remoteResult;
-				return result;
+				const filterMatches = preferencesModel.filterSettings(this._filter, group => null, settingMatcher, sortedNames);
+				return <IFilterResult2>{
+					allGroups: preferencesModel.settingsGroups,
+					filterMatches,
+					metadata: remoteResult,
+					query: this._filter
+				};
 			} else {
 				return null;
 			}
