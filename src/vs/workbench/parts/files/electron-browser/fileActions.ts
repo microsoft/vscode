@@ -41,14 +41,15 @@ import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAct
 import { IModel } from 'vs/editor/common/editorCommon';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { withFocusedFilesExplorer, REVERT_FILE_COMMAND_ID, COMPARE_WITH_SAVED_COMMAND_ID, REVEAL_IN_OS_COMMAND_ID, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL, SAVE_FILE_AS_LABEL, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID, SAVE_FILES_COMMAND_ID, SAVE_FILES_LABEL, COMPARE_WITH_SAVED_SCHEMA } from 'vs/workbench/parts/files/electron-browser/fileCommands';
+import { withFocusedFilesExplorer, REVERT_FILE_COMMAND_ID, COMPARE_WITH_SAVED_COMMAND_ID, REVEAL_IN_OS_COMMAND_ID, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL, SAVE_FILE_AS_LABEL, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID, SAVE_FILES_COMMAND_ID, SAVE_FILES_LABEL, COMPARE_WITH_SAVED_SCHEMA, NEW_FILE_LABEL, NEW_FILE_COMMAND_ID, IExplorerContext } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { once } from 'vs/base/common/event';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IListService } from 'vs/platform/list/browser/listService';
 
 export interface IEditableData {
 	action: IAction;
@@ -443,7 +444,7 @@ export class NewFileAction extends BaseNewAction {
 		@ITextFileService textFileService: ITextFileService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super('explorer.newFile', nls.localize('newFile', "New File"), tree, true, instantiationService.createInstance(CreateFileAction, element), null, fileService, messageService, textFileService);
+		super('explorer.newFile', NEW_FILE_LABEL, tree, true, instantiationService.createInstance(CreateFileAction, element), null, fileService, messageService, textFileService);
 
 		this.class = 'explorer-action new-file';
 		this._updateEnablement();
@@ -1754,3 +1755,14 @@ if (!diag) {
 		console.log(args[1] + ' - ' + args[0] + ' (time: ' + args[2].getTime() + ' [' + args[2].toUTCString() + '])');
 	});
 }
+
+CommandsRegistry.registerCommand({
+	id: NEW_FILE_COMMAND_ID,
+	handler: (accessor, resource: URI, explorerContext: IExplorerContext) => {
+		const instantationService = accessor.get(IInstantiationService);
+		const listService = accessor.get(IListService);
+		const newFileAction = instantationService.createInstance(NewFileAction, listService.lastFocusedList, explorerContext.stat);
+
+		return newFileAction.run(explorerContext);
+	}
+});

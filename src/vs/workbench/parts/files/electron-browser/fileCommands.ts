@@ -39,6 +39,7 @@ import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
+import { IEvent } from 'vs/platform/contextview/browser/contextView';
 
 // Commands
 
@@ -65,6 +66,9 @@ export const SAVE_ALL_IN_GROUP_COMMAND_ID = 'workbench.action.files.saveAllInGro
 export const SAVE_FILES_COMMAND_ID = 'workbench.command.files.saveFiles';
 export const SAVE_FILES_LABEL = nls.localize('saveFiles', "Save All Files");
 
+export const NEW_FILE_COMMAND_ID = 'workbench.command.files.newFile';
+export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
+
 export const EditorFocusedInOpenEditorsContext = new RawContextKey<boolean>('editorFocusedInOpenEditors', false);
 export const EditorWithResourceFocusedInOpenEditorsContext = new RawContextKey<boolean>('editorWithResourceFocusedInOpenEditors', false);
 export const UntitledEditorFocusedInOpenEditorsContext = new RawContextKey<boolean>('untitledEditorFocusedInOpenEditors', false);
@@ -74,6 +78,12 @@ export const openWindowCommand = (accessor: ServicesAccessor, paths: string[], f
 	const windowsService = accessor.get(IWindowsService);
 	windowsService.openWindow(paths, { forceNewWindow });
 };
+
+export interface IExplorerContext {
+	viewletState: any;
+	event: IEvent;
+	stat: FileStat;
+}
 
 function runActionOnFocusedFilesExplorerViewItem(accessor: ServicesAccessor, id: string, context?: any): void {
 	withFocusedFilesExplorerViewItem(accessor).then(res => {
