@@ -22,6 +22,11 @@ export const OUTPUT_MIME = 'text/x-code-output';
 export const OUTPUT_SCHEME = 'output';
 
 /**
+ * Output resource scheme.
+ */
+export const LOG_SCHEME = 'log';
+
+/**
  * Id used by the output editor.
  */
 export const OUTPUT_MODE_ID = 'Log';
