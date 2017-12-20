@@ -23,7 +23,7 @@ export class WindowService implements IWindowService {
 		private windowId: number,
 		private configuration: IWindowConfiguration,
 		@IWindowsService private windowsService: IWindowsService,
-		@ILogService private logService: ILogService
+		@ILogService private logService: ILogService // TODO@Ben remove logging when no longer needed
 	) {
 		const onThisWindowFocus = mapEvent(filterEvent(windowsService.onWindowFocus, id => id === windowId), _ => true);
 		const onThisWindowBlur = mapEvent(filterEvent(windowsService.onWindowBlur, id => id === windowId), _ => false);

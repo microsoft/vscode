@@ -1565,7 +1565,7 @@ class Dialogs {
 		private telemetryService: ITelemetryService,
 		private stateService: IStateService,
 		private windowsMainService: IWindowsMainService,
-		private logService: ILogService
+		private logService: ILogService // TODO@Ben remove logging when no longer needed
 	) {
 		this.mapWindowToDialogQueue = new Map<number, Queue<any>>();
 		this.noWindowDialogQueue = new Queue<any>();
