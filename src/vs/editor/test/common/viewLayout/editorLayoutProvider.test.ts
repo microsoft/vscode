@@ -5,8 +5,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { RenderMinimap, EditorLayoutInfo, OverviewRulerPosition } from 'vs/editor/common/config/editorOptions';
-import { EditorLayoutProvider, IEditorLayoutProviderOpts } from 'vs/editor/common/viewLayout/editorLayoutProvider';
+import { RenderMinimap, EditorLayoutInfo, EditorLayoutProvider, IEditorLayoutProviderOpts } from 'vs/editor/common/config/editorOptions';
 
 suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
@@ -35,40 +34,40 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
-		}, new EditorLayoutInfo({
-			width: 1000,
-			height: 800,
-
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
-			glyphMarginHeight: 800,
-
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 0,
-			lineNumbersHeight: 800,
-
-			decorationsLeft: 0,
-			decorationsWidth: 10,
-			decorationsHeight: 800,
-
-			contentLeft: 10,
-			contentWidth: 990,
-			contentHeight: 800,
-
-			renderMinimap: RenderMinimap.None,
-			minimapWidth: 0,
-			viewportColumn: 99,
-
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-
-			overviewRuler: new OverviewRulerPosition({
-				top: 0,
-				width: 0,
+		}, {
+				width: 1000,
 				height: 800,
-				right: 0
-			})
-		}));
+
+				glyphMarginLeft: 0,
+				glyphMarginWidth: 0,
+				glyphMarginHeight: 800,
+
+				lineNumbersLeft: 0,
+				lineNumbersWidth: 0,
+				lineNumbersHeight: 800,
+
+				decorationsLeft: 0,
+				decorationsWidth: 10,
+				decorationsHeight: 800,
+
+				contentLeft: 10,
+				contentWidth: 990,
+				contentHeight: 800,
+
+				renderMinimap: RenderMinimap.None,
+				minimapWidth: 0,
+				viewportColumn: 99,
+
+				verticalScrollbarWidth: 0,
+				horizontalScrollbarHeight: 0,
+
+				overviewRuler: {
+					top: 0,
+					width: 0,
+					height: 800,
+					right: 0
+				}
+			});
 	});
 
 	test('EditorLayoutProvider 1.1', () => {
@@ -91,40 +90,40 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
-		}, new EditorLayoutInfo({
-			width: 1000,
-			height: 800,
+		}, {
+				width: 1000,
+				height: 800,
 
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
-			glyphMarginHeight: 800,
+				glyphMarginLeft: 0,
+				glyphMarginWidth: 0,
+				glyphMarginHeight: 800,
 
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 0,
-			lineNumbersHeight: 800,
+				lineNumbersLeft: 0,
+				lineNumbersWidth: 0,
+				lineNumbersHeight: 800,
 
-			decorationsLeft: 0,
-			decorationsWidth: 10,
-			decorationsHeight: 800,
+				decorationsLeft: 0,
+				decorationsWidth: 10,
+				decorationsHeight: 800,
 
-			contentLeft: 10,
-			contentWidth: 990,
-			contentHeight: 800,
+				contentLeft: 10,
+				contentWidth: 990,
+				contentHeight: 800,
 
-			renderMinimap: RenderMinimap.None,
-			minimapWidth: 0,
-			viewportColumn: 97,
+				renderMinimap: RenderMinimap.None,
+				minimapWidth: 0,
+				viewportColumn: 97,
 
-			verticalScrollbarWidth: 11,
-			horizontalScrollbarHeight: 12,
+				verticalScrollbarWidth: 11,
+				horizontalScrollbarHeight: 12,
 
-			overviewRuler: new OverviewRulerPosition({
-				top: 13,
-				width: 11,
-				height: (800 - 2 * 13),
-				right: 0
-			})
-		}));
+				overviewRuler: {
+					top: 13,
+					width: 11,
+					height: (800 - 2 * 13),
+					right: 0
+				}
+			});
 	});
 
 	test('EditorLayoutProvider 2', () => {
@@ -147,40 +146,40 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
-		}, new EditorLayoutInfo({
-			width: 900,
-			height: 800,
-
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
-			glyphMarginHeight: 800,
-
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 0,
-			lineNumbersHeight: 800,
-
-			decorationsLeft: 0,
-			decorationsWidth: 10,
-			decorationsHeight: 800,
-
-			contentLeft: 10,
-			contentWidth: 890,
-			contentHeight: 800,
-
-			renderMinimap: RenderMinimap.None,
-			minimapWidth: 0,
-			viewportColumn: 89,
-
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-
-			overviewRuler: new OverviewRulerPosition({
-				top: 0,
-				width: 0,
+		}, {
+				width: 900,
 				height: 800,
-				right: 0
-			})
-		}));
+
+				glyphMarginLeft: 0,
+				glyphMarginWidth: 0,
+				glyphMarginHeight: 800,
+
+				lineNumbersLeft: 0,
+				lineNumbersWidth: 0,
+				lineNumbersHeight: 800,
+
+				decorationsLeft: 0,
+				decorationsWidth: 10,
+				decorationsHeight: 800,
+
+				contentLeft: 10,
+				contentWidth: 890,
+				contentHeight: 800,
+
+				renderMinimap: RenderMinimap.None,
+				minimapWidth: 0,
+				viewportColumn: 89,
+
+				verticalScrollbarWidth: 0,
+				horizontalScrollbarHeight: 0,
+
+				overviewRuler: {
+					top: 0,
+					width: 0,
+					height: 800,
+					right: 0
+				}
+			});
 	});
 
 	test('EditorLayoutProvider 3', () => {
@@ -203,40 +202,40 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
-		}, new EditorLayoutInfo({
-			width: 900,
-			height: 900,
-
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
-			glyphMarginHeight: 900,
-
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 0,
-			lineNumbersHeight: 900,
-
-			decorationsLeft: 0,
-			decorationsWidth: 10,
-			decorationsHeight: 900,
-
-			contentLeft: 10,
-			contentWidth: 890,
-			contentHeight: 900,
-
-			renderMinimap: RenderMinimap.None,
-			minimapWidth: 0,
-			viewportColumn: 89,
-
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-
-			overviewRuler: new OverviewRulerPosition({
-				top: 0,
-				width: 0,
+		}, {
+				width: 900,
 				height: 900,
-				right: 0
-			})
-		}));
+
+				glyphMarginLeft: 0,
+				glyphMarginWidth: 0,
+				glyphMarginHeight: 900,
+
+				lineNumbersLeft: 0,
+				lineNumbersWidth: 0,
+				lineNumbersHeight: 900,
+
+				decorationsLeft: 0,
+				decorationsWidth: 10,
+				decorationsHeight: 900,
+
+				contentLeft: 10,
+				contentWidth: 890,
+				contentHeight: 900,
+
+				renderMinimap: RenderMinimap.None,
+				minimapWidth: 0,
+				viewportColumn: 89,
+
+				verticalScrollbarWidth: 0,
+				horizontalScrollbarHeight: 0,
+
+				overviewRuler: {
+					top: 0,
+					width: 0,
+					height: 900,
+					right: 0
+				}
+			});
 	});
 
 	test('EditorLayoutProvider 4', () => {
@@ -259,40 +258,40 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
-		}, new EditorLayoutInfo({
-			width: 900,
-			height: 900,
-
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
-			glyphMarginHeight: 900,
-
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 0,
-			lineNumbersHeight: 900,
-
-			decorationsLeft: 0,
-			decorationsWidth: 10,
-			decorationsHeight: 900,
-
-			contentLeft: 10,
-			contentWidth: 890,
-			contentHeight: 900,
-
-			renderMinimap: RenderMinimap.None,
-			minimapWidth: 0,
-			viewportColumn: 89,
-
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-
-			overviewRuler: new OverviewRulerPosition({
-				top: 0,
-				width: 0,
+		}, {
+				width: 900,
 				height: 900,
-				right: 0
-			})
-		}));
+
+				glyphMarginLeft: 0,
+				glyphMarginWidth: 0,
+				glyphMarginHeight: 900,
+
+				lineNumbersLeft: 0,
+				lineNumbersWidth: 0,
+				lineNumbersHeight: 900,
+
+				decorationsLeft: 0,
+				decorationsWidth: 10,
+				decorationsHeight: 900,
+
+				contentLeft: 10,
+				contentWidth: 890,
+				contentHeight: 900,
+
+				renderMinimap: RenderMinimap.None,
+				minimapWidth: 0,
+				viewportColumn: 89,
+
+				verticalScrollbarWidth: 0,
+				horizontalScrollbarHeight: 0,
+
+				overviewRuler: {
+					top: 0,
+					width: 0,
+					height: 900,
+					right: 0
+				}
+			});
 	});
 
 	test('EditorLayoutProvider 5', () => {
@@ -315,40 +314,40 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
-		}, new EditorLayoutInfo({
-			width: 900,
-			height: 900,
-
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
-			glyphMarginHeight: 900,
-
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 50,
-			lineNumbersHeight: 900,
-
-			decorationsLeft: 50,
-			decorationsWidth: 10,
-			decorationsHeight: 900,
-
-			contentLeft: 60,
-			contentWidth: 840,
-			contentHeight: 900,
-
-			renderMinimap: RenderMinimap.None,
-			minimapWidth: 0,
-			viewportColumn: 84,
-
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-
-			overviewRuler: new OverviewRulerPosition({
-				top: 0,
-				width: 0,
+		}, {
+				width: 900,
 				height: 900,
-				right: 0
-			})
-		}));
+
+				glyphMarginLeft: 0,
+				glyphMarginWidth: 0,
+				glyphMarginHeight: 900,
+
+				lineNumbersLeft: 0,
+				lineNumbersWidth: 50,
+				lineNumbersHeight: 900,
+
+				decorationsLeft: 50,
+				decorationsWidth: 10,
+				decorationsHeight: 900,
+
+				contentLeft: 60,
+				contentWidth: 840,
+				contentHeight: 900,
+
+				renderMinimap: RenderMinimap.None,
+				minimapWidth: 0,
+				viewportColumn: 84,
+
+				verticalScrollbarWidth: 0,
+				horizontalScrollbarHeight: 0,
+
+				overviewRuler: {
+					top: 0,
+					width: 0,
+					height: 900,
+					right: 0
+				}
+			});
 	});
 
 	test('EditorLayoutProvider 6', () => {
@@ -371,40 +370,40 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
-		}, new EditorLayoutInfo({
-			width: 900,
-			height: 900,
-
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
-			glyphMarginHeight: 900,
-
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 50,
-			lineNumbersHeight: 900,
-
-			decorationsLeft: 50,
-			decorationsWidth: 10,
-			decorationsHeight: 900,
-
-			contentLeft: 60,
-			contentWidth: 840,
-			contentHeight: 900,
-
-			renderMinimap: RenderMinimap.None,
-			minimapWidth: 0,
-			viewportColumn: 84,
-
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-
-			overviewRuler: new OverviewRulerPosition({
-				top: 0,
-				width: 0,
+		}, {
+				width: 900,
 				height: 900,
-				right: 0
-			})
-		}));
+
+				glyphMarginLeft: 0,
+				glyphMarginWidth: 0,
+				glyphMarginHeight: 900,
+
+				lineNumbersLeft: 0,
+				lineNumbersWidth: 50,
+				lineNumbersHeight: 900,
+
+				decorationsLeft: 50,
+				decorationsWidth: 10,
+				decorationsHeight: 900,
+
+				contentLeft: 60,
+				contentWidth: 840,
+				contentHeight: 900,
+
+				renderMinimap: RenderMinimap.None,
+				minimapWidth: 0,
+				viewportColumn: 84,
+
+				verticalScrollbarWidth: 0,
+				horizontalScrollbarHeight: 0,
+
+				overviewRuler: {
+					top: 0,
+					width: 0,
+					height: 900,
+					right: 0
+				}
+			});
 	});
 
 	test('EditorLayoutProvider 7', () => {
@@ -427,40 +426,40 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
-		}, new EditorLayoutInfo({
-			width: 900,
-			height: 900,
-
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
-			glyphMarginHeight: 900,
-
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 60,
-			lineNumbersHeight: 900,
-
-			decorationsLeft: 60,
-			decorationsWidth: 10,
-			decorationsHeight: 900,
-
-			contentLeft: 70,
-			contentWidth: 830,
-			contentHeight: 900,
-
-			renderMinimap: RenderMinimap.None,
-			minimapWidth: 0,
-			viewportColumn: 83,
-
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-
-			overviewRuler: new OverviewRulerPosition({
-				top: 0,
-				width: 0,
+		}, {
+				width: 900,
 				height: 900,
-				right: 0
-			})
-		}));
+
+				glyphMarginLeft: 0,
+				glyphMarginWidth: 0,
+				glyphMarginHeight: 900,
+
+				lineNumbersLeft: 0,
+				lineNumbersWidth: 60,
+				lineNumbersHeight: 900,
+
+				decorationsLeft: 60,
+				decorationsWidth: 10,
+				decorationsHeight: 900,
+
+				contentLeft: 70,
+				contentWidth: 830,
+				contentHeight: 900,
+
+				renderMinimap: RenderMinimap.None,
+				minimapWidth: 0,
+				viewportColumn: 83,
+
+				verticalScrollbarWidth: 0,
+				horizontalScrollbarHeight: 0,
+
+				overviewRuler: {
+					top: 0,
+					width: 0,
+					height: 900,
+					right: 0
+				}
+			});
 	});
 
 	test('EditorLayoutProvider 8', () => {
@@ -483,40 +482,40 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
-		}, new EditorLayoutInfo({
-			width: 900,
-			height: 900,
-
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
-			glyphMarginHeight: 900,
-
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 30,
-			lineNumbersHeight: 900,
-
-			decorationsLeft: 30,
-			decorationsWidth: 10,
-			decorationsHeight: 900,
-
-			contentLeft: 40,
-			contentWidth: 860,
-			contentHeight: 900,
-
-			renderMinimap: RenderMinimap.None,
-			minimapWidth: 0,
-			viewportColumn: 172,
-
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-
-			overviewRuler: new OverviewRulerPosition({
-				top: 0,
-				width: 0,
+		}, {
+				width: 900,
 				height: 900,
-				right: 0
-			})
-		}));
+
+				glyphMarginLeft: 0,
+				glyphMarginWidth: 0,
+				glyphMarginHeight: 900,
+
+				lineNumbersLeft: 0,
+				lineNumbersWidth: 30,
+				lineNumbersHeight: 900,
+
+				decorationsLeft: 30,
+				decorationsWidth: 10,
+				decorationsHeight: 900,
+
+				contentLeft: 40,
+				contentWidth: 860,
+				contentHeight: 900,
+
+				renderMinimap: RenderMinimap.None,
+				minimapWidth: 0,
+				viewportColumn: 172,
+
+				verticalScrollbarWidth: 0,
+				horizontalScrollbarHeight: 0,
+
+				overviewRuler: {
+					top: 0,
+					width: 0,
+					height: 900,
+					right: 0
+				}
+			});
 	});
 
 	test('EditorLayoutProvider 8 - rounds floats', () => {
@@ -539,40 +538,40 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
-		}, new EditorLayoutInfo({
-			width: 900,
-			height: 900,
-
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
-			glyphMarginHeight: 900,
-
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 30,
-			lineNumbersHeight: 900,
-
-			decorationsLeft: 30,
-			decorationsWidth: 10,
-			decorationsHeight: 900,
-
-			contentLeft: 40,
-			contentWidth: 860,
-			contentHeight: 900,
-
-			renderMinimap: RenderMinimap.None,
-			minimapWidth: 0,
-			viewportColumn: 170,
-
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-
-			overviewRuler: new OverviewRulerPosition({
-				top: 0,
-				width: 0,
+		}, {
+				width: 900,
 				height: 900,
-				right: 0
-			})
-		}));
+
+				glyphMarginLeft: 0,
+				glyphMarginWidth: 0,
+				glyphMarginHeight: 900,
+
+				lineNumbersLeft: 0,
+				lineNumbersWidth: 30,
+				lineNumbersHeight: 900,
+
+				decorationsLeft: 30,
+				decorationsWidth: 10,
+				decorationsHeight: 900,
+
+				contentLeft: 40,
+				contentWidth: 860,
+				contentHeight: 900,
+
+				renderMinimap: RenderMinimap.None,
+				minimapWidth: 0,
+				viewportColumn: 170,
+
+				verticalScrollbarWidth: 0,
+				horizontalScrollbarHeight: 0,
+
+				overviewRuler: {
+					top: 0,
+					width: 0,
+					height: 900,
+					right: 0
+				}
+			});
 	});
 
 	test('EditorLayoutProvider 9 - render minimap', () => {
@@ -595,40 +594,40 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
-		}, new EditorLayoutInfo({
-			width: 1000,
-			height: 800,
-
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
-			glyphMarginHeight: 800,
-
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 0,
-			lineNumbersHeight: 800,
-
-			decorationsLeft: 0,
-			decorationsWidth: 10,
-			decorationsHeight: 800,
-
-			contentLeft: 10,
-			contentWidth: 900,
-			contentHeight: 800,
-
-			renderMinimap: RenderMinimap.Small,
-			minimapWidth: 90,
-			viewportColumn: 90,
-
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-
-			overviewRuler: new OverviewRulerPosition({
-				top: 0,
-				width: 0,
+		}, {
+				width: 1000,
 				height: 800,
-				right: 0
-			})
-		}));
+
+				glyphMarginLeft: 0,
+				glyphMarginWidth: 0,
+				glyphMarginHeight: 800,
+
+				lineNumbersLeft: 0,
+				lineNumbersWidth: 0,
+				lineNumbersHeight: 800,
+
+				decorationsLeft: 0,
+				decorationsWidth: 10,
+				decorationsHeight: 800,
+
+				contentLeft: 10,
+				contentWidth: 900,
+				contentHeight: 800,
+
+				renderMinimap: RenderMinimap.Small,
+				minimapWidth: 90,
+				viewportColumn: 90,
+
+				verticalScrollbarWidth: 0,
+				horizontalScrollbarHeight: 0,
+
+				overviewRuler: {
+					top: 0,
+					width: 0,
+					height: 800,
+					right: 0
+				}
+			});
 	});
 
 	test('EditorLayoutProvider 9 - render minimap with pixelRatio = 2', () => {
@@ -651,40 +650,40 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 2,
-		}, new EditorLayoutInfo({
-			width: 1000,
-			height: 800,
-
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
-			glyphMarginHeight: 800,
-
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 0,
-			lineNumbersHeight: 800,
-
-			decorationsLeft: 0,
-			decorationsWidth: 10,
-			decorationsHeight: 800,
-
-			contentLeft: 10,
-			contentWidth: 900,
-			contentHeight: 800,
-
-			renderMinimap: RenderMinimap.Large,
-			minimapWidth: 90,
-			viewportColumn: 90,
-
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-
-			overviewRuler: new OverviewRulerPosition({
-				top: 0,
-				width: 0,
+		}, {
+				width: 1000,
 				height: 800,
-				right: 0
-			})
-		}));
+
+				glyphMarginLeft: 0,
+				glyphMarginWidth: 0,
+				glyphMarginHeight: 800,
+
+				lineNumbersLeft: 0,
+				lineNumbersWidth: 0,
+				lineNumbersHeight: 800,
+
+				decorationsLeft: 0,
+				decorationsWidth: 10,
+				decorationsHeight: 800,
+
+				contentLeft: 10,
+				contentWidth: 900,
+				contentHeight: 800,
+
+				renderMinimap: RenderMinimap.Large,
+				minimapWidth: 90,
+				viewportColumn: 90,
+
+				verticalScrollbarWidth: 0,
+				horizontalScrollbarHeight: 0,
+
+				overviewRuler: {
+					top: 0,
+					width: 0,
+					height: 800,
+					right: 0
+				}
+			});
 	});
 
 	test('EditorLayoutProvider 9 - render minimap with pixelRatio = 4', () => {
@@ -707,39 +706,39 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 4,
-		}, new EditorLayoutInfo({
-			width: 1000,
-			height: 800,
-
-			glyphMarginLeft: 0,
-			glyphMarginWidth: 0,
-			glyphMarginHeight: 800,
-
-			lineNumbersLeft: 0,
-			lineNumbersWidth: 0,
-			lineNumbersHeight: 800,
-
-			decorationsLeft: 0,
-			decorationsWidth: 10,
-			decorationsHeight: 800,
-
-			contentLeft: 10,
-			contentWidth: 943,
-			contentHeight: 800,
-
-			renderMinimap: RenderMinimap.Large,
-			minimapWidth: 47,
-			viewportColumn: 94,
-
-			verticalScrollbarWidth: 0,
-			horizontalScrollbarHeight: 0,
-
-			overviewRuler: new OverviewRulerPosition({
-				top: 0,
-				width: 0,
+		}, {
+				width: 1000,
 				height: 800,
-				right: 0
-			})
-		}));
+
+				glyphMarginLeft: 0,
+				glyphMarginWidth: 0,
+				glyphMarginHeight: 800,
+
+				lineNumbersLeft: 0,
+				lineNumbersWidth: 0,
+				lineNumbersHeight: 800,
+
+				decorationsLeft: 0,
+				decorationsWidth: 10,
+				decorationsHeight: 800,
+
+				contentLeft: 10,
+				contentWidth: 943,
+				contentHeight: 800,
+
+				renderMinimap: RenderMinimap.Large,
+				minimapWidth: 47,
+				viewportColumn: 94,
+
+				verticalScrollbarWidth: 0,
+				horizontalScrollbarHeight: 0,
+
+				overviewRuler: {
+					top: 0,
+					width: 0,
+					height: 800,
+					right: 0
+				}
+			});
 	});
 });

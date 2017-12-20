@@ -1,4 +1,10 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/atom/language-objective-c/blob/master/grammars/objective-c.cson",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
+	"version": "https://github.com/atom/language-objective-c/commit/0727e04544f3414c1c339cf15a39a05ea3938cb4",
 	"scopeName": "source.objc",
 	"fileTypes": [
 		"m",
@@ -993,6 +999,5 @@
 				}
 			]
 		}
-	},
-	"version": "https://github.com/atom/language-objective-c/commit/0727e04544f3414c1c339cf15a39a05ea3938cb4"
+	}
 }

@@ -7,7 +7,7 @@
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { FastDomNode } from "vs/base/browser/fastDomNode";
+import { FastDomNode } from 'vs/base/browser/fastDomNode';
 
 export abstract class ViewPart extends ViewEventHandler {
 

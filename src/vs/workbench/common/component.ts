@@ -58,7 +58,7 @@ export class Component extends Themable implements IWorkbenchComponent {
 	* Mementos are shared across components with the same id. This means that multiple components
 	* with the same id will store data into the same data structure.
 	*/
-	protected getMemento(storageService: IStorageService, scope: Scope = Scope.GLOBAL): any {
+	protected getMemento(storageService: IStorageService, scope: Scope = Scope.GLOBAL): object {
 		return this.componentMemento.getMemento(storageService, scope);
 	}
 

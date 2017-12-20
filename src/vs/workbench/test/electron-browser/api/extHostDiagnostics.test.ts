@@ -6,24 +6,24 @@
 'use strict';
 
 import * as assert from 'assert';
-import URI from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import { DiagnosticCollection } from 'vs/workbench/api/node/extHostDiagnostics';
 import { Diagnostic, DiagnosticSeverity, Range } from 'vs/workbench/api/node/extHostTypes';
 import { MainThreadDiagnosticsShape } from 'vs/workbench/api/node/extHost.protocol';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
+import { mock } from 'vs/workbench/test/electron-browser/api/mock';
 
 suite('ExtHostDiagnostics', () => {
 
-	class DiagnosticsShape extends MainThreadDiagnosticsShape {
-		$changeMany(owner: string, entries: [URI, IMarkerData[]][]): TPromise<any> {
-			return TPromise.as(null);
+	class DiagnosticsShape extends mock<MainThreadDiagnosticsShape>() {
+		$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void {
+			//
 		}
-		$clear(owner: string): TPromise<any> {
-			return TPromise.as(null);
+		$clear(owner: string): void {
+			//
 		}
-	};
+	}
 
 	test('disposeCheck', function () {
 
@@ -34,6 +34,7 @@ suite('ExtHostDiagnostics', () => {
 		assert.throws(() => collection.name);
 		assert.throws(() => collection.clear());
 		assert.throws(() => collection.delete(URI.parse('aa:bb')));
+		// tslint:disable-next-line:semicolon
 		assert.throws(() => collection.forEach(() => { ; }));
 		assert.throws(() => collection.get(URI.parse('aa:bb')));
 		assert.throws(() => collection.has(URI.parse('aa:bb')));
@@ -161,9 +162,9 @@ suite('ExtHostDiagnostics', () => {
 
 	test('diagnostics collection, set tuple overrides, #11547', function () {
 
-		let lastEntries: [URI, IMarkerData[]][];
+		let lastEntries: [UriComponents, IMarkerData[]][];
 		let collection = new DiagnosticCollection('test', new class extends DiagnosticsShape {
-			$changeMany(owner: string, entries: [URI, IMarkerData[]][]): TPromise<any> {
+			$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void {
 				lastEntries = entries;
 				return super.$changeMany(owner, entries);
 			}
@@ -235,9 +236,9 @@ suite('ExtHostDiagnostics', () => {
 
 	test('diagnostic capping', function () {
 
-		let lastEntries: [URI, IMarkerData[]][];
+		let lastEntries: [UriComponents, IMarkerData[]][];
 		let collection = new DiagnosticCollection('test', new class extends DiagnosticsShape {
-			$changeMany(owner: string, entries: [URI, IMarkerData[]][]): TPromise<any> {
+			$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void {
 				lastEntries = entries;
 				return super.$changeMany(owner, entries);
 			}

@@ -10,7 +10,7 @@ import { ILineMapperFactory, ILineMapping, OutputPosition } from 'vs/editor/comm
 import { CharCode } from 'vs/base/common/charCode';
 import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
 import { toUint32Array } from 'vs/editor/common/core/uint';
-import { WrappingIndent } from "vs/editor/common/config/editorOptions";
+import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
 
 const enum CharacterClass {
 	NONE = 0,
@@ -100,8 +100,8 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 					wrappedTextIndent += '\t';
 					wrappedTextIndentVisibleColumn = CharacterHardWrappingLineMapperFactory.nextVisibleColumn(wrappedTextIndentVisibleColumn, tabSize, true, 1);
 				}
-				// Force sticking to beginning of line if indentColumn > 66% breakingColumn
-				if (wrappedTextIndentVisibleColumn > 1 / 2 * breakingColumn) {
+				// Force sticking to beginning of line if no character would fit except for the indentation
+				if (wrappedTextIndentVisibleColumn + columnsForFullWidthChar > breakingColumn) {
 					wrappedTextIndent = '';
 					wrappedTextIndentVisibleColumn = 0;
 				}
@@ -162,13 +162,13 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 				let breakBeforeOffset: number;
 				let restoreVisibleColumnFrom: number;
 
-				if (niceBreakOffset !== -1) {
+				if (niceBreakOffset !== -1 && niceBreakVisibleColumn <= breakingColumn) {
 
 					// We will break before `niceBreakLastOffset`
 					breakBeforeOffset = niceBreakOffset;
 					restoreVisibleColumnFrom = niceBreakVisibleColumn;
 
-				} else if (obtrusiveBreakOffset !== -1) {
+				} else if (obtrusiveBreakOffset !== -1 && obtrusiveBreakVisibleColumn <= breakingColumn) {
 
 					// We will break before `obtrusiveBreakLastOffset`
 					breakBeforeOffset = obtrusiveBreakOffset;

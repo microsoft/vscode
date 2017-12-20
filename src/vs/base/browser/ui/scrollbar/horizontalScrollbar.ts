@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { AbstractScrollbar, ScrollbarHost, IMouseMoveEventData } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
-import { IMouseEvent, StandardMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { IDomNodePagePosition } from 'vs/base/browser/dom';
+import { AbstractScrollbar, ScrollbarHost, ISimplifiedMouseEvent } from 'vs/base/browser/ui/scrollbar/abstractScrollbar';
+import { StandardMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { ScrollableElementResolvedOptions } from 'vs/base/browser/ui/scrollbar/scrollableElementOptions';
-import { Scrollable, ScrollEvent, ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { Scrollable, ScrollEvent, ScrollbarVisibility, INewScrollPosition } from 'vs/base/common/scrollable';
 import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
 import { ARROW_IMG_SIZE } from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
 
@@ -16,7 +15,6 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 
 	constructor(scrollable: Scrollable, options: ScrollableElementResolvedOptions, host: ScrollbarHost) {
 		super({
-			canUseTranslate3d: options.canUseTranslate3d,
 			lazyRender: options.lazyRender,
 			host: host,
 			scrollbarState: new ScrollbarState(
@@ -61,13 +59,7 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 
 	protected _updateSlider(sliderSize: number, sliderPosition: number): void {
 		this.slider.setWidth(sliderSize);
-		if (this._canUseTranslate3d) {
-			this.slider.setTransform('translate3d(' + sliderPosition + 'px, 0px, 0px)');
-			this.slider.setLeft(0);
-		} else {
-			this.slider.setTransform('');
-			this.slider.setLeft(sliderPosition);
-		}
+		this.slider.setLeft(sliderPosition);
 	}
 
 	protected _renderDomNode(largeSize: number, smallSize: number): void {
@@ -84,26 +76,19 @@ export class HorizontalScrollbar extends AbstractScrollbar {
 		return this._shouldRender;
 	}
 
-	protected _mouseDownRelativePosition(e: IMouseEvent, domNodePosition: IDomNodePagePosition): number {
-		return e.posx - domNodePosition.left;
+	protected _mouseDownRelativePosition(offsetX: number, offsetY: number): number {
+		return offsetX;
 	}
 
-	protected _sliderMousePosition(e: IMouseMoveEventData): number {
+	protected _sliderMousePosition(e: ISimplifiedMouseEvent): number {
 		return e.posx;
 	}
 
-	protected _sliderOrthogonalMousePosition(e: IMouseMoveEventData): number {
+	protected _sliderOrthogonalMousePosition(e: ISimplifiedMouseEvent): number {
 		return e.posy;
 	}
 
-	protected _getScrollPosition(): number {
-		const scrollState = this._scrollable.getState();
-		return scrollState.scrollLeft;
-	}
-
-	protected _setScrollPosition(scrollPosition: number) {
-		this._scrollable.updateState({
-			scrollLeft: scrollPosition
-		});
+	public writeScrollPosition(target: INewScrollPosition, scrollPosition: number): void {
+		target.scrollLeft = scrollPosition;
 	}
 }

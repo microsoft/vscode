@@ -10,10 +10,12 @@
 		"experimentalDecorators": true,
 		"declaration": true,
 		"noImplicitReturns": true,
+		"noUnusedLocals": true,
+		"noImplicitThis": true,
 		"baseUrl": ".",
+		"outDir": "../out",
 		"typeRoots": [
-			"typings",
-			"../node_modules/@types"
+			"typings"
 		]
 	}
 }

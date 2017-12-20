@@ -78,7 +78,7 @@ export class ExtHostDocumentData extends MirrorModel {
 				getText(range?) { return range ? data._getTextInRange(range) : data.getText(); },
 				get eol() { return data._eol === '\n' ? EndOfLine.LF : EndOfLine.CRLF; },
 				get lineCount() { return data._lines.length; },
-				lineAt(lineOrPos) { return data._lineAt(lineOrPos); },
+				lineAt(lineOrPos: number | vscode.Position) { return data._lineAt(lineOrPos); },
 				offsetAt(pos) { return data._offsetAt(pos); },
 				positionAt(offset) { return data._positionAt(offset); },
 				validateRange(ran) { return data._validateRange(ran); },
@@ -101,7 +101,7 @@ export class ExtHostDocumentData extends MirrorModel {
 
 	private _save(): TPromise<boolean> {
 		if (this._isDisposed) {
-			return TPromise.wrapError<boolean>('Document has been closed');
+			return TPromise.wrapError<boolean>(new Error('Document has been closed'));
 		}
 		return this._proxy.$trySaveDocument(this._uri);
 	}
@@ -242,9 +242,17 @@ export class ExtHostDocumentData extends MirrorModel {
 
 	private _getWordRangeAtPosition(_position: vscode.Position, regexp?: RegExp): vscode.Range {
 		let position = this._validatePosition(_position);
-		if (!regexp || regExpLeadsToEndlessLoop(regexp)) {
+
+		if (!regexp) {
+			// use default when custom-regexp isn't provided
+			regexp = getWordDefinitionFor(this._languageId);
+
+		} else if (regExpLeadsToEndlessLoop(regexp)) {
+			// use default when custom-regexp is bad
+			console.warn(`[getWordRangeAtPosition]: ignoring custom regexp '${regexp.source}' because it matches the empty string.`);
 			regexp = getWordDefinitionFor(this._languageId);
 		}
+
 		let wordAtText = getWordAtText(
 			position.character + 1,
 			ensureValidWordDefinition(regexp),

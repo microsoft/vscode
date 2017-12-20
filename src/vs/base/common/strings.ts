@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { BoundedLinkedMap } from 'vs/base/common/map';
+import { LRUCache } from 'vs/base/common/map';
 import { CharCode } from 'vs/base/common/charCode';
 
 /**
@@ -182,18 +182,6 @@ export function endsWith(haystack: string, needle: string): boolean {
 	}
 }
 
-export function indexOfIgnoreCase(haystack: string, needle: string, position: number = 0): number {
-	let index = haystack.indexOf(needle, position);
-	if (index < 0) {
-		if (position > 0) {
-			haystack = haystack.substr(position);
-		}
-		needle = escapeRegExpCharacters(needle);
-		index = haystack.search(new RegExp(needle, 'i'));
-	}
-	return index;
-}
-
 export interface RegExpOptions {
 	matchCase?: boolean;
 	wholeWord?: boolean;
@@ -202,7 +190,7 @@ export interface RegExpOptions {
 }
 
 export function createRegExp(searchString: string, isRegex: boolean, options: RegExpOptions = {}): RegExp {
-	if (searchString === '') {
+	if (!searchString) {
 		throw new Error('Cannot create regex from empty string');
 	}
 	if (!isRegex) {
@@ -233,7 +221,7 @@ export function createRegExp(searchString: string, isRegex: boolean, options: Re
 export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
 	// Exit early if it's one of these special cases which are meant to match
 	// against an empty string
-	if (regexp.source === '^' || regexp.source === '^$' || regexp.source === '$') {
+	if (regexp.source === '^' || regexp.source === '^$' || regexp.source === '$' || regexp.source === '^\\s*$') {
 		return false;
 	}
 
@@ -243,16 +231,30 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
 	return (match && <any>regexp.lastIndex === 0);
 }
 
+export function regExpContainsBackreference(regexpValue: string): boolean {
+	return !!regexpValue.match(/([^\\]|^)(\\\\)*\\\d+/);
+}
+
 /**
  * The normalize() method returns the Unicode Normalization Form of a given string. The form will be
  * the Normalization Form Canonical Composition.
  *
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/normalize}
  */
-export let canNormalize = typeof ((<any>'').normalize) === 'function';
-const nonAsciiCharactersPattern = /[^\u0000-\u0080]/;
-const normalizedCache = new BoundedLinkedMap<string>(10000); // bounded to 10000 elements
+export const canNormalize = typeof ((<any>'').normalize) === 'function';
+
+const nfcCache = new LRUCache<string, string>(10000); // bounded to 10000 elements
 export function normalizeNFC(str: string): string {
+	return normalize(str, 'NFC', nfcCache);
+}
+
+const nfdCache = new LRUCache<string, string>(10000); // bounded to 10000 elements
+export function normalizeNFD(str: string): string {
+	return normalize(str, 'NFD', nfdCache);
+}
+
+const nonAsciiCharactersPattern = /[^\u0000-\u0080]/;
+function normalize(str: string, form: string, normalizedCache: LRUCache<string, string>): string {
 	if (!canNormalize || !str) {
 		return str;
 	}
@@ -264,7 +266,7 @@ export function normalizeNFC(str: string): string {
 
 	let res: string;
 	if (nonAsciiCharactersPattern.test(str)) {
-		res = (<any>str).normalize('NFC');
+		res = (<any>str).normalize(form);
 	} else {
 		res = str;
 	}
@@ -293,14 +295,14 @@ export function firstNonWhitespaceIndex(str: string): number {
  * Returns the leading whitespace of the string.
  * If the string contains only whitespaces, returns entire string
  */
-export function getLeadingWhitespace(str: string): string {
-	for (let i = 0, len = str.length; i < len; i++) {
+export function getLeadingWhitespace(str: string, start: number = 0, end: number = str.length): string {
+	for (let i = start; i < end; i++) {
 		let chCode = str.charCodeAt(i);
 		if (chCode !== CharCode.Space && chCode !== CharCode.Tab) {
-			return str.substring(0, i);
+			return str.substring(start, i);
 		}
 	}
-	return str;
+	return str.substring(start, end);
 }
 
 /**
@@ -339,11 +341,11 @@ export function compareIgnoreCase(a: string, b: string): number {
 		}
 
 		if (isUpperAsciiLetter(codeA)) {
-			codeA -= 32;
+			codeA += 32;
 		}
 
 		if (isUpperAsciiLetter(codeB)) {
-			codeB -= 32;
+			codeB += 32;
 		}
 
 		const diff = codeA - codeB;
@@ -383,9 +385,8 @@ function isAsciiLetter(code: number): boolean {
 }
 
 export function equalsIgnoreCase(a: string, b: string): boolean {
-
-	let len1 = a.length,
-		len2 = b.length;
+	const len1 = a ? a.length : 0;
+	const len2 = b ? b.length : 0;
 
 	if (len1 !== len2) {
 		return false;
@@ -394,7 +395,11 @@ export function equalsIgnoreCase(a: string, b: string): boolean {
 	return doEqualsIgnoreCase(a, b);
 }
 
-export function doEqualsIgnoreCase(a: string, b: string, stopAt = a.length): boolean {
+function doEqualsIgnoreCase(a: string, b: string, stopAt = a.length): boolean {
+	if (typeof a !== 'string' || typeof b !== 'string') {
+		return false;
+	}
+
 	for (let i = 0; i < stopAt; i++) {
 		const codeA = a.charCodeAt(i);
 		const codeB = b.charCodeAt(i);
@@ -468,6 +473,43 @@ export function commonSuffixLength(a: string, b: string): number {
 	return len;
 }
 
+function substrEquals(a: string, aStart: number, aEnd: number, b: string, bStart: number, bEnd: number): boolean {
+	while (aStart < aEnd && bStart < bEnd) {
+		if (a[aStart] !== b[bStart]) {
+			return false;
+		}
+		aStart += 1;
+		bStart += 1;
+	}
+	return true;
+}
+
+/**
+ * Return the overlap between the suffix of `a` and the prefix of `b`.
+ * For instance `overlap("foobar", "arr, I'm a pirate") === 2`.
+ */
+export function overlap(a: string, b: string): number {
+	let aEnd = a.length;
+	let bEnd = b.length;
+	let aStart = aEnd - bEnd;
+
+	if (aStart === 0) {
+		return a === b ? aEnd : 0;
+	} else if (aStart < 0) {
+		bEnd += aStart;
+		aStart = 0;
+	}
+
+	while (aStart < aEnd && bEnd > 0) {
+		if (substrEquals(a, aStart, aEnd, b, 0, bEnd)) {
+			return bEnd;
+		}
+		bEnd -= 1;
+		aStart += 1;
+	}
+	return 0;
+}
+
 // --- unicode
 // http://en.wikipedia.org/wiki/Surrogate_pair
 // Returns the code point starting at a specified index in a string
@@ -503,12 +545,30 @@ export function containsRTL(str: string): boolean {
 	return CONTAINS_RTL.test(str);
 }
 
+/**
+ * Generated using https://github.com/alexandrudima/unicode-utils/blob/master/generate-emoji-test.js
+ */
+const CONTAINS_EMOJI = /(?:[\u231A\u231B\u23F0\u23F3\u2600-\u27BF\u2B50\u2B55]|\uD83C[\uDDE6-\uDDFF\uDF00-\uDFFF]|\uD83D[\uDC00-\uDE4F\uDE80-\uDEF8]|\uD83E[\uDD00-\uDDE6])/;
+
+export function containsEmoji(str: string): boolean {
+	return CONTAINS_EMOJI.test(str);
+}
+
 const IS_BASIC_ASCII = /^[\t\n\r\x20-\x7E]*$/;
 /**
  * Returns true if `str` contains only basic ASCII characters in the range 32 - 126 (including 32 and 126) or \n, \r, \t
  */
 export function isBasicASCII(str: string): boolean {
 	return IS_BASIC_ASCII.test(str);
+}
+
+export function containsFullWidthCharacter(str: string): boolean {
+	for (let i = 0, len = str.length; i < len; i++) {
+		if (isFullWidthCharacter(str.charCodeAt(i))) {
+			return true;
+		}
+	}
+	return false;
 }
 
 export function isFullWidthCharacter(charCode: number): boolean {
@@ -559,80 +619,26 @@ export function isFullWidthCharacter(charCode: number): boolean {
 }
 
 /**
- * Computes the difference score for two strings. More similar strings have a higher score.
- * We use largest common subsequence dynamic programming approach but penalize in the end for length differences.
- * Strings that have a large length difference will get a bad default score 0.
- * Complexity - both time and space O(first.length * second.length)
- * Dynamic programming LCS computation http://en.wikipedia.org/wiki/Longest_common_subsequence_problem
- *
- * @param first a string
- * @param second a string
- */
-export function difference(first: string, second: string, maxLenDelta: number = 4): number {
-	let lengthDifference = Math.abs(first.length - second.length);
-	// We only compute score if length of the currentWord and length of entry.name are similar.
-	if (lengthDifference > maxLenDelta) {
-		return 0;
-	}
-	// Initialize LCS (largest common subsequence) matrix.
-	let LCS: number[][] = [];
-	let zeroArray: number[] = [];
-	let i: number, j: number;
-	for (i = 0; i < second.length + 1; ++i) {
-		zeroArray.push(0);
-	}
-	for (i = 0; i < first.length + 1; ++i) {
-		LCS.push(zeroArray);
-	}
-	for (i = 1; i < first.length + 1; ++i) {
-		for (j = 1; j < second.length + 1; ++j) {
-			if (first[i - 1] === second[j - 1]) {
-				LCS[i][j] = LCS[i - 1][j - 1] + 1;
-			} else {
-				LCS[i][j] = Math.max(LCS[i - 1][j], LCS[i][j - 1]);
-			}
-		}
-	}
-	return LCS[first.length][second.length] - Math.sqrt(lengthDifference);
-}
-
-/**
- * Returns an array in which every entry is the offset of a
- * line. There is always one entry which is zero.
- */
-export function computeLineStarts(text: string): number[] {
-	let regexp = /\r\n|\r|\n/g,
-		ret: number[] = [0],
-		match: RegExpExecArray;
-	while ((match = regexp.exec(text))) {
-		ret.push(regexp.lastIndex);
-	}
-	return ret;
-}
-
-/**
  * Given a string and a max length returns a shorted version. Shorting
  * happens at favorable positions - such as whitespace or punctuation characters.
  */
-export function lcut(text: string, n: number): string {
-
+export function lcut(text: string, n: number) {
 	if (text.length < n) {
 		return text;
 	}
 
-	let segments = text.split(/\b/),
-		count = 0;
-
-	for (let i = segments.length - 1; i >= 0; i--) {
-		count += segments[i].length;
-
-		if (count > n) {
-			segments.splice(0, i);
+	const re = /\b/g;
+	let i = 0;
+	while (re.test(text)) {
+		if (text.length - re.lastIndex < n) {
 			break;
 		}
+
+		i = re.lastIndex;
+		re.lastIndex += 1;
 	}
 
-	return segments.join(empty).replace(/^\s/, empty);
+	return text.substring(i).replace(/^\s/, empty);
 }
 
 // Escape codes
@@ -659,24 +665,9 @@ export function startsWithUTF8BOM(str: string): boolean {
 	return (str && str.length > 0 && str.charCodeAt(0) === CharCode.UTF8_BOM);
 }
 
-/**
- * Appends two strings. If the appended result is longer than maxLength,
- * trims the start of the result and replaces it with '...'.
- */
-export function appendWithLimit(first: string, second: string, maxLength: number): string {
-	const newLength = first.length + second.length;
-	if (newLength > maxLength) {
-		first = '...' + first.substr(newLength - maxLength);
-	}
-	if (second.length > maxLength) {
-		first += second.substr(second.length - maxLength);
-	} else {
-		first += second;
-	}
-
-	return first;
+export function stripUTF8BOM(str: string): string {
+	return startsWithUTF8BOM(str) ? str.substr(1) : str;
 }
-
 
 export function safeBtoa(str: string): string {
 	return btoa(encodeURIComponent(str)); // we use encodeURIComponent because btoa fails for non Latin 1 values
@@ -688,4 +679,36 @@ export function repeat(s: string, count: number): string {
 		result += s;
 	}
 	return result;
+}
+
+/**
+ * Checks if the characters of the provided query string are included in the
+ * target string. The characters do not have to be contiguous within the string.
+ */
+export function fuzzyContains(target: string, query: string): boolean {
+	if (!target || !query) {
+		return false; // return early if target or query are undefined
+	}
+
+	if (target.length < query.length) {
+		return false; // impossible for query to be contained in target
+	}
+
+	const queryLen = query.length;
+	const targetLower = target.toLowerCase();
+
+	let index = 0;
+	let lastIndexOf = -1;
+	while (index < queryLen) {
+		let indexOf = targetLower.indexOf(query[index], lastIndexOf + 1);
+		if (indexOf < 0) {
+			return false;
+		}
+
+		lastIndexOf = indexOf;
+
+		index++;
+	}
+
+	return true;
 }

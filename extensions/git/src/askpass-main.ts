@@ -22,8 +22,8 @@ function main(argv: string[]): void {
 		return fatal('Wrong number of arguments');
 	}
 
-	if (!process.env['VSCODE_GIT_ASKPASS_PORT']) {
-		return fatal('Missing port');
+	if (!process.env['VSCODE_GIT_ASKPASS_HANDLE']) {
+		return fatal('Missing handle');
 	}
 
 	if (!process.env['VSCODE_GIT_ASKPASS_PIPE']) {
@@ -34,14 +34,12 @@ function main(argv: string[]): void {
 		return fatal('Skip fetch commands');
 	}
 
-	const output = process.env['VSCODE_GIT_ASKPASS_PIPE'];
-	const port = Number.parseInt(process.env['VSCODE_GIT_ASKPASS_PORT']);
+	const output = process.env['VSCODE_GIT_ASKPASS_PIPE'] as string;
+	const socketPath = process.env['VSCODE_GIT_ASKPASS_HANDLE'] as string;
 	const request = argv[2];
 	const host = argv[4].substring(1, argv[4].length - 2);
-
 	const opts: http.RequestOptions = {
-		hostname: 'localhost',
-		port,
+		socketPath,
 		path: '/',
 		method: 'POST'
 	};

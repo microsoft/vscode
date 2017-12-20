@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 'use strict';
+Object.defineProperty(exports, "__esModule", { value: true });
 var path = require("path");
 var fs = require("fs");
 /**
@@ -31,6 +32,7 @@ function getVersion(repo) {
         return fs.readFileSync(refPath, 'utf8').trim();
     }
     catch (e) {
+        // noop
     }
     var packedRefsPath = path.join(git, 'packed-refs');
     var refsRaw;

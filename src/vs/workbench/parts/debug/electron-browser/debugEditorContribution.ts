@@ -18,9 +18,9 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { StandardTokenType } from 'vs/editor/common/modes';
 import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/model/wordHelper';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { editorContribution } from 'vs/editor/browser/editorBrowserExtensions';
-import { IDecorationOptions, IModelDecorationOptions, IModelDeltaDecoration, TrackedRangeStickiness, Handler } from 'vs/editor/common/editorCommon';
-import { ICodeEditorService } from 'vs/editor/common/services/codeEditorService';
+import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { IDecorationOptions, IModelDecorationOptions, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/editorCommon';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -34,9 +34,13 @@ import { IDebugEditorContribution, IDebugService, State, IBreakpoint, EDITOR_CON
 import { BreakpointWidget } from 'vs/workbench/parts/debug/browser/breakpointWidget';
 import { ExceptionWidget } from 'vs/workbench/parts/debug/browser/exceptionWidget';
 import { FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { Position } from 'vs/editor/common/core/position';
+import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import { first } from 'vs/base/common/arrays';
+import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { IThemeService } from "vs/platform/theme/common/themeService";
-import { Position } from "vs/editor/common/core/position";
 
 const HOVER_DELAY = 300;
 const LAUNCH_JSON_REGEX = /launch\.json$/;
@@ -46,7 +50,6 @@ const MAX_NUM_INLINE_VALUES = 100; // JS Global scope can have 700+ entries. We 
 const MAX_INLINE_DECORATOR_LENGTH = 150; // Max string length of each inline decorator when debugging. If exceeded ... is added
 const MAX_TOKENIZATION_LINE_LEN = 500; // If line is too long, then inline values for the line are skipped
 
-@editorContribution
 export class DebugEditorContribution implements IDebugEditorContribution {
 
 	private toDispose: lifecycle.IDisposable[];
@@ -76,10 +79,11 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IListService listService: IListService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		this.breakpointHintDecoration = [];
-		this.hoverWidget = new DebugHoverWidget(this.editor, this.debugService, listService, this.instantiationService, themeService);
+		this.hoverWidget = new DebugHoverWidget(this.editor, this.debugService, this.instantiationService, themeService, contextKeyService, listService);
 		this.toDispose = [];
 		this.showHoverScheduler = new RunOnceScheduler(() => this.showHover(this.hoverRange, false), HOVER_DELAY);
 		this.hideHoverScheduler = new RunOnceScheduler(() => this.hoverWidget.hide(), HOVER_DELAY);
@@ -94,12 +98,12 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private getContextMenuActions(breakpoints: IBreakpoint[], uri: uri, lineNumber: number): TPromise<(IAction | ContextSubMenu)[]> {
 		const actions: (IAction | ContextSubMenu)[] = [];
 		if (breakpoints.length === 1) {
-			actions.push(this.instantiationService.createInstance(RemoveBreakpointAction, RemoveBreakpointAction.ID, RemoveBreakpointAction.LABEL));
-			actions.push(this.instantiationService.createInstance(EditConditionalBreakpointAction, EditConditionalBreakpointAction.ID, EditConditionalBreakpointAction.LABEL, this.editor));
+			actions.push(new RemoveBreakpointAction(RemoveBreakpointAction.ID, RemoveBreakpointAction.LABEL, this.debugService, this.keybindingService));
+			actions.push(new EditConditionalBreakpointAction(EditConditionalBreakpointAction.ID, EditConditionalBreakpointAction.LABEL, this.editor, this.debugService, this.keybindingService));
 			if (breakpoints[0].enabled) {
-				actions.push(this.instantiationService.createInstance(DisableBreakpointAction, DisableBreakpointAction.ID, DisableBreakpointAction.LABEL));
+				actions.push(new DisableBreakpointAction(DisableBreakpointAction.ID, DisableBreakpointAction.LABEL, this.debugService, this.keybindingService));
 			} else {
-				actions.push(this.instantiationService.createInstance(EnableBreakpointAction, EnableBreakpointAction.ID, EnableBreakpointAction.LABEL));
+				actions.push(new EnableBreakpointAction(EnableBreakpointAction.ID, EnableBreakpointAction.LABEL, this.debugService, this.keybindingService));
 			}
 		} else if (breakpoints.length > 1) {
 			const sorted = breakpoints.sort((first, second) => first.column - second.column);
@@ -136,7 +140,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				true,
 				() => this.debugService.addBreakpoints(uri, [{ lineNumber }])
 			));
-			actions.push(this.instantiationService.createInstance(AddConditionalBreakpointAction, AddConditionalBreakpointAction.ID, AddConditionalBreakpointAction.LABEL, this.editor, lineNumber));
+			actions.push(new AddConditionalBreakpointAction(AddConditionalBreakpointAction.ID, AddConditionalBreakpointAction.LABEL, this.editor, lineNumber, this.debugService, this.keybindingService));
 		}
 
 		return TPromise.as(actions);
@@ -144,7 +148,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	private registerListeners(): void {
 		this.toDispose.push(this.editor.onMouseDown((e: IEditorMouseEvent) => {
-			if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || /* after last line */ e.target.detail || !this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)) {
+			const data = e.target.detail as IMarginData;
+			if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || data.isAfterLines || !this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)) {
 				return;
 			}
 			const canSetBreakpoints = this.debugService.getConfigurationManager().canSetBreakpointsIn(this.editor.getModel());
@@ -156,7 +161,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 					return;
 				}
 
-				const anchor = { x: e.event.posx + 1, y: e.event.posy };
+				const anchor = { x: e.event.posx, y: e.event.posy };
 				const breakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === lineNumber && bp.uri.toString() === uri.toString());
 
 				this.contextMenuService.showContextMenu({
@@ -180,8 +185,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			let showBreakpointHintAtLineNumber = -1;
 			if (e.target.type === MouseTargetType.GUTTER_GLYPH_MARGIN && this.debugService.getConfigurationManager().canSetBreakpointsIn(this.editor.getModel()) &&
 				this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)) {
-				if (!e.target.detail) {
-					// is not after last line
+				const data = e.target.detail as IMarginData;
+				if (!data.isAfterLines) {
 					showBreakpointHintAtLineNumber = e.target.position.lineNumber;
 				}
 			}
@@ -190,13 +195,18 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.toDispose.push(this.editor.onMouseLeave((e: IEditorMouseEvent) => {
 			this.ensureBreakpointHintDecoration(-1);
 		}));
-		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame((sf) => this.onFocusStackFrame(sf)));
+		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(e => this.onFocusStackFrame(e.stackFrame)));
 
 		// hover listeners & hover widget
 		this.toDispose.push(this.editor.onMouseDown((e: IEditorMouseEvent) => this.onEditorMouseDown(e)));
 		this.toDispose.push(this.editor.onMouseMove((e: IEditorMouseEvent) => this.onEditorMouseMove(e)));
 		this.toDispose.push(this.editor.onMouseLeave((e: IEditorMouseEvent) => {
-			const rect = this.hoverWidget.getDomNode().getBoundingClientRect();
+			const hoverDomNode = this.hoverWidget.getDomNode();
+			if (!hoverDomNode) {
+				return;
+			}
+
+			const rect = hoverDomNode.getBoundingClientRect();
 			// Only hide the hover widget if the editor mouse leave event is outside the hover widget #3528
 			if (e.event.posx < rect.left || e.event.posx > rect.right || e.event.posy < rect.top || e.event.posy > rect.bottom) {
 				this.hideHoverWidget();
@@ -361,15 +371,20 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			return;
 		}
 
-		// First call stack frame is the frame where exception has been thrown
-		const exceptionSf = callStack[0];
+		// First call stack frame that is available is the frame where exception has been thrown
+		const exceptionSf = first(callStack, sf => sf.source && sf.source.available, undefined);
+		if (!exceptionSf || exceptionSf !== focusedSf) {
+			this.closeExceptionWidget();
+			return;
+		}
+
 		const sameUri = exceptionSf.source.uri.toString() === model.uri.toString();
 		if (this.exceptionWidget && !sameUri) {
 			this.closeExceptionWidget();
 		} else if (sameUri) {
 			focusedSf.thread.exceptionInfo.then(exceptionInfo => {
-				if (exceptionInfo) {
-					this.showExceptionWidget(exceptionInfo, exceptionSf.lineNumber, exceptionSf.column);
+				if (exceptionInfo && exceptionSf.range.startLineNumber && exceptionSf.range.startColumn) {
+					this.showExceptionWidget(exceptionInfo, exceptionSf.range.startLineNumber, exceptionSf.range.startColumn);
 				}
 			});
 		}
@@ -380,7 +395,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.exceptionWidget.dispose();
 		}
 
-		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, exceptionInfo, lineNumber);
+		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, exceptionInfo);
 		this.exceptionWidget.show({ lineNumber, column }, 0);
 	}
 
@@ -404,6 +419,9 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	public addLaunchConfiguration(): TPromise<any> {
+		/* __GDPR__
+			"debug/addLaunchConfiguration" : {}
+		*/
 		this.telemetryService.publicLog('debug/addLaunchConfiguration');
 		let configurationsArrayPosition: Position;
 		const model = this.editor.getModel();
@@ -434,7 +452,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			// Check if there are more characters on a line after a "configurations": [, if yes enter a newline
 			if (this.editor.getModel().getLineLastNonWhitespaceColumn(position.lineNumber) > position.column) {
 				this.editor.setPosition(position);
-				this.editor.trigger(this.getId(), Handler.LineBreakInsert, undefined);
+				CoreEditingCommands.LineBreakInsert.runEditorCommand(null, this.editor, null);
 			}
 			// Check if there is already an empty line to insert suggest, if yes just place the cursor
 			if (this.editor.getModel().getLineLastNonWhitespaceColumn(position.lineNumber + 1) === 0) {
@@ -457,7 +475,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	// Inline Decorations
 	private updateInlineDecorations(stackFrame: IStackFrame): void {
 		const model = this.editor.getModel();
-		if (!this.configurationService.getConfiguration<IDebugConfiguration>('debug').inlineValues ||
+		if (!this.configurationService.getValue<IDebugConfiguration>('debug').inlineValues ||
 			!model || !stackFrame || model.uri.toString() !== stackFrame.source.uri.toString()) {
 			if (!this.removeInlineValuesScheduler.isScheduled()) {
 				this.removeInlineValuesScheduler.schedule();
@@ -467,11 +485,11 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		this.removeInlineValuesScheduler.cancel();
 
-		stackFrame.getMostSpecificScopes(new Range(stackFrame.lineNumber, stackFrame.column, stackFrame.lineNumber, stackFrame.column))
+		stackFrame.getMostSpecificScopes(stackFrame.range)
 			// Get all top level children in the scope chain
 			.then(scopes => TPromise.join(scopes.map(scope => scope.getChildren()
 				.then(children => {
-					let range = new Range(0, 0, stackFrame.lineNumber, stackFrame.column);
+					let range = new Range(0, 0, stackFrame.range.startLineNumber, stackFrame.range.startColumn);
 					if (scope.range) {
 						range = range.setStartPosition(scope.range.startLineNumber, scope.range.startColumn);
 					}
@@ -611,3 +629,5 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.toDispose = lifecycle.dispose(this.toDispose);
 	}
 }
+
+registerEditorContribution(DebugEditorContribution);

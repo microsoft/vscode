@@ -6,18 +6,7 @@
 'use strict';
 
 import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-
-/**
- * @internal
- */
-export const CursorEventType = {
-	CursorPositionChanged: 'positionChanged',
-	CursorSelectionChanged: 'selectionChanged',
-	CursorRevealRange: 'revealRange',
-	CursorScrollRequest: 'scrollRequest',
-};
 
 /**
  * Describes the reason the cursor has changed its position.
@@ -61,17 +50,9 @@ export interface ICursorPositionChangedEvent {
 	 */
 	readonly position: Position;
 	/**
-	 * Primary cursor's view position
-	 */
-	readonly viewPosition: Position;
-	/**
 	 * Secondary cursors' position.
 	 */
 	readonly secondaryPositions: Position[];
-	/**
-	 * Secondary cursors' view position.
-	 */
-	readonly secondaryViewPositions: Position[];
 	/**
 	 * Reason.
 	 */
@@ -80,10 +61,6 @@ export interface ICursorPositionChangedEvent {
 	 * Source of the call that caused the event.
 	 */
 	readonly source: string;
-	/**
-	 * Is the primary cursor in the editable range?
-	 */
-	readonly isInEditableRange: boolean;
 }
 /**
  * An event describing that the cursor selection has changed.
@@ -94,17 +71,9 @@ export interface ICursorSelectionChangedEvent {
 	 */
 	readonly selection: Selection;
 	/**
-	 * The primary selection in view coordinates.
-	 */
-	readonly viewSelection: Selection;
-	/**
 	 * The secondary selections.
 	 */
 	readonly secondarySelections: Selection[];
-	/**
-	 * The secondary selections in view coordinates.
-	 */
-	readonly secondaryViewSelections: Selection[];
 	/**
 	 * Source of the call that caused the event.
 	 */
@@ -113,47 +82,4 @@ export interface ICursorSelectionChangedEvent {
 	 * Reason.
 	 */
 	readonly reason: CursorChangeReason;
-}
-/**
- * @internal
- */
-export const enum VerticalRevealType {
-	Simple = 0,
-	Center = 1,
-	CenterIfOutsideViewport = 2,
-	Top = 3,
-	Bottom = 4
-}
-/**
- * An event describing a request to reveal a specific range in the view of the editor.
- * @internal
- */
-export interface ICursorRevealRangeEvent {
-	/**
-	 * Range to be reavealed.
-	 */
-	readonly range: Range;
-	/**
-	 * View range to be reavealed.
-	 */
-	readonly viewRange: Range;
-
-	readonly verticalType: VerticalRevealType;
-	/**
-	 * If true: there should be a horizontal & vertical revealing
-	 * If false: there should be just a vertical revealing
-	 */
-	readonly revealHorizontal: boolean;
-}
-
-/**
- * @internal
- */
-export class CursorScrollRequest {
-
-	public readonly desiredScrollTop: number;
-
-	constructor(desiredScrollTop: number) {
-		this.desiredScrollTop = desiredScrollTop;
-	}
 }

@@ -10,13 +10,8 @@
 	height: 100%;
 	width: 100%;
 	z-index: 9999;
-	background: rgba(0,0,0,0.52);
 	font-size: 10px;
 	transition: font-size .25s;
-}
-
-.vs .monaco-workbench > .welcomeOverlay {
-	background: rgba(255,255,255,.52);
 }
 
 #workbench\.parts\.editor {
@@ -40,15 +35,6 @@
 	font-size: 1.6em;
 }
 
-.monaco-workbench > .welcomeOverlay > .key {
-	color: #000;
-}
-
-.vs-dark .monaco-workbench > .welcomeOverlay > .key,
-.hc-black .monaco-workbench > .welcomeOverlay > .key {
-	color: #FFF;
-}
-
 .monaco-workbench > .welcomeOverlay > .key > .label {
 	padding: 0 1ex;
 }
@@ -56,7 +42,6 @@
 .monaco-workbench > .welcomeOverlay > .key > .shortcut {
 	letter-spacing: 0.15em;
 	font-size: 0.8125em;
-	color: #d7ba7d;
 	font-family: "Lucida Grande", sans-serif;
 }
 

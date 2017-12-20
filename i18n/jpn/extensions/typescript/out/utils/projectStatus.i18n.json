@@ -6,7 +6,6 @@
 {
 	"hintExclude": "プロジェクト全体の JavaScript/TypeScript 言語機能を有効にするには、多数のファイルが含まれるフォルダーを除外します。例: {0}",
 	"hintExclude.generic": "プロジェクト全体の JavaScript/TypeScript 言語機能を有効にするには、作業していないソース ファイルが含まれるサイズの大きなフォルダーを除外します。",
-	"open": "除外の構成",
 	"large.label": "除外の構成",
 	"hintExclude.tooltip": "プロジェクト全体の JavaScript/TypeScript 言語機能を有効にするには、作業していないソース ファイルが含まれるサイズの大きなフォルダーを除外します。"
 }

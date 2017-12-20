@@ -7,7 +7,6 @@
 	"openFolderFirst": "首先打开文件夹以创建工作区设置",
 	"emptyKeybindingsHeader": "将键绑定放入此文件中以覆盖默认值",
 	"defaultKeybindings": "默认的键绑定",
-	"emptySettingsHeader": "将设置放入此文件中以覆盖默认设置",
-	"emptySettingsHeader1": "将设置放入此文件中以覆盖默认值和用户设置。",
+	"folderSettingsName": "{0} (文件夹设置)",
 	"fail.createSettings": "无法创建“{0}”({1})。"
 }

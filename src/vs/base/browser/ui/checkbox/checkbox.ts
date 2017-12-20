@@ -12,7 +12,7 @@ import * as objects from 'vs/base/common/objects';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Color } from "vs/base/common/color";
+import { Color } from 'vs/base/common/color';
 
 export interface ICheckboxOpts extends ICheckboxStyles {
 	actionClassName: string;
@@ -39,19 +39,19 @@ export class Checkbox extends Widget {
 
 	constructor(opts: ICheckboxOpts) {
 		super();
-		this._opts = objects.clone(opts);
+		this._opts = objects.deepClone(opts);
 		objects.mixin(this._opts, defaultOpts, false);
 		this._checked = this._opts.isChecked;
 
 		this.domNode = document.createElement('div');
 		this.domNode.title = this._opts.title;
-		this.domNode.className = this._className();
+		this.domNode.className = 'custom-checkbox ' + this._opts.actionClassName + ' ' + (this._checked ? 'checked' : 'unchecked');
 		this.domNode.tabIndex = 0;
 		this.domNode.setAttribute('role', 'checkbox');
 		this.domNode.setAttribute('aria-checked', String(this._checked));
 		this.domNode.setAttribute('aria-label', this._opts.title);
 
-		this._applyStyles();
+		this.applyStyles();
 
 		this.onclick(this.domNode, (ev) => {
 			this.checked = !this._checked;
@@ -73,6 +73,10 @@ export class Checkbox extends Widget {
 		});
 	}
 
+	public get enabled(): boolean {
+		return this.domNode.getAttribute('aria-disabled') !== 'true';
+	}
+
 	public focus(): void {
 		this.domNode.focus();
 	}
@@ -84,28 +88,29 @@ export class Checkbox extends Widget {
 	public set checked(newIsChecked: boolean) {
 		this._checked = newIsChecked;
 		this.domNode.setAttribute('aria-checked', String(this._checked));
-		this.domNode.className = this._className();
-		this._applyStyles();
-	}
+		if (this._checked) {
+			this.domNode.classList.add('checked');
+		} else {
+			this.domNode.classList.remove('checked');
+		}
 
-	private _className(): string {
-		return 'custom-checkbox ' + this._opts.actionClassName + ' ' + (this._checked ? 'checked' : 'unchecked');
+		this.applyStyles();
 	}
 
 	public width(): number {
 		return 2 /*marginleft*/ + 2 /*border*/ + 2 /*padding*/ + 16 /* icon width */;
 	}
 
-	public style(styles: ICheckboxStyles) {
+	public style(styles: ICheckboxStyles): void {
 		if (styles.inputActiveOptionBorder) {
 			this._opts.inputActiveOptionBorder = styles.inputActiveOptionBorder;
 		}
-		this._applyStyles();
+		this.applyStyles();
 	}
 
-	protected _applyStyles() {
+	protected applyStyles(): void {
 		if (this.domNode) {
-			this.domNode.style.borderColor = this._checked && this._opts.inputActiveOptionBorder ? this._opts.inputActiveOptionBorder.toString() : null;
+			this.domNode.style.borderColor = this._checked && this._opts.inputActiveOptionBorder ? this._opts.inputActiveOptionBorder.toString() : 'transparent';
 		}
 	}
 

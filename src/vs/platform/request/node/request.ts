@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IRequestOptions, IRequestContext } from 'vs/base/node/request';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export const IRequestService = createDecorator<IRequestService>('requestService2');
 

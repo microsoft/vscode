@@ -9,5 +9,6 @@
 	"configuration.validate.executablePath": "Zeigt auf die ausführbare PHP-Datei.",
 	"configuration.validate.run": "Gibt an, ob der Linter beim Speichern oder bei der Eingabe ausgeführt wird.",
 	"configuration.title": "PHP",
-	"commands.categroy.php": "PHP"
+	"commands.categroy.php": "PHP",
+	"command.untrustValidationExecutable": "Ausführbare Datei für PHP-Überprüfung nicht zulassen (als Arbeitsbereicheinstellung definiert)"
 }

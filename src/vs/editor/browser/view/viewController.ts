@@ -6,14 +6,17 @@
 
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Position } from 'vs/editor/common/core/position';
+import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
+import { CoreNavigationCommands, CoreEditorCommand } from 'vs/editor/browser/controller/coreCommands';
+import { Configuration } from 'vs/editor/browser/config/configuration';
 
-export interface TriggerCursorHandler {
-	(source: string, handlerId: string, payload: any): void;
+export interface ExecCoreEditorCommandFunc {
+	(editorCommand: CoreEditorCommand, args: any): void;
 }
 
 export interface IMouseDispatchData {
@@ -34,27 +37,36 @@ export interface IMouseDispatchData {
 
 export class ViewController {
 
-	private viewModel: IViewModel;
-	private triggerCursorHandler: TriggerCursorHandler;
-	private outgoingEvents: ViewOutgoingEvents;
-	private commandService: ICommandService;
+	private readonly configuration: Configuration;
+	private readonly viewModel: IViewModel;
+	private readonly _execCoreEditorCommandFunc: ExecCoreEditorCommandFunc;
+	private readonly outgoingEvents: ViewOutgoingEvents;
+	private readonly commandService: ICommandService;
 
 	constructor(
+		configuration: Configuration,
 		viewModel: IViewModel,
-		triggerCursorHandler: TriggerCursorHandler,
+		execCommandFunc: ExecCoreEditorCommandFunc,
 		outgoingEvents: ViewOutgoingEvents,
 		commandService: ICommandService
 	) {
+		this.configuration = configuration;
 		this.viewModel = viewModel;
-		this.triggerCursorHandler = triggerCursorHandler;
+		this._execCoreEditorCommandFunc = execCommandFunc;
 		this.outgoingEvents = outgoingEvents;
 		this.commandService = commandService;
 	}
 
-	public paste(source: string, text: string, pasteOnNewLine: boolean): void {
+	private _execMouseCommand(editorCommand: CoreEditorCommand, args: any): void {
+		args.source = 'mouse';
+		this._execCoreEditorCommandFunc(editorCommand, args);
+	}
+
+	public paste(source: string, text: string, pasteOnNewLine: boolean, multicursorText: string[]): void {
 		this.commandService.executeCommand(editorCommon.Handler.Paste, {
 			text: text,
 			pasteOnNewLine: pasteOnNewLine,
+			multicursorText: multicursorText
 		});
 	}
 
@@ -83,6 +95,13 @@ export class ViewController {
 		this.commandService.executeCommand(editorCommon.Handler.Cut, {});
 	}
 
+	public setSelection(source: string, modelSelection: Selection): void {
+		this._execCoreEditorCommandFunc(CoreNavigationCommands.SetSelection, {
+			source: source,
+			selection: modelSelection
+		});
+	}
+
 	private _validateViewColumn(viewPosition: Position): Position {
 		let minColumn = this.viewModel.getLineMinColumn(viewPosition.lineNumber);
 		if (viewPosition.column < minColumn) {
@@ -91,169 +110,164 @@ export class ViewController {
 		return viewPosition;
 	}
 
+	private _hasMulticursorModifier(data: IMouseDispatchData): boolean {
+		switch (this.configuration.editor.multiCursorModifier) {
+			case 'altKey':
+				return data.altKey;
+			case 'ctrlKey':
+				return data.ctrlKey;
+			case 'metaKey':
+				return data.metaKey;
+		}
+		return false;
+	}
+
+	private _hasNonMulticursorModifier(data: IMouseDispatchData): boolean {
+		switch (this.configuration.editor.multiCursorModifier) {
+			case 'altKey':
+				return data.ctrlKey || data.metaKey;
+			case 'ctrlKey':
+				return data.altKey || data.metaKey;
+			case 'metaKey':
+				return data.ctrlKey || data.altKey;
+		}
+		return false;
+	}
+
 	public dispatchMouse(data: IMouseDispatchData): void {
 		if (data.startedOnLineNumbers) {
 			// If the dragging started on the gutter, then have operations work on the entire line
-			if (data.altKey) {
+			if (this._hasMulticursorModifier(data)) {
 				if (data.inSelectionMode) {
-					this.lastCursorLineSelect('mouse', data.position);
+					this.lastCursorLineSelect(data.position);
 				} else {
-					this.createCursor('mouse', data.position, true);
+					this.createCursor(data.position, true);
 				}
 			} else {
 				if (data.inSelectionMode) {
-					this.lineSelectDrag('mouse', data.position);
+					this.lineSelectDrag(data.position);
 				} else {
-					this.lineSelect('mouse', data.position);
+					this.lineSelect(data.position);
 				}
 			}
 		} else if (data.mouseDownCount >= 4) {
-			this.selectAll('mouse');
+			this.selectAll();
 		} else if (data.mouseDownCount === 3) {
-			if (data.altKey) {
+			if (this._hasMulticursorModifier(data)) {
 				if (data.inSelectionMode) {
-					this.lastCursorLineSelectDrag('mouse', data.position);
+					this.lastCursorLineSelectDrag(data.position);
 				} else {
-					this.lastCursorLineSelect('mouse', data.position);
+					this.lastCursorLineSelect(data.position);
 				}
 			} else {
 				if (data.inSelectionMode) {
-					this.lineSelectDrag('mouse', data.position);
+					this.lineSelectDrag(data.position);
 				} else {
-					this.lineSelect('mouse', data.position);
+					this.lineSelect(data.position);
 				}
 			}
 		} else if (data.mouseDownCount === 2) {
-			if (data.altKey) {
-				this.lastCursorWordSelect('mouse', data.position);
+			if (this._hasMulticursorModifier(data)) {
+				this.lastCursorWordSelect(data.position);
 			} else {
 				if (data.inSelectionMode) {
-					this.wordSelectDrag('mouse', data.position);
+					this.wordSelectDrag(data.position);
 				} else {
-					this.wordSelect('mouse', data.position);
+					this.wordSelect(data.position);
 				}
 			}
 		} else {
-			if (data.altKey) {
-				if (!data.ctrlKey && !data.metaKey) {
+			if (this._hasMulticursorModifier(data)) {
+				if (!this._hasNonMulticursorModifier(data)) {
 					if (data.shiftKey) {
-						this.columnSelect('mouse', data.position, data.mouseColumn);
+						this.columnSelect(data.position, data.mouseColumn);
 					} else {
 						// Do multi-cursor operations only when purely alt is pressed
 						if (data.inSelectionMode) {
-							this.lastCursorMoveToSelect('mouse', data.position);
+							this.lastCursorMoveToSelect(data.position);
 						} else {
-							this.createCursor('mouse', data.position, false);
+							this.createCursor(data.position, false);
 						}
 					}
 				}
 			} else {
 				if (data.inSelectionMode) {
-					this.moveToSelect('mouse', data.position);
+					this.moveToSelect(data.position);
 				} else {
-					this.moveTo('mouse', data.position);
+					this.moveTo(data.position);
 				}
 			}
 		}
 	}
 
-	public moveTo(source: string, viewPosition: Position): void {
+	private _usualArgs(viewPosition: Position) {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this.triggerCursorHandler(source, editorCommon.Handler.MoveTo, {
+		return {
 			position: this.convertViewToModelPosition(viewPosition),
 			viewPosition: viewPosition
-		});
+		};
 	}
 
-	private moveToSelect(source: string, viewPosition: Position): void {
-		viewPosition = this._validateViewColumn(viewPosition);
-		this.triggerCursorHandler(source, editorCommon.Handler.MoveToSelect, {
-			position: this.convertViewToModelPosition(viewPosition),
-			viewPosition: viewPosition
-		});
+	public moveTo(viewPosition: Position): void {
+		this._execMouseCommand(CoreNavigationCommands.MoveTo, this._usualArgs(viewPosition));
 	}
 
-	private columnSelect(source: string, viewPosition: Position, mouseColumn: number): void {
+	private moveToSelect(viewPosition: Position): void {
+		this._execMouseCommand(CoreNavigationCommands.MoveToSelect, this._usualArgs(viewPosition));
+	}
+
+	private columnSelect(viewPosition: Position, mouseColumn: number): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this.triggerCursorHandler(source, editorCommon.Handler.ColumnSelect, {
+		this._execMouseCommand(CoreNavigationCommands.ColumnSelect, {
 			position: this.convertViewToModelPosition(viewPosition),
 			viewPosition: viewPosition,
 			mouseColumn: mouseColumn
 		});
 	}
 
-	private createCursor(source: string, viewPosition: Position, wholeLine: boolean): void {
+	private createCursor(viewPosition: Position, wholeLine: boolean): void {
 		viewPosition = this._validateViewColumn(viewPosition);
-		this.triggerCursorHandler(source, editorCommon.Handler.CreateCursor, {
+		this._execMouseCommand(CoreNavigationCommands.CreateCursor, {
 			position: this.convertViewToModelPosition(viewPosition),
 			viewPosition: viewPosition,
 			wholeLine: wholeLine
 		});
 	}
 
-	private lastCursorMoveToSelect(source: string, viewPosition: Position): void {
-		viewPosition = this._validateViewColumn(viewPosition);
-		this.triggerCursorHandler(source, editorCommon.Handler.LastCursorMoveToSelect, {
-			position: this.convertViewToModelPosition(viewPosition),
-			viewPosition: viewPosition
-		});
+	private lastCursorMoveToSelect(viewPosition: Position): void {
+		this._execMouseCommand(CoreNavigationCommands.LastCursorMoveToSelect, this._usualArgs(viewPosition));
 	}
 
-	private wordSelect(source: string, viewPosition: Position): void {
-		viewPosition = this._validateViewColumn(viewPosition);
-		this.triggerCursorHandler(source, editorCommon.Handler.WordSelect, {
-			position: this.convertViewToModelPosition(viewPosition)
-		});
+	private wordSelect(viewPosition: Position): void {
+		this._execMouseCommand(CoreNavigationCommands.WordSelect, this._usualArgs(viewPosition));
 	}
 
-	private wordSelectDrag(source: string, viewPosition: Position): void {
-		viewPosition = this._validateViewColumn(viewPosition);
-		this.triggerCursorHandler(source, editorCommon.Handler.WordSelectDrag, {
-			position: this.convertViewToModelPosition(viewPosition)
-		});
+	private wordSelectDrag(viewPosition: Position): void {
+		this._execMouseCommand(CoreNavigationCommands.WordSelectDrag, this._usualArgs(viewPosition));
 	}
 
-	private lastCursorWordSelect(source: string, viewPosition: Position): void {
-		viewPosition = this._validateViewColumn(viewPosition);
-		this.triggerCursorHandler(source, editorCommon.Handler.LastCursorWordSelect, {
-			position: this.convertViewToModelPosition(viewPosition)
-		});
+	private lastCursorWordSelect(viewPosition: Position): void {
+		this._execMouseCommand(CoreNavigationCommands.LastCursorWordSelect, this._usualArgs(viewPosition));
 	}
 
-	private lineSelect(source: string, viewPosition: Position): void {
-		viewPosition = this._validateViewColumn(viewPosition);
-		this.triggerCursorHandler(source, editorCommon.Handler.LineSelect, {
-			position: this.convertViewToModelPosition(viewPosition),
-			viewPosition: viewPosition
-		});
+	private lineSelect(viewPosition: Position): void {
+		this._execMouseCommand(CoreNavigationCommands.LineSelect, this._usualArgs(viewPosition));
 	}
 
-	private lineSelectDrag(source: string, viewPosition: Position): void {
-		viewPosition = this._validateViewColumn(viewPosition);
-		this.triggerCursorHandler(source, editorCommon.Handler.LineSelectDrag, {
-			position: this.convertViewToModelPosition(viewPosition),
-			viewPosition: viewPosition
-		});
+	private lineSelectDrag(viewPosition: Position): void {
+		this._execMouseCommand(CoreNavigationCommands.LineSelectDrag, this._usualArgs(viewPosition));
 	}
 
-	private lastCursorLineSelect(source: string, viewPosition: Position): void {
-		viewPosition = this._validateViewColumn(viewPosition);
-		this.triggerCursorHandler(source, editorCommon.Handler.LastCursorLineSelect, {
-			position: this.convertViewToModelPosition(viewPosition),
-			viewPosition: viewPosition
-		});
+	private lastCursorLineSelect(viewPosition: Position): void {
+		this._execMouseCommand(CoreNavigationCommands.LastCursorLineSelect, this._usualArgs(viewPosition));
 	}
 
-	private lastCursorLineSelectDrag(source: string, viewPosition: Position): void {
-		viewPosition = this._validateViewColumn(viewPosition);
-		this.triggerCursorHandler(source, editorCommon.Handler.LastCursorLineSelectDrag, {
-			position: this.convertViewToModelPosition(viewPosition),
-			viewPosition: viewPosition
-		});
+	private lastCursorLineSelectDrag(viewPosition: Position): void {
+		this._execMouseCommand(CoreNavigationCommands.LastCursorLineSelectDrag, this._usualArgs(viewPosition));
 	}
 
-	private selectAll(source: string): void {
-		this.triggerCursorHandler(source, editorCommon.Handler.SelectAll, null);
+	private selectAll(): void {
+		this._execMouseCommand(CoreNavigationCommands.SelectAll, {});
 	}
 
 	// ----------------------

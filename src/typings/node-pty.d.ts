@@ -9,9 +9,11 @@ declare module 'node-pty' {
 	export function createTerminal(file: string, args: string[], options: any): Terminal;
 
 	export interface Terminal {
+		pid: number;
+
 		/**
 		 * The title of the active process.
-		 */
+ 		 */
 		process: string;
 
 		on(event: string, callback: (data: any) => void): void;
@@ -19,5 +21,7 @@ declare module 'node-pty' {
 		resize(columns: number, rows: number): void;
 
 		write(data: string): void;
+
+		kill(): void;
 	}
 }

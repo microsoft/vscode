@@ -7,5 +7,6 @@
 	"replAriaLabel": "Read Eval Print Loop パネル",
 	"actions.repl.historyPrevious": "前の履歴",
 	"actions.repl.historyNext": "次の履歴",
-	"actions.repl.acceptInput": "REPL での入力を反映"
+	"actions.repl.acceptInput": "REPL での入力を反映",
+	"actions.repl.copyAll": "デバッグ: コンソールをすべてコピーする"
 }

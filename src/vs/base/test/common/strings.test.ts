@@ -80,6 +80,7 @@ suite('Strings', () => {
 		assertCompareIgnoreCase('aa', 'aA');
 		assertCompareIgnoreCase('a', 'aa');
 		assertCompareIgnoreCase('ab', 'aA');
+		assertCompareIgnoreCase('O', '/');
 	});
 
 	test('format', function () {
@@ -93,28 +94,26 @@ suite('Strings', () => {
 		assert.strictEqual(strings.format('Foo {0} Bar. {1}', '(foo)', '.test'), 'Foo (foo) Bar. .test');
 	});
 
-	test('computeLineStarts', function () {
-		function assertLineStart(text: string, ...offsets: number[]): void {
-			const actual = strings.computeLineStarts(text);
-			assert.equal(actual.length, offsets.length);
-			if (actual.length !== offsets.length) {
-				return;
-			}
-			while (offsets.length > 0) {
-				assert.equal(actual.pop(), offsets.pop());
-			}
-		}
-
-		assertLineStart('', 0);
-		assertLineStart('farboo', 0);
-		assertLineStart('far\nboo', 0, 4);
-		assertLineStart('far\rboo', 0, 4);
-		assertLineStart('far\r\nboo', 0, 5);
-		assertLineStart('far\n\rboo', 0, 4, 5);
-		assertLineStart('far\n \rboo', 0, 4, 6);
-		assertLineStart('far\nboo\nfar', 0, 4, 8);
+	test('overlap', function () {
+		assert.equal(strings.overlap('foobar', 'arr, I am a priate'), 2);
+		assert.equal(strings.overlap('no', 'overlap'), 1);
+		assert.equal(strings.overlap('no', '0verlap'), 0);
+		assert.equal(strings.overlap('nothing', ''), 0);
+		assert.equal(strings.overlap('', 'nothing'), 0);
+		assert.equal(strings.overlap('full', 'full'), 4);
+		assert.equal(strings.overlap('full', 'fulloverlap'), 4);
 	});
+	test('lcut', () => {
+		assert.strictEqual(strings.lcut('foo bar', 0), '');
+		assert.strictEqual(strings.lcut('foo bar', 1), 'bar');
+		assert.strictEqual(strings.lcut('foo bar', 3), 'bar');
+		assert.strictEqual(strings.lcut('foo bar', 4), 'bar'); // Leading whitespace trimmed
+		assert.strictEqual(strings.lcut('foo bar', 5), 'foo bar');
+		assert.strictEqual(strings.lcut('test string 0.1.2.3', 3), '2.3');
 
+		assert.strictEqual(strings.lcut('', 10), '');
+		assert.strictEqual(strings.lcut('a', 10), 'a');
+	});
 
 	test('pad', function () {
 		assert.strictEqual(strings.pad(1, 0), '1');
@@ -196,13 +195,6 @@ suite('Strings', () => {
 		assert.strictEqual(' 	  '.trim(), '');
 	});
 
-	test('appendWithLimit', function () {
-		assert.strictEqual(strings.appendWithLimit('ab', 'cd', 100), 'abcd');
-		assert.strictEqual(strings.appendWithLimit('ab', 'cd', 2), '...cd');
-		assert.strictEqual(strings.appendWithLimit('ab', 'cdefgh', 4), '...efgh');
-		assert.strictEqual(strings.appendWithLimit('abcdef', 'ghijk', 7), '...efghijk');
-	});
-
 	test('repeat', () => {
 		assert.strictEqual(strings.repeat(' ', 4), '    ');
 		assert.strictEqual(strings.repeat(' ', 1), ' ');
@@ -231,29 +223,23 @@ suite('Strings', () => {
 		assert.equal(strings.containsRTL('זוהי עובדה מבוססת שדעתו'), true);
 	});
 
-	// test('containsRTL speed', () => {
-	// 	var SIZE = 1000000;
-	// 	var REPEAT = 10;
-	// 	function generateASCIIStr(len:number): string {
-	// 		let r = '';
-	// 		for (var i = 0; i < len; i++) {
-	// 			var res = Math.floor(Math.random() * 256);
-	// 			r += String.fromCharCode(res);
-	// 		}
-	// 		return r;
-	// 	}
-	// 	function testContainsRTLSpeed(): number {
-	// 		var str = generateASCIIStr(SIZE);
-	// 		var start = Date.now();
-	// 		assert.equal(strings.containsRTL(str), false);
-	// 		return (Date.now() - start);
-	// 	}
-	// 	var allTime = 0;
-	// 	for (var i = 0; i < REPEAT; i++) {
-	// 		allTime += testContainsRTLSpeed();
-	// 	}
-	// 	console.log('TOOK: ' + (allTime)/10 + 'ms for size of ' + SIZE/1000000 + 'Mb');
-	// });
+	test('containsEmoji', () => {
+		assert.equal(strings.containsEmoji('a'), false);
+		assert.equal(strings.containsEmoji(''), false);
+		assert.equal(strings.containsEmoji(strings.UTF8_BOM_CHARACTER + 'a'), false);
+		assert.equal(strings.containsEmoji('hello world!'), false);
+		assert.equal(strings.containsEmoji('هناك حقيقة مثبتة منذ زمن طويل'), false);
+		assert.equal(strings.containsEmoji('זוהי עובדה מבוססת שדעתו'), false);
+
+		assert.equal(strings.containsEmoji('a📚📚b'), true);
+		assert.equal(strings.containsEmoji('1F600 # 😀 grinning face'), true);
+		assert.equal(strings.containsEmoji('1F47E # 👾 alien monster'), true);
+		assert.equal(strings.containsEmoji('1F467 1F3FD # 👧🏽 girl: medium skin tone'), true);
+		assert.equal(strings.containsEmoji('26EA # ⛪ church'), true);
+		assert.equal(strings.containsEmoji('231B # ⌛ hourglass'), true);
+		assert.equal(strings.containsEmoji('2702 # ✂ scissors'), true);
+		assert.equal(strings.containsEmoji('1F1F7 1F1F4  # 🇷🇴 Romania'), true);
+	});
 
 	test('isBasicASCII', () => {
 		function assertIsBasicASCII(str: string, expected: boolean): void {
@@ -305,5 +291,61 @@ suite('Strings', () => {
 		assert(regExpWithFlags.global);
 		assert(!regExpWithFlags.ignoreCase);
 		assert(regExpWithFlags.multiline);
+	});
+
+	test('regExpContainsBackreference', () => {
+		assert(strings.regExpContainsBackreference('foo \\5 bar'));
+		assert(strings.regExpContainsBackreference('\\2'));
+		assert(strings.regExpContainsBackreference('(\\d)(\\n)(\\1)'));
+		assert(strings.regExpContainsBackreference('(A).*?\\1'));
+		assert(strings.regExpContainsBackreference('\\\\\\1'));
+		assert(strings.regExpContainsBackreference('foo \\\\\\1'));
+
+		assert(!strings.regExpContainsBackreference(''));
+		assert(!strings.regExpContainsBackreference('\\\\1'));
+		assert(!strings.regExpContainsBackreference('foo \\\\1'));
+		assert(!strings.regExpContainsBackreference('(A).*?\\\\1'));
+		assert(!strings.regExpContainsBackreference('foo \\d1 bar'));
+		assert(!strings.regExpContainsBackreference('123'));
+	});
+
+	test('getLeadingWhitespace', () => {
+		assert.equal(strings.getLeadingWhitespace('  foo'), '  ');
+		assert.equal(strings.getLeadingWhitespace('  foo', 2), '');
+		assert.equal(strings.getLeadingWhitespace('  foo', 1, 1), '');
+		assert.equal(strings.getLeadingWhitespace('  foo', 0, 1), ' ');
+		assert.equal(strings.getLeadingWhitespace('  '), '  ');
+		assert.equal(strings.getLeadingWhitespace('  ', 1), ' ');
+		assert.equal(strings.getLeadingWhitespace('  ', 0, 1), ' ');
+		assert.equal(strings.getLeadingWhitespace('\t\tfunction foo(){', 0, 1), '\t');
+		assert.equal(strings.getLeadingWhitespace('\t\tfunction foo(){', 0, 2), '\t\t');
+	});
+
+	test('fuzzyContains', function () {
+		assert.ok(!strings.fuzzyContains(void 0, null));
+		assert.ok(strings.fuzzyContains('hello world', 'h'));
+		assert.ok(!strings.fuzzyContains('hello world', 'q'));
+		assert.ok(strings.fuzzyContains('hello world', 'hw'));
+		assert.ok(strings.fuzzyContains('hello world', 'horl'));
+		assert.ok(strings.fuzzyContains('hello world', 'd'));
+		assert.ok(!strings.fuzzyContains('hello world', 'wh'));
+		assert.ok(!strings.fuzzyContains('d', 'dd'));
+	});
+
+	test('startsWithUTF8BOM', () => {
+		assert(strings.startsWithUTF8BOM(strings.UTF8_BOM_CHARACTER));
+		assert(strings.startsWithUTF8BOM(strings.UTF8_BOM_CHARACTER + 'a'));
+		assert(strings.startsWithUTF8BOM(strings.UTF8_BOM_CHARACTER + 'aaaaaaaaaa'));
+		assert(!strings.startsWithUTF8BOM(' ' + strings.UTF8_BOM_CHARACTER));
+		assert(!strings.startsWithUTF8BOM('foo'));
+		assert(!strings.startsWithUTF8BOM(''));
+	});
+
+	test('stripUTF8BOM', () => {
+		assert.equal(strings.stripUTF8BOM(strings.UTF8_BOM_CHARACTER), '');
+		assert.equal(strings.stripUTF8BOM(strings.UTF8_BOM_CHARACTER + 'foobar'), 'foobar');
+		assert.equal(strings.stripUTF8BOM('foobar' + strings.UTF8_BOM_CHARACTER), 'foobar' + strings.UTF8_BOM_CHARACTER);
+		assert.equal(strings.stripUTF8BOM('abc'), 'abc');
+		assert.equal(strings.stripUTF8BOM(''), '');
 	});
 });

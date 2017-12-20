@@ -17,7 +17,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { Emitter } from 'vs/base/common/event';
 
-let activeViewlet: Viewlet = <any>{};
+let activeViewlet: Viewlet = {} as any;
 
 class TestViewletService implements IViewletService {
 	public _serviceBrand: any;
@@ -104,6 +104,13 @@ class TestViewlet implements IViewlet {
 	 * Returns the secondary actions of the composite.
 	 */
 	getSecondaryActions(): IAction[] {
+		return [];
+	}
+
+	/**
+	 * Returns an array of actions to show in the context menu of the composite
+	 */
+	public getContextMenuActions(): IAction[] {
 		return [];
 	}
 

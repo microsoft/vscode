@@ -1,0 +1,3 @@
+--timeout 60000
+--slow 20000
+out/main.js

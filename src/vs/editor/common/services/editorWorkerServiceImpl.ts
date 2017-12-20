@@ -17,9 +17,9 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerServ
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditorSimpleWorkerImpl } from 'vs/editor/common/services/editorSimpleWorker';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEditorOptions } from "vs/editor/common/config/editorOptions";
-import { IRange } from "vs/editor/common/core/range";
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IRange } from 'vs/editor/common/core/range';
 
 /**
  * Stop syncing a model to the worker if it was not needed for 1 min.
@@ -31,45 +31,76 @@ const STOP_SYNC_MODEL_DELTA_TIME_MS = 60 * 1000;
  */
 const STOP_WORKER_DELTA_TIME_MS = 5 * 60 * 1000;
 
+function canSyncModel(modelService: IModelService, resource: URI): boolean {
+	let model = modelService.getModel(resource);
+	if (!model) {
+		return false;
+	}
+	if (model.isTooLargeForTokenization()) {
+		return false;
+	}
+	return true;
+}
+
 export class EditorWorkerServiceImpl extends Disposable implements IEditorWorkerService {
 	public _serviceBrand: any;
 
+	private readonly _modelService: IModelService;
 	private readonly _workerManager: WorkerManager;
 
 	constructor(
 		@IModelService modelService: IModelService,
-		@IConfigurationService configurationService: IConfigurationService
+		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService
 	) {
 		super();
-		this._workerManager = this._register(new WorkerManager(modelService));
+		this._modelService = modelService;
+		this._workerManager = this._register(new WorkerManager(this._modelService));
 
 		// todo@joh make sure this happens only once
 		this._register(modes.LinkProviderRegistry.register('*', <modes.LinkProvider>{
 			provideLinks: (model, token) => {
+				if (!canSyncModel(this._modelService, model.uri)) {
+					return TPromise.as([]); // File too large
+				}
 				return wireCancellationToken(token, this._workerManager.withWorker().then(client => client.computeLinks(model.uri)));
 			}
 		}));
-		this._register(modes.SuggestRegistry.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService)));
+		this._register(modes.SuggestRegistry.register('*', new WordBasedCompletionItemProvider(this._workerManager, configurationService, this._modelService)));
 	}
 
 	public dispose(): void {
 		super.dispose();
 	}
 
+	public canComputeDiff(original: URI, modified: URI): boolean {
+		return (canSyncModel(this._modelService, original) && canSyncModel(this._modelService, modified));
+	}
+
 	public computeDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): TPromise<editorCommon.ILineChange[]> {
 		return this._workerManager.withWorker().then(client => client.computeDiff(original, modified, ignoreTrimWhitespace));
+	}
+
+	public canComputeDirtyDiff(original: URI, modified: URI): boolean {
+		return (canSyncModel(this._modelService, original) && canSyncModel(this._modelService, modified));
 	}
 
 	public computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): TPromise<editorCommon.IChange[]> {
 		return this._workerManager.withWorker().then(client => client.computeDirtyDiff(original, modified, ignoreTrimWhitespace));
 	}
 
-	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[], ranges: IRange[]): TPromise<modes.TextEdit[]> {
+	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[]): TPromise<modes.TextEdit[]> {
 		if (!Array.isArray(edits) || edits.length === 0) {
 			return TPromise.as(edits);
 		} else {
-			return this._workerManager.withWorker().then(client => client.computeMoreMinimalEdits(resource, edits, ranges));
+			if (!canSyncModel(this._modelService, resource)) {
+				return TPromise.as(edits); // File too large
+			}
+			return this._workerManager.withWorker().then(client => client.computeMoreMinimalEdits(resource, edits));
 		}
+	}
+
+	public canNavigateValueSet(resource: URI): boolean {
+		return (canSyncModel(this._modelService, resource));
 	}
 
 	public navigateValueSet(resource: URI, range: IRange, up: boolean): TPromise<modes.IInplaceReplaceSupportResult> {
@@ -80,18 +111,26 @@ export class EditorWorkerServiceImpl extends Disposable implements IEditorWorker
 class WordBasedCompletionItemProvider implements modes.ISuggestSupport {
 
 	private readonly _workerManager: WorkerManager;
-	private readonly _configurationService: IConfigurationService;
+	private readonly _configurationService: ITextResourceConfigurationService;
+	private readonly _modelService: IModelService;
 
-	constructor(workerManager: WorkerManager, configurationService: IConfigurationService) {
+	constructor(
+		workerManager: WorkerManager,
+		configurationService: ITextResourceConfigurationService,
+		modelService: IModelService
+	) {
 		this._workerManager = workerManager;
 		this._configurationService = configurationService;
+		this._modelService = modelService;
 	}
 
 	provideCompletionItems(model: editorCommon.IModel, position: Position): TPromise<modes.ISuggestResult> {
-
-		const { wordBasedSuggestions } = this._configurationService.getConfiguration<IEditorOptions>('editor');
+		const { wordBasedSuggestions } = this._configurationService.getValue<IEditorOptions>(model.uri, position, 'editor');
 		if (!wordBasedSuggestions) {
 			return undefined;
+		}
+		if (!canSyncModel(this._modelService, model.uri)) {
+			return undefined; // File too large
 		}
 		return this._workerManager.withWorker().then(client => client.textualSuggest(model.uri, position));
 	}
@@ -225,6 +264,9 @@ class EditorModelManager extends Disposable {
 		if (!model) {
 			return;
 		}
+		if (model.isTooLargeForTokenization()) {
+			return;
+		}
 
 		let modelUrl = resource.toString();
 
@@ -348,9 +390,9 @@ export class EditorWorkerClient extends Disposable {
 		});
 	}
 
-	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[], ranges: IRange[]): TPromise<modes.TextEdit[]> {
+	public computeMoreMinimalEdits(resource: URI, edits: modes.TextEdit[]): TPromise<modes.TextEdit[]> {
 		return this._withSyncedResources([resource]).then(proxy => {
-			return proxy.computeMoreMinimalEdits(resource.toString(), edits, ranges);
+			return proxy.computeMoreMinimalEdits(resource.toString(), edits);
 		});
 	}
 

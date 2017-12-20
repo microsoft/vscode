@@ -5,20 +5,7 @@
 
 'use strict';
 
-import { IRange } from "vs/editor/common/core/range";
-
-/**
- * @internal
- */
-export const TextModelEventType = {
-	ModelDispose: 'modelDispose',
-	ModelTokensChanged: 'modelTokensChanged',
-	ModelLanguageChanged: 'modelLanguageChanged',
-	ModelOptionsChanged: 'modelOptionsChanged',
-	ModelContentChanged: 'contentChanged',
-	ModelRawContentChanged2: 'rawContentChanged2',
-	ModelDecorationsChanged: 'decorationsChanged',
-};
+import { IRange } from 'vs/editor/common/core/range';
 
 /**
  * An event describing that the current mode associated with a model has changed.
@@ -32,6 +19,12 @@ export interface IModelLanguageChangedEvent {
 	 * New language
 	 */
 	readonly newLanguage: string;
+}
+
+/**
+ * An event describing that the language configuration associated with a model has changed.
+ */
+export interface IModelLanguageConfigurationChangedEvent {
 }
 
 export interface IModelContentChange {
@@ -81,18 +74,6 @@ export interface IModelContentChangedEvent {
  * An event describing that model decorations have changed.
  */
 export interface IModelDecorationsChangedEvent {
-	/**
-	 * Lists of ids for added decorations.
-	 */
-	readonly addedDecorations: string[];
-	/**
-	 * Lists of ids for changed decorations.
-	 */
-	readonly changedDecorations: string[];
-	/**
-	 * List of ids for removed decorations.
-	 */
-	readonly removedDecorations: string[];
 }
 
 /**
@@ -124,7 +105,8 @@ export const enum RawContentChangedType {
 	Flush = 1,
 	LineChanged = 2,
 	LinesDeleted = 3,
-	LinesInserted = 4
+	LinesInserted = 4,
+	EOLChanged = 5
 }
 
 /**
@@ -204,9 +186,17 @@ export class ModelRawLinesInserted {
 }
 
 /**
+ * An event describing that a model has had its EOL changed.
  * @internal
  */
-export type ModelRawChange = ModelRawFlush | ModelRawLineChanged | ModelRawLinesDeleted | ModelRawLinesInserted;
+export class ModelRawEOLChanged {
+	public readonly changeType = RawContentChangedType.EOLChanged;
+}
+
+/**
+ * @internal
+ */
+export type ModelRawChange = ModelRawFlush | ModelRawLineChanged | ModelRawLinesDeleted | ModelRawLinesInserted | ModelRawEOLChanged;
 
 /**
  * An event describing a change in the text of a model.
@@ -234,4 +224,24 @@ export class ModelRawContentChangedEvent {
 		this.isUndoing = isUndoing;
 		this.isRedoing = isRedoing;
 	}
+
+	public containsEvent(type: RawContentChangedType): boolean {
+		for (let i = 0, len = this.changes.length; i < len; i++) {
+			const change = this.changes[i];
+			if (change.changeType === type) {
+				return true;
+			}
+		}
+		return false;
+	}
+}
+
+/**
+ * @internal
+ */
+export class InternalModelContentChangeEvent {
+	constructor(
+		public readonly rawContentChangedEvent: ModelRawContentChangedEvent,
+		public readonly contentChangedEvent: IModelContentChangedEvent,
+	) { }
 }

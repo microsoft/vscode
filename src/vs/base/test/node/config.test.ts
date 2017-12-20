@@ -14,6 +14,7 @@ import extfs = require('vs/base/node/extfs');
 import uuid = require('vs/base/common/uuid');
 import { ConfigWatcher } from 'vs/base/node/config';
 import { onError } from 'vs/base/test/common/utils';
+import { mkdirp } from 'vs/base/node/pfs';
 
 suite('Config', () => {
 
@@ -23,9 +24,9 @@ suite('Config', () => {
 		const newDir = path.join(parentDir, 'config', id);
 		const testFile = path.join(newDir, 'config.json');
 
-		extfs.mkdirp(newDir, 493, error => {
-			callback(error, testFile, (callback) => extfs.del(parentDir, os.tmpdir(), () => { }, callback));
-		});
+		const onMkdirp = error => callback(error, testFile, (callback) => extfs.del(parentDir, os.tmpdir(), () => { }, callback));
+
+		mkdirp(newDir, 493).done(() => onMkdirp(null), error => onMkdirp(error));
 	}
 
 	test('defaults', function () {
@@ -42,7 +43,7 @@ suite('Config', () => {
 
 		watcher.dispose();
 
-		let watcher2 = new ConfigWatcher<any[]>(testFile, { defaultConfig: ['foo'] });
+		let watcher2 = new ConfigWatcher<any[]>(testFile, { defaultConfig: ['foo'], onError: console.error });
 
 		let config2 = watcher2.getConfig();
 		assert.ok(Array.isArray(config2));
@@ -98,6 +99,8 @@ suite('Config', () => {
 	});
 
 	test('watching', function (done: () => void) {
+		this.timeout(10000); // watching is timing intense
+
 		testFile((error, testFile, cleanUp) => {
 			if (error) {
 				return onError(error, done);
@@ -124,6 +127,8 @@ suite('Config', () => {
 	});
 
 	test('watching also works when file created later', function (done: () => void) {
+		this.timeout(10000); // watching is timing intense
+
 		testFile((error, testFile, cleanUp) => {
 			if (error) {
 				return onError(error, done);
@@ -148,6 +153,8 @@ suite('Config', () => {
 	});
 
 	test('watching detects the config file getting deleted', function (done: () => void) {
+		this.timeout(10000); // watching is timing intense
+
 		testFile((error, testFile, cleanUp) => {
 			if (error) {
 				return onError(error, done);
@@ -178,7 +185,7 @@ suite('Config', () => {
 
 			fs.writeFileSync(testFile, '// my comment\n{ "foo": "bar" }');
 
-			let watcher = new ConfigWatcher<{ foo: string; }>(testFile, { changeBufferDelay: 100 });
+			let watcher = new ConfigWatcher<{ foo: string; }>(testFile, { changeBufferDelay: 100, onError: console.error });
 			watcher.getConfig(); // ensure we are in sync
 
 			fs.writeFileSync(testFile, '// my comment\n{ "foo": "changed" }');

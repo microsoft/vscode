@@ -8,30 +8,30 @@
 import { TextDocument, Position, LanguageService, TokenType, Range } from 'vscode-html-languageservice';
 
 export interface LanguageRange extends Range {
-	languageId: string;
+	languageId: string | undefined;
 	attributeValue?: boolean;
 }
 
 export interface HTMLDocumentRegions {
 	getEmbeddedDocument(languageId: string, ignoreAttributeValues?: boolean): TextDocument;
 	getLanguageRanges(range: Range): LanguageRange[];
-	getLanguageAtPosition(position: Position): string;
+	getLanguageAtPosition(position: Position): string | undefined;
 	getLanguagesInDocument(): string[];
 	getImportedScripts(): string[];
 }
 
 export var CSS_STYLE_RULE = '__';
 
-interface EmbeddedRegion { languageId: string; start: number; end: number; attributeValue?: boolean; };
+interface EmbeddedRegion { languageId: string | undefined; start: number; end: number; attributeValue?: boolean; }
 
 
 export function getDocumentRegions(languageService: LanguageService, document: TextDocument): HTMLDocumentRegions {
 	let regions: EmbeddedRegion[] = [];
 	let scanner = languageService.createScanner(document.getText());
-	let lastTagName: string;
-	let lastAttributeName: string;
-	let languageIdFromType: string;
-	let importedScripts = [];
+	let lastTagName: string = '';
+	let lastAttributeName: string | null = null;
+	let languageIdFromType: string | undefined = undefined;
+	let importedScripts: string[] = [];
 
 	let token = scanner.scan();
 	while (token !== TokenType.EOS) {
@@ -58,13 +58,13 @@ export function getDocumentRegions(languageService: LanguageService, document: T
 					}
 					importedScripts.push(value);
 				} else if (lastAttributeName === 'type' && lastTagName.toLowerCase() === 'script') {
-					if (/["'](text|application)\/(java|ecma)script["']/.test(scanner.getTokenText())) {
+					if (/["'](module|(text|application)\/(java|ecma)script)["']/.test(scanner.getTokenText())) {
 						languageIdFromType = 'javascript';
 					} else {
 						languageIdFromType = void 0;
 					}
 				} else {
-					let attributeLanguageId = getAttributeLanguage(lastAttributeName);
+					let attributeLanguageId = getAttributeLanguage(lastAttributeName!);
 					if (attributeLanguageId) {
 						let start = scanner.getTokenOffset();
 						let end = scanner.getTokenEnd();
@@ -146,7 +146,7 @@ function getLanguagesInDocument(document: TextDocument, regions: EmbeddedRegion[
 	return result;
 }
 
-function getLanguageAtPosition(document: TextDocument, regions: EmbeddedRegion[], position: Position): string {
+function getLanguageAtPosition(document: TextDocument, regions: EmbeddedRegion[], position: Position): string | undefined {
 	let offset = document.offsetAt(position);
 	for (let region of regions) {
 		if (region.start <= offset) {
@@ -224,7 +224,7 @@ function append(result: string, str: string, n: number): string {
 	return result;
 }
 
-function getAttributeLanguage(attributeName: string): string {
+function getAttributeLanguage(attributeName: string): string | null {
 	let match = attributeName.match(/^(style)$|^(on\w+)$/i);
 	if (!match) {
 		return null;

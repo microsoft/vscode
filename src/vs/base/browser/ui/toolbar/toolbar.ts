@@ -23,6 +23,7 @@ export interface IToolBarOptions {
 	actionItemProvider?: IActionItemProvider;
 	ariaLabel?: string;
 	getKeyBinding?: (action: IAction) => ResolvedKeybinding;
+	actionRunner?: IActionRunner;
 }
 
 /**
@@ -49,6 +50,7 @@ export class ToolBar {
 		this.actionBar = new ActionBar($(element), {
 			orientation: options.orientation,
 			ariaLabel: options.ariaLabel,
+			actionRunner: options.actionRunner,
 			actionItemProvider: (action: Action) => {
 
 				// Return special action item for the toggle menu action
@@ -155,7 +157,7 @@ export class ToolBar {
 
 class ToggleMenuAction extends Action {
 
-	public static ID = 'toolbar.toggle.more';
+	public static readonly ID = 'toolbar.toggle.more';
 
 	private _menuActions: IAction[];
 	private toggleDropdownMenu: () => void;
@@ -184,7 +186,6 @@ class ToggleMenuAction extends Action {
 export class DropdownMenuActionItem extends BaseActionItem {
 	private menuActionsOrProvider: any;
 	private dropdownMenu: DropdownMenu;
-	private toUnbind: IDisposable;
 	private contextMenuProvider: IContextMenuProvider;
 	private actionItemProvider: IActionItemProvider;
 	private keybindings: (action: IAction) => ResolvedKeybinding;
@@ -238,9 +239,6 @@ export class DropdownMenuActionItem extends BaseActionItem {
 			getKeyBinding: this.keybindings,
 			context: this._context
 		};
-
-		// Reemit events for running actions
-		this.toUnbind = this.addEmitter(this.dropdownMenu);
 	}
 
 	public setActionContext(newContext: any): void {
@@ -258,7 +256,6 @@ export class DropdownMenuActionItem extends BaseActionItem {
 	}
 
 	public dispose(): void {
-		this.toUnbind.dispose();
 		this.dropdownMenu.dispose();
 
 		super.dispose();

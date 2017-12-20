@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import paths = require('vs/base/common/paths');
 import objects = require('vs/base/common/objects');
 import strings = require('vs/base/common/strings');
 import errors = require('vs/base/common/errors');
@@ -11,19 +10,21 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { TPromise, PPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import { LinkedMap } from 'vs/base/common/map';
-import { ArraySet } from 'vs/base/common/set';
-import Event, { Emitter, fromPromise, stopwatch, any } from 'vs/base/common/event';
+import { values, ResourceMap, TernarySearchTree } from 'vs/base/common/map';
+import Event, { Emitter, fromPromise, stopwatch, anyEvent } from 'vs/base/common/event';
 import { ISearchService, ISearchProgressItem, ISearchComplete, ISearchQuery, IPatternInfo, IFileMatch } from 'vs/platform/search/common/search';
 import { ReplacePattern } from 'vs/platform/search/common/replace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Range } from 'vs/editor/common/core/range';
-import { IModel, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness, IModelDecorationOptions, FindMatch } from 'vs/editor/common/editorCommon';
+import { IModel, IModelDeltaDecoration, OverviewRulerLane, TrackedRangeStickiness, FindMatch } from 'vs/editor/common/editorCommon';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
-import { RangeHighlightDecorations } from 'vs/workbench/common/editor/rangeDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { overviewRulerFindMatchForeground } from 'vs/platform/theme/common/colorRegistry';
+import { themeColorFromId } from 'vs/platform/theme/common/themeService';
+import { getBaseLabel } from 'vs/base/common/labels';
 
 export class Match {
 
@@ -92,16 +93,28 @@ export class Match {
 
 export class FileMatch extends Disposable {
 
-	private static getDecorationOption(selected: boolean): IModelDecorationOptions {
-		return {
-			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-			className: selected ? 'currentFindMatch' : 'findMatch',
-			overviewRuler: {
-				color: 'rgba(246, 185, 77, 0.7)',
-				darkColor: 'rgba(246, 185, 77, 0.7)',
-				position: OverviewRulerLane.Center
-			}
-		};
+	private static readonly _CURRENT_FIND_MATCH = ModelDecorationOptions.register({
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		className: 'currentFindMatch',
+		overviewRuler: {
+			color: themeColorFromId(overviewRulerFindMatchForeground),
+			darkColor: themeColorFromId(overviewRulerFindMatchForeground),
+			position: OverviewRulerLane.Center
+		}
+	});
+
+	private static readonly _FIND_MATCH = ModelDecorationOptions.register({
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		className: 'findMatch',
+		overviewRuler: {
+			color: themeColorFromId(overviewRulerFindMatchForeground),
+			darkColor: themeColorFromId(overviewRulerFindMatchForeground),
+			position: OverviewRulerLane.Center
+		}
+	});
+
+	private static getDecorationOption(selected: boolean): ModelDecorationOptions {
+		return (selected ? FileMatch._CURRENT_FIND_MATCH : FileMatch._FIND_MATCH);
 	}
 
 	private _onChange = this._register(new Emitter<boolean>());
@@ -113,19 +126,19 @@ export class FileMatch extends Disposable {
 	private _resource: URI;
 	private _model: IModel;
 	private _modelListener: IDisposable;
-	private _matches: LinkedMap<string, Match>;
-	private _removedMatches: ArraySet<string>;
+	private _matches: Map<string, Match>;
+	private _removedMatches: Set<string>;
 	private _selectedMatch: Match;
 
 	private _updateScheduler: RunOnceScheduler;
 	private _modelDecorations: string[] = [];
 
-	constructor(private _query: IPatternInfo, private _parent: SearchResult, private rawMatch: IFileMatch,
+	constructor(private _query: IPatternInfo, private _maxResults: number, private _parent: FolderMatch, private rawMatch: IFileMatch,
 		@IModelService private modelService: IModelService, @IReplaceService private replaceService: IReplaceService) {
 		super();
 		this._resource = this.rawMatch.resource;
-		this._matches = new LinkedMap<string, Match>();
-		this._removedMatches = new ArraySet<string>();
+		this._matches = new Map<string, Match>();
+		this._removedMatches = new Set<string>();
 		this._updateScheduler = new RunOnceScheduler(this.updateMatchesForModel.bind(this), 250);
 
 		this.createMatches();
@@ -157,7 +170,7 @@ export class FileMatch extends Disposable {
 
 	private bindModel(model: IModel): void {
 		this._model = model;
-		this._modelListener = this._model.onDidChangeContent(_ => {
+		this._modelListener = this._model.onDidChangeContent(() => {
 			this._updateScheduler.schedule();
 		});
 		this._model.onWillDispose(() => this.onModelWillDispose());
@@ -185,9 +198,9 @@ export class FileMatch extends Disposable {
 		if (!this._model) {
 			return;
 		}
-		this._matches = new LinkedMap<string, Match>();
+		this._matches = new Map<string, Match>();
 		let matches = this._model
-			.findMatches(this._query.pattern, this._model.getFullModelRange(), this._query.isRegExp, this._query.isCaseSensitive, this._query.isWordMatch, false);
+			.findMatches(this._query.pattern, this._model.getFullModelRange(), this._query.isRegExp, this._query.isCaseSensitive, this._query.isWordMatch ? this._query.wordSeparators : null, false, this._maxResults);
 
 		this.updateMatches(matches, true);
 	}
@@ -199,17 +212,17 @@ export class FileMatch extends Disposable {
 			endLineNumber: lineNumber,
 			endColumn: this._model.getLineMaxColumn(lineNumber)
 		};
-		const oldMatches = this._matches.values().filter(match => match.range().startLineNumber === lineNumber);
+		const oldMatches = values(this._matches).filter(match => match.range().startLineNumber === lineNumber);
 		oldMatches.forEach(match => this._matches.delete(match.id()));
 
-		const matches = this._model.findMatches(this._query.pattern, range, this._query.isRegExp, this._query.isCaseSensitive, this._query.isWordMatch, false);
+		const matches = this._model.findMatches(this._query.pattern, range, this._query.isRegExp, this._query.isCaseSensitive, this._query.isWordMatch ? this._query.wordSeparators : null, false, this._maxResults);
 		this.updateMatches(matches, modelChange);
 	}
 
 	private updateMatches(matches: FindMatch[], modelChange: boolean) {
 		matches.forEach(m => {
 			let match = new Match(this, this._model.getLineContent(m.range.startLineNumber), m.range.startLineNumber - 1, m.range.startColumn - 1, m.range.endColumn - m.range.startColumn);
-			if (!this._removedMatches.contains(match.id())) {
+			if (!this._removedMatches.has(match.id())) {
 				this.add(match);
 				if (this.isMatchSelected(match)) {
 					this._selectedMatch = match;
@@ -240,17 +253,17 @@ export class FileMatch extends Disposable {
 		return this.resource().toString();
 	}
 
-	public parent(): SearchResult {
+	public parent(): FolderMatch {
 		return this._parent;
 	}
 
 	public matches(): Match[] {
-		return this._matches.values();
+		return values(this._matches);
 	}
 
 	public remove(match: Match): void {
 		this.removeMatch(match);
-		this._removedMatches.set(match.id());
+		this._removedMatches.add(match.id());
 		this._onChange.fire(false);
 	}
 
@@ -289,7 +302,7 @@ export class FileMatch extends Disposable {
 	}
 
 	public name(): string {
-		return paths.basename(this.resource().fsPath);
+		return getBaseLabel(this.resource());
 	}
 
 	public add(match: Match, trigger?: boolean) {
@@ -322,40 +335,66 @@ export interface IChangeEvent {
 	removed?: boolean;
 }
 
-export class SearchResult extends Disposable {
+export class FolderMatch extends Disposable {
 
 	private _onChange = this._register(new Emitter<IChangeEvent>());
 	public onChange: Event<IChangeEvent> = this._onChange.event;
 
-	private _fileMatches: LinkedMap<URI, FileMatch>;
-	private _unDisposedFileMatches: LinkedMap<URI, FileMatch>;
-	private _query: IPatternInfo = null;
-	private _showHighlights: boolean;
+	private _onDispose = this._register(new Emitter<void>());
+	public onDispose: Event<void> = this._onDispose.event;
+
+	private _fileMatches: ResourceMap<FileMatch>;
+	private _unDisposedFileMatches: ResourceMap<FileMatch>;
 	private _replacingAll: boolean = false;
 
-	private _rangeHighlightDecorations: RangeHighlightDecorations;
-
-	constructor(private _searchModel: SearchModel, @IReplaceService private replaceService: IReplaceService, @ITelemetryService private telemetryService: ITelemetryService,
+	constructor(private _resource: URI, private _id: string, private _index: number, private _query: ISearchQuery, private _parent: SearchResult, private _searchModel: SearchModel, @IReplaceService private replaceService: IReplaceService,
 		@IInstantiationService private instantiationService: IInstantiationService) {
 		super();
-		this._fileMatches = new LinkedMap<URI, FileMatch>();
-		this._unDisposedFileMatches = new LinkedMap<URI, FileMatch>();
-		this._rangeHighlightDecorations = this.instantiationService.createInstance(RangeHighlightDecorations);
-	}
-
-	public set query(query: IPatternInfo) {
-		this._query = query;
+		this._fileMatches = new ResourceMap<FileMatch>();
+		this._unDisposedFileMatches = new ResourceMap<FileMatch>();
 	}
 
 	public get searchModel(): SearchModel {
 		return this._searchModel;
 	}
 
-	public add(raw: IFileMatch[], silent: boolean = false): void {
+	public get showHighlights(): boolean {
+		return this._parent.showHighlights;
+	}
+
+	public set replacingAll(b: boolean) {
+		this._replacingAll = b;
+	}
+
+	public id(): string {
+		return this._id;
+	}
+
+	public resource(): URI {
+		return this._resource;
+	}
+
+	public index(): number {
+		return this._index;
+	}
+
+	public name(): string {
+		return getBaseLabel(this.resource());
+	}
+
+	public parent(): SearchResult {
+		return this._parent;
+	}
+
+	public hasRoot(): boolean {
+		return this._resource.fsPath !== '';
+	}
+
+	public add(raw: IFileMatch[], silent: boolean): void {
 		let changed: FileMatch[] = [];
 		raw.forEach((rawFileMatch) => {
 			if (!this._fileMatches.has(rawFileMatch.resource)) {
-				let fileMatch = this.instantiationService.createInstance(FileMatch, this._query, this, rawFileMatch);
+				let fileMatch = this.instantiationService.createInstance(FileMatch, this._query.contentPattern, this._query.maxResults, this, rawFileMatch);
 				this.doAdd(fileMatch);
 				changed.push(fileMatch);
 				let disposable = fileMatch.onChange(() => this.onFileChange(fileMatch));
@@ -383,18 +422,10 @@ export class SearchResult extends Disposable {
 		});
 	}
 
-	public replaceAll(progressRunner: IProgressRunner): TPromise<any> {
-		this._replacingAll = true;
-
-		const promise = this.replaceService.replace(this.matches(), progressRunner);
-		const onDone = stopwatch(fromPromise(promise));
-		onDone(duration => this.telemetryService.publicLog('replaceAll.started', { duration }));
-
-		return promise.then(() => {
-			this._replacingAll = false;
-			this.clear();
-		}, () => {
-			this._replacingAll = false;
+	public replaceAll(): TPromise<any> {
+		const matches = this.matches();
+		return this.replaceService.replace(matches).then(() => {
+			matches.forEach(match => this.doRemove(match, false, true));
 		});
 	}
 
@@ -412,36 +443,6 @@ export class SearchResult extends Disposable {
 
 	public count(): number {
 		return this.matches().reduce<number>((prev, match) => prev + match.count(), 0);
-	}
-
-	public get showHighlights(): boolean {
-		return this._showHighlights;
-	}
-
-	public toggleHighlights(value: boolean): void {
-		if (this._showHighlights === value) {
-			return;
-		}
-		this._showHighlights = value;
-		let selectedMatch: Match = null;
-		this.matches().forEach((fileMatch: FileMatch) => {
-			fileMatch.updateHighlights();
-			if (!selectedMatch) {
-				selectedMatch = fileMatch.getSelectedMatch();
-			}
-		});
-		if (this._showHighlights && selectedMatch) {
-			this._rangeHighlightDecorations.highlightRange({
-				resource: selectedMatch.parent().resource(),
-				range: selectedMatch.range()
-			});
-		} else {
-			this._rangeHighlightDecorations.removeHighlightRange();
-		}
-	}
-
-	public get rangeHighlightDecorations(): RangeHighlightDecorations {
-		return this._rangeHighlightDecorations;
 	}
 
 	private onFileChange(fileMatch: FileMatch): void {
@@ -486,6 +487,183 @@ export class SearchResult extends Disposable {
 		this._unDisposedFileMatches.values().forEach((fileMatch: FileMatch) => fileMatch.dispose());
 		this._fileMatches.clear();
 		this._unDisposedFileMatches.clear();
+	}
+
+	public dispose(): void {
+		this.disposeMatches();
+		this._onDispose.fire();
+		super.dispose();
+	}
+}
+
+export class SearchResult extends Disposable {
+
+	private _onChange = this._register(new Emitter<IChangeEvent>());
+	public onChange: Event<IChangeEvent> = this._onChange.event;
+
+	private _folderMatches: FolderMatch[] = [];
+	private _folderMatchesMap: TernarySearchTree<FolderMatch> = TernarySearchTree.forPaths<FolderMatch>();
+	private _showHighlights: boolean;
+
+	private _rangeHighlightDecorations: RangeHighlightDecorations;
+
+	constructor(private _searchModel: SearchModel, @IReplaceService private replaceService: IReplaceService, @ITelemetryService private telemetryService: ITelemetryService,
+		@IInstantiationService private instantiationService: IInstantiationService) {
+		super();
+		this._rangeHighlightDecorations = this.instantiationService.createInstance(RangeHighlightDecorations);
+	}
+
+	public set query(query: ISearchQuery) {
+		// When updating the query we could change the roots, so ensure we clean up the old roots first.
+		this.clear();
+		const otherFiles = URI.parse('');
+		this._folderMatches = (query.folderQueries || []).map((fq) => fq.folder).concat([otherFiles]).map((resource, index) => {
+			const id = resource.toString() || 'otherFiles';
+			const folderMatch = this.instantiationService.createInstance(FolderMatch, resource, id, index, query, this, this._searchModel);
+			const disposable = folderMatch.onChange((event) => this._onChange.fire(event));
+			folderMatch.onDispose(() => disposable.dispose());
+			return folderMatch;
+		});
+		// otherFiles is the fallback for missing values in the TrieMap. So we do not insert it.
+		this._folderMatches.slice(0, this.folderMatches.length - 1)
+			.forEach(fm => this._folderMatchesMap.set(fm.resource().fsPath, fm));
+	}
+
+	public get searchModel(): SearchModel {
+		return this._searchModel;
+	}
+
+	public add(allRaw: IFileMatch[], silent: boolean = false): void {
+		// Split up raw into a list per folder so we can do a batch add per folder.
+		let rawPerFolder = new ResourceMap<IFileMatch[]>();
+		this._folderMatches.forEach((folderMatch) => rawPerFolder.set(folderMatch.resource(), []));
+		allRaw.forEach(rawFileMatch => {
+			let folderMatch = this.getFolderMatch(rawFileMatch.resource);
+			if (folderMatch) {
+				rawPerFolder.get(folderMatch.resource()).push(rawFileMatch);
+			}
+		});
+		rawPerFolder.forEach((raw) => {
+			if (!raw.length) {
+				return;
+			}
+			let folderMatch = this.getFolderMatch(raw[0].resource);
+			if (folderMatch) {
+				folderMatch.add(raw, silent);
+			}
+		});
+	}
+
+	public clear(): void {
+		this._folderMatches.forEach((folderMatch) => folderMatch.clear());
+		this.disposeMatches();
+	}
+
+	public remove(match: FileMatch | FolderMatch): void {
+		if (match instanceof FileMatch) {
+			this.getFolderMatch(match.resource()).remove(match);
+		} else {
+			match.clear();
+		}
+	}
+
+	public replace(match: FileMatch): TPromise<any> {
+		return this.getFolderMatch(match.resource()).replace(match);
+	}
+
+	public replaceAll(progressRunner: IProgressRunner): TPromise<any> {
+		this.replacingAll = true;
+
+		const promise = this.replaceService.replace(this.matches(), progressRunner);
+		const onDone = stopwatch(fromPromise(promise));
+		/* __GDPR__
+			"replaceAll.started" : {
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+			}
+		*/
+		onDone(duration => this.telemetryService.publicLog('replaceAll.started', { duration }));
+
+		return promise.then(() => {
+			this.replacingAll = false;
+			this.clear();
+		}, () => {
+			this.replacingAll = false;
+		});
+	}
+
+	public folderMatches(): FolderMatch[] {
+		return this._folderMatches.concat();
+	}
+
+	public matches(): FileMatch[] {
+		let matches: FileMatch[][] = [];
+		this._folderMatches.forEach((folderMatch) => {
+			matches.push(folderMatch.matches());
+		});
+		return [].concat(...matches);
+	}
+
+	public isEmpty(): boolean {
+		return this._folderMatches.every((folderMatch) => folderMatch.isEmpty());
+	}
+
+	public fileCount(): number {
+		return this.folderMatches().reduce<number>((prev, match) => prev + match.fileCount(), 0);
+	}
+
+	public count(): number {
+		return this.matches().reduce<number>((prev, match) => prev + match.count(), 0);
+	}
+
+	public get showHighlights(): boolean {
+		return this._showHighlights;
+	}
+
+	public toggleHighlights(value: boolean): void {
+		if (this._showHighlights === value) {
+			return;
+		}
+		this._showHighlights = value;
+		let selectedMatch: Match = null;
+		this.matches().forEach((fileMatch: FileMatch) => {
+			fileMatch.updateHighlights();
+			if (!selectedMatch) {
+				selectedMatch = fileMatch.getSelectedMatch();
+			}
+		});
+		if (this._showHighlights && selectedMatch) {
+			this._rangeHighlightDecorations.highlightRange(
+				selectedMatch.parent().resource(),
+				selectedMatch.range()
+			);
+		} else {
+			this._rangeHighlightDecorations.removeHighlightRange();
+		}
+	}
+
+	public get rangeHighlightDecorations(): RangeHighlightDecorations {
+		return this._rangeHighlightDecorations;
+	}
+
+	private getFolderMatch(resource: URI): FolderMatch {
+		const folderMatch = this._folderMatchesMap.findSubstr(resource.fsPath);
+		return folderMatch ? folderMatch : this.otherFiles;
+	}
+
+	private get otherFiles(): FolderMatch {
+		return this._folderMatches[this._folderMatches.length - 1];
+	}
+
+	private set replacingAll(running: boolean) {
+		this._folderMatches.forEach((folderMatch) => {
+			folderMatch.replacingAll = running;
+		});
+	}
+
+	private disposeMatches(): void {
+		this._folderMatches.forEach(folderMatch => folderMatch.dispose());
+		this._folderMatches = [];
+		this._folderMatchesMap = TernarySearchTree.forPaths<FolderMatch>();
 		this._rangeHighlightDecorations.removeHighlightRange();
 	}
 
@@ -549,18 +727,28 @@ export class SearchModel extends Disposable {
 
 		this.searchResult.clear();
 
-		this._searchResult.query = this._searchQuery.contentPattern;
+		this._searchResult.query = this._searchQuery;
 		this._replacePattern = new ReplacePattern(this._replaceString, this._searchQuery.contentPattern);
 
 		const onDone = fromPromise(this.currentRequest);
 		const progressEmitter = new Emitter<void>();
-		const onFirstRender = any(onDone, progressEmitter.event);
+		const onFirstRender = anyEvent<any>(onDone, progressEmitter.event);
 		const onFirstRenderStopwatch = stopwatch(onFirstRender);
+		/* __GDPR__
+			"searchResultsFirstRender" : {
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+			}
+		*/
 		onFirstRenderStopwatch(duration => this.telemetryService.publicLog('searchResultsFirstRender', { duration }));
 
 		const onDoneStopwatch = stopwatch(onDone);
 		const start = Date.now();
 
+		/* __GDPR__
+			"searchResultsFinished" : {
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+			}
+		*/
 		onDoneStopwatch(duration => this.telemetryService.publicLog('searchResultsFinished', { duration }));
 
 		const currentRequest = this.currentRequest;
@@ -585,11 +773,21 @@ export class SearchModel extends Disposable {
 		}
 		const options: IPatternInfo = objects.assign({}, this._searchQuery.contentPattern);
 		delete options.pattern;
+		/* __GDPR__
+			"searchResultsShown" : {
+				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"fileCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"options": { "${inline}": [ "${IPatternInfo}" ] },
+				"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"useRipgrep": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		this.telemetryService.publicLog('searchResultsShown', {
 			count: this._searchResult.count(),
 			fileCount: this._searchResult.fileCount(),
 			options,
-			duration
+			duration,
+			useRipgrep: this._searchQuery.useRipgrep
 		});
 		return completed;
 	}
@@ -624,6 +822,8 @@ export class SearchModel extends Disposable {
 
 export type FileMatchOrMatch = FileMatch | Match;
 
+export type RenderableMatch = FolderMatch | FileMatch | Match;
+
 export class SearchWorkbenchService implements ISearchWorkbenchService {
 
 	_serviceBrand: any;
@@ -646,4 +846,82 @@ export interface ISearchWorkbenchService {
 	_serviceBrand: any;
 
 	readonly searchModel: SearchModel;
+}
+
+/**
+ * Can add a range highlight decoration to a model.
+ * It will automatically remove it when the model has its decorations changed.
+ */
+export class RangeHighlightDecorations implements IDisposable {
+
+	private _decorationId: string = null;
+	private _model: IModel = null;
+	private _modelDisposables: IDisposable[] = [];
+
+	constructor(
+		@IModelService private readonly _modelService: IModelService
+	) {
+	}
+
+	public removeHighlightRange() {
+		if (this._model && this._decorationId) {
+			this._model.deltaDecorations([this._decorationId], []);
+		}
+		this._decorationId = null;
+	}
+
+	public highlightRange(resource: URI | IModel, range: Range, ownerId: number = 0): void {
+		let model: IModel;
+		if (URI.isUri(resource)) {
+			model = this._modelService.getModel(resource);
+		} else {
+			model = resource;
+		}
+
+		if (model) {
+			this.doHighlightRange(model, range);
+		}
+	}
+
+	private doHighlightRange(model: IModel, range: Range) {
+		this.removeHighlightRange();
+		this._decorationId = model.deltaDecorations([], [{ range: range, options: RangeHighlightDecorations._RANGE_HIGHLIGHT_DECORATION }])[0];
+		this.setModel(model);
+	}
+
+	private setModel(model: IModel) {
+		if (this._model !== model) {
+			this.disposeModelListeners();
+			this._model = model;
+			this._modelDisposables.push(this._model.onDidChangeDecorations((e) => {
+				this.disposeModelListeners();
+				this.removeHighlightRange();
+				this._model = null;
+			}));
+			this._modelDisposables.push(this._model.onWillDispose(() => {
+				this.disposeModelListeners();
+				this.removeHighlightRange();
+				this._model = null;
+			}));
+		}
+	}
+
+	private disposeModelListeners() {
+		this._modelDisposables.forEach(disposable => disposable.dispose());
+		this._modelDisposables = [];
+	}
+
+	public dispose() {
+		if (this._model) {
+			this.removeHighlightRange();
+			this.disposeModelListeners();
+			this._model = null;
+		}
+	}
+
+	private static readonly _RANGE_HIGHLIGHT_DECORATION = ModelDecorationOptions.register({
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		className: 'rangeHighlight',
+		isWholeLine: true
+	});
 }

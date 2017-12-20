@@ -11,9 +11,6 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
-import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-
 export class DecorationToRender {
 	_decorationToRenderBrand: void;
 
@@ -110,7 +107,7 @@ export class GlyphMarginOverlay extends DedupOverlay {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
-		if (e.viewInfo.glyphMargin) {
+		if (e.viewInfo) {
 			this._glyphMargin = this._context.configuration.editor.viewInfo.glyphMargin;
 		}
 		if (e.layoutInfo) {
@@ -118,12 +115,6 @@ export class GlyphMarginOverlay extends DedupOverlay {
 			this._glyphMarginWidth = this._context.configuration.editor.layoutInfo.glyphMarginWidth;
 		}
 		return true;
-	}
-	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {
-		return false;
-	}
-	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): boolean {
-		return false;
 	}
 	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
 		return true;
@@ -140,9 +131,6 @@ export class GlyphMarginOverlay extends DedupOverlay {
 	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		return true;
 	}
-	public onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean {
-		return false;
-	}
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return e.scrollTopChanged;
 	}
@@ -154,12 +142,12 @@ export class GlyphMarginOverlay extends DedupOverlay {
 
 	protected _getDecorations(ctx: RenderingContext): DecorationToRender[] {
 		let decorations = ctx.getDecorationsInViewport();
-		let r: DecorationToRender[] = [];
+		let r: DecorationToRender[] = [], rLen = 0;
 		for (let i = 0, len = decorations.length; i < len; i++) {
 			let d = decorations[i];
-			let glyphMarginClassName = d.source.options.glyphMarginClassName;
+			let glyphMarginClassName = d.options.glyphMarginClassName;
 			if (glyphMarginClassName) {
-				r.push(new DecorationToRender(d.range.startLineNumber, d.range.endLineNumber, glyphMarginClassName));
+				r[rLen++] = new DecorationToRender(d.range.startLineNumber, d.range.endLineNumber, glyphMarginClassName);
 			}
 		}
 		return r;
@@ -210,10 +198,3 @@ export class GlyphMarginOverlay extends DedupOverlay {
 		return this._renderResult[lineIndex];
 	}
 }
-
-registerThemingParticipant((theme, collector) => {
-	let editorBackgroundColor = theme.getColor(editorBackground);
-	if (editorBackgroundColor) {
-		collector.addRule(`.monaco-editor.${theme.selector} .glyph-margin { background-color: ${editorBackgroundColor}; }`);
-	}
-});

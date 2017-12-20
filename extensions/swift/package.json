@@ -3,6 +3,9 @@
 	"version": "0.1.0",
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
+	"scripts": {
+		"update-grammar": "node ../../build/npm/update-grammar.js freebroccolo/atom-language-swift grammars/swift.cson ./syntaxes/swift.tmLanguage.json"
+	},
 	"contributes": {
 		"languages": [{
 			"id": "swift",
@@ -13,7 +16,7 @@
 		"grammars": [{
 			"language": "swift",
 			"scopeName": "source.swift",
-			"path": "./syntaxes/swift.json"
+			"path": "./syntaxes/swift.tmLanguage.json"
 		}],
 		"snippets": [{
 			"language": "swift",

@@ -16,7 +16,7 @@ import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorMo
  */
 export class DiffEditorInput extends SideBySideEditorInput {
 
-	public static ID = 'workbench.editors.diffEditorInput';
+	public static readonly ID = 'workbench.editors.diffEditorInput';
 
 	private cachedModel: DiffEditorModel;
 
@@ -70,7 +70,7 @@ export class DiffEditorInput extends SideBySideEditorInput {
 	private createModel(refresh?: boolean): TPromise<DiffEditorModel> {
 
 		// Join resolve call over two inputs and build diff editor model
-		return TPromise.join<EditorModel>([
+		return TPromise.join([
 			this.originalInput.resolve(refresh),
 			this.modifiedInput.resolve(refresh)
 		]).then((models) => {

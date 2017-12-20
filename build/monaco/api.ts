@@ -6,6 +6,7 @@
 import fs = require('fs');
 import ts = require('typescript');
 import path = require('path');
+const tsfmt = require('../../tsfmt.json');
 
 var util = require('gulp-util');
 function log(message: any, ...rest: any[]): void {
@@ -182,13 +183,12 @@ function getMassagedTopLevelDeclarationText(sourceFile:ts.SourceFile, declaratio
 }
 
 function format(text:string): string {
-	let options = getDefaultOptions();
 
 	// Parse the source text
 	let sourceFile = ts.createSourceFile('file.ts', text, ts.ScriptTarget.Latest, /*setParentPointers*/ true);
 
 	// Get the formatting edits on the input sources
-	let edits = (<any>ts).formatting.formatDocument(sourceFile, getRuleProvider(options), options);
+	let edits = (<any>ts).formatting.formatDocument(sourceFile, getRuleProvider(tsfmt), tsfmt);
 
 	// Apply the edits on the input code
 	return applyEdits(text, edits);
@@ -211,28 +211,6 @@ function format(text:string): string {
 			result = head + change.newText + tail;
 		}
 		return result;
-	}
-
-	function getDefaultOptions(): ts.FormatCodeSettings {
-		return {
-			indentSize: 4,
-			tabSize: 4,
-			newLineCharacter: '\r\n',
-			convertTabsToSpaces: true,
-			indentStyle: ts.IndentStyle.Block,
-
-			insertSpaceAfterCommaDelimiter: true,
-			insertSpaceAfterSemicolonInForStatements: true,
-			insertSpaceBeforeAndAfterBinaryOperators: true,
-			insertSpaceAfterKeywordsInControlFlowStatements: true,
-			insertSpaceAfterFunctionKeywordForAnonymousFunctions: false,
-			insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis: false,
-			insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets: false,
-			insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces: true,
-			insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces: true,
-			placeOpenBraceOnNewLineForFunctions: false,
-			placeOpenBraceOnNewLineForControlBlocks: false,
-		};
 	}
 }
 

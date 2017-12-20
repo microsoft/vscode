@@ -11,5 +11,6 @@
 	"json.schemas.schema.desc": "La definición de esquema de la dirección URL determinada. Solo se necesita proporcionar el esquema para evitar los accesos a la dirección URL del esquema.",
 	"json.format.enable.desc": "Habilitar/deshabilitar formateador JSON predeterminado (requiere reiniciar)",
 	"json.tracing.desc": "Seguimiento de comunicación entre VS Code y el servidor de lenguaje JSON",
-	"json.colorDecorators.enable.desc": "Habilita o deshabilita decoradores de color"
+	"json.colorDecorators.enable.desc": "Habilita o deshabilita decoradores de color",
+	"json.colorDecorators.enable.deprecationMessage": "El valor \"json.colorDecorators.enable\" está en desuso en favor de \"editor.colorDecorators\"."
 }

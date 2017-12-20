@@ -21,7 +21,7 @@ export class Menu implements IMenu {
 	private _onDidChange = new Emitter<IMenu>();
 
 	constructor(
-		private id: MenuId,
+		id: MenuId,
 		startupSignal: TPromise<boolean>,
 		@ICommandService private _commandService: ICommandService,
 		@IContextKeyService private _contextKeyService: IContextKeyService
@@ -47,12 +47,9 @@ export class Menu implements IMenu {
 			}
 
 			// subscribe to context changes
-			this._disposables.push(this._contextKeyService.onDidChangeContext(keys => {
-				for (let k of keys) {
-					if (keysFilter.has(k)) {
-						this._onDidChange.fire();
-						return;
-					}
+			this._disposables.push(this._contextKeyService.onDidChangeContext(event => {
+				if (event.affectsSome(keysFilter)) {
+					this._onDidChange.fire();
 				}
 			}));
 

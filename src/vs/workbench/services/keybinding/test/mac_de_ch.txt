@@ -304,7 +304,6 @@ isUSStandard: false
 |                                |       |                         [ |     |                           |                                |                           |                                |         |
 |               Shift+Alt+Digit5 |   %   |               Shift+Alt+5 |     |               Shift+Alt+5 |                    shift+alt+5 |               Shift+Alt+5 |             shift+alt+[Digit5] |         |
 |          Ctrl+Shift+Alt+Digit5 |   [   |          Ctrl+Shift+Alt+5 |     |          Ctrl+Shift+Alt+5 |               ctrl+shift+alt+5 |          Ctrl+Shift+Alt+5 |        ctrl+shift+alt+[Digit5] |         |
-|                                |       |          Ctrl+Shift+Alt+[ |     |                           |                                |                           |                                |         |
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 |                         Digit6 |   6   |                         6 |     |                         6 |                              6 |                         6 |                       [Digit6] |         |
 |                    Ctrl+Digit6 |   6   |                    Ctrl+6 |     |                    Ctrl+6 |                         ctrl+6 |                    Ctrl+6 |                  ctrl+[Digit6] |         |
@@ -315,7 +314,6 @@ isUSStandard: false
 |                                |       |                         ] |     |                           |                                |                           |                                |         |
 |               Shift+Alt+Digit6 |   &   |               Shift+Alt+6 |     |               Shift+Alt+6 |                    shift+alt+6 |               Shift+Alt+6 |             shift+alt+[Digit6] |         |
 |          Ctrl+Shift+Alt+Digit6 |   ]   |          Ctrl+Shift+Alt+6 |     |          Ctrl+Shift+Alt+6 |               ctrl+shift+alt+6 |          Ctrl+Shift+Alt+6 |        ctrl+shift+alt+[Digit6] |         |
-|                                |       |          Ctrl+Shift+Alt+] |     |                           |                                |                           |                                |         |
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 |       HW Code combination      |  Key  |    KeyCode combination    | Pri |          UI label         |         User settings          |    Electron accelerator   |       Dispatching string       | WYSIWYG |
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

@@ -14,10 +14,6 @@
 	"watermark.toggleTerminal": "터미널 설정/해제",
 	"watermark.findInFiles": "파일에서 찾기",
 	"watermark.startDebugging": "디버깅 시작",
-	"watermark.selectTheme": "테마 변경",
-	"watermark.selectKeymap": "키맵 변경",
-	"watermark.keybindingsReference": "키보드 참조",
-	"watermark.openGlobalKeybindings": "바로 가기 키",
 	"watermark.unboundCommand": "바인딩 안 됨",
 	"workbenchConfigurationTitle": "워크벤치",
 	"tips.enabled": "사용하도록 설정되면 편집기가 열리지 않았을 때 워터마크 팁이 표시됩니다."

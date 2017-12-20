@@ -7,10 +7,8 @@
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
 import * as network from 'vs/base/common/network';
-import { IDataSource, ITree, IRenderer, IAccessibilityProvider, ISorter, IActionProvider } from 'vs/base/parts/tree/browser/tree';
-import { IActionRunner } from 'vs/base/common/actions';
+import { IDataSource, ITree, IRenderer, IAccessibilityProvider, ISorter } from 'vs/base/parts/tree/browser/tree';
 import Severity from 'vs/base/common/severity';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { FileLabel, ResourceLabel } from 'vs/workbench/browser/labels';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
@@ -18,9 +16,13 @@ import { IMarker } from 'vs/platform/markers/common/markers';
 import { MarkersModel, Resource, Marker } from 'vs/workbench/parts/markers/common/markersModel';
 import Messages from 'vs/workbench/parts/markers/common/messages';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 interface IAnyResourceTemplateData {
 	count: CountBadge;
+	styler: IDisposable;
 }
 
 interface IResourceTemplateData extends IAnyResourceTemplateData {
@@ -73,14 +75,13 @@ export class DataSource implements IDataSource {
 
 export class Renderer implements IRenderer {
 
-	private static RESOURCE_TEMPLATE_ID = 'resource-template';
-	private static FILE_RESOURCE_TEMPLATE_ID = 'file-resource-template';
-	private static MARKER_TEMPLATE_ID = 'marker-template';
+	private static readonly RESOURCE_TEMPLATE_ID = 'resource-template';
+	private static readonly FILE_RESOURCE_TEMPLATE_ID = 'file-resource-template';
+	private static readonly MARKER_TEMPLATE_ID = 'marker-template';
 
-	constructor(private actionRunner: IActionRunner,
-		private actionProvider: IActionProvider,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IInstantiationService private instantiationService: IInstantiationService
+	constructor(
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IThemeService private themeService: IThemeService
 	) {
 	}
 
@@ -115,29 +116,31 @@ export class Renderer implements IRenderer {
 	}
 
 	private renderFileResourceTemplate(container: HTMLElement): IFileResourceTemplateData {
-		var data: IFileResourceTemplateData = Object.create(null);
+		const data: IFileResourceTemplateData = Object.create(null);
 		const resourceLabelContainer = dom.append(container, dom.$('.resource-label-container'));
 		data.fileLabel = this.instantiationService.createInstance(FileLabel, resourceLabelContainer, { supportHighlights: true });
 
 		const badgeWrapper = dom.append(container, dom.$('.count-badge-wrapper'));
 		data.count = new CountBadge(badgeWrapper);
+		data.styler = attachBadgeStyler(data.count, this.themeService);
 
 		return data;
 	}
 
 	private renderResourceTemplate(container: HTMLElement): IResourceTemplateData {
-		var data: IResourceTemplateData = Object.create(null);
+		const data: IResourceTemplateData = Object.create(null);
 		const resourceLabelContainer = dom.append(container, dom.$('.resource-label-container'));
 		data.resourceLabel = this.instantiationService.createInstance(ResourceLabel, resourceLabelContainer, { supportHighlights: true });
 
 		const badgeWrapper = dom.append(container, dom.$('.count-badge-wrapper'));
 		data.count = new CountBadge(badgeWrapper);
+		data.styler = attachBadgeStyler(data.count, this.themeService);
 
 		return data;
 	}
 
 	private renderMarkerTemplate(container: HTMLElement): IMarkerTemplateData {
-		var data: IMarkerTemplateData = Object.create(null);
+		const data: IMarkerTemplateData = Object.create(null);
 		data.icon = dom.append(container, dom.$('.marker-icon'));
 		data.source = new HighlightedLabel(dom.append(container, dom.$('')));
 		data.description = new HighlightedLabel(dom.append(container, dom.$('.marker-description')));
@@ -193,9 +196,11 @@ export class Renderer implements IRenderer {
 	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
 		if (templateId === Renderer.FILE_RESOURCE_TEMPLATE_ID) {
 			(<IFileResourceTemplateData>templateData).fileLabel.dispose();
+			(<IFileResourceTemplateData>templateData).styler.dispose();
 		}
 		if (templateId === Renderer.RESOURCE_TEMPLATE_ID) {
 			(<IResourceTemplateData>templateData).resourceLabel.dispose();
+			(<IResourceTemplateData>templateData).styler.dispose();
 		}
 	}
 }

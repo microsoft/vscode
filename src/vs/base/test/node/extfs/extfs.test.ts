@@ -16,6 +16,12 @@ import strings = require('vs/base/common/strings');
 import extfs = require('vs/base/node/extfs');
 import { onError } from 'vs/base/test/common/utils';
 
+const ignore = () => { };
+
+const mkdirp = (path: string, mode: number, callback: (error) => void) => {
+	extfs.mkdirp(path, mode).done(() => callback(null), error => callback(error));
+};
+
 suite('Extfs', () => {
 
 	test('mkdirp', function (done: () => void) {
@@ -23,14 +29,14 @@ suite('Extfs', () => {
 		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const newDir = path.join(parentDir, 'extfs', id);
 
-		extfs.mkdirp(newDir, 493, (error) => {
+		mkdirp(newDir, 493, error => {
 			if (error) {
 				return onError(error, done);
 			}
 
 			assert.ok(fs.existsSync(newDir));
 
-			extfs.del(parentDir, os.tmpdir(), () => { }, done);
+			extfs.del(parentDir, os.tmpdir(), done, ignore);
 		}); // 493 = 0755
 	});
 
@@ -49,7 +55,7 @@ suite('Extfs', () => {
 		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const newDir = path.join(parentDir, 'extfs', id);
 
-		extfs.mkdirp(newDir, 493, (error) => {
+		mkdirp(newDir, 493, error => {
 			if (error) {
 				return onError(error, done);
 			}
@@ -69,7 +75,7 @@ suite('Extfs', () => {
 		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const newDir = path.join(parentDir, 'extfs', id);
 
-		extfs.mkdirp(newDir, 493, (error) => {
+		mkdirp(newDir, 493, error => {
 			if (error) {
 				return onError(error, done);
 			}
@@ -95,7 +101,7 @@ suite('Extfs', () => {
 		const targetDir = path.join(parentDir, id);
 		const targetDir2 = path.join(parentDir, id2);
 
-		extfs.copy(sourceDir, targetDir, (error) => {
+		extfs.copy(sourceDir, targetDir, error => {
 			if (error) {
 				return onError(error, done);
 			}
@@ -107,7 +113,7 @@ suite('Extfs', () => {
 			assert.ok(fs.statSync(path.join(targetDir, 'examples')).isDirectory());
 			assert.ok(fs.existsSync(path.join(targetDir, 'examples', 'small.jxs')));
 
-			extfs.mv(targetDir, targetDir2, (error) => {
+			extfs.mv(targetDir, targetDir2, error => {
 				if (error) {
 					return onError(error, done);
 				}
@@ -120,7 +126,7 @@ suite('Extfs', () => {
 				assert.ok(fs.statSync(path.join(targetDir2, 'examples')).isDirectory());
 				assert.ok(fs.existsSync(path.join(targetDir2, 'examples', 'small.jxs')));
 
-				extfs.mv(path.join(targetDir2, 'index.html'), path.join(targetDir2, 'index_moved.html'), (error) => {
+				extfs.mv(path.join(targetDir2, 'index.html'), path.join(targetDir2, 'index_moved.html'), error => {
 					if (error) {
 						return onError(error, done);
 					}
@@ -128,11 +134,11 @@ suite('Extfs', () => {
 					assert.ok(!fs.existsSync(path.join(targetDir2, 'index.html')));
 					assert.ok(fs.existsSync(path.join(targetDir2, 'index_moved.html')));
 
-					extfs.del(parentDir, os.tmpdir(), (error) => {
+					extfs.del(parentDir, os.tmpdir(), error => {
 						if (error) {
 							return onError(error, done);
 						}
-					}, (error) => {
+					}, error => {
 						if (error) {
 							return onError(error, done);
 						}
@@ -150,7 +156,7 @@ suite('Extfs', () => {
 			const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 			const newDir = path.join(parentDir, 'extfs', id, 'öäü');
 
-			extfs.mkdirp(newDir, 493, (error) => {
+			mkdirp(newDir, 493, error => {
 				if (error) {
 					return onError(error, done);
 				}
@@ -160,7 +166,7 @@ suite('Extfs', () => {
 				extfs.readdir(path.join(parentDir, 'extfs', id), (error, children) => {
 					assert.equal(children.some(n => n === 'öäü'), true); // Mac always converts to NFD, so
 
-					extfs.del(parentDir, os.tmpdir(), () => { }, done);
+					extfs.del(parentDir, os.tmpdir(), done, ignore);
 				});
 			}); // 493 = 0755
 		} else {
@@ -174,14 +180,14 @@ suite('Extfs', () => {
 		const newDir = path.join(parentDir, 'extfs', id);
 		const testFile = path.join(newDir, 'flushed.txt');
 
-		extfs.mkdirp(newDir, 493, (error) => {
+		mkdirp(newDir, 493, error => {
 			if (error) {
 				return onError(error, done);
 			}
 
 			assert.ok(fs.existsSync(newDir));
 
-			extfs.writeFileAndFlush(testFile, 'Hello World', null, (error) => {
+			extfs.writeFileAndFlush(testFile, 'Hello World', null, error => {
 				if (error) {
 					return onError(error, done);
 				}
@@ -190,30 +196,55 @@ suite('Extfs', () => {
 
 				const largeString = (new Array(100 * 1024)).join('Large String\n');
 
-				extfs.writeFileAndFlush(testFile, largeString, null, (error) => {
+				extfs.writeFileAndFlush(testFile, largeString, null, error => {
 					if (error) {
 						return onError(error, done);
 					}
 
 					assert.equal(fs.readFileSync(testFile), largeString);
 
-					extfs.del(parentDir, os.tmpdir(), () => { }, done);
+					extfs.del(parentDir, os.tmpdir(), done, ignore);
 				});
 			});
 		});
 	});
 
-	test('realpath', (done) => {
+	test('writeFileAndFlushSync', function (done: () => void) {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'extfs', id);
+		const testFile = path.join(newDir, 'flushed.txt');
+
+		mkdirp(newDir, 493, error => {
+			if (error) {
+				return onError(error, done);
+			}
+
+			assert.ok(fs.existsSync(newDir));
+
+			extfs.writeFileAndFlushSync(testFile, 'Hello World', null);
+			assert.equal(fs.readFileSync(testFile), 'Hello World');
+
+			const largeString = (new Array(100 * 1024)).join('Large String\n');
+
+			extfs.writeFileAndFlushSync(testFile, largeString, null);
+			assert.equal(fs.readFileSync(testFile), largeString);
+
+			extfs.del(parentDir, os.tmpdir(), done, ignore);
+		});
+	});
+
+	test('realcase', (done) => {
 		const id = uuid.generateUuid();
 		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 		const newDir = path.join(parentDir, 'extfs', id);
 
-		extfs.mkdirp(newDir, 493, (error) => {
+		mkdirp(newDir, 493, error => {
 
 			// assume case insensitive file system
 			if (process.platform === 'win32' || process.platform === 'darwin') {
 				const upper = newDir.toUpperCase();
-				const real = extfs.realpathSync(upper);
+				const real = extfs.realcaseSync(upper);
 
 				if (real) { // can be null in case of permission errors
 					assert.notEqual(real, upper);
@@ -224,11 +255,45 @@ suite('Extfs', () => {
 
 			// linux, unix, etc. -> assume case sensitive file system
 			else {
-				const real = extfs.realpathSync(newDir);
+				const real = extfs.realcaseSync(newDir);
 				assert.equal(real, newDir);
 			}
 
-			extfs.del(parentDir, os.tmpdir(), () => { }, done);
+			extfs.del(parentDir, os.tmpdir(), done, ignore);
+		});
+	});
+
+	test('realpath', (done) => {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'extfs', id);
+
+		mkdirp(newDir, 493, error => {
+
+			extfs.realpath(newDir, (error, realpath) => {
+				assert.ok(realpath);
+				assert.ok(!error);
+
+				extfs.del(parentDir, os.tmpdir(), done, ignore);
+			});
+		});
+	});
+
+	test('realpathSync', (done) => {
+		const id = uuid.generateUuid();
+		const parentDir = path.join(os.tmpdir(), 'vsctests', id);
+		const newDir = path.join(parentDir, 'extfs', id);
+
+		mkdirp(newDir, 493, error => {
+			let realpath: string;
+			try {
+				realpath = extfs.realpathSync(newDir);
+			} catch (error) {
+				assert.ok(!error);
+			}
+			assert.ok(realpath);
+
+			extfs.del(parentDir, os.tmpdir(), done, ignore);
 		});
 	});
 });

@@ -8,7 +8,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import Event from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IPager } from 'vs/base/common/paging';
-import { IQueryOptions, IExtensionManifest, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IQueryOptions, IExtensionManifest, LocalExtensionType, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
 
@@ -29,12 +29,14 @@ export interface IExtension {
 	name: string;
 	displayName: string;
 	id: string;
+	uuid: string;
 	publisher: string;
 	publisherDisplayName: string;
 	version: string;
 	latestVersion: string;
 	description: string;
 	url: string;
+	repository: string;
 	iconUrl: string;
 	iconUrlFallback: string;
 	licenseUrl: string;
@@ -42,10 +44,10 @@ export interface IExtension {
 	rating: number;
 	ratingCount: number;
 	outdated: boolean;
-	disabledGlobally: boolean;
-	disabledForWorkspace: boolean;
+	enablementState: EnablementState;
 	dependencies: string[];
 	telemetryData: any;
+	preview: boolean;
 	getManifest(): TPromise<IExtensionManifest>;
 	getReadme(): TPromise<string>;
 	getChangelog(): TPromise<string>;
@@ -73,14 +75,17 @@ export interface IExtensionsWorkbenchService {
 	install(vsix: string): TPromise<void>;
 	install(extension: IExtension, promptToInstallDependencies?: boolean): TPromise<void>;
 	uninstall(extension: IExtension): TPromise<void>;
-	setEnablement(extension: IExtension, enable: boolean, workspace?: boolean): TPromise<void>;
+	setEnablement(extension: IExtension, enablementState: EnablementState): TPromise<void>;
 	loadDependencies(extension: IExtension): TPromise<IExtensionDependencies>;
 	open(extension: IExtension, sideByside?: boolean): TPromise<any>;
 	checkForUpdates(): TPromise<void>;
+	allowedBadgeProviders: string[];
 }
 
 export const ConfigurationKey = 'extensions';
+export const AutoUpdateConfigurationKey = 'extensions.autoUpdate';
 
 export interface IExtensionsConfiguration {
 	autoUpdate: boolean;
+	ignoreRecommendations: boolean;
 }

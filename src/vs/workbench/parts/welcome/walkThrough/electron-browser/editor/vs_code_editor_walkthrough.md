@@ -4,19 +4,21 @@ The core editor in VS Code is packed with features.  This page highlights a numb
 * [Multi-cursor Editing](#multi-cursor-editing) - block selection, select all occurrences, add additional cursors and more
 * [IntelliSense](#intellisense) - get code assistance and parameter suggestions for your code and external modules.
 * [Line Actions](#line-actions) - quickly move lines around to re-order your code.
-* [Rename Refactoring](#rename-refactoring) - Quickly rename symbols across your code base.
+* [Rename Refactoring](#rename-refactoring) - quickly rename symbols across your code base.
+* [Refactoring via Extraction](#refactoring-via-extraction) - quickly extract common code into a separate function or constant.
 * [Formatting](#formatting) - keep your code looking great with inbuilt document & selection formatting.
 * [Code Folding](#code-folding) - focus on the most relevant parts of your code by folding other areas.
 * [Errors and Warnings](#errors-and-warnings) - see errors and warning as you type.
 * [Snippets](#snippets) - spend less time typing with snippets.
 * [Emmet](#emmet) - integrated Emmet support takes HTML and CSS editing to the next level.
+* [JavaScript Type Checking](#javascript-type-checking) - perform type checking on your JavaScript file using TypeScript with zero configuration.
 
 
 
 ### Multi-Cursor Editing
 Using multiple cursors allows you to edit multiple parts of the document at once, greatly improving your productivity.  Try the following actions in the code block below:
 1. Box Selection - press <span class="mac-only windows-only">any combination of kb(cursorColumnSelectDown), kb(cursorColumnSelectRight), kb(cursorColumnSelectUp), kb(cursorColumnSelectLeft) to select a block of text, you can also press</span> <span class="shortcut mac-only">`⇧⌥`</span><span class="shortcut windows-only linux-only">`Shift+Alt`</span> while selecting text with the mouse.
-2. Add a cursor - press kb(editor.action.insertCursorAbove) or kb(editor.action.insertCursorBelow) to add a new cursor above or below, you can also use your mouse with <span class="shortcut mac-only">`⌥+Click`</span><span class="shortcut windows-only linux-only">`Alt+Click`</span> to add a cursor anywhere.
+2. Add a cursor - press kb(editor.action.insertCursorAbove) or kb(editor.action.insertCursorBelow) to add a new cursor above or below, you can also use your mouse with <span class="shortcut"><span class="multi-cursor-modifier"></span>+Click</span> to add a cursor anywhere.
 3. Create cursors on all occurrences of a string - select one instance of a string e.g. `background-color` and press kb(editor.action.selectHighlights).  Now you can replace all instances by simply typing.
 
 That is the tip of the iceberg for multi-cursor editing have a look at the `selection menu` and our handy [keyboard reference guide](command:workbench.action.keybindingsReference) for additional actions.
@@ -27,7 +29,7 @@ That is the tip of the iceberg for multi-cursor editing have a look at the `sele
 #p3 {background-color: #0000ff;}   /* blue */
 ```
 
-> **CSS Tip:** you may have noticed in the example above for CSS we also provide color swatches inline, additionally if you hover over an element such as `#p1` we will show how this is represented in HTML.  A simple example of some language specific editor features.
+> **CSS Tip:** you may have noticed in the example above for CSS we also provide color swatches inline, additionally if you hover over an element such as `#p1` we will show how this is represented in HTML.  These swatches also act as color pickers that allow you to easily change a color value.  A simple example of some language specific editor features.
 
 ### IntelliSense
 
@@ -83,6 +85,21 @@ function Book(title, author) {
 ```
 
 > **JSDoc Tip:** The example above also showcased another way to get IntelliSense hints by using `JSDoc` comments.  You can try this out by invoking the `Book` function and seeing the enhanced context in the IntelliSense Experience for the function as well as parameters.
+
+
+### Refactoring via Extraction
+Sometimes you want factor already written code into a separate function or constant to use it later again. Select the lines you want to factor out and press kb(editor.action.quickFix) or click the little light bulb and choose one of the respective `Extract to...` options. Try it by selecting the code inside the `if`-clause on line 3 or any other common code you want to factor out.
+
+```js
+function findFirstEvenNumber(arr) {
+    for (let i = 0; i < arr.length; i++) {
+        if (typeof arr[i] === 'number' && arr[i] % 2 === 0) {
+            return arr[i];
+        }
+    }
+    return null;
+}
+```
 
 
 ### Formatting
@@ -144,20 +161,33 @@ You can greatly accelerate your editing through the use of snippets.  Simply sta
 
 
 ### Emmet
-Emmet takes the snippets idea to a whole new level: you can type CSS-like expressions that can be dynamically parsed, and produce output depending on what you type in the abbreviation.  To use Emmet simply press tab after a valid piece for Emmet syntax and the expansion will occur.  Try it by pressing tab after `ul>li.item$*5` to see Emmet in action.
+Emmet takes the snippets idea to a whole new level: you can type CSS-like expressions that can be dynamically parsed, and produce output depending on what you type in the abbreviation. To use Emmet simply run the command `Emmet: Expand Abbreviation` with cursor at the end of a valid Emmet abbreviation or snippet and the expansion will occur.
 
 ```html
 ul>li.item$*5
 ```
 
->**Tip:** The [Emmet cheat sheet](http://docs.emmet.io/cheat-sheet/) is a great source of Emmet syntax suggestions.  Emmet can also be enabled for additional languages via the `emmet.syntaxProfiles` [setting](command:workbench.action.openGlobalSettings).
+>**Tip:** The [Emmet cheat sheet](http://docs.emmet.io/cheat-sheet/) is a great source of Emmet syntax suggestions. To expand Emmet abbreviations and snippets using the `tab` key use the `emmet.triggerExpansionOnTab` [setting](command:workbench.action.openGlobalSettings). Check out the docs on [Emmet in VS Code](https://code.visualstudio.com/docs/editor/emmet) to learn more.
 
+
+
+### JavaScript Type Checking
+Sometimes type checking your JavaScript code can help you spot mistakes you might have not caught otherwise. You can run the TypeScript type checker against your existing JavaScript code by simply adding a `// @ts-check` comment to the top of your file.
+
+```js
+// @ts-nocheck
+
+let easy = true;
+easy = 42;
+```
+
+>**Tip:** You can also enable the checks workspace or application wide by adding `"javascript.implicitProjectConfig.checkJs": true` to your workspace or user settings and explicitly ignoring files or lines using `// @ts-nocheck` and `// @ts-ignore`. Check out the docs on [JavaScript in VS Code](https://code.visualstudio.com/docs/languages/javascript) to learn more.
 
 
 ## Thanks!
-Well if you have got this far then you will have touched on some of the editing features in Visual Studio Code.  But don't stop now :)  We have lots of additional [documentation](https://code.visualstudio.com/docs) and [introductory videos](https://code.visualstudio.com/docs/getstarted/introvideos) for the product that will help you learn how to use it.  And while you are here, here are a few additional things you can try:
+Well if you have got this far then you will have touched on some of the editing features in Visual Studio Code.  But don't stop now :)  We have lots of additional [documentation](https://code.visualstudio.com/docs), [introductory videos](https://code.visualstudio.com/docs/getstarted/introvideos) and [tips and tricks](https://go.microsoft.com/fwlink/?linkid=852118) for the product that will help you learn how to use it.  And while you are here, here are a few additional things you can try:
 - Open the Integrated Terminal by pressing kb(workbench.action.terminal.toggleTerminal) then see what's possible by [reviewing the terminal documentation](https://code.visualstudio.com/docs/editor/integrated-terminal)
-- Work with version control by pressing <span class="git-only">kb(workbench.view.git)</span><span class="scm-only">kb(workbench.view.scm)</span> understand how to stage, commit, change branches, and view diffs and more by reviewing the [version control documentation](https://code.visualstudio.com/docs/editor/versioncontrol)
+- Work with version control by pressing kb(workbench.view.scm) understand how to stage, commit, change branches, and view diffs and more by reviewing the [version control documentation](https://code.visualstudio.com/docs/editor/versioncontrol)
 - Browse thousands of extensions in our integrated gallery by pressing with kb(workbench.view.extensions) the [documentation](https://code.visualstudio.com/docs/editor/extension-gallery) will show you how to see the most popular extensions, disable installed ones and more.
 
 OK that's all for now,

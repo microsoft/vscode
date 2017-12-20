@@ -9,23 +9,16 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, OpenContext, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult } from 'vs/platform/windows/common/windows';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { shell, crashReporter, app } from 'electron';
-import Event, { chain } from 'vs/base/common/event';
-import { fromEventEmitter } from 'vs/base/node/event';
+import { shell, crashReporter, app, Menu } from 'electron';
+import Event, { chain, fromNodeEventEmitter } from 'vs/base/common/event';
 import { IURLService } from 'vs/platform/url/common/url';
-import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
-
-// TODO@Joao: remove this dependency, move all implementation to this class
-import { OpenContext } from 'vs/code/common/windows';
-import { IWindowsMainService } from 'vs/code/electron-main/windows';
-import { ILifecycleService } from "vs/code/electron-main/lifecycle";
-
-export interface ISharedProcess {
-	whenReady(): TPromise<void>;
-	toggle(): void;
-}
+import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
+import { IWindowsMainService, ISharedProcess } from 'vs/platform/windows/electron-main/windows';
+import { IHistoryMainService, IRecentlyOpened } from 'vs/platform/history/common/history';
+import { IWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
+import { ICommandAction } from 'vs/platform/actions/common/actions';
 
 export class WindowsService implements IWindowsService, IDisposable {
 
@@ -33,65 +26,99 @@ export class WindowsService implements IWindowsService, IDisposable {
 
 	private disposables: IDisposable[] = [];
 
-	onWindowOpen: Event<number> = fromEventEmitter(app, 'browser-window-created', (_, w: Electron.BrowserWindow) => w.id);
-	onWindowFocus: Event<number> = fromEventEmitter(app, 'browser-window-focus', (_, w: Electron.BrowserWindow) => w.id);
+	readonly onWindowOpen: Event<number> = fromNodeEventEmitter(app, 'browser-window-created', (_, w: Electron.BrowserWindow) => w.id);
+	readonly onWindowFocus: Event<number> = fromNodeEventEmitter(app, 'browser-window-focus', (_, w: Electron.BrowserWindow) => w.id);
+	readonly onWindowBlur: Event<number> = fromNodeEventEmitter(app, 'browser-window-blur', (_, w: Electron.BrowserWindow) => w.id);
 
 	constructor(
 		private sharedProcess: ISharedProcess,
 		@IWindowsMainService private windowsMainService: IWindowsMainService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IURLService urlService: IURLService,
-		@ILifecycleService private lifecycleService: ILifecycleService
+		@ILifecycleService private lifecycleService: ILifecycleService,
+		@IHistoryMainService private historyService: IHistoryMainService
 	) {
+		// Catch file URLs
 		chain(urlService.onOpenURL)
 			.filter(uri => uri.authority === 'file' && !!uri.path)
 			.map(uri => URI.file(uri.fsPath))
 			.on(this.openFileForURI, this, this.disposables);
+
+		// Catch extension URLs when there are no windows open
+		chain(urlService.onOpenURL)
+			.filter(uri => /^extension/.test(uri.path))
+			.filter(() => this.windowsMainService.getWindowCount() === 0)
+			.on(this.openExtensionForURI, this, this.disposables);
 	}
 
-	openFileFolderPicker(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void> {
-		this.windowsMainService.openFileFolderPicker(forceNewWindow, data);
+	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
+		this.windowsMainService.pickFileFolderAndOpen(options);
+
 		return TPromise.as(null);
 	}
 
-	openFilePicker(windowId: number, forceNewWindow?: boolean, path?: string, data?: ITelemetryData): TPromise<void> {
-		this.windowsMainService.openFilePicker(forceNewWindow, path, undefined, data);
+	pickFileAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
+		this.windowsMainService.pickFileAndOpen(options);
+
 		return TPromise.as(null);
 	}
 
-	openFolderPicker(windowId: number, forceNewWindow?: boolean, data?: ITelemetryData): TPromise<void> {
-		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
-		this.windowsMainService.openFolderPicker(forceNewWindow, vscodeWindow, data);
+	pickFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
+		this.windowsMainService.pickFolderAndOpen(options);
 
 		return TPromise.as(null);
+	}
+
+	pickWorkspaceAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
+		this.windowsMainService.pickWorkspaceAndOpen(options);
+
+		return TPromise.as(null);
+	}
+
+	showMessageBox(windowId: number, options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult> {
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
+
+		return this.windowsMainService.showMessageBox(options, codeWindow);
+	}
+
+	showSaveDialog(windowId: number, options: Electron.SaveDialogOptions): TPromise<string> {
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
+
+		return this.windowsMainService.showSaveDialog(options, codeWindow);
+	}
+
+	showOpenDialog(windowId: number, options: Electron.OpenDialogOptions): TPromise<string[]> {
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
+
+		return this.windowsMainService.showOpenDialog(options, codeWindow);
 	}
 
 	reloadWindow(windowId: number): TPromise<void> {
-		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
-		if (vscodeWindow) {
-			this.windowsMainService.reload(vscodeWindow);
+		if (codeWindow) {
+			this.windowsMainService.reload(codeWindow);
 		}
 
 		return TPromise.as(null);
 	}
 
 	openDevTools(windowId: number): TPromise<void> {
-		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
-		if (vscodeWindow) {
-			vscodeWindow.win.webContents.openDevTools();
+		if (codeWindow) {
+			codeWindow.win.webContents.openDevTools();
 		}
 
 		return TPromise.as(null);
 	}
 
 	toggleDevTools(windowId: number): TPromise<void> {
-		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
-		if (vscodeWindow) {
-			const contents = vscodeWindow.win.webContents;
-			if (vscodeWindow.hasHiddenTitleBarStyle() && !vscodeWindow.win.isFullScreen() && !contents.isDevToolsOpened()) {
+		if (codeWindow) {
+			const contents = codeWindow.win.webContents;
+			if (codeWindow.hasHiddenTitleBarStyle() && !codeWindow.win.isFullScreen() && !contents.isDevToolsOpened()) {
 				contents.openDevTools({ mode: 'undocked' }); // due to https://github.com/electron/electron/issues/3647
 			} else {
 				contents.toggleDevTools();
@@ -101,130 +128,218 @@ export class WindowsService implements IWindowsService, IDisposable {
 		return TPromise.as(null);
 	}
 
-	closeFolder(windowId: number): TPromise<void> {
-		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+	updateTouchBar(windowId: number, items: ICommandAction[][]): TPromise<void> {
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
-		if (vscodeWindow) {
-			this.windowsMainService.open({ context: OpenContext.API, cli: this.environmentService.args, forceEmpty: true, windowToUse: vscodeWindow, forceReuseWindow: true });
+		if (codeWindow) {
+			codeWindow.updateTouchBar(items);
+		}
+
+		return TPromise.as(null);
+	}
+
+	closeWorkspace(windowId: number): TPromise<void> {
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
+
+		if (codeWindow) {
+			this.windowsMainService.closeWorkspace(codeWindow);
+		}
+
+		return TPromise.as(null);
+	}
+
+	createAndEnterWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult> {
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
+
+		if (codeWindow) {
+			return this.windowsMainService.createAndEnterWorkspace(codeWindow, folders, path);
+		}
+
+		return TPromise.as(null);
+	}
+
+	saveAndEnterWorkspace(windowId: number, path: string): TPromise<IEnterWorkspaceResult> {
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
+
+		if (codeWindow) {
+			return this.windowsMainService.saveAndEnterWorkspace(codeWindow, path);
 		}
 
 		return TPromise.as(null);
 	}
 
 	toggleFullScreen(windowId: number): TPromise<void> {
-		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
-		if (vscodeWindow) {
-			vscodeWindow.toggleFullScreen();
+		if (codeWindow) {
+			codeWindow.toggleFullScreen();
 		}
 
 		return TPromise.as(null);
 	}
 
 	setRepresentedFilename(windowId: number, fileName: string): TPromise<void> {
-		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
-		if (vscodeWindow) {
-			vscodeWindow.win.setRepresentedFilename(fileName);
+		if (codeWindow) {
+			codeWindow.setRepresentedFilename(fileName);
 		}
 
 		return TPromise.as(null);
 	}
 
-	addToRecentlyOpen(paths: { path: string, isFile?: boolean }[]): TPromise<void> {
-		this.windowsMainService.addToRecentPathsList(paths);
+	addRecentlyOpened(files: string[]): TPromise<void> {
+		this.historyService.addRecentlyOpened(void 0, files);
 
 		return TPromise.as(null);
 	}
 
-	removeFromRecentlyOpen(paths: string[]): TPromise<void> {
-		this.windowsMainService.removeFromRecentPathsList(paths);
+	removeFromRecentlyOpened(paths: string[]): TPromise<void> {
+		this.historyService.removeFromRecentlyOpened(paths);
 
 		return TPromise.as(null);
 	}
 
-	clearRecentPathsList(): TPromise<void> {
-		this.windowsMainService.clearRecentPathsList();
+	clearRecentlyOpened(): TPromise<void> {
+		this.historyService.clearRecentlyOpened();
+
 		return TPromise.as(null);
 	}
 
-	getRecentlyOpen(windowId: number): TPromise<{ files: string[]; folders: string[]; }> {
-		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+	getRecentlyOpened(windowId: number): TPromise<IRecentlyOpened> {
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
-		if (vscodeWindow) {
-			const { files, folders } = this.windowsMainService.getRecentPathsList(vscodeWindow.config.workspacePath, vscodeWindow.config.filesToOpen);
-			return TPromise.as({ files, folders });
+		if (codeWindow) {
+			return TPromise.as(this.historyService.getRecentlyOpened(codeWindow.config.workspace || codeWindow.config.folderPath, codeWindow.config.filesToOpen));
 		}
 
-		return TPromise.as({ files: [], folders: [] });
+		return TPromise.as(this.historyService.getRecentlyOpened());
+	}
+
+	showPreviousWindowTab(): TPromise<void> {
+		Menu.sendActionToFirstResponder('selectPreviousTab:');
+
+		return TPromise.as(void 0);
+	}
+
+	showNextWindowTab(): TPromise<void> {
+		Menu.sendActionToFirstResponder('selectNextTab:');
+
+		return TPromise.as(void 0);
+	}
+
+	moveWindowTabToNewWindow(): TPromise<void> {
+		Menu.sendActionToFirstResponder('moveTabToNewWindow:');
+
+		return TPromise.as(void 0);
+	}
+
+	mergeAllWindowTabs(): TPromise<void> {
+		Menu.sendActionToFirstResponder('mergeAllWindows:');
+
+		return TPromise.as(void 0);
+	}
+
+	toggleWindowTabsBar(): TPromise<void> {
+		Menu.sendActionToFirstResponder('toggleTabBar:');
+
+		return TPromise.as(void 0);
 	}
 
 	focusWindow(windowId: number): TPromise<void> {
-		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
-		if (vscodeWindow) {
-			vscodeWindow.win.focus();
+		if (codeWindow) {
+			codeWindow.win.focus();
+		}
+
+		return TPromise.as(null);
+	}
+
+	closeWindow(windowId: number): TPromise<void> {
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
+
+		if (codeWindow) {
+			codeWindow.win.close();
 		}
 
 		return TPromise.as(null);
 	}
 
 	isFocused(windowId: number): TPromise<boolean> {
-		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
-		if (vscodeWindow) {
-			return TPromise.as(vscodeWindow.win.isFocused());
+		if (codeWindow) {
+			return TPromise.as(codeWindow.win.isFocused());
 		}
 
 		return TPromise.as(null);
 	}
 
 	isMaximized(windowId: number): TPromise<boolean> {
-		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
-		if (vscodeWindow) {
-			return TPromise.as(vscodeWindow.win.isMaximized());
+		if (codeWindow) {
+			return TPromise.as(codeWindow.win.isMaximized());
 		}
 
 		return TPromise.as(null);
 	}
 
 	maximizeWindow(windowId: number): TPromise<void> {
-		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
-		if (vscodeWindow) {
-			vscodeWindow.win.maximize();
+		if (codeWindow) {
+			codeWindow.win.maximize();
 		}
 
 		return TPromise.as(null);
 	}
 
 	unmaximizeWindow(windowId: number): TPromise<void> {
-		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
-		if (vscodeWindow) {
-			vscodeWindow.win.unmaximize();
+		if (codeWindow) {
+			codeWindow.win.unmaximize();
+		}
+
+		return TPromise.as(null);
+	}
+
+	onWindowTitleDoubleClick(windowId: number): TPromise<void> {
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
+
+		if (codeWindow) {
+			codeWindow.onWindowTitleDoubleClick();
 		}
 
 		return TPromise.as(null);
 	}
 
 	setDocumentEdited(windowId: number, flag: boolean): TPromise<void> {
-		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
-		if (vscodeWindow && vscodeWindow.win.isDocumentEdited() !== flag) {
-			vscodeWindow.win.setDocumentEdited(flag);
+		if (codeWindow && codeWindow.win.isDocumentEdited() !== flag) {
+			codeWindow.win.setDocumentEdited(flag);
 		}
 
 		return TPromise.as(null);
 	}
 
-	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean }): TPromise<void> {
+	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }): TPromise<void> {
 		if (!paths || !paths.length) {
 			return TPromise.as(null);
 		}
 
-		this.windowsMainService.open({ context: OpenContext.API, cli: this.environmentService.args, pathsToOpen: paths, forceNewWindow: options && options.forceNewWindow, forceReuseWindow: options && options.forceReuseWindow });
+		this.windowsMainService.open({
+			context: OpenContext.API,
+			cli: this.environmentService.args,
+			pathsToOpen: paths,
+			forceNewWindow: options && options.forceNewWindow,
+			forceReuseWindow: options && options.forceReuseWindow,
+			forceOpenWorkspaceAsFile: options && options.forceOpenWorkspaceAsFile
+		});
+
 		return TPromise.as(null);
 	}
 
@@ -234,18 +349,19 @@ export class WindowsService implements IWindowsService, IDisposable {
 	}
 
 	showWindow(windowId: number): TPromise<void> {
-		const vscodeWindow = this.windowsMainService.getWindowById(windowId);
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
-		if (vscodeWindow) {
-			vscodeWindow.win.show();
+		if (codeWindow) {
+			codeWindow.win.show();
 		}
 
 		return TPromise.as(null);
 	}
 
-	getWindows(): TPromise<{ id: number; path: string; title: string; }[]> {
+	getWindows(): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderPath?: string; title: string; filename?: string; }[]> {
 		const windows = this.windowsMainService.getWindows();
-		const result = windows.map(w => ({ path: w.openedWorkspacePath, title: w.win.getTitle(), id: w.id }));
+		const result = windows.map(w => ({ id: w.id, workspace: w.openedWorkspace, openedFolderPath: w.openedFolderPath, title: w.win.getTitle(), filename: w.getRepresentedFilename() }));
+
 		return TPromise.as(result);
 	}
 
@@ -255,16 +371,6 @@ export class WindowsService implements IWindowsService, IDisposable {
 
 	log(severity: string, ...messages: string[]): TPromise<void> {
 		console[severity].apply(console, ...messages);
-		return TPromise.as(null);
-	}
-
-	closeExtensionHostWindow(extensionDevelopmentPath: string): TPromise<void> {
-		const windowOnExtension = this.windowsMainService.findWindow(null, null, extensionDevelopmentPath);
-
-		if (windowOnExtension) {
-			windowOnExtension.win.close();
-		}
-
 		return TPromise.as(null);
 	}
 
@@ -308,6 +414,21 @@ export class WindowsService implements IWindowsService, IDisposable {
 
 		this.windowsMainService.open({ context: OpenContext.API, cli, pathsToOpen });
 		return TPromise.as(null);
+	}
+
+	/**
+	 * This should only fire whenever an extension URL is open
+	 * and there are no windows to handle it.
+	 */
+	private async openExtensionForURI(uri: URI): TPromise<void> {
+		const cli = assign(Object.create(null), this.environmentService.args);
+		const window = await this.windowsMainService.open({ context: OpenContext.API, cli })[0];
+
+		if (!window) {
+			return;
+		}
+
+		window.win.show();
 	}
 
 	dispose(): void {

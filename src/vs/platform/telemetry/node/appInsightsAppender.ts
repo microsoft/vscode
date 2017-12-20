@@ -77,7 +77,7 @@ export class AppInsightsAppender implements ITelemetryAppender {
 		for (let prop in flat) {
 			// enforce property names less than 150 char, take the last 150 char
 			prop = prop.length > 150 ? prop.substr(prop.length - 149) : prop;
-			var value = flat[prop];
+			const value = flat[prop];
 
 			if (typeof value === 'number') {
 				measurements[prop] = value;
@@ -105,7 +105,7 @@ export class AppInsightsAppender implements ITelemetryAppender {
 			return;
 		}
 
-		for (var item of Object.getOwnPropertyNames(obj)) {
+		for (let item of Object.getOwnPropertyNames(obj)) {
 			const value = obj[item];
 			const index = prefix ? prefix + item : item;
 

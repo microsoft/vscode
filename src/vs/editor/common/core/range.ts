@@ -247,13 +247,6 @@ export class Range {
 	}
 
 	/**
-	 * Clone this range.
-	 */
-	public cloneRange(): Range {
-		return new Range(this.startLineNumber, this.startColumn, this.endLineNumber, this.endColumn);
-	}
-
-	/**
 	 * Transform to a user presentable string representation.
 	 */
 	public toString(): string {
@@ -289,6 +282,10 @@ export class Range {
 	}
 
 	// ---
+
+	public static fromPositions(start: IPosition, end: IPosition = start): Range {
+		return new Range(start.lineNumber, start.column, end.lineNumber, end.column);
+	}
 
 	/**
 	 * Create a `Range` from an `IRange`.
@@ -383,4 +380,3 @@ export class Range {
 		return range.endLineNumber > range.startLineNumber;
 	}
 }
-

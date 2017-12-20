@@ -32,20 +32,60 @@ import { IChoiceService } from 'vs/platform/message/common/message';
 import { ChoiceChannelClient } from 'vs/platform/message/common/messageIpc';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { WindowsChannelClient } from 'vs/platform/windows/common/windowsIpc';
-import { ActiveWindowManager } from 'vs/code/common/windows';
 import { ipcRenderer } from 'electron';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { createSharedProcessContributions } from 'vs/code/electron-browser/contrib/contributions';
+import { createLogService } from 'vs/platform/log/node/spdlogService';
+import { ILogService } from 'vs/platform/log/common/log';
+
+export interface ISharedProcessConfiguration {
+	readonly machineId: string;
+}
+
+export function startup(configuration: ISharedProcessConfiguration) {
+	handshake(configuration);
+}
 
 interface ISharedProcessInitData {
 	sharedIPCHandle: string;
 	args: ParsedArgs;
 }
 
+class ActiveWindowManager implements IDisposable {
+	private disposables: IDisposable[] = [];
+	private _activeWindowId: number;
+
+	constructor( @IWindowsService windowsService: IWindowsService) {
+		windowsService.onWindowOpen(this.setActiveWindow, this, this.disposables);
+		windowsService.onWindowFocus(this.setActiveWindow, this, this.disposables);
+	}
+
+	private setActiveWindow(windowId: number) {
+		this._activeWindowId = windowId;
+	}
+
+	public get activeClientId(): string {
+		return `window:${this._activeWindowId}`;
+	}
+
+	public dispose() {
+		this.disposables = dispose(this.disposables);
+	}
+}
+
 const eventPrefix = 'monacoworkbench';
 
-function main(server: Server, initData: ISharedProcessInitData): void {
+function main(server: Server, initData: ISharedProcessInitData, configuration: ISharedProcessConfiguration): void {
 	const services = new ServiceCollection();
 
-	services.set(IEnvironmentService, new SyncDescriptor(EnvironmentService, initData.args, process.execPath));
+	const environmentService = new EnvironmentService(initData.args, process.execPath);
+	const logService = createLogService('sharedprocess', environmentService);
+	process.once('exit', () => logService.dispose());
+
+	logService.info('main', JSON.stringify(configuration));
+
+	services.set(IEnvironmentService, environmentService);
+	services.set(ILogService, logService);
 	services.set(IConfigurationService, new SyncDescriptor(ConfigurationService));
 	services.set(IRequestService, new SyncDescriptor(RequestService));
 
@@ -75,12 +115,13 @@ function main(server: Server, initData: ISharedProcessInitData): void {
 		server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appender));
 
 		const services = new ServiceCollection();
-		const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt } = accessor.get(IEnvironmentService);
+		const environmentService = accessor.get(IEnvironmentService);
+		const { appRoot, extensionsPath, extensionDevelopmentPath, isBuilt, installSourcePath } = environmentService;
 
-		if (isBuilt && !extensionDevelopmentPath && product.enableTelemetry) {
+		if (isBuilt && !extensionDevelopmentPath && !environmentService.args['disable-telemetry'] && product.enableTelemetry) {
 			const config: ITelemetryServiceConfig = {
 				appender,
-				commonProperties: resolveCommonProperties(product.commit, pkg.version),
+				commonProperties: resolveCommonProperties(product.commit, pkg.version, configuration.machineId, installSourcePath),
 				piiPaths: [appRoot, extensionsPath]
 			};
 
@@ -101,6 +142,8 @@ function main(server: Server, initData: ISharedProcessInitData): void {
 
 			// clean up deprecated extensions
 			(extensionManagementService as ExtensionManagementService).removeDeprecatedExtensions();
+
+			createSharedProcessContributions(instantiationService2);
 		});
 	});
 }
@@ -141,15 +184,13 @@ function setupIPC(hook: string): TPromise<Server> {
 
 function startHandshake(): TPromise<ISharedProcessInitData> {
 	return new TPromise<ISharedProcessInitData>((c, e) => {
-		ipcRenderer.once('handshake:hey there', (_, r) => c(r));
+		ipcRenderer.once('handshake:hey there', (_: any, r: ISharedProcessInitData) => c(r));
 		ipcRenderer.send('handshake:hello');
 	});
 }
 
-function handshake(): TPromise<void> {
+function handshake(configuration: ISharedProcessConfiguration): TPromise<void> {
 	return startHandshake()
-		.then((data) => setupIPC(data.sharedIPCHandle).then(server => main(server, data)))
+		.then(data => setupIPC(data.sharedIPCHandle).then(server => main(server, data, configuration)))
 		.then(() => ipcRenderer.send('handshake:im ready'));
 }
-
-handshake();

@@ -5,38 +5,73 @@
 
 'use strict';
 
-import { IWindowIPCService } from 'vs/workbench/services/window/electron-browser/windowService';
 import nls = require('vs/nls');
 import product from 'vs/platform/node/product';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { WorkbenchMessageService } from 'vs/workbench/services/message/browser/messageService';
-import { IConfirmation, Severity, IChoiceService } from 'vs/platform/message/common/message';
-import { isWindows, isLinux } from 'vs/base/common/platform';
+import { IConfirmation, Severity, IChoiceService, IConfirmationResult } from 'vs/platform/message/common/message';
+import { isLinux } from 'vs/base/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Action } from 'vs/base/common/actions';
+import { IWindowService, IMessageBoxResult } from 'vs/platform/windows/common/windows';
+import { mnemonicButtonLabel } from 'vs/base/common/labels';
 
 export class MessageService extends WorkbenchMessageService implements IChoiceService {
 
 	constructor(
 		container: HTMLElement,
-		@IWindowIPCService private windowService: IWindowIPCService,
+		@IWindowService private windowService: IWindowService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super(container, telemetryService);
 	}
 
-	public confirm(confirmation: IConfirmation): boolean {
-		if (!confirmation.primaryButton) {
-			confirmation.primaryButton = nls.localize({ key: 'yesButton', comment: ['&& denotes a mnemonic'] }, "&&Yes");
-		}
-		if (!confirmation.secondaryButton) {
-			confirmation.secondaryButton = nls.localize('cancelButton', "Cancel");
+	public confirmWithCheckbox(confirmation: IConfirmation): TPromise<IConfirmationResult> {
+		const opts = this.getConfirmOptions(confirmation);
+
+		return this.showMessageBoxWithCheckbox(opts).then(result => {
+			return {
+				confirmed: result.button === 0 ? true : false,
+				checkboxChecked: result.checkboxChecked
+			} as IConfirmationResult;
+		});
+	}
+
+	private showMessageBoxWithCheckbox(opts: Electron.MessageBoxOptions): TPromise<IMessageBoxResult> {
+		opts = this.massageMessageBoxOptions(opts);
+
+		return this.windowService.showMessageBox(opts).then(result => {
+			return {
+				button: isLinux ? opts.buttons.length - result.button - 1 : result.button,
+				checkboxChecked: result.checkboxChecked
+			} as IMessageBoxResult;
+		});
+	}
+
+	public confirm(confirmation: IConfirmation): TPromise<boolean> {
+		const opts = this.getConfirmOptions(confirmation);
+
+		return this.showMessageBox(opts).then(result => result === 0 ? true : false);
+	}
+
+	private getConfirmOptions(confirmation: IConfirmation): Electron.MessageBoxOptions {
+		const buttons: string[] = [];
+		if (confirmation.primaryButton) {
+			buttons.push(confirmation.primaryButton);
+		} else {
+			buttons.push(nls.localize({ key: 'yesButton', comment: ['&& denotes a mnemonic'] }, "&&Yes"));
 		}
 
-		let opts: Electron.ShowMessageBoxOptions = {
+		if (confirmation.secondaryButton) {
+			buttons.push(confirmation.secondaryButton);
+		} else if (typeof confirmation.secondaryButton === 'undefined') {
+			buttons.push(nls.localize('cancelButton', "Cancel"));
+		}
+
+		let opts: Electron.MessageBoxOptions = {
 			title: confirmation.title,
 			message: confirmation.message,
-			buttons: [confirmation.primaryButton, confirmation.secondaryButton],
+			buttons,
 			defaultId: 0,
 			cancelId: 1
 		};
@@ -49,20 +84,24 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 			opts.type = confirmation.type;
 		}
 
-		let result = this.showMessageBox(opts);
+		if (confirmation.checkbox) {
+			opts.checkboxLabel = confirmation.checkbox.label;
+			opts.checkboxChecked = confirmation.checkbox.checked;
+		}
 
-		return result === 0 ? true : false;
+		return opts;
 	}
 
-	public choose(severity: Severity, message: string, options: string[], modal: boolean = false): TPromise<number> {
+	public choose(severity: Severity, message: string, options: string[], cancelId: number, modal: boolean = false): TPromise<number> {
 		if (modal) {
 			const type: 'none' | 'info' | 'error' | 'question' | 'warning' = severity === Severity.Info ? 'question' : severity === Severity.Error ? 'error' : severity === Severity.Warning ? 'warning' : 'none';
-			return TPromise.wrap(this.showMessageBox({ message, buttons: options, type }));
+
+			return this.showMessageBox({ message, buttons: options, type, cancelId });
 		}
 
 		let onCancel: () => void = null;
 
-		const promise = new TPromise((c, e) => {
+		const promise = new TPromise<number>((c, e) => {
 			const callback = (index: number) => () => {
 				c(index);
 				return TPromise.as(true);
@@ -76,12 +115,20 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 		return promise;
 	}
 
-	private showMessageBox(opts: Electron.ShowMessageBoxOptions): number {
-		opts.buttons = opts.buttons.map(button => this.mnemonicLabel(button));
+	private showMessageBox(opts: Electron.MessageBoxOptions): TPromise<number> {
+		opts = this.massageMessageBoxOptions(opts);
+
+		return this.windowService.showMessageBox(opts).then(result => isLinux ? opts.buttons.length - result.button - 1 : result.button);
+	}
+
+	private massageMessageBoxOptions(opts: Electron.MessageBoxOptions): Electron.MessageBoxOptions {
+		opts.buttons = opts.buttons.map(button => mnemonicButtonLabel(button));
 		opts.buttons = isLinux ? opts.buttons.reverse() : opts.buttons;
 
 		if (opts.defaultId !== void 0) {
 			opts.defaultId = isLinux ? opts.buttons.length - opts.defaultId - 1 : opts.defaultId;
+		} else if (isLinux) {
+			opts.defaultId = opts.buttons.length - 1; // since we reversed the buttons
 		}
 
 		if (opts.cancelId !== void 0) {
@@ -91,15 +138,6 @@ export class MessageService extends WorkbenchMessageService implements IChoiceSe
 		opts.noLink = true;
 		opts.title = opts.title || product.nameLong;
 
-		const result = this.windowService.getWindow().showMessageBox(opts);
-		return isLinux ? opts.buttons.length - result - 1 : result;
-	}
-
-	private mnemonicLabel(label: string): string {
-		if (!isWindows) {
-			return label.replace(/\(&&\w\)|&&/g, ''); // no mnemonic support on mac/linux
-		}
-
-		return label.replace(/&&/g, '&');
+		return opts;
 	}
 }

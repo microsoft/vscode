@@ -7,21 +7,30 @@
 import nls = require('vs/nls');
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as objects from 'vs/base/common/objects';
-import filters = require('vs/base/common/filters');
 import arrays = require('vs/base/common/arrays');
 import strings = require('vs/base/common/strings');
 import types = require('vs/base/common/types');
 import errors = require('vs/base/common/errors');
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
-import { KeyMod } from 'vs/base/common/keyCodes';
 import { Mode, IEntryRunContext, IAutoFocus, IModel, IQuickNavigateConfiguration } from 'vs/base/parts/quickopen/common/quickOpen';
-import { QuickOpenEntry, IHighlight, QuickOpenEntryGroup, QuickOpenModel } from 'vs/base/parts/quickopen/browser/quickOpenModel';
+import { QuickOpenEntry, QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
 import { IResourceInput, IEditorInput, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { AsyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { IConstructorSignature0, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+
+export const CLOSE_ON_FOCUS_LOST_CONFIG = 'workbench.quickOpen.closeOnFocusLost';
+
+export interface IWorkbenchQuickOpenConfiguration {
+	workbench: {
+		commandPalette: {
+			history: number;
+			preserveInput: boolean;
+		}
+	};
+}
 
 export class QuickOpenHandler {
 
@@ -71,7 +80,7 @@ export class QuickOpenHandler {
 	 * Indicates if the handler wishes the quick open widget to automatically select the first result entry or an entry
 	 * based on a specific prefix match.
 	 */
-	public getAutoFocus(searchValue: string, quickNavigateConfiguration?: IQuickNavigateConfiguration): IAutoFocus {
+	public getAutoFocus(searchValue: string, context: { model: IModel<QuickOpenEntry>, quickNavigateConfiguration?: IQuickNavigateConfiguration }): IAutoFocus {
 		return {};
 	}
 
@@ -117,21 +126,23 @@ export interface QuickOpenHandlerHelpEntry {
 /**
  * A lightweight descriptor of a quick open handler.
  */
-export class QuickOpenHandlerDescriptor extends AsyncDescriptor<QuickOpenHandler> {
+export class QuickOpenHandlerDescriptor {
 	public prefix: string;
 	public description: string;
-	public isDefault: boolean;
+	public contextKey: string;
 	public helpEntries: QuickOpenHandlerHelpEntry[];
 	public instantProgress: boolean;
+
 	private id: string;
+	private ctor: IConstructorSignature0<QuickOpenHandler>;
 
-	constructor(moduleId: string, ctorName: string, prefix: string, description: string, instantProgress?: boolean);
-	constructor(moduleId: string, ctorName: string, prefix: string, helpEntries: QuickOpenHandlerHelpEntry[], instantProgress?: boolean);
-	constructor(moduleId: string, ctorName: string, prefix: string, param: any, instantProgress: boolean = false) {
-		super(moduleId, ctorName);
-
+	constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string, description: string, instantProgress?: boolean);
+	constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string, helpEntries: QuickOpenHandlerHelpEntry[], instantProgress?: boolean);
+	constructor(ctor: IConstructorSignature0<QuickOpenHandler>, id: string, prefix: string, contextKey: string, param: any, instantProgress: boolean = false) {
+		this.ctor = ctor;
+		this.id = id;
 		this.prefix = prefix;
-		this.id = moduleId + ctorName;
+		this.contextKey = contextKey;
 		this.instantProgress = instantProgress;
 
 		if (types.isString(param)) {
@@ -143,6 +154,10 @@ export class QuickOpenHandlerDescriptor extends AsyncDescriptor<QuickOpenHandler
 
 	public getId(): string {
 		return this.id;
+	}
+
+	public instantiate(instantiationService: IInstantiationService): QuickOpenHandler {
+		return instantiationService.createInstance(this.ctor);
 	}
 }
 
@@ -251,28 +266,30 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 		const hideWidget = (mode === Mode.OPEN);
 
 		if (mode === Mode.OPEN || mode === Mode.OPEN_IN_BACKGROUND) {
-			let sideBySide = context.keymods.indexOf(KeyMod.CtrlCmd) >= 0;
+			const sideBySide = context.keymods.ctrlCmd;
 
-			let openInBackgroundOptions: IEditorOptions;
+			let openOptions: IEditorOptions;
 			if (mode === Mode.OPEN_IN_BACKGROUND) {
-				openInBackgroundOptions = { pinned: true, preserveFocus: true };
+				openOptions = { pinned: true, preserveFocus: true };
+			} else if (context.keymods.alt) {
+				openOptions = { pinned: true };
 			}
 
-			let input = this.getInput();
+			const input = this.getInput();
 			if (input instanceof EditorInput) {
 				let opts = this.getOptions();
 				if (opts) {
-					opts = objects.mixin(opts, openInBackgroundOptions, true);
-				} else if (openInBackgroundOptions) {
-					opts = EditorOptions.create(openInBackgroundOptions);
+					opts = objects.mixin(opts, openOptions, true);
+				} else if (openOptions) {
+					opts = EditorOptions.create(openOptions);
 				}
 
 				this.editorService.openEditor(input, opts, sideBySide).done(null, errors.onUnexpectedError);
 			} else {
 				const resourceInput = <IResourceInput>input;
 
-				if (openInBackgroundOptions) {
-					resourceInput.options = objects.assign(resourceInput.options || Object.create(null), openInBackgroundOptions);
+				if (openOptions) {
+					resourceInput.options = objects.assign(resourceInput.options || Object.create(null), openOptions);
 				}
 
 				this.editorService.openEditor(resourceInput, sideBySide).done(null, errors.onUnexpectedError);
@@ -288,7 +305,7 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
  */
 export class EditorQuickOpenEntryGroup extends QuickOpenEntryGroup implements IEditorQuickOpenEntry {
 
-	public getInput(): IEditorInput {
+	public getInput(): IEditorInput | IResourceInput {
 		return null;
 	}
 
@@ -297,138 +314,22 @@ export class EditorQuickOpenEntryGroup extends QuickOpenEntryGroup implements IE
 	}
 }
 
-// Infrastructure for quick open commands
-
-export interface ICommand {
-	aliases: string[];
-	getResults(input: string): TPromise<QuickOpenEntry[]>;
-	getEmptyLabel(input: string): string;
-	icon?: string;
-}
-
-class CommandEntry extends QuickOpenEntry {
-
-	constructor(private quickOpenService: IQuickOpenService, private prefix: string, private command: ICommand, highlights: IHighlight[]) {
-		super(highlights);
-		this.command = command;
-	}
-
-	public getIcon(): string {
-		return this.command.icon || null;
-	}
-
-	public getLabel(): string {
-		return this.command.aliases[0];
-	}
-
-	public getAriaLabel(): string {
-		return nls.localize('entryAriaLabel', "{0}, command", this.getLabel());
-	}
-
-	public run(mode: Mode, context: IEntryRunContext): boolean {
-		if (mode === Mode.PREVIEW) {
-			return false;
-		}
-
-		this.quickOpenService.show(`${this.prefix} ${this.command.aliases[0]} `);
-		return false;
-	}
-}
-
-export interface ICommandQuickOpenHandlerOptions {
-	prefix: string;
-	commands: ICommand[];
-	defaultCommand?: ICommand;
-}
-
-export abstract class CommandQuickOpenHandler extends QuickOpenHandler {
-
-	private prefix: string;
-	private defaultCommand: ICommand;
-	private commands: { regexp: RegExp; command: ICommand; }[];
-
-	constructor(
-		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		options: ICommandQuickOpenHandlerOptions
-	) {
-		super();
-
-		this.prefix = options.prefix;
-		this.commands = options.commands.map(c => ({
-			regexp: new RegExp('^(' + c.aliases.join('|') + ')\\b\\W+'),
-			command: c
-		}));
-		this.defaultCommand = options.defaultCommand || null;
-	}
-
-	public getResults(input: string): TPromise<QuickOpenModel> {
-		let match: RegExpMatchArray;
-		let command = arrays.first(this.commands, c => !!(match = input.match(c.regexp)));
-		let promise: TPromise<QuickOpenEntry[]>;
-
-		if (command) {
-			promise = command.command.getResults(input.substr(match[0].length));
-		} else if (this.defaultCommand) {
-			promise = this.defaultCommand.getResults(input);
-		} else {
-			promise = this.getCommands(input);
-		}
-
-		return promise.then(e => new QuickOpenModel(e));
-	}
-
-	private getCommands(input: string): TPromise<QuickOpenEntry[]> {
-		let entries: QuickOpenEntry[] = this.commands
-			.map(c => ({ command: c.command, highlights: filters.matchesFuzzy(input, c.command.aliases[0]) }))
-			.filter(({ command, highlights }) => !!highlights || command.aliases.some(a => input === a))
-			.map(({ command, highlights }) => new CommandEntry(this.quickOpenService, this.prefix, command, highlights));
-
-		return TPromise.as(entries);
-	}
-
-	public getClass(): string {
-		return null;
-	}
-
-	public canRun(): boolean {
-		return true;
-	}
-
-	public getAutoFocus(input: string): IAutoFocus {
-		return { autoFocusFirstEntry: true };
-	}
-
-	public onClose(canceled: boolean): void {
-		return;
-	}
-
-	public getGroupLabel(): string {
-		return null;
-	}
-
-	public getEmptyLabel(input: string): string {
-		let match: RegExpMatchArray;
-		let command = arrays.first(this.commands, c => !!(match = input.match(c.regexp)));
-
-		if (!command) {
-			return nls.localize('noCommands', "No commands matching");
-		}
-
-		return command.command.getEmptyLabel(input);
-	}
-}
-
 export class QuickOpenAction extends Action {
 	private prefix: string;
 
-	constructor(actionId: string, actionLabel: string, prefix: string, @IQuickOpenService private quickOpenService: IQuickOpenService) {
-		super(actionId, actionLabel);
+	constructor(
+		id: string,
+		label: string,
+		prefix: string,
+		@IQuickOpenService private quickOpenService: IQuickOpenService
+	) {
+		super(id, label);
 
 		this.prefix = prefix;
 		this.enabled = !!this.quickOpenService;
 	}
 
-	public run(context?: any): TPromise<any> {
+	public run(context?: any): TPromise<void> {
 
 		// Show with prefix
 		this.quickOpenService.show(this.prefix);

@@ -7,7 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import types = require('vs/base/common/types');
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { Mode, IEntryRunContext, IAutoFocus } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenModel, QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IQuickOpenRegistry, Extensions, QuickOpenHandler } from 'vs/workbench/browser/quickopen';
@@ -16,6 +16,7 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 export const HELP_PREFIX = '?';
 
 class HelpEntry extends QuickOpenEntryGroup {
+	private prefixLabel: string;
 	private prefix: string;
 	private description: string;
 	private quickOpenService: IQuickOpenService;
@@ -24,14 +25,20 @@ class HelpEntry extends QuickOpenEntryGroup {
 	constructor(prefix: string, description: string, quickOpenService: IQuickOpenService, openOnPreview: boolean) {
 		super();
 
-		this.prefix = prefix || '\u2026';
+		if (!prefix) {
+			this.prefix = '';
+			this.prefixLabel = '\u2026' /* ... */;
+		} else {
+			this.prefix = this.prefixLabel = prefix;
+		}
+
 		this.description = description;
 		this.quickOpenService = quickOpenService;
 		this.openOnPreview = openOnPreview;
 	}
 
 	public getLabel(): string {
-		return this.prefix;
+		return this.prefixLabel;
 	}
 
 	public getAriaLabel(): string {
@@ -52,6 +59,8 @@ class HelpEntry extends QuickOpenEntryGroup {
 }
 
 export class HelpHandler extends QuickOpenHandler {
+
+	public static readonly ID = 'workbench.picker.help';
 
 	constructor( @IQuickOpenService private quickOpenService: IQuickOpenService) {
 		super();

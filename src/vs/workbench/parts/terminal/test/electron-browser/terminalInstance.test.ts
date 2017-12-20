@@ -7,25 +7,28 @@
 
 import * as assert from 'assert';
 import * as os from 'os';
+import * as platform from 'vs/base/common/platform';
 import Uri from 'vs/base/common/uri';
 import { IMessageService } from 'vs/platform/message/common/message';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { IWorkspace, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TerminalInstance } from 'vs/workbench/parts/terminal/electron-browser/terminalInstance';
 import { IShellLaunchConfig } from 'vs/workbench/parts/terminal/common/terminal';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { TestMessageService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
+import { TestMessageService, TestContextService, TestHistoryService } from 'vs/workbench/test/workbenchTestServices';
 import { MockContextKeyService, MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 class TestTerminalInstance extends TerminalInstance {
-	public _getCwd(shell: IShellLaunchConfig, workspace: IWorkspace): string {
-		return super._getCwd(shell, workspace);
+	public _getCwd(shell: IShellLaunchConfig, root: Uri): string {
+		return super._getCwd(shell, root);
 	}
 
-	protected _createProcess(workspace: IWorkspace, shell: IShellLaunchConfig): void { }
-	protected _createXterm(): void { }
+	protected _createProcess(): void { }
+	protected _createXterm(): TPromise<void> { return TPromise.as(void 0); }
 }
 
 suite('Workbench - TerminalInstance', () => {
@@ -35,16 +38,17 @@ suite('Workbench - TerminalInstance', () => {
 	setup(() => {
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IMessageService, new TestMessageService());
+		instantiationService.stub(IHistoryService, new TestHistoryService());
 	});
 
-	test('TerminalInstance - createTerminalEnv', function () {
+	test('createTerminalEnv', function () {
 		const shell1 = {
 			executable: '/bin/foosh',
 			args: ['-bar', 'baz']
 		};
-		const parentEnv1: IStringDictionary<string> = <any>{
+		const parentEnv1: IStringDictionary<string> = {
 			ok: true
-		};
+		} as any;
 		const env1 = TerminalInstance.createTerminalEnv(parentEnv1, shell1, '/foo', 'en-au');
 		assert.ok(env1['ok'], 'Parent environment is copied');
 		assert.deepStrictEqual(parentEnv1, { ok: true }, 'Parent environment is unchanged');
@@ -56,11 +60,11 @@ suite('Workbench - TerminalInstance', () => {
 		assert.equal(env1['PTYCWD'], '/foo', 'PTYCWD is equal to requested cwd');
 		assert.equal(env1['LANG'], 'en_AU.UTF-8', 'LANG is equal to the requested locale with UTF-8');
 
-		const shell2 = {
+		const shell2: IShellLaunchConfig = {
 			executable: '/bin/foosh',
 			args: []
 		};
-		const parentEnv2: IStringDictionary<string> = <any>{
+		const parentEnv2: IStringDictionary<string> = {
 			LANG: 'en_US.UTF-8'
 		};
 		const env2 = TerminalInstance.createTerminalEnv(parentEnv2, shell2, '/foo', 'en-au');
@@ -73,6 +77,69 @@ suite('Workbench - TerminalInstance', () => {
 
 		const env4 = TerminalInstance.createTerminalEnv(parentEnv2, shell1, '/', null);
 		assert.equal(env4['LANG'], 'en_US.UTF-8', 'LANG is equal to the parent environment\'s LANG');
+	});
+
+	suite('mergeEnvironments', () => {
+		test('should add keys', () => {
+			const parent = {
+				a: 'b'
+			};
+			const other = {
+				c: 'd'
+			};
+			TerminalInstance.mergeEnvironments(parent, other);
+			assert.deepEqual(parent, {
+				a: 'b',
+				c: 'd'
+			});
+		});
+
+		test('should add keys ignoring case on Windows', () => {
+			if (!platform.isWindows) {
+				return;
+			}
+			const parent = {
+				a: 'b'
+			};
+			const other = {
+				A: 'c'
+			};
+			TerminalInstance.mergeEnvironments(parent, other);
+			assert.deepEqual(parent, {
+				a: 'c'
+			});
+		});
+
+		test('null values should delete keys from the parent env', () => {
+			const parent = {
+				a: 'b',
+				c: 'd'
+			};
+			const other: IStringDictionary<string> = {
+				a: null
+			};
+			TerminalInstance.mergeEnvironments(parent, other);
+			assert.deepEqual(parent, {
+				c: 'd'
+			});
+		});
+
+		test('null values should delete keys from the parent env ignoring case on Windows', () => {
+			if (!platform.isWindows) {
+				return;
+			}
+			const parent = {
+				a: 'b',
+				c: 'd'
+			};
+			const other: IStringDictionary<string> = {
+				A: null
+			};
+			TerminalInstance.mergeEnvironments(parent, other);
+			assert.deepEqual(parent, {
+				c: 'd'
+			});
+		});
 	});
 
 	suite('_getCwd', () => {
@@ -89,6 +156,7 @@ suite('Workbench - TerminalInstance', () => {
 			instantiationService.stub(IWorkspaceContextService, new TestContextService());
 			instantiationService.stub(IKeybindingService, keybindingService);
 			instantiationService.stub(IContextKeyService, contextKeyService);
+			instantiationService.stub(IHistoryService, new TestHistoryService());
 			configHelper = {
 				config: {
 					cwd: null
@@ -107,7 +175,7 @@ suite('Workbench - TerminalInstance', () => {
 		});
 
 		test('should use to the workspace if it exists', () => {
-			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, { resource: Uri.file('/foo') }), '/foo');
+			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, Uri.file('/foo')), '/foo');
 		});
 
 		test('should use an absolute custom cwd as is', () => {
@@ -117,11 +185,11 @@ suite('Workbench - TerminalInstance', () => {
 
 		test('should normalize a relative custom cwd against the workspace path', () => {
 			configHelper.config.cwd = 'foo';
-			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, { resource: Uri.file('/bar') }), '/bar/foo');
+			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, Uri.file('/bar')), '/bar/foo');
 			configHelper.config.cwd = './foo';
-			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, { resource: Uri.file('/bar') }), '/bar/foo');
+			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, Uri.file('/bar')), '/bar/foo');
 			configHelper.config.cwd = '../foo';
-			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, { resource: Uri.file('/bar') }, ), '/foo');
+			assertPathsMatch(instance._getCwd({ executable: null, args: [] }, Uri.file('/bar'), ), '/foo');
 		});
 
 		test('should fall back for relative a custom cwd that doesn\'t have a workspace', () => {
@@ -135,7 +203,7 @@ suite('Workbench - TerminalInstance', () => {
 
 		test('should ignore custom cwd when told to ignore', () => {
 			configHelper.config.cwd = '/foo';
-			assertPathsMatch(instance._getCwd({ executable: null, args: [], ignoreConfigurationCwd: true }, { resource: Uri.file('/bar') }), '/bar');
+			assertPathsMatch(instance._getCwd({ executable: null, args: [], ignoreConfigurationCwd: true }, Uri.file('/bar')), '/bar');
 		});
 	});
 });

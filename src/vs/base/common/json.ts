@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { localize } from 'vs/nls';
-
 export enum ScanError {
 	None,
 	UnexpectedEndOfComment,
@@ -232,7 +230,7 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 					break;
 				} else {
 					scanError = ScanError.InvalidCharacter;
-					break;
+					// mark as error but continue with string
 				}
 			}
 			pos++;
@@ -587,39 +585,6 @@ const enum CharacterCodes {
 }
 
 
-/**
- * Takes JSON with JavaScript-style comments and remove
- * them. Optionally replaces every none-newline character
- * of comments with a replaceCharacter
- */
-export function stripComments(text: string, replaceCh?: string): string {
-
-	let _scanner = createScanner(text),
-		parts: string[] = [],
-		kind: SyntaxKind,
-		offset = 0,
-		pos: number;
-
-	do {
-		pos = _scanner.getPosition();
-		kind = _scanner.scan();
-		switch (kind) {
-			case SyntaxKind.LineCommentTrivia:
-			case SyntaxKind.BlockCommentTrivia:
-			case SyntaxKind.EOF:
-				if (offset !== pos) {
-					parts.push(text.substring(offset, pos));
-				}
-				if (replaceCh !== void 0) {
-					parts.push(_scanner.getTokenValue().replace(/[^\r\n]/g, replaceCh));
-				}
-				offset = _scanner.getPosition();
-				break;
-		}
-	} while (kind !== SyntaxKind.EOF);
-
-	return parts.join('');
-}
 
 export interface ParseError {
 	error: ParseErrorCode;
@@ -635,22 +600,6 @@ export enum ParseErrorCode {
 	CloseBraceExpected,
 	CloseBracketExpected,
 	EndOfFileExpected
-}
-
-export function getParseErrorMessage(errorCode: ParseErrorCode): string {
-	switch (errorCode) {
-		case ParseErrorCode.InvalidSymbol: return localize('error.invalidSymbol', 'Invalid symbol');
-		case ParseErrorCode.InvalidNumberFormat: return localize('error.invalidNumberFormat', 'Invalid number format');
-		case ParseErrorCode.PropertyNameExpected: return localize('error.propertyNameExpected', 'Property name expected');
-		case ParseErrorCode.ValueExpected: return localize('error.valueExpected', 'Value expected');
-		case ParseErrorCode.ColonExpected: return localize('error.colonExpected', 'Colon expected');
-		case ParseErrorCode.CommaExpected: return localize('error.commaExpected', 'Comma expected');
-		case ParseErrorCode.CloseBraceExpected: return localize('error.closeBraceExpected', 'Closing brace expected');
-		case ParseErrorCode.CloseBracketExpected: return localize('error.closeBracketExpected', 'Closing bracket expected');
-		case ParseErrorCode.EndOfFileExpected: return localize('error.endOfFileExpected', 'End of file expected');
-		default:
-			return '';
-	}
 }
 
 export type NodeType = 'object' | 'array' | 'property' | 'string' | 'number' | 'boolean' | 'null';
@@ -676,147 +625,6 @@ export interface Node {
 
 export type Segment = string | number;
 export type JSONPath = Segment[];
-
-export interface Location {
-	/**
-	 * The previous property key or literal value (string, number, boolean or null) or undefined.
-	 */
-	previousNode?: Node;
-	/**
-	 * The path describing the location in the JSON document. The path consists of a sequence strings
-	 * representing an object property or numbers for array indices.
-	 */
-	path: JSONPath;
-	/**
-	 * Matches the locations path against a pattern consisting of strings (for properties) and numbers (for array indices).
-	 * '*' will match a single segment, of any property name or index.
-	 * '**' will match a sequece of segments or no segment, of any property name or index.
-	 */
-	matches: (patterns: JSONPath) => boolean;
-	/**
-	 * If set, the location's offset is at a property key.
-	 */
-	isAtPropertyKey: boolean;
-}
-
-
-/**
- * For a given offset, evaluate the location in the JSON document. Each segment in the location path is either a property name or an array index.
- */
-export function getLocation(text: string, position: number): Location {
-	let segments: any[] = []; // strings or numbers
-	let earlyReturnException = new Object();
-	let previousNode: Node = void 0;
-	const previousNodeInst: Node = {
-		value: void 0,
-		offset: void 0,
-		length: void 0,
-		type: void 0
-	};
-	let isAtPropertyKey = false;
-	function setPreviousNode(value: string, offset: number, length: number, type: NodeType) {
-		previousNodeInst.value = value;
-		previousNodeInst.offset = offset;
-		previousNodeInst.length = length;
-		previousNodeInst.type = type;
-		previousNodeInst.columnOffset = void 0;
-		previousNode = previousNodeInst;
-	}
-	try {
-
-		visit(text, {
-			onObjectBegin: (offset: number, length: number) => {
-				if (position <= offset) {
-					throw earlyReturnException;
-				}
-				previousNode = void 0;
-				isAtPropertyKey = position > offset;
-				segments.push(''); // push a placeholder (will be replaced)
-			},
-			onObjectProperty: (name: string, offset: number, length: number) => {
-				if (position < offset) {
-					throw earlyReturnException;
-				}
-				setPreviousNode(name, offset, length, 'property');
-				segments[segments.length - 1] = name;
-				if (position <= offset + length) {
-					throw earlyReturnException;
-				}
-			},
-			onObjectEnd: (offset: number, length: number) => {
-				if (position <= offset) {
-					throw earlyReturnException;
-				}
-				previousNode = void 0;
-				segments.pop();
-			},
-			onArrayBegin: (offset: number, length: number) => {
-				if (position <= offset) {
-					throw earlyReturnException;
-				}
-				previousNode = void 0;
-				segments.push(0);
-			},
-			onArrayEnd: (offset: number, length: number) => {
-				if (position <= offset) {
-					throw earlyReturnException;
-				}
-				previousNode = void 0;
-				segments.pop();
-			},
-			onLiteralValue: (value: any, offset: number, length: number) => {
-				if (position < offset) {
-					throw earlyReturnException;
-				}
-				setPreviousNode(value, offset, length, getLiteralNodeType(value));
-
-				if (position <= offset + length) {
-					throw earlyReturnException;
-				}
-			},
-			onSeparator: (sep: string, offset: number, length: number) => {
-				if (position <= offset) {
-					throw earlyReturnException;
-				}
-				if (sep === ':' && previousNode.type === 'property') {
-					previousNode.columnOffset = offset;
-					isAtPropertyKey = false;
-					previousNode = void 0;
-				} else if (sep === ',') {
-					let last = segments[segments.length - 1];
-					if (typeof last === 'number') {
-						segments[segments.length - 1] = last + 1;
-					} else {
-						isAtPropertyKey = true;
-						segments[segments.length - 1] = '';
-					}
-					previousNode = void 0;
-				}
-			}
-		});
-	} catch (e) {
-		if (e !== earlyReturnException) {
-			throw e;
-		}
-	}
-
-	return {
-		path: segments,
-		previousNode,
-		isAtPropertyKey,
-		matches: (pattern: string[]) => {
-			let k = 0;
-			for (let i = 0; k < pattern.length && i < segments.length; i++) {
-				if (pattern[k] === segments[i] || pattern[k] === '*') {
-					k++;
-				} else if (pattern[k] !== '**') {
-					return false;
-				}
-			}
-			return k === pattern.length;
-		}
-	};
-}
 
 export interface ParseOptions {
 	disallowComments?: boolean;
@@ -855,7 +663,7 @@ export function parse(text: string, errors: ParseError[] = [], options?: ParseOp
 			currentParent = previousParents.pop();
 		},
 		onArrayBegin: () => {
-			let array = [];
+			let array: any[] = [];
 			onValue(array);
 			previousParents.push(currentParent);
 			currentParent = array;
@@ -1153,6 +961,9 @@ export function visit(text: string, visitor: JSONVisitor, options?: ParseOptions
 				}
 				onSeparator(',');
 				scanNext(); // consume comma
+				if (_scanner.getToken() === SyntaxKind.CloseBracketToken && allowTrailingComma) {
+					break;
+				}
 			} else if (needsComma) {
 				handleError(ParseErrorCode.CommaExpected, [], []);
 			}

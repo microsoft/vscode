@@ -5,7 +5,7 @@
 
 'use strict';
 
-import chokidar = require('chokidar');
+import chokidar = require('vscode-chokidar');
 import fs = require('fs');
 
 import gracefulFs = require('graceful-fs');
@@ -15,15 +15,15 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import strings = require('vs/base/common/strings');
-import { realpathSync } from 'vs/base/node/extfs';
+import { realcaseSync } from 'vs/base/node/extfs';
 import { isMacintosh } from 'vs/base/common/platform';
 import watcher = require('vs/workbench/services/files/node/watcher/common');
 import { IWatcherRequest, IWatcherService } from './watcher';
 
 export class ChokidarWatcherService implements IWatcherService {
 
-	private static FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
-	private static EVENT_SPAM_WARNING_THRESHOLD = 60 * 1000; // warn after certain time span of event spam
+	private static readonly FS_EVENT_DELAY = 50; // aggregate and only emit events when changes have stopped for this duration (in ms)
+	private static readonly EVENT_SPAM_WARNING_THRESHOLD = 60 * 1000; // warn after certain time span of event spam
 
 	private spamCheckStartTime: number;
 	private spamWarningLogged: boolean;
@@ -35,14 +35,15 @@ export class ChokidarWatcherService implements IWatcherService {
 			followSymlinks: true, // this is the default of chokidar and supports file events through symlinks
 			ignored: request.ignored,
 			interval: 1000, // while not used in normal cases, if any error causes chokidar to fallback to polling, increase its intervals
-			binaryInterval: 1000
+			binaryInterval: 1000,
+			disableGlobbing: true // fix https://github.com/Microsoft/vscode/issues/4586
 		};
 
 		// Chokidar fails when the basePath does not match case-identical to the path on disk
 		// so we have to find the real casing of the path and do some path massaging to fix this
 		// see https://github.com/paulmillr/chokidar/issues/418
 		const originalBasePath = request.basePath;
-		const realBasePath = isMacintosh ? (realpathSync(originalBasePath) || originalBasePath) : originalBasePath;
+		const realBasePath = isMacintosh ? (realcaseSync(originalBasePath) || originalBasePath) : originalBasePath;
 		const realBasePathLength = realBasePath.length;
 		const realBasePathDiffers = (originalBasePath !== realBasePath);
 
@@ -62,6 +63,12 @@ export class ChokidarWatcherService implements IWatcherService {
 
 		return new TPromise<void>((c, e, p) => {
 			chokidarWatcher.on('all', (type: string, path: string) => {
+				if (isMacintosh) {
+					// Mac: uses NFD unicode form on disk, but we want NFC
+					// See also https://github.com/nodejs/node/issues/2165
+					path = strings.normalizeNFC(path);
+				}
+
 				if (path.indexOf(realBasePath) < 0) {
 					return; // we really only care about absolute paths here in our basepath context here
 				}

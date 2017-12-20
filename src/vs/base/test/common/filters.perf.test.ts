@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-// import * as assert from 'assert';
 import * as filters from 'vs/base/common/filters';
+import { data } from './filters.perf.data';
 
-const data = <string[]>require.__$__nodeRequire(require.toUrl('./filters.perf.data.json'));
 const patterns = ['cci', 'ida', 'pos', 'CCI', 'enbled', 'callback', 'gGame', 'cons'];
 
 const _enablePerf = false;
@@ -20,7 +19,7 @@ function perfSuite(name: string, callback: (this: Mocha.ISuiteCallbackContext) =
 
 perfSuite('Performance - fuzzyMatch', function () {
 
-	console.log(`Matching ${data.length} items against ${patterns.length} patterns...`);
+	console.log(`Matching ${data.length} items against ${patterns.length} patterns (${data.length * patterns.length} operations) `);
 
 	function perfTest(name: string, match: (pattern: string, word: string) => any) {
 		test(name, function () {
@@ -33,15 +32,15 @@ perfSuite('Performance - fuzzyMatch', function () {
 					match(pattern, item);
 				}
 			}
-			console.log(name, Date.now() - t1, `${(count / (Date.now() - t1)).toPrecision(6)}/ms`);
+			const d = Date.now() - t1;
+			console.log(name, `${d}ms, ${Math.round(count / d) * 15}ops/15ms`);
 		});
 	}
 
 	perfTest('matchesFuzzy', filters.matchesFuzzy);
 	perfTest('fuzzyContiguousFilter', filters.fuzzyContiguousFilter);
-	perfTest('matchesFuzzy2', filters.matchesFuzzy2);
 	perfTest('fuzzyScore', filters.fuzzyScore);
 	perfTest('fuzzyScoreGraceful', filters.fuzzyScoreGraceful);
-
+	perfTest('fuzzyScoreGracefulAggressive', filters.fuzzyScoreGracefulAggressive);
 });
 

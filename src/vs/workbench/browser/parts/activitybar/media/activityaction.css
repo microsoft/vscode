@@ -17,12 +17,10 @@
 	margin-right: 0;
 	padding: 0 0 0 50px;
 	box-sizing: border-box;
-	background-position: 9px center;
-	background-repeat: no-repeat;
 	font-size: 15px;
 }
 
-.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label:focus:before {
+.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:focus:before {
 	content: "";
 	position: absolute;
 	top: 9px;
@@ -31,25 +29,16 @@
 	border-left: 2px solid;
 }
 
-.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label.clicked:focus:before {
+.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item.clicked:focus:before {
 	border-left: none !important; /* no focus feedback when using mouse */
 }
 
-.monaco-workbench > .activitybar.left > .content .monaco-action-bar .action-item .action-label:focus:before {
+.monaco-workbench > .activitybar.left > .content .monaco-action-bar .action-item:focus:before {
 	left: 1px;
 }
 
-.monaco-workbench > .activitybar.right > .content .monaco-action-bar .action-item .action-label:focus:before {
+.monaco-workbench > .activitybar.right > .content .monaco-action-bar .action-item:focus:before {
 	right: 1px;
-}
-
-.monaco-workbench > .activitybar > .content .monaco-action-bar .action-label.toggle-more {
-	background-image: url('ellipsis-global.svg');
-}
-
-.monaco-workbench > .activitybar > .content .monaco-action-bar .action-label > .label {
-	flex: 1 1 auto;
-	overflow: hidden;
 }
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar .badge {
@@ -74,26 +63,12 @@
 	text-align: center;
 }
 
-.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item .action-label.active,
-.monaco-workbench > .activitybar > .content .monaco-action-bar .action-item:hover .action-label {
-	opacity: 1;
-}
-
-/* Right  aligned */
+/* Right aligned */
 
 .monaco-workbench > .activitybar.right > .content .monaco-action-bar .action-label {
 	margin-left: 0;
 	padding: 0 50px 0 0;
 	background-position: calc(100% - 9px) center;
-}
-
-.monaco-workbench > .activitybar.right > .content .monaco-action-bar .action-label .label {
-	padding-left: 1em;
-}
-
-.monaco-workbench > .activitybar.right > .content .monaco-action-bar .action-label > .keybinding {
-	text-align: right;
-	padding: 0 0 0 2em;
 }
 
 .monaco-workbench > .activitybar.right > .content .monaco-action-bar .badge {

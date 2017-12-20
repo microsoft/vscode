@@ -23,6 +23,11 @@ export interface IBackupFileService {
 	_serviceBrand: any;
 
 	/**
+	 * If backups are enabled.
+	 */
+	backupEnabled: boolean;
+
+	/**
 	 * Finds out if there are any backups stored.
 	 */
 	hasBackups(): TPromise<boolean>;
@@ -34,6 +39,14 @@ export interface IBackupFileService {
 	 * @return The backup resource if any.
 	 */
 	loadBackupResource(resource: Uri): TPromise<Uri>;
+
+	/**
+	 * Given a resource, returns the associated backup resource.
+	 *
+	 * @param resource The resource to get the backup resource for.
+	 * @return The backup resource.
+	 */
+	toBackupResource(resource: Uri): Uri;
 
 	/**
 	 * Backs up a resource.

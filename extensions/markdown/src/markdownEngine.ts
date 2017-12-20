@@ -3,24 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { TableOfContentsProvider } from './tableOfContentsProvider';
-
-export interface IToken {
-	type: string;
-	map: [number, number];
-}
-
-interface MarkdownIt {
-	render(text: string): string;
-
-	parse(text: string, env: any): IToken[];
-
-	utils: any;
-}
+import { MarkdownIt, Token } from 'markdown-it';
 
 const FrontMatterRegex = /^---\s*[^]*?(-{3}|\.{3})\s*/;
 
@@ -49,19 +35,23 @@ export class MarkdownEngine {
 		}
 	}
 
-	private get engine(): MarkdownIt {
+	private async getEngine(resource: vscode.Uri): Promise<MarkdownIt> {
 		if (!this.md) {
-			const hljs = require('highlight.js');
-			const mdnh = require('markdown-it-named-headers');
-			this.md = require('markdown-it')({
+			const hljs = await import('highlight.js');
+			const mdnh = await import('markdown-it-named-headers');
+			this.md = (await import('markdown-it'))({
 				html: true,
 				highlight: (str: string, lang: string) => {
+					// Workaround for highlight not supporting tsx: https://github.com/isagalaev/highlight.js/issues/1155
+					if (lang && ['tsx', 'typescriptreact'].indexOf(lang.toLocaleLowerCase()) >= 0) {
+						lang = 'jsx';
+					}
 					if (lang && hljs.getLanguage(lang)) {
 						try {
 							return `<pre class="hljs"><code><div>${hljs.highlight(lang, str, true).value}</div></code></pre>`;
 						} catch (error) { }
 					}
-					return `<pre class="hljs"><code><div>${this.engine.utils.escapeHtml(str)}</div></code></pre>`;
+					return `<pre class="hljs"><code><div>${this.md.utils.escapeHtml(str)}</div></code></pre>`;
 				}
 			}).use(mdnh, {
 				slugify: (header: string) => TableOfContentsProvider.slugify(header)
@@ -79,6 +69,12 @@ export class MarkdownEngine {
 			this.addLinkNormalizer(this.md);
 			this.addLinkValidator(this.md);
 		}
+
+		const config = vscode.workspace.getConfiguration('markdown', resource);
+		this.md.set({
+			breaks: config.get<boolean>('preview.breaks', false),
+			linkify: config.get<boolean>('preview.linkify', true)
+		});
 		return this.md;
 	}
 
@@ -93,7 +89,7 @@ export class MarkdownEngine {
 		return { text, offset };
 	}
 
-	public render(document: vscode.Uri, stripFrontmatter: boolean, text: string): string {
+	public async render(document: vscode.Uri, stripFrontmatter: boolean, text: string): Promise<string> {
 		let offset = 0;
 		if (stripFrontmatter) {
 			const markdownContent = this.stripFrontmatter(text);
@@ -102,13 +98,16 @@ export class MarkdownEngine {
 		}
 		this.currentDocument = document;
 		this.firstLine = offset;
-		return this.engine.render(text);
+		const engine = await this.getEngine(document);
+		return engine.render(text);
 	}
 
-	public parse(document: vscode.Uri, source: string): IToken[] {
+	public async parse(document: vscode.Uri, source: string): Promise<Token[]> {
 		const { text, offset } = this.stripFrontmatter(source);
 		this.currentDocument = document;
-		return this.engine.parse(text, {}).map(token => {
+		const engine = await this.getEngine(document);
+
+		return engine.parse(text, {}).map(token => {
 			if (token.map) {
 				token.map[0] += offset;
 			}
@@ -138,12 +137,20 @@ export class MarkdownEngine {
 		md.normalizeLink = (link: string) => {
 			try {
 				let uri = vscode.Uri.parse(link);
-				if (!uri.scheme && uri.path && !uri.fragment) {
+				if (!uri.scheme && uri.path) {
 					// Assume it must be a file
+					const fragment = uri.fragment;
 					if (uri.path[0] === '/') {
-						uri = vscode.Uri.file(path.join(vscode.workspace.rootPath || '', uri.path));
+						const root = vscode.workspace.getWorkspaceFolder(this.currentDocument);
+						if (root) {
+							uri = vscode.Uri.file(path.join(root.uri.fsPath, uri.path));
+						}
 					} else {
 						uri = vscode.Uri.file(path.join(path.dirname(this.currentDocument.path), uri.path));
+					}
+
+					if (fragment) {
+						uri = uri.with({ fragment });
 					}
 					return normalizeLink(uri.toString(true));
 				}

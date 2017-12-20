@@ -6,19 +6,15 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import { match as matchGlobPattern } from 'vs/base/common/glob'; // TODO@Alex
+import { match as matchGlobPattern, IRelativePattern } from 'vs/base/common/glob'; // TODO@Alex
 
 export interface LanguageFilter {
 	language?: string;
 	scheme?: string;
-	pattern?: string;
+	pattern?: string | IRelativePattern;
 }
 
 export type LanguageSelector = string | LanguageFilter | (string | LanguageFilter)[];
-
-export default function matches(selection: LanguageSelector, uri: URI, language: string): boolean {
-	return score(selection, uri, language) > 0;
-}
 
 export function score(selector: LanguageSelector, candidateUri: URI, candidateLanguage: string): number {
 

@@ -363,11 +363,12 @@ suite('SearchResult', () => {
 			resource: URI.file('/' + path),
 			lineMatches: lineMatches
 		};
-		return instantiationService.createInstance(FileMatch, null, searchResult, rawMatch);
+		return instantiationService.createInstance(FileMatch, null, null, searchResult, rawMatch);
 	}
 
 	function aSearchResult(): SearchResult {
 		let searchModel = instantiationService.createInstance(SearchModel);
+		searchModel.searchResult.query = { type: 1, folderQueries: [{ folder: URI.parse('file://c:/') }] };
 		return searchModel.searchResult;
 	}
 

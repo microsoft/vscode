@@ -14,6 +14,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { TestContextService } from 'vs/workbench/test/workbenchTestServices';
+import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 suite('Search - Viewlet', () => {
 	let instantiation: TestInstantiationService;
@@ -21,11 +24,13 @@ suite('Search - Viewlet', () => {
 	setup(() => {
 		instantiation = new TestInstantiationService();
 		instantiation.stub(IModelService, stubModelService(instantiation));
+		instantiation.set(IWorkspaceContextService, new TestContextService(TestWorkspace));
 	});
 
 	test('Data Source', function () {
-		let ds = new SearchDataSource();
-		let result = instantiation.createInstance(SearchResult, null);
+		let ds = instantiation.createInstance(SearchDataSource);
+		let result: SearchResult = instantiation.createInstance(SearchResult, null);
+		result.query = { type: 1, folderQueries: [{ folder: uri.parse('file://c:/') }] };
 		result.add([{
 			resource: uri.parse('file:///c:/foo'),
 			lineMatches: [{ lineNumber: 1, preview: 'bar', offsetAndLengths: [[0, 1]] }]
@@ -69,7 +74,7 @@ suite('Search - Viewlet', () => {
 			resource: uri.file('C:\\' + path),
 			lineMatches: lineMatches
 		};
-		return instantiation.createInstance(FileMatch, null, searchResult, rawMatch);
+		return instantiation.createInstance(FileMatch, null, null, searchResult, rawMatch);
 	}
 
 	function stubModelService(instantiationService: TestInstantiationService): IModelService {

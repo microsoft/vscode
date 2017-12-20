@@ -59,52 +59,51 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		this.binaryContainer.tabindex(0); // enable focus support from the editor part (do not remove)
 
 		// Custom Scrollbars
-		this.scrollbar = new DomScrollableElement(binaryContainerElement, { canUseTranslate3d: false, horizontal: ScrollbarVisibility.Auto, vertical: ScrollbarVisibility.Auto });
+		this.scrollbar = new DomScrollableElement(binaryContainerElement, { horizontal: ScrollbarVisibility.Auto, vertical: ScrollbarVisibility.Auto });
 		parent.getHTMLElement().appendChild(this.scrollbar.getDomNode());
 	}
 
 	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
-		const oldInput = this.input;
-		super.setInput(input, options);
 
-		// Detect options
+		// Return early for same input unless we force to open
 		const forceOpen = options && options.forceOpen;
-
-		// Same Input
-		if (!forceOpen && input.matches(oldInput)) {
-			return TPromise.as<void>(null);
+		if (!forceOpen && input.matches(this.input)) {
+			return TPromise.wrap<void>(null);
 		}
 
-		// Different Input (Reload)
-		return input.resolve(true).then((resolvedModel: EditorModel) => {
+		// Otherwise set input and resolve
+		return super.setInput(input, options).then(() => {
+			return input.resolve(true).then((resolvedModel: EditorModel) => {
 
-			// Assert Model instance
-			if (!(resolvedModel instanceof BinaryEditorModel)) {
-				return TPromise.wrapError<void>('Unable to open file as binary');
-			}
+				// Assert Model instance
+				if (!(resolvedModel instanceof BinaryEditorModel)) {
+					return TPromise.wrapError<void>(new Error('Unable to open file as binary'));
+				}
 
-			// Assert that the current input is still the one we expect. This prevents a race condition when loading takes long and another input was set meanwhile
-			if (!this.input || this.input !== input) {
-				return null;
-			}
+				// Assert that the current input is still the one we expect. This prevents a race condition when loading takes long and another input was set meanwhile
+				if (!this.input || this.input !== input) {
+					return null;
+				}
 
-			// Render Input
-			const model = <BinaryEditorModel>resolvedModel;
-			ResourceViewer.show(
-				{ name: model.getName(), resource: model.getResource(), size: model.getSize(), etag: model.getETag() },
-				this.binaryContainer,
-				this.scrollbar,
-				(resource: URI) => {
-					this.windowsService.openExternal(resource.toString()).then(didOpen => {
-						if (!didOpen) {
-							return this.windowsService.showItemInFolder(resource.fsPath);
-						}
-						return undefined;
-					});
-				},
-				(meta) => this.handleMetadataChanged(meta));
+				// Render Input
+				const model = <BinaryEditorModel>resolvedModel;
+				ResourceViewer.show(
+					{ name: model.getName(), resource: model.getResource(), size: model.getSize(), etag: model.getETag(), mime: model.getMime() },
+					this.binaryContainer,
+					this.scrollbar,
+					(resource: URI) => {
+						this.windowsService.openExternal(resource.toString()).then(didOpen => {
+							if (!didOpen) {
+								return this.windowsService.showItemInFolder(resource.fsPath);
+							}
 
-			return TPromise.as<void>(null);
+							return void 0;
+						});
+					},
+					(meta) => this.handleMetadataChanged(meta));
+
+				return TPromise.as<void>(null);
+			});
 		});
 	}
 

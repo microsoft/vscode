@@ -16,10 +16,6 @@
 	padding: 0 10px;
 }
 
-.monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .breakpoint-select-container .select-box {
-	border-color: rgba(128, 128, 128, 0.35);
-}
-
 .monaco-editor .zone-widget .zone-widget-container.breakpoint-widget .inputBoxContainer {
 	flex: 1;
 }

@@ -9,6 +9,8 @@ import * as assert from 'assert';
 import { firstIndex } from 'vs/base/common/arrays';
 import { localize } from 'vs/nls';
 import { ParsedArgs } from '../common/environment';
+import { isWindows } from 'vs/base/common/platform';
+import product from 'vs/platform/node/product';
 
 const options: minimist.Opts = {
 	string: [
@@ -19,16 +21,22 @@ const options: minimist.Opts = {
 		'extensionTestsPath',
 		'install-extension',
 		'uninstall-extension',
-		'debugBrkPluginHost',
+		'debugId',
 		'debugPluginHost',
+		'debugBrkPluginHost',
+		'debugSearch',
+		'debugBrkSearch',
 		'open-url',
-		'prof-startup-timers'
+		'enable-proposed-api',
+		'export-default-configuration',
+		'install-source'
 	],
 	boolean: [
 		'help',
 		'version',
 		'wait',
 		'diff',
+		'add',
 		'goto',
 		'new-window',
 		'unity-launch',
@@ -40,19 +48,35 @@ const options: minimist.Opts = {
 		'disable-extensions',
 		'list-extensions',
 		'show-versions',
-		'nolazy'
+		'nolazy',
+		'skip-getting-started',
+		'skip-release-notes',
+		'sticky-quickopen',
+		'disable-telemetry',
+		'disable-updates',
+		'disable-crash-reporter',
+		'skip-add-to-recently-opened',
+		'status',
+		'sudo-write',
+		'sudo-chmod'
 	],
 	alias: {
+		add: 'a',
 		help: 'h',
 		version: 'v',
 		wait: 'w',
 		diff: 'd',
 		goto: 'g',
+		status: 's',
 		'new-window': 'n',
 		'reuse-window': 'r',
 		performance: 'p',
 		'disable-extensions': 'disableExtensions',
-		'extensions-dir': 'extensionHomePath'
+		'extensions-dir': 'extensionHomePath',
+		'debugPluginHost': 'inspect-extensions',
+		'debugBrkPluginHost': 'inspect-brk-extensions',
+		'debugSearch': 'inspect-search',
+		'debugBrkSearch': 'inspect-brk-search',
 	}
 };
 
@@ -108,23 +132,29 @@ export function parseArgs(args: string[]): ParsedArgs {
 }
 
 export const optionsHelp: { [name: string]: string; } = {
-	'-d, --diff': localize('diff', "Open a diff editor. Requires to pass two file paths as arguments."),
-	'-g, --goto': localize('goto', "Open the file at path at the line and character (add :line[:character] to path)."),
+	'-d, --diff <file> <file>': localize('diff', "Compare two files with each other."),
+	'-a, --add <dir>': localize('add', "Add folder(s) to the last active window."),
+	'-g, --goto <file:line[:character]>': localize('goto', "Open a file at the path on the specified line and character position."),
 	'--locale <locale>': localize('locale', "The locale to use (e.g. en-US or zh-TW)."),
 	'-n, --new-window': localize('newWindow', "Force a new instance of Code."),
 	'-p, --performance': localize('performance', "Start with the 'Developer: Startup Performance' command enabled."),
 	'--prof-startup': localize('prof-startup', "Run CPU profiler during startup"),
+	'--inspect-extensions': localize('inspect-extensions', "Allow debugging and profiling of extensions. Check the developer tools for the connection uri."),
+	'--inspect-brk-extensions': localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection uri."),
 	'-r, --reuse-window': localize('reuseWindow', "Force opening a file or folder in the last active window."),
 	'--user-data-dir <dir>': localize('userDataDir', "Specifies the directory that user data is kept in, useful when running as root."),
+	'--log <level>': localize('log', "Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'."),
 	'--verbose': localize('verbose', "Print verbose output (implies --wait)."),
-	'-w, --wait': localize('wait', "Wait for the window to be closed before returning."),
+	'-w, --wait': localize('wait', "Wait for the files to be closed before returning."),
 	'--extensions-dir <dir>': localize('extensionHomePath', "Set the root path for extensions."),
 	'--list-extensions': localize('listExtensions', "List the installed extensions."),
 	'--show-versions': localize('showVersions', "Show versions of installed extensions, when using --list-extension."),
-	'--install-extension <ext>': localize('installExtension', "Installs an extension."),
-	'--uninstall-extension <ext>': localize('uninstallExtension', "Uninstalls an extension."),
+	'--install-extension (<extension-id> | <extension-vsix-path>)': localize('installExtension', "Installs an extension."),
+	'--uninstall-extension (<extension-id> | <extension-vsix-path>)': localize('uninstallExtension', "Uninstalls an extension."),
+	'--enable-proposed-api <extension-id>': localize('experimentalApis', "Enables proposed api features for an extension."),
 	'--disable-extensions': localize('disableExtensions', "Disable all installed extensions."),
 	'--disable-gpu': localize('disableGPU', "Disable GPU hardware acceleration."),
+	'-s, --status': localize('status', "Print process usage and diagnostics information."),
 	'-v, --version': localize('version', "Print version."),
 	'-h, --help': localize('help', "Print usage.")
 };
@@ -145,7 +175,7 @@ export function formatOptions(options: { [name: string]: string; }, columns: num
 			result += '\n';
 		}
 		result += '  ' + k + keyPadding + wrappedDescription[0];
-		for (var i = 1; i < wrappedDescription.length; i++) {
+		for (let i = 1; i < wrappedDescription.length; i++) {
 			result += '\n' + (<any>' ').repeat(argLength) + wrappedDescription[i];
 		}
 	});
@@ -170,6 +200,8 @@ export function buildHelpMessage(fullName: string, name: string, version: string
 	return `${fullName} ${version}
 
 ${ localize('usage', "Usage")}: ${executable} [${localize('options', "options")}] [${localize('paths', 'paths')}...]
+
+${ isWindows ? localize('stdinWindows', "To read output from another program, append '-' (e.g. 'echo Hello World | {0} -')", product.applicationName) : localize('stdinUnix', "To read from stdin, append '-' (e.g. 'ps aux | grep code | {0} -')", product.applicationName)}
 
 ${ localize('optionsUpperCase', "Options")}:
 ${formatOptions(optionsHelp, columns)}`;

@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { BoundModelReferenceCollection } from 'vs/workbench/api/node/mainThreadDocuments';
+import { BoundModelReferenceCollection } from 'vs/workbench/api/electron-browser/mainThreadDocuments';
 import { Model } from 'vs/editor/common/model/model';
 import { TPromise } from 'vs/base/common/winjs.base';
 

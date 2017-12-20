@@ -15,8 +15,8 @@ import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { TimeoutTimer, IntervalTimer } from 'vs/base/common/async';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorCursor } from 'vs/editor/common/view/editorColorRegistry';
-import { TextEditorCursorBlinkingStyle, TextEditorCursorStyle } from "vs/editor/common/config/editorOptions";
+import { editorCursorForeground, editorCursorBackground } from 'vs/editor/common/view/editorColorRegistry';
+import { TextEditorCursorBlinkingStyle, TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 
 export class ViewCursors extends ViewPart {
 
@@ -54,6 +54,8 @@ export class ViewCursors extends ViewPart {
 		this._renderData = [];
 
 		this._domNode = createFastDomNode(document.createElement('div'));
+		this._domNode.setAttribute('role', 'presentation');
+		this._domNode.setAttribute('aria-hidden', 'true');
 		this._updateDomClassName();
 
 		this._domNode.appendChild(this._primaryCursor.getDomNode());
@@ -84,16 +86,14 @@ export class ViewCursors extends ViewPart {
 		if (e.readOnly) {
 			this._readOnly = this._context.configuration.editor.readOnly;
 		}
-		if (e.viewInfo.cursorBlinking) {
+		if (e.viewInfo) {
 			this._cursorBlinking = this._context.configuration.editor.viewInfo.cursorBlinking;
-		}
-		if (e.viewInfo.cursorStyle) {
 			this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
 		}
 
 		this._primaryCursor.onConfigurationChanged(e);
 		this._updateBlinking();
-		if (e.viewInfo.cursorStyle || e.viewInfo.cursorBlinking) {
+		if (e.viewInfo) {
 			this._updateDomClassName();
 		}
 		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
@@ -101,51 +101,53 @@ export class ViewCursors extends ViewPart {
 		}
 		return true;
 	}
-	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {
-		this._primaryCursor.onCursorPositionChanged(e.position, e.isInEditableRange);
+	private _onCursorPositionChanged(position: Position, secondaryPositions: Position[]): void {
+		this._primaryCursor.onCursorPositionChanged(position);
 		this._updateBlinking();
 
-		if (this._secondaryCursors.length < e.secondaryPositions.length) {
+		if (this._secondaryCursors.length < secondaryPositions.length) {
 			// Create new cursors
-			let addCnt = e.secondaryPositions.length - this._secondaryCursors.length;
+			let addCnt = secondaryPositions.length - this._secondaryCursors.length;
 			for (let i = 0; i < addCnt; i++) {
 				let newCursor = new ViewCursor(this._context, true);
 				this._domNode.domNode.insertBefore(newCursor.getDomNode().domNode, this._primaryCursor.getDomNode().domNode.nextSibling);
 				this._secondaryCursors.push(newCursor);
 			}
-		} else if (this._secondaryCursors.length > e.secondaryPositions.length) {
+		} else if (this._secondaryCursors.length > secondaryPositions.length) {
 			// Remove some cursors
-			let removeCnt = this._secondaryCursors.length - e.secondaryPositions.length;
+			let removeCnt = this._secondaryCursors.length - secondaryPositions.length;
 			for (let i = 0; i < removeCnt; i++) {
 				this._domNode.removeChild(this._secondaryCursors[0].getDomNode());
 				this._secondaryCursors.splice(0, 1);
 			}
 		}
 
-		for (let i = 0; i < e.secondaryPositions.length; i++) {
-			this._secondaryCursors[i].onCursorPositionChanged(e.secondaryPositions[i], e.isInEditableRange);
+		for (let i = 0; i < secondaryPositions.length; i++) {
+			this._secondaryCursors[i].onCursorPositionChanged(secondaryPositions[i]);
 		}
 
-		return true;
 	}
-	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): boolean {
-		let selectionIsEmpty = e.selection.isEmpty();
+	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+		let positions: Position[] = [];
+		for (let i = 0, len = e.selections.length; i < len; i++) {
+			positions[i] = e.selections[i].getPosition();
+		}
+		this._onCursorPositionChanged(positions[0], positions.slice(1));
+
+		const selectionIsEmpty = e.selections[0].isEmpty();
 		if (this._selectionIsEmpty !== selectionIsEmpty) {
 			this._selectionIsEmpty = selectionIsEmpty;
 			this._updateDomClassName();
 		}
-		return false;
+
+		return true;
 	}
+
 	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
 		// true for inline decorations that can end up relayouting text
-		return true;//e.inlineDecorationsChanged;
+		return true;
 	}
 	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
-		this._primaryCursor.onFlushed();
-		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
-			this._domNode.removeChild(this._secondaryCursors[i].getDomNode());
-		}
-		this._secondaryCursors = [];
 		return true;
 	}
 	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
@@ -190,17 +192,13 @@ export class ViewCursors extends ViewPart {
 
 	// --- end event handlers
 
-	public getPosition(): Position {
-		return this._primaryCursor.getPosition();
-	}
-
 	// ---- blinking logic
 
 	private _getCursorBlinking(): TextEditorCursorBlinkingStyle {
 		if (!this._editorHasFocus) {
 			return TextEditorCursorBlinkingStyle.Hidden;
 		}
-		if (this._readOnly || !this._primaryCursor.getIsInEditableRange()) {
+		if (this._readOnly) {
 			return TextEditorCursorBlinkingStyle.Solid;
 		}
 		return this._cursorBlinking;
@@ -328,14 +326,21 @@ export class ViewCursors extends ViewPart {
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
-		this._renderData = [];
-		this._renderData.push(this._primaryCursor.render(ctx));
-		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
-			this._renderData.push(this._secondaryCursors[i].render(ctx));
+		let renderData: IViewCursorRenderData[] = [], renderDataLen = 0;
+
+		const primaryRenderData = this._primaryCursor.render(ctx);
+		if (primaryRenderData) {
+			renderData[renderDataLen++] = primaryRenderData;
 		}
 
-		// Keep only data of cursors that are visible
-		this._renderData = this._renderData.filter(d => !!d);
+		for (let i = 0, len = this._secondaryCursors.length; i < len; i++) {
+			const secondaryRenderData = this._secondaryCursors[i].render(ctx);
+			if (secondaryRenderData) {
+				renderData[renderDataLen++] = secondaryRenderData;
+			}
+		}
+
+		this._renderData = renderData;
 	}
 
 	public getLastRenderData(): IViewCursorRenderData[] {
@@ -344,12 +349,15 @@ export class ViewCursors extends ViewPart {
 }
 
 registerThemingParticipant((theme, collector) => {
-	let caret = theme.getColor(editorCursor);
+	let caret = theme.getColor(editorCursorForeground);
 	if (caret) {
-		let oppositeCaret = caret.opposite();
-		collector.addRule(`.monaco-editor.${theme.selector} .cursor { background-color: ${caret}; border-color: ${caret}; color: ${oppositeCaret}; }`);
+		let caretBackground = theme.getColor(editorCursorBackground);
+		if (!caretBackground) {
+			caretBackground = caret.opposite();
+		}
+		collector.addRule(`.monaco-editor .cursor { background-color: ${caret}; border-color: ${caret}; color: ${caretBackground}; }`);
 		if (theme.type === 'hc') {
-			collector.addRule(`.monaco-editor.${theme.selector} .cursors-layer.has-selection .cursor { border-left: 1px solid ${oppositeCaret}; border-right: 1px solid ${oppositeCaret}; }`);
+			collector.addRule(`.monaco-editor .cursors-layer.has-selection .cursor { border-left: 1px solid ${caretBackground}; border-right: 1px solid ${caretBackground}; }`);
 		}
 	}
 

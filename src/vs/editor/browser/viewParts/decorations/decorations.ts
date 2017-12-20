@@ -9,7 +9,7 @@ import 'vs/css!./decorations';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { Range } from 'vs/editor/common/core/range';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { RenderingContext } from 'vs/editor/common/view/renderingContext';
+import { RenderingContext, HorizontalRange } from 'vs/editor/common/view/renderingContext';
 import { ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 
@@ -17,12 +17,14 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 
 	private _context: ViewContext;
 	private _lineHeight: number;
+	private _typicalHalfwidthCharacterWidth: number;
 	private _renderResult: string[];
 
 	constructor(context: ViewContext) {
 		super();
 		this._context = context;
 		this._lineHeight = this._context.configuration.editor.lineHeight;
+		this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
 		this._renderResult = null;
 
 		this._context.addEventHandler(this);
@@ -41,13 +43,10 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
+		if (e.fontInfo) {
+			this._typicalHalfwidthCharacterWidth = this._context.configuration.editor.fontInfo.typicalHalfwidthCharacterWidth;
+		}
 		return true;
-	}
-	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {
-		return false;
-	}
-	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): boolean {
-		return false;
 	}
 	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
 		return true;
@@ -64,9 +63,6 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		return true;
 	}
-	public onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean {
-		return false;
-	}
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return e.scrollTopChanged || e.scrollWidthChanged;
 	}
@@ -82,15 +78,15 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 		let decorations: ViewModelDecoration[] = [], decorationsLen = 0;
 		for (let i = 0, len = _decorations.length; i < len; i++) {
 			let d = _decorations[i];
-			if (d.source.options.className) {
+			if (d.options.className) {
 				decorations[decorationsLen++] = d;
 			}
 		}
 
 		// Sort decorations for consistent render output
 		decorations = decorations.sort((a, b) => {
-			let aClassName = a.source.options.className;
-			let bClassName = b.source.options.className;
+			let aClassName = a.options.className;
+			let bClassName = b.options.className;
 
 			if (aClassName < bClassName) {
 				return -1;
@@ -124,13 +120,13 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 		for (let i = 0, lenI = decorations.length; i < lenI; i++) {
 			let d = decorations[i];
 
-			if (!d.source.options.isWholeLine) {
+			if (!d.options.isWholeLine) {
 				continue;
 			}
 
 			let decorationOutput = (
 				'<div class="cdr '
-				+ d.source.options.className
+				+ d.options.className
 				+ '" style="left:0;width:100%;height:'
 				+ lineHeight
 				+ 'px;"></div>'
@@ -150,26 +146,40 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 		let visibleStartLineNumber = ctx.visibleRange.startLineNumber;
 
 		for (let i = 0, lenI = decorations.length; i < lenI; i++) {
-			let d = decorations[i];
+			const d = decorations[i];
 
-			if (d.source.options.isWholeLine) {
+			if (d.options.isWholeLine) {
 				continue;
 			}
 
-			let className = d.source.options.className;
+			const className = d.options.className;
+			const showIfCollapsed = d.options.showIfCollapsed;
 
-			let linesVisibleRanges = ctx.linesVisibleRangesForRange(d.range, /*TODO@Alex*/className === 'findMatch');
+			let range = d.range;
+			if (showIfCollapsed && range.endColumn === 1 && range.endLineNumber !== range.startLineNumber) {
+				range = new Range(range.startLineNumber, range.startColumn, range.endLineNumber - 1, this._context.model.getLineMaxColumn(range.endLineNumber - 1));
+			}
+
+			let linesVisibleRanges = ctx.linesVisibleRangesForRange(range, /*TODO@Alex*/className === 'findMatch');
 			if (!linesVisibleRanges) {
 				continue;
 			}
 
 			for (let j = 0, lenJ = linesVisibleRanges.length; j < lenJ; j++) {
 				let lineVisibleRanges = linesVisibleRanges[j];
-				let lineIndex = lineVisibleRanges.lineNumber - visibleStartLineNumber;
+				const lineIndex = lineVisibleRanges.lineNumber - visibleStartLineNumber;
+
+				if (showIfCollapsed && lineVisibleRanges.ranges.length === 1) {
+					const singleVisibleRange = lineVisibleRanges.ranges[0];
+					if (singleVisibleRange.width === 0) {
+						// collapsed range case => make the decoration visible by faking its width
+						lineVisibleRanges.ranges[0] = new HorizontalRange(singleVisibleRange.left, this._typicalHalfwidthCharacterWidth);
+					}
+				}
 
 				for (let k = 0, lenK = lineVisibleRanges.ranges.length; k < lenK; k++) {
-					let visibleRange = lineVisibleRanges.ranges[k];
-					let decorationOutput = (
+					const visibleRange = lineVisibleRanges.ranges[k];
+					const decorationOutput = (
 						'<div class="cdr '
 						+ className
 						+ '" style="left:'

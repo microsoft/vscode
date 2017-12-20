@@ -17,6 +17,9 @@ import * as dom from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import * as errors from 'vs/base/common/errors';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
+import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { editorWidgetBackground, widgetShadow, inputBorder, inputForeground, inputBackground, inputActiveOptionBorder, editorBackground, buttonBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 export interface IFeedback {
 	feedback: string;
@@ -67,12 +70,13 @@ export class FeedbackDropdown extends Dropdown {
 		options: IFeedbackDropdownOptions,
 		@ITelemetryService protected telemetryService: ITelemetryService,
 		@ICommandService private commandService: ICommandService,
-		@IIntegrityService protected integrityService: IIntegrityService
+		@IIntegrityService protected integrityService: IIntegrityService,
+		@IThemeService private themeService: IThemeService
 	) {
 		super(container, {
 			contextViewProvider: options.contextViewProvider,
 			labelRenderer: (container: HTMLElement): IDisposable => {
-				$(container).addClass('send-feedback');
+				$(container).addClass('send-feedback', 'mask-icon');
 
 				return null;
 			}
@@ -199,6 +203,20 @@ export class FeedbackDropdown extends Dropdown {
 			}
 			this.onSubmit();
 		});
+
+		this.toDispose.push(attachStylerCallback(this.themeService, { widgetShadow, editorWidgetBackground, inputBackground, inputForeground, inputBorder, editorBackground, contrastBorder }, colors => {
+			$form.style('background-color', colors.editorWidgetBackground);
+			$form.style('box-shadow', colors.widgetShadow ? `0 2px 8px ${colors.widgetShadow}` : null);
+
+			if (this.feedbackDescriptionInput) {
+				this.feedbackDescriptionInput.style.backgroundColor = colors.inputBackground;
+				this.feedbackDescriptionInput.style.color = colors.inputForeground;
+				this.feedbackDescriptionInput.style.border = `1px solid ${colors.inputBorder || 'transparent'}`;
+			}
+
+			$contactUs.style('background-color', colors.editorBackground);
+			$contactUs.style('border', `1px solid ${colors.contrastBorder || 'transparent'}`);
+		}));
 
 		return {
 			dispose: () => {
@@ -329,3 +347,18 @@ export class FeedbackDropdown extends Dropdown {
 		this.aliasEnabled = false;
 	}
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+
+	// Sentiment Buttons
+	const inputActiveOptionBorderColor = theme.getColor(inputActiveOptionBorder);
+	if (inputActiveOptionBorderColor) {
+		collector.addRule(`.monaco-shell .feedback-form .sentiment.checked { border: 1px solid ${inputActiveOptionBorderColor}; }`);
+	}
+
+	// Links
+	const linkColor = theme.getColor(buttonBackground) || theme.getColor(contrastBorder);
+	if (linkColor) {
+		collector.addRule(`.monaco-shell .feedback-form .content .channels a { color: ${linkColor}; }`);
+	}
+});

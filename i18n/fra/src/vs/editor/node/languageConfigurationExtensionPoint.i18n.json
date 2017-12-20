@@ -15,5 +15,9 @@
 	"schema.brackets": "Définit les symboles de type crochet qui augmentent ou diminuent le retrait.",
 	"schema.autoClosingPairs": "Définit les paires de crochets. Quand vous entrez un crochet ouvrant, le crochet fermant est inséré automatiquement.",
 	"schema.autoClosingPairs.notIn": "Définit une liste d'étendues où les paires automatiques sont désactivées.",
-	"schema.surroundingPairs": "Définit les paires de crochets qui peuvent être utilisées pour entourer la chaîne sélectionnée."
+	"schema.surroundingPairs": "Définit les paires de crochets qui peuvent être utilisées pour entourer la chaîne sélectionnée.",
+	"schema.wordPattern": "La définition du mot dans le langage",
+	"schema.wordPattern.pattern": "L'expression régulière utilisée pour la recherche",
+	"schema.wordPattern.flags": "Les options d'expression régulière utilisées pour la recherche",
+	"schema.wordPattern.flags.errorMessage": "Doit valider l'expression régulière `/^([gimuy]+)$/`."
 }

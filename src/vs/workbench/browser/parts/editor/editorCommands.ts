@@ -60,11 +60,7 @@ function registerActiveEditorMoveCommand(): void {
 			args: [
 				{
 					name: nls.localize('editorCommand.activeEditorMove.arg.name', "Active editor move argument"),
-					description: nls.localize('editorCommand.activeEditorMove.arg.description', `Argument Properties:
-						* 'to': String value providing where to move.
-						* 'by': String value providing the unit for move. By tab or by group.
-						* 'value': Number value providing how many positions or an absolute position to move.
-					`),
+					description: nls.localize('editorCommand.activeEditorMove.arg.description', "Argument Properties:\n\t* 'to': String value providing where to move.\n\t* 'by': String value providing the unit for move. By tab or by group.\n\t* 'value': Number value providing how many positions or an absolute position to move."),
 					constraint: isActiveEditorMoveArg
 				}
 			]
@@ -199,7 +195,7 @@ function handleCommandDeprecations(): void {
 	};
 
 	Object.keys(mapDeprecatedCommands).forEach(deprecatedCommandId => {
-		const newCommandId = mapDeprecatedCommands[deprecatedCommandId];
+		const newCommandId: string = mapDeprecatedCommands[deprecatedCommandId];
 
 		KeybindingsRegistry.registerCommandAndKeybindingRule({
 			id: deprecatedCommandId,
@@ -250,7 +246,8 @@ function registerOpenEditorAtIndexCommands(): void {
 						return editorService.openEditor(editor);
 					}
 				}
-				return undefined;
+
+				return void 0;
 			}
 		});
 	}
@@ -268,6 +265,7 @@ function registerOpenEditorAtIndexCommands(): void {
 			case 8: return KeyCode.KEY_8;
 			case 9: return KeyCode.KEY_9;
 		}
-		return undefined;
+
+		return void 0;
 	}
 }

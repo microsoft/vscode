@@ -14,10 +14,6 @@
 	"watermark.toggleTerminal": "Attiva/Disattiva terminale",
 	"watermark.findInFiles": "Cerca nei file",
 	"watermark.startDebugging": "Avvia debug",
-	"watermark.selectTheme": "Cambia tema",
-	"watermark.selectKeymap": "Modifica mappatura tastiera",
-	"watermark.keybindingsReference": "Riferimento per tastiera",
-	"watermark.openGlobalKeybindings": "Tasti di scelta rapida",
 	"watermark.unboundCommand": "non associato",
 	"workbenchConfigurationTitle": "Area di lavoro",
 	"tips.enabled": "Quando questa opzione è abilitata, se non ci sono editor aperti, verranno visualizzati i suggerimenti filigrana."

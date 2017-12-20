@@ -6,6 +6,6 @@
 {
 	"toggle.wordwrap": "查看: 切换自动换行",
 	"wordWrap.notInDiffEditor": "不能在差异编辑器中切换自动换行。",
-	"unwrapMinified": "为此文件禁用换行",
+	"unwrapMinified": "为此文件禁用折行",
 	"wrapMinified": "为此文件启用换行"
 }

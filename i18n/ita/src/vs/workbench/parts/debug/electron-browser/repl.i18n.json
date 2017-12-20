@@ -7,5 +7,6 @@
 	"replAriaLabel": "Pannello del ciclo Read Eval Print",
 	"actions.repl.historyPrevious": "Cronologia indietro",
 	"actions.repl.historyNext": "Cronologia avanti",
-	"actions.repl.acceptInput": "Accetta input da REPL"
+	"actions.repl.acceptInput": "Accetta input da REPL",
+	"actions.repl.copyAll": "Debug: copia tutto in console"
 }

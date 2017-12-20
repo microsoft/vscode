@@ -280,14 +280,6 @@ export class ThemeTrieElementRule {
 		return new ThemeTrieElementRule(this._fontStyle, this._foreground, this._background);
 	}
 
-	public static cloneArr(arr: ThemeTrieElementRule[]): ThemeTrieElementRule[] {
-		let r: ThemeTrieElementRule[] = [];
-		for (let i = 0, len = arr.length; i < len; i++) {
-			r[i] = arr[i].clone();
-		}
-		return r;
-	}
-
 	public acceptOverwrite(fontStyle: FontStyle, foreground: ColorId, background: ColorId): void {
 		if (fontStyle !== FontStyle.NotSet) {
 			this._fontStyle = fontStyle;
@@ -395,7 +387,7 @@ export function generateTokensCSSForColorMap(colorMap: Color[]): string {
 	let rules: string[] = [];
 	for (let i = 1, len = colorMap.length; i < len; i++) {
 		let color = colorMap[i];
-		rules[i] = `.mtk${i} { color: ${color.toString()}; }`;
+		rules[i] = `.mtk${i} { color: ${color}; }`;
 	}
 	rules.push('.mtki { font-style: italic; }');
 	rules.push('.mtkb { font-weight: bold; }');

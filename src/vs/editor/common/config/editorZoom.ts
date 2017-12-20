@@ -12,7 +12,7 @@ export interface IEditorZoom {
 	setZoomLevel(zoomLevel: number): void;
 }
 
-export const EditorZoom: IEditorZoom = new class {
+export const EditorZoom: IEditorZoom = new class implements IEditorZoom {
 
 	private _zoomLevel: number = 0;
 

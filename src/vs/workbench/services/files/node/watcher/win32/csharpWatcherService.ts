@@ -16,7 +16,7 @@ import { IRawFileChange } from 'vs/workbench/services/files/node/watcher/common'
 
 export class OutOfProcessWin32FolderWatcher {
 
-	private static MAX_RESTARTS = 5;
+	private static readonly MAX_RESTARTS = 5;
 
 	private static changeTypeMap: FileChangeType[] = [FileChangeType.UPDATED, FileChangeType.ADDED, FileChangeType.DELETED];
 
@@ -89,14 +89,14 @@ export class OutOfProcessWin32FolderWatcher {
 		this.handle.stderr.on('data', (data: NodeBuffer) => this.onError(data));
 
 		// Exit
-		this.handle.on('exit', (code: any, signal: any) => this.onExit(code, signal));
+		this.handle.on('exit', (code: number, signal: string) => this.onExit(code, signal));
 	}
 
 	private onError(error: Error | NodeBuffer): void {
 		this.errorCallback('[FileWatcher] process error: ' + error.toString());
 	}
 
-	private onExit(code: any, signal: any): void {
+	private onExit(code: number, signal: string): void {
 		if (this.handle) { // exit while not yet being disposed is unexpected!
 			this.errorCallback(`[FileWatcher] terminated unexpectedly (code: ${code}, signal: ${signal})`);
 

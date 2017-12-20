@@ -1,4 +1,10 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/tgjones/shaders-tmLanguage/blob/master/grammars/hlsl.json",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
+	"version": "https://github.com/tgjones/shaders-tmLanguage/commit/cd1ef40f549f9ce2b9e6b73498688de114a85382",
 	"scopeName": "source.hlsl",
 	"name": "HLSL",
 	"fileTypes": [
@@ -213,6 +219,5 @@
 				}
 			]
 		}
-	],
-	"version": "https://github.com/tgjones/shaders-tmLanguage/commit/cd1ef40f549f9ce2b9e6b73498688de114a85382"
+	]
 }

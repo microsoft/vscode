@@ -27,7 +27,7 @@ export interface IModelService {
 
 	getModels(): IModel[];
 
-	getCreationOptions(language: string): ITextModelCreationOptions;
+	getCreationOptions(language: string, resource: URI): ITextModelCreationOptions;
 
 	getModel(resource: URI): IModel;
 

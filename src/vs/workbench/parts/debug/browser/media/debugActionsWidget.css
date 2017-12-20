@@ -6,7 +6,6 @@
 /* Debug actions widget */
 
 .monaco-workbench .debug-actions-widget {
-	box-shadow: 0 5px 8px #A8A8A8;
 	position: absolute;
 	z-index: 200;
 	height: 32px;
@@ -40,14 +39,6 @@
 	background-size: 16px;
 	background-position: center center;
 	background-repeat: no-repeat;
-}
-
-.vs-dark .monaco-workbench .debug-actions-widget {
-	box-shadow: 0 5px 8px #000;
-}
-
-.hc-black .monaco-workbench .debug-actions-widget {
-	box-shadow: unset;
 }
 
 /* Debug actionbar actions */

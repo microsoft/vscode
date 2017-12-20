@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare module 'chokidar' {
+declare module 'vscode-chokidar' {
 
 	/**
 	 *  takes paths to be watched recursively and options
@@ -57,6 +57,11 @@ declare module 'chokidar' {
 		 * (default: true). When false, only the symlinks themselves will be watched for changes instead of following the link references and bubbling events through the link's path.
 		 */
 		followSymlinks?: boolean;
+
+		/**
+		 * (default: false). If set to true then the strings passed to .watch() and .add() are treated as literal path names, even if they look like globs.
+		 */
+		disableGlobbing?: boolean;
 	}
 
 	export interface FSWatcher {

@@ -12,6 +12,7 @@ import { Configuration } from 'vs/editor/browser/config/configuration';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
+import * as dom from 'vs/base/browser/dom';
 
 export interface IViewCursorRenderData {
 	domNode: HTMLElement;
@@ -22,17 +23,13 @@ export interface IViewCursorRenderData {
 }
 
 class ViewCursorRenderData {
-	public readonly top: number;
-	public readonly left: number;
-	public readonly width: number;
-	public readonly textContent: string;
-
-	constructor(top: number, left: number, width: number, textContent: string) {
-		this.top = top;
-		this.left = left;
-		this.width = width;
-		this.textContent = textContent;
-	}
+	constructor(
+		public readonly top: number,
+		public readonly left: number,
+		public readonly width: number,
+		public readonly height: number,
+		public readonly textContent: string
+	) { }
 }
 
 export class ViewCursor {
@@ -47,7 +44,6 @@ export class ViewCursor {
 	private _isVisible: boolean;
 
 	private _position: Position;
-	private _isInEditableRange: boolean;
 
 	private _lastRenderedContent: string;
 	private _renderData: ViewCursorRenderData;
@@ -72,13 +68,10 @@ export class ViewCursor {
 		this._domNode.setHeight(this._lineHeight);
 		this._domNode.setTop(0);
 		this._domNode.setLeft(0);
-		this._domNode.setAttribute('role', 'presentation');
-		this._domNode.setAttribute('aria-hidden', 'true');
 		Configuration.applyFontInfo(this._domNode, this._context.configuration.editor.fontInfo);
 		this._domNode.setDisplay('none');
 
 		this.updatePosition(new Position(1, 1));
-		this._isInEditableRange = true;
 
 		this._lastRenderedContent = '';
 		this._renderData = null;
@@ -86,10 +79,6 @@ export class ViewCursor {
 
 	public getDomNode(): FastDomNode<HTMLElement> {
 		return this._domNode;
-	}
-
-	public getIsInEditableRange(): boolean {
-		return this._isInEditableRange;
 	}
 
 	public getPosition(): Position {
@@ -114,7 +103,7 @@ export class ViewCursor {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
-		if (e.viewInfo.cursorStyle) {
+		if (e.viewInfo) {
 			this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
 		}
 		if (e.fontInfo) {
@@ -124,15 +113,8 @@ export class ViewCursor {
 		return true;
 	}
 
-	public onCursorPositionChanged(position: Position, isInEditableRange: boolean): boolean {
+	public onCursorPositionChanged(position: Position): boolean {
 		this.updatePosition(position);
-		this._isInEditableRange = isInEditableRange;
-		return true;
-	}
-
-	public onFlushed(): boolean {
-		this.updatePosition(new Position(1, 1));
-		this._isInEditableRange = true;
 		return true;
 	}
 
@@ -145,12 +127,12 @@ export class ViewCursor {
 			}
 			let width: number;
 			if (this._cursorStyle === TextEditorCursorStyle.Line) {
-				width = 2;
+				width = dom.computeScreenAwareSize(2);
 			} else {
-				width = 1;
+				width = dom.computeScreenAwareSize(1);
 			}
 			const top = ctx.getVerticalOffsetForLineNumber(this._position.lineNumber) - ctx.bigNumbersDelta;
-			return new ViewCursorRenderData(top, visibleRange.left, width, '');
+			return new ViewCursorRenderData(top, visibleRange.left, width, this._lineHeight, '');
 		}
 
 		const visibleRangeForCharacter = ctx.linesVisibleRangesForRange(new Range(this._position.lineNumber, this._position.column, this._position.lineNumber, this._position.column + 1), false);
@@ -169,8 +151,16 @@ export class ViewCursor {
 			textContent = lineContent.charAt(this._position.column - 1);
 		}
 
-		const top = ctx.getVerticalOffsetForLineNumber(this._position.lineNumber) - ctx.bigNumbersDelta;
-		return new ViewCursorRenderData(top, range.left, width, textContent);
+		let top = ctx.getVerticalOffsetForLineNumber(this._position.lineNumber) - ctx.bigNumbersDelta;
+		let height = this._lineHeight;
+
+		// Underline might interfere with clicking
+		if (this._cursorStyle === TextEditorCursorStyle.Underline || this._cursorStyle === TextEditorCursorStyle.UnderlineThin) {
+			top += this._lineHeight - 2;
+			height = 2;
+		}
+
+		return new ViewCursorRenderData(top, range.left, width, height, textContent);
 	}
 
 	public prepareRender(ctx: RenderingContext): void {
@@ -192,14 +182,14 @@ export class ViewCursor {
 		this._domNode.setTop(this._renderData.top);
 		this._domNode.setLeft(this._renderData.left);
 		this._domNode.setWidth(this._renderData.width);
-		this._domNode.setLineHeight(this._lineHeight);
-		this._domNode.setHeight(this._lineHeight);
+		this._domNode.setLineHeight(this._renderData.height);
+		this._domNode.setHeight(this._renderData.height);
 
 		return {
 			domNode: this._domNode.domNode,
 			position: this._position,
 			contentLeft: this._renderData.left,
-			height: this._lineHeight,
+			height: this._renderData.height,
 			width: 2
 		};
 	}

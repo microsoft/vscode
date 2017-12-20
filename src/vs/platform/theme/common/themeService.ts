@@ -7,20 +7,35 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Color } from 'vs/base/common/color';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import platform = require('vs/platform/platform');
+import platform = require('vs/platform/registry/common/platform');
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import Event, { Emitter } from 'vs/base/common/event';
 
-export let IThemeService = createDecorator<IThemeService>('themeService');
+export const IThemeService = createDecorator<IThemeService>('themeService');
+
+export interface ThemeColor {
+	id: string;
+}
+
+export function themeColorFromId(id: ColorIdentifier) {
+	return { id };
+}
 
 // base themes
-export const DARK = 'dark';
-export const LIGHT = 'light';
-export const HIGH_CONTRAST = 'hc';
+export const DARK: ThemeType = 'dark';
+export const LIGHT: ThemeType = 'light';
+export const HIGH_CONTRAST: ThemeType = 'hc';
 export type ThemeType = 'light' | 'dark' | 'hc';
 
+export function getThemeTypeSelector(type: ThemeType): string {
+	switch (type) {
+		case DARK: return 'vs-dark';
+		case HIGH_CONTRAST: return 'hc-black';
+		default: return 'vs';
+	}
+}
+
 export interface ITheme {
-	readonly selector: string;
 	readonly type: ThemeType;
 
 	/**
@@ -32,9 +47,10 @@ export interface ITheme {
 	getColor(color: ColorIdentifier, useDefault?: boolean): Color;
 
 	/**
-	 * Returns wheter the current color matches the default color
+	 * Returns wheter the theme defines a value for the color. If not, that means the
+	 * default color will be used.
 	 */
-	isDefault(color: ColorIdentifier): boolean;
+	defines(color: ColorIdentifier): boolean;
 }
 
 export interface ICssStyleCollector {
@@ -108,22 +124,4 @@ platform.Registry.add(Extensions.ThemingContribution, themingRegistry);
 
 export function registerThemingParticipant(participant: IThemingParticipant): IDisposable {
 	return themingRegistry.onThemeChange(participant);
-}
-
-/**
- * Tag function for strings containing css rules
- */
-export function cssRule(literals, ...placeholders) {
-	let result = '';
-	for (let i = 0; i < placeholders.length; i++) {
-		result += literals[i];
-		let placeholder = placeholders[i];
-		if (placeholder === null) {
-			result += 'transparent';
-		} else {
-			result += placeholder.toString();
-		}
-	}
-	result += literals[literals.length - 1];
-	return result;
 }

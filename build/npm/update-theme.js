@@ -10,8 +10,29 @@ var fs = require('fs');
 var plist = require('fast-plist');
 
 var mappings = {
-	"ansiBlack": ["terminalAnsiBlack"], "ansiRed": ["terminalAnsiRed"], "ansiGreen": ["terminalAnsiGreen"], "ansiYellow": ["terminalAnsiYellow"], "ansiBlue": ["terminalAnsiBlue"], "ansiMagenta": ["terminalAnsiMagenta"], "ansiCyan": ["terminalAnsiCyan"], "ansiWhite": ["terminalAnsiWhite"], "ansiBrightBlack": ["terminalAnsiBrightBlack"], "ansiBrightRed": ["terminalAnsiBrightRed"], "ansiBrightGreen": ["terminalAnsiBrightGreen"], "ansiBrightYellow": ["terminalAnsiBrightYellow"], "ansiBrightBlue": ["terminalAnsiBrightBlue"], "ansiBrightMagenta": ["terminalAnsiBrightMagenta"], "ansiBrightCyan": ["terminalAnsiBrightCyan"], "ansiBrightWhite": ["terminalAnsiBrightWhite"], "background": ["editorBackground"],
-	"hoverHighlight": ["editorHoverHighlight", "editorHoverHighlight"], "linkForeground": ["editorLinkForeground"], "selection": ["editorSelection"], "inactiveSelection": ["editorInactiveSelection"], "selectionHighlightColor": ["editorSelectionHighlight"], "wordHighlight": ["editorWordHighlight"], "wordHighlightStrong": ["editorWordHighlightStrong"], "findMatchHighlight": ["editorFindMatchHighlight", "referencesFindMatchHighlight"], "currentFindMatchHighlight": ["editorFindMatch"], "findRangeHighlight": ["editorFindRangeHighlight"], "referenceHighlight": ["referencesReferenceHighlight"], "lineHighlight": ["editorLineHighlight"], "rangeHighlight": ["editorRangeHighlight"], "caret": ["editorCursor"], "invisibles": ["editorWhitespaces"], "guide": ["editorIndentGuides"]
+	"background": ["editor.background"],
+	"foreground": ["editor.foreground"],
+	"hoverHighlight": ["editor.hoverHighlightBackground"],
+	"linkForeground": ["editorLink.foreground"],
+	"selection": ["editor.selectionBackground"],
+	"inactiveSelection": ["editor.inactiveSelectionBackground"],
+	"selectionHighlightColor": ["editor.selectionHighlightBackground"],
+	"wordHighlight": ["editor.wordHighlightBackground"],
+	"wordHighlightStrong": ["editor.wordHighlightStrongBackground"],
+	"findMatchHighlight": ["editor.findMatchHighlightBackground", "peekViewResult.matchHighlightBackground"],
+	"currentFindMatchHighlight": ["editor.findMatchBackground"],
+	"findRangeHighlight": ["editor.findRangeHighlightBackground"],
+	"referenceHighlight": ["peekViewEditor.matchHighlightBackground"],
+	"lineHighlight": ["editor.lineHighlightBackground"],
+	"rangeHighlight": ["editor.rangeHighlightBackground"],
+	"caret": ["editorCursor.foreground"],
+	"invisibles": ["editorWhitespace.foreground"],
+	"guide": ["editorIndentGuide.background"],
+	"ansiBlack": ["terminal.ansiBlack"], "ansiRed": ["terminal.ansiRed"], "ansiGreen": ["terminal.ansiGreen"], "ansiYellow": ["terminal.ansiYellow"],
+	"ansiBlue": ["terminal.ansiBlue"], "ansiMagenta": ["terminal.ansiMagenta"], "ansiCyan": ["terminal.ansiCyan"], "ansiWhite": ["terminal.ansiWhite"],
+	"ansiBrightBlack": ["terminal.ansiBrightBlack"], "ansiBrightRed": ["terminal.ansiBrightRed"], "ansiBrightGreen": ["terminal.ansiBrightGreen"],
+	"ansiBrightYellow": ["terminal.ansiBrightYellow"], "ansiBrightBlue": ["terminal.ansiBrightBlue"], "ansiBrightMagenta": ["terminal.ansiBrightMagenta"],
+	"ansiBrightCyan": ["terminal.ansiBrightCyan"], "ansiBrightWhite": ["terminal.ansiBrightWhite"]
 };
 
 exports.update = function (srcName, destName) {

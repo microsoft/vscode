@@ -7,11 +7,11 @@
 
 import * as assert from 'assert';
 import { workspace, window, Position, Range, commands, TextEditor, TextDocument, TextEditorCursorStyle, TextEditorLineNumbersStyle, SnippetString, Selection } from 'vscode';
-import { createRandomFile, deleteFile, cleanUp } from './utils';
+import { createRandomFile, deleteFile, closeAllEditors } from './utils';
 
 suite('editor tests', () => {
 
-	teardown(cleanUp);
+	teardown(closeAllEditors);
 
 	function withRandomFileEditor(initialContents: string, run: (editor: TextEditor, doc: TextDocument) => Thenable<void>): Thenable<boolean> {
 		return createRandomFile(initialContents).then(file => {
@@ -176,6 +176,25 @@ suite('editor tests', () => {
 			assert.equal(editor.options.lineNumbers, TextEditorLineNumbersStyle.On);
 
 			return Promise.resolve();
+		});
+	});
+
+	test('issue #20757: Overlapping ranges are not allowed!', () => {
+		return withRandomFileEditor('Hello world!\n\tHello world!', (editor, doc) => {
+			return editor.edit((builder) => {
+				// create two edits that overlap (i.e. are illegal)
+				builder.replace(new Range(0, 0, 0, 2), 'He');
+				builder.replace(new Range(0, 1, 0, 3), 'el');
+			}).then(
+
+				(applied) => {
+					assert.ok(false, 'edit with overlapping ranges should fail');
+				},
+
+				(err) => {
+					assert.ok(true, 'edit with overlapping ranges should fail');
+				}
+				);
 		});
 	});
 });

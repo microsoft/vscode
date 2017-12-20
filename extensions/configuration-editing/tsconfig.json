@@ -6,9 +6,9 @@
 		"lib": [
 			"es2015"
 		],
-		"strictNullChecks": true
+		"strict": true
 	},
-	"exclude": [
-		"node_modules"
+	"include": [
+		"src/**/*"
 	]
 }

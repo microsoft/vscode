@@ -16,7 +16,7 @@ import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLa
 import { IAction } from 'vs/base/common/actions';
 import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { EditorInput } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { KeybindingsEditorModel, IKeybindingItemEntry, IListEntry, KEYBINDING_ENTRY_TEMPLATE_ID, KEYBINDING_HEADER_TEMPLATE_ID } from 'vs/workbench/parts/preferences/common/keybindingsEditorModel';
@@ -25,20 +25,22 @@ import { IKeybindingService, IUserFriendlyKeybinding } from 'vs/platform/keybind
 import { SearchWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { DefineKeybindingWidget } from 'vs/workbench/parts/preferences/browser/keybindingWidgets';
 import {
-	IPreferencesService, IKeybindingsEditor, CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_COPY,
+	IPreferencesService, IKeybindingsEditor, CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_COPY,
 	KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_SHOW_CONFLICTS
 } from 'vs/workbench/parts/preferences/common/preferences';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
-import { IListService } from 'vs/platform/list/browser/listService';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IDelegate, IRenderer, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IChoiceService, IMessageService, Severity } from 'vs/platform/message/common/message';
+import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { attachListStyler } from "vs/platform/theme/common/styler";
+import { listHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { WorkbenchList, IListService } from 'vs/platform/list/browser/listService';
 
 let $ = DOM.$;
 
@@ -47,7 +49,7 @@ export class KeybindingsEditorInput extends EditorInput {
 	public static ID: string = 'workbench.input.keybindings';
 	public readonly keybindingsModel: KeybindingsEditorModel;
 
-	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
+	constructor( @IInstantiationService instantiationService: IInstantiationService) {
 		super();
 		this.keybindingsModel = instantiationService.createInstance(KeybindingsEditorModel, OS);
 	}
@@ -92,6 +94,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	private delayedFilterLogging: Delayer<void>;
 	private keybindingsEditorContextKey: IContextKey<boolean>;
 	private keybindingFocusContextKey: IContextKey<boolean>;
+	private searchFocusContextKey: IContextKey<boolean>;
 	private sortByPrecedence: Checkbox;
 
 	constructor(
@@ -103,16 +106,17 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		@IKeybindingEditingService private keybindingEditingService: IKeybindingEditingService,
 		@IListService private listService: IListService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IChoiceService private choiceService: IChoiceService,
 		@IMessageService private messageService: IMessageService,
 		@IClipboardService private clipboardService: IClipboardService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
 		super(KeybindingsEditor.ID, telemetryService, themeService);
 		this.delayedFiltering = new Delayer<void>(300);
 		this._register(keybindingsService.onDidUpdateKeybindings(() => this.render()));
 
 		this.keybindingsEditorContextKey = CONTEXT_KEYBINDINGS_EDITOR.bindTo(this.contextKeyService);
+		this.searchFocusContextKey = CONTEXT_KEYBINDINGS_SEARCH_FOCUS.bindTo(this.contextKeyService);
 		this.keybindingFocusContextKey = CONTEXT_KEYBINDING_FOCUS.bindTo(this.contextKeyService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
 	}
@@ -127,23 +131,22 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.createBody(keybindingsEditorElement);
 
 		const focusTracker = this._register(DOM.trackFocus(parentElement));
-		this._register(focusTracker.addFocusListener(() => this.keybindingsEditorContextKey.set(true)));
-		this._register(focusTracker.addBlurListener(() => this.keybindingsEditorContextKey.reset()));
+		this._register(focusTracker.onDidFocus(() => this.keybindingsEditorContextKey.set(true)));
+		this._register(focusTracker.onDidBlur(() => this.keybindingsEditorContextKey.reset()));
 	}
 
-	setInput(input: KeybindingsEditorInput): TPromise<void> {
+	setInput(input: KeybindingsEditorInput, options: EditorOptions): TPromise<void> {
 		const oldInput = this.input;
 		return super.setInput(input)
 			.then(() => {
 				if (!input.matches(oldInput)) {
-					this.render();
+					this.render(options && options.preserveFocus);
 				}
 			});
 	}
 
 	clearInput(): void {
 		super.clearInput();
-		this.searchWidget.clear();
 		this.keybindingsEditorContextKey.reset();
 		this.keybindingFocusContextKey.reset();
 	}
@@ -232,8 +235,8 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.selectEntry(keybinding);
 		this.reportKeybindingAction(KEYBINDINGS_EDITOR_COMMAND_COPY, keybinding.keybindingItem.command, keybinding.keybindingItem.keybinding);
 		const userFriendlyKeybinding: IUserFriendlyKeybinding = {
-			command: keybinding.keybindingItem.command,
-			key: keybinding.keybindingItem.keybinding ? keybinding.keybindingItem.keybinding.getUserSettingsLabel() : ''
+			key: keybinding.keybindingItem.keybinding ? keybinding.keybindingItem.keybinding.getUserSettingsLabel() : '',
+			command: keybinding.keybindingItem.command
 		};
 		if (keybinding.keybindingItem.when) {
 			userFriendlyKeybinding.when = keybinding.keybindingItem.when;
@@ -244,6 +247,10 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 	search(filter: string): void {
 		this.searchWidget.focus();
+	}
+
+	clearSearchResults(): void {
+		this.searchWidget.clear();
 	}
 
 	showConflicts(keybindingEntry: IKeybindingItemEntry): TPromise<any> {
@@ -277,10 +284,9 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, searchContainer, {
 			ariaLabel: localize('SearchKeybindings.AriaLabel', "Search keybindings"),
 			placeholder: localize('SearchKeybindings.Placeholder', "Search keybindings"),
-			navigateByArrows: true
+			focusKey: this.searchFocusContextKey
 		}));
 		this._register(this.searchWidget.onDidChange(searchValue => this.delayedFiltering.trigger(() => this.filterKeybindings())));
-		this._register(this.searchWidget.onNavigate(back => this._onNavigate(back)));
 
 		this.sortByPrecedence = this._register(new Checkbox({
 			actionClassName: 'sort-by-precedence',
@@ -320,28 +326,42 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	private createList(parent: HTMLElement): void {
 		this.keybindingsListContainer = DOM.append(parent, $('.keybindings-list-container'));
 
-		this.keybindingsList = this._register(new List<IListEntry>(this.keybindingsListContainer, new Delegate(), [new KeybindingHeaderRenderer(), new KeybindingItemRenderer(this, this.keybindingsService)],
-			{ identityProvider: e => e.id, keyboardSupport: false, mouseSupport: true, ariaLabel: localize('keybindingsLabel', "Keybindings") }));
+		this.keybindingsList = this._register(new WorkbenchList<IListEntry>(this.keybindingsListContainer, new Delegate(), [new KeybindingHeaderRenderer(), new KeybindingItemRenderer(this, this.keybindingsService)],
+			{ identityProvider: e => e.id, keyboardSupport: false, mouseSupport: true, ariaLabel: localize('keybindingsLabel', "Keybindings") }, this.contextKeyService, this.listService, this.themeService));
 		this._register(this.keybindingsList.onContextMenu(e => this.onContextMenu(e)));
 		this._register(this.keybindingsList.onFocusChange(e => this.onFocusChange(e)));
-		this._register(this.keybindingsList.onDOMFocus(() => {
+		this._register(this.keybindingsList.onDidFocus(() => {
 			DOM.addClass(this.keybindingsList.getHTMLElement(), 'focused');
 		}));
-		this._register(this.keybindingsList.onDOMBlur(() => {
+		this._register(this.keybindingsList.onDidBlur(() => {
 			DOM.removeClass(this.keybindingsList.getHTMLElement(), 'focused');
 			this.keybindingFocusContextKey.reset();
 		}));
-
-		this._register(attachListStyler(this.keybindingsList, this.themeService));
-		this._register(this.listService.register(this.keybindingsList));
+		this._register(this.keybindingsList.onMouseDblClick(() => this.defineKeybinding(this.activeKeybindingEntry)));
+		this._register(this.keybindingsList.onKeyDown(e => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.keyCode === KeyCode.Enter) {
+				const keybindingEntry = this.activeKeybindingEntry;
+				if (keybindingEntry) {
+					this.defineKeybinding(this.activeKeybindingEntry);
+				}
+				e.stopPropagation();
+			}
+		}));
 	}
 
-	private render(): TPromise<any> {
+	private render(preserveFocus?: boolean): TPromise<any> {
 		if (this.input) {
 			return this.input.resolve()
 				.then((keybindingsModel: KeybindingsEditorModel) => this.keybindingsEditorModel = keybindingsModel)
-				.then(() => this.keybindingsEditorModel.resolve())
-				.then(() => this.renderKeybindingsEntries(false));
+				.then(() => {
+					const editorActionsLabels: { [id: string]: string; } = EditorExtensionsRegistry.getEditorActions().reduce((editorActions, editorAction) => {
+						editorActions[editorAction.id] = editorAction.label;
+						return editorActions;
+					}, {});
+					return this.keybindingsEditorModel.resolve(editorActionsLabels);
+				})
+				.then(() => this.renderKeybindingsEntries(false, preserveFocus));
 		}
 		return TPromise.as(null);
 	}
@@ -351,7 +371,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(this.searchWidget.getValue()));
 	}
 
-	private renderKeybindingsEntries(reset: boolean): void {
+	private renderKeybindingsEntries(reset: boolean, preserveFocus?: boolean): void {
 		if (this.keybindingsEditorModel) {
 			const filter = this.searchWidget.getValue();
 			const keybindingsEntries: IKeybindingItemEntry[] = this.keybindingsEditorModel.fetch(filter, this.sortByPrecedence.checked);
@@ -376,7 +396,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 					this.unAssignedKeybindingItemToRevealAndFocus = null;
 				} else if (currentSelectedIndex !== -1 && currentSelectedIndex < this.listEntries.length) {
 					this.selectEntry(currentSelectedIndex);
-				} else {
+				} else if (this.editorService.getActiveEditor() === this && !preserveFocus) {
 					this.focus();
 				}
 			}
@@ -423,12 +443,10 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		}
 	}
 
-	private _onNavigate(back: boolean): void {
-		if (!back) {
-			this.keybindingsList.getHTMLElement().focus();
-			const currentFocusIndices = this.keybindingsList.getFocus();
-			this.keybindingsList.setFocus([currentFocusIndices.length ? currentFocusIndices[0] : 0]);
-		}
+	focusKeybindings(): void {
+		this.keybindingsList.getHTMLElement().focus();
+		const currentFocusIndices = this.keybindingsList.getFocus();
+		this.keybindingsList.setFocus([currentFocusIndices.length ? currentFocusIndices[0] : 0]);
 	}
 
 	private onContextMenu(e: IListContextMenuEvent<IListEntry>): void {
@@ -443,8 +461,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 					this.createRemoveAction(<IKeybindingItemEntry>e.element),
 					this.createResetAction(<IKeybindingItemEntry>e.element),
 					new Separator(),
-					this.createShowConflictsAction(<IKeybindingItemEntry>e.element)]),
-				getKeyBinding: (action) => this.keybindingsService.lookupKeybinding(action.id)
+					this.createShowConflictsAction(<IKeybindingItemEntry>e.element)])
 			});
 		}
 	}
@@ -516,6 +533,12 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 				emptyFilters: this.getLatestEmptyFiltersForTelemetry()
 			};
 			this.latestEmptyFilters = [];
+			/* __GDPR__
+				"keybindings.filter" : {
+					"filter": { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+					"emptyFilters" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
 			this.telemetryService.publicLog('keybindings.filter', data);
 		}
 	}
@@ -530,6 +553,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	}
 
 	private reportKeybindingAction(action: string, command: string, keybinding: ResolvedKeybinding | string): void {
+		// __GDPR__TODO__ Need to move off dynamic event names and properties as they cannot be registered statically
 		this.telemetryService.publicLog(action, { command, keybinding: keybinding ? (typeof keybinding === 'string' ? keybinding : keybinding.getUserSettingsLabel()) : '' });
 	}
 
@@ -711,16 +735,21 @@ class CommandColumn extends Column {
 		const commandDefaultLabelMatched = !!keybindingItemEntry.commandDefaultLabelMatches;
 		DOM.toggleClass(this.commandColumn, 'vertical-align-column', commandIdMatched || commandDefaultLabelMatched);
 		this.commandColumn.setAttribute('aria-label', this.getAriaLabel(keybindingItemEntry));
+		let commandLabel: HighlightedLabel;
 		if (keybindingItem.commandLabel) {
-			const commandLabel = new HighlightedLabel(this.commandColumn);
+			commandLabel = new HighlightedLabel(this.commandColumn);
 			commandLabel.set(keybindingItem.commandLabel, keybindingItemEntry.commandLabelMatches);
-			commandLabel.element.title = keybindingItem.command;
 		}
 		if (keybindingItemEntry.commandDefaultLabelMatches) {
-			new HighlightedLabel(DOM.append(this.commandColumn, $('.command-default-label'))).set(keybindingItem.commandDefaultLabel, keybindingItemEntry.commandDefaultLabelMatches);
+			commandLabel = new HighlightedLabel(DOM.append(this.commandColumn, $('.command-default-label')));
+			commandLabel.set(keybindingItem.commandDefaultLabel, keybindingItemEntry.commandDefaultLabelMatches);
 		}
 		if (keybindingItemEntry.commandIdMatches || !keybindingItem.commandLabel) {
-			new HighlightedLabel(DOM.append(this.commandColumn, $('.code'))).set(keybindingItem.command, keybindingItemEntry.commandIdMatches);
+			commandLabel = new HighlightedLabel(DOM.append(this.commandColumn, $('.code')));
+			commandLabel.set(keybindingItem.command, keybindingItemEntry.commandIdMatches);
+		}
+		if (commandLabel) {
+			commandLabel.element.title = keybindingItem.commandLabel ? localize('title', "{0} ({1})", keybindingItem.commandLabel, keybindingItem.command) : keybindingItem.command;
 		}
 	}
 
@@ -798,3 +827,10 @@ class WhenColumn extends Column {
 		return keybindingItemEntry.keybindingItem.when ? localize('whenAriaLabel', "When is {0}.", keybindingItemEntry.keybindingItem.when) : localize('noWhen', "No when context.");
 	}
 }
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	const listHighlightForegroundColor = theme.getColor(listHighlightForeground);
+	if (listHighlightForegroundColor) {
+		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column .highlight { color: ${listHighlightForegroundColor}; }`);
+	}
+});

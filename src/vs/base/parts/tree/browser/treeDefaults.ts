@@ -16,59 +16,6 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import _ = require('vs/base/parts/tree/browser/tree');
 import { KeyCode, KeyMod, Keybinding, createKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 
-export interface ILegacyTemplateData {
-	root: HTMLElement;
-	element: any;
-	previousCleanupFn: _.IElementCallback;
-}
-
-export class LegacyRenderer implements _.IRenderer {
-
-	public getHeight(tree: _.ITree, element: any): number {
-		return 20;
-	}
-
-	public getTemplateId(tree: _.ITree, element: any): string {
-		return 'legacy';
-	}
-
-	public renderTemplate(tree: _.ITree, templateId: string, container: HTMLElement): any {
-		return <ILegacyTemplateData>{
-			root: container,
-			element: null,
-			previousCleanupFn: null
-		};
-	}
-
-	public renderElement(tree: _.ITree, element: any, templateId: string, templateData: ILegacyTemplateData): void {
-		if (templateData.previousCleanupFn) {
-			templateData.previousCleanupFn(tree, templateData.element);
-		}
-
-		while (templateData.root && templateData.root.firstChild) {
-			templateData.root.removeChild(templateData.root.firstChild);
-		}
-
-		templateData.element = element;
-		templateData.previousCleanupFn = this.render(tree, element, templateData.root);
-	}
-
-	public disposeTemplate(tree: _.ITree, templateId: string, templateData: any): void {
-		if (templateData.previousCleanupFn) {
-			templateData.previousCleanupFn(tree, templateData.element);
-		}
-
-		templateData.root = null;
-		templateData.element = null;
-		templateData.previousCleanupFn = null;
-	}
-
-	protected render(tree: _.ITree, element: any, container: HTMLElement, previousCleanupFn?: _.IElementCallback): _.IElementCallback {
-		container.textContent = '' + element;
-		return null;
-	}
-}
-
 export interface IKeyBindingCallback {
 	(tree: _.ITree, event: IKeyboardEvent): void;
 }
@@ -184,7 +131,7 @@ export class DefaultController implements _.IController {
 	}
 
 	public onClick(tree: _.ITree, element: any, event: mouse.IMouseEvent): boolean {
-		var isMac = platform.isMacintosh;
+		const isMac = platform.isMacintosh;
 
 		// A Ctrl click on the Mac is a context menu event
 		if (isMac && event.ctrlKey) {
@@ -205,13 +152,13 @@ export class DefaultController implements _.IController {
 	}
 
 	protected onLeftClick(tree: _.ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {
-		var payload = { origin: origin, originalEvent: eventish };
+		const payload = { origin: origin, originalEvent: eventish };
 
 		if (tree.getInput() === element) {
 			tree.clearFocus(payload);
 			tree.clearSelection(payload);
 		} else {
-			var isMouseDown = eventish && (<mouse.IMouseEvent>eventish).browserEvent && (<mouse.IMouseEvent>eventish).browserEvent.type === 'mousedown';
+			const isMouseDown = eventish && (<mouse.IMouseEvent>eventish).browserEvent && (<mouse.IMouseEvent>eventish).browserEvent.type === 'mousedown';
 			if (!isMouseDown) {
 				eventish.preventDefault(); // we cannot preventDefault onMouseDown because this would break DND otherwise
 			}
@@ -246,7 +193,7 @@ export class DefaultController implements _.IController {
 	}
 
 	public onTap(tree: _.ITree, element: any, event: touch.GestureEvent): boolean {
-		var target = <HTMLElement>event.initialTarget;
+		const target = <HTMLElement>event.initialTarget;
 
 		if (target && target.tagName && target.tagName.toLowerCase() === 'input') {
 			return false; // Ignore event if target is a form input field (avoids browser specific issues)
@@ -264,7 +211,7 @@ export class DefaultController implements _.IController {
 	}
 
 	private onKey(bindings: KeybindingDispatcher, tree: _.ITree, event: IKeyboardEvent): boolean {
-		var handler = bindings.dispatch(event.toKeybinding());
+		const handler = bindings.dispatch(event.toKeybinding());
 		if (handler) {
 			if (handler(tree, event)) {
 				event.preventDefault();
@@ -276,7 +223,7 @@ export class DefaultController implements _.IController {
 	}
 
 	protected onUp(tree: _.ITree, event: IKeyboardEvent): boolean {
-		var payload = { origin: 'keyboard', originalEvent: event };
+		const payload = { origin: 'keyboard', originalEvent: event };
 
 		if (tree.getHighlight()) {
 			tree.clearHighlight(payload);
@@ -288,7 +235,7 @@ export class DefaultController implements _.IController {
 	}
 
 	protected onPageUp(tree: _.ITree, event: IKeyboardEvent): boolean {
-		var payload = { origin: 'keyboard', originalEvent: event };
+		const payload = { origin: 'keyboard', originalEvent: event };
 
 		if (tree.getHighlight()) {
 			tree.clearHighlight(payload);
@@ -300,7 +247,7 @@ export class DefaultController implements _.IController {
 	}
 
 	protected onDown(tree: _.ITree, event: IKeyboardEvent): boolean {
-		var payload = { origin: 'keyboard', originalEvent: event };
+		const payload = { origin: 'keyboard', originalEvent: event };
 
 		if (tree.getHighlight()) {
 			tree.clearHighlight(payload);
@@ -312,7 +259,7 @@ export class DefaultController implements _.IController {
 	}
 
 	protected onPageDown(tree: _.ITree, event: IKeyboardEvent): boolean {
-		var payload = { origin: 'keyboard', originalEvent: event };
+		const payload = { origin: 'keyboard', originalEvent: event };
 
 		if (tree.getHighlight()) {
 			tree.clearHighlight(payload);
@@ -324,7 +271,7 @@ export class DefaultController implements _.IController {
 	}
 
 	protected onHome(tree: _.ITree, event: IKeyboardEvent): boolean {
-		var payload = { origin: 'keyboard', originalEvent: event };
+		const payload = { origin: 'keyboard', originalEvent: event };
 
 		if (tree.getHighlight()) {
 			tree.clearHighlight(payload);
@@ -336,7 +283,7 @@ export class DefaultController implements _.IController {
 	}
 
 	protected onEnd(tree: _.ITree, event: IKeyboardEvent): boolean {
-		var payload = { origin: 'keyboard', originalEvent: event };
+		const payload = { origin: 'keyboard', originalEvent: event };
 
 		if (tree.getHighlight()) {
 			tree.clearHighlight(payload);
@@ -348,12 +295,12 @@ export class DefaultController implements _.IController {
 	}
 
 	protected onLeft(tree: _.ITree, event: IKeyboardEvent): boolean {
-		var payload = { origin: 'keyboard', originalEvent: event };
+		const payload = { origin: 'keyboard', originalEvent: event };
 
 		if (tree.getHighlight()) {
 			tree.clearHighlight(payload);
 		} else {
-			var focus = tree.getFocus();
+			const focus = tree.getFocus();
 			tree.collapse(focus).then(didCollapse => {
 				if (focus && !didCollapse) {
 					tree.focusParent(payload);
@@ -366,12 +313,12 @@ export class DefaultController implements _.IController {
 	}
 
 	protected onRight(tree: _.ITree, event: IKeyboardEvent): boolean {
-		var payload = { origin: 'keyboard', originalEvent: event };
+		const payload = { origin: 'keyboard', originalEvent: event };
 
 		if (tree.getHighlight()) {
 			tree.clearHighlight(payload);
 		} else {
-			var focus = tree.getFocus();
+			const focus = tree.getFocus();
 			tree.expand(focus).then(didExpand => {
 				if (focus && !didExpand) {
 					tree.focusFirstChild(payload);
@@ -384,12 +331,12 @@ export class DefaultController implements _.IController {
 	}
 
 	protected onEnter(tree: _.ITree, event: IKeyboardEvent): boolean {
-		var payload = { origin: 'keyboard', originalEvent: event };
+		const payload = { origin: 'keyboard', originalEvent: event };
 
 		if (tree.getHighlight()) {
 			return false;
 		}
-		var focus = tree.getFocus();
+		const focus = tree.getFocus();
 		if (focus) {
 			tree.setSelection([focus], payload);
 		}
@@ -400,7 +347,7 @@ export class DefaultController implements _.IController {
 		if (tree.getHighlight()) {
 			return false;
 		}
-		var focus = tree.getFocus();
+		const focus = tree.getFocus();
 		if (focus) {
 			tree.toggleExpansion(focus);
 		}
@@ -408,7 +355,7 @@ export class DefaultController implements _.IController {
 	}
 
 	protected onEscape(tree: _.ITree, event: IKeyboardEvent): boolean {
-		var payload = { origin: 'keyboard', originalEvent: event };
+		const payload = { origin: 'keyboard', originalEvent: event };
 
 		if (tree.getHighlight()) {
 			tree.clearHighlight(payload);

@@ -5,26 +5,23 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { ICommonCodeEditor } from 'vs/editor/common/editorCommon';
-import { editorAction, ServicesAccessor, EditorAction } from 'vs/editor/common/editorCommonExtensions';
-import { IConfigurationEditingService, ConfigurationTarget } from 'vs/workbench/services/configuration/common/configurationEditing';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
-@editorAction
 export class ToggleRenderWhitespaceAction extends EditorAction {
 
 	constructor() {
 		super({
 			id: 'editor.action.toggleRenderWhitespace',
-			label: nls.localize('toggleRenderWhitespace', "Toggle Render Whitespace"),
-			alias: 'Toggle Render Whitespace',
+			label: nls.localize('toggleRenderWhitespace', "View: Toggle Render Whitespace"),
+			alias: 'View: Toggle Render Whitespace',
 			precondition: null
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICommonCodeEditor): void {
-		const configurationEditingService = accessor.get(IConfigurationEditingService);
-		const messageService = accessor.get(IMessageService);
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const configurationService = accessor.get(IConfigurationService);
 
 		let renderWhitespace = editor.getConfiguration().viewInfo.renderWhitespace;
 		let newRenderWhitespace: string;
@@ -34,8 +31,8 @@ export class ToggleRenderWhitespaceAction extends EditorAction {
 			newRenderWhitespace = 'none';
 		}
 
-		configurationEditingService.writeConfiguration(ConfigurationTarget.USER, { key: 'editor.renderWhitespace', value: newRenderWhitespace }).then(null, error => {
-			messageService.show(Severity.Error, error);
-		});
+		configurationService.updateValue('editor.renderWhitespace', newRenderWhitespace, ConfigurationTarget.USER);
 	}
 }
+
+registerEditorAction(ToggleRenderWhitespaceAction);

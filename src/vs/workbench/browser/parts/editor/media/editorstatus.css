@@ -12,14 +12,84 @@
 .monaco-workbench .editor-statusbar-item > .editor-status-eol,
 .monaco-workbench .editor-statusbar-item > .editor-status-selection,
 .monaco-workbench .editor-statusbar-item > .editor-status-indentation,
-.monaco-workbench .editor-statusbar-item > .editor-status-metadata {
+.monaco-workbench .editor-statusbar-item > .editor-status-metadata,
+.monaco-workbench .editor-statusbar-item > .editor-status-tabfocusmode,
+.monaco-workbench .editor-statusbar-item > .editor-status-screenreadermode {
 	padding: 0 5px 0 5px;
 }
 
 .monaco-workbench .editor-statusbar-item > .editor-status-metadata {
+	cursor: default !important;
+}
+
+
+.monaco-shell .screen-reader-detected-explanation {
+	width: 420px;
+	top: 30px;
+	right: 6px;
+	padding: 1em;
 	cursor: default;
 }
 
-.monaco-workbench .editor-statusbar-item > .editor-status-tabfocusmode {
-	padding: 0 5px 0 5px;
+.monaco-shell .screen-reader-detected-explanation .cancel {
+	position: absolute;
+	top: 0;
+	right: 0;
+	margin: .5em 0 0;
+	padding: .5em;
+	width: 22px;
+	height: 22px;
+	border: none;
+	cursor: pointer;
+}
+
+.monaco-shell .screen-reader-detected-explanation h2 {
+	margin: 0;
+	padding: 0;
+	font-weight: 400;
+	font-size: 1.8em;
+}
+
+.monaco-shell .screen-reader-detected-explanation p {
+	font-size: 1.2em;
+}
+
+.monaco-shell .screen-reader-detected-explanation p.question {
+	font-size: 1.4em;
+	font-weight: bold;
+}
+
+.monaco-shell .screen-reader-detected-explanation .button {
+	color: white;
+	border: none;
+	cursor: pointer;
+	background-color: #007ACC;
+	padding-left: 12px;
+	padding-right: 12px;
+	border: 4px solid #007ACC;
+	border-radius: 4px;
+	float: left;
+	margin-right: 5px;
+}
+
+.monaco-shell.vs .screen-reader-detected-explanation .cancel {
+	background: url('close-big.svg') center center no-repeat;
+}
+.monaco-shell.vs .screen-reader-detected-explanation .cancel:hover {
+	background-color: #eaeaea;
+}
+
+.monaco-shell.vs-dark .screen-reader-detected-explanation .cancel,
+.monaco-shell.hc-black .screen-reader-detected-explanation .cancel {
+	background: url('close-big-dark.svg') center center no-repeat;
+}
+.monaco-shell.vs-dark .screen-reader-detected-explanation .cancel:hover {
+	background-color: rgba(30,30,30,0.8);
+}
+
+.monaco-shell.hc-black .screen-reader-detected-explanation .cancel {
+	opacity: 0.6;
+}
+.monaco-shell.hc-black .screen-reader-detected-explanation .cancel:hover {
+	opacity: 1;
 }

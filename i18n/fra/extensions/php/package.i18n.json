@@ -9,5 +9,6 @@
 	"configuration.validate.executablePath": "Pointe vers l'exécutable PHP.",
 	"configuration.validate.run": "Spécifie si linter est exécuté au moment de l'enregistrement ou de la saisie.",
 	"configuration.title": "PHP",
-	"commands.categroy.php": "PHP"
+	"commands.categroy.php": "PHP",
+	"command.untrustValidationExecutable": "Interdire l'exécutable de validation PHP (défini comme paramètre d'espace de travail)"
 }

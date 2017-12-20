@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ResolvedKeybinding, KeyCode, KeyCodeUtils, USER_SETTINGS, Keybinding, KeybindingType, SimpleKeybinding } from 'vs/base/common/keyCodes';
-import { UILabelProvider, AriaLabelProvider, ElectronAcceleratorLabelProvider, UserSettingsLabelProvider, NO_MODIFIERS } from 'vs/platform/keybinding/common/keybindingLabels';
+import { ResolvedKeybinding, ResolvedKeybindingPart, KeyCode, KeyCodeUtils, Keybinding, KeybindingType, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { UILabelProvider, AriaLabelProvider, ElectronAcceleratorLabelProvider, UserSettingsLabelProvider } from 'vs/base/common/keybindingLabels';
 import { OperatingSystem } from 'vs/base/common/platform';
 
 /**
@@ -64,12 +64,6 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 		return UILabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, this._os);
 	}
 
-	public getLabelWithoutModifiers(): string {
-		let firstPart = this._getUILabelForKeybinding(this._firstPart);
-		let chordPart = this._getUILabelForKeybinding(this._chordPart);
-		return UILabelProvider.toLabel(NO_MODIFIERS, firstPart, NO_MODIFIERS, chordPart, this._os);
-	}
-
 	private _getAriaLabelForKeybinding(keybinding: SimpleKeybinding): string {
 		if (!keybinding) {
 			return null;
@@ -84,12 +78,6 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 		let firstPart = this._getAriaLabelForKeybinding(this._firstPart);
 		let chordPart = this._getAriaLabelForKeybinding(this._chordPart);
 		return AriaLabelProvider.toLabel(this._firstPart, firstPart, this._chordPart, chordPart, this._os);
-	}
-
-	public getAriaLabelWithoutModifiers(): string {
-		let firstPart = this._getAriaLabelForKeybinding(this._firstPart);
-		let chordPart = this._getAriaLabelForKeybinding(this._chordPart);
-		return AriaLabelProvider.toLabel(NO_MODIFIERS, firstPart, NO_MODIFIERS, chordPart, this._os);
 	}
 
 	private _keyCodeToElectronAccelerator(keyCode: KeyCode): string {
@@ -139,7 +127,7 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 		if (keybinding.isDuplicateModifierCase()) {
 			return '';
 		}
-		return USER_SETTINGS.fromKeyCode(keybinding.keyCode);
+		return KeyCodeUtils.toUserSettingsUS(keybinding.keyCode);
 	}
 
 	public getUserSettingsLabel(): string {
@@ -157,36 +145,26 @@ export class USLayoutResolvedKeybinding extends ResolvedKeybinding {
 		return (this._chordPart ? true : false);
 	}
 
-	public hasCtrlModifier(): boolean {
-		if (this._chordPart) {
-			return false;
-		}
-		return this._firstPart.ctrlKey;
+	public getParts(): [ResolvedKeybindingPart, ResolvedKeybindingPart] {
+		return [
+			this._toResolvedKeybindingPart(this._firstPart),
+			this._toResolvedKeybindingPart(this._chordPart)
+		];
 	}
 
-	public hasShiftModifier(): boolean {
-		if (this._chordPart) {
-			return false;
+	private _toResolvedKeybindingPart(keybinding: SimpleKeybinding): ResolvedKeybindingPart {
+		if (!keybinding) {
+			return null;
 		}
-		return this._firstPart.shiftKey;
-	}
 
-	public hasAltModifier(): boolean {
-		if (this._chordPart) {
-			return false;
-		}
-		return this._firstPart.altKey;
-	}
-
-	public hasMetaModifier(): boolean {
-		if (this._chordPart) {
-			return false;
-		}
-		return this._firstPart.metaKey;
-	}
-
-	public getParts(): [ResolvedKeybinding, ResolvedKeybinding] {
-		return [new USLayoutResolvedKeybinding(this._firstPart, this._os), this._chordPart ? new USLayoutResolvedKeybinding(this._chordPart, this._os) : null];
+		return new ResolvedKeybindingPart(
+			keybinding.ctrlKey,
+			keybinding.shiftKey,
+			keybinding.altKey,
+			keybinding.metaKey,
+			this._getUILabelForKeybinding(keybinding),
+			this._getAriaLabelForKeybinding(keybinding)
+		);
 	}
 
 	public getDispatchParts(): [string, string] {

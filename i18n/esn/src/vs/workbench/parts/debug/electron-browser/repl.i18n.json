@@ -7,5 +7,6 @@
 	"replAriaLabel": "Panel de read–eval–print loop",
 	"actions.repl.historyPrevious": "Historial anterior",
 	"actions.repl.historyNext": "Historial siguiente",
-	"actions.repl.acceptInput": "REPL - Aceptar entrada"
+	"actions.repl.acceptInput": "REPL - Aceptar entrada",
+	"actions.repl.copyAll": "Depuración: Consola Copiar Todo"
 }

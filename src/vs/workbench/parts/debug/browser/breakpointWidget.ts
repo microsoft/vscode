@@ -13,7 +13,7 @@ import * as lifecycle from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
+import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IDebugService, IBreakpoint, IRawBreakpoint } from 'vs/workbench/parts/debug/common/debug';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -71,11 +71,11 @@ export class BreakpointWidget extends ZoneWidget {
 
 		this.hitCountContext = breakpoint && breakpoint.hitCondition && !breakpoint.condition;
 		const selected = this.hitCountContext ? 1 : 0;
-		const selectBox = new SelectBox([nls.localize('expression', "Expression"), nls.localize('hitCount', "Hit Count")], selected);
+		const selectBox = new SelectBox([nls.localize('expression', "Expression"), nls.localize('hitCount', "Hit Count")], selected, this.contextViewService);
 		this.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService));
 		selectBox.render(dom.append(container, $('.breakpoint-select-container')));
 		selectBox.onDidSelect(e => {
-			this.hitCountContext = e === 'Hit Count';
+			this.hitCountContext = e.selected === 'Hit Count';
 			if (this.hitCountContext) {
 				this.conditionInput = this.inputBox.value;
 			} else {

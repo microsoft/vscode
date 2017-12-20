@@ -3,32 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const path = require('path');
-const cp = require('child_process');
+let err = false;
 
-if (process.env['npm_config_disturl'] !== 'https://atom.io/download/atom-shell') {
-	console.error("You can't use plain npm to install Code's dependencies.");
-	console.error(
-		/^win/.test(process.platform)
-		? "Please run '.\\scripts\\npm.bat install' instead."
-		: "Please run './scripts/npm.sh install' instead."
-	);
+const major = parseInt(/^(\d+)\./.exec(process.versions.node)[1]);
 
-	process.exit(1);
+if (major < 8) {
+	console.error('\033[1;31m*** Please use node>=8.\033[0;0m');
+	err = true;
 }
 
-// make sure we install gulp watch for the system installed
-// node, since that is the driver of gulp
-if (process.platform !== 'win32') {
-	const env = Object.assign({}, process.env);
+if (!/yarn\.js$|yarnpkg$/.test(process.env['npm_execpath'])) {
+	console.error('\033[1;31m*** Please use yarn to install dependencies.\033[0;0m');
+	err = true;
+}
 
-	delete env['npm_config_disturl'];
-	delete env['npm_config_target'];
-	delete env['npm_config_runtime'];
-
-	cp.spawnSync('npm', ['install'], {
-		cwd: path.join(path.dirname(__dirname), 'lib', 'watch'),
-		stdio: 'inherit',
-		env
-	});
+if (err) {
+	console.error('');
+	process.exit(1);
 }

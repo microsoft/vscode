@@ -13,10 +13,11 @@ import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview
 import { Widget } from 'vs/base/browser/ui/widget';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { CaseSensitiveCheckbox, WholeWordsCheckbox, RegexCheckbox } from 'vs/base/browser/ui/findinput/findInputCheckboxes';
-import { Color } from "vs/base/common/color";
-import { ICheckboxStyles } from "vs/base/browser/ui/checkbox/checkbox";
+import { Color } from 'vs/base/common/color';
+import { ICheckboxStyles } from 'vs/base/browser/ui/checkbox/checkbox';
 
 export interface IFindInputOptions extends IFindInputStyles {
 	placeholder?: string;
@@ -48,6 +49,14 @@ export class FindInput extends Widget {
 	private inputActiveOptionBorder: Color;
 	private inputBackground: Color;
 	private inputForeground: Color;
+	private inputBorder: Color;
+
+	private inputValidationInfoBorder: Color;
+	private inputValidationInfoBackground: Color;
+	private inputValidationWarningBorder: Color;
+	private inputValidationWarningBackground: Color;
+	private inputValidationErrorBorder: Color;
+	private inputValidationErrorBackground: Color;
 
 	private regex: RegexCheckbox;
 	private wholeWords: WholeWordsCheckbox;
@@ -60,6 +69,9 @@ export class FindInput extends Widget {
 
 	private _onKeyDown = this._register(new Emitter<IKeyboardEvent>());
 	public onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
+
+	private _onMouseDown = this._register(new Emitter<IMouseEvent>());
+	public onMouseDown: Event<IMouseEvent> = this._onMouseDown.event;
 
 	private _onInput = this._register(new Emitter<void>());
 	public onInput: Event<void> = this._onInput.event;
@@ -81,6 +93,14 @@ export class FindInput extends Widget {
 		this.inputActiveOptionBorder = options.inputActiveOptionBorder;
 		this.inputBackground = options.inputBackground;
 		this.inputForeground = options.inputForeground;
+		this.inputBorder = options.inputBorder;
+
+		this.inputValidationInfoBorder = options.inputValidationInfoBorder;
+		this.inputValidationInfoBackground = options.inputValidationInfoBackground;
+		this.inputValidationWarningBorder = options.inputValidationWarningBorder;
+		this.inputValidationWarningBackground = options.inputValidationWarningBackground;
+		this.inputValidationErrorBorder = options.inputValidationErrorBorder;
+		this.inputValidationErrorBackground = options.inputValidationErrorBackground;
 
 		this.regex = null;
 		this.wholeWords = null;
@@ -97,6 +117,7 @@ export class FindInput extends Widget {
 		this.onkeydown(this.inputBox.inputElement, (e) => this._onKeyDown.fire(e));
 		this.onkeyup(this.inputBox.inputElement, (e) => this._onKeyUp.fire(e));
 		this.oninput(this.inputBox.inputElement, (e) => this._onInput.fire());
+		this.onmousedown(this.inputBox.inputElement, (e) => this._onMouseDown.fire(e));
 	}
 
 	public enable(): void {
@@ -146,15 +167,23 @@ export class FindInput extends Widget {
 		}
 	}
 
-	public style(styles: IFindInputStyles) {
+	public style(styles: IFindInputStyles): void {
 		this.inputActiveOptionBorder = styles.inputActiveOptionBorder;
 		this.inputBackground = styles.inputBackground;
 		this.inputForeground = styles.inputForeground;
+		this.inputBorder = styles.inputBorder;
 
-		this._applyStyles();
+		this.inputValidationInfoBackground = styles.inputValidationInfoBackground;
+		this.inputValidationInfoBorder = styles.inputValidationInfoBorder;
+		this.inputValidationWarningBackground = styles.inputValidationWarningBackground;
+		this.inputValidationWarningBorder = styles.inputValidationWarningBorder;
+		this.inputValidationErrorBackground = styles.inputValidationErrorBackground;
+		this.inputValidationErrorBorder = styles.inputValidationErrorBorder;
+
+		this.applyStyles();
 	}
 
-	protected _applyStyles() {
+	protected applyStyles(): void {
 		if (this.domNode) {
 			const checkBoxStyles: ICheckboxStyles = {
 				inputActiveOptionBorder: this.inputActiveOptionBorder,
@@ -165,7 +194,14 @@ export class FindInput extends Widget {
 
 			const inputBoxStyles: IInputBoxStyles = {
 				inputBackground: this.inputBackground,
-				inputForeground: this.inputForeground
+				inputForeground: this.inputForeground,
+				inputBorder: this.inputBorder,
+				inputValidationInfoBackground: this.inputValidationInfoBackground,
+				inputValidationInfoBorder: this.inputValidationInfoBorder,
+				inputValidationWarningBackground: this.inputValidationWarningBackground,
+				inputValidationWarningBorder: this.inputValidationWarningBorder,
+				inputValidationErrorBackground: this.inputValidationErrorBackground,
+				inputValidationErrorBorder: this.inputValidationErrorBorder
 			};
 			this.inputBox.style(inputBoxStyles);
 		}
@@ -204,6 +240,7 @@ export class FindInput extends Widget {
 	public setRegex(value: boolean): void {
 		this.regex.checked = value;
 		this.setInputWidth();
+		this.validate();
 	}
 
 	public focusOnCaseSensitive(): void {
@@ -231,11 +268,17 @@ export class FindInput extends Widget {
 			placeholder: this.placeholder || '',
 			ariaLabel: this.label || '',
 			validationOptions: {
-				validation: this.validation || null,
-				showMessage: true
+				validation: this.validation || null
 			},
 			inputBackground: this.inputBackground,
-			inputForeground: this.inputForeground
+			inputForeground: this.inputForeground,
+			inputBorder: this.inputBorder,
+			inputValidationInfoBackground: this.inputValidationInfoBackground,
+			inputValidationInfoBorder: this.inputValidationInfoBorder,
+			inputValidationWarningBackground: this.inputValidationWarningBackground,
+			inputValidationWarningBorder: this.inputValidationWarningBorder,
+			inputValidationErrorBackground: this.inputValidationErrorBackground,
+			inputValidationErrorBorder: this.inputValidationErrorBorder
 		}));
 
 		this.regex = this._register(new RegexCheckbox({

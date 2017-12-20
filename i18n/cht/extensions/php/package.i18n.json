@@ -9,5 +9,6 @@
 	"configuration.validate.executablePath": "指向 PHP 可執行檔。",
 	"configuration.validate.run": "是否在儲存或輸入時執行 linter。",
 	"configuration.title": "PHP",
-	"commands.categroy.php": "PHP"
+	"commands.categroy.php": "PHP",
+	"command.untrustValidationExecutable": "禁止 PHP 驗證可執行檔 (定義為工作區設定)"
 }

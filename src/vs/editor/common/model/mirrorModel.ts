@@ -8,7 +8,7 @@ import URI from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { IModelContentChange } from 'vs/editor/common/model/textModelEvents';
-import { IPosition } from "vs/editor/common/core/position";
+import { IPosition } from 'vs/editor/common/core/position';
 
 export interface IModelChangedEvent {
 	/**

@@ -16,10 +16,22 @@ import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestSe
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
+import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
+
+export class TestUntitledEditorService extends UntitledEditorService {
+
+	public get(resource: URI): UntitledEditorInput {
+		return super.get(resource);
+	}
+
+	public getAll(resources?: URI[]): UntitledEditorInput[] {
+		return super.getAll(resources);
+	}
+}
 
 class ServiceAccessor {
 	constructor(
-		@IUntitledEditorService public untitledEditorService: UntitledEditorService,
+		@IUntitledEditorService public untitledEditorService: TestUntitledEditorService,
 		@IModeService public modeService: ModeServiceImpl,
 		@IConfigurationService public testConfigurationService: TestConfigurationService) {
 	}
@@ -47,6 +59,9 @@ suite('Workbench - Untitled Editor', () => {
 		const input1 = service.createOrGet();
 		assert.equal(input1, service.createOrGet(input1.getResource()));
 
+		assert.ok(service.exists(input1.getResource()));
+		assert.ok(!service.exists(URI.file('testing')));
+
 		const input2 = service.createOrGet();
 
 		// get() / getAll()
@@ -70,6 +85,8 @@ suite('Workbench - Untitled Editor', () => {
 
 				assert.ok(service.isDirty(input2.getResource()));
 				assert.equal(service.getDirty()[0].toString(), input2.getResource().toString());
+				assert.equal(service.getDirty([input2.getResource()])[0].toString(), input2.getResource().toString());
+				assert.equal(service.getDirty([input1.getResource()]).length, 0);
 
 				service.revertAll();
 				assert.equal(service.getAll().length, 0);
@@ -77,6 +94,8 @@ suite('Workbench - Untitled Editor', () => {
 				assert.ok(!model.isDirty());
 
 				input2.dispose();
+
+				assert.ok(!service.exists(input2.getResource()));
 
 				done();
 			});
@@ -111,6 +130,48 @@ suite('Workbench - Untitled Editor', () => {
 
 			done();
 		});
+	});
+
+	test('Untitled via loadOrCreate', function (done) {
+		const service = accessor.untitledEditorService;
+		service.loadOrCreate().then(model1 => {
+			model1.textEditorModel.setValue('foo bar');
+			assert.ok(model1.isDirty());
+
+			model1.textEditorModel.setValue('');
+			assert.ok(!model1.isDirty());
+
+			return service.loadOrCreate({ initialValue: 'Hello World' }).then(model2 => {
+				assert.equal(model2.getValue(), 'Hello World');
+
+				const input = service.createOrGet();
+
+				return service.loadOrCreate({ resource: input.getResource() }).then(model3 => {
+					assert.equal(model3.getResource().toString(), input.getResource().toString());
+
+					const file = URI.file(join('C:\\', '/foo/file44.txt'));
+					return service.loadOrCreate({ resource: file }).then(model4 => {
+						assert.ok(service.hasAssociatedFilePath(model4.getResource()));
+						assert.ok(model4.isDirty());
+
+						model1.dispose();
+						model2.dispose();
+						model3.dispose();
+						model4.dispose();
+						input.dispose();
+
+						done();
+					});
+				});
+			});
+		});
+	});
+
+	test('Untitled suggest name', function () {
+		const service = accessor.untitledEditorService;
+		const input = service.createOrGet();
+
+		assert.ok(service.suggestFileName(input.getResource()));
 	});
 
 	test('Untitled with associated path remains dirty when content gets empty', function (done) {

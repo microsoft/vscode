@@ -14,7 +14,7 @@ import processes = require('vs/base/node/processes');
 
 function fork(id: string): cp.ChildProcess {
 	const opts: any = {
-		env: objects.mixin(objects.clone(process.env), {
+		env: objects.mixin(objects.deepClone(process.env), {
 			AMD_ENTRYPOINT: id,
 			PIPE_LOGGING: 'true',
 			VERBOSE_LOGGING: true
@@ -27,7 +27,7 @@ function fork(id: string): cp.ChildProcess {
 suite('Processes', () => {
 	test('buffered sending - simple data', function (done: () => void) {
 		if (process.env['VSCODE_PID']) {
-			return done(); // TODO@Ben find out why test fails when run from within VS Code
+			return done(); // this test fails when run from within VS Code
 		}
 
 		const child = fork('vs/base/test/node/processes/fixtures/fork');

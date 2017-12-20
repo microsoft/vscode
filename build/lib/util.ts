@@ -22,19 +22,19 @@ export interface ICancellationToken {
 	isCancellationRequested(): boolean;
 }
 
-const NoCancellationToken:ICancellationToken = { isCancellationRequested: () => false };
+const NoCancellationToken: ICancellationToken = { isCancellationRequested: () => false };
 
 export interface IStreamProvider {
-	(cancellationToken?:ICancellationToken): NodeJS.ReadWriteStream;
+	(cancellationToken?: ICancellationToken): NodeJS.ReadWriteStream;
 }
 
-export function incremental(streamProvider:IStreamProvider, initial:NodeJS.ReadWriteStream, supportsCancellation:boolean): NodeJS.ReadWriteStream {
+export function incremental(streamProvider: IStreamProvider, initial: NodeJS.ReadWriteStream, supportsCancellation: boolean): NodeJS.ReadWriteStream {
 	const input = es.through();
 	const output = es.through();
 	let state = 'idle';
 	let buffer = Object.create(null);
 
-	const token:ICancellationToken = !supportsCancellation ? null : { isCancellationRequested: () => Object.keys(buffer).length > 0 };
+	const token: ICancellationToken = !supportsCancellation ? null : { isCancellationRequested: () => Object.keys(buffer).length > 0 };
 
 	const run = (input, isCancellable) => {
 		state = 'running';
@@ -66,7 +66,7 @@ export function incremental(streamProvider:IStreamProvider, initial:NodeJS.ReadW
 		run(es.readArray(data), true);
 	}, 500);
 
-	input.on('data', f => {
+	input.on('data', (f: any) => {
 		buffer[f.path] = f;
 
 		if (state === 'idle') {
@@ -82,7 +82,7 @@ export function fixWin32DirectoryPermissions(): NodeJS.ReadWriteStream {
 		return es.through();
 	}
 
-	return es.mapSync<VinylFile,VinylFile>(f => {
+	return es.mapSync<VinylFile, VinylFile>(f => {
 		if (f.stat && f.stat.isDirectory && f.stat.isDirectory()) {
 			f.stat.mode = 16877;
 		}
@@ -92,7 +92,7 @@ export function fixWin32DirectoryPermissions(): NodeJS.ReadWriteStream {
 }
 
 export function setExecutableBit(pattern: string | string[]): NodeJS.ReadWriteStream {
-	var setBit = es.mapSync<VinylFile,VinylFile>(f => {
+	var setBit = es.mapSync<VinylFile, VinylFile>(f => {
 		f.stat.mode = /* 100755 */ 33261;
 		return f;
 	});
@@ -111,7 +111,7 @@ export function setExecutableBit(pattern: string | string[]): NodeJS.ReadWriteSt
 	return es.duplex(input, output);
 }
 
-export function toFileUri(filePath:string): string {
+export function toFileUri(filePath: string): string {
 	const match = filePath.match(/^([a-z])\:(.*)$/i);
 
 	if (match) {
@@ -122,23 +122,23 @@ export function toFileUri(filePath:string): string {
 }
 
 export function skipDirectories(): NodeJS.ReadWriteStream {
-	return es.mapSync<VinylFile,VinylFile>(f => {
+	return es.mapSync<VinylFile, VinylFile>(f => {
 		if (!f.isDirectory()) {
 			return f;
 		}
 	});
 }
 
-export function cleanNodeModule(name:string, excludes:string[], includes:string[]): NodeJS.ReadWriteStream {
-	const toGlob = (path:string) => '**/node_modules/' + name + (path ? '/' + path : '');
-	const negate = (str:string) => '!' + str;
+export function cleanNodeModule(name: string, excludes: string[], includes: string[]): NodeJS.ReadWriteStream {
+	const toGlob = (path: string) => '**/node_modules/' + name + (path ? '/' + path : '');
+	const negate = (str: string) => '!' + str;
 
 	const allFilter = _filter(toGlob('**'), { restore: true });
 	const globs = [toGlob('**')].concat(excludes.map(_.compose(negate, toGlob)));
 
 	const input = es.through();
 	const nodeModuleInput = input.pipe(allFilter);
-	let output:NodeJS.ReadWriteStream = nodeModuleInput.pipe(_filter(globs));
+	let output: NodeJS.ReadWriteStream = nodeModuleInput.pipe(_filter(globs));
 
 	if (includes) {
 		const includeGlobs = includes.map(toGlob);
@@ -157,7 +157,7 @@ export function loadSourcemaps(): NodeJS.ReadWriteStream {
 	const input = es.through();
 
 	const output = input
-		.pipe(es.map<FileSourceMap,FileSourceMap>((f, cb): FileSourceMap => {
+		.pipe(es.map<FileSourceMap, FileSourceMap>((f, cb): FileSourceMap => {
 			if (f.sourceMap) {
 				cb(null, f);
 				return;
@@ -207,7 +207,7 @@ export function stripSourceMappingURL(): NodeJS.ReadWriteStream {
 	const input = es.through();
 
 	const output = input
-		.pipe(es.mapSync<VinylFile,VinylFile>(f => {
+		.pipe(es.mapSync<VinylFile, VinylFile>(f => {
 			const contents = (<Buffer>f.contents).toString('utf8');
 			f.contents = new Buffer(contents.replace(/\n\/\/# sourceMappingURL=(.*)$/gm, ''), 'utf8');
 			return f;
@@ -216,11 +216,11 @@ export function stripSourceMappingURL(): NodeJS.ReadWriteStream {
 	return es.duplex(input, output);
 }
 
-export function rimraf(dir:string):(cb:any)=>void {
+export function rimraf(dir: string): (cb: any) => void {
 	let retries = 0;
 
 	const retry = cb => {
-		_rimraf(dir, { maxBusyTries: 1 }, (err:any) => {
+		_rimraf(dir, { maxBusyTries: 1 }, (err: any) => {
 			if (!err) {
 				return cb();
 			};
@@ -236,7 +236,7 @@ export function rimraf(dir:string):(cb:any)=>void {
 	return cb => retry(cb);
 }
 
-export function getVersion(root:string): string {
+export function getVersion(root: string): string {
 	let version = process.env['BUILD_SOURCEVERSION'];
 
 	if (!version || !/^[0-9a-f]{40}$/i.test(version)) {
@@ -246,7 +246,7 @@ export function getVersion(root:string): string {
 	return version;
 }
 
-export function rebase(count:number): NodeJS.ReadWriteStream {
+export function rebase(count: number): NodeJS.ReadWriteStream {
 	return rename(f => {
 		const parts = f.dirname.split(/[\/\\]/);
 		f.dirname = parts.slice(count).join(path.sep);
@@ -257,7 +257,7 @@ export interface FilterStream extends NodeJS.ReadWriteStream {
 	restore: ThroughStream;
 }
 
-export function filter(fn:(data:any)=>boolean):FilterStream {
+export function filter(fn: (data: any) => boolean): FilterStream {
 	const result = <FilterStream><any>es.through(function (data) {
 		if (fn(data)) {
 			this.emit('data', data);

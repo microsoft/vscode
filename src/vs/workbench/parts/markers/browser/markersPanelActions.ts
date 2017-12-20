@@ -27,67 +27,58 @@ import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 
 export class ToggleMarkersPanelAction extends TogglePanelAction {
 
-	public static ID = 'workbench.actions.view.problems';
-	public static LABEL = Messages.MARKERS_PANEL_TOGGLE_LABEL;
+	public static readonly ID = 'workbench.actions.view.problems';
+	public static readonly LABEL = Messages.MARKERS_PANEL_TOGGLE_LABEL;
 
 	constructor(id: string, label: string,
 		@IPartService partService: IPartService,
 		@IPanelService panelService: IPanelService,
-		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		super(id, label, Constants.MARKERS_PANEL_ID, panelService, partService);
 	}
+}
+
+export class ShowProblemsPanelAction extends Action {
+
+	public static readonly ID = 'workbench.action.problems.focus';
+	public static readonly LABEL = Messages.MARKERS_PANEL_SHOW_LABEL;
+
+	constructor(id: string, label: string,
+		@IPanelService private panelService: IPanelService
+	) {
+		super(id, label);
+	}
 
 	public run(): TPromise<any> {
-		let promise = super.run();
-		if (this.isPanelFocussed()) {
-			this.telemetryService.publicLog('problems.used');
-		}
-		return promise;
+		return this.panelService.openPanel(Constants.MARKERS_PANEL_ID, true);
 	}
 }
 
 export class ToggleErrorsAndWarningsAction extends TogglePanelAction {
 
 	public static ID: string = 'workbench.action.showErrorsWarnings';
-	public static LABEL = Messages.SHOW_ERRORS_WARNINGS_ACTION_LABEL;
+	public static readonly LABEL = Messages.SHOW_ERRORS_WARNINGS_ACTION_LABEL;
 
 	constructor(id: string, label: string,
 		@IPartService partService: IPartService,
 		@IPanelService panelService: IPanelService,
-		@ITelemetryService private telemetryService: ITelemetryService
 	) {
 		super(id, label, Constants.MARKERS_PANEL_ID, panelService, partService);
-	}
-
-	public run(): TPromise<any> {
-		let promise = super.run();
-		if (this.isPanelFocussed()) {
-			this.telemetryService.publicLog('problems.used');
-		}
-		return promise;
 	}
 }
 
 export class CollapseAllAction extends TreeCollapseAction {
 
-	constructor(viewer: Tree.ITree, enabled: boolean,
-		@ITelemetryService private telemetryService: ITelemetryService) {
+	constructor(viewer: Tree.ITree, enabled: boolean) {
 		super(viewer, enabled);
 	}
-
-	public run(context?: any): TPromise<any> {
-		this.telemetryService.publicLog('problems.collapseAll.used');
-		return super.run(context);
-	}
-
 }
 
 export class FilterAction extends Action {
 
 	public static ID: string = 'workbench.actions.problems.filter';
 
-	constructor(private markersPanel: MarkersPanel) {
+	constructor() {
 		super(FilterAction.ID, Messages.MARKERS_PANEL_ACTION_TOOLTIP_FILTER, 'markers-panel-action-filter', true);
 	}
 
@@ -132,6 +123,13 @@ export class FilterInputBoxActionItem extends BaseActionItem {
 		data['errors'] = this.markersPanel.markersModel.filterOptions.filterErrors;
 		data['warnings'] = this.markersPanel.markersModel.filterOptions.filterWarnings;
 		data['infos'] = this.markersPanel.markersModel.filterOptions.filterInfos;
+		/* __GDPR__
+			"problems.filter" : {
+				"errors" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"warnings": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"infos": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
 		this.telemetryService.publicLog('problems.filter', data);
 	}
 

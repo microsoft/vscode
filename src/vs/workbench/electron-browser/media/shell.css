@@ -98,6 +98,10 @@
 	opacity: 1 !important;
 }
 
+.monaco-shell .mac select:focus {
+	border: none; /* outline is a square, but border has a radius, so we avoid this glitch when focused (https://github.com/Microsoft/vscode/issues/26045) */
+}
+
 .monaco-shell.hc-black [tabindex="0"]:focus,
 .monaco-shell.hc-black .synthetic-focus,
 .monaco-shell.hc-black select:focus,
@@ -107,7 +111,7 @@
 .monaco-shell.hc-black input[type="search"]:focus,
 .monaco-shell.hc-black input[type="checkbox"]:focus {
 	outline-style: solid;
-	outline-width: 2px;
+	outline-width: 1px;
 }
 
 .monaco-shell.hc-black .synthetic-focus input {
@@ -120,7 +124,8 @@
 	outline-style: solid;
 }
 
-.monaco-shell .monaco-tree.focused.no-focused-item:focus:before {
+.monaco-shell .monaco-tree.focused.no-focused-item:focus:before,
+.monaco-shell .monaco-list:not(.element-focused):focus:before {
 	position: absolute;
 	top: 0;
 	left: 0;
@@ -136,7 +141,7 @@
 }
 
 .monaco-shell.hc-black .monaco-tree.focused.no-focused-item:focus:before {
-	outline-width: 2px;
+	outline-width: 1px;
 	outline-offset: -2px;
 }
 
@@ -153,8 +158,9 @@
 	outline: 0 !important; /* outline is not going well with decoration */
 }
 
-.monaco-shell .monaco-tree.focused:focus {
-	outline: 0 !important; /* tree indicates focus not via outline but through the focussed item */
+.monaco-shell .monaco-tree.focused:focus,
+.monaco-shell .monaco-list:focus {
+	outline: 0 !important; /* tree indicates focus not via outline but through the focused item */
 }
 
 .monaco-shell [tabindex="0"]:active,

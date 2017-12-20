@@ -23,7 +23,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.json meta.structure.dictionary.json support.type.property-name.json punctuation.support.type.property-name.begin.json",
+		"t": "source.json meta.structure.dictionary.json string.json support.type.property-name.json punctuation.support.type.property-name.begin.json",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
 			"light_plus": "support.type.property-name.json: #0451A5",
@@ -34,7 +34,7 @@
 	},
 	{
 		"c": "compilerOptions",
-		"t": "source.json meta.structure.dictionary.json support.type.property-name.json",
+		"t": "source.json meta.structure.dictionary.json string.json support.type.property-name.json",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
 			"light_plus": "support.type.property-name.json: #0451A5",
@@ -45,7 +45,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.json meta.structure.dictionary.json support.type.property-name.json punctuation.support.type.property-name.end.json",
+		"t": "source.json meta.structure.dictionary.json string.json support.type.property-name.json punctuation.support.type.property-name.end.json",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
 			"light_plus": "support.type.property-name.json: #0451A5",
@@ -100,7 +100,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.json meta.structure.dictionary.json meta.structure.dictionary.value.json meta.structure.dictionary.json support.type.property-name.json punctuation.support.type.property-name.begin.json",
+		"t": "source.json meta.structure.dictionary.json meta.structure.dictionary.value.json meta.structure.dictionary.json string.json support.type.property-name.json punctuation.support.type.property-name.begin.json",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
 			"light_plus": "support.type.property-name.json: #0451A5",
@@ -111,7 +111,7 @@
 	},
 	{
 		"c": "target",
-		"t": "source.json meta.structure.dictionary.json meta.structure.dictionary.value.json meta.structure.dictionary.json support.type.property-name.json",
+		"t": "source.json meta.structure.dictionary.json meta.structure.dictionary.value.json meta.structure.dictionary.json string.json support.type.property-name.json",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
 			"light_plus": "support.type.property-name.json: #0451A5",
@@ -122,7 +122,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.json meta.structure.dictionary.json meta.structure.dictionary.value.json meta.structure.dictionary.json support.type.property-name.json punctuation.support.type.property-name.end.json",
+		"t": "source.json meta.structure.dictionary.json meta.structure.dictionary.value.json meta.structure.dictionary.json string.json support.type.property-name.json punctuation.support.type.property-name.end.json",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
 			"light_plus": "support.type.property-name.json: #0451A5",

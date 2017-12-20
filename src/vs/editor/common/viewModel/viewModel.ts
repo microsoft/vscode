@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { INewScrollPosition, IModelDecoration, EndOfLinePreference } from 'vs/editor/common/editorCommon';
+import { INewScrollPosition, EndOfLinePreference, IViewState, IModelDecorationOptions } from 'vs/editor/common/editorCommon';
 import { ViewLineToken } from 'vs/editor/common/core/viewLineToken';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ViewEvent } from 'vs/editor/common/view/viewEvents';
+import { ViewEvent, IViewEventListener } from 'vs/editor/common/view/viewEvents';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { Scrollable, IScrollPosition } from 'vs/base/common/scrollable';
+import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
+import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
+import { ITheme } from 'vs/platform/theme/common/themeService';
 
 export interface IViewWhitespaceViewportData {
 	readonly id: number;
@@ -37,15 +40,35 @@ export class Viewport {
 
 export interface IViewLayout {
 
+	readonly scrollable: Scrollable;
+
 	onMaxLineWidthChanged(width: number): void;
 
-	getScrollLeft(): number;
 	getScrollWidth(): number;
 	getScrollHeight(): number;
-	getScrollTop(): number;
+
+	getCurrentScrollLeft(): number;
+	getCurrentScrollTop(): number;
 	getCurrentViewport(): Viewport;
+
+	getFutureViewport(): Viewport;
+
+	validateScrollPosition(scrollPosition: INewScrollPosition): IScrollPosition;
+	setScrollPositionNow(position: INewScrollPosition): void;
+	setScrollPositionSmooth(position: INewScrollPosition): void;
+	deltaScrollNow(deltaScrollLeft: number, deltaScrollTop: number): void;
+
+	getLinesViewportData(): IPartialViewLinesViewportData;
+	getLinesViewportDataAtScrollTop(scrollTop: number): IPartialViewLinesViewportData;
+	getWhitespaces(): IEditorWhitespace[];
+
+	saveState(): IViewState;
+	reduceRestoreState(state: IViewState): { scrollLeft: number; scrollTop: number; };
+
+	isAfterLines(verticalOffset: number): boolean;
+	getLineNumberAtVerticalOffset(verticalOffset: number): number;
 	getVerticalOffsetForLineNumber(lineNumber: number): number;
-	setScrollPosition(position: INewScrollPosition): void;
+	getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData;
 
 	// --------------- Begin vertical whitespace management
 
@@ -67,6 +90,9 @@ export interface IViewLayout {
 	 */
 	getWhitespaceViewportData(): IViewWhitespaceViewportData[];
 
+	// TODO@Alex whitespace management should work via a change accessor sort of thing
+	onHeightMaybeChanged(): void;
+
 	// --------------- End vertical whitespace management
 }
 
@@ -74,26 +100,22 @@ export interface ICoordinatesConverter {
 	// View -> Model conversion and related methods
 	convertViewPositionToModelPosition(viewPosition: Position): Position;
 	convertViewRangeToModelRange(viewRange: Range): Range;
-	convertViewSelectionToModelSelection(viewSelection: Selection): Selection;
 	validateViewPosition(viewPosition: Position, expectedModelPosition: Position): Position;
 	validateViewRange(viewRange: Range, expectedModelRange: Range): Range;
 
 	// Model -> View conversion and related methods
 	convertModelPositionToViewPosition(modelPosition: Position): Position;
 	convertModelRangeToViewRange(modelRange: Range): Range;
-	convertModelSelectionToViewSelection(modelSelection: Selection): Selection;
 	modelPositionIsVisible(modelPosition: Position): boolean;
-}
-
-export interface IViewModelListener {
-	(events: ViewEvent[]): void;
 }
 
 export interface IViewModel {
 
-	addEventListener(listener: IViewModelListener): IDisposable;
+	addEventListener(listener: IViewEventListener): IDisposable;
 
 	readonly coordinatesConverter: ICoordinatesConverter;
+
+	readonly viewLayout: IViewLayout;
 
 	/**
 	 * Gives a hint that a lot of requests are about to come in for these line numbers.
@@ -103,24 +125,28 @@ export interface IViewModel {
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
 	getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
 	getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): MinimapLinesRenderingData;
+	getCompletelyVisibleViewRange(): Range;
+	getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
 
 	getTabSize(): number;
 	getLineCount(): number;
 	getLineContent(lineNumber: number): string;
-	getLineIndentGuide(lineNumber: number): number;
+	getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[];
 	getLineMinColumn(lineNumber: number): number;
 	getLineMaxColumn(lineNumber: number): number;
-	getLineRenderLineNumber(lineNumber: number): string;
-	getAllOverviewRulerDecorations(): ViewModelDecoration[];
-	getEOL(): string;
+	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
+	getLineLastNonWhitespaceColumn(lineNumber: number): number;
+	getAllOverviewRulerDecorations(theme: ITheme): IOverviewRulerDecorations;
+	invalidateOverviewRulerColorCache(): void;
 	getValueInRange(range: Range, eol: EndOfLinePreference): string;
 
-	getModelLineContent(modelLineNumber: number): string;
 	getModelLineMaxColumn(modelLineNumber: number): number;
 	validateModelPosition(modelPosition: IPosition): Position;
 
-	getPlainTextToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string;
-	getHTMLToCopy(ranges: Range[], enableEmptySelectionClipboard: boolean): string;
+	deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position;
+	getEOL(): string;
+	getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean): string | string[];
+	getHTMLToCopy(ranges: Range[], emptySelectionClipboard: boolean): string;
 }
 
 export class MinimapLinesRenderingData {
@@ -224,30 +250,41 @@ export class ViewLineRenderingData {
 	}
 }
 
+export const enum InlineDecorationType {
+	Regular = 0,
+	Before = 1,
+	After = 2
+}
+
 export class InlineDecoration {
-	_inlineDecorationBrand: void;
-
-	readonly range: Range;
-	readonly inlineClassName: string;
-	readonly insertsBeforeOrAfter: boolean;
-
-	constructor(range: Range, inlineClassName: string, insertsBeforeOrAfter: boolean) {
-		this.range = range;
-		this.inlineClassName = inlineClassName;
-		this.insertsBeforeOrAfter = insertsBeforeOrAfter;
+	constructor(
+		public readonly range: Range,
+		public readonly inlineClassName: string,
+		public readonly type: InlineDecorationType
+	) {
 	}
 }
 
 export class ViewModelDecoration {
 	_viewModelDecorationBrand: void;
 
-	public range: Range;
-	public readonly source: IModelDecoration;
+	public readonly range: Range;
+	public readonly options: IModelDecorationOptions;
 
-	constructor(source: IModelDecoration) {
-		this.range = null;
-		this.source = source;
+	constructor(range: Range, options: IModelDecorationOptions) {
+		this.range = range;
+		this.options = options;
 	}
+}
+
+/**
+ * Decorations are encoded in a number array using the following scheme:
+ *  - 3*i = lane
+ *  - 3*i+1 = startLineNumber
+ *  - 3*i+2 = endLineNumber
+ */
+export interface IOverviewRulerDecorations {
+	[color: string]: number[];
 }
 
 export class ViewEventsCollector {

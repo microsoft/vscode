@@ -8,7 +8,6 @@ import * as nls from 'vs/nls';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ResolvedKeybinding, Keybinding } from 'vs/base/common/keyCodes';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
-import { toDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
@@ -18,7 +17,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingEvent, IUserFriendlyKeybinding, KeybindingSource, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingItem, KeybindingsRegistry, IKeybindingRule2 } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { keybindingsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -29,20 +28,17 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { KeybindingIO, OutputBuilder, IUserKeybindingItem } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import * as nativeKeymap from 'native-keymap';
-import { IKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
+import { IKeyboardMapper, CachedKeyboardMapper } from 'vs/workbench/services/keybinding/common/keyboardMapper';
 import { WindowsKeyboardMapper, IWindowsKeyboardMapping, windowsKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { IMacLinuxKeyboardMapping, MacLinuxKeyboardMapper, macLinuxKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
 import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper';
 import Event, { Emitter } from 'vs/base/common/event';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { Action } from 'vs/base/common/actions';
-import { TPromise } from 'vs/base/common/winjs.base';
-import Severity from 'vs/base/common/severity';
 import { Extensions as ConfigExtensions, IConfigurationRegistry, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export class KeyboardMapperFactory {
-	public static INSTANCE = new KeyboardMapperFactory();
+	public static readonly INSTANCE = new KeyboardMapperFactory();
 
 	private _layoutInfo: nativeKeymap.IKeyboardLayoutInfo;
 	private _rawMapping: nativeKeymap.IKeyboardMapping;
@@ -83,10 +79,6 @@ export class KeyboardMapperFactory {
 		return this._layoutInfo;
 	}
 
-	public isUSStandard(): boolean {
-		return KeyboardMapperFactory._isUSStandard(this.getCurrentKeyboardLayout());
-	}
-
 	private static _isUSStandard(_kbInfo: nativeKeymap.IKeyboardLayoutInfo): boolean {
 		if (OS === OperatingSystem.Linux) {
 			const kbInfo = <nativeKeymap.ILinuxKeyboardLayoutInfo>_kbInfo;
@@ -122,20 +114,30 @@ export class KeyboardMapperFactory {
 		}
 
 		this._initialized = true;
-
 		this._rawMapping = rawMapping;
-		this._keyboardMapper = KeyboardMapperFactory._createKeyboardMapper(KeyboardMapperFactory._isUSStandard(this._layoutInfo), this._rawMapping);
+		this._keyboardMapper = new CachedKeyboardMapper(
+			KeyboardMapperFactory._createKeyboardMapper(this._layoutInfo, this._rawMapping)
+		);
 		this._onDidChangeKeyboardMapper.fire();
 	}
 
-	private static _createKeyboardMapper(isUSStandard: boolean, rawMapping: nativeKeymap.IKeyboardMapping): IKeyboardMapper {
+	private static _createKeyboardMapper(layoutInfo: nativeKeymap.IKeyboardLayoutInfo, rawMapping: nativeKeymap.IKeyboardMapping): IKeyboardMapper {
+		const isUSStandard = KeyboardMapperFactory._isUSStandard(layoutInfo);
 		if (OS === OperatingSystem.Windows) {
-			return new WindowsKeyboardMapper(<IWindowsKeyboardMapping>rawMapping);
+			return new WindowsKeyboardMapper(isUSStandard, <IWindowsKeyboardMapping>rawMapping);
 		}
 
 		if (Object.keys(rawMapping).length === 0) {
 			// Looks like reading the mappings failed (most likely Mac + Japanese/Chinese keyboard layouts)
 			return new MacLinuxFallbackKeyboardMapper(OS);
+		}
+
+		if (OS === OperatingSystem.Macintosh) {
+			const kbInfo = <nativeKeymap.IMacKeyboardLayoutInfo>layoutInfo;
+			if (kbInfo.id === 'com.apple.keylayout.DVORAK-QWERTYCMD') {
+				// Use keyCode based dispatching for DVORAK - QWERTY ⌘
+				return new MacLinuxFallbackKeyboardMapper(OS);
+			}
 		}
 
 		return new MacLinuxKeyboardMapper(isUSStandard, <IMacLinuxKeyboardMapping>rawMapping, OS);
@@ -204,7 +206,7 @@ let keybindingType: IJSONSchema = {
 			type: 'string'
 		},
 		key: {
-			description: nls.localize('vscode.extension.contributes.keybindings.key', 'Key or key sequence (separate keys with plus-sign and sequences with space, e.g Ctrl+O and Ctrl+L L for a chord'),
+			description: nls.localize('vscode.extension.contributes.keybindings.key', 'Key or key sequence (separate keys with plus-sign and sequences with space, e.g Ctrl+O and Ctrl+L L for a chord).'),
 			type: 'string'
 		},
 		mac: {
@@ -237,50 +239,13 @@ let keybindingsExtPoint = ExtensionsRegistry.registerExtensionPoint<ContributedK
 	]
 });
 
-interface IStorageData {
-	dontShowPrompt: boolean;
-}
-
-class KeybindingsMigrationsStorage {
-	private static KEY = 'keybindingsMigration';
-
-	private _storageService: IStorageService;
-	private _value: IStorageData;
-
-	constructor(storageService: IStorageService) {
-		this._storageService = storageService;
-		this._value = this._read();
-	}
-
-	private _read(): IStorageData {
-		let jsonValue = this._storageService.get(KeybindingsMigrationsStorage.KEY, StorageScope.GLOBAL);
-		if (!jsonValue) {
-			return null;
-		}
-		try {
-			return JSON.parse(jsonValue);
-		} catch (err) {
-			return null;
-		}
-	}
-
-	public get(): IStorageData {
-		return this._value;
-	}
-
-	public set(data: IStorageData): void {
-		this._value = data;
-		this._storageService.store(KeybindingsMigrationsStorage.KEY, JSON.stringify(this._value), StorageScope.GLOBAL);
-	}
-}
-
 export const enum DispatchConfig {
 	Code,
 	KeyCode
 }
 
 function getDispatchConfig(configurationService: IConfigurationService): DispatchConfig {
-	const keyboard = configurationService.getConfiguration('keyboard');
+	const keyboard = configurationService.getValue('keyboard');
 	const r = (keyboard ? (<any>keyboard).dispatch : null);
 	return (r === 'keyCode' ? DispatchConfig.KeyCode : DispatchConfig.Code);
 }
@@ -296,17 +261,16 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		windowElement: Window,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService,
-		@ITelemetryService private telemetryService: ITelemetryService,
-		@IMessageService private messageService: IMessageService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IMessageService messageService: IMessageService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IStorageService private storageService: IStorageService,
 		@IStatusbarService statusBarService: IStatusbarService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(contextKeyService, commandService, messageService, statusBarService);
+		super(contextKeyService, commandService, telemetryService, messageService, statusBarService);
 
 		let dispatchConfig = getDispatchConfig(configurationService);
-		configurationService.onDidUpdateConfiguration((e) => {
+		configurationService.onDidChangeConfiguration((e) => {
 			let newDispatchConfig = getDispatchConfig(configurationService);
 			if (dispatchConfig === newDispatchConfig) {
 				return;
@@ -326,8 +290,8 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		this._cachedResolver = null;
 		this._firstTimeComputingResolver = true;
 
-		this.userKeybindings = new ConfigWatcher(environmentService.appKeybindingsPath, { defaultConfig: [] });
-		this.toDispose.push(toDisposable(() => this.userKeybindings.dispose()));
+		this.userKeybindings = new ConfigWatcher(environmentService.appKeybindingsPath, { defaultConfig: [], onError: error => onUnexpectedError(error) });
+		this.toDispose.push(this.userKeybindings);
 
 		keybindingsExtPoint.setHandler((extensions) => {
 			let commandAdded = false;
@@ -356,54 +320,13 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		keybindingsTelemetry(telemetryService, this);
 		let data = KeyboardMapperFactory.INSTANCE.getCurrentKeyboardLayout();
+		/* __GDPR__
+			"keyboardLayout" : {
+				"currentKeyboardLayout": { "${inline}": [ "${IKeyboardLayoutInfo}" ] }
+			}
+		*/
 		telemetryService.publicLog('keyboardLayout', {
 			currentKeyboardLayout: data
-		});
-
-		if (OS === OperatingSystem.Macintosh || OS === OperatingSystem.Linux) {
-			const isUSStandard = KeyboardMapperFactory.INSTANCE.isUSStandard();
-			if (!isUSStandard) {
-				this._promptIfNeeded();
-			}
-		}
-	}
-
-	private _promptIfNeeded(): void {
-		const storage = new KeybindingsMigrationsStorage(this.storageService);
-		const storedData = storage.get();
-		if (storedData && storedData.dontShowPrompt) {
-			// Do not prompt stored
-			return;
-		}
-
-		storage.set({
-			dontShowPrompt: true
-		});
-
-		this._prompt();
-	}
-
-	private _prompt(): void {
-		const openDocumentation = new Action(
-			'keybindingMigration.openDocumentation',
-			nls.localize('openDocumentation', 'Learn More'),
-			'',
-			true,
-			() => {
-				window.open('https://go.microsoft.com/fwlink/?linkid=846147'); // Don't change link.
-				return TPromise.as(true);
-			}
-		);
-		const okAction = new Action(
-			'keybindingMigration.ok',
-			nls.localize('keybindingMigration.ok', "OK"),
-			null,
-			true,
-			() => TPromise.as(true)
-		);
-		this.messageService.show(Severity.Info, {
-			message: nls.localize('keybindingMigration.prompt', "Some keyboard shortcuts have changed for your keyboard layout."),
-			actions: [openDocumentation, okAction]
 		});
 	}
 
@@ -489,7 +412,12 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		if (!isFirstTime) {
 			let cnt = extraUserKeybindings.length;
 
-			this.telemetryService.publicLog('customKeybindingsChanged', {
+			/* __GDPR__
+				"customKeybindingsChanged" : {
+					"keyCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				}
+			*/
+			this._telemetryService.publicLog('customKeybindingsChanged', {
 				keyCount: cnt
 			});
 		}
@@ -641,25 +569,22 @@ let schema: IJSONSchema = {
 let schemaRegistry = <IJSONContributionRegistry>Registry.as(Extensions.JSONContribution);
 schemaRegistry.registerSchema(schemaId, schema);
 
-if (OS === OperatingSystem.Macintosh || OS === OperatingSystem.Linux) {
-
-	const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigExtensions.Configuration);
-	const keyboardConfiguration: IConfigurationNode = {
-		'id': 'keyboard',
-		'order': 15,
-		'type': 'object',
-		'title': nls.localize('keyboardConfigurationTitle', "Keyboard"),
-		'overridable': true,
-		'properties': {
-			'keyboard.dispatch': {
-				'type': 'string',
-				'enum': ['code', 'keyCode'],
-				'default': 'code',
-				'description': nls.localize('dispatch', "Controls the dispatching logic for key presses to use either `keydown.code` (recommended) or `keydown.keyCode`.")
-			}
+const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigExtensions.Configuration);
+const keyboardConfiguration: IConfigurationNode = {
+	'id': 'keyboard',
+	'order': 15,
+	'type': 'object',
+	'title': nls.localize('keyboardConfigurationTitle', "Keyboard"),
+	'overridable': true,
+	'properties': {
+		'keyboard.dispatch': {
+			'type': 'string',
+			'enum': ['code', 'keyCode'],
+			'default': 'code',
+			'description': nls.localize('dispatch', "Controls the dispatching logic for key presses to use either `code` (recommended) or `keyCode`."),
+			'included': OS === OperatingSystem.Macintosh || OS === OperatingSystem.Linux
 		}
-	};
+	}
+};
 
-	configurationRegistry.registerConfiguration(keyboardConfiguration);
-
-}
+configurationRegistry.registerConfiguration(keyboardConfiguration);

@@ -3,11 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-button.disabled {
-	opacity: 0.4;
-	cursor: default;
-}
-
 .monaco-text-button {
 	-moz-box-sizing: border-box;
 	box-sizing: border-box;
@@ -15,40 +10,19 @@
 	width: 100%;
 	padding: 4px;
 	text-align: center;
-	color: white;
-	background: #007ACC;
 	cursor: pointer;
 }
 
 .monaco-text-button:hover {
 	text-decoration: none !important;
-	color: white !important;
 }
 
-/*Theming support*/
-
-.monaco-button:not(.disabled):hover {
-	background-color: #DDD
+.monaco-button.disabled {
+	opacity: 0.4;
+	cursor: default;
 }
 
-.vs-dark .monaco-button:not(.disabled):hover,
-.hc-black .monaco-button:not(.disabled):hover {
-	background-color: #2f3334;
-}
-
-.monaco-button.monaco-text-button:not(.disabled):hover,
-.vs-dark .monaco-button.monaco-text-button:not(.disabled):hover,
-.hc-black .monaco-button.monaco-text-button:not(.disabled):hover {
-	background: #006BB3;
-}
-
-.monaco-button.monaco-text-button:not(.disabled):active {
-	background: #005F9E;
-}
-
-.vs-dark .monaco-button.monaco-text-button {
-	background: #0E639C;
-}
+/* Theming support */
 
 .vs .monaco-text-button:focus,
 .vs-dark .monaco-text-button:focus {

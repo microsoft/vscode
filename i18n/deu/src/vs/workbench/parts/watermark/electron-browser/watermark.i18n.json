@@ -14,10 +14,6 @@
 	"watermark.toggleTerminal": "Terminal umschalten",
 	"watermark.findInFiles": "In Dateien suchen",
 	"watermark.startDebugging": "Debuggen starten",
-	"watermark.selectTheme": "Design ändern",
-	"watermark.selectKeymap": "Tastenzuordnung ändern",
-	"watermark.keybindingsReference": "Tastaturreferenz",
-	"watermark.openGlobalKeybindings": "Tastenkombinationen",
 	"watermark.unboundCommand": "Ungebunden",
 	"workbenchConfigurationTitle": "Workbench",
 	"tips.enabled": "Wenn diese Option aktiviert ist, werden Tipps zu Wasserzeichen angezeigt, wenn kein Editor geöffnet ist."

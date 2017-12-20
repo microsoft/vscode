@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 'use strict';
+Object.defineProperty(exports, "__esModule", { value: true });
 var es = require("event-stream");
 var _ = require("underscore");
 var util = require("gulp-util");
@@ -29,6 +30,7 @@ try {
     fs.mkdirSync(path.dirname(buildLogPath));
 }
 catch (err) {
+    // ignore
 }
 function log() {
     var errors = _.flatten(allErrors);
@@ -39,19 +41,20 @@ function log() {
         .filter(function (match) { return !!match; })
         .map(function (_a) {
         var path = _a[1], line = _a[2], column = _a[3], message = _a[4];
-        return ({ path: path, line: Number.parseInt(line), column: Number.parseInt(column), message: message });
+        return ({ path: path, line: parseInt(line), column: parseInt(column), message: message });
     });
     try {
         fs.writeFileSync(buildLogPath, JSON.stringify(messages));
     }
     catch (err) {
+        //noop
     }
     util.log("Finished " + util.colors.green('compilation') + " with " + errors.length + " errors after " + util.colors.magenta((new Date().getTime() - startTime) + ' ms'));
 }
 function createReporter() {
     var errors = [];
     allErrors.push(errors);
-    var ReportFunc = (function () {
+    var ReportFunc = /** @class */ (function () {
         function ReportFunc(err) {
             errors.push(err);
         }

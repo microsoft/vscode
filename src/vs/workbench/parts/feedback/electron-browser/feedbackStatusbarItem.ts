@@ -11,8 +11,9 @@ import { FeedbackDropdown, IFeedback, IFeedbackService } from './feedback';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import product from 'vs/platform/node/product';
-import { Themable, STATUS_BAR_FOREGROUND } from "vs/workbench/common/theme";
-import { IThemeService } from "vs/platform/theme/common/themeService";
+import { Themable, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND } from 'vs/workbench/common/theme';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 
 class TwitterFeedbackService implements IFeedbackService {
 
@@ -25,7 +26,7 @@ class TwitterFeedbackService implements IFeedbackService {
 	}
 
 	public submitFeedback(feedback: IFeedback): void {
-		const queryString = `?${feedback.sentiment === 1 ? `hashtags=${this.combineHashTagsAsString()}&` : null}ref_src=twsrc%5Etfw&related=twitterapi%2Ctwitter&text=${feedback.feedback}&tw_p=tweetbutton&via=${TwitterFeedbackService.VIA_NAME}`;
+		const queryString = `?${feedback.sentiment === 1 ? `hashtags=${this.combineHashTagsAsString()}&` : null}ref_src=twsrc%5Etfw&related=twitterapi%2Ctwitter&text=${encodeURIComponent(feedback.feedback)}&tw_p=tweetbutton&via=${TwitterFeedbackService.VIA_NAME}`;
 		const url = TwitterFeedbackService.TWITTER_URL + queryString;
 
 		window.open(url);
@@ -43,7 +44,7 @@ class TwitterFeedbackService implements IFeedbackService {
 			length += ` via @${TwitterFeedbackService.VIA_NAME}`.length;
 		}
 
-		return 140 - length;
+		return 280 - length;
 	}
 }
 
@@ -53,16 +54,23 @@ export class FeedbackStatusbarItem extends Themable implements IStatusbarItem {
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextViewService private contextViewService: IContextViewService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IThemeService themeService: IThemeService
 	) {
 		super(themeService);
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this.toUnbind.push(this.contextService.onDidChangeWorkbenchState(() => this.updateStyles()));
 	}
 
 	protected updateStyles(): void {
 		super.updateStyles();
 
 		if (this.dropdown) {
-			this.dropdown.label.style('background-color', this.getColor(STATUS_BAR_FOREGROUND));
+			this.dropdown.label.style('background-color', this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_FOREGROUND : STATUS_BAR_NO_FOLDER_FOREGROUND));
 		}
 	}
 

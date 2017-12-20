@@ -3,44 +3,53 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+import * as vscode from 'vscode';
+import { TypeScriptVersion } from './versionProvider';
+import * as languageModeIds from './languageModeIds';
 
-import vscode = require('vscode');
+export default class VersionStatus {
+	private readonly onChangeEditorSub: vscode.Disposable;
+	private readonly versionBarEntry: vscode.StatusBarItem;
 
-const versionBarEntry = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, Number.MIN_VALUE);
-
-export function showHideStatus() {
-	if (!versionBarEntry) {
-		return;
-	}
-	if (!vscode.window.activeTextEditor) {
-		versionBarEntry.hide();
-		return;
-	}
-
-	let doc = vscode.window.activeTextEditor.document;
-	if (vscode.languages.match('typescript', doc) || vscode.languages.match('typescriptreact', doc)) {
-		versionBarEntry.show();
-		return;
+	constructor(
+		private readonly normalizePath: (resource: vscode.Uri) => string | null
+	) {
+		this.versionBarEntry = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, Number.MIN_VALUE);
+		this.onChangeEditorSub = vscode.window.onDidChangeActiveTextEditor(this.showHideStatus, this);
 	}
 
-	if (!vscode.window.activeTextEditor.viewColumn) {
-		// viewColumn is undefined for the debug/output panel, but we still want
-		// to show the version info
-		return;
+	dispose() {
+		this.versionBarEntry.dispose();
+		this.onChangeEditorSub.dispose();
 	}
 
-	versionBarEntry.hide();
-}
-
-export function disposeStatus() {
-	if (versionBarEntry) {
-		versionBarEntry.dispose();
+	public onDidChangeTypeScriptVersion(version: TypeScriptVersion) {
+		this.showHideStatus();
+		this.versionBarEntry.text = version.versionString;
+		this.versionBarEntry.tooltip = version.path;
+		this.versionBarEntry.command = 'typescript.selectTypeScriptVersion';
 	}
-}
 
-export function setInfo(message: string, tooltip: string) {
-	versionBarEntry.text = message;
-	versionBarEntry.tooltip = tooltip;
-	versionBarEntry.command = 'typescript.selectTypeScriptVersion';
+	private showHideStatus() {
+		if (!vscode.window.activeTextEditor) {
+			this.versionBarEntry.hide();
+			return;
+		}
+
+		const doc = vscode.window.activeTextEditor.document;
+		if (vscode.languages.match([languageModeIds.typescript, languageModeIds.typescriptreact], doc)) {
+			if (this.normalizePath(doc.uri)) {
+				this.versionBarEntry.show();
+				return;
+			}
+		}
+
+		if (!vscode.window.activeTextEditor.viewColumn) {
+			// viewColumn is undefined for the debug/output panel, but we still want
+			// to show the version info in the existing editor
+			return;
+		}
+
+		this.versionBarEntry.hide();
+	}
 }

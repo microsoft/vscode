@@ -6,12 +6,14 @@
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { clipboard } from 'electron';
+import { ITree } from 'vs/base/parts/tree/browser/tree';
+import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 import { Variable } from 'vs/workbench/parts/debug/common/debugModel';
 import { IDebugService, IStackFrame } from 'vs/workbench/parts/debug/common/debug';
+import { clipboard } from 'electron';
 
 export class CopyValueAction extends Action {
-	static ID = 'workbench.debug.viewlet.action.copyValue';
+	static readonly ID = 'workbench.debug.viewlet.action.copyValue';
 	static LABEL = nls.localize('copyValue', "Copy Value");
 
 	constructor(id: string, label: string, private value: any, @IDebugService private debugService: IDebugService) {
@@ -33,7 +35,7 @@ export class CopyValueAction extends Action {
 }
 
 export class CopyAction extends Action {
-	static ID = 'workbench.debug.action.copy';
+	static readonly ID = 'workbench.debug.action.copy';
 	static LABEL = nls.localize('copy', "Copy");
 
 	public run(): TPromise<any> {
@@ -42,8 +44,32 @@ export class CopyAction extends Action {
 	}
 }
 
+export class CopyAllAction extends Action {
+	static readonly ID = 'workbench.debug.action.copyAll';
+	static LABEL = nls.localize('copyAll', "Copy All");
+
+	constructor(id: string, label: string, private tree: ITree) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		let text = '';
+		const navigator = this.tree.getNavigator();
+		// skip first navigator element - the root node
+		while (navigator.next()) {
+			if (text) {
+				text += `\n`;
+			}
+			text += navigator.current().toString();
+		}
+
+		clipboard.writeText(removeAnsiEscapeCodes(text));
+		return TPromise.as(null);
+	}
+}
+
 export class CopyStackTraceAction extends Action {
-	static ID = 'workbench.action.debug.copyStackTrace';
+	static readonly ID = 'workbench.action.debug.copyStackTrace';
 	static LABEL = nls.localize('copyStackTrace', "Copy Call Stack");
 
 	public run(frame: IStackFrame): TPromise<any> {

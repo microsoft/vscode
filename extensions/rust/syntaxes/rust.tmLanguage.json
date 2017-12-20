@@ -1,4 +1,10 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/zargony/atom-language-rust/blob/master/grammars/rust.cson",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
+	"version": "https://github.com/zargony/atom-language-rust/commit/59893b659a6d674d0d1f6c4158d0f60cea20d190",
 	"name": "Rust",
 	"scopeName": "source.rust",
 	"fileTypes": [
@@ -47,7 +53,7 @@
 		},
 		"escaped_character": {
 			"name": "constant.character.escape.rust",
-			"match": "\\\\(x\\h{2}|[0-2][0-7]{,2}|3[0-6][0-7]?|37[0-7]?|[4-7][0-7]?|.)"
+			"match": "\\\\(x[0-9A-Fa-f]{2}|[0-2][0-7]{0,2}|3[0-6][0-7]?|37[0-7]?|[4-7][0-7]?|.)"
 		},
 		"string_literal": {
 			"comment": "Double-quote string literal",
@@ -158,11 +164,16 @@
 			"name": "support.type.std.rust",
 			"match": "\\b(ToOwned|ToString)\\b"
 		},
+		"type": {
+			"comment": "A type",
+			"name": "entity.name.type.rust",
+			"match": "\\b([A-Za-z][_A-Za-z0-9]*|_[_A-Za-z0-9]+)\\b"
+		},
 		"type_params": {
 			"comment": "Type parameters",
 			"name": "meta.type_params.rust",
 			"begin": "<(?![=<])",
-			"end": ">",
+			"end": "(?<![-])>",
 			"patterns": [
 				{
 					"include": "#block_comment"
@@ -202,6 +213,61 @@
 	},
 	"patterns": [
 		{
+			"comment": "Implementation",
+			"begin": "\\b(impl)\\b",
+			"end": "\\{",
+			"beginCaptures": {
+				"1": {
+					"name": "storage.type.rust"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#block_comment"
+				},
+				{
+					"include": "#line_comment"
+				},
+				{
+					"include": "#sigils"
+				},
+				{
+					"include": "#mut"
+				},
+				{
+					"include": "#ref_lifetime"
+				},
+				{
+					"include": "#core_types"
+				},
+				{
+					"include": "#core_marker"
+				},
+				{
+					"include": "#core_traits"
+				},
+				{
+					"include": "#std_types"
+				},
+				{
+					"include": "#std_traits"
+				},
+				{
+					"include": "#type_params"
+				},
+				{
+					"include": "#where"
+				},
+				{
+					"name": "storage.type.rust",
+					"match": "\\bfor\\b"
+				},
+				{
+					"include": "#type"
+				}
+			]
+		},
+		{
 			"include": "#block_doc_comment"
 		},
 		{
@@ -239,7 +305,7 @@
 		{
 			"comment": "Single-quote string literal (character)",
 			"name": "string.quoted.single.rust",
-			"match": "b?'([^'\\\\]|\\\\(x\\h{2}|[0-2][0-7]{,2}|3[0-6][0-7]?|37[0-7]?|[4-7][0-7]?|.))'"
+			"match": "b?'([^'\\\\]|\\\\(x[0-9A-Fa-f]{2}|[0-2][0-7]{0,2}|3[0-6][0-7]?|37[0-7]?|[4-7][0-7]?|.))'"
 		},
 		{
 			"include": "#string_literal"
@@ -300,7 +366,12 @@
 		{
 			"comment": "Keyword",
 			"name": "keyword.other.rust",
-			"match": "\\b(crate|extern|mod|let|proc|ref|use|super|as|move)\\b"
+			"match": "\\b(crate|extern|mod|let|ref|use|super|move)\\b"
+		},
+		{
+			"comment": "Reserved keyword",
+			"name": "invalid.deprecated.rust",
+			"match": "\\b(abstract|alignof|become|do|final|macro|offsetof|override|priv|proc|pure|sizeof|typeof|virtual|yield)\\b"
 		},
 		{
 			"include": "#unsafe"
@@ -403,7 +474,7 @@
 		},
 		{
 			"comment": "Function call",
-			"match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*\\(",
+			"match": "\\b([A-Za-z][A-Za-z0-9_]*|_[A-Za-z0-9_]+)\\s*\\(",
 			"captures": {
 				"1": {
 					"name": "entity.name.function.rust"
@@ -411,8 +482,26 @@
 			}
 		},
 		{
+			"comment": "Function call with type parameters",
+			"begin": "\\b([A-Za-z][A-Za-z0-9_]*|_[A-Za-z0-9_]+)\\s*(::)(?=\\s*<.*>\\s*\\()",
+			"end": "\\(",
+			"captures": {
+				"1": {
+					"name": "entity.name.function.rust"
+				},
+				"2": {
+					"name": "keyword.operator.misc.rust"
+				}
+			},
+			"patterns": [
+				{
+					"include": "#type_params"
+				}
+			]
+		},
+		{
 			"comment": "Function definition",
-			"begin": "\\b(fn)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+			"begin": "\\b(fn)\\s+([A-Za-z][A-Za-z0-9_]*|_[A-Za-z0-9_]+)",
 			"end": "[\\{;]",
 			"beginCaptures": {
 				"1": {
@@ -470,14 +559,14 @@
 				},
 				{
 					"comment": "Function arguments",
-					"match": "fn",
+					"match": "\bfn\b",
 					"name": "keyword.other.fn.rust"
 				}
 			]
 		},
 		{
 			"comment": "Type declaration",
-			"begin": "\\b(enum|struct|trait)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+			"begin": "\\b(enum|struct|trait|union)\\s+([a-zA-Z_][a-zA-Z0-9_]*)",
 			"end": "[\\{\\(;]",
 			"beginCaptures": {
 				"1": {
@@ -564,59 +653,6 @@
 					"include": "#type_params"
 				}
 			]
-		},
-		{
-			"comment": "Implementation",
-			"begin": "\\b(impl)\\b",
-			"end": "\\{",
-			"beginCaptures": {
-				"1": {
-					"name": "storage.type.rust"
-				}
-			},
-			"patterns": [
-				{
-					"include": "#block_comment"
-				},
-				{
-					"include": "#line_comment"
-				},
-				{
-					"include": "#sigils"
-				},
-				{
-					"include": "#mut"
-				},
-				{
-					"include": "#ref_lifetime"
-				},
-				{
-					"include": "#core_types"
-				},
-				{
-					"include": "#core_marker"
-				},
-				{
-					"include": "#core_traits"
-				},
-				{
-					"include": "#std_types"
-				},
-				{
-					"include": "#std_traits"
-				},
-				{
-					"include": "#type_params"
-				},
-				{
-					"include": "#where"
-				},
-				{
-					"name": "storage.type.rust",
-					"match": "\\bfor\\b"
-				}
-			]
 		}
-	],
-	"version": "https://github.com/zargony/atom-language-rust/commit/5e32388ed873683f3ccdea618c25d1ace8759608"
+	]
 }

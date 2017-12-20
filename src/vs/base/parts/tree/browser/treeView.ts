@@ -23,7 +23,8 @@ import { HeightMap, IViewItem } from 'vs/base/parts/tree/browser/treeViewModel';
 import _ = require('vs/base/parts/tree/browser/tree');
 import { KeyCode } from 'vs/base/common/keyCodes';
 import Event, { Emitter } from 'vs/base/common/event';
-import { EmitterEvent } from 'vs/base/common/eventEmitter';
+import { IDomNodePagePosition } from 'vs/base/browser/dom';
+import { DataTransfers } from 'vs/base/browser/dnd';
 
 export interface IRow {
 	element: HTMLElement;
@@ -197,25 +198,26 @@ export class ViewItem implements IViewItem {
 
 		// ARIA
 		this.element.setAttribute('role', 'treeitem');
+		const accessibility = this.context.accessibilityProvider;
+		const ariaLabel = accessibility.getAriaLabel(this.context.tree, this.model.getElement());
+		if (ariaLabel) {
+			this.element.setAttribute('aria-label', ariaLabel);
+		}
+		if (accessibility.getPosInSet && accessibility.getSetSize) {
+			this.element.setAttribute('aria-setsize', accessibility.getSetSize());
+			this.element.setAttribute('aria-posinset', accessibility.getPosInSet(this.context.tree, this.model.getElement()));
+		}
 		if (this.model.hasTrait('focused')) {
 			const base64Id = strings.safeBtoa(this.model.id);
-			const ariaLabel = this.context.accessibilityProvider.getAriaLabel(this.context.tree, this.model.getElement());
 
 			this.element.setAttribute('aria-selected', 'true');
 			this.element.setAttribute('id', base64Id);
-			if (ariaLabel) {
-				this.element.setAttribute('aria-label', ariaLabel);
-			} else {
-				this.element.setAttribute('aria-labelledby', base64Id); // force screen reader to compute label from children (helps NVDA at least)
-			}
 		} else {
 			this.element.setAttribute('aria-selected', 'false');
 			this.element.removeAttribute('id');
-			this.element.removeAttribute('aria-label');
-			this.element.removeAttribute('aria-labelledby');
 		}
 		if (this.model.hasChildren()) {
-			this.element.setAttribute('aria-expanded', String(this.model.isExpanded()));
+			this.element.setAttribute('aria-expanded', String(!!this.model.isExpanded()));
 		} else {
 			this.element.removeAttribute('aria-expanded');
 		}
@@ -378,7 +380,6 @@ export class TreeView extends HeightMap {
 	private styleElement: HTMLStyleElement;
 	private rowsContainer: HTMLElement;
 	private scrollableElement: ScrollableElement;
-	private wrapperGesture: Touch.Gesture;
 	private msGesture: MSGesture;
 	private lastPointerType: string;
 	private lastClickTimeStamp: number = 0;
@@ -391,8 +392,6 @@ export class TreeView extends HeightMap {
 
 	private isRefreshing = false;
 	private refreshingPreviousChildrenIds: { [id: string]: string[] } = {};
-
-	private dragAndDropListeners: { (): void; }[];
 	private currentDragAndDropData: _.IDragAndDropData;
 	private currentDropElement: any;
 	private currentDropElementReaction: _.IDragOverReaction;
@@ -436,14 +435,14 @@ export class TreeView extends HeightMap {
 
 		this.modelListeners = [];
 		this.viewListeners = [];
-		this.dragAndDropListeners = [];
 
 		this.model = null;
 		this.items = {};
 
 		this.domNode = document.createElement('div');
 		this.domNode.className = `monaco-tree no-focused-item monaco-tree-instance-${this.instance}`;
-		this.domNode.tabIndex = 0;
+		// to allow direct tabbing into the tree instead of first focusing the tree
+		this.domNode.tabIndex = context.options.preventRootFocus ? -1 : 0;
 
 		this.styleElement = DOM.createStyleSheet(this.domNode);
 
@@ -464,7 +463,6 @@ export class TreeView extends HeightMap {
 		this.wrapper = document.createElement('div');
 		this.wrapper.className = 'monaco-tree-wrapper';
 		this.scrollableElement = new ScrollableElement(this.wrapper, {
-			canUseTranslate3d: false,
 			alwaysConsumeMouseWheel: true,
 			horizontal: ScrollbarVisibility.Hidden,
 			vertical: (typeof context.options.verticalScrollMode !== 'undefined' ? context.options.verticalScrollMode : ScrollbarVisibility.Auto),
@@ -472,14 +470,13 @@ export class TreeView extends HeightMap {
 		});
 		this.scrollableElement.onScroll((e) => {
 			this.render(e.scrollTop, e.height);
-			this.emit('scroll', e); // TODO@Joao: is anyone interested in this event?
 		});
 
 		if (Browser.isIE) {
 			this.wrapper.style.msTouchAction = 'none';
 			this.wrapper.style.msContentZooming = 'none';
 		} else {
-			this.wrapperGesture = new Touch.Gesture(this.wrapper);
+			Touch.Gesture.addTarget(this.wrapper);
 		}
 
 		this.rowsContainer = document.createElement('div');
@@ -489,8 +486,8 @@ export class TreeView extends HeightMap {
 		}
 
 		var focusTracker = DOM.trackFocus(this.domNode);
-		focusTracker.addFocusListener(() => this.onFocus());
-		focusTracker.addBlurListener(() => this.onBlur());
+		this.viewListeners.push(focusTracker.onDidFocus(() => this.onFocus()));
+		this.viewListeners.push(focusTracker.onDidBlur(() => this.onBlur()));
 		this.viewListeners.push(focusTracker);
 
 		this.viewListeners.push(DOM.addDisposableListener(this.domNode, 'keydown', (e) => this.onKeyDown(e)));
@@ -524,7 +521,7 @@ export class TreeView extends HeightMap {
 		}
 
 		this.viewListeners.push(DOM.addDisposableListener(window, 'dragover', (e) => this.onDragOver(e)));
-		this.viewListeners.push(DOM.addDisposableListener(window, 'drop', (e) => this.onDrop(e)));
+		this.viewListeners.push(DOM.addDisposableListener(this.wrapper, 'drop', (e) => this.onDrop(e)));
 		this.viewListeners.push(DOM.addDisposableListener(window, 'dragend', (e) => this.onDragEnd(e)));
 		this.viewListeners.push(DOM.addDisposableListener(window, 'dragleave', (e) => this.onDragOver(e)));
 
@@ -555,32 +552,75 @@ export class TreeView extends HeightMap {
 	}
 
 	public applyStyles(styles: _.ITreeStyles): void {
+		const content: string[] = [];
 
-		// Indicate selection/focus via background color
-		if (!styles.listFocusOutline) {
-			this.styleElement.innerHTML = `
-				.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.focused:not(.highlighted)						{ background-color: ${styles.listFocusBackground}; }
-				.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) 						{ background-color: ${styles.listActiveSelectionBackground}; color: ${styles.listActiveSelectionForeground}; }
-				.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.focused.selected:not(.highlighted) 				{ background-color: ${styles.listFocusAndSelectionBackground}; color: ${styles.listFocusAndSelectionForeground}; }
-				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted)								{ background-color: ${styles.listInactiveSelectionBackground}; }
-				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused)	{ background-color: ${styles.listHoverBackground}; }
-				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-wrapper.drop-target,
-				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row.drop-target												{ background-color: ${styles.listDropBackground} !important; }
-			`;
+		if (styles.listFocusBackground) {
+			content.push(`.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.focused:not(.highlighted) { background-color: ${styles.listFocusBackground}; }`);
 		}
 
-		// Indicate selection/focus via outline
-		else {
-			this.styleElement.innerHTML = `
-				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row 														{ background: none !important; border: 1px solid transparent; }
+		if (styles.listFocusForeground) {
+			content.push(`.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.focused:not(.highlighted) { color: ${styles.listFocusForeground}; }`);
+		}
+
+		if (styles.listActiveSelectionBackground) {
+			content.push(`.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { background-color: ${styles.listActiveSelectionBackground}; }`);
+		}
+
+		if (styles.listActiveSelectionForeground) {
+			content.push(`.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { color: ${styles.listActiveSelectionForeground}; }`);
+		}
+
+		if (styles.listFocusAndSelectionBackground) {
+			content.push(`
+				.monaco-tree-drag-image,
+				.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.focused.selected:not(.highlighted) { background-color: ${styles.listFocusAndSelectionBackground}; }
+			`);
+		}
+
+		if (styles.listFocusAndSelectionForeground) {
+			content.push(`
+				.monaco-tree-drag-image,
+				.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.focused.selected:not(.highlighted) { color: ${styles.listFocusAndSelectionForeground}; }
+			`);
+		}
+
+		if (styles.listInactiveSelectionBackground) {
+			content.push(`.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { background-color: ${styles.listInactiveSelectionBackground}; }`);
+		}
+
+		if (styles.listInactiveSelectionForeground) {
+			content.push(`.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) { color: ${styles.listInactiveSelectionForeground}; }`);
+		}
+
+		if (styles.listHoverBackground) {
+			content.push(`.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused) { background-color: ${styles.listHoverBackground}; }`);
+		}
+
+		if (styles.listHoverForeground) {
+			content.push(`.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused) { color: ${styles.listHoverForeground}; }`);
+		}
+
+		if (styles.listDropBackground) {
+			content.push(`
+				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-wrapper.drop-target,
+				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row.drop-target { background-color: ${styles.listDropBackground} !important; color: inherit !important; }
+			`);
+		}
+
+		if (styles.listFocusOutline) {
+			content.push(`
+				.monaco-tree-drag-image																															{ border: 1px solid ${styles.listFocusOutline}; background: #000; }
+				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row 														{ border: 1px solid transparent; }
 				.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.focused:not(.highlighted) 						{ border: 1px dotted ${styles.listFocusOutline}; }
 				.monaco-tree.monaco-tree-instance-${this.instance}.focused .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted) 						{ border: 1px solid ${styles.listFocusOutline}; }
 				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row.selected:not(.highlighted)  							{ border: 1px solid ${styles.listFocusOutline}; }
 				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row:hover:not(.highlighted):not(.selected):not(.focused)  	{ border: 1px dashed ${styles.listFocusOutline}; }
 				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-wrapper.drop-target,
-				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row.drop-target												{ background: none !important; border: 1px dashed ${styles.listFocusOutline}; }
-			`;
+				.monaco-tree.monaco-tree-instance-${this.instance} .monaco-tree-rows > .monaco-tree-row.drop-target												{ border: 1px dashed ${styles.listFocusOutline}; }
+			`);
 		}
+
+		this.styleElement.innerHTML = content.join('\n');
 	}
 
 	protected createViewItem(item: Model.Item): IViewItem {
@@ -674,65 +714,21 @@ export class TreeView extends HeightMap {
 		this.releaseModel();
 		this.model = newModel;
 
-		this.modelListeners.push(this.model.addBulkListener((e) => this.onModelEvents(e)));
-	}
+		this.model.onRefresh(this.onRefreshing, this, this.modelListeners);
+		this.model.onDidRefresh(this.onRefreshed, this, this.modelListeners);
+		this.model.onSetInput(this.onClearingInput, this, this.modelListeners);
+		this.model.onDidSetInput(this.onSetInput, this, this.modelListeners);
+		this.model.onDidFocus(this.onModelFocusChange, this, this.modelListeners);
 
-	private onModelEvents(events: EmitterEvent[]): void {
-		var elementsToRefresh: Model.Item[] = [];
-
-		for (var i = 0, len = events.length; i < len; i++) {
-			var event = events[i];
-			var data = event.data;
-
-			switch (event.type) {
-				case 'refreshing':
-					this.onRefreshing();
-					break;
-				case 'refreshed':
-					this.onRefreshed();
-					break;
-				case 'clearingInput':
-					this.onClearingInput(data);
-					break;
-				case 'setInput':
-					this.onSetInput(data);
-					break;
-				case 'item:childrenRefreshing':
-					this.onItemChildrenRefreshing(data);
-					break;
-				case 'item:childrenRefreshed':
-					this.onItemChildrenRefreshed(data);
-					break;
-				case 'item:refresh':
-					elementsToRefresh.push(data.item);
-					break;
-				case 'item:expanding':
-					this.onItemExpanding(data);
-					break;
-				case 'item:expanded':
-					this.onItemExpanded(data);
-					break;
-				case 'item:collapsing':
-					this.onItemCollapsing(data);
-					break;
-				case 'item:reveal':
-					this.onItemReveal(data);
-					break;
-				case 'item:addTrait':
-					this.onItemAddTrait(data);
-					break;
-				case 'item:removeTrait':
-					this.onItemRemoveTrait(data);
-					break;
-				case 'focus':
-					this.onModelFocusChange();
-					break;
-			}
-		}
-
-		if (elementsToRefresh.length > 0) {
-			this.onItemsRefresh(elementsToRefresh);
-		}
+		this.model.onRefreshItemChildren(this.onItemChildrenRefreshing, this, this.modelListeners);
+		this.model.onDidRefreshItemChildren(this.onItemChildrenRefreshed, this, this.modelListeners);
+		this.model.onDidRefreshItem(this.onItemRefresh, this, this.modelListeners);
+		this.model.onExpandItem(this.onItemExpanding, this, this.modelListeners);
+		this.model.onDidExpandItem(this.onItemExpanded, this, this.modelListeners);
+		this.model.onCollapseItem(this.onItemCollapsing, this, this.modelListeners);
+		this.model.onDidRevealItem(this.onItemReveal, this, this.modelListeners);
+		this.model.onDidAddTraitItem(this.onItemAddTrait, this, this.modelListeners);
+		this.model.onDidRemoveTraitItem(this.onItemRemoveTrait, this, this.modelListeners);
 	}
 
 	private onRefreshing(): void {
@@ -803,26 +799,28 @@ export class TreeView extends HeightMap {
 	}
 
 	public get viewHeight() {
-		const scrollState = this.scrollableElement.getScrollState();
-		return scrollState.height;
+		const scrollDimensions = this.scrollableElement.getScrollDimensions();
+		return scrollDimensions.height;
 	}
 
 	public set viewHeight(viewHeight: number) {
-		this.scrollableElement.updateState({
+		this.scrollableElement.setScrollDimensions({
 			height: viewHeight,
 			scrollHeight: this.getTotalHeight()
 		});
 	}
 
 	public get scrollTop(): number {
-		const scrollState = this.scrollableElement.getScrollState();
-		return scrollState.scrollTop;
+		const scrollPosition = this.scrollableElement.getScrollPosition();
+		return scrollPosition.scrollTop;
 	}
 
 	public set scrollTop(scrollTop: number) {
-		this.scrollableElement.updateState({
-			scrollTop: scrollTop,
+		this.scrollableElement.setScrollDimensions({
 			scrollHeight: this.getTotalHeight()
+		});
+		this.scrollableElement.setScrollPosition({
+			scrollTop: scrollTop
 		});
 	}
 
@@ -849,7 +847,6 @@ export class TreeView extends HeightMap {
 	private onSetInput(e: Model.IInputEvent): void {
 		this.context.cache.garbageCollect();
 		this.inputItem = new RootViewItem(this.context, <Model.Item>e.item, this.wrapper);
-		this.emit('viewItem:create', { item: this.inputItem.model });
 	}
 
 	private onItemChildrenRefreshing(e: Model.IItemChildrenRefreshEvent): void {
@@ -912,7 +909,7 @@ export class TreeView extends HeightMap {
 						getElementHash: (i: number) => afterModelItems[i].id
 					}, null);
 
-				diff = lcs.ComputeDiff();
+				diff = lcs.ComputeDiff(false);
 
 				// this means that the result of the diff algorithm would result
 				// in inserting items that were already registered. this can only
@@ -957,6 +954,10 @@ export class TreeView extends HeightMap {
 				this.onRowsChanged();
 			}
 		}
+	}
+
+	private onItemRefresh(item: Model.Item): void {
+		this.onItemsRefresh([item]);
 	}
 
 	private onItemsRefresh(items: Model.Item[]): void {
@@ -1100,10 +1101,7 @@ export class TreeView extends HeightMap {
 
 	public onRemoveItem(item: ViewItem): void {
 		this.removeItemFromDOM(item);
-
 		item.dispose();
-		this.emit('viewItem:dispose', { item: this.inputItem.model });
-
 		delete this.items[item.id];
 	}
 
@@ -1224,13 +1222,16 @@ export class TreeView extends HeightMap {
 			var keyboardEvent = new Keyboard.StandardKeyboardEvent(<KeyboardEvent>event);
 			element = this.model.getFocus();
 
-			if (!element) {
-				return;
-			}
+			var position: IDomNodePagePosition;
 
-			var id = this.context.dataSource.getId(this.context.tree, element);
-			var viewItem = this.items[id];
-			var position = DOM.getDomNodePagePosition(viewItem.element);
+			if (!element) {
+				element = this.model.getInput();
+				position = DOM.getDomNodePagePosition(this.inputItem.element);
+			} else {
+				var id = this.context.dataSource.getId(this.context.tree, element);
+				var viewItem = this.items[id];
+				position = DOM.getDomNodePagePosition(viewItem.element);
+			}
 
 			resultEvent = new _.KeyboardContextMenuEvent(position.left + position.width, position.top, keyboardEvent);
 
@@ -1291,7 +1292,7 @@ export class TreeView extends HeightMap {
 		}
 
 		e.dataTransfer.effectAllowed = 'copyMove';
-		e.dataTransfer.setData('URL', item.uri);
+		e.dataTransfer.setData(DataTransfers.URL, item.uri);
 		if (e.dataTransfer.setDragImage) {
 			let label: string;
 
@@ -1588,6 +1589,10 @@ export class TreeView extends HeightMap {
 	}
 
 	private removeItemFromDOM(item: ViewItem): void {
+		if (!item) {
+			return;
+		}
+
 		item.removeFromDOM();
 	}
 
@@ -1640,11 +1645,6 @@ export class TreeView extends HeightMap {
 			this.domNode.parentNode.removeChild(this.domNode);
 		}
 		this.domNode = null;
-
-		if (this.wrapperGesture) {
-			this.wrapperGesture.dispose();
-			this.wrapperGesture = null;
-		}
 
 		if (this.context.cache) {
 			this.context.cache.dispose();

@@ -7,9 +7,9 @@ import * as nls from 'vs/nls';
 import * as lifecycle from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import * as dom from 'vs/base/browser/dom';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
-import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { DefaultController, ICancelableEvent, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
@@ -19,24 +19,27 @@ import { IContentWidget, ICodeEditor, IContentWidgetPosition, ContentWidgetPosit
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDebugService, IExpression, IExpressionContainer } from 'vs/workbench/parts/debug/common/debug';
 import { Expression } from 'vs/workbench/parts/debug/common/debugModel';
-import { VariablesRenderer, renderExpressionValue, VariablesDataSource } from 'vs/workbench/parts/debug/electron-browser/debugViewer';
-import { IListService } from 'vs/platform/list/browser/listService';
-import { attachListStyler } from "vs/platform/theme/common/styler";
-import { IThemeService } from "vs/platform/theme/common/themeService";
+import { renderExpressionValue } from 'vs/workbench/parts/debug/electron-browser/baseDebugView';
+import { VariablesDataSource, VariablesRenderer } from 'vs/workbench/parts/debug/electron-browser/variablesView';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
 
 const $ = dom.$;
 const MAX_ELEMENTS_SHOWN = 18;
-const MAX_VALUE_RENDER_LENGTH_IN_HOVER = 4096;
 
 export class DebugHoverWidget implements IContentWidget {
 
-	public static ID = 'debug.hoverWidget';
+	public static readonly ID = 'debug.hoverWidget';
 	// editor.IContentWidget.allowEditorOverflow
 	public allowEditorOverflow = true;
 
 	private _isVisible: boolean;
 	private domNode: HTMLElement;
-	private tree: ITree;
+	private tree: WorkbenchTree;
 	private showAtPosition: Position;
 	private highlightDecorations: string[];
 	private complexValueContainer: HTMLElement;
@@ -45,56 +48,67 @@ export class DebugHoverWidget implements IContentWidget {
 	private valueContainer: HTMLElement;
 	private stoleFocus: boolean;
 	private toDispose: lifecycle.IDisposable[];
+	private scrollbar: DomScrollableElement;
 
 	constructor(
 		private editor: ICodeEditor,
 		private debugService: IDebugService,
-		private listService: IListService,
-		instantiationService: IInstantiationService,
-		private themeService: IThemeService
+		private instantiationService: IInstantiationService,
+		private themeService: IThemeService,
+		private contextKeyService: IContextKeyService,
+		private listService: IListService
 	) {
 		this.toDispose = [];
-		this.create(instantiationService);
-		this.registerListeners();
-
-		this.valueContainer = dom.append(this.domNode, $('.value'));
-		this.valueContainer.tabIndex = 0;
-		this.valueContainer.setAttribute('role', 'tooltip');
 
 		this._isVisible = false;
 		this.showAtPosition = null;
 		this.highlightDecorations = [];
-
-		this.editor.addContentWidget(this);
-		this.editor.applyFontInfo(this.domNode);
 	}
 
-	private create(instantiationService: IInstantiationService): void {
+	private create(): void {
 		this.domNode = $('.debug-hover-widget');
 		this.complexValueContainer = dom.append(this.domNode, $('.complex-value'));
 		this.complexValueTitle = dom.append(this.complexValueContainer, $('.title'));
 		this.treeContainer = dom.append(this.complexValueContainer, $('.debug-hover-tree'));
 		this.treeContainer.setAttribute('role', 'tree');
-		this.tree = new Tree(this.treeContainer, {
+		this.tree = new WorkbenchTree(this.treeContainer, {
 			dataSource: new VariablesDataSource(),
-			renderer: instantiationService.createInstance(VariablesHoverRenderer),
+			renderer: this.instantiationService.createInstance(VariablesHoverRenderer),
 			controller: new DebugHoverController(this.editor)
 		}, {
 				indentPixels: 6,
 				twistiePixels: 15,
 				ariaLabel: nls.localize('treeAriaLabel', "Debug Hover"),
 				keyboardSupport: false
-			});
+			}, this.contextKeyService, this.listService, this.themeService);
 
-		this.toDispose.push(attachListStyler(this.tree, this.themeService));
-		this.toDispose.push(this.listService.register(this.tree));
+		this.valueContainer = $('.value');
+		this.valueContainer.tabIndex = 0;
+		this.valueContainer.setAttribute('role', 'tooltip');
+		this.scrollbar = new DomScrollableElement(this.valueContainer, { horizontal: ScrollbarVisibility.Hidden });
+		this.domNode.appendChild(this.scrollbar.getDomNode());
+		this.toDispose.push(this.scrollbar);
+
+		this.editor.applyFontInfo(this.domNode);
+
+		this.toDispose.push(attachStylerCallback(this.themeService, { editorHoverBackground, editorHoverBorder }, colors => {
+			this.domNode.style.backgroundColor = colors.editorHoverBackground;
+			if (colors.editorHoverBorder) {
+				this.domNode.style.border = `1px solid ${colors.editorHoverBorder}`;
+			} else {
+				this.domNode.style.border = null;
+			}
+		}));
+
+		this.registerListeners();
+		this.editor.addContentWidget(this);
 	}
 
 	private registerListeners(): void {
-		this.toDispose.push(this.tree.addListener('item:expanded', () => {
+		this.toDispose.push(this.tree.onDidExpandItem(() => {
 			this.layoutTree();
 		}));
-		this.toDispose.push(this.tree.addListener('item:collapsed', () => {
+		this.toDispose.push(this.tree.onDidCollapseItem(() => {
 			this.layoutTree();
 		}));
 
@@ -223,7 +237,8 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	private findExpressionInStackFrame(namesToFind: string[], expressionRange: Range): TPromise<IExpression> {
-		return this.debugService.getViewModel().focusedStackFrame.getMostSpecificScopes(expressionRange)
+		return this.debugService.getViewModel().focusedStackFrame.getScopes()
+			.then(scopes => scopes.filter(s => !s.expensive))
 			.then(scopes => TPromise.join(scopes.map(scope => this.doFindExpression(scope, namesToFind))))
 			.then(expressions => expressions.filter(exp => !!exp))
 			// only show if all expressions found have the same value
@@ -231,6 +246,10 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	private doShow(position: Position, expression: IExpression, focus: boolean, forceValueHover = false): TPromise<void> {
+		if (!this.domNode) {
+			this.create();
+		}
+
 		this.showAtPosition = position;
 		this._isVisible = true;
 		this.stoleFocus = focus;
@@ -240,11 +259,12 @@ export class DebugHoverWidget implements IContentWidget {
 			this.valueContainer.hidden = false;
 			renderExpressionValue(expression, this.valueContainer, {
 				showChanged: false,
-				maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_HOVER,
-				preserveWhitespace: true
+				preserveWhitespace: true,
+				colorize: true
 			});
 			this.valueContainer.title = '';
 			this.editor.layoutContentWidget(this);
+			this.scrollbar.scanDomNode();
 			if (focus) {
 				this.editor.render();
 				this.valueContainer.focus();
@@ -261,6 +281,7 @@ export class DebugHoverWidget implements IContentWidget {
 			this.complexValueTitle.title = expression.value;
 			this.layoutTree();
 			this.editor.layoutContentWidget(this);
+			this.scrollbar.scanDomNode();
 			if (focus) {
 				this.editor.render();
 				this.tree.DOMFocus();

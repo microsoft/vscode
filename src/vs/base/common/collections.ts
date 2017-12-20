@@ -27,13 +27,11 @@ const hasOwnProperty = Object.prototype.hasOwnProperty;
  * Returns an array which contains all values that reside
  * in the given set.
  */
-export function values<T>(from: IStringDictionary<T>): T[];
-export function values<T>(from: INumberDictionary<T>): T[];
-export function values<T>(from: any): any[] {
+export function values<T>(from: IStringDictionary<T> | INumberDictionary<T>): T[] {
 	const result: T[] = [];
-	for (var key in from) {
+	for (let key in from) {
 		if (hasOwnProperty.call(from, key)) {
-			result.push(from[key]);
+			result.push((from as any)[key]);
 		}
 	}
 	return result;
@@ -41,7 +39,7 @@ export function values<T>(from: any): any[] {
 
 export function size<T>(from: IStringDictionary<T> | INumberDictionary<T>): number {
 	let count = 0;
-	for (var key in from) {
+	for (let key in from) {
 		if (hasOwnProperty.call(from, key)) {
 			count += 1;
 		}
@@ -53,13 +51,11 @@ export function size<T>(from: IStringDictionary<T> | INumberDictionary<T>): numb
  * Iterates over each entry in the provided set. The iterator allows
  * to remove elements and will stop when the callback returns {{false}}.
  */
-export function forEach<T>(from: IStringDictionary<T>, callback: (entry: { key: string; value: T; }, remove: Function) => any): void;
-export function forEach<T>(from: INumberDictionary<T>, callback: (entry: { key: number; value: T; }, remove: Function) => any): void;
-export function forEach<T>(from: any, callback: (entry: { key: any; value: T; }, remove: Function) => any): void {
-	for (var key in from) {
+export function forEach<T>(from: IStringDictionary<T> | INumberDictionary<T>, callback: (entry: { key: any; value: T; }, remove: Function) => any): void {
+	for (let key in from) {
 		if (hasOwnProperty.call(from, key)) {
-			const result = callback({ key: key, value: from[key] }, function () {
-				delete from[key];
+			const result = callback({ key: key, value: (from as any)[key] }, function () {
+				delete (from as any)[key];
 			});
 			if (result === false) {
 				return;
@@ -72,13 +68,11 @@ export function forEach<T>(from: any, callback: (entry: { key: any; value: T; },
  * Removes an element from the dictionary. Returns {{false}} if the property
  * does not exists.
  */
-export function remove<T>(from: IStringDictionary<T>, key: string): boolean;
-export function remove<T>(from: INumberDictionary<T>, key: string): boolean;
-export function remove<T>(from: any, key: string): boolean {
+export function remove<T>(from: IStringDictionary<T> | INumberDictionary<T>, key: string): boolean {
 	if (!hasOwnProperty.call(from, key)) {
 		return false;
 	}
-	delete from[key];
+	delete (from as any)[key];
 	return true;
 }
 

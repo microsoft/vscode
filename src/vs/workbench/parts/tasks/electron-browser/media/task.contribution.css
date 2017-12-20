@@ -3,6 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.task-statusbar-runningItem {
+	display: inline-block;
+}
+
+.task-statusbar-runningItem-label {
+	display: inline-block;
+	cursor: pointer;
+	padding: 0 5px 0 5px;
+}
+
+.task-statusbar-runningItem-label > .octicon {
+	font-size: 11px;
+	vertical-align: -webkit-baseline-middle;
+	height: 19px;
+}
+
 .task-statusbar-item {
 	display: inline-block;
 }
@@ -16,18 +32,17 @@
 	vertical-align: top;
 }
 
-.task-statusbar-item-progress {
-	width: 6px;
+.task-statusbar-item-building {
 	height: 18px;
 	padding: 0px 2px 0px 2px;
 	display: inline-block;
 	text-align: center;
+	vertical-align: top;
 }
 
 .task-statusbar-item-label {
 	display: inline-block;
 	cursor: pointer;
-	padding: 0 5px 0 5px;
 }
 
 .task-statusbar-item-label > .task-statusbar-item-label-counter {
@@ -59,4 +74,13 @@
 .task-statusbar-item-label > .task-statusbar-item-label-info {
 	-webkit-mask: url('status-info.svg') no-repeat 50% 50%;
 	-webkit-mask-size: 11px;
+}
+
+.monaco-workbench .quick-open-task-configure {
+	background-image: url('configure.svg');
+}
+
+.vs-dark .monaco-workbench .quick-open-task-configure,
+.hc-black .monaco-workbench .quick-open-task-configure {
+	background-image: url('configure-inverse.svg');
 }

@@ -9,7 +9,7 @@ import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import Event from 'vs/base/common/event';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewletDescriptor, ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
 import { IExtensionService } from 'vs/platform/extensions/common/extensions';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -25,8 +25,8 @@ export class ViewletService implements IViewletService {
 	private extensionViewletsLoaded: TPromise<void>;
 	private extensionViewletsLoadedPromiseComplete: ValueCallback;
 
-	public get onDidViewletOpen(): Event<IViewlet> { return this.sidebarPart.onDidViewletOpen; };
-	public get onDidViewletClose(): Event<IViewlet> { return this.sidebarPart.onDidViewletClose; };
+	public get onDidViewletOpen(): Event<IViewlet> { return this.sidebarPart.onDidViewletOpen; }
+	public get onDidViewletClose(): Event<IViewlet> { return this.sidebarPart.onDidViewletClose; }
 
 	constructor(
 		sidebarPart: SidebarPart,
@@ -45,7 +45,7 @@ export class ViewletService implements IViewletService {
 			this.extensionViewletsLoadedPromiseComplete = c;
 		});
 
-		this.extensionService.onReady().then(() => {
+		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
 			const viewlets = this.viewletRegistry.getViewlets();
 			viewlets.forEach(v => {
 				if (!!v.extensionId) {

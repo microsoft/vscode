@@ -55,8 +55,8 @@ export class DataSource implements IDataSource {
 
 export class Renderer implements IRenderer {
 
-	private static EXTENSION_TEMPLATE_ID = 'extension-template';
-	private static UNKNOWN_EXTENSION_TEMPLATE_ID = 'unknown-extension-template';
+	private static readonly EXTENSION_TEMPLATE_ID = 'extension-template';
+	private static readonly UNKNOWN_EXTENSION_TEMPLATE_ID = 'unknown-extension-template';
 
 	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
 	}
@@ -92,10 +92,10 @@ export class Renderer implements IRenderer {
 			e.stopPropagation();
 			e.preventDefault();
 		})];
-		var identifier = dom.append(header, dom.$('span.identifier'));
+		const identifier = dom.append(header, dom.$('span.identifier'));
 
 		const footer = dom.append(details, dom.$('.footer'));
-		var author = dom.append(footer, dom.$('.author'));
+		const author = dom.append(footer, dom.$('.author'));
 		return {
 			icon,
 			name,

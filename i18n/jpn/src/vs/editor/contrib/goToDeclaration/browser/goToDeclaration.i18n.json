@@ -12,10 +12,12 @@
 	"actions.previewDecl.label": "定義をここに表示",
 	"goToImplementation.noResultWord": "'{0}' の実装が見つかりません",
 	"goToImplementation.generic.noResults": "実装が見つかりません",
+	"meta.implementations.title": "– {0} 個の実装",
 	"actions.goToImplementation.label": "実装に移動",
 	"actions.peekImplementation.label": "実装のプレビュー",
 	"goToTypeDefinition.noResultWord": "'{0}' の型定義が見つかりません",
 	"goToTypeDefinition.generic.noResults": "型定義が見つかりません",
+	"meta.typeDefinitions.title": " – {0} 個の型定義",
 	"actions.goToTypeDefinition.label": "型定義へ移動",
 	"actions.peekTypeDefinition.label": "型定義を表示",
 	"multipleResults": "クリックして、{0} の定義を表示します。"

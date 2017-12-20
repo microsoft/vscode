@@ -6,10 +6,6 @@
 {
 	"debugExceptionWidgetBorder": "Цвет границ мини-приложения исключений.",
 	"debugExceptionWidgetBackground": "Цвет фона мини-приложения исключений.",
-	"neverException": "Возникло исключение, обработанное пользователем: {0}",
-	"alwaysException": "Возникло всегда критическое исключение: {0}",
-	"unhandledException": "Возникло необработанное исключение: {0}",
-	"userUnhandledException": "Возникло исключение, не обработанное пользователем: {0}",
 	"exceptionThrownWithId": "Возникло исключение: {0}",
 	"exceptionThrown": "Произошло исключение."
 }

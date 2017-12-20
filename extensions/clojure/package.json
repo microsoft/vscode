@@ -10,7 +10,7 @@
 		"languages": [{
 			"id": "clojure",
 			"aliases": ["Clojure", "clojure"],
-			"extensions": [".clj", ".cljs", ".cljx", ".clojure", ".edn"],
+			"extensions": [".clj", ".cljs", ".cljc", ".cljx", ".clojure", ".edn"],
 			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{

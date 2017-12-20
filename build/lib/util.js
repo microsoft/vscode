@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 'use strict';
+Object.defineProperty(exports, "__esModule", { value: true });
 var es = require("event-stream");
 var debounce = require("debounce");
 var _filter = require("gulp-filter");
@@ -66,7 +67,7 @@ function fixWin32DirectoryPermissions() {
 exports.fixWin32DirectoryPermissions = fixWin32DirectoryPermissions;
 function setExecutableBit(pattern) {
     var setBit = es.mapSync(function (f) {
-        f.stat.mode = 33261;
+        f.stat.mode = /* 100755 */ 33261;
         return f;
     });
     if (!pattern) {

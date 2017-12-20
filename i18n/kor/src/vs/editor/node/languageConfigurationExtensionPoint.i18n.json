@@ -15,5 +15,9 @@
 	"schema.brackets": "들여쓰기를 늘리거나 줄이는 대괄호 기호를 정의합니다.",
 	"schema.autoClosingPairs": "대괄호 쌍을 정의합니다. 여는 대괄호를 입력하면 닫는 대괄호가 자동으로 삽입됩니다.",
 	"schema.autoClosingPairs.notIn": "자동 쌍을 사용하지 않도록 설정된 범위 목록을 정의합니다.",
-	"schema.surroundingPairs": "선택한 문자열을 둘러싸는 데 사용할 수 있는 대괄호 쌍을 정의합니다."
+	"schema.surroundingPairs": "선택한 문자열을 둘러싸는 데 사용할 수 있는 대괄호 쌍을 정의합니다.",
+	"schema.wordPattern": "해당 언어에 대한 단어 정의입니다.",
+	"schema.wordPattern.pattern": "단어 일치에 사용하는 RegEXP 패턴입니다.",
+	"schema.wordPattern.flags": "단어 일치에 사용하는 RegExp 플래그입니다.",
+	"schema.wordPattern.flags.errorMessage": "`/^([gimuy]+)$/` 패턴과 일치해야 합니다."
 }

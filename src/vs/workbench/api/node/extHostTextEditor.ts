@@ -12,16 +12,15 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostDocumentData } from 'vs/workbench/api/node/extHostDocumentData';
 import { Selection, Range, Position, EndOfLine, TextEditorRevealType, TextEditorLineNumbersStyle, SnippetString } from './extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/editorCommon';
-import { IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate } from 'vs/workbench/api/node/mainThreadEditor';
 import * as TypeConverters from './extHostTypeConverters';
-import { MainThreadEditorsShape } from './extHost.protocol';
+import { MainThreadEditorsShape, IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate } from './extHost.protocol';
 import * as vscode from 'vscode';
-import { TextEditorCursorStyle } from "vs/editor/common/config/editorOptions";
-import { IRange } from "vs/editor/common/core/range";
+import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
+import { IRange } from 'vs/editor/common/core/range';
 
 export class TextEditorDecorationType implements vscode.TextEditorDecorationType {
 
-	private static _Keys = new IdGenerator('TextEditorDecorationType');
+	private static readonly _Keys = new IdGenerator('TextEditorDecorationType');
 
 	private _proxy: MainThreadEditorsShape;
 	public key: string;
@@ -38,7 +37,7 @@ export class TextEditorDecorationType implements vscode.TextEditorDecorationType
 }
 
 export interface ITextEditOperation {
-	range: Range;
+	range: vscode.Range;
 	text: string;
 	forceMoveMarkers: boolean;
 }
@@ -53,13 +52,15 @@ export interface IEditData {
 
 export class TextEditorEdit {
 
-	private _documentVersionId: number;
+	private readonly _document: vscode.TextDocument;
+	private readonly _documentVersionId: number;
 	private _collectedEdits: ITextEditOperation[];
 	private _setEndOfLine: EndOfLine;
-	private _undoStopBefore: boolean;
-	private _undoStopAfter: boolean;
+	private readonly _undoStopBefore: boolean;
+	private readonly _undoStopAfter: boolean;
 
 	constructor(document: vscode.TextDocument, options: { undoStopBefore: boolean; undoStopAfter: boolean; }) {
+		this._document = document;
 		this._documentVersionId = document.version;
 		this._collectedEdits = [];
 		this._setEndOfLine = 0;
@@ -88,19 +89,11 @@ export class TextEditorEdit {
 			throw new Error('Unrecognized location');
 		}
 
-		this._collectedEdits.push({
-			range: range,
-			text: value,
-			forceMoveMarkers: false
-		});
+		this._pushEdit(range, value, false);
 	}
 
 	insert(location: Position, value: string): void {
-		this._collectedEdits.push({
-			range: new Range(location, location),
-			text: value,
-			forceMoveMarkers: true
-		});
+		this._pushEdit(new Range(location, location), value, true);
 	}
 
 	delete(location: Range | Selection): void {
@@ -112,10 +105,15 @@ export class TextEditorEdit {
 			throw new Error('Unrecognized location');
 		}
 
+		this._pushEdit(range, null, true);
+	}
+
+	private _pushEdit(range: Range, text: string, forceMoveMarkers: boolean): void {
+		let validRange = this._document.validateRange(range);
 		this._collectedEdits.push({
-			range: range,
-			text: null,
-			forceMoveMarkers: true
+			range: validRange,
+			text: text,
+			forceMoveMarkers: forceMoveMarkers
 		});
 	}
 
@@ -401,7 +399,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 			throw illegalArgument('selection');
 		}
 		this._selections = [value];
-		this._trySetSelection(true);
+		this._trySetSelection();
 	}
 
 	get selections(): Selection[] {
@@ -413,17 +411,34 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 			throw illegalArgument('selections');
 		}
 		this._selections = value;
-		this._trySetSelection(true);
+		this._trySetSelection();
 	}
 
 	setDecorations(decorationType: vscode.TextEditorDecorationType, ranges: Range[] | vscode.DecorationOptions[]): void {
 		this._runOnProxy(
-			() => this._proxy.$trySetDecorations(
-				this._id,
-				decorationType.key,
-				TypeConverters.fromRangeOrRangeWithMessage(ranges)
-			),
-			true
+			() => {
+				if (TypeConverters.isDecorationOptionsArr(ranges)) {
+					return this._proxy.$trySetDecorations(
+						this._id,
+						decorationType.key,
+						TypeConverters.fromRangeOrRangeWithMessage(ranges)
+					);
+				} else {
+					let _ranges: number[] = new Array<number>(4 * ranges.length);
+					for (let i = 0, len = ranges.length; i < len; i++) {
+						const range = ranges[i];
+						_ranges[4 * i] = range.start.line + 1;
+						_ranges[4 * i + 1] = range.start.character + 1;
+						_ranges[4 * i + 2] = range.end.line + 1;
+						_ranges[4 * i + 3] = range.end.character + 1;
+					}
+					return this._proxy.$trySetDecorationsFast(
+						this._id,
+						decorationType.key,
+						_ranges
+					);
+				}
+			}
 		);
 	}
 
@@ -433,14 +448,13 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 				this._id,
 				TypeConverters.fromRange(range),
 				(revealType || TextEditorRevealType.Default)
-			),
-			true
+			)
 		);
 	}
 
-	private _trySetSelection(silent: boolean): TPromise<vscode.TextEditor> {
+	private _trySetSelection(): TPromise<vscode.TextEditor> {
 		let selection = this._selections.map(TypeConverters.fromSelection);
-		return this._runOnProxy(() => this._proxy.$trySetSelections(this._id, selection), silent);
+		return this._runOnProxy(() => this._proxy.$trySetSelections(this._id, selection));
 	}
 
 	_acceptSelections(selections: Selection[]): void {
@@ -452,7 +466,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 
 	edit(callback: (edit: TextEditorEdit) => void, options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Thenable<boolean> {
 		if (this._disposed) {
-			return TPromise.wrapError<boolean>('TextEditor#edit not possible on closed editors');
+			return TPromise.wrapError<boolean>(new Error('TextEditor#edit not possible on closed editors'));
 		}
 		let edit = new TextEditorEdit(this._documentData.document, options);
 		callback(edit);
@@ -461,6 +475,36 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 
 	private _applyEdit(editBuilder: TextEditorEdit): TPromise<boolean> {
 		let editData = editBuilder.finalize();
+
+		// check that the edits are not overlapping (i.e. illegal)
+		let editRanges = editData.edits.map(edit => edit.range);
+
+		// sort ascending (by end and then by start)
+		editRanges.sort((a, b) => {
+			if (a.end.line === b.end.line) {
+				if (a.end.character === b.end.character) {
+					if (a.start.line === b.start.line) {
+						return a.start.character - b.start.character;
+					}
+					return a.start.line - b.start.line;
+				}
+				return a.end.character - b.end.character;
+			}
+			return a.end.line - b.end.line;
+		});
+
+		// check that no edits are overlapping
+		for (let i = 0, count = editRanges.length - 1; i < count; i++) {
+			const rangeEnd = editRanges[i].end;
+			const nextRangeStart = editRanges[i + 1].start;
+
+			if (nextRangeStart.isBefore(rangeEnd)) {
+				// overlapping ranges
+				return TPromise.wrapError<boolean>(
+					new Error('Overlapping ranges are not allowed!')
+				);
+			}
+		}
 
 		// prepare data for serialization
 		let edits: ISingleEditOperation[] = editData.edits.map((edit) => {
@@ -480,7 +524,7 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 
 	insertSnippet(snippet: SnippetString, where?: Position | Position[] | Range | Range[], options: { undoStopBefore: boolean; undoStopAfter: boolean; } = { undoStopBefore: true, undoStopAfter: true }): Thenable<boolean> {
 		if (this._disposed) {
-			return TPromise.wrapError<boolean>('TextEditor#insertSnippet not possible on closed editors');
+			return TPromise.wrapError<boolean>(new Error('TextEditor#insertSnippet not possible on closed editors'));
 		}
 		let ranges: IRange[];
 
@@ -510,21 +554,16 @@ export class ExtHostTextEditor implements vscode.TextEditor {
 
 	// ---- util
 
-	private _runOnProxy(callback: () => TPromise<any>, silent: boolean): TPromise<ExtHostTextEditor> {
+	private _runOnProxy(callback: () => TPromise<any>): TPromise<ExtHostTextEditor> {
 		if (this._disposed) {
-			if (!silent) {
-				return TPromise.wrapError(silent);
-			} else {
-				console.warn('TextEditor is closed/disposed');
-				return TPromise.as(undefined);
-			}
+			console.warn('TextEditor is closed/disposed');
+			return TPromise.as(undefined);
 		}
 		return callback().then(() => this, err => {
-			if (!silent) {
-				return TPromise.wrapError(silent);
+			if (!(err instanceof Error && err.name === 'DISPOSED')) {
+				console.warn(err);
 			}
-			console.warn(err);
-			return undefined;
+			return null;
 		});
 	}
 }

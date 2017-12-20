@@ -17,7 +17,7 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 	private _context: ViewContext;
 	private _lineHeight: number;
 	private _renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
-	private _primaryCursorIsInEditableRange: boolean;
+	private _selectionIsEmpty: boolean;
 	private _primaryCursorLineNumber: number;
 	private _contentLeft: number;
 
@@ -27,7 +27,7 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 		this._lineHeight = this._context.configuration.editor.lineHeight;
 		this._renderLineHighlight = this._context.configuration.editor.viewInfo.renderLineHighlight;
 
-		this._primaryCursorIsInEditableRange = true;
+		this._selectionIsEmpty = true;
 		this._primaryCursorLineNumber = 1;
 		this._contentLeft = this._context.configuration.editor.layoutInfo.contentLeft;
 
@@ -46,7 +46,7 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
-		if (e.viewInfo.renderLineHighlight) {
+		if (e.viewInfo) {
 			this._renderLineHighlight = this._context.configuration.editor.viewInfo.renderLineHighlight;
 		}
 		if (e.layoutInfo) {
@@ -54,21 +54,25 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 		}
 		return true;
 	}
-	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {
+	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		let hasChanged = false;
-		if (this._primaryCursorIsInEditableRange !== e.isInEditableRange) {
-			this._primaryCursorIsInEditableRange = e.isInEditableRange;
+
+		const primaryCursorLineNumber = e.selections[0].positionLineNumber;
+		if (this._primaryCursorLineNumber !== primaryCursorLineNumber) {
+			this._primaryCursorLineNumber = primaryCursorLineNumber;
 			hasChanged = true;
 		}
-		if (this._primaryCursorLineNumber !== e.position.lineNumber) {
-			this._primaryCursorLineNumber = e.position.lineNumber;
+
+		const selectionIsEmpty = e.selections[0].isEmpty();
+		if (this._selectionIsEmpty !== selectionIsEmpty) {
+			this._selectionIsEmpty = selectionIsEmpty;
 			hasChanged = true;
+			return true;
 		}
+
 		return hasChanged;
 	}
 	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
-		this._primaryCursorIsInEditableRange = true;
-		this._primaryCursorLineNumber = 1;
 		return true;
 	}
 	public onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean {
@@ -88,8 +92,12 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 	public render(startLineNumber: number, lineNumber: number): string {
 		if (lineNumber === this._primaryCursorLineNumber) {
 			if (this._shouldShowCurrentLine()) {
+				const paintedInContent = this._willRenderContentCurrentLine();
+				const className = 'current-line-margin' + (paintedInContent ? ' current-line-margin-both' : '');
 				return (
-					'<div class="current-line-margin" style="width:'
+					'<div class="'
+					+ className
+					+ '" style="width:'
 					+ String(this._contentLeft)
 					+ 'px; height:'
 					+ String(this._lineHeight)
@@ -103,21 +111,30 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 	}
 
 	private _shouldShowCurrentLine(): boolean {
-		return (this._renderLineHighlight === 'gutter' || this._renderLineHighlight === 'all') && this._primaryCursorIsInEditableRange;
+		return (
+			(this._renderLineHighlight === 'gutter' || this._renderLineHighlight === 'all')
+		);
+	}
+
+	private _willRenderContentCurrentLine(): boolean {
+		return (
+			(this._renderLineHighlight === 'line' || this._renderLineHighlight === 'all')
+			&& this._selectionIsEmpty
+		);
 	}
 }
 
 registerThemingParticipant((theme, collector) => {
 	let lineHighlight = theme.getColor(editorLineHighlight);
 	if (lineHighlight) {
-		collector.addRule(`.monaco-editor.${theme.selector} .margin-view-overlays .current-line-margin { background-color: ${lineHighlight}; border: none; }`);
+		collector.addRule(`.monaco-editor .margin-view-overlays .current-line-margin { background-color: ${lineHighlight}; border: none; }`);
 	} else {
 		let lineHighlightBorder = theme.getColor(editorLineHighlightBorder);
 		if (lineHighlightBorder) {
-			collector.addRule(`.monaco-editor.${theme.selector} .margin-view-overlays .current-line-margin { border: 2px solid ${lineHighlightBorder}; }`);
+			collector.addRule(`.monaco-editor .margin-view-overlays .current-line-margin { border: 2px solid ${lineHighlightBorder}; }`);
 		}
 		if (theme.type === 'hc') {
-			collector.addRule(`.monaco-editor.${theme.selector} .margin-view-overlays .current-line-margin { border-width: 1px; }`);
+			collector.addRule(`.monaco-editor .margin-view-overlays .current-line-margin { border-width: 1px; }`);
 		}
 	}
 });

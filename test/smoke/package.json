@@ -1,0 +1,30 @@
+{
+  "name": "code-oss-dev-smoke-test",
+  "version": "0.1.0",
+  "main": "./src/main.js",
+  "scripts": {
+    "postinstall": "tsc",
+    "watch": "tsc --watch",
+    "mocha": "mocha"
+  },
+  "devDependencies": {
+    "@types/htmlparser2": "3.7.29",
+    "@types/mkdirp": "0.5.1",
+    "@types/mocha": "2.2.41",
+    "@types/ncp": "2.0.1",
+    "@types/node": "8.0.33",
+    "@types/rimraf": "2.0.2",
+    "@types/webdriverio": "4.6.1",
+    "electron": "1.7.7",
+    "htmlparser2": "^3.9.2",
+    "mkdirp": "^0.5.1",
+    "mocha": "^3.2.0",
+    "ncp": "^2.0.0",
+    "portastic": "^1.0.1",
+    "rimraf": "^2.6.1",
+    "spectron": "^3.7.2",
+    "strip-json-comments": "^2.0.1",
+    "tmp": "0.0.33",
+    "typescript": "2.5.2"
+  }
+}

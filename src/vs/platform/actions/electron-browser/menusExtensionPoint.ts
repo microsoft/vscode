@@ -30,14 +30,19 @@ namespace schema {
 	export function parseMenuId(value: string): MenuId {
 		switch (value) {
 			case 'commandPalette': return MenuId.CommandPalette;
+			case 'touchBar': return MenuId.TouchBarContext;
 			case 'editor/title': return MenuId.EditorTitle;
 			case 'editor/context': return MenuId.EditorContext;
 			case 'explorer/context': return MenuId.ExplorerContext;
 			case 'editor/title/context': return MenuId.EditorTitleContext;
 			case 'debug/callstack/context': return MenuId.DebugCallStackContext;
 			case 'scm/title': return MenuId.SCMTitle;
+			case 'scm/sourceControl': return MenuId.SCMSourceControl;
 			case 'scm/resourceGroup/context': return MenuId.SCMResourceGroupContext;
 			case 'scm/resourceState/context': return MenuId.SCMResourceContext;
+			case 'scm/change/title': return MenuId.SCMChangeContext;
+			case 'view/title': return MenuId.ViewTitle;
+			case 'view/item/context': return MenuId.ViewItemContext;
 		}
 
 		return void 0;
@@ -102,6 +107,11 @@ namespace schema {
 				type: 'array',
 				items: menuItem
 			},
+			'touchBar': {
+				description: localize('menus.touchBar', "The touch bar (macOS only)"),
+				type: 'array',
+				items: menuItem
+			},
 			'editor/title': {
 				description: localize('menus.editorTitle', "The editor title menu"),
 				type: 'array',
@@ -132,6 +142,11 @@ namespace schema {
 				type: 'array',
 				items: menuItem
 			},
+			'scm/sourceControl': {
+				description: localize('menus.scmSourceControl', "The Source Control menu"),
+				type: 'array',
+				items: menuItem
+			},
 			'scm/resourceGroup/context': {
 				description: localize('menus.resourceGroupContext', "The Source Control resource group context menu"),
 				type: 'array',
@@ -139,6 +154,16 @@ namespace schema {
 			},
 			'scm/resourceState/context': {
 				description: localize('menus.resourceStateContext', "The Source Control resource state context menu"),
+				type: 'array',
+				items: menuItem
+			},
+			'view/title': {
+				description: localize('view.viewTitle', "The contributed view title menu"),
+				type: 'array',
+				items: menuItem
+			},
+			'view/item/context': {
+				description: localize('view.itemContext', "The contributed view item context menu"),
 				type: 'array',
 				items: menuItem
 			}
@@ -222,22 +247,22 @@ namespace schema {
 			},
 			icon: {
 				description: localize('vscode.extension.contributes.commandType.icon', '(Optional) Icon which is used to represent the command in the UI. Either a file path or a themable configuration'),
-				anyOf: [
-					'string',
-					{
-						type: 'object',
-						properties: {
-							light: {
-								description: localize('vscode.extension.contributes.commandType.icon.light', 'Icon path when a light theme is used'),
-								type: 'string'
-							},
-							dark: {
-								description: localize('vscode.extension.contributes.commandType.icon.dark', 'Icon path when a dark theme is used'),
-								type: 'string'
-							}
+				anyOf: [{
+					type: 'string'
+				},
+				{
+					type: 'object',
+					properties: {
+						light: {
+							description: localize('vscode.extension.contributes.commandType.icon.light', 'Icon path when a light theme is used'),
+							type: 'string'
+						},
+						dark: {
+							description: localize('vscode.extension.contributes.commandType.icon.dark', 'Icon path when a dark theme is used'),
+							type: 'string'
 						}
 					}
-				]
+				}]
 			}
 		}
 	};
@@ -266,20 +291,23 @@ ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.I
 
 		let { icon, category, title, command } = userFriendlyCommand;
 		let iconClass: string;
+		let iconPath: string;
 		if (icon) {
 			iconClass = ids.nextId();
 			if (typeof icon === 'string') {
-				const path = join(extension.description.extensionFolderPath, icon);
-				createCSSRule(`.icon.${iconClass}`, `background-image: url("${URI.file(path).toString()}")`);
+				iconPath = join(extension.description.extensionFolderPath, icon);
+				createCSSRule(`.icon.${iconClass}`, `background-image: url("${URI.file(iconPath).toString()}")`);
 			} else {
 				const light = join(extension.description.extensionFolderPath, icon.light);
 				const dark = join(extension.description.extensionFolderPath, icon.dark);
 				createCSSRule(`.icon.${iconClass}`, `background-image: url("${URI.file(light).toString()}")`);
 				createCSSRule(`.vs-dark .icon.${iconClass}, .hc-black .icon.${iconClass}`, `background-image: url("${URI.file(dark).toString()}")`);
+
+				iconPath = join(extension.description.extensionFolderPath, icon.dark);
 			}
 		}
 
-		if (MenuRegistry.addCommand({ id: command, title, category, iconClass })) {
+		if (MenuRegistry.addCommand({ id: command, title, category, iconClass, iconPath })) {
 			extension.collector.info(localize('dup', "Command `{0}` appears multiple times in the `commands` section.", userFriendlyCommand.command));
 		}
 	}
@@ -317,7 +345,8 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyM
 				let alt = item.alt && MenuRegistry.getCommand(item.alt);
 
 				if (!command) {
-					collector.warn(localize('missing.command', "Menu item references a command `{0}` which is not defined in the 'commands' section.", item.command));
+					collector.error(localize('missing.command', "Menu item references a command `{0}` which is not defined in the 'commands' section.", item.command));
+					continue;
 				}
 				if (item.alt && !alt) {
 					collector.warn(localize('missing.altCommand', "Menu item references an alt-command `{0}` which is not defined in the 'commands' section.", item.alt));

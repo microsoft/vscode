@@ -5,9 +5,9 @@
 
 'use strict';
 
-import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Position, IEditorInput } from 'vs/platform/editor/common/editor';
-import { IEditorStacksModel, IEditorGroup } from 'vs/workbench/common/editor';
+import { IEditorStacksModel, IEditorGroup, IEditorOpeningEvent } from 'vs/workbench/common/editor';
 import Event from 'vs/base/common/event';
 
 export enum GroupArrangement {
@@ -19,11 +19,14 @@ export type GroupOrientation = 'vertical' | 'horizontal';
 
 export const IEditorGroupService = createDecorator<IEditorGroupService>('editorGroupService');
 
-export interface ITabOptions {
+export interface IEditorTabOptions {
 	showTabs?: boolean;
 	tabCloseButton?: 'left' | 'right' | 'off';
+	tabSizing?: 'fit' | 'shrink';
 	showIcons?: boolean;
 	previewEditors?: boolean;
+	labelFormat?: 'default' | 'short' | 'medium' | 'long';
+	iconTheme?: string;
 }
 
 export interface IMoveOptions {
@@ -45,14 +48,19 @@ export interface IEditorGroupService {
 	onEditorsChanged: Event<void>;
 
 	/**
+	 * Emitted when an editor is opening. Allows to prevent/replace the opening via the event method.
+	 */
+	onEditorOpening: Event<IEditorOpeningEvent>;
+
+	/**
 	 * Emitted when opening an editor fails.
 	 */
 	onEditorOpenFail: Event<IEditorInput>;
 
 	/**
-	 * Emitted when a editors are moved to another position.
+	 * Emitted when an entire editor group is moved to another position.
 	 */
-	onEditorsMoved: Event<void>;
+	onEditorGroupMoved: Event<void>;
 
 	/**
 	 * Emitted when the editor group orientation was changed.
@@ -62,7 +70,7 @@ export interface IEditorGroupService {
 	/**
 	 * Emitted when tab options changed.
 	 */
-	onTabOptionsChanged: Event<ITabOptions>;
+	onTabOptionsChanged: Event<IEditorTabOptions>;
 
 	/**
 	 * Keyboard focus the editor group at the provided position.
@@ -110,12 +118,6 @@ export interface IEditorGroupService {
 	pinEditor(position: Position, input: IEditorInput): void;
 
 	/**
-	 * Removes the pinned state of an editor making it a preview editor.
-	 */
-	unpinEditor(group: IEditorGroup, input: IEditorInput): void;
-	unpinEditor(position: Position, input: IEditorInput): void;
-
-	/**
 	 * Moves an editor from one group to another. The index in the group is optional.
 	 * The inactive option is applied when moving across groups.
 	 */
@@ -130,5 +132,10 @@ export interface IEditorGroupService {
 	/**
 	 * Returns tab options.
 	 */
-	getTabOptions(): ITabOptions;
+	getTabOptions(): IEditorTabOptions;
+
+	/**
+	 * Invoke a function in the context of the active editor.
+	 */
+	invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T;
 }

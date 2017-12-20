@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IThreadService } from 'vs/workbench/services/thread/common/threadService';
 import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
-import { StatusBarAlignment as ExtHostStatusBarAlignment, Disposable } from './extHostTypes';
+import { StatusBarAlignment as ExtHostStatusBarAlignment, Disposable, ThemeColor } from './extHostTypes';
 import { StatusBarItem, StatusBarAlignment } from 'vscode';
-import { MainContext, MainThreadStatusBarShape } from './extHost.protocol';
+import { MainContext, MainThreadStatusBarShape, IMainContext } from './extHost.protocol';
 
 export class ExtHostStatusBarEntry implements StatusBarItem {
 	private static ID_GEN = 0;
@@ -21,7 +20,7 @@ export class ExtHostStatusBarEntry implements StatusBarItem {
 
 	private _text: string;
 	private _tooltip: string;
-	private _color: string;
+	private _color: string | ThemeColor;
 	private _command: string;
 
 	private _timeoutHandle: number;
@@ -57,7 +56,7 @@ export class ExtHostStatusBarEntry implements StatusBarItem {
 		return this._tooltip;
 	}
 
-	public get color(): string {
+	public get color(): string | ThemeColor {
 		return this._color;
 	}
 
@@ -75,7 +74,7 @@ export class ExtHostStatusBarEntry implements StatusBarItem {
 		this.update();
 	}
 
-	public set color(color: string) {
+	public set color(color: string | ThemeColor) {
 		this._color = color;
 		this.update();
 	}
@@ -163,8 +162,8 @@ export class ExtHostStatusBar {
 	private _proxy: MainThreadStatusBarShape;
 	private _statusMessage: StatusBarMessage;
 
-	constructor(threadService: IThreadService) {
-		this._proxy = threadService.get(MainContext.MainThreadStatusBar);
+	constructor(mainContext: IMainContext) {
+		this._proxy = mainContext.getProxy(MainContext.MainThreadStatusBar);
 		this._statusMessage = new StatusBarMessage(this);
 	}
 

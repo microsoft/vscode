@@ -4,20 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 const cp = require('child_process');
-const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+const path = require('path');
+const fs = require('fs');
+const yarn = process.platform === 'win32' ? 'yarn.cmd' : 'yarn';
 
-function npmInstall(location) {
-	const result = cp.spawnSync(npm, ['install'], {
-		cwd: location ,
-		stdio: 'inherit'
-	});
+function yarnInstall(location, opts) {
+	opts = opts || {};
+	opts.cwd = location;
+	opts.stdio = 'inherit';
+
+	const result = cp.spawnSync(yarn, ['install'], opts);
 
 	if (result.error || result.status !== 0) {
 		process.exit(1);
 	}
 }
 
-npmInstall('extensions'); // node modules shared by all extensions
+yarnInstall('extensions'); // node modules shared by all extensions
 
 const extensions = [
 	'vscode-api-tests',
@@ -32,9 +35,36 @@ const extensions = [
 	'css',
 	'html',
 	'git',
-	'gulp'
+	'gulp',
+	'grunt',
+	'jake',
+	'merge-conflict',
+	'emmet',
+	'npm',
+	'jake'
 ];
 
-extensions.forEach(extension => npmInstall(`extensions/${extension}`));
+extensions.forEach(extension => yarnInstall(`extensions/${extension}`));
 
-npmInstall(`build`); // node modules required for build
+function yarnInstallBuildDependencies() {
+	// make sure we install the deps of build/lib/watch for the system installed
+	// node, since that is the driver of gulp
+	const env = Object.assign({}, process.env);
+	const watchPath = path.join(path.dirname(__dirname), 'lib', 'watch');
+	const yarnrcPath = path.join(watchPath, '.yarnrc');
+
+	const disturl = 'https://nodejs.org/download/release';
+	const target = process.versions.node;
+	const runtime = 'node';
+
+	const yarnrc = `disturl "${disturl}"
+target "${target}"
+runtime "${runtime}"`;
+
+	fs.writeFileSync(yarnrcPath, yarnrc, 'utf8');
+	yarnInstall(watchPath, { env });
+}
+
+yarnInstall(`build`); // node modules required for build
+yarnInstall('test/smoke'); // node modules required for smoketest
+yarnInstallBuildDependencies(); // node modules for watching, specific to host node version, not electron

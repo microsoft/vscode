@@ -6,5 +6,6 @@
 	"json.schemas.schema.desc": "The schema definition for the given URL. The schema only needs to be provided to avoid accesses to the schema URL.",
 	"json.format.enable.desc": "Enable/disable default JSON formatter (requires restart)",
 	"json.tracing.desc": "Traces the communication between VS Code and the JSON language server.",
-	"json.colorDecorators.enable.desc": "Enables or disables color decorators"
+	"json.colorDecorators.enable.desc": "Enables or disables color decorators",
+	"json.colorDecorators.enable.deprecationMessage": "The setting `json.colorDecorators.enable` has been deprecated in favor of `editor.colorDecorators`."
 }

@@ -7,7 +7,7 @@
 
 import 'vs/css!./selections';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorSelection, editorInactiveSelection, highContrastOutline } from 'vs/platform/theme/common/colorRegistry';
+import { editorSelectionBackground, editorInactiveSelection, editorSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { DynamicViewOverlay } from 'vs/editor/browser/view/dynamicViewOverlay';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { HorizontalRange, LineVisibleRanges, RenderingContext } from 'vs/editor/common/view/renderingContext';
@@ -66,14 +66,14 @@ const isIEWithZoomingIssuesNearRoundedBorders = browser.isEdgeOrIE;
 
 export class SelectionsOverlay extends DynamicViewOverlay {
 
-	private static SELECTION_CLASS_NAME = 'selected-text';
-	private static SELECTION_TOP_LEFT = 'top-left-radius';
-	private static SELECTION_BOTTOM_LEFT = 'bottom-left-radius';
-	private static SELECTION_TOP_RIGHT = 'top-right-radius';
-	private static SELECTION_BOTTOM_RIGHT = 'bottom-right-radius';
-	private static EDITOR_BACKGROUND_CLASS_NAME = 'monaco-editor-background';
+	private static readonly SELECTION_CLASS_NAME = 'selected-text';
+	private static readonly SELECTION_TOP_LEFT = 'top-left-radius';
+	private static readonly SELECTION_BOTTOM_LEFT = 'bottom-left-radius';
+	private static readonly SELECTION_TOP_RIGHT = 'top-right-radius';
+	private static readonly SELECTION_BOTTOM_RIGHT = 'bottom-right-radius';
+	private static readonly EDITOR_BACKGROUND_CLASS_NAME = 'monaco-editor-background';
 
-	private static ROUNDED_PIECE_WIDTH = 10;
+	private static readonly ROUNDED_PIECE_WIDTH = 10;
 
 	private _context: ViewContext;
 	private _lineHeight: number;
@@ -105,17 +105,13 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		if (e.lineHeight) {
 			this._lineHeight = this._context.configuration.editor.lineHeight;
 		}
-		if (e.viewInfo.roundedSelection) {
+		if (e.viewInfo) {
 			this._roundedSelection = this._context.configuration.editor.viewInfo.roundedSelection;
 		}
 		return true;
 	}
-	public onCursorPositionChanged(e: viewEvents.ViewCursorPositionChangedEvent): boolean {
-		return false;
-	}
-	public onCursorSelectionChanged(e: viewEvents.ViewCursorSelectionChangedEvent): boolean {
-		this._selections = [e.selection];
-		this._selections = this._selections.concat(e.secondarySelections);
+	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+		this._selections = e.selections.slice(0);
 		return true;
 	}
 	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
@@ -133,9 +129,6 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 	}
 	public onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean {
 		return true;
-	}
-	public onRevealRangeRequest(e: viewEvents.ViewRevealRangeRequestEvent): boolean {
-		return false;
 	}
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return e.scrollTopChanged;
@@ -375,12 +368,12 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		for (let i = 0, len = this._selections.length; i < len; i++) {
 			let selection = this._selections[i];
 			if (selection.isEmpty()) {
-				thisFrameVisibleRangesWithStyle.push(null);
+				thisFrameVisibleRangesWithStyle[i] = null;
 				continue;
 			}
 
 			let visibleRangesWithStyle = this._getVisibleRangesWithStyle(selection, ctx, this._previousFrameVisibleRangesWithStyle[i]);
-			thisFrameVisibleRangesWithStyle.push(visibleRangesWithStyle);
+			thisFrameVisibleRangesWithStyle[i] = visibleRangesWithStyle;
 			this._actualRenderOneSelection(output, visibleStartLineNumber, this._selections.length > 1, visibleRangesWithStyle);
 		}
 
@@ -401,18 +394,16 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 }
 
 registerThemingParticipant((theme, collector) => {
-	let editorSelectionColor = theme.getColor(editorSelection);
+	let editorSelectionColor = theme.getColor(editorSelectionBackground);
 	if (editorSelectionColor) {
-		collector.addRule(`.monaco-editor.${theme.selector} .focused .selected-text { background-color: ${editorSelectionColor}; }`);
+		collector.addRule(`.monaco-editor .focused .selected-text { background-color: ${editorSelectionColor}; }`);
 	}
 	let editorInactiveSelectionColor = theme.getColor(editorInactiveSelection);
 	if (editorInactiveSelectionColor) {
-		collector.addRule(`.monaco-editor.${theme.selector} .selected-text { background-color: ${editorInactiveSelectionColor}; }`);
+		collector.addRule(`.monaco-editor .selected-text { background-color: ${editorInactiveSelectionColor}; }`);
 	}
-	// IE/Edge specific rules
-	let outline = theme.getColor(highContrastOutline);
-	if (outline) {
-		collector.addRule(`.monaco-editor.ie.hc-black .view-overlays.focused	.selected-text { background: none; border: 2px solid ${outline}; }`);
-		collector.addRule(`.monaco-editor.edge.hc-black	.view-overlays.focused	.selected-text { background: none; border: 2px solid ${outline}; }`);
+	let editorSelectionForegroundColor = theme.getColor(editorSelectionForeground);
+	if (editorSelectionForegroundColor) {
+		collector.addRule(`.monaco-editor .view-line span.inline-selected-text { color: ${editorSelectionForegroundColor}; }`);
 	}
 });

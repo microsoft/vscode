@@ -15,5 +15,9 @@
 	"schema.brackets": "定義增加或減少縮排的括弧符號。",
 	"schema.autoClosingPairs": "定義成對括弧。輸入左括弧時，即自動插入右括弧。",
 	"schema.autoClosingPairs.notIn": "定義停用自動配對的範圍清單。",
-	"schema.surroundingPairs": "定義可用以括住所選字串的成對括弧。"
+	"schema.surroundingPairs": "定義可用以括住所選字串的成對括弧。",
+	"schema.wordPattern": "定義語言的文字",
+	"schema.wordPattern.pattern": "使用正規表示式進行文字比對",
+	"schema.wordPattern.flags": "使用正規表示式標記進行文字比對",
+	"schema.wordPattern.flags.errorMessage": "必須符合樣式 `/^([gimuy]+)$/`"
 }

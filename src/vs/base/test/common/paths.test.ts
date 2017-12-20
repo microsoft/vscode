@@ -9,34 +9,6 @@ import paths = require('vs/base/common/paths');
 import platform = require('vs/base/common/platform');
 
 suite('Paths', () => {
-	test('relative', () => {
-		assert.equal(paths.relative('/test/api/files/test', '/test/api/files/lib/foo'), '../lib/foo');
-		assert.equal(paths.relative('far/boo', 'boo/far'), '../../boo/far');
-		assert.equal(paths.relative('far/boo', 'far/boo'), '');
-		assert.equal(paths.relative('far/boo', 'far/boo/bar/foo'), 'bar/foo');
-
-		if (platform.isWindows) {
-			assert.equal(paths.relative('C:\\test\\api\\files\\test', 'C:\\test\\api\\files\\lib\\foo'), '../lib/foo');
-			assert.equal(paths.relative('C:\\', 'C:\\vscode'), 'vscode');
-			assert.equal(paths.relative('C:\\', 'C:\\vscode\\foo.txt'), 'vscode/foo.txt');
-		}
-
-		// // ignore trailing slashes
-		assert.equal(paths.relative('/test/api/files/test/', '/test/api/files/lib/foo'), '../lib/foo');
-		assert.equal(paths.relative('/test/api/files/test', '/test/api/files/lib/foo/'), '../lib/foo');
-		assert.equal(paths.relative('/test/api/files/test/', '/test/api/files/lib/foo/'), '../lib/foo');
-		assert.equal(paths.relative('far/boo/', 'boo/far'), '../../boo/far');
-		assert.equal(paths.relative('far/boo/', 'boo/far/'), '../../boo/far');
-		assert.equal(paths.relative('far/boo/', 'far/boo'), '');
-		assert.equal(paths.relative('far/boo', 'far/boo/'), '');
-		assert.equal(paths.relative('far/boo/', 'far/boo/'), '');
-
-		if (platform.isWindows) {
-			assert.equal(paths.relative('C:\\test\\api\\files\\test\\', 'C:\\test\\api\\files\\lib\\foo'), '../lib/foo');
-			assert.equal(paths.relative('C:\\test\\api\\files\\test', 'C:\\test\\api\\files\\lib\\foo\\'), '../lib/foo');
-			assert.equal(paths.relative('C:\\test\\api\\files\\test\\', 'C:\\test\\api\\files\\lib\\foo\\'), '../lib/foo');
-		}
-	});
 
 	test('dirname', () => {
 		assert.equal(paths.dirname('foo/bar'), 'foo');
@@ -200,5 +172,58 @@ suite('Paths', () => {
 			assert.ok(!paths.isValidBasename('tes:t.txt'));
 			assert.ok(!paths.isValidBasename('tes"t.txt'));
 		}
+	});
+
+	test('isAbsolute_win', () => {
+		// Absolute paths
+		[
+			'C:/',
+			'C:\\',
+			'C:/foo',
+			'C:\\foo',
+			'z:/foo/bar.txt',
+			'z:\\foo\\bar.txt',
+
+			'\\\\localhost\\c$\\foo',
+
+			'/',
+			'/foo'
+		].forEach(absolutePath => {
+			assert.ok(paths.isAbsolute_win32(absolutePath), absolutePath);
+		});
+
+		// Not absolute paths
+		[
+			'',
+			'foo',
+			'foo/bar',
+			'./foo',
+			'http://foo.com/bar'
+		].forEach(nonAbsolutePath => {
+			assert.ok(!paths.isAbsolute_win32(nonAbsolutePath), nonAbsolutePath);
+		});
+	});
+
+	test('isAbsolute_posix', () => {
+		// Absolute paths
+		[
+			'/',
+			'/foo',
+			'/foo/bar.txt'
+		].forEach(absolutePath => {
+			assert.ok(paths.isAbsolute_posix(absolutePath), absolutePath);
+		});
+
+		// Not absolute paths
+		[
+			'',
+			'foo',
+			'foo/bar',
+			'./foo',
+			'http://foo.com/bar',
+			'z:/foo/bar.txt',
+		].forEach(nonAbsolutePath => {
+			assert.ok(!paths.isAbsolute_posix(nonAbsolutePath), nonAbsolutePath);
+		});
 	});
 });

@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { TPromise } from 'vs/base/common/winjs.base';
-
 export namespace Schemas {
 
 	/**
@@ -40,67 +38,9 @@ export namespace Schemas {
 
 	export const file: string = 'file';
 
+	export const mailto: string = 'mailto';
+
 	export const untitled: string = 'untitled';
-}
 
-export interface IXHROptions {
-	type?: string;
-	url?: string;
-	user?: string;
-	password?: string;
-	responseType?: string;
-	headers?: any;
-	customRequestInitializer?: (req: any) => void;
-	data?: any;
-}
-
-export function xhr(options: IXHROptions): TPromise<XMLHttpRequest> {
-	let req: XMLHttpRequest = null;
-	let canceled = false;
-
-	return new TPromise<XMLHttpRequest>((c, e, p) => {
-		req = new XMLHttpRequest();
-
-		req.onreadystatechange = () => {
-			if (canceled) {
-				return;
-			}
-
-			if (req.readyState === 4) {
-				// Handle 1223: http://bugs.jquery.com/ticket/1450
-				if ((req.status >= 200 && req.status < 300) || req.status === 1223) {
-					c(req);
-				} else {
-					e(req);
-				}
-				req.onreadystatechange = () => { };
-			} else {
-				p(req);
-			}
-		};
-
-		req.open(
-			options.type || 'GET',
-			options.url,
-			// Promise based XHR does not support sync.
-			//
-			true,
-			options.user,
-			options.password
-		);
-		req.responseType = options.responseType || '';
-
-		Object.keys(options.headers || {}).forEach((k) => {
-			req.setRequestHeader(k, options.headers[k]);
-		});
-
-		if (options.customRequestInitializer) {
-			options.customRequestInitializer(req);
-		}
-
-		req.send(options.data);
-	}, () => {
-		canceled = true;
-		req.abort();
-	});
+	export const data: string = 'data';
 }

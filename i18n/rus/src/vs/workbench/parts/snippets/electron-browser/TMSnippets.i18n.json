@@ -9,5 +9,6 @@
 	"vscode.extension.contributes.snippets-path": "Путь к файлу фрагментов. Путь указывается относительно папки расширения и обычно начинается с \"./snippets/\".",
 	"invalid.language": "Неизвестный язык в contributes.{0}.language. Указанное значение: {1}",
 	"invalid.path.0": "В contributes.{0}.path требуется строка. Указанное значение: {1}",
-	"invalid.path.1": "contributes.{0}.path ({1}) должен был быть включен в папку расширения ({2}). Это может сделать расширение непереносимым."
+	"invalid.path.1": "contributes.{0}.path ({1}) должен был быть включен в папку расширения ({2}). Это может сделать расширение непереносимым.",
+	"badVariableUse": "Похоже, во фрагменте \"{0}\" перепутаны переменные и заполнители. Дополнительные сведения см. на странице https://code.visualstudio.com/docs/editor/userdefinedsnippets#_snippet-syntax."
 }

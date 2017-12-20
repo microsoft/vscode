@@ -1,4 +1,10 @@
 {
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/textmate/yaml.tmbundle/blob/master/Syntaxes/YAML.tmLanguage",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
+	"version": "https://github.com/textmate/yaml.tmbundle/commit/efc96efafe5e48480cf55a2ed124b388cbea4440",
 	"fileTypes": [
 		"yaml",
 		"yml",
@@ -624,6 +630,5 @@
 		}
 	},
 	"scopeName": "source.yaml",
-	"uuid": "686AD6AE-33F3-4493-9512-9E9FC1D5417F",
-	"version": "https://github.com/textmate/yaml.tmbundle/commit/efc96efafe5e48480cf55a2ed124b388cbea4440"
+	"uuid": "686AD6AE-33F3-4493-9512-9E9FC1D5417F"
 }

@@ -1,0 +1,80 @@
+{
+  "name": "npm",
+  "publisher": "vscode",
+  "description": "Extension to add task support for npm scripts.",
+  "displayName": "Npm support for VSCode",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "0.10.x"
+  },
+  "categories": [
+    "Other"
+  ],
+  "scripts": {
+    "compile": "gulp compile-extension:npm",
+    "watch": "gulp watch-extension:npm"
+  },
+  "dependencies": {
+    "vscode-nls": "^2.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "7.0.43"
+  },
+  "main": "./out/main",
+  "activationEvents": [
+    "onCommand:workbench.action.tasks.runTask"
+  ],
+  "contributes": {
+    "configuration": {
+      "id": "npm",
+      "type": "object",
+      "title": "Npm",
+      "properties": {
+        "npm.autoDetect": {
+          "type": "string",
+          "enum": [
+            "off",
+            "on"
+          ],
+          "default": "on",
+          "scope": "resource",
+          "description": "%config.npm.autoDetect%"
+        },
+        "npm.runSilent": {
+          "type": "boolean",
+          "default": false,
+          "scope": "resource",
+          "description": "%config.npm.runSilent%"
+        },
+        "npm.packageManager": {
+          "scope": "resource",
+          "type": "string",
+          "enum": [
+            "npm",
+            "yarn"
+          ],
+          "default": "npm",
+          "description": "%config.npm.packageManager%"
+        }
+      }
+    },
+    "taskDefinitions": [
+      {
+        "type": "npm",
+        "required": [
+          "script"
+        ],
+        "properties": {
+          "script": {
+            "type": "string",
+            "description": "The npm script to customize"
+          },
+          "path": {
+            "type": "string",
+            "description": "The path to the folder of the package.json file that provides the script. Can be ommitted."
+          }
+        }
+      }
+    ]
+  }
+}

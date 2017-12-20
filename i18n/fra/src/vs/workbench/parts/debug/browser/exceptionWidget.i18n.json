@@ -6,10 +6,6 @@
 {
 	"debugExceptionWidgetBorder": "Couleur de bordure du widget d'exception.",
 	"debugExceptionWidgetBackground": "Couleur d'arrière-plan du widget d'exception.",
-	"neverException": "Une exception prise en charge par l'utilisateur s'est produite : {0}",
-	"alwaysException": "Une exception générant toujours un arrêt s'est produite : {0}",
-	"unhandledException": "Une exception non prise en charge s'est produite : {0}",
-	"userUnhandledException": "Une exception non prise en charge par l'utilisateur s'est produite : {0}",
 	"exceptionThrownWithId": "Une exception s'est produite : {0}",
 	"exceptionThrown": "Une exception s'est produite"
 }

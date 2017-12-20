@@ -36,7 +36,7 @@
 }
 
 .quick-open-widget .quick-open-tree {
-	line-height: 1.8em;
+	line-height: 22px;
 }
 
 .quick-open-widget .quick-open-tree .monaco-tree-row  > .content > .sub-content {
@@ -52,9 +52,10 @@
 	text-overflow: ellipsis;
 	display: flex;
 	flex-direction: column;
+	height: 100%;
 }
 
-.quick-open-widget .quick-open-tree .quick-open-entry > .row {
+.quick-open-widget .quick-open-tree .quick-open-entry > .quick-open-row {
 	display: flex;
 	align-items: center;
 }
@@ -85,6 +86,14 @@
 	overflow: hidden;
 	flex: 1;
 	text-overflow: ellipsis;
+}
+
+.quick-open-widget .quick-open-tree .content.has-group-label .quick-open-entry-keybinding {
+	margin-right: 8px;
+}
+
+.quick-open-widget .quick-open-tree .quick-open-entry-keybinding .monaco-keybinding-key {
+	vertical-align: text-bottom;
 }
 
 .quick-open-widget .quick-open-tree .results-group {
@@ -121,7 +130,7 @@
 }
 
 .monaco-tree .monaco-tree-row > .content.actions > .primary-action-bar {
-	line-height: 1em;
+	line-height: 22px;
 }
 
 .monaco-tree .monaco-tree-row > .content.actions > .primary-action-bar {
@@ -142,32 +151,13 @@
 }
 
 .monaco-tree .monaco-tree-row > .content.actions > .primary-action-bar .action-label {
-	margin-right: 0.2em;
+	margin-right: 0.4em;
 	margin-top: 4px;
 	background-repeat: no-repeat;
 	width: 16px;
 	height: 16px;
 }
 
-/* Theming */
-
-.quick-open-widget {
-	box-shadow: 0 5px 8px #A8A8A8;
-}
-
-.vs-dark .quick-open-widget {
-	box-shadow: 0 5px 8px #000;
-}
-
-.hc-black .quick-open-widget {
-	box-shadow: none;
-}
-
 .quick-open-widget .quick-open-tree .monaco-highlighted-label .highlight {
-	color: #007ACC;
 	font-weight: bold;
-}
-
-.vs-dark .quick-open-widget .quick-open-tree .monaco-highlighted-label .highlight {
-	color: #0097FB;
 }

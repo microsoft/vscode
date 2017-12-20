@@ -9,5 +9,6 @@
 	"vscode.extension.contributes.snippets-path": "スニペット ファイルのパス。拡張機能フォルダーの相対パスであり、通常 './snippets/' で始まります。",
 	"invalid.language": "`contributes.{0}.language` で不明な言語です。提供された値: {1}",
 	"invalid.path.0": "`contributes.{0}.path` に文字列が必要です。提供された値: {1}",
-	"invalid.path.1": "拡張機能のフォルダー ({2}) の中に `contributes.{0}.path` ({1}) が含まれている必要があります。これにより拡張を移植できなくなる可能性があります。"
+	"invalid.path.1": "拡張機能のフォルダー ({2}) の中に `contributes.{0}.path` ({1}) が含まれている必要があります。これにより拡張を移植できなくなる可能性があります。",
+	"badVariableUse": "スニペット \"{0}\" は、スニペット変数とスニペット プレースホルダーを混乱させる可能性が非常にあります。詳細については https://code.visualstudio.com/docs/editor/userdefinedsnippets#_snippet-syntax をご覧ください。"
 }

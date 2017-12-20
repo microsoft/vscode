@@ -170,6 +170,7 @@
 	overflow: hidden;
 }
 
+.search-viewlet .foldermatch,
 .search-viewlet .filematch {
 	display: flex;
 	position: relative;
@@ -177,10 +178,12 @@
 	padding: 0;
 }
 
+.search-viewlet .foldermatch .monaco-icon-label,
 .search-viewlet .filematch .monaco-icon-label {
 	flex: 1;
 }
 
+.search-viewlet .foldermatch .directory,
 .search-viewlet .filematch .directory {
 	opacity: 0.7;
 	font-size: 0.9em;
@@ -201,28 +204,6 @@
 
 .search-viewlet .linematch.changedOrRemoved {
 	font-style: italic;
-}
-
-.search-viewlet .checkbox {
-	display: inline-block;
-	visibility: hidden;
-	border: 1px solid rgba(128, 128, 128, 0.5);
-	width: 0;
-	height: 12px;
-	margin-right: 0;
-	position: relative;
-	top: 2px;
-	transition:			width 150ms, margin-right 150ms ease-in;
-}
-
-.search-viewlet .linematch .checkbox.checked {
-	background-position: -66px -150px;
-}
-
-.search-viewlet .select .linematch .checkbox {
-	visibility: visible;
-	width: 12px;
-	margin-right: 4px;
 }
 
 .search-viewlet .query-clear {
@@ -288,8 +269,12 @@
 	margin-right: 12px;
 }
 
-.search-viewlet > .results > .monaco-tree .monaco-tree-row:hover .content .monaco-count-badge,
-.search-viewlet > .results > .monaco-tree.focused .monaco-tree-row.focused .content .monaco-count-badge {
+.search-viewlet > .results > .monaco-tree .monaco-tree-row:hover .content .filematch .monaco-count-badge,
+.search-viewlet > .results > .monaco-tree .monaco-tree-row:hover .content .foldermatch .monaco-count-badge,
+.search-viewlet > .results > .monaco-tree .monaco-tree-row:hover .content .linematch .monaco-count-badge,
+.search-viewlet > .results > .monaco-tree.focused .monaco-tree-row.focused .content .filematch .monaco-count-badge,
+.search-viewlet > .results > .monaco-tree.focused .monaco-tree-row.focused .content .foldermatch .monaco-count-badge,
+.search-viewlet > .results > .monaco-tree.focused .monaco-tree-row.focused .content .linematch .monaco-count-badge {
 	display: none;
 }
 
@@ -334,36 +319,17 @@
 	background: url('pattern-dark.svg') center center no-repeat;
 }
 
-.vs .monaco-workbench .search-viewlet .query-details .file-types .controls>.custom-checkbox.useIgnoreFiles {
-	background: url('gitignore.svg') center center no-repeat;
-	background-size: 18px 18px;
-}
-
-.vs-dark .monaco-workbench .search-viewlet .query-details .file-types .controls>.custom-checkbox.useIgnoreFiles,
-.hc-black .monaco-workbench .search-viewlet .query-details .file-types .controls>.custom-checkbox.useIgnoreFiles {
-	background: url('gitignore-dark.svg') center center no-repeat;
-	background-size: 18px 18px;
-}
-
-.vs .monaco-workbench .search-viewlet .query-details .file-types .controls>.custom-checkbox.useExcludeSettings {
+.vs .monaco-workbench .search-viewlet .query-details .file-types .controls>.custom-checkbox.useExcludesAndIgnoreFiles {
 	background: url('excludeSettings.svg') center center no-repeat;
 }
 
-.vs-dark .monaco-workbench .search-viewlet .query-details .file-types .controls>.custom-checkbox.useExcludeSettings,
-.hc-black .monaco-workbench .search-viewlet .query-details .file-types .controls>.custom-checkbox.useExcludeSettings {
+.vs-dark .monaco-workbench .search-viewlet .query-details .file-types .controls>.custom-checkbox.useExcludesAndIgnoreFiles,
+.hc-black .monaco-workbench .search-viewlet .query-details .file-types .controls>.custom-checkbox.useExcludesAndIgnoreFiles {
 	background: url('excludeSettings-dark.svg') center center no-repeat;
-}
-
-.search-viewlet .findInFileMatch,
-.monaco-editor .findInFileMatch {
-	background-color: rgba(234, 92, 0, 0.3);
-	animation-duration: 0;
-	animation-name: inherit !important;
 }
 
 .search-viewlet .replace.findInFileMatch {
 	text-decoration: line-through;
-	background-color: rgba(255, 0, 0, 0.2);
 }
 
 .search-viewlet .findInFileMatch,
@@ -371,24 +337,10 @@
 	white-space: pre;
 }
 
-.search-viewlet .replaceMatch {
-	background-color: rgba(155, 185, 85, 0.5);
-}
-
 .hc-black .monaco-workbench .search-viewlet .replaceMatch,
-.hc-black .monaco-workbench .search-viewlet .findInFileMatch,
-.monaco-editor.hc-black .findInFileMatch {
+.hc-black .monaco-workbench .search-viewlet .findInFileMatch {
 	background: none !important;
-	border: 1px dotted #f38518;
 	box-sizing: border-box;
-}
-
-.hc-black .monaco-workbench .search-viewlet .replace.findInFileMatch {
-	border: 1px dashed #FF008F;
-}
-
-.hc-black .monaco-workbench .search-viewlet .replaceMatch {
-	border: 1px dashed rgb(51, 255, 46);
 }
 
 .monaco-workbench .search-viewlet a.prominent {
@@ -397,17 +349,12 @@
 
 /* Theming */
 
-.search-viewlet .highlight {
-	color: black;
-	background-color: rgba(234, 92, 0, 0.3);
+.vs .search-viewlet .search-widget .toggle-replace-button:hover {
+	background-color: rgba(0, 0, 0, 0.1) !important;
 }
 
-.vs .search-viewlet .filematch .name {
-	color: #1E1E1E;
-}
-
-.vs .search-viewlet .monaco-tree.focused .monaco-tree-row.selected .filematch .name {
-	color: #FFF;
+.vs-dark .search-viewlet .search-widget .toggle-replace-button:hover {
+	background-color: rgba(255, 255, 255, 0.1) !important;
 }
 
 .vs .search-viewlet .search-widget .toggle-replace-button.collapse {
@@ -416,10 +363,6 @@
 
 .vs .search-viewlet .search-widget .toggle-replace-button.expand {
 	background-image: url('expando-expanded.svg');
-}
-
-.vs-dark .search-viewlet .monaco-tree .filematch .name {
-	color: #FFF;
 }
 
 .vs-dark .search-viewlet .query-clear {
@@ -432,10 +375,10 @@
 }
 
 .vs-dark .search-viewlet .message {
-	color: #FFF;
 	opacity: .5;
 }
 
+.vs-dark .search-viewlet .foldermatch,
 .vs-dark .search-viewlet .filematch {
 	padding: 0;
 }
@@ -452,6 +395,7 @@
 
 /* High Contrast Theming */
 
+.hc-black .monaco-workbench .search-viewlet .foldermatch,
 .hc-black .monaco-workbench .search-viewlet .filematch,
 .hc-black .monaco-workbench .search-viewlet .linematch {
 	line-height: 20px;

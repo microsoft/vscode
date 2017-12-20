@@ -8,7 +8,7 @@ import { SimpleKeybinding, KeyCode, KeybindingType, createKeybinding, Keybinding
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { CommandsRegistry, ICommandHandler, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { Registry } from 'vs/platform/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export interface IKeybindingItem {
 	keybinding: Keybinding;
@@ -75,6 +75,7 @@ export interface IKeybindingsRegistry {
 class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 
 	private _keybindings: IKeybindingItem[];
+	private _keybindingsSorted: boolean;
 
 	public WEIGHT = {
 		editorCore: (importance: number = 0): number => {
@@ -96,6 +97,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 
 	constructor() {
 		this._keybindings = [];
+		this._keybindingsSorted = true;
 	}
 
 	/**
@@ -144,11 +146,14 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		let actualKb = KeybindingsRegistryImpl.bindToCurrentPlatform(rule);
 
 		if (actualKb && actualKb.primary) {
-			this.registerDefaultKeybinding(createKeybinding(actualKb.primary, OS), rule.id, rule.weight, 0, rule.when);
+			this._registerDefaultKeybinding(createKeybinding(actualKb.primary, OS), rule.id, rule.weight, 0, rule.when);
 		}
 
 		if (actualKb && Array.isArray(actualKb.secondary)) {
-			actualKb.secondary.forEach((k, i) => this.registerDefaultKeybinding(createKeybinding(k, OS), rule.id, rule.weight, -i - 1, rule.when));
+			for (let i = 0, len = actualKb.secondary.length; i < len; i++) {
+				const k = actualKb.secondary[i];
+				this._registerDefaultKeybinding(createKeybinding(k, OS), rule.id, rule.weight, -i - 1, rule.when);
+			}
 		}
 	}
 
@@ -156,13 +161,13 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		let actualKb = KeybindingsRegistryImpl.bindToCurrentPlatform2(rule);
 
 		if (actualKb && actualKb.primary) {
-			this.registerDefaultKeybinding(actualKb.primary, rule.id, rule.weight, 0, rule.when);
+			this._registerDefaultKeybinding(actualKb.primary, rule.id, rule.weight, 0, rule.when);
 		}
 	}
 
 	public registerCommandAndKeybindingRule(desc: ICommandAndKeybindingRule): void {
 		this.registerKeybindingRule(desc);
-		CommandsRegistry.registerCommand(desc.id, desc);
+		CommandsRegistry.registerCommand(desc);
 	}
 
 	private static _mightProduceChar(keyCode: KeyCode): boolean {
@@ -180,6 +185,8 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 			|| keyCode === KeyCode.US_DOT
 			|| keyCode === KeyCode.US_SLASH
 			|| keyCode === KeyCode.US_BACKTICK
+			|| keyCode === KeyCode.ABNT_C1
+			|| keyCode === KeyCode.ABNT_C2
 			|| keyCode === KeyCode.US_OPEN_SQUARE_BRACKET
 			|| keyCode === KeyCode.US_BACKSLASH
 			|| keyCode === KeyCode.US_CLOSE_SQUARE_BRACKET
@@ -197,7 +204,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		}
 	}
 
-	private registerDefaultKeybinding(keybinding: Keybinding, commandId: string, weight1: number, weight2: number, when: ContextKeyExpr): void {
+	private _registerDefaultKeybinding(keybinding: Keybinding, commandId: string, weight1: number, weight2: number, when: ContextKeyExpr): void {
 		if (OS === OperatingSystem.Windows) {
 			if (keybinding.type === KeybindingType.Chord) {
 				this._assertNoCtrlAlt(keybinding.firstPart, commandId);
@@ -213,18 +220,21 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 			weight1: weight1,
 			weight2: weight2
 		});
+		this._keybindingsSorted = false;
 	}
 
 	public getDefaultKeybindings(): IKeybindingItem[] {
-		let result = this._keybindings.slice(0);
-		result.sort(sorter);
-		return result;
+		if (!this._keybindingsSorted) {
+			this._keybindings.sort(sorter);
+			this._keybindingsSorted = true;
+		}
+		return this._keybindings.slice(0);
 	}
 }
-export let KeybindingsRegistry: IKeybindingsRegistry = new KeybindingsRegistryImpl();
+export const KeybindingsRegistry: IKeybindingsRegistry = new KeybindingsRegistryImpl();
 
 // Define extension point ids
-export let Extensions = {
+export const Extensions = {
 	EditorModes: 'platform.keybindingsRegistry'
 };
 Registry.add(Extensions.EditorModes, KeybindingsRegistry);

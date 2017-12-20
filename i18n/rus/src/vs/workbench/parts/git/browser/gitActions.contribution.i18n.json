@@ -13,6 +13,7 @@
 	"revertSelectedLines": "Отменить выбранные строки",
 	"confirmRevertMessage": "Действительно отменить выбранные изменения?",
 	"irreversible": "Это действие необратимо.",
+	"revertChangesLabel": "&&Отменить изменения",
 	"openChange": "Открыть изменение",
 	"openFile": "Открыть файл",
 	"git": "GIT"

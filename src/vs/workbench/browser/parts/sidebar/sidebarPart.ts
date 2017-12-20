@@ -6,16 +6,17 @@
 import 'vs/css!./media/sidebarpart';
 import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
-import { Registry } from 'vs/platform/platform';
-import { Action } from 'vs/base/common/actions';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { Action, IAction } from 'vs/base/common/actions';
 import { CompositePart } from 'vs/workbench/browser/parts/compositePart';
 import { Viewlet, ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actionRegistry';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPartService, Parts, Position as SideBarPosition } from 'vs/workbench/services/part/common/partService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
-import { Scope } from 'vs/workbench/browser/actionBarRegistry';
+import { Scope } from 'vs/workbench/browser/actions';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IMessageService } from 'vs/platform/message/common/message';
@@ -25,12 +26,14 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import Event from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { highContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND, SIDE_BAR_BORDER } from 'vs/workbench/common/theme';
+import { ToggleSidebarVisibilityAction } from 'vs/workbench/browser/actions/toggleSidebarVisibility';
+import { Dimension } from 'vs/base/browser/builder';
 
 export class SidebarPart extends CompositePart<Viewlet> {
 
-	public static activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
+	public static readonly activeViewletSettingsKey = 'workbench.sidebar.activeviewletid';
 
 	public _serviceBrand: any;
 
@@ -58,21 +61,22 @@ export class SidebarPart extends CompositePart<Viewlet> {
 			themeService,
 			Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets),
 			SidebarPart.activeViewletSettingsKey,
+			Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).getDefaultViewletId(),
 			'sideBar',
 			'viewlet',
 			Scope.VIEWLET,
 			SIDE_BAR_TITLE_FOREGROUND,
 			id,
-			{ hasTitle: true }
+			{ hasTitle: true, borderWidth: () => (this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder)) ? 1 : 0 }
 		);
 	}
 
 	public get onDidViewletOpen(): Event<IViewlet> {
-		return this._onDidCompositeOpen.event;
+		return this._onDidCompositeOpen.event as Event<IViewlet>;
 	}
 
 	public get onDidViewletClose(): Event<IViewlet> {
-		return this._onDidCompositeClose.event;
+		return this._onDidCompositeClose.event as Event<IViewlet>;
 	}
 
 	public updateStyles(): void {
@@ -82,15 +86,16 @@ export class SidebarPart extends CompositePart<Viewlet> {
 		const container = this.getContainer();
 
 		container.style('background-color', this.getColor(SIDE_BAR_BACKGROUND));
+		container.style('color', this.getColor(SIDE_BAR_FOREGROUND));
 
-		const useBorder = this.isHighContrastTheme;
+		const borderColor = this.getColor(SIDE_BAR_BORDER) || this.getColor(contrastBorder);
 		const isPositionLeft = this.partService.getSideBarPosition() === SideBarPosition.LEFT;
-		container.style('border-right-width', useBorder && isPositionLeft ? '1px' : null);
-		container.style('border-right-style', useBorder && isPositionLeft ? 'solid' : null);
-		container.style('border-right-color', useBorder && isPositionLeft ? this.getColor(highContrastBorder) : null);
-		container.style('border-left-width', useBorder && !isPositionLeft ? '1px' : null);
-		container.style('border-left-style', useBorder && !isPositionLeft ? 'solid' : null);
-		container.style('border-left-color', useBorder && !isPositionLeft ? this.getColor(highContrastBorder) : null);
+		container.style('border-right-width', borderColor && isPositionLeft ? '1px' : null);
+		container.style('border-right-style', borderColor && isPositionLeft ? 'solid' : null);
+		container.style('border-right-color', isPositionLeft ? borderColor : null);
+		container.style('border-left-width', borderColor && !isPositionLeft ? '1px' : null);
+		container.style('border-left-style', borderColor && !isPositionLeft ? 'solid' : null);
+		container.style('border-left-color', !isPositionLeft ? borderColor : null);
 	}
 
 	public openViewlet(id: string, focus?: boolean): TPromise<Viewlet> {
@@ -99,7 +104,7 @@ export class SidebarPart extends CompositePart<Viewlet> {
 		}
 
 		// First check if sidebar is hidden and show if so
-		let promise = TPromise.as(null);
+		let promise = TPromise.wrap<void>(null);
 		if (!this.partService.isVisible(Parts.SIDEBAR_PART)) {
 			try {
 				this.blockOpeningViewlet = true;
@@ -109,7 +114,7 @@ export class SidebarPart extends CompositePart<Viewlet> {
 			}
 		}
 
-		return promise.then(() => this.openComposite(id, focus));
+		return promise.then(() => this.openComposite(id, focus)) as TPromise<Viewlet>;
 	}
 
 	public getActiveViewlet(): IViewlet {
@@ -123,12 +128,39 @@ export class SidebarPart extends CompositePart<Viewlet> {
 	public hideActiveViewlet(): TPromise<void> {
 		return this.hideActiveComposite().then(composite => void 0);
 	}
+
+	public layout(dimension: Dimension): Dimension[] {
+		if (!this.partService.isVisible(Parts.SIDEBAR_PART)) {
+			return [dimension];
+		}
+
+		return super.layout(dimension);
+	}
+
+	protected getTitleAreaContextMenuActions(): IAction[] {
+		const contextMenuActions = super.getTitleAreaContextMenuActions();
+		if (contextMenuActions.length) {
+			contextMenuActions.push(new Separator());
+		}
+		contextMenuActions.push(this.createHideSideBarAction());
+		return contextMenuActions;
+	}
+
+	private createHideSideBarAction(): IAction {
+		return <IAction>{
+			id: ToggleSidebarVisibilityAction.ID,
+			label: nls.localize('compositePart.hideSideBarLabel', "Hide Side Bar"),
+			enabled: true,
+			run: () => this.partService.setSideBarHidden(true)
+		};
+	}
+
 }
 
 class FocusSideBarAction extends Action {
 
-	public static ID = 'workbench.action.focusSideBar';
-	public static LABEL = nls.localize('focusSideBar', "Focus into Side Bar");
+	public static readonly ID = 'workbench.action.focusSideBar';
+	public static readonly LABEL = nls.localize('focusSideBar', "Focus into Side Bar");
 
 	constructor(
 		id: string,

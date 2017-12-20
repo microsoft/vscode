@@ -43,6 +43,7 @@ export class InternalEditorAction implements IEditorAction {
 			return TPromise.as(void 0);
 		}
 
-		return TPromise.as(this._run());
+		const r = this._run();
+		return r ? r : TPromise.as(void 0);
 	}
 }

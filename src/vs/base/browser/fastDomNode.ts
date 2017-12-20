@@ -6,7 +6,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 
-export abstract class FastDomNode<T extends HTMLElement> {
+export class FastDomNode<T extends HTMLElement> {
 
 	public readonly domNode: T;
 	private _maxWidth: number;
@@ -20,11 +20,12 @@ export abstract class FastDomNode<T extends HTMLElement> {
 	private _fontWeight: string;
 	private _fontSize: number;
 	private _lineHeight: number;
+	private _letterSpacing: number;
 	private _className: string;
 	private _display: string;
 	private _position: string;
 	private _visibility: string;
-	private _transform: string;
+	private _layerHint: boolean;
 
 	constructor(domNode: T) {
 		this.domNode = domNode;
@@ -39,11 +40,12 @@ export abstract class FastDomNode<T extends HTMLElement> {
 		this._fontWeight = '';
 		this._fontSize = -1;
 		this._lineHeight = -1;
+		this._letterSpacing = -100;
 		this._className = '';
 		this._display = '';
 		this._position = '';
 		this._visibility = '';
-		this._transform = '';
+		this._layerHint = false;
 	}
 
 	public setMaxWidth(maxWidth: number): void {
@@ -62,14 +64,6 @@ export abstract class FastDomNode<T extends HTMLElement> {
 		this.domNode.style.width = this._width + 'px';
 	}
 
-	public unsetWidth(): void {
-		if (this._width === -1) {
-			return;
-		}
-		this._width = -1;
-		this.domNode.style.width = '';
-	}
-
 	public setHeight(height: number): void {
 		if (this._height === height) {
 			return;
@@ -78,28 +72,12 @@ export abstract class FastDomNode<T extends HTMLElement> {
 		this.domNode.style.height = this._height + 'px';
 	}
 
-	public getHeight(): number {
-		return this._height;
-	}
-
-	public unsetHeight(): void {
-		if (this._height === -1) {
-			return;
-		}
-		this._height = -1;
-		this.domNode.style.height = '';
-	}
-
 	public setTop(top: number): void {
 		if (this._top === top) {
 			return;
 		}
 		this._top = top;
 		this.domNode.style.top = this._top + 'px';
-	}
-
-	public getTop(): number {
-		return this._top;
 	}
 
 	public unsetTop(): void {
@@ -166,6 +144,14 @@ export abstract class FastDomNode<T extends HTMLElement> {
 		this.domNode.style.lineHeight = this._lineHeight + 'px';
 	}
 
+	public setLetterSpacing(letterSpacing: number): void {
+		if (this._letterSpacing === letterSpacing) {
+			return;
+		}
+		this._letterSpacing = letterSpacing;
+		this.domNode.style.letterSpacing = this._letterSpacing + 'px';
+	}
+
 	public setClassName(className: string): void {
 		if (this._className === className) {
 			return;
@@ -176,16 +162,6 @@ export abstract class FastDomNode<T extends HTMLElement> {
 
 	public toggleClassName(className: string, shouldHaveIt?: boolean): void {
 		dom.toggleClass(this.domNode, className, shouldHaveIt);
-		this._className = this.domNode.className;
-	}
-
-	public addClassName(className: string): void {
-		dom.addClass(this.domNode, className);
-		this._className = this.domNode.className;
-	}
-
-	public removeClassName(className: string): void {
-		dom.removeClass(this.domNode, className);
 		this._className = this.domNode.className;
 	}
 
@@ -213,30 +189,20 @@ export abstract class FastDomNode<T extends HTMLElement> {
 		this.domNode.style.visibility = this._visibility;
 	}
 
-	public setTransform(transform: string): void {
-		if (this._transform === transform) {
+	public setLayerHinting(layerHint: boolean): void {
+		if (this._layerHint === layerHint) {
 			return;
 		}
-		this._transform = transform;
-		this._setTransform(this.domNode, this._transform);
+		this._layerHint = layerHint;
+		(<any>this.domNode.style).willChange = this._layerHint ? 'transform' : 'auto';
 	}
-
-	protected abstract _setTransform(domNode: T, transform: string): void;
 
 	public setAttribute(name: string, value: string): void {
 		this.domNode.setAttribute(name, value);
 	}
 
-	public getAttribute(name: string): string {
-		return this.domNode.getAttribute(name);
-	}
-
 	public removeAttribute(name: string): void {
 		this.domNode.removeAttribute(name);
-	}
-
-	public hasAttribute(name: string): boolean {
-		return this.domNode.hasAttribute(name);
 	}
 
 	public appendChild(child: FastDomNode<any>): void {
@@ -248,29 +214,6 @@ export abstract class FastDomNode<T extends HTMLElement> {
 	}
 }
 
-class WebKitFastDomNode<T extends HTMLElement> extends FastDomNode<T> {
-	protected _setTransform(domNode: T, transform: string): void {
-		(<any>domNode.style).webkitTransform = transform;
-	}
-}
-
-class StandardFastDomNode<T extends HTMLElement> extends FastDomNode<T> {
-	protected _setTransform(domNode: T, transform: string): void {
-		domNode.style.transform = transform;
-	}
-}
-
-let useWebKitFastDomNode = false;
-(function () {
-	let testDomNode = document.createElement('div');
-	if (typeof (<any>testDomNode.style).webkitTransform !== 'undefined') {
-		useWebKitFastDomNode = true;
-	}
-})();
 export function createFastDomNode<T extends HTMLElement>(domNode: T): FastDomNode<T> {
-	if (useWebKitFastDomNode) {
-		return new WebKitFastDomNode(domNode);
-	} else {
-		return new StandardFastDomNode(domNode);
-	}
+	return new FastDomNode(domNode);
 }

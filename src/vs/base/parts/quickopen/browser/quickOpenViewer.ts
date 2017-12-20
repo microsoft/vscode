@@ -7,7 +7,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { isFunction } from 'vs/base/common/types';
 import { ITree, IRenderer, IFilter, IDataSource, IAccessibilityProvider } from 'vs/base/parts/tree/browser/tree';
 import { IModel } from 'vs/base/parts/quickopen/common/quickOpen';
-import { IQuickOpenStyles } from "vs/base/parts/quickopen/browser/quickOpenWidget";
+import { IQuickOpenStyles } from 'vs/base/parts/quickopen/browser/quickOpenWidget';
 
 export interface IModelProvider {
 	getModel<T>(): IModel<T>;
@@ -54,6 +54,16 @@ export class AccessibilityProvider implements IAccessibilityProvider {
 		const model = this.modelProvider.getModel();
 
 		return model.accessibilityProvider && model.accessibilityProvider.getAriaLabel(element);
+	}
+
+	public getPosInSet(tree: ITree, element: any): string {
+		const model = this.modelProvider.getModel();
+		return String(model.entries.indexOf(element) + 1);
+	}
+
+	public getSetSize(): string {
+		const model = this.modelProvider.getModel();
+		return String(model.entries.length);
 	}
 }
 

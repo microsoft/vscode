@@ -5,9 +5,10 @@
 			"es2015"
 		],
 		"module": "commonjs",
+		"noUnusedLocals": true,
 		"outDir": "./out"
 	},
-	"exclude": [
-		"node_modules"
+	"include": [
+		"src/**/*"
 	]
 }

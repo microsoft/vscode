@@ -9,7 +9,7 @@ import { canceled } from 'vs/base/common/errors';
 
 export abstract class V8Protocol {
 
-	private static TWO_CRLF = '\r\n\r\n';
+	private static readonly TWO_CRLF = '\r\n\r\n';
 
 	private outputStream: stream.Writable;
 	private sequence: number;
@@ -30,7 +30,7 @@ export abstract class V8Protocol {
 
 	protected abstract onServerError(err: Error): void;
 	protected abstract onEvent(event: DebugProtocol.Event): void;
-	protected abstract dispatchRequest(request: DebugProtocol.Request, response: DebugProtocol.Response);
+	protected abstract dispatchRequest(request: DebugProtocol.Request, response: DebugProtocol.Response): void;
 
 	protected connect(readable: stream.Readable, writable: stream.Writable): void {
 
@@ -42,11 +42,11 @@ export abstract class V8Protocol {
 		});
 	}
 
-	protected send(command: string, args: any): TPromise<DebugProtocol.Response> {
-		let errorCallback;
-		return new TPromise((completeDispatch, errorDispatch) => {
+	protected send<R extends DebugProtocol.Response>(command: string, args: any): TPromise<R> {
+		let errorCallback: (error: Error) => void;
+		return new TPromise<R>((completeDispatch, errorDispatch) => {
 			errorCallback = errorDispatch;
-			this.doSend(command, args, (result: DebugProtocol.Response) => {
+			this.doSend(command, args, (result: R) => {
 				if (result.success) {
 					completeDispatch(result);
 				} else {

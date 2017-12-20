@@ -8,6 +8,7 @@
 	"closeOthers": "Fermer les autres",
 	"closeRight": "Fermer à droite",
 	"closeAll": "Tout fermer",
+	"closeAllUnmodified": "Fermer les éléments non modifiés",
 	"keepOpen": "Garder ouvert",
 	"showOpenedEditors": "Afficher les éditeurs ouverts",
 	"araLabelEditorActions": "Actions de l'éditeur"

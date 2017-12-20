@@ -7,7 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
-import { ITextModelResolverService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IModel } from 'vs/editor/common/editorCommon';
@@ -20,7 +20,7 @@ import { IRawTextSource } from 'vs/editor/common/model/textSource';
 export class WalkThroughContentProvider implements ITextModelContentProvider, IWorkbenchContribution {
 
 	constructor(
-		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
+		@ITextModelService private textModelResolverService: ITextModelService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,
@@ -50,16 +50,12 @@ export class WalkThroughContentProvider implements ITextModelContentProvider, IW
 			return codeEditorModel;
 		});
 	}
-
-	public getId(): string {
-		return 'vs.walkThroughContentProvider';
-	}
 }
 
 export class WalkThroughSnippetContentProvider implements ITextModelContentProvider, IWorkbenchContribution {
 
 	constructor(
-		@ITextModelResolverService private textModelResolverService: ITextModelResolverService,
+		@ITextModelService private textModelResolverService: ITextModelService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,
@@ -97,9 +93,5 @@ export class WalkThroughSnippetContentProvider implements ITextModelContentProvi
 
 			return codeEditorModel;
 		});
-	}
-
-	public getId(): string {
-		return 'vs.walkThroughSnippetContentProvider';
 	}
 }

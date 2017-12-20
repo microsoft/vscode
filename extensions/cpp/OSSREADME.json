@@ -2,7 +2,7 @@
 [
 	{
 		"name": "atom/language-c",
-		"version": "0.51.3",
+		"version": "0.0.0",
 		"license": "MIT",
 		"repositoryURL": "https://github.com/atom/language-c",
 		"description": "The files syntaxes/c.json and syntaxes/c++.json were derived from the Atom package https://atom.io/packages/language-c which was originally converted from the C TextMate bundle https://github.com/textmate/c.tmbundle."

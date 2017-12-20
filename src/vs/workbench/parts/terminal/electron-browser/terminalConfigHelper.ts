@@ -4,15 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import * as path from 'path';
 import * as platform from 'vs/base/common/platform';
-import { IConfiguration as IEditorConfiguration, DefaultConfig } from 'vs/editor/common/config/defaultConfig';
+import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IChoiceService } from 'vs/platform/message/common/message';
-import { IStorageService, StorageScope } from "vs/platform/storage/common/storage";
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITerminalConfiguration, ITerminalConfigHelper, ITerminalFont, IShellLaunchConfig, IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY } from 'vs/workbench/parts/terminal/common/terminal';
-import { Severity } from "vs/editor/common/standalone/standaloneBase";
 import { TPromise } from 'vs/base/common/winjs.base';
+import Severity from 'vs/base/common/severity';
+import { isFedora } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { deepClone } from 'vs/base/common/objects';
+
+interface IEditorConfiguration {
+	editor: IEditorOptions;
+}
 
 interface IFullTerminalConfiguration {
 	terminal: {
@@ -20,7 +27,10 @@ interface IFullTerminalConfiguration {
 	};
 }
 
-const DEFAULT_LINE_HEIGHT = 1.2;
+const DEFAULT_LINE_HEIGHT = 1.0;
+
+const MINIMUM_FONT_SIZE = 6;
+const MAXIMUM_FONT_SIZE = 25;
 
 /**
  * Encapsulates terminal configuration logic, the primary purpose of this file is so that platform
@@ -33,7 +43,6 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	private _lastFontMeasurement: ITerminalFont;
 
 	public constructor(
-		private _platform: platform.Platform,
 		@IConfigurationService private _configurationService: IConfigurationService,
 		@IWorkspaceConfigurationService private _workspaceConfigurationService: IWorkspaceConfigurationService,
 		@IChoiceService private _choiceService: IChoiceService,
@@ -41,7 +50,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	}
 
 	public get config(): ITerminalConfiguration {
-		return this._configurationService.getConfiguration<IFullTerminalConfiguration>().terminal.integrated;
+		return deepClone(this._configurationService.getValue<IFullTerminalConfiguration>().terminal.integrated);
 	}
 
 	private _measureFont(fontFamily: string, fontSize: number, lineHeight: number): ITerminalFont {
@@ -50,11 +59,12 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 			this._charMeasureElement = document.createElement('div');
 			this.panelContainer.appendChild(this._charMeasureElement);
 		}
+		// TODO: This should leverage CharMeasure
 		const style = this._charMeasureElement.style;
 		style.display = 'block';
 		style.fontFamily = fontFamily;
 		style.fontSize = fontSize + 'px';
-		style.lineHeight = lineHeight.toString(10);
+		style.lineHeight = 'normal';
 		this._charMeasureElement.innerText = 'X';
 		const rect = this._charMeasureElement.getBoundingClientRect();
 		style.display = 'none';
@@ -66,10 +76,10 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 
 		this._lastFontMeasurement = {
 			fontFamily,
-			fontSize: fontSize + 'px',
+			fontSize,
 			lineHeight,
 			charWidth: rect.width,
-			charHeight: rect.height
+			charHeight: Math.ceil(rect.height)
 		};
 		return this._lastFontMeasurement;
 	}
@@ -78,29 +88,43 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	 * Gets the font information based on the terminal.integrated.fontFamily
 	 * terminal.integrated.fontSize, terminal.integrated.lineHeight configuration properties
 	 */
-	public getFont(): ITerminalFont {
-		const config = this._configurationService.getConfiguration();
+	public getFont(excludeDimensions?: boolean): ITerminalFont {
+		const config = this._configurationService.getValue();
 		const editorConfig = (<IEditorConfiguration>config).editor;
 		const terminalConfig = this.config;
 
-		const fontFamily = terminalConfig.fontFamily || editorConfig.fontFamily;
-		let fontSize = this._toInteger(terminalConfig.fontSize, 0);
-		if (fontSize <= 0) {
-			fontSize = DefaultConfig.editor.fontSize;
+		let fontFamily = terminalConfig.fontFamily || editorConfig.fontFamily;
+
+		// Work around bad font on Fedora
+		if (!terminalConfig.fontFamily) {
+			if (isFedora) {
+				fontFamily = '\'DejaVu Sans Mono\'';
+			}
 		}
-		let lineHeight = terminalConfig.lineHeight <= 0 ? DEFAULT_LINE_HEIGHT : terminalConfig.lineHeight;
-		if (!lineHeight) {
-			lineHeight = DEFAULT_LINE_HEIGHT;
+
+		let fontSize = this._toInteger(terminalConfig.fontSize, MINIMUM_FONT_SIZE, MAXIMUM_FONT_SIZE, EDITOR_FONT_DEFAULTS.fontSize);
+		const lineHeight = terminalConfig.lineHeight ? Math.max(terminalConfig.lineHeight, 1) : DEFAULT_LINE_HEIGHT;
+
+		if (excludeDimensions) {
+			return {
+				fontFamily,
+				fontSize,
+				lineHeight
+			};
 		}
 
 		return this._measureFont(fontFamily, fontSize, lineHeight);
 	}
 
+	public setWorkspaceShellAllowed(isAllowed: boolean): void {
+		this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, isAllowed, StorageScope.WORKSPACE);
+	}
+
 	public mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig): void {
 		// Check whether there is a workspace setting
 		const platformKey = platform.isWindows ? 'windows' : platform.isMacintosh ? 'osx' : 'linux';
-		const shellConfigValue = this._workspaceConfigurationService.lookup<string>(`terminal.integrated.shell.${platformKey}`);
-		const shellArgsConfigValue = this._workspaceConfigurationService.lookup<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
+		const shellConfigValue = this._workspaceConfigurationService.inspect<string>(`terminal.integrated.shell.${platformKey}`);
+		const shellArgsConfigValue = this._workspaceConfigurationService.inspect<string[]>(`terminal.integrated.shellArgs.${platformKey}`);
 
 		// Check if workspace setting exists and whether it's whitelisted
 		let isWorkspaceShellAllowed = false;
@@ -132,29 +156,40 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 			}
 			const message = nls.localize('terminal.integrated.allowWorkspaceShell', "Do you allow {0} (defined as a workspace setting) to be launched in the terminal?", changeString);
 			const options = [nls.localize('allow', "Allow"), nls.localize('disallow', "Disallow")];
-			this._choiceService.choose(Severity.Info, message, options).then(choice => {
-				switch (choice) {
-					case 0:
-						this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, true, StorageScope.WORKSPACE);
-					case 1:
-						this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, false, StorageScope.WORKSPACE);
-					default:
-						return TPromise.as(null);
+			this._choiceService.choose(Severity.Info, message, options, 1).then(choice => {
+				if (choice === 0) {
+					this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, true, StorageScope.WORKSPACE);
+				} else {
+					this._storageService.store(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, false, StorageScope.WORKSPACE);
 				}
+				return TPromise.as(null);
 			});
 		}
 
 		shell.executable = (isWorkspaceShellAllowed ? shellConfigValue.value : shellConfigValue.user) || shellConfigValue.default;
 		shell.args = (isWorkspaceShellAllowed ? shellArgsConfigValue.value : shellArgsConfigValue.user) || shellArgsConfigValue.default;
+
+		// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
+		// safe to assume that this was used by accident as Sysnative does not
+		// exist and will break the terminal in non-WoW64 environments.
+		if (platform.isWindows && !process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432')) {
+			const sysnativePath = path.join(process.env.windir, 'Sysnative').toLowerCase();
+			if (shell.executable.toLowerCase().indexOf(sysnativePath) === 0) {
+				shell.executable = path.join(process.env.windir, 'System32', shell.executable.substr(sysnativePath.length));
+			}
+		}
 	}
 
-	private _toInteger(source: any, minimum?: number): number {
+	private _toInteger(source: any, minimum: number, maximum: number, fallback: number): number {
 		let r = parseInt(source, 10);
 		if (isNaN(r)) {
-			r = 0;
+			return fallback;
 		}
 		if (typeof minimum === 'number') {
 			r = Math.max(minimum, r);
+		}
+		if (typeof maximum === 'number') {
+			r = Math.min(maximum, r);
 		}
 		return r;
 	}

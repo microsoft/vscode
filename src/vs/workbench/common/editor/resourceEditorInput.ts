@@ -9,8 +9,9 @@ import { EditorInput, ITextEditorModel } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import { IReference } from 'vs/base/common/lifecycle';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
-import { ITextModelResolverService } from 'vs/editor/common/services/resolverService';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
+import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 
 /**
  * A read-only text editor input whos contents are made of the provided resource that points to an existing
@@ -20,7 +21,7 @@ export class ResourceEditorInput extends EditorInput {
 
 	static ID: string = 'workbench.editors.resourceEditorInput';
 
-	private modelReference: TPromise<IReference<ResourceEditorModel>>;
+	private modelReference: TPromise<IReference<ITextEditorModel>>;
 	private resource: URI;
 	private name: string;
 	private description: string;
@@ -29,7 +30,8 @@ export class ResourceEditorInput extends EditorInput {
 		name: string,
 		description: string,
 		resource: URI,
-		@ITextModelResolverService private textModelResolverService: ITextModelResolverService
+		@ITextModelService private textModelResolverService: ITextModelService,
+		@IHashService private hashService: IHashService
 	) {
 		super();
 
@@ -70,8 +72,13 @@ export class ResourceEditorInput extends EditorInput {
 
 	public getTelemetryDescriptor(): object {
 		const descriptor = super.getTelemetryDescriptor();
-		descriptor['resource'] = telemetryURIDescriptor(this.resource);
+		descriptor['resource'] = telemetryURIDescriptor(this.resource, path => this.hashService.createSHA1(path));
 
+		/* __GDPR__FRAGMENT__
+			"EditorTelemetryDescriptor" : {
+				"resource": { "${inline}": [ "${URIDescriptor}" ] }
+			}
+		*/
 		return descriptor;
 	}
 
@@ -86,7 +93,8 @@ export class ResourceEditorInput extends EditorInput {
 			if (!(model instanceof ResourceEditorModel)) {
 				ref.dispose();
 				this.modelReference = null;
-				return TPromise.wrapError(`Unexpected model for ResourceInput: ${this.resource}`); // TODO@Ben eventually also files should be supported, but we guard due to the dangerous dispose of the model in dispose()
+
+				return TPromise.wrapError<ITextEditorModel>(new Error(`Unexpected model for ResourceInput: ${this.resource}`));
 			}
 
 			return model;

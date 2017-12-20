@@ -4,15 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { EditorModel, IEncodingSupport } from 'vs/workbench/common/editor';
+import { IEncodingSupport } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import URI from 'vs/base/common/uri';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { EndOfLinePreference } from 'vs/editor/common/editorCommon';
-import { IFilesConfiguration, CONTENT_CHANGE_EVENT_BUFFER_DELAY } from 'vs/platform/files/common/files';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { CONTENT_CHANGE_EVENT_BUFFER_DELAY } from 'vs/platform/files/common/files';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IMode } from 'vs/editor/common/modes';
@@ -20,13 +19,13 @@ import Event, { Emitter } from 'vs/base/common/event';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IBackupFileService, BACKUP_FILE_RESOLVE_OPTIONS } from 'vs/workbench/services/backup/common/backup';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 
 export class UntitledEditorModel extends BaseTextEditorModel implements IEncodingSupport {
 
 	public static DEFAULT_CONTENT_CHANGE_BUFFER_DELAY = CONTENT_CHANGE_EVENT_BUFFER_DELAY;
 
-	private textModelChangeListener: IDisposable;
-	private configurationChangeListener: IDisposable;
+	private toDispose: IDisposable[];
 
 	private dirty: boolean;
 	private _onDidChangeContent: Emitter<void>;
@@ -38,34 +37,36 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 	private contentChangeEventScheduler: RunOnceScheduler;
 
 	private configuredEncoding: string;
-	private preferredEncoding: string;
-
-	private hasAssociatedFilePath: boolean;
-	private initialValue: string;
 
 	constructor(
 		private modeId: string,
 		private resource: URI,
-		hasAssociatedFilePath: boolean,
-		initialValue: string,
+		private hasAssociatedFilePath: boolean,
+		private initialValue: string,
+		private preferredEncoding: string,
 		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
 		@IBackupFileService private backupFileService: IBackupFileService,
 		@ITextFileService private textFileService: ITextFileService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@ITextResourceConfigurationService private configurationService: ITextResourceConfigurationService
 	) {
 		super(modelService, modeService);
 
-		this.hasAssociatedFilePath = hasAssociatedFilePath;
-		this.initialValue = initialValue;
 		this.dirty = false;
 		this.versionId = 0;
+		this.toDispose = [];
 
 		this._onDidChangeContent = new Emitter<void>();
+		this.toDispose.push(this._onDidChangeContent);
+
 		this._onDidChangeDirty = new Emitter<void>();
+		this.toDispose.push(this._onDidChangeDirty);
+
 		this._onDidChangeEncoding = new Emitter<void>();
+		this.toDispose.push(this._onDidChangeEncoding);
 
 		this.contentChangeEventScheduler = new RunOnceScheduler(() => this._onDidChangeContent.fire(), UntitledEditorModel.DEFAULT_CONTENT_CHANGE_BUFFER_DELAY);
+		this.toDispose.push(this.contentChangeEventScheduler);
 
 		this.registerListeners();
 	}
@@ -93,11 +94,19 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 	private registerListeners(): void {
 
 		// Config Changes
-		this.configurationChangeListener = this.configurationService.onDidUpdateConfiguration(e => this.onConfigurationChange(e.config));
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange()));
 	}
 
-	private onConfigurationChange(configuration: IFilesConfiguration): void {
-		this.configuredEncoding = configuration && configuration.files && configuration.files.encoding;
+	private onConfigurationChange(): void {
+		const configuredEncoding = this.configurationService.getValue<string>(this.resource, 'files.encoding');
+
+		if (this.configuredEncoding !== configuredEncoding) {
+			this.configuredEncoding = configuredEncoding;
+
+			if (!this.preferredEncoding) {
+				this._onDidChangeEncoding.fire(); // do not fire event if we have a preferred encoding set
+			}
+		}
 	}
 
 	public getVersionId(): number {
@@ -158,7 +167,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 		this.contentChangeEventScheduler.schedule();
 	}
 
-	public load(): TPromise<EditorModel> {
+	public load(): TPromise<UntitledEditorModel> {
 
 		// Check for backups first
 		return this.backupFileService.loadBackupResource(this.resource).then(backupResource => {
@@ -175,24 +184,25 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 			this.setDirty(this.hasAssociatedFilePath || !!backupContent);
 
 			return this.doLoad(backupContent || this.initialValue || '').then(model => {
-				const configuration = this.configurationService.getConfiguration<IFilesConfiguration>();
-
 				// Encoding
-				this.configuredEncoding = configuration && configuration.files && configuration.files.encoding;
+				this.configuredEncoding = this.configurationService.getValue<string>(this.resource, 'files.encoding');
 
 				// Listen to content changes
-				this.textModelChangeListener = this.textEditorModel.onDidChangeContent(e => this.onModelContentChanged());
+				this.toDispose.push(this.textEditorModel.onDidChangeContent(() => this.onModelContentChanged()));
+
+				// Listen to mode changes
+				this.toDispose.push(this.textEditorModel.onDidChangeLanguage(() => this.onConfigurationChange())); // mode change can have impact on config
 
 				return model;
 			});
 		});
 	}
 
-	private doLoad(content: string): TPromise<EditorModel> {
+	private doLoad(content: string): TPromise<UntitledEditorModel> {
 
 		// Create text editor model if not yet done
 		if (!this.textEditorModel) {
-			return this.createTextEditorModel(content, this.resource, this.modeId);
+			return this.createTextEditorModel(content, this.resource, this.modeId).then(model => this);
 		}
 
 		// Otherwise update
@@ -200,7 +210,7 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 			this.updateTextEditorModel(content);
 		}
 
-		return TPromise.as<EditorModel>(this);
+		return TPromise.as<UntitledEditorModel>(this);
 	}
 
 	private onModelContentChanged(): void {
@@ -224,20 +234,6 @@ export class UntitledEditorModel extends BaseTextEditorModel implements IEncodin
 	public dispose(): void {
 		super.dispose();
 
-		if (this.textModelChangeListener) {
-			this.textModelChangeListener.dispose();
-			this.textModelChangeListener = null;
-		}
-
-		if (this.configurationChangeListener) {
-			this.configurationChangeListener.dispose();
-			this.configurationChangeListener = null;
-		}
-
-		this.contentChangeEventScheduler.dispose();
-
-		this._onDidChangeContent.dispose();
-		this._onDidChangeDirty.dispose();
-		this._onDidChangeEncoding.dispose();
+		this.toDispose = dispose(this.toDispose);
 	}
 }
