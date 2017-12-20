@@ -44,8 +44,8 @@ suite('QueryBuilder', () => {
 		mockContextService = new TestContextService();
 		mockWorkspace = new Workspace('workspace', 'workspace', toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }]));
 		mockContextService.setWorkspace(mockWorkspace);
-		instantiationService.stub(IWorkspaceContextService, mockContextService);
 
+		instantiationService.stub(IWorkspaceContextService, mockContextService);
 		instantiationService.stub(IEnvironmentService, TestEnvironmentService);
 
 		queryBuilder = instantiationService.createInstance(QueryBuilder);
@@ -437,6 +437,32 @@ suite('QueryBuilder', () => {
 			cases.forEach(testIncludesDataItem);
 		});
 
+		test('includes with tilde', () => {
+			const userHome = TestEnvironmentService.userHome;
+			const cases: [string, ISearchPathsResult][] = [
+				[
+					'~/foo/bar',
+					<ISearchPathsResult>{
+						searchPaths: [{ searchPath: getUri(userHome, '/foo/bar') }]
+					}
+				],
+				[
+					'~/foo/bar, a',
+					<ISearchPathsResult>{
+						searchPaths: [{ searchPath: getUri(userHome, '/foo/bar') }],
+						pattern: patternsToIExpression(...globalGlob('a'))
+					}
+				],
+				[
+					fixPath('/foo/~/bar'),
+					<ISearchPathsResult>{
+						searchPaths: [{ searchPath: getUri('/foo/~/bar') }]
+					}
+				],
+			];
+			cases.forEach(testIncludesDataItem);
+		});
+
 		test('relative includes w/single root folder', () => {
 			const cases: [string, ISearchPathsResult][] = [
 				[
@@ -685,14 +711,21 @@ function patternsToIExpression(...patterns: string[]): IExpression {
 		undefined;
 }
 
-function getUri(slashPath: string): uri {
-	return uri.file(fixPath(slashPath));
+function getUri(...slashPathParts: string[]): uri {
+	return uri.file(fixPath(...slashPathParts));
 }
 
-function fixPath(slashPath: string): string {
-	return process.platform === 'win32' ?
-		(slashPath.match(/^c:/) ? slashPath : paths.join('c:', ...slashPath.split('/'))) :
-		slashPath;
+function fixPath(...slashPathParts: string[]): string {
+	const pathParts = arrays.flatten(slashPathParts.map(part => part.split('/')));
+	if (process.platform === 'win32') {
+		if (slashPathParts.length === 1 && slashPathParts[0].match(/^c:/)) {
+			return slashPathParts[0];
+		} else {
+			return paths.join('c:', ...pathParts);
+		}
+	} else {
+		return paths.join(...pathParts);
+	}
 }
 
 function normalizeExpression(expression: IExpression): IExpression {
