@@ -8,7 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import nls = require('vs/nls');
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import URI from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
@@ -19,8 +19,10 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { mnemonicButtonLabel, getPathLabel } from 'vs/base/common/labels';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { FileKind } from 'vs/platform/files/common/files';
+import { FileKind, isParent } from 'vs/platform/files/common/files';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { isLinux } from 'vs/base/common/platform';
 
 export const ADD_ROOT_FOLDER_COMMAND_ID = 'workbench.command.addRootFolder';
 export const ADD_ROOT_FOLDER_LABEL = nls.localize('addFolderToWorkspace', "Add Folder to Workspace...");
@@ -39,7 +41,7 @@ function pickFolders(buttonLabel: string, title: string, windowService: IWindowS
 	});
 }
 
-function defaultFolderPath(contextService: IWorkspaceContextService, historyService: IHistoryService): string {
+export function defaultFolderPath(contextService: IWorkspaceContextService, historyService: IHistoryService): string {
 	let candidate: URI;
 
 	// Check for last active file root first...
@@ -53,7 +55,91 @@ function defaultFolderPath(contextService: IWorkspaceContextService, historyServ
 	return candidate ? dirname(candidate.fsPath) : void 0;
 }
 
+
+function services(accessor: ServicesAccessor): { windowService: IWindowService, historyService: IHistoryService, contextService: IWorkspaceContextService, environmentService: IEnvironmentService } {
+	return {
+		windowService: accessor.get(IWindowService),
+		historyService: accessor.get(IHistoryService),
+		contextService: accessor.get(IWorkspaceContextService),
+		environmentService: accessor.get(IEnvironmentService)
+	};
+}
+
+export function defaultFilePath(contextService: IWorkspaceContextService, historyService: IHistoryService): string {
+	let candidate: URI;
+
+	// Check for last active file first...
+	candidate = historyService.getLastActiveFile();
+
+	// ...then for last active file root
+	if (!candidate) {
+		candidate = historyService.getLastActiveWorkspaceRoot('file');
+	}
+
+	return candidate ? dirname(candidate.fsPath) : void 0;
+}
+
+export function defaultWorkspacePath(contextService: IWorkspaceContextService, historyService: IHistoryService, environmentService: IEnvironmentService): string {
+
+	// Check for current workspace config file first...
+	if (contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && !isUntitledWorkspace(contextService.getWorkspace().configuration.fsPath, environmentService)) {
+		return dirname(contextService.getWorkspace().configuration.fsPath);
+	}
+
+	// ...then fallback to default folder path
+	return defaultFolderPath(contextService, historyService);
+}
+
+function isUntitledWorkspace(path: string, environmentService: IEnvironmentService): boolean {
+	return isParent(path, environmentService.workspacesHome, !isLinux /* ignore case */);
+}
+
 // Command registration
+
+CommandsRegistry.registerCommand({
+	id: 'workbench.action.files.openFileFolderInNewWindow',
+	handler: (accessor: ServicesAccessor) => {
+		const { windowService, historyService, contextService } = services(accessor);
+
+		windowService.pickFileFolderAndOpen({ forceNewWindow: true, dialogOptions: { defaultPath: defaultFilePath(contextService, historyService) } });
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: '_files.pickFolderAndOpen',
+	handler: (accessor: ServicesAccessor, forceNewWindow: boolean) => {
+		const { windowService, historyService, contextService } = services(accessor);
+
+		windowService.pickFolderAndOpen({ forceNewWindow, dialogOptions: { defaultPath: defaultFolderPath(contextService, historyService) } });
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: 'workbench.action.files.openFolderInNewWindow',
+	handler: (accessor: ServicesAccessor) => {
+		const { windowService, historyService, contextService } = services(accessor);
+
+		windowService.pickFolderAndOpen({ forceNewWindow: true, dialogOptions: { defaultPath: defaultFolderPath(contextService, historyService) } });
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: 'workbench.action.files.openFileInNewWindow',
+	handler: (accessor: ServicesAccessor) => {
+		const { windowService, historyService, contextService } = services(accessor);
+
+		windowService.pickFileAndOpen({ forceNewWindow: true, dialogOptions: { defaultPath: defaultFilePath(contextService, historyService) } });
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: 'workbench.action.openWorkspaceInNewWindow',
+	handler: (accessor: ServicesAccessor) => {
+		const { windowService, historyService, contextService, environmentService } = services(accessor);
+
+		windowService.pickWorkspaceAndOpen({ forceNewWindow: true, dialogOptions: { defaultPath: defaultWorkspacePath(contextService, historyService, environmentService) } });
+	}
+});
 
 CommandsRegistry.registerCommand({
 	id: ADD_ROOT_FOLDER_COMMAND_ID,

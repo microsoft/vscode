@@ -12,18 +12,13 @@ import { IWindowService, IWindowsService } from 'vs/platform/windows/common/wind
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
-import URI from 'vs/base/common/uri';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { WORKSPACE_FILTER, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { isLinux } from 'vs/base/common/platform';
-import { dirname } from 'vs/base/common/paths';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { isParent } from 'vs/platform/files/common/files';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
+import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, PICK_WORKSPACE_FOLDER_COMMAND_ID, defaultWorkspacePath, defaultFilePath, defaultFolderPath } from 'vs/workbench/browser/actions/workspaceCommands';
 
 export class OpenFileAction extends Action {
 
@@ -83,88 +78,6 @@ export class OpenFileFolderAction extends Action {
 	run(event?: any, data?: ITelemetryData): TPromise<any> {
 		return this.windowService.pickFileFolderAndOpen({ telemetryExtraData: data, dialogOptions: { defaultPath: defaultFilePath(this.contextService, this.historyService) } });
 	}
-}
-
-export const openFileFolderInNewWindowCommand = (accessor: ServicesAccessor) => {
-	const { windowService, historyService, contextService } = services(accessor);
-
-	windowService.pickFileFolderAndOpen({ forceNewWindow: true, dialogOptions: { defaultPath: defaultFilePath(contextService, historyService) } });
-};
-
-export const openFolderCommand = (accessor: ServicesAccessor, forceNewWindow: boolean) => {
-	const { windowService, historyService, contextService } = services(accessor);
-
-	windowService.pickFolderAndOpen({ forceNewWindow, dialogOptions: { defaultPath: defaultFolderPath(contextService, historyService) } });
-};
-
-export const openFolderInNewWindowCommand = (accessor: ServicesAccessor) => {
-	const { windowService, historyService, contextService } = services(accessor);
-
-	windowService.pickFolderAndOpen({ forceNewWindow: true, dialogOptions: { defaultPath: defaultFolderPath(contextService, historyService) } });
-};
-
-export const openFileInNewWindowCommand = (accessor: ServicesAccessor) => {
-	const { windowService, historyService, contextService } = services(accessor);
-
-	windowService.pickFileAndOpen({ forceNewWindow: true, dialogOptions: { defaultPath: defaultFilePath(contextService, historyService) } });
-};
-
-export const openWorkspaceInNewWindowCommand = (accessor: ServicesAccessor) => {
-	const { windowService, historyService, contextService, environmentService } = services(accessor);
-
-	windowService.pickWorkspaceAndOpen({ forceNewWindow: true, dialogOptions: { defaultPath: defaultWorkspacePath(contextService, historyService, environmentService) } });
-};
-
-function services(accessor: ServicesAccessor): { windowService: IWindowService, historyService: IHistoryService, contextService: IWorkspaceContextService, environmentService: IEnvironmentService } {
-	return {
-		windowService: accessor.get(IWindowService),
-		historyService: accessor.get(IHistoryService),
-		contextService: accessor.get(IWorkspaceContextService),
-		environmentService: accessor.get(IEnvironmentService)
-	};
-}
-
-function defaultFilePath(contextService: IWorkspaceContextService, historyService: IHistoryService): string {
-	let candidate: URI;
-
-	// Check for last active file first...
-	candidate = historyService.getLastActiveFile();
-
-	// ...then for last active file root
-	if (!candidate) {
-		candidate = historyService.getLastActiveWorkspaceRoot('file');
-	}
-
-	return candidate ? dirname(candidate.fsPath) : void 0;
-}
-
-function defaultFolderPath(contextService: IWorkspaceContextService, historyService: IHistoryService): string {
-	let candidate: URI;
-
-	// Check for last active file root first...
-	candidate = historyService.getLastActiveWorkspaceRoot('file');
-
-	// ...then for last active file
-	if (!candidate) {
-		candidate = historyService.getLastActiveFile();
-	}
-
-	return candidate ? dirname(candidate.fsPath) : void 0;
-}
-
-function defaultWorkspacePath(contextService: IWorkspaceContextService, historyService: IHistoryService, environmentService: IEnvironmentService): string {
-
-	// Check for current workspace config file first...
-	if (contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && !isUntitledWorkspace(contextService.getWorkspace().configuration.fsPath, environmentService)) {
-		return dirname(contextService.getWorkspace().configuration.fsPath);
-	}
-
-	// ...then fallback to default folder path
-	return defaultFolderPath(contextService, historyService);
-}
-
-function isUntitledWorkspace(path: string, environmentService: IEnvironmentService): boolean {
-	return isParent(path, environmentService.workspacesHome, !isLinux /* ignore case */);
 }
 
 export class AddRootFolderAction extends Action {
