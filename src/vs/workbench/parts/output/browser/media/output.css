@@ -13,12 +13,12 @@
 }
 
 .monaco-workbench .output-action.open-file {
-	background: url('open_output.svg') center center no-repeat;
+	background: url('open_file.svg') center center no-repeat;
 }
 
 .vs-dark .monaco-workbench .output-action.open-file,
 .hc-black .monaco-workbench .output-action.open-file {
-	background: url('open_output_inverse.svg') center center no-repeat;
+	background: url('open_file_inverse.svg') center center no-repeat;
 }
 
 .monaco-workbench .output-action.output-scroll-lock {
