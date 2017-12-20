@@ -22,8 +22,8 @@ import { ActionBarContributor } from 'vs/workbench/browser/actions';
 import { TerminalEntry } from 'vs/workbench/parts/terminal/browser/terminalQuickOpen';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { PICK_WORKSPACE_FOLDER_COMMAND } from 'vs/workbench/browser/actions/workspaceActions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 
 export const TERMINAL_PICKER_PREFIX = 'term ';
 
@@ -220,7 +220,7 @@ export class CreateNewTerminalAction extends Action {
 			// single root
 			instancePromise = TPromise.as(this.terminalService.createInstance(undefined, true));
 		} else {
-			instancePromise = this.commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND).then(workspace => {
+			instancePromise = this.commandService.executeCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID).then(workspace => {
 				if (!workspace) {
 					// Don't create the instance if the workspace picker was canceled
 					return null;

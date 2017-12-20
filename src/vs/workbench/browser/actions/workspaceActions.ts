@@ -18,15 +18,12 @@ import { WORKSPACE_FILTER, IWorkspacesService } from 'vs/platform/workspaces/com
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { isLinux } from 'vs/base/common/platform';
 import { dirname } from 'vs/base/common/paths';
-import * as resources from 'vs/base/common/resources';
-import { mnemonicButtonLabel, getPathLabel } from 'vs/base/common/labels';
-import { isParent, FileKind } from 'vs/platform/files/common/files';
+import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { isParent } from 'vs/platform/files/common/files';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IQuickOpenService, IFilePickOpenEntry, IPickOptions } from 'vs/platform/quickOpen/common/quickOpen';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
-import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL } from 'vs/workbench/browser/actions/workspaceCommands';
+import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 
 export class OpenFileAction extends Action {
 
@@ -127,29 +124,6 @@ function services(accessor: ServicesAccessor): { windowService: IWindowService, 
 	};
 }
 
-export abstract class BaseWorkspacesAction extends Action {
-
-	constructor(
-		id: string,
-		label: string,
-		protected windowService: IWindowService,
-		protected environmentService: IEnvironmentService,
-		protected contextService: IWorkspaceContextService,
-		protected historyService: IHistoryService
-	) {
-		super(id, label);
-	}
-
-	protected pickFolders(buttonLabel: string, title: string): TPromise<string[]> {
-		return this.windowService.showOpenDialog({
-			buttonLabel,
-			title,
-			properties: ['multiSelections', 'openDirectory', 'createDirectory'],
-			defaultPath: defaultFolderPath(this.contextService, this.historyService)
-		});
-	}
-}
-
 function defaultFilePath(contextService: IWorkspaceContextService, historyService: IHistoryService): string {
 	let candidate: URI;
 
@@ -211,7 +185,7 @@ export class AddRootFolderAction extends Action {
 	}
 }
 
-export class GlobalRemoveRootFolderAction extends BaseWorkspacesAction {
+export class GlobalRemoveRootFolderAction extends Action {
 
 	static ID = 'workbench.action.removeRootFolder';
 	static LABEL = nls.localize('globalRemoveFolderFromWorkspace', "Remove Folder from Workspace...");
@@ -219,14 +193,11 @@ export class GlobalRemoveRootFolderAction extends BaseWorkspacesAction {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowService windowService: IWindowService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IEnvironmentService environmentService: IEnvironmentService,
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
-		@ICommandService private commandService: ICommandService,
-		@IHistoryService historyService: IHistoryService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@ICommandService private commandService: ICommandService
 	) {
-		super(id, label, windowService, environmentService, contextService, historyService);
+		super(id, label);
 	}
 
 	public run(): TPromise<any> {
@@ -234,7 +205,7 @@ export class GlobalRemoveRootFolderAction extends BaseWorkspacesAction {
 
 		// Workspace / Folder
 		if (state === WorkbenchState.WORKSPACE || state === WorkbenchState.FOLDER) {
-			return this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND).then(folder => {
+			return this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID).then(folder => {
 				if (folder) {
 					return this.workspaceEditingService.removeFolders([folder.uri]).then(() => true);
 				}
@@ -247,26 +218,7 @@ export class GlobalRemoveRootFolderAction extends BaseWorkspacesAction {
 	}
 }
 
-export class RemoveRootFolderAction extends Action {
-
-	static ID = 'workbench.action.removeRootFolder';
-	static LABEL = nls.localize('removeFolderFromWorkspace', "Remove Folder from Workspace");
-
-	constructor(
-		private rootUri: URI,
-		id: string,
-		label: string,
-		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		return this.workspaceEditingService.removeFolders([this.rootUri]);
-	}
-}
-
-export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
+export class SaveWorkspaceAsAction extends Action {
 
 	static ID = 'workbench.action.saveWorkspaceAs';
 	static LABEL = nls.localize('saveWorkspaceAsAction', "Save Workspace As...");
@@ -274,13 +226,13 @@ export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowService windowService: IWindowService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IWindowService private windowService: IWindowService,
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
-		@IHistoryService historyService: IHistoryService
+		@IHistoryService private historyService: IHistoryService
 	) {
-		super(id, label, windowService, environmentService, contextService, historyService);
+		super(id, label);
 	}
 
 	public run(): TPromise<any> {
@@ -379,7 +331,7 @@ export class OpenFolderAsWorkspaceInNewWindowAction extends Action {
 		} else if (folders.length === 1) {
 			folderPromise = TPromise.as(folders[0]);
 		} else {
-			folderPromise = this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND);
+			folderPromise = this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID);
 		}
 
 		return folderPromise.then(folder => {
@@ -395,64 +347,3 @@ export class OpenFolderAsWorkspaceInNewWindowAction extends Action {
 		});
 	}
 }
-
-export const PICK_WORKSPACE_FOLDER_COMMAND = '_workbench.pickWorkspaceFolder';
-
-CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND, function (accessor: ServicesAccessor, args?: [IPickOptions, CancellationToken]) {
-	const contextService = accessor.get(IWorkspaceContextService);
-	const quickOpenService = accessor.get(IQuickOpenService);
-	const environmentService = accessor.get(IEnvironmentService);
-
-	const folders = contextService.getWorkspace().folders;
-	if (!folders.length) {
-		return void 0;
-	}
-
-	const folderPicks = folders.map(folder => {
-		return {
-			label: folder.name,
-			description: getPathLabel(resources.dirname(folder.uri), void 0, environmentService),
-			folder,
-			resource: folder.uri,
-			fileKind: FileKind.ROOT_FOLDER
-		} as IFilePickOpenEntry;
-	});
-
-	let options: IPickOptions;
-	if (args) {
-		options = args[0];
-	}
-
-	if (!options) {
-		options = Object.create(null);
-	}
-
-	if (!options.autoFocus) {
-		options.autoFocus = { autoFocusFirstEntry: true };
-	}
-
-	if (!options.placeHolder) {
-		options.placeHolder = nls.localize('workspaceFolderPickerPlaceholder', "Select workspace folder");
-	}
-
-	if (typeof options.matchOnDescription !== 'boolean') {
-		options.matchOnDescription = true;
-	}
-
-	let token: CancellationToken;
-	if (args) {
-		token = args[1];
-	}
-
-	if (!token) {
-		token = CancellationToken.None;
-	}
-
-	return quickOpenService.pick(folderPicks, options, token).then(pick => {
-		if (!pick) {
-			return void 0;
-		}
-
-		return folders[folderPicks.indexOf(pick)];
-	});
-});

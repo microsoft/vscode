@@ -17,13 +17,12 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { FileStat, Model } from 'vs/workbench/parts/files/common/explorerModel';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
-import { RemoveRootFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { copyFocusedFilesExplorerViewItem, openWindowCommand, deleteFocusedFilesExplorerViewItemCommand, moveFocusedFilesExplorerViewItemToTrashCommand, renameFocusedFilesExplorerViewItemCommand, REVEAL_IN_OS_COMMAND_ID, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { FilesExplorerFocusCondition, ExplorerRootContext, ExplorerFolderContext } from 'vs/workbench/parts/files/common/files';
-import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL } from 'vs/workbench/browser/actions/workspaceCommands';
+import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, REMOVE_ROOT_FOLDER_COMMAND_ID, REMOVE_ROOT_FOLDER_LABEL } from 'vs/workbench/browser/actions/workspaceCommands';
 import { OPEN_FOLDER_SETTINGS_COMMAND, OPEN_FOLDER_SETTINGS_LABEL } from 'vs/workbench/parts/preferences/browser/preferencesActions';
 
 class FilesViewerActionContributor extends ActionBarContributor {
@@ -60,16 +59,6 @@ class FilesViewerActionContributor extends ActionBarContributor {
 			actions.push(this.instantiationService.createInstance(NewFolderAction, tree, <FileStat>stat));
 
 			actions.push(new Separator(null, 50));
-		}
-
-		// Workspace Root Folder Actions
-		if (stat.isRoot) {
-
-			const removeRootFolderAction = this.instantiationService.createInstance(RemoveRootFolderAction, stat.resource, RemoveRootFolderAction.ID, RemoveRootFolderAction.LABEL);
-			removeRootFolderAction.order = 54;
-			actions.push(removeRootFolderAction);
-
-			actions.push(new Separator(null, 55));
 		}
 
 		// Copy File/Folder
@@ -252,6 +241,16 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	command: {
 		id: OPEN_FOLDER_SETTINGS_COMMAND,
 		title: OPEN_FOLDER_SETTINGS_LABEL
+	},
+	when: ContextKeyExpr.and(ExplorerRootContext, ExplorerFolderContext)
+});
+
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+	group: '2_workspace',
+	order: 30,
+	command: {
+		id: REMOVE_ROOT_FOLDER_COMMAND_ID,
+		title: REMOVE_ROOT_FOLDER_LABEL
 	},
 	when: ContextKeyExpr.and(ExplorerRootContext, ExplorerFolderContext)
 });
