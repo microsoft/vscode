@@ -17,12 +17,13 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { FileStat, Model } from 'vs/workbench/parts/files/common/explorerModel';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
-import { AddRootFolderAction, RemoveRootFolderAction, OpenFolderSettingsAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { RemoveRootFolderAction, OpenFolderSettingsAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { copyFocusedFilesExplorerViewItem, openWindowCommand, deleteFocusedFilesExplorerViewItemCommand, moveFocusedFilesExplorerViewItemToTrashCommand, renameFocusedFilesExplorerViewItemCommand, REVEAL_IN_OS_COMMAND_ID, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { FilesExplorerFocusCondition } from 'vs/workbench/parts/files/common/files';
+import { FilesExplorerFocusCondition, ExplorerRootContext } from 'vs/workbench/parts/files/common/files';
+import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL } from 'vs/workbench/browser/actions/workspaceCommands';
 
 class FilesViewerActionContributor extends ActionBarContributor {
 
@@ -45,7 +46,7 @@ class FilesViewerActionContributor extends ActionBarContributor {
 		const tree = context.viewer;
 		const actions: IAction[] = [];
 		if (stat instanceof Model) {
-			return [this.instantiationService.createInstance(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL)];
+			return [];
 		}
 
 		// Directory Actions
@@ -62,9 +63,6 @@ class FilesViewerActionContributor extends ActionBarContributor {
 
 		// Workspace Root Folder Actions
 		if (stat.isRoot) {
-			const addRootFolderAction: Action = this.instantiationService.createInstance(AddRootFolderAction, AddRootFolderAction.ID, AddRootFolderAction.LABEL);
-			addRootFolderAction.order = 52;
-			actions.push(addRootFolderAction);
 
 			const openFolderSettingsActions = this.instantiationService.createInstance(OpenFolderSettingsAction, stat.resource, OpenFolderSettingsAction.ID, OpenFolderSettingsAction.LABEL);
 			openFolderSettingsActions.order = 53;
@@ -237,3 +235,15 @@ function appendSaveConflictEditorTitleAction(id: string, title: string, iconClas
 		order
 	});
 }
+
+// Explorer context menu
+
+MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+	group: '2_workspace',
+	order: 10,
+	command: {
+		id: ADD_ROOT_FOLDER_COMMAND_ID,
+		title: ADD_ROOT_FOLDER_LABEL
+	},
+	when: ExplorerRootContext
+});

@@ -550,7 +550,6 @@ CommandsRegistry.registerCommand({
 
 // Menu registration - open editors
 
-
 const openToSideCommand = {
 	id: OPEN_TO_SIDE_COMMAND_ID,
 	title: nls.localize('openToSide', "Open to the Side")

@@ -13,7 +13,6 @@ import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import URI from 'vs/base/common/uri';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { WORKSPACE_FILTER, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -27,6 +26,7 @@ import { IQuickOpenService, IFilePickOpenEntry, IPickOptions } from 'vs/platform
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL } from 'vs/workbench/browser/actions/workspaceCommands';
 
 export class OpenFileAction extends Action {
 
@@ -193,33 +193,21 @@ function isUntitledWorkspace(path: string, environmentService: IEnvironmentServi
 	return isParent(path, environmentService.workspacesHome, !isLinux /* ignore case */);
 }
 
-export class AddRootFolderAction extends BaseWorkspacesAction {
+export class AddRootFolderAction extends Action {
 
 	static ID = 'workbench.action.addRootFolder';
-	static LABEL = nls.localize('addFolderToWorkspace', "Add Folder to Workspace...");
+	static LABEL = ADD_ROOT_FOLDER_LABEL;
 
 	constructor(
 		id: string,
 		label: string,
-		@IWindowService windowService: IWindowService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IEnvironmentService environmentService: IEnvironmentService,
-		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
-		@IViewletService private viewletService: IViewletService,
-		@IHistoryService historyService: IHistoryService
+		@ICommandService private commandService: ICommandService
 	) {
-		super(id, label, windowService, environmentService, contextService, historyService);
+		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		return super.pickFolders(mnemonicButtonLabel(nls.localize({ key: 'add', comment: ['&& denotes a mnemonic'] }, "&&Add")), nls.localize('addFolderToWorkspaceTitle', "Add Folder to Workspace")).then(folders => {
-			if (!folders || !folders.length) {
-				return null;
-			}
-
-			// Add and show Files Explorer viewlet
-			return this.workspaceEditingService.addFolders(folders.map(folder => ({ uri: URI.file(folder) }))).then(() => this.viewletService.openViewlet(this.viewletService.getDefaultViewletId(), true));
-		});
+		return this.commandService.executeCommand(ADD_ROOT_FOLDER_COMMAND_ID);
 	}
 }
 

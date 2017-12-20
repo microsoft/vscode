@@ -444,7 +444,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		this.disposables.push(this.explorerViewer.onDidChangeFocus((e: { focus: FileStat }) => {
 			this.resourceContext.set(e.focus && e.focus.resource);
 			this.folderContext.set(e.focus && e.focus.isDirectory);
-			this.rootContext.set(e.focus && e.focus.isRoot);
+			this.rootContext.set(!e.focus || (e.focus && e.focus.isRoot));
 		}));
 
 		// Open when selecting via keyboard
