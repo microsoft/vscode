@@ -152,29 +152,22 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		// update settings schema setting
 		this.colorThemeStore.onDidChange(themes => {
 			const enumDescription = themeData.description || '';
-			const themeSpecificEditorColorProperties = {};
-			const themeSpecificWorkbenchColorProperties = {};
+
+			colorCustomizationsSchema.properties = colorThemeSchema.colorsSchema.properties;
 			const copyColorCustomizationsSchema = { ...colorCustomizationsSchema };
-			copyColorCustomizationsSchema.properties = colorThemeSchema.colorsSchema.properties;
+			copyColorCustomizationsSchema.properties = { ...colorThemeSchema.colorsSchema.properties };
+
+			customEditorColorSchema.properties = customEditorColorConfigurationProperties;
 			const copyCustomEditorColorSchema = { ...customEditorColorSchema };
-			copyCustomEditorColorSchema.properties = customEditorColorConfigurationProperties;
+			copyCustomEditorColorSchema.properties = { ...customEditorColorSchema.properties };
 
 			themes.forEach(t => {
 				colorThemeSettingSchema.enum.push(t.settingsId);
 				colorThemeSettingSchema.enumDescriptions.push(enumDescription);
 				const themeId = `[${t.settingsId}]`;
-				themeSpecificWorkbenchColorProperties[themeId] = copyColorCustomizationsSchema;
-				themeSpecificEditorColorProperties[themeId] = copyCustomEditorColorSchema;
+				colorCustomizationsSchema.properties[themeId] = copyColorCustomizationsSchema;
+				customEditorColorSchema.properties[themeId] = copyCustomEditorColorSchema;
 			});
-
-			colorCustomizationsSchema.properties = {
-				...colorThemeSchema.colorsSchema.properties,
-				...themeSpecificWorkbenchColorProperties
-			};
-			customEditorColorSchema.properties = {
-				...customEditorColorConfigurationProperties,
-				...themeSpecificEditorColorProperties
-			};
 
 			configurationRegistry.notifyConfigurationSchemaUpdated(themeSettingsConfiguration);
 			configurationRegistry.notifyConfigurationSchemaUpdated(customEditorColorConfiguration);
