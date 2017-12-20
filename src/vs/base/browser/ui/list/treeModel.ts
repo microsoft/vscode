@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { ISpreadSpliceable } from './splice';
+import { ISpliceable } from 'vs/base/common/sequence';
 
 export interface ITreeElement<T> {
 	readonly element: T;
@@ -73,30 +73,32 @@ export class TreeModel<T> {
 
 	private root = TreeNode.createRoot<T>();
 
-	constructor(private spliceable: ISpreadSpliceable<ITreeNode<T>>) { }
+	constructor(private spliceable: ISpliceable<ITreeNode<T>>) { }
 
 	splice(start: number[], deleteCount: number, elements: ITreeElement<T>[]): void {
 		if (start.length === 0) {
 			throw new Error('Invalid tree location');
 		}
 
-		const { node, listIndex } = this.findNode(start, this.root, 0);
-		const { listDeleteCount, listElements } = node.splice(start[start.length - 1], deleteCount, elements);
+		const { parentNode, parentListIndex } = this.findParentNode(start, this.root, 0);
+		const lastIndex = start[start.length - 1];
+		const { listDeleteCount, listElements } = parentNode.splice(lastIndex, deleteCount, elements);
 
-		this.spliceable.splice(listIndex, listDeleteCount, ...listElements);
+		this.spliceable.splice(parentListIndex + lastIndex, listDeleteCount, listElements);
 	}
 
-	private findNode(location: number[], node: TreeNode<T>, listIndex: number): { node: TreeNode<T>; listIndex: number } {
-		const [i, ...rest] = location;
-
-		if (rest.length === 0) {
-			return { node, listIndex };
+	private findParentNode(location: number[], node: TreeNode<T>, listIndex: number): { parentNode: TreeNode<T>; parentListIndex: number } {
+		if (location.length === 1) {
+			return { parentNode: node, parentListIndex: listIndex };
 		}
 
-		for (let j = 0; j < i; j++) {
+		const [i, ...rest] = location;
+		const limit = Math.min(i, node.children.length);
+
+		for (let j = 0; j < limit; j++) {
 			listIndex += node.children[j].count;
 		}
 
-		return this.findNode(rest, node.children[i], listIndex);
+		return this.findParentNode(rest, node.children[i], listIndex + 1);
 	}
 }
