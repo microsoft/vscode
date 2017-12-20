@@ -32,13 +32,38 @@ class LinePart {
 	}
 }
 
+export class ViewLineTokens {
+
+	private readonly _actual: ViewLineToken[];
+
+	constructor(actual: ViewLineToken[]) {
+		this._actual = actual;
+	}
+
+	public equals(other: ViewLineTokens): boolean {
+		return ViewLineToken.equalsArr(this._actual, other._actual);
+	}
+
+	public getCount(): number {
+		return this._actual.length;
+	}
+
+	public getEndIndex(tokenIndex: number): number {
+		return this._actual[tokenIndex].endIndex;
+	}
+
+	public getType(tokenIndex: number): string {
+		return this._actual[tokenIndex].getType();
+	}
+}
+
 export class RenderLineInput {
 
 	public readonly useMonospaceOptimizations: boolean;
 	public readonly lineContent: string;
 	public readonly mightContainRTL: boolean;
 	public readonly fauxIndentLength: number;
-	public readonly lineTokens: ViewLineToken[];
+	public readonly lineTokens: ViewLineTokens;
 	public readonly lineDecorations: LineDecoration[];
 	public readonly tabSize: number;
 	public readonly spaceWidth: number;
@@ -65,7 +90,7 @@ export class RenderLineInput {
 		this.lineContent = lineContent;
 		this.mightContainRTL = mightContainRTL;
 		this.fauxIndentLength = fauxIndentLength;
-		this.lineTokens = lineTokens;
+		this.lineTokens = new ViewLineTokens(lineTokens);
 		this.lineDecorations = lineDecorations;
 		this.tabSize = tabSize;
 		this.spaceWidth = spaceWidth;
@@ -94,7 +119,7 @@ export class RenderLineInput {
 			&& this.renderControlCharacters === other.renderControlCharacters
 			&& this.fontLigatures === other.fontLigatures
 			&& LineDecoration.equalsArr(this.lineDecorations, other.lineDecorations)
-			&& ViewLineToken.equalsArr(this.lineTokens, other.lineTokens)
+			&& this.lineTokens.equals(other.lineTokens)
 		);
 	}
 }
@@ -357,7 +382,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
  * In the rendering phase, characters are always looped until token.endIndex.
  * Ensure that all tokens end before `len` and the last one ends precisely at `len`.
  */
-function transformAndRemoveOverflowing(tokens: ViewLineToken[], fauxIndentLength: number, len: number): LinePart[] {
+function transformAndRemoveOverflowing(tokens: ViewLineTokens, fauxIndentLength: number, len: number): LinePart[] {
 	let result: LinePart[] = [], resultLen = 0;
 
 	// The faux indent part of the line should have no token type
@@ -365,14 +390,13 @@ function transformAndRemoveOverflowing(tokens: ViewLineToken[], fauxIndentLength
 		result[resultLen++] = new LinePart(fauxIndentLength, '');
 	}
 
-	for (let tokenIndex = 0, tokensLen = tokens.length; tokenIndex < tokensLen; tokenIndex++) {
-		const token = tokens[tokenIndex];
-		const endIndex = token.endIndex;
+	for (let tokenIndex = 0, tokensLen = tokens.getCount(); tokenIndex < tokensLen; tokenIndex++) {
+		const endIndex = tokens.getEndIndex(tokenIndex);
 		if (endIndex <= fauxIndentLength) {
 			// The faux indent part of the line should have no token type
 			continue;
 		}
-		const type = token.getType();
+		const type = tokens.getType(tokenIndex);
 		if (endIndex >= len) {
 			result[resultLen++] = new LinePart(len, type);
 			break;
