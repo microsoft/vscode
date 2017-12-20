@@ -22,29 +22,43 @@ const renderIssueType = ({ issueType }) => {
 };
 
 const renderBlocks = (state) => {
-	// Depending on Issue Type, we render different blocks
+	// Depending on Issue Type, we render different blocks and text
 
 	const systemBlock = document.querySelector('.block-system');
 	const processBlock = document.querySelector('.block-process');
 	const workspaceBlock = document.querySelector('.block-workspace');
+
+	const descriptionTitle = document.querySelector('.block-description .block-title');
+	const descriptionSubtitle = document.querySelector('.block-description .block-subtitle');
 
 	// 1 - Bug
 	if (state.issueType === 0) {
 		show(systemBlock);
 		hide(processBlock);
 		hide(workspaceBlock);
+
+		descriptionTitle.innerHTML = 'Steps to reproduce';
+		show(descriptionSubtitle);
+		descriptionSubtitle.innerHTML = 'Please explain how to reproduce the problem. What was expected and what actually happened?';
 	}
 	// 2 - Perf Issue
 	else if (state.issueType === 1) {
 		show(systemBlock);
 		show(processBlock);
 		show(workspaceBlock);
+
+		descriptionTitle.innerHTML = 'Steps to reproduce';
+		show(descriptionSubtitle);
+		descriptionSubtitle.innerHTML = 'When does the performance issue occur?';
 	}
 	// 3 - Feature Request
 	else {
-		show(systemBlock);
+		hide(systemBlock);
 		hide(processBlock);
 		hide(workspaceBlock);
+
+		descriptionTitle.innerHTML = 'Description';
+		hide(descriptionSubtitle);
 	}
 };
 
@@ -52,7 +66,8 @@ function setup() {
 	render(state);
 
 	electron.ipcRenderer.on('issueInfoResponse', (event, arg) => {
-		const { systemInfo, processInfo, workspaceInfo } = arg;
+		const { versionInfo, systemInfo, processInfo, workspaceInfo } = arg;
+		state.versionInfo = versionInfo;
 		state.systemInfo = systemInfo;
 		state.processInfo = processInfo;
 		state.workspaceInfo = workspaceInfo;
@@ -68,12 +83,9 @@ function setup() {
 	// 	electron.ipcRenderer.send('issueInfoRequest');
 	// }, 4000);
 
-	const children = Array.from(document.getElementById('issue-type').children);
-	children.forEach((child, i) => {
-		child.addEventListener('click', () => {
-			state.issueType = i;
-			render(state);
-		});
+	document.getElementById('issue-type').addEventListener('change', () => {
+		state.issueType = parseInt(event.target.value);
+		render(state);
 	});
 }
 // window.renderExtensionsInfo = () => {
@@ -89,7 +101,7 @@ function setup() {
 
 window.submit = () => {
 	document.getElementById('github-submit-btn').classList.add('active');
-	const issueTitle = document.querySelector('#issue-title input').value;
+	const issueTitle = document.getElementById('issue-title').value;
 	const baseUrl = `https://github.com/microsoft/vscode/issues/new?title=${issueTitle}&body=`;
 	const description = document.querySelector('.block-description .block-info-text textarea').value;
 
@@ -115,6 +127,11 @@ ${description}
 
 	issueBody += `
 ### VS Code Info
+`;
+
+	issueBody += `
+VS Code version: ${state.versionInfo.vscodeVersion}
+OS version: ${state.versionInfo.os}
 `;
 
 	issueBody += `<details>
@@ -155,7 +172,8 @@ ${state.workspaceInfo};
 function generateSystemInfoMd() {
 	let md = `
 |Item|Value|
-|---|---|`;
+|---|---|
+`;
 
 	Object.keys(state.systemInfo).forEach(k => {
 		md += `|${k}|${state.systemInfo[k]}|\n`;
@@ -181,10 +199,19 @@ function generateProcessInfoMd() {
  */
 
 function updateAllBlocks(state) {
+	updateVersionInfo(state);
 	updateSystemInfo(state);
 	updateProcessInfo(state);
 	updateWorkspaceInfo(state);
 }
+
+const updateVersionInfo = (state) => {
+	const version = document.getElementById('vscode-version');
+	version.value = state.versionInfo.vscodeVersion;
+
+	const osversion = document.getElementById('os');
+	osversion.value = state.versionInfo.os;
+};
 
 const updateSystemInfo = (state) => {
 	const target = document.querySelector('.block-system .block-info');

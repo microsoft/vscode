@@ -15,7 +15,9 @@ export class IssueService implements IIssueService {
 	_serviceBrand: any;
 	_issueWindow: BrowserWindow;
 
-	constructor(@ILaunchService private launchService: ILaunchService) { }
+	constructor(
+		@ILaunchService private launchService: ILaunchService
+	) { }
 
 	openReporter(): TPromise<void> {
 		ipcMain.on('issueInfoRequest', event => {
@@ -28,8 +30,8 @@ export class IssueService implements IIssueService {
 			// 	event.sender.send('extensionInfoResponse', extensions);
 			// });
 		});
-		this._issueWindow = new BrowserWindow({ });
-		this._issueWindow.loadURL(this.getIssueReporeterPath());
+		this._issueWindow = new BrowserWindow({});
+		this._issueWindow.loadURL(this.getIssueReporterPath());
 		this._issueWindow.webContents.openDevTools();
 
 		return TPromise.as(null);
@@ -54,7 +56,7 @@ export class IssueService implements IIssueService {
 		// return this.extManagementService.getInstalled();
 	}
 
-	private getIssueReporeterPath() {
+	private getIssueReporterPath() {
 		return `${require.toUrl('vs/issue/electron-browser/index.html')}`;
 	}
 }

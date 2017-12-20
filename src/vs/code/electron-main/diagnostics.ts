@@ -17,9 +17,12 @@ import { isWindows } from 'vs/base/common/platform';
 import { app } from 'electron';
 import { basename } from 'path';
 
+export interface VersionInfo {
+	vscodeVersion: string;
+	os: string;
+}
+
 export interface SystemInfo {
-	Version: string;
-	'OS Version': string;
 	CPUs?: string;
 	'Memory (System)': string;
 	'Load (avg)'?: string;
@@ -36,6 +39,7 @@ export interface ProcessInfo {
 }
 
 export interface DiagnosticInfo {
+	versionInfo?: VersionInfo;
 	systemInfo?: SystemInfo;
 	processInfo?: ProcessInfo[];
 	workspaceInfo?: string;
@@ -43,12 +47,6 @@ export interface DiagnosticInfo {
 
 export function buildDiagnostics(info: IMainProcessInfo): Promise<DiagnosticInfo> {
 	return listProcesses(info.mainPID).then(rootProcess => {
-		const diagnosticInfo: DiagnosticInfo = {};
-
-		diagnosticInfo.systemInfo = getSystemInfo(info);
-		diagnosticInfo.processInfo = getProcessList(info, rootProcess);
-		diagnosticInfo.workspaceInfo = '';
-
 		const workspaceInfoMessages = [];
 
 		// Workspace Stats
@@ -82,6 +80,7 @@ export function buildDiagnostics(info: IMainProcessInfo): Promise<DiagnosticInfo
 		}
 
 		return {
+			versionInfo: getVersionInfo(),
 			systemInfo: getSystemInfo(info),
 			processInfo: getProcessList(info, rootProcess),
 			workspaceInfo: workspaceInfoMessages.join('\n')
@@ -190,13 +189,18 @@ function formatLaunchConfigs(configs: WorkspaceStatItem[]): string {
 	return output.join('\n');
 }
 
+function getVersionInfo(): VersionInfo {
+	return {
+		vscodeVersion: `${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`,
+		os: `${os.type()} ${os.arch()} ${os.release()}`
+	};
+}
+
 function getSystemInfo(info: IMainProcessInfo): SystemInfo {
 	const MB = 1024 * 1024;
 	const GB = 1024 * MB;
 
 	const systemInfo: SystemInfo = {
-		Version: `${pkg.name} ${pkg.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`,
-		'OS Version': `${os.type()} ${os.arch()} ${os.release()}`,
 		'Memory (System)': `${(os.totalmem() / GB).toFixed(2)}GB (${(os.freemem() / GB).toFixed(2)}GB free)`,
 		VM: `${Math.round((virtualMachineHint.value() * 100))}%`,
 		'Screen Reader': `${app.isAccessibilitySupportEnabled() ? 'yes' : 'no'}`,

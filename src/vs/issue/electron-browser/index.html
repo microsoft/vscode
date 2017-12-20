@@ -7,23 +7,38 @@
 		<link rel="stylesheet" href="style.css">
 	</head>
 	<body>
+		<header class="header">
+				VS Code Issue Reporter
+		</header>
 		<div id="issue-reporter">
-			<h1>VS Code Issue Reporter</h1>
 
-			<h2>Issue Type</h2>
-			<div id="issue-type">
-				<button>Bug</button>
-				<button>Performance Issue</button>
-				<button>Feature Request</button>
+
+			<div class="input-group">
+				<label for="issue-type">This is a</label>
+				<select id="issue-type" class="form-control">
+					<option value="0">Bug report</option>
+					<option value="1">Performance issue</option>
+					<option value="2">Feature request</option>
+				</select>
 			</div>
 
-			<div id="issue-title">
-				<h2>Issue Title</h2>
-				<input type="text">
+			<div class="input-group">
+					<label for="issue-title">Issue Title</label>
+					<input id="issue-title" type="text">
+			</div>
+
+			<div class="input-group">
+				<div class="two-col">
+					<label for="vscode-version">Filing against VS Code version</label>
+					<input id="vscode-version" type="text" readonly/>
+				</div>
+				<div class="two-col">
+						<label for="os">OS Version</label>
+						<input id="os" type="text" readonly/>
+				</div>
 			</div>
 
 			<div id="block-container">
-				<h2>VS Code Info</h2>
 				<div class="block block-system">
 					<details>
 						<summary>System Info</summary>
@@ -51,15 +66,18 @@
 					</details>
 				</div>
 				<div class="block block-description">
-					<h2 class="block-title">
-						Description (Repro Steps, Behaviors)
-					</h2>
+					<label class="block-title">
+						<!-- To be dynamically filled -->
+					</label>
+					<small class="block-subtitle">
+						<!-- To be dynamically filled -->
+					</small>
 					<div class="block-info-text">
-						<textarea name="description" id="" cols="100" rows="15" placeholder="Please include concrete stesp for reproducing the problem."></textarea>
 						<small>
-							GitHub-flavored Markdown is supported.
-							After submitting, you will still be able to edit your issue.
-						</small>
+								GitHub-flavored Markdown is supported.
+								After submitting, you will still be able to edit your issue.
+							</small>
+						<textarea name="description" id="" cols="100" rows="15"></textarea>
 					</div>
 				</div>
 			</div>

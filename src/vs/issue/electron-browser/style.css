@@ -7,8 +7,11 @@
 	box-sizing: border-box;
 }
 html {
-	padding: 40px 40px 80px 40px;
 	font-family: 'Helvetica Neue', 'Helvetica', sans-serif;
+}
+
+body {
+	margin: 0;
 }
 
 .hidden {
@@ -23,7 +26,6 @@ html {
 	margin-bottom: 20px;
 }
 .block summary {
-	font-size: 1.25rem;
 	margin-bottom: 16px;
 }
 
@@ -57,6 +59,14 @@ button.active {
 	opacity: 1;
 }
 
+header {
+	position: relative;
+	background-color: #24292e;
+	color: rgba(255,255,255,0.75);
+	padding: 1em;
+	margin-bottom: 1em;
+}
+
 #issue-reporter {
 	max-width: 80vw;
 	margin-left: auto;
@@ -65,4 +75,25 @@ button.active {
 #github-submit-btn {
 	float: right;
 	margin-top: 14px;
+}
+
+.two-col {
+	display: inline-block;
+	width: 49%;
+}
+
+#vscode-version {
+	width: 90%;
+}
+
+.input-group {
+	margin-bottom: 1em;
+}
+
+label {
+	display: block;
+}
+
+select, input, textarea {
+	margin-top: 10px;
 }
