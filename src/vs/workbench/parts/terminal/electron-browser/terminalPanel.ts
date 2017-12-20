@@ -110,6 +110,9 @@ export class TerminalPanel extends Panel {
 						if (instance) {
 							this._updateFont();
 							this._updateTheme();
+							setTimeout(() => {
+								instance.focus();
+							}, 0);
 						}
 					}, 0);
 					return TPromise.as(void 0);
