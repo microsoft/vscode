@@ -3,19 +3,27 @@
 <html>
 	<head>
 		<meta charset="utf-8" />
+		<link rel="stylesheet" href="bootstrap.css">
 		<link rel="stylesheet" href="style.css">
 	</head>
 	<body>
 		<div id="issue-reporter">
 			<h1>VS Code Issue Reporter</h1>
 
+			<h2>Issue Type</h2>
 			<div id="issue-type">
-				<span>Bug</span>
-				<span>Performance Issue</span>
-				<span>Feature Request</span>
+				<button>Bug</button>
+				<button>Performance Issue</button>
+				<button>Feature Request</button>
+			</div>
+
+			<div id="issue-title">
+				<h2>Issue Title</h2>
+				<input type="text">
 			</div>
 
 			<div id="block-container">
+				<h2>VS Code Info</h2>
 				<div class="block block-system">
 					<details>
 						<summary>System Info</summary>
@@ -42,17 +50,21 @@
 						</pre>
 					</details>
 				</div>
-				<div class="block block-repro">
-					<h3 class="block-title">
+				<div class="block block-description">
+					<h2 class="block-title">
 						Description (Repro Steps, Behaviors)
-					</h3>
+					</h2>
 					<div class="block-info-text">
-						<textarea name="repro" id="" cols="100" rows="15"></textarea>
+						<textarea name="description" id="" cols="100" rows="15" placeholder="Please include concrete stesp for reproducing the problem."></textarea>
+						<small>
+							GitHub-flavored Markdown is supported.
+							After submitting, you will still be able to edit your issue.
+						</small>
 					</div>
 				</div>
 			</div>
 
-			<button id="github-submit-btn" onclick="window.submit()">Submit GitHub Issue</button>
+			<button id="github-submit-btn" onclick="window.submit()">Preview GitHub Issue</button>
 		</div>
 	</body>
 

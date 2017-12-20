@@ -209,7 +209,7 @@ function getSystemInfo(info: IMainProcessInfo): SystemInfo {
 	}
 
 	if (!isWindows) {
-		systemInfo['Load (avg'] = `${os.loadavg().map(l => Math.round(l)).join(', ')}`;
+		systemInfo['Load (avg)'] = `${os.loadavg().map(l => Math.round(l)).join(', ')}`;
 	}
 
 
