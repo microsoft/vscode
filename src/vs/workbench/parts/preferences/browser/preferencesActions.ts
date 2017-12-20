@@ -121,10 +121,11 @@ export class OpenWorkspaceSettingsAction extends Action {
 }
 
 export const OPEN_FOLDER_SETTINGS_COMMAND = '_workbench.action.openFolderSettings';
+export const OPEN_FOLDER_SETTINGS_LABEL = nls.localize('openFolderSettings', "Open Folder Settings");
 export class OpenFolderSettingsAction extends Action {
 
 	public static readonly ID = 'workbench.action.openFolderSettings';
-	public static readonly LABEL = nls.localize('openFolderSettings', "Open Folder Settings");
+	public static readonly LABEL = OPEN_FOLDER_SETTINGS_LABEL;
 
 	private disposables: IDisposable[] = [];
 

@@ -266,28 +266,6 @@ export class RemoveRootFolderAction extends Action {
 	}
 }
 
-export class OpenFolderSettingsAction extends Action {
-
-	static ID = 'workbench.action.openFolderSettings';
-	static LABEL = nls.localize('openFolderSettings', "Open Folder Settings");
-
-	constructor(
-		private rootUri: URI,
-		id: string,
-		label: string,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@ICommandService private commandService: ICommandService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		const workspaceFolder = this.contextService.getWorkspaceFolder(this.rootUri);
-
-		return this.commandService.executeCommand('_workbench.action.openFolderSettings', workspaceFolder);
-	}
-}
-
 export class SaveWorkspaceAsAction extends BaseWorkspacesAction {
 
 	static ID = 'workbench.action.saveWorkspaceAs';
