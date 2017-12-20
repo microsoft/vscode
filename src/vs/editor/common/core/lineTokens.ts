@@ -178,7 +178,6 @@ export class LineTokens {
 	}
 
 	public static convertToEndOffset(tokens: Uint32Array, lineTextLength: number): void {
-		// TODO@tokenize: massage, use tokenLength
 		const tokenCount = (tokens.length >>> 1);
 		const lastTokenIndex = tokenCount - 1;
 		for (let tokenIndex = 0; tokenIndex < lastTokenIndex; tokenIndex++) {
