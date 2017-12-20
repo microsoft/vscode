@@ -19,6 +19,7 @@ import { IMessageService, Severity, CloseAction } from 'vs/platform/message/comm
 import { Action } from 'vs/base/common/actions';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
+import URI from 'vs/base/common/uri';
 
 export const CLOSE_UNMODIFIED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -284,11 +285,11 @@ function registerEditorCommands() {
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: undefined,
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_U),
-		handler: (accessor, args: IEditorContext) => {
+		handler: (accessor, resource: URI, editorContext: IEditorContext) => {
 			const editorGroupService = accessor.get(IEditorGroupService);
 			const editorService = accessor.get(IWorkbenchEditorService);
 
-			let position = args ? editorGroupService.getStacksModel().positionOfGroup(args.group) : null;
+			let position = editorContext ? editorGroupService.getStacksModel().positionOfGroup(editorContext.group) : null;
 
 			// If position is not passed in take the position of the active editor.
 			if (typeof position !== 'number') {
@@ -311,11 +312,11 @@ function registerEditorCommands() {
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: undefined,
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_W),
-		handler: (accessor, args: IEditorContext) => {
+		handler: (accessor, resource: URI, editorContext: IEditorContext) => {
 			const editorGroupService = accessor.get(IEditorGroupService);
 			const editorService = accessor.get(IWorkbenchEditorService);
 
-			let position = args ? editorGroupService.getStacksModel().positionOfGroup(args.group) : null;
+			let position = editorContext ? editorGroupService.getStacksModel().positionOfGroup(editorContext.group) : null;
 			if (typeof position !== 'number') {
 				const activeEditor = editorService.getActiveEditor();
 				if (activeEditor) {
@@ -337,11 +338,11 @@ function registerEditorCommands() {
 		when: undefined,
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
 		win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_W] },
-		handler: (accessor, args: IEditorContext) => {
+		handler: (accessor, resource: URI, editorContext: IEditorContext) => {
 			const editorGroupService = accessor.get(IEditorGroupService);
 			const editorService = accessor.get(IWorkbenchEditorService);
 
-			const position = args ? editorGroupService.getStacksModel().positionOfGroup(args.group) : null;
+			const position = editorContext ? editorGroupService.getStacksModel().positionOfGroup(editorContext.group) : null;
 
 			// Close Active Editor
 			if (typeof position !== 'number') {
@@ -351,7 +352,7 @@ function registerEditorCommands() {
 				}
 			}
 
-			let input = args ? args.editor : null;
+			let input = editorContext ? editorContext.editor : null;
 			if (!input) {
 
 				// Get Top Editor at Position
@@ -375,12 +376,12 @@ function registerEditorCommands() {
 		when: undefined,
 		primary: undefined,
 		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_T },
-		handler: (accessor, args: IEditorContext) => {
+		handler: (accessor, resource: URI, editorContext: IEditorContext) => {
 			const editorGroupService = accessor.get(IEditorGroupService);
 			const editorService = accessor.get(IWorkbenchEditorService);
 
-			let position = args ? editorGroupService.getStacksModel().positionOfGroup(args.group) : null;
-			let input = args ? args.editor : null;
+			let position = editorContext ? editorGroupService.getStacksModel().positionOfGroup(editorContext.group) : null;
+			let input = editorContext ? editorContext.editor : null;
 
 			// If position or input are not passed in take the position and input of the active editor.
 			const active = editorService.getActiveEditor();

@@ -315,15 +315,12 @@ function saveAll(saveAllArguments: any, editorService: IWorkbenchEditorService, 
 
 CommandsRegistry.registerCommand({
 	id: REVERT_FILE_COMMAND_ID,
-	handler: (accessor, args: IEditorContext) => {
-		let resource: URI;
+	handler: (accessor, resource: URI) => {
 		const editorService = accessor.get(IWorkbenchEditorService);
 		const textFileService = accessor.get(ITextFileService);
 		const messageService = accessor.get(IMessageService);
 
-		if (args && args.resource) {
-			resource = args.resource;
-		} else {
+		if (!resource) {
 			resource = toResource(editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
 		}
 
@@ -344,7 +341,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	mac: {
 		primary: KeyMod.WinCtrl | KeyCode.Enter
 	},
-	id: OPEN_TO_SIDE_COMMAND_ID, handler: (accessor, args) => {
+	id: OPEN_TO_SIDE_COMMAND_ID, handler: (accessor, resource: URI) => {
 		const editorService = accessor.get(IWorkbenchEditorService);
 		const listService = accessor.get(IListService);
 		const tree = listService.lastFocusedList;
@@ -355,7 +352,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 		// Set side input
 		return editorService.openEditor({
-			resource: args.resource,
+			resource,
 			options: {
 				preserveFocus: false
 			}
@@ -368,12 +365,9 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: undefined,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_D),
-	handler: (accessor, args: IEditorContext) => {
+	handler: (accessor, resource: URI) => {
 		const editorService = accessor.get(IWorkbenchEditorService);
-		let resource: URI;
-		if (args.resource) {
-			resource = args.resource;
-		} else {
+		if (!resource) {
 			resource = toResource(editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
 		}
 
@@ -390,7 +384,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 CommandsRegistry.registerCommand({
 	id: SELECT_FOR_COMPARE_COMMAND_ID,
-	handler: (accessor, args: IEditorContext) => {
+	handler: (accessor, resource: URI) => {
 		const listService = accessor.get(IListService);
 		const tree = listService.lastFocusedList;
 		// Remove highlight
@@ -399,13 +393,13 @@ CommandsRegistry.registerCommand({
 			tree.DOMFocus();
 		}
 
-		globalResourceToCompare = args.resource;
+		globalResourceToCompare = resource;
 	}
 });
 
 CommandsRegistry.registerCommand({
 	id: COMPARE_RESOURCE_COMMAND_ID,
-	handler: (accessor, args: IEditorContext) => {
+	handler: (accessor, resource: URI) => {
 		const editorService = accessor.get(IWorkbenchEditorService);
 		const listService = accessor.get(IListService);
 		const tree = listService.lastFocusedList;
@@ -416,7 +410,7 @@ CommandsRegistry.registerCommand({
 
 		return editorService.openEditor({
 			leftResource: globalResourceToCompare,
-			rightResource: args.resource
+			rightResource: resource
 		});
 	}
 });
@@ -429,9 +423,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	win: {
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_R
 	},
-	handler: (accessor, args: IEditorContext) => {
+	handler: (accessor, resource: URI) => {
 		// Without resource, try to look at the active editor
-		let resource = args.resource;
 		if (!resource) {
 			const editorService = accessor.get(IWorkbenchEditorService);
 			resource = toResource(editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
@@ -455,8 +448,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_C
 	},
 	id: COPY_PATH_COMMAND_ID,
-	handler: (accessor, args: IEditorContext) => {
-		let resource = args.resource;
+	handler: (accessor, resource: URI) => {
 		// Without resource, try to look at the active editor
 		if (!resource) {
 			const editorGroupService = accessor.get(IEditorGroupService);
@@ -481,17 +473,17 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 CommandsRegistry.registerCommand({
 	id: REVEAL_IN_EXPLORER_COMMAND_ID,
-	handler: (accessor, args: IEditorContext) => {
+	handler: (accessor, resource: URI) => {
 		const viewletService = accessor.get(IViewletService);
 		const contextService = accessor.get(IWorkspaceContextService);
 
 		viewletService.openViewlet(VIEWLET_ID, false).then((viewlet: ExplorerViewlet) => {
-			const isInsideWorkspace = contextService.isInsideWorkspace(args.resource);
+			const isInsideWorkspace = contextService.isInsideWorkspace(resource);
 			if (isInsideWorkspace) {
 				const explorerView = viewlet.getExplorerView();
 				if (explorerView) {
 					explorerView.setExpanded(true);
-					explorerView.select(args.resource, true);
+					explorerView.select(resource, true);
 				}
 			} else {
 				const openEditorsView = viewlet.getOpenEditorsView();
@@ -505,8 +497,8 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: SAVE_FILE_AS_COMMAND_ID,
-	handler: (accessor, args: IEditorContext) => {
-		return save(args.resource, true, accessor.get(IWorkbenchEditorService), accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService));
+	handler: (accessor, resource: URI) => {
+		return save(resource, true, accessor.get(IWorkbenchEditorService), accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService));
 	}
 });
 
@@ -515,27 +507,27 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_S,
 	id: SAVE_FILE_COMMAND_ID,
-	handler: (accessor, args: IEditorContext) => {
-		return save(args.resource, false, accessor.get(IWorkbenchEditorService), accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService));
+	handler: (accessor, resource: URI) => {
+		return save(resource, false, accessor.get(IWorkbenchEditorService), accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService));
 	}
 });
 
 CommandsRegistry.registerCommand({
 	id: SAVE_ALL_COMMAND_ID,
-	handler: (accessor, args: IEditorContext) => {
+	handler: (accessor) => {
 		return saveAll(true, accessor.get(IWorkbenchEditorService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService));
 	}
 });
 
 CommandsRegistry.registerCommand({
 	id: SAVE_ALL_IN_GROUP_COMMAND_ID,
-	handler: (accessor, args: IEditorContext) => {
+	handler: (accessor, resource: URI, editorContext: IEditorContext) => {
 		let saveAllArg: any;
-		if (!args) {
+		if (!editorContext) {
 			saveAllArg = true;
 		} else {
 			const fileService = accessor.get(IFileService);
-			const editorGroup = args.group;
+			const editorGroup = editorContext.group;
 			saveAllArg = [];
 			editorGroup.getEditors().forEach(editor => {
 				const resource = toResource(editor, { supportSideBySide: true });
@@ -551,7 +543,7 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: SAVE_FILES_COMMAND_ID,
-	handler: (accessor, args: IEditorContext) => {
+	handler: (accessor) => {
 		return saveAll(false, accessor.get(IWorkbenchEditorService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService));
 	}
 });

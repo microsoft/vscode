@@ -789,7 +789,6 @@ export interface IEditorIdentifier {
 
 export interface IEditorContext extends IEditorIdentifier {
 	event?: any;
-	resource?: URI;
 }
 
 export interface IEditorCloseEvent extends IEditorIdentifier {

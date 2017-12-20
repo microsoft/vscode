@@ -424,7 +424,7 @@ export class FileController extends DefaultController {
 			getAnchor: () => anchor,
 			getActions: () => {
 				const actions = [];
-				fillInActions(this.contributedContextMenu, stat instanceof FileStat ? { arg: stat.resource } : null, actions);
+				fillInActions(this.contributedContextMenu, { arg: stat instanceof FileStat ? stat.resource : undefined, shouldForwardArgs: true }, actions);
 				return TPromise.as(actions);
 			},
 			getActionsContext: (event) => {

@@ -17,7 +17,7 @@ import uri from 'vs/base/common/uri';
 import { ITerminalService } from 'vs/workbench/parts/execution/common/execution';
 import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { toResource, IEditorContext } from 'vs/workbench/common/editor';
+import { toResource } from 'vs/workbench/common/editor';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ITerminalService as IIntegratedTerminalService, KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED } from 'vs/workbench/parts/terminal/common/terminal';
@@ -121,7 +121,7 @@ const OPEN_CONSOLE_COMMAND_ID = 'workbench.command.terminal.openNativeConsole';
 
 CommandsRegistry.registerCommand({
 	id: OPEN_CONSOLE_COMMAND_ID,
-	handler: (accessor, args: IEditorContext) => {
+	handler: (accessor, resource: uri) => {
 		const configurationService = accessor.get(IConfigurationService);
 		const historyService = accessor.get(IHistoryService);
 		const editorService = accessor.get(IWorkbenchEditorService);
@@ -129,7 +129,7 @@ CommandsRegistry.registerCommand({
 
 		// Try workspace path first
 		const root = historyService.getLastActiveWorkspaceRoot('file');
-		pathToOpen = args.resource ? args.resource.fsPath : (root && root.fsPath);
+		pathToOpen = resource ? resource.fsPath : (root && root.fsPath);
 
 		// Otherwise check if we have an active file open
 		if (!pathToOpen) {
