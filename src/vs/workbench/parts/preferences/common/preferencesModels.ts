@@ -659,8 +659,6 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 	}
 
 	private renderGroup(group: ISettingsGroup, startLine: number, filteredMatches: IFilterMatch[]): IRange[] {
-		// this.clearRange(range);
-
 		const builder = new SettingsContentBuilder(startLine - 1);
 		builder.pushLine(',');
 		builder.pushGroups([group]);
@@ -668,18 +666,20 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 
 		// builder has rewritten settings ranges
 		// fix match ranges
-		const fixedMatches = flatten(filteredMatches.map(m => m.matches)
-			.map((settingMatches, i) => {
-				const setting = group.sections[0].settings[i];
-				return settingMatches.map(range => {
-					// range.startLineNumber += setting.range.startLineNumber;
-					return new Range(
-						range.startLineNumber + setting.range.startLineNumber,
-						range.startColumn,
-						range.endLineNumber + setting.range.startLineNumber,
-						range.endColumn);
-				});
-			}));
+		const fixedMatches = flatten(
+			filteredMatches
+				.map(m => m.matches || [])
+				.map((settingMatches, i) => {
+					const setting = group.sections[0].settings[i];
+					return settingMatches.map(range => {
+						// range.startLineNumber += setting.range.startLineNumber;
+						return new Range(
+							range.startLineNumber + setting.range.startLineNumber,
+							range.startColumn,
+							range.endLineNumber + setting.range.startLineNumber,
+							range.endColumn);
+					});
+				}));
 
 		// note: 1-indexed line numbers here
 		const groupContent = builder.getContent(DefaultSettingsEditorModel.GROUP_SIZE + 1); // + 1 for trailing newline

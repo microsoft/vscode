@@ -782,6 +782,18 @@ export class FilteredMatchesRenderer extends Disposable implements HiddenAreasPr
 				endLineNumber: allSettingsGroups[allSettingsGroups.length - 1].range.endLineNumber + 2,
 				endColumn: 1
 			});
+
+			// Hide empty groups entirely
+			filteredGroups.forEach(group => {
+				if (!group.sections[0].settings.length) {
+					notMatchesRanges.push({
+						startLineNumber: group.range.startLineNumber - 2,
+						startColumn: 1,
+						endLineNumber: group.range.endLineNumber + 2,
+						endColumn: 1
+					});
+				}
+			});
 		} else {
 			notMatchesRanges.push({
 				startLineNumber: allSettingsGroups[allSettingsGroups.length - 1].range.endLineNumber,
