@@ -82,11 +82,6 @@ export interface IOutputService {
 	showChannel(id: string, preserveFocus?: boolean): TPromise<void>;
 
 	/**
-	 * Show the channel with the give id in editor
-	 */
-	showChannelInEditor(id: string): TPromise<void>;
-
-	/**
 	 * Allows to register on active output channel change.
 	 */
 	onActiveOutputChannel: Event<string>;

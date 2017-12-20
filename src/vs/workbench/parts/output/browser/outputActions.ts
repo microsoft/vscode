@@ -53,23 +53,6 @@ export class ClearOutputAction extends Action {
 	}
 }
 
-export class OpenInLogViewerAction extends Action {
-
-	public static readonly ID = 'workbench.output.action.openInLogViewer';
-	public static readonly LABEL = nls.localize('openInLogViewer', "Open in Log Viewer");
-
-	constructor(
-		id: string, label: string,
-		@IOutputService private outputService: IOutputService
-	) {
-		super(id, label, 'output-action open-log-viewer');
-	}
-
-	public run(): TPromise<any> {
-		return this.outputService.showChannelInEditor(this.outputService.getActiveChannel().id);
-	}
-}
-
 export class ToggleOutputScrollLockAction extends Action {
 
 	public static readonly ID = 'workbench.output.action.toggleOutputScrollLock';

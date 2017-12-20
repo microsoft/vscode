@@ -15,7 +15,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorOptions } from 'vs/workbench/common/editor';
-import { IOutputChannelIdentifier, IOutputChannel, IOutputService, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry, OUTPUT_SCHEME, OUTPUT_MIME, MAX_OUTPUT_LENGTH, LOG_SCHEME, COMMAND_OPEN_LOG_VIEWER } from 'vs/workbench/parts/output/common/output';
+import { IOutputChannelIdentifier, IOutputChannel, IOutputService, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry, OUTPUT_SCHEME, OUTPUT_MIME, MAX_OUTPUT_LENGTH, LOG_SCHEME } from 'vs/workbench/parts/output/common/output';
 import { OutputPanel } from 'vs/workbench/parts/output/browser/outputPanel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -37,9 +37,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ILogService } from 'vs/platform/log/common/log';
 import { binarySearch } from 'vs/base/common/arrays';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
 import { Schemas } from 'vs/base/common/network';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
@@ -377,9 +375,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IWindowService windowService: IWindowService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@ILogService private logService: ILogService,
-		@IMessageService private messageService: IMessageService,
-		@ICommandService private commandService: ICommandService
+		@ILogService private logService: ILogService
 	) {
 		super();
 		const channels = this.getChannels();
@@ -418,15 +414,6 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 			promise = this.panelService.openPanel(OUTPUT_PANEL_ID) as TPromise;
 		}
 		return promise.then(() => this._onActiveOutputChannel.fire(id));
-	}
-
-	showChannelInEditor(channelId: string): TPromise<void> {
-		const channel = <OutputChannel>this.getChannel(channelId);
-		if (channel.file) {
-			return this.commandService.executeCommand(COMMAND_OPEN_LOG_VIEWER, channel.file);
-		}
-		this.messageService.show(Severity.Info, nls.localize('noFile', "There is no file associated to this channel"));
-		return TPromise.as(null);
 	}
 
 	getChannel(id: string): IOutputChannel {

@@ -12,15 +12,6 @@
 	background: url('clear_output_inverse.svg') center center no-repeat;
 }
 
-.monaco-workbench .output-action.open-log-viewer {
-	background: url('open_log.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .output-action.open-log-viewer,
-.hc-black .monaco-workbench .output-action.open-log-viewer {
-	background: url('open_file_inverse.svg') center center no-repeat;
-}
-
 .monaco-workbench .output-action.output-scroll-lock {
 	background: url('output_lock.svg') center center no-repeat;
 }
