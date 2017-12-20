@@ -10,7 +10,6 @@ import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Widget } from 'vs/base/browser/ui/widget';
-import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import Event, { Emitter } from 'vs/base/common/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -23,7 +22,7 @@ import { ISettingsGroup } from 'vs/workbench/parts/preferences/common/preference
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IAction, Action } from 'vs/base/common/actions';
-import { attachInputBoxStyler, attachStylerCallback, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
@@ -33,7 +32,6 @@ import { Separator, ActionBar, ActionsOrientation, BaseActionItem } from 'vs/bas
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
-import { render as renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_INACTIVE_TITLE_FOREGROUND } from 'vs/workbench/common/theme';
 
 export class SettingsHeaderWidget extends Widget implements IViewZone {
@@ -533,7 +531,6 @@ export class SettingsTargetsWidget extends Widget {
 
 export interface SearchOptions extends IInputOptions {
 	focusKey?: IContextKey<boolean>;
-	showFuzzyToggle?: boolean;
 	showResultCount?: boolean;
 }
 
@@ -544,7 +541,6 @@ export class SearchWidget extends Widget {
 	private countElement: HTMLElement;
 	private searchContainer: HTMLElement;
 	private inputBox: InputBox;
-	private fuzzyToggle: Checkbox;
 	private controlsDiv: HTMLElement;
 
 	private _onDidChange: Emitter<string> = this._register(new Emitter<string>());
@@ -562,32 +558,10 @@ export class SearchWidget extends Widget {
 		this.create(parent);
 	}
 
-	public get fuzzyEnabled(): boolean {
-		return this.fuzzyToggle.checked && this.fuzzyToggle.enabled;
-	}
-
-	public set fuzzyEnabled(value: boolean) {
-		this.fuzzyToggle.checked = value;
-	}
-
 	private create(parent: HTMLElement) {
 		this.domNode = DOM.append(parent, DOM.$('div.settings-header-widget'));
 		this.createSearchContainer(DOM.append(this.domNode, DOM.$('div.settings-search-container')));
 		this.controlsDiv = DOM.append(this.domNode, DOM.$('div.settings-search-controls'));
-		if (this.options.showFuzzyToggle) {
-			this.fuzzyToggle = this._register(new Checkbox({
-				actionClassName: 'prefs-natural-language-search-toggle',
-				isChecked: false,
-				onChange: () => {
-					this.inputBox.focus();
-					this._onDidChange.fire();
-				},
-				title: localize('enableFuzzySearch', 'Enable natural language search')
-			}));
-			this.fuzzyToggle.domNode.innerHTML = renderOcticons('$(light-bulb)');
-			DOM.append(this.controlsDiv, this.fuzzyToggle.domNode);
-			this._register(attachCheckboxStyler(this.fuzzyToggle, this.themeService));
-		}
 
 		if (this.options.showResultCount) {
 			this.countElement = DOM.append(this.controlsDiv, DOM.$('.settings-count-widget'));
@@ -639,16 +613,6 @@ export class SearchWidget extends Widget {
 		}
 	}
 
-	public setFuzzyToggleVisible(visible: boolean): void {
-		if (visible) {
-			this.fuzzyToggle.domNode.classList.remove('hidden');
-			this.fuzzyToggle.enable();
-		} else {
-			this.fuzzyToggle.domNode.classList.add('hidden');
-			this.fuzzyToggle.disable();
-		}
-	}
-
 	private styleCountElementForeground() {
 		const colorId = DOM.hasClass(this.countElement, 'no-results') ? errorForeground : badgeForeground;
 		const color = this.themeService.getTheme().getColor(colorId);
@@ -673,8 +637,7 @@ export class SearchWidget extends Widget {
 
 	private getControlsWidth(): number {
 		const countWidth = this.countElement ? DOM.getTotalWidth(this.countElement) : 0;
-		const fuzzyToggleWidth = this.fuzzyToggle ? DOM.getTotalWidth(this.fuzzyToggle.domNode) : 0;
-		return countWidth + fuzzyToggleWidth + 20;
+		return countWidth + 20;
 	}
 
 	public focus() {

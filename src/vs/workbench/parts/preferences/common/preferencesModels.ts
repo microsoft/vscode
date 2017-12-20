@@ -672,7 +672,6 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 				.map((settingMatches, i) => {
 					const setting = group.sections[0].settings[i];
 					return settingMatches.map(range => {
-						// range.startLineNumber += setting.range.startLineNumber;
 						return new Range(
 							range.startLineNumber + setting.range.startLineNumber,
 							range.startColumn,
